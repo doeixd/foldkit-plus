@@ -1,7 +1,8 @@
 /**
  * The list, the add form, and the rename editor. The list view is Crud's:
- * "Loading…" until the first page, the previous rows while a refresh is in
- * flight. A write's "Saving…" is Remote's pending mutations.
+ * "Loading…" until the first page, the stored rows on a later visit, and
+ * those rows again while a refetch is in flight. A write's "Saving…" is
+ * Remote's pending mutations.
  *
  * Every indicator keeps its line from the first paint. `Loading.shown` leaves
  * the words invisible until the wait has lasted, so a fast answer never
@@ -124,7 +125,7 @@ const rows = (model: Model, h: HtmlBuilder<Message>): Html =>
   TodoRows(
     {
       // A prepended row is membership, not a place. This is the query's order,
-      // so the refresh does not move it.
+      // so a live insert does not move it.
       page: orderedPage(Todos.page(model)),
       onMore: Message.RequestedMoreTodos(),
       onRetry: Message.RetriedTodos(),
@@ -165,7 +166,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
       h.p(
         [h.Class('lede')],
         [
-          'An edit shows at once. A slow save says Saving… without moving the list. Another tab sees it on the next refresh.',
+          'An edit shows at once. A slow save says Saving… without moving the list. Another tab sees it on the live stream.',
         ],
       ),
       h.label(

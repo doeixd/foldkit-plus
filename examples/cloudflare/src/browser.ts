@@ -5,7 +5,7 @@
  */
 import * as Runtime from 'foldkit/runtime'
 import { Remote } from 'foldkit-remote'
-import { ACTOR_KEY, initial, Model, placements, subscriptions, update } from './app.js'
+import { ACTOR_KEY, applyCache, initial, Model, placements, subscriptions, update } from './app.js'
 import { view } from './view.js'
 
 const container = document.getElementById('app')
@@ -20,7 +20,7 @@ Runtime.run(
     placements.runtime({
       Model,
       container,
-      initial: () => ({ model: initial(actor) }),
+      initial: () => ({ model: applyCache(initial(actor)) }),
       update,
       view,
       subscriptions,

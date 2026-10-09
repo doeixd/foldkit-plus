@@ -13,6 +13,9 @@ export const AllTodos = Query.make('AllTodos', {
   Result: Query.connection(Todo),
 })
 
+/** The page and the live list watch share this window, so neither can drift. */
+export const TODO_PAGE_SIZE = 100
+
 const title = Todo.fields.title.schema
 const done = Todo.fields.done.schema
 

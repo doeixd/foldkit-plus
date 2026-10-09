@@ -40,20 +40,49 @@ export const queryTodos = (
  * The first live change of some requirements, collected: start this before the
  * change lands, and collect it while the stream is open.
  */
-export const firstChange = (
+const liveEvents = (
   client: RemoteRpcClient,
   requirements: ReadonlyArray<{ entity: string; id: string; fields: ReadonlyArray<string> }>,
 ) =>
-  client
-    .FoldkitRemoteLive({
-      version: REMOTE_PROTOCOL_VERSION,
-      requirements: requirements.map(requirement => ({
-        ...requirement,
-        fields: [...requirement.fields],
-      })),
-      after: 0,
-    })
-    .pipe(Stream.take(1), Stream.runCollect)
+  client.FoldkitRemoteLive({
+    version: REMOTE_PROTOCOL_VERSION,
+    requirements: requirements.map(requirement => ({
+      ...requirement,
+      fields: [...requirement.fields],
+    })),
+    after: 0,
+  })
+
+/** The first live change of some requirements. Start it before the change lands. */
+export const firstChange = (
+  client: RemoteRpcClient,
+  requirements: ReadonlyArray<{ entity: string; id: string; fields: ReadonlyArray<string> }>,
+) => liveEvents(client, requirements).pipe(Stream.take(1), Stream.runCollect)
+
+const aboutId = (
+  event: { readonly _tag: string; readonly id?: string; readonly edge?: { readonly id: string } },
+  id: string,
+): boolean => {
+  if (event._tag === 'EntityPatched' || event._tag === 'EntityDeleted') return event.id === id
+  if (event._tag === 'ConnectionInsert' || event._tag === 'ConnectionRemove')
+    return event.edge?.id === id
+  return false
+}
+
+/**
+ * The next `count` live changes, optionally only those that name `id`.
+ * `firstChange` stays the one-event form the existing tests collect.
+ */
+export const takeChanges = (
+  client: RemoteRpcClient,
+  requirements: ReadonlyArray<{ entity: string; id: string; fields: ReadonlyArray<string> }>,
+  count: number,
+  id?: string,
+) => {
+  const events = liveEvents(client, requirements)
+  const chosen = id === undefined ? events : events.pipe(Stream.filter(event => aboutId(event, id)))
+  return chosen.pipe(Stream.take(count), Stream.runCollect)
+}
 
 export interface ClientSocket {
   addEventListener(type: string, listener: (event: { data?: unknown }) => void): void

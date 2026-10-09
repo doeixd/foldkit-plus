@@ -11,6 +11,7 @@ import {
   exchange,
   firstChange,
   pause,
+  takeChanges,
   queryTodos,
   readTodo,
   remoteClient,
@@ -18,6 +19,7 @@ import {
   upgradeSync,
   type ClientSocket,
 } from '../src/client.js'
+import { AllTodos } from '../src/operations.js'
 import { startStack, type CloudflareStack } from '../src/stack.js'
 
 let stack: CloudflareStack
@@ -33,6 +35,15 @@ const firstWithin = (
 ): Promise<unknown> =>
   Promise.race([
     Effect.runPromise(Fiber.join(fiber)).then(changes => changes[0]),
+    new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+  ])
+
+const changesWithin = (
+  fiber: Fiber.Fiber<Iterable<unknown>, unknown>,
+  ms = 5000,
+): Promise<ReadonlyArray<unknown> | null> =>
+  Promise.race([
+    Effect.runPromise(Fiber.join(fiber)).then(changes => Array.from(changes)),
     new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
   ])
 
@@ -187,6 +198,81 @@ describe('cloudflare example', () => {
     expect(await queryTodos(remote, { first: 50 })).not.toContain('t-crud')
     const left = await stack.db.prepare('SELECT id FROM todos WHERE id = ?').bind('t-crud').all()
     expect(left.results).toEqual([])
+  }, 120_000)
+
+  it('announces a row that joined or left the list', async () => {
+    const remote = remoteClient(`${stack.origin}/remote`, 'ada', fetch)
+    const writer = await upgradeSync(stack.mf, 'ada')
+    expect(writer.status).toBe(101)
+    expect(writer.socket).not.toBeNull()
+    sockets.push(writer.socket!)
+    const anchor = 't-live-a'
+    const joined = 't-live-b'
+    try {
+      const created = await exchange(writer.socket!, {
+        id: '1',
+        cursor: 0,
+        pending: [syncOp('live-member', 1, { _tag: 'CreatedTodo', id: anchor, title: 'Anchor' })],
+      })
+      expect(created.error).toBeUndefined()
+      const watching = Effect.runFork(
+        takeChanges(remote, [{ entity: 'Todo', id: anchor, fields: ['title'] }], 2, joined),
+      )
+      await pause(300)
+      const added = await exchange(writer.socket!, {
+        id: '2',
+        cursor: 0,
+        pending: [syncOp('live-member', 2, { _tag: 'CreatedTodo', id: joined, title: 'Joined' })],
+      })
+      expect(added.error).toBeUndefined()
+      const joinedEvents = await changesWithin(watching)
+      expect(joinedEvents).toEqual([
+        {
+          _tag: 'EntityPatched',
+          cursor: expect.any(Number),
+          entity: 'Todo',
+          id: joined,
+          values: { id: joined, title: 'Joined', done: 0 },
+          changed: ['id', 'title', 'done'],
+        },
+        {
+          _tag: 'ConnectionInsert',
+          cursor: expect.any(Number),
+          connection: AllTodos.ref({}).identity,
+          position: 'prepend',
+          edge: { entity: 'Todo', id: joined, key: `Todo:${joined}` },
+        },
+      ])
+
+      const removing = Effect.runFork(
+        takeChanges(remote, [{ entity: 'Todo', id: anchor, fields: ['title'] }], 2, joined),
+      )
+      await pause(300)
+      const removed = await exchange(writer.socket!, {
+        id: '3',
+        cursor: 0,
+        pending: [syncOp('live-member', 3, { _tag: 'DeletedTodo', id: joined })],
+      })
+      expect(removed.error).toBeUndefined()
+      const leftEvents = await changesWithin(removing)
+      expect(leftEvents).toEqual([
+        {
+          _tag: 'EntityDeleted',
+          cursor: expect.any(Number),
+          entity: 'Todo',
+          id: joined,
+        },
+        {
+          _tag: 'ConnectionRemove',
+          cursor: expect.any(Number),
+          connection: AllTodos.ref({}).identity,
+          edge: { entity: 'Todo', id: joined, key: `Todo:${joined}` },
+        },
+      ])
+    } finally {
+      await stack.db.prepare('DELETE FROM todos WHERE id = ?').bind(anchor).run()
+      await stack.db.prepare('DELETE FROM todos WHERE id = ?').bind(joined).run()
+    }
   }, 120_000)
 
   it('answers a non-upgrade without opening anything', async () => {

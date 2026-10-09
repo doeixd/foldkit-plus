@@ -10,11 +10,12 @@ version changed; `pnpm` skips versions already in the registry.
 ### Changed
 
 - **`examples/cloudflare` page:** the Pages site is a Foldkit app. The list is
-  `Crud.list` over the `AllTodos` query, and its first paint is "Loading…".
+  `Crud.list` over the `AllTodos` query. The first visit says "Loading…". A
+  later visit paints the rows stored in the browser at once and asks again.
   Add, rename, toggle, and delete are Remote mutations; `Data.mutate` applies
-  the optimistic patch before the POST returns. Another tab sees the row when
-  its query refreshes, about once a second. Sync through the Durable Object
-  stays for the demo and the tests; both writers use the same `todos` table.
+  the optimistic patch before the POST returns. Another tab hears the change
+  on the live stream. Sync through the Durable Object stays for the demo and
+  the tests; both writers use the same `todos` table.
 
 ### Fixed
 
@@ -31,7 +32,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **`examples/cloudflare` page:** a new or renamed row is drawn where the
   title order will keep it. The list sorts by title, then id, which is what
-  `AllTodos` asks D1 for, so the refresh does not move it.
+  `AllTodos` asks D1 for, so a live insert does not move it.
+
+- **`examples/cloudflare` page:** the list is kept in the browser, one snapshot
+  per actor. A later visit paints those rows immediately. A failed refetch,
+  including offline, leaves them. The snapshot is the server's rows. An unsent
+  edit is not kept.
+
+- **`examples/cloudflare` page:** an update no longer refetches the list. The
+  one-second refresh, and the refresh after a successful write, flashed the
+  rows. The page subscribes to the live stream. A field change is a patch. A
+  row joining or leaving is a connection event.
 
 - **`examples/cloudflare` page:** saving, loading, and a field error keep the
   space they will occupy. "Saving…" and "Loading…" use `Loading.shown`, so a

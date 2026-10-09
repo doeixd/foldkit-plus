@@ -54,13 +54,20 @@ write path (`hub.changed(...)` in `settle`) reaches nobody on a Worker.
 What does cross requests is D1. So `TodoLive` is a `LiveSource` that polls D1
 **from inside the subscriber's own request**, re-reading each subscribed row
 through the entity's own source under the subscriber's principal, and emitting
-a patch for what moved:
+a patch for what moved. It also re-reads the `AllTodos` window, so an id that
+joins or leaves is a connection event. The page subscribes to that stream
+(`Remote.httpWithLive`) on one stable id, not on every row, so a local edit
+does not restart it.
+
+Schematic. `makeServer` passes the list watch as the third argument: its
+`identity` is `AllTodos`, its `watchId` is the page's stable id, and `edges`
+runs that query for the subscriber's principal.
 
 ```ts
 server = RemoteServer.make({
   entities: [TodoSource],
   queries: [AllTodosSource],
-  live: [pollLive(TodoSource)],
+  live: [pollLive(TodoSource, '250 millis', { identity, watchId, edges })],
 })
 ```
 
@@ -69,10 +76,12 @@ A server process that owns both sides (Node, a long-lived VM) can use
 rather show what deploys.
 
 The cost of polling is a read per interval per subscription, so the interval is
-a knob (`'250 millis'` here) and the fields are only the ones the subscriber
-selected. `settle` stays unconditional and crash-safe: `journal.recover` makes
+a knob (`'250 millis'` here). The subscribed fields are the ones the subscriber
+selected, and the list watch reads `id`, `title`, and `done` for the page's
+window. `settle` stays unconditional and crash-safe: `journal.recover` makes
 applying an operation twice a no-op, and the settled cursor persists in
-`durable_meta`, so a restarted settle resumes rather than reapplies.
+`durable_meta`, so a restarted settle resumes rather than reapplies. The worker
+still re-reads D1. Nothing here pushes across requests.
 
 ## Sixty seconds of the loop
 
@@ -118,16 +127,16 @@ two routes. `src/client.ts` drives the wire for the test and the demo;
   patch. A new row joins the `AllTodos` connection, and a delete removes its
   edge. That paint is the same update as the click. The list draws by title,
   then id, the order the query asks for, so a new or renamed row is already
-  where the refresh will leave it. The "Saving…" line above the form is
-  reserved the whole time, and its words use the same delay, so a fast save
-  neither flashes nor moves the list.
-- When the mutation succeeds, the list refreshes onto the rows the server
-  stored.
-- Another tab sees the change when its query refreshes, about once a second.
-  The query is not a live subscription. A worker cannot push a new row into
-  another request's stream, and `pollLive` only patches rows a live
-  subscription already holds. The demo's client is that live path; the page
-  is the query.
+  where it will stay. The "Saving…" line above the form is reserved the whole
+  time, and its words use the same delay, so a fast save neither flashes nor
+  moves the list.
+- The answer to a write is the row. The list is not asked again.
+- The list is stored in the browser, one snapshot per actor. The next visit
+  paints those rows at once and asks again. A failed ask, including offline,
+  leaves them. An unsent write is not stored.
+- Another tab sees a field change as a live patch, and a row joining or
+  leaving as a connection event. The page does not ask on a clock. The stream
+  is SSE. Inside that request the worker still re-reads D1.
 
 Create is idempotent (`ON CONFLICT DO NOTHING`). Toggle writes the stored
 `done`, so sending it twice leaves the row as it is. The page does not open

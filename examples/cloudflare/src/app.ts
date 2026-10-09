@@ -1,26 +1,34 @@
 /**
  * The page: a Remote list of todos, a form to add one, and an editor to
  * rename one. Writes are Remote mutations. Each one paints before the request
- * returns (`Data.mutate`'s optimistic layers). The list's own view says
- * "Loading…" until the first page arrives.
+ * returns (`Data.mutate`'s optimistic layers). The first visit says
+ * "Loading…" until the page arrives. A later visit paints the rows stored
+ * for this actor, then asks again.
  *
  * Sync still owns the Durable Object journal. This page does not speak it.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { Crud } from 'foldkit-crud'
 import { Style } from 'foldkit-mixins'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
-import { ticks } from 'foldkit-primitives/time'
-import { ConnectionChange, Remote, type RemoteClient } from 'foldkit-remote'
+import { ConnectionChange, Remote, RemotePersistence, type RemoteClient } from 'foldkit-remote'
 import * as Subscription from 'foldkit/subscription'
 import { modifyFields } from 'foldkit/struct'
-import { Surface } from 'foldkit-surface'
+import { Surface, type Projection } from 'foldkit-surface'
+import { LIST_WATCH, cacheKey, snapshotText } from './cache.js'
 import { Todo, TodoRow } from './domain.js'
 import { AddTodoForm, RenameTodoForm } from './forms.js'
-import { AllTodos, CreateTodo, DeleteTodo, RenameTodo, ToggleTodo } from './operations.js'
+import {
+  AllTodos,
+  CreateTodo,
+  DeleteTodo,
+  RenameTodo,
+  TODO_PAGE_SIZE,
+  ToggleTodo,
+} from './operations.js'
 
 const field = Style.attach(
   Style.forSlots(FieldSlots)({
@@ -63,7 +71,6 @@ const Base = Bundle.compose({
     RequestedMoreTodos: {},
     RetriedTodos: {},
     CompletedFocusTodos: {},
-    Ticked: {},
     DismissedNotice: {},
     ActorEdited: { name: Schema.String },
     ActorCommitted: {},
@@ -86,7 +93,11 @@ export const Data = Remote.make({
   mutations: [CreateTodo, RenameTodo, ToggleTodo, DeleteTodo],
 })
 
-const Listed = Crud.list('Todos', { query: AllTodos, selection: TodoRow, pageSize: 100 })
+const Listed = Crud.list('Todos', {
+  query: AllTodos,
+  selection: TodoRow,
+  pageSize: TODO_PAGE_SIZE,
+})
 export type TodoItem = typeof Listed.Row
 export const Todos = Listed.at({
   data: Data,
@@ -95,13 +106,29 @@ export const Todos = Listed.at({
 
 export const Rename = Editor.at({ data: Data, model: App.model.rename })
 
-const remoteWiring = Data.wiring(Crud.actives({ todos: Todos, editor: Rename }))
+/**
+ * One stable row the live stream subscribes to. The id is not a todo, and the
+ * requirements do not follow the list, so a local edit does not restart the
+ * stream. A restart that invalidated the list was the blink. The worker diffs
+ * the list inside that one request.
+ */
+const sentinel: Projection<Model, unknown> = {
+  Model: Schema.Unknown,
+  dependencies: [],
+  metadata: Data.live(TodoRow, LIST_WATCH).metadata,
+  read: () => undefined,
+}
+const LiveRows = Data.active('TodoLive', () => Option.some(sentinel))
+
+const remoteWiring = Data.wiring({
+  ...Crud.actives({ todos: Todos, editor: Rename }),
+  live: LiveRows,
+})
 
 /**
  * Remote's wiring reduces its own Messages, so the page's `update` never sees
- * them. A successful write is asked for again, and a failure keeps the
- * server's words. The list is already drawn in the query's order, so the
- * refresh does not move a row. Pending overlays stay through it.
+ * them. A successful write's patches are the row. Asking for the list again
+ * marked it busy, and that was the blink. A failure keeps the server's words.
  */
 const routeRemote = (model: Model, message: Message) => {
   if (!Remote.reduces(message)) return Option.none()
@@ -113,7 +140,7 @@ const routeRemote = (model: Model, message: Message) => {
     case 'MutationSucceeded':
       return Option.some({
         ...reduced.value,
-        model: Todos.refresh(modifyFields(reduced.value.model, { notice: () => Option.none() })),
+        model: modifyFields(reduced.value.model, { notice: () => Option.none() }),
       })
     case 'MutationFailed':
       return Option.some({
@@ -241,8 +268,6 @@ export const update = Rename.after(
         return { model: Option.getOrElse(Todos.more(model), () => model) }
       case 'RetriedTodos':
         return { model: Todos.refresh(model), commands: [FocusTodos()] }
-      case 'Ticked':
-        return { model: Todos.refresh(model) }
       case 'DismissedNotice':
         return { model: modifyFields(model, { notice: () => Option.none() }) }
       case 'ActorEdited':
@@ -253,8 +278,11 @@ export const update = Rename.after(
           return { model: modifyFields(model, { actorDraft: () => actor }) }
         }
         sessionStorage.setItem(ACTOR_KEY, actor)
+        // The other actor's stored rows, when this browser has them. The
+        // restored connection is already stale, so the page asks again without
+        // a second refresh. Saving the empty store first would wipe that cache.
         return {
-          model: Todos.refresh(
+          model: applyCache(
             Data.forget(
               modifyFields(model, {
                 actor: () => actor,
@@ -272,15 +300,29 @@ export const update = Rename.after(
 )
 
 /**
- * The other tab's new rows. A query subscription is not live, and the worker
- * can only patch ids that this request already subscribed to, so the list
- * asks again on a clock. The first tick is one interval after start.
+ * The stored list. The text is the snapshot, so the same rows are not written
+ * again. The stream emits nothing: saving is not a Message, and a stream that
+ * ends waits until the text changes.
  */
 export const subscriptions = Subscription.make<Model, Message>()(() => ({
-  refresh: ticks({
-    intervalMs: () => Option.some(1000),
-    onTick: () => Message.Ticked(),
-  }),
+  cache: {
+    dependenciesSchema: Schema.Struct({ actor: Schema.String, text: Schema.String }),
+    modelToDependencies: (model: Model) => ({
+      actor: model.actor,
+      text: snapshotText(model.remote, model.actor),
+    }),
+    dependenciesToStream: ({ actor, text }: { readonly actor: string; readonly text: string }) =>
+      Stream.unwrap(
+        Effect.sync(() => {
+          try {
+            if (typeof localStorage !== 'undefined') localStorage.setItem(cacheKey(actor), text)
+          } catch {
+            // The quota is full. The previous snapshot stays. The next change tries again.
+          }
+          return Stream.empty
+        }),
+      ),
+  },
 }))
 
 export const initial = (actor: string): Model =>
@@ -290,3 +332,40 @@ export const initial = (actor: string): Model =>
     actor,
     actorDraft: actor,
   }).model
+
+/**
+ * The stored rows for this actor, or `model` itself when there is nothing to
+ * restore. The same reference is how a caller tells a refused snapshot from
+ * an empty one: a snapshot that hydrates always reduces to a new Model.
+ */
+export const modelFromCache = (model: Model, raw: string | null): Model => {
+  const snapshot = RemotePersistence.hydrate(raw, { scope: model.actor })
+  if (snapshot === undefined) return model
+  return Data.reduce(model, {
+    _tag: 'Hydrated',
+    entities: snapshot.entities,
+    connections: snapshot.connections,
+    merge: 'replace',
+  })
+}
+
+/** Paints `modelFromCache` at boot and when the actor changes. A refused snapshot is removed. */
+export const applyCache = (model: Model): Model => {
+  if (typeof localStorage === 'undefined') return model
+  const key = cacheKey(model.actor)
+  let raw: string | null
+  try {
+    raw = localStorage.getItem(key)
+  } catch {
+    return model
+  }
+  const next = modelFromCache(model, raw)
+  if (raw !== null && next === model) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // The bad snapshot stays until a later visit can remove it.
+    }
+  }
+  return next
+}

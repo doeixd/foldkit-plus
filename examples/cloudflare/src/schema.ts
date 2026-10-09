@@ -17,7 +17,8 @@
  *   request, because a worker cannot wake another request's stream. An
  *   in-memory hub push reaches no one once the publisher is a different
  *   request — in production not even the same isolate — so what crosses
- *   requests here is D1, and each live stream re-reads it.
+ *   requests here is D1, and each live stream re-reads it. A field change is
+ *   a patch. The list's own ids are diffed too, so a row can join or leave.
  */
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
@@ -36,7 +37,7 @@ import {
   opId,
 } from 'foldkit-durable/core'
 import type { Journal as JournalShape } from 'foldkit-durable/core'
-import { Remote } from 'foldkit-remote'
+import { Remote, entityKey, type LiveChange } from 'foldkit-remote'
 import {
   bind,
   databaseLayer,
@@ -46,11 +47,20 @@ import {
   source,
   DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
 import type { EntitySource, LiveSource } from 'foldkit-remote-server'
 import { Sync, documentId, type Operation, type Sync as SyncContract } from 'foldkit-sync'
+import { LIST_WATCH } from './cache.js'
 import { Domain } from './domain.js'
-import { AllTodos, CreateTodo, DeleteTodo, RenameTodo, ToggleTodo } from './operations.js'
+import { membershipChange } from './live.js'
+import {
+  AllTodos,
+  CreateTodo,
+  DeleteTodo,
+  RenameTodo,
+  TODO_PAGE_SIZE,
+  ToggleTodo,
+} from './operations.js'
 
 export const todos = sqliteTable('todos', {
   id: text('id').primaryKey(),
@@ -187,6 +197,44 @@ const applyTodo = (db: D1Database, operation: Operation): Effect.Effect<void, un
     })
   })
 
+type LivePatch = Schema.Schema.Type<typeof LiveChange>
+
+/** The columns the list paints. A membership diff compares these, not relations. */
+const LIST_FIELDS = ['id', 'title', 'done'] as const
+
+interface ListedEdge {
+  readonly entity: string
+  readonly id: string
+  readonly key: string
+}
+
+/**
+ * The list the page's stream diffs, besides the rows it subscribed to. The
+ * page watches one stable id, so this is how a row it has never seen can join.
+ */
+interface ListWatch {
+  readonly identity: string
+  readonly watchId: string
+  readonly edges: (
+    principal: string,
+  ) => Effect.Effect<ReadonlyArray<ListedEdge>, RemoteServerError, DrizzleDatabase>
+}
+
+/** A failed list read is a skipped tick, not a dead stream. */
+const orSkip = <A, R>(effect: Effect.Effect<A, RemoteServerError, R>) =>
+  effect.pipe(
+    Effect.catchTag('RemoteServerError', () => Effect.succeed(undefined as A | undefined)),
+  )
+
+const picked = (
+  values: Readonly<Record<string, unknown>>,
+  fields: ReadonlyArray<string>,
+): Record<string, unknown> => {
+  const out: Record<string, unknown> = Object.create(null)
+  for (const field of fields) out[field] = values[field]
+  return out
+}
+
 /**
  * A live source that polls D1 from inside the subscriber's own request.
  * Each tick re-reads every subscribed row through the entity's own source,
@@ -195,10 +243,23 @@ const applyTodo = (db: D1Database, operation: Operation): Effect.Effect<void, un
  * whole (so a subscription opened before the row existed still sees it
  * appear), and one that was present and is gone deletes. Scalar fields
  * compare by identity; relations are out of scope for the poll.
+ *
+ * With a list watch it also re-reads that query's window. A field change on
+ * a listed row is a patch. An id that joined is a patch, then a connection
+ * insert; one that left is a delete, then a connection remove. The first
+ * read is silent. Subscribed rows are reported before the list, so a stream
+ * opened on one row still sees that row's event first.
+ *
+ * When every requirement is the watch id, the open emits one
+ * `ConnectionInvalidate` after that silent read. A query that started before
+ * the stream was watching can answer with the old page; the invalidate makes
+ * the page ask again once the stream is already open. Later ticks do not
+ * invalidate: that would mark the list busy on every change.
  */
 export const pollLive = (
   binding: EntitySource<string, DrizzleDatabase>,
   interval: Duration.Input = '250 millis',
+  list?: ListWatch,
 ): LiveSource<string, DrizzleDatabase> => ({
   entity: binding.entity,
   subscribe: ({ requirements, after, principal }) => {
@@ -209,7 +270,13 @@ export const pollLive = (
       for (const field of requirement.fields) fields.add(field)
       wanted.set(requirement.id, fields)
     }
-    if (wanted.size === 0) return Stream.never
+    if (wanted.size === 0 && list === undefined) return Stream.never
+    const onlyWatch =
+      list !== undefined &&
+      requirements.length > 0 &&
+      requirements.every(
+        requirement => requirement.entity === binding.entity && requirement.id === list.watchId,
+      )
     return Stream.unwrap(
       Effect.gen(function* () {
         const read = (id: string, fields: ReadonlyArray<string>) =>
@@ -222,61 +289,184 @@ export const pollLive = (
           const [record] = yield* read(id, [...fields])
           if (record !== undefined) previous.set(id, record.values)
         }
+        let knownIds: Set<string> | undefined
+        const rowValues = new Map<string, Readonly<Record<string, unknown>>>()
         let cursor = after
-        return Stream.fromSchedule(Schedule.spaced(interval)).pipe(
-          Stream.flatMap(() =>
-            Stream.fromIterableEffect(
-              Effect.gen(function* () {
-                const patches: Array<
-                  | {
-                      readonly _tag: 'EntityPatched'
-                      readonly entity: string
-                      readonly id: string
-                      readonly values: Record<string, unknown>
-                      readonly changed: ReadonlyArray<string>
-                      readonly cursor: number
-                    }
-                  | {
-                      readonly _tag: 'EntityDeleted'
-                      readonly entity: string
-                      readonly id: string
-                      readonly cursor: number
-                    }
-                > = []
-                for (const [rowId, fields] of wanted) {
-                  const [record] = yield* read(rowId, [...fields])
-                  const before = previous.get(rowId)
-                  if (record === undefined) {
-                    if (before !== undefined) {
-                      previous.delete(rowId)
-                      patches.push({
-                        _tag: 'EntityDeleted',
-                        entity: binding.entity,
-                        id: rowId,
-                        cursor: (cursor += 1),
-                      })
-                    }
-                    continue
-                  }
-                  const changed = [...fields].filter(
-                    field => before?.[field] !== record.values[field],
-                  )
-                  if (changed.length === 0) continue
-                  const values: Record<string, unknown> = Object.create(null)
-                  for (const field of changed) values[field] = record.values[field]
-                  previous.set(rowId, record.values)
-                  patches.push({
-                    _tag: 'EntityPatched',
-                    entity: binding.entity,
-                    id: rowId,
-                    values,
-                    changed,
-                    cursor: (cursor += 1),
-                  })
-                }
-                return patches
-              }),
-            ),
+        let invalidated = false
+
+        const loadList = Effect.gen(function* () {
+          if (list === undefined) return undefined
+          const edges = yield* orSkip(list.edges(principal))
+          if (edges === undefined) return undefined
+          const readable = new Map<string, Readonly<Record<string, unknown>>>()
+          if (edges.length === 0) return { edges, readable }
+          const records = yield* orSkip(
+            binding.read({
+              ids: edges.map(edge => edge.id),
+              fields: [...LIST_FIELDS],
+              principal,
+            }),
+          )
+          if (records === undefined) return undefined
+          for (const record of records) readable.set(record.id, record.values)
+          return { edges, readable }
+        })
+
+        const seed = (loaded: {
+          readonly edges: ReadonlyArray<ListedEdge>
+          readonly readable: ReadonlyMap<string, Readonly<Record<string, unknown>>>
+        }) => {
+          const ids = new Set<string>()
+          for (const edge of loaded.edges) {
+            const values = loaded.readable.get(edge.id)
+            if (values === undefined) continue
+            ids.add(edge.id)
+            rowValues.set(edge.id, values)
+          }
+          knownIds = ids
+        }
+
+        const invalidate = (): LivePatch | undefined => {
+          if (list === undefined || !onlyWatch || invalidated) return undefined
+          invalidated = true
+          return {
+            _tag: 'ConnectionInvalidate',
+            connection: list.identity,
+            cursor: (cursor += 1),
+          }
+        }
+
+        const opening: LivePatch[] = []
+        const baseline = yield* loadList
+        if (baseline !== undefined) {
+          seed(baseline)
+          const marked = invalidate()
+          if (marked !== undefined) opening.push(marked)
+        }
+
+        const tick = Effect.gen(function* () {
+          const patches: LivePatch[] = []
+          const patched = new Set<string>()
+          const deleted = new Set<string>()
+          for (const [rowId, fields] of wanted) {
+            const [record] = yield* read(rowId, [...fields])
+            const before = previous.get(rowId)
+            if (record === undefined) {
+              if (before !== undefined) {
+                previous.delete(rowId)
+                deleted.add(rowId)
+                patches.push({
+                  _tag: 'EntityDeleted',
+                  entity: binding.entity,
+                  id: rowId,
+                  cursor: (cursor += 1),
+                })
+              }
+              continue
+            }
+            const changed = [...fields].filter(field => before?.[field] !== record.values[field])
+            if (changed.length === 0) continue
+            previous.set(rowId, record.values)
+            patched.add(rowId)
+            patches.push({
+              _tag: 'EntityPatched',
+              entity: binding.entity,
+              id: rowId,
+              values: picked(record.values, changed),
+              changed,
+              cursor: (cursor += 1),
+            })
+          }
+          const loaded = yield* loadList
+          if (loaded === undefined || list === undefined) return patches
+          if (knownIds === undefined) {
+            seed(loaded)
+            const marked = invalidate()
+            if (marked !== undefined) patches.push(marked)
+            return patches
+          }
+          const current = knownIds
+          const next = new Set<string>()
+          for (const edge of loaded.edges) {
+            if (loaded.readable.has(edge.id) || current.has(edge.id)) next.add(edge.id)
+          }
+          for (const id of current) {
+            if (!next.has(id) || patched.has(id)) {
+              const values = loaded.readable.get(id)
+              if (patched.has(id) && values !== undefined) rowValues.set(id, values)
+              continue
+            }
+            const values = loaded.readable.get(id)
+            if (values === undefined) continue
+            const before = rowValues.get(id)
+            const changed = LIST_FIELDS.filter(field => before?.[field] !== values[field])
+            if (changed.length > 0) {
+              patches.push({
+                _tag: 'EntityPatched',
+                entity: binding.entity,
+                id,
+                values: picked(values, changed),
+                changed: [...changed],
+                cursor: (cursor += 1),
+              })
+            }
+            rowValues.set(id, values)
+          }
+          const change = membershipChange(current, next)
+          if (change !== undefined) {
+            for (const id of change.added) {
+              const edge = loaded.edges.find(item => item.id === id)
+              const values = loaded.readable.get(id)
+              // No row to assemble from: leave it unknown so the next tick retries.
+              if (edge === undefined || values === undefined) {
+                next.delete(id)
+                continue
+              }
+              if (!patched.has(id)) {
+                patches.push({
+                  _tag: 'EntityPatched',
+                  entity: binding.entity,
+                  id,
+                  values: picked(values, LIST_FIELDS),
+                  changed: [...LIST_FIELDS],
+                  cursor: (cursor += 1),
+                })
+              }
+              patches.push({
+                _tag: 'ConnectionInsert',
+                connection: list.identity,
+                position: 'prepend',
+                edge: { entity: edge.entity, id: edge.id, key: edge.key },
+                cursor: (cursor += 1),
+              })
+              rowValues.set(id, values)
+            }
+            for (const id of change.removed) {
+              if (!deleted.has(id)) {
+                patches.push({
+                  _tag: 'EntityDeleted',
+                  entity: binding.entity,
+                  id,
+                  cursor: (cursor += 1),
+                })
+              }
+              patches.push({
+                _tag: 'ConnectionRemove',
+                connection: list.identity,
+                edge: { entity: binding.entity, id, key: entityKey(binding.entity, id) },
+                cursor: (cursor += 1),
+              })
+              rowValues.delete(id)
+            }
+          }
+          knownIds = next
+          return patches
+        })
+
+        return Stream.concat(
+          Stream.fromIterable(opening),
+          Stream.fromSchedule(Schedule.spaced(interval)).pipe(
+            Stream.flatMap(() => Stream.fromIterableEffect(tick)),
           ),
         )
       }),
@@ -305,7 +495,6 @@ export const makeServer = () => {
   // Principals are pinned explicitly: every caller is an authenticated actor
   // name, and every field is readable to one.
   const TodoSource = source<string>(Db.Todo)
-  const TodoLive = pollLive(TodoSource)
   const AllTodosSource = query(AllTodos, {
     entity: Db.Todo,
     // Title, then id. The page sorts the same way (`order.ts`).
@@ -314,8 +503,20 @@ export const makeServer = () => {
       { column: todos.id, direction: 'asc' },
     ],
   })
-  const written = returning(Db.Todo, ['id', 'title', 'done'])
   const list = AllTodos.ref({}).identity
+  // The page subscribes only to LIST_WATCH, so the stream stays open across
+  // local edits. This re-read is how another tab's row joins or leaves.
+  const TodoLive = pollLive(TodoSource, '250 millis', {
+    identity: list,
+    watchId: LIST_WATCH,
+    edges: principal =>
+      AllTodosSource.run({
+        input: {},
+        window: { first: TODO_PAGE_SIZE },
+        principal,
+      }).pipe(Effect.map(page => page.edges)),
+  })
+  const written = returning(Db.Todo, ['id', 'title', 'done'])
 
   const Create = RemoteServer.mutation(CreateTodo, ({ input }) =>
     Effect.gen(function* () {

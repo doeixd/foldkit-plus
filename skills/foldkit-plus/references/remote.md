@@ -653,4 +653,4 @@ is for fields; `visible` is for rows.
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/remote (asserted client trace)
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink (real server + Drizzle + liveHub)
-- https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare (one worker: Remote over D1, Sync through a DO, polling live; the Pages site is a Foldkit app — Entity, Form, Crud, optimistic Remote mutations)
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare (one worker: Remote over D1, Sync through a DO, polling live inside the subscriber's request; the Pages site subscribes to that stream — Entity, Form, Crud, optimistic Remote mutations)
