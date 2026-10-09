@@ -194,6 +194,79 @@ describe('cloudflare example', () => {
     expect(response.status).toBe(404)
   }, 120_000)
 
+  it('writes a row through a Remote mutation', async () => {
+    const remote = remoteClient(`${stack.origin}/remote`, 'ada', fetch)
+    const mutate = async (payload: {
+      readonly requestId: string
+      readonly mutation: string
+      readonly input: unknown
+    }) => {
+      const response = await fetch(`${stack.origin}/remote`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-actor': 'ada' },
+        body: JSON.stringify({ operation: 'mutate', payload }),
+      })
+      const body = (await response.json()) as { result?: unknown; error?: string }
+      expect(response.status).toBe(200)
+      expect(body.error).toBeUndefined()
+      return body
+    }
+
+    await mutate({
+      requestId: 'm-create',
+      mutation: 'CreateTodo',
+      input: { id: 't-remote', title: 'Peas' },
+    })
+    expect(await queryTodos(remote, { first: 50 })).toContain('t-remote')
+    const created = await readTodo(remote, 't-remote', ['title', 'done'])
+    expect(created.entities).toEqual([
+      { entity: 'Todo', id: 't-remote', values: { title: 'Peas', done: 0 } },
+    ])
+
+    // The id is already there: the second write does not replace the title.
+    await mutate({
+      requestId: 'm-again',
+      mutation: 'CreateTodo',
+      input: { id: 't-remote', title: 'Beans' },
+    })
+    const kept = await readTodo(remote, 't-remote', ['title', 'done'])
+    expect(kept.entities).toEqual([
+      { entity: 'Todo', id: 't-remote', values: { title: 'Peas', done: 0 } },
+    ])
+
+    await mutate({
+      requestId: 'm-toggle',
+      mutation: 'ToggleTodo',
+      input: { id: 't-remote', done: 1 },
+    })
+    // The same value again stores 1, rather than flipping back to 0.
+    await mutate({
+      requestId: 'm-toggle-again',
+      mutation: 'ToggleTodo',
+      input: { id: 't-remote', done: 1 },
+    })
+    const toggled = await readTodo(remote, 't-remote', ['done'])
+    expect(toggled.entities).toEqual([{ entity: 'Todo', id: 't-remote', values: { done: 1 } }])
+
+    await mutate({
+      requestId: 'm-rename',
+      mutation: 'RenameTodo',
+      input: { id: 't-remote', title: 'Pods' },
+    })
+    const renamed = await readTodo(remote, 't-remote', ['title'])
+    expect(renamed.entities).toEqual([
+      { entity: 'Todo', id: 't-remote', values: { title: 'Pods' } },
+    ])
+
+    await mutate({
+      requestId: 'm-delete',
+      mutation: 'DeleteTodo',
+      input: { id: 't-remote' },
+    })
+    expect(await queryTodos(remote, { first: 50 })).not.toContain('t-remote')
+    expect((await readTodo(remote, 't-remote', ['title'])).entities).toEqual([])
+  }, 120_000)
+
   it('accepts a header-less read and answers a preflight', async () => {
     const response = await fetch(`${stack.origin}/remote?actor=ada`, {
       method: 'POST',

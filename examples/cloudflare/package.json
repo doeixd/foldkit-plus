@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "build:worker": "tsx src/bundle.ts",
+    "build:page": "vite build",
     "demo": "tsx src/demo.ts",
     "typecheck": "tsc -b"
   },
@@ -13,7 +14,15 @@
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "4.0.0",
     "foldkit": "0.165.0",
+    "foldkit-bundle": "workspace:*",
+    "foldkit-crud": "workspace:*",
     "foldkit-durable": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-form": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-crud": "workspace:*",
+    "foldkit-mixins-form": "workspace:*",
+    "foldkit-primitives": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
@@ -25,6 +34,7 @@
     "@effect/sql-d1": "4.0.0",
     "esbuild": "0.28.2",
     "miniflare": "3.20250718.3",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
   }
 }

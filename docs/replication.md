@@ -423,7 +423,8 @@ there.
   server, presence and LWW, and a test for every row of the table above.
 - [`examples/cloudflare`](../examples/cloudflare): one document served from a
   Durable Object, its journal on D1, and each committed operation applied to
-  the table Remote reads back.
+  the table Remote reads back. The Pages list writes that table through
+  Remote mutations instead of the journal.
 
 Then the package READMEs: [`foldkit-sync`](../packages/sync) for the replica,
 status, transports, presence, and LWW; [`foldkit-durable`](../packages/durable)

@@ -1,10 +1,13 @@
 /**
- * The Cloudflare example's domain: one Todo list whose writes arrive through
- * Sync and whose reads come from Remote. The pieces:
+ * The Cloudflare example's server: one todos table, read by Remote and written
+ * two ways. The page's writes are Remote mutations. Sync still journals intents
+ * through the Durable Object; `pnpm demo` and the tests speak that path.
  *
- * - `todos`, a Drizzle table, and `Todo`, the Remote binding over it: one
- *   declaration for selections and SQL alike.
+ * - `todos`, a Drizzle table, bound to the domain's `Todo`.
  * - `AllTodos`, the list query, answered by `remote-drizzle` over D1.
+ * - `CreateTodo`, `RenameTodo`, `ToggleTodo`, `DeleteTodo`: the page's writes.
+ *   Toggle stores the given 0 or 1, so a retry is the same write. Create does
+ *   nothing when the id is already there.
  * - `App`/`Message`/`update` and `Todos`, the Sync contract: intents mint,
  *   facts record, and the journal orders them.
  * - `openTodosJournal`, a D1 journal through `foldkit-durable/core`.
@@ -16,6 +19,7 @@
  *   request — in production not even the same isolate — so what crosses
  *   requests here is D1, and each live stream re-reads it.
  */
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import type { D1Database } from '@cloudflare/workers-types'
@@ -32,11 +36,21 @@ import {
   opId,
 } from 'foldkit-durable/core'
 import type { Journal as JournalShape } from 'foldkit-durable/core'
-import { Query, Remote } from 'foldkit-remote'
-import { databaseLayer, entity, query, source, DrizzleDatabase } from 'foldkit-remote-drizzle'
+import { Remote } from 'foldkit-remote'
+import {
+  bind,
+  databaseLayer,
+  drizzleWrites,
+  query,
+  returning,
+  source,
+  DrizzleDatabase,
+} from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import type { EntitySource, LiveSource } from 'foldkit-remote-server'
 import { Sync, documentId, type Operation, type Sync as SyncContract } from 'foldkit-sync'
+import { Domain } from './domain.js'
+import { AllTodos, CreateTodo, DeleteTodo, RenameTodo, ToggleTodo } from './operations.js'
 
 export const todos = sqliteTable('todos', {
   id: text('id').primaryKey(),
@@ -44,13 +58,7 @@ export const todos = sqliteTable('todos', {
   done: integer('done').notNull().default(0),
 })
 
-/** The binding is the Remote `EntityDescriptor`; no second field declaration. */
-export const Todo = entity('Todo', todos)
-
-export const AllTodos = Query.make('AllTodos', {
-  Input: Schema.Struct({}),
-  Result: Query.connection({ name: 'Todo' }),
-})
+const Db = bind(Domain, { Todo: { table: todos } })
 
 const Model = Schema.Struct({
   todos: Schema.Array(
@@ -276,22 +284,111 @@ export const pollLive = (
   },
 })
 
-/** Builds the Remote server over D1: sources, a polling live source, definition, validated. */
+/**
+ * Inserts that can say "already there". `drizzleWrites` has no conflict
+ * clause, so this is the drizzle client the layer holds, seen with one.
+ */
+interface InsertOnConflict {
+  insert(table: typeof todos): {
+    values(values: { id: string; title: string; done: number }): {
+      onConflictDoNothing(): {
+        returning(
+          columns: Record<string, unknown>,
+        ): PromiseLike<ReadonlyArray<Record<string, unknown>>>
+      }
+    }
+  }
+}
+
+/** Builds the Remote server over D1: sources, the page's mutations, a polling live source. */
 export const makeServer = () => {
   // Principals are pinned explicitly: every caller is an authenticated actor
   // name, and every field is readable to one.
-  const TodoSource = source<string>(Todo)
+  const TodoSource = source<string>(Db.Todo)
   const TodoLive = pollLive(TodoSource)
-  const AllTodosSource = query<string, {}>(AllTodos, {
-    entity: Todo,
+  const AllTodosSource = query(AllTodos, {
+    entity: Db.Todo,
     orderBy: [{ column: todos.title, direction: 'asc' }],
   })
+  const written = returning(Db.Todo, ['id', 'title', 'done'])
+  const list = AllTodos.ref({}).identity
+
+  const Create = RemoteServer.mutation(CreateTodo, ({ input }) =>
+    Effect.gen(function* () {
+      const db = (yield* DrizzleDatabase) as unknown as InsertOnConflict
+      const inserted = yield* Effect.promise(() =>
+        Promise.resolve(
+          db
+            .insert(todos)
+            .values({ id: input.id, title: input.title, done: 0 })
+            .onConflictDoNothing()
+            .returning(written.columns),
+        ),
+      )
+      // No row back means the id was already there: answer with the row as it is.
+      const entities =
+        inserted.length > 0 ? written.patches(inserted) : yield* returning.row(Db.Todo, input.id)
+      return {
+        output: { id: input.id },
+        entities,
+        connections: [RemoteServer.prepend(list, { entity: 'Todo', id: input.id })],
+      }
+    }),
+  )
+
+  const Rename = RemoteServer.mutation(RenameTodo, ({ input }) =>
+    Effect.gen(function* () {
+      const writes = yield* drizzleWrites
+      const rows = yield* Effect.promise(() =>
+        Promise.resolve(
+          writes
+            .update(todos)
+            .set({ title: input.title })
+            .where(eq(todos.id, input.id))
+            .returning(written.columns),
+        ),
+      )
+      return { output: { id: input.id }, entities: written.patches(rows) }
+    }),
+  )
+
+  const Toggle = RemoteServer.mutation(ToggleTodo, ({ input }) =>
+    Effect.gen(function* () {
+      const writes = yield* drizzleWrites
+      const rows = yield* Effect.promise(() =>
+        Promise.resolve(
+          writes
+            .update(todos)
+            .set({ done: input.done })
+            .where(eq(todos.id, input.id))
+            .returning(written.columns),
+        ),
+      )
+      return { output: { id: input.id }, entities: written.patches(rows) }
+    }),
+  )
+
+  const Delete = RemoteServer.mutation(DeleteTodo, ({ input }) =>
+    Effect.gen(function* () {
+      const writes = yield* drizzleWrites
+      yield* Effect.promise(() =>
+        Promise.resolve(writes.delete(todos).where(eq(todos.id, input.id))),
+      )
+      return { output: {}, deleted: [{ entity: 'Todo', id: input.id }] }
+    }),
+  )
+
   const server = RemoteServer.make({
     entities: [TodoSource],
     queries: [AllTodosSource],
+    mutations: [Create, Rename, Toggle, Delete],
     live: [TodoLive],
   })
-  const Data = Remote.define({ entities: [Todo], queries: [AllTodos] })
+  const Data = Remote.define({
+    entities: [Db.Todo],
+    queries: [AllTodos],
+    mutations: [CreateTodo, RenameTodo, ToggleTodo, DeleteTodo],
+  })
   RemoteServer.validate(Data, server)
   return { server }
 }

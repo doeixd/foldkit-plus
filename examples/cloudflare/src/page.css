@@ -1,0 +1,99 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.4;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 44rem;
+  padding: 1.5rem 1rem;
+}
+
+.lede {
+  max-width: 38rem;
+}
+
+label {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  margin: 1rem 0;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.field input[type='text'] {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+}
+
+.is-invalid {
+  outline: 2px solid #c0392b;
+}
+
+.field-error {
+  color: #c0392b;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  padding: 0.35rem 0.8rem;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}
+
+button.done {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+button.title,
+button.done {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0.2rem 0;
+  cursor: pointer;
+}
+
+#status {
+  min-height: 1.4em;
+}
+
+#editor {
+  margin-top: 1.5rem;
+}
+
+[role='alert'] {
+  color: #c0392b;
+}

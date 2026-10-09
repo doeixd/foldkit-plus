@@ -7,6 +7,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Changed
+
+- **`examples/cloudflare` page:** the Pages site is a Foldkit app. The list is
+  `Crud.list` over the `AllTodos` query, and its first paint is "Loading…".
+  Add, rename, toggle, and delete are Remote mutations; `Data.mutate` applies
+  the optimistic patch before the POST returns. Another tab sees the row when
+  its query refreshes, about once a second. Sync through the Durable Object
+  stays for the demo and the tests; both writers use the same `todos` table.
+
 ### Fixed
 
 - **`examples/widgets`: hover, placement, and keyboard on the showcase.**

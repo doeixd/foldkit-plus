@@ -447,7 +447,7 @@ For the broadest integration trace, use
 | [`examples/sync`](./examples/sync) | durable Messages, replicas, and server ordering |
 | [`examples/remote`](./examples/remote) | normalized server-owned state end to end |
 | [`examples/mixins`](./examples/mixins) | typed view extension points end to end |
-| [`examples/cloudflare`](./examples/cloudflare) | Remote over D1, Sync through a Durable Object, live by re-reading D1 |
+| [`examples/cloudflare`](./examples/cloudflare) | Remote over D1, Sync through a Durable Object, live by re-reading D1, and a Pages list of Entity, Form, and Crud |
 
 The application examples print transcripts with important lines pinned by tests.
 `pnpm demo` runs the root integration sequence; run the CMS demo separately. The [examples index](./examples/README.md) gives the recommended

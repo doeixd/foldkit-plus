@@ -64,7 +64,7 @@ Link and Placement to Connection and Segment, are in the
 | Let an LLM or another agent use the application through real application transitions | [Agents](./agents.md) | `foldkit-agent` + WebMCP/MCP/A2A/Agent Native adapters |
 | Put server-owned entities in the Model without per-view fetch/cache logic | [Server-derived state](./remote.md) | `foldkit-remote`, `foldkit-remote-server`, optional `foldkit-remote-drizzle` |
 | Work offline and reconcile several devices/tabs against a server order | [Replicated state](./replication.md) | `foldkit-sync` + `foldkit-durable` |
-| Deploy Remote reads and Sync writes on a Cloudflare Worker | [Cloudflare example](../examples/cloudflare/README.md) | `foldkit-remote-server/fetch`, `foldkit-sync/do`, `foldkit-durable` |
+| Deploy Remote reads, Remote mutations, and Sync writes on a Cloudflare Worker | [Cloudflare example](../examples/cloudflare/README.md) | `foldkit-remote-server/fetch`, `foldkit-sync/do`, `foldkit-durable`, `foldkit-entity`, `foldkit-form`, `foldkit-crud` |
 | Let users edit rows a server holds, offline, without replicating the table | [Editing server data through a journal](./editing-server-data.md) | `foldkit-sync/entity`, `foldkit-sync/journal`, `foldkit-remote`, `foldkit-durable` |
 | Keep local Model state in the URL or a device store without making that store authoritative | [Mirrored state](./mirror.md) | `foldkit-mirror` |
 | Package a Submodel once and place it several times or per key, with its Subscriptions, resources, and view wired | [`foldkit-bundle` README](../packages/bundle) | `foldkit-bundle`, `foldkit-bundle-surface` |
