@@ -1,7 +1,7 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** Phase 0 done, 2026-10-09 (§4's *As built*); Phases 1–6 not
-started. §15 records the decisions taken while planning, each against the
+**Status:** Phases 0 and 1 done, 2026-10-09 (each section's *As built*);
+Phases 2–6 not started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -315,6 +315,47 @@ and no others; kitchen-sink's live rename reaches a second client with its
 `listing` refresh, and its slug and conflict string parsing, are deleted with
 its tests unchanged. Impact is a pure table, each rule with a mutation in
 `test/*.mutations.ts`.
+
+**As built** (`9b8d94d1`, `1eed5970`, `3ae6aa71`, `2107c3f1`, `8a8da1e8`,
+`14c41831`, `b44da484`, `b8118bac`). Where it departed from the above:
+
+- **`requestId` was already on the wire.** `MutationRequest` carried it; the
+  server dropped it. §5.4 became passing it to `run`. cms-drizzle, which runs
+  an application's mutation inside its own publish (and from a scheduled job
+  with no request), names that call `publish:<entry>:<revision>`.
+- **Changed means a new value.** A `MutationAnswer` returns more than it
+  changed: the CMS returns every column, its unchanged `createdAt` among them,
+  which orders the worklist, so counting patch keys refetched it on every
+  autosave. `changesOf` compares each field with the base store before the
+  answer. That made the planned repeated-answer guard redundant, and it was
+  removed.
+- **A list the answer names is kept.** A `connections` change in the answer
+  is the server's word on that list (kitchen-sink's confirmed insert), so it
+  is not judged again.
+- **`Created` is not built.** No producer knows a row is new until §6's
+  insert. A patch for a row the store did not hold is judged like any other,
+  so a row that may join a list refetches that list.
+- **A `Query.make` list refetches after any change to its Entity.** The entity
+  example's post list now reads `Refreshing` after an edit, as it should: it
+  is sorted by title.
+- **Relation pages are not judged.** The CMS kept its history refresh after a
+  state change: revisions are a relation page, not a query connection. Its
+  worklist and site-pages refreshes are gone.
+- **Refusals are one codec, not a list.** `Mutation.make({ Refusal })` takes a
+  codec, usually `Schema.Union([Refusal.field(key, reason), Refusal.conflict])`,
+  as `Input` and `Output` do. The Model keeps the refusal encoded on its
+  `RemoteError`; `Data.refusal(model, requestId, mutation)` decodes it, beside
+  its sibling `Data.mutation(model, requestId)`. `RemoteServer.refuse(mutation,
+  value, message?)` checks the value against that mutation and records which
+  mutation it was made for, so a Source cannot refuse as another. A refusal is
+  a 422 over JSON. `Refusal.isField` and `Refusal.isConflict` are schema guards,
+  so Crud and the CMS never compare a tag on an unknown value.
+- **The CMS's refusals carry a string key.** The slug's key is the content
+  type's, so `Cms.refusal.field(key, reason)` is a field of any key, which
+  `Refusal.isField` still recognises. `Cms.slugTaken` is removed.
+- **Not run:** the CMS end-to-end test (`pnpm e2e`), which starts servers and a
+  browser; memory was short. The unit and browser suites of every package
+  touched passed, run in groups.
 
 ## 6. Phase 2 — a declared `Write`, from form to table, delivered either way
 
