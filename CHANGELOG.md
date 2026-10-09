@@ -18,6 +18,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`examples/widgets`: a context menu opens at the pointer.** A right-click
+  records the point, and the menu opens there. The keyboard, which has no
+  point, still opens under the row. Navigation and the hover card keep a
+  hit target across the gap, so the pointer can move onto the panel.
+
 - **`examples/widgets`: hover, placement, and keyboard on the showcase.**
   A click after a hover leaves that section open. A popup sits under the
   trigger that opened it, and reopening a menu keeps the chosen item

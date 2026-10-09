@@ -1,9 +1,10 @@
 /**
- * A file menu's state: which row it opened for (none while shut) and the
- * last chosen action — beside a `ListNavigation` placement (arrows in the
- * menu), a `Selection` placement in single mode (the highlight), and the
- * `DismissLayer` stack the Overlay behaviors mark through. Right-clicking a
- * row opens the menu for it; the popup opens under that row.
+ * A file menu's state: which row it opened for (none while shut), the
+ * pointer point a right-click recorded, and the last chosen action — beside
+ * a `ListNavigation` placement (arrows in the menu), a `Selection` placement
+ * in single mode (the highlight), and the `DismissLayer` stack the Overlay
+ * behaviors mark through. Right-clicking a row opens the menu at that
+ * point. A menu opened without one (the keyboard) sits under the row.
  * Dismissing closes without choosing.
  */
 import { Option, Schema } from 'effect'
@@ -46,6 +47,7 @@ export const Model = Schema.Struct({
   ...Stack.fields,
   openFor: Schema.Option(Schema.String),
   action: Schema.Option(Schema.String),
+  point: Schema.Option(Schema.Struct({ id: Schema.String, x: Schema.Number, y: Schema.Number })),
 })
 export type Model = typeof Model.Type
 
@@ -54,26 +56,45 @@ export const Message = defineMessageUnion({
   ...Sel.cases,
   ...Stack.cases,
   OpenedFor: { id: Schema.String },
+  Pointed: { id: Schema.String, x: Schema.Number, y: Schema.Number },
   ChoseAction: { action: Schema.String },
 })
 export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 
+const close = (model: Model): Model =>
+  Option.isNone(model.openFor) && Option.isNone(model.point)
+    ? model
+    : { ...model, openFor: Option.none(), point: Option.none() }
+
 const assembly = Parent.assemble(
   Parent.at(Nav, { args: navArgs }),
   Parent.at(Sel, { args: selArgs }),
   Parent.at(Stack, {
-    onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({
-      model: Option.isNone(model.openFor) ? model : { ...model, openFor: Option.none() },
-    }),
+    onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({ model: close(model) }),
   }),
 )
 
-export const initial = assembly.initial({ openFor: Option.none(), action: Option.none() })
+export const initial = assembly.initial({
+  openFor: Option.none(),
+  action: Option.none(),
+  point: Option.none(),
+})
 
 export const update = assembly.update((model, message) => {
   switch (message._tag) {
+    case 'Pointed': {
+      const next = { id: message.id, x: message.x, y: message.y }
+      if (
+        Option.isSome(model.point) &&
+        model.point.value.id === next.id &&
+        model.point.value.x === next.x &&
+        model.point.value.y === next.y
+      )
+        return { model }
+      return { model: { ...model, point: Option.some(next) } }
+    }
     case 'OpenedFor':
       return { model: { ...model, openFor: Option.some(message.id) } }
     case 'ChoseAction': {
@@ -81,8 +102,7 @@ export const update = assembly.update((model, message) => {
       if (Option.isNone(open)) return { model }
       return {
         model: {
-          ...model,
-          openFor: Option.none(),
+          ...close(model),
           action: Option.some(`${message.action} ${open.value}`),
           filePick: Selection.bundle.update(
             model.filePick,

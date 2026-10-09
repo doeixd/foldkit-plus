@@ -393,6 +393,10 @@ export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
           width: 'max-content',
           maxWidth: 'min(20rem, calc(100vw - 2rem))',
           padding: '0.75rem',
+          // Same overlap as the navigation popup: the card is a sibling of
+          // the trigger, and the wrap is what closes on leave.
+          marginTop: '-5px',
+          paddingTop: 'calc(0.75rem + 5px)',
           background: onAccent,
           border: `1px solid ${line}`,
           borderRadius: '10px',
@@ -517,6 +521,11 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
           borderRadius: '10px',
           boxShadow: t.shadow.lg,
           padding: '0.25rem',
+          // The box overlaps the trigger by a pixel, so moving into the menu
+          // does not leave the bar. The extra padding keeps the items where
+          // the 4px gap put them.
+          marginTop: '-5px',
+          paddingTop: 'calc(0.25rem + 5px)',
         }),
         focus,
       ),

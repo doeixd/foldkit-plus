@@ -29,6 +29,17 @@ export default [
     tests,
   },
   {
+    name: 'a right-click places under the row',
+    edits: [
+      {
+        file: '../src/context-menu/view.ts',
+        find: 'at: input =>\n          Option.isSome(input.point) &&\n          Option.isSome(input.openFor) &&\n          input.point.value.id === input.openFor.value\n            ? Option.some({ x: input.point.value.x, y: input.point.value.y })\n            : Option.none(),\n',
+        replace: 'at: _input => Option.none(),\n',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the menu locks the page',
     edits: [
       {

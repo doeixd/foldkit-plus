@@ -102,6 +102,7 @@ sections derive its attributes per item).
 The changelog's Wave B is alert-dialog, autocomplete, otp-field, hover-card,
 context-menu, menubar, and navigation-menu. Menubar, navigation, and context
 menu place the popup under the open trigger with `Placing.placeAt`.
-Pointer-exact coordinates stay open: `OnContextMenu` carries none, and
-`Anchor` portals. OTP advances with an `AdvanceFocus` Command after a fill
+A context menu opens at the pointer: `OnPointerDown` records the point,
+because `OnContextMenu` carries none, and `Placing.placeAtPoint` writes it.
+`Anchor` still portals, so it stays unused here. OTP advances with an `AdvanceFocus` Command after a fill
 (`examples/widgets/src/otp-field/app.ts`); the cell id is the focus selector.

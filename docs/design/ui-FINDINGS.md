@@ -357,3 +357,18 @@ Still open, and named in the inventory: design Wave C, a Tree adapter,
 Phase 9 assemblies as packages, Phase 10 blocks, Nav, DragAndDrop,
 Animation, and VirtualList, and pointer-exact context-menu coordinates.
 `VisuallyHidden` and a universal `Field` stay unbuilt on purpose.
+
+## 2026-10-09 — Pointer and the gap
+
+`OnContextMenu` still carries no coordinates. A right-click's `pointerdown`
+does (`button === 2`, `clientX`, `clientY`), and it fires before the
+context menu event, so the model holds the point when the popup mounts.
+`Placing.placeAtPoint` writes that viewport point the same way `placeAt`
+writes a trigger. A menu opened with no point (the keyboard) still sits
+under the row.
+
+The 4px gap under a navigation trigger and the hover card closed the panel
+on the way to it: leave fired in the empty pixels. The popup's box now
+overlaps the trigger by a pixel, and the hover card's leave is on the wrap
+that holds both. The gesture test moves onto Docs and onto the card, and
+right-clicks `notes.txt` away from the row's left edge.

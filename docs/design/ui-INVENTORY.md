@@ -32,7 +32,7 @@ recipe in `packages/mixins-ui` is the package. An adapter is `resolve` /
 | Design name | Lives in | Changelog wave | Status |
 | --- | --- | --- | --- |
 | Autocomplete | `examples/widgets` autocomplete | Wave B | Landed. Enter commits from the field. Listbox id matches `aria-controls`. |
-| ContextMenu | `examples/widgets` context-menu | Wave B | Landed. Popup sits under the row. Pointer-exact coordinates stay open: `OnContextMenu` carries none. |
+| ContextMenu | `examples/widgets` context-menu | Wave B | Landed. A right-click opens at the pointer (`OnPointerDown` records it; `OnContextMenu` carries none). A keyboard menu sits under the row. |
 | Menubar | `examples/widgets` menubar | Wave B | Landed. Popup sits under the open trigger. Reopen keeps `aria-selected`. |
 | NavigationMenu | `examples/widgets` navigation-menu | Wave B | Landed. Same placement and selection id as the menubar. Click after hover stays open. |
 | NumberField | `examples/widgets` number-field | Wave A | Landed. |

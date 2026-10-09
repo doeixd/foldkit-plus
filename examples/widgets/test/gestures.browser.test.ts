@@ -35,6 +35,8 @@ test('hover, keys, and a reopened menu behave on the page', async () => {
     expect(menu.top).toBeGreaterThan(trigger.bottom - 2)
     expect(menu.left).toBeGreaterThan(boxOf('Products').left + 40)
   })
+  await page.getByRole('button', { name: 'Docs' }).hover()
+  expect(page.getByRole('menu', { name: 'Resources' }).query()).not.toBeNull()
 
   const commands = page.getByRole('button', { name: 'Commands' })
   await commands.click()
@@ -58,4 +60,25 @@ test('hover, keys, and a reopened menu behave on the page', async () => {
   const editTrigger = boxOf('Edit')
   expect(Math.abs(editMenu.left - editTrigger.left)).toBeLessThan(8)
   expect(editMenu.left).toBeGreaterThan(boxOf('File').left + 40)
+
+  const ada = page.getByRole('button', { name: 'ada' })
+  await ada.hover()
+  const about = page.getByRole('dialog', { name: 'About ada' })
+  await vi.waitFor(() => expect(about.query()).not.toBeNull())
+  await about.hover()
+  expect(about.query()).not.toBeNull()
+
+  const notes = page.getByRole('list', { name: 'Files' }).getByText('notes.txt', { exact: true })
+  const row = notes.query()?.getBoundingClientRect()
+  if (row === undefined) throw new Error('no notes.txt row')
+  await notes.click({ button: 'right' })
+  await vi.waitFor(() =>
+    expect(page.getByRole('menu', { name: 'Actions for notes.txt' }).query()).not.toBeNull(),
+  )
+  const fileMenu = boxOf('Actions for notes.txt', 'menu')
+  const clickX = row.left + row.width / 2
+  const clickY = row.top + row.height / 2
+  expect(Math.abs(fileMenu.left - clickX)).toBeLessThan(12)
+  expect(Math.abs(fileMenu.top - clickY)).toBeLessThan(12)
+  expect(Math.abs(fileMenu.left - clickX)).toBeLessThan(Math.abs(fileMenu.left - row.left))
 })

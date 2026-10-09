@@ -2,8 +2,9 @@
  * The menu as one SlotView: file rows open it with `OnContextMenu`, and one
  * shared Collection description of the actions feeds identity,
  * `ListNavigation`, and `Selection` (aria only — clicks are the parent's
- * `ChoseAction`). The popup opens under the row: `OnContextMenu` carries no
- * pointer coordinates, so it cannot sit at the cursor. The popup is the
+ * `ChoseAction`). A right-click records its point with `OnPointerDown`,
+ * because `OnContextMenu` carries none, and the popup opens there. Without
+ * a point it opens under the row. The popup is the
  * `Overlay.nonModal` policy. Its layer id is the dismiss attribute, not an
  * element id.
  */
@@ -75,6 +76,11 @@ export const ContextMenu = SlotView.forMessages<Message>()
           slots.row.attrs([
             h.Key(file),
             h.Id(rowId(file)),
+            h.OnPointerDown((_type, button, _screenX, _screenY, _time, clientX, clientY) =>
+              button === 2
+                ? Option.some(Message.Pointed({ id: file, x: clientX, y: clientY }))
+                : Option.none(),
+            ),
             h.OnContextMenu(Message.OpenedFor({ id: file })),
           ]),
           [file],
@@ -112,6 +118,12 @@ export const ContextMenu = SlotView.forMessages<Message>()
       Placing.placeAtTrigger(ContextMenuSlots)<Model, Message>({
         panel: 'popup',
         triggerId: input => (Option.isSome(input.openFor) ? rowId(input.openFor.value) : ''),
+        at: input =>
+          Option.isSome(input.point) &&
+          Option.isSome(input.openFor) &&
+          input.point.value.id === input.openFor.value
+            ? Option.some({ x: input.point.value.x, y: input.point.value.y })
+            : Option.none(),
       }),
     ),
     Behavior.attach(Placing.keepWithin(ContextMenuSlots)({ panel: 'popup' })),

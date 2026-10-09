@@ -1,7 +1,8 @@
 /**
  * The card as one SlotView: the trigger opens on mouse entry and focus (a
- * click toggles, for touch), closes on pointer leave and blur; Escape and
- * outside press arrive as the stack's `Dismiss`. The popup is the
+ * click toggles, for touch). Leave is on the wrap, which holds the trigger
+ * and the card, so the pointer can move onto the card. Blur still closes.
+ * Escape and outside press arrive as the stack's `Dismiss`. The popup is the
  * `Overlay.nonModal` policy: no trap, lock, or inertness for an
  * informational card.
  */
@@ -28,27 +29,31 @@ export const HoverOverlay = Overlay.behaviors(HoverCardSlots)<Model, Message, 'l
 
 export const HoverCard = SlotView.forMessages<Message>()
   .define(HoverCardSlots, (model: Model, slots, h) =>
-    h.div(slots.wrap.attrs(), [
-      h.button(
-        slots.trigger.attrs([
-          h.OnMouseEnter(Message.Entered()),
-          h.OnPointerLeave(pointerType =>
-            pointerType === 'touch' ? Option.none() : Option.some(Message.Left()),
-          ),
-          h.OnFocusEnter(Message.Focused()),
-          h.OnBlur(Message.Blurred()),
-          h.OnClick(Message.Toggled()),
-        ]),
-        ['ada'],
-      ),
-      ...(model.open
-        ? [
-            h.div(slots.card.attrs([h.Role('dialog'), h.AriaLabel('About ada')]), [
-              h.p([], ['Ada Lovelace — first programmer. 3 projects, 12 followers.']),
-            ]),
-          ]
-        : []),
-    ]),
+    h.div(
+      slots.wrap.attrs([
+        h.OnPointerLeave(pointerType =>
+          pointerType === 'touch' ? Option.none() : Option.some(Message.Left()),
+        ),
+      ]),
+      [
+        h.button(
+          slots.trigger.attrs([
+            h.OnMouseEnter(Message.Entered()),
+            h.OnFocusEnter(Message.Focused()),
+            h.OnBlur(Message.Blurred()),
+            h.OnClick(Message.Toggled()),
+          ]),
+          ['ada'],
+        ),
+        ...(model.open
+          ? [
+              h.div(slots.card.attrs([h.Role('dialog'), h.AriaLabel('About ada')]), [
+                h.p([], ['Ada Lovelace — first programmer. 3 projects, 12 followers.']),
+              ]),
+            ]
+          : []),
+      ],
+    ),
   )
   .pipe(
     ...HoverOverlay.map(Behavior.attach),

@@ -43,6 +43,7 @@ describe('update flows', () => {
     const chose = update(open, Message.ChoseAction({ action: 'Rename' })).model
     expect(chose.openFor).toEqual(Option.none())
     expect(chose.action).toEqual(Option.some('Rename notes.txt'))
+    expect(chose.point).toEqual(Option.none())
     expect(chose.filePick.selected).toEqual([actionId('Rename')])
     const again = update(chose, Message.OpenedFor({ id: 'notes.txt' })).model
     const menu = Inert.draw(ContextMenu, again)
@@ -53,7 +54,23 @@ describe('update flows', () => {
     const open = update(initial.model, Message.OpenedFor({ id: 'photo.png' })).model
     const shut = dismissOpen(open)
     expect(shut.openFor).toEqual(Option.none())
+    expect(shut.point).toEqual(Option.none())
     expect(shut.action).toEqual(Option.none())
+  })
+
+  it('a right-click keeps the point it was opened with', () => {
+    const pointed = update(
+      initial.model,
+      Message.Pointed({ id: 'notes.txt', x: 240, y: 180 }),
+    ).model
+    const open = update(pointed, Message.OpenedFor({ id: 'notes.txt' })).model
+    expect(open.point).toEqual(Option.some({ id: 'notes.txt', x: 240, y: 180 }))
+    const h = SlotView.inertBuilder<Message>()
+    const builders = SlotView.buildersFor(ContextMenuSlots, ContextMenu.mixins, { input: open, h })
+    const text = JSON.stringify(builders.popup.attrs([]))
+    expect(text).toContain('PlaceAtPoint')
+    expect(text).toContain('240')
+    expect(text).toContain('180')
   })
 })
 
