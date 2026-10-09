@@ -45,7 +45,9 @@ export default [
   },
   {
     name: 'a page is drawn in connection order',
-    edits: [{ file: order, find: 'items: orderItems(value.items),', replace: 'items: value.items,' }],
+    edits: [
+      { file: order, find: 'items: orderItems(value.items),', replace: 'items: value.items,' },
+    ],
     tests,
   },
 ]

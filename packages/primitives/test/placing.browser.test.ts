@@ -34,7 +34,9 @@ const rule = (css: string): void => {
 }
 
 const layout = () => {
-  rule(`.fk-placed { position: absolute; width: 120px; height: 40px; top: var(${placedTop}, 0px); }`)
+  rule(
+    `.fk-placed { position: absolute; width: 120px; height: 40px; top: var(${placedTop}, 0px); }`,
+  )
   const bar = document.createElement('div')
   bar.style.cssText = 'position: relative; display: flex; margin: 48px 0 0 32px; border: 0;'
   const file = document.createElement('button')
