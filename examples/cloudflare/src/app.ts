@@ -99,9 +99,9 @@ const remoteWiring = Data.wiring(Crud.actives({ todos: Todos, editor: Rename }))
 
 /**
  * Remote's wiring reduces its own Messages, so the page's `update` never sees
- * them. A successful write is asked for again: the list is ordered by title,
- * and the optimistic insert only sat at the front until the server answered.
- * A failure keeps the server's words. Pending overlays stay through the refresh.
+ * them. A successful write is asked for again, and a failure keeps the
+ * server's words. The list is already drawn in the query's order, so the
+ * refresh does not move a row. Pending overlays stay through it.
  */
 const routeRemote = (model: Model, message: Message) => {
   if (!Remote.reduces(message)) return Option.none()

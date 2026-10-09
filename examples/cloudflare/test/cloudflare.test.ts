@@ -267,6 +267,64 @@ describe('cloudflare example', () => {
     expect((await readTodo(remote, 't-remote', ['title'])).entities).toEqual([])
   }, 120_000)
 
+  it('lists todos by title, then id', async () => {
+    const mutate = async (payload: {
+      readonly requestId: string
+      readonly mutation: string
+      readonly input: unknown
+    }) => {
+      const response = await fetch(`${stack.origin}/remote`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-actor': 'ada' },
+        body: JSON.stringify({ operation: 'mutate', payload }),
+      })
+      const body = (await response.json()) as { error?: string }
+      expect(response.status).toBe(200)
+      expect(body.error).toBeUndefined()
+    }
+    // `order-b` is stored first, so a rowid tie-break would put it ahead of
+    // `order-a`. `same` sorts after `Same` under BINARY and with it under NOCASE.
+    const ids = ['order-b', 'order-a', 'order-c', 'order-0']
+    try {
+      await mutate({
+        requestId: 'm-order-b',
+        mutation: 'CreateTodo',
+        input: { id: 'order-b', title: 'Same' },
+      })
+      await mutate({
+        requestId: 'm-order-a',
+        mutation: 'CreateTodo',
+        input: { id: 'order-a', title: 'Same' },
+      })
+      await mutate({
+        requestId: 'm-order-c',
+        mutation: 'CreateTodo',
+        input: { id: 'order-c', title: 'Later' },
+      })
+      await mutate({
+        requestId: 'm-order-0',
+        mutation: 'CreateTodo',
+        input: { id: 'order-0', title: 'same' },
+      })
+      const remote = remoteClient(`${stack.origin}/remote`, 'ada', fetch)
+      const listed = await queryTodos(remote, { first: 100 })
+      expect(listed.filter(id => id.startsWith('order-'))).toEqual([
+        'order-c',
+        'order-a',
+        'order-b',
+        'order-0',
+      ])
+    } finally {
+      for (const id of ids) {
+        await mutate({
+          requestId: `m-order-del-${id}`,
+          mutation: 'DeleteTodo',
+          input: { id },
+        })
+      }
+    }
+  }, 120_000)
+
   it('accepts a header-less read and answers a preflight', async () => {
     const response = await fetch(`${stack.origin}/remote?actor=ada`, {
       method: 'POST',

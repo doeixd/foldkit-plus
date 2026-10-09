@@ -308,7 +308,11 @@ export const makeServer = () => {
   const TodoLive = pollLive(TodoSource)
   const AllTodosSource = query(AllTodos, {
     entity: Db.Todo,
-    orderBy: [{ column: todos.title, direction: 'asc' }],
+    // Title, then id. The page sorts the same way (`order.ts`).
+    orderBy: [
+      { column: todos.title, direction: 'asc' },
+      { column: todos.id, direction: 'asc' },
+    ],
   })
   const written = returning(Db.Todo, ['id', 'title', 'done'])
   const list = AllTodos.ref({}).identity

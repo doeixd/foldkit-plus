@@ -18,6 +18,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`examples/cloudflare` page:** a new or renamed row is drawn where the
+  title order will keep it. The list sorts by title, then id, which is what
+  `AllTodos` asks D1 for, so the refresh does not move it.
+
 - **`examples/cloudflare` page:** saving, loading, and a field error keep the
   space they will occupy. "Saving…" and "Loading…" use `Loading.shown`, so a
   fast answer does not flash, and none of them push the form or the list.
