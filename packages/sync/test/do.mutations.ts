@@ -59,6 +59,17 @@ export default [
     tests,
   },
   {
+    name: 'settle runs without the environment or journal',
+    edits: [
+      {
+        file,
+        find: '{ settle: config.settle(this.hostEnv, journal) }',
+        replace: '{ settle: config.settle({} as Env, undefined as never) }',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a failed open leaks its message',
     edits: [
       {

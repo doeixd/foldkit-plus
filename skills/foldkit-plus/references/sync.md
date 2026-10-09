@@ -285,13 +285,21 @@ const server = Effect.gen(function* () {
   what they sent. Refuse a client-sent stamped field in `validate`.
 
 **Serving from a Durable Object.** `defineDocumentHost(DurableObject, { sync,
-openJournal, resolvePrincipal })` (`foldkit-sync/do`) defines the
+openJournal, resolvePrincipal, settle })` (`foldkit-sync/do`) defines the
 single-writer class: each accepted socket exchanges against one journal,
 opened once on the first upgrade (D1 with `d1: true`, or object storage),
 non-upgrades are 404s, and the replica side is the socket transport it
-already speaks (`Sync.transport.socket({ url })`). `Sync.transport
-.workerSocket` wraps an accepted pair end anywhere else a platform hands one
-over.
+already speaks (`Sync.transport.socket({ url })`). `settle: (env, journal) =>
+Effect` runs after each exchange's appends to apply what committed elsewhere
+(`journal.recover` makes it idempotent). `Sync.transport.workerSocket` wraps an
+accepted pair end anywhere else a platform hands one over.
+
+**Live on a worker.** A worker request cannot wake another request's open SSE
+stream — a `Queue.offer`, a `Deferred`, even `enqueue` on the first's captured
+controller tears it down, and a `LiveHub` fed from a second request reaches
+nobody. What crosses requests is the durable store (D1): poll it from inside
+the subscriber's own request as a `LiveSource` (`examples/cloudflare`'s
+`pollLive`). `serveFetch` heartbeats every stream so an idle one survives.
 
 **Server reset.** A server returns `epoch: journal.epoch(key)` from every
 exchange; the replica sends it back as `exchange`'s third argument. When it

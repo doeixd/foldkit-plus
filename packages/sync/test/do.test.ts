@@ -62,6 +62,7 @@ const host = (
     readonly refuse?: (operation: Operation) => boolean
     readonly resolvePrincipal?: (request: Request) => string
     readonly openJournal?: () => Promise<TestJournal>
+    readonly settle?: (env: unknown, journal: unknown) => Effect.Effect<void, unknown>
   } = {},
 ) => {
   const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
@@ -75,6 +76,7 @@ const host = (
     resolvePrincipal:
       options.resolvePrincipal ?? (request => request.headers.get('x-actor') ?? 'anon'),
     refuse: options.refuse,
+    settle: options.settle,
     pair: () => {
       const pair = FakeWebSocket.linked()
       pairs.push(pair)
@@ -240,5 +242,29 @@ describe('defineDocumentHost', () => {
     const pending = await pendingOf('a', ['Milk'])
     await roundTrip(first.client, { id: '1', cursor: 0, pending })
     await expect.poll(() => heard.some(raw => raw === JSON.stringify({ notify: true }))).toBe(true)
+  })
+
+  it('runs settle with the environment and journal after an exchange appends', async () => {
+    const env = { tag: 'test-env' }
+    const seen: Array<unknown> = []
+    const journals: Array<unknown> = []
+    const { Host, pairs } = host({
+      settle: (received, journal) =>
+        Effect.sync(() => {
+          seen.push(received)
+          journals.push(journal)
+        }),
+    })
+    const served = new Host({}, env)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    const pending = await pendingOf('a', ['Milk'])
+    const sent = resultOf(await roundTrip(client, { id: '1', cursor: 0, pending }))
+    expect(sent.acknowledged).toHaveLength(1)
+    expect(seen).toEqual([env])
+    const again = resultOf(await roundTrip(client, { id: '2', cursor: 0, pending: [] }))
+    expect(again.operations).toHaveLength(1)
+    expect(seen).toEqual([env, env])
+    expect(journals).toHaveLength(2)
+    expect(journals[0]).toBe(journals[1])
   })
 })

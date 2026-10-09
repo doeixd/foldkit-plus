@@ -317,6 +317,16 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   the object's SQLite storage through `ctx`.
 - Each upgrade resolves its own principal; non-upgrades are 404s that open
   nothing. A journal that never opened is a 500 that says nothing of it.
+- `settle: (env, journal) => Effect` runs after each exchange's appends, before
+  the reply is read, to apply what committed elsewhere — the Remote tables a
+  reader then queries. `journal.recover` makes it crash-safe and idempotent;
+  `env` and the journal are handed over because the store they reach lives
+  outside the exchange.
+- A server socket is not a live stream: another request cannot wake the fiber
+  of an open SSE response in a worker, not even from the same isolate. What
+  crosses requests there is the store they share (D1 here), and the live side
+  re-reads it from inside its own request. See
+  [the Cloudflare example](../../examples/cloudflare).
 - `Sync.transport.workerSocket` wraps the accepted end of a `WebSocketPair`
   for `serveJournal`, anywhere else a platform hands one over.
 

@@ -484,6 +484,13 @@ The hub remembers each subscriber's requirements and principal. `changed`:
 
 Subscribers that selected none of the changed fields do no work.
 
+A hub is an in-memory fan-out, so whatever calls `changed` must be able to wake
+the subscriber's fiber. In a worker it cannot: one request cannot wake another's
+stream, so a hub fed from a second request delivers nothing and tears the first
+stream down (see `AGENTS.md`). On Workers, poll the shared store from inside the
+subscriber's own request instead — `examples/cloudflare` has the shape. A hub is
+right for a long-lived server process that owns both sides.
+
 A hand-written live Source and a hub number their events independently. Use one
 or the other for a given subscription path rather than mixing cursor domains.
 
@@ -765,8 +772,18 @@ a terminal `event: error` frame carrying the failure's message when the
 stream fails rather than ends. A payload no live stream speaks is a 400 that
 subscribes to nothing. `Remote.httpWithLive` is the other end; a client that
 disconnects interrupts the subscription, as closing the RPC stream would.
-Pass a hub as `live` so `changed`/`deleted` signals reach these streams —
-one per isolate, so cross-isolate fan-out stays a Durable Object's job.
+
+The stream moves on its own even when nothing changes: a `: ping` comment opens
+it, and another follows every `liveHeartbeat` (default 15 seconds), so proxies
+and worker runtimes do not drop an idle connection. The heartbeat stops with
+the events it serves, so a stream with nothing to serve still ends.
+
+`live` takes a hub whose `changed`/`deleted` signals reach these streams. What
+calls it must be able to wake the subscriber's fiber: in a worker, one request
+cannot wake another's stream, so a hub fed from a second request delivers
+nothing and ends the first stream. Poll the shared store from inside the
+subscriber's own request instead — `examples/cloudflare`'s `pollLive` is the
+shape. A hub is right for a long-lived process that owns both sides.
 
 ## What it does not own
 
@@ -792,3 +809,5 @@ than another application runtime.
   Query windows into Drizzle reads.
 - [`examples/kitchen-sink`](../../examples/kitchen-sink) — Remote +
   RemoteServer + Drizzle + `liveHub` in one executable trace.
+- [`examples/cloudflare`](../../examples/cloudflare) — Remote + Sync +
+  remote-drizzle on D1 in a real worker, with a polling live Source.

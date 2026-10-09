@@ -11,7 +11,7 @@
  * binding, a session), and the Sources' requirements are provided per
  * request from the environment (a D1 binding, a connection string).
  */
-import { Effect, Schema, Stream, type Layer } from 'effect'
+import { Deferred, Effect, Schedule, Schema, Stream, type Duration, type Layer } from 'effect'
 import { LiveRequirement, type RemoteRpcClient } from 'foldkit-remote'
 import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
 
@@ -27,6 +27,8 @@ export interface FetchConfig<P, R, Env> {
   readonly path?: string | undefined
   /** A hub whose `changed`/`deleted` signals reach the live streams this serves. */
   readonly live?: LiveHub<P, R> | undefined
+  /** A heartbeat comment every this often, keeping idle streams alive through proxies. Default 15 seconds. */
+  readonly liveHeartbeat?: Duration.Input | undefined
   /** A read batch may not name more ids of one entity than this; default 1000. */
   readonly maxIdsPerEntity?: number | undefined
   /** A nested selection may not reach further than this many levels; default 8. */
@@ -46,21 +48,36 @@ const errorFrame = (message: string): string =>
 /**
  * The live stream as SSE bytes: one `data:` frame per change, then a
  * terminal `event: error` frame when the stream fails rather than ends. A
- * client that disconnects interrupts the subscription, as closing the RPC
- * stream would.
+ * `: ping` comment opens the stream, so headers and a first byte reach the
+ * client at once, and rides along every `heartbeat` so a stream with nothing
+ * to say still moves: workers cancel responses that go quiet, and proxies
+ * drop idle connections. The heartbeat ends with the events, so a stream
+ * with nothing to serve still ends. A client that disconnects interrupts
+ * the subscription, as closing the RPC stream would.
  */
 const liveBytes = <R>(
   handlers: RemoteRpcClient<R>,
   payload: Schema.Schema.Type<typeof LiveRequirement>,
+  heartbeat: Duration.Input,
 ): Stream.Stream<Uint8Array, never, R> =>
-  handlers.FoldkitRemoteLive(payload).pipe(
-    Stream.map(change => `data: ${JSON.stringify(change)}\n\n`),
-    Stream.catchTags({
-      RemoteLiveError: error => Stream.succeed(errorFrame(error.message)),
-      RemoteProtocolError: error => Stream.succeed(errorFrame(error.message)),
+  Stream.unwrap(
+    Effect.gen(function* () {
+      const ended = yield* Deferred.make<void>()
+      const events = handlers.FoldkitRemoteLive(payload).pipe(
+        Stream.map(change => `data: ${JSON.stringify(change)}\n\n`),
+        Stream.catchTags({
+          RemoteLiveError: error => Stream.succeed(errorFrame(error.message)),
+          RemoteProtocolError: error => Stream.succeed(errorFrame(error.message)),
+        }),
+        Stream.ensuring(Deferred.succeed(ended, undefined)),
+      )
+      const beats = Stream.concat(
+        Stream.succeed(': ping\n\n'),
+        Stream.fromSchedule(Schedule.spaced(heartbeat)).pipe(Stream.map(() => ': ping\n\n')),
+      ).pipe(Stream.interruptWhen(Deferred.await(ended)))
+      return Stream.merge(events, beats)
     }),
-    Stream.encodeText,
-  )
+  ).pipe(Stream.encodeText)
 
 /**
  * Whether the body opens a live stream rather than asking `answer`. Anything
@@ -81,10 +98,14 @@ const isLiveOpen = (body: unknown): body is Schema.Schema.Type<typeof LiveFetchR
  * breaks building the stream is a 500 that says nothing of it. Once the
  * stream runs, its own failures are its terminal `event: error` frame.
  */
+/** Heartbeats when the caller names none: under proxy idle timeouts. */
+const DEFAULT_HEARTBEAT: Duration.Input = '15 seconds'
+
 const liveResponse = <R>(
   handlers: RemoteRpcClient<R>,
   payload: unknown,
   layer: Layer.Layer<R>,
+  heartbeat: Duration.Input,
 ): Promise<Response> => {
   let requirement: Schema.Schema.Type<typeof LiveRequirement>
   try {
@@ -95,7 +116,7 @@ const liveResponse = <R>(
     )
   }
   return Effect.runPromise(
-    Stream.toReadableStreamEffect(liveBytes(handlers, requirement)).pipe(
+    Stream.toReadableStreamEffect(liveBytes(handlers, requirement, heartbeat)).pipe(
       Effect.provide(layer),
       Effect.map(
         body =>
@@ -153,7 +174,12 @@ export const serveFetch = <P, R, Env>(
       maxDepth: config.maxDepth,
     })
     if (isLiveOpen(body)) {
-      return liveResponse(handlers, body.payload, config.layer(env))
+      return liveResponse(
+        handlers,
+        body.payload,
+        config.layer(env),
+        config.liveHeartbeat ?? DEFAULT_HEARTBEAT,
+      )
     }
     try {
       const answered = await Effect.runPromise(

@@ -53,9 +53,16 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env> {
   readonly resolvePrincipal: (request: Request, env: Env) => Principal | Promise<Principal>
   /**
    * Runs after each exchange's appends and before the reply is read: apply
-   * what committed to another store. See `serveJournal`.
+   * what committed to another store, through `journal.recover`. Takes the
+   * environment — a D1 binding, say — and the journal, because both live
+   * outside the exchange. See `serveJournal`.
    */
-  readonly settle?: Effect.Effect<void, unknown> | undefined
+  readonly settle?:
+    | ((
+        env: Env,
+        journal: Journal<Operation, Shared, Principal, Operation>,
+      ) => Effect.Effect<void, unknown>)
+    | undefined
   /** Refuses an operation before the journal sees it, by connection. See `serveJournal`. */
   readonly refuse?: ((operation: Operation) => boolean) | undefined
   /**
@@ -133,7 +140,7 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
         sync: config.sync,
         journal,
         principal,
-        ...(config.settle === undefined ? {} : { settle: config.settle }),
+        ...(config.settle === undefined ? {} : { settle: config.settle(this.hostEnv, journal) }),
         ...(config.refuse === undefined ? {} : { refuse: config.refuse }),
       })
       return new Response(null, {

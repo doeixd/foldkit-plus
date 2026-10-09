@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`examples/cloudflare`: the whole stack in one deployable worker.** Reads
+  are Remote over D1 through `foldkit-remote-drizzle`; writes are Sync through a
+  Durable Object's D1 journal, whose `settle` applies each committed operation to
+  the table Remote reads back; live is a polling `LiveSource` that re-reads D1
+  from inside the subscriber's own request. `pnpm demo` prints the loop against
+  real workerd and `pnpm test` asserts it, both on miniflare over real HTTP.
+
 - **`foldkit-sync/do`: serve one document's exchange from a Durable Object.**
   `defineDocumentHost(DurableObject, { sync, openJournal, resolvePrincipal })`
   defines the single-writer class: each accepted socket exchanges against the
@@ -242,6 +249,17 @@ version changed; `pnpm` skips versions already in the registry.
   by Surface name), read with `Surface.instances(source, model)`.
 
 ### Changed
+
+- **`foldkit-sync/do`: `settle` now takes the environment and the journal.**
+  `settle: (env, journal) => Effect` is called per exchange with the object's
+  own environment and the journal it serves, so applying what committed to a D1
+  table needs no closure over a binding captured elsewhere.
+
+- **`foldkit-remote-server/fetch`: live streams heartbeats.** A `: ping`
+  comment opens every live stream and follows every `liveHeartbeat`
+  (default 15 seconds), so an idle stream is neither dropped by a proxy nor
+  cancelled by a worker runtime. The heartbeat stops with the events it
+  serves, so a stream with nothing to serve still ends.
 
 - **`foldkit-mixins`: `Theme.oklch`'s families are one shape, and hold up in a
   dark scheme.** Every family has `default`, `hover`, `active`, `subtle`,

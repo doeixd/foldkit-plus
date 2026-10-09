@@ -741,6 +741,25 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **Type a boundary from the side the runtime consumes.** Dispatch decodes, so
   its input type is the schema's *encoded* side. Typing it from the decoded side
   accepted `{value: 42}` and rejected the `{value: '42'}` that works.
+- **One worker request cannot wake another's stream, in any form.** An open
+  SSE response in a worker (a live subscribe, a fetch that never answers) is
+  owned by its request's `ioContext`. A second request that offers to a Queue,
+  succeeds a Deferred, or even calls `enqueue` directly on the first's captured
+  `ReadableStreamDefaultController` does wake its fiber — and immediately tears
+  the stream down: `workerd/io/io-context.h: Promise will never complete` or,
+  if the stream has a pending timer, `The Workers runtime canceled this
+  request because it detected that your Worker's code had hung`. Proven
+  minimal, with no library involved: a worker that stores a controller at
+  module scope and enqueues to it from `/offer` while `/open` streams heartbeats
+  reproduces it. Same request only: an offer scheduled by that same request
+  (its own `setTimeout`) is delivered fine. It is not an Effect bug, not a
+  miniflare artifact, and not fixed by a heartbeat — `dispatchFetch` and a real
+  HTTP server both do it. So an in-memory hub fanning `changed` out to live
+  subscribers is undeployable on Workers: what crosses requests is the durable
+  store they share (D1), and each live stream re-reads it from inside its own
+  request. `examples/cloudflare`'s polling `LiveSource` is the shape; a
+  `LiveHub` push reaches nobody.
+
 - **Drizzle's Effect driver does not load under the pinned Effect.**
   `drizzle-orm@1.0.0-rc.4`'s `effect-postgres` driver imports
   `cache/core/cache-effect.ts`, which calls `Schema.TaggedErrorClass` — a name

@@ -142,10 +142,14 @@ const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the
 // Over a MessagePort (a sandbox's worker): port(open) from 'foldkit-remote/port',
 // servePort(handlers, port) from 'foldkit-remote-server/port'; Effect's RPC worker
 // protocol, so live data, typed errors and interruption cross it.
-// Over fetch (a Worker's fetch): serveFetch({ server, resolvePrincipal, layer })
-// from 'foldkit-remote-server/fetch' answers the POSTs Remote.http sends, and
-// a live open with a text/event-stream of changes (Remote.httpWithLive); the
-// principal and the Sources' requirements come per request from env.
+// Over fetch (a Worker's fetch): serveFetch({ server, resolvePrincipal, layer,
+// liveHeartbeat }) from 'foldkit-remote-server/fetch' answers the POSTs
+// Remote.http sends, and a live open with a text/event-stream of changes
+// (Remote.httpWithLive); the principal and the Sources' requirements come per
+// request from env. Every stream heartbeats, so an idle one survives. A
+// worker cannot wake another request's stream, so a LiveHub fed from a second
+// request reaches nobody there: poll the durable store (D1) from inside the
+// subscriber's own request instead.
 // Plain JSON (Remote.json) carries no live data.
 
 // One list instead of the four hand-wiring steps above.
@@ -510,7 +514,7 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 Also: `RemoteServer.query(Q, ({ input, window, principal }) => ...)` returning
 `{ edges, start, end }` with `Boundary` values; `RemoteServer.live(Entity, { subscribe })`;
 `const hub = yield* RemoteServer.liveHub(entitySources)` then `handlers(Server, principal, { live: hub })`
-and, inside a mutation's Effect, `yield* hub.changed(Project.ref(id), ['name'])` / `yield* hub.deleted(ref)`; connection changes
+and, inside a mutation's Effect, `yield* hub.changed(Project.ref(id), ['name'])` / `yield* hub.deleted(ref)` — but only from a process that can wake the subscriber's fiber: a worker request cannot wake another's stream, so on a Worker poll the store from inside the subscription instead. Connection changes
 from mutations via `RemoteServer.prepend/append/remove`. `handlers` options:
 `maxIdsPerEntity` (default 1000), `maxDepth` (default 8).
 
@@ -649,3 +653,4 @@ is for fields; `visible` is for rows.
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/remote (asserted client trace)
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink (real server + Drizzle + liveHub)
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare (one worker: Remote over D1, Sync through a DO, polling live)

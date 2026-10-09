@@ -65,8 +65,8 @@ export default [
     edits: [
       {
         file,
-        find: "{ error: 'Internal error' }, { status: 500 }",
-        replace: "{ error: 'leaked' }, { status: 500 }",
+        find: "// A failure of the layer, or a defect anywhere: this side broke, and the\n      // caller learns that it did, not what. `answer` already maps its own\n      // failures and defects to 400/500 answers above this.\n      return Response.json({ error: 'Internal error' }, { status: 500 })",
+        replace: "return Response.json({ error: 'leaked' }, { status: 500 })",
       },
     ],
     tests,

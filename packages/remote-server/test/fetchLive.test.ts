@@ -5,7 +5,7 @@
  * payload no stream speaks is a 400; a version the protocol refuses ends the
  * stream with an `error` frame.
  */
-import { Effect, Fiber, Layer, Schema, Stream } from 'effect'
+import { Effect, Fiber, Layer, Schema, Stream, type Duration } from 'effect'
 import { Entity, Mutation, REMOTE_PROTOCOL_VERSION, Remote, RemoteClient } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
@@ -39,7 +39,7 @@ const ItemSource = RemoteServer.entity<string>(Item, {
     ),
 })
 
-const fixture = () => {
+const fixture = (heartbeat?: Duration.Input) => {
   rows.clear()
   rows.set('a', { id: 'a', name: 'Anchor' })
   const hub = Effect.runSync(RemoteServer.liveHub([ItemSource]))
@@ -56,6 +56,7 @@ const fixture = () => {
     resolvePrincipal: request => (request.headers.get('x-admin') === 'yes' ? 'admin' : 'guest'),
     layer: () => Layer.empty,
     live: hub,
+    ...(heartbeat === undefined ? {} : { liveHeartbeat: heartbeat }),
   })
   const call = (body: unknown, admin: boolean) =>
     fetch(
@@ -105,8 +106,36 @@ const waitFor = async (done: () => Promise<boolean> | boolean): Promise<void> =>
   }
 }
 
-/** Reads SSE frames until one arrives, decoded. */
+/**
+ * Every SSE frame of a body, in order, heartbeat comments left out: a `: ping`
+ * says the stream lives, never what changed.
+ */
+async function* framesOf(reader: ReadableStreamDefaultReader<Uint8Array>) {
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const next = await reader.read()
+    if (next.done) return
+    buffer += decoder.decode(next.value, { stream: true })
+    for (;;) {
+      const at = buffer.indexOf('\n\n')
+      if (at < 0) break
+      const frame = buffer.slice(0, at)
+      buffer = buffer.slice(at + 2)
+      if (frame.startsWith(':')) continue
+      yield frame
+    }
+  }
+}
+
+/** Reads the next frame that is not a heartbeat comment. */
 const readFrame = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
+  for await (const frame of framesOf(reader)) return frame
+  throw new Error('the stream ended before a frame arrived')
+}
+
+/** Reads the next frame whatever it is, heartbeat comment included. */
+const readRawFrame = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
   const decoder = new TextDecoder()
   let buffer = ''
   for (;;) {
@@ -114,8 +143,16 @@ const readFrame = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
     if (next.done) throw new Error('the stream ended before a frame arrived')
     buffer += decoder.decode(next.value, { stream: true })
     const at = buffer.indexOf('\n\n')
-    if (at >= 0) return buffer.slice(0, at)
+    if (at < 0) continue
+    return buffer.slice(0, at)
   }
+}
+
+/** Reads every frame until the stream ends, heartbeat comments left out. */
+const readAllFrames = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
+  const frames: string[] = []
+  for await (const frame of framesOf(reader)) frames.push(frame)
+  return frames
 }
 
 describe('serveFetch live', () => {
@@ -183,7 +220,8 @@ describe('serveFetch live', () => {
       undefined,
     )
     expect(response.status).toBe(200)
-    expect(await response.text()).toBe('')
+    // A stream that serves nothing ends; only heartbeats, if any, moved.
+    expect(await readAllFrames(response.body!.getReader())).toEqual([])
   })
 
   it('refuses a live payload no stream speaks with a 400', async () => {
@@ -200,9 +238,11 @@ describe('serveFetch live', () => {
       true,
     )
     expect(response.status).toBe(200)
-    const text = await response.text()
-    expect(text.startsWith('event: error\ndata: ')).toBe(true)
-    expect(JSON.parse(text.slice('event: error\ndata: '.length).trim()).message).toMatch(
+    const frames = await readAllFrames(response.body!.getReader())
+    // The heartbeat that opens the stream comes first; the error ends it.
+    expect(frames).toHaveLength(1)
+    expect(frames[0]!.startsWith('event: error\ndata: ')).toBe(true)
+    expect(JSON.parse(frames[0]!.slice('event: error\ndata: '.length).trim()).message).toMatch(
       /protocol version/,
     )
   })
@@ -248,5 +288,52 @@ describe('serveFetch live', () => {
         cursor: 1,
       },
     ])
+  })
+
+  it('pings an idle stream so proxies and workers keep it', async () => {
+    const { hub, openLive } = fixture('50 millis')
+    const response = await openLive(true)
+    expect(response.status).toBe(200)
+    const reader = response.body!.getReader()
+    // Nothing changes: every frame is a heartbeat, which is the point.
+    expect(await readRawFrame(reader)).toBe(': ping')
+    expect(await readRawFrame(reader)).toBe(': ping')
+    await reader.cancel()
+    await waitFor(() => Effect.runPromise(hub.size).then(size => size === 0))
+  })
+
+  it('ends with the events, so a heartbeat outlives nothing it serves', async () => {
+    rows.clear()
+    const server = RemoteServer.make({ entities: [ItemSource] })
+    const served = serveFetch({
+      server,
+      resolvePrincipal: () => 'admin',
+      layer: () => Layer.empty,
+      // A heartbeat far shorter than the wait: a stream that cannot end
+      // keeps pinging through this whole second.
+      liveHeartbeat: '50 millis',
+    })
+    const response = await served(
+      new Request('http://worker.test/remote', {
+        method: 'POST',
+        body: JSON.stringify({
+          operation: 'live',
+          payload: {
+            version: REMOTE_PROTOCOL_VERSION,
+            requirements: [{ entity: 'Item', id: 'a', fields: ['name'] }],
+            after: 0,
+          },
+        }),
+      }),
+      undefined,
+    )
+    expect(response.status).toBe(200)
+    const reader = response.body!.getReader()
+    const frames = await Promise.race([
+      readAllFrames(reader),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 1000)),
+    ])
+    // `null` is the deadline: the stream never ended, so the heartbeat went on.
+    expect(frames).toEqual([])
   })
 })

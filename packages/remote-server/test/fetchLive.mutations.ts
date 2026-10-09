@@ -13,9 +13,39 @@ export default [
       {
         file,
         find: `    if (isLiveOpen(body)) {
-      return liveResponse(handlers, body.payload, config.layer(env))
+      return liveResponse(
+        handlers,
+        body.payload,
+        config.layer(env),
+        config.liveHeartbeat ?? DEFAULT_HEARTBEAT,
+      )
     }`,
         replace: '    void body',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an idle stream never pings',
+    edits: [
+      {
+        file,
+        find: `      const beats = Stream.concat(
+        Stream.succeed(': ping\\n\\n'),
+        Stream.fromSchedule(Schedule.spaced(heartbeat)).pipe(Stream.map(() => ': ping\\n\\n')),
+      ).pipe(Stream.interruptWhen(Deferred.await(ended)))`,
+        replace: '      const beats = Stream.empty',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the heartbeat outlives the events it serves',
+    edits: [
+      {
+        file,
+        find: '.pipe(Stream.interruptWhen(Deferred.await(ended)))',
+        replace: '',
       },
     ],
     tests,
