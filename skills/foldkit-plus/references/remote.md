@@ -515,7 +515,7 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 Also: `RemoteServer.query(Q, ({ input, window, principal }) => ...)` returning
 `{ edges, start, end }` with `Boundary` values; `RemoteServer.live(Entity, { subscribe })`;
 `const hub = yield* RemoteServer.liveHub(entitySources)` then `handlers(Server, principal, { live: hub })`
-and, inside a mutation's Effect, `yield* hub.changed(Project.ref(id), ['name'])` / `yield* hub.deleted(ref)` — but only from a process that can wake the subscriber's fiber: a worker request cannot wake another's stream, so on a Worker poll the store from inside the subscription instead. Connection changes
+and every mutation's answered patches and deletions are then published to the hub by the handlers; call `yield* hub.changed(Project.ref(id), ['name'])` / `yield* hub.deleted(ref)` only for writes that are not mutations — and only from a process that can wake the subscriber's fiber: a worker request cannot wake another's stream, so on a Worker poll the store from inside the subscription instead. Connection changes
 from mutations via `RemoteServer.prepend/append/remove`. `handlers` options:
 `maxIdsPerEntity` (default 1000), `maxDepth` (default 8).
 

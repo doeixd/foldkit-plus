@@ -39,7 +39,7 @@ before fetch: Initial
 after fetch (Drizzle SQLite): Ready Apollo
 nested selection (one read): owner Ada
 mutation (remote-1): MutationSucceeded -> Ready Apollo II
-live (hub.changed): EntityPatched name=Apollo II
+live (published by the mutation): EntityPatched id,name,status=Apollo II
 query page: p2, p1
 optimistic insert: p3, p2, p1
 confirmed insert: p3, p2, p1
@@ -70,7 +70,7 @@ quietly stop demonstrating them.
 | --- | --- | --- |
 | Observation | `foldkit-surface` | One `Surface.application` embeds the Remote submodel beside the client-owned `notes` slice; `BoardSurface` projects both. `test/module.test.ts` validates the whole set of contracts. |
 | Server-derived state | `foldkit-remote` | The normalized cache submodel: `Data.prefetch`, `Data.live`, `Data.mutate` with an optimistic `ConnectionChange`, `Data.query`, `Data.inspect`, `Remote.retain`, and `RemotePersistence.dehydrate`/`hydrate`. |
-| Server | `foldkit-remote-server` | `RemoteServer` sources compiled to `RemoteServer.handlers`, served in-process through `Remote.clientLayer` over the database layer; a `liveHub` feeds the live subscription from the rename mutation. |
+| Server | `foldkit-remote-server` | `RemoteServer` sources compiled to `RemoteServer.handlers`, served in-process through `Remote.clientLayer` over the database layer; a `liveHub` given to the handlers publishes what each mutation answers, which feeds the live subscription. |
 | Server SQL | `foldkit-remote-drizzle` | `Project` and `User` are Drizzle bindings over in-memory SQLite tables; the nested `owner` selection, the reads, and the query compile to SQL. |
 | Client-owned state | `foldkit-durable` | A `Journal.make` over the Sync contract orders the `notes` operations. |
 | Replication | `foldkit-sync` | A replica, an in-memory `Storage`, and `replica.start` exchanging through a `TransportClient`. |

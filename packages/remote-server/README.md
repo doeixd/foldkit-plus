@@ -459,8 +459,10 @@ the client planner can fall back to refetching it.
 
 ### Let a `liveHub` re-read changed fields
 
-When your infrastructure can say **what changed** but does not naturally produce
-Remote patches, use a hub:
+A hub fans **what changed** out to live subscribers. Give it to the handlers,
+and every mutation's answer is published to it: each patch as a change of the
+fields it carries, each deletion as a deletion. A mutation Source names nothing
+twice.
 
 ```ts
 const entitySources = [ProjectSource]
@@ -470,10 +472,14 @@ const handlers = RemoteServer.handlers(Server, principal, {
   live: hub,
 })
 
-// From a mutation Source, database trigger consumer, etc.
+// Only for a write that is not a mutation: a database trigger consumer, a job.
 yield* hub.changed(Project.ref(projectId), ['status', 'updatedAt'])
 yield* hub.deleted(Project.ref(projectId))
 ```
+
+A mutation's publish runs after its Source returned, so after a write that
+commits as it goes. A failed publish is logged and the mutation still answers:
+its write has happened, and a failed answer would be retried.
 
 The hub remembers each subscriber's requirements and principal. `changed`:
 

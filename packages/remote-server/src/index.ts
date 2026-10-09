@@ -988,12 +988,12 @@ export const RemoteServer = {
   }),
 
   /**
-   * A `LiveHub` over entity sources. Pass it to `handlers` as `live`, then
-   * call `hub.changed(ref, fields)` from wherever the data changes (a mutation
-   * source, a database trigger); each subscriber that selects any of those
-   * fields receives them, re-read through the entity source under its own
-   * principal. It needs only the entity sources, so the mutation sources that
-   * signal it can be built after it.
+   * A `LiveHub` over entity sources. Pass it to `handlers` as `live`, and every
+   * mutation's answered patches and deletions are published to it; call
+   * `hub.changed(ref, fields)` yourself only for a write that is not a
+   * mutation (a database trigger, a job). Each subscriber that selects any of
+   * those fields receives them, re-read through the entity source under its
+   * own principal.
    */
   liveHub,
 
@@ -1284,6 +1284,25 @@ export const RemoteServer = {
           Effect.fail(new RemoteMutationError({ message: 'Invalid mutation output' })),
         ),
       )
+
+      // What the mutation answers is what changed, so live subscribers hear it
+      // without the handler naming it again. The write has committed by now: a
+      // failed publish is logged, never the mutation's failure, which a client
+      // would retry.
+      const hub = options.live
+      if (hub !== undefined) {
+        yield* Effect.forEach(outcome.entities, patch =>
+          hub.changed({ entity: patch.entity, id: patch.id }, Object.keys(patch.values)),
+        ).pipe(
+          Effect.andThen(Effect.forEach(outcome.deleted, gone => hub.deleted(gone))),
+          Effect.catchCause(cause =>
+            Effect.logWarning(
+              'RemoteServer: a mutation committed but its live publish failed',
+              cause,
+            ),
+          ),
+        )
+      }
 
       return {
         output,

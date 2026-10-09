@@ -106,7 +106,7 @@ export const CreateProject = Mutation.make('CreateProject', {
 })
 
 /**
- * The live hub: mutation sources tell it what changed, and every live
+ * The live hub: what each mutation answers is published to it, and every live
  * subscriber that selects those fields receives them, re-read through the
  * entity source under its own principal. It needs only the entity sources.
  */
@@ -125,8 +125,8 @@ const RenameProjectSource = RemoteServer.mutation(RenameProject, ({ input }) =>
           .returning(project.columns),
       ),
     )
-    // Live subscribers that select `name` learn of the rename from here.
-    yield* liveHub.changed(Project.ref(input.id), ['name'])
+    // The patches answered here are what live subscribers hear: the handlers
+    // given `live: liveHub` publish them, so nothing names the change twice.
     return { output: { id: input.id }, entities: project.patches(rows) }
   }),
 )

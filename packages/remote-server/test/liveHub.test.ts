@@ -1,6 +1,12 @@
 import { Effect, Fiber, Schema, Stream } from 'effect'
 import { RpcTest } from 'effect/rpc'
-import { Entity, REMOTE_PROTOCOL_VERSION, RemoteRpc, type ReadRequest } from 'foldkit-remote'
+import {
+  Entity,
+  Mutation,
+  REMOTE_PROTOCOL_VERSION,
+  RemoteRpc,
+  type ReadRequest,
+} from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { RemoteServer, RemoteServerError, type LiveHub } from '../src/index.js'
 
@@ -494,5 +500,117 @@ describe('RemoteServer.liveHub windows', () => {
       }),
     )
     expect(windowed).toEqual([{ comments: { first: 2 } }, { comments: { first: 5 } }, undefined])
+  })
+})
+
+describe('A mutation’s outcome reaches live subscribers', () => {
+  const Rename = Mutation.make('Rename', {
+    Input: { id: Schema.String, name: Schema.String },
+    Output: {},
+  })
+  const Remove = Mutation.make('Remove', { Input: { id: Schema.String }, Output: {} })
+  const people: Record<string, Record<string, unknown>> = {}
+  type Read = Parameters<typeof RemoteServer.entity<string>>[1]['read']
+  const fromPeople: Read = ({ ids, fields }) =>
+    Effect.succeed(
+      ids.flatMap(id => {
+        const row = people[id]
+        return row === undefined
+          ? []
+          : [{ id, values: Object.fromEntries(fields.map(field => [field, row[field]])) }]
+      }),
+    )
+  const mutations = [
+    RemoteServer.mutation(Rename, ({ input }) =>
+      Effect.sync(() => {
+        people[input.id] = { ...people[input.id], name: input.name }
+        return {
+          output: {},
+          entities: [{ entity: 'User', id: input.id, values: { name: input.name } }],
+        }
+      }),
+    ),
+    RemoteServer.mutation(Remove, ({ input }) =>
+      Effect.sync(() => {
+        delete people[input.id]
+        return { output: {}, deleted: [{ entity: 'User', id: input.id }] }
+      }),
+    ),
+  ]
+
+  /**
+   * One subscriber taking `count` events, while a mutation runs through the same
+   * handlers. With `count` 0 it stays subscribed until the mutation has answered.
+   */
+  const observe = (
+    read: Read,
+    count: number,
+    request: { readonly requestId: string; readonly mutation: string; readonly input: unknown },
+  ) => {
+    const entitySources = [RemoteServer.entity<string>(User, { read })]
+    const served = RemoteServer.make({ entities: entitySources, mutations })
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const hub = yield* RemoteServer.liveHub(entitySources)
+        const layer = RemoteRpc.toLayer(RemoteServer.handlers(served, 'admin', { live: hub }))
+        const fiber = yield* Effect.forkChild(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const client = yield* RpcTest.makeClient(RemoteRpc)
+              return yield* client
+                .FoldkitRemoteLive({
+                  version: REMOTE_PROTOCOL_VERSION,
+                  requirements: [{ entity: 'User', id: 'u1', fields: ['name'] }],
+                  after: 0,
+                })
+                .pipe(Stream.take(Math.max(count, 1)), Stream.runCollect)
+            }),
+          ).pipe(Effect.provide(layer)),
+        )
+        yield* settle
+        const answered = yield* Effect.scoped(
+          Effect.flatMap(RpcTest.makeClient(RemoteRpc), client =>
+            client.FoldkitRemoteMutate(request),
+          ),
+        ).pipe(Effect.provide(layer), Effect.result)
+        const events = count === 0 ? [] : [...(yield* Fiber.join(fiber))]
+        if (count === 0) yield* Fiber.interrupt(fiber)
+        return { answered, events }
+      }),
+    )
+  }
+
+  it('publishes the patch it answers with, with no hub call in the handler', async () => {
+    people.u1 = { name: 'ada' }
+    const { answered, events } = await observe(fromPeople, 1, {
+      requestId: 'r1',
+      mutation: 'Rename',
+      input: { id: 'u1', name: 'Ada' },
+    })
+    expect(answered._tag).toBe('Success')
+    expect(events).toMatchObject([
+      { _tag: 'EntityPatched', entity: 'User', id: 'u1', values: { name: 'Ada' } },
+    ])
+  })
+
+  it('publishes a deletion it answers with', async () => {
+    people.u1 = { name: 'ada' }
+    const { events } = await observe(fromPeople, 1, {
+      requestId: 'r2',
+      mutation: 'Remove',
+      input: { id: 'u1' },
+    })
+    expect(events).toMatchObject([{ _tag: 'EntityDeleted', entity: 'User', id: 'u1' }])
+  })
+
+  it('answers the mutation though its publish failed, since the write has committed', async () => {
+    people.u1 = { name: 'ada' }
+    const { answered } = await observe(
+      () => Effect.fail(new RemoteServerError({ message: 'db down' })),
+      0,
+      { requestId: 'r3', mutation: 'Rename', input: { id: 'u1', name: 'Ada' } },
+    )
+    expect(answered._tag).toBe('Success')
+    expect(people.u1).toEqual({ name: 'Ada' })
   })
 })

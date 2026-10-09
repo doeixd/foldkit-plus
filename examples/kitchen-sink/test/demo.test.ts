@@ -10,7 +10,9 @@ describe('kitchen sink', () => {
     expect(lines).toContain('after fetch (Drizzle SQLite): Ready Apollo')
     expect(lines).toContain('nested selection (one read): owner Ada')
     expect(lines).toContain('mutation (remote-1): MutationSucceeded -> Ready Apollo II')
-    expect(lines).toContain('live (hub.changed): EntityPatched name=Apollo II')
+    expect(lines).toContain(
+      'live (published by the mutation): EntityPatched id,name,status=Apollo II',
+    )
     expect(lines).toContain('query page: p2, p1')
     expect(lines).toContain('optimistic insert: p3, p2, p1')
     expect(lines).toContain('confirmed insert: p3, p2, p1')

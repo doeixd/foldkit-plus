@@ -122,7 +122,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   )
 
   // A live subscription for the Board is registered with the server's hub
-  // before the rename, so the mutation's `hub.changed` reaches it.
+  // before the rename, so the patch the mutation answers with reaches it.
   // The Board's Subscription entries, as `Subscription.make` would take them;
   // the live entry exists because the Board reads the project through `Data.live`.
   const liveEntry = Data.subscriptions({ board: BoardSurface })['board.live']
@@ -147,7 +147,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     `mutation (${rename.requestId}): ${settled._tag} -> ${describeData(projection.read(renamed))}`,
   )
   say(
-    `live (hub.changed): ${
+    `live (published by the mutation): ${
       liveEvent?._tag === 'LiveReceived' && liveEvent.event._tag === 'EntityPatched'
         ? `${liveEvent.event._tag} ${liveEvent.event.changed.join(',')}=${String(liveEvent.event.values.name)}`
         : 'nothing'

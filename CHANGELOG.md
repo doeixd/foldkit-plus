@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote-server`: handlers given a `live` hub publish every
+  mutation's answer to it.** Each answered patch is a change of the fields it
+  carries and each deletion a deletion, re-read per subscriber as before. Delete
+  a `hub.changed` call that follows a mutation's write, or subscribers hear the
+  change twice; keep one for writes that are not mutations. A failed publish is
+  logged and the mutation still answers, since its write has happened.
 - **`examples/cloudflare` page:** the Pages site is a Foldkit app. The list is
   `Crud.list` over the `AllTodos` query. The first visit says "Loading…". A
   later visit paints the rows stored in the browser at once and asks again.
