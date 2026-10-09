@@ -387,7 +387,8 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
 outcome. The client tombstones them: `NotFound`, and gone from every connection
 and relation, so the server names no list.
 
-**Lists after a mutation.** Each answered patch is judged against every loaded
+**Lists after a mutation.** Each answered patch's new values (a field equal to
+what the client held does not count) are judged against every loaded
 list over its Entity by the list's query body (`Query.dependencies`'
 `predicate`/`order`, `belongsEncoded`): a list stands when the body proves its
 rows and order unchanged, and is otherwise invalidated, restarting any read of

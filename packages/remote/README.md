@@ -1307,8 +1307,10 @@ server names no list. Patches apply first, so an entity named both ways is
 deleted; a retry of the same request deletes nothing again.
 
 **Which lists a mutation changed is worked out from its answer.** Each patch
-says which fields of which row changed, and every loaded list over that Entity
-is judged by its query's body against the store the answer left:
+says which row it wrote; the fields whose value differs from what the client
+held are what changed (an answer returning a whole row changes only what is
+new). Every loaded list over that Entity is judged by its query's body against
+the store the answer left:
 
 - a list whose body reads none of the changed fields stands;
 - a row it holds that still matches, or a row it does not hold that still does

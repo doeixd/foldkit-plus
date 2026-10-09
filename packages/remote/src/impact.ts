@@ -16,6 +16,7 @@
 import { Query as Relational } from 'foldkit-entity'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { Schema } from 'effect'
+import { sameData } from './data.js'
 import { belongsEncoded } from './matching.js'
 import type { NormalizedPatch } from './mutation.js'
 import type { ConnectionSpec, QueryDescriptor } from './query.js'
@@ -28,14 +29,31 @@ export const EntityChange = defineTaggedUnion({
 })
 export type EntityChange = typeof EntityChange.Type
 
-/** What a mutation's answer says it changed: each patch's fields, each deletion. */
-export const changesOf = (answer: {
-  readonly entities: ReadonlyArray<NormalizedPatch>
-  readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
-}): ReadonlyArray<EntityChange> => [
-  ...answer.entities.map(patch =>
-    EntityChange.Changed({ entity: patch.entity, id: patch.id, fields: Object.keys(patch.values) }),
-  ),
+/**
+ * What a mutation's answer changed, against `before`, the store as the server
+ * last said it: each patch's fields whose value is new, and each deletion. An
+ * answer returns more than it changed (a whole row, say), and counting an
+ * unchanged ordering field would refetch every list on every save.
+ */
+export const changesOf = (
+  answer: {
+    readonly entities: ReadonlyArray<NormalizedPatch>
+    readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
+  },
+  before: EntityStore,
+): ReadonlyArray<EntityChange> => [
+  ...answer.entities.flatMap(patch => {
+    const held = before[entityKey(patch.entity, patch.id)]?.values
+    const fields = Object.keys(patch.values).filter(
+      field =>
+        held === undefined ||
+        !Object.hasOwn(held, field) ||
+        !sameData(held[field], patch.values[field]),
+    )
+    return fields.length === 0
+      ? []
+      : [EntityChange.Changed({ entity: patch.entity, id: patch.id, fields })]
+  }),
   ...(answer.deleted ?? []).map(gone => EntityChange.Deleted({ entity: gone.entity, id: gone.id })),
 ]
 

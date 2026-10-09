@@ -98,13 +98,9 @@ export default [
     tests,
   },
   {
-    name: 'a repeated answer invalidates again',
+    name: 'a repeated value counts as a change',
     edits: [
-      {
-        file: '../src/index.ts',
-        find: 'answer === undefined || remote.mutations.applied.has(answer.requestId)',
-        replace: 'answer === undefined',
-      },
+      { file: impact, find: '!sameData(held[field], patch.values[field]),', replace: 'true,' },
     ],
     tests,
   },

@@ -34,6 +34,13 @@ const ByStatus = Query.define('ByStatus', { status: Schema.String }, ({ input })
     Query.orderBy(Order.asc(Project.fields.price)),
   ),
 )
+/** Projects whose name contains what was typed. */
+const Named = Query.define('Named', { name: Schema.String }, ({ input }) =>
+  Query.from(Project).pipe(
+    Query.where(Expr.contains(Project.fields.name, input.name)),
+    Query.orderBy(Order.asc(Project.fields.id)),
+  ),
+)
 /** The same rows, by a query whose meaning only the server knows. */
 const Opaque = Query.make('Opaque', { Input: {}, Result: Query.connection(Project) })
 const Owners = Query.define('Owners', {}, () =>
@@ -46,10 +53,11 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Project, Owner],
-  queries: [ByStatus, Opaque, Owners],
+  queries: [ByStatus, Named, Opaque, Owners],
 })
 
 const active = Data.query(ByStatus, { status: 'active' }, { select: Summary, first: 25 })
+const named = Data.query(Named, { name: 'Apo' }, { select: Summary, first: 25 })
 const opaque = Data.query(Opaque, {}, { select: Summary, first: 25 })
 const owners = Data.query(
   Owners,
@@ -89,7 +97,8 @@ const loaded = (): Model => {
     },
   )
   const withActive = holding(stored, active.ref.identity, ['p1', 'p2'])
-  const withOpaque = holding(withActive, opaque.ref.identity, ['p1', 'p2', 'p3'])
+  const withNamed = holding(withActive, named.ref.identity, ['p1'])
+  const withOpaque = holding(withNamed, opaque.ref.identity, ['p1', 'p2', 'p3'])
   return Data.reduce(withOpaque, {
     _tag: 'ConnectionMerged',
     connection: owners.ref.identity,
@@ -129,8 +138,15 @@ describe('A list whose body proves the write left it as it was', () => {
   })
 
   it('is kept when a held row changed a filtered field and still matches', () => {
-    const same = answered(loaded(), [patch('p1', { status: 'active' })])
-    expect(stale(same, active.ref.identity)).toBe(false)
+    const renamed = answered(loaded(), [patch('p1', { name: 'Apollo II' })])
+    expect(stale(renamed, named.ref.identity)).toBe(false)
+  })
+
+  it('is kept when the answer repeats values the client held, as a whole row does', () => {
+    // Every field is returned and none is new, the ordering field included.
+    const repeated = answered(loaded(), [patch('p1', rows[0]!)])
+    expect(stale(repeated, active.ref.identity)).toBe(false)
+    expect(stale(repeated, opaque.ref.identity)).toBe(false)
   })
 
   it('is kept when a row it does not hold changed only an ordering field', () => {
@@ -153,6 +169,11 @@ describe('A list whose body proves the write left it as it was', () => {
 })
 
 describe('A list the write may have changed', () => {
+  it('is invalidated when a held row stops matching, by any filter', () => {
+    const renamed = answered(loaded(), [patch('p1', { name: 'Voyager' })])
+    expect(stale(renamed, named.ref.identity)).toBe(true)
+  })
+
   it('is invalidated when a held row stops matching', () => {
     const archived = answered(loaded(), [patch('p1', { status: 'archived' })])
     expect(stale(archived, active.ref.identity)).toBe(true)

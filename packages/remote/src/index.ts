@@ -2538,12 +2538,12 @@ const bindDomain = <
       message._tag === 'MutationSucceeded'
         ? (message as Extract<RemoteMessage, { _tag: 'MutationSucceeded' }>)
         : undefined
-    // An answer is applied once per request: a repeat changes nothing, so it
-    // invalidates nothing either.
+    // A repeated answer finds every value it carries already held, so it
+    // changes nothing and invalidates nothing.
     const next =
-      answer === undefined || remote.mutations.applied.has(answer.requestId)
+      answer === undefined
         ? reduced
-        : invalidateConnections(reduced, invalidatedBy(reduced, answer))
+        : invalidateConnections(reduced, invalidatedBy(reduced, answer, remote.entities))
     return next === remote ? model : store.set(model, next as Store)
   }
 
@@ -2554,8 +2554,10 @@ const bindDomain = <
   const invalidatedBy = (
     remote: RemoteModel,
     answer: Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>,
+    // The store before the answer, to tell a value it changed from one it repeated.
+    before: EntityStore,
   ): ReadonlyArray<string> => {
-    const changes = changesOf(answer)
+    const changes = changesOf(answer, before)
     if (changes.length === 0) return []
     // A list the answer itself changed is as the server says it is now.
     const named = new Set((answer.connections ?? []).map(change => change.connection))
