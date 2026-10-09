@@ -6,6 +6,7 @@
  * `variants`, of `Layers.standard`.
  */
 export { Alert } from './alert.js'
+export { AspectRatio } from './aspectRatio.js'
 export { Avatar } from './avatar.js'
 export { Badge, type BadgeOptions, type BadgeTone } from './badge.js'
 export { Breadcrumb } from './breadcrumb.js'
@@ -19,6 +20,7 @@ export { Segmented } from './segmented.js'
 export { Dialog } from './dialog.js'
 export { Empty } from './empty.js'
 export { FileDrop } from './fileDrop.js'
+export { Icon } from './icon.js'
 export { Input, InputGroup, Textarea } from './field.js'
 export { Item } from './item.js'
 export { Kbd } from './kbd.js'

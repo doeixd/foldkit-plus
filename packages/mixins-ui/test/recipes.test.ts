@@ -26,6 +26,8 @@ import {
   ScrollAreaSlots,
   CardSlots,
   AlertSlots,
+  AspectRatioSlots,
+  IconSlots,
   SeparatorSlots,
   SkeletonSlots,
   ItemSlots,
@@ -106,6 +108,8 @@ const allPieces = [
   ...selections(Recipes.Item.def.variants).map(selection => Recipes.Item(selection)),
   ...selections(Recipes.Skeleton.def.variants).map(selection => Recipes.Skeleton(selection)),
   ...selections(Recipes.Separator.def.variants).map(selection => Recipes.Separator(selection)),
+  ...selections(Recipes.AspectRatio.def.variants).map(selection => Recipes.AspectRatio(selection)),
+  ...selections(Recipes.Icon.def.variants).map(selection => Recipes.Icon(selection)),
   ...selections(Recipes.Alert.def.variants).map(selection => Recipes.Alert(selection)),
   ...selections(Recipes.Card.def.variants).map(selection => Recipes.Card(selection)),
   ...selections(Recipes.Input.def.variants).map(selection => Recipes.Input(selection)),
@@ -173,6 +177,12 @@ const compiled = {
   ),
   Separator: selections(Recipes.Separator.def.variants).map(
     selection => Style.forSlots(SeparatorSlots)(Recipes.Separator(selection)).css,
+  ),
+  AspectRatio: selections(Recipes.AspectRatio.def.variants).map(
+    selection => Style.forSlots(AspectRatioSlots)(Recipes.AspectRatio(selection)).css,
+  ),
+  Icon: selections(Recipes.Icon.def.variants).map(
+    selection => Style.forSlots(IconSlots)(Recipes.Icon(selection)).css,
   ),
   Alert: selections(Recipes.Alert.def.variants).map(
     selection => Style.forSlots(AlertSlots)(Recipes.Alert(selection)).css,

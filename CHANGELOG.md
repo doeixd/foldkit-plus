@@ -18,6 +18,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: AspectRatio and Icon.** Both are a slot and a
+  recipe, like Separator. `AspectRatio` holds content in a square, a 16:9
+  frame, or a portrait. `Icon` hides a decorative glyph and names one that
+  means something; `Icons.glyph` stays the mask for an element that already
+  exists.
+
 - **`foldkit-primitives`: place a popup once under its trigger.**
   `Placing.placeAt` is the offset under the trigger's left edge;
   `Placing.placeAtTrigger` writes `left` and `--fk-placed-top` on insert
