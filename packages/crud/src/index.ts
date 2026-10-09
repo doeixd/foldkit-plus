@@ -8,7 +8,7 @@
  * ordinary Foldkit: a Bundle, an ActiveSurface, Update Steps. Nothing is
  * generated from an Entity alone; each capability is declared.
  */
-import { Option, Predicate, Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Entity,
@@ -64,6 +64,7 @@ export interface EditableForm<
   readonly input: EntityInput<E, Fields, Members>
   readonly initial: FormModel
   readonly fill: (model: FormModel, values: Partial<Value>) => { readonly model: FormModel }
+  readonly authoredChanged: (before: FormModel, after: FormModel) => boolean
 }
 
 /**
@@ -653,10 +654,13 @@ export const Crud = {
       update: (model: Model, message: FormMessage) => {
         const next = form.bundle.update(model.form, message, undefined)
         // An edit after a save starts a new round; the last save no longer describes the form.
-        const requestId = Predicate.isTagged(message, 'Changed') ? null : model.requestId
+        // Any authored change counts, not only `Changed`: a row added or a
+        // Bundle-backed control's edit is one too.
+        const requestId = form.authoredChanged(model.form, next.model) ? null : model.requestId
+        const unchanged = next.model === model.form && requestId === model.requestId
         // The form's Commands are the editor's: a check the form started has to run.
         const edited = {
-          model: { ...model, form: next.model, requestId },
+          model: unchanged ? model : { ...model, form: next.model, requestId },
           ...(next.commands === undefined ? {} : { commands: next.commands }),
         }
         return next.outMessage === undefined ? edited : { ...edited, outMessage: next.outMessage }

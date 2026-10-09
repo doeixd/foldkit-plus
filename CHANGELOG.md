@@ -19,6 +19,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-crud`: any authored edit after a save returns the editor to
+  `Editing`.** It used to take only a typed field (`Changed`), so a nested row
+  added or removed, or a Bundle-backed control's edit, left it at `Saved` or
+  `SaveFailed`. The editor now asks the form (`authoredChanged`), and a
+  Message that changes nothing returns its Model as it was.
 - **`foldkit-primitives`: a popup placed in the same turn stays where it was placed.**
   `keepWithin` and the placement write start together, so the fit runs again
   when the write lands and judges that box. A point that would hang off the

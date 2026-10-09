@@ -350,3 +350,52 @@ describe('Crud.editor', () => {
     expect(PostEditor.status(other)).toBe('Loading')
   })
 })
+
+describe('Crud.editor over nested rows', () => {
+  const Comment = Entity.define(
+    'Comment',
+    Schema.Struct({ id: Schema.String, body: Schema.String }),
+  )
+  const Thread = Entity.define('Thread', Schema.Struct({ id: Schema.String, title: Schema.String }))
+  const Forum = Entity.relate({ Comment, Thread }, { Thread: { comments: Relation.many(Comment) } })
+  const NewComment = Entity.input(Forum.Comment, Schema.Struct({ body: Schema.String }))
+  const EditThreadInput = Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    comments: Schema.Array(NewComment.schema),
+  })
+  const ThreadForm = Form.make(
+    'EditThread',
+    Entity.input(Forum.Thread, EditThreadInput, {
+      comments: Relation.nested(Forum.Thread.relations.comments, NewComment),
+    }),
+    { debounce: 0 },
+  )
+  const ThreadEditor = Crud.editor('ThreadEditor', {
+    form: ThreadForm,
+    mutation: Mutation.make('EditThread', { Input: EditThreadInput, Output: {} }),
+  })
+  const { update } = ThreadEditor.bundle
+  // An editor whose last save is still the request it knows.
+  const saved = {
+    ...ThreadEditor.bundle.init().model,
+    mode: 'edit' as const,
+    requestId: 'EditThread-1',
+  }
+
+  it('starts a new round on an edit that is not a typed field: a row added', () => {
+    const added = update(saved, ThreadForm.Message.RowAdded({ key: 'comments' }), undefined)
+    expect(added.model.requestId).toBeNull()
+  })
+
+  it('keeps the save for what the author did not write, and the Model for what changed nothing', () => {
+    const blurred = update(saved, ThreadForm.Message.Blurred({ key: 'title' }), undefined)
+    expect(blurred.model.requestId).toBe('EditThread-1')
+    const dropped = update(
+      saved,
+      ThreadForm.Message.Nested({ key: 'comments', row: 'r9', message: { _tag: 'Nope' } }),
+      undefined,
+    )
+    expect(dropped.model).toBe(saved)
+  })
+})
