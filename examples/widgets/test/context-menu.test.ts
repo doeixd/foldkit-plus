@@ -37,6 +37,14 @@ describe('update flows', () => {
     expect(initial.model.action).toEqual(Option.none())
   })
 
+  it('opening the row that is already open returns that model', () => {
+    const open = update(initial.model, Message.OpenedFor({ id: 'notes.txt' })).model
+    expect(update(open, Message.OpenedFor({ id: 'notes.txt' })).model).toBe(open)
+    const other = update(open, Message.OpenedFor({ id: 'photo.png' })).model
+    expect(other).not.toBe(open)
+    expect(other.openFor).toEqual(Option.some('photo.png'))
+  })
+
   it('opens for a row and chooses through the menu', () => {
     const open = update(initial.model, Message.OpenedFor({ id: 'notes.txt' })).model
     expect(open.openFor).toEqual(Option.some('notes.txt'))

@@ -7,6 +7,17 @@ const tests = ['examples/widgets/test/context-menu.test.ts']
 
 export default [
   {
+    name: 'opening the same row again renders',
+    edits: [
+      {
+        file: '../src/context-menu/app.ts',
+        find: 'if (Option.isSome(model.openFor) && model.openFor.value === message.id) return { model }\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'choosing forgets the row',
     edits: [
       {

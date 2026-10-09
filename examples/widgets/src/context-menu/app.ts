@@ -96,6 +96,7 @@ export const update = assembly.update((model, message) => {
       return { model: { ...model, point: Option.some(next) } }
     }
     case 'OpenedFor':
+      if (Option.isSome(model.openFor) && model.openFor.value === message.id) return { model }
       return { model: { ...model, openFor: Option.some(message.id) } }
     case 'ChoseAction': {
       const open = model.openFor

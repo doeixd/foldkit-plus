@@ -33,6 +33,28 @@ import type { ToolbarSlots } from './toolbar/view.js'
 /** Fallback until `PlaceAt` writes the offset under the open trigger. */
 const underTrigger = `var(${Placing.placedTop}, calc(100% + 4px))`
 
+/** Border boxes overlap by a pixel across the 4px gap, so the pointer can cross it. */
+const hoverOverlap = '5px'
+
+const hoverBridge = (padding: string) =>
+  Style.compose(
+    Style.self({
+      marginTop: `-${hoverOverlap}`,
+      paddingTop: `calc(${padding} + ${hoverOverlap})`,
+    }),
+    Style.states(
+      {
+        [Placing.placedAbove]: {
+          marginTop: '0',
+          paddingTop: padding,
+          marginBottom: `-${hoverOverlap}`,
+          paddingBottom: `calc(${padding} + ${hoverOverlap})`,
+        },
+      },
+      Placing.placedSide,
+    ),
+  )
+
 /**
  * The same palette the design-system demo ships, so a token change shows up
  * here too. Island slots are each widget's own anatomy, so a Button recipe
@@ -393,10 +415,6 @@ export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
           width: 'max-content',
           maxWidth: 'min(20rem, calc(100vw - 2rem))',
           padding: '0.75rem',
-          // Same overlap as the navigation popup: the card is a sibling of
-          // the trigger, and the wrap is what closes on leave.
-          marginTop: '-5px',
-          paddingTop: 'calc(0.75rem + 5px)',
           background: onAccent,
           border: `1px solid ${line}`,
           borderRadius: '10px',
@@ -404,6 +422,9 @@ export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
           color: muted,
           fontSize: '0.875rem',
         }),
+        // The card is a sibling of the trigger, and the wrap is what closes
+        // on leave. The bridge overlaps whichever side the card opened on.
+        hoverBridge('0.75rem'),
         focus,
       ),
     },
@@ -521,12 +542,11 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
           borderRadius: '10px',
           boxShadow: t.shadow.lg,
           padding: '0.25rem',
-          // The box overlaps the trigger by a pixel, so moving into the menu
-          // does not leave the bar. The extra padding keeps the items where
-          // the 4px gap put them.
-          marginTop: '-5px',
-          paddingTop: 'calc(0.25rem + 5px)',
         }),
+        // The box overlaps the trigger by a pixel, so moving into the menu
+        // does not leave the bar. The extra padding keeps the items where
+        // the 4px gap put them, on whichever side the menu opened.
+        hoverBridge('0.25rem'),
         focus,
       ),
       item: Style.compose(

@@ -25,6 +25,10 @@ version changed; `pnpm` skips versions already in the registry.
   the panel carries `data-fk-placed="above"` when it does. Enter in
   `ListNavigation` commits an enabled current item.
 
+- **`examples/widgets`: the hover bridge follows a flip.** Navigation and the
+  hover card overlap the trigger on the side the panel opened. Opening the
+  context menu for the row it already shows returns the same model.
+
 - **`examples/cloudflare` page:** a new or renamed row is drawn where the
   title order will keep it. The list sorts by title, then id, which is what
   `AllTodos` asks D1 for, so the refresh does not move it.

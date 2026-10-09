@@ -51,8 +51,8 @@ npx vitest run examples/widgets
   because a Mount reads its args once.
 - `src/hover-card/` — informational popup on hover or focus. A click after
   the pointer opened it stays open; a second click closes it. Pointer leave
-  listens on the wrap. The card's border box overlaps the trigger, so the
-  pointer can cross the gap. Intent delays stay upstream's `HoverIntent`.
+  listens on the wrap. The card's border box overlaps the trigger on the side
+  it opened, so the pointer can cross the gap. Intent delays stay upstream's `HoverIntent`.
 - `src/menubar/` — File/Edit/View over roving triggers with one popup:
   Collection + `RovingTabindex` + `ListNavigation` + single Selection. Click
   toggles a menu. The popup sits under the open trigger. Reopening keeps the chosen
@@ -60,7 +60,7 @@ npx vitest run examples/widgets
 - `src/navigation-menu/` — hover opens a section; a click after that hover
   stays open, and a second click closes it. Collection + `ListNavigation` +
   single Selection under `Overlay.nonModal`. The popup sits under the trigger
-  and overlaps it the same way the hover card does.
+  and overlaps it on the side it opened, the same way the hover card does.
 - `src/native-select/` — native dropdown: value + change, unlisted values
   refused with the Model untouched.
 - `src/sidebar/` — collapsible docs rail: a root Disclosure around section
