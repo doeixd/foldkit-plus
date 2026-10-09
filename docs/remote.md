@@ -297,6 +297,10 @@ there is nothing to lose.
   line. The test suites remain the exhaustive executable specification:
   `pnpm exec vitest run packages/remote/test packages/remote-server/test
   packages/remote-drizzle/test`.
+- [`examples/cloudflare`](../examples/cloudflare) runs the reads on a Worker:
+  `serveFetch` over D1, and a live stream that re-reads D1 from inside the
+  subscriber's own request, because one worker request cannot wake another's
+  stream.
 - The transport is Effect RPC and nothing else; a wire change is a protocol
   version bump (`REMOTE_PROTOCOL_VERSION`), and a request is bounded in fields
   per entity, relation depth, and ids per entity.

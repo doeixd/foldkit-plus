@@ -92,15 +92,15 @@ const isLiveOpen = (body: unknown): body is Schema.Schema.Type<typeof LiveFetchR
   }
 }
 
+/** Heartbeats when the caller names none: under proxy idle timeouts. */
+const DEFAULT_HEARTBEAT: Duration.Input = '15 seconds'
+
 /**
  * Answers a live open with the stream as `text/event-stream`. A payload no
  * live stream speaks is a 400 that subscribes to nothing; anything this side
  * breaks building the stream is a 500 that says nothing of it. Once the
  * stream runs, its own failures are its terminal `event: error` frame.
  */
-/** Heartbeats when the caller names none: under proxy idle timeouts. */
-const DEFAULT_HEARTBEAT: Duration.Input = '15 seconds'
-
 const liveResponse = <R>(
   handlers: RemoteRpcClient<R>,
   payload: unknown,

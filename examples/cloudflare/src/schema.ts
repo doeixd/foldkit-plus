@@ -141,20 +141,21 @@ export const settleTodos = (journal: TodoJournal, db: D1Database): Effect.Effect
 const applyTodo = (db: D1Database, operation: Operation): Effect.Effect<void, unknown> =>
   Effect.gen(function* () {
     const decoded = Schema.decodeUnknownSync(Message)(operation.message)
-    if (decoded._tag === 'CreatedTodo') {
-      yield* Effect.promise(() =>
-        db
-          .prepare(
-            'INSERT INTO todos (id, title, done) VALUES (?, ?, 0) ON CONFLICT(id) DO NOTHING',
-          )
-          .bind(decoded.id, decoded.title)
-          .run(),
-      )
-    } else {
-      yield* Effect.promise(() =>
-        db.prepare('UPDATE todos SET done = 1 - done WHERE id = ?').bind(decoded.id).run(),
-      )
-    }
+    yield* Message.match(decoded, {
+      CreatedTodo: ({ id, title }) =>
+        Effect.promise(() =>
+          db
+            .prepare(
+              'INSERT INTO todos (id, title, done) VALUES (?, ?, 0) ON CONFLICT(id) DO NOTHING',
+            )
+            .bind(id, title)
+            .run(),
+        ),
+      ToggledTodo: ({ id }) =>
+        Effect.promise(() =>
+          db.prepare('UPDATE todos SET done = 1 - done WHERE id = ?').bind(id).run(),
+        ),
+    })
   })
 
 /**
