@@ -118,6 +118,8 @@ export const MutationRequest = Schema.Struct({
   requestId: Schema.String,
   mutation: Schema.String,
   input: Schema.Unknown,
+  /** For a mutation that is a `Write`: the input keys to write, when not all of them. */
+  keys: Schema.optional(Schema.Array(Schema.String)),
 })
 
 export const LiveEdge = Schema.Struct({

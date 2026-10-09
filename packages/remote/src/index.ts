@@ -11,6 +11,7 @@ import {
   Query as Relational,
   QueryEvaluateError,
   SelectionTypeId,
+  Write as DomainWrite,
 } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
 import type { Duration } from 'effect'
@@ -286,6 +287,11 @@ export interface DomainMutateOptions {
     | undefined
   /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`, read at each use. */
   readonly now?: (() => number) | undefined
+  /**
+   * For a mutation that is a `Write`: the input keys to write, when only some
+   * changed (what an author edited). The rest of the input is still sent, whole.
+   */
+  readonly keys?: ReadonlyArray<string> | undefined
 }
 
 /**
@@ -3109,10 +3115,14 @@ const bindDomain = <
       const requestId =
         options.requestId ?? `${bound.contract.name}-${remote.mutations.sequence + 1}`
       const tempId = `${requestId}.tmp`
+      // A declared write shows what it writes until the server answers; one given wins.
       const optimistic =
         typeof options.optimistic === 'function'
           ? options.optimistic({ requestId, tempId })
-          : options.optimistic
+          : (options.optimistic ??
+            (mutation.write === undefined
+              ? undefined
+              : [DomainWrite.bind(mutation.write, input as never, options.keys)]))
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,
@@ -3125,7 +3135,7 @@ const bindDomain = <
         command: {
           name: `Remote.mutate(${mutation.name})`,
           args: { requestId },
-          effect: mutateRemote(mutation, input, requestId).pipe(
+          effect: mutateRemote(mutation, input, requestId, options.keys).pipe(
             Effect.match({
               onFailure: (error): RemoteMessage => ({
                 _tag: 'MutationFailed',

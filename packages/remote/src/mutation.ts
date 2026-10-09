@@ -6,6 +6,7 @@
  * unknown or already-applied result is a no-op.
  */
 import { Schema } from 'effect'
+import type { AnyWrite, Write } from 'foldkit-entity'
 import type { RemoteError } from './remoteData.js'
 import { entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
 
@@ -148,6 +149,11 @@ export interface MutationDescriptor<Name extends string, Input, Output, Refused 
    * none.
    */
   readonly Refusal: Schema.Codec<Refused, unknown>
+  /**
+   * What the mutation writes, when it was declared as a `Write`: the optimistic
+   * patch a client shows, and what a server can run without a handler.
+   */
+  readonly write?: AnyWrite | undefined
 }
 
 const conflict = Schema.TaggedStruct('Conflict', {})
@@ -190,6 +196,22 @@ export const Mutation = {
    * `Refusal`, when given, is what the server may refuse with: a codec, usually
    * a union of `Refusal.field(...)` and `Refusal.conflict`.
    */
+  /**
+   * A mutation that is a declared `Write`: its input is the write's, and it
+   * answers nothing but the row it changed, as a patch. It may be refused as a
+   * conflict, for a write that `expect`s a revision the row has moved past.
+   */
+  update: <const Name extends string, Fields extends Schema.Struct.Fields>(
+    name: Name,
+    write: Write<any, Fields>,
+  ): MutationDescriptor<Name, Schema.Struct.Type<Fields>, {}, typeof Refusal.conflict.Type> => ({
+    name,
+    Input: write.input.schema as unknown as Schema.Codec<Schema.Struct.Type<Fields>>,
+    Output: Schema.Struct({}),
+    Refusal: Refusal.conflict,
+    write,
+  }),
+
   make: <
     const Name extends string,
     Input extends SchemaOrFields,

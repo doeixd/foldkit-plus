@@ -104,6 +104,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`: `Mutation.update(name, write)`, a mutation that is a
+  declared `Write`.** `Data.mutate` shows the write bound to the input until
+  the server answers, unless given its own `optimistic` list. The new
+  `keys` option narrows that to the input keys an author changed, and travels
+  on `MutationRequest.keys`. `MutationDescriptor` gains an optional `write`.
 - **`foldkit-entity`: `Write.update` declares what an input writes.** Over an
   `Entity.input`, it names the key holding the row's id (and optionally the
   key holding the revision it was read at) and sets every other key mapped to

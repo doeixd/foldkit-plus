@@ -7,7 +7,7 @@ import { Effect, Layer, Schema, Option } from 'effect'
 import { FetchHttpClient } from 'effect/http'
 import { RpcClient, RpcSerialization } from 'effect/rpc'
 import { expectTypeOf } from 'vitest'
-import { Entity as DomainEntity, Expr, Order, type AnyQuery } from 'foldkit-entity'
+import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -304,3 +304,34 @@ expectTypeOf(Priced.refusal(priced, 'SetPrice-1', SetPrice)).toEqualTypeOf<
     | { readonly _tag: 'Conflict' }
   >
 >()
+
+// A mutation that is a declared write.
+declare const editing: typeof TicketModel.Type
+{
+  const Project = DomainEntity.define(
+    'Project',
+    Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
+  )
+  const EditProjectInput = Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    status: Schema.String,
+  })
+  const EditProject = Mutation.update(
+    'EditProject',
+    Write.update(DomainEntity.input(Project, EditProjectInput), { id: 'id' }),
+  )
+  const Edits = Remote.make({
+    model: TicketApp.model.remote,
+    entities: [Project],
+    mutations: [EditProject],
+  })
+  Edits.mutate(
+    model,
+    EditProject,
+    { id: 'p1', name: 'Apollo II', status: 'active' },
+    { keys: ['name'] },
+  )
+  // @ts-expect-error the input is the write's
+  Edits.mutate(editing, EditProject, { id: 'p1' })
+}

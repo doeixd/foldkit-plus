@@ -168,7 +168,12 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
   Name extends string,
   Input,
   Output,
->(mutation: MutationDescriptor<Name, Input, Output>, input: Input, requestId: string) {
+>(
+  mutation: MutationDescriptor<Name, Input, Output>,
+  input: Input,
+  requestId: string,
+  keys?: ReadonlyArray<string>,
+) {
   yield* Effect.annotateCurrentSpan({ mutation: mutation.name, requestId })
   const client = yield* RemoteClient
   const encoded = yield* Schema.encodeUnknownEffect(mutation.Input)(input).pipe(
@@ -180,6 +185,7 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     requestId,
     mutation: mutation.name,
     input: encoded,
+    ...(keys === undefined ? {} : { keys }),
   })
   const output = yield* Schema.decodeUnknownEffect(mutation.Output)(result.output).pipe(
     Effect.catchTag('SchemaError', error =>
