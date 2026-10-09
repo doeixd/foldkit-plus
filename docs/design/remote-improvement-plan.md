@@ -1,7 +1,8 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** proposed, 2026-10-09. Nothing here is built. §15 records the
-decisions taken while planning, each against the code that settled it.
+**Status:** Phase 0 done, 2026-10-09 (§4's *As built*); Phases 1–6 not
+started. §15 records the decisions taken while planning, each against the
+code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
 plan checks each of its proposals against the code as of `4c4f9ba4`, and
@@ -188,11 +189,27 @@ means*, and one way for Remote to *show* what Sync still holds.
   only on `Changed` (`packages/crud/src/index.ts:655-656`), so an edit
   through a nested `Control` or `RowAdded`/`RowRemoved` leaves the status at
   `Saved`, against its README ("An edit after a save returns to `Editing`").
-  Use `Form.authoredChanged`, as the CMS does; hold it as an `Option`.
+  Use `Form.authoredChanged`, as the CMS does.
 
 **Exit:** a shared DAG over the budget is refused at construction; a NUL case
 runs in every conformance subject; `Query.dependencies` separates roles; a
 Crud test edits through a nested control after a save and reads `Editing`.
+
+**As built** (`fb5d8ee1`, `70078283`, `41493aaf`, `1d8dcdd1`, `46465bd0`):
+
+- The budget is `maxQueryNodes` (1,000), summed over every predicate of the
+  query, each distinct node sized once.
+- NUL cases could not be `cases`, whose `expected` is a list of ids, so the
+  suite exports `refusals`. Running them found the Drizzle compiler answering
+  `[]` for searched text holding NUL from an input; it refuses it now. TanStack
+  and LiveStore do not run `contains`, so they refuse these by declaration and
+  run nothing new.
+- The same cases showed `Data.filtered` and the live-insert membership check
+  throwing in `update` on such an input. A refused filter now answers no items
+  and `complete: false`; a refused live judgement is `'unknown'`.
+- Crud's `requestId` stays `string | null`: moving the editor's and remover's
+  Model to `Option` changes their stored shape and every reader, which is its
+  own change, not part of this fix.
 
 ## 5. Phase 1 — one change vocabulary, impact, refusals, publication
 
