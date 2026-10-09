@@ -324,6 +324,29 @@ The schema is an ordinary `Schema.Struct`, so declare it once and give the same
 value to the operation, for example `Mutation.make('CreatePost', { Input:
 CreatePostInput, … })` in `foldkit-remote`.
 
+### Declaring what an input writes
+
+An input says what each key *is*; `Write.update` says what an operation *does*
+with them: update one row, named by a key, setting every other key mapped to a
+field.
+
+```ts
+const EditPost = Entity.input(Blog.Post, EditPostInput)
+const Edit = Write.update(EditPost, { id: 'id' })
+
+Write.writes(Edit) // the fields any invocation may change
+Write.bind(Edit, { id: 'p1', title: 'Compilers' })
+// { entity: 'Post', id: 'p1', values: { title: 'Compilers' } }, as the store holds it
+```
+
+It is declared data, like a query body: nothing is written by building one, and
+an Entity having a field grants no one the right to set it. `bind` encodes each
+value through its field's schema, so the patch is in the store's shape, and
+takes the keys to write when an author changed only some. `expect` names a key
+holding the revision the row was read at, for an interpreter to write only a row
+still at it. An unmapped key is not written; a relation key is refused where the
+write is declared, until an update can write one.
+
 ## Attaching metadata
 
 An interpreter declares a [`foldkit-metadata`](../metadata/README.md) key and
@@ -558,6 +581,8 @@ from queries, not from what a database could express.
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
+| `Write.update(input, { id, expect? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision. |
+| `Write.writes(write)` / `Write.bind(write, value, keys?)` | The fields it may change; the row and values one input writes, encoded as the store holds them. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
 | `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |
 | `Entity.selectFor(input)` | The Selection of the members an input writes: what an edit screen loads. |

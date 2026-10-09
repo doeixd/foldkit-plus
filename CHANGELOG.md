@@ -104,6 +104,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-entity`: `Write.update` declares what an input writes.** Over an
+  `Entity.input`, it names the key holding the row's id (and optionally the
+  key holding the revision it was read at) and sets every other key mapped to
+  a field. `Write.writes` is what it may change; `Write.bind(write, value,
+  keys?)` the row and its new values, encoded as the store holds them.
 - **`foldkit-crud`: the editor shows a server's refusal.** A save refused with
   `Refusal.field(key, reason)` for one of the form's keys marks that key
   invalid with the reason, once per save; one refused with `Refusal.conflict`

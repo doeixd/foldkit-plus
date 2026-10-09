@@ -988,3 +988,4 @@ export * from './shape.js'
 // this entry because it is fixture data every form and admin screen would
 // otherwise carry.
 export * from './evaluate.js'
+export { Write, type AnyWrite, type BoundWrite, type WriteSet } from './write.js'

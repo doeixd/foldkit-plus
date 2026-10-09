@@ -9,9 +9,11 @@ import {
   Order,
   Query,
   Relation,
+  Write,
   dependenciesOf,
   type Dependencies,
   type QueryDependencies,
+  type BoundWrite,
   type EntityRef,
   type IdOf,
 } from '../src/index.js'
@@ -175,4 +177,17 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
   const TaskTitle = Entity.select(Task, { id: true, title: true })
   type TaskTitle = typeof TaskTitle.schema.Type
   const value: TaskTitle = { id: 't1', title: 'Read the guide' }
+}
+
+// Declaring what an input writes.
+{
+  const EditPostInput = Schema.Struct({ id: Schema.String, title: Schema.String })
+  const EditPost = Entity.input(Blog.Post, EditPostInput)
+  const Edit = Write.update(EditPost, { id: 'id' })
+  expectTypeOf(Write.writes(Edit)).items.toHaveProperty('key')
+  expectTypeOf(Write.bind(Edit, { id: 'p1', title: 'Compilers' })).toEqualTypeOf<BoundWrite>()
+  // @ts-expect-error the value must be the input's
+  Write.bind(Edit, { id: 'p1' })
+  // @ts-expect-error the id must be a key of the input
+  Write.update(EditPost, { id: 'slug' })
 }
