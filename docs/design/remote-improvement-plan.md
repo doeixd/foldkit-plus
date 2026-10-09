@@ -1,6 +1,7 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** proposed, 2026-10-09. Nothing here is built.
+**Status:** proposed, 2026-10-09. Nothing here is built. §15 records the
+decisions taken while planning, each against the code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
 plan checks each of its proposals against the code as of `4c4f9ba4`, and
@@ -19,7 +20,10 @@ yet justified.
 server data), [docs/wiring.md](../wiring.md).
 
 Every API below is a **proposal**: names and signatures are what a phase must
-make true, or deliberately replace.
+make true, or deliberately replace. The review's `Operation` is called
+`Write` here: `Operation` already names a query operator
+(`packages/entity/src/expr.ts:201`), a Sync envelope, a composition edit and
+Durable's type parameter.
 
 ## 0. Findings
 
@@ -32,7 +36,7 @@ make true, or deliberately replace.
    | Place | What the application writes |
    | --- | --- |
    | `Mutation.make` | input and output contract |
-   | `Entity.input` + `Form.make` | the same input again, mapped to Entity fields |
+   | `Entity.input` + `Form.make` | the input mapped to Entity fields (this one is shared: `examples/entity` passes the same `EditPostInput` to both) |
    | `Data.mutate(..., { optimistic })` | the optimistic patch, rebuilt from the form value; Crud's editor cannot pass one, so cloudflare overrides its `onOut` (`examples/cloudflare/src/app.ts:184-200`) |
    | `RemoteServer.mutation(descriptor, run)` | the Drizzle `.set({...})` from the input, and the patches `run` returns |
    | `hub.changed(ref, fields)` | the fields to publish live, by hand (`examples/kitchen-sink/src/stack.ts:129`) |
@@ -88,7 +92,7 @@ make true, or deliberately replace.
    a string. Entity-DESIGN deliberately refuses to derive endpoints from an
    Entity ("Existence of an Entity does not imply authority",
    `entity-DESIGN.md:3239`), so whatever closes this must start from a
-   declared operation, never from the Entity alone.
+   declared write, never from the Entity alone.
 
 4. **SSR and persistence restore Remote two ways that do not compose.** SSR
    resumes through `Remote.resume` (cursors included, `resume.ts`);
@@ -117,13 +121,13 @@ make true, or deliberately replace.
 | Joins and aggregates | data-query Phase 13, gated on callers | Not here |
 | Mutation write-set capture, targeted invalidation | **Missing** | §5, §6 |
 | Typed mutation errors, field-level refusals | **Missing**: errors are messages; CMS encodes keys in a prefix | §5 |
-| Commit-driven live publication | **Missing**: `liveHub.changed` is manual; journal settles publish nothing | §7 |
+| Commit-driven live publication | **Missing**: `liveHub.changed` is manual; journal settles publish nothing | §5, §7 |
 | Server-side mutation idempotency | **Missing** for Remote (`requestId` is client-only); built for Sync (Durable dedupes `opId` with a payload hash) | §5, §7 |
 | Durable offline writes | **Built, as Sync** | Bridged (§8) |
 | Persistence as configuration | **Missing**: apps wire it by hand (cloudflare) or not at all (registry); does not compose with SSR resume | §9 |
 | Reconnect, resume, gap recovery for Remote live | **Partial**: gaps are marked; nothing resubscribes. Sync's transport has the policy | §10 |
 | Prefetch on navigation, route data | `Data.satisfy` and `Site.sourcesFor` built; no Remote app adopts prefetch | Not here (router-DESIGN) |
-| `delivery: 'durable'` on Remote mutations | — | Reformed: one operation, two deliveries (§6) |
+| `delivery: 'durable'` on Remote mutations | — | Reformed: one write, two deliveries (§6) |
 | `Operation.make` with traits, a semantic program IR | — | Declined (§13) |
 | Convex-level reactive server | — | Out of scope (§13) |
 
@@ -142,7 +146,7 @@ make true, or deliberately replace.
 
 Neither column should absorb the other. Remote owns server facts it caches;
 Sync owns user intent it has not yet delivered. The plan gives them one
-vocabulary for *what changed*, one declared operation for *what a write
+vocabulary for *what changed*, one declared `Write` for *what an edit
 means*, and one way for Remote to *show* what Sync still holds.
 
 ## 3. Invariants
@@ -151,7 +155,7 @@ means*, and one way for Remote to *show* what Sync still holds.
 2. **Undelivered intent is Sync's.** Remote may display a pending edit; it
    never stores, retries or drops one. Deleting Remote's cache is recovery;
    deleting Sync's outbox is data loss.
-3. **A write is declared, never inferred from an Entity.** An operation is
+3. **A write is declared, never inferred from an Entity.** A write is
    authority someone granted; an Entity is a shape (entity-DESIGN §27).
 4. **No false completeness.** Impact analysis that cannot prove a connection
    right invalidates it, and says why.
@@ -162,9 +166,11 @@ means*, and one way for Remote to *show* what Sync still holds.
 7. **Possible, targeted and actual writes are different facts.**
 8. **A form's draft is the author's.** No server change rewrites it; the
    author is told and chooses (the CMS's reload-or-overwrite).
-9. **Existing APIs keep working.** `Mutation.make`, `RemoteServer.mutation`,
-   `Data.refresh`, `liveHub`, `RemotePersistence`, `EditableEntity`,
-   `editsJournal`, `Crud.editor({ form, mutation })` remain valid.
+9. **A row's `revision` has one writer.** Either the journal (its commit
+   sequence) or Remote writes (a counter), declared per table, never both.
+10. **Existing APIs keep working.** `Mutation.make`, `RemoteServer.mutation`,
+    `Data.refresh`, `liveHub`, `RemotePersistence`, `EditableEntity`,
+    `editsJournal`, `Crud.editor({ form, mutation })` remain valid.
 
 ## 4. Phase 0 — close what the findings left
 
@@ -188,7 +194,9 @@ means*, and one way for Remote to *show* what Sync still holds.
 runs in every conformance subject; `Query.dependencies` separates roles; a
 Crud test edits through a nested control after a save and reads `Editing`.
 
-## 5. Phase 1 — one change vocabulary, impact, and typed refusals
+## 5. Phase 1 — one change vocabulary, impact, refusals, publication
+
+Everything in this phase works with today's opaque handlers.
 
 ### 5.1 Change sets and impact
 
@@ -196,43 +204,50 @@ A pure module in `foldkit-remote`: *given what changed and an active
 connection, what keeps the connection right?*
 
 ```ts
-// Proposed
-interface EntityChange {
-  readonly entity: string
-  readonly id: string
-  readonly fields: ReadonlyArray<string> // deletion is its own tag
-  readonly revision?: number // when the source orders rows, as editsJournal does
-}
+// Proposed: a tagged union built with defineTaggedUnion
+type EntityChange =
+  | { _tag: 'Changed'; entity: string; id: string; fields: ReadonlyArray<string>; revision: Option<number> }
+  | { _tag: 'Created'; entity: string; id: string }
+  | { _tag: 'Deleted'; entity: string; id: string }
 
 type Impact =
-  | { readonly _tag: 'Unaffected' }
-  | { readonly _tag: 'Patched' }
-  | { readonly _tag: 'Invalidate'; readonly reason: string }
+  | { _tag: 'Unaffected' }
+  | { _tag: 'Patched' }
+  | { _tag: 'Invalidate'; reason: string }
 ```
 
 `EntityChange` is the one shape every producer speaks: a `MutationAnswer`
-(this phase), a structured operation's actual changes (§6), a journal
-settle's applied `Change`s (§7), a pending Sync edit shown as a layer (§8).
+(this phase), a `Write`'s actual changes (§6), a journal settle's applied
+`Change`s (§7), a pending Sync edit shown as an overlay (§8). A
+`MutationAnswer` patch is `Changed` with the patch's keys and a deletion is
+`Deleted`; `Created` comes only from a producer that knows the row is new (an
+insert `Write`). A patch for a row the store did not hold is not evidence of
+creation: the row may only never have been loaded.
 
 For each active connection with a `Query.define` body:
 
 - no field the body reads changed: `Unaffected`, or `Patched` when selected;
 - a predicate field: `belongsEncoded` against the patched row. `yes` for a
   row already in it, or `no` for one not in it, keeps membership; anything
-  else invalidates;
+  else, including `yes` for a row not in it, invalidates: where a joining
+  row goes is the server's to say until collation is declared;
 - an order field of a row in a paginated connection: invalidate, since the
   row that fills its place may not be loaded. This is also the registry's
   "new value in its old position";
-- a deletion: drop the edge (reconcile already tombstones);
-- a created row: `belongsEncoded`; `yes` on a terminal end places it, as
-  `LiveInsertion` does for live inserts; otherwise invalidate. This is what
-  makes a create join its list without a hand-written `ConnectionChange`;
+- `Deleted`: drop the edge (reconcile already tombstones);
+- `Created`: `belongsEncoded`; `no` is `Unaffected`, anything else
+  invalidates. This is what makes a create join its list without a
+  hand-written `ConnectionChange`, at the cost of one refetch;
 - an opaque `Query.make`: invalidate when the entity matches.
 
-`MutationSucceeded` applies `Invalidate` through the path `Data.refresh` uses.
-Before claiming that refetches, follow what restarts a read entry after an
-invalidation (see "It retries is a claim about what restarts it" in
-`AGENTS.md`).
+`MutationSucceeded` applies the invalidations with `Remote.refresh`'s own
+reduction, factored out: `ConnectionInvalidated` marks the connection stale,
+and `withRefreshRequested` starts a new generation, which restarts a read of
+that connection already in flight (`packages/remote/src/index.ts:2077-2145`,
+`model.ts:603`). The second half is not optional: a page requested before
+the mutation committed would otherwise land after it with the old
+membership. A live `ConnectionInvalidate` takes only the first half today
+(`model.ts:926-930`), and gets the second for the same reason.
 
 ### 5.2 Typed refusals
 
@@ -243,20 +258,32 @@ A mutation declares what it refuses, as data a client can match:
 const SavePost = Mutation.make('SavePost', {
   Input: PostInput,
   Output: { id: Schema.String },
-  Refusal: Schema.Union([
-    Refusal.field('slug', 'taken'),       // { _tag: 'Field', key: 'slug', reason: 'taken' }
-    Refusal.conflict,                     // { _tag: 'Conflict', current: revision }
-  ]),
+  Refusal: [Refusal.field('slug', Schema.Literal('taken'))],
 })
+// Refusal.field(key, reason) → { _tag: 'Field', key, reason }
+// Refusal.conflict           → { _tag: 'Conflict', current: Option<number> }
 ```
 
-`MutationStatus.Failed` carries the decoded refusal beside the transport
-error. `Crud.editor` dispatches `Form.Refused({ key, error })` for every
-`Field` refusal whose key is in the form, so no app parses a string; a
-`Conflict` becomes the editor's `Conflict` status, which today only the CMS
-has. The CMS's `slugTaken` prefix and `includes('CmsConflict')` move onto it.
+A handler refuses with `refuse(Refusal...)`, checked against the declared
+union on the server. `MutationStatus.Failed` carries the decoded refusal as
+an `Option` beside the transport error. `Crud.editor` dispatches
+`Form.Refused({ key, error })` for every `Field` refusal whose key is in the
+form, so no app parses a string; `Conflict` becomes the editor's `Conflict`
+status, which today only the CMS has. The CMS's `slugTaken` prefix and
+`includes('CmsConflict')` move onto it.
 
-### 5.3 The request id on the wire
+### 5.3 Publish what a mutation answers
+
+`RemoteServer` already holds every mutation's outcome, and `liveHub.changed`
+already re-reads per principal. So after `run` returns, the server publishes
+the outcome's patches (each patch's keys as the fields) and deletions to the
+hub itself. A handler's own write has committed by then, unless it opened a
+transaction it has not closed, which §7's wrapper covers. Publishing a
+returned field that did not change costs a re-read that sends nothing new;
+missing one that did is the bug this removes. `liveHub.changed` stays for
+writes that are not mutations (a trigger, a job).
+
+### 5.4 The request id on the wire
 
 Send `requestId` and pass it to `MutationSource.run`, so a server can
 recognise a retry. Deduplicating it is §7's, because it must be atomic with
@@ -264,98 +291,140 @@ the write.
 
 **Exit:** a rename updates every selecting view and fetches nothing; a
 category change invalidates the category connections and only those; a price
-change in a paged, price-ordered connection invalidates it; a create joins a
-loaded terminal list it belongs to; the CMS's `refreshedAfterChange` and
+change in a paged, price-ordered connection invalidates it, including with
+that page's read in flight; a create refetches the loaded lists it may join
+and no others; kitchen-sink's live rename reaches a second client with its
+`liveHub.changed` call deleted; the CMS's `refreshedAfterChange` and
 `listing` refresh, and its slug and conflict string parsing, are deleted with
 its tests unchanged. Impact is a pure table, each rule with a mutation in
 `test/*.mutations.ts`.
 
-## 6. Phase 2 — a structured write, from form to table, delivered either way
+## 6. Phase 2 — a declared `Write`, from form to table, delivered either way
 
-A mutation whose effect is data, declared beside the Entity over the
-existing `Expr` nodes and frozen like a query body:
+### 6.1 The declaration
+
+`Entity.input` already "reads an operation's input schema against an Entity"
+(`packages/entity/src/index.ts:764`): each key maps to a Field, a relation,
+or `Entity.unmapped`. A `Write` is that input plus what to do with it, so it
+adds no second mapping vocabulary:
 
 ```ts
-// Proposed
-const EditPost = Operation.update(Post, {
-  id: Expr.input('id'),
-  set: { title: Expr.input('title'), published: Expr.input('published') },
-  expect: 'revision', // optional: refuse with Conflict if the row moved on
+// Proposed. foldkit-entity: pure, frozen data.
+const EditPost = Write.update(EditPostInput, {
+  id: 'id',             // the input key holding the row's id
+  expect: 'revision',   // optional: an input key mapped to the table's revision
 })
+// Every key mapped to a Field of the Entity is set; unmapped keys are not
+// written. Relation keys follow when an example needs them.
+
+// foldkit-remote: a MutationDescriptor that carries its Write.
+const EditPostMutation = Mutation.update('EditPost', EditPost)
 ```
+
+`Mutation.update` returns an ordinary `MutationDescriptor` (`Input` from the
+write's input, `Output: { id }`) with the `Write` attached and `Refusal.conflict`
+added when `expect` is given. So it registers in `Remote.make`,
+`RemoteServer.make`, `Crud.editor` and `Data.mutate` as every mutation does:
+no second registry.
 
 | Stage | When | Derived |
 | --- | --- | --- |
 | Possible writes: `Post.title`, `Post.published` | definition | which query definitions it can affect |
-| Targeted writes: `Post:p1.title` | `Operation.bind(op, input)` | the optimistic patch |
+| Targeted writes: `Post:p1.title` | `Write.bind(write, value, fields)` | the optimistic patch |
 | Actual changes | execution | the returned patches, and Phase 1's `EntityChange`s |
 
-### 6.1 Readers of one operation
+### 6.2 Readers of one `Write`
 
-- **Form.** The operation's `set` keys and their Entity fields are what
-  `Entity.input` maps by hand today: `Form.make` can take the operation, and
-  its labels, controls and checks come out as they do now. `fill` records the
-  values it filled as a baseline, so a submit knows which keys the author
-  changed; the bound operation writes only those, which narrows its write
-  set and so its impact.
-- **Crud.** `Crud.editor({ form, operation })` derives the mutation input and
-  the optimistic patch, so cloudflare's `onOut` override goes. `DomainLike`
-  gains the options it lacks and loses its `any` parameters. The editor's
-  status gains `Conflict` from §5.2 and `Moved`: the row's `revision` passed
-  the baseline's while the author edited (Phase 3 delivers it live), shown
-  and never applied to the draft (invariant 8).
-- **Remote, online.** `RemoteServer.mutation` runs the compiled update and
-  returns the written fields.
-- **Sync, durable.** `EditableEntity`'s `Change` is already a single-row
-  field set, and `editsJournal`'s `apply` is a hand-written interpreter of it
-  with a revision guard (`examples/registry/src/server.ts:105-113`). The same
-  operation is the payload of a Sync fact, and `apply` is derived from it.
+- **Form.** Unchanged: `Form.make(name, EditPost.input)` takes the same
+  `EntityInput` it takes today. What is new is a baseline: `fill` records the
+  values it filled, and `Form.changed(model)` returns the keys the author
+  changed since. Validation still decodes the whole input (entity-DESIGN's
+  rule); only what is written narrows.
+- **Crud.** `Crud.editor({ form, mutation: EditPostMutation })` sees the
+  attached `Write` and, on submit, binds it to the value and the form's
+  changed keys: the optimistic patch is derived, so cloudflare's `onOut`
+  override goes, and the request carries `fields`, the changed keys.
+  `DomainLike.mutate` gains the options it lacks and loses its `any`
+  parameters. With `expect`, the editor also reads `Moved`: a live or
+  refreshed row whose `revision` passed the baseline's while the author
+  edited, shown and never applied to the draft (invariant 8).
+- **Remote, online.** `RemoteServer.mutation(EditPostMutation)` with no `run`
+  compiles the write through the Entity's source. That needs a write
+  capability on the source, which remote-drizzle's `bind` provides; a source
+  without one makes the handler-less form a type error. The server writes
+  `fields ∩ set` (all set keys when `fields` is absent), with
+  `where id = ? and revision = ?` under `expect`, and refuses with `Conflict`
+  carrying the current revision when no row matched. It returns the written
+  fields, and its actual changes are the written fields whose value differed,
+  read in the same transaction.
+- **Sync, durable.** `EditableEntity` keeps its `Change` as it is: one cell
+  per change is the unit its last-commit-wins merge, `overlay` and `held`
+  need. What is shared is the interpreter. `editsJournal`'s `apply` today is
+  a hand-written single-field update with a revision guard
+  (`examples/registry/src/server.ts:105-113`); remote-drizzle's binding
+  derives it (`apply = Drizzle.applyEdits(binding, ProductEdits)`), compiling
+  each `Change` as a one-field `Write` with the journal's guard. The registry's
+  `columnOf` goes with it.
 
 This is the review's `delivery: 'durable'` without its problem: Remote queues
-nothing. Durability stays Sync's; the two paths share the operation's
-meaning, which is what disagreed in cloudflare. And it keeps invariant 3:
-nothing is generated from the Entity; the operation is the grant, which is
-also where guard-DESIGN's `Guards.guarded` can read the write's plan (TODO
-"6. Writes").
+nothing. Durability stays Sync's; the two paths share the meaning of a cell
+write, which is what disagreed in cloudflare. Its fix is to make the Sync
+path send absolute values through `EditableEntity`, as the registry does,
+instead of a relative `ToggledTodo`. And invariant 3 holds: nothing is
+generated from the Entity; the `Write` is the grant, which is also where
+guard-DESIGN's `Guards.guarded` can read the write's plan (TODO "6. Writes").
 
-Start with `update` by id with literal or input values, then `delete` by id
-(Crud's remover), then `insert` with a client-minted id (the CMS and
-cloudflare already mint ids on the client). `where`-targeted updates and
-computed values follow only when an example needs them, each with a
-conformance case (data-query §6.0.2: semantics before interpreters). A
-handler stays the escape hatch, under invariant 6.
+### 6.3 Order of `Write` kinds
+
+`update` by id first, then `delete` by id (Crud's remover), then `insert`
+with a client-minted id (the CMS and cloudflare already mint ids on the
+client; a server-minted id needs the optimistic temp-id story and waits for
+an example). `where`-targeted updates and computed values follow only when
+an example needs them, each with a conformance case (data-query §6.0.2:
+semantics before interpreters). A handler stays the escape hatch, under
+invariant 6.
 
 **Exit:** `examples/entity`'s edit and delete, and cloudflare's create,
-rename, toggle and delete, are operations: their `Mutation.make`s, Drizzle
-`.set`s, returned patches and optimistic patches are deleted, and the toggle
-means one thing on both paths; the registry's `apply` and `columnOf` are
-derived; a form edit of one field writes one column; a conformance case runs
-each operation against the reference store, SQLite and PGlite.
+rename, toggle and delete, are `Write`s: their Drizzle `.set`s, returned
+patches and optimistic patches are deleted; the toggle means one thing on
+both paths; the registry's `apply` and `columnOf` are derived; a form edit of
+one field writes one column; two clients editing different fields of one row
+both land; an `expect` write over a moved row refuses with `Conflict`; a
+conformance case runs each kind against the reference store, SQLite and
+PGlite.
 
-## 7. Phase 3 — publish on commit, from both paths
+## 7. Phase 3 — commit, publish and deduplicate in one transaction
 
-Two commit points exist, and both know what they changed: a structured
-operation (or a handler inside a remote-drizzle `transaction(...)` that
-collects the changes it is told about), and `editsJournal.settle`, which
-calls `apply` once per committed `Change`. Each publishes its
-`EntityChange`s **after commit**, nothing on rollback, and one transaction's
-changes as one live event.
+Phase 1 publishes after `run` returns, which is after commit for a handler
+that commits as it goes. This phase makes it exact, and makes it work across
+requests:
 
-In one process they publish to `liveHub`. Across requests, as on Workers,
-an in-memory hub reaches nobody (the Workers trap in `AGENTS.md`), so a live
-source reads a durable log by cursor. For journal-written data that log
-exists: Durable's `operations` table is ordered and gap-free. For Remote
-mutations, the commit writes a change row in the same transaction, and with
-it the `requestId` dedupe row, so a retry finds it. Durable's `runEffect`
-keys a result too, but it is not atomic with the mutation's own write.
+- **Transactions.** A `Write` runs in a transaction it owns. A handler gets
+  remote-drizzle's `transaction(...)`, which collects the changes it is told
+  about. Each publishes after commit, nothing on rollback, and one
+  transaction's changes as one live event (`MutationSucceeded` is already one
+  Message per answer; live events are per entity today).
+- **Journal settles publish too.** `editsJournal.settle` calls `apply` once
+  per committed `Change`; the derived `apply` of §6.2 reports each as a
+  `Changed` with the journal sequence as its `revision`.
+- **Across requests.** In one process changes go to `liveHub`. On Workers an
+  in-memory hub reaches nobody (the Workers trap in `AGENTS.md`), so a live
+  source reads a durable log by cursor. For journal-written data that log
+  exists: Durable's `operations` table is ordered and gap-free. For Remote
+  writes, the transaction appends a change row.
+- **Deduplication.** The same transaction writes a `requestId` row; a retry
+  finds it and answers with the recorded outcome. Durable's `runEffect` keys
+  a result too, but it is not atomic with the write, which reopens the crash
+  gap Durable's README documents. Rows are kept for a retention window the
+  binding declares, since a retry older than the client's own retry budget
+  cannot arrive.
 
-**Exit:** kitchen-sink's rename reaches a second client with the
-`liveHub.changed` call deleted; a registry edit settled by the journal reaches
-another device's Remote page without `Products.refresh`; a rolled-back
-transaction publishes nothing; a two-entity transaction arrives as one event;
-cloudflare's live source reads the log instead of diffing a poll; a retried
-mutation runs once; a Crud editor open on a row another client saves reads
-`Moved` with its draft intact.
+**Exit:** a registry edit settled by the journal reaches another device's
+Remote page without `Products.refresh`; a rolled-back transaction publishes
+nothing; a two-entity transaction arrives as one event; cloudflare's live
+source reads the log instead of diffing a poll; a retried mutation runs once;
+a Crud editor open on a row another client saves reads `Moved` with its draft
+intact.
 
 ## 8. Phase 4 — Sync's pending edits as Remote overlays
 
@@ -363,8 +432,8 @@ mutation runs once; a Crud editor open on a row another client saves reads
 every read, until `Data.lift`. The bridge uses it with the Sync `opId` as
 the id:
 
-- it overlays each pending edit's bound operation, and lifts it when the
-  edit absorbs (its `revision` reached the row) or is rejected;
+- it overlays each pending edit's cell write, and lifts it when the edit
+  absorbs (its `revision` reached the row) or is rejected;
 - every view of the row, `Data.filtered`'s membership and Phase 1's impact
   see the pending value, so a sorted page invalidates instead of showing the
   new value in the old place;
@@ -374,10 +443,10 @@ the id:
 This replaces most of the registry's glue: `rowsOf`'s two overlays, the
 `retired` set and `retiredOf`/`settledOf`, the refresh on retire (Phase 3
 delivers the settled row), and the hand-bridged `ExchangeChanged` /
-`EditsRefused`, which become the bridge's Messages. A rejection carries its
-reason the way §5.2's refusals do, so a cell reads it from one place. It
-lives in a `foldkit-sync/remote` subpath, so neither core package imports
-the other.
+`EditsRefused`, which become the bridge's Messages. A rejection is read as a
+`Refusal` of §5.2, so a cell's "not saved: reason" comes from the same place
+for both paths. It lives in a `foldkit-sync/remote` subpath, so neither core
+package imports the other.
 
 **Exit:** the registry's grid draws through Remote's reads alone, with the
 listed glue deleted and its tests unchanged; a second view of an edited
@@ -407,11 +476,11 @@ RemotePersistence.wiring(Data, {
 - never saved: overlays and optimistic layers, the mutation ledger, live
   cursors, gaps.
 
-**With SSR.** A page that was server-rendered and also has a saved snapshot
-gets facts from both. The resumed ones are newer: restore the snapshot with
-`merge: 'preserve-existing'` after resume, so it fills only what the page
-did not carry. The two formats stay separate on purpose (resume carries
-cursors for one page load; a snapshot must outlive them).
+**With SSR.** A server-rendered page that also has a saved snapshot gets
+facts from both, and the resumed ones are newer. `init` runs after resume
+and restores with `merge: 'preserve-existing'`, which keeps what the store
+already holds (`persistence.ts:258-271`), so the snapshot fills only what
+the page did not carry. The two formats stay separate (§15).
 
 **Exit:** cloudflare replaces `cache.ts`'s wiring with the call; the registry
 adopts it, and an e2e test reloads it with **both** transports down and sees
@@ -454,11 +523,10 @@ Beyond those:
 | --- | --- |
 | Single-flight: a mutation's answer carries the refetch of what it invalidated (router-DESIGN, deferred on a benchmark) | Phase 1 lands; measure the CMS's save-then-refetch round trip |
 | Incremental local query maintenance and indexes (possibly `d2ts`) | A measured read path exceeds a frame; local-execution's §3.3 memo first |
-| Optimistic Remote inserts placed through the body (`optimistic.ts` uses `prepend`/`append`) | Phase 1's create rule lands; same call |
-| Ordered local placement | Declared collation (local-execution Phase 4) |
+| Placing a joining or created row locally instead of refetching; optimistic inserts placed through the body (`optimistic.ts` uses `prepend`/`append`) | Declared collation (local-execution Phase 4), for ordered connections |
 | `Expr` growth: `and`/`or`/`not`, comparisons, `in` | An example query that cannot be written |
-| `where`-targeted and computed-value operations | An example that needs one |
-| Disabled fields and Crud's `may` from the operation's guard | guard-DESIGN's slices that touch writes (TODO "7. `may`") |
+| Relation keys, `where`-targeted and computed-value writes, server-minted ids | An example that needs one |
+| Disabled fields and Crud's `may` from the write's guard | guard-DESIGN's slices that touch writes (TODO "7. `may`") |
 | Range and phantom dependencies for live queries | Field-level invalidation measurably over-fetches |
 | Remote live over Sync's socket, one connection per app | An app measurably pays for two |
 | Prefetch on navigation in a Remote app | router-DESIGN's adoption gate: a Site + Remote application |
@@ -467,18 +535,17 @@ Beyond those:
 ## 13. Declined
 
 - **Remote queueing its own mutations.** Two outboxes would be two owners for
-  one fact. Durability is Sync's; Phase 2 shares the operation and Phase 4
+  one fact. Durability is Sync's; Phase 2 shares the interpreter and Phase 4
   shares the display.
 - **Generated create/update/delete per Entity.** Invariant 3; entity-DESIGN
   §27 and its "no hidden CRUD endpoints".
-- **Rewriting a draft when the server row changes.** Invariant 8: Crud reads
-  `Moved`; the author chooses.
+- **Rewriting a draft when the server row changes.** Invariant 8.
 - **`Operation.make` with declared traits, a "semantic program IR".** A trait
   is a claim nothing checks; operators stay a closed set.
 - **A `foldkit-query-plan` package.** Analysis lives in `foldkit-entity` and
   `foldkit-remote`.
 - **A coverage tagged union.** local-execution §9.5 chose `complete: boolean`.
-- **One snapshot format for SSR and persistence.** §9.
+- **One snapshot format for SSR and persistence.** §15.
 - **Route loaders.** router-DESIGN §9 and §24; reads stay keyed on the Model.
 - **A Convex-like server runtime, hosting, distributed transactions.**
 
@@ -488,11 +555,11 @@ Beyond those:
 0 budget, dependency roles, Crud's save reset
         │
         ▼
-1 EntityChange + impact + typed refusals + requestId on the wire
+1 EntityChange + impact + refusals + publish outcomes + requestId on the wire
         │
-        ├──► 2 Operation (Form, Crud, Remote, Sync) ──► 3 publish on commit
-        │                                       │
-        └───────────────────────────────────────┴──► 4 Sync edits as Remote overlays
+        ├──► 2 Write (Form, Crud, Remote, Sync's apply) ──► 3 transactions, log, dedupe
+        │                                           │
+        └───────────────────────────────────────────┴──► 4 Sync edits as Remote overlays
 
 5 persistence Wiring (independent; its registry e2e waits for 4)
 6 gap recovery (independent)
@@ -501,22 +568,59 @@ Beyond those:
 Each phase ships as small commits with tests shown to fail by mutation, the
 documentation in §11, and `pnpm check` and a Jev review before committing.
 
-## 15. Open questions
+## 15. Decisions
 
-- Does `Invalidate` refetch the visible page by itself, or does the plan need
-  a refresh floor bump? Answer in Phase 1 from the read entry's restart
-  condition, with a test, before writing the docs.
-- Does `Form.make` take an operation in place of `Entity.input`, or does
-  `Entity.input` grow an operation form? The second keeps one way to say
-  "this key is that field".
-- Does `Operation.update` replace `EditableEntity`'s `Change`, or does
-  `EditableEntity.make` derive its `Change` union from operations? The
-  second keeps `merge`/`overlay`/`stamped`, which Phase 4 still needs.
-- `expect: 'revision'` needs a revision column. Is that an Entity
-  declaration (one field the operation bumps), so `editsJournal` and Remote
-  order a row the same way?
-- Is a refusal's Schema part of `Mutation.make`, or of the operation, with
-  `Mutation.make` gaining it only for handlers?
-- Where does a change row live for a Source that is neither Drizzle nor a
-  journal? An explicit `publish` hook on `MutationSource` is the likely
-  answer.
+Each was an open question in an earlier draft; the reason is the code that
+settled it.
+
+1. **Invalidation after a mutation restarts in-flight reads.** `Remote.refresh`
+   both marks a connection stale and starts a refresh generation; only the
+   second stops a page requested before the commit from landing after it.
+   Impact reuses that reduction, factored out of `Remote.refresh`, and the
+   live `ConnectionInvalidate` path adopts it too (§5.1).
+2. **The live hub publishes mutation outcomes itself.** The server has every
+   outcome and the hub already re-reads per principal, so manual
+   `hub.changed` for mutations is redundant; over-publishing costs a re-read,
+   under-publishing is the bug (§5.3). This moved publication from Phase 3 to
+   Phase 1.
+3. **The write IR is `Write`, built on `Entity.input`.** `Operation` is taken
+   four times. `Entity.input` already maps an operation's input to Entity
+   members, so a `Write` adds only `id`, `expect` and the kind; Form needs no
+   new parameter, and there is one way to say "this key is that field".
+4. **A write is a `MutationDescriptor`, not a new kind of value.**
+   `Mutation.update(name, write)` attaches the `Write`, so every place that
+   takes a mutation takes it, and a handler-less `RemoteServer.mutation` is
+   the only new server shape.
+5. **`EditableEntity` keeps its `Change`; the interpreter is what is
+   shared.** Its merge, overlay and held logic are per cell, and a cell is a
+   one-field update. Remote-drizzle derives `editsJournal`'s `apply` from the
+   binding (§6.2), rather than `EditableEntity` deriving its union from
+   `Write`s.
+6. **Only changed fields are written.** Validation decodes the whole input;
+   the request carries the form's changed keys as `fields`, and the server
+   writes `fields ∩ set`. Two authors editing different fields then both
+   land, matching Sync's per-cell merge, and `expect` is needed only for
+   true conflicts.
+7. **`revision` is declared per table with one writer** (invariant 9). The
+   remote-drizzle binding says whether a table's revision is the journal's
+   sequence or a counter Remote writes increment. A `Write` with `expect` on
+   a journal-revised table is refused when the binding is made, because a
+   counter bump would break the journal's `at <= revision` ordering.
+8. **Refusals belong to the mutation.** Handlers refuse too, so the Schema is
+   on `MutationDescriptor`; `Mutation.update` adds `Refusal.conflict` when
+   the write has `expect`.
+9. **A Source that is neither Drizzle nor a journal publishes through its
+   outcome.** Decision 2 covers it: whatever `run` returns is published. A
+   custom Source that wants Phase 3's transactional log implements the same
+   write capability remote-drizzle's binding does.
+10. **SSR resume first, snapshot second, `preserve-existing`.** The resumed
+    page is newer than any saved snapshot; the snapshot fills gaps (§9).
+11. **Two restore formats stay.** Resume carries cursors valid for one page
+    load; a snapshot must outlive them, and `RemotePersistence` deliberately
+    strips them (`persistence.ts`). One format would make one of them wrong.
+12. **A Sync rejection reads as a `Refusal`.** One shape for "not saved" lets
+    a cell show the reason without knowing which path refused it (§8).
+
+No question is left open. What remains uncertain is measured, not decided:
+single-flight waits on the CMS's round trip, an incremental engine on a read
+path that exceeds a frame (§12).
