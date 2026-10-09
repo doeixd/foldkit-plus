@@ -58,6 +58,24 @@ describe('placeFor', () => {
   })
 })
 
+describe('shiftIntoViewport', () => {
+  it('holds a box that already fits', () => {
+    expect(Placing.shiftIntoViewport({ top: 40, bottom: 140 }, 768)).toBe(0)
+  })
+
+  it('moves up by the overflow when the room overhead fits', () => {
+    expect(Placing.shiftIntoViewport({ top: 700, bottom: 800 }, 768)).toBe(40)
+  })
+
+  it('stops at the top margin when the box is taller than the room', () => {
+    expect(Placing.shiftIntoViewport({ top: 20, bottom: 400 }, 200)).toBe(12)
+  })
+
+  it('leaves a box whose top is already above the margin', () => {
+    expect(Placing.shiftIntoViewport({ top: -10, bottom: 100 }, 50)).toBe(0)
+  })
+})
+
 describe('placeAt', () => {
   const trigger = { left: 180, top: 40, bottom: 72, width: 64, height: 32 }
   const origin = { left: 20, top: 16 }

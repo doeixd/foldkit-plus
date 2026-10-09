@@ -91,8 +91,8 @@ export interface BehaviorOptions<Input, Slots, ParentMessage> {
    */
   readonly typeahead?: boolean
   /**
-   * Enter on the current item. One handler with the arrows: a second key
-   * handler on the same slot would be a second owner of `keydown`.
+   * Enter on the current enabled item. One handler with the arrows: a second
+   * key handler on the same slot would be a second owner of `keydown`.
    */
   readonly commit?: (input: Input, id: string) => ParentMessage
 }
@@ -171,6 +171,7 @@ export const behavior =
               | { readonly _tag: 'Commit'; readonly id: string; readonly message: ParentMessage }
               | { readonly _tag: 'Key'; readonly outcome: KeyOutcome }
             const decide = (key: string, modifiers: KeyboardModifiers): Option.Option<Decision> => {
+              const current = state.current
               if (
                 key === 'Enter' &&
                 options.commit !== undefined &&
@@ -178,14 +179,16 @@ export const behavior =
                 !modifiers.ctrlKey &&
                 !modifiers.altKey &&
                 !modifiers.metaKey &&
-                state.current !== null &&
-                items.ids.includes(state.current)
+                current !== null
               ) {
-                return Option.some({
-                  _tag: 'Commit',
-                  id: state.current,
-                  message: options.commit(input, state.current),
-                })
+                const currentIndex = items.indexOf(current)
+                if (currentIndex !== -1 && !items.isDisabled(currentIndex)) {
+                  return Option.some({
+                    _tag: 'Commit',
+                    id: current,
+                    message: options.commit(input, current),
+                  })
+                }
               }
               const result = keyOutcome(
                 items,

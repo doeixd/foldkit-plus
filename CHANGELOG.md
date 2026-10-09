@@ -18,6 +18,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-primitives`: a popup placed in the same turn stays where it was placed.**
+  `keepWithin` and the placement write start together, so the fit runs again
+  when the write lands and judges that box. A point that would hang off the
+  bottom shifts up (`Placing.shiftIntoViewport`). A trigger still flips, and
+  the panel carries `data-fk-placed="above"` when it does. Enter in
+  `ListNavigation` commits an enabled current item.
+
 - **`examples/cloudflare` page:** a new or renamed row is drawn where the
   title order will keep it. The list sorts by title, then id, which is what
   `AllTodos` asks D1 for, so the refresh does not move it.

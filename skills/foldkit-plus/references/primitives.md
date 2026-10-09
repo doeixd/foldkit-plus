@@ -102,7 +102,7 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   refused by the resolver (one owner per event), and under `virtual` a typed key
   must move the pointer and extend the query in one transition. `typeahead: false`
   leaves printable keys to a search field; arrows still move. `commit(input, id)`
-  runs on unmodified Enter when `current` is one of the items, and returns that
+  runs on unmodified Enter when `current` is an enabled item, and returns that
   parent Message from the same handler.
 - **A tree** (layers, a file explorer): `TreeNavigation.bundle` (`{ openByDefault }`) with
   `TreeNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, rows: model => [{ id, parent, branch, disabled? }], domId?, direction? })`,
@@ -183,8 +183,11 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   `keepWithin` can still flip. Key the popup by what the args depend on: a Mount reads them once.
   A gap sits outside the trigger's border box, so `pointerleave` on the trigger fires before the
   pointer reaches the popup. Listen on a wrap that contains both, or overlap the border boxes.
-  `keepWithin`'s flip sets `bottom`, so a negative `margin-top` only bridges the side below the
-  trigger. `Anchor.behavior` portals and tracks; this places once.
+  The two mounts start together, so the fit may run before the write; the write measures again.
+  A point that would hang past the bottom shifts up (`Placing.shiftIntoViewport`) instead of
+  flipping above its offset parent. A trigger still flips, and `keepWithin` sets
+  `data-fk-placed="above"` (`Placing.placedSide`, `Placing.placedAbove`) so a hover bridge can
+  overlap that side. `Anchor.behavior` portals and tracks; this places once.
 - **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
   `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).

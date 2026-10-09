@@ -18,6 +18,17 @@ export default [
     tests,
   },
   {
+    name: 'Enter commits a disabled current item',
+    edits: [
+      {
+        file: '../src/interaction/list-navigation.ts',
+        find: 'currentIndex !== -1 && !items.isDisabled(currentIndex)',
+        replace: 'currentIndex !== -1',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'Enter does not commit the current item',
     edits: [
       {

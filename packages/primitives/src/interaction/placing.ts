@@ -12,7 +12,11 @@
  * `top`, so `keepWithin` can still replace `top` when it flips. Key the
  * popup by the trigger: a Mount reads its args at insert and never again.
  * `placeAtPoint` is the same write for a viewport point, when the open
- * event carried coordinates the message builder dropped.
+ * event carried coordinates the message builder dropped. The two mounts
+ * start together, so the fit may run before that write; the write measures
+ * again. A point that would hang past the bottom shifts up. A trigger still
+ * flips, and the panel is marked `data-fk-placed="above"` so a hover bridge
+ * can follow the side that opened.
  * Zero-size rects stay at the origin, so an inert document writes nothing
  * a layout pass would have to undo.
  *
@@ -62,6 +66,26 @@ export const placeFor = (rect: PanelRect, viewport: Viewport, margin = 8): Place
   }
 }
 
+/** Pixels to move a box up so its bottom sits `margin` inside the viewport.
+ *  `0` when it already fits, or when its top is already at the margin. */
+export const shiftIntoViewport = (
+  rect: { readonly top: number; readonly bottom: number },
+  viewportHeight: number,
+  margin = 8,
+): number => {
+  const overflow = rect.bottom - (viewportHeight - margin)
+  if (overflow <= 0) return 0
+  const room = rect.top - margin
+  if (room <= 0) return 0
+  return Math.min(overflow, room)
+}
+
+/** Attribute `keepWithin` sets to `placedAbove` when the panel flips. */
+export const placedSide = 'data-fk-placed'
+
+/** Value of `placedSide` while the panel stands above its anchor. */
+export const placedAbove = 'above'
+
 export interface AnchorRect {
   readonly left: number
   readonly top: number
@@ -107,33 +131,95 @@ export const placeAtPoint = (point: ViewportPoint, origin: OriginRect): PlacedAt
   top: point.y - origin.top,
 })
 
+const clearFit = (element: HTMLElement): void => {
+  element.style.translate = ''
+  element.style.top = ''
+  element.style.bottom = ''
+  element.removeAttribute(placedSide)
+}
+
+const fitWithin = (element: HTMLElement): void => {
+  // A previous fit may have flipped. Clear it before reading, or the next
+  // decision would describe the flipped box.
+  clearFit(element)
+  const rect = element.getBoundingClientRect()
+  const placed = placeFor(
+    { top: rect.top, right: rect.right, bottom: rect.bottom, height: rect.height },
+    { width: document.documentElement.clientWidth, height: window.innerHeight },
+  )
+  if (placed.dx !== 0) element.style.translate = `${placed.dx}px 0`
+  if (placed.flip) {
+    element.style.top = 'auto'
+    element.style.bottom = 'calc(100% + 4px)'
+    element.setAttribute(placedSide, placedAbove)
+  }
+}
+
+// PlaceAt and KeepWithin start together (`Stream.mergeAll`), so the fit can
+// run before the placement write. The write calls whoever is waiting.
+const refits = new WeakMap<HTMLElement, Set<() => void>>()
+
+const onPlaced = (element: HTMLElement, refit: () => void): void => {
+  const waiting = refits.get(element) ?? new Set()
+  waiting.add(refit)
+  refits.set(element, waiting)
+}
+
+const offPlaced = (element: HTMLElement, refit: () => void): void => {
+  const waiting = refits.get(element)
+  if (waiting === undefined) return
+  waiting.delete(refit)
+  if (waiting.size === 0) refits.delete(element)
+}
+
+const notifyPlaced = (element: HTMLElement): void => {
+  const waiting = refits.get(element)
+  if (waiting === undefined) return
+  for (const refit of waiting) refit()
+}
+
+const applyPlaced = (element: HTMLElement, placed: PlacedAt): void => {
+  element.style.left = `${placed.left}px`
+  element.style.setProperty(placedTop, `${placed.top}px`)
+}
+
+const clearPlaced = (element: HTMLElement): void => {
+  element.style.left = ''
+  element.style.removeProperty(placedTop)
+}
+
+const writePlaced = (element: HTMLElement, placed: PlacedAt, shift: boolean): void => {
+  clearFit(element)
+  applyPlaced(element, placed)
+  if (shift) {
+    const rect = element.getBoundingClientRect()
+    const dy = shiftIntoViewport({ top: rect.top, bottom: rect.bottom }, window.innerHeight)
+    if (dy !== 0) element.style.setProperty(placedTop, `${placed.top - dy}px`)
+  }
+  notifyPlaced(element)
+}
+
 export const KeepWithin = Mount.defineStream('KeepWithin', {
   messages: [Schema.Never],
   execute: ({ element }) =>
-    Stream.callback<never>(() =>
-      Effect.acquireRelease(
+    Stream.callback<never>(() => {
+      if (!(element instanceof HTMLElement)) {
+        return Effect.acquireRelease(Effect.void, () => Effect.void)
+      }
+      const node = element
+      const refit = (): void => fitWithin(node)
+      return Effect.acquireRelease(
         Effect.sync(() => {
-          if (!(element instanceof HTMLElement)) return
-          const rect = element.getBoundingClientRect()
-          const placed = placeFor(
-            { top: rect.top, right: rect.right, bottom: rect.bottom, height: rect.height },
-            { width: document.documentElement.clientWidth, height: window.innerHeight },
-          )
-          if (placed.dx !== 0) element.style.translate = `${placed.dx}px 0`
-          if (placed.flip) {
-            element.style.top = 'auto'
-            element.style.bottom = 'calc(100% + 4px)'
-          }
+          onPlaced(node, refit)
+          refit()
         }),
         () =>
           Effect.sync(() => {
-            if (!(element instanceof HTMLElement)) return
-            element.style.translate = ''
-            element.style.top = ''
-            element.style.bottom = ''
+            offPlaced(node, refit)
+            clearFit(node)
           }),
-      ),
-    ),
+      )
+    }),
 })
 
 const paddingEdge = (node: HTMLElement): OriginRect => {
@@ -145,16 +231,6 @@ const paddingEdge = (node: HTMLElement): OriginRect => {
 const originOf = (element: HTMLElement): OriginRect => {
   const originNode = element.offsetParent
   return originNode instanceof HTMLElement ? paddingEdge(originNode) : { left: 0, top: 0 }
-}
-
-const applyPlaced = (element: HTMLElement, placed: PlacedAt): void => {
-  element.style.left = `${placed.left}px`
-  element.style.setProperty(placedTop, `${placed.top}px`)
-}
-
-const clearPlaced = (element: HTMLElement): void => {
-  element.style.left = ''
-  element.style.removeProperty(placedTop)
 }
 
 export const PlaceAt = Mount.defineStream('PlaceAt', {
@@ -173,7 +249,7 @@ export const PlaceAt = Mount.defineStream('PlaceAt', {
           const trigger = document.getElementById(triggerId)
           if (!(trigger instanceof HTMLElement)) return
           const rect = trigger.getBoundingClientRect()
-          applyPlaced(
+          writePlaced(
             element,
             placeAt(
               {
@@ -186,6 +262,7 @@ export const PlaceAt = Mount.defineStream('PlaceAt', {
               originOf(element),
               gap,
             ),
+            false,
           )
         }),
         () =>
@@ -210,7 +287,9 @@ export const PlaceAtPoint = Mount.defineStream('PlaceAtPoint', {
       Effect.acquireRelease(
         Effect.sync(() => {
           if (!(element instanceof HTMLElement)) return
-          applyPlaced(element, placeAtPoint({ x, y }, originOf(element)))
+          // The offset parent is not the point. Shifting keeps the menu beside
+          // it; flipping would send the menu above that parent.
+          writePlaced(element, placeAtPoint({ x, y }, originOf(element)), true)
         }),
         () =>
           Effect.sync(() => {

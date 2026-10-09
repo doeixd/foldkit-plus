@@ -140,7 +140,7 @@ slice is `{ current, query, generation }`, its args are `RovingTabindex`'s
 plus `timeoutMs` and `page`, and its Behavior takes `{ container, item, items,
 text, direction?, typeahead?, commit? }`. `typeahead: false` leaves printable keys to
 the container (a search field); arrows still move the pointer. `commit(input, id)`
-runs on unmodified Enter when `current` is one of the items and returns that
+runs on unmodified Enter when `current` is an enabled item and returns that
 parent Message from the same handler, so the field does not grow a second key
 listener. `Typed { char, match }` carries the item the query now picks, so
 `update` sets `current` and `query` together.
@@ -459,8 +459,13 @@ panel's stylesheet reads that property as `top`, so a flip, which sets the
 a Mount reads them once. A gap sits outside the trigger's border box, so
 `pointerleave` on the trigger fires before the pointer reaches the popup:
 listen on a wrap that contains both, or overlap the border boxes.
-`keepWithin`'s flip sets `bottom`, so a negative `margin-top` only bridges
-the side below the trigger. No timers, observers, or reposition loops.
+The two mounts start together, so the fit may run before the write; the
+write measures again. A point that would hang past the bottom shifts up
+(`Placing.shiftIntoViewport`) instead of flipping above its offset parent.
+A trigger still flips. `keepWithin` sets `data-fk-placed="above"`
+(`Placing.placedSide`, `Placing.placedAbove`) when it does, so a hover
+bridge can overlap that side instead of the one below the trigger. No
+timers, observers, or reposition loops.
 `Anchor.behavior` relocates nodes and tracks a moving anchor; this places
 once and stays inert without layout. `KeepInView` in `foldkit-primitives/dom`
 scrolls newly marked content into view: that one moves the page to the panel.

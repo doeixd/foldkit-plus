@@ -222,6 +222,18 @@ describe('ListNavigation behavior', () => {
       Nav.wrapper.make(ListNavigation.Message.Focused({ id: 'banana' })),
     )
   })
+
+  it('Enter on a disabled current commits nothing', () => {
+    const chosen = (id: string): Message => Nav.wrapper.make(ListNavigation.Message.Focused({ id }))
+    const disabled: ListInput = {
+      nav: { current: 'apricot', query: '', generation: 0 },
+      fruits,
+    }
+    const b = SlotView.buildersFor(ListSlots, [wireCommit(chosen).mixin], { input: disabled, h })
+    const f = Attributes.find(b.list.attrs(), 'OnKeyDownPreventDefault')?.f
+    if (f === undefined) throw new Error('no OnKeyDownPreventDefault')
+    expect(Option.isNone(f('Enter', plain))).toBe(true)
+  })
 })
 
 describe('why one Bundle', () => {

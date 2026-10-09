@@ -51,6 +51,61 @@ export default [
     tests,
   },
   {
+    name: 'a box that fits is shifted anyway',
+    edits: [
+      {
+        file: '../src/interaction/placing.ts',
+        find: 'if (overflow <= 0) return 0\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a box already above the margin is pulled down',
+    edits: [
+      {
+        file: '../src/interaction/placing.ts',
+        find: 'if (room <= 0) return 0\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the shift ignores how little room is overhead',
+    edits: [
+      {
+        file: '../src/interaction/placing.ts',
+        find: 'return Math.min(overflow, room)',
+        replace: 'return overflow',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a later placement is never fitted',
+    edits: [
+      {
+        file: '../src/interaction/placing.ts',
+        find: 'notifyPlaced(element)\n',
+        replace: '',
+      },
+    ],
+    tests: ['packages/primitives/test/placing.browser.test.ts'],
+  },
+  {
+    name: 'a point that hangs off the bottom stays there',
+    edits: [
+      {
+        file: '../src/interaction/placing.ts',
+        find: 'const dy = shiftIntoViewport(',
+        replace: 'const dy = 0 * shiftIntoViewport(',
+      },
+    ],
+    tests: ['packages/primitives/test/placing.browser.test.ts'],
+  },
+  {
     name: 'the popup sits on the trigger instead of under it',
     edits: [
       {
