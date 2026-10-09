@@ -150,13 +150,20 @@ export interface MutationDescriptor<Name extends string, Input, Output, Refused 
   readonly Refusal: Schema.Codec<Refused, unknown>
 }
 
+const conflict = Schema.TaggedStruct('Conflict', {})
+const anyField = Schema.TaggedStruct('Field', { key: Schema.String, reason: Schema.Unknown })
+
 /** Refusals a form or an editor knows how to show. */
 export const Refusal = {
   /** One input key was refused, for `reason`, which a form shows beside that key. */
   field: <const Key extends string, Reason extends Schema.Top>(key: Key, reason: Reason) =>
     Schema.TaggedStruct('Field', { key: Schema.Literal(key), reason }),
   /** The row moved on since the client read it; the author decides what wins. */
-  conflict: Schema.TaggedStruct('Conflict', {}),
+  conflict,
+  /** Whether a refusal, of whatever mutation, is a `Refusal.field`. */
+  isField: Schema.is(anyField),
+  /** Whether a refusal, of whatever mutation, is `Refusal.conflict`. */
+  isConflict: Schema.is(conflict),
 }
 
 /** A codec, or the fields of a `Schema.Struct` where one is expected. */

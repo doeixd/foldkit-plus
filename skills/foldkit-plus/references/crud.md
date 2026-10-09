@@ -70,7 +70,9 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 - **Dispatch form Messages** as before: the editor's Messages are the form's own
   (`EditPostForm.Message.Changed(...)` wrapped in `Message.GotEditorMessage`).
 - **Read state:** `PostEditor.status(model)` is `Closed`, `Loading`, `NotFound`,
-  `LoadFailed`, `Editing`, `Saving`, `Saved`, or `SaveFailed`;
+  `LoadFailed`, `Editing`, `Saving`, `Saved`, `SaveFailed`, or `Conflict` (the
+  mutation's `Refusal.conflict`); a `Refusal.field` of one of the form's keys
+  shows on that key;
   `PostEditor.saveError(model)` is why a save failed, `PostEditor.refresh(model)`
   retries a `LoadFailed` read, and
   `PostEditor.target(model)` the id being edited (`null` for a new one). The form's Model is

@@ -258,11 +258,18 @@ form creates.
 | `Saving` | this editor's mutation is pending |
 | `Saved` | it was applied |
 | `SaveFailed` | it failed; the drafts are kept, and `saveError(model)` says why |
+| `Conflict` | the server refused it with `Refusal.conflict`: the row moved on since it was read |
 | `LoadFailed` | reading it failed, with no earlier value to show; `refresh(model)` asks again |
 | `NotFound` | it is gone: the server answered without it, a mutation deleted it, or a live event did. This outranks a save that landed |
 
 An edit after a save returns to `Editing`: the last save no longer describes
 what is in the form.
+
+A save the server refuses with `Refusal.field(key, reason)` for one of the
+form's keys is shown on that key, as the form's own `Refused` would show it: the
+key reads invalid with the reason, as text, keeping what was typed, until it is
+edited. It is shown once per save, and the status is `SaveFailed`. A refusal of
+a key the form does not have is left to the status and `saveError`.
 
 ### How it treats the form
 

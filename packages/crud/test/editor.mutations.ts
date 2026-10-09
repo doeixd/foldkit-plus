@@ -38,4 +38,48 @@ export default [
     edits: [{ file: editor, find: 'model: unchanged ? model :', replace: 'model:' }],
     tests,
   },
+  {
+    name: 'a refused key is not shown on the form',
+    edits: [
+      {
+        file: editor,
+        find: 'if (Option.isNone(field) || !draftKeys.has(field.value.key)) return root',
+        replace: 'return root',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refusal is shown again after every Message',
+    edits: [
+      {
+        file: editor,
+        find: 'if (requestId === null || Option.contains(editor.refusedFor, requestId)) return root',
+        replace: 'if (requestId === null) return root',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refusal of a key the form lacks is sent to the form',
+    edits: [
+      {
+        file: editor,
+        find: 'if (Option.isNone(field) || !draftKeys.has(field.value.key)) return root',
+        replace: 'if (Option.isNone(field)) return root',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a conflict reads as a failed save',
+    edits: [
+      {
+        file: editor,
+        find: 'Option.exists(refusalOf(root), Refusal.isConflict)',
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
 ]

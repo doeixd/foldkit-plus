@@ -5,8 +5,10 @@ import { Form, Input } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
 import {
   Mutation,
+  Refusal,
   Remote,
   RemoteClient,
+  RemoteMutationError,
   entityKey,
   requirementsOf,
   tombstone,
@@ -30,6 +32,11 @@ const EditPostInput = Schema.Struct({
 const EditPostMutation = Mutation.make('EditPost', {
   Input: EditPostInput,
   Output: { id: Schema.String },
+  Refusal: Schema.Union([
+    Refusal.field('title', Schema.String),
+    Refusal.field('slug', Schema.String),
+    Refusal.conflict,
+  ]),
 })
 const EditPostForm = Form.make(
   'EditPost',
@@ -82,6 +89,8 @@ const server: { posts: Record<string, Record<string, unknown>> } = {
   posts: { p1: { title: 'Hello', author: 'Author:a1' } },
 }
 let failing = false
+/** A refusal the server answers the next save with, encoded, when set. */
+let refusing: Option.Option<unknown> = Option.none()
 const Client = Layer.succeed(RemoteClient, {
   read: batch =>
     Effect.sync(() => ({
@@ -100,16 +109,18 @@ const Client = Layer.succeed(RemoteClient, {
     })),
   query: () => Effect.die('no queries'),
   mutate: request =>
-    failing
-      ? Effect.fail({ _tag: 'TransportError', message: 'offline' } as never)
-      : Effect.sync(() => {
-          const input = request.input as typeof EditPostInput.Type
-          server.posts[input.id] = { title: input.title, author: `Author:${input.authorId}` }
-          return {
-            output: { id: input.id },
-            entities: [{ entity: 'Post', id: input.id, values: server.posts[input.id]! }],
-          }
-        }),
+    Option.isSome(refusing)
+      ? Effect.fail(new RemoteMutationError({ message: 'refused', refusal: refusing.value }))
+      : failing
+        ? Effect.fail({ _tag: 'TransportError', message: 'offline' } as never)
+        : Effect.sync(() => {
+            const input = request.input as typeof EditPostInput.Type
+            server.posts[input.id] = { title: input.title, author: `Author:${input.authorId}` }
+            return {
+              output: { id: input.id },
+              entities: [{ entity: 'Post', id: input.id, values: server.posts[input.id]! }],
+            }
+          }),
   live: () => Stream.empty,
 })
 
@@ -149,6 +160,7 @@ const drafts = (model: Model) =>
 
 beforeEach(() => {
   failing = false
+  refusing = Option.none()
   server.posts = { p1: { title: 'Hello', author: 'Author:a1' } }
 })
 
@@ -235,6 +247,47 @@ describe('Crud.editor', () => {
     expect(PostEditor.saveError(typed)).toBeUndefined()
     expect(drafts(failed).title).toBe('Revised')
     expect(server.posts.p1).toEqual({ title: 'Hello', author: 'Author:a1' })
+  })
+
+  it('shows a refusal of one of its keys on that key, and says the save failed', async () => {
+    const ready = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
+    // Valid as far as the form can tell: only the server knows it is used.
+    const typed = await form(
+      ready,
+      EditPostForm.Message.Changed({ key: 'title', value: 'Duplicate' }),
+    )
+    refusing = Option.some({ _tag: 'Field', key: 'title', reason: 'Another post has it' })
+    const refused = await form(typed, EditPostForm.Message.Submitted())
+
+    expect(PostEditor.status(refused)).toBe('SaveFailed')
+    expect(EditPostForm.field(refused.editor.form, 'title')).toMatchObject({
+      _tag: 'Invalid',
+      value: 'Duplicate',
+      errors: ['Another post has it'],
+    })
+    // Shown once: a later Message leaves the form as the refusal left it.
+    const after = await form(refused, EditPostForm.Message.Blurred({ key: 'id' }))
+    expect(after.editor.form.fields.title).toBe(refused.editor.form.fields.title)
+    // Editing the key is a new round: the refusal no longer describes it.
+    const edited = await form(after, EditPostForm.Message.Changed({ key: 'title', value: 'Free' }))
+    expect(PostEditor.status(edited)).toBe('Editing')
+  })
+
+  it('leaves a refusal of a key the form does not have to the status', async () => {
+    const ready = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
+    refusing = Option.some({ _tag: 'Field', key: 'slug', reason: 'taken' })
+    const refused = await form(ready, EditPostForm.Message.Submitted())
+
+    expect(PostEditor.status(refused)).toBe('SaveFailed')
+    expect(EditPostForm.field(refused.editor.form, 'title')._tag).toBe('Valid')
+  })
+
+  it('reads a conflict as its own status, not as a failed save', async () => {
+    const ready = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
+    refusing = Option.some({ _tag: 'Conflict' })
+    const refused = await form(ready, EditPostForm.Message.Submitted())
+
+    expect(PostEditor.status(refused)).toBe('Conflict')
   })
 
   it('opens on the last good value when a refresh of it had failed', async () => {

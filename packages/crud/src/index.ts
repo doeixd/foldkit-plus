@@ -23,15 +23,16 @@ import {
 } from 'foldkit-entity'
 import { Form, Input, type FormControl, type Submitted } from 'foldkit-form'
 import { Display, type DisplayColumn } from './display.js'
-import type {
-  MutationDescriptor,
-  Page,
-  QueryDescriptor,
-  MutationStatus,
-  RemoteClient,
-  RemoteData,
-  RemoteError,
-  RemoteMessage,
+import {
+  Refusal,
+  type MutationDescriptor,
+  type Page,
+  type QueryDescriptor,
+  type MutationStatus,
+  type RemoteClient,
+  type RemoteData,
+  type RemoteError,
+  type RemoteMessage,
 } from 'foldkit-remote'
 import { Projection, type ActiveSurface, type ModelRef } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
@@ -65,6 +66,11 @@ export interface EditableForm<
   readonly initial: FormModel
   readonly fill: (model: FormModel, values: Partial<Value>) => { readonly model: FormModel }
   readonly authoredChanged: (before: FormModel, after: FormModel) => boolean
+  readonly controls: ReadonlyArray<FormControl>
+  readonly Message: {
+    // Method syntax: the form's own takes only its keys, which the editor checks first.
+    Refused(fields: { readonly key: string; readonly error: string }): FormMessage
+  }
 }
 
 /**
@@ -78,6 +84,8 @@ export interface EditorModel<FormModel> {
   readonly target: string | null
   readonly filled: boolean
   readonly requestId: string | null
+  /** The save whose refusal of a field the form already shows, so it is shown once. */
+  readonly refusedFor: Option.Option<string>
 }
 
 /**
@@ -113,6 +121,8 @@ export type EditorStatus =
   | 'Saving'
   | 'Saved'
   | 'SaveFailed'
+  /** The server refused the save with `Refusal.conflict`: the row moved on since it was read. */
+  | 'Conflict'
 
 /** The parts of a bound Remote domain an editor uses. */
 export interface DomainLike<Root> {
@@ -131,6 +141,7 @@ export interface DomainLike<Root> {
   more(model: Root, projection: any): Option.Option<Root>
   refresh(model: Root, target: any): Root
   mutation(model: Root, requestId: string): MutationStatus
+  refusal(model: Root, requestId: string, mutation: any): Option.Option<unknown>
   /** `Data.active`: a read of the domain as an active Surface of its application. */
   active(
     name: string,
@@ -629,6 +640,10 @@ export const Crud = {
   ) => {
     type Model = EditorModel<FormModel>
     const { form, mutation } = config
+    // The keys a refusal can name: a nested key holds rows, not a draft to mark.
+    const draftKeys = new Set(
+      form.controls.filter(entry => !Input.Nested.is(entry.control)).map(entry => entry.key),
+    )
 
     const closed: Model = {
       form: form.initial,
@@ -636,6 +651,7 @@ export const Crud = {
       target: null,
       filled: false,
       requestId: null,
+      refusedFor: Option.none(),
     }
     const Model = Schema.Struct({
       form: form.bundle.Model,
@@ -643,6 +659,7 @@ export const Crud = {
       target: Schema.NullOr(Schema.String),
       filled: Schema.Boolean,
       requestId: Schema.NullOr(Schema.String),
+      refusedFor: Schema.OptionFromNullOr(Schema.String),
     }) as unknown as Schema.Codec<Model, unknown>
 
     // The editor's Messages are the form's own: it adds state around the form,
@@ -706,25 +723,53 @@ export const Crud = {
          * last one known good, so it fills the form too: `status` goes on saying
          * `Editing`, and the failure is the read's to show.
          */
-        const sync: Update.Step<Root, never, never> = root => {
+        /**
+         * A save the server refused for one of the form's keys shows on that key,
+         * once per save: `Refusal.field`'s reason, as text. Any other refusal is
+         * the status's to say.
+         */
+        const refused = (root: Root): Root => {
+          const editor = slice.get(root)
+          const { requestId } = editor
+          if (requestId === null || Option.contains(editor.refusedFor, requestId)) return root
+          const field = Option.filter(refusalOf(root), Refusal.isField)
+          if (Option.isNone(field) || !draftKeys.has(field.value.key)) return root
+          const message = form.Message.Refused({
+            key: field.value.key,
+            error: String(field.value.reason),
+          })
+          return slice.set(root, {
+            ...editor,
+            form: form.bundle.update(editor.form, message, undefined).model,
+            refusedFor: Option.some(requestId),
+          })
+        }
+
+        const filledOf = (root: Root): Root => {
           const editor = slice.get(root)
           const read = loaded(root)
-          if (editor.filled || read === undefined) return { model: root }
+          if (editor.filled || read === undefined) return root
           const value =
             read._tag === 'Ready' || read._tag === 'Refreshing'
               ? read.value
               : read._tag === 'Failed'
                 ? read.previous
                 : undefined
-          if (value === undefined) return { model: root }
+          if (value === undefined) return root
           const values = Entity.valuesFor(form.input, value) as Partial<Value>
-          return {
-            model: slice.set(root, {
-              ...editor,
-              form: form.fill(editor.form, values).model,
-              filled: true,
-            }),
-          }
+          return slice.set(root, {
+            ...editor,
+            form: form.fill(editor.form, values).model,
+            filled: true,
+          })
+        }
+
+        const sync: Update.Step<Root, never, never> = root => ({ model: refused(filledOf(root)) })
+
+        /** Why the server refused the last save, when it refused it as data. */
+        const refusalOf = (root: Root): Option.Option<unknown> => {
+          const { requestId } = slice.get(root)
+          return requestId === null ? Option.none() : data.refusal(root, requestId, mutation)
         }
 
         const saveOf = (root: Root): MutationStatus => {
@@ -802,7 +847,9 @@ export const Crud = {
               case 'Pending':
                 return 'Saving'
               case 'Failed':
-                return 'SaveFailed'
+                return Option.exists(refusalOf(root), Refusal.isConflict)
+                  ? 'Conflict'
+                  : 'SaveFailed'
               case 'Applied':
                 return 'Saved'
               case 'Unknown':

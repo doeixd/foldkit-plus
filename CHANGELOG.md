@@ -97,6 +97,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-crud`: the editor shows a server's refusal.** A save refused with
+  `Refusal.field(key, reason)` for one of the form's keys marks that key
+  invalid with the reason, once per save; one refused with `Refusal.conflict`
+  reads as the new status `Conflict`. `EditableForm` gains `controls` and
+  `Message.Refused`, `EditorModel` `refusedFor`, and `DomainLike` `refusal`;
+  `foldkit-remote` adds the guards `Refusal.isField` and `Refusal.isConflict`.
 - **`foldkit-remote`, `foldkit-remote-server`: a mutation refuses with data.**
   `Mutation.make` takes `Refusal`, a codec of what the server may refuse with
   (`Refusal.field(key, reason)`, `Refusal.conflict`). A Source fails with
