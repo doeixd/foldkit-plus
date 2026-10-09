@@ -304,7 +304,7 @@ input-driven Mixin reads. `X.resolve(attributes, mixins, { h, input })` stays fo
 hand, such as a Calendar whose Mixins read `attributes._tag`. Result types: `ResolvedButton<M>`,
 `ResolvedRadioGroup<V, M>`, and so on.
 
-`Recipes.Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table` are shipped
+`Recipes.Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the
@@ -320,6 +320,37 @@ hover (outline, ghost, icon) is a tint of its own text, so it reads on a colored
 body defaults color scrollbars with `outline.overt`. `Touch`
 (`target`, `targets`) and `Icons` (`glyph(size)`, `byAttribute(attribute, icons)`) are style
 mechanisms, not components: compose them into your own slots, resolving icon `url(…)`s yourself.
+`Icons.glyph` masks an element that already exists. `Icon.view` is the element.
+
+### Stateless vocabulary
+
+These publish slots and a recipe and own no Model, Message, or bundle. Call
+`X.view(options, h)` from `foldkit-mixins-ui`. Every view takes optional `style`
+(`Style.forSlots(XSlots)(Recipes.X(selection))`) and `mixins`. Hide text with
+`U.srOnly`. Name a control with `FieldAssociation`; `Label.view` takes the id
+that derived.
+
+| View | Call | Recipe |
+| --- | --- | --- |
+| `Alert` | `{ title, description?, icon?, assertive? }`. `assertive` is `role="alert"`; otherwise `role="status"`. | `tone`: `info` (default), `success`, `warning`, `error`. Slots `root`, `icon`, `title`, `description`. |
+| `AspectRatio` | `{ content? }`. Slot `frame`. | `ratio`: `square` (default), `video` (16/9), `portrait` (3/4). The corner reads `radius`. |
+| `Avatar` | `{ name, src }`. Initials show until the image covers them. | `size`: `sm`, `md` (default), `lg`. Slots `root`, `fallback`, `image`. |
+| `Badge` | `{ text, tone? }` writes `data-tone`. | `Recipes.Badge({ attribute, tones })` maps that attribute; values outside the map keep the base. Slot `badge`. |
+| `Breadcrumb` | `{ steps: { label, href?, current? }[] }`. `current` is text with `aria-current="page"`; the others are links. | No axis. Slots `root`, `list`, `item`, `link`, `current`. |
+| `ButtonGroup` | `{ label, items }`. `role="group"`. The buttons stay the caller's. `Segmented` is the control that selects. | No axis. Slot `root`. |
+| `Card` | `{ content, title?, description?, footer?, action? }`. | `padding`: `comfortable` (default), `roomy`, `flush`. Slots `root`, `header`, `title`, `description`, `content`, `footer`, `action`. |
+| `Empty` | `{ title, description?, icon?, action? }`. | No axis. Slots `root`, `icon`, `title`, `description`, `action`. |
+| `Icon` | `{ content, label? }`. A `label` is `role="img"`; without one the glyph is `aria-hidden`. | `size`: `sm`, `md` (default), `lg`. Slot `glyph`. |
+| `Item` | `{ content, media?, title?, description?, actions? }`. | `density`: `comfortable` (default), `compact`. Slots `root`, `media`, `content`, `title`, `description`, `actions`. |
+| `Kbd` | `{ key }`. Names the key. | No axis. Slot `key`. |
+| `Label` | `{ for, text }`. `for` is the control's id. | No axis. Slot `label`. |
+| `Pagination` | `{ page, pageCount, onPage, label? }`. Fewer than two pages draws nothing. `Pagination.itemsOf(page, pageCount)` is the stops. | No axis. The current stop reads `aria-current`. Slots `root`, `prev`, `next`, `page`, `ellipsis`. |
+| `ScrollArea` | `{ content }`. The height that makes it scroll is the caller's mixin. The viewport is tabbable. | `orientation`: `vertical` (default), `horizontal`, `both`. Slot `viewport`. |
+| `Separator` | `{ orientation? }`, horizontal by default. A vertical rule needs its container to set the cross size. | `orientation`: `horizontal` (default), `vertical`. Slot `rule`. |
+| `Skeleton` | `{ label? }`. `role="status"`. Stack one bar per line. | `shape`: `bar` (default), `circle`. Slot `bar`. |
+| `Spinner` | `{ label? }`. `role="status"`. | `size`: `sm`, `md` (default). Slot `wheel`. |
+| `Table` | `{ columns: { header, value, numeric? }[], rows, caption? }`. Sorting and selection stay with `foldkit-data-grid`. | No axis. Slots `root`, `caption`, `head`, `headerRow`, `headerCell`, `body`, `row`, `cell`. |
+| `Typography` | `{ level, text }`. The level chooses the element (`h1`–`h4`, `lead`, `body`, `small`, `muted`, `quote`, `code`). | `level`, same set. Defaults to `body`. Slot `text`. |
 
 Ship both halves of the theme with `Theme.root` (scales once, palette beside them):
 

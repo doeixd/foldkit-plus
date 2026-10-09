@@ -175,9 +175,16 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **Open a popup under its trigger:** `Placing.placeAt(trigger, origin, gap?)` is the offset;
   `Placing.placeAtPoint(point, origin)` is the same offset for a viewport point.
   `Placing.placeAtTrigger(Slots)({ panel, triggerId, gap?, at? })` writes `left` and `--fk-placed-top`
-  (`Placing.placedTop`) once; `at` returning a point wins over the trigger. The stylesheet reads the
-  variable as `top`, so `keepWithin` can still flip. Key the popup by what the args depend on.
-  Not `Anchor.behavior`, which portals and tracks.
+  (`Placing.placedTop`) once; `at` returning a point wins over the trigger. The behavior stays
+  named `PlaceAt`; the mount is `PlaceAtPoint` when `at` is some and `PlaceAt` when it is none.
+  `OnContextMenu` carries no coordinates: record `clientX` and `clientY` on pointerdown for button
+  2, and pass that point through `at` only while it belongs to the open target. A keyboard open has
+  no point, so it places under the trigger. The stylesheet reads the variable as `top`, so
+  `keepWithin` can still flip. Key the popup by what the args depend on: a Mount reads them once.
+  A gap sits outside the trigger's border box, so `pointerleave` on the trigger fires before the
+  pointer reaches the popup. Listen on a wrap that contains both, or overlap the border boxes.
+  `keepWithin`'s flip sets `bottom`, so a negative `margin-top` only bridges the side below the
+  trigger. `Anchor.behavior` portals and tracks; this places once.
 - **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
   `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).

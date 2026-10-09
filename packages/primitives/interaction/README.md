@@ -447,14 +447,23 @@ the room overhead fits; on release every inline prop goes.
 origin, gap?)` is the other: the popup's `left` and top under the trigger,
 relative to the offset parent. `Placing.placeAtPoint(point, origin)` is that
 offset for a viewport point. `Placing.placeAtTrigger(Slots)({ panel, triggerId, gap?, at? })`
-mounts one of them: `at` returning a point wins, and none places under the trigger. The Mount writes `left` and the `--fk-placed-top` custom property
-(`Placing.placedTop`); the panel's stylesheet reads that property as `top`,
-so a flip, which sets the `top` property, still wins. Key the popup by the
-trigger, because a Mount reads its args once. No timers, observers, or
-reposition loops — and unlike `Anchor.behavior` nothing relocates nodes,
-so it stays inert without layout. Not to confuse with `KeepInView` in
-`foldkit-primitives/dom`, which scrolls newly marked content into view:
-same verb, opposite direction.
+mounts one of them: `at` returning a point wins, and none places under the trigger.
+The behavior stays named `PlaceAt`. The mount is `PlaceAtPoint` when `at` is
+some and `PlaceAt` when it is none. `OnContextMenu` carries no coordinates, so
+a right-click records `clientX` and `clientY` on pointerdown (button 2) and
+passes that point through `at` only while it belongs to the open target. A
+keyboard open has no point, so it places under the trigger. The Mount writes
+`left` and the `--fk-placed-top` custom property (`Placing.placedTop`); the
+panel's stylesheet reads that property as `top`, so a flip, which sets the
+`top` property, still wins. Key the popup by what the args depend on, because
+a Mount reads them once. A gap sits outside the trigger's border box, so
+`pointerleave` on the trigger fires before the pointer reaches the popup:
+listen on a wrap that contains both, or overlap the border boxes.
+`keepWithin`'s flip sets `bottom`, so a negative `margin-top` only bridges
+the side below the trigger. No timers, observers, or reposition loops.
+`Anchor.behavior` relocates nodes and tracks a moving anchor; this places
+once and stays inert without layout. `KeepInView` in `foldkit-primitives/dom`
+scrolls newly marked content into view: that one moves the page to the panel.
 
 ```ts
 Behavior.attach(Placing.keepWithin(WidgetSlots)({ panel: 'popup' })),

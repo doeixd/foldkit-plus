@@ -104,5 +104,10 @@ context-menu, menubar, and navigation-menu. Menubar, navigation, and context
 menu place the popup under the open trigger with `Placing.placeAt`.
 A context menu opens at the pointer: `OnPointerDown` records the point,
 because `OnContextMenu` carries none, and `Placing.placeAtPoint` writes it.
-`Anchor` still portals, so it stays unused here. OTP advances with an `AdvanceFocus` Command after a fill
+The behavior stays named `PlaceAt`; the mount is `PlaceAtPoint` when the
+point is present. Navigation and the hover card overlap the trigger, because
+a gap sits outside the trigger's border box and `pointerleave` would fire
+before the pointer reached the popup. `keepWithin`'s flip sets `bottom`, so
+that overlap is the side below the trigger. `Anchor` still portals, so it
+stays unused here. OTP advances with an `AdvanceFocus` Command after a fill
 (`examples/widgets/src/otp-field/app.ts`); the cell id is the focus selector.

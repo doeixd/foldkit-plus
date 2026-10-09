@@ -6,7 +6,8 @@ built: the pure model, focus, two-axis virtualization, the accessible view in
 and CRUD rows, the clipboard, header drag, a column menu, and editing typed
 by Schema (a choice of literals is a combobox and listbox the grid draws,
 or a native select with `choiceEditor: 'native'`; a `DateFromString` column
-is a date field prefilled with the local calendar day).
+is `CellEditor.Date`, and the field opens on the local calendar day,
+`YYYY-MM-DD`, unless the column's `draft` returns a string).
 
 ## What it owns
 

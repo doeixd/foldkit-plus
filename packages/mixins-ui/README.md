@@ -399,13 +399,57 @@ adapter.
 | Combobox | `wrapper`, `inputWrapper`, `input`, `toggleButton`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `ComboboxView` fork; single and multi share one transcription) |
 | DatePicker | `trigger`, `panel`, `backdrop` (over the `DatePickerView` fork, which keeps upstream's Popover+Calendar composition and seams only the popover assembly) |
 
+## Stateless vocabulary
+
+These views own no Model, no Message, and no bundle. Call `X.view(options, h)`.
+Every one takes an optional `style` of its slots and `mixins` beside it. Style
+the slots with the matching recipe. Hide text with `U.srOnly` from
+`foldkit-mixins/utilities`. Name a control with `FieldAssociation`;
+`Label.view` takes the id that derived.
+
+```ts
+import { Style } from 'foldkit-mixins'
+import { AspectRatio, AspectRatioSlots, Icon, IconSlots, Recipes } from 'foldkit-mixins-ui'
+
+const Frame = Style.forSlots(AspectRatioSlots)(Recipes.AspectRatio({ ratio: 'video' }))
+const Mark = Style.forSlots(IconSlots)(Recipes.Icon({ size: 'sm' }))
+
+// `h` is the view's builder. `content` is `Html`.
+AspectRatio.view({ content: h.span([], ['poster']), style: Frame }, h)
+Icon.view({ content: h.span([], ['!']), label: 'Warning', style: Mark }, h)
+Icon.view({ content: h.span([], ['!']), style: Mark }, h)
+```
+
+A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
+`Icons.glyph` is the other tool: a mask on an element that already exists.
+
+| View | Call | Recipe |
+| --- | --- | --- |
+| `Alert` | `{ title, description?, icon?, assertive? }`. `assertive` is `role="alert"`; otherwise `role="status"`. | `tone`: `info` (default), `success`, `warning`, `error`. Slots `root`, `icon`, `title`, `description`. |
+| `AspectRatio` | `{ content? }`. Slot `frame`. | `ratio`: `square` (default), `video` (16/9), `portrait` (3/4). The corner reads `radius`. |
+| `Avatar` | `{ name, src }`. Initials show until the image covers them. | `size`: `sm`, `md` (default), `lg`. Slots `root`, `fallback`, `image`. |
+| `Badge` | `{ text, tone? }` writes `data-tone`. | `Recipes.Badge({ attribute, tones })` maps that attribute; values outside the map keep the base. Slot `badge`. |
+| `Breadcrumb` | `{ steps: { label, href?, current? }[] }`. `current` is text with `aria-current="page"`; the others are links. | No axis. Slots `root`, `list`, `item`, `link`, `current`. |
+| `ButtonGroup` | `{ label, items }`. `role="group"`. The buttons stay the caller's. `Segmented` is the control that selects. | No axis. Slot `root`. |
+| `Card` | `{ content, title?, description?, footer?, action? }`. | `padding`: `comfortable` (default), `roomy`, `flush`. Slots `root`, `header`, `title`, `description`, `content`, `footer`, `action`. |
+| `Empty` | `{ title, description?, icon?, action? }`. | No axis. Slots `root`, `icon`, `title`, `description`, `action`. |
+| `Icon` | `{ content, label? }`. A `label` is `role="img"`; without one the glyph is `aria-hidden`. | `size`: `sm`, `md` (default), `lg`. Slot `glyph`. |
+| `Item` | `{ content, media?, title?, description?, actions? }`. | `density`: `comfortable` (default), `compact`. Slots `root`, `media`, `content`, `title`, `description`, `actions`. |
+| `Kbd` | `{ key }`. Names the key. | No axis. Slot `key`. |
+| `Label` | `{ for, text }`. `for` is the control's id. | No axis. Slot `label`. |
+| `Pagination` | `{ page, pageCount, onPage, label? }`. Fewer than two pages draws nothing. `Pagination.itemsOf(page, pageCount)` is the stops. | No axis. The current stop reads `aria-current`. Slots `root`, `prev`, `next`, `page`, `ellipsis`. |
+| `ScrollArea` | `{ content }`. The height that makes it scroll is the caller's mixin. The viewport is tabbable. | `orientation`: `vertical` (default), `horizontal`, `both`. Slot `viewport`. |
+| `Separator` | `{ orientation? }`, horizontal by default. A vertical rule needs its container to set the cross size. | `orientation`: `horizontal` (default), `vertical`. Slot `rule`. |
+| `Skeleton` | `{ label? }`. `role="status"`. Stack one bar per line. | `shape`: `bar` (default), `circle`. Slot `bar`. |
+| `Spinner` | `{ label? }`. `role="status"`. | `size`: `sm`, `md` (default). Slot `wheel`. |
+| `Table` | `{ columns: { header, value, numeric? }[], rows, caption? }`. Sorting and selection stay with `foldkit-data-grid`. | No axis. Slots `root`, `caption`, `head`, `headerRow`, `headerCell`, `body`, `row`, `cell`. |
+| `Typography` | `{ level, text }`. The level chooses the element (`h1`–`h4`, `lead`, `body`, `small`, `muted`, `quote`, `code`). | `level`, same set. Defaults to `body`. Slot `text`. |
+
 ## Recipes
 
-The adapters only name slots. `Recipes` gives those slots a look: one
-`Style.recipeFor` per contract (`Button`, `Input`, `Textarea`, `Select`,
-`Checkbox`, `Switch`, `RadioGroup`, `Slider`, `Dialog`, `Tabs`, `Segmented`,
-`Menu`, `Listbox`, `Combobox`, `DatePicker`, `Popover`, `Tooltip`, `Toast`,
-`FileDrop`), built on the tokens of `foldkit-mixins/theme`.
+The adapters only name slots. `Recipes` gives those slots, and the vocabulary
+above, a look: one `Style.recipeFor` per contract, built on the tokens of
+`foldkit-mixins/theme`.
 Select variants, hand the pieces to `Style.forSlots`, and attach the result
 like any other Style:
 
@@ -608,8 +652,7 @@ Models are structurally identical, so the single adaptor maps
 `Combobox` follows the same shape over its own shared transcription
 (`ComboboxView.create` / `ComboboxView.Multi.create`).
 
-Other `@foldkit/ui` modules—`Toast`, `VirtualList`, `DragAndDrop`, and
-`Animation`—simply do not have adapters here yet.
+`VirtualList`, `DragAndDrop`, and `Animation` do not have adapters here yet.
 
 ## Status
 

@@ -25,7 +25,7 @@ recipe in `packages/mixins-ui` is the package. An adapter is `resolve` /
 | Progress | `examples/widgets` progress | — | Landed as an island. Not in the changelog's Wave A list. |
 | Meter | `examples/widgets` meter | Wave A | Landed. |
 | Separator | `packages/mixins-ui` | — | Landed. Slot and recipe, not an island. |
-| HoverCard | `examples/widgets` hover-card | Wave B | Landed. Click after hover stays open. |
+| HoverCard | `examples/widgets` hover-card | Wave B | Landed. Click after hover stays open. The card overlaps the trigger so the pointer can cross the gap. |
 
 ## Design Wave B
 
@@ -34,7 +34,7 @@ recipe in `packages/mixins-ui` is the package. An adapter is `resolve` /
 | Autocomplete | `examples/widgets` autocomplete | Wave B | Landed. Enter commits from the field. Listbox id matches `aria-controls`. |
 | ContextMenu | `examples/widgets` context-menu | Wave B | Landed. A right-click opens at the pointer (`OnPointerDown` records it; `OnContextMenu` carries none). A keyboard menu sits under the row. |
 | Menubar | `examples/widgets` menubar | Wave B | Landed. Popup sits under the open trigger. Reopen keeps `aria-selected`. |
-| NavigationMenu | `examples/widgets` navigation-menu | Wave B | Landed. Same placement and selection id as the menubar. Click after hover stays open. |
+| NavigationMenu | `examples/widgets` navigation-menu | Wave B | Landed. Same placement and selection id as the menubar. Click after hover stays open. The popup overlaps the trigger so the pointer can cross the gap. |
 | NumberField | `examples/widgets` number-field | Wave A | Landed. |
 | OtpField | `examples/widgets` otp-field | Wave B | Landed. A filled cell advances with an `AdvanceFocus` Command. |
 | Command | `examples/widgets` command | Wave A | Landed. Enter on the field activates the current item. |

@@ -285,8 +285,11 @@ cell, the draft, an error); the application owns the value, and hears of a
 commit as the grid's OutMessage. The column's `schema` says what its text
 means, from the text typed to the value: a draft is committed only when it
 decodes, and the failure's message is the cell's error. A schema that
-decodes to a date (`Schema.DateFromString`) edits in a date field. The draft
-the field opens on is the local calendar day, `YYYY-MM-DD`, not the UTC day.
+decodes to a date (`Schema.DateFromString`) is `CellEditor.Date` and edits in
+a date field. The draft the field opens on is the local calendar day,
+`YYYY-MM-DD`. `toISOString` is the UTC day, so a local midnight used to open
+the field on the wrong one. A column `draft` that returns a string still
+wins. Committing decodes the field's text through the schema.
 
 ```ts
 // Dollars as typed, with at most two decimals, and the number they mean.
