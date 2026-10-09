@@ -6,7 +6,12 @@
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
 import { Effect, Layer, Option, Result, Schema, Stream } from 'effect'
-import { Entity as DomainEntity, Query as Relational, SelectionTypeId } from 'foldkit-entity'
+import {
+  Entity as DomainEntity,
+  Query as Relational,
+  QueryEvaluateError,
+  SelectionTypeId,
+} from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
 import type { Duration } from 'effect'
 import type { RpcClientError } from 'effect/rpc'
@@ -48,7 +53,7 @@ import {
   type EntityRef,
   type FieldsFrom,
 } from './entity.js'
-import { belongsEncoded, matching, type Matched } from './matching.js'
+import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
 
 /** A body's dependencies as an explanation carries them: without the owner identity, which holds a symbol. */
 const explainedDependencies = (dependencies: Domain.Dependencies): ExplainedDependencies => ({
@@ -2989,7 +2994,16 @@ const bindDomain = <
           ? []
           : visibleItems(connection, over.ref.identity, remote.optimistic.overlays, remote.entities)
       const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))
-      const judged = matching(visible, by, input, { among })
+      let judged: Judged
+      try {
+        judged = matching(visible, by, input, { among })
+      } catch (error) {
+        // An input the reference interpreter refuses (a search holding NUL) is
+        // one the server refuses too: nothing here can be said about the list.
+        // Thrown on, it would end the `update` that asked.
+        if (error instanceof QueryEvaluateError) return { items: [], complete: false }
+        throw error
+      }
       const relation = relationOf(over.selection)
 
       const items: unknown[] = []

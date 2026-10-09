@@ -415,7 +415,8 @@ running a query on purpose: "which rows match" would need predicate containment,
 which is deliberately not built, while "which rows *of this list* match" is
 decidable. `complete` requires every edge judged, every match showable, and the
 list terminal at both ends — so empty-and-complete and empty-and-partial stay
-different answers. It creates no connection, so nothing new is retained or
+different answers; an input every interpreter refuses (text holding NUL) is
+empty and incomplete, never a throw. It creates no connection, so nothing new is retained or
 fetched.
 
 Local execution is not a second authority: `matching` and `filtered` conclude

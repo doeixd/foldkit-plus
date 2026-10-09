@@ -216,6 +216,17 @@ describe('Whether the answer is about the whole list', () => {
     expect(found.items).toEqual([])
     expect(found.complete).toBe(false)
   })
+
+  it('is incomplete, and does not throw, for a search no interpreter may answer', () => {
+    // Text holding NUL means nothing portable, so every interpreter refuses it.
+    // Here that refusal would otherwise end the `update` that asked.
+    const found = Data.filtered(loaded(), projects, Named, {
+      name: `Apo${String.fromCharCode(0)}`,
+    })
+
+    expect(found.items).toEqual([])
+    expect(found.complete).toBe(false)
+  })
 })
 
 describe('Gaps, which the outer boundaries do not show', () => {

@@ -26,7 +26,7 @@
  */
 import { Schema } from 'effect'
 import { Query as Relational } from 'foldkit-entity'
-import { evaluate, type Row } from 'foldkit-entity'
+import { QueryEvaluateError, evaluate, type Row } from 'foldkit-entity'
 import type { QueryDescriptor } from './query.js'
 import type { EntityKey, EntityStore } from './store.js'
 
@@ -227,7 +227,15 @@ export const belongsEncoded = <Name extends string, Input>(
     return 'unknown'
   }
 
-  const judged = matchingEncoded(store, descriptor, encoded, { among: [key] })
+  let judged: Judged
+  try {
+    judged = matchingEncoded(store, descriptor, encoded, { among: [key] })
+  } catch (error) {
+    // A body the reference interpreter refuses for this input (text holding
+    // NUL) cannot settle membership; the server refuses it too.
+    if (error instanceof QueryEvaluateError) return 'unknown'
+    throw error
+  }
   if (judged.matched.includes(key)) return 'yes'
   // Held, but missing a field the body reads.
   if (judged.skipped.includes(key)) return 'unknown'

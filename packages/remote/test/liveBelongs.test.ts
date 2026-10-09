@@ -40,6 +40,14 @@ const QuietProjects = Query.define('QuietProjects', {}, activeOnly, {
   live: { prepend: 'ignore' },
 })
 
+/** Projects whose name contains what was typed: a body an input can make unanswerable. */
+const NamedProjects = Query.define('NamedProjects', { name: Schema.String }, ({ input }) =>
+  Query.from(Project).pipe(
+    Query.where(Expr.contains(Project.fields.name, input.name)),
+    Query.orderBy(Order.asc(Project.fields.id)),
+  ),
+)
+
 /** The same population, declaring that a prepend means "refetch me". */
 const RefetchedProjects = Query.define('RefetchedProjects', {}, activeOnly, {
   live: { prepend: 'invalidate' },
@@ -51,7 +59,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Project],
-  queries: [ActiveProjects, QuietProjects, RefetchedProjects],
+  queries: [ActiveProjects, QuietProjects, RefetchedProjects, NamedProjects],
 })
 
 /** Either connection, so the helpers are not pinned to one query's name. */
@@ -146,6 +154,21 @@ describe('A row the body can judge', () => {
     const model = insert(loaded([{ id: 'p2', status: 'active' }]), 'p2')
 
     expect(shown(model)).toEqual(['p2', 'p1'])
+  })
+})
+
+describe('A row the body cannot judge for this input', () => {
+  it('takes the declared policy rather than ending the update', () => {
+    // A search holding NUL is refused by every interpreter, so the body says
+    // nothing about `p2`; the default policy shows it, as the server asked.
+    const named: Projection = Data.query(
+      NamedProjects,
+      { name: `Project${String.fromCharCode(0)}` },
+      { select: Summary, first: 25 },
+    )
+    const model = insert(loaded([{ id: 'p2', status: 'active' }], named), 'p2', named)
+
+    expect(edges(model, named)).toEqual(['p2', 'p1'])
   })
 })
 

@@ -1074,7 +1074,9 @@ could match — predicate containment, which Remote deliberately does not do.
 missing a field the *body* reads), every match could be shown (no row missing a
 field the *Selection* reads), and the list is terminal at both ends. So
 empty-and-complete and empty-and-partial stay different answers — one means
-"none", the other means "none that I can see yet".
+"none", the other means "none that I can see yet". An input no interpreter may
+answer (a search holding NUL, which the server refuses too) gives no items and
+`complete: false`, rather than throwing in `update`.
 
 Nothing is created: no connection, nothing new to retain, nothing new to fetch.
 The server stays authoritative for which rows exist.

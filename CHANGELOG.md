@@ -19,6 +19,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`: a filter or live insert the reference interpreter
+  refuses no longer throws in `update`.** `Data.filtered` with such an input
+  (a search holding NUL) answers no items and `complete: false`; a live
+  insert into such a connection takes its declared policy.
 - **`foldkit-remote-drizzle`: `contains` refuses searched text holding NUL
   when that text is an input or a literal**, as `evaluate` does. It refused a
   NUL only in the search, and answered `[]` on SQLite and Postgres for the
