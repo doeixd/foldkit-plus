@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/context-menu/app.ts',
-        find: "action: `${message.action} ${model.openFor ?? ''}`.trim(),",
-        replace: 'action: message.action,',
+        find: 'action: Option.some(`${message.action} ${open.value}`),',
+        replace: 'action: Option.some(message.action),',
       },
     ],
     tests,

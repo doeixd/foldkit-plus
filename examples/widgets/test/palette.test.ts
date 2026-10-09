@@ -1,14 +1,15 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Inert } from 'foldkit-mixins/testing'
-import { Selection } from 'foldkit-primitives/interaction'
-import { Sel } from '../src/command/app.js'
+import { ListNavigation, Selection } from 'foldkit-primitives/interaction'
+import { Nav, Sel } from '../src/command/app.js'
 import { Message, initial, update } from '../src/palette/app.js'
 import { Palette, runDemo } from '../src/palette/view.js'
 
 describe('update flows', () => {
   it('starts closed with nothing run', () => {
     expect(initial.model.open).toBe(false)
-    expect(initial.model.lastRan).toBe(null)
+    expect(initial.model.lastRan).toEqual(Option.none())
   })
 
   it('opening, picking, and running', () => {
@@ -19,7 +20,7 @@ describe('update flows', () => {
       Sel.wrapper.make(Selection.Message.Activated({ id: 'new-folder' })),
     ).model
     expect(picked.open).toBe(false)
-    expect(picked.lastRan).toBe('New folder')
+    expect(picked.lastRan).toEqual(Option.some('New folder'))
   })
 
   it('re-picking the running command runs nothing new', () => {
@@ -28,13 +29,24 @@ describe('update flows', () => {
       opened,
       Sel.wrapper.make(Selection.Message.Activated({ id: 'rename' })),
     ).model
-    expect(picked.lastRan).toBe('Rename')
+    expect(picked.lastRan).toEqual(Option.some('Rename'))
     const again = update(
       { ...opened, palettePick: picked.palettePick },
       Sel.wrapper.make(Selection.Message.Activated({ id: 'rename' })),
     ).model
     expect(again.open).toBe(true)
-    expect(again.lastRan).toBe(null)
+    expect(again.lastRan).toEqual(Option.none())
+  })
+
+  it('an arrow moves the pointer and runs nothing', () => {
+    const opened = update(initial.model, Message.Opened({})).model
+    const moved = update(
+      opened,
+      Nav.wrapper.make(ListNavigation.Message.Focused({ id: 'rename' })),
+    ).model
+    expect(moved.open).toBe(true)
+    expect(moved.lastRan).toEqual(Option.none())
+    expect(moved.paletteNav.current).toBe('rename')
   })
 })
 
@@ -65,7 +77,7 @@ describe('view structure', () => {
 describe('demo', () => {
   it('traces opening and running', () => {
     expect(runDemo()).toEqual([
-      'start: open=false ran=null',
+      'start: open=false ran=none',
       'opened: open=true',
       'picked new-folder: open=false ran=New folder',
     ])

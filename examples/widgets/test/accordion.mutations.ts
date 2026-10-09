@@ -11,19 +11,19 @@ export default [
     edits: [
       {
         file: '../src/accordion/app.ts',
-        find: 'return { model: { ...model, open: model.open === message.id ? null : message.id } }',
-        replace: 'return { model: { ...model, open: message.id } }',
+        find: 'Option.isSome(open) && open.value === id ? Option.none() : Option.some(id)',
+        replace: 'Option.some(id)',
       },
     ],
     tests,
   },
   {
-    name: 'every body draws',
+    name: 'a shut panel stays visible',
     edits: [
       {
         file: '../src/accordion/view.ts',
-        find: '...(open',
-        replace: '...(true || open',
+        find: 'h.Hidden(!open)',
+        replace: 'h.Hidden(false)',
       },
     ],
     tests,

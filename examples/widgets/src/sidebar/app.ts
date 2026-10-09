@@ -4,8 +4,23 @@
  * hides the navigation, not the toggle, so the rail never strands the way
  * back.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+
+export const ISLAND = 'sidebar'
+
+/** Element id of the navigation the collapse toggle names. */
+export const NAV_ID = `${ISLAND}/docs-nav`
+
+/** Element id of a section's panel. The trigger's `aria-controls` names it. */
+export const contentId = (id: string): string => `${ISLAND}/${id}-content`
+
+export const textOf = (value: Option.Option<string>): string =>
+  Option.isSome(value) ? value.value : 'none'
+
+/** The section after a click: the open one shuts, any other opens. */
+export const toggled = (open: Option.Option<string>, id: string): Option.Option<string> =>
+  Option.isSome(open) && open.value === id ? Option.none() : Option.some(id)
 
 export interface Section {
   readonly id: string
@@ -41,7 +56,7 @@ export const SECTIONS: ReadonlyArray<Section> = [
 ]
 
 export const Model = Schema.Struct({
-  open: Schema.NullOr(Schema.String),
+  open: Schema.Option(Schema.String),
   collapsed: Schema.Boolean,
 })
 export type Model = typeof Model.Type
@@ -52,12 +67,12 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-export const initial: Model = { open: 'guides', collapsed: false }
+export const initial: Model = { open: Option.some('guides'), collapsed: false }
 
 export const update = (model: Model, message: Message): { readonly model: Model } => {
   switch (message._tag) {
     case 'ToggledSection':
-      return { model: { ...model, open: model.open === message.id ? null : message.id } }
+      return { model: { ...model, open: toggled(model.open, message.id) } }
     case 'ToggledCollapse':
       return { model: { ...model, collapsed: !model.collapsed } }
   }

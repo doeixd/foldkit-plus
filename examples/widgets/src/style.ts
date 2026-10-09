@@ -6,6 +6,9 @@
  * is what `entry.ts` installs; tests read it through `Inert.css`.
  */
 import { Style } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
+import { Theme } from 'foldkit-mixins/theme'
+import { Placing } from 'foldkit-primitives/interaction'
 import type { AccordionSlots } from './accordion/view.js'
 import type { AlertDialogSlots } from './alert-dialog/view.js'
 import type { AutocompleteSlots } from './autocomplete/view.js'
@@ -27,15 +30,38 @@ import type { ToggleSlots } from './toggle/view.js'
 import type { ToggleGroupSlots } from './toggle-group/view.js'
 import type { ToolbarSlots } from './toolbar/view.js'
 
-const ink = '#18181b'
-const muted = '#52525b'
-const line = '#d4d4d8'
-const wash = '#f4f4f5'
-const accent = '#4f46e5'
-const onAccent = '#ffffff'
+/** Fallback until `PlaceAt` writes the offset under the open trigger. */
+const underTrigger = `var(${Placing.placedTop}, calc(100% + 4px))`
+
+/**
+ * The same palette the design-system demo ships, so a token change shows up
+ * here too. Island slots are each widget's own anatomy, so a Button recipe
+ * does not fit them; the chrome below reads these tokens instead.
+ */
+const palette = Theme.compose(
+  Theme.oklch({
+    accent: { h: 222, c: 0.09, l: '52%', dark: { l: '70%', c: 0.1 } },
+    surfaceSaturation: 0.003,
+    surfaceContrast: '60%',
+  }),
+  Theme.define({ knob: { 'radius-factor': '1.4' } }),
+)
+
+const app = AppStyle.make({ palette })
+
+/** Reset, token layer, palette, and body defaults. `entry.ts` installs it. */
+export const pageStylesheet = app.stylesheet
+
+const t = app.t
+const ink = t.text.overt
+const muted = t.text.muted
+const line = t.outline.default
+const wash = t.surface.muted
+const accent = t.accent.default
+const onAccent = t.surface.base
 
 const focus = Style.pseudo(':focus-visible', {
-  outline: `2px solid ${accent}`,
+  outline: `${t.border.thick} solid ${t.outline.focus}`,
   outlineOffset: '2px',
 })
 
@@ -43,8 +69,8 @@ const control = Style.self({
   font: 'inherit',
   color: ink,
   background: onAccent,
-  border: `1px solid ${line}`,
-  borderRadius: '8px',
+  border: `${t.border.thin} solid ${line}`,
+  borderRadius: t.radius.lg,
   paddingBlock: '0.375rem',
   paddingInline: '0.75rem',
   cursor: 'pointer',
@@ -75,7 +101,7 @@ const modalBackdrop = Style.self({
   position: 'fixed',
   inset: '0',
   zIndex: '10',
-  background: 'rgb(0 0 0 / 0.4)',
+  background: `color-mix(in oklch, ${t.surface.bedrock} 40%, transparent)`,
 })
 
 /**
@@ -91,9 +117,9 @@ const modalPanel = (width: string): ReturnType<typeof Style.self> =>
     display: 'grid',
     width: `min(${width}, calc(100vw - 2rem))`,
     background: onAccent,
-    border: `1px solid ${line}`,
-    borderRadius: '12px',
-    boxShadow: '0 12px 32px rgb(0 0 0 / 0.18)',
+    border: `${t.border.thin} solid ${line}`,
+    borderRadius: t.radius.xl,
+    boxShadow: t.shadow['2xl'],
   })
 
 export const toolbarStyle = (slots: typeof ToolbarSlots) =>
@@ -129,6 +155,7 @@ export const accordionStyle = (slots: typeof AccordionSlots) =>
   Style.forSlots(slots)(
     {
       root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '28rem' }),
+      section: Style.self({ display: 'grid' }),
       trigger: Style.compose(
         Style.self({ display: 'block', width: '100%', textAlign: 'start' }),
         control,
@@ -237,7 +264,11 @@ export const alertDialogStyle = (slots: typeof AlertDialogSlots) =>
       ),
       cancel: Style.compose(control, focus),
       confirm: Style.compose(
-        Style.self({ background: '#dc2626', borderColor: '#dc2626', color: onAccent }),
+        Style.self({
+          background: t.error.default,
+          borderColor: t.error.default,
+          color: t.error['on-fill'],
+        }),
         focus,
       ),
     },
@@ -365,7 +396,7 @@ export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
           background: onAccent,
           border: `1px solid ${line}`,
           borderRadius: '10px',
-          boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)',
+          boxShadow: t.shadow.lg,
           color: muted,
           fontSize: '0.875rem',
         }),
@@ -391,7 +422,7 @@ export const contextMenuStyle = (slots: typeof ContextMenuSlots) =>
       popup: Style.compose(
         Style.self({
           position: 'absolute',
-          top: 'calc(100% + 4px)',
+          top: underTrigger,
           left: '0',
           zIndex: '10',
           display: 'grid',
@@ -399,7 +430,7 @@ export const contextMenuStyle = (slots: typeof ContextMenuSlots) =>
           background: onAccent,
           border: `1px solid ${line}`,
           borderRadius: '10px',
-          boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)',
+          boxShadow: t.shadow.lg,
           padding: '0.25rem',
         }),
         focus,
@@ -438,7 +469,7 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
       popup: Style.compose(
         Style.self({
           position: 'absolute',
-          top: 'calc(100% + 0.25rem)',
+          top: underTrigger,
           left: '0',
           zIndex: '10',
           display: 'grid',
@@ -446,7 +477,7 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
           background: onAccent,
           border: `1px solid ${line}`,
           borderRadius: '10px',
-          boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)',
+          boxShadow: t.shadow.lg,
           padding: '0.25rem',
         }),
         focus,
@@ -476,7 +507,7 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
       popup: Style.compose(
         Style.self({
           position: 'absolute',
-          top: 'calc(100% + 4px)',
+          top: underTrigger,
           left: '0',
           zIndex: '10',
           display: 'grid',
@@ -484,7 +515,7 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
           background: onAccent,
           border: `1px solid ${line}`,
           borderRadius: '10px',
-          boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)',
+          boxShadow: t.shadow.lg,
           padding: '0.25rem',
         }),
         focus,
@@ -545,6 +576,8 @@ export const sidebarStyle = (slots: typeof SidebarSlots) =>
   Style.forSlots(slots)(
     {
       root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '18rem' }),
+      nav: Style.self({ display: 'grid', gap: '0.25rem' }),
+      section: Style.self({ display: 'grid' }),
       collapse: Style.compose(control, focus),
       trigger: Style.compose(
         Style.self({ display: 'block', width: '100%', textAlign: 'start' }),

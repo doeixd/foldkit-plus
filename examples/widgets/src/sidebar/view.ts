@@ -4,12 +4,15 @@
  * each trigger naming its own content from the open id — the accordion's
  * rule, with links for bodies. Collapsed, only the toggle draws.
  */
+import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { sidebarStyle } from '../style.js'
-import { Message, SECTIONS, initial, update, type Model } from './app.js'
+import { Message, NAV_ID, SECTIONS, contentId, initial, textOf, update, type Model } from './app.js'
 
 export const SidebarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
+  nav: Slot.make({ capability: Capability.Container }),
+  section: Slot.make({ capability: Capability.Container }),
   collapse: Slot.make({ capability: Capability.Interactive }),
   trigger: Slot.make({ capability: Capability.Interactive }),
   content: Slot.make({ capability: Capability.Container }),
@@ -26,8 +29,6 @@ const Ids = Behaviors.Collection.behavior(SidebarSlots)<Model, Message>({
   items: () => describeSections(),
 })
 
-const contentId = (id: string): string => `${id}-content`
-
 export const Sidebar = SlotView.forMessages<Message>()
   .define(SidebarSlots, (model: Model, slots, h) => {
     const items = describeSections()
@@ -35,7 +36,7 @@ export const Sidebar = SlotView.forMessages<Message>()
       h.button(
         slots.collapse.attrs([
           h.AriaExpanded(!model.collapsed),
-          h.AriaControls('docs-nav'),
+          h.AriaControls(NAV_ID),
           h.OnClick(Message.ToggledCollapse({})),
         ]),
         [model.collapsed ? 'Expand' : 'Collapse'],
@@ -43,10 +44,10 @@ export const Sidebar = SlotView.forMessages<Message>()
       ...(model.collapsed
         ? []
         : [
-            h.nav(slots.root.attrs([h.Id('docs-nav'), h.AriaLabel('Docs')]), [
+            h.nav(slots.nav.attrs([h.Id(NAV_ID), h.AriaLabel('Docs')]), [
               ...SECTIONS.map((section, index) => {
-                const open = model.open === section.id
-                return h.div(slots.root.attrs(), [
+                const open = Option.isSome(model.open) && model.open.value === section.id
+                return h.div(slots.section.attrs(), [
                   h.button(
                     slots.trigger.attrs(
                       [
@@ -59,15 +60,12 @@ export const Sidebar = SlotView.forMessages<Message>()
                     ),
                     [section.title],
                   ),
-                  ...(open
-                    ? [
-                        h.ul(slots.content.attrs([h.Id(contentId(section.id))]), [
-                          ...section.links.map(link =>
-                            h.li([], [h.a(slots.link.attrs([h.Href(link.href)]), [link.label])]),
-                          ),
-                        ]),
-                      ]
-                    : []),
+                  h.ul(
+                    slots.content.attrs([h.Id(contentId(section.id)), h.Hidden(!open)]),
+                    section.links.map(link =>
+                      h.li([], [h.a(slots.link.attrs([h.Href(link.href)]), [link.label])]),
+                    ),
+                  ),
                 ])
               }),
             ]),
@@ -78,9 +76,9 @@ export const Sidebar = SlotView.forMessages<Message>()
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial
-  const lines = [`start: open=${model.open} collapsed=${model.collapsed}`]
+  const lines = [`start: open=${textOf(model.open)} collapsed=${model.collapsed}`]
   model = update(model, Message.ToggledSection({ id: 'api' })).model
-  lines.push(`opened api: open=${model.open}`)
+  lines.push(`opened api: open=${textOf(model.open)}`)
   model = update(model, Message.ToggledCollapse({})).model
   lines.push(`collapsed: collapsed=${model.collapsed}`)
   return lines

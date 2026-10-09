@@ -29,7 +29,7 @@ const Associated = Behaviors.FieldAssociation.behavior(NumberFieldSlots)<Model, 
   control: 'control',
   label: 'label',
   description: 'description',
-  id: () => 'quantity',
+  id: () => 'number-field/quantity',
   required: () => true,
 })
 

@@ -41,9 +41,11 @@ import { ToggleGroup } from '../src/toggle-group/view.js'
 import { initial as toggleGroupInitial } from '../src/toggle-group/app.js'
 import { Toolbar } from '../src/toolbar/view.js'
 import { initial as toolbarInitial } from '../src/toolbar/app.js'
+import { pageStylesheet } from '../src/style.js'
 import { islands } from '../src/widgets.js'
 
-const sheet = (): string => Style.stylesheet(...islands.map(island => island.style()))
+const sheet = (): string =>
+  pageStylesheet + Style.stylesheet(...islands.map(island => island.style()))
 
 describe('showcase styles', () => {
   it('builds one sheet with state read from ARIA', () => {
@@ -52,6 +54,9 @@ describe('showcase styles', () => {
     expect(css).toContain('[aria-selected="true"]')
     expect(css).toContain('[aria-expanded="true"]')
     expect(css).toContain(':focus-visible')
+    expect(css).toContain('--fk-text-overt:')
+    expect(css).not.toContain('#18181b')
+    expect(css).not.toContain('#dc2626')
   })
 
   it('dresses every widget with classes and no missing tokens', () => {

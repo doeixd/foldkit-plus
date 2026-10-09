@@ -4,7 +4,7 @@
  * placement in single mode (the chosen command). Filtering is a function of
  * the Model — three lines below, no helper, no store.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { ListNavigation, Selection } from 'foldkit-primitives/interaction'
@@ -38,7 +38,7 @@ export const Sel = Bundle.declare(Selection.bundle, 'palettePick')
 export const navArgs = {
   orientation: 'vertical',
   loop: true,
-  virtual: false,
+  virtual: true,
   timeoutMs: 500,
   page: 3,
 } as const
@@ -74,7 +74,10 @@ export const update = assembly.update((model, message) => {
   }
 })
 
-export const selectedOf = (model: Model): string | null => {
+export const selectedOf = (model: Model): Option.Option<string> => {
   const [first] = model.palettePick.selected
-  return first ?? null
+  return first === undefined ? Option.none() : Option.some(first)
 }
+
+export const textOf = (value: Option.Option<string>): string =>
+  Option.isSome(value) ? value.value : 'none'

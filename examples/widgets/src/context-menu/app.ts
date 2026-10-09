@@ -1,18 +1,29 @@
 /**
- * A file menu's state: which row it opened for (null while shut) and the
+ * A file menu's state: which row it opened for (none while shut) and the
  * last chosen action — beside a `ListNavigation` placement (arrows in the
  * menu), a `Selection` placement in single mode (the highlight), and the
  * `DismissLayer` stack the Overlay behaviors mark through. Right-clicking a
- * row opens the menu for it; the popup draws below the file list.
+ * row opens the menu for it; the popup opens under that row.
  * Dismissing closes without choosing.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
 
+export const ISLAND = 'context-menu'
+
 export const FILES: ReadonlyArray<string> = ['report.pdf', 'notes.txt', 'photo.png']
 export const ACTIONS: ReadonlyArray<string> = ['Open', 'Rename', 'Delete']
+
+/** Element id of a file row. The row and `PlaceAt` share it. */
+export const rowId = (file: string): string => `${ISLAND}/${file}`
+
+/** Element id of an action. The collection and `Selection.Activated` share it. */
+export const actionId = (action: string): string => `${ISLAND}/${action}`
+
+export const textOf = (value: Option.Option<string>): string =>
+  Option.isSome(value) ? value.value : 'none'
 
 export const Nav = Bundle.declare(ListNavigation.bundle, 'fileNav')
 
@@ -33,8 +44,8 @@ export const Model = Schema.Struct({
   ...Nav.fields,
   ...Sel.fields,
   ...Stack.fields,
-  openFor: Schema.NullOr(Schema.String),
-  action: Schema.NullOr(Schema.String),
+  openFor: Schema.Option(Schema.String),
+  action: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -54,29 +65,32 @@ const assembly = Parent.assemble(
   Parent.at(Sel, { args: selArgs }),
   Parent.at(Stack, {
     onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({
-      model: model.openFor === null ? model : { ...model, openFor: null },
+      model: Option.isNone(model.openFor) ? model : { ...model, openFor: Option.none() },
     }),
   }),
 )
 
-export const initial = assembly.initial({ openFor: null, action: null })
+export const initial = assembly.initial({ openFor: Option.none(), action: Option.none() })
 
 export const update = assembly.update((model, message) => {
   switch (message._tag) {
     case 'OpenedFor':
-      return { model: { ...model, openFor: message.id } }
-    case 'ChoseAction':
+      return { model: { ...model, openFor: Option.some(message.id) } }
+    case 'ChoseAction': {
+      const open = model.openFor
+      if (Option.isNone(open)) return { model }
       return {
         model: {
           ...model,
-          openFor: null,
-          action: `${message.action} ${model.openFor ?? ''}`.trim(),
+          openFor: Option.none(),
+          action: Option.some(`${message.action} ${open.value}`),
           filePick: Selection.bundle.update(
             model.filePick,
-            Selection.Message.Activated({ id: message.action }),
+            Selection.Message.Activated({ id: actionId(message.action) }),
             selArgs,
           ).model,
         },
       }
+    }
   }
 })

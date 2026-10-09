@@ -3,7 +3,7 @@
  * `RovingTabindex` placement (one tab stop, arrows by orientation). Clicking
  * a tool presses it; the placement owns focus.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
@@ -27,7 +27,7 @@ export const toolbarArgs = { orientation: 'horizontal', loop: true, virtual: fal
 
 export const Model = Schema.Struct({
   ...Roving.fields,
-  active: Schema.NullOr(Schema.String),
+  active: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -41,11 +41,11 @@ const Parent = Bundle.parent({ Model, Message })
 
 const assembly = Parent.assemble(Parent.at(Roving, { args: toolbarArgs }))
 
-export const initial = assembly.initial({ active: null })
+export const initial = assembly.initial({ active: Option.none() })
 
 export const update = assembly.update((model, message) => {
   switch (message._tag) {
     case 'PressedTool':
-      return { model: { ...model, active: message.id } }
+      return { model: { ...model, active: Option.some(message.id) } }
   }
 })

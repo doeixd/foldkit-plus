@@ -22,8 +22,10 @@ export default [
     edits: [
       {
         file: '../src/toggle-group/view.ts',
-        find: "h.AriaPressed(selected === option ? 'true' : 'false')",
-        replace: "h.AriaPressed('false')",
+        find: `h.AriaPressed(
+                Option.isSome(selected) && selected.value === option ? 'true' : 'false',
+              ),`,
+        replace: "h.AriaPressed('false'),",
       },
     ],
     tests,

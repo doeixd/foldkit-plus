@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { Option } from 'effect'
+import { describe, expect, it } from 'vitest'
 import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { LENGTH, Message, advanceTarget, codeOf, initial, update } from '../src/otp-field/app.js'
@@ -16,7 +16,7 @@ const filled = (): ReturnType<typeof update>['model'] => {
 describe('update flows', () => {
   it('starts empty and incomplete', () => {
     expect(initial.model.cells).toEqual(['', '', '', '', '', ''])
-    expect(codeOf(initial.model)).toBe(null)
+    expect(codeOf(initial.model)).toEqual(Option.none())
   })
 
   it('takes the last typed digit, digits only', () => {
@@ -31,9 +31,9 @@ describe('update flows', () => {
   })
 
   it('completes when every cell holds a digit', () => {
-    expect(codeOf(filled())).toBe('123456')
+    expect(codeOf(filled())).toEqual(Option.some('123456'))
     const five = update(filled(), Message.CellCleared({ index: 5 })).model
-    expect(codeOf(five)).toBe(null)
+    expect(codeOf(five)).toEqual(Option.none())
   })
 
   it('clears one cell', () => {
@@ -77,14 +77,14 @@ describe('view structure', () => {
     const one = update(initial.model, Message.CellTyped({ index: 0, char: '4' })).model
     expect(backspaceOf(one, 1)).toEqual(
       Option.some({
-        focusSelector: '[id="digit-1"]',
+        focusSelector: '[id="otp-field/digit-1"]',
         message: Message.CellCleared({ index: 0 }),
       }),
     )
     expect(Option.isNone(backspaceOf(one, 0))).toBe(true)
     expect(backspaceOf(one, 2)).toEqual(
       Option.some({
-        focusSelector: '[id="digit-2"]',
+        focusSelector: '[id="otp-field/digit-2"]',
         message: Message.CellCleared({ index: 1 }),
       }),
     )
@@ -122,9 +122,9 @@ describe('view structure', () => {
 describe('demo', () => {
   it('traces typing and clearing', () => {
     expect(runDemo()).toEqual([
-      'start: cells=,,,,, code=null',
-      'typed 42: cells=4,2,,,, code=null',
-      'cleared second: cells=4,,,,, code=null',
+      'start: cells=,,,,, code=none',
+      'typed 42: cells=4,2,,,, code=none',
+      'cleared second: cells=4,,,,, code=none',
     ])
   })
 })

@@ -4,10 +4,11 @@
  * press under `Overlay.modal`. The panel draws only while open; choosing a
  * new command runs it through `update`, so the view never closes itself.
  */
+import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Overlay, Selection } from 'foldkit-primitives/interaction'
 import { paletteStyle } from '../style.js'
-import { Nav, Sel, matching, navArgs, selArgs } from '../command/app.js'
+import { Nav, Sel, matching, navArgs, selArgs, textOf } from '../command/app.js'
 import { Message, Stack, initial, update, type Model } from './app.js'
 
 export const PaletteSlots = Slots.define({
@@ -31,10 +32,15 @@ const Ids = Behaviors.Collection.behavior(PaletteSlots)<Model, Message>({
 })
 
 const Keys = ListNavigation.behavior(Nav, navArgs)(PaletteSlots)<Model, Message>({
-  container: 'list',
+  container: 'input',
   item: 'item',
-  items: input => describeMatching(input),
+  items: input =>
+    Behaviors.Collection.of(input.open ? matching(input.query) : [], {
+      id: command => command.id,
+    }),
   text: (input, index) => matching(input.query)[index]?.label ?? '',
+  typeahead: false,
+  commit: (_input, id) => Sel.wrapper.make(Selection.Message.Activated({ id })),
 })
 
 const Picks = Selection.behavior(Sel, selArgs)(PaletteSlots)<Model, Message>({
@@ -47,7 +53,8 @@ const PaletteOverlay = Overlay.behaviors(PaletteSlots)<Model, Message, 'layers'>
   stack: Stack,
   layer: 'panel',
   trigger: 'trigger',
-  id: () => 'palette',
+  // Layer attribute, not an element id.
+  id: () => 'palette-layer',
   policy: Overlay.modal,
 })
 
@@ -91,7 +98,7 @@ export const Palette = SlotView.forMessages<Message>()
             ),
           ]
         : []),
-      ...(model.lastRan === null ? [] : [h.p([], [`Ran: ${model.lastRan}.`])]),
+      ...(Option.isNone(model.lastRan) ? [] : [h.p([], [`Ran: ${model.lastRan.value}.`])]),
     ])
   })
   .pipe(
@@ -104,11 +111,11 @@ export const Palette = SlotView.forMessages<Message>()
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model
-  const lines = [`start: open=${model.open} ran=${model.lastRan}`]
+  const lines = [`start: open=${model.open} ran=${textOf(model.lastRan)}`]
   model = update(model, Message.Opened({})).model
   lines.push(`opened: open=${model.open}`)
   model = update(model, Message.Queried({ text: 'new' })).model
   model = update(model, Sel.wrapper.make(Selection.Message.Activated({ id: 'new-folder' }))).model
-  lines.push(`picked new-folder: open=${model.open} ran=${model.lastRan}`)
+  lines.push(`picked new-folder: open=${model.open} ran=${textOf(model.lastRan)}`)
   return lines
 }

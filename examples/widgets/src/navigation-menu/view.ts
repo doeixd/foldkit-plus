@@ -1,9 +1,11 @@
 /**
  * The menu as one SlotView: hovering a trigger opens its section, leaving
- * the bar shuts, a click toggles (touch and keyboard arrive that way); one
+ * the bar shuts, a click toggles unless the hover just opened it. One
  * Collection description over the open section's links feeds identity,
  * `ListNavigation`, and `Selection` (aria only — clicks are the parent's
- * `FollowedLink`). The popup is the `Overlay.nonModal` policy.
+ * `FollowedLink`). The popup is the `Overlay.nonModal` policy. Its layer
+ * id is the dismiss attribute, not an element id. `PlaceAt` puts the popup
+ * under the open trigger.
  */
 import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
@@ -17,8 +19,11 @@ import {
   Message,
   initial,
   linksOf,
+  linkElementId,
   navArgs,
   selArgs,
+  textOf,
+  triggerId,
   update,
   type Model,
 } from './app.js'
@@ -32,12 +37,13 @@ export const NavigationMenuSlots = Slots.define({
 
 const describeSections = () =>
   Behaviors.Collection.of(NAMES, {
-    id: name => name,
+    id: name => triggerId(name),
   })
 
 const describeLinks = (model: Model) =>
   Behaviors.Collection.of(linksOf(model.openSection), {
-    id: link => `${model.openSection}/${link}`,
+    id: link =>
+      Option.isSome(model.openSection) ? linkElementId(model.openSection.value, link) : link,
   })
 
 const SectionIds = Behaviors.Collection.behavior(NavigationMenuSlots)<Model, Message>({
@@ -68,7 +74,7 @@ export const NavigationOverlay = Overlay.behaviors(NavigationMenuSlots)<Model, M
   stack: Stack,
   layer: 'popup',
   trigger: 'trigger',
-  id: input => `section-${input.openSection ?? 'none'}`,
+  id: input => `navigation-menu-section-${textOf(input.openSection)}`,
   policy: Overlay.nonModal,
 })
 
@@ -77,6 +83,7 @@ export const NavigationMenu = SlotView.forMessages<Message>()
     const sections = describeSections()
     const links = describeLinks(model)
     const shown = linksOf(model.openSection)
+    const section = model.openSection
     return h.nav(
       slots.bar.attrs([
         h.AriaLabel('Site'),
@@ -90,7 +97,7 @@ export const NavigationMenu = SlotView.forMessages<Message>()
             slots.trigger.attrs(
               [
                 h.Key(name),
-                h.AriaExpanded(model.openSection === name),
+                h.AriaExpanded(Option.isSome(section) && section.value === name),
                 h.OnMouseEnter(Message.EnteredSection({ section: name })),
                 h.OnClick(Message.ToggledSection({ section: name })),
               ],
@@ -99,23 +106,26 @@ export const NavigationMenu = SlotView.forMessages<Message>()
             [name],
           ),
         ),
-        ...(model.openSection === null
-          ? []
-          : [
-              h.div(
-                slots.popup.attrs([h.Role('menu'), h.AriaLabel(model.openSection)]),
-                shown.map((link, index) =>
-                  h.button(
-                    slots.item.attrs(
-                      [h.Key(link), h.OnClick(Message.FollowedLink({ link }))],
-                      links.slotItem(index),
-                    ),
-                    [link],
+        ...Option.match(section, {
+          onNone: () => [],
+          onSome: name => [
+            h.div(
+              slots.popup.attrs([h.Key(`popup:${name}`), h.Role('menu'), h.AriaLabel(name)]),
+              shown.map((link, index) =>
+                h.button(
+                  slots.item.attrs(
+                    [h.Key(link), h.OnClick(Message.FollowedLink({ link }))],
+                    links.slotItem(index),
                   ),
+                  [link],
                 ),
               ),
-            ]),
-        ...(model.followed === null ? [] : [h.p([], [`Last followed: ${model.followed}.`])]),
+            ),
+          ],
+        }),
+        ...(Option.isNone(model.followed)
+          ? []
+          : [h.p([], [`Last followed: ${model.followed.value}.`])]),
       ],
     )
   })
@@ -125,13 +135,20 @@ export const NavigationMenu = SlotView.forMessages<Message>()
     Behavior.attach(Keys),
     Behavior.attach(Picks),
     ...NavigationOverlay.map(Behavior.attach),
+    Behavior.attach(
+      Placing.placeAtTrigger(NavigationMenuSlots)<Model, Message>({
+        panel: 'popup',
+        triggerId: input =>
+          Option.isSome(input.openSection) ? triggerId(input.openSection.value) : '',
+      }),
+    ),
     Behavior.attach(Placing.keepWithin(NavigationMenuSlots)({ panel: 'popup' })),
     Style.attach(navigationMenuStyle(NavigationMenuSlots)),
   )
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model
-  const show = (): string => `open=${model.openSection} followed=${model.followed}`
+  const show = (): string => `open=${textOf(model.openSection)} followed=${textOf(model.followed)}`
   const lines = [`start: ${show()}`]
   model = update(model, Message.EnteredSection({ section: 'Products' })).model
   lines.push(`hovered Products: ${show()}`)

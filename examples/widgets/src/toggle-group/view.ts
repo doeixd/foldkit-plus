@@ -4,6 +4,7 @@
  * set, since a toggle group's options are pressables that read selected.
  * `ToggleState` stays out: it names one control, not one per item.
  */
+import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Selection } from 'foldkit-primitives/interaction'
 import { toggleGroupStyle } from '../style.js'
@@ -13,6 +14,7 @@ import {
   initial,
   selArgs,
   selectedOf,
+  textOf,
   update,
   type Message,
   type Model,
@@ -48,7 +50,12 @@ export const ToggleGroup = SlotView.forMessages<Message>()
       OPTIONS.map((option, index) =>
         h.button(
           slots.option.attrs(
-            [h.Key(option), h.AriaPressed(selected === option ? 'true' : 'false')],
+            [
+              h.Key(option),
+              h.AriaPressed(
+                Option.isSome(selected) && selected.value === option ? 'true' : 'false',
+              ),
+            ],
             items.slotItem(index),
           ),
           [option],
@@ -64,10 +71,10 @@ export const ToggleGroup = SlotView.forMessages<Message>()
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model
-  const lines = [`start: selected=${selectedOf(model)}`]
+  const lines = [`start: selected=${textOf(selectedOf(model))}`]
   model = update(model, Sel.wrapper.make(Selection.Message.Activated({ id: 'center' }))).model
-  lines.push(`picked center: selected=${selectedOf(model)}`)
+  lines.push(`picked center: selected=${textOf(selectedOf(model))}`)
   model = update(model, Sel.wrapper.make(Selection.Message.Activated({ id: 'center' }))).model
-  lines.push(`picked center again: selected=${selectedOf(model)}`)
+  lines.push(`picked center again: selected=${textOf(selectedOf(model))}`)
   return lines
 }

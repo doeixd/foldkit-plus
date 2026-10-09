@@ -11,8 +11,9 @@ export default [
     edits: [
       {
         file: '../src/navigation-menu/app.ts',
-        find: 'openSection: null,\n          followed:',
-        replace: 'openSection: model.openSection,\n          followed:',
+        find: 'openSection: Option.none(),\n          openedByPointer: false,\n          followed:',
+        replace:
+          'openSection: model.openSection,\n          openedByPointer: false,\n          followed:',
       },
     ],
     tests,
@@ -22,7 +23,7 @@ export default [
     edits: [
       {
         file: '../src/navigation-menu/app.ts',
-        find: "case 'LeftBar':\n      return model.openSection === null ? { model } : { model: { ...model, openSection: null } }",
+        find: "case 'LeftBar':\n      return { model: shut(model) }",
         replace: "case 'LeftBar':\n      return { model }",
       },
     ],
@@ -35,6 +36,17 @@ export default [
         file: '../src/navigation-menu/view.ts',
         find: 'policy: Overlay.nonModal,',
         replace: 'policy: Overlay.modal,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a click after a hover shuts the section',
+    edits: [
+      {
+        file: '../src/navigation-menu/app.ts',
+        find: 'if (model.openedByPointer && isSection(model.openSection, message.section)) {\n        return { model: { ...model, openedByPointer: false } }\n      }\n',
+        replace: '',
       },
     ],
     tests,

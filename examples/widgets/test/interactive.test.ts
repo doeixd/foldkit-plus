@@ -55,9 +55,13 @@ describe('showcase islands', () => {
     click(center)
     await vi.waitFor(() => expect(center.getAttribute('aria-pressed')).toBe('true'))
 
-    // Accordion: opening Team shows its body.
-    click(button('Team'))
-    await vi.waitFor(() => expect(document.body.textContent).toContain('Invite, remove'))
+    // Accordion: a shut panel stays in the page, and opening Team shows it.
+    const team = button('Team')
+    const teamPanel = () => document.getElementById(team.getAttribute('aria-controls') ?? '')
+    expect(teamPanel()?.hidden).toBe(true)
+    click(team)
+    await vi.waitFor(() => expect(teamPanel()?.hidden).toBe(false))
+    expect(teamPanel()?.textContent).toContain('Invite, remove')
 
     // Alert dialog: opening and cancelling answers cancelled.
     click(button('Delete project'))
@@ -118,7 +122,7 @@ describe('showcase islands', () => {
 
     // Context menu: right-clicking a row opens its menu, choosing acts.
     const notes = [...document.querySelectorAll('div')].find(
-      each => each.textContent === 'notes.txt' && each.id === 'notes.txt',
+      each => each.textContent === 'notes.txt' && each.id === 'context-menu/notes.txt',
     )!
     notes.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
     await vi.waitFor(() =>

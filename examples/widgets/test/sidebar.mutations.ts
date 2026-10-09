@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/sidebar/app.ts',
-        find: 'return { model: { ...model, open: model.open === message.id ? null : message.id } }',
-        replace: 'return { model: { ...model, open: message.id } }',
+        find: 'Option.isSome(open) && open.value === id ? Option.none() : Option.some(id)',
+        replace: 'Option.some(id)',
       },
     ],
     tests,
@@ -24,6 +24,17 @@ export default [
         file: '../src/sidebar/view.ts',
         find: '...(model.collapsed\n        ? []',
         replace: '...(false\n        ? []',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a shut section stays visible',
+    edits: [
+      {
+        file: '../src/sidebar/view.ts',
+        find: 'h.Hidden(!open)',
+        replace: 'h.Hidden(false)',
       },
     ],
     tests,

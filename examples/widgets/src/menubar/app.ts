@@ -1,13 +1,14 @@
 /**
- * A menu bar's state: which menu stands open (null while shut) and the last
- * chosen item — beside a `RovingTabindex` placement across the menu triggers
- * (one tab stop, arrows move), a `ListNavigation` placement in the open
- * popup, a `Selection` placement in single mode (the highlight), and the
+ * A menu bar's state: which menu stands open and the last chosen item —
+ * beside a `RovingTabindex` placement across the menu triggers (one tab
+ * stop, arrows move), a `ListNavigation` placement in the open popup, a
+ * `Selection` placement in single mode (the highlight), and the
  * `DismissLayer` stack the Overlay behaviors mark through. Clicking a
  * trigger opens its menu; clicking it again, Escape, or an outside press
- * shuts; choosing records `menu/item` and shuts.
+ * shuts. Choosing records `menu/item` and shuts. The selection id is the
+ * same id the open menu's items carry.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import {
@@ -17,6 +18,8 @@ import {
   Selection,
 } from 'foldkit-primitives/interaction'
 
+export const ISLAND = 'menubar'
+
 export const MENUS: Readonly<Record<string, ReadonlyArray<string>>> = {
   File: ['New', 'Open', 'Save'],
   Edit: ['Undo', 'Redo', 'Copy'],
@@ -24,8 +27,26 @@ export const MENUS: Readonly<Record<string, ReadonlyArray<string>>> = {
 }
 export const NAMES: ReadonlyArray<string> = Object.keys(MENUS)
 
-export const itemsOf = (menu: string | null): ReadonlyArray<string> =>
-  menu === null ? [] : (MENUS[menu] ?? [])
+export const choiceOf = (menu: string, item: string): string => `${menu}/${item}`
+
+/** Element id of a menu trigger. The collection and `PlaceAt` share it. */
+export const triggerId = (menu: string): string => `${ISLAND}/${menu}`
+
+/** Element id of an item. The collection and `Selection.Activated` share it. */
+export const itemElementId = (menu: string, item: string): string =>
+  `${ISLAND}/${choiceOf(menu, item)}`
+
+export const itemsOf = (menu: Option.Option<string>): ReadonlyArray<string> =>
+  Option.match(menu, {
+    onNone: () => [],
+    onSome: name => MENUS[name] ?? [],
+  })
+
+export const textOf = (value: Option.Option<string>): string =>
+  Option.isSome(value) ? value.value : 'none'
+
+const isMenu = (menu: Option.Option<string>, name: string): boolean =>
+  Option.isSome(menu) && menu.value === name
 
 export const Roving = Bundle.declare(RovingTabindex.bundle, 'menuFocus')
 
@@ -50,8 +71,8 @@ export const Model = Schema.Struct({
   ...Nav.fields,
   ...Sel.fields,
   ...Stack.fields,
-  openMenu: Schema.NullOr(Schema.String),
-  choice: Schema.NullOr(Schema.String),
+  openMenu: Schema.Option(Schema.String),
+  choice: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -68,18 +89,19 @@ export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 
+const shut = (model: Model): Model =>
+  Option.isNone(model.openMenu) ? model : { ...model, openMenu: Option.none() }
+
 const assembly = Parent.assemble(
   Parent.at(Roving, { args: rovingArgs }),
   Parent.at(Nav, { args: navArgs }),
   Parent.at(Sel, { args: selArgs }),
   Parent.at(Stack, {
-    onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({
-      model: model.openMenu === null ? model : { ...model, openMenu: null },
-    }),
+    onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({ model: shut(model) }),
   }),
 )
 
-export const initial = assembly.initial({ openMenu: null, choice: null })
+export const initial = assembly.initial({ openMenu: Option.none(), choice: Option.none() })
 
 export const update = assembly.update((model, message) => {
   switch (message._tag) {
@@ -87,23 +109,28 @@ export const update = assembly.update((model, message) => {
       return {
         model: {
           ...model,
-          openMenu: model.openMenu === message.menu ? null : message.menu,
+          openMenu: isMenu(model.openMenu, message.menu)
+            ? Option.none()
+            : Option.some(message.menu),
         },
       }
     case 'ClosedMenu':
-      return model.openMenu === null ? { model } : { model: { ...model, openMenu: null } }
-    case 'ChoseItem':
+      return { model: shut(model) }
+    case 'ChoseItem': {
+      const open = model.openMenu
+      if (Option.isNone(open)) return { model }
       return {
         model: {
           ...model,
-          openMenu: null,
-          choice: model.openMenu === null ? model.choice : `${model.openMenu}/${message.item}`,
+          openMenu: Option.none(),
+          choice: Option.some(choiceOf(open.value, message.item)),
           menuPick: Selection.bundle.update(
             model.menuPick,
-            Selection.Message.Activated({ id: message.item }),
+            Selection.Message.Activated({ id: itemElementId(open.value, message.item) }),
             selArgs,
           ).model,
         },
       }
+    }
   }
 })

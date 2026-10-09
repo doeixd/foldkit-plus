@@ -31,8 +31,8 @@ describe('view structure', () => {
     expect(Inert.value(control, 'aria-valuenow')).toBe('3')
     expect(Inert.value(control, 'aria-valuemin')).toBe('0')
     expect(Inert.value(control, 'aria-valuemax')).toBe('10')
-    expect(Inert.value(control, 'aria-labelledby')).toBe('quantity-label')
-    expect(Inert.value(control, 'aria-describedby')).toBe('quantity-description')
+    expect(Inert.value(control, 'aria-labelledby')).toBe('number-field/quantity-label')
+    expect(Inert.value(control, 'aria-describedby')).toBe('number-field/quantity-description')
     expect(Inert.text(field)).toContain('3')
   })
 

@@ -17,6 +17,7 @@ import {
   navArgs,
   selArgs,
   selectedOf,
+  textOf,
   update,
   type Model,
 } from './app.js'
@@ -39,10 +40,12 @@ const Ids = Behaviors.Collection.behavior(CommandSlots)<Model, Message>({
 })
 
 const Keys = ListNavigation.behavior(Nav, navArgs)(CommandSlots)<Model, Message>({
-  container: 'list',
+  container: 'input',
   item: 'item',
   items: input => describeMatching(input),
   text: (input, index) => matching(input.query)[index]?.label ?? '',
+  typeahead: false,
+  commit: (_input, id) => Sel.wrapper.make(Selection.Message.Activated({ id })),
 })
 
 const Picks = Selection.behavior(Sel, selArgs)(CommandSlots)<Model, Message>({
@@ -84,10 +87,12 @@ export const Command = SlotView.forMessages<Message>()
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model
-  const lines = [`start: shown=${matching(model.query).length} selected=${selectedOf(model)}`]
+  const lines = [
+    `start: shown=${matching(model.query).length} selected=${textOf(selectedOf(model))}`,
+  ]
   model = update(model, Message.Queried({ text: 'new' })).model
   lines.push(`typed new: shown=${matching(model.query).length}`)
   model = update(model, Sel.wrapper.make(Selection.Message.Activated({ id: 'new-folder' }))).model
-  lines.push(`picked new-folder: selected=${selectedOf(model)}`)
+  lines.push(`picked new-folder: selected=${textOf(selectedOf(model))}`)
   return lines
 }

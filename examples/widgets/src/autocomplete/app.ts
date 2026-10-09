@@ -6,10 +6,14 @@
  * behaviors mark through. Filtering is a function of the Model. Picking
  * fills the query, records the label, and closes; dismissing only closes.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
+
+export const ISLAND = 'autocomplete'
+export const LIST_ID = `${ISLAND}/list`
+export const FIELD_ID = `${ISLAND}/fruit`
 
 export const FRUITS: ReadonlyArray<string> = [
   'apple',
@@ -37,7 +41,7 @@ export const Stack = Bundle.declare(DismissLayer.bundle, 'layers')
 export const navArgs = {
   orientation: 'vertical',
   loop: true,
-  virtual: false,
+  virtual: true,
   timeoutMs: 500,
   page: 3,
 } as const
@@ -49,7 +53,7 @@ export const Model = Schema.Struct({
   ...Stack.fields,
   query: Schema.String,
   open: Schema.Boolean,
-  picked: Schema.NullOr(Schema.String),
+  picked: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -76,13 +80,16 @@ const assembly = Parent.assemble(
   }),
 )
 
-export const initial = assembly.initial({ query: '', open: false, picked: null })
+export const textOf = (value: Option.Option<string>): string =>
+  Option.isSome(value) ? value.value : 'none'
+
+export const initial = assembly.initial({ query: '', open: false, picked: Option.none() })
 
 const pick = (model: Model, id: string): Model => ({
   ...model,
   query: id,
   open: false,
-  picked: id,
+  picked: Option.some(id),
   fruitPick: Selection.bundle.update(model.fruitPick, Selection.Message.Activated({ id }), selArgs)
     .model,
 })

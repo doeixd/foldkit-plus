@@ -6,12 +6,14 @@
  * content id and expanded state from the open id. Same attributes the
  * behavior would write, derived per item.
  */
+import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { accordionStyle } from '../style.js'
-import { Message, SECTIONS, initial, update, type Model } from './app.js'
+import { Message, SECTIONS, contentId, initial, textOf, update, type Model } from './app.js'
 
 export const AccordionSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
+  section: Slot.make({ capability: Capability.Container }),
   trigger: Slot.make({ capability: Capability.Interactive }),
   content: Slot.make({ capability: Capability.Container }),
 })
@@ -26,16 +28,14 @@ const Ids = Behaviors.Collection.behavior(AccordionSlots)<Model, Message>({
   items: () => describeSections(),
 })
 
-const contentId = (id: string): string => `${id}-content`
-
 export const Accordion = SlotView.forMessages<Message>()
   .define(AccordionSlots, (model: Model, slots, h) => {
     const items = describeSections()
     return h.div(
       slots.root.attrs(),
       SECTIONS.map((section, index) => {
-        const open = model.open === section.id
-        return h.div(slots.root.attrs(), [
+        const open = Option.isSome(model.open) && model.open.value === section.id
+        return h.div(slots.section.attrs(), [
           h.button(
             slots.trigger.attrs(
               [
@@ -48,9 +48,10 @@ export const Accordion = SlotView.forMessages<Message>()
             ),
             [section.title],
           ),
-          ...(open
-            ? [h.div(slots.content.attrs([h.Id(contentId(section.id))]), [section.body])]
-            : []),
+          // Shut panels stay mounted, like Disclosure, so aria-controls names a node.
+          h.div(slots.content.attrs([h.Id(contentId(section.id)), h.Hidden(!open)]), [
+            section.body,
+          ]),
         ])
       }),
     )
@@ -59,10 +60,10 @@ export const Accordion = SlotView.forMessages<Message>()
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial
-  const lines = [`start: open=${model.open}`]
+  const lines = [`start: open=${textOf(model.open)}`]
   model = update(model, Message.ToggledSection({ id: 'team' })).model
-  lines.push(`opened team: open=${model.open}`)
+  lines.push(`opened team: open=${textOf(model.open)}`)
   model = update(model, Message.ToggledSection({ id: 'team' })).model
-  lines.push(`closed team: open=${model.open}`)
+  lines.push(`closed team: open=${textOf(model.open)}`)
   return lines
 }

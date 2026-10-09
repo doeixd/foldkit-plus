@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Inert } from 'foldkit-mixins/testing'
 import { Selection } from 'foldkit-primitives/interaction'
@@ -9,17 +10,17 @@ const picked = (id: string) =>
 
 describe('update flows', () => {
   it('starts with nothing chosen', () => {
-    expect(selectedOf(initial.model)).toBe(null)
+    expect(selectedOf(initial.model)).toEqual(Option.none())
   })
 
   it('picks and unpicks one option', () => {
-    expect(selectedOf(picked('center'))).toBe('center')
+    expect(selectedOf(picked('center'))).toEqual(Option.some('center'))
     expect(
       selectedOf(
         update(picked('center'), Sel.wrapper.make(Selection.Message.Activated({ id: 'center' })))
           .model,
       ),
-    ).toBe(null)
+    ).toEqual(Option.none())
   })
 
   it('replaces the choice', () => {
@@ -27,7 +28,7 @@ describe('update flows', () => {
       picked('left'),
       Sel.wrapper.make(Selection.Message.Activated({ id: 'right' })),
     ).model
-    expect(selectedOf(next)).toBe('right')
+    expect(selectedOf(next)).toEqual(Option.some('right'))
   })
 })
 
@@ -45,9 +46,9 @@ describe('view structure', () => {
 describe('demo', () => {
   it('traces pick and unpick', () => {
     expect(runDemo()).toEqual([
-      'start: selected=null',
+      'start: selected=none',
       'picked center: selected=center',
-      'picked center again: selected=null',
+      'picked center again: selected=none',
     ])
   })
 })

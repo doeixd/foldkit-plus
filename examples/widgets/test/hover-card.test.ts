@@ -10,7 +10,7 @@ const dismissOpen = (model: typeof initial.model) =>
     model,
     Stack.wrapper.make(
       DismissLayer.Message.PressedEscape({
-        layers: [{ id: 'user-card', outside: true, escape: true }],
+        layers: [{ id: 'hover-card', outside: true, escape: true }],
       }),
     ),
   ).model
@@ -28,8 +28,15 @@ describe('update flows', () => {
     expect(update(open, Message.Blurred()).model.open).toBe(false)
   })
 
-  it('toggles for touch', () => {
+  it('toggles for touch, and a click after a hover stays open', () => {
     expect(update(initial.model, Message.Toggled()).model.open).toBe(true)
+    const open = update(initial.model, Message.Entered()).model
+    const stayed = update(open, Message.Toggled()).model
+    expect(stayed.open).toBe(true)
+    expect(stayed.openedByPointer).toBe(false)
+    expect(update(stayed, Message.Toggled()).model.open).toBe(false)
+    const keyed = update(initial.model, Message.Focused()).model
+    expect(update(keyed, Message.Toggled()).model.open).toBe(false)
   })
 
   it('escape dismisses through the stack', () => {

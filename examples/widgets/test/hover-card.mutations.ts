@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file: '../src/hover-card/app.ts',
-        find: "case 'Left':\n      return model.open ? { model: { ...model, open: false } } : { model }",
+        find: "case 'Left':\n      return model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model }",
         replace: "case 'Left':\n      return { model }",
       },
     ],
@@ -24,6 +24,17 @@ export default [
         file: '../src/hover-card/view.ts',
         find: 'policy: Overlay.nonModal,',
         replace: 'policy: Overlay.modal,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a click after a hover shuts the card',
+    edits: [
+      {
+        file: '../src/hover-card/app.ts',
+        find: 'if (model.openedByPointer && model.open)\n        return { model: { ...model, openedByPointer: false } }\n',
+        replace: '',
       },
     ],
     tests,

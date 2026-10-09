@@ -4,6 +4,7 @@
  * `RovingTabindex` Behavior (one tab stop, arrows). The only view rule is
  * the pressed state; a disabled tool draws with no click.
  */
+import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { toolbarStyle } from '../style.js'
@@ -41,7 +42,9 @@ export const Toolbar = SlotView.forMessages<Message>()
           slots.tool.attrs(
             [
               h.Key(tool.id),
-              h.AriaPressed(model.active === tool.id ? 'true' : 'false'),
+              h.AriaPressed(
+                Option.isSome(model.active) && model.active.value === tool.id ? 'true' : 'false',
+              ),
               ...(tool.disabled
                 ? [h.Title('Unavailable with plain text selected')]
                 : [h.OnClick(Message.PressedTool({ id: tool.id }))]),

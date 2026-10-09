@@ -16,6 +16,7 @@ import {
   Roving,
   cellIdOf,
   codeOf,
+  textOf,
   initial,
   otpArgs,
   update,
@@ -31,7 +32,7 @@ const describeCells = () =>
   Behaviors.Collection.of(
     Array.from({ length: LENGTH }, (_, index) => index),
     {
-      id: index => `digit-${index + 1}`,
+      id: cellIdOf,
     },
   )
 
@@ -95,7 +96,12 @@ export const OtpField = SlotView.forMessages<Message>()
       ),
       h.p(
         [h.Role('status')],
-        [code === null ? 'Enter all six digits.' : `Code complete: ${code}.`],
+        [
+          Option.match(code, {
+            onNone: () => 'Enter all six digits.',
+            onSome: value => `Code complete: ${value}.`,
+          }),
+        ],
       ),
     ])
   })
@@ -103,7 +109,7 @@ export const OtpField = SlotView.forMessages<Message>()
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model
-  const show = (): string => `cells=${model.cells.join(',')} code=${codeOf(model)}`
+  const show = (): string => `cells=${model.cells.join(',')} code=${textOf(codeOf(model))}`
   const lines = [`start: ${show()}`]
   model = update(model, Message.CellTyped({ index: 0, char: '4' })).model
   model = update(model, Message.CellTyped({ index: 1, char: '2' })).model

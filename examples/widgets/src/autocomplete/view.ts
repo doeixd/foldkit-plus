@@ -7,6 +7,7 @@
  * `Overlay.nonModal` policy: dismissed by Escape and outside press, focus
  * restored to the input, page usable throughout.
  */
+import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Overlay, Placing, Selection } from 'foldkit-primitives/interaction'
 import { autocompleteStyle } from '../style.js'
@@ -14,11 +15,14 @@ import {
   Nav,
   Sel,
   Stack,
+  FIELD_ID,
+  LIST_ID,
   Message,
   initial,
   matching,
   navArgs,
   selArgs,
+  textOf,
   update,
   type Model,
 } from './app.js'
@@ -42,10 +46,13 @@ const Ids = Behaviors.Collection.behavior(AutocompleteSlots)<Model, Message>({
 })
 
 const Keys = ListNavigation.behavior(Nav, navArgs)(AutocompleteSlots)<Model, Message>({
-  container: 'list',
+  container: 'input',
   item: 'item',
-  items: input => describeMatching(input),
+  items: input =>
+    Behaviors.Collection.of(input.open ? matching(input.query) : [], { id: fruit => fruit }),
   text: (input, index) => matching(input.query)[index] ?? '',
+  typeahead: false,
+  commit: (_input, id) => Message.PickedOption({ id }),
 })
 
 const Picks = Selection.behavior(Sel, selArgs)(AutocompleteSlots)<Model, Message>({
@@ -58,14 +65,15 @@ const Picks = Selection.behavior(Sel, selArgs)(AutocompleteSlots)<Model, Message
 const Associated = Behaviors.FieldAssociation.behavior(AutocompleteSlots)<Model, Message>({
   control: 'input',
   label: 'label',
-  id: () => 'fruit',
+  id: () => FIELD_ID,
 })
 
 export const AutocompleteOverlay = Overlay.behaviors(AutocompleteSlots)<Model, Message, 'layers'>({
   stack: Stack,
   layer: 'list',
   trigger: 'input',
-  id: () => 'fruit-popup',
+  // Layer attribute, not the listbox element id `aria-controls` names.
+  id: () => 'autocomplete-layer',
   policy: Overlay.nonModal,
 })
 
@@ -83,13 +91,13 @@ export const Autocomplete = SlotView.forMessages<Message>()
           h.Value(model.query),
           h.Role('combobox'),
           h.AriaExpanded(model.open && shown.length > 0),
-          h.AriaControls('fruit-popup'),
+          h.AriaControls(LIST_ID),
         ]),
       ),
       ...(model.open && shown.length > 0
         ? [
             h.div(
-              slots.list.attrs([h.Role('listbox'), h.AriaLabel('Matching fruits')]),
+              slots.list.attrs([h.Id(LIST_ID), h.Role('listbox'), h.AriaLabel('Matching fruits')]),
               shown.map((fruit, index) =>
                 h.button(
                   slots.item.attrs(
@@ -102,7 +110,7 @@ export const Autocomplete = SlotView.forMessages<Message>()
             ),
           ]
         : []),
-      ...(model.picked === null ? [] : [h.p([], [`Picked: ${model.picked}.`])]),
+      ...(Option.isNone(model.picked) ? [] : [h.p([], [`Picked: ${model.picked.value}.`])]),
     ])
   })
   .pipe(
@@ -117,10 +125,12 @@ export const Autocomplete = SlotView.forMessages<Message>()
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model
-  const lines = [`start: shown=${matching(model.query).length} picked=${model.picked}`]
+  const lines = [`start: shown=${matching(model.query).length} picked=${textOf(model.picked)}`]
   model = update(model, Message.Queried({ text: 'ap' })).model
   lines.push(`typed ap: shown=${matching(model.query).length} open=${model.open}`)
   model = update(model, Message.PickedOption({ id: 'apricot' })).model
-  lines.push(`picked apricot: query=${model.query} open=${model.open} picked=${model.picked}`)
+  lines.push(
+    `picked apricot: query=${model.query} open=${model.open} picked=${textOf(model.picked)}`,
+  )
   return lines
 }

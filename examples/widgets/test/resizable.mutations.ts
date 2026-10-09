@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file: '../src/resizable/app.ts',
-        find: 'const first = clampShare(model.from + message.delta / model.width)',
+        find: 'const first = clampShare(model.from.value + message.delta / model.width)',
         replace: 'const first = clampShare(model.first + message.delta / model.width)',
       },
     ],
@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file: '../src/resizable/app.ts',
-        find: 'if (model.from === null || model.width <= 0) return { model }',
-        replace: 'if (model.from === null) return { model }',
+        find: 'if (Option.isNone(model.from) || model.width <= 0) return { model }',
+        replace: 'if (Option.isNone(model.from)) return { model }',
       },
     ],
     tests,

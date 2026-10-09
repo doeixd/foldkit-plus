@@ -8,7 +8,7 @@
  * Message that updated the Model dispatches the focus as a Command — the
  * platform's own prescribed path for Model-driven DOM effects.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Command } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
@@ -60,7 +60,13 @@ const AdvanceFocus = Command.define('AdvanceFocus', {
     }),
 })
 
-export const cellIdOf = (index: number): string => `digit-${index + 1}`
+export const ISLAND = 'otp-field'
+
+/** Element id of a cell. Collection, focus selectors, and `AdvanceFocus` share it. */
+export const cellIdOf = (index: number): string => `${ISLAND}/digit-${index + 1}`
+
+export const textOf = (value: Option.Option<string>): string =>
+  Option.isSome(value) ? value.value : 'none'
 
 /** The Model after a fill plus the focus Command when somewhere is left to go. */
 const filled = (model: Model, cells: ReadonlyArray<string>, from: number) => {
@@ -70,10 +76,12 @@ const filled = (model: Model, cells: ReadonlyArray<string>, from: number) => {
     : { model: { ...model, cells }, commands: [AdvanceFocus({ to: target })] }
 }
 
-/** The entered code, or null until every cell holds a character. */
-export const codeOf = (model: Model): string | null => {
+/** The entered code, once every cell holds a character. */
+export const codeOf = (model: Model): Option.Option<string> => {
   const code = model.cells.join('')
-  return code.length === LENGTH && model.cells.every(cell => cell !== '') ? code : null
+  return code.length === LENGTH && model.cells.every(cell => cell !== '')
+    ? Option.some(code)
+    : Option.none()
 }
 
 /**

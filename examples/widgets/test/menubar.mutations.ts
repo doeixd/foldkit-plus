@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file: '../src/menubar/app.ts',
-        find: 'openMenu: null,\n          choice:',
+        find: 'openMenu: Option.none(),\n          choice:',
         replace: 'openMenu: model.openMenu,\n          choice:',
       },
     ],
@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: '../src/menubar/app.ts',
-        find: 'choice: model.openMenu === null ? model.choice : `${model.openMenu}/${message.item}`,',
-        replace: 'choice: message.item,',
+        find: 'choice: Option.some(choiceOf(open.value, message.item)),',
+        replace: 'choice: Option.some(message.item),',
       },
     ],
     tests,

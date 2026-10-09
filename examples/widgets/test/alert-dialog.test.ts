@@ -1,20 +1,29 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { DismissLayer } from 'foldkit-primitives/interaction'
-import { Stack, initial, update, type Message } from '../src/alert-dialog/app.js'
+import {
+  DESCRIPTION_ID,
+  LAYER_ID,
+  Stack,
+  TITLE_ID,
+  initial,
+  update,
+  type Message,
+} from '../src/alert-dialog/app.js'
 import { AlertDialog, AlertDialogSlots, AlertOverlay, runDemo } from '../src/alert-dialog/view.js'
 
 const dismissNamed = Stack.wrapper.make(
   DismissLayer.Message.PressedEscape({
-    layers: [{ id: 'delete-confirm', outside: false, escape: false }],
+    layers: [{ id: LAYER_ID, outside: false, escape: false }],
   }),
 )
 
 describe('update flows', () => {
   it('starts closed and undecided', () => {
     expect(initial.model.open).toBe(false)
-    expect(initial.model.answer).toBe(null)
+    expect(initial.model.answer).toEqual(Option.none())
   })
 
   it('confirms and cancels through the buttons', () => {
@@ -23,16 +32,16 @@ describe('update flows', () => {
     expect(update(open, { _tag: 'Confirmed' }).model).toEqual({
       ...open,
       open: false,
-      answer: 'confirmed',
+      answer: Option.some('confirmed'),
     })
-    expect(update(open, { _tag: 'Cancelled' }).model.answer).toBe('cancelled')
+    expect(update(open, { _tag: 'Cancelled' }).model.answer).toEqual(Option.some('cancelled'))
   })
 
   it('a dismissal naming the dialog changes nothing', () => {
     const open = update(initial.model, { _tag: 'Opened' }).model
     const after = update(open, dismissNamed).model
     expect(after.open).toBe(true)
-    expect(after.answer).toBe(null)
+    expect(after.answer).toEqual(Option.none())
   })
 })
 
@@ -47,8 +56,8 @@ describe('view structure', () => {
     const panel = Inert.byRole(dialog, 'alertdialog')
     expect(panel).toHaveLength(1)
     expect(Inert.value(panel[0], 'aria-modal')).toBe('true')
-    expect(Inert.value(panel[0], 'aria-labelledby')).toBe('delete-confirm-title')
-    expect(Inert.value(panel[0], 'aria-describedby')).toBe('delete-confirm-description')
+    expect(Inert.value(panel[0], 'aria-labelledby')).toBe(TITLE_ID)
+    expect(Inert.value(panel[0], 'aria-describedby')).toBe(DESCRIPTION_ID)
     expect(Inert.byLabel(dialog, 'Cancel')).toHaveLength(1)
     expect(Inert.byLabel(dialog, 'Delete')).toHaveLength(1)
   })
@@ -75,9 +84,9 @@ describe('view structure', () => {
 describe('demo', () => {
   it('traces open, ignored escape, and confirm', () => {
     expect(runDemo()).toEqual([
-      'start: open=false answer=null',
-      'opened: open=true answer=null',
-      'escape pressed: open=true answer=null (ignored)',
+      'start: open=false answer=none',
+      'opened: open=true answer=none',
+      'escape pressed: open=true answer=none (ignored)',
       'confirmed: open=false answer=confirmed',
     ])
   })

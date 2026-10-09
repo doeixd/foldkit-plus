@@ -5,8 +5,10 @@
  * registry; this file only installs the sheet and builds the sections.
  */
 import { Style } from 'foldkit-mixins'
+import { pageStylesheet } from './style.js'
 import { islands } from './widgets.js'
 
+Style.install(pageStylesheet)
 Style.install(Style.stylesheet(...islands.map(island => island.style())))
 
 const showcase = document.getElementById('showcase')

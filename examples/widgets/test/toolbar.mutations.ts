@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/toolbar/app.ts',
-        find: 'return { model: { ...model, active: message.id } }',
-        replace: 'return { model: { ...model, active: null } }',
+        find: 'return { model: { ...model, active: Option.some(message.id) } }',
+        replace: 'return { model: { ...model, active: Option.none() } }',
       },
     ],
     tests,
@@ -22,7 +22,9 @@ export default [
     edits: [
       {
         file: '../src/toolbar/view.ts',
-        find: '...(tool.disabled ? [] : [h.OnClick(Message.PressedTool({ id: tool.id }))]),',
+        find: `...(tool.disabled
+                ? [h.Title('Unavailable with plain text selected')]
+                : [h.OnClick(Message.PressedTool({ id: tool.id }))]),`,
         replace: '...[h.OnClick(Message.PressedTool({ id: tool.id }))],',
       },
     ],
@@ -33,8 +35,9 @@ export default [
     edits: [
       {
         file: '../src/toolbar/view.ts',
-        find: "h.AriaPressed(model.active === tool.id ? 'true' : 'false'),",
-        replace: "h.AriaPressed(model.active === tool.id ? 'false' : 'true'),",
+        find: "Option.isSome(model.active) && model.active.value === tool.id ? 'true' : 'false',",
+        replace:
+          "Option.isSome(model.active) && model.active.value === tool.id ? 'false' : 'true',",
       },
     ],
     tests,

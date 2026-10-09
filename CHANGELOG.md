@@ -7,6 +7,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Fixed
+
+- **`examples/widgets`: hover, placement, and keyboard on the showcase.**
+  A click after a hover leaves that section open. A popup sits under the
+  trigger that opened it, and reopening a menu keeps the chosen item
+  selected. Enter in the command field runs the highlighted command. Shut
+  accordion panels stay mounted. Absent values in these models are
+  `Option`, and the page theme reads tokens.
+
 ### Added
 
 - **`foldkit-primitives`: place a popup once under its trigger.**

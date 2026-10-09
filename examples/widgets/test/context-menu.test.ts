@@ -1,8 +1,18 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { DismissLayer } from 'foldkit-primitives/interaction'
-import { ACTIONS, FILES, Stack, Message, initial, update } from '../src/context-menu/app.js'
+import {
+  ACTIONS,
+  FILES,
+  Stack,
+  Message,
+  actionId,
+  initial,
+  rowId,
+  update,
+} from '../src/context-menu/app.js'
 import {
   ContextMenu,
   ContextMenuOverlay,
@@ -15,7 +25,7 @@ const dismissOpen = (model: typeof initial.model) =>
     model,
     Stack.wrapper.make(
       DismissLayer.Message.PressedAt({
-        layers: [{ id: 'file-menu', outside: true, escape: true }],
+        layers: [{ id: 'context-menu-file', outside: true, escape: true }],
         inside: [],
       }),
     ),
@@ -23,24 +33,27 @@ const dismissOpen = (model: typeof initial.model) =>
 
 describe('update flows', () => {
   it('starts shut with no action', () => {
-    expect(initial.model.openFor).toBe(null)
-    expect(initial.model.action).toBe(null)
+    expect(initial.model.openFor).toEqual(Option.none())
+    expect(initial.model.action).toEqual(Option.none())
   })
 
   it('opens for a row and chooses through the menu', () => {
     const open = update(initial.model, Message.OpenedFor({ id: 'notes.txt' })).model
-    expect(open.openFor).toBe('notes.txt')
+    expect(open.openFor).toEqual(Option.some('notes.txt'))
     const chose = update(open, Message.ChoseAction({ action: 'Rename' })).model
-    expect(chose.openFor).toBe(null)
-    expect(chose.action).toBe('Rename notes.txt')
-    expect(chose.filePick.selected).toEqual(['Rename'])
+    expect(chose.openFor).toEqual(Option.none())
+    expect(chose.action).toEqual(Option.some('Rename notes.txt'))
+    expect(chose.filePick.selected).toEqual([actionId('Rename')])
+    const again = update(chose, Message.OpenedFor({ id: 'notes.txt' })).model
+    const menu = Inert.draw(ContextMenu, again)
+    expect(Inert.value(Inert.byLabel(menu, 'Rename')[0], 'aria-selected')).toBe('true')
   })
 
   it('an outside press closes without choosing', () => {
     const open = update(initial.model, Message.OpenedFor({ id: 'photo.png' })).model
     const shut = dismissOpen(open)
-    expect(shut.openFor).toBe(null)
-    expect(shut.action).toBe(null)
+    expect(shut.openFor).toEqual(Option.none())
+    expect(shut.action).toEqual(Option.none())
   })
 })
 
@@ -67,6 +80,8 @@ describe('view structure', () => {
     expect(text).toContain('FocusScope')
     expect(text).not.toContain('ScrollLock')
     expect(text).toContain('KeepWithin')
+    expect(text).toContain('PlaceAt')
+    expect(text).toContain(rowId('notes.txt'))
   })
 
   it('every action draws and every row takes a right-click', () => {
@@ -90,9 +105,9 @@ describe('view structure', () => {
 describe('demo', () => {
   it('traces right-click and choice', () => {
     expect(runDemo()).toEqual([
-      'start: openFor=null action=null',
-      'right-clicked notes: openFor=notes.txt action=null',
-      'chose Rename: openFor=null action=Rename notes.txt',
+      'start: openFor=none action=none',
+      'right-clicked notes: openFor=notes.txt action=none',
+      'chose Rename: openFor=none action=Rename notes.txt',
     ])
   })
 })

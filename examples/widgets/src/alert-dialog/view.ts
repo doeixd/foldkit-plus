@@ -7,7 +7,18 @@
 import { Behavior, Capability, Event, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { DismissLayer, Overlay } from 'foldkit-primitives/interaction'
 import { alertDialogStyle } from '../style.js'
-import { Stack, Message, initial, update, type Model } from './app.js'
+import { Option } from 'effect'
+import {
+  Stack,
+  DESCRIPTION_ID,
+  LAYER_ID,
+  Message,
+  TITLE_ID,
+  initial,
+  textOf,
+  update,
+  type Model,
+} from './app.js'
 
 export const AlertDialogSlots = Slots.define({
   trigger: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
@@ -26,7 +37,7 @@ export const AlertOverlay = Overlay.behaviors(AlertDialogSlots)<Model, Message, 
   stack: Stack,
   layer: 'panel',
   trigger: 'trigger',
-  id: () => 'delete-confirm',
+  id: () => LAYER_ID,
   policy: explicit,
 })
 
@@ -43,13 +54,13 @@ export const AlertDialog = SlotView.forMessages<Message>()
                 slots.panel.attrs([
                   h.Role('alertdialog'),
                   h.Attribute('aria-modal', 'true'),
-                  h.AriaLabelledBy('delete-confirm-title'),
-                  h.AriaDescribedBy('delete-confirm-description'),
+                  h.AriaLabelledBy(TITLE_ID),
+                  h.AriaDescribedBy(DESCRIPTION_ID),
                 ]),
                 [
-                  h.h2([h.Id('delete-confirm-title')], ['Delete project?']),
+                  h.h2([h.Id(TITLE_ID)], ['Delete project?']),
                   h.p(
-                    [h.Id('delete-confirm-description')],
+                    [h.Id(DESCRIPTION_ID)],
                     ['This removes the project and its history. This cannot be undone.'],
                   ),
                   h.button(slots.cancel.attrs([h.OnClick(Message.Cancelled())]), ['Cancel']),
@@ -58,7 +69,7 @@ export const AlertDialog = SlotView.forMessages<Message>()
               ),
             ]
           : []),
-        ...(model.answer === null ? [] : [h.p([], [`Last answer: ${model.answer}.`])]),
+        ...(Option.isNone(model.answer) ? [] : [h.p([], [`Last answer: ${model.answer.value}.`])]),
       ],
     ),
   )
@@ -66,7 +77,7 @@ export const AlertDialog = SlotView.forMessages<Message>()
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model
-  const show = (): string => `open=${model.open} answer=${model.answer}`
+  const show = (): string => `open=${model.open} answer=${textOf(model.answer)}`
   const lines = [`start: ${show()}`]
   model = update(model, Message.Opened()).model
   lines.push(`opened: ${show()}`)
@@ -74,7 +85,7 @@ export const runDemo = (): ReadonlyArray<string> => {
     model,
     Stack.wrapper.make(
       DismissLayer.Message.PressedEscape({
-        layers: [{ id: 'delete-confirm', outside: false, escape: false }],
+        layers: [{ id: LAYER_ID, outside: false, escape: false }],
       }),
     ),
   ).model

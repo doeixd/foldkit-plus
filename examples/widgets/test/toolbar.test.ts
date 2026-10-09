@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
@@ -16,11 +17,11 @@ const clickOf = (node: unknown): unknown =>
 describe('update flows', () => {
   it('starts with no tab stop and nothing pressed', () => {
     expect(initial.model.toolbarFocus.current).toBe(null)
-    expect(initial.model.active).toBe(null)
+    expect(initial.model.active).toEqual(Option.none())
   })
 
   it('pressing a tool presses it', () => {
-    expect(pressed(initial.model, 'bold').active).toBe('bold')
+    expect(pressed(initial.model, 'bold').active).toEqual(Option.some('bold'))
   })
 
   it('focus moves through the placement', () => {
@@ -29,7 +30,7 @@ describe('update flows', () => {
       Roving.wrapper.make(RovingTabindex.Message.Focused({ id: 'italic' })),
     ).model
     expect(focused.toolbarFocus.current).toBe('italic')
-    expect(focused.active).toBe(null)
+    expect(focused.active).toEqual(Option.none())
   })
 })
 
@@ -68,8 +69,8 @@ describe('view structure', () => {
 describe('demo', () => {
   it('traces start, focus, and press', () => {
     expect(runDemo()).toEqual([
-      'start: current=null active=null',
-      'focused italic: current=italic active=null',
+      'start: current=null active=none',
+      'focused italic: current=italic active=none',
       'pressed italic: current=italic active=italic',
     ])
   })

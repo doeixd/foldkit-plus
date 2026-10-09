@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/palette/app.ts',
-        find: 'if (model.open && picked !== null && picked !== before) {',
-        replace: 'if (model.open && picked !== null) {',
+        find: 'if (Option.isSome(previous) && previous.value === id) return { model: next }\n',
+        replace: '',
       },
     ],
     tests,
@@ -22,8 +22,9 @@ export default [
     edits: [
       {
         file: '../src/palette/app.ts',
-        find: "return { model: { ...next, open: false, query: '', lastRan: label } }",
-        replace: "return { model: { ...next, open: true, query: '', lastRan: label } }",
+        find: "return { model: { ...next, open: false, query: '', lastRan: Option.some(label) } }",
+        replace:
+          "return { model: { ...next, open: true, query: '', lastRan: Option.some(label) } }",
       },
     ],
     tests,

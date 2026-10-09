@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Inert } from 'foldkit-mixins/testing'
 import { Message, initial, update } from '../src/resizable/app.js'
@@ -30,14 +31,14 @@ describe('update flows', () => {
 
   it('ignores drags with no measure', () => {
     const started = update(initial, Message.DragStarted({})).model
-    expect(started.from).toBe(0.5)
+    expect(started.from).toEqual(Option.some(0.5))
     expect(update(started, Message.Dragged({ delta: 60 })).model).toBe(started)
   })
 
   it('ending a drag forgets where it began', () => {
     const started = update(measured, Message.DragStarted({})).model
     const ended = update(started, Message.DragEnded({})).model
-    expect(ended.from).toBe(null)
+    expect(ended.from).toEqual(Option.none())
     expect(update(ended, Message.Dragged({ delta: 60 })).model).toBe(ended)
   })
 })

@@ -1,8 +1,18 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Attributes, SlotView } from 'foldkit-mixins'
+import { SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { DismissLayer, RovingTabindex } from 'foldkit-primitives/interaction'
-import { NAMES, Roving, Stack, Message, initial, itemsOf, update } from '../src/menubar/app.js'
+import {
+  NAMES,
+  Roving,
+  Stack,
+  Message,
+  initial,
+  itemsOf,
+  triggerId,
+  update,
+} from '../src/menubar/app.js'
 import { Menubar, MenubarOverlay, MenubarSlots, runDemo } from '../src/menubar/view.js'
 
 const dismissOpen = (model: typeof initial.model) =>
@@ -10,47 +20,52 @@ const dismissOpen = (model: typeof initial.model) =>
     model,
     Stack.wrapper.make(
       DismissLayer.Message.PressedEscape({
-        layers: [{ id: 'menu-Edit', outside: true, escape: true }],
+        layers: [{ id: 'menubar-menu-Edit', outside: true, escape: true }],
       }),
     ),
   ).model
 
 describe('update flows', () => {
   it('starts shut with no choice', () => {
-    expect(initial.model.openMenu).toBe(null)
-    expect(initial.model.choice).toBe(null)
+    expect(initial.model.openMenu).toEqual(Option.none())
+    expect(initial.model.choice).toEqual(Option.none())
   })
 
   it('toggles one menu at a time', () => {
     const open = update(initial.model, Message.OpenedMenu({ menu: 'Edit' })).model
-    expect(open.openMenu).toBe('Edit')
-    expect(update(open, Message.OpenedMenu({ menu: 'Edit' })).model.openMenu).toBe(null)
-    expect(update(open, Message.OpenedMenu({ menu: 'View' })).model.openMenu).toBe('View')
+    expect(open.openMenu).toEqual(Option.some('Edit'))
+    expect(update(open, Message.OpenedMenu({ menu: 'Edit' })).model.openMenu).toEqual(Option.none())
+    expect(update(open, Message.OpenedMenu({ menu: 'View' })).model.openMenu).toEqual(
+      Option.some('View'),
+    )
   })
 
-  it('choosing records menu/item and shuts', () => {
+  it('choosing records menu/item and shuts, and reopening keeps the selection', () => {
     const open = update(initial.model, Message.OpenedMenu({ menu: 'Edit' })).model
     const chose = update(open, Message.ChoseItem({ item: 'Copy' })).model
-    expect(chose.openMenu).toBe(null)
-    expect(chose.choice).toBe('Edit/Copy')
+    expect(chose.openMenu).toEqual(Option.none())
+    expect(chose.choice).toEqual(Option.some('Edit/Copy'))
+    const again = update(chose, Message.OpenedMenu({ menu: 'Edit' })).model
+    const bar = Inert.draw(Menubar, again)
+    expect(Inert.value(Inert.byLabel(bar, 'Copy')[0], 'aria-selected')).toBe('true')
   })
 
   it('escape dismisses through the stack', () => {
     const open = update(initial.model, Message.OpenedMenu({ menu: 'Edit' })).model
-    expect(dismissOpen(open).openMenu).toBe(null)
+    expect(dismissOpen(open).openMenu).toEqual(Option.none())
   })
 
   it('roving moves across the triggers', () => {
     const moved = update(
       initial.model,
-      Roving.wrapper.make(RovingTabindex.Message.Focused({ id: 'View' })),
+      Roving.wrapper.make(RovingTabindex.Message.Focused({ id: triggerId('View') })),
     ).model
-    expect(moved.menuFocus.current).toBe('View')
+    expect(moved.menuFocus.current).toBe(triggerId('View'))
   })
 
   it('items come from the open menu', () => {
-    expect(itemsOf(null)).toEqual([])
-    expect(itemsOf('File')).toEqual(['New', 'Open', 'Save'])
+    expect(itemsOf(Option.none())).toEqual([])
+    expect(itemsOf(Option.some('File'))).toEqual(['New', 'Open', 'Save'])
   })
 })
 
@@ -77,15 +92,17 @@ describe('view structure', () => {
     const text = JSON.stringify(full.popup.attrs([]))
     expect(text).toContain('FocusScope')
     expect(text).not.toContain('ScrollLock')
+    expect(text).toContain('PlaceAt')
+    expect(text).toContain(triggerId('Edit'))
   })
 })
 
 describe('demo', () => {
   it('traces open and choose', () => {
     expect(runDemo()).toEqual([
-      'start: open=null choice=null',
-      'opened Edit: open=Edit choice=null',
-      'chose Copy: open=null choice=Edit/Copy',
+      'start: open=none choice=none',
+      'opened Edit: open=Edit choice=none',
+      'chose Copy: open=none choice=Edit/Copy',
     ])
   })
 })

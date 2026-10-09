@@ -21,7 +21,8 @@ export const HoverOverlay = Overlay.behaviors(HoverCardSlots)<Model, Message, 'l
   stack: Stack,
   layer: 'card',
   trigger: 'trigger',
-  id: () => 'user-card',
+  // Layer attribute, not an element id.
+  id: () => 'hover-card',
   policy: Overlay.nonModal,
 })
 
