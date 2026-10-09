@@ -138,8 +138,12 @@ so `RovingTabindex` and `Typeahead` cannot both own the host's
 extend the query in one transition, which two placements cannot do. Its Model
 slice is `{ current, query, generation }`, its args are `RovingTabindex`'s
 plus `timeoutMs` and `page`, and its Behavior takes `{ container, item, items,
-text, direction? }`. `Typed { char, match }` carries the item the query now
-picks, so `update` sets `current` and `query` together.
+text, direction?, typeahead?, commit? }`. `typeahead: false` leaves printable keys to
+the container (a search field); arrows still move the pointer. `commit(input, id)`
+runs on unmodified Enter when `current` is one of the items and returns that
+parent Message from the same handler, so the field does not grow a second key
+listener. `Typed { char, match }` carries the item the query now picks, so
+`update` sets `current` and `query` together.
 
 ```ts
 const Nav = Bundle.declare(ListNavigation.bundle, 'nav')
@@ -435,11 +439,17 @@ const Drawer = SlotView.forMessages<Message>()
   .pipe(...DrawerOverlay.map(Behavior.attach))
 ```
 
-**`Placing`** keeps a floating panel inside the viewport: on insert it
-shifts left past the right edge and flips above its trigger when the bottom
-overflows and the room overhead fits; on release every inline prop goes.
-`Placing.placeFor(rect, viewport)` is the pure rule; `Placing.keepWithin`
-is the Behavior that mounts it on a panel slot. No timers, observers, or
+**`Placing`** keeps a floating panel inside the viewport, and can put it
+under the trigger that opened it. On insert, `keepWithin` shifts left past
+the right edge and flips above its trigger when the bottom overflows and
+the room overhead fits; on release every inline prop goes.
+`Placing.placeFor(rect, viewport)` is that pure rule. `Placing.placeAt(trigger,
+origin, gap?)` is the other: the popup's `left` and top under the trigger,
+relative to the offset parent. `Placing.placeAtTrigger(Slots)({ panel, triggerId, gap? })`
+mounts it. The Mount writes `left` and the `--fk-placed-top` custom property
+(`Placing.placedTop`); the panel's stylesheet reads that property as `top`,
+so a flip, which sets the `top` property, still wins. Key the popup by the
+trigger, because a Mount reads its args once. No timers, observers, or
 reposition loops — and unlike `Anchor.behavior` nothing relocates nodes,
 so it stays inert without layout. Not to confuse with `KeepInView` in
 `foldkit-primitives/dom`, which scrolls newly marked content into view:

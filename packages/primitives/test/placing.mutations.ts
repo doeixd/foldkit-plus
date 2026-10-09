@@ -28,4 +28,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a zero-size trigger is placed as if it had a box',
+    edits: [
+      {
+        file: '../src/interaction/placing.ts',
+        find: 'if (trigger.width === 0 && trigger.height === 0) return { left: 0, top: 0 }\n  return {',
+        replace: 'return {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the popup sits on the trigger instead of under it',
+    edits: [
+      {
+        file: '../src/interaction/placing.ts',
+        find: 'top: trigger.bottom - origin.top + gap,',
+        replace: 'top: trigger.top - origin.top,',
+      },
+    ],
+    tests,
+  },
 ]

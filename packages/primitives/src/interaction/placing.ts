@@ -6,6 +6,14 @@
  * reads and writes. Inert without layout (zero rects never overflow), with
  * no timers, observers, or reposition loops.
  *
+ * `placeAt` is the other half, for a popup that must open under the trigger
+ * that opened it. It writes `left` and `--fk-placed-top` once, relative to
+ * the popup's offset parent; the panel's stylesheet reads the variable as
+ * `top`, so `keepWithin` can still replace `top` when it flips. Key the
+ * popup by the trigger: a Mount reads its args at insert and never again.
+ * Zero-size rects stay at the origin, so an inert document writes nothing
+ * a layout pass would have to undo.
+ *
  * Three related pieces this is not:
  *
  * - `Anchor.behavior` (`foldkit-mixins-ui`) binds a floating element to
@@ -52,6 +60,38 @@ export const placeFor = (rect: PanelRect, viewport: Viewport, margin = 8): Place
   }
 }
 
+export interface AnchorRect {
+  readonly left: number
+  readonly top: number
+  readonly bottom: number
+  readonly width: number
+  readonly height: number
+}
+
+export interface OriginRect {
+  readonly left: number
+  readonly top: number
+}
+
+export interface PlacedAt {
+  readonly left: number
+  readonly top: number
+}
+
+/** Custom property `PlaceAt` writes. A panel reads it as `top` so a viewport
+ *  flip, which sets the `top` property, still wins. */
+export const placedTop = '--fk-placed-top'
+
+/** Where a popup sits under its trigger's left edge, in the offset parent's
+ *  coordinates. A zero-size trigger (an inert document) stays at the origin. */
+export const placeAt = (trigger: AnchorRect, origin: OriginRect, gap = 4): PlacedAt => {
+  if (trigger.width === 0 && trigger.height === 0) return { left: 0, top: 0 }
+  return {
+    left: trigger.left - origin.left,
+    top: trigger.bottom - origin.top + gap,
+  }
+}
+
 export const KeepWithin = Mount.defineStream('KeepWithin', {
   messages: [Schema.Never],
   execute: ({ element }) =>
@@ -80,6 +120,74 @@ export const KeepWithin = Mount.defineStream('KeepWithin', {
       ),
     ),
 })
+
+const paddingEdge = (node: HTMLElement): OriginRect => {
+  const rect = node.getBoundingClientRect()
+  // Absolute `left`/`top` start at the padding edge; the rect is the border box.
+  return { left: rect.left + node.clientLeft, top: rect.top + node.clientTop }
+}
+
+export const PlaceAt = Mount.defineStream('PlaceAt', {
+  messages: [Schema.Never],
+  args: {
+    /** Element id of the trigger the popup opens under. */
+    triggerId: Schema.String,
+    /** Pixels between the trigger's bottom and the popup. */
+    gap: Schema.Number,
+  },
+  execute: ({ element, triggerId, gap }) =>
+    Stream.callback<never>(() =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          if (!(element instanceof HTMLElement)) return
+          const trigger = document.getElementById(triggerId)
+          if (!(trigger instanceof HTMLElement)) return
+          const originNode = element.offsetParent
+          const origin =
+            originNode instanceof HTMLElement ? paddingEdge(originNode) : { left: 0, top: 0 }
+          const rect = trigger.getBoundingClientRect()
+          const placed = placeAt(
+            {
+              left: rect.left,
+              top: rect.top,
+              bottom: rect.bottom,
+              width: rect.width,
+              height: rect.height,
+            },
+            origin,
+            gap,
+          )
+          element.style.left = `${placed.left}px`
+          element.style.setProperty(placedTop, `${placed.top}px`)
+        }),
+        () =>
+          Effect.sync(() => {
+            if (!(element instanceof HTMLElement)) return
+            element.style.left = ''
+            element.style.removeProperty(placedTop)
+          }),
+      ),
+    ),
+})
+
+export const placeAtTrigger =
+  <Slots>(slots: Slots) =>
+  <Input, ParentMessage>(options: {
+    readonly panel: keyof Slots & string
+    /** The trigger this open belongs to. Read at insert, so key the panel by it. */
+    readonly triggerId: (input: Input) => string
+    readonly gap?: number
+  }): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
+    Behavior.forSlots(slots)<Input, ParentMessage>(
+      {
+        [options.panel]: Behavior.slot({
+          requires: { capability: Capability.Container },
+          mount: input => PlaceAt({ triggerId: options.triggerId(input), gap: options.gap ?? 4 }),
+        }),
+        // Keyed by a value the caller chose; `forSlots` checks the key exists.
+      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+      { name: 'PlaceAt' },
+    )
 
 export const keepWithin =
   <Slots>(slots: Slots) =>

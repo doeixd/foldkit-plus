@@ -97,10 +97,13 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   for a host with no roving tab stop; `Typeahead.match(texts, enabled, query, current)` is the pure pick.
 - **A list host that wants both** arrows and typeahead takes `ListNavigation.bundle`
   (`{ orientation, loop, virtual, timeoutMs, page }`) with
-  `ListNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, text, direction? })`.
+  `ListNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, text, direction?, typeahead?, commit? })`.
   One placement, one key handler: `RovingTabindex` and `Typeahead` on one host are
   refused by the resolver (one owner per event), and under `virtual` a typed key
-  must move the pointer and extend the query in one transition.
+  must move the pointer and extend the query in one transition. `typeahead: false`
+  leaves printable keys to a search field; arrows still move. `commit(input, id)`
+  runs on unmodified Enter when `current` is one of the items, and returns that
+  parent Message from the same handler.
 - **A tree** (layers, a file explorer): `TreeNavigation.bundle` (`{ openByDefault }`) with
   `TreeNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, rows: model => [{ id, parent, branch, disabled? }], domId?, direction? })`,
   rows in tree order. Model `{ current, toggled }` (toggled away from the default);
@@ -169,6 +172,10 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   right edge and flips above when the bottom overflows with room overhead; `Placing.placeFor(rect, viewport)`
   is the pure rule. No timers or repositioning, inert without layout. Not `dom`'s `KeepInView`, which scrolls
   content into view instead.
+- **Open a popup under its trigger:** `Placing.placeAt(trigger, origin, gap?)` is the offset;
+  `Placing.placeAtTrigger(Slots)({ panel, triggerId, gap? })` writes `left` and `--fk-placed-top`
+  (`Placing.placedTop`) once. The stylesheet reads the variable as `top`, so `keepWithin` can still
+  flip. Key the popup by the trigger. Not `Anchor.behavior`, which portals and tracks.
 - **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
   `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).

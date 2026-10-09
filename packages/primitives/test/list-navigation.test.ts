@@ -141,15 +141,25 @@ interface ListInput extends Model {
   readonly fruits: ReadonlyArray<Fruit>
 }
 const h = SlotView.inertBuilder<Message>()
-const wire = (options: ListNavigation.Args = args) =>
+const wire = (options: ListNavigation.Args = args, typeahead?: boolean) =>
   ListNavigation.behavior(Nav, options)(ListSlots)<ListInput, Message>({
     container: 'list',
     item: 'option',
     items: input => describeFruits(input.fruits),
     text: (input, index) => input.fruits[index]?.label ?? '',
+    ...(typeahead === undefined ? {} : { typeahead }),
   })
-const builders = (input: ListInput, options: ListNavigation.Args = args) =>
-  SlotView.buildersFor(ListSlots, [wire(options).mixin], { input, h })
+const wireCommit = (commit: (id: string) => Message) =>
+  ListNavigation.behavior(Nav, { ...args, virtual: true })(ListSlots)<ListInput, Message>({
+    container: 'list',
+    item: 'option',
+    items: input => describeFruits(input.fruits),
+    text: (input, index) => input.fruits[index]?.label ?? '',
+    typeahead: false,
+    commit: (_input, id) => commit(id),
+  })
+const builders = (input: ListInput, options: ListNavigation.Args = args, typeahead?: boolean) =>
+  SlotView.buildersFor(ListSlots, [wire(options, typeahead).mixin], { input, h })
 
 describe('ListNavigation behavior', () => {
   const input: ListInput = { nav: { current: 'apple', query: '', generation: 0 }, fruits }
@@ -189,6 +199,28 @@ describe('ListNavigation behavior', () => {
       Nav.wrapper.make(ListNavigation.Message.Typed({ char: 'b', match: 'banana' })),
     )
     expect(Attributes.find(b.option.attrs([], items.slotItem(0)), 'Tabindex')).toBeUndefined()
+  })
+
+  it('with typeahead off a printable key is left to the field and an arrow still moves', () => {
+    const b = builders(input, { ...args, virtual: true }, false)
+    const f = Attributes.find(b.list.attrs(), 'OnKeyDownPreventDefault')?.f
+    if (f === undefined) throw new Error('no OnKeyDownPreventDefault')
+    expect(Option.isNone(f('b', plain))).toBe(true)
+    expect(Option.getOrThrow(f('ArrowDown', plain))).toEqual(
+      Nav.wrapper.make(ListNavigation.Message.Focused({ id: 'banana' })),
+    )
+  })
+
+  it('Enter commits the current item and leaves a chord alone', () => {
+    const chosen = (id: string): Message => Nav.wrapper.make(ListNavigation.Message.Focused({ id }))
+    const b = SlotView.buildersFor(ListSlots, [wireCommit(chosen).mixin], { input, h })
+    const f = Attributes.find(b.list.attrs(), 'OnKeyDownPreventDefault')?.f
+    if (f === undefined) throw new Error('no OnKeyDownPreventDefault')
+    expect(Option.getOrThrow(f('Enter', plain))).toEqual(chosen('apple'))
+    expect(Option.isNone(f('Enter', { ...plain, shiftKey: true }))).toBe(true)
+    expect(Option.getOrThrow(f('ArrowDown', plain))).toEqual(
+      Nav.wrapper.make(ListNavigation.Message.Focused({ id: 'banana' })),
+    )
   })
 })
 

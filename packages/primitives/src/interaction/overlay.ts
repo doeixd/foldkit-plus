@@ -12,7 +12,9 @@
  *
  * The `DismissLayer` stack bundle itself is placed once per app, not per
  * overlay; its `Dismiss` outmessage reaches the app through the placement's
- * `onOut`, which closes the dismissed layers.
+ * `onOut`, which closes the dismissed layers. The id `behaviors` writes is
+ * the layer attribute (`data-foldkit-plus-layer`), not an element id:
+ * `aria-controls` has to name an element that exists.
  */
 import type { Declared } from 'foldkit-bundle'
 import { Behavior, type NamedBehavior } from 'foldkit-mixins'

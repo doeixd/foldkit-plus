@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-primitives`: place a popup once under its trigger.**
+  `Placing.placeAt` is the offset under the trigger's left edge;
+  `Placing.placeAtTrigger` writes `left` and `--fk-placed-top` on insert
+  and clears them on release. The panel reads the variable as `top`, so
+  `keepWithin` can still flip. `ListNavigation` takes `typeahead: false`
+  so a search field keeps its letters while arrows still move the pointer,
+  and an optional `commit` so Enter activates the current item from that
+  same handler.
+
 - **`examples/cloudflare`: the whole stack in one deployable worker.** Reads
   are Remote over D1 through `foldkit-remote-drizzle`; writes are Sync through a
   Durable Object's D1 journal, whose `settle` applies each committed operation

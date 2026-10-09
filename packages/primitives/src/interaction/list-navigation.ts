@@ -76,7 +76,7 @@ export const bundle = Bundle.make('ListNavigation', {
     }),
 })
 
-export interface BehaviorOptions<Input, Slots> {
+export interface BehaviorOptions<Input, Slots, ParentMessage> {
   readonly container: keyof Slots & string
   /** The slot rendered once per item; must carry the item's id (see `Behaviors.Collection`). */
   readonly item: keyof Slots & string
@@ -84,6 +84,17 @@ export interface BehaviorOptions<Input, Slots> {
   /** The text an item is matched by when typing. */
   readonly text: (input: Input, index: number) => string
   readonly direction?: (input: Input) => RovingTabindex.Direction
+  /**
+   * Whether a printable key moves the pointer. Off when the container is a
+   * text field: letters belong to the field, and arrows still navigate.
+   * Defaults to on.
+   */
+  readonly typeahead?: boolean
+  /**
+   * Enter on the current item. One handler with the arrows: a second key
+   * handler on the same slot would be a second owner of `keydown`.
+   */
+  readonly commit?: (input: Input, id: string) => ParentMessage
 }
 
 /**
@@ -123,7 +134,7 @@ export const behavior =
   <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
   <Slots>(slots: Slots) =>
   <Input extends { readonly [K in Field]: Model }, ParentMessage>(
-    options: BehaviorOptions<Input, Slots>,
+    options: BehaviorOptions<Input, Slots, ParentMessage>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
     const wrap = (message: Message): ParentMessage =>
       declared.wrapper.make(message) as unknown as ParentMessage
@@ -153,31 +164,67 @@ export const behavior =
               direction: options.direction?.(input) ?? 'ltr',
               page: args.page,
             }
-            const outcome = (key: string, modifiers: KeyboardModifiers) =>
-              Option.fromNullishOr(
-                keyOutcome(
-                  items,
-                  // Read on a key, not on every render.
-                  items.ids.map((_, index) => options.text(input, index)),
-                  state,
-                  key,
-                  modifiers,
-                  moveOptions,
-                ),
+            const typeahead = options.typeahead !== false
+            // Commit is already a parent message. A key outcome still has to
+            // become one, and the focus path needs the id it should move to.
+            type Decision =
+              | { readonly _tag: 'Commit'; readonly id: string; readonly message: ParentMessage }
+              | { readonly _tag: 'Key'; readonly outcome: KeyOutcome }
+            const decide = (key: string, modifiers: KeyboardModifiers): Option.Option<Decision> => {
+              if (
+                key === 'Enter' &&
+                options.commit !== undefined &&
+                !modifiers.shiftKey &&
+                !modifiers.ctrlKey &&
+                !modifiers.altKey &&
+                !modifiers.metaKey &&
+                state.current !== null &&
+                items.ids.includes(state.current)
+              ) {
+                return Option.some({
+                  _tag: 'Commit',
+                  id: state.current,
+                  message: options.commit(input, state.current),
+                })
+              }
+              const result = keyOutcome(
+                items,
+                // Read on a key, not on every render.
+                items.ids.map((_, index) => options.text(input, index)),
+                state,
+                key,
+                modifiers,
+                moveOptions,
               )
+              // A text field owns printable keys. Arrows still move the pointer.
+              if (!typeahead && result !== undefined && result._tag === 'Type') return Option.none()
+              if (result === undefined) return Option.none()
+              return Option.some({ _tag: 'Key', outcome: result })
+            }
+            const messageOf = (decision: Decision): ParentMessage => {
+              if (decision._tag === 'Commit') return decision.message
+              return outcomeMessage(decision.outcome)
+            }
             const stop = RovingTabindex.tabStop(items, state.current)
             const stopId = stop === -1 ? undefined : items.ids[stop]
             if (args.virtual) {
               return [
                 h.OnKeyDownPreventDefault((key, modifiers) =>
-                  Option.map(outcome(key, modifiers), outcomeMessage),
+                  Option.map(decide(key, modifiers), messageOf),
                 ),
                 ...(stopId === undefined ? [] : [h.AriaActiveDescendant(stopId)]),
               ]
             }
             return [
               h.OnKeyDownFocus((key, modifiers) =>
-                Option.map(outcome(key, modifiers), result => {
+                Option.map(decide(key, modifiers), decision => {
+                  if (decision._tag === 'Commit') {
+                    return {
+                      focusSelector: RovingTabindex.idSelector(decision.id),
+                      message: decision.message,
+                    }
+                  }
+                  const result = decision.outcome
                   const target =
                     result._tag === 'Navigate' ? result.id : (result.match ?? state.current)
                   return {
