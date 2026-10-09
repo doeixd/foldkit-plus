@@ -143,7 +143,15 @@ export interface MutationSource<P, R = never> {
   readonly mutation: string
   readonly Input: Schema.Codec<unknown>
   readonly Output: Schema.Codec<unknown>
-  readonly run: (context: { readonly input: unknown; readonly principal: P }) => Effect.Effect<
+  readonly run: (context: {
+    readonly input: unknown
+    readonly principal: P
+    /**
+     * The client's id for this request, the same on every retry of it: what a
+     * Source keys a record of the write by, so a retry finds it was made.
+     */
+    readonly requestId: string
+  }) => Effect.Effect<
     {
       readonly output: unknown
       readonly entities: ReadonlyArray<NormalizedPatch>
@@ -942,13 +950,19 @@ export const RemoteServer = {
     run: (context: {
       readonly input: Input
       readonly principal: P
+      /** The client's id for this request, the same on every retry of it. */
+      readonly requestId: string
     }) => Effect.Effect<MutationOutcome<Output>, RemoteServerError, R>,
   ): MutationSource<P, R> => ({
     mutation: mutation.name,
     Input: mutation.Input,
     Output: mutation.Output,
     run: context =>
-      run({ input: context.input as Input, principal: context.principal }).pipe(
+      run({
+        input: context.input as Input,
+        principal: context.principal,
+        requestId: context.requestId,
+      }).pipe(
         Effect.map(outcome => ({
           output: outcome.output,
           entities: outcome.entities ?? [],
@@ -1272,7 +1286,7 @@ export const RemoteServer = {
       )
 
       const outcome = yield* source
-        .run({ input, principal })
+        .run({ input, principal, requestId: payload.requestId })
         .pipe(
           Effect.catchTag('RemoteServerError', error =>
             Effect.fail(new RemoteMutationError({ message: error.message })),

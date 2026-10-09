@@ -418,7 +418,10 @@ const RenameProjectSource = RemoteServer.mutation(
 ```
 
 The input is decoded before the Source runs and the output is encoded before it
-crosses the wire. A Source may additionally return connection changes:
+crosses the wire. The Source is also given `requestId`, the client's id for the
+request, which is the same on every retry of it: record a write under it, and a
+retry can find that the write was made. Nothing deduplicates by it yet. A Source
+may additionally return connection changes:
 
 ```ts
 RemoteServer.prepend(connection, Project.ref(id))

@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote-server`: a mutation Source is given the client's
+  `requestId`**, which the client already sent and which is the same on every
+  retry of a request. Record a write under it to recognise a retry; nothing
+  deduplicates by it yet. `foldkit-cms-drizzle` runs the application's own
+  mutation, when it publishes, as `publish:<entry>:<revision>`.
 - **`foldkit-remote-server`: handlers given a `live` hub publish every
   mutation's answer to it.** Each answered patch is a change of the fields it
   carries and each deletion a deletion, re-read per subscriber as before. Delete

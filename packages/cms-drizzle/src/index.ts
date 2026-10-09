@@ -748,7 +748,13 @@ export const CmsServer = {
             ),
           )
           if (moved.length === 0) return yield* conflict
-          const ran = yield* handler.run({ input: decoded, principal })
+          // Scheduled publishing has no client request, so the id names this
+          // publish of this entry: the same on a retry, another on the next.
+          const ran = yield* handler.run({
+            input: decoded,
+            principal,
+            requestId: `publish:${entry.id}:${held ?? 'new'}`,
+          })
           const targetId = creating
             ? String((ran.output as { readonly id: unknown }).id)
             : entry.targetId!

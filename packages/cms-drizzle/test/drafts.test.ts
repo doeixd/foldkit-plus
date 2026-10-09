@@ -66,6 +66,8 @@ type Writes = {
   update: (table: unknown) => { set: (values: object) => { where: (where: unknown) => unknown } }
 }
 let made = 0
+/** The request ids the application's own mutations were run under, in order. */
+const ranAs: string[] = []
 const handlers = (type: typeof Posts | typeof Pages, table: typeof posts | typeof pages) => ({
   create: RemoteServer.mutation<
     Principal,
@@ -73,8 +75,9 @@ const handlers = (type: typeof Posts | typeof Pages, table: typeof posts | typeo
     string,
     { title: string },
     { id: string }
-  >(type.publish.create as never, ({ input }) =>
+  >(type.publish.create as never, ({ input, requestId }) =>
     Effect.gen(function* () {
+      ranAs.push(requestId)
       const database = (yield* DrizzleDatabase) as unknown as Writes
       const id = `made${++made}`
       yield* Effect.promise(() =>
@@ -93,8 +96,9 @@ const handlers = (type: typeof Posts | typeof Pages, table: typeof posts | typeo
     string,
     { id: string; title: string },
     {}
-  >(type.publish.update as never, ({ input }) =>
+  >(type.publish.update as never, ({ input, requestId }) =>
     Effect.gen(function* () {
+      ranAs.push(requestId)
       const database = (yield* DrizzleDatabase) as unknown as Writes
       yield* Effect.promise(() =>
         Promise.resolve(
@@ -461,8 +465,11 @@ describe('discarding a draft', () => {
 describe('publishing', () => {
   it('runs the application’s own mutation with the draft, and leaves a revision and no draft', async () => {
     const { as, rows, count } = open()
+    ranAs.length = 0
     const result = await as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })
     expect(result.output).toEqual({ entry: 'e1', targetId: 'p1', revision: 2 })
+    // Named by the publish, not the client's request: scheduled publishing has none.
+    expect(ranAs).toEqual(['publish:e1:1'])
     expect(rows(`select title from posts where id = 'p1'`)).toEqual([{ title: 'Live, revised' }])
     // The row as the handler left it goes to the client, though the handler returned no patch.
     expect(
@@ -490,7 +497,9 @@ describe('publishing', () => {
   it('makes the row of something new, shows it to a visitor, and names it on the entry', async () => {
     const { as, rows } = open()
     expect(await as(null).list({ type: 'posts' })).toEqual([])
+    ranAs.length = 0
     const result = await as(ada).mutate('CmsPublish', { entry: 'e3', basedOn: null })
+    expect(ranAs).toEqual(['publish:e3:new'])
     const { targetId } = result.output as { targetId: string }
     expect(result.output).toEqual({ entry: 'e3', targetId, revision: 1 })
     expect(rows(`select target_id from cms_entries where id = 'e3'`)).toEqual([

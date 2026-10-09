@@ -34,6 +34,9 @@ interface Request {
   readonly fields: ReadonlyArray<string>
 }
 
+/** The request ids the mutation Source was given, in order. */
+const heard: string[] = []
+
 const server = RemoteServer.make({
   entities: [
     RemoteServer.entity<string>(User, {
@@ -53,10 +56,13 @@ const server = RemoteServer.make({
     }),
   ],
   mutations: [
-    RemoteServer.mutation(RenameUser, ({ input }) =>
-      Effect.succeed({
-        output: { id: input.id },
-        entities: [Entity.patch(User.ref(input.id), { name: input.name })],
+    RemoteServer.mutation(RenameUser, ({ input, requestId }) =>
+      Effect.sync(() => {
+        heard.push(requestId)
+        return {
+          output: { id: input.id },
+          entities: [Entity.patch(User.ref(input.id), { name: input.name })],
+        }
       }),
     ),
   ],
@@ -89,12 +95,12 @@ const read = (principal: string, requests: ReadonlyArray<Request>) =>
     ).pipe(Effect.provide(layer(principal))),
   )
 
-const mutate = (mutation: string, input: unknown) =>
+const mutate = (mutation: string, input: unknown, requestId = 'r1') =>
   Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
         const client = yield* RpcTest.makeClient(RemoteRpc)
-        return yield* client.FoldkitRemoteMutate({ requestId: 'r1', mutation, input })
+        return yield* client.FoldkitRemoteMutate({ requestId, mutation, input })
       }),
     ).pipe(Effect.provide(layer('user'))),
   )
@@ -243,6 +249,13 @@ describe('RemoteServer', () => {
     const result = await mutate('RenameUser', { id: 'u1', name: 'ada' })
     expect(result.output).toEqual({ id: 'u1' })
     expect(result.entities).toEqual([{ entity: 'User', id: 'u1', values: { name: 'ada' } }])
+  })
+
+  it('gives the Source the request id the client sent, so a retry can be recognised', async () => {
+    heard.length = 0
+    await mutate('RenameUser', { id: 'u1', name: 'ada' }, 'RenameUser-7')
+    await mutate('RenameUser', { id: 'u1', name: 'ada' }, 'RenameUser-7')
+    expect(heard).toEqual(['RenameUser-7', 'RenameUser-7'])
   })
 
   it('rejects an unknown mutation', async () => {
