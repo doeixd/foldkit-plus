@@ -8,6 +8,17 @@ const tests = ['examples/registry/test/page.test.ts']
 
 export default [
   {
+    name: 'nothing read is kept across a reload',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Bundle.withWiring(Data.wiring(Crud.actives({ products: Products })), persistence),',
+        replace: 'Bundle.withWiring(Data.wiring(Crud.actives({ products: Products }))),',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a newly held edit asks for no read',
     edits: [
       {

@@ -64,6 +64,10 @@ this example's own is below.
   would, so edits wait on the device, through a reload. Switching back
   exchanges at once. An unreachable server is retried on a backoff (0.5 s up
   to 30 s) and at once on the next edit.
+- **The rows read are kept too.** `Data.persistence` saves Remote's cache in
+  `localStorage`, every list loaded with its rows, so a reload paints them
+  before the server answers, or while it cannot, with the pending edits over
+  them. The cache is disposable: a restored list is stale and asked for again.
 - **One replica per tab.** The replica's id lives in the tab's
   `sessionStorage` and its storage is named after it, so a reload reopens the
   same replica, pending edits included, and two tabs never write one storage.

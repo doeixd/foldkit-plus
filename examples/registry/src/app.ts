@@ -26,7 +26,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Crud } from 'foldkit-crud'
 import { type CellAddress, DataGrid, RowModel } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
-import { Remote, type RemoteClient } from 'foldkit-remote'
+import { Remote, RemotePersistence, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { Sync } from 'foldkit-sync'
 import { RemoteEdits } from 'foldkit-sync/remote'
@@ -258,6 +258,20 @@ export const Data = Remote.make({
  */
 export const Shown = RemoteEdits.make(Data, ProductEdits)
 
+/**
+ * The rows read, kept on the device, so a reload paints them before the
+ * server answers, or while it cannot. Every list loaded is kept: its sort and
+ * search are its input, so each is a list of its own. One cache per browser:
+ * every device here is one author, and the rows are the server's alone.
+ * The edits are not in it; the replica keeps those, and `Shown` lays them over.
+ */
+const persistence = Data.persistence({
+  key: () => 'foldkit-registry/remote-cache',
+  scope: () => 'registry',
+  snapshot: remote =>
+    RemotePersistence.snapshotOf(remote, { connections: Object.keys(remote.connections) }),
+})
+
 export const Products = ProductList.at({
   data: Data,
   input: (model: Model) => Option.some({ sort: model.sort, search: model.search }),
@@ -372,7 +386,7 @@ const Page = Base.pipe(
         RedoRequested: () => replay(model, 'redo'),
       }),
   }),
-  Bundle.withWiring(Data.wiring(Crud.actives({ products: Products }))),
+  Bundle.withWiring(Data.wiring(Crud.actives({ products: Products })), persistence),
 )
 
 export const placements = Page.placements

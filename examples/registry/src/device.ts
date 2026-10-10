@@ -5,6 +5,7 @@
  * `pnpm dev`'s server; the sandbox starts two against its host.
  */
 import { Context, Effect, Layer, Option, Schema, Scope } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
 import type { RemoteClient } from 'foldkit-remote'
 import {
   ReplicaId,
@@ -47,7 +48,11 @@ export const startDevice = async (options: {
   const device = options.name(replicaId)
   const { mounted } = mountRegistry(replica, {
     container: options.container,
-    resources: options.resources,
+    // The rows read are kept in the browser, so a reload paints them at once.
+    resources: Layer.merge(
+      options.resources,
+      KeyValueStore.layerStorage(() => localStorage),
+    ),
     device,
   })
 

@@ -5,6 +5,7 @@
  * the same operations the same way.
  */
 import { Effect, Fiber, Layer, Match, Option, Schema, Stream } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
 import { modifyFields } from 'foldkit/struct'
 import type { RemoteClient } from 'foldkit-remote'
 import { BundleSurface } from 'foldkit-bundle-surface'
@@ -133,7 +134,8 @@ export const mountRegistry = (
   replica: Replica<Message, Shared>,
   options: {
     readonly container: HTMLElement
-    readonly resources: Layer.Layer<RemoteClient>
+    /** Remote's client, and the store the rows read are kept in across a reload. */
+    readonly resources: Layer.Layer<RemoteClient | KeyValueStore.KeyValueStore>
     /** The name this device commits as, so its own edits are told from another's. */
     readonly device: string
   },

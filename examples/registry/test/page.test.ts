@@ -13,7 +13,8 @@
  *   reads the row again;
  * - a committed edit shows until a read of the row has it, by its revision.
  */
-import { Effect, Option, Stream } from 'effect'
+import { Effect, Layer, Option, Stream } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
 import { GridFocus } from 'foldkit-data-grid'
 import { Entity } from 'foldkit-entity'
 import { GridCrud } from 'foldkit-data-grid/crud'
@@ -157,6 +158,24 @@ const serve = () => {
 }
 
 /** The page over a replica on `storage`, on the runtime, with the last Model it drew. */
+/**
+ * The cache of rows a device's Remote keeps, one per storage: a reload over
+ * the same storage finds what the page before it saved, as a browser keeps
+ * both.
+ */
+const caches = new WeakMap<Storage, KeyValueStore.KeyValueStore>()
+const cacheOf = (storage: Storage): Layer.Layer<KeyValueStore.KeyValueStore> => {
+  const cache =
+    caches.get(storage) ??
+    Effect.runSync(
+      Effect.gen(function* () {
+        return yield* KeyValueStore.KeyValueStore
+      }).pipe(Effect.provide(KeyValueStore.layerMemory)),
+    )
+  caches.set(storage, cache)
+  return Layer.succeed(KeyValueStore.KeyValueStore, cache)
+}
+
 const mount = async (
   server: ReturnType<typeof serve>,
   storage: Storage,
@@ -182,7 +201,7 @@ const mount = async (
     { ...replica, statusChanges: statuses(replica.statusChanges) },
     {
       container,
-      resources: server.resources,
+      resources: Layer.merge(server.resources, cacheOf(storage)),
       device: name,
     },
   )
@@ -398,6 +417,43 @@ test('an edit made offline is kept on the device, through a remount, and sent wh
     await second.exchange()
     await vi.waitFor(() => expect(status()).toBe(''))
     expect(server.backend.row(productId(3))).toMatchObject({ cents: 700 })
+  } finally {
+    await second.dispose()
+  }
+})
+
+test('a reload with the server out of reach paints the kept rows, its edits over them, then converges', async () => {
+  const server = serve()
+  const storage = memoryStorage()
+  const first = await mount(server, storage)
+  await vi.waitFor(() => expect(cell(productId(3), 'cents')).not.toBeNull())
+  // Saved after its own restore, once the rows have stayed put a moment.
+  await vi.waitFor(async () =>
+    expect(await Effect.runPromise(caches.get(storage)!.has('foldkit-registry/remote-cache'))).toBe(
+      true,
+    ),
+  )
+  server.setOnline(false)
+  await edit(productId(3), 'cents', '7.00')
+  await first.exchange()
+  await vi.waitFor(() => expect(first.latest().exchange.pending).toBe(1))
+  await first.dispose()
+
+  // A reload with neither the journal nor Remote answering: reads hang.
+  const release = server.holdReads()
+  const answered = server.reads()
+  const second = await mount(server, storage)
+  try {
+    await vi.waitFor(() => expect(cell(productId(0), 'upc')?.textContent).toBe(seedOf(0).upc))
+    expect(cell(productId(3), 'cents')?.textContent).toBe('7.00')
+    expect(server.reads()).toBe(answered)
+
+    release()
+    server.setOnline(true)
+    await second.exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    expect(server.backend.row(productId(3))).toMatchObject({ cents: 700 })
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe('7.00'))
   } finally {
     await second.dispose()
   }

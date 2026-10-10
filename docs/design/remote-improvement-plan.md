@@ -1,7 +1,6 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** Phases 0–2, 4 and 6 done, 2026-10-10; Phase 3 in part; Phase
-5 built except its registry exit, which Phase 4 has unblocked (each
+**Status:** Phases 0–2 and 4–6 done, 2026-10-10; Phase 3 in part (each
 section's *As built*). §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
@@ -694,8 +693,16 @@ beside `Data.wiring`. It differs from the sketch above:
   drive the wiring's restore and save, including a restore that lands after
   the list's query started.
 
-Not built: the registry's adoption and its reload e2e (they wait for Phase
-4's overlays), and naming Sync's storage by the same scope.
+The registry adopted it after Phase 4: one cache per browser in
+`localStorage`, every loaded list kept, since a list's sort and search are its
+input. A page test reloads with the journal unreachable and every Remote read
+held, and sees the kept rows with the pending edit over them, then converges
+once both are back. It runs in jsdom, not as a browser e2e. Here, unlike in
+cloudflare, the missing store was a type error: `Sync.mount` types its
+`resources` against what the application's Commands and Subscriptions
+require.
+
+Not built: naming Sync's storage by the same scope.
 
 **Found:** `placements.runtime({ resources })` does not check `resources`
 against what the assembly's wirings and Subscriptions require. cloudflare

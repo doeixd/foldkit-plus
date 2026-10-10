@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/registry`: the rows read survive a reload.** `Data.persistence`
+  keeps Remote's cache in `localStorage`, so a reload with the server out of
+  reach paints the last rows read, the pending edits over them.
+  `mountRegistry`'s `resources` also provides a `KeyValueStore`.
 - **`foldkit-sync/entity`: the overlay helpers are gone; `foldkit-sync/remote`
   shows the edits.** `overlay`, `held`, `newlyHeld`, `settled` and `shows` are
   removed: `RemoteEdits` does their work over Remote, where every read draws
