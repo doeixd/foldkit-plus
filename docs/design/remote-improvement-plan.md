@@ -1,7 +1,8 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** Phases 0 and 1 done, 2026-10-09 (each section's *As built*);
-Phases 2–6 not started. §15 records the decisions taken while planning, each against the
+**Status:** Phases 0 and 1 done, 2026-10-09; Phase 2's `update` done, its
+relation keys, `insert` and `delete` not (each section's *As built*); Phases
+3–6 not started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -450,6 +451,44 @@ one field writes one column; two clients editing different fields of one row
 both land; an `expect` write over a moved row refuses with `Conflict`; a
 conformance case runs each kind against the reference store, SQLite and
 PGlite.
+
+**As built** (`8d04ff9e`, `cf4e42fd`, `7b4aecd1`, `5ba173b1`, `76fa293f`,
+`af09300c`). Where it departed from the above:
+
+- **`Write.update(input, { id, expect? })`** is as designed; `Write.bind` takes
+  the keys to write, `Write.expected` gives the encoded revision, and both
+  `id` and `expect` hold their field as well as their key.
+- **`Mutation.update(name, write)`** answers `{}`, not `{ id }`: the client
+  named the row. It always declares `Refusal.conflict`.
+- **The server takes its writer explicitly**: `RemoteServer.update(mutation,
+  writer)`, not a handler-less `RemoteServer.mutation`. Resolving the Entity's
+  source inside `RemoteServer.make` would have hidden which table a write
+  lands in; the writer must be for the write's Entity, checked where it is
+  served.
+- **The baseline lives in Crud's editor, not in Form.** The CMS stores form
+  Models in its drafts, so a new form field would break saved drafts; the
+  editor fills the form, so it keeps what it filled with (`filledWith`) and
+  compares by each key's schema (`Schema.toEquivalence`). `Form.changed` was
+  not added.
+- **`Moved` is Phase 3's.** Telling another client's save from one's own needs
+  the baseline to follow an own save's answered revision, and the other's
+  row delivered live, which Phase 3 brings.
+- **`EditableEntity` keeps its `Change`**, as §15 decided; what is shared is
+  the interpreter: `applyEdits(binding)` is a journal's `apply`. A table it
+  writes has the journal's sequence as its revision and should not also take
+  `expect` writes (§15 decision 7 asked for that to be refused where the
+  binding is made; it is documented, not enforced, since the binding does not
+  know which writes will use it).
+- **Cloudflare's Sync toggle stays a flip.** A journal orders operations and
+  dedupes a retry by operation id, so a flip there cannot undo itself; only
+  the Remote path, where a retried request could, needed an absolute value.
+- **Not migrated:** `examples/entity`'s edit has a relation key (`editorId`),
+  which an update refuses, and its delete needs a delete write. Both wait for
+  relation keys and `delete` below.
+- **Not built:** relation keys in a write, `insert`, `delete`; the conformance
+  case over the reference store (the writer runs on SQLite and PGlite in
+  `packages/remote-drizzle/test/writer.test.ts`). **Not run:** the registry
+  sandbox's e2e test, which now writes through `applyEdits` on sql.js.
 
 ## 7. Phase 3 — commit, publish and deduplicate in one transaction
 
