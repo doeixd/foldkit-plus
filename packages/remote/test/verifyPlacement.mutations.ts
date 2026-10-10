@@ -39,4 +39,15 @@ export default [
     edits: [{ file: model, find: '    placed: rest,', replace: '    placed: model.placed,' }],
     tests,
   },
+  {
+    name: 'a placement a read made is not checked',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'return withPlacements(remote, placed, [])',
+        replace: 'return { ...remote, connections: { ...remote.connections, ...placed } }',
+      },
+    ],
+    tests,
+  },
 ]

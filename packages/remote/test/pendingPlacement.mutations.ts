@@ -104,8 +104,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'if (changes.length === 0) return remote\n    let connections',
-        replace: 'let connections',
+        find: 'if (changes.length === 0) return remote\n    const placed',
+        replace: 'const placed',
       },
     ],
     tests,
@@ -117,7 +117,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'if (placed !== pages) connections = { ...connections, [identity]: placed }',
+        find: 'if (after !== pages) placed[identity] = after',
         replace: '',
       },
     ],

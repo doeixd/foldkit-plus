@@ -420,8 +420,9 @@ leaves, one that joins (by its filter, new to the client, or from past a
 loaded rows, or out of them when it sorts past a `Cursor`. What cannot be
 placed is invalidated, restarting any read of it in flight, so its read entry
 refetches it. `Remote.make({ verifyPlacement: true })` (dev and tests) also
-fetches each placed list and keeps any disagreement with the server's first
-page in `remote.placementMismatches`. A pending edit (an `optimistic` patch, a
+fetches each list it placed an answer, a read or a live patch in, and keeps
+any disagreement with the server's first page in
+`remote.placementMismatches`. A pending edit (an `optimistic` patch, a
 `Data.overlay`) shows its row placed in what a read shows until it settles,
 and a read or a live `EntityPatched` places a held row in the pages; neither
 brings a row into a list or fetches. A `Query.make` list (no body) is

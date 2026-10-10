@@ -98,6 +98,28 @@ describe('verifyPlacement', () => {
     expect(Data.inspect(checked).placementMismatches).toEqual(checked.remote.placementMismatches)
   })
 
+  it('checks a placement a read made, as an answer’s', () => {
+    const Data = make(true)
+    const loaded = Data.reduce(repriced(Data), {
+      _tag: 'ConnectionMerged',
+      connection: list,
+      refreshes: true,
+      page: { edges: edges(['p2', 'p1']), start: { _tag: 'Terminal' }, end: { _tag: 'Terminal' } },
+    })
+    const read = Data.reduce(loaded, {
+      _tag: 'ReadReceived',
+      requests: [{ entity: 'Project', id: 'p2', fields: ['price'] }],
+      result: {
+        settled: [],
+        entities: [{ entity: 'Project', id: 'p2', values: { id: 'p2', price: 90 } }],
+      },
+      now: 2,
+    })
+    expect(order(read.remote)).toEqual(['p1', 'p2'])
+    expect(read.remote.connections[list]!.stale).toBe(true)
+    expect(read.remote.placed[list]).toEqual(['Project:p1', 'Project:p2'])
+  })
+
   it('without it, places and fetches nothing', () => {
     const model = repriced(make(false))
     expect(order(model.remote)).toEqual(['p2', 'p1'])

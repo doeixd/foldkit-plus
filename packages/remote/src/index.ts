@@ -2039,10 +2039,12 @@ export const Remote = {
     readonly queries?: Queries
     readonly mutations?: Mutations
     /**
-     * Places a mutation's answer as usual, and also fetches each list it
-     * placed in, comparing the server's first page with the order it placed:
-     * a disagreement is kept in `placementMismatches` (`Data.inspect`). For
-     * development and tests, where a collation that drifts should be found.
+     * Places what the server said (a mutation's answer, a read, a live
+     * patch) as usual, and also fetches each list it placed in, comparing the
+     * server's first page with the order it placed: a disagreement is kept in
+     * `placementMismatches` (`Data.inspect`). A pending edit is not checked,
+     * since the server does not have it yet. For development and tests, where
+     * a collation that drifts should be found.
      */
     readonly verifyPlacement?: boolean | undefined
   }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
@@ -2806,12 +2808,12 @@ const bindDomain = <
     })
     const changes = changesOf({ entities: held }, before)
     if (changes.length === 0) return remote
-    let connections = remote.connections
+    const placed: Record<string, Connection> = {}
     for (const [identity, pages] of Object.entries(remote.connections)) {
-      const placed = placedHeld(identity, pages, changes, remote.entities)
-      if (placed !== pages) connections = { ...connections, [identity]: placed }
+      const after = placedHeld(identity, pages, changes, remote.entities)
+      if (after !== pages) placed[identity] = after
     }
-    return connections === remote.connections ? remote : { ...remote, connections }
+    return withPlacements(remote, placed, [])
   }
 
   /** The rows a read or a live patch says the server holds now. */
@@ -2873,11 +2875,23 @@ const bindDomain = <
       if (invalid) invalidated.push(identity)
       else if (pages !== original) placed[identity] = pages
     }
+    return withPlacements(remote, placed, invalidated)
+  }
+
+  /**
+   * The lists placed and invalidated. Under `verifyPlacement`, each placed
+   * list is fetched too, and the order it was placed in kept to compare with
+   * the server's page.
+   */
+  const withPlacements = (
+    remote: RemoteModel,
+    placed: Readonly<Record<string, Connection>>,
+    invalidated: ReadonlyArray<string>,
+  ): RemoteModel => {
     const identities = Object.keys(placed)
     if (identities.length === 0) return invalidateConnections(remote, invalidated)
     const withPlaced = { ...remote, connections: { ...remote.connections, ...placed } }
     if (options.verifyPlacement !== true) return invalidateConnections(withPlaced, invalidated)
-    // Verified: each placed list is fetched too, and its order kept to compare.
     const orders = Object.fromEntries(
       identities.map(identity => [
         identity,

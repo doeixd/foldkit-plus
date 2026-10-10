@@ -200,9 +200,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **`foldkit-remote`: `verifyPlacement`, a placement checked against the
   server.** `Remote.make({ verifyPlacement: true })` places as usual, fetches
-  each list it placed in too, and keeps any disagreement between the order
-  placed and the server's first page in `remote.placementMismatches` and
-  `Data.inspect`.
+  each list it placed an answer, a read or a live patch in too, and keeps any
+  disagreement between the order placed and the server's first page in
+  `remote.placementMismatches` and `Data.inspect`. Pending edits are not
+  checked.
 - **`foldkit-remote`: `placeIn`, where a row falls in a loaded list.** By the
   body's declared order: before an edge, at a segment's end that closes the
   list, `Outside` what is loaded, or `Unknown` with why. A list whose body is

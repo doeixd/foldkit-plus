@@ -1337,10 +1337,12 @@ the store the answer left:
   change provably did not move.
 
 **A placement can be checked against the server.** `Remote.make({ ...,
-verifyPlacement: true })` places as above, and also fetches each list it placed
-in; when the server's first page arrives it is compared with the order placed,
-and a disagreement is kept in `model.remote.placementMismatches` (and
-`Data.inspect`). Turn it on in development and tests: a collation the client
+verifyPlacement: true })` places as usual, and also fetches each list it placed
+what the server said in (an answer, as above, or a read or a live patch, as
+below); when the server's first page arrives it is compared with the order
+placed, and a disagreement is kept in `model.remote.placementMismatches` (and
+`Data.inspect`). A pending edit is not checked: the server does not have it
+yet. Turn it on in development and tests: a collation the client
 and the server disagree on then fails an assertion instead of misplacing a row
 for a reader.
 
