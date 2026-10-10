@@ -5,8 +5,8 @@
  * `requestId`**, so a transport retry cannot apply the same change twice. An
  * unknown or already-applied result is a no-op.
  */
-import { Option, Record as Rec, Schema } from 'effect'
-import type { AnyWrite, BoundWrite, Write } from 'foldkit-entity'
+import { Match, Option, Record as Rec, Schema } from 'effect'
+import { Write as DomainWrite, type AnyWrite, type BoundWrite, type Write } from 'foldkit-entity'
 import type { RemoteError } from './remoteData.js'
 import { entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
 
@@ -204,6 +204,29 @@ export const patchOfWrite = (bound: BoundWrite): NormalizedPatch => ({
   },
 })
 
+/**
+ * What a declared write shows before the server answers: an update's or an
+ * insert's row as a patch (an update's only for the keys named, when some
+ * are). A delete shows nothing, since no operation removes a row from every
+ * list it is in; its answer does.
+ */
+export const optimisticOfWrite = (
+  write: AnyWrite,
+  input: unknown,
+  keys: ReadonlyArray<string> | undefined,
+): ReadonlyArray<NormalizedPatch> =>
+  Match.value(write).pipe(
+    Match.tagsExhaustive({
+      Update: () => [patchOfWrite(DomainWrite.bind(write, input as never, keys))],
+      // A new row is read like any other, so it carries its own id.
+      Insert: () => {
+        const patch = patchOfWrite(DomainWrite.bind(write, input as never))
+        return [{ ...patch, values: { id: patch.id, ...patch.values } }]
+      },
+      Delete: () => [],
+    }),
+  )
+
 export const Mutation = {
   /**
    * Declares a mutation. `Input` and `Output` are codecs, or the fields of the
@@ -212,11 +235,12 @@ export const Mutation = {
    * a union of `Refusal.field(...)` and `Refusal.conflict`.
    */
   /**
-   * A mutation that is a declared `Write`: its input is the write's, and it
-   * answers nothing but the row it changed, as a patch. It may be refused as a
-   * conflict, for a write that `expect`s a revision the row has moved past.
+   * A mutation that is a declared `Write` (`update`, `insert` or `delete`): its
+   * input is the write's, and it answers nothing but the row it changed, as a
+   * patch, or its deletion. It may be refused as a conflict, for a write that
+   * `expect`s a revision the row has moved past.
    */
-  update: <const Name extends string, Fields extends Schema.Struct.Fields>(
+  write: <const Name extends string, Fields extends Schema.Struct.Fields>(
     name: Name,
     write: Write<any, Fields>,
   ): MutationDescriptor<Name, Schema.Struct.Type<Fields>, {}, typeof Refusal.conflict.Type> & {

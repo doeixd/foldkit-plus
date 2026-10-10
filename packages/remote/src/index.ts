@@ -11,7 +11,6 @@ import {
   Query as Relational,
   QueryEvaluateError,
   SelectionTypeId,
-  Write as DomainWrite,
 } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
 import type { Duration } from 'effect'
@@ -98,7 +97,7 @@ import {
 } from './model.js'
 import {
   mutationStatus,
-  patchOfWrite,
+  optimisticOfWrite,
   type MutationDescriptor,
   type MutationStatus,
 } from './mutation.js'
@@ -3127,7 +3126,7 @@ const bindDomain = <
           : (options.optimistic ??
             (mutation.write === undefined
               ? undefined
-              : [patchOfWrite(DomainWrite.bind(mutation.write, input as never, options.keys))]))
+              : optimisticOfWrite(mutation.write, input, options.keys)))
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,

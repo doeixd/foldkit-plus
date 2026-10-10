@@ -21,7 +21,7 @@ const EditProjectInput = Entity.input(
   Project,
   Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
 )
-const EditProject = Mutation.update('EditProject', Write.update(EditProjectInput, { id: 'id' }))
+const EditProject = Mutation.write('EditProject', Write.update(EditProjectInput, { id: 'id' }))
 const EditProjectForm = Form.make('EditProject', EditProjectInput, {
   inputs: { id: Input.hidden() },
   debounce: 0,

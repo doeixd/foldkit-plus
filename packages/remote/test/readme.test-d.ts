@@ -317,7 +317,7 @@ declare const editing: typeof TicketModel.Type
     name: Schema.String,
     status: Schema.String,
   })
-  const EditProject = Mutation.update(
+  const EditProject = Mutation.write(
     'EditProject',
     Write.update(DomainEntity.input(Project, EditProjectInput), { id: 'id' }),
   )

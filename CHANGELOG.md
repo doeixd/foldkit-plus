@@ -11,7 +11,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **`examples/cloudflare`: rename and toggle are declared writes.** Their
   Drizzle handlers and hand-built optimistic patches are gone:
-  `Mutation.update` and `RemoteServer.update(..., writer(Db.Todo))` say the
+  `Mutation.write` and `RemoteServer.write(..., writer(Db.Todo))` say the
   same, and the rename editor sends only the title it changed.
 - **`foldkit-cms`, `foldkit-cms-drizzle`: refusals are data, not prefixes.**
   `SaveDraft` and `Publish` declare `Refusal`: `Cms.refusal.field(key, reason)`
@@ -108,6 +108,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Declared inserts and deletes.** `Write.insert(input, { id })` writes a row
+  under an id the client chose and `Write.delete(input, { id, expect? })`
+  deletes one; `Mutation.write` takes any kind (it was `Mutation.update`, and
+  `RemoteServer.update` is now `RemoteServer.write`). An insert retried finds
+  its row and answers it; a delete of a row already gone succeeds; a delete
+  from a moved revision is a conflict. `EntityWriter` gains `insert` and
+  `delete`, and remote-drizzle's `writer` implements both.
 - **A declared write points a `one` relation.** `Write.update` takes a key
   mapped with `Relation.input` to a `one` relation; `Write.bind` returns it in
   `links` as a ref (or none). Remote patches it as the ref key
@@ -117,13 +124,13 @@ version changed; `pnpm` skips versions already in the registry.
   revision, never moving a row back. The registry example's hand-written SQL
   and column list go; its `ProductTable.apply` returns an Effect.
 - **`foldkit-crud`: an editor over a declared write sends only what changed.**
-  With a `Mutation.update` mutation, a save names the input keys whose value
+  With a `Mutation.write` mutation, a save names the input keys whose value
   differs, by each key's schema, from what the form was filled with; Remote
   shows them until the server answers. `EditorModel` gains `filledWith`, and
   `DomainLike.mutate` an options argument.
 - **`foldkit-remote-server`, `foldkit-remote-drizzle`: a declared write needs
-  no handler.** `RemoteServer.update(mutation, writer)` serves a
-  `Mutation.update`: the input bound to its write, only the keys the client
+  no handler.** `RemoteServer.write(mutation, writer)` serves a
+  `Mutation.write`: the input bound to its write, only the keys the client
   named, written through an `EntityWriter` and answered as the row's patch.
   `writer(binding)` is one `update ... returning` on the binding's table; a
   write that `expect`s a revision is guarded by it and moves it on in the same
@@ -131,7 +138,7 @@ version changed; `pnpm` skips versions already in the registry.
   conflict. `MutationSource.run` receives the request's `keys`.
   `foldkit-entity`'s `Write.expected(write, value)` is that revision, encoded;
   `Write.expect` now holds its field as well as its key.
-- **`foldkit-remote`: `Mutation.update(name, write)`, a mutation that is a
+- **`foldkit-remote`: `Mutation.write(name, write)`, a mutation that is a
   declared `Write`.** `Data.mutate` shows the write bound to the input until
   the server answers, unless given its own `optimistic` list. The new
   `keys` option narrows that to the input keys an author changed, and travels

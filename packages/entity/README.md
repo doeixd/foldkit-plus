@@ -326,9 +326,10 @@ CreatePostInput, … })` in `foldkit-remote`.
 
 ### Declaring what an input writes
 
-An input says what each key *is*; `Write.update` says what an operation *does*
-with them: update one row, named by a key, setting every other key mapped to a
-field.
+An input says what each key *is*; a `Write` says what an operation *does* with
+them: `Write.update` one row, named by a key, setting every other key mapped to
+a field; `Write.insert` a row under an id the client chose; or `Write.delete`
+one, which sets nothing.
 
 ```ts
 const EditPost = Entity.input(Blog.Post, EditPostInput)

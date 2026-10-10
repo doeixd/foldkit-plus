@@ -22,6 +22,7 @@ import {
   type Table,
 } from 'drizzle-orm'
 import { Effect, Option, Schema } from 'effect'
+import type { EntityRef } from 'foldkit-entity'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Entity } from 'foldkit-remote'
 import {
@@ -736,7 +737,7 @@ export const query = <P = unknown, Input = unknown>(
 }
 
 /**
- * Where a declared `Write` lands in this table, for `RemoteServer.update`: one
+ * Where a declared `Write` lands in this table, for `RemoteServer.write`: one
  * `update ... returning` of the row by id, setting each field's column to its
  * value as the store encodes it, and answering the written fields as they now
  * are. With `expect`, the row is written only while its revision column still
@@ -754,50 +755,69 @@ export const writer = <P = unknown>(
     const column = binding.columns[field]
     return column === undefined ? undefined : keys.get(column)
   }
+  const missing = (what: string) =>
+    new RemoteServerError({ message: `${binding.name} has no ${what}` })
+
+  /** The columns a write sets: each field's value, and each `one` relation's foreign key. */
+  const setOf = (
+    values: Readonly<Record<string, unknown>>,
+    links: Readonly<Record<string, Option.Option<EntityRef>>>,
+  ): Effect.Effect<Record<string, unknown>, RemoteServerError> =>
+    Effect.gen(function* () {
+      const set: Record<string, unknown> = {}
+      for (const [field, value] of Object.entries(values)) {
+        const key = keyOf(field)
+        if (key === undefined) return yield* missing(`column for "${field}" to write`)
+        set[key] = value
+      }
+      for (const [field, link] of Object.entries(links)) {
+        const relation = binding.relations[field]
+        const key = relation?.kind === 'one' ? keys.get(relation.field) : undefined
+        if (key === undefined) return yield* missing(`foreign key for "${field}" to write`)
+        set[key] = Option.match(link, { onNone: () => null, onSome: ref => ref.id })
+      }
+      return set
+    })
+
+  /** The row by id, and while it is still at the expected revision when one is. */
+  const rowOf = (
+    id: string,
+    expect: Option.Option<{ readonly field: string; readonly revision: unknown }>,
+  ): Effect.Effect<
+    { readonly where: SQL | undefined; readonly bump: Record<string, SQL> },
+    RemoteServerError
+  > =>
+    Effect.gen(function* () {
+      if (Option.isNone(expect)) return { where: eq(idColumn(binding), id), bump: {} }
+      const { field, revision } = expect.value
+      const column = binding.columns[field]
+      const key = keyOf(field)
+      if (column === undefined || key === undefined) {
+        return yield* missing(`column for its revision "${field}"`)
+      }
+      return {
+        where: and(eq(idColumn(binding), id), eq(column, revision)),
+        bump: { [key]: sql`${column} + 1` },
+      }
+    })
+
+  const answeredOf = (
+    rows: ReadonlyArray<Record<string, unknown>>,
+    answered: ReturnType<typeof returning>,
+  ): Option.Option<Readonly<Record<string, unknown>>> =>
+    Option.map(Option.fromUndefinedOr(answered.patches(rows)[0]), patch => patch.values)
+
   return {
     entity: binding.name,
     update: ({ id, values, links, expect }) =>
       Effect.gen(function* () {
-        const set: Record<string, unknown> = {}
-        for (const [field, value] of Object.entries(values)) {
-          const key = keyOf(field)
-          if (key === undefined) {
-            return yield* new RemoteServerError({
-              message: `${binding.name} has no column for "${field}" to write`,
-            })
-          }
-          set[key] = value
-        }
-        // A `one` relation is its foreign key: the target's id, or null for none.
-        for (const [field, link] of Object.entries(links)) {
-          const relation = binding.relations[field]
-          const key = relation?.kind === 'one' ? keys.get(relation.field) : undefined
-          if (key === undefined) {
-            return yield* new RemoteServerError({
-              message: `${binding.name} has no foreign key for "${field}" to write`,
-            })
-          }
-          set[key] = Option.match(link, { onNone: () => null, onSome: ref => ref.id })
-        }
-        let guard: SQL | undefined
-        if (Option.isSome(expect)) {
-          const { field, revision } = expect.value
-          const column = binding.columns[field]
-          const key = keyOf(field)
-          if (column === undefined || key === undefined) {
-            return yield* new RemoteServerError({
-              message: `${binding.name} has no column for its revision "${field}"`,
-            })
-          }
-          set[key] = sql`${column} + 1`
-          guard = eq(column, revision)
-        }
+        const { where, bump } = yield* rowOf(id, expect)
+        const set = { ...(yield* setOf(values, links)), ...bump }
         const answered = returning(binding, [
           ...Object.keys(values),
           ...Object.keys(links),
           ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
         ])
-        const where = and(eq(idColumn(binding), id), guard)
         const writes = yield* drizzleWrites
         const rows =
           Object.keys(set).length === 0
@@ -808,7 +828,49 @@ export const writer = <P = unknown>(
                   writes.update(binding.table).set(set).where(where).returning(answered.columns),
                 ),
               )
-        return Option.map(Option.fromUndefinedOr(answered.patches(rows)[0]), patch => patch.values)
+        return answeredOf(rows, answered)
+      }),
+    insert: ({ id, values, links }) =>
+      Effect.gen(function* () {
+        const idKey = keys.get(idColumn(binding))
+        if (idKey === undefined) return yield* missing('id column to insert')
+        const set = { ...(yield* setOf(values, links)), [idKey]: id }
+        const answered = returning(binding, [...Object.keys(values), ...Object.keys(links)])
+        const writes = yield* drizzleWrites
+        const inserted = yield* Effect.promise(() =>
+          Promise.resolve(
+            writes
+              .insert(binding.table)
+              .values(set)
+              .onConflictDoNothing()
+              .returning(answered.columns),
+          ),
+        )
+        // Nothing inserted: the id is taken, by a retry of this insert. Answer that row.
+        const rows =
+          inserted.length > 0
+            ? inserted
+            : yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
+                where: eq(idColumn(binding), id),
+              })
+        return yield* Option.match(answeredOf(rows, answered), {
+          onNone: () => Effect.fail(missing(`row ${id} after inserting it`)),
+          onSome: Effect.succeed,
+        })
+      }),
+    delete: ({ id, expect }) =>
+      Effect.gen(function* () {
+        const { where } = yield* rowOf(id, expect)
+        const writes = yield* drizzleWrites
+        const deleted = yield* Effect.promise(() =>
+          Promise.resolve(
+            writes
+              .delete(binding.table)
+              .where(where)
+              .returning({ id: idColumn(binding) }),
+          ),
+        )
+        return deleted.length > 0
       }),
   }
 }

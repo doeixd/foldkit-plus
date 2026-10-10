@@ -5,8 +5,15 @@
  * turning them into Effect RPC handlers. It does not own HTTP, serialization, or
  * auth protocol; `principal` is resolved outside and passed in.
  */
-import { Effect, Layer, Option, Queue, Schema, Stream } from 'effect'
-import { Write, evaluate, type AnyWrite, type EntityRef, type Row } from 'foldkit-entity'
+import { Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
+import {
+  Write,
+  evaluate,
+  type AnyWrite,
+  type BoundWrite,
+  type EntityRef,
+  type Row,
+} from 'foldkit-entity'
 import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
@@ -109,6 +116,19 @@ export interface EntityWriter<P, R = never> {
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
     readonly principal: P
   }) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>
+  /** Inserts the row, or leaves one already there under that id; answers the row as it is. */
+  readonly insert: (context: {
+    readonly id: string
+    readonly values: Readonly<Record<string, unknown>>
+    readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
+    readonly principal: P
+  }) => Effect.Effect<Readonly<Record<string, unknown>>, RemoteServerError, R>
+  /** Deletes the row, while it is still at the revision, when one is expected; whether a row was. */
+  readonly delete: (context: {
+    readonly id: string
+    readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
+    readonly principal: P
+  }) => Effect.Effect<boolean, RemoteServerError, R>
 }
 
 /** A connection change a mutation made, as the wire carries it. */
@@ -1041,12 +1061,14 @@ export const RemoteServer = {
 
   /**
    * The Source of a mutation that is a declared `Write`, with no handler: the
-   * input bound to the write (only the keys the client named, when it named
-   * some) lands through `writer`, and the row as written answers, as a patch.
-   * A row that moved past the revision the write `expect`s is refused as a
-   * conflict; a row that is not there fails.
+   * input bound to the write lands through `writer`, and the row as written
+   * answers as a patch (a deletion as `deleted`). An update writes only the
+   * keys the client named, when it named some, and fails for a row that is not
+   * there; an insert of an id already there answers with that row; a delete of
+   * a row already gone succeeds. A row that moved past the revision the write
+   * `expect`s is refused as a conflict.
    */
-  update: <P = unknown, R = never, Name extends string = string, Input = unknown>(
+  write: <P = unknown, R = never, Name extends string = string, Input = unknown>(
     mutation: MutationDescriptor<Name, Input, {}, { readonly _tag: 'Conflict' }> & {
       readonly write: AnyWrite
     },
@@ -1055,7 +1077,7 @@ export const RemoteServer = {
     const { write } = mutation
     if (write.input.entity.name !== writer.entity) {
       throw new Error(
-        `[foldkit-remote-server] update "${mutation.name}" writes ${write.input.entity.name}, but its writer is for ${writer.entity}`,
+        `[foldkit-remote-server] write "${mutation.name}" writes ${write.input.entity.name}, but its writer is for ${writer.entity}`,
       )
     }
     return {
@@ -1063,37 +1085,70 @@ export const RemoteServer = {
       Input: mutation.Input,
       Output: mutation.Output,
       Refusal: mutation.Refusal,
-      run: ({ input, principal, keys }) =>
-        Effect.gen(function* () {
-          const bound = Write.bind(write, input as never, keys)
-          const expect = Write.expected(write, input as never)
-          const written = yield* writer.update({
-            id: bound.id,
-            values: bound.values,
-            links: bound.links,
-            expect,
-            principal,
-          })
-          if (Option.isNone(written)) {
-            return yield* Option.isSome(expect)
-              ? Effect.fail(
-                  RemoteServer.refuse(
-                    mutation,
-                    { _tag: 'Conflict' },
-                    `${bound.entity} ${bound.id} changed since it was read`,
-                  ),
-                )
-              : Effect.fail(
-                  new RemoteServerError({ message: `No ${bound.entity} ${bound.id} to update` }),
-                )
-          }
-          return {
-            output: {},
-            entities: [{ entity: bound.entity, id: bound.id, values: written.value }],
-            connections: [],
-            deleted: [],
-          }
-        }),
+      run: ({ input, principal, keys }) => {
+        const given = input as never
+        const expect = Write.expected(write, given)
+        const conflict = (bound: { readonly entity: string; readonly id: string }) =>
+          RemoteServer.refuse(
+            mutation,
+            { _tag: 'Conflict' },
+            `${bound.entity} ${bound.id} changed since it was read`,
+          )
+        const answered = (bound: BoundWrite, values: Readonly<Record<string, unknown>>) => ({
+          output: {},
+          entities: [{ entity: bound.entity, id: bound.id, values }],
+          connections: [],
+          deleted: [],
+        })
+        return Match.value(write).pipe(
+          Match.tagsExhaustive({
+            Update: () =>
+              Effect.gen(function* () {
+                const bound = Write.bind(write, given, keys)
+                const written = yield* writer.update({
+                  id: bound.id,
+                  values: bound.values,
+                  links: bound.links,
+                  expect,
+                  principal,
+                })
+                if (Option.isSome(written)) return answered(bound, written.value)
+                return yield* Option.isSome(expect)
+                  ? Effect.fail(conflict(bound))
+                  : Effect.fail(
+                      new RemoteServerError({
+                        message: `No ${bound.entity} ${bound.id} to update`,
+                      }),
+                    )
+              }),
+            // Written whole: there is no row a client could have changed some keys of.
+            Insert: () =>
+              Effect.gen(function* () {
+                const bound = Write.bind(write, given)
+                const row = yield* writer.insert({
+                  id: bound.id,
+                  values: bound.values,
+                  links: bound.links,
+                  principal,
+                })
+                return answered(bound, row)
+              }),
+            Delete: () =>
+              Effect.gen(function* () {
+                const bound = Write.bind(write, given)
+                const deleted = yield* writer.delete({ id: bound.id, expect, principal })
+                // Gone already is gone: only a revision the row moved past refuses.
+                if (!deleted && Option.isSome(expect)) return yield* Effect.fail(conflict(bound))
+                return {
+                  output: {},
+                  entities: [],
+                  connections: [],
+                  deleted: [{ entity: bound.entity, id: bound.id }],
+                }
+              }),
+          }),
+        )
+      },
     }
   },
 

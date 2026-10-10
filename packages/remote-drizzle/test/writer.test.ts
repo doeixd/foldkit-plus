@@ -1,5 +1,5 @@
 /**
- * A declared `Write` served with no handler: `RemoteServer.update` binds the
+ * A declared `Write` served with no handler: `RemoteServer.write` binds the
  * input, and `writer` lands it in the table in one `update ... returning`.
  */
 import { DatabaseSync } from 'node:sqlite'
@@ -36,12 +36,12 @@ const EditInput = Entity.input(
   Project,
   Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
 )
-const Edit = Mutation.update('EditProject', Write.update(EditInput, { id: 'id' }))
+const Edit = Mutation.write('EditProject', Write.update(EditInput, { id: 'id' }))
 const GuardedInput = Entity.input(
   Project,
   Schema.Struct({ id: Schema.String, name: Schema.String, revision: Schema.Number }),
 )
-const Guarded = Mutation.update(
+const Guarded = Mutation.write(
   'RenameProject',
   Write.update(GuardedInput, { id: 'id', expect: 'revision' }),
 )
@@ -59,8 +59,8 @@ const row = (id: string) => sqlite.prepare('select * from projects where id = ?'
 const server = RemoteServer.make({
   entities: [],
   mutations: [
-    RemoteServer.update(Edit, writer(Db.Project)),
-    RemoteServer.update(Guarded, writer(Db.Project)),
+    RemoteServer.write(Edit, writer(Db.Project)),
+    RemoteServer.write(Guarded, writer(Db.Project)),
   ],
 })
 const handlers = RemoteServer.handlers(server, undefined)
@@ -83,7 +83,7 @@ const refused = (mutation: string, input: unknown) =>
       .pipe(Effect.flip, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
   )
 
-describe('RemoteServer.update over a Drizzle table', () => {
+describe('RemoteServer.write over a Drizzle table', () => {
   it('writes the row and answers it as written', async () => {
     seed()
     const answered = await mutate('EditProject', {
@@ -136,7 +136,7 @@ describe('A writer for another Entity', () => {
       name: text('name').notNull(),
     })
     const OtherDb = bind({ Other }, { Other: { table: others } })
-    expect(() => RemoteServer.update(Edit, writer(OtherDb.Other))).toThrow('writer is for Other')
+    expect(() => RemoteServer.write(Edit, writer(OtherDb.Other))).toThrow('writer is for Other')
   })
 })
 
@@ -149,9 +149,27 @@ describe('A write that expects a revision, on Postgres', () => {
   })
   const PgDb = bind({ Project }, { Project: { table: pgProjects } })
   const pglite = new PGlite()
+  const PgCreate = Mutation.write(
+    'CreateProject',
+    Write.insert(
+      Entity.input(
+        Project,
+        Schema.Struct({
+          id: Schema.String,
+          name: Schema.String,
+          status: Schema.String,
+          revision: Schema.Number,
+        }),
+      ),
+      { id: 'id' },
+    ),
+  )
   const pgServer = RemoteServer.make({
     entities: [],
-    mutations: [RemoteServer.update(Guarded, writer(PgDb.Project))],
+    mutations: [
+      RemoteServer.write(Guarded, writer(PgDb.Project)),
+      RemoteServer.write(PgCreate, writer(PgDb.Project)),
+    ],
   })
   const pgHandlers = RemoteServer.handlers(pgServer, undefined)
   const pgLayer = databaseLayer(drizzlePg({ client: pglite }))
@@ -174,6 +192,24 @@ describe('A write that expects a revision, on Postgres', () => {
     expect(second).toMatchObject({ _tag: 'Failure', failure: { refusal: { _tag: 'Conflict' } } })
     const rows = await pglite.query('select name, revision from projects')
     expect(rows.rows).toEqual([{ name: 'First', revision: 2 }])
+  })
+
+  it('inserts once, and answers a retry with the row it made', async () => {
+    const create = (name: string) =>
+      Effect.runPromise(
+        pgHandlers
+          .FoldkitRemoteMutate({
+            requestId: `pg${++requests}`,
+            mutation: 'CreateProject',
+            input: { id: 'p8', name, status: 'active', revision: 1 },
+          })
+          .pipe(Effect.provide(pgLayer)),
+      )
+    await create('Pioneer')
+    const retried = await create('Other')
+    expect(retried.entities[0]?.values).toMatchObject({ name: 'Pioneer' })
+    const rows = await pglite.query("select name from projects where id = 'p8'")
+    expect(rows.rows).toEqual([{ name: 'Pioneer' }])
   })
 })
 
@@ -237,7 +273,7 @@ describe('A write that points a one relation', () => {
     User: { table: users },
     Task: { table: tasks, relations: { owner: { field: tasks.ownerId } } },
   })
-  const Assign = Mutation.update(
+  const Assign = Mutation.write(
     'AssignTask',
     Write.update(
       Entity.input(
@@ -256,7 +292,7 @@ describe('A write that points a one relation', () => {
   const assigned = RemoteServer.handlers(
     RemoteServer.make({
       entities: [],
-      mutations: [RemoteServer.update(Assign, writer(WorkDb.Task))],
+      mutations: [RemoteServer.write(Assign, writer(WorkDb.Task))],
     }),
     undefined,
   )
@@ -284,5 +320,92 @@ describe('A write that points a one relation', () => {
     expect(db.prepare("select owner_id from tasks where id = 't1'").get()).toEqual({
       owner_id: null,
     })
+  })
+})
+
+describe('Inserting and deleting a declared write', () => {
+  const NewInput = Entity.input(
+    Project,
+    Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+      status: Schema.String,
+      revision: Schema.Number,
+    }),
+  )
+  const Create = Mutation.write('CreateProject', Write.insert(NewInput, { id: 'id' }))
+  const RemoveInput = Entity.input(
+    Project,
+    Schema.Struct({ id: Schema.String, revision: Schema.Number }),
+  )
+  const Remove = Mutation.write(
+    'RemoveProject',
+    Write.delete(RemoveInput, { id: 'id', expect: 'revision' }),
+  )
+  const Forget = Mutation.write(
+    'ForgetProject',
+    Write.delete(Entity.input(Project, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+  )
+  const served = RemoteServer.handlers(
+    RemoteServer.make({
+      entities: [],
+      mutations: [
+        RemoteServer.write(Create, writer(Db.Project)),
+        RemoteServer.write(Remove, writer(Db.Project)),
+        RemoteServer.write(Forget, writer(Db.Project)),
+      ],
+    }),
+    undefined,
+  )
+  const send = (mutation: string, input: unknown) =>
+    Effect.runPromise(
+      served
+        .FoldkitRemoteMutate({ requestId: `w${++requests}`, mutation, input })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+
+  it('inserts under the id the client chose, and a retry answers the row it made', async () => {
+    const first = await send('CreateProject', {
+      id: 'p7',
+      name: 'Voyager',
+      status: 'active',
+      revision: 1,
+    })
+    const retried = await send('CreateProject', {
+      id: 'p7',
+      name: 'Other',
+      status: 'active',
+      revision: 1,
+    })
+    expect(row('p7')).toEqual({ id: 'p7', name: 'Voyager', status: 'active', revision: 1 })
+    expect(first).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 'p7', values: { name: 'Voyager' } }] },
+    })
+    expect(retried).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 'p7', values: { name: 'Voyager' } }] },
+    })
+  })
+
+  it('deletes the row, answers its deletion, and a retry of a row already gone succeeds', async () => {
+    seed()
+    const first = await send('ForgetProject', { id: 'p1' })
+    const again = await send('ForgetProject', { id: 'p1' })
+    expect(row('p1')).toBeUndefined()
+    expect(first).toMatchObject({
+      _tag: 'Success',
+      success: { deleted: [{ entity: 'Project', id: 'p1' }] },
+    })
+    expect(again._tag).toBe('Success')
+  })
+
+  it('refuses a delete from a revision the row moved past, and keeps the row', async () => {
+    seed()
+    const stale = await send('RemoveProject', { id: 'p1', revision: 0 })
+    expect(stale).toMatchObject({ _tag: 'Failure', failure: { refusal: { _tag: 'Conflict' } } })
+    expect(row('p1')).toMatchObject({ id: 'p1' })
+    expect((await send('RemoveProject', { id: 'p1', revision: 1 }))._tag).toBe('Success')
+    expect(row('p1')).toBeUndefined()
   })
 })

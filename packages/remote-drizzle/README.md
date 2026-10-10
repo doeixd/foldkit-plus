@@ -732,9 +732,9 @@ Other aggregate shapes are intentionally not a generic compiler yet.
 
 ## Mutations
 
-A mutation declared as a `Write` (`Mutation.update(name, Write.update(input,
+A mutation declared as a `Write` (`Mutation.write(name, Write.update(input,
 { id }))`) needs no handler: `writer(binding)` lands it in the binding's table,
-and `RemoteServer.update` serves it.
+and `RemoteServer.write` serves it.
 
 ```ts
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
@@ -748,7 +748,7 @@ const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name
 const projects = sqliteTable('projects', { id: text('id').primaryKey(), name: text('name').notNull() })
 const Db = bind({ Project }, { Project: { table: projects } })
 
-const EditProject = Mutation.update(
+const EditProject = Mutation.write(
   'EditProject',
   Write.update(Entity.input(Project, Schema.Struct({ id: Schema.String, name: Schema.String })), {
     id: 'id',
@@ -756,7 +756,7 @@ const EditProject = Mutation.update(
 )
 const Server = RemoteServer.make({
   entities: [source(Db.Project)],
-  mutations: [RemoteServer.update(EditProject, writer(Db.Project))],
+  mutations: [RemoteServer.write(EditProject, writer(Db.Project))],
 })
 ```
 
@@ -767,6 +767,11 @@ written fields answer as the mutation's patch. A write that `expect`s a revision
 is guarded by that column and moves it on by one in the same statement: of two
 writes made from one revision, the second finds no row and is refused as a
 conflict. A write that expects none, to a row that is not there, fails.
+
+An insert is one `insert ... on conflict do nothing returning` under the id the
+client chose: a retry finds the id taken and answers the row it made. A delete
+is one `delete` by id, guarded by the revision when it expects one; a row
+already gone is gone.
 
 ### A journal's edits
 

@@ -17,7 +17,7 @@ const EditProjectInput = DomainEntity.input(
   Project,
   Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
 )
-const EditProject = Mutation.update('EditProject', Write.update(EditProjectInput, { id: 'id' }))
+const EditProject = Mutation.write('EditProject', Write.update(EditProjectInput, { id: 'id' }))
 const Summary = DomainEntity.select(Project, { id: true, name: true, status: true })
 
 const Model = Schema.Struct({ remote: Remote.Model })
@@ -45,7 +45,7 @@ const shown = (model: Model) => {
 }
 const edit = { id: 'p1', name: 'Apollo II', status: 'archived' }
 
-describe('Mutation.update', () => {
+describe('Mutation.write', () => {
   it('takes the write’s input, answers nothing of its own, and may be refused as a conflict', () => {
     expect(EditProject.write?.sets.map(set => set.key)).toEqual(['name', 'status'])
     expect(Schema.decodeUnknownSync(EditProject.Input)(edit)).toEqual(edit)
@@ -109,5 +109,37 @@ describe('patchOfWrite', () => {
       id: 'p1',
       values: { title: 'Compilers', author: 'Author:a1', editor: null },
     })
+  })
+})
+
+describe('Data.mutate of an insert or a delete', () => {
+  const NewProject = Mutation.write('NewProject', Write.insert(EditProjectInput, { id: 'id' }))
+  const DropProject = Mutation.write(
+    'DropProject',
+    Write.delete(DomainEntity.input(Project, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+  )
+  const Writes = Remote.make({
+    model: App.model.remote,
+    entities: [Project],
+    mutations: [NewProject, DropProject],
+  })
+
+  it('shows an inserted row before the server answers', () => {
+    const started = Writes.mutate({ remote: Remote.initial }, NewProject, {
+      id: 'p2',
+      name: 'Gemini',
+      status: 'active',
+    })
+    const read = Writes.get(Summary, 'p2').read(started.model)
+    expect(read._tag === 'Ready' && read.value).toEqual({
+      id: 'p2',
+      name: 'Gemini',
+      status: 'active',
+    })
+  })
+
+  it('shows nothing for a delete until the server answers', () => {
+    const started = Writes.mutate(held, DropProject, { id: 'p1' })
+    expect(started.model.remote.optimistic).toEqual(held.remote.optimistic)
   })
 })

@@ -10,7 +10,7 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: ': [patchOfWrite(DomainWrite.bind(mutation.write, input as never, options.keys))]',
+        find: ': optimisticOfWrite(mutation.write, input, options.keys)',
         replace: ': undefined',
       },
     ],
@@ -20,9 +20,9 @@ export default [
     name: 'the keys do not narrow what is shown',
     edits: [
       {
-        file: '../src/index.ts',
-        find: 'DomainWrite.bind(mutation.write, input as never, options.keys)',
-        replace: 'DomainWrite.bind(mutation.write, input as never)',
+        file: '../src/mutation.ts',
+        find: 'Update: () => [patchOfWrite(DomainWrite.bind(write, input as never, keys))],',
+        replace: 'Update: () => [patchOfWrite(DomainWrite.bind(write, input as never))],',
       },
     ],
     tests,
@@ -56,6 +56,17 @@ export default [
         file: '../src/mutation.ts',
         find: 'onNone: () => null, onSome: ref => entityKey(ref.entity, ref.id)',
         replace: 'onNone: () => null, onSome: ref => ref.id',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an inserted row is shown without its id',
+    edits: [
+      {
+        file: '../src/mutation.ts',
+        find: 'return [{ ...patch, values: { id: patch.id, ...patch.values } }]',
+        replace: 'return [patch]',
       },
     ],
     tests,

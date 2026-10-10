@@ -436,19 +436,21 @@ RemoteServer.remove(connection, Project.ref(id))
 Those confirmed changes replace the corresponding optimistic connection layers
 on the client.
 
-A mutation declared as a `Write` (`Mutation.update`) needs no handler.
-`RemoteServer.update(mutation, writer)` binds the input to the write, only the
+A mutation declared as a `Write` (`Mutation.write`) needs no handler.
+`RemoteServer.write(mutation, writer)` binds the input to the write, only the
 keys the client named when it named some, and hands the row's id and new values
 to an `EntityWriter`, which writes them and answers the row as written:
 
 ```ts
-RemoteServer.update(EditProject, writer(Db.Project)) // `writer` from foldkit-remote-drizzle
+RemoteServer.write(EditProject, writer(Db.Project)) // `writer` from foldkit-remote-drizzle
 ```
 
-The answer is the mutation's patch. With `expect`, the writer is told the
-revision the row was read at; no row at it is refused as `Refusal.conflict`.
-No row at all fails. The writer must be for the write's own Entity, which is
-checked where the mutation is served.
+The answer is the mutation's patch, or for a delete its deletion. With
+`expect`, the writer is told the revision the row was read at; no row at it is
+refused as `Refusal.conflict`. An update of no row fails; an insert of an id
+already there answers that row, and a delete of a row already gone succeeds,
+so a retry of either is safe. The writer must be for the write's own Entity,
+which is checked where the mutation is served.
 
 Remote mutations are immediate requests against **server-owned** state. They are
 not a durable offline intent log; client-authored edits that must survive offline

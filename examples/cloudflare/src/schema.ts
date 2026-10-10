@@ -543,8 +543,8 @@ export const makeServer = () => {
   )
 
   // Declared writes: the binding's writer lands them, and the row as written answers.
-  const Rename = RemoteServer.update(RenameTodo, writer(Db.Todo))
-  const Toggle = RemoteServer.update(ToggleTodo, writer(Db.Todo))
+  const Rename = RemoteServer.write(RenameTodo, writer(Db.Todo))
+  const Toggle = RemoteServer.write(ToggleTodo, writer(Db.Todo))
 
   const Delete = RemoteServer.mutation(DeleteTodo, ({ input }) =>
     Effect.gen(function* () {

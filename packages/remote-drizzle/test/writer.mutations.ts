@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: server,
-        find: 'const bound = Write.bind(write, input as never, keys)',
-        replace: 'const bound = Write.bind(write, input as never)',
+        find: 'const bound = Write.bind(write, given, keys)',
+        replace: 'const bound = Write.bind(write, given)',
       },
     ],
     tests,
@@ -38,12 +38,18 @@ export default [
   },
   {
     name: 'a row is written at any revision',
-    edits: [{ file: drizzle, find: 'guard = eq(column, revision)', replace: 'guard = undefined' }],
+    edits: [
+      {
+        file: drizzle,
+        find: 'where: and(eq(idColumn(binding), id), eq(column, revision)),',
+        replace: 'where: eq(idColumn(binding), id),',
+      },
+    ],
     tests,
   },
   {
     name: 'the revision does not move on',
-    edits: [{ file: drizzle, find: 'set[key] = sql`${column} + 1`', replace: '' }],
+    edits: [{ file: drizzle, find: 'bump: { [key]: sql`${column} + 1` },', replace: 'bump: {},' }],
     tests,
   },
   {
@@ -86,6 +92,30 @@ export default [
   {
     name: 'a pointed relation is not answered',
     edits: [{ file: drizzle, find: '...Object.keys(links),', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a retried insert is not answered with the row it made',
+    edits: [{ file: drizzle, find: 'inserted.length > 0', replace: 'true' }],
+    tests,
+  },
+  {
+    name: 'a retried insert fails on the id it took',
+    edits: [{ file: drizzle, find: '.onConflictDoNothing()', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a delete from a moved revision succeeds',
+    edits: [
+      { file: server, find: 'if (!deleted && Option.isSome(expect))', replace: 'if (false)' },
+    ],
+    tests,
+  },
+  {
+    name: 'a delete of a row already gone fails',
+    edits: [
+      { file: server, find: 'if (!deleted && Option.isSome(expect))', replace: 'if (!deleted)' },
+    ],
     tests,
   },
 ]

@@ -4,10 +4,11 @@
  * agree on what it means.
  *
  * A `Write` is built on `Entity.input`, which already says which input key is
- * which member of the Entity. `Write.update` adds what to do with them: the key
- * that names the row, and optionally the key holding the revision it was read
- * at. Every other key mapped to a field is set; a key mapped to
- * `Entity.unmapped` is about the operation and is not written.
+ * which member of the Entity. `Write.update`, `Write.insert` and `Write.delete`
+ * add what to do with them: the key that names the row, and optionally the key
+ * holding the revision it was read at. Every other key mapped to a field is
+ * set; a key mapped to `Entity.unmapped` is about the operation and is not
+ * written.
  *
  * It is authority someone declared, never something derived from an Entity: an
  * Entity having a field does not mean anyone may set it.
@@ -37,9 +38,12 @@ export interface WriteLink {
   readonly relation: OneRelation
 }
 
-/** An update of one row of an Entity, by id, from an operation's input. */
+/**
+ * One row of an Entity, by id, from an operation's input: updated, inserted
+ * with an id the client chose, or deleted.
+ */
 export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields> {
-  readonly _tag: 'Update'
+  readonly _tag: 'Update' | 'Insert' | 'Delete'
   readonly input: EntityInput<E, Fields, any>
   /** The input key holding the row's id, and the Entity's `id` field it is. */
   readonly id: WriteSet & { readonly key: keyof Fields & string }
@@ -70,7 +74,7 @@ export interface BoundWrite {
 }
 
 const fail = (input: EntityInput<AnyEntity, any, any>, message: string): never => {
-  throw new Error(`[foldkit-entity] Write.update of ${input.entity.name}: ${message}`)
+  throw new Error(`[foldkit-entity] Write of ${input.entity.name}: ${message}`)
 }
 
 const membersOf = (
@@ -87,6 +91,60 @@ const fieldAt = (input: EntityInput<AnyEntity, any, any>, key: string, role: str
   if (member._tag !== 'Field') return fail(input, `${role} "${key}" is not mapped to a field`)
   return member
 }
+
+/**
+ * What every kind shares: the key naming the row, the expected revision, and
+ * what the other keys set or point. A kind adds its own checks.
+ */
+const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+  kind: Write<E, Fields>['_tag'],
+  input: EntityInput<E, Fields, any>,
+  options: { readonly id: keyof Fields & string; readonly expect?: keyof Fields & string },
+): Write<E, Fields> => {
+  const id = fieldAt(input, options.id, 'id')
+  if (id.key !== 'id') fail(input, `id "${options.id}" is mapped to "${id.key}", not to "id"`)
+  if (options.expect === options.id) fail(input, 'expect cannot be the id')
+  const expect =
+    options.expect === undefined
+      ? undefined
+      : Object.freeze({ key: options.expect, field: fieldAt(input, options.expect, 'expect') })
+  const sets: Array<WriteSet> = []
+  const links: Array<WriteLink> = []
+  for (const [key, member] of Object.entries(membersOf(input))) {
+    if (member === undefined || key === options.id || key === options.expect) continue
+    switch (member._tag) {
+      case 'Field':
+        sets.push(Object.freeze({ key, field: member }))
+        break
+      case 'Unmapped':
+        break
+      case 'RelationInput':
+        if (member.relation.cardinality !== 'one') {
+          fail(input, `"${key}" is a many relation; a write points one relation at a time`)
+        }
+        links.push(Object.freeze({ key, relation: member.relation as OneRelation }))
+        break
+      case 'NestedInput':
+        fail(input, `"${key}" writes a nested row; a write writes its own row only`)
+    }
+  }
+  return Object.freeze({
+    _tag: kind,
+    input,
+    id: Object.freeze({ key: options.id, field: id }),
+    expect,
+    sets: Object.freeze(sets),
+    links: Object.freeze(links),
+  })
+}
+
+/** An update or an insert that would write nothing is refused where it is declared. */
+const settingSomething = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+  write: Write<E, Fields>,
+): Write<E, Fields> =>
+  write.sets.length === 0 && write.links.length === 0
+    ? fail(write.input, 'it sets no field')
+    : write
 
 export const Write = {
   /**
@@ -110,42 +168,39 @@ export const Write = {
       readonly expect?: keyof Fields & string
     },
   ): Write<E, Fields> => {
-    const id = fieldAt(input, options.id, 'id')
-    if (id.key !== 'id') fail(input, `id "${options.id}" is mapped to "${id.key}", not to "id"`)
-    if (options.expect === options.id) fail(input, 'expect cannot be the id')
-    const expect =
-      options.expect === undefined
-        ? undefined
-        : Object.freeze({ key: options.expect, field: fieldAt(input, options.expect, 'expect') })
-    const sets: Array<WriteSet> = []
-    const links: Array<WriteLink> = []
-    for (const [key, member] of Object.entries(membersOf(input))) {
-      if (member === undefined || key === options.id || key === options.expect) continue
-      switch (member._tag) {
-        case 'Field':
-          sets.push(Object.freeze({ key, field: member }))
-          break
-        case 'Unmapped':
-          break
-        case 'RelationInput':
-          if (member.relation.cardinality !== 'one') {
-            fail(input, `"${key}" is a many relation; an update points one relation at a time`)
-          }
-          links.push(Object.freeze({ key, relation: member.relation as OneRelation }))
-          break
-        case 'NestedInput':
-          fail(input, `"${key}" writes a nested row; an update writes its own row only`)
-      }
-    }
-    if (sets.length === 0 && links.length === 0) fail(input, 'it sets no field')
-    return Object.freeze({
-      _tag: 'Update' as const,
-      input,
-      id: Object.freeze({ key: options.id, field: id }),
-      expect,
-      sets: Object.freeze(sets),
-      links: Object.freeze(links),
-    })
+    return settingSomething(declared('Update', input, options))
+  },
+
+  /**
+   * Inserts the row whose id is the input's `id` key, an id the client chose,
+   * with every field and `one` relation the input maps a key to. An insert
+   * expects no revision: there is no row to have read. A row already there
+   * under that id (a retry) is left as it is.
+   */
+  insert: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+    input: EntityInput<E, Fields, any>,
+    options: { readonly id: keyof Fields & string },
+  ): Write<E, Fields> => {
+    return settingSomething(declared('Insert', input, options))
+  },
+
+  /**
+   * Deletes the row whose id is the input's `id` key, only while it is still at
+   * the revision `expect` names, when it names one. It sets nothing, so a key
+   * mapped to a member is refused where it is written. A row already gone (a
+   * retry) is gone.
+   */
+  delete: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+    input: EntityInput<E, Fields, any>,
+    options: {
+      readonly id: keyof Fields & string
+      readonly expect?: keyof Fields & string
+    },
+  ): Write<E, Fields> => {
+    const write = declared('Delete', input, options)
+    const named = [...write.sets, ...write.links][0]
+    if (named !== undefined) fail(input, `a delete sets nothing, but "${named.key}" is mapped`)
+    return write
   },
 
   /**

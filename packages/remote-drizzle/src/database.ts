@@ -49,7 +49,14 @@ export interface DrizzleWrite extends PromiseLike<unknown> {
 
 /** The writes any Drizzle database for SQLite or Postgres offers, typed by each table's columns. */
 export interface DrizzleWrites {
-  insert<T extends Table>(table: T): { values(values: InferInsertModel<T>): DrizzleWrite }
+  insert<T extends Table>(
+    table: T,
+  ): {
+    values(values: InferInsertModel<T>): DrizzleWrite & {
+      /** Inserts nothing where the row's key is already taken. */
+      onConflictDoNothing(): DrizzleWrite
+    }
+  }
   update<T extends Table>(
     table: T,
   ): {

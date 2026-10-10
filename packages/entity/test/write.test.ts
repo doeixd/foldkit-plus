@@ -207,3 +207,34 @@ describe('A write that points a one relation', () => {
     ).toEqual(['editor'])
   })
 })
+
+describe('Write.insert and Write.delete', () => {
+  it('inserts every key mapped to a member, under the id the client chose', () => {
+    const insert = Write.insert(EditPost, { id: 'id' })
+    expect(insert._tag).toBe('Insert')
+    expect(insert.sets.map(set => set.key)).toEqual(['title', 'due', 'revision'])
+  })
+
+  it('deletes by id, with a revision it may expect, and sets nothing', () => {
+    const Remove = Entity.input(
+      Blog.Post,
+      Schema.Struct({ id: Schema.String, revision: Schema.Number }),
+    )
+    const remove = Write.delete(Remove, { id: 'id', expect: 'revision' })
+    expect(remove._tag).toBe('Delete')
+    expect(remove.sets).toEqual([])
+    expect(remove.expect?.key).toBe('revision')
+  })
+
+  it('refuses a delete with a key mapped to a member, which it would not write', () => {
+    expect(() => Write.delete(EditPost, { id: 'id' })).toThrow(
+      'a delete sets nothing, but "title" is mapped',
+    )
+  })
+
+  it('refuses an insert that sets nothing', () => {
+    expect(() =>
+      Write.insert(Entity.input(Blog.Post, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+    ).toThrow('sets no field')
+  })
+})

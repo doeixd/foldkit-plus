@@ -31,16 +31,16 @@ export default [
     edits: [
       {
         file,
-        find: "        case 'Unmapped':\n          break\n",
+        find: "      case 'Unmapped':\n        break\n",
         replace:
-          "        case 'Unmapped':\n          sets.push(Object.freeze({ key, field: member as never }))\n          break\n",
+          "      case 'Unmapped':\n        sets.push(Object.freeze({ key, field: member as never }))\n        break\n",
       },
     ],
     tests,
   },
   {
     name: 'a write may set nothing',
-    edits: [{ file, find: 'if (sets.length === 0 && links.length === 0)', replace: 'if (false)' }],
+    edits: [{ file, find: "? fail(write.input, 'it sets no field')", replace: '? write' }],
     tests,
   },
   {
@@ -74,6 +74,11 @@ export default [
   {
     name: 'a relation set to nothing points at a row with no id',
     edits: [{ file, find: 'Option.fromNullishOr(given[key])', replace: 'Option.some(given[key])' }],
+    tests,
+  },
+  {
+    name: 'a delete may name a member it would not write',
+    edits: [{ file, find: 'if (named !== undefined)', replace: 'if (false)' }],
     tests,
   },
 ]

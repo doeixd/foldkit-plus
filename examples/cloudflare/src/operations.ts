@@ -31,7 +31,7 @@ export const CreateTodo = Mutation.make('CreateTodo', {
  * it before the server answers and the server writes it with no handler.
  */
 export const RenameTodoInput = Schema.Struct({ id: Schema.String, title })
-export const RenameTodo = Mutation.update(
+export const RenameTodo = Mutation.write(
   'RenameTodo',
   Write.update(Entity.input(Todo, RenameTodoInput), { id: 'id' }),
 )
@@ -40,7 +40,7 @@ export const RenameTodo = Mutation.update(
  * `done` is the value to store, not a flip. A retry of the same request
  * writes the same integer, where `done = 1 - done` would undo itself.
  */
-export const ToggleTodo = Mutation.update(
+export const ToggleTodo = Mutation.write(
   'ToggleTodo',
   Write.update(Entity.input(Todo, Schema.Struct({ id: Schema.String, done })), { id: 'id' }),
 )

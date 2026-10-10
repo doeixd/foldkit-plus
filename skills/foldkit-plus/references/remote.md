@@ -396,7 +396,8 @@ it in flight, so its read entry refetches it. A `Query.make` list (no body) is
 invalidated by any change to its Entity. A joining row is fetched, never
 spliced. `Data.refresh` remains for effects the answer does not name.
 
-**Declared writes.** `Mutation.update(name, Write.update(input, { id }))` is a
+**Declared writes.** `Mutation.write(name, Write.update(input, { id }))` (or
+`Write.insert` with a client-minted id, or `Write.delete`) is a
 mutation whose effect is data: `Data.mutate` derives its optimistic patch
 (`Write.bind`), and `options.keys` narrows it to the input keys an author
 changed and sends them with the request.
@@ -570,9 +571,10 @@ const User = entity('User', users) // table must have an `id` column
 const Project = entity('Project', projects, { relations: { owner: one(User, { field: projects.ownerId }) } })
 const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema.String }, Result: Project })
 
-// A declared write needs no handler: RemoteServer.update(EditProject, writer(Db.Project)),
+// A declared write needs no handler: RemoteServer.write(EditProject, writer(Db.Project)),
 // with Db = bind({ Project }, { Project: { table } }); it writes only the keys named, and an
 // `expect`ed revision guards the row and moves on in the same statement (else a conflict).
+// An insert retried answers the row it made; a delete of a row already gone succeeds.
 const Server = RemoteServer.make({
   entities: [source(User), source(Project)], // source(binding, { authorize }) for field policy
   queries: [query(ProjectsByOwner, {
