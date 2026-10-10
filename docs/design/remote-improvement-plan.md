@@ -1,8 +1,8 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** Phases 0–2 done, 2026-10-10; Phase 3 in part; Phase 5 built
-except its registry exit, which waits for Phase 4 (each section's *As
-built*); Phases 4 and 6 not started. §15 records the decisions taken while planning, each against the
+**Status:** Phases 0–2 and 6 done, 2026-10-10; Phase 3 in part; Phase 5
+built except its registry exit, which waits for Phase 4 (each section's
+*As built*); Phase 4 not started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -678,6 +678,40 @@ reuse it:
 
 **Exit:** a test drops the transport mid-stream and a write made meanwhile
 reaches the view after reconnect; a forced gap converges without a reload.
+
+### As built
+
+`6422ec1a`, with a race fixed in `6d08243c`. The live entry restarts itself:
+
+- **No server replays, so recovery is a refetch.** Both the hub and
+  cloudflare's poll number events from `after` and replay nothing, so
+  "resume from the cursor the refetch returns" had no cursor to use. A
+  restart resubscribes from the stored cursor, which keeps the numbering
+  contiguous, and emits `RefreshStarted` over the stream's requirements,
+  which the read entry refetches as it would for `Data.refresh`.
+- **A break is Model state that restarts the entry.** A transport failure
+  or a gap marks the stream a gap and counts a restart in
+  `RemoteModel.streams`. `restarts` is a dependency of the live entry, and
+  `failures` is read at the restart like the cursor, so an applied event
+  resetting it restarts nothing. Further breaks while the gap is open are
+  ignored, so a dying stream's last events restart it once.
+- **A gap no longer heals on an in-order event.** The event ahead was
+  dropped, so a later contiguous one hid a loss. Only the restart's
+  `GapCleared` closes it, and it does so before resubscribing: when the two
+  ran side by side, a resubscribe that failed first landed on the open gap,
+  was ignored, and the stream stopped for good.
+- **Health is asked per active entry:** `Data.liveStatus(model, active)` is
+  `Idle | Live | Reconnecting { attempt, error }`. Keyed by stream alone, a
+  stream whose requirements had changed would have left a stale
+  `Reconnecting` behind, since nothing prunes per-stream state.
+- The backoff is Sync's transport policy, restated rather than shared:
+  Remote does not depend on Sync, and the policy is one expression.
+
+The exit's two cases are unit tests, `test/liveRecovery.test.ts`, against a
+fake client: a dropped stream whose restart shows a write made while it was
+down, and a forced gap restarting once. No e2e drops a real transport yet.
+What a stream covers beyond its requirements (a watched list) is the
+source's to re-send on open, as cloudflare's poll does.
 
 ## 11. Documentation
 

@@ -930,6 +930,12 @@ of its own named a form field "fits the Catalog". Read words with
 - **Subscribe before the action that can produce the event.** `update` can emit a
   completing Message synchronously, so a listener attached after the dispatch
   misses it and then waits for its timeout.
+- **A Message that reopens a gate must land before what can trip it.** A
+  restarted live stream emitted `GapCleared` beside its resubscribe
+  (`Stream.merge`). A resubscribe that failed first hit the still-open gap,
+  which ignores further breaks, and the late `GapCleared` then closed it:
+  the stream stopped for good, and a test failed every run once it made the
+  resubscribe fail. Sequence them (`Stream.concat`).
 - **Guard fire-and-forget work.** An un-awaited reconcile turned a failure into
   an unhandled rejection.
 - **`Effect.result` captures failures, not defects.** At an edge that must not
