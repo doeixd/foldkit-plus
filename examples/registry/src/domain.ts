@@ -5,7 +5,7 @@
  */
 import { Schema } from 'effect'
 import { Display } from 'foldkit-crud'
-import { Entity } from 'foldkit-entity'
+import { Collation, Entity } from 'foldkit-entity'
 import { EditableEntity } from 'foldkit-sync/entity'
 
 export const ProductId = Schema.String.pipe(Schema.brand('ProductId'))
@@ -36,6 +36,12 @@ export const Product = Entity.define(
     id: Display.of(Display.hidden()),
     revision: Display.of(Display.hidden()),
     cents: Display.of(Display.number(cents => (cents / 100).toFixed(2))),
+    // How the table orders text already (SQLite's BINARY), said, so a client
+    // can order a sorted page as the server does.
+    upc: Collation.of(Collation.binary),
+    description: Collation.of(Collation.binary),
+    line: Collation.of(Collation.binary),
+    status: Collation.of(Collation.binary),
   }),
 )
 

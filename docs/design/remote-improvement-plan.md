@@ -2,7 +2,7 @@
 
 **Status:** Phases 0–2 and 4–6 done, 2026-10-10; Phase 3 in part (each
 section's *As built*). Part two (§16), placing rows in lists instead of
-refetching them: Phases 7 and 8 done, Phases 9–12 not started. §15 records the decisions taken while planning, each against the
+refetching them: Phases 7–9 done, Phases 10–12 not started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -1115,6 +1115,24 @@ them):
   the id only if it fails.
 - **Exit:** classification tests over windows with each boundary kind,
   shown to fail by mutation.
+
+**As built** (`03bf0c2e` for cursors, then placement):
+
+- **The deleted-cursor test failed**, so key cursors were built: a cursor is
+  the order's key values where the page ended, validated as client input.
+  "Load more" had failed once the last row read was deleted or stopped
+  matching, and continued from wherever it had moved.
+- **`placeIn` answers `Before`, `End`, `Outside` or `Unknown`**, by edges, not
+  indices, so a row that moved within its own list does not shift them. Its
+  own old edge is left out of the comparison: as the first edge of a segment
+  that rows precede, it says nothing of where the row is now.
+- **The comparison is the evaluator's**, exported as `compareRows`, so the
+  client places by exactly the order `evaluate` sorts by.
+- **A placeable list's requirement adds its body's fields**, predicate and
+  order both; what the view reads and decodes stays its Selection.
+- **The registry declares `binary`** on its text columns, which is how its
+  SQLite already ordered them.
+- Relation pages keep their id cursors; nothing places rows in them yet.
 
 #### Phase 10: impact becomes placement, on the client
 

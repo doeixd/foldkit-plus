@@ -141,8 +141,10 @@ describe('A query that failed with rows already on screen', () => {
     )
 
     expect(planned(unread)).toEqual([])
+    // The list is placeable (it orders by id), so its rows read what the
+    // body filters on too, for a changed row to be compared with them.
     expect(Remote.plan(Data, unread, mine)).toEqual([
-      { entity: 'Project', id: 'p1', fields: ['id', 'name'] },
+      { entity: 'Project', id: 'p1', fields: ['id', 'name', 'ownerId'] },
     ])
   })
 })

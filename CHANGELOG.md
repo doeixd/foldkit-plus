@@ -9,6 +9,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/registry`: its text columns declare `binary`**, as its SQLite
+  orders them, so its sorted page is placeable.
 - **`foldkit-remote-drizzle`: a page's cursor holds the order's key values
   where it ended.** It was the last row's id, which the next page looked up:
   "load more" failed once that row was deleted or stopped matching, and
@@ -169,6 +171,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`: `placeIn`, where a row falls in a loaded list.** By the
+  body's declared order: before an edge, at a segment's end that closes the
+  list, `Outside` what is loaded, or `Unknown` with why. A list whose body is
+  placeable reads the fields its body filters and orders by, for it.
+  `foldkit-entity` exports `compareRows`, the evaluator's comparison of two
+  rows under an order.
 - **`foldkit-entity`: `Order.chosen`, a sort the input picks, declared in the
   body.** `Order.chosen(input.sort, { title: Post.fields.title })` maps each
   name a `{ by, direction } | null` sort can hold to a field, and a name

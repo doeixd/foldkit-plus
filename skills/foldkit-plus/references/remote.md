@@ -268,6 +268,10 @@ case 'SignedOut': {
   against a real SQLite. Cases are chosen to make interpreters disagree (case,
   nulls, `%`/`_` as literal text, empty search), because a fixture that cannot
   tell them apart tests nothing.
+- `placeIn(remote.entities, connection, body, encodedInput, key)` says where a row falls in
+  a loaded list by the body's order: `Before { segment, edge }`, `End { segment }`,
+  `Outside` (past a `Cursor` or in a gap), or `Unknown { reason }`. A list whose body is
+  placeable (`Query.placement`) also reads its body's fields for it.
 - `Data.overlays(model)` is the ids `overlay` shows now, in drawing order, for a
   caller that reconciles overlays against its own state (`foldkit-sync/remote`).
 - `Data.overlay(model, id, operations)` shows optimistic operations with no request

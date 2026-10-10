@@ -1944,6 +1944,31 @@ a refresh/query result settles it. A `ConnectionMerged` page with
 `refreshes: true` replaces a stale connection's pages rather than merging into
 them.
 
+### Where a row falls: `placeIn`
+
+A query whose body declares a placeable order (`Query.placement` in
+`foldkit-entity`: numbers, booleans, and text under a portable collation) can
+have a changed row placed in its loaded pages by the client, by the same order
+the server compiles. Such a connection also reads every field its body filters
+and orders by, so the rows it holds can be compared with one that changed.
+
+```ts
+// Schematic: `ProjectsByRank` is a Query.define ordered by a number, and
+// `connection` one of `remote.connections`. test/placement.test.ts runs it.
+placeIn(remote.entities, connection, ProjectsByRank.body!, {}, 'Project:p7')
+// Before { segment, edge } | End { segment } | Outside | Unknown { reason }
+```
+
+- `Before` and `End` are positions among loaded edges: before an edge, or at
+  the end of a segment that ends the list (`Terminal`).
+- `Outside` is a row that sorts past a `Cursor` boundary or into a gap between
+  segments: it belongs to rows the client has not read, so it is not shown.
+- `Unknown` is anything not judged exactly: a body that is not placeable, a
+  row or an edge lacking a field the order reads, keys that do not compare.
+
+It is pure and changes nothing. Phase 10 of the Remote plan uses it to place
+answers and pending edits instead of refetching the list.
+
 ### Mutations by hand
 
 `Remote.mutateInto(bound, model, mutation, input, requestId, { optimistic, now })` is

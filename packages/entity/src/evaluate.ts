@@ -184,26 +184,46 @@ const checkOrder = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, q
   }
 }
 
+/** Two rows by checked terms: negative when `left` sorts first. */
+const byTerms = (terms: ReadonlyArray<OrderTerm>, left: Row, right: Row): number => {
+  for (const term of terms) {
+    const key = (term.expr as Extract<OrderTerm['expr'], { readonly _tag: 'Field' }>).key
+    const absentLeft = isNull(left[key])
+    const absentRight = isNull(right[key])
+    // Where a row without a value goes is the term's to say, whichever the
+    // direction; two such rows tie, for the next term.
+    if (absentLeft || absentRight) {
+      if (absentLeft && absentRight) continue
+      return absentLeft === (term.nulls === 'first') ? -1 : 1
+    }
+    const sign = compare(left[key], right[key], term.collation)
+    if (sign !== 0) return term.direction === 'asc' ? sign : -sign
+  }
+  return 0
+}
+
 const ordered = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, query: string) => {
   // One row, or none, is in order whatever its keys hold.
   if (terms.length === 0 || rows.length < 2) return [...rows]
   checkOrder(rows, terms, query)
-  return [...rows].sort((left, right) => {
-    for (const term of terms) {
-      const key = (term.expr as Extract<OrderTerm['expr'], { readonly _tag: 'Field' }>).key
-      const absentLeft = isNull(left[key])
-      const absentRight = isNull(right[key])
-      // Where a row without a value goes is the term's to say, whichever the
-      // direction; two such rows tie, for the next term.
-      if (absentLeft || absentRight) {
-        if (absentLeft && absentRight) continue
-        return absentLeft === (term.nulls === 'first') ? -1 : 1
-      }
-      const sign = compare(left[key], right[key], term.collation)
-      if (sign !== 0) return term.direction === 'asc' ? sign : -sign
-    }
-    return 0
-  })
+  return [...rows].sort((left, right) => byTerms(terms, left, right))
+}
+
+/**
+ * Where `left` sorts against `right` under these terms (`Query.orderFor`'s),
+ * as `evaluate` sorts: negative when it comes first. Refuses what `evaluate`
+ * refuses, for these two rows: a term not over a field, a locale collation,
+ * or keys of different kinds. For a client placing one row among others it
+ * holds.
+ */
+export const compareRows = (
+  terms: ReadonlyArray<OrderTerm>,
+  left: Row,
+  right: Row,
+  query: string,
+): number => {
+  checkOrder([left, right], terms, query)
+  return byTerms(terms, left, right)
 }
 
 /**

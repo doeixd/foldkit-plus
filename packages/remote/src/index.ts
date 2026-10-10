@@ -174,6 +174,7 @@ export * from './entity.js'
 export * from './inspect.js'
 export * from './live.js'
 export * from './matching.js'
+export { placeIn, RowPlace } from './placement.js'
 export * from './model.js'
 export * from './mutation.js'
 export * from './optimistic.js'
@@ -836,6 +837,36 @@ const readContract = <Name extends string, Input, Value, Entity extends string>(
     ref,
     relation,
     requirement: { identity: ref.identity, window: ref.window, select: relation, ref },
+  }
+}
+
+/**
+ * A read contract whose connection, when a client can place rows in it, also
+ * reads every field its body filters and orders by: a changed row is then
+ * compared with neighbours that hold those fields. What the view reads, and so
+ * decodes, stays its Selection.
+ */
+const placeableReadContract = <Name extends string, Input>(
+  contract: ReadContract<Name, Input>,
+  body: Domain.AnyQuery | undefined,
+): ReadContract<Name, Input> => {
+  if (body === undefined) return contract
+  const { requirement, ref } = contract
+  const encoded = Schema.encodeSync(ref.Input)(ref.input) as Readonly<Record<string, unknown>>
+  if (Relational.placement(body, encoded)._tag !== 'Placeable') return contract
+  const missing = Relational.dependencies(body).fields.filter(
+    field => !requirement.select.fields.includes(field.key),
+  )
+  if (missing.length === 0) return contract
+  return {
+    ...contract,
+    requirement: {
+      ...requirement,
+      select: {
+        ...requirement.select,
+        fields: [...requirement.select.fields, ...missing.map(field => field.key)],
+      },
+    },
   }
 }
 
@@ -2900,7 +2931,10 @@ const bindDomain = <
           `Remote: the selection is of "${select.entity}", but query "${query.name}" lists "${listed}"`,
         )
       }
-      const { ref, relation, requirement } = readContract(query.ref(input), select, window)
+      const { ref, relation, requirement } = placeableReadContract(
+        readContract(query.ref(input), select, window),
+        query.body,
+      )
       const relationKey = stableStringify(relation)
       // A read shows at most its window, whatever else loaded the connection:
       // a picker's `first: 50` and a Block's `first: 3` of one query share it.
