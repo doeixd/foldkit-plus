@@ -43,6 +43,7 @@ import {
   hasNext,
   hasPrevious,
   isGapped,
+  items,
   type Connection,
   type Edge,
 } from './connection.js'
@@ -53,7 +54,7 @@ import {
   type EntityRef,
   type FieldsFrom,
 } from './entity.js'
-import { Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
+import { Impact, changesOf, impactOn, type EntityChange, type HeldConnection } from './impact.js'
 import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
 
 /** A body's dependencies as an explanation carries them: without the owner identity, which holds a symbol. */
@@ -101,6 +102,7 @@ import {
   optimisticOfWrite,
   type MutationDescriptor,
   type MutationStatus,
+  type NormalizedPatch,
 } from './mutation.js'
 import {
   connectionIdentity,
@@ -2712,8 +2714,113 @@ const bindDomain = <
         : undefined
     // A repeated answer finds every value it carries already held, so it
     // changes nothing and invalidates nothing.
-    const next = answer === undefined ? reduced : impactOf(reduced, answer, remote.entities)
+    const next =
+      answer === undefined
+        ? placedNews(reduced, newsOf(message), remote.entities)
+        : impactOf(reduced, answer, remote.entities)
     return next === remote ? model : store.set(model, next as Store)
+  }
+
+  /** The registered query a connection identity names, and its encoded input. */
+  const queryOf = (
+    identity: string,
+  ): Option.Option<Pick<HeldConnection, 'descriptor' | 'encoded'>> => {
+    const separator = identity.indexOf(IDENTITY_SEPARATOR)
+    const descriptor = definition.registry.queries.get(identity.slice(0, separator))
+    if (descriptor === undefined) return Option.none()
+    const encoded = JSON.parse(identity.slice(separator + 1)) as Record<string, unknown>
+    return Option.some({ descriptor, encoded })
+  }
+
+  /**
+   * `pages` with each change to a row they hold placed, judged against
+   * `store`: a row that moved goes where the body's order puts it, and one
+   * that stopped matching leaves. A row a change brings in is not added,
+   * since what the list selects of it may not be loaded, and a change the
+   * client cannot place leaves the row where it is.
+   */
+  const placedHeld = (
+    identity: string,
+    pages: Connection,
+    changes: ReadonlyArray<EntityChange>,
+    store: EntityStore,
+  ): Connection => {
+    const query = queryOf(identity)
+    if (Option.isNone(query)) return pages
+    let placed = pages
+    for (const change of changes) {
+      const holds = new Set(items(placed).map(edge => entityKey(edge.ref.entity, edge.ref.id)))
+      if (!holds.has(entityKey(change.entity, change.id))) continue
+      placed = Impact.$match(
+        impactOn({ ...query.value, connection: placed, holds }, store, change),
+        {
+          Kept: () => placed,
+          Placed: ({ connection }) => connection,
+          Invalidated: () => placed,
+        },
+      )
+    }
+    return placed
+  }
+
+  /**
+   * A loaded list with the pending layers placed in its pages, so a row a
+   * pending edit moves, or takes out of the list, shows where its answer
+   * will be placed until the edit settles.
+   */
+  const pendingPlaced = (remote: RemoteModel, identity: string, pages: Connection): Connection => {
+    const { layers } = remote.optimistic
+    if (layers.length === 0) return pages
+    return memoRead([pages, layers, remote.entities], `placed:${identity}`, () =>
+      placedHeld(
+        identity,
+        pages,
+        changesOf({ entities: layers.flatMap(layer => layer.patches) }, remote.entities),
+        visibleStoreOf(remote.entities, remote.optimistic),
+      ),
+    )
+  }
+
+  /**
+   * The loaded lists with what the server said of rows they hold placed: a
+   * read or a live patch that changes a held row's ordering or filtered field
+   * moves it, or takes it out, as a mutation's answer does. A list it cannot
+   * place stands as it is, as a read is no write: its own refetch or live
+   * stream says otherwise. Only a value the client held before counts, so a
+   * row's first read judges nothing.
+   */
+  const placedNews = (
+    remote: RemoteModel,
+    news: ReadonlyArray<NormalizedPatch>,
+    before: EntityStore,
+  ): RemoteModel => {
+    if (news.length === 0) return remote
+    const held = news.map(patch => {
+      const values = before[entityKey(patch.entity, patch.id)]?.values ?? {}
+      return {
+        ...patch,
+        values: Object.fromEntries(
+          Object.entries(patch.values).filter(([field]) => Object.hasOwn(values, field)),
+        ),
+      }
+    })
+    const changes = changesOf({ entities: held }, before)
+    if (changes.length === 0) return remote
+    let connections = remote.connections
+    for (const [identity, pages] of Object.entries(remote.connections)) {
+      const placed = placedHeld(identity, pages, changes, remote.entities)
+      if (placed !== pages) connections = { ...connections, [identity]: placed }
+    }
+    return connections === remote.connections ? remote : { ...remote, connections }
+  }
+
+  /** The rows a read or a live patch says the server holds now. */
+  const newsOf = (message: RemoteMessage | RemoteMessageInput): ReadonlyArray<NormalizedPatch> => {
+    if (message._tag === 'ReadReceived') return message.result.entities
+    if (message._tag !== 'LiveReceived') return []
+    const event = message.event as LiveEvent
+    if (event._tag !== 'EntityPatched') return []
+    return [{ entity: event.ref.entity, id: event.ref.id, values: event.values }]
   }
 
   /**
@@ -2736,18 +2843,15 @@ const bindDomain = <
     const invalidated: Array<string> = []
     for (const identity of Object.keys(remote.connections)) {
       if (named.has(identity)) continue
-      const separator = identity.indexOf(IDENTITY_SEPARATOR)
-      const descriptor = definition.registry.queries.get(identity.slice(0, separator))
-      if (descriptor === undefined) continue
-      const encoded = JSON.parse(identity.slice(separator + 1)) as Record<string, unknown>
+      const query = queryOf(identity)
+      if (Option.isNone(query)) continue
       const original = remote.connections[identity]!
       // Each change is judged against the pages the one before it left.
       let pages = original
       let invalid = false
       for (const change of changes) {
         const held: HeldConnection = {
-          descriptor,
-          encoded,
+          ...query.value,
           connection: pages,
           holds: new Set(
             visibleItems(pages, identity, remote.optimistic.overlays, remote.entities).map(edge =>
@@ -2980,7 +3084,12 @@ const bindDomain = <
       const sizeOf = (remote: RemoteModel) => windowSize(remote, ref)
       const shown = (remote: RemoteModel, connection: Connection) =>
         cutToWindow(
-          visibleItems(connection, ref.identity, remote.optimistic.overlays, remote.entities),
+          visibleItems(
+            pendingPlaced(remote, ref.identity, connection),
+            ref.identity,
+            remote.optimistic.overlays,
+            remote.entities,
+          ),
           ref.window,
           sizeOf(remote),
         )
@@ -3246,7 +3355,12 @@ const bindDomain = <
       const edges =
         connection === undefined
           ? []
-          : visibleItems(connection, over.ref.identity, remote.optimistic.overlays, remote.entities)
+          : visibleItems(
+              pendingPlaced(remote, over.ref.identity, connection),
+              over.ref.identity,
+              remote.optimistic.overlays,
+              remote.entities,
+            )
       const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))
       let judged: Judged
       try {

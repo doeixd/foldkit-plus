@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote`: a pending edit, a read and a live patch place the rows
+  a list holds.** A pending `optimistic` patch or `Data.overlay` to an
+  ordering or filtered field shows its row where the edit puts it, or out of
+  the list, until it settles; the server's pages are untouched. A read or an
+  `EntityPatched` with a new value moves a held row in the pages. Before, the
+  row kept its old place until the list was fetched again, so a registry
+  price edit stayed out of order even after the server had it. Neither brings
+  a row into a list.
 - **`foldkit-remote`: a mutation's answer is placed in the lists it changed,
   not refetched.** A held row that stops matching leaves a list; a row that
   joins, or a held row whose ordering field changed, goes where the body's

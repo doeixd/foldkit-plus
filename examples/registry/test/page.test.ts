@@ -375,6 +375,40 @@ test('reads the first page, sorts on the server, and reads more', async () => {
   }
 })
 
+test('a pending price edit moves its row in a list sorted by price, before it is sent', async () => {
+  const { dispose, exchange } = await mount(serve(), memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(0), 'upc')).not.toBeNull())
+    const cheapest = Array.from({ length: count }, (_, index) => seedOf(index)).sort(
+      (a, b) => a.cents - b.cents || (a.id < b.id ? -1 : 1),
+    )
+    const row = (index: number) =>
+      document.querySelector(`#products [role="row"][aria-rowindex="${index + 2}"]`)?.textContent
+    click(
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>('#products [role="columnheader"] button'),
+      ).find(button => button.textContent === 'Price')!,
+    )
+    // Product 0 is the cheapest and first either way: the second row tells.
+    await vi.waitFor(() => expect(row(1)).toContain(cheapest[1]!.upc))
+
+    // The third cheapest, repriced below them all: first at once, though the
+    // server has not seen it, and still first once it has.
+    const third = cheapest[2]!
+    await edit(third.id, 'cents', '0.50')
+    await vi.waitFor(() => expect(row(0)).toContain(third.upc))
+    expect(status()).toBe('Sending 1 edit…')
+    expect(row(1)).toContain(cheapest[0]!.upc)
+    expect(row(2)).toContain(cheapest[1]!.upc)
+
+    await exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    expect(row(0)).toContain(third.upc)
+  } finally {
+    await dispose()
+  }
+})
+
 test('an edit and a paste show at once, and the journal writes them to the table', async () => {
   const server = serve()
   const { dispose, exchange, settle } = await mount(server, memoryStorage())

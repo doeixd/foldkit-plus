@@ -635,7 +635,8 @@ order field refetches.
 
 **Not built, and why.**
 
-- **A sorted page does not refetch for a pending edit.** A refetch asks the
+- **A sorted page does not refetch for a pending edit.** (Phase 10 places it
+  instead.) A refetch asks the
   server, which does not have the pending value yet, so the edit would still
   show in its old place. Placing a row by a value only the client has is
   the declared-collation work in §12. A committed edit reaches the order
@@ -1153,6 +1154,34 @@ them):
   list with no list request; in the registry, a pending price edit moves its
   row; a created todo in cloudflare lands by title, not by `prepend`; and the
   shadow check reports nothing across the e2e suites.
+
+**As built** (`4431d309` for answers, `871ae332` for the shadow check, then
+pending edits and news):
+
+- **`Impact` is `Kept`, `Placed` or `Invalidated`.** `Outside` is a
+  `placeIn` answer, folded into `Placed` (the row leaves the loaded pages).
+  `Missing` was not built: a row the client cannot judge invalidates its
+  list, as before.
+- **Pending edits are placed when a list is read, not stored as overlays.**
+  A positional connection overlay would have been a second record of where a
+  row goes, kept beside the layer it came from and lifted with it. Instead the
+  read places every pending layer over the server's pages (memoized by pages,
+  layers and store), so it applies to a request's `optimistic` patch and a
+  `Data.overlay` alike, and to `RemoteEdits` with no change there. It moves
+  rows and takes them out; it does not bring one in, since what the list
+  selects of that row may not be loaded and nothing plans it.
+- **The server's word on a held row is placed too.** The registry test
+  showed it: once the edit landed, the read that brought the new price wrote
+  the row and left it in its old place, so the edit jumped back. A read or a
+  live `EntityPatched` now places a held row in the pages, judging only
+  values the client held before. Unlike an answer, it never invalidates: a
+  read is not a write, and a server-ordered list would otherwise refetch on
+  every live patch.
+- **The field-to-query index was not built.** Each judgment is per loaded
+  list, and no example holds enough lists for it to show.
+- **Remaining exits:** the entity example's posts query has no body, the
+  cloudflare create names its list with `prepend`, and `verifyPlacement` is
+  not yet on in the e2e suites.
 
 #### Phase 11: the server places, for live lists
 

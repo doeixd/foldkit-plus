@@ -1346,6 +1346,15 @@ So a rename updates every view of the row and fetches nothing, a status change
 moves a row out of the lists filtered by status and into the others in their
 order, and a price change moves the row within a list sorted by price, all
 without a request.
+
+**A pending edit, and the server's word on a row, are placed the same way.**
+While a request's `optimistic` patch or a `Data.overlay` is pending, a list
+that holds the row shows it where the edit puts it, or leaves it out once it
+stops matching; the server's pages are untouched, and lifting the edit puts
+the row back. A read or a live `EntityPatched` that brings a new value for a
+row a list holds moves it in the list's pages, as an answer does. Neither
+brings a row into a list, since what the list selects of it may not be
+loaded, and neither fetches: a list it cannot place stands as it is.
 `Data.refresh` stays for what an answer cannot say, such as a server-side
 effect on rows it did not return.
 
