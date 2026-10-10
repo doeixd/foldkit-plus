@@ -11,6 +11,7 @@ import {
   createLiveQueryCollection,
   localOnlyCollectionOptions,
 } from '@tanstack/db'
+import { Option } from 'effect'
 import { supported as reference } from 'foldkit-remote-server'
 import { cases, rows } from 'foldkit-entity/conformance'
 import { Query } from 'foldkit-entity'
@@ -27,9 +28,20 @@ const collection = () => {
   return made as never
 }
 
+/** Whether a case orders by a collation this engine does not have: anything but binary. */
+const otherCollation = (c: (typeof cases)[number]) =>
+  Query.orderFor(c.body, c.input).some(term =>
+    Option.exists(term.collation, collation => collation._tag !== 'Binary'),
+  )
+
 /** The cases this engine declares it can run. */
-const runnable = cases.filter(c => Query.unsupported(c.body, supported).length === 0)
+const runnable = cases.filter(
+  c => Query.unsupported(c.body, supported).length === 0 && !otherCollation(c),
+)
 const refused = cases.filter(c => Query.unsupported(c.body, supported).length > 0)
+const uncollated = cases.filter(
+  c => Query.unsupported(c.body, supported).length === 0 && otherCollation(c),
+)
 
 describe('A third interpreter, on the cases it declares it runs', () => {
   it.each(runnable.map(c => ({ ...c, name: c.what })))(
@@ -55,6 +67,15 @@ describe('What it refuses, and why that is the point', () => {
 
     for (const { body, input } of refused) {
       expect(() => run(body, input, collection(), undefined)).toThrow(TanstackCompileError)
+    }
+  })
+
+  it('refuses an order by a collation it cannot honour, rather than sorting its own way', () => {
+    expect(uncollated.length).toBeGreaterThan(0)
+    for (const { body, input } of uncollated) {
+      expect(() =>
+        createLiveQueryCollection(q => run(body, input, collection(), q) as never),
+      ).toThrow(TanstackCompileError)
     }
   })
 

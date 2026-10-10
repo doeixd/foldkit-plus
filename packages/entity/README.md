@@ -543,6 +543,32 @@ is the fixed terms for one input, which is what every interpreter sorts by.
 **Every order is total.** `orderFor` ends it on the Entity's id, ascending,
 unless the terms already read the id, so rows with equal keys come out in one
 order on every interpreter rather than each breaking ties its own way.
+
+**How text orders is declared, or left to the server.** Left unsaid, SQLite
+compares bytes, Postgres follows the database's locale and a JavaScript sort
+follows UTF-16 code units. A field declares its collation, and every
+interpreter that can honour it orders the same; one that cannot refuses:
+
+```ts
+const Tagged = Entity.define('Tagged', Schema.Struct({ id: Schema.String, name: Schema.String })).pipe(
+  Entity.annotateMembers({ name: Collation.of(Collation.asciiFold) }),
+)
+const byName = Query.from(Tagged).pipe(Query.orderBy(Order.asc(Tagged.fields.name)))
+Query.placement(byName, {}) // { _tag: 'Placeable' }
+```
+
+- `Collation.binary` is code point order: SQLite `BINARY`, Postgres
+  `COLLATE "C"`. An id is `binary` unless it says otherwise.
+- `Collation.asciiFold` folds ASCII letters, then compares by code point:
+  SQLite `NOCASE`, Postgres `lower(x) COLLATE "C"`.
+- `Collation.locale('en-US')` is the backend's own, ordered on the server and
+  never by a client.
+
+A term overrides its field's: `Order.asc(field, { collation })`.
+`Query.placement(query, input)` says whether a client can order the rows exactly
+as the server does: every term over a number or a boolean, or over text with a
+portable collation. A body with no order, text with none declared, or a locale
+is `NotPlaceable`, with the reason.
 `foldkit-crud`'s `Sort.make(['title', 'id']).Schema` is such a sort.
 
 The list of predicates **is** the conjunction — which is why no `Expr.and`
@@ -629,6 +655,8 @@ from queries, not from what a database could express.
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |
 | `Order.asc(expr, { nulls? })` / `Order.desc(expr, { nulls? })` | One term of an ordering, over a field or a scalar. Rows without a value go last ascending and first descending unless `nulls` says otherwise; every interpreter is told, since databases disagree when it is unsaid. |
+| `Collation.binary` / `.asciiFold` / `.locale(name)` / `.of(collation)` | How a text field orders, as member metadata; see above. |
+| `Query.placement(query, input)` | `Placeable`, or `NotPlaceable` with why: whether a client can order as the server does. |
 | `Order.chosen(sort, choices)` | The field an input's sort names (`{ by, direction }`, or `null` for none), among `choices`. |
 | `dependenciesOf(...nodes)` | The distinct fields, inputs, and operations those expressions use. |
 | `Query.from(entity)` | Every row of an Entity: the query each step narrows. |

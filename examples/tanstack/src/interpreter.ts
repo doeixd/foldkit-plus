@@ -14,6 +14,7 @@
  * question: does a body mean the same thing to an engine nobody here designed?
  */
 import { and, eq, isNull, not, type Collection } from '@tanstack/db'
+import { Option } from 'effect'
 import { Query as Relational, isPredicate } from 'foldkit-entity'
 import type { AnyExpr, AnyQuery, Operandish, Operation, Predicate } from 'foldkit-entity'
 
@@ -125,14 +126,22 @@ export const run = (
       throw new TanstackCompileError('this interpreter orders by fields only')
     }
     const key = term.expr.key
-    // This engine's own collation is used, not overridden. Running the
-    // conformance suite here is what found that text ordering had no stated
-    // collation at all; §6.0.1 now puts it outside the conformant subset,
-    // because no rule exists that SQLite, Postgres and this engine can all be
-    // held to. So this sorts by locale, as it would for anyone using it.
+    // A declared collation is honoured or refused. `binary` is this engine's
+    // `lexical`, JavaScript's `<`: by UTF-16 code unit, which is code point
+    // order except for a character past U+FFFF against one from U+E000 to
+    // U+FFFF, a range the conformance suite does not reach. `asciiFold` is
+    // refused: this engine's `lower` folds every letter, not ASCII alone.
+    // Text with no declared collation sorts by locale, as it would for anyone.
+    const collation = Option.getOrUndefined(term.collation)
+    if (collation !== undefined && collation._tag !== 'Binary') {
+      throw new TanstackCompileError(
+        `this engine cannot order "${key}" by the ${collation._tag} collation the query declares`,
+      )
+    }
     built = built.orderBy(({ row }: { row: any }) => row[key], {
       direction: term.direction,
       nulls: term.nulls,
+      ...(collation === undefined ? {} : { stringSort: 'lexical' as const }),
     })
   }
   return built

@@ -2,7 +2,7 @@
 
 **Status:** Phases 0–2 and 4–6 done, 2026-10-10; Phase 3 in part (each
 section's *As built*). Part two (§16), placing rows in lists instead of
-refetching them: Phase 7 done, Phases 8–12 not started. §15 records the decisions taken while planning, each against the
+refetching them: Phases 7 and 8 done, Phases 9–12 not started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -1073,6 +1073,31 @@ them):
 - **Exit:** the order cases pass on every subject; the evaluator's text
   comparison is by code point; the registry declares `binary` on its text
   columns, which is how its SQLite orders them today.
+
+**As built** (`10e98adf` for nulls, then collation):
+
+- **Nulls fixed a live bug.** The keyset predicate assumed Postgres's
+  placement while the `ORDER BY` said nothing, so SQLite, which puts nulls
+  first ascending, could skip or repeat rows when paging a nullable column.
+  Every term now says where they go, the compiler emits `NULLS FIRST/LAST`,
+  and the Drizzle conformance harness pages every ordered case two rows at a
+  time on SQLite and Postgres.
+- **Collation is on the field node.** `FieldExpr` carries the field's
+  declared collation (an id `binary` by default), so a chosen order's choices
+  and the id tie-break keep it; a term may override it.
+- **The keyset is collated too.** A comparison under `asciiFold` on Postgres
+  lowers the cursor value as well as the column; `binary` is said on a
+  Postgres column only when it is text, since a `uuid` takes no collation and
+  orders by bytes already.
+- **The example engines.** TanStack's `lexical` sort is code units, so it
+  meets `binary` except past U+FFFF against U+E000 to U+FFFF, which its code
+  says; it refuses `asciiFold`, its `lower` folding every letter. LiveStore is
+  SQLite's `BINARY` and refuses the rest, and refuses nulls placed against
+  SQLite's default except over the id.
+- **`Query.placement` is a value, not yet used.** Phase 10 reads it; nothing
+  else does yet.
+- **The registry does not declare `binary` yet.** Its text sorts work as they
+  did; declaring it is part of making its list placeable, with Phase 9.
 
 #### Phase 9: where a row falls against a loaded window
 

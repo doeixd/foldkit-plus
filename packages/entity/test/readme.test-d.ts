@@ -3,6 +3,7 @@ import { Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { expectTypeOf } from 'vitest'
 import {
+  Collation,
   Derived,
   Entity,
   Expr,
@@ -13,6 +14,7 @@ import {
   dependenciesOf,
   type Dependencies,
   type InputExpr,
+  type Placement,
   type QueryDependencies,
   type BoundWrite,
   type EntityRef,
@@ -177,6 +179,14 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
       Query.orderBy(Order.chosen(sort, { title: Blog.Post.fields.title, id: Blog.Post.fields.id })),
     )
   expectTypeOf(sorted(Expr.input('sort', PostSort))).toEqualTypeOf<Query<typeof Blog.Post>>()
+
+  // How text orders is declared, or left to the server.
+  const Tagged = Entity.define(
+    'Tagged',
+    Schema.Struct({ id: Schema.String, name: Schema.String }),
+  ).pipe(Entity.annotateMembers({ name: Collation.of(Collation.asciiFold) }))
+  const byName = Query.from(Tagged).pipe(Query.orderBy(Order.asc(Tagged.fields.name)))
+  expectTypeOf(Query.placement(byName, {})).toEqualTypeOf<Placement>()
 }
 
 {

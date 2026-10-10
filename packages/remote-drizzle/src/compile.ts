@@ -23,7 +23,8 @@ import {
   type SQL,
   type Table,
 } from 'drizzle-orm'
-import { PgTable } from 'drizzle-orm/pg-core'
+import { PgColumn, PgTable } from 'drizzle-orm/pg-core'
+import { Option } from 'effect'
 import { Query, isPredicate } from 'foldkit-entity'
 import type {
   AnyExpr,
@@ -246,10 +247,13 @@ export const compileOrderBy = (
         `query "${query}" orders by something that is not a field, which this compiler cannot run yet`,
       )
     }
-    return {
-      column: columnFor(target, term.expr.key, query),
-      direction: term.direction,
-      nulls: term.nulls,
+    const column = columnFor(target, term.expr.key, query)
+    const collation = Option.getOrUndefined(term.collation)
+    if (collation?._tag === 'Locale' && !is(column, PgColumn)) {
+      throw new QueryCompileError(
+        `query "${query}" orders "${term.expr.key}" by the "${collation.locale}" collation, and SQLite has no locales`,
+      )
     }
+    return { column, direction: term.direction, nulls: term.nulls, collation }
   })
 }

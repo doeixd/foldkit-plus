@@ -118,6 +118,14 @@ export const compile = (
         `this engine cannot put rows without "${term.expr.key}" ${term.nulls}, where the query asks`,
       )
     }
+    // Its order is SQLite's own, `BINARY`: a declared `binary` is what it does
+    // anyway, and any other collation is one it has no way to say.
+    // This example resolves its own `effect`, so the Option is read by its tag.
+    if (term.collation._tag === 'Some' && term.collation.value._tag !== 'Binary') {
+      throw new LiveStoreCompileError(
+        `this engine cannot order "${term.expr.key}" by any collation but SQLite's binary one`,
+      )
+    }
     built = built.orderBy(term.expr.key, term.direction)
   }
 

@@ -22,6 +22,8 @@
  * `null = null` is unknown in SQL and a row is not matched by it, where
  * JavaScript would happily call the two equal.
  */
+import { Option } from 'effect'
+import type { Collation } from './collation.js'
 import { Query, isPredicate } from './expr.js'
 import type { AnyExpr, AnyQuery, Operandish, Operation, OrderTerm, Predicate } from './expr.js'
 
@@ -116,9 +118,30 @@ const matches = (body: AnyQuery, row: Row, input: Row): boolean =>
 /** The kinds of value this interpreter orders by; every key of one term must share one. */
 const comparable = new Set(['string', 'number', 'boolean'])
 
-const compare = (left: unknown, right: unknown): number => {
+/**
+ * Text by code point, as SQLite's `BINARY` and Postgres's `"C"` compare it.
+ * JavaScript's `<` compares UTF-16 code units, which puts a character past
+ * U+FFFF (two units, the first from U+D800) before U+E000 to U+FFFF, where
+ * every byte-ordered backend puts it after.
+ */
+const byCodePoint = (left: string, right: string): number => {
+  let i = 0
+  let j = 0
+  while (i < left.length && j < right.length) {
+    const a = left.codePointAt(i)!
+    const b = right.codePointAt(j)!
+    if (a !== b) return a < b ? -1 : 1
+    i += a > 0xffff ? 2 : 1
+    j += b > 0xffff ? 2 : 1
+  }
+  return i < left.length ? 1 : j < right.length ? -1 : 0
+}
+
+/** Two keys of one term, text by its collation (code point when none is declared). */
+const compare = (left: unknown, right: unknown, collation: Option.Option<Collation>): number => {
   if (typeof left === 'string' && typeof right === 'string') {
-    return left < right ? -1 : left > right ? 1 : 0
+    const fold = Option.exists(collation, declared => declared._tag === 'AsciiFold')
+    return fold ? byCodePoint(foldAscii(left), foldAscii(right)) : byCodePoint(left, right)
   }
   if (typeof left === 'boolean' && typeof right === 'boolean') {
     return Number(left) - Number(right)
@@ -138,6 +161,11 @@ const checkOrder = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, q
     if (term.expr._tag !== 'Field') {
       throw new QueryEvaluateError(
         `query "${query}" orders by something that is not a field, which this interpreter cannot run yet`,
+      )
+    }
+    if (Option.exists(term.collation, declared => declared._tag === 'Locale')) {
+      throw new QueryEvaluateError(
+        `query "${query}" orders "${term.expr.key}" by a backend's locale collation, which only that backend has`,
       )
     }
     const key = term.expr.key
@@ -171,7 +199,7 @@ const ordered = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, quer
         if (absentLeft && absentRight) continue
         return absentLeft === (term.nulls === 'first') ? -1 : 1
       }
-      const sign = compare(left[key], right[key])
+      const sign = compare(left[key], right[key], term.collation)
       if (sign !== 0) return term.direction === 'asc' ? sign : -sign
     }
     return 0

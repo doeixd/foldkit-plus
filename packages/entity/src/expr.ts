@@ -11,7 +11,8 @@
  * operation here is one a real query in this repository needs; the set grows
  * from queries, not from what a database could express.
  */
-import { Match, Pipeable, Schema } from 'effect'
+import { Match, Option, Pipeable, Schema, SchemaAST } from 'effect'
+import { Collation } from './collation.js'
 import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 
 /** A constant the query was written with. */
@@ -29,6 +30,12 @@ export interface FieldExpr<T> {
   readonly owner: EntityIdentity<string>
   readonly key: string
   readonly schema: Schema.Codec<T, unknown>
+  /**
+   * How it compares when ordered by, as the field declares (`Collation.of`).
+   * An id is `binary` unless it says otherwise: its order need only be total
+   * and agreed, and every order ends on it.
+   */
+  readonly collation: Option.Option<Collation>
 }
 
 /**
@@ -159,6 +166,9 @@ const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): Field
     owner: field.owner,
     key: field.key,
     schema: field.schema as unknown as Schema.Codec<unknown, unknown>,
+    collation: Option.orElse(Collation.declared(field.metadata), () =>
+      field.key === 'id' ? Option.some(Collation.binary) : Option.none(),
+    ),
   })
 
 const predicateTags = new Set(['Eq', 'Null', 'Contains'])
@@ -311,11 +321,18 @@ export interface OrderTerm {
    * a term asks otherwise, which is Postgres's.
    */
   readonly nulls: 'first' | 'last'
+  /**
+   * How text compares, when the term orders text: the term's own, or its
+   * field's. None leaves it to the backend, which a client cannot match.
+   */
+  readonly collation: Option.Option<Collation>
 }
 
 /** What a term may say besides its operand. */
 export interface TermOptions {
   readonly nulls?: 'first' | 'last' | undefined
+  /** Overrides the field's declared collation for this term. */
+  readonly collation?: Collation | undefined
 }
 
 /** A term, its nulls placed by `options` or by the direction's default. */
@@ -325,6 +342,12 @@ const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {
     direction,
     expr,
     nulls: options.nulls ?? (direction === 'asc' ? 'last' : 'first'),
+    collation: Option.orElse(Option.fromUndefinedOr(options.collation), () =>
+      Match.value(expr).pipe(
+        Match.tag('Field', field => field.collation),
+        Match.orElse(() => Option.none<Collation>()),
+      ),
+    ),
   })
 
 /** How a list is sorted, as its input holds it: one of its named orders, which way, or none. */
@@ -384,6 +407,50 @@ export const Order = {
     })
   },
 }
+
+/**
+ * Whether a client can order rows the way the server does, for one input: the
+ * answer `Query.placement` gives, and the reason when it cannot.
+ */
+export type Placement =
+  { readonly _tag: 'Placeable' } | { readonly _tag: 'NotPlaceable'; readonly reason: string }
+
+const placeable: Placement = Object.freeze({ _tag: 'Placeable' })
+const notPlaceable = (reason: string): Placement => Object.freeze({ _tag: 'NotPlaceable', reason })
+
+/** Whether values encoded by `ast` order the same everywhere: numbers and booleans, never text. */
+const ordersIntrinsically = (ast: SchemaAST.AST): boolean =>
+  SchemaAST.isNumber(ast) ||
+  SchemaAST.isBoolean(ast) ||
+  (SchemaAST.isLiteral(ast) && typeof ast.literal !== 'string') ||
+  (SchemaAST.isUnion(ast) && ast.types.every(ordersIntrinsically))
+
+/** Why a term cannot be placed by a client, if it cannot. */
+const unplaceable = (orderTerm: OrderTerm): Option.Option<string> =>
+  Match.value(orderTerm.expr).pipe(
+    Match.tag('Field', field =>
+      Option.match(orderTerm.collation, {
+        onNone: () =>
+          ordersIntrinsically(Schema.toEncoded(field.schema).ast)
+            ? Option.none()
+            : Option.some(
+                `it orders by ${field.owner.name}.${field.key}, text with no declared collation`,
+              ),
+        onSome: collation =>
+          Match.value(collation).pipe(
+            Match.tagsExhaustive({
+              Binary: () => Option.none<string>(),
+              AsciiFold: () => Option.none<string>(),
+              Locale: ({ locale }) =>
+                Option.some(
+                  `it orders ${field.owner.name}.${field.key} by the backend's "${locale}" collation`,
+                ),
+            }),
+          ),
+      }),
+    ),
+    Match.orElse(() => Option.some('it orders by something that is not a field')),
+  )
 
 /** Each Entity's id tie-break, made once, so a resolved order reuses one term. */
 const idTerms = new WeakMap<AnyEntity, OrderTerm>()
@@ -706,6 +773,23 @@ export const Query = {
     // Every field an order reads is this Entity's: `orderBy` refuses another's.
     const endsOnId = terms.some(term => term.expr._tag === 'Field' && term.expr.key === 'id')
     return endsOnId ? terms : [...terms, id]
+  },
+
+  /**
+   * Whether a client can order this query's rows exactly as the server does,
+   * for one input: every term over a number or a boolean, or over text with a
+   * portable collation (`binary`, `asciiFold`). A body that names no order
+   * leaves it to the server, and is never placeable.
+   */
+  placement: (self: AnyQuery, input: Readonly<Record<string, unknown>>): Placement => {
+    if (self.orderBy.length === 0) {
+      return notPlaceable("its order is the server's: the body names none")
+    }
+    for (const orderTerm of Query.orderFor(self, input)) {
+      const reason = unplaceable(orderTerm)
+      if (Option.isSome(reason)) return notPlaceable(reason.value)
+    }
+    return placeable
   },
 
   /**

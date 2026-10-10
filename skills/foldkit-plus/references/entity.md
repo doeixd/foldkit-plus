@@ -264,6 +264,10 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   (Crud's `Sort.make(...).Schema`). Every name needs a field, or it does not compile;
   `null` chooses none. `Query.orderFor(query, input)` resolves it for one input and
   ends every order on the id, so ties break the same way on every interpreter.
+- **Text orders by a declared collation, or by the server:** `Entity.annotateMembers({ name:
+  Collation.of(Collation.asciiFold) })`; `binary` (code point; ids default to it), `asciiFold`
+  (ASCII folded), `locale(name)` (server only). `Query.placement(query, input)` is `Placeable`
+  when every term is a number, boolean, or portably collated text.
 - **Nulls are placed by the term:** last ascending, first descending, or
   `Order.asc(field, { nulls: 'first' })`. Every interpreter is told (Drizzle
   compiles `NULLS FIRST/LAST`), so SQLite and Postgres agree and page alike.

@@ -981,6 +981,7 @@ export const Derived = {
 }
 
 export * from './expr.js'
+export * from './collation.js'
 export * from './words.js'
 export * from './shape.js'
 // The reference semantics of the IR above. The conformance suite that proves

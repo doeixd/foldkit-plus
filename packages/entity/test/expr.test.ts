@@ -1,6 +1,7 @@
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
+  Collation,
   Entity,
   Expr,
   Order,
@@ -19,7 +20,13 @@ describe('Expr builds a comparison as data', () => {
 
     expect(predicate).toEqual({
       _tag: 'Eq',
-      left: { _tag: 'Field', owner: Post.identity, key: 'title', schema: Post.fields.title.schema },
+      left: {
+        _tag: 'Field',
+        owner: Post.identity,
+        key: 'title',
+        schema: Post.fields.title.schema,
+        collation: Option.none(),
+      },
       right: { _tag: 'Literal', value: 'hello' },
     })
   })
@@ -63,6 +70,8 @@ describe('Order is a term over a scalar', () => {
       direction: 'asc',
       expr: Expr.field(Post.fields.id),
       nulls: 'last',
+      // An id orders by code point unless its field says otherwise.
+      collation: Option.some(Collation.binary),
     })
     // Rows without a value: last ascending and first descending, unless said.
     expect(Order.desc(Post.fields.id).nulls).toBe('first')

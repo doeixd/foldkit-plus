@@ -14,18 +14,77 @@
  * one of them only. The default is Postgres's (ASC: nulls last, DESC: nulls
  * first). A null cursor value pages by `IS NULL`, never `col > NULL`.
  */
-import { and, eq, gt, isNotNull, isNull, lt, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
+import {
+  and,
+  eq,
+  gt,
+  is,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from 'drizzle-orm'
+import { PgColumn } from 'drizzle-orm/pg-core'
+import { Match, Option } from 'effect'
+import type { Collation } from 'foldkit-entity'
 
 export interface OrderTerm {
   readonly column: AnyColumn
   readonly direction: 'asc' | 'desc'
   /** Where rows without a value go; last ascending and first descending when unsaid. */
   readonly nulls?: 'first' | 'last' | undefined
+  /** How text compares; the database's own when unsaid. */
+  readonly collation?: Collation | undefined
 }
 
 /** Whether a term puts rows without a value after every row with one, in its own direction. */
 const nullsLast = (term: OrderTerm): boolean =>
   (term.nulls ?? (term.direction === 'asc' ? 'last' : 'first')) === 'last'
+
+/** The Postgres column types a collation applies to; an id of type `uuid` takes none. */
+const postgresText = new Set(['PgText', 'PgVarchar', 'PgChar'])
+
+/**
+ * The column under the term's collation, and a cursor value made comparable to
+ * it; none when the column compares as it is (no collation, or `binary` on a
+ * Postgres column that is not text, a `uuid` say, which takes no collation and
+ * orders by bytes already). Folding ASCII on Postgres lowers both sides; every
+ * other collation is said on the column alone, which SQL applies to the
+ * comparison.
+ */
+const collated = (
+  term: OrderTerm,
+): Option.Option<{ readonly key: SQL; readonly value: (value: unknown) => unknown }> => {
+  const { column, collation } = term
+  const plain = (value: unknown) => value
+  if (collation === undefined) return Option.none()
+  const postgres = is(column, PgColumn)
+  return Match.value(collation).pipe(
+    Match.tagsExhaustive({
+      Binary: () =>
+        !postgres
+          ? Option.some({ key: sql`${column} collate binary`, value: plain })
+          : postgresText.has(column.columnType)
+            ? Option.some({ key: sql`${column} collate "C"`, value: plain })
+            : Option.none(),
+      AsciiFold: () =>
+        Option.some(
+          postgres
+            ? {
+                key: sql`lower(${column}) collate "C"`,
+                value: (value: unknown) => sql`lower(${value})`,
+              }
+            : { key: sql`${column} collate nocase`, value: plain },
+        ),
+      // The compiler refuses a locale on SQLite, which has none.
+      Locale: ({ locale }) =>
+        Option.some({ key: sql`${column} collate ${sql.identifier(locale)}`, value: plain }),
+    }),
+  )
+}
 
 /**
  * The order a client asked for, as order terms. `sort` names one of the orders
@@ -43,9 +102,14 @@ export const sortTerms = (
 
 export type Traversal = 'forward' | 'backward'
 
-/** Equality that treats a null cursor value as `IS NULL`, not `= NULL`. */
-const cursorEquality = (column: AnyColumn, value: unknown): SQL =>
-  value === null ? isNull(column) : eq(column, value)
+/** Equality under the term's collation, a null cursor value as `IS NULL`, not `= NULL`. */
+const cursorEquality = (term: OrderTerm, value: unknown): SQL => {
+  if (value === null) return isNull(term.column)
+  return Option.match(collated(term), {
+    onNone: () => eq(term.column, value),
+    onSome: ({ key, value: comparable }) => eq(key, comparable(value)),
+  })
+}
 
 /**
  * Rows after (forward) or before (backward) the cursor on one column, nulls
@@ -59,7 +123,12 @@ const cursorCompare = (term: OrderTerm, value: unknown, traversal: Traversal): S
   const last = nullsLast(term)
   // After the cursor, forward; before it, backward.
   if (value === null) return forward === last ? sql`false` : isNotNull(column)
-  const beyond = (term.direction === 'asc') === forward ? gt(column, value) : lt(column, value)
+  const after = (term.direction === 'asc') === forward
+  const beyond = Option.match(collated(term), {
+    onNone: () => (after ? gt(column, value) : lt(column, value)),
+    onSome: ({ key, value: comparable }) =>
+      after ? gt(key, comparable(value)) : lt(key, comparable(value)),
+  })
   return forward === last ? or(beyond, isNull(column))! : beyond
 }
 
@@ -87,7 +156,7 @@ export function keysetWhere(
   const branches = terms.map((term, index) => {
     const equalities = terms
       .slice(0, index)
-      .map((previous, previousIndex) => cursorEquality(previous.column, values[previousIndex]))
+      .map((previous, previousIndex) => cursorEquality(previous, values[previousIndex]))
     const branch = cursorCompare(term, values[index], traversal)
     return equalities.length === 0 ? branch : and(...equalities, branch)!
   })
@@ -106,7 +175,11 @@ export const orderByTerms = (
     const forward = traversal === 'forward'
     const ascending = (term.direction === 'asc') === forward
     const last = nullsLast(term) === forward
-    return sql`${term.column} ${ascending ? sql`asc` : sql`desc`} ${last ? sql`nulls last` : sql`nulls first`}`
+    const key = Option.match(collated(term), {
+      onNone: () => sql`${term.column}`,
+      onSome: ({ key }) => key,
+    })
+    return sql`${key} ${ascending ? sql`asc` : sql`desc`} ${last ? sql`nulls last` : sql`nulls first`}`
   })
 
 /** The tuple columns to re-read for a cursor, keyed as Drizzle select aliases. */

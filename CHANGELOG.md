@@ -170,6 +170,16 @@ version changed; `pnpm` skips versions already in the registry.
   fixed terms; the evaluator, `foldkit-remote-drizzle`'s compiler and the
   in-memory server sort by it, and impact judges a list by the field its own
   input chose. The conformance suite has chosen-order cases.
+- **`foldkit-entity`: a text field declares how it orders, and a query says
+  whether a client can order as the server does.** `Collation.binary`,
+  `.asciiFold` and `.locale(name)`, attached with `Collation.of` or on a term
+  (`Order.asc(field, { collation })`); an id is `binary` by default. The
+  reference evaluator compares text by code point (it compared UTF-16 code
+  units), folds ASCII under `asciiFold` and refuses a locale;
+  `foldkit-remote-drizzle` compiles each, in the order and the keyset; TanStack
+  and LiveStore honour `binary` and refuse what they cannot say.
+  `Query.placement(query, input)` is `Placeable` or `NotPlaceable` with why.
+  The conformance suite orders text under `binary` and `asciiFold`.
 - **Where rows without a value go is said, and agreed.** An `OrderTerm` has
   `nulls: 'first' | 'last'`, last ascending and first descending by default
   (`Order.asc(field, { nulls })` to change it). The reference evaluator places

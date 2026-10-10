@@ -21,7 +21,7 @@
  * different things.
  */
 import { Schema, SchemaGetter } from 'effect'
-import { Entity, Expr, Order, Query, type AnyQuery } from '../index.js'
+import { Collation, Entity, Expr, Order, Query, type AnyQuery } from '../index.js'
 
 /**
  * A `Date` on the way in, an ISO string on the wire — the one fixture whose
@@ -356,7 +356,24 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     input: { sort: null },
     expected: ['a', 'b', 'c', 'd', 'e'],
   },
-  // Ordering by text is deliberately not here. How text compares is the
+  // ---- text, ordered by a declared collation -------------------------------
+  {
+    what: 'orders text by code point under a binary collation',
+    body: from.pipe(
+      Query.orderBy(Order.asc(Subject.fields.label, { collation: Collation.binary })),
+    ),
+    input: {},
+    expected: ['d', 'a', 'c', 'b', 'e'],
+  },
+  {
+    what: 'orders text with ASCII case folded under an asciiFold collation',
+    body: from.pipe(
+      Query.orderBy(Order.asc(Subject.fields.label, { collation: Collation.asciiFold })),
+    ),
+    input: {},
+    expected: ['d', 'a', 'b', 'c', 'e'],
+  },
+  // Ordering by text with no declared collation is deliberately not here. How text compares is the
   // backend's — SQLite by code point, TanStack by locale, Postgres by whatever
   // the database was created with — and §6.0.1 puts it outside the conformant
   // subset rather than pretending one of them is the rule. A case asserting an

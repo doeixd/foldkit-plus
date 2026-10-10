@@ -6,8 +6,9 @@
  */
 import { eq, isNotNull, type SQL } from 'drizzle-orm'
 import { pgTable, PgDialect, text, uuid } from 'drizzle-orm/pg-core'
+import { sqliteTable, text as sqliteText } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
+import { Collation, Entity as DomainEntity, Expr, Order, type OrderTerm } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
 import { RemoteServerError } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -203,6 +204,55 @@ describe('A compiled body is the query the binding used to spell out', () => {
     const Unordered = Query.define('Unordered', {}, () => Query.from(Post))
 
     expect(() => query(Unordered, { entity: PostBinding })).toThrow('has a body with no ordering')
+  })
+
+  it('compiles each collation on Postgres, and none on an id of type uuid', async () => {
+    const orderedBy = async (...terms: ReadonlyArray<OrderTerm>) => {
+      const Ordered = Query.define('Ordered', {}, () =>
+        Query.from(Post).pipe(Query.orderBy(...terms)),
+      )
+      const { database, calls } = fakeDatabase()
+      await Effect.runPromise(
+        query(Ordered, { entity: PostBinding })
+          .run({ input: {}, window: { first: 5 }, principal: null })
+          .pipe(Effect.provideService(DrizzleDatabase, database)),
+      )
+      return (calls[0]?.orderBy ?? []).map(term => rendered(term).sql)
+    }
+    expect(await orderedBy(Order.asc(Post.fields.slug, { collation: Collation.binary }))).toEqual([
+      '"posts"."slug" collate "C" asc nulls last',
+      '"posts"."id" asc nulls last',
+    ])
+    expect(
+      await orderedBy(Order.asc(Post.fields.slug, { collation: Collation.asciiFold })),
+    ).toEqual(['lower("posts"."slug") collate "C" asc nulls last', '"posts"."id" asc nulls last'])
+    expect(
+      await orderedBy(Order.desc(Post.fields.slug, { collation: Collation.locale('en-US') })),
+    ).toEqual(['"posts"."slug" collate "en-US" desc nulls first', '"posts"."id" asc nulls last'])
+  })
+
+  it('refuses a locale collation on SQLite, which has none', () => {
+    const notes = sqliteTable('notes', {
+      id: sqliteText('id').primaryKey(),
+      slug: sqliteText('slug'),
+    })
+    const Note = DomainEntity.define(
+      'Note',
+      Schema.Struct({ id: Schema.String, slug: Schema.String }),
+    )
+    const Ordered = Query.define('OrderedNotes', {}, () =>
+      Query.from(Note).pipe(
+        Query.orderBy(Order.asc(Note.fields.slug, { collation: Collation.locale('en-US') })),
+      ),
+    )
+    const { database } = fakeDatabase()
+    return expect(
+      Effect.runPromise(
+        query(Ordered, { entity: entity('Note', notes) })
+          .run({ input: {}, window: { first: 5 }, principal: null })
+          .pipe(Effect.provideService(DrizzleDatabase, database)),
+      ),
+    ).rejects.toThrow(/SQLite has no locales/)
   })
 
   it('refuses an orderBy beside a body that declares its order, which the client reads', () => {
