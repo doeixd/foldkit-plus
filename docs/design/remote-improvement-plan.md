@@ -2,7 +2,7 @@
 
 **Status:** Phases 0–2 and 4–6 done, 2026-10-10; Phase 3 in part (each
 section's *As built*). Part two (§16), placing rows in lists instead of
-refetching them, is planned: Phases 7–12, none started. §15 records the decisions taken while planning, each against the
+refetching them: Phase 7 done, Phases 8–12 not started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -1019,6 +1019,29 @@ the server is asked again only where placement refuses
   bodies, and `Query.dependencies(body).order` names them; a test of a
   mutation changing the sorted column of a held row fails before the
   conservative rule and passes after it.
+
+**As built** (`a28e1ae1`, `d86a2527`, `b5411d75`, and the total order after
+them):
+
+- **Conservative impact first.** A body with no order is invalidated by any
+  change to a row it holds; the test failed before the rule.
+- **`Order.chosen` is an IR node**, and `OrderTerm` gained `_tag: 'Term'`, so
+  `orderBy` is a typed union and every interpreter that walked it failed to
+  compile until it resolved through `Query.orderFor`: the evaluator, the
+  Drizzle compiler (per request now), the in-memory server, TanStack and
+  LiveStore. The conformance suite runs chosen orders on all six.
+- **Impact reads the chosen field from the connection's own input**, not
+  every field the sort could choose.
+- **A body that declares its order refuses a server `orderBy` beside it.**
+  Overriding it was a documented feature; it is the disagreement this part
+  removes.
+- **The tie-break is in `orderFor`, not `Query.from`.** Appending the id at
+  `from` would put a later `orderBy`'s terms after it, less significant than
+  the id. The adapter keeps its own append for `Query.make` lists, which have
+  no body to resolve.
+- **The registry declares its sort**; the entity example's list is a
+  `Query.make`, so it stays a server sort, invalidated by any change, until it
+  gains a body.
 
 #### Phase 8: collation and nulls, declared and conformant
 

@@ -309,6 +309,12 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     expected: ['e', 'c', 'd', 'a', 'b'],
   },
   {
+    what: 'breaks a tie by the id where the order does not say how',
+    body: from.pipe(Query.orderBy(Order.desc(Subject.fields.rank))),
+    input: {},
+    expected: ['e', 'c', 'd', 'a', 'b'],
+  },
+  {
     what: 'orders by the field the input chose, ascending',
     body: from.pipe(chosen),
     input: { sort: { by: 'rank', direction: 'asc' } },

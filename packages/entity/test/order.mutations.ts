@@ -88,4 +88,22 @@ export default [
     edits: [{ file: compile, find: 'terms = Query.orderFor(body, input)', replace: 'terms = []' }],
     tests,
   },
+  {
+    name: 'an order is left without a tie-break',
+    edits: [
+      { file: expr, find: 'return endsOnId ? terms : [...terms, id]', replace: 'return terms' },
+    ],
+    tests,
+  },
+  {
+    name: 'the id is appended to an order that reads it already',
+    edits: [
+      {
+        file: expr,
+        find: 'return endsOnId ? terms : [...terms, id]',
+        replace: 'return [...terms, id]',
+      },
+    ],
+    tests,
+  },
 ]

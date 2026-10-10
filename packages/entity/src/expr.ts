@@ -362,6 +362,20 @@ export const Order = {
   },
 }
 
+/** Each Entity's id tie-break, made once, so a resolved order reuses one term. */
+const idTerms = new WeakMap<AnyEntity, OrderTerm>()
+const idTermOf = (entity: AnyEntity): OrderTerm => {
+  const known = idTerms.get(entity)
+  if (known !== undefined) return known
+  const id = entity.fields.id
+  if (id === undefined) {
+    throw new Error(`[foldkit-entity] ${entity.name} has no id field to break an order's ties by`)
+  }
+  const term: OrderTerm = node({ _tag: 'Term', direction: 'asc', expr: fieldExpr(id) })
+  idTerms.set(entity, term)
+  return term
+}
+
 /** The fixed term a chosen order is for one input, or none for a `null` sort. */
 const chosenTerms = (
   chosen: ChosenOrder,
@@ -648,18 +662,28 @@ export const Query = {
 
   /**
    * The fixed terms this query orders by for one input: each chosen order
-   * resolved to the field its input names, or to nothing for a `null` sort.
-   * What every interpreter sorts by, so all of them read one declaration.
+   * resolved to the field its input names, or to nothing for a `null` sort,
+   * and the Entity's id last, ascending, unless the terms already read it. So
+   * the order is total, and every interpreter breaks ties the same way: one
+   * that broke them its own way would place rows a step apart from another.
    */
-  orderFor: (self: AnyQuery, input: Readonly<Record<string, unknown>>): ReadonlyArray<OrderTerm> =>
-    self.orderBy.flatMap(entry =>
+  orderFor: (
+    self: AnyQuery,
+    input: Readonly<Record<string, unknown>>,
+  ): ReadonlyArray<OrderTerm> => {
+    const terms = self.orderBy.flatMap(entry =>
       Match.value(entry).pipe(
         Match.tagsExhaustive({
           Term: term => [term],
           Chosen: chosen => chosenTerms(chosen, input),
         }),
       ),
-    ),
+    )
+    const id = idTermOf(self.entity)
+    // Every field an order reads is this Entity's: `orderBy` refuses another's.
+    const endsOnId = terms.some(term => term.expr._tag === 'Field' && term.expr.key === 'id')
+    return endsOnId ? terms : [...terms, id]
+  },
 
   /**
    * What the whole query reads: the fields and inputs of every predicate and

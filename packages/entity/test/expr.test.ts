@@ -81,14 +81,18 @@ describe('Order.chosen orders by the field the input names', () => {
     Query.orderBy(Order.chosen(sort, { title: Post.fields.title, id: Post.fields.id })),
   )
 
-  it('resolves, per input, to the one term it names, or to none', () => {
+  it('resolves, per input, to the one term it names, or to none, then the id', () => {
     expect(Query.orderFor(body, { sort: { by: 'title', direction: 'desc' } })).toEqual([
       Order.desc(Post.fields.title),
-    ])
-    expect(Query.orderFor(body, { sort: { by: 'id', direction: 'asc' } })).toEqual([
       Order.asc(Post.fields.id),
     ])
-    expect(Query.orderFor(body, { sort: null })).toEqual([])
+    expect(Query.orderFor(body, { sort: null })).toEqual([Order.asc(Post.fields.id)])
+  })
+
+  it('ends on the id once: an order that reads it already is total', () => {
+    expect(Query.orderFor(body, { sort: { by: 'id', direction: 'desc' } })).toEqual([
+      Order.desc(Post.fields.id),
+    ])
   })
 
   it('refuses an input naming no order it offers, or no direction it knows', () => {

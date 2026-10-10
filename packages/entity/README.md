@@ -539,6 +539,10 @@ const sorted = (sort: InputExpr<typeof PostSort.Type>) =>
 Every name the sort can hold needs a field, or it does not compile. A `null`
 sort chooses none, and the terms after it decide. `Query.orderFor(query, input)`
 is the fixed terms for one input, which is what every interpreter sorts by.
+
+**Every order is total.** `orderFor` ends it on the Entity's id, ascending,
+unless the terms already read the id, so rows with equal keys come out in one
+order on every interpreter rather than each breaking ties its own way.
 `foldkit-crud`'s `Sort.make(['title', 'id']).Schema` is such a sort.
 
 The list of predicates **is** the conjunction — which is why no `Expr.and`
@@ -630,7 +634,7 @@ from queries, not from what a database could express.
 | `Query.from(entity)` | Every row of an Entity: the query each step narrows. |
 | `Query.where(...predicates)` | Pipe step keeping the rows those hold for; conjoins with what is there. |
 | `Query.orderBy(...terms)` | Pipe step reading in that order; appends after existing terms. |
-| `Query.orderFor(query, input)` | The fixed terms it orders by for one input, each chosen order resolved. |
+| `Query.orderFor(query, input)` | The fixed terms it orders by for one input, each chosen order resolved, ending on the id. |
 | `Query.dependencies(query)` | What the whole query reads, with its fields also split by role: `predicate` (can change which rows match) and `order` (can change where a row sits). |
 | `Query.unsupported(query, supported)` | The operations it needs that an interpreter does not run. |
 | `Query.show(query)` / `Expr.show(node)` | The query or expression as readable text, for a person and not for an interpreter. |

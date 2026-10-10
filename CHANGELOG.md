@@ -170,6 +170,10 @@ version changed; `pnpm` skips versions already in the registry.
   fixed terms; the evaluator, `foldkit-remote-drizzle`'s compiler and the
   in-memory server sort by it, and impact judges a list by the field its own
   input chose. The conformance suite has chosen-order cases.
+- **`foldkit-entity`: every resolved order is total.** `Query.orderFor` ends
+  it on the Entity's id unless the terms already read it, so ties break the
+  same way on every interpreter; the evaluator used to leave them in row
+  order while SQL broke them by id.
 - **`foldkit-sync/remote`: a replica's cell edits as Remote overlays.**
   `RemoteEdits.make(Data, Edits).reconcile(model, edits, replica)` shows each
   edit its row has not reached, holds one the journal absorbed while the
