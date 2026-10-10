@@ -142,10 +142,17 @@ const make = <AppModel, Edit extends AnyEdit>(
      * Brings Remote's overlays in line with `slice`: each edit its row has not
      * reached is shown, and each overlay whose edit has left the slice is
      * lifted, unless its row is cached below it, in which case it is held
-     * until a read of the row reaches it. Call it from `update` after every
-     * transition, since a read can land in any Remote Message, and from the
-     * mount's `onReinstall`, which replaces the slice. With nothing to change,
+     * until a read of the row reaches it. This replica's edit the row has
+     * reached with its own value is kept, landed, until the slice drops it, so
+     * a later edit reaching the row live is seen replacing it. Call it from
+     * `Sync.mount`'s `afterUpdate`: a read can land in any Remote Message, and
+     * a replayed durable Message may not touch Remote. With nothing to change,
      * the Model comes back as it was given.
+     *
+     * Only a committed edit can be held: its `at` says which revision has it.
+     * One that leaves the slice straight from pending, committed and absorbed
+     * before this page installed the commit, is lifted, and its row shows the
+     * cached read until it is read again.
      */
     reconcile: (
       model: AppModel,

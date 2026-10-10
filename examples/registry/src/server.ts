@@ -6,7 +6,7 @@
  */
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { applyEdits, bind, databaseLayer, query, sortTerms, source } from 'foldkit-remote-drizzle'
+import { applyEdits, bind, databaseLayer, query, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { type ProductChange, Registry } from './domain.js'
 import { ProductsQuery } from './operations.js'
@@ -109,18 +109,9 @@ export const openServer = (
     server: RemoteServer.make({
       entities: [productSource],
       queries: [
-        query(ProductsQuery, {
-          entity: Db.Product,
-          // Only a UPC is unique, so the adapter breaks ties by id; no sort is id order.
-          orderBy: ({ sort }) =>
-            sortTerms(sort, {
-              upc: products.upc,
-              description: products.description,
-              line: products.line,
-              status: products.status,
-              cents: products.cents,
-            }),
-        }),
+        // The body says the order; only a UPC is unique, so the adapter breaks
+        // ties by id, and no sort is id order.
+        query(ProductsQuery, { entity: Db.Product }),
       ],
     }),
     layer,

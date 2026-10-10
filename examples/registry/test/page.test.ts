@@ -13,13 +13,13 @@
  *   reads the row again;
  * - a committed edit shows until a read of the row has it, by its revision.
  */
-import { Effect, Layer, Option, Stream } from 'effect'
+import { Deferred, Effect, Layer, Option, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { GridFocus } from 'foldkit-data-grid'
 import { Entity } from 'foldkit-entity'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Frames } from 'foldkit-mixins/testing'
-import { Remote, type RemoteRpcClient } from 'foldkit-remote'
+import { Remote, RemoteLiveError, type RemoteRpcClient } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import {
   ReplicaId,
@@ -75,6 +75,8 @@ const serve = () => {
       backend,
       journal,
       handlers: RemoteServer.handlers(backend.server, null, { live: backend.live }),
+      /** Done when this server stops: its open live streams fail, as their connections would. */
+      stopped: Effect.runSync(Deferred.make<void>()),
     }
   }
   let current = start()
@@ -126,17 +128,27 @@ const serve = () => {
       ),
     // A held read holds what a live stream delivers too, so a test sees the
     // page before a row's new revision reaches it by either way.
+    // A stream ends with its server: what it held back is never delivered.
     FoldkitRemoteLive: payload =>
-      Stream.suspend(() =>
-        current.handlers.FoldkitRemoteLive(payload).pipe(Stream.provide(current.backend.layer)),
-      ).pipe(
-        Stream.mapEffect(change =>
-          Effect.as(
-            Effect.promise(() => gate),
-            change,
+      Stream.suspend(() => {
+        const server = current
+        const stopped = Stream.fromEffect(
+          Effect.andThen(
+            Deferred.await(server.stopped),
+            Effect.fail(new RemoteLiveError({ message: 'The server stopped' })),
           ),
-        ),
-      ),
+        )
+        return server.handlers.FoldkitRemoteLive(payload).pipe(
+          Stream.provide(server.backend.layer),
+          Stream.mapEffect(change =>
+            Effect.as(
+              Effect.promise(() => gate),
+              change,
+            ),
+          ),
+          Stream.merge(stopped, { haltStrategy: 'either' }),
+        )
+      }),
   }
   return {
     get backend() {
@@ -147,6 +159,7 @@ const serve = () => {
     },
     /** A fresh table and journal, as a restarted server has: a new epoch. */
     restart: () => {
+      Effect.runSync(Deferred.succeed(current.stopped, undefined))
       current = start()
     },
     setOnline: (value: boolean) => (online = value),
@@ -659,6 +672,13 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
     await exchange()
     await exchange()
     expect(server.backend.row(productId(9))).toMatchObject({ cents: 440, revision: 1 })
+    // The page sees its edit committed before the journal drops it: one that
+    // vanishes straight from pending is not known to be in the table (see
+    // RemoteEdits), and the replica can run two exchanges before the page
+    // installs the first.
+    await vi.waitFor(() =>
+      expect(latest().edits.map(kept => Option.isSome(kept.at))).toEqual([true]),
+    )
 
     // The journal records what the table holds; the exchange drops the edit,
     // and in the same transition this page keeps it, for its row is older.
@@ -738,6 +758,9 @@ test('a server restarted under the page drops what it held of the old history', 
     const release = server.holdReads()
     await exchange()
     await exchange()
+    await vi.waitFor(() =>
+      expect(latest().edits.map(kept => Option.isSome(kept.at))).toEqual([true]),
+    )
     // Absorbed while the cached row is older: held, and the row is asked for.
     await Effect.runPromise(server.journal.absorb)
     await exchange()
