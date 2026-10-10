@@ -14,7 +14,7 @@
  */
 import { Data, Match, Option } from 'effect'
 import { Query as Relational, compareRows, type AnyQuery, type OrderTerm } from 'foldkit-entity'
-import type { Connection } from './connection.js'
+import type { Connection, Edge } from './connection.js'
 import { readField, type EntityStore } from './store.js'
 
 /** Where a row falls in a loaded list. */
@@ -106,3 +106,34 @@ export const placeIn = (
   }
   return RowPlace.Outside()
 }
+
+/** The connection without the edge of `key`, or the connection itself when it holds none. */
+export const withoutEdge = (connection: Connection, key: string): Connection =>
+  connection.segments.some(segment => segment.edges.some(edge => edge.key === key))
+    ? {
+        ...connection,
+        segments: connection.segments.map(segment => ({
+          ...segment,
+          edges: segment.edges.filter(edge => edge.key !== key),
+        })),
+      }
+    : connection
+
+/** The connection with `edge` where `place` says: before an edge, or at a segment's end. */
+export const withEdge = (
+  connection: Connection,
+  added: Edge,
+  place: Extract<RowPlace, { readonly _tag: 'Before' | 'End' }>,
+): Connection => ({
+  ...connection,
+  segments: connection.segments.map((segment, index) => {
+    if (index !== place.segment) return segment
+    const at = Match.value(place).pipe(
+      Match.tagsExhaustive({
+        Before: ({ edge }) => segment.edges.findIndex(held => held.key === edge),
+        End: () => segment.edges.length,
+      }),
+    )
+    return { ...segment, edges: [...segment.edges.slice(0, at), added, ...segment.edges.slice(at)] }
+  }),
+})

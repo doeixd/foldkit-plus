@@ -16,7 +16,9 @@
  */
 import { Query as Relational, dependenciesOf, type OrderTerm } from 'foldkit-entity'
 import { defineTaggedUnion } from 'foldkit/schema'
-import { Schema } from 'effect'
+import { edge, type Connection } from './connection.js'
+import { RowPlace, placeIn, withEdge, withoutEdge } from './placement.js'
+import { Data, Schema } from 'effect'
 import { sameData } from './data.js'
 import { belongsEncoded } from './matching.js'
 import type { NormalizedPatch } from './mutation.js'
@@ -58,20 +60,27 @@ export const changesOf = (
   ...(answer.deleted ?? []).map(gone => EntityChange.Deleted({ entity: gone.entity, id: gone.id })),
 ]
 
-/** Whether a connection stands as it is after a change, or must be fetched again. */
-export const Impact = defineTaggedUnion({
-  Kept: {},
-  Invalidated: { reason: Schema.String },
-})
-export type Impact = typeof Impact.Type
+/**
+ * What a change does to a connection: nothing it shows, a change the client
+ * places itself (`Placed`, the connection as it now is), or a change it
+ * cannot place, for its read entry to fetch again.
+ */
+export type Impact = Data.TaggedEnum<{
+  Kept: {}
+  Placed: { readonly connection: Connection }
+  Invalidated: { readonly reason: string }
+}>
+export const Impact = Data.taggedEnum<Impact>()
 
 /** A loaded connection, as impact needs it. */
 export interface HeldConnection {
   readonly descriptor: QueryDescriptor<string, unknown, unknown>
   /** The connection's input, encoded, as its identity carries it. */
   readonly encoded: Readonly<Record<string, unknown>>
-  /** The rows it holds now. */
+  /** The rows it shows now, overlays included. */
   readonly holds: ReadonlySet<EntityKey>
+  /** Its pages as the server sent them, which a placement edits. */
+  readonly connection: Connection
 }
 
 const kept = Impact.Kept()
@@ -119,23 +128,54 @@ export const impactOn = (
           reason: `${key} changed, and "${descriptor.name}" is ordered by the server, by fields its body does not name`,
         })
       }
-      if (held && touches(dependenciesOf(...order).fields)) {
-        return Impact.Invalidated({
-          reason: `${key} changed a field "${descriptor.name}" is ordered by`,
-        })
-      }
-      if (!touches(roles.predicate)) return kept
+      const reorders = held && touches(dependenciesOf(...order).fields)
+      const refilters = touches(roles.predicate)
+      if (!reorders && !refilters) return kept
 
-      const belongs = belongsEncoded(store, descriptor, connection.encoded, key)
+      // A held row whose order alone changed still matches.
+      const belongs = refilters ? belongsEncoded(store, descriptor, connection.encoded, key) : 'yes'
       if (belongs === 'unknown') {
         return Impact.Invalidated({
           reason: `${key} changed a field "${descriptor.name}" filters on, and the client cannot judge it`,
         })
       }
-      // Held and still matching, or not held and still not matching: the same rows.
-      if (held === (belongs === 'yes')) return kept
-      return Impact.Invalidated({
-        reason: `${key} ${held ? 'no longer matches' : 'now matches'} "${descriptor.name}"`,
+      // Not held and still not matching, or held and still matching where it was.
+      if (!held && belongs === 'no') return kept
+      if (held && belongs === 'yes' && !reorders) return kept
+
+      // The list's rows, or their order, changed: placed where the client can.
+      const pages = connection.connection
+      const inPages = pages.segments.some(segment => segment.edges.some(edge => edge.key === key))
+      if (held && !inPages) {
+        return Impact.Invalidated({
+          reason: `${key} is shown in "${descriptor.name}" by an overlay, which a placement does not move`,
+        })
+      }
+      // Leaving is exact whatever the order: membership is the body's.
+      if (belongs === 'no') return Impact.Placed({ connection: withoutEdge(pages, key) })
+      return RowPlace.$match(placeIn(store, pages, body, connection.encoded, key), {
+        Before: place =>
+          Impact.Placed({
+            connection: withEdge(
+              withoutEdge(pages, key),
+              edge({ entity: change.entity, id: change.id }),
+              place,
+            ),
+          }),
+        End: place =>
+          Impact.Placed({
+            connection: withEdge(
+              withoutEdge(pages, key),
+              edge({ entity: change.entity, id: change.id }),
+              place,
+            ),
+          }),
+        // It belongs to rows not loaded: gone from these, if they showed it.
+        Outside: () => (held ? Impact.Placed({ connection: withoutEdge(pages, key) }) : kept),
+        Unknown: ({ reason }) =>
+          Impact.Invalidated({
+            reason: `${key} ${held ? 'moved in' : 'joined'} "${descriptor.name}", and cannot be placed: ${reason}`,
+          }),
       })
     },
   })

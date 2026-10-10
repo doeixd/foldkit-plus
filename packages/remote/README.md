@@ -1316,10 +1316,17 @@ the store the answer left:
 - a list whose body reads none of the changed fields stands;
 - a row it holds that still matches, or a row it does not hold that still does
   not, leaves it standing;
-- a row that starts or stops matching, a held row whose ordering field changed,
-  or a row the client cannot judge (it lacks a field the body reads)
-  invalidates it, and its read entry fetches it again; a read of it already in
-  flight is restarted, since it could answer with the rows before the write;
+- a held row that stops matching leaves it, with nothing fetched: whether a
+  row belongs is the body's, judged exactly;
+- a row that starts matching, or a held row whose ordering field changed, is
+  placed where the body's order puts it among the rows loaded (`placeIn`), when
+  the order is placeable (`Query.placement`); a row that sorts past what is
+  loaded is left out of it (and out of what showed it), for the next page;
+- anything else invalidates it, and its read entry fetches it again: a row the
+  client cannot judge (it lacks a field the body reads), an order it cannot
+  place (text with no declared collation, the server's own), or a row an
+  optimistic overlay shows; a read of it already in flight is restarted, since
+  it could answer with the rows before the write;
 - a list over a `Query.make` query, which declares no body, is invalidated by
   any change to its Entity;
 - a list whose body declares no order leaves its order to the server, by
@@ -1327,9 +1334,10 @@ the store the answer left:
   it. Declare the order in the body (`Query.orderBy`) to keep a list that a
   change provably did not move.
 
-So a rename updates every view of the row and fetches nothing, and a status
-change refetches the lists filtered by status. Where a joining row goes is the
-server's to say, so a list a row joins is fetched rather than spliced.
+So a rename updates every view of the row and fetches nothing, a status change
+moves a row out of the lists filtered by status and into the others in their
+order, and a price change moves the row within a list sorted by price, all
+without a request.
 `Data.refresh` stays for what an answer cannot say, such as a server-side
 effect on rows it did not return.
 
@@ -1966,8 +1974,8 @@ placeIn(remote.entities, connection, ProjectsByRank.body!, {}, 'Project:p7')
 - `Unknown` is anything not judged exactly: a body that is not placeable, a
   row or an edge lacking a field the order reads, keys that do not compare.
 
-It is pure and changes nothing. Phase 10 of the Remote plan uses it to place
-answers and pending edits instead of refetching the list.
+It is pure and changes nothing. A mutation's answer is placed through it, as
+above.
 
 ### Mutations by hand
 

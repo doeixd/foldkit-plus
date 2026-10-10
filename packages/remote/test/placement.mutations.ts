@@ -2,7 +2,7 @@
  * Placing a row in a loaded list, broken in turn:
  * `pnpm mutate packages/remote/test/placement.mutations.ts`.
  */
-const tests = ['packages/remote/test/placement.test.ts']
+const tests = ['packages/remote/test/placement.test.ts', 'packages/remote/test/impact.test.ts']
 const placement = '../src/placement.ts'
 const index = '../src/index.ts'
 
@@ -91,6 +91,35 @@ export default [
         file: '../../entity/src/evaluate.ts',
         find: 'checkOrder([left, right], terms, query)',
         replace: 'void terms',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a placed row goes after the edge it belongs before',
+    edits: [
+      {
+        file: placement,
+        find: 'Before: ({ edge }) => segment.edges.findIndex(held => held.key === edge),',
+        replace: 'Before: ({ edge }) => segment.edges.findIndex(held => held.key === edge) + 1,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row placed at a segment’s end goes first',
+    edits: [
+      { file: placement, find: 'End: () => segment.edges.length,', replace: 'End: () => 0,' },
+    ],
+    tests,
+  },
+  {
+    name: 'a row leaving is left in',
+    edits: [
+      {
+        file: placement,
+        find: 'edges: segment.edges.filter(edge => edge.key !== key),',
+        replace: 'edges: segment.edges,',
       },
     ],
     tests,

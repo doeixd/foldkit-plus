@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote`: a mutation's answer is placed in the lists it changed,
+  not refetched.** A held row that stops matching leaves a list; a row that
+  joins, or a held row whose ordering field changed, goes where the body's
+  order puts it among the loaded rows (`placeIn`), or out of them past a
+  `Cursor`. A list is still invalidated for what cannot be placed: no body or
+  no declared order, text with no collation, a row it cannot judge, or a row
+  an overlay shows. `Impact` gains `Placed`, and is a `Data.taggedEnum`.
 - **`examples/registry`: its text columns declare `binary`**, as its SQLite
   orders them, so its sorted page is placeable.
 - **`foldkit-remote-drizzle`: a page's cursor holds the order's key values

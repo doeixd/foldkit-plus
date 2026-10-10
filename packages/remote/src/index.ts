@@ -53,7 +53,7 @@ import {
   type EntityRef,
   type FieldsFrom,
 } from './entity.js'
-import { changesOf, impactOn, type HeldConnection } from './impact.js'
+import { Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
 import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
 
 /** A body's dependencies as an explanation carries them: without the owner identity, which holds a symbol. */
@@ -2704,47 +2704,68 @@ const bindDomain = <
         : undefined
     // A repeated answer finds every value it carries already held, so it
     // changes nothing and invalidates nothing.
-    const next =
-      answer === undefined
-        ? reduced
-        : invalidateConnections(reduced, invalidatedBy(reduced, answer, remote.entities))
+    const next = answer === undefined ? reduced : impactOf(reduced, answer, remote.entities)
     return next === remote ? model : store.set(model, next as Store)
   }
 
   /**
-   * The loaded connections a write may have changed the rows of, judged by
-   * each connection's body against the store as the write left it.
+   * The loaded connections as a write left them: each judged by its body
+   * against the store as the write left it, a change it can place placed in
+   * its pages, and one it cannot invalidated for its read entry to fetch.
    */
-  const invalidatedBy = (
+  const impactOf = (
     remote: RemoteModel,
     answer: Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>,
     // The store before the answer, to tell a value it changed from one it repeated.
     before: EntityStore,
-  ): ReadonlyArray<string> => {
+  ): RemoteModel => {
     const changes = changesOf(answer, before)
-    if (changes.length === 0) return []
+    if (changes.length === 0) return remote
     // A list the answer itself changed is as the server says it is now.
     const named = new Set((answer.connections ?? []).map(change => change.connection))
     const visible = visibleStoreOf(remote.entities, remote.optimistic)
-    return Object.keys(remote.connections).filter(identity => {
-      if (named.has(identity)) return false
+    const placed: Record<string, Connection> = {}
+    const invalidated: Array<string> = []
+    for (const identity of Object.keys(remote.connections)) {
+      if (named.has(identity)) continue
       const separator = identity.indexOf(IDENTITY_SEPARATOR)
       const descriptor = definition.registry.queries.get(identity.slice(0, separator))
-      if (descriptor === undefined) return false
-      const held: HeldConnection = {
-        descriptor,
-        encoded: JSON.parse(identity.slice(separator + 1)) as Record<string, unknown>,
-        holds: new Set(
-          visibleItems(
-            remote.connections[identity]!,
-            identity,
-            remote.optimistic.overlays,
-            remote.entities,
-          ).map(edge => entityKey(edge.ref.entity, edge.ref.id)),
-        ),
+      if (descriptor === undefined) continue
+      const encoded = JSON.parse(identity.slice(separator + 1)) as Record<string, unknown>
+      const original = remote.connections[identity]!
+      // Each change is judged against the pages the one before it left.
+      let pages = original
+      let invalid = false
+      for (const change of changes) {
+        const held: HeldConnection = {
+          descriptor,
+          encoded,
+          connection: pages,
+          holds: new Set(
+            visibleItems(pages, identity, remote.optimistic.overlays, remote.entities).map(edge =>
+              entityKey(edge.ref.entity, edge.ref.id),
+            ),
+          ),
+        }
+        const after = Impact.$match(impactOn(held, visible, change), {
+          Kept: () => Option.some(pages),
+          Placed: ({ connection }) => Option.some(connection),
+          Invalidated: () => Option.none<Connection>(),
+        })
+        if (Option.isNone(after)) {
+          invalid = true
+          break
+        }
+        pages = after.value
       }
-      return changes.some(change => impactOn(held, visible, change)._tag === 'Invalidated')
-    })
+      if (invalid) invalidated.push(identity)
+      else if (pages !== original) placed[identity] = pages
+    }
+    const withPlaced =
+      Object.keys(placed).length === 0
+        ? remote
+        : { ...remote, connections: { ...remote.connections, ...placed } }
+    return invalidateConnections(withPlaced, invalidated)
   }
   // Two applications can have the same Model type; the owner token tells them apart.
   const assertOwned = (entry: ActiveEntry<AppModel>) => {

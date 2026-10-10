@@ -413,11 +413,14 @@ and relation, so the server names no list.
 what the client held does not count) are judged against every loaded
 list over its Entity by the list's query body (`Query.dependencies`'
 `predicate`/`order`, `belongsEncoded`): a list stands when the body proves its
-rows and order unchanged, and is otherwise invalidated, restarting any read of
-it in flight, so its read entry refetches it. A `Query.make` list (no body) is
+rows and order unchanged. Otherwise a placeable list (`Query.placement`) has
+the change placed in its pages with no request: a row that stops matching
+leaves, one that joins or moves goes where the body's order puts it among the
+loaded rows, or out of them when it sorts past a `Cursor`. What cannot be
+placed is invalidated, restarting any read of it in flight, so its read entry
+refetches it. A `Query.make` list (no body) is
 invalidated by any change to its Entity, and a list whose body declares no
-order (the server's `orderBy` decides it) by any change to a row it holds. A joining row is fetched, never
-spliced. `Data.refresh` remains for effects the answer does not name.
+order (the server's `orderBy` decides it) by any change to a row it holds. `Data.refresh` remains for effects the answer does not name.
 
 **Declared writes.** `Mutation.write(name, Write.update(input, { id }))` (or
 `Write.insert` with a client-minted id, or `Write.delete`) is a

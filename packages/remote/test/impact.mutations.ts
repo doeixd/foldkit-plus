@@ -11,50 +11,102 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: "return changes.some(change => impactOn(held, visible, change)._tag === 'Invalidated')",
-        replace: 'return false',
+        find: 'if (invalid) invalidated.push(identity)',
+        replace: 'if (false) invalidated.push(identity)',
       },
     ],
     tests,
   },
   {
-    name: 'every list of the Entity is invalidated',
-    edits: [
-      { file: impact, find: 'if (!touches(roles.predicate)) return kept', replace: '' },
-      { file: impact, find: "if (held === (belongs === 'yes')) return kept", replace: '' },
-    ],
-    tests,
-  },
-  {
-    name: 'an ordering change invalidates rows the list does not hold',
+    name: 'a placement is worked out and not kept',
     edits: [
       {
-        file: impact,
-        find: 'if (held && touches(roles.order)) {',
-        replace: 'if (touches(roles.order)) {',
+        file: '../src/index.ts',
+        find: 'else if (pages !== original) placed[identity] = pages',
+        replace: '',
       },
     ],
+    tests,
+  },
+  {
+    name: 'a change to no field a list reads is judged anyway',
+    edits: [{ file: impact, find: 'if (!reorders && !refilters) return kept', replace: '' }],
     tests,
   },
   {
     name: 'an ordering change is ignored',
-    edits: [{ file: impact, find: 'if (held && touches(roles.order)) {', replace: 'if (false) {' }],
+    edits: [
+      {
+        file: impact,
+        find: 'const reorders = held && touches(dependenciesOf(...order).fields)',
+        replace: 'const reorders = false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an ordering change of a row the list does not hold counts',
+    edits: [
+      {
+        file: impact,
+        find: 'const reorders = held && touches(dependenciesOf(...order).fields)',
+        replace: 'const reorders = touches(dependenciesOf(...order).fields)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a held row that still matches is placed again',
+    edits: [
+      {
+        file: impact,
+        find: "if (held && belongs === 'yes' && !reorders) return kept",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row shown by an overlay is placed in the pages anyway',
+    edits: [{ file: impact, find: 'if (held && !inPages) {', replace: 'if (false) {' }],
+    tests,
+  },
+  {
+    name: 'a row that stops matching stays',
+    edits: [
+      {
+        file: impact,
+        find: "if (belongs === 'no') return Impact.Placed({ connection: withoutEdge(pages, key) })",
+        replace: "if (belongs === 'no') return kept",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a held row moved past what is loaded stays',
+    edits: [
+      {
+        file: impact,
+        find: 'Outside: () => (held ? Impact.Placed({ connection: withoutEdge(pages, key) }) : kept),',
+        replace: 'Outside: () => kept,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row that cannot be placed is kept',
+    edits: [
+      {
+        file: impact,
+        find: 'Unknown: ({ reason }) =>',
+        replace: 'Unknown: ({ reason }) => (void reason, kept) ||',
+      },
+    ],
     tests,
   },
   {
     name: 'a row the client cannot judge is kept',
     edits: [{ file: impact, find: "if (belongs === 'unknown') {", replace: 'if (false) {' }],
-    tests,
-  },
-  {
-    name: 'membership ignores whether the list held the row',
-    edits: [
-      {
-        file: impact,
-        find: "if (held === (belongs === 'yes')) return kept",
-        replace: "if (belongs === 'yes') return kept",
-      },
-    ],
     tests,
   },
   {
@@ -92,9 +144,7 @@ export default [
   },
   {
     name: 'a list the answer names is judged anyway',
-    edits: [
-      { file: '../src/index.ts', find: 'if (named.has(identity)) return false', replace: '' },
-    ],
+    edits: [{ file: '../src/index.ts', find: 'if (named.has(identity)) continue', replace: '' }],
     tests,
   },
   {
