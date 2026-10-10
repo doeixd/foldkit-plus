@@ -1,7 +1,6 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** Phases 0 and 1 done, 2026-10-09; Phase 2's `update` done, its
-relation keys, `insert` and `delete` not (each section's *As built*); Phases
+**Status:** Phases 0–2 done, 2026-10-10 (each section's *As built*); Phases
 3–6 not started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
@@ -482,11 +481,22 @@ PGlite.
 - **Cloudflare's Sync toggle stays a flip.** A journal orders operations and
   dedupes a retry by operation id, so a flip there cannot undo itself; only
   the Remote path, where a retried request could, needed an absolute value.
-- **Not migrated:** `examples/entity`'s edit has a relation key (`editorId`),
-  which an update refuses, and its delete needs a delete write. Both wait for
-  relation keys and `delete` below.
-- **Not built:** relation keys in a write, `insert`, `delete`; the conformance
-  case over the reference store (the writer runs on SQLite and PGlite in
+- **Relation keys, `insert` and `delete` followed** (`985b9ba2`, `e4f1cee2`).
+  A `one` relation key is a link: `Write.bind` returns it as a ref in `links`,
+  Remote patches it as the ref key (`patchOfWrite`), and the writer sets the
+  foreign key. `Mutation.update` and `RemoteServer.update` became
+  `Mutation.write` and `RemoteServer.write`, which take any kind. A retried
+  insert answers the row it made (`on conflict do nothing`); a delete of a row
+  already gone succeeds; a delete from a moved revision is a conflict. Remote
+  shows an inserted row (with its id) before the answer, and nothing for a
+  delete.
+- **`examples/entity`'s edit is a write** (`d0c46f7d`), its editor relation
+  included. Its delete, and cloudflare's create, stay handlers on purpose: the
+  delete removes the post's comments too, and the create confirms its insert
+  into the list, which a declared insert would leave to a refetch.
+- **Not built:** a `many` relation or a nested row in a write; `where`-targeted
+  and computed-value writes; the conformance case over the reference store (the
+  writer runs on SQLite and PGlite in
   `packages/remote-drizzle/test/writer.test.ts`). **Not run:** the registry
   sandbox's e2e test, which now writes through `applyEdits` on sql.js.
 
