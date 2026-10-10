@@ -1,5 +1,5 @@
 import { Effect, Option } from 'effect'
-import { Remote, type RemoteClient } from 'foldkit-remote'
+import { Remote, RemoteData, type RemoteClient } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   Data,
@@ -46,7 +46,7 @@ describe('the HTTP transport the browser uses', () => {
     const form = (model: typeof loaded, message: typeof EditPostForm.Message.Type) =>
       update(model, Message.GotEditPostMessage({ message }))
 
-    const typed = form(loaded, EditPostForm.Message.Changed({ key: 'title', value: 'Over HTTP' }))
+    const typed = form(loaded, EditPostForm.Message.Changed({ key: 'title', value: 'about HTTP' }))
     const submitted = form(typed.model, EditPostForm.Message.Submitted())
     expect(PostEditor.status(submitted.model)).toBe('Saving')
 
@@ -54,12 +54,27 @@ describe('the HTTP transport the browser uses', () => {
     const saved = update(submitted.model, settled as Message).model
     expect(PostEditor.status(saved)).toBe('Saved')
     // The row shows the edit at once, and moves where its new title sorts:
-    // the body orders by title, so the client places it, and fetches nothing.
-    const after = Posts.page(saved)
-    expect(after._tag === 'Ready' && after.value.items.map(row => row.title)).toEqual([
-      'Notes on the Engine',
-      'Over HTTP',
-    ])
+    // binary, as SQLite orders, puts a lowercase title after every capital,
+    // where a case-folding order would put it first.
+    const placed = (model: typeof saved) =>
+      RemoteData.match(Posts.page(model), {
+        Initial: () => [],
+        Loading: () => [],
+        NotFound: () => [],
+        Failed: () => [],
+        Ready: value => value.items.map(row => row.title),
+        Refreshing: value => value.items.map(row => row.title),
+      })
+    expect(placed(saved)).toEqual(['Notes on the Engine', 'about HTTP'])
+    // In tests the list is fetched too (`verifyPlacement`), and SQLite's page
+    // agrees with the order placed.
+    expect(Posts.page(saved)._tag).toBe('Refreshing')
+    const verified = await run(
+      Data.prefetch(saved, Option.getOrThrow(Posts.active.projectionOf(saved))),
+    )
+    expect(Posts.page(verified)._tag).toBe('Ready')
+    expect(placed(verified)).toEqual(['Notes on the Engine', 'about HTTP'])
+    expect(Data.inspect(verified).placementMismatches).toEqual([])
   })
 
   it('sorts and searches a list by changing the query’s input, which the Model holds', async () => {

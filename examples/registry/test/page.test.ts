@@ -183,7 +183,6 @@ const serve = () => {
   }
 }
 
-/** The page over a replica on `storage`, on the runtime, with the last Model it drew. */
 /**
  * The cache of rows a device's Remote keeps, one per storage: a reload over
  * the same storage finds what the page before it saved, as a browser keeps
@@ -202,6 +201,7 @@ const cacheOf = (storage: Storage): Layer.Layer<KeyValueStore.KeyValueStore> => 
   return Layer.succeed(KeyValueStore.KeyValueStore, cache)
 }
 
+/** The page over a replica on `storage`, on the runtime, with the last Model it drew. */
 const mount = async (
   server: ReturnType<typeof serve>,
   storage: Storage,
@@ -237,9 +237,13 @@ const mount = async (
   return {
     replica,
     mounted,
+    // Every list the page placed rows in was fetched too (`verifyPlacement`,
+    // on in tests), and none disagreed with the server's order.
     dispose: async () => {
+      const mismatches = Data.inspect(mounted.model()).placementMismatches
       await dispose()
       frames.dispose()
+      expect(mismatches).toEqual([])
     },
     exchange,
     transport,

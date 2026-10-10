@@ -306,8 +306,19 @@ export default [
     edits: [
       {
         file: '../src/operations.ts',
-        find: 'Expr.contains(Registry.Product.fields.description, input.search)',
-        replace: "Expr.contains(Registry.Product.fields.description, '')",
+        find: 'Expr.contains(fields.description, input.search)',
+        replace: "Expr.contains(fields.description, '')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'every placement the page verifies is said to disagree',
+    edits: [
+      {
+        file: '../../../packages/remote/src/model.ts',
+        find: 'const agrees = served.every((key, index) => key === asPlaced[index])',
+        replace: 'const agrees = false',
       },
     ],
     tests,

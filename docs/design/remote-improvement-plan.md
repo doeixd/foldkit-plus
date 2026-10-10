@@ -1190,7 +1190,19 @@ pending edits and news):
   with rows not loaded judges a row it does not hold when its order changes.
   A pending create still shows by `prepend`, and the page still draws in
   `orderItems` order for it and for other tabs' live inserts (Phase 11).
-- **Remaining exit:** `verifyPlacement` is not yet on in the e2e suites.
+- **The shadow check runs in the examples' integration tests, not the e2e
+  suites.** A drifting collation shows only against the real backend, and
+  the entity HTTP test and the registry page tests already run SQLite; the
+  e2e browsers reach the same database and have no way to hand a Model fact
+  to the test. The entity and registry apps turn `verifyPlacement` on when
+  `import.meta.env.DEV` (Vite dev and Vitest, off in a build and under
+  `tsx`); the entity test renames to a title binary and case-folding order
+  disagree on, and every registry page asserts no mismatch as it is
+  disposed. Cloudflare is left off: no client test reads a placed list back
+  from D1.
+- **`verifyPlacement` checks reads and live patches too**, through the step
+  answers use, since the registry's placements are a read's. A pending edit
+  is not checked: the server does not have it.
 
 #### Phase 11: the server places, for live lists
 

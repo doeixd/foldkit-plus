@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/entity`, `examples/registry`: `verifyPlacement` is on in
+  development and tests** (`import.meta.env.DEV`). The entity HTTP test checks
+  a rename against SQLite's order, and every registry page test asserts no
+  placement disagreed with the server's.
 - **`foldkit-remote`: a mutation's answer places a row new to the client, and
   one that moves in from past a `Cursor`.** A row joined a list only through
   a filtered field, so a created row never joined a list that filters on

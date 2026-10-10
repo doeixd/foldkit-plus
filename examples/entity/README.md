@@ -203,6 +203,12 @@ body; the client reads it to place an edited post. `Sort.make(['title'])` is
 that state written once: the Model's field, the header's toggle, and the
 query's input.
 
+`app.ts` turns on `verifyPlacement` in development and tests: a list Remote
+placed a post in is fetched as well, and SQLite's order compared with the
+one placed. `test/http.test.ts` renames a post to a lowercase title, which
+binary order puts after every capital and a case-folding order would not,
+and checks the two agree.
+
 ### A picker that searches
 
 The editor's Editor picker has a search box. Its text is the form's

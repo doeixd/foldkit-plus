@@ -191,8 +191,12 @@ committed one is back to the seed.
 ## Tests
 
 - `test/page.test.ts` (jsdom, the real runtime over the in-process server and
-  journal):
+  journal). `verifyPlacement` is on in tests, so every list a test's page
+  placed a row in is fetched again, and each page, as it is disposed, asserts
+  SQLite's order agreed with the one placed:
   - the first page is read, a header sorts on the server, More reads on;
+  - a pending price edit moves its row in a list sorted by price before it is
+    sent, and keeps its place once the server has it;
   - an edit and a paste show at once and are written to the table on the next
     exchange, and a paste the column refuses entirely is no edit;
   - an edit made offline is kept through a remount over the same storage, and
