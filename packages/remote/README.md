@@ -1484,8 +1484,9 @@ server replays it, since `after` only numbers the events that follow. So
 recovery is a refetch, and the live entry does it on its own:
 
 ```text
-break -> gap marked, restarts + 1 -> backoff -> resubscribe from the cursor
-      -> RefreshStarted (what the stream covers) + GapCleared -> read entry refetches
+break -> gap marked, restarts + 1 -> backoff
+      -> RefreshStarted (what the stream covers) + GapCleared -> resubscribe from the cursor
+                    \-> read entry refetches
 ```
 
 - **The backoff is Sync's transport policy:** 50 ms after the first break,

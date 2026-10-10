@@ -138,6 +138,11 @@ export default [
     tests,
   },
   {
+    name: 'the resubscribe runs beside the gap closing',
+    edits: [{ file: index, find: 'Stream.concat(live),', replace: 'Stream.merge(live),' }],
+    tests,
+  },
+  {
     name: 'a broken stream reads as Live',
     edits: [
       {

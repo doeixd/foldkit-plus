@@ -1790,15 +1790,19 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
     )
     if (restarts === 0) return live
     // The server replays nothing a stream missed while it was down, so a
-    // restart refetches what the stream covers. It is marked once the stream
-    // is subscribing, so the refetch cannot read before what it would miss.
-    const resumed = Stream.make(
-      toMessage({ _tag: 'RefreshStarted', requests: requirements }),
-      toMessage({ _tag: 'GapCleared', stream }),
-    )
+    // restart refetches what the stream covers. The gap closes before the
+    // resubscribe, so a resubscribe that fails is a break of its own; were the
+    // two concurrent, its failure could land on the open gap and be ignored,
+    // and the late `GapCleared` would leave the stream stopped.
     return Stream.fromEffect(Effect.sleep(restartDelay(options, failures))).pipe(
       Stream.drain,
-      Stream.concat(Stream.merge(live, resumed)),
+      Stream.concat(
+        Stream.make(
+          toMessage({ _tag: 'RefreshStarted', requests: requirements }),
+          toMessage({ _tag: 'GapCleared', stream }),
+        ),
+      ),
+      Stream.concat(live),
     )
   },
 })

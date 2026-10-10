@@ -131,6 +131,16 @@ describe('a live stream that breaks', () => {
     expect(shown(await step(layer, read, reconnected))).toBe('Gemini')
   })
 
+  it('breaks again when the resubscribe itself fails, so it keeps retrying', async () => {
+    const down = Stream.fail(new RemoteLiveError({ message: 'still down' }))
+    const { server, layer } = serverWith([down, down])
+    const once = await step(layer, live, initial)
+    const twice = await step(layer, live, once)
+    expect(server.asked).toEqual([0, 0])
+    expect(Data.liveStatus(twice, Watched)).toMatchObject({ _tag: 'Reconnecting', attempt: 2 })
+    expect(same(live.modelToDependencies(once), live.modelToDependencies(twice))).toBe(false)
+  })
+
   it('restarts once for a gap, however many events the dying stream still delivers', () => {
     const stream = keyOf(live.modelToDependencies(initial).requirements)
     const receive = (model: Model, cursor: number) =>
