@@ -45,6 +45,7 @@ import {
   query,
   returning,
   source,
+  writer,
   DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
@@ -541,37 +542,9 @@ export const makeServer = () => {
     }),
   )
 
-  const Rename = RemoteServer.mutation(RenameTodo, ({ input }) =>
-    Effect.gen(function* () {
-      const writes = yield* drizzleWrites
-      const rows = yield* Effect.promise(() =>
-        Promise.resolve(
-          writes
-            .update(todos)
-            .set({ title: input.title })
-            .where(eq(todos.id, input.id))
-            .returning(written.columns),
-        ),
-      )
-      return { output: { id: input.id }, entities: written.patches(rows) }
-    }),
-  )
-
-  const Toggle = RemoteServer.mutation(ToggleTodo, ({ input }) =>
-    Effect.gen(function* () {
-      const writes = yield* drizzleWrites
-      const rows = yield* Effect.promise(() =>
-        Promise.resolve(
-          writes
-            .update(todos)
-            .set({ done: input.done })
-            .where(eq(todos.id, input.id))
-            .returning(written.columns),
-        ),
-      )
-      return { output: { id: input.id }, entities: written.patches(rows) }
-    }),
-  )
+  // Declared writes: the binding's writer lands them, and the row as written answers.
+  const Rename = RemoteServer.update(RenameTodo, writer(Db.Todo))
+  const Toggle = RemoteServer.update(ToggleTodo, writer(Db.Todo))
 
   const Delete = RemoteServer.mutation(DeleteTodo, ({ input }) =>
     Effect.gen(function* () {

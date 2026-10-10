@@ -182,22 +182,12 @@ const Page = Base.pipe(
       },
   }),
   Bundle.configure('rename', {
-    // The editor's own `onOut` mutates without an optimistic patch. This one
-    // paints the new title, then remembers the request so `status` reads Saving.
-    onOut:
-      ({ value }) =>
-      model => {
-        const started = Data.mutate(model, RenameTodo, value, {
-          optimistic: [Remote.patch(Todo, value.id, { id: value.id, title: value.title })],
-        })
-        return {
-          model: modifyFields(started.model, {
-            rename: editor => ({ ...editor, requestId: started.requestId }),
-            notice: () => Option.none(),
-          }),
-          commands: [started.command],
-        }
-      },
+    // The editor's own save: a declared write, so it shows the new title before
+    // the server answers. A rename also clears the page's notice.
+    onOut: submitted => model => {
+      const started = Rename.onOut(submitted)(model)
+      return { ...started, model: modifyFields(started.model, { notice: () => Option.none() }) }
+    },
   }),
   Bundle.withWiring({ ...remoteWiring, route: routeRemote }),
 )
@@ -231,16 +221,8 @@ export const update = Rename.after(
         return RenameForm.helpers.close()(model)
       case 'ToggledTodo': {
         const done = message.done === 1 ? 0 : 1
-        const started = Data.mutate(
-          model,
-          ToggleTodo,
-          { id: message.id, done },
-          {
-            optimistic: [
-              Remote.patch(Todo, message.id, { id: message.id, title: message.title, done }),
-            ],
-          },
-        )
+        // A declared write: Remote shows the new value until the server answers.
+        const started = Data.mutate(model, ToggleTodo, { id: message.id, done })
         return {
           model: modifyFields(started.model, { notice: () => Option.none() }),
           commands: [started.command],

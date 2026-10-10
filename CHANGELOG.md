@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/cloudflare`: rename and toggle are declared writes.** Their
+  Drizzle handlers and hand-built optimistic patches are gone:
+  `Mutation.update` and `RemoteServer.update(..., writer(Db.Todo))` say the
+  same, and the rename editor sends only the title it changed.
 - **`foldkit-cms`, `foldkit-cms-drizzle`: refusals are data, not prefixes.**
   `SaveDraft` and `Publish` declare `Refusal`: `Cms.refusal.field(key, reason)`
   for a taken address on its key, `Cms.refusal.conflict` for work saved or

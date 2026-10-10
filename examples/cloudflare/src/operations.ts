@@ -5,6 +5,7 @@
  * stored row are the same one.
  */
 import { Schema } from 'effect'
+import { Entity, Write } from 'foldkit-entity'
 import { Mutation, Query } from 'foldkit-remote'
 import { Todo } from './domain.js'
 
@@ -24,21 +25,25 @@ export const CreateTodo = Mutation.make('CreateTodo', {
   Output: { id: Schema.String },
 })
 
-/** The rename form and this mutation share one input, which is what an editor joins. */
+/**
+ * The rename form and this mutation share one input, which is what an editor
+ * joins. Both are declared writes: what they change is data, so the page shows
+ * it before the server answers and the server writes it with no handler.
+ */
 export const RenameTodoInput = Schema.Struct({ id: Schema.String, title })
-export const RenameTodo = Mutation.make('RenameTodo', {
-  Input: RenameTodoInput,
-  Output: { id: Schema.String },
-})
+export const RenameTodo = Mutation.update(
+  'RenameTodo',
+  Write.update(Entity.input(Todo, RenameTodoInput), { id: 'id' }),
+)
 
 /**
  * `done` is the value to store, not a flip. A retry of the same request
  * writes the same integer, where `done = 1 - done` would undo itself.
  */
-export const ToggleTodo = Mutation.make('ToggleTodo', {
-  Input: Schema.Struct({ id: Schema.String, done }),
-  Output: { id: Schema.String },
-})
+export const ToggleTodo = Mutation.update(
+  'ToggleTodo',
+  Write.update(Entity.input(Todo, Schema.Struct({ id: Schema.String, done })), { id: 'id' }),
+)
 
 export const DeleteTodo = Mutation.make('DeleteTodo', {
   Input: Schema.Struct({ id: Schema.String }),
