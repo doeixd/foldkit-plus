@@ -521,6 +521,26 @@ before, so piping a fragment can only ever narrow a query, never silently undo
 part of it. An earlier ordering term stays the more significant one, which is
 what makes a later `Query.orderBy(Order.asc(id))` a tie-breaker. Neither ever replaces what a fragment added.
 
+**A sort the reader picks is part of the body too.** `Order.chosen` maps each
+name the input's sort can hold to a field, so the server and the client read one
+declaration of what `title` means, and the client can tell which edits may move
+a row:
+
+```ts
+const PostSort = Schema.NullOr(
+  Schema.Struct({ by: Schema.Literals(['title', 'id']), direction: Schema.Literals(['asc', 'desc']) }),
+)
+const sorted = (sort: InputExpr<typeof PostSort.Type>) =>
+  Query.from(Blog.Post).pipe(
+    Query.orderBy(Order.chosen(sort, { title: Blog.Post.fields.title, id: Blog.Post.fields.id })),
+  )
+```
+
+Every name the sort can hold needs a field, or it does not compile. A `null`
+sort chooses none, and the terms after it decide. `Query.orderFor(query, input)`
+is the fixed terms for one input, which is what every interpreter sorts by.
+`foldkit-crud`'s `Sort.make(['title', 'id']).Schema` is such a sort.
+
 The list of predicates **is** the conjunction — which is why no `Expr.and`
 exists. A query wanting three conditions writes three `where`s. An `and`
 operator is only needed for a conjunction nested inside something else, and no
@@ -605,10 +625,12 @@ from queries, not from what a database could express.
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |
 | `Order.asc(expr)` / `Order.desc(expr)` | One term of an ordering, over a field or a scalar. |
+| `Order.chosen(sort, choices)` | The field an input's sort names (`{ by, direction }`, or `null` for none), among `choices`. |
 | `dependenciesOf(...nodes)` | The distinct fields, inputs, and operations those expressions use. |
 | `Query.from(entity)` | Every row of an Entity: the query each step narrows. |
 | `Query.where(...predicates)` | Pipe step keeping the rows those hold for; conjoins with what is there. |
 | `Query.orderBy(...terms)` | Pipe step reading in that order; appends after existing terms. |
+| `Query.orderFor(query, input)` | The fixed terms it orders by for one input, each chosen order resolved. |
 | `Query.dependencies(query)` | What the whole query reads, with its fields also split by role: `predicate` (can change which rows match) and `order` (can change where a row sits). |
 | `Query.unsupported(query, supported)` | The operations it needs that an interpreter does not run. |
 | `Query.show(query)` / `Expr.show(node)` | The query or expression as readable text, for a person and not for an interpreter. |

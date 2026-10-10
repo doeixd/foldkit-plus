@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-entity`: an `OrderTerm` is tagged `Term`, and a body's
+  `orderBy` holds `Ordering`s (`Term | Chosen`).** An interpreter walking it
+  resolves `Query.orderFor(body, input)` first.
+- **`foldkit-remote-drizzle`: a body that declares its order refuses an
+  `orderBy` beside it.** Overriding the body's order was allowed; it let the
+  server sort one way while the client read another. A body's order is
+  compiled per request now, since a chosen order depends on the input.
+- **`examples/registry`: its sort is in `ProductsQuery`'s body**
+  (`Order.chosen`), not a server `orderBy` function.
 - **`foldkit-remote`: a list whose body declares no order is invalidated by
   any change to a row it holds.** Its order is the server's (an `orderBy`
   on the server, say), by fields the client cannot see, so a change it judged
@@ -154,6 +163,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-entity`: `Order.chosen`, a sort the input picks, declared in the
+  body.** `Order.chosen(input.sort, { title: Post.fields.title })` maps each
+  name a `{ by, direction } | null` sort can hold to a field, and a name
+  without one does not compile. `Query.orderFor(query, input)` resolves it to
+  fixed terms; the evaluator, `foldkit-remote-drizzle`'s compiler and the
+  in-memory server sort by it, and impact judges a list by the field its own
+  input chose. The conformance suite has chosen-order cases.
 - **`foldkit-sync/remote`: a replica's cell edits as Remote overlays.**
   `RemoteEdits.make(Data, Edits).reconcile(model, edits, replica)` shows each
   edit its row has not reached, holds one the journal absorbed while the

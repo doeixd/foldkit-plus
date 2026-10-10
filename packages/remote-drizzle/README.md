@@ -671,7 +671,25 @@ tie-breaker such as the id.
 
 ### Sorting by what the user chose
 
-`orderBy` may read the query's input, as `where` does:
+Put the sort in the query's body, where the client reads it too:
+
+```ts
+const PostsQuery = Query.define('Posts', { sort: PostSort.Schema }, ({ input }) =>
+  Query.from(Post).pipe(
+    Query.orderBy(Order.chosen(input.sort, { title: Post.fields.title, created: Post.fields.createdAt })),
+  ),
+)
+query(PostsQuery, { entity: Db.Post }) // the body's order, resolved per request
+```
+
+The compiler resolves the chosen field for each request's input and ends the
+order on the id. An input naming no order the body offers is refused as a query
+error, the request's mistake. A body that declares its order refuses an
+`orderBy` here: two orders would let the server sort one way while the client
+places rows another.
+
+A `Query.make` descriptor has no body, so its `orderBy` may read the query's
+input, as `where` does:
 
 ```ts
 query(PostsQuery, {
@@ -688,8 +706,9 @@ query(PostsQuery, {
   state `foldkit-crud`'s `Sort` makes (`{ by, direction }`, or `null`) into order
   terms: `orderBy: ({ sort }) => sortTerms(sort, { ... })`. A name the map lacks,
   or no sort, is no terms, which orders by id.
-- The input should name an order (`'title'`), never a column: which columns may
-  sort is the server's to decide.
+- The input should name an order (`'title'`), never a column. With
+  `Order.chosen` the body maps each name to a field; with `sortTerms` the server
+  does.
 - The input is part of a connection's identity, so each order is its own
   connection with its own cursors. A cursor from one order never pages another.
 - A computed order that leaves the id out is tie-broken by it, ascending, since

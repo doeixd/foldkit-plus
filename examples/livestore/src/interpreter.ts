@@ -105,7 +105,7 @@ export const compile = (
     built = built.where(column, '=', value)
   }
 
-  for (const term of body.orderBy) {
+  for (const term of Relational.orderFor(body, input)) {
     if (term.expr._tag !== 'Field') {
       throw new LiveStoreCompileError('this interpreter orders by fields only')
     }

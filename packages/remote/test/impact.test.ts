@@ -45,6 +45,24 @@ const Named = Query.define('Named', { name: Schema.String }, ({ input }) =>
 const ServerOrdered = Query.define('ServerOrdered', { status: Schema.String }, ({ input }) =>
   Query.from(Project).pipe(Query.where(Expr.eq(Project.fields.status, input.status))),
 )
+/** Projects, sorted by what the reader picked among price and name. */
+const Sorted = Query.define(
+  'Sorted',
+  {
+    sort: Schema.NullOr(
+      Schema.Struct({
+        by: Schema.Literals(['price', 'name']),
+        direction: Schema.Literals(['asc', 'desc']),
+      }),
+    ),
+  },
+  ({ input }) =>
+    Query.from(Project).pipe(
+      Query.orderBy(
+        Order.chosen(input.sort, { price: Project.fields.price, name: Project.fields.name }),
+      ),
+    ),
+)
 /** The same rows, by a query whose meaning only the server knows. */
 const Opaque = Query.make('Opaque', { Input: {}, Result: Query.connection(Project) })
 const Owners = Query.define('Owners', {}, () =>
@@ -57,12 +75,17 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Project, Owner],
-  queries: [ByStatus, Named, Opaque, Owners, ServerOrdered],
+  queries: [ByStatus, Named, Opaque, Owners, ServerOrdered, Sorted],
 })
 
 const active = Data.query(ByStatus, { status: 'active' }, { select: Summary, first: 25 })
 const named = Data.query(Named, { name: 'Apo' }, { select: Summary, first: 25 })
 const opaque = Data.query(Opaque, {}, { select: Summary, first: 25 })
+const byPrice = Data.query(
+  Sorted,
+  { sort: { by: 'price', direction: 'asc' } },
+  { select: Summary, first: 25 },
+)
 const serverOrdered = Data.query(
   ServerOrdered,
   { status: 'active' },
@@ -109,7 +132,8 @@ const loaded = (): Model => {
   const withNamed = holding(withActive, named.ref.identity, ['p1'])
   const withOpaque = holding(withNamed, opaque.ref.identity, ['p1', 'p2', 'p3'])
   const withServerOrdered = holding(withOpaque, serverOrdered.ref.identity, ['p1', 'p2'])
-  return Data.reduce(withServerOrdered, {
+  const withByPrice = holding(withServerOrdered, byPrice.ref.identity, ['p1', 'p2', 'p3'])
+  return Data.reduce(withByPrice, {
     _tag: 'ConnectionMerged',
     connection: owners.ref.identity,
     page: { edges: [], start: { _tag: 'Terminal' }, end: { _tag: 'Terminal' } },
@@ -218,6 +242,14 @@ describe('A list the write may have changed', () => {
     // A row it does not hold, still not matching, changes nothing it shows.
     const elsewhere = answered(loaded(), [patch('p3', { price: 50 })])
     expect(stale(elsewhere, serverOrdered.ref.identity)).toBe(false)
+  })
+
+  it('is invalidated by a change to the field its input chose to order by, and only that one', () => {
+    const repriced = answered(loaded(), [patch('p1', { price: 50 })])
+    expect(stale(repriced, byPrice.ref.identity)).toBe(true)
+    // Name is a field it could have chosen; this list did not.
+    const renamed = answered(loaded(), [patch('p1', { name: 'Apollo II' })])
+    expect(stale(renamed, byPrice.ref.identity)).toBe(false)
   })
 
   it('is invalidated, for any change of its Entity, when its query declares no body', () => {

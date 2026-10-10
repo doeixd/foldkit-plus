@@ -259,6 +259,10 @@ const recent = Query.from(Blog.Post).pipe(onlyPublished, newest)
 Query.dependencies(recent)     // every field it reads, also split into `predicate` and `order`
 ```
 
+- **A sort the reader picks belongs in the body:** `Query.orderBy(Order.chosen(input.sort,
+  { title: Post.fields.title }))`, where `input.sort` is `{ by, direction } | null`
+  (Crud's `Sort.make(...).Schema`). Every name needs a field, or it does not compile;
+  `null` chooses none. `Query.orderFor(query, input)` resolves it for one input.
 - **Two `where`s conjoin; two `orderBy`s append.** Neither replaces, so piping a
   fragment only ever narrows a query. There is no reset combinator: nothing has
   needed one.

@@ -14,7 +14,7 @@
  * holds invalidates it. A body that names no order leaves it to the server,
  * by fields the client cannot see, so any change to a row it holds does.
  */
-import { Query as Relational } from 'foldkit-entity'
+import { Query as Relational, dependenciesOf, type OrderTerm } from 'foldkit-entity'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { Schema } from 'effect'
 import { sameData } from './data.js'
@@ -103,13 +103,23 @@ export const impactOn = (
       const roles = Relational.dependencies(body)
       const touches = (keys: ReadonlyArray<{ readonly key: string }>) =>
         keys.some(field => fields.includes(field.key))
+      // The order this list was read in: a chosen order is the field its own
+      // input names, not every field it could have named.
+      let order: ReadonlyArray<OrderTerm>
+      try {
+        order = Relational.orderFor(body, connection.encoded)
+      } catch {
+        return Impact.Invalidated({
+          reason: `"${descriptor.name}" was read in an order its body does not offer`,
+        })
+      }
 
       if (held && body.orderBy.length === 0) {
         return Impact.Invalidated({
           reason: `${key} changed, and "${descriptor.name}" is ordered by the server, by fields its body does not name`,
         })
       }
-      if (held && touches(roles.order)) {
+      if (held && touches(dependenciesOf(...order).fields)) {
         return Impact.Invalidated({
           reason: `${key} changed a field "${descriptor.name}" is ordered by`,
         })

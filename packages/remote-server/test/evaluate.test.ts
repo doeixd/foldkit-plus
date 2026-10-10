@@ -83,7 +83,7 @@ const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
     }
   }
   const where = body.where.map(predicate)
-  const order = body.orderBy.map(term => {
+  const order = Query.orderFor(body, input).map(term => {
     if (term.expr._tag !== 'Field') throw new Error('unsupported')
     return `"${column[term.expr.key]}" ${term.direction}`
   })

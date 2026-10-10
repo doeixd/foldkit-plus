@@ -608,6 +608,8 @@ const Server = RemoteServer.make({
     orderBy: [{ column: projects.id, direction: 'desc' }], // keyset pagination; end with a unique column
     where: input => eq(projects.ownerId, input.ownerId),
     // Or `orderBy: input => [...]` to sort by what the input names; the id breaks its ties.
+    // A Query.define body declares its own order (Order.chosen for a picked sort), and
+    // then refuses an orderBy here.
   })],
 })
 declare const db: Parameters<typeof databaseLayer>[0]

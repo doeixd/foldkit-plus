@@ -120,7 +120,7 @@ export const run = (
   // One `orderBy` per term, chained: this engine takes a single expression and
   // a direction, and reads an earlier call as the more significant sort — the
   // same rule `Query.orderBy` composes by.
-  for (const term of body.orderBy) {
+  for (const term of Relational.orderFor(body, input)) {
     if (term.expr._tag !== 'Field') {
       throw new TanstackCompileError('this interpreter orders by fields only')
     }

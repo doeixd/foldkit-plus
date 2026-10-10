@@ -11,7 +11,7 @@
  * operation here is one a real query in this repository needs; the set grows
  * from queries, not from what a database could express.
  */
-import { Pipeable, Schema } from 'effect'
+import { Match, Pipeable, Schema } from 'effect'
 import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 
 /** A constant the query was written with. */
@@ -301,15 +301,87 @@ export const Expr = {
 
 /** One term of an ordering: a scalar and the direction to read it in. */
 export interface OrderTerm {
+  readonly _tag: 'Term'
   readonly direction: 'asc' | 'desc'
   readonly expr: AnyExpr
 }
 
+/** How a list is sorted, as its input holds it: one of its named orders, which way, or none. */
+export type ChosenSort<By extends string> = {
+  readonly by: By
+  readonly direction: 'asc' | 'desc'
+} | null
+
+/**
+ * An ordering the input chooses: one of several named fields, which way, or
+ * none. It is how a list sorts by what its reader picked, said in the body, so
+ * the server and the client read one declaration of what each name means.
+ */
+export interface ChosenOrder {
+  readonly _tag: 'Chosen'
+  readonly sort: InputExpr<ChosenSort<string>>
+  readonly choices: Readonly<Record<string, FieldExpr<unknown>>>
+}
+
+/** One entry of a body's ordering: fixed, or chosen by the input. */
+export type Ordering = OrderTerm | ChosenOrder
+
 export const Order = {
   asc: <E extends Operand<any>>(expr: E): OrderTerm =>
-    node({ direction: 'asc', expr: toExpr(expr as never, 'asc') }),
+    node({ _tag: 'Term', direction: 'asc', expr: toExpr(expr as never, 'asc') }),
   desc: <E extends Operand<any>>(expr: E): OrderTerm =>
-    node({ direction: 'desc', expr: toExpr(expr as never, 'desc') }),
+    node({ _tag: 'Term', direction: 'desc', expr: toExpr(expr as never, 'desc') }),
+
+  /**
+   * The order the input names, among `choices`: every name the sort can hold
+   * maps to a field, so a name left out is a type error here, not a query that
+   * silently orders by nothing. A `null` sort chooses none, and the terms after
+   * it decide.
+   *
+   * ```ts
+   * Query.orderBy(Order.chosen(input.sort, { title: Post.fields.title }))
+   * ```
+   */
+  chosen: <By extends string>(
+    sort: InputExpr<ChosenSort<By>>,
+    choices: { readonly [K in By]: Operand<any> },
+  ): ChosenOrder => {
+    const fields: Record<string, FieldExpr<unknown>> = Object.create(null)
+    for (const [name, choice] of Object.entries<Operand<any>>(choices)) {
+      const expr = toExpr(choice as never, 'chosen')
+      if (expr._tag !== 'Field') {
+        throw new Error(`[foldkit-entity] Order.chosen: "${name}" is not a field`)
+      }
+      fields[name] = expr
+    }
+    return node({
+      _tag: 'Chosen',
+      sort: sort as InputExpr<ChosenSort<string>>,
+      choices: Object.freeze(fields),
+    })
+  },
+}
+
+/** The fixed term a chosen order is for one input, or none for a `null` sort. */
+const chosenTerms = (
+  chosen: ChosenOrder,
+  input: Readonly<Record<string, unknown>>,
+): ReadonlyArray<OrderTerm> => {
+  const sort = input[chosen.sort.key]
+  if (sort === null || sort === undefined) return []
+  const picked =
+    typeof sort === 'object' && 'by' in sort && typeof sort.by === 'string' ? sort.by : undefined
+  const direction = typeof sort === 'object' && 'direction' in sort ? sort.direction : undefined
+  if (
+    picked === undefined ||
+    !Object.hasOwn(chosen.choices, picked) ||
+    (direction !== 'asc' && direction !== 'desc')
+  ) {
+    throw new Error(
+      `[foldkit-entity] Order.chosen: $${chosen.sort.key} names no order it offers (${Object.keys(chosen.choices).join(', ')})`,
+    )
+  }
+  return [node({ _tag: 'Term', direction, expr: chosen.choices[picked]! })]
 }
 
 /** What a walk has found, and the nodes it has already been through. */
@@ -326,7 +398,7 @@ interface Found {
  * Visits each node once. A node can be shared by several paths (`eq(n, n)`),
  * and a walk that followed every path would take time exponential in the depth.
  */
-const walk = (expr: AnyExpr | Predicate, found: Found): void => {
+const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
   if (found.seen.has(expr)) return
   found.seen.add(expr)
   switch (expr._tag) {
@@ -359,6 +431,13 @@ const walk = (expr: AnyExpr | Predicate, found: Found): void => {
       walk(expr.value, found)
       walk(expr.search, found)
       return
+    case 'Term':
+      walk(expr.expr, found)
+      return
+    case 'Chosen':
+      walk(expr.sort, found)
+      for (const choice of Object.values(expr.choices)) walk(choice, found)
+      return
   }
 }
 
@@ -368,7 +447,7 @@ const walk = (expr: AnyExpr | Predicate, found: Found): void => {
  * order first seen, so the answer is stable enough to assert on.
  */
 export const dependenciesOf = (
-  ...nodes: ReadonlyArray<AnyExpr | Predicate | OrderTerm>
+  ...nodes: ReadonlyArray<AnyExpr | Predicate | Ordering>
 ): Dependencies => {
   const found: Found = {
     seen: new Set(),
@@ -377,7 +456,7 @@ export const dependenciesOf = (
     inputs: new Set(),
     operations: new Set(),
   }
-  for (const term of nodes) walk('direction' in term ? term.expr : term, found)
+  for (const term of nodes) walk(term, found)
   return { fields: found.order, inputs: [...found.inputs], operations: [...found.operations] }
 }
 
@@ -403,7 +482,7 @@ export interface Query<E extends AnyEntity> extends Pipeable.Pipeable {
    */
   readonly where: ReadonlyArray<Predicate>
   /** In order of significance; a later `orderBy` appends less significant terms. */
-  readonly orderBy: ReadonlyArray<OrderTerm>
+  readonly orderBy: ReadonlyArray<Ordering>
 }
 
 /** A `Query` over any Entity, for the places that hold one without caring which. */
@@ -411,7 +490,7 @@ export type AnyQuery = Query<AnyEntity>
 
 /** Every field an expression reads, as the nodes themselves, each node visited once. */
 const fieldsIn = function* (
-  expr: AnyExpr | Predicate,
+  expr: AnyExpr | Predicate | Ordering,
   seen: Set<object>,
 ): Generator<FieldExpr<unknown>> {
   if (seen.has(expr)) return
@@ -434,6 +513,12 @@ const fieldsIn = function* (
       yield* fieldsIn(expr.value, seen)
       yield* fieldsIn(expr.search, seen)
       return
+    case 'Term':
+      yield* fieldsIn(expr.expr, seen)
+      return
+    case 'Chosen':
+      for (const choice of Object.values(expr.choices)) yield* fieldsIn(choice, seen)
+      return
   }
 }
 
@@ -447,11 +532,11 @@ const checkOwnership = (
   step: string,
   what: string,
   entity: AnyEntity,
-  nodes: ReadonlyArray<AnyExpr | Predicate | OrderTerm>,
+  nodes: ReadonlyArray<AnyExpr | Predicate | Ordering>,
 ): void => {
   const seen = new Set<object>()
   for (const term of nodes) {
-    for (const field of fieldsIn('direction' in term ? term.expr : term, seen)) {
+    for (const field of fieldsIn(term, seen)) {
       if (field.owner.token !== entity.identity.token) {
         throw new Error(
           `[foldkit-entity] Query.${step}: ${what} reads ${field.owner.name}.${field.key}, but the query is from ${entity.name}`,
@@ -508,7 +593,7 @@ const QueryProto = {
 const query = <E extends AnyEntity>(
   entity: E,
   where: ReadonlyArray<Predicate>,
-  orderBy: ReadonlyArray<OrderTerm>,
+  orderBy: ReadonlyArray<Ordering>,
 ): Query<E> =>
   Object.freeze(
     Object.assign(Object.create(QueryProto), {
@@ -554,12 +639,27 @@ export const Query = {
    * than silently winning.
    */
   orderBy:
-    (...terms: ReadonlyArray<OrderTerm>) =>
+    (...terms: ReadonlyArray<Ordering>) =>
     <E extends AnyEntity>(self: Query<E>): Query<E> => {
       if (terms.length === 0) return self
       checkOwnership('orderBy', 'a term', self.entity, terms)
       return query(self.entity, self.where, [...self.orderBy, ...terms])
     },
+
+  /**
+   * The fixed terms this query orders by for one input: each chosen order
+   * resolved to the field its input names, or to nothing for a `null` sort.
+   * What every interpreter sorts by, so all of them read one declaration.
+   */
+  orderFor: (self: AnyQuery, input: Readonly<Record<string, unknown>>): ReadonlyArray<OrderTerm> =>
+    self.orderBy.flatMap(entry =>
+      Match.value(entry).pipe(
+        Match.tagsExhaustive({
+          Term: term => [term],
+          Chosen: chosen => chosenTerms(chosen, input),
+        }),
+      ),
+    ),
 
   /**
    * What the whole query reads: the fields and inputs of every predicate and
@@ -618,7 +718,17 @@ export const Query = {
         ? []
         : [
             `ORDER BY ${self.orderBy
-              .map(term => `${Expr.show(term.expr)} ${term.direction.toUpperCase()}`)
+              .map(entry =>
+                Match.value(entry).pipe(
+                  Match.tagsExhaustive({
+                    Term: term => `${Expr.show(term.expr)} ${term.direction.toUpperCase()}`,
+                    Chosen: chosen =>
+                      `$${chosen.sort.key} among (${Object.entries(chosen.choices)
+                        .map(([name, field]) => `${name}: ${Expr.show(field)}`)
+                        .join(', ')})`,
+                  }),
+                ),
+              )
               .join(', ')}`,
           ]),
     ].join('\n'),

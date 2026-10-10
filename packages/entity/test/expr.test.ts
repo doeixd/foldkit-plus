@@ -59,10 +59,88 @@ describe('Expr builds a comparison as data', () => {
 describe('Order is a term over a scalar', () => {
   it('takes a field or an expression, in either direction', () => {
     expect(Order.asc(Post.fields.id)).toEqual({
+      _tag: 'Term',
       direction: 'asc',
       expr: Expr.field(Post.fields.id),
     })
     expect(Order.desc(Expr.field(Post.fields.title)).direction).toBe('desc')
+  })
+})
+
+describe('Order.chosen orders by the field the input names', () => {
+  const sort = Expr.input(
+    'sort',
+    Schema.NullOr(
+      Schema.Struct({
+        by: Schema.Literals(['title', 'id']),
+        direction: Schema.Literals(['asc', 'desc']),
+      }),
+    ),
+  )
+  const body = Query.from(Post).pipe(
+    Query.orderBy(Order.chosen(sort, { title: Post.fields.title, id: Post.fields.id })),
+  )
+
+  it('resolves, per input, to the one term it names, or to none', () => {
+    expect(Query.orderFor(body, { sort: { by: 'title', direction: 'desc' } })).toEqual([
+      Order.desc(Post.fields.title),
+    ])
+    expect(Query.orderFor(body, { sort: { by: 'id', direction: 'asc' } })).toEqual([
+      Order.asc(Post.fields.id),
+    ])
+    expect(Query.orderFor(body, { sort: null })).toEqual([])
+  })
+
+  it('refuses an input naming no order it offers, or no direction it knows', () => {
+    expect(() => Query.orderFor(body, { sort: { by: 'published', direction: 'asc' } })).toThrow(
+      /names no order it offers/,
+    )
+    expect(() => Query.orderFor(body, { sort: { by: 'title', direction: 'up' } })).toThrow(
+      /names no order it offers/,
+    )
+    // A name an object has from its prototype is not an order it offers.
+    expect(() => Query.orderFor(body, { sort: { by: 'constructor', direction: 'asc' } })).toThrow(
+      /names no order it offers/,
+    )
+  })
+
+  it('reads every field it may choose, and the input that chooses', () => {
+    const read = Query.dependencies(body)
+    expect(read.order.map(field => field.key)).toEqual(['title', 'id'])
+    expect(read.inputs).toEqual(['sort'])
+  })
+
+  it('is shown as the input among its choices', () => {
+    expect(Query.show(body)).toBe(
+      'FROM Post\nORDER BY $sort among (title: Post.title, id: Post.id)',
+    )
+  })
+
+  it('refuses a choice from another Entity than the query reads', () => {
+    expect(() =>
+      Query.from(Post).pipe(
+        Query.orderBy(Order.chosen(sort, { title: Blog.Author.fields.name, id: Post.fields.id })),
+      ),
+    ).toThrow(/reads Author\.name, but the query is from Post/)
+  })
+
+  it('refuses a choice that is not a field', () => {
+    expect(() =>
+      Order.chosen(
+        Expr.input(
+          'sort',
+          Schema.NullOr(
+            Schema.Struct({
+              by: Schema.Literals(['x']),
+              direction: Schema.Literals(['asc', 'desc']),
+            }),
+          ),
+        ),
+        {
+          x: Expr.literal(1),
+        },
+      ),
+    ).toThrow(/"x" is not a field/)
   })
 })
 

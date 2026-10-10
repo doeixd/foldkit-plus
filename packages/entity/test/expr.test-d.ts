@@ -118,3 +118,17 @@ Expr.contains(Expr.isNull(Doc.fields.subtitle), 'a')
 Expr.isNull(Doc.fields.rank)
 Expr.isNotNull(Doc.fields.archived)
 Expr.eq(Doc.fields.rank, 3)
+
+// A chosen order maps every name its sort can hold to a field.
+const sortBy = Expr.input(
+  'sort',
+  Schema.NullOr(
+    Schema.Struct({
+      by: Schema.Literals(['title', 'id']),
+      direction: Schema.Literals(['asc', 'desc']),
+    }),
+  ),
+)
+Order.chosen(sortBy, { title: Post.fields.title, id: Post.fields.id })
+// @ts-expect-error a name the sort can hold, `id`, has no field
+Order.chosen(sortBy, { title: Post.fields.title })

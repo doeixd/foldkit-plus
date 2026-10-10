@@ -203,16 +203,50 @@ describe('A compiled body is the query the binding used to spell out', () => {
     expect(() => query(Unordered, { entity: PostBinding })).toThrow('has a body with no ordering')
   })
 
-  it('lets the binding override the order of the body when it says so', async () => {
-    const defined = query(DefinedBySlug, {
-      entity: PostBinding,
-      orderBy: [{ column: posts.slug, direction: 'desc' }],
-    })
-    const { database, calls } = fakeDatabase()
+  it('refuses an orderBy beside a body that declares its order, which the client reads', () => {
+    expect(() =>
+      query(DefinedBySlug, {
+        entity: PostBinding,
+        orderBy: [{ column: posts.slug, direction: 'desc' }],
+      }),
+    ).toThrow(/declares its order in its body/)
+  })
 
-    await run(defined, database)
-
-    expect(rendered(calls[0]!.orderBy![0]).sql).toContain('"posts"."slug"')
+  it('orders by the field the input chose, per request, then by id', async () => {
+    const Sorted = Query.define(
+      'SortedPosts',
+      {
+        sort: Schema.NullOr(
+          Schema.Struct({
+            by: Schema.Literals(['slug']),
+            direction: Schema.Literals(['asc', 'desc']),
+          }),
+        ),
+      },
+      ({ input }) =>
+        Query.from(Post).pipe(Query.orderBy(Order.chosen(input.sort, { slug: Post.fields.slug }))),
+    )
+    const defined = query(Sorted, { entity: PostBinding })
+    const ordered = async (sort: unknown) => {
+      const { database, calls } = fakeDatabase()
+      const result = await Effect.runPromise(
+        Effect.result(
+          defined
+            .run({ input: { sort }, window: { first: 5 }, principal: null })
+            .pipe(Effect.provideService(DrizzleDatabase, database)),
+        ),
+      )
+      return { result, order: (calls[0]?.orderBy ?? []).map(term => rendered(term).sql) }
+    }
+    expect((await ordered({ by: 'slug', direction: 'desc' })).order).toEqual([
+      '"posts"."slug" desc',
+      '"posts"."id" asc',
+    ])
+    expect((await ordered(null)).order).toEqual(['"posts"."id" asc'])
+    // A sort naming no order the body offers is the request's mistake.
+    const unknown = await ordered({ by: 'id', direction: 'asc' })
+    expect(unknown.result._tag).toBe('Failure')
+    expect(unknown.order).toEqual([])
   })
 
   it('compares the same however the body wrote the comparison round', async () => {

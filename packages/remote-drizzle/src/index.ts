@@ -618,14 +618,19 @@ export const query = <P = unknown, Input = unknown>(
       `[foldkit-remote-drizzle] query "${descriptor.name}" needs a non-empty, stable orderBy; add a unique tie-breaker column`,
     )
   }
-  // A body's ordering is fixed, so it is compiled once here rather than per
-  // request; what it reads is checked against the binding at registration.
+  // What a body reads, its ordering's fields among it, is checked against the
+  // binding at registration; an ordering the input chooses is resolved per
+  // request.
   if (body !== undefined) checkFields(body, options.entity, descriptor.name)
-  const compiledOrder =
-    body === undefined ? undefined : compileOrderBy(body, options.entity, descriptor.name)
-  if (compiledOrder !== undefined && compiledOrder.length === 0 && options.orderBy === undefined) {
+  if (body !== undefined && body.orderBy.length === 0 && options.orderBy === undefined) {
     throw new Error(
       `[foldkit-remote-drizzle] query "${descriptor.name}" has a body with no ordering; a connection pages on a stable order, so give it one`,
+    )
+  }
+  // One order, read by both sides: a client places rows by the body's.
+  if (body !== undefined && body.orderBy.length > 0 && options.orderBy !== undefined) {
+    throw new Error(
+      `[foldkit-remote-drizzle] query "${descriptor.name}" declares its order in its body, so an orderBy here would order it otherwise than the client reads it`,
     )
   }
   return {
@@ -649,10 +654,34 @@ export const query = <P = unknown, Input = unknown>(
         })
         const database = yield* DrizzleDatabase
         const id = idColumn(binding)
+        // What the body reads is checked at registration, so a compile error
+        // here is the request's input (a search holding NUL, a sort naming no
+        // order offered): the client's to be told, as a query error, not a
+        // defect. Anything else is a bug.
+        const compileFor = <A>(compile: () => A) =>
+          Effect.suspend(() => {
+            try {
+              return Effect.succeed(compile())
+            } catch (error) {
+              if (error instanceof QueryCompileError)
+                return Effect.fail(new RemoteServerError({ message: error.message }))
+              throw error
+            }
+          })
         const computed =
           typeof options.orderBy === 'function'
             ? options.orderBy(input as Input, principal)
-            : (options.orderBy ?? compiledOrder ?? [])
+            : (options.orderBy ??
+              (body === undefined
+                ? []
+                : yield* compileFor(() =>
+                    compileOrderBy(
+                      body,
+                      binding,
+                      input as Readonly<Record<string, unknown>>,
+                      descriptor.name,
+                    ),
+                  )))
         // What the input asks for may not be unique, and neither is what a body
         // asks for: both say what the rows mean rather than how a cursor walks
         // them, so the id makes either stable. A literal order written here is
@@ -665,28 +694,17 @@ export const query = <P = unknown, Input = unknown>(
         // The body's question, this server's own extra question, and the
         // binding's visibility rule are conjoined: a body can narrow what a
         // principal may see and never widen it.
-        // What the body reads is checked at registration, so a compile error
-        // here is the request's input (a search holding NUL): the client's to
-        // be told, as a query error, not a defect. Anything else is a bug.
         const compiled =
           body === undefined
             ? []
-            : yield* Effect.suspend(() => {
-                try {
-                  return Effect.succeed(
-                    compileWhere(
-                      body,
-                      binding,
-                      input as Readonly<Record<string, unknown>>,
-                      descriptor.name,
-                    ),
-                  )
-                } catch (error) {
-                  if (error instanceof QueryCompileError)
-                    return Effect.fail(new RemoteServerError({ message: error.message }))
-                  throw error
-                }
-              })
+            : yield* compileFor(() =>
+                compileWhere(
+                  body,
+                  binding,
+                  input as Readonly<Record<string, unknown>>,
+                  descriptor.name,
+                ),
+              )
         const asked = options.where?.(input as Input, principal)
         const visible = binding.visible?.(principal)
         const baseWhere = and(...compiled, asked, visible)

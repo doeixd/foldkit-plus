@@ -236,8 +236,11 @@ Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
   gives `PostSort.Schema` (Model field and query input), `none`, `toggle(current, column)`,
   and `inputs(current, (_, column) => Message.Sorted({ column }))` for `ListView`'s
   `sort`; `update` then `toggle`s from the Model, so two clicks in one frame toggle twice.
-  Server: `orderBy: ({ sort }) => sortTerms(sort, { title: posts.title })` from
-  `foldkit-remote-drizzle`.
+  The query's body says what each name means:
+  `Query.orderBy(Order.chosen(input.sort, { title: Post.fields.title }))`, which the
+  server compiles and the client reads (a change to another field then keeps the
+  list). Only a `Query.make` list sorts on the server:
+  `orderBy: ({ sort }) => sortTerms(sort, { title: posts.title })`.
 - **Sorting and filtering a list** are the query's input: keep them in your Model,
   return them from `.at({ input })`, and read them in the server query's `where`
   and `orderBy` (both may be functions of the input in `foldkit-remote-drizzle`).

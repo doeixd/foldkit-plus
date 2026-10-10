@@ -101,6 +101,17 @@ const text = Expr.input('text', Schema.String)
 const tag = Expr.input('tag', Schema.String)
 const present = Expr.input('present', Schema.Boolean)
 const at = Expr.input('at', Timestamp)
+/** A list sorted by what its reader picked: `Order.chosen`'s input. */
+const sort = Expr.input(
+  'sort',
+  Schema.NullOr(
+    Schema.Struct({ by: Schema.Literals(['rank']), direction: Schema.Literals(['asc', 'desc']) }),
+  ),
+)
+const chosen = Query.orderBy(
+  Order.chosen(sort, { rank: Subject.fields.rank }),
+  Order.asc(Subject.fields.id),
+)
 
 export const cases: ReadonlyArray<ConformanceCase> = [
   // ---- eq ------------------------------------------------------------------
@@ -296,6 +307,24 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     body: from.pipe(Query.orderBy(Order.desc(Subject.fields.rank), Order.asc(Subject.fields.id))),
     input: {},
     expected: ['e', 'c', 'd', 'a', 'b'],
+  },
+  {
+    what: 'orders by the field the input chose, ascending',
+    body: from.pipe(chosen),
+    input: { sort: { by: 'rank', direction: 'asc' } },
+    expected: ['b', 'a', 'c', 'd', 'e'],
+  },
+  {
+    what: 'orders by the field the input chose, descending, the next term breaking the tie',
+    body: from.pipe(chosen),
+    input: { sort: { by: 'rank', direction: 'desc' } },
+    expected: ['e', 'c', 'd', 'a', 'b'],
+  },
+  {
+    what: 'orders by the terms after a chosen order when the input chose none',
+    body: from.pipe(chosen),
+    input: { sort: null },
+    expected: ['a', 'b', 'c', 'd', 'e'],
   },
   // Ordering by text is deliberately not here. How text compares is the
   // backend's — SQLite by code point, TanStack by locale, Postgres by whatever

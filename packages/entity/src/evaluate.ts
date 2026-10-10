@@ -211,7 +211,7 @@ export const evaluate = (
   assertSupported(body)
   return ordered(
     rows.filter(row => matches(body, row, input)),
-    body.orderBy,
+    Query.orderFor(body, input),
     body.entity.name,
   )
 }

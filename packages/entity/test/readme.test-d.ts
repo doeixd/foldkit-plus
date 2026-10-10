@@ -12,6 +12,7 @@ import {
   Write,
   dependenciesOf,
   type Dependencies,
+  type InputExpr,
   type QueryDependencies,
   type BoundWrite,
   type EntityRef,
@@ -163,6 +164,19 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
 
   expectTypeOf(recent).toEqualTypeOf<Query<typeof Blog.Post>>()
   expectTypeOf(Query.dependencies(recent)).toEqualTypeOf<QueryDependencies>()
+
+  // A sort the reader picks is part of the body too.
+  const PostSort = Schema.NullOr(
+    Schema.Struct({
+      by: Schema.Literals(['title', 'id']),
+      direction: Schema.Literals(['asc', 'desc']),
+    }),
+  )
+  const sorted = (sort: InputExpr<typeof PostSort.Type>) =>
+    Query.from(Blog.Post).pipe(
+      Query.orderBy(Order.chosen(sort, { title: Blog.Post.fields.title, id: Blog.Post.fields.id })),
+    )
+  expectTypeOf(sorted(Expr.input('sort', PostSort))).toEqualTypeOf<Query<typeof Blog.Post>>()
 }
 
 {

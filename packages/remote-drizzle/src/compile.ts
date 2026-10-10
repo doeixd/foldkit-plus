@@ -223,13 +223,24 @@ export const compileWhere = (
   query: string,
 ): ReadonlyArray<SQL> => body.where.map(node => predicate(node, target, input, query))
 
-/** The body's ordering, as this package's order terms. */
+/**
+ * The body's ordering for one input, as this package's order terms: a chosen
+ * order resolved to the field the input names. An input naming no order it
+ * offers is the request's mistake, refused as a compile error.
+ */
 export const compileOrderBy = (
   body: AnyQuery,
   target: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
   query: string,
-): ReadonlyArray<OrderTerm> =>
-  body.orderBy.map((term: ExprOrderTerm) => {
+): ReadonlyArray<OrderTerm> => {
+  let terms: ReadonlyArray<ExprOrderTerm>
+  try {
+    terms = Query.orderFor(body, input)
+  } catch (error) {
+    throw new QueryCompileError(`query "${query}": ${(error as Error).message}`)
+  }
+  return terms.map(term => {
     if (term.expr._tag !== 'Field') {
       throw new QueryCompileError(
         `query "${query}" orders by something that is not a field, which this compiler cannot run yet`,
@@ -237,3 +248,4 @@ export const compileOrderBy = (
     }
     return { column: columnFor(target, term.expr.key, query), direction: term.direction }
   })
+}

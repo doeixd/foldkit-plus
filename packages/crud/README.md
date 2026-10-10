@@ -491,9 +491,14 @@ PostSort.toggle(model.postSort, 'title') // asc, then desc, then the server's ow
 PostSort.inputs(model.postSort, (_, column) => Message.SortedPosts({ column }))
 ```
 
-`Sort` holds nothing. A name is an order the server offers, never a column; on
-the server, `foldkit-remote-drizzle`'s `sortTerms(sort, { title: posts.title })`
-says what each name means and ignores any other.
+`Sort` holds nothing. A name is an order the query offers, never a column. Say
+what each name means in the query's body, where the server and the client both
+read it: `Query.orderBy(Order.chosen(input.sort, { title: Post.fields.title }))`
+(`foldkit-entity`). The client then knows which edits can move a row, so a
+change to another field keeps the list. A `Query.make` list, which has no body,
+says it on the server instead, with `foldkit-remote-drizzle`'s
+`sortTerms(sort, { title: posts.title })`; any change to its Entity then
+refetches it.
 
 ## Typed ids
 
