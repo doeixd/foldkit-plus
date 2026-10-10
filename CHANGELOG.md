@@ -104,6 +104,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-crud`: an editor over a declared write sends only what changed.**
+  With a `Mutation.update` mutation, a save names the input keys whose value
+  differs, by each key's schema, from what the form was filled with; Remote
+  shows them until the server answers. `EditorModel` gains `filledWith`, and
+  `DomainLike.mutate` an options argument.
 - **`foldkit-remote-server`, `foldkit-remote-drizzle`: a declared write needs
   no handler.** `RemoteServer.update(mutation, writer)` serves a
   `Mutation.update`: the input bound to its write, only the keys the client

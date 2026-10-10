@@ -282,6 +282,12 @@ a key the form does not have is left to the status and `saveError`.
 - **An invalid submit starts no mutation.** The form emits nothing until every
   key passes the input's schema and its checks. The form's Commands are the
   editor's, so a check the form starts runs.
+- **A declared write sends only what changed.** With a mutation made by
+  `Mutation.update`, a save names the input keys whose value differs, by each
+  key's own schema, from what the form was filled with, so the server writes
+  only those and two authors of different fields both land. Remote shows the
+  write bound to those keys until the server answers, with no optimistic patch
+  written here. Something new, never filled, is written whole.
 
 ### Drawing it
 

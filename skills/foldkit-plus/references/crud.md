@@ -81,6 +81,9 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   `Editor.bundle.pipe(Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, view))))`,
   then `Placed.view(model, h, { options: pickers(model) })`. Or draw from
   `EditPostForm.controls`.
+- **A declared write** (`mutation: Mutation.update(...)`): a save names only the
+  input keys changed from what the form was filled with, and Remote shows them
+  until the server answers; no optimistic patch is written.
 - **Compose `update` yourself:** `PostEditor.sync` is the Step `after` runs.
 
 ## Lists

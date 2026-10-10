@@ -86,6 +86,8 @@ export interface EditorModel<FormModel> {
   readonly requestId: string | null
   /** The save whose refusal of a field the form already shows, so it is shown once. */
   readonly refusedFor: Option.Option<string>
+  /** The input values the form was filled with: what a save compares to, to send only what changed. */
+  readonly filledWith: Option.Option<Readonly<Record<string, unknown>>>
 }
 
 /**
@@ -131,6 +133,7 @@ export interface DomainLike<Root> {
     model: Root,
     mutation: any,
     input: any,
+    options?: { readonly keys?: ReadonlyArray<string> | undefined },
   ): {
     readonly model: Root
     readonly requestId: string
@@ -640,6 +643,14 @@ export const Crud = {
   ) => {
     type Model = EditorModel<FormModel>
     const { form, mutation } = config
+    // How each input key's value is compared, built once from its own schema.
+    const sameValue: Readonly<Record<string, (left: unknown, right: unknown) => boolean>> =
+      Object.fromEntries(
+        Object.entries(form.input.schema.fields).map(([key, schema]) => [
+          key,
+          Schema.toEquivalence(schema as Schema.Codec<unknown, unknown>),
+        ]),
+      )
     // The keys a refusal can name: a nested key holds rows, not a draft to mark.
     const draftKeys = new Set(
       form.controls.filter(entry => !Input.Nested.is(entry.control)).map(entry => entry.key),
@@ -652,6 +663,7 @@ export const Crud = {
       filled: false,
       requestId: null,
       refusedFor: Option.none(),
+      filledWith: Option.none(),
     }
     const Model = Schema.Struct({
       form: form.bundle.Model,
@@ -660,6 +672,7 @@ export const Crud = {
       filled: Schema.Boolean,
       requestId: Schema.NullOr(Schema.String),
       refusedFor: Schema.OptionFromNullOr(Schema.String),
+      filledWith: Schema.OptionFromNullOr(Schema.Record(Schema.String, Schema.Unknown)),
     }) as unknown as Schema.Codec<Model, unknown>
 
     // The editor's Messages are the form's own: it adds state around the form,
@@ -761,6 +774,24 @@ export const Crud = {
             ...editor,
             form: form.fill(editor.form, values).model,
             filled: true,
+            filledWith: Option.some(values),
+          })
+        }
+
+        /**
+         * The input keys a save changes from what the form was filled with, by
+         * each key's own schema: none filled (something new) is every key, so
+         * none are named.
+         */
+        const changedKeys = (editor: Model, value: Value): ReadonlyArray<string> | undefined => {
+          // A submitted value is the form's decoded struct, so it reads by key.
+          const submitted = value as Readonly<Record<string, unknown>>
+          return Option.match(editor.filledWith, {
+            onNone: () => undefined,
+            onSome: filled =>
+              Object.keys(submitted).filter(
+                key => !Object.hasOwn(filled, key) || !sameValue[key]!(filled[key], submitted[key]),
+              ),
           })
         }
 
@@ -782,7 +813,15 @@ export const Crud = {
           onOut:
             (submitted: Submitted<Value>): Step<Root> =>
             root => {
-              const started = data.mutate(root, mutation, submitted.value)
+              // A declared write is told what changed, so it writes, and shows, only that.
+              const started = data.mutate(
+                root,
+                mutation,
+                submitted.value,
+                mutation.write === undefined
+                  ? undefined
+                  : { keys: changedKeys(slice.get(root), submitted.value) },
+              )
               const editor = slice.get(started.model)
               return {
                 model: slice.set(started.model, { ...editor, requestId: started.requestId }),
