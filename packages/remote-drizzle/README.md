@@ -768,6 +768,16 @@ is guarded by that column and moves it on by one in the same statement: of two
 writes made from one revision, the second finds no row and is refused as a
 conflict. A write that expects none, to a row that is not there, fails.
 
+### A journal's edits
+
+A table a `foldkit-sync` journal writes (`editsJournal`) takes its `apply` from
+the binding: `applyEdits(Db.Product)` writes one committed cell edit to the
+member's column, and the sequence it committed at to `revision`, in one
+statement that never moves a row back, so recovery may run it again. The
+column is the binding's, never one named by the change. Here the revision is
+the journal's sequence, so such a table should not also take writes that
+`expect` a counter.
+
 ### Writing in a handler
 
 Anything a declared write cannot say (an insert, a delete, several rows) is a

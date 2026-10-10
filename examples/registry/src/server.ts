@@ -5,8 +5,8 @@
  * (`journal.ts`), which calls `apply` for each committed change.
  */
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Schema } from 'effect'
-import { bind, databaseLayer, query, sortTerms, source } from 'foldkit-remote-drizzle'
+import { Effect, Schema } from 'effect'
+import { applyEdits, bind, databaseLayer, query, sortTerms, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { type ProductChange, Registry } from './domain.js'
 import { ProductsQuery } from './operations.js'
@@ -69,14 +69,6 @@ export const seedOf = (index: number) => ({
   cents: ((index * 37) % 10_000) + 99,
 })
 
-/** The table's column for each member an edit can change. */
-const columnOf = {
-  description: 'description',
-  cents: 'cents',
-  line: 'line',
-  status: 'status',
-} as const satisfies Record<ProductChange['member'], string>
-
 const decodeRevision = Schema.decodeUnknownSync(Schema.Struct({ revision: Schema.Number }))
 
 /**
@@ -102,17 +94,13 @@ export const openServer = (
 
   // A committed edit, applied, with the sequence it committed at: the journal
   // calls this once per change, in the order it committed them. Only the
-  // journal writes the table. The write and the revision are one statement,
-  // and it never moves a row back, so recovery may run it again (the effect
-  // ledger and this table are separate databases): an older edit run after a
-  // newer one changes nothing. `<=`, not `<`, so a second change to the same
-  // product in one operation is applied too. A change is one cell; the
-  // column it writes comes from this fixed list, never from the change's text.
+  // journal writes the table. `applyEdits` writes the cell and the revision in
+  // one statement that never moves a row back, so recovery may run it again
+  // (the effect ledger and this table are separate databases).
+  const layer = databaseLayer(sqlite.drizzle)
+  const applyProduct = applyEdits(Db.Product)
   const apply = (change: ProductChange, at: number) =>
-    sqlite.runAll(
-      `update products set ${columnOf[change.member]} = ?, revision = ? where id = ? and revision <= ?`,
-      [[change.value, at, change.id, at]],
-    )
+    applyProduct(change, at).pipe(Effect.provide(layer))
 
   return {
     server: RemoteServer.make({
@@ -132,7 +120,7 @@ export const openServer = (
         }),
       ],
     }),
-    layer: databaseLayer(sqlite.drizzle),
+    layer,
     apply,
     /** The row as the database holds it, to check a write against. */
     row: (id: string) => sqlite.get('select * from products where id = ?', [id]),

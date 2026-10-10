@@ -75,19 +75,21 @@ test('an operation whose price breaks the Product’s rules is refused, and noth
   expect(backend.row(productId(1))).toMatchObject({ cents: 5 })
 })
 
-test('the table only moves forward, so recovery may write an edit again', () => {
+test('the table only moves forward, so recovery may write an edit again', async () => {
   const backend = openServer(memorySqlite(), { count: 10 })
   const price = (cents: number): ProductChange => ({
     id: ProductId.make(productId(1)),
     member: 'cents',
     value: cents,
   })
-  backend.apply(price(500), 5)
+  await Effect.runPromise(backend.apply(price(500), 5))
   // An older edit run again after a newer one, as recovery may: nothing changes.
-  backend.apply(price(300), 3)
+  await Effect.runPromise(backend.apply(price(300), 3))
   expect(backend.row(productId(1))).toMatchObject({ cents: 500, revision: 5 })
   // A second change to the product in the same operation is written too.
-  backend.apply({ id: ProductId.make(productId(1)), member: 'description', value: 'Renamed' }, 5)
+  await Effect.runPromise(
+    backend.apply({ id: ProductId.make(productId(1)), member: 'description', value: 'Renamed' }, 5),
+  )
   expect(backend.row(productId(1))).toMatchObject({
     description: 'Renamed',
     cents: 500,
@@ -158,10 +160,8 @@ test('an edit committed after the table was last written is kept by absorbing', 
   let writable = true
   const journal = memoryJournal({
     ...backend,
-    apply: (change, at) => {
-      if (!writable) throw new Error('the table cannot be written')
-      backend.apply(change, at)
-    },
+    apply: (change, at) =>
+      writable ? backend.apply(change, at) : Effect.fail(new Error('the table cannot be written')),
   })
   const { replica, transport } = await editAndSend(journal, 'editing', [[1, 101]])
   await Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport)))

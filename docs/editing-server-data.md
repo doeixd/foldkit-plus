@@ -115,13 +115,9 @@ const { settle, absorb } = editsJournal({
   documentId: RegistrySync.documentId,
   journal,
   editsOf: operation => /* EditedProducts' changes and at, or none */,
-  // One cell, with its sequence, never moving a row back.
-  apply: (change, at) =>
-    Effect.try(() =>
-      sqlite.run('update products set cents = ?, revision = ? where id = ? and revision <= ?', [
-        change.value, at, change.id, at,
-      ]),
-    ),
+  // One cell, with its sequence, never moving a row back: foldkit-remote-drizzle's
+  // applyEdits(Db.Product), over the binding Remote reads the table through.
+  apply: (change, at) => applyProduct(change, at).pipe(Effect.provide(database)),
   // The highest revision any row holds: settling refuses a table past the journal.
   tableRevision: Effect.try(() => sqlite.highestRevision()),
   holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
@@ -151,7 +147,10 @@ they are elided above. The snippets compile in
 - **`settle`** is I/O: it runs `apply` for each committed change as a
   recovery intent. The effect ledger and the table are separate databases, so
   an intent may run twice after a crash; `apply` never moving a row back is
-  what makes that harmless.
+  what makes that harmless. `applyEdits(binding)` is that `apply`: one
+  `update` setting the member's column (the binding's, never a name from the
+  change) and the revision to the sequence, where the row's revision is at or
+  below it.
 - None of this is a Remote mutation. Remote only reads the table.
 
 ## Build outward

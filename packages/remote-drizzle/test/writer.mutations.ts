@@ -46,4 +46,30 @@ export default [
     edits: [{ file: drizzle, find: 'set[key] = sql`${column} + 1`', replace: '' }],
     tests,
   },
+  {
+    name: 'an older edit moves a row back',
+    edits: [{ file: drizzle, find: 'lte(revision, at)', replace: 'undefined' }],
+    tests,
+  },
+  {
+    name: 'a second change in one operation is skipped',
+    edits: [{ file: drizzle, find: 'lte(revision, at)', replace: 'sql`${revision} < ${at}`' }],
+    tests,
+  },
+  {
+    name: 'the revision is not written',
+    edits: [{ file: drizzle, find: '[revisionKey]: at', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a table with no revision column is accepted',
+    edits: [
+      {
+        file: drizzle,
+        find: 'if (revision === undefined || revisionKey === undefined) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
 ]

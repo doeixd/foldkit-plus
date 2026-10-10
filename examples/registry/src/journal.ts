@@ -68,7 +68,7 @@ const encodeMessage = Schema.encodeSync(Message)
 /** The products table, as the journal writes and checks it (`openServer` gives one). */
 export interface ProductTable {
   /** Writes a committed change, with the sequence it committed at. */
-  readonly apply: (change: ProductChange, at: number) => void
+  readonly apply: (change: ProductChange, at: number) => Effect.Effect<void, unknown>
   /** The highest revision any row holds. */
   readonly revision: () => number
   /** Whether the table has the product. */
@@ -123,9 +123,9 @@ export const openJournal = (
         ),
         Match.orElse(() => Option.none()),
       ),
-    // A write that throws fails the intent rather than dying, so recovery
-    // stops there and the next exchange tries it again.
-    apply: (change, at) => Effect.try(() => table.apply(change, at)),
+    // A write that fails fails the intent, so recovery stops there and the
+    // next exchange tries it again.
+    apply: table.apply,
     tableRevision: Effect.try(() => table.revision()),
     holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
     // The server writes as a producer of its own, sequenced from the

@@ -13,7 +13,7 @@ import { Entity, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
-import { bind, databaseLayer, writer } from '../src/index.js'
+import { applyEdits, bind, databaseLayer, writer } from '../src/index.js'
 
 const Project = Entity.define(
   'Project',
@@ -174,5 +174,48 @@ describe('A write that expects a revision, on Postgres', () => {
     expect(second).toMatchObject({ _tag: 'Failure', failure: { refusal: { _tag: 'Conflict' } } })
     const rows = await pglite.query('select name, revision from projects')
     expect(rows.rows).toEqual([{ name: 'First', revision: 2 }])
+  })
+})
+
+describe('applyEdits, a journal’s apply', () => {
+  const apply = applyEdits(Db.Project)
+  const run = (change: { id: string; member: string; value: unknown }, at: number) =>
+    Effect.runPromise(
+      apply(change, at).pipe(Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+
+  it('writes the cell and the sequence it committed at, and never moves a row back', async () => {
+    seed()
+    await run({ id: 'p1', member: 'name', value: 'Five' }, 5)
+    // An older edit run again, as recovery may: nothing changes.
+    await run({ id: 'p1', member: 'name', value: 'Three' }, 3)
+    expect(row('p1')).toMatchObject({ name: 'Five', revision: 5 })
+    // A second change to the row in the same operation lands too.
+    await run({ id: 'p1', member: 'status', value: 'archived' }, 5)
+    expect(row('p1')).toMatchObject({ name: 'Five', status: 'archived', revision: 5 })
+  })
+
+  it('refuses a member the table has no column for, rather than naming one from the change', async () => {
+    seed()
+    const failed = await Effect.runPromise(
+      apply({ id: 'p1', member: 'name; drop table projects', value: 'x' }, 9).pipe(
+        Effect.flip,
+        Effect.provide(databaseLayer(drizzle({ client: sqlite }))),
+      ),
+    )
+    expect(failed).toMatchObject({
+      message: 'Project has no column for "name; drop table projects" to apply',
+    })
+    expect(row('p1')).toMatchObject({ name: 'Apollo', revision: 1 })
+  })
+
+  it('is refused where it is made for a table with no revision column', () => {
+    const Plain = Entity.define('Plain', Schema.Struct({ id: Schema.String, name: Schema.String }))
+    const plains = sqliteTable('plains', {
+      id: text('id').primaryKey(),
+      name: text('name').notNull(),
+    })
+    const PlainDb = bind({ Plain }, { Plain: { table: plains } })
+    expect(() => applyEdits(PlainDb.Plain)).toThrow('no column for its revision "revision"')
   })
 })

@@ -108,6 +108,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-drizzle`: `applyEdits(binding)`, a journal's `apply`.** One
+  committed cell edit written to the member's column with its sequence as the
+  revision, never moving a row back. The registry example's hand-written SQL
+  and column list go; its `ProductTable.apply` returns an Effect.
 - **`foldkit-crud`: an editor over a declared write sends only what changed.**
   With a `Mutation.update` mutation, a save names the input keys whose value
   differs, by each key's schema, from what the form was filled with; Remote

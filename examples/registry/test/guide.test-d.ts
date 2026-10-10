@@ -4,8 +4,9 @@
  * guide's one editable column is `cents`; `sqlite` and `journal` stand in for
  * the server's database and its journal.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Layer, Option, Schema } from 'effect'
 import { RowModel } from 'foldkit-data-grid'
+import { applyEdits, type AnyEntityBinding, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import type { Journal } from 'foldkit-durable/core'
 import type { CommitStamp, Operation } from 'foldkit-sync'
 import { EditableEntity } from 'foldkit-sync/entity'
@@ -46,10 +47,10 @@ const stamp = ({ changes }: Edited, commit: CommitStamp): Edited => ({
 void stamp
 
 // On the server.
-declare const sqlite: {
-  readonly run: (sql: string, values: ReadonlyArray<unknown>) => void
-  readonly highestRevision: () => number
-}
+declare const sqlite: { readonly highestRevision: () => number }
+declare const ProductBinding: AnyEntityBinding
+declare const database: Layer.Layer<DrizzleDatabase>
+const applyProduct = applyEdits(ProductBinding)
 type Shared = { readonly edits: ReadonlyArray<typeof ProductEdits.Edit.Type> }
 declare const journal: Journal<Operation, Shared, string, Operation>
 declare const editsOf: (operation: Operation) => Option.Option<{
@@ -61,15 +62,7 @@ const { settle, absorb } = editsJournal({
   documentId: 'registry-edits',
   journal,
   editsOf,
-  apply: (change, at) =>
-    Effect.try(() =>
-      sqlite.run('update products set cents = ?, revision = ? where id = ? and revision <= ?', [
-        change.value,
-        at,
-        change.id,
-        at,
-      ]),
-    ),
+  apply: (change, at) => applyProduct(change, at).pipe(Effect.provide(database)),
   tableRevision: Effect.try(() => sqlite.highestRevision()),
   holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
   absorbed,

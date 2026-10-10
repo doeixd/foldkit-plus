@@ -15,12 +15,13 @@ import {
   eq,
   getTableColumns,
   inArray,
+  lte,
   sql,
   type AnyColumn,
   type SQL,
   type Table,
 } from 'drizzle-orm'
-import { Effect, Option } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Entity } from 'foldkit-remote'
 import {
@@ -798,4 +799,57 @@ export const writer = <P = unknown>(
         return Option.map(Option.fromUndefinedOr(answered.patches(rows)[0]), patch => patch.values)
       }),
   }
+}
+
+/**
+ * A journal's `apply` for `foldkit-sync`'s `editsJournal`: one committed cell
+ * edit, written to its column with the sequence it committed at as the row's
+ * revision, in one statement that never moves a row back. An older edit run
+ * after a newer one (recovery runs an intent again) changes nothing; `<=`, not
+ * `<`, so a second change to one row in one operation lands too. The column is
+ * the binding's for the member, never one named by the change's text.
+ *
+ * Here the revision is the journal's sequence. A table a journal writes this
+ * way should not also take writes that `expect` a counter there.
+ */
+export const applyEdits = (
+  binding: AnyEntityBinding,
+  options: { readonly revision?: string } = {},
+) => {
+  const revisionField = options.revision ?? 'revision'
+  const keys = new Map<unknown, string>(
+    Object.entries(getTableColumns(binding.table)).map(([key, column]) => [column, key]),
+  )
+  const revision = binding.columns[revisionField]
+  const revisionKey = revision === undefined ? undefined : keys.get(revision)
+  if (revision === undefined || revisionKey === undefined) {
+    throw new Error(
+      `[foldkit-remote-drizzle] applyEdits: ${binding.name} has no column for its revision "${revisionField}"`,
+    )
+  }
+  const fields = binding.fields as Readonly<Record<string, Schema.Top | undefined>>
+  return (
+    change: { readonly id: string; readonly member: string; readonly value: unknown },
+    at: number,
+  ): Effect.Effect<void, RemoteServerError, DrizzleDatabase> =>
+    Effect.gen(function* () {
+      const column = binding.columns[change.member]
+      const key = column === undefined ? undefined : keys.get(column)
+      const schema = fields[change.member]
+      if (column === undefined || key === undefined || schema === undefined) {
+        return yield* new RemoteServerError({
+          message: `${binding.name} has no column for "${change.member}" to apply`,
+        })
+      }
+      const writes = yield* drizzleWrites
+      const value = Schema.encodeUnknownSync(schema as Schema.Codec<unknown, unknown>)(change.value)
+      yield* Effect.promise(() =>
+        Promise.resolve(
+          writes
+            .update(binding.table)
+            .set({ [key]: value, [revisionKey]: at })
+            .where(and(eq(idColumn(binding), change.id), lte(revision, at))),
+        ),
+      )
+    })
 }
