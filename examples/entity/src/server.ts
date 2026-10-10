@@ -8,15 +8,7 @@ import { eq, like } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
-import {
-  bind,
-  databaseLayer,
-  query,
-  returning,
-  source,
-  sortTerms,
-  writer,
-} from 'foldkit-remote-drizzle'
+import { bind, databaseLayer, query, returning, source, writer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Blog, PostId } from './domain.js'
 import {
@@ -130,13 +122,9 @@ export const openServer = () => {
       mutations: [EditPost, DeletePost, WritePost],
       // A list is a query someone declared: nothing lists a table because a relation points at it.
       queries: [
-        query(PostsQuery, {
-          entity: Db.Post,
-          where: ({ search }) => (search === '' ? undefined : like(posts.headline, `%${search}%`)),
-          // The order reads the input: `title` is a name, and this is what it means here.
-          // A title is not unique, so the adapter breaks ties by id; no sort is id order.
-          orderBy: ({ sort }) => sortTerms(sort, { title: posts.headline }),
-        }),
+        // The body says the filter and the order. A title is not unique, so
+        // ties break by id, and no sort is id order.
+        query(PostsQuery, { entity: Db.Post }),
         query(AuthorsQuery, {
           entity: Db.Author,
           where: ({ search }) => (search === '' ? undefined : like(authors.name, `%${search}%`)),

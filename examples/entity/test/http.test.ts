@@ -28,13 +28,15 @@ describe('the HTTP transport the browser uses', () => {
     const run = <A, E>(effect: Effect.Effect<A, E, RemoteClient>) =>
       Effect.runPromise(effect.pipe(Effect.provide(client)))
 
+    // Sorted by title, so a rename can move a post.
+    const byTitle = update(initial(), Message.SortedPosts({ column: 'title' })).model
     const listed = await run(
-      Data.prefetch(initial(), Option.getOrThrow(Posts.active.projectionOf(initial()))),
+      Data.prefetch(byTitle, Option.getOrThrow(Posts.active.projectionOf(byTitle))),
     )
     const page = Posts.page(listed)
     expect(page._tag === 'Ready' && page.value.items.map(row => row.title)).toEqual([
-      'Notes on the Engine',
       'Compilers',
+      'Notes on the Engine',
     ])
 
     const opened = EditForm.helpers.open(PostId.make('p2'))(listed).model
@@ -51,10 +53,13 @@ describe('the HTTP transport the browser uses', () => {
     const settled = await run(submitted.commands![0]!.effect)
     const saved = update(submitted.model, settled as Message).model
     expect(PostEditor.status(saved)).toBe('Saved')
-    // The row shows the edit at once; the list is sorted by title, so it is also
-    // fetched again in case the edit moved it.
+    // The row shows the edit at once, and moves where its new title sorts:
+    // the body orders by title, so the client places it, and fetches nothing.
     const after = Posts.page(saved)
-    expect(after._tag === 'Refreshing' && after.value.items[1]?.title).toBe('Over HTTP')
+    expect(after._tag === 'Ready' && after.value.items.map(row => row.title)).toEqual([
+      'Notes on the Engine',
+      'Over HTTP',
+    ])
   })
 
   it('sorts and searches a list by changing the query’s input, which the Model holds', async () => {

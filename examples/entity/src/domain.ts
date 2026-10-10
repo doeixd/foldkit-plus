@@ -3,7 +3,7 @@
  * the client and the server both interpret what it says.
  */
 import { Schema } from 'effect'
-import { Derived, Entity, Relation } from 'foldkit-entity'
+import { Collation, Derived, Entity, Relation } from 'foldkit-entity'
 
 /**
  * Ids of their own. A ref to an Author, the editor a form picks, and the id a
@@ -25,7 +25,12 @@ const Post = Entity.define(
     title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
     published: Schema.Boolean.annotate({ title: 'Published' }),
   }),
-).pipe(Entity.derived({ commentCount: Derived.make(Schema.Number) }))
+).pipe(
+  Entity.derived({ commentCount: Derived.make(Schema.Number) }),
+  // How SQLite orders the column (BINARY), said, so a client can place a
+  // renamed post in a list sorted by title as the server would.
+  Entity.annotateMembers({ title: Collation.of(Collation.binary) }),
+)
 
 export const Blog = Entity.relate(
   { Author, Post, Comment },

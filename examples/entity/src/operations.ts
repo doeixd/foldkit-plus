@@ -4,7 +4,7 @@
  * submitted value is this mutation's input by construction.
  */
 import { Schema } from 'effect'
-import { Entity, Write } from 'foldkit-entity'
+import { Entity, Expr, Order, Write } from 'foldkit-entity'
 import { Sort } from 'foldkit-crud'
 import { Mutation, Query } from 'foldkit-remote'
 import { Blog, EditPostInput, PostId, WritePostInput } from './domain.js'
@@ -19,22 +19,26 @@ export const EditPostMutation = Mutation.write(
   Write.update(Entity.input(Blog.Post, EditPostInput, { editorId: 'editor' }), { id: 'id' }),
 )
 
-/**
- * The orders the post list offers, by name. The client toggles them and the
- * server decides what each one means; `Sort` is that state written once.
- */
+/** The orders the post list offers, by name; the query's body says what each one means. */
 export const PostSort = Sort.make(['title'])
 
 /**
  * Posts, searched and sorted. Which rows and in what order is the query's input,
  * so a list has no filter or sort state of its own: another input is another
- * connection, paged on its own cursors. Every author is what lists them for a
- * relation picker.
+ * connection, paged on its own cursors. The body is the filter and the order,
+ * which the server compiles and the client reads, so a rename moves a post in
+ * a list sorted by title with no request. Every author is what lists them for
+ * a relation picker.
  */
-export const PostsQuery = Query.make('Posts', {
-  Input: { search: Schema.String, sort: PostSort.Schema },
-  Result: Query.connection(Blog.Post),
-})
+export const PostsQuery = Query.define(
+  'Posts',
+  { search: Schema.String, sort: PostSort.Schema },
+  ({ input }) =>
+    Query.from(Blog.Post).pipe(
+      Query.where(Expr.contains(Blog.Post.fields.title, input.search)),
+      Query.orderBy(Order.chosen(input.sort, { title: Blog.Post.fields.title })),
+    ),
+)
 export const AuthorsQuery = Query.make('Authors', {
   // What the editor picker's search box holds. Authors are found, not all listed.
   Input: { search: Schema.String },

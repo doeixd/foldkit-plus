@@ -1179,9 +1179,11 @@ pending edits and news):
   every live patch.
 - **The field-to-query index was not built.** Each judgment is per loaded
   list, and no example holds enough lists for it to show.
-- **Remaining exits:** the entity example's posts query has no body, the
-  cloudflare create names its list with `prepend`, and `verifyPlacement` is
-  not yet on in the e2e suites.
+- **The entity example's `PostsQuery` has a body**, with `title` declared
+  `binary`; its HTTP test renames a post in a list sorted by title and sees it
+  move, `Ready`, with no list request.
+- **Remaining exits:** the cloudflare create names its list with `prepend`,
+  and `verifyPlacement` is not yet on in the e2e suites.
 
 #### Phase 11: the server places, for live lists
 

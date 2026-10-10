@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/entity`: `PostsQuery` declares its body** (`Query.define`, a
+  title search and `Order.chosen`), and `title` declares `binary`, in place of
+  the server's `where` and `orderBy`. A rename moves a post in a list sorted by
+  title with no list request; the list was refetched before.
 - **`foldkit-remote`: a pending edit, a read and a live patch place the rows
   a list holds.** A pending `optimistic` patch or `Data.overlay` to an
   ordering or filtered field shows its row where the edit puts it, or out of

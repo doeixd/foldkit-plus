@@ -109,7 +109,7 @@ status: Saved
 row after: {"id":"p2","headline":"Compilers, revised","published":1,"author_id":"a1","editor_id":"a1"}
 edited: Ready {"id":"p2","title":"Compilers, revised","published":true,"editor":{"entity":"Author","id":"a1"}}
 author again: Ready {"name":"Ada","posts":[… "Compilers, revised" …]}
-post list again: p1 "Notes on the Engine", p2 "Compilers, revised" (refetching)
+post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
 ```
 
 - **`form controls`** is what `Form.make` resolved from the input and the Entity,
@@ -141,11 +141,9 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised" (refetching)
   changed.
 - **`edited`**, **`author again`** and **`post list again`** moved without a refetch. The mutation
   answered with the columns it wrote, and both Projections read the one
-  normalized post. The list is also marked to be fetched again: the save
-  changed a title, and `Posts` is a `Query.make` query, which declares no body
-  Remote could judge its order by, so the server says where the row now sits.
-  Its rows stay drawn meanwhile; this demo runs no read entry, so it stays
-  marked.
+  normalized post. The list is not fetched again either: the save changed a
+  title, and `PostsQuery`'s body orders by title (binary, as SQLite does), so
+  Remote places the row where the new title sorts among the rows loaded.
 
 ### A page of a relation
 
@@ -198,10 +196,12 @@ unreachable and then comes back.
 The post list's search box and its sortable Title header change two Model
 fields, `postSearch` and `postSort`. Those are `PostsQuery`'s input, so the list
 now names another connection, and Remote fetches it because it is on screen. No
-Message asks for data. On the server the same input picks the `where` and the
-`orderBy`; the sort is a name (`'title'`), never a column. `Sort.make(['title'])`
-is that state written once: the Model's field, the header's toggle, and the
-query's input, with `sortTerms` giving it meaning on the server.
+Message asks for data. The query's body says what the input means: a search
+is `Expr.contains` on the title, and the sort is a name (`'title'`) that
+`Order.chosen` maps to the field, never a column. The server compiles the
+body; the client reads it to place an edited post. `Sort.make(['title'])` is
+that state written once: the Model's field, the header's toggle, and the
+query's input.
 
 ### A picker that searches
 
@@ -217,7 +217,7 @@ as `chosen`, and `pickers.active` is wired beside the lists.
 asked to delete p1: Confirming; rows 2 posts, 2 comments
   command Remote.mutate(DeletePost): MutationSucceeded
 confirmed: Deleted; rows 1 posts, 0 comments
-post list after delete: p2 "Compilers, revised" (refetching)
+post list after delete: p2 "Compilers, revised"
 author after delete: Ready {"name":"Ada","posts":[{"title":"Compilers, revised", …}]}
 ```
 
