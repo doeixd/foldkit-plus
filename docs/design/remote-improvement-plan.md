@@ -1,7 +1,7 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** Phases 0–2 done, 2026-10-10 (each section's *As built*); Phases
-3–6 not started. §15 records the decisions taken while planning, each against the
+**Status:** Phases 0–2 done, 2026-10-10; Phase 3 in part (each section's *As
+built*); Phases 4–6 not started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -532,6 +532,36 @@ nothing; a two-entity transaction arrives as one event; cloudflare's live
 source reads the log instead of diffing a poll; a retried mutation runs once;
 a Crud editor open on a row another client saves reads `Moved` with its draft
 intact.
+
+**As built, in part** (`37bd989a`, `8b409177`, `b29781d5`):
+
+- **`Moved`, and the rebase it needed.** Writing it found a real bug: a Crud
+  editor over a write that `expect`s a revision kept the revision it was
+  filled with, so its own second save was refused as a conflict with itself.
+  After its own save is applied, the form now takes the revision the save
+  moved the row to; a revision moved by anyone else reads `Moved`, the draft
+  kept. (A save applied while another client also saves is taken as this
+  editor's.) `Input.hidden()` holds text, so a numeric revision key keeps a
+  visible control; a hidden number control is a Form gap.
+- **Retries without a request log.** The plan put a `requestId` row in the
+  write's transaction. D1 has no interactive transactions, so that row could
+  not be atomic with the write there. What a retry actually breaks is a
+  guarded write, which met its own revision bump and conflicted; the writer
+  now reads the row when the guard misses, and one revision past the expected
+  one holding exactly these values means the write landed. A guarded delete
+  that finds the row gone succeeds; an insert already had `on conflict do
+  nothing`. Every declared write is now retry-safe with no store. A handler
+  still receives `requestId` to keep a log of its own.
+- **Journal settles publish:** `applyEdits(binding, { live })` tells a hub of
+  each edit it wrote. The registry does not use it yet: its client is plain
+  HTTP with no live stream, and giving its 100k-row grid live rows is a
+  change of its own.
+- **Not built:** remote-drizzle's `transaction(...)` for handlers, one live
+  event per transaction (live events are per entity; a batch event is a new
+  wire variant), and the cross-request change log for Workers (cloudflare
+  still polls D1). A declared write is one statement, so it is atomic
+  already; what remains is for handlers that write several rows, and for
+  Workers.
 
 ## 8. Phase 4 — Sync's pending edits as Remote overlays
 
