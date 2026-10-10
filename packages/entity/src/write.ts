@@ -13,14 +13,28 @@
  * Entity having a field does not mean anyone may set it.
  */
 import { Option, Schema } from 'effect'
-import type { AnyEntity, EntityField, EntityInput, InputMember } from './index.js'
+import type {
+  AnyEntity,
+  EntityField,
+  EntityInput,
+  EntityRef,
+  EntityRelation,
+  InputMember,
+} from './index.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
+type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
 
 /** One input key the write sets, and the field it sets. */
 export interface WriteSet {
   readonly key: string
   readonly field: AnyField
+}
+
+/** One input key the write points at another row with: a `one` relation, by the target's id. */
+export interface WriteLink {
+  readonly key: string
+  readonly relation: OneRelation
 }
 
 /** An update of one row of an Entity, by id, from an operation's input. */
@@ -36,6 +50,8 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
   readonly expect: (WriteSet & { readonly key: keyof Fields & string }) | undefined
   /** The keys it sets, in the input's order. */
   readonly sets: ReadonlyArray<WriteSet>
+  /** The `one` relations it points elsewhere, in the input's order. */
+  readonly links: ReadonlyArray<WriteLink>
 }
 
 export type AnyWrite = Write<AnyEntity, any>
@@ -45,6 +61,12 @@ export interface BoundWrite {
   readonly entity: string
   readonly id: string
   readonly values: Readonly<Record<string, unknown>>
+  /**
+   * Each `one` relation it points, by the relation's key: the row it points at,
+   * or none for an optional relation set to nothing. How a ref is carried (a
+   * key on the wire, a foreign key in a table) is each interpreter's.
+   */
+  readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
 }
 
 const fail = (input: EntityInput<AnyEntity, any, any>, message: string): never => {
@@ -76,8 +98,10 @@ export const Write = {
    * const EditPost = Write.update(EditPostInput, { id: 'id' })
    * ```
    *
-   * Refused where it is written: an `id` that is not the Entity's `id` field, a
-   * relation or nested key (not written by an update yet), or nothing to set.
+   * A key mapped to a `one` relation (`Relation.input`) points the row at the
+   * id it holds. Refused where it is written: an `id` that is not the Entity's
+   * `id` field, a `many` relation or a nested key (not written by an update
+   * yet), or nothing to set.
    */
   update: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
@@ -94,6 +118,7 @@ export const Write = {
         ? undefined
         : Object.freeze({ key: options.expect, field: fieldAt(input, options.expect, 'expect') })
     const sets: Array<WriteSet> = []
+    const links: Array<WriteLink> = []
     for (const [key, member] of Object.entries(membersOf(input))) {
       if (member === undefined || key === options.id || key === options.expect) continue
       switch (member._tag) {
@@ -103,17 +128,23 @@ export const Write = {
         case 'Unmapped':
           break
         case 'RelationInput':
+          if (member.relation.cardinality !== 'one') {
+            fail(input, `"${key}" is a many relation; an update points one relation at a time`)
+          }
+          links.push(Object.freeze({ key, relation: member.relation as OneRelation }))
+          break
         case 'NestedInput':
-          fail(input, `"${key}" is a relation; an update writes fields only`)
+          fail(input, `"${key}" writes a nested row; an update writes its own row only`)
       }
     }
-    if (sets.length === 0) fail(input, 'it sets no field')
+    if (sets.length === 0 && links.length === 0) fail(input, 'it sets no field')
     return Object.freeze({
       _tag: 'Update' as const,
       input,
       id: Object.freeze({ key: options.id, field: id }),
       expect,
       sets: Object.freeze(sets),
+      links: Object.freeze(links),
     })
   },
 
@@ -131,8 +162,11 @@ export const Write = {
       revision: encoded(field, (value as Readonly<Record<string, unknown>>)[key]),
     })),
 
-  /** The fields any invocation may write: what a query reading none of them cannot be changed by. */
-  writes: (write: AnyWrite): ReadonlyArray<AnyField> => write.sets.map(set => set.field),
+  /** The members any invocation may write: what a query reading none of them cannot be changed by. */
+  writes: (write: AnyWrite): ReadonlyArray<AnyField | OneRelation> => [
+    ...write.sets.map(set => set.field),
+    ...write.links.map(link => link.relation),
+  ],
 
   /**
    * The row this input writes and its new values, encoded as the store holds
@@ -147,15 +181,26 @@ export const Write = {
   ): BoundWrite => {
     const given = value as Readonly<Record<string, unknown>>
     const wanted = keys === undefined ? undefined : new Set(keys)
+    const asked = (key: string) => wanted === undefined || wanted.has(key)
     const values: Record<string, unknown> = {}
     for (const { key, field } of write.sets) {
-      if (wanted !== undefined && !wanted.has(key)) continue
+      if (!asked(key)) continue
       values[field.key] = encoded(field, given[key])
+    }
+    const links: Record<string, Option.Option<EntityRef>> = {}
+    for (const { key, relation } of write.links) {
+      if (!asked(key)) continue
+      const target = relation.target()
+      links[relation.key] = Option.map(Option.fromNullishOr(given[key]), id => ({
+        entity: target.name,
+        id: String(encoded(target.fields.id as AnyField, id)),
+      }))
     }
     return {
       entity: write.input.entity.name,
       id: String(encoded(write.id.field, given[write.id.key])),
       values,
+      links,
     }
   },
 }

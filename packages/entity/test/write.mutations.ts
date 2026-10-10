@@ -40,12 +40,12 @@ export default [
   },
   {
     name: 'a write may set nothing',
-    edits: [{ file, find: 'if (sets.length === 0)', replace: 'if (false)' }],
+    edits: [{ file, find: 'if (sets.length === 0 && links.length === 0)', replace: 'if (false)' }],
     tests,
   },
   {
     name: 'the keys asked for are ignored',
-    edits: [{ file, find: 'if (wanted !== undefined && !wanted.has(key)) continue', replace: '' }],
+    edits: [{ file, find: 'wanted === undefined || wanted.has(key)', replace: 'true' }],
     tests,
   },
   {
@@ -62,6 +62,18 @@ export default [
   {
     name: 'the sets can be changed after',
     edits: [{ file, find: 'sets: Object.freeze(sets),', replace: 'sets,' }],
+    tests,
+  },
+  {
+    name: 'a many relation is pointed like a one',
+    edits: [
+      { file, find: "if (member.relation.cardinality !== 'one') {", replace: 'if (false) {' },
+    ],
+    tests,
+  },
+  {
+    name: 'a relation set to nothing points at a row with no id',
+    edits: [{ file, find: 'Option.fromNullishOr(given[key])', replace: 'Option.some(given[key])' }],
     tests,
   },
 ]

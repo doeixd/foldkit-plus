@@ -72,4 +72,20 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a relation is written as its ref, not its id',
+    edits: [
+      {
+        file: drizzle,
+        find: 'onSome: ref => ref.id',
+        replace: 'onSome: ref => `${ref.entity}:${ref.id}`',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a pointed relation is not answered',
+    edits: [{ file: drizzle, find: '...Object.keys(links),', replace: '' }],
+    tests,
+  },
 ]

@@ -108,6 +108,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A declared write points a `one` relation.** `Write.update` takes a key
+  mapped with `Relation.input` to a `one` relation; `Write.bind` returns it in
+  `links` as a ref (or none). Remote patches it as the ref key
+  (`patchOfWrite`), and remote-drizzle's `writer` sets the foreign key.
 - **`foldkit-remote-drizzle`: `applyEdits(binding)`, a journal's `apply`.** One
   committed cell edit written to the member's column with its sequence as the
   revision, never moving a row back. The registry example's hand-written SQL

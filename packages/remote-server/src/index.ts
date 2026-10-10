@@ -6,7 +6,7 @@
  * auth protocol; `principal` is resolved outside and passed in.
  */
 import { Effect, Layer, Option, Queue, Schema, Stream } from 'effect'
-import { Write, evaluate, type AnyWrite, type Row } from 'foldkit-entity'
+import { Write, evaluate, type AnyWrite, type EntityRef, type Row } from 'foldkit-entity'
 import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
@@ -104,6 +104,8 @@ export interface EntityWriter<P, R = never> {
   readonly update: (context: {
     readonly id: string
     readonly values: Readonly<Record<string, unknown>>
+    /** Each `one` relation it points, by the relation's key: the row, or none. */
+    readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
     readonly principal: P
   }) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>
@@ -1068,6 +1070,7 @@ export const RemoteServer = {
           const written = yield* writer.update({
             id: bound.id,
             values: bound.values,
+            links: bound.links,
             expect,
             principal,
           })

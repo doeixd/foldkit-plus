@@ -9,7 +9,7 @@ import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-co
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Entity, Write } from 'foldkit-entity'
+import { Entity, Relation, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
@@ -217,5 +217,72 @@ describe('applyEdits, a journal’s apply', () => {
     })
     const PlainDb = bind({ Plain }, { Plain: { table: plains } })
     expect(() => applyEdits(PlainDb.Plain)).toThrow('no column for its revision "revision"')
+  })
+})
+
+describe('A write that points a one relation', () => {
+  const User = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+  const Task = Entity.define('Task', Schema.Struct({ id: Schema.String, title: Schema.String }))
+  const Work = Entity.relate(
+    { User, Task },
+    { Task: { owner: Relation.one(User, { optional: true }) } },
+  )
+  const users = sqliteTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
+  const tasks = sqliteTable('tasks', {
+    id: text('id').primaryKey(),
+    title: text('title').notNull(),
+    ownerId: text('owner_id'),
+  })
+  const WorkDb = bind(Work, {
+    User: { table: users },
+    Task: { table: tasks, relations: { owner: { field: tasks.ownerId } } },
+  })
+  const Assign = Mutation.update(
+    'AssignTask',
+    Write.update(
+      Entity.input(
+        Work.Task,
+        Schema.Struct({ id: Schema.String, ownerId: Schema.NullOr(Schema.String) }),
+        { ownerId: Relation.input(Work.Task.relations.owner) },
+      ),
+      { id: 'id' },
+    ),
+  )
+  const db = new DatabaseSync(':memory:')
+  db.exec('create table users (id text primary key, name text not null)')
+  db.exec('create table tasks (id text primary key, title text not null, owner_id text)')
+  db.exec("insert into users values ('u1', 'Ada')")
+  db.exec("insert into tasks values ('t1', 'Write', null)")
+  const assigned = RemoteServer.handlers(
+    RemoteServer.make({
+      entities: [],
+      mutations: [RemoteServer.update(Assign, writer(WorkDb.Task))],
+    }),
+    undefined,
+  )
+  const assign = (ownerId: string | null) =>
+    Effect.runPromise(
+      assigned
+        .FoldkitRemoteMutate({
+          requestId: `a${++requests}`,
+          mutation: 'AssignTask',
+          input: { id: 't1', ownerId },
+        })
+        .pipe(Effect.provide(databaseLayer(drizzle({ client: db })))),
+    )
+
+  it('sets its foreign key, and answers it as the ref the store holds', async () => {
+    const answered = await assign('u1')
+    expect(db.prepare("select owner_id from tasks where id = 't1'").get()).toEqual({
+      owner_id: 'u1',
+    })
+    expect(answered.entities[0]?.values).toEqual({ id: 't1', owner: 'User:u1' })
+  })
+
+  it('clears it for none', async () => {
+    await assign(null)
+    expect(db.prepare("select owner_id from tasks where id = 't1'").get()).toEqual({
+      owner_id: null,
+    })
   })
 })

@@ -2,12 +2,12 @@
  * A mutation that is a declared `Write`: its optimistic patch is the write
  * bound to the input, and the keys an author changed travel with the request.
  */
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Mutation, Refusal, Remote, RemoteClient } from '../src/index.js'
+import { Mutation, Refusal, Remote, RemoteClient, patchOfWrite } from '../src/index.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -89,5 +89,25 @@ describe('Data.mutate of a write', () => {
     expect(sent).toEqual([
       { requestId: started.requestId, mutation: 'EditProject', input: edit, keys: ['name'] },
     ])
+  })
+})
+
+describe('patchOfWrite', () => {
+  it('patches a relation as the ref key the store holds, and none as null', () => {
+    expect(
+      patchOfWrite({
+        entity: 'Post',
+        id: 'p1',
+        values: { title: 'Compilers' },
+        links: {
+          author: Option.some({ entity: 'Author', id: 'a1' }),
+          editor: Option.none(),
+        },
+      }),
+    ).toEqual({
+      entity: 'Post',
+      id: 'p1',
+      values: { title: 'Compilers', author: 'Author:a1', editor: null },
+    })
   })
 })

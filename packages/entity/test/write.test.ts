@@ -24,7 +24,16 @@ const Post = Entity.define(
     revision: Schema.Number,
   }),
 )
-const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
+const Blog = Entity.relate(
+  { Author, Post },
+  {
+    Post: {
+      author: Relation.one(Author),
+      editor: Relation.one(Author, { optional: true }),
+      readers: Relation.many(Author),
+    },
+  },
+)
 
 const EditPost = Entity.input(
   Blog.Post,
@@ -82,15 +91,35 @@ describe('Write.update', () => {
       'not mapped to a field',
     ],
     [
-      'a relation key',
+      'a many relation key',
       () =>
         Write.update(
-          Entity.input(Blog.Post, Schema.Struct({ id: Schema.String, authorId: Schema.String }), {
-            authorId: Relation.input(Blog.Post.relations.author),
-          }),
+          Entity.input(
+            Blog.Post,
+            Schema.Struct({ id: Schema.String, readerIds: Schema.Array(Schema.String) }),
+            { readerIds: Relation.input(Blog.Post.relations.readers) },
+          ),
           { id: 'id' },
         ),
-      'is a relation',
+      'is a many relation',
+    ],
+    [
+      'a nested key',
+      () =>
+        Write.update(
+          Entity.input(
+            Blog.Post,
+            Schema.Struct({ id: Schema.String, author: Schema.Struct({ name: Schema.String }) }),
+            {
+              author: Relation.nested(
+                Blog.Post.relations.author,
+                Entity.input(Blog.Author, Schema.Struct({ name: Schema.String })),
+              ),
+            },
+          ),
+          { id: 'id' },
+        ),
+      'writes a nested row',
     ],
     [
       'nothing to set',
@@ -118,6 +147,7 @@ describe('Write.bind', () => {
       entity: 'Post',
       id: 'p1',
       values: { title: 'Compilers', due: '2026-03-01T00:00:00.000Z' },
+      links: {},
     })
   })
 
@@ -129,5 +159,51 @@ describe('Write.bind', () => {
   it('writes only the keys asked for, when asked for some', () => {
     expect(Write.bind(write, value, ['title', 'note']).values).toEqual({ title: 'Compilers' })
     expect(Write.bind(write, value, []).values).toEqual({})
+  })
+})
+
+describe('A write that points a one relation', () => {
+  const Reassign = Write.update(
+    Entity.input(
+      Blog.Post,
+      Schema.Struct({
+        id: Schema.String,
+        authorId: Schema.String,
+        editorId: Schema.NullOr(Schema.String),
+      }),
+      {
+        authorId: Relation.input(Blog.Post.relations.author),
+        editorId: Relation.input(Blog.Post.relations.editor),
+      },
+    ),
+    { id: 'id' },
+  )
+
+  it('points the relation, and counts it among what it writes', () => {
+    expect(Reassign.links.map(link => [link.key, link.relation.key])).toEqual([
+      ['authorId', 'author'],
+      ['editorId', 'editor'],
+    ])
+    expect(Write.writes(Reassign).map(member => member.key)).toEqual(['author', 'editor'])
+  })
+
+  it('binds it to the row it points at, or to none for nothing', () => {
+    expect(Write.bind(Reassign, { id: 'p1', authorId: 'a1', editorId: null })).toEqual({
+      entity: 'Post',
+      id: 'p1',
+      values: {},
+      links: {
+        author: Option.some({ entity: 'Author', id: 'a1' }),
+        editor: Option.none(),
+      },
+    })
+  })
+
+  it('binds only the relations asked for, when asked for some', () => {
+    expect(
+      Object.keys(
+        Write.bind(Reassign, { id: 'p1', authorId: 'a1', editorId: null }, ['editorId']).links,
+      ),
+    ).toEqual(['editor'])
   })
 })

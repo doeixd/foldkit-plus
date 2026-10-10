@@ -756,7 +756,7 @@ export const writer = <P = unknown>(
   }
   return {
     entity: binding.name,
-    update: ({ id, values, expect }) =>
+    update: ({ id, values, links, expect }) =>
       Effect.gen(function* () {
         const set: Record<string, unknown> = {}
         for (const [field, value] of Object.entries(values)) {
@@ -767,6 +767,17 @@ export const writer = <P = unknown>(
             })
           }
           set[key] = value
+        }
+        // A `one` relation is its foreign key: the target's id, or null for none.
+        for (const [field, link] of Object.entries(links)) {
+          const relation = binding.relations[field]
+          const key = relation?.kind === 'one' ? keys.get(relation.field) : undefined
+          if (key === undefined) {
+            return yield* new RemoteServerError({
+              message: `${binding.name} has no foreign key for "${field}" to write`,
+            })
+          }
+          set[key] = Option.match(link, { onNone: () => null, onSome: ref => ref.id })
         }
         let guard: SQL | undefined
         if (Option.isSome(expect)) {
@@ -783,6 +794,7 @@ export const writer = <P = unknown>(
         }
         const answered = returning(binding, [
           ...Object.keys(values),
+          ...Object.keys(links),
           ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
         ])
         const where = and(eq(idColumn(binding), id), guard)

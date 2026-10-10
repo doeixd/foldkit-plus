@@ -10,7 +10,7 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: ': [DomainWrite.bind(mutation.write, input as never, options.keys)]',
+        find: ': [patchOfWrite(DomainWrite.bind(mutation.write, input as never, options.keys))]',
         replace: ': undefined',
       },
     ],
@@ -45,6 +45,17 @@ export default [
         file: '../src/index.ts',
         find: ': (options.optimistic ??',
         replace: ': (undefined ??',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a relation is patched as its id, not its ref key',
+    edits: [
+      {
+        file: '../src/mutation.ts',
+        find: 'onNone: () => null, onSome: ref => entityKey(ref.entity, ref.id)',
+        replace: 'onNone: () => null, onSome: ref => ref.id',
       },
     ],
     tests,

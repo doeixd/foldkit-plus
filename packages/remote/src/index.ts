@@ -96,7 +96,12 @@ import {
   type RemoteMessageInput,
   type RemoteModel,
 } from './model.js'
-import { mutationStatus, type MutationDescriptor, type MutationStatus } from './mutation.js'
+import {
+  mutationStatus,
+  patchOfWrite,
+  type MutationDescriptor,
+  type MutationStatus,
+} from './mutation.js'
 import {
   connectionIdentity,
   emptyOptimistic,
@@ -3122,7 +3127,7 @@ const bindDomain = <
           : (options.optimistic ??
             (mutation.write === undefined
               ? undefined
-              : [DomainWrite.bind(mutation.write, input as never, options.keys)]))
+              : [patchOfWrite(DomainWrite.bind(mutation.write, input as never, options.keys))]))
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,

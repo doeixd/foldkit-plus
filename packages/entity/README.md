@@ -344,8 +344,11 @@ an Entity having a field grants no one the right to set it. `bind` encodes each
 value through its field's schema, so the patch is in the store's shape, and
 takes the keys to write when an author changed only some. `expect` names a key
 holding the revision the row was read at, for an interpreter to write only a row
-still at it. An unmapped key is not written; a relation key is refused where the
-write is declared, until an update can write one.
+still at it. An unmapped key is not written. A key mapped to a `one` relation
+points the row elsewhere: `bind` gives it as a ref in `links` (none for an
+optional relation set to nothing), and each interpreter carries it its own way,
+a ref key in a store, a foreign key in a table. A `many` relation or a nested
+key is refused where the write is declared.
 
 ## Attaching metadata
 

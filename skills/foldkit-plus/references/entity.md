@@ -131,8 +131,9 @@ reuses the fields' schemas, and a mapping may name a member by key:
 `Entity.input(Post, Input, { editorId: 'editor' })` is `Relation.input(Post.relations.editor)`.
 
 **What an input writes:** `Write.update(input, { id: 'id', expect? })` declares
-an update of one row from that input (every key mapped to a field is set; an
-unmapped key is not; a relation key is refused). `Write.writes(write)` is what
+an update of one row from that input (every key mapped to a field is set, a
+`one` relation key is pointed and bound to a ref in `links`; an unmapped key is
+not written; a `many` or nested key is refused). `Write.writes(write)` is what
 it may change and `Write.bind(write, value, keys?)` the row and its encoded new
 values, for an optimistic patch or a server to write.
 

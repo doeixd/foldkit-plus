@@ -5,8 +5,8 @@
  * `requestId`**, so a transport retry cannot apply the same change twice. An
  * unknown or already-applied result is a no-op.
  */
-import { Schema } from 'effect'
-import type { AnyWrite, Write } from 'foldkit-entity'
+import { Option, Record as Rec, Schema } from 'effect'
+import type { AnyWrite, BoundWrite, Write } from 'foldkit-entity'
 import type { RemoteError } from './remoteData.js'
 import { entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
 
@@ -188,6 +188,21 @@ export const schemaOf = <S extends SchemaOrFields>(shape: S): Schema.Codec<TypeO
   (Schema.isSchema(shape) ? shape : Schema.Struct(shape as Schema.Struct.Fields)) as Schema.Codec<
     TypeOf<S>
   >
+
+/**
+ * A bound write as the store patches it: its fields as they are, and each
+ * relation it points as the ref key the store holds (`'User:u1'`), or null.
+ */
+export const patchOfWrite = (bound: BoundWrite): NormalizedPatch => ({
+  entity: bound.entity,
+  id: bound.id,
+  values: {
+    ...bound.values,
+    ...Rec.map(bound.links, link =>
+      Option.match(link, { onNone: () => null, onSome: ref => entityKey(ref.entity, ref.id) }),
+    ),
+  },
+})
 
 export const Mutation = {
   /**
