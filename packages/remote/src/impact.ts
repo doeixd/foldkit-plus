@@ -11,7 +11,8 @@
  * Membership is judged by the query's body, as a live insert is
  * (`belongsEncoded`). Position is never judged here: where a row sorts needs
  * the backend's collation, so a change to an ordering field of a row the list
- * holds invalidates it.
+ * holds invalidates it. A body that names no order leaves it to the server,
+ * by fields the client cannot see, so any change to a row it holds does.
  */
 import { Query as Relational } from 'foldkit-entity'
 import { defineTaggedUnion } from 'foldkit/schema'
@@ -103,6 +104,11 @@ export const impactOn = (
       const touches = (keys: ReadonlyArray<{ readonly key: string }>) =>
         keys.some(field => fields.includes(field.key))
 
+      if (held && body.orderBy.length === 0) {
+        return Impact.Invalidated({
+          reason: `${key} changed, and "${descriptor.name}" is ordered by the server, by fields its body does not name`,
+        })
+      }
       if (held && touches(roles.order)) {
         return Impact.Invalidated({
           reason: `${key} changed a field "${descriptor.name}" is ordered by`,

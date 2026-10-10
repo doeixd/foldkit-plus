@@ -116,4 +116,22 @@ export default [
     ],
     tests: ['packages/remote/test/liveBelongs.test.ts'],
   },
+  {
+    name: 'a body that leaves its order to the server keeps a held row that changed',
+    edits: [
+      { file: impact, find: 'if (held && body.orderBy.length === 0) {', replace: 'if (false) {' },
+    ],
+    tests,
+  },
+  {
+    name: 'a server-ordered list is invalidated by a row it does not hold',
+    edits: [
+      {
+        file: impact,
+        find: 'if (held && body.orderBy.length === 0) {',
+        replace: 'if (body.orderBy.length === 0) {',
+      },
+    ],
+    tests,
+  },
 ]

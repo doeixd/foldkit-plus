@@ -41,6 +41,10 @@ const Named = Query.define('Named', { name: Schema.String }, ({ input }) =>
     Query.orderBy(Order.asc(Project.fields.id)),
   ),
 )
+/** Projects of one status, in an order the server chooses and the body does not say. */
+const ServerOrdered = Query.define('ServerOrdered', { status: Schema.String }, ({ input }) =>
+  Query.from(Project).pipe(Query.where(Expr.eq(Project.fields.status, input.status))),
+)
 /** The same rows, by a query whose meaning only the server knows. */
 const Opaque = Query.make('Opaque', { Input: {}, Result: Query.connection(Project) })
 const Owners = Query.define('Owners', {}, () =>
@@ -53,12 +57,17 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Project, Owner],
-  queries: [ByStatus, Named, Opaque, Owners],
+  queries: [ByStatus, Named, Opaque, Owners, ServerOrdered],
 })
 
 const active = Data.query(ByStatus, { status: 'active' }, { select: Summary, first: 25 })
 const named = Data.query(Named, { name: 'Apo' }, { select: Summary, first: 25 })
 const opaque = Data.query(Opaque, {}, { select: Summary, first: 25 })
+const serverOrdered = Data.query(
+  ServerOrdered,
+  { status: 'active' },
+  { select: Summary, first: 25 },
+)
 const owners = Data.query(
   Owners,
   {},
@@ -99,7 +108,8 @@ const loaded = (): Model => {
   const withActive = holding(stored, active.ref.identity, ['p1', 'p2'])
   const withNamed = holding(withActive, named.ref.identity, ['p1'])
   const withOpaque = holding(withNamed, opaque.ref.identity, ['p1', 'p2', 'p3'])
-  return Data.reduce(withOpaque, {
+  const withServerOrdered = holding(withOpaque, serverOrdered.ref.identity, ['p1', 'p2'])
+  return Data.reduce(withServerOrdered, {
     _tag: 'ConnectionMerged',
     connection: owners.ref.identity,
     page: { edges: [], start: { _tag: 'Terminal' }, end: { _tag: 'Terminal' } },
@@ -199,6 +209,15 @@ describe('A list the write may have changed', () => {
     // the store cannot say where, or even whether, it belongs.
     const partial = answered(loaded(), [patch('p9', { id: 'p9', status: 'active' })])
     expect(stale(partial, active.ref.identity)).toBe(true)
+  })
+
+  it('is invalidated when a held row changed at all, if its body leaves the order to the server', () => {
+    // Its order may be by price, or by anything: the body does not say.
+    const repriced = answered(loaded(), [patch('p1', { price: 50 })])
+    expect(stale(repriced, serverOrdered.ref.identity)).toBe(true)
+    // A row it does not hold, still not matching, changes nothing it shows.
+    const elsewhere = answered(loaded(), [patch('p3', { price: 50 })])
+    expect(stale(elsewhere, serverOrdered.ref.identity)).toBe(false)
   })
 
   it('is invalidated, for any change of its Entity, when its query declares no body', () => {

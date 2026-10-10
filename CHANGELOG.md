@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote`: a list whose body declares no order is invalidated by
+  any change to a row it holds.** Its order is the server's (an `orderBy`
+  on the server, say), by fields the client cannot see, so a change it judged
+  harmless could have moved the row. It was kept before, and the row showed
+  its new value in its old place.
 - **`examples/cloudflare`: a quiet tick of the live poll reads one row.**
   Triggers keep a write count of `todos` (`migrations/0002_changes.sql`); the
   poll reads it first and re-reads the rows and the list only when it moved.

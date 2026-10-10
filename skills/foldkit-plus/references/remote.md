@@ -411,7 +411,8 @@ list over its Entity by the list's query body (`Query.dependencies`'
 `predicate`/`order`, `belongsEncoded`): a list stands when the body proves its
 rows and order unchanged, and is otherwise invalidated, restarting any read of
 it in flight, so its read entry refetches it. A `Query.make` list (no body) is
-invalidated by any change to its Entity. A joining row is fetched, never
+invalidated by any change to its Entity, and a list whose body declares no
+order (the server's `orderBy` decides it) by any change to a row it holds. A joining row is fetched, never
 spliced. `Data.refresh` remains for effects the answer does not name.
 
 **Declared writes.** `Mutation.write(name, Write.update(input, { id }))` (or

@@ -1321,7 +1321,11 @@ the store the answer left:
   invalidates it, and its read entry fetches it again; a read of it already in
   flight is restarted, since it could answer with the rows before the write;
 - a list over a `Query.make` query, which declares no body, is invalidated by
-  any change to its Entity.
+  any change to its Entity;
+- a list whose body declares no order leaves its order to the server, by
+  fields the client cannot see, so any change to a row it holds invalidates
+  it. Declare the order in the body (`Query.orderBy`) to keep a list that a
+  change provably did not move.
 
 So a rename updates every view of the row and fetches nothing, and a status
 change refetches the lists filtered by status. Where a joining row goes is the
