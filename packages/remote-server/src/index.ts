@@ -123,12 +123,16 @@ export interface EntityWriter<P, R = never> {
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly principal: P
   }) => Effect.Effect<Readonly<Record<string, unknown>>, RemoteServerError, R>
-  /** Deletes the row, while it is still at the revision, when one is expected; whether a row was. */
+  /**
+   * Deletes the row, while it is still at the revision when one is expected:
+   * `deleted`, `absent` (no row, so nothing to delete; a retry's case), or
+   * `moved` (the row is there at another revision, and stays).
+   */
   readonly delete: (context: {
     readonly id: string
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
     readonly principal: P
-  }) => Effect.Effect<boolean, RemoteServerError, R>
+  }) => Effect.Effect<'deleted' | 'absent' | 'moved', RemoteServerError, R>
 }
 
 /** A connection change a mutation made, as the wire carries it. */
@@ -1136,9 +1140,9 @@ export const RemoteServer = {
             Delete: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
-                const deleted = yield* writer.delete({ id: bound.id, expect, principal })
+                const outcome = yield* writer.delete({ id: bound.id, expect, principal })
                 // Gone already is gone: only a revision the row moved past refuses.
-                if (!deleted && Option.isSome(expect)) return yield* Effect.fail(conflict(bound))
+                if (outcome === 'moved') return yield* Effect.fail(conflict(bound))
                 return {
                   output: {},
                   entities: [],

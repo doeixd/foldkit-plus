@@ -773,6 +773,14 @@ client chose: a retry finds the id taken and answers the row it made. A delete
 is one `delete` by id, guarded by the revision when it expects one; a row
 already gone is gone.
 
+**A retry is safe without a request log.** A guarded write whose answer was
+lost is sent again with the same revision, and the guard misses. The writer
+then reads the row: one revision past the expected one and holding exactly
+these values means this write landed, and the row answers; anything else is a
+conflict. A guarded delete that finds no row succeeds. (Two clients writing
+identical values from one revision are not told apart, which leaves the row
+as both asked.)
+
 ### A journal's edits
 
 A table a `foldkit-sync` journal writes (`editsJournal`) takes its `apply` from

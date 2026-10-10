@@ -744,6 +744,10 @@ export const query = <P = unknown, Input = unknown>(
  * holds that value, and the column moves on by one in the same statement, so of
  * two writes from one revision one finds nothing to write.
  */
+/** Two values as a store holds them, which are JSON: equal when they encode the same. */
+const sameStored = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right)
+
 export const writer = <P = unknown>(
   binding: AnyEntityBinding,
 ): EntityWriter<P, DrizzleDatabase> => {
@@ -828,7 +832,33 @@ export const writer = <P = unknown>(
                   writes.update(binding.table).set(set).where(where).returning(answered.columns),
                 ),
               )
-        return answeredOf(rows, answered)
+        const written = answeredOf(rows, answered)
+        if (Option.isSome(written) || Option.isNone(expect)) return written
+        // The guard missed. If the row is one revision past the expected one and
+        // holds these values, this write landed already and its answer was lost:
+        // a retry answers the row rather than conflicting with itself.
+        const now = answeredOf(
+          yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
+            where: eq(idColumn(binding), id),
+          }),
+          answered,
+        )
+        const { field, revision } = expect.value
+        const landed = Option.filter(now, row => {
+          const linked = Object.entries(links).every(([key, link]) =>
+            sameStored(
+              row[key],
+              Option.match(link, { onNone: () => null, onSome: ref => Entity.refKey(ref) }),
+            ),
+          )
+          return (
+            typeof revision === 'number' &&
+            row[field] === revision + 1 &&
+            Object.entries(values).every(([key, value]) => sameStored(row[key], value)) &&
+            linked
+          )
+        })
+        return landed
       }),
     insert: ({ id, values, links }) =>
       Effect.gen(function* () {
@@ -870,7 +900,17 @@ export const writer = <P = unknown>(
               .returning({ id: idColumn(binding) }),
           ),
         )
-        return deleted.length > 0
+        if (deleted.length > 0) return 'deleted'
+        if (Option.isNone(expect)) return 'absent'
+        // The guard missed: gone is gone (a retry of this delete, or another's);
+        // still there means it moved past the revision this delete expected.
+        const still = yield* selectRows(
+          yield* DrizzleDatabase,
+          binding.table,
+          { id: idColumn(binding) },
+          { where: eq(idColumn(binding), id) },
+        )
+        return still.length === 0 ? 'absent' : 'moved'
       }),
   }
 }

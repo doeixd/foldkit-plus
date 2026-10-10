@@ -106,15 +106,51 @@ export default [
   },
   {
     name: 'a delete from a moved revision succeeds',
-    edits: [
-      { file: server, find: 'if (!deleted && Option.isSome(expect))', replace: 'if (false)' },
-    ],
+    edits: [{ file: server, find: "if (outcome === 'moved')", replace: 'if (false)' }],
     tests,
   },
   {
     name: 'a delete of a row already gone fails',
     edits: [
-      { file: server, find: 'if (!deleted && Option.isSome(expect))', replace: 'if (!deleted)' },
+      { file: server, find: "if (outcome === 'moved')", replace: "if (outcome !== 'deleted')" },
+    ],
+    tests,
+  },
+  {
+    name: 'a retried guarded write conflicts with itself',
+    edits: [
+      {
+        file: drizzle,
+        find: 'if (Option.isSome(written) || Option.isNone(expect)) return written',
+        replace: 'return written',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a write from further back counts as landed',
+    edits: [{ file: drizzle, find: 'row[field] === revision + 1 &&', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a write of other values counts as landed',
+    edits: [
+      {
+        file: drizzle,
+        find: 'Object.entries(values).every(([key, value]) => sameStored(row[key], value)) &&',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a guarded delete of a row already gone conflicts',
+    edits: [
+      {
+        file: drizzle,
+        find: "return still.length === 0 ? 'absent' : 'moved'",
+        replace: "return 'moved'",
+      },
     ],
     tests,
   },

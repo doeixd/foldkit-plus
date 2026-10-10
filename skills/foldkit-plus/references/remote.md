@@ -574,7 +574,9 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema
 // A declared write needs no handler: RemoteServer.write(EditProject, writer(Db.Project)),
 // with Db = bind({ Project }, { Project: { table } }); it writes only the keys named, and an
 // `expect`ed revision guards the row and moves on in the same statement (else a conflict).
-// An insert retried answers the row it made; a delete of a row already gone succeeds.
+// An insert retried answers the row it made; a delete of a row already gone succeeds;
+// a guarded write retried after it landed answers its row (EntityWriter.delete says
+// 'deleted' | 'absent' | 'moved').
 const Server = RemoteServer.make({
   entities: [source(User), source(Project)], // source(binding, { authorize }) for field policy
   queries: [query(ProjectsByOwner, {

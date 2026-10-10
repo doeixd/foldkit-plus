@@ -112,6 +112,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-drizzle`: a retried guarded write does not conflict with
+  itself.** When a write's guard misses, the writer reads the row: one
+  revision past the expected one with exactly these values means it landed,
+  and the row answers. A guarded delete of a row already gone succeeds.
+  `EntityWriter.delete` answers `'deleted' | 'absent' | 'moved'`.
 - **`foldkit-crud`: an editor over a write that `expect`s a revision follows
   it.** After its own save is applied, the form takes the revision the save
   moved the row to, so its next save is not a conflict with itself; a revision

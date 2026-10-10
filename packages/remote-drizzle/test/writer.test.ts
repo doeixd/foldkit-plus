@@ -119,6 +119,25 @@ describe('A write that expects a revision', () => {
     expect(answered.entities[0]?.values).toEqual({ id: 'p1', name: 'Apollo II', revision: 2 })
   })
 
+  it('answers a retry of a write that landed, rather than conflicting with itself', async () => {
+    seed()
+    const sent = { id: 'p1', name: 'Apollo II', revision: 1 }
+    await mutate('RenameProject', sent)
+    // The answer was lost; the client sends the same request again.
+    const retried = await mutate('RenameProject', sent)
+    expect(retried.entities[0]?.values).toEqual({ id: 'p1', name: 'Apollo II', revision: 2 })
+    expect(row('p1')).toMatchObject({ name: 'Apollo II', revision: 2 })
+  })
+
+  it('still conflicts for a write from further back, though the values agree', async () => {
+    seed()
+    await mutate('RenameProject', { id: 'p1', name: 'Same', revision: 1 })
+    await mutate('RenameProject', { id: 'p1', name: 'Same', revision: 2 })
+    // Revision 1 was two writes ago: not this write's own landing.
+    const stale = await refused('RenameProject', { id: 'p1', name: 'Same', revision: 1 })
+    expect(stale).toMatchObject({ refusal: { _tag: 'Conflict' } })
+  })
+
   it('refuses one read before another write, as a conflict, and writes nothing', async () => {
     seed()
     await mutate('RenameProject', { id: 'p1', name: 'First', revision: 1 })
@@ -407,5 +426,7 @@ describe('Inserting and deleting a declared write', () => {
     expect(row('p1')).toMatchObject({ id: 'p1' })
     expect((await send('RemoveProject', { id: 'p1', revision: 1 }))._tag).toBe('Success')
     expect(row('p1')).toBeUndefined()
+    // A retry of that delete finds the row gone, which is what it asked for.
+    expect((await send('RemoveProject', { id: 'p1', revision: 1 }))._tag).toBe('Success')
   })
 })
