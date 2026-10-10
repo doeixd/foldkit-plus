@@ -1334,6 +1334,14 @@ the store the answer left:
   it. Declare the order in the body (`Query.orderBy`) to keep a list that a
   change provably did not move.
 
+**A placement can be checked against the server.** `Remote.make({ ...,
+verifyPlacement: true })` places as above, and also fetches each list it placed
+in; when the server's first page arrives it is compared with the order placed,
+and a disagreement is kept in `model.remote.placementMismatches` (and
+`Data.inspect`). Turn it on in development and tests: a collation the client
+and the server disagree on then fails an assertion instead of misplacing a row
+for a reader.
+
 So a rename updates every view of the row and fetches nothing, a status change
 moves a row out of the lists filtered by status and into the others in their
 order, and a price change moves the row within a list sorted by price, all

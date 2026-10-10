@@ -7,7 +7,7 @@ export interface ExplainedDependencies {
   readonly inputs: Dependencies['inputs']
   readonly operations: Dependencies['operations']
 }
-import type { Failures, RemoteModel } from './model.js'
+import type { Failures, PlacementMismatch, RemoteModel } from './model.js'
 import type { QueryWindow } from './query.js'
 import type { RemoteData } from './remoteData.js'
 import type { RelationRequirement } from './requirement.js'
@@ -27,6 +27,8 @@ export interface RemoteInspection {
   readonly connections: ReadonlyArray<string>
   readonly live: ReadonlyArray<string>
   readonly gaps: ReadonlyArray<string>
+  /** Under `verifyPlacement`, each placement the server's page disagreed with. */
+  readonly placementMismatches: ReadonlyArray<PlacementMismatch>
   /**
    * The `entity\0id\0field` marks of reads in flight, and a
    * `\0connection\0identity` mark for each query in flight. This is what "Remote is
@@ -63,6 +65,7 @@ export const inspectRemote = (model: RemoteModel): RemoteInspection => ({
   connections: Object.keys(model.connections),
   live: Object.keys(model.live),
   gaps: [...model.gaps],
+  placementMismatches: model.placementMismatches,
   loading: [...model.loading],
   failures: model.failures,
   mutations: {

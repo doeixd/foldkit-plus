@@ -9,6 +9,7 @@ import {
   emptyConnection,
   merge,
   unknown as unknownBoundary,
+  type Boundary,
   type Connection,
   type Edge,
   type Segment,
@@ -125,6 +126,22 @@ export interface RemoteModel {
    * in, so a save at startup cannot write the empty store over it.
    */
   readonly restoredFrom: Option.Option<string>
+  /**
+   * Under `verifyPlacement`, the order each list was placed in, by edge key,
+   * until the server's page for it arrives to be compared with it.
+   */
+  readonly placed: Readonly<Record<string, ReadonlyArray<string>>>
+  /** Under `verifyPlacement`, each placement the server's page disagreed with. */
+  readonly placementMismatches: ReadonlyArray<PlacementMismatch>
+}
+
+/** A list the client placed rows in one order and the server then listed in another. */
+export interface PlacementMismatch {
+  readonly connection: string
+  /** The keys as placed, as far as the server's page reached. */
+  readonly placed: ReadonlyArray<string>
+  /** The keys of the server's first page. */
+  readonly served: ReadonlyArray<string>
 }
 
 /** How a live stream has fared, as its live entry restarts it. */
@@ -212,6 +229,8 @@ export const initialRemoteModel: RemoteModel = {
   refresh: emptyRefresh,
   failures: noFailures,
   restoredFrom: Option.none(),
+  placed: {},
+  placementMismatches: [],
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -235,6 +254,8 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
       fields: Schema.Record(Schema.String, remoteErrorSchema),
     }),
     restoredFrom: runtimeSchema,
+    placed: runtimeSchema,
+    placementMismatches: runtimeSchema,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -799,6 +820,34 @@ const sameFields = (model: RemoteModel, next: RemoteModel): boolean => {
   )
 }
 
+/**
+ * A placement compared with the server's first page of the list it placed
+ * in, under `verifyPlacement`: the keys as far as both reach must agree. The
+ * record goes once compared; a disagreement is kept.
+ */
+const checkedPlacement = (
+  model: RemoteModel,
+  connection: string,
+  page: { readonly edges: ReadonlyArray<{ readonly key: string }>; readonly start: Boundary },
+  refreshes: boolean,
+): Pick<RemoteModel, 'placed' | 'placementMismatches'> => {
+  const placed = model.placed[connection]
+  if (placed === undefined || !refreshes || page.start._tag !== 'Terminal') {
+    return { placed: model.placed, placementMismatches: model.placementMismatches }
+  }
+  const { [connection]: _, ...rest } = model.placed
+  const reach = Math.min(placed.length, page.edges.length)
+  const served = page.edges.slice(0, reach).map(edge => edge.key)
+  const asPlaced = placed.slice(0, reach)
+  const agrees = served.every((key, index) => key === asPlaced[index])
+  return {
+    placed: rest,
+    placementMismatches: agrees
+      ? model.placementMismatches
+      : [...model.placementMismatches, { connection, placed: asPlaced, served }],
+  }
+}
+
 const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel => {
   switch (message._tag) {
     case 'ReadReceived':
@@ -1059,6 +1108,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       )
       return {
         ...model,
+        ...checkedPlacement(model, message.connection, message.page, message.refreshes === true),
         entities,
         connections: {
           ...model.connections,

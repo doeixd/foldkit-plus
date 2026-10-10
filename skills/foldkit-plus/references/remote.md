@@ -418,7 +418,9 @@ the change placed in its pages with no request: a row that stops matching
 leaves, one that joins or moves goes where the body's order puts it among the
 loaded rows, or out of them when it sorts past a `Cursor`. What cannot be
 placed is invalidated, restarting any read of it in flight, so its read entry
-refetches it. A `Query.make` list (no body) is
+refetches it. `Remote.make({ verifyPlacement: true })` (dev and tests) also
+fetches each placed list and keeps any disagreement with the server's first
+page in `remote.placementMismatches`. A `Query.make` list (no body) is
 invalidated by any change to its Entity, and a list whose body declares no
 order (the server's `orderBy` decides it) by any change to a row it holds. `Data.refresh` remains for effects the answer does not name.
 

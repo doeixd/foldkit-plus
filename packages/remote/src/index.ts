@@ -2036,8 +2036,15 @@ export const Remote = {
     readonly entities: Entities
     readonly queries?: Queries
     readonly mutations?: Mutations
+    /**
+     * Places a mutation's answer as usual, and also fetches each list it
+     * placed in, comparing the server's first page with the order it placed:
+     * a disagreement is kept in `placementMismatches` (`Data.inspect`). For
+     * development and tests, where a collation that drifts should be found.
+     */
+    readonly verifyPlacement?: boolean | undefined
   }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
-    bindDomain(defineRemote(config), config.model),
+    bindDomain(defineRemote(config), config.model, { verifyPlacement: config.verifyPlacement }),
 
   /**
    * Declares a Remote domain without binding it: its entities, queries, and
@@ -2629,6 +2636,7 @@ const bindDomain = <
 >(
   definition: RemoteDescriptor<Entities, Queries, Mutations>,
   store: ModelRef<AppModel, Store>,
+  options: { readonly verifyPlacement?: boolean | undefined } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
   const bound = bindRemote(definition, store)
   // Every reader any `subscriptions` call names, and every connection one keeps:
@@ -2761,11 +2769,21 @@ const bindDomain = <
       if (invalid) invalidated.push(identity)
       else if (pages !== original) placed[identity] = pages
     }
-    const withPlaced =
-      Object.keys(placed).length === 0
-        ? remote
-        : { ...remote, connections: { ...remote.connections, ...placed } }
-    return invalidateConnections(withPlaced, invalidated)
+    const identities = Object.keys(placed)
+    if (identities.length === 0) return invalidateConnections(remote, invalidated)
+    const withPlaced = { ...remote, connections: { ...remote.connections, ...placed } }
+    if (options.verifyPlacement !== true) return invalidateConnections(withPlaced, invalidated)
+    // Verified: each placed list is fetched too, and its order kept to compare.
+    const orders = Object.fromEntries(
+      identities.map(identity => [
+        identity,
+        (placed[identity]!.segments[0]?.edges ?? []).map(edge => edge.key),
+      ]),
+    )
+    return invalidateConnections({ ...withPlaced, placed: { ...remote.placed, ...orders } }, [
+      ...invalidated,
+      ...identities,
+    ])
   }
   // Two applications can have the same Model type; the owner token tells them apart.
   const assertOwned = (entry: ActiveEntry<AppModel>) => {
