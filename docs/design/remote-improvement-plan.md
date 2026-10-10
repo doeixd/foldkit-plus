@@ -1,8 +1,8 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** Phases 0–2 and 6 done, 2026-10-10; Phase 3 in part; Phase 5
-built except its registry exit, which waits for Phase 4 (each section's
-*As built*); Phase 4 not started. §15 records the decisions taken while planning, each against the
+**Status:** Phases 0–2, 4 and 6 done, 2026-10-10; Phase 3 in part; Phase
+5 built except its registry exit, which Phase 4 has unblocked (each
+section's *As built*). §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -590,6 +590,45 @@ package imports the other.
 listed glue deleted and its tests unchanged; a second view of an edited
 product shows the pending value; a sorted page with a pending edit to its
 order field refetches.
+
+### As built
+
+`3e773586`, with `fdc3f5f5` making a repeat reconcile free.
+
+- **`foldkit-sync/remote`'s `RemoteEdits.make(Data, Edits)`.** `reconcile`
+  overlays each edit its row has not reached, under an id that is the edit
+  itself, encoded and named by the Entity. It relabels one the slice dropped
+  as held while the cached row is below it, and lifts it once a read reaches
+  it. It returns the newly `held` (the page refreshes their rows) and the
+  `replaced`. The held edits live in Remote's overlays, so the registry's
+  `retired` field, `retiredOf`, `retiresAny`, `settledOf` and `rowsOf`'s
+  overlays are gone, and so are `EditableEntity`'s `overlay`, `held`,
+  `newlyHeld`, `settled` and `shows`, which only the registry used.
+- **It runs in a new `Sync.mount` hook, `afterUpdate`, not in `update`.**
+  Sync replays a durable Message through `update` over the app's `initial`
+  Model and refuses one that changes a field outside the shared slice; a
+  reconcile there changed `remote` and failed every replica. `afterUpdate`
+  follows every live update, facts and reinstalls included, and never
+  replay.
+- **Remote gains `Data.overlays(model)`**, the ids `overlay` shows. Reading
+  `optimistic.layers` would have meant knowing Remote's internal `overlay:`
+  prefix.
+- The exit: the registry's tests pass with `retired` read from the held
+  overlays instead. One new test reads a product through another Selection
+  and sees its pending price; another resets the server while an edit is
+  held, which only `clear` passes. The registry's e2e tests pass.
+
+**Not built, and why.**
+
+- **A sorted page does not refetch for a pending edit.** A refetch asks the
+  server, which does not have the pending value yet, so the edit would still
+  show in its old place. Placing a row by a value only the client has is
+  the declared-collation work in §12. A committed edit reaches the order
+  once the table has it, through the read its held row asks for.
+- **`ExchangeChanged` and `EditsRefused` are still bridged by hand** in
+  `mountRegistry`, and a refusal is not yet read as a §5.2 `Refusal`. Both
+  are about the replica's status rather than the overlays; they are next
+  for this seam.
 
 ## 9. Phase 5 — persistence as a Wiring, and its order with SSR
 

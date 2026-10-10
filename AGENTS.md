@@ -643,6 +643,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   exchange only for what is not an operation at all. `foldkit-sync/journal`'s
   `journalExchange` and `serveJournal` keep this; prefer them to a new
   hand-written exchange.
+- **A replayed durable Message may write the shared slice and nothing else.**
+  Sync replays it through `update` over the app's `initial` Model and refuses
+  any other field it changes. Reconciling Remote's overlays at the end of
+  `update` failed every replica ("changed Model fields outside the shared
+  projection: remote"); the registry's old `settledOf` did the same and passed
+  only because it changed nothing while `retired` was empty, as it always is
+  in a replay. Derive such state in `Sync.mount`'s `afterUpdate`.
 - **A Port decodes what it is sent.** `Port.inbound(schema).send` takes the
   schema's encoded form; `Sync.mount`'s `dispatch`, typed to take a Message,
   passed it a decoded one, so a Message with an `Option` field failed with a
