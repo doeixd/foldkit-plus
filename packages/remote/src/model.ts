@@ -468,7 +468,17 @@ export const remoteMessageSchema = Schema.Union(
 ) as unknown as Schema.Schema<RemoteMessage>
 
 /** An overlay's layer, named apart from every request's: a request id is the application's to choose too. */
-const overlayLayer = (id: string): string => `overlay:${id}`
+const OVERLAY = 'overlay:'
+const overlayLayer = (id: string): string => `${OVERLAY}${id}`
+
+/** The ids `OverlayShown` shows now, each once, in the order they are drawn. */
+export const overlaysOf = (model: RemoteModel): ReadonlyArray<string> => [
+  ...new Set(
+    [...model.optimistic.layers, ...model.optimistic.overlays].flatMap(({ id }) =>
+      id.startsWith(OVERLAY) ? [id.slice(OVERLAY.length)] : [],
+    ),
+  ),
+]
 
 /** The key a grown window is kept under: its connection and the window first asked for. */
 export const windowGrowthKey = (identity: string, window: string): string =>

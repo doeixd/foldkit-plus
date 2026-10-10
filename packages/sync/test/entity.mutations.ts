@@ -7,7 +7,7 @@ const file = '../src/entity.ts'
 
 export default [
   {
-    name: 'a row at an edit’s sequence does not hold it',
+    name: 'a table at an edit’s sequence does not hold it',
     edits: [
       {
         file,
@@ -24,28 +24,6 @@ export default [
         file,
         find: 'Equal.equals(a.id, b.id) && a.member === b.member',
         replace: 'Equal.equals(a.id, b.id)',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'an edit is held whatever its row’s revision',
-    edits: [
-      {
-        file,
-        find: 'Option.exists(revisionOf(edit.id), revision => !reached(edit, revision)),',
-        replace: 'Option.isSome(revisionOf(edit.id)),',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a settled edit is replaced whoever wrote it',
-    edits: [
-      {
-        file,
-        find: 'if (mine(edit, replica) && !Equal.equals(row[edit.member], edit.value)) {',
-        replace: 'if (!Equal.equals(row[edit.member], edit.value)) {',
       },
     ],
     tests,

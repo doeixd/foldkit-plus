@@ -28,8 +28,8 @@ import {
   placements,
   Products,
   replacedOf,
-  retiredOf,
-  retiresAny,
+  Shown,
+  shownWith,
 } from './app.js'
 import { type ProductEdit, ProductEdits } from './domain.js'
 import { view } from './view.js'
@@ -144,36 +144,26 @@ export const mountRegistry = (
     view: (model, h) => view(model, h, manifest),
     subscriptions: placements.subscriptions(),
     resources: options.resources,
-    // In the transition that replaces the edits, so no frame draws a cached
-    // row without an edit the journal absorbed after that row was read.
-    // And in the same transition, an edit of this device's that another
-    // device's later commit replaced is said, not silently overwritten.
-    // An edit newly retired is asked of the table again rather than shown
-    // as saved until some other read: a later edit may have replaced it, and
-    // only the row says so once the journal has absorbed both (`settledOf`).
+    // An edit of this device's that another device's later commit replaced
+    // is said, not silently overwritten.
     // A server reset starts the journal's sequence over, so the revisions on
     // the rows read before it count a history that is gone: an edit committed
     // at a low sequence since would look absorbed. Nothing is held over it;
     // the rows are read again.
     onReinstall: (next, previous, { reset }) => {
-      if (reset) {
-        return {
-          model: Products.refresh(
-            next.retired.length === 0 ? next : modifyFields(next, { retired: () => [] }),
-          ),
-        }
-      }
-      const retired = retiredOf(previous, next)
+      if (reset) return { model: Products.refresh(Shown.clear(next)) }
       const replaced = replacedOf(previous, next)
-      if (retired.length === 0 && next.retired.length === 0 && replaced.length === 0) {
-        return { model: next }
+      return {
+        model:
+          replaced.length === 0
+            ? next
+            : modifyFields(next, { replaced: before => [...before, ...replaced] }),
       }
-      const kept = modifyFields(next, {
-        retired: () => retired,
-        replaced: before => [...before, ...replaced],
-      })
-      return { model: retiresAny(previous, retired) ? Products.refresh(kept) : kept }
     },
+    // In the same update as every change to the edits or the rows, so no
+    // frame draws a cached row without an edit the journal absorbed after
+    // that row was read. Not in `update`: replay may not touch Remote.
+    afterUpdate: model => ({ model: shownWith(model) }),
   })
   // Dispatched before any exchange can reinstall, so every reinstall knows
   // which edits are this device's.

@@ -69,6 +69,7 @@ Foldkit app (Model · Message · update)
        ├─ foldkit-agent ─ webmcp · mcp · a2a · native
        ├─ foldkit-remote ─ foldkit-remote-server ─ foldkit-remote-drizzle
        ├─ foldkit-sync ─ foldkit-durable (server journal)
+       │    └─ foldkit-sync/remote: edits to server rows (foldkit-sync/entity) drawn as foldkit-remote overlays
        ├─ foldkit-mirror
        ├─ foldkit-site
        └─ foldkit-mixins-surface

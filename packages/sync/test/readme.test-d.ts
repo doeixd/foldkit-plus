@@ -313,7 +313,12 @@ const Product = {
   },
 }
 const ProductEdits = EditableEntity.make(Product, { members: ['description', 'cents'] })
-void ProductEdits.overlay([])({ id: 'p1', description: 'Bolt', cents: 49, revision: 0 })
+void ProductEdits.merge(
+  [],
+  [{ id: 'p1', member: 'cents', value: 49 }],
+  Option.none(),
+  Option.none(),
+)
 
 // A socket over a port, opened per connection.
 declare const open: () => MessagePort

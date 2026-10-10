@@ -68,9 +68,9 @@ up to 7.
 
 ## A sixty-second path: one column
 
-`foldkit-sync/entity` keeps the edits one per cell and lays them over the
-rows; `foldkit-sync/journal` keeps the table. In the domain, shared by client
-and server:
+`foldkit-sync/entity` keeps the edits one per cell; `foldkit-sync/remote`
+shows them through Remote; `foldkit-sync/journal` keeps the table. In the
+domain, shared by client and server:
 
 ```ts
 import { EditableEntity } from 'foldkit-sync/entity'
@@ -78,7 +78,8 @@ import { EditableEntity } from 'foldkit-sync/entity'
 export const ProductEdits = EditableEntity.make(Product, { members: ['cents'] })
 ```
 
-In the application, the durable Message, its fold, and the rows as shown:
+In the application, the durable Message, its fold, and the edits shown through
+Remote:
 
 ```ts
 const Base = Bundle.compose({
@@ -94,9 +95,11 @@ EditedProducts: ({ changes, at, by }) => ({
   }),
 }),
 
-// what the grid draws
-const rowsOf = (model: Model) =>
-  RowModel.map(GridCrud.rows(Products.page(model), row => row.id), model.edits, ProductEdits.overlay<Row>)
+// every read of a row draws its edits, as Remote overlays
+const Shown = RemoteEdits.make(Data, ProductEdits)
+
+// in Sync.mount's options: after every live update, never in replay
+afterUpdate: model => ({ model: Shown.reconcile(model, model.edits, replica.replicaId).model }),
 ```
 
 In the Sync contract, the stamp the journal writes at commit:
@@ -142,8 +145,12 @@ they are elided above. The snippets compile in
 - **The stamp** runs on the server at commit, inside the journal. A client
   never sends `at` or `by`; the journal's `validate` refuses one that does,
   since its sender would show the edit as committed when it was not.
-- **`overlay`** is a pure read for `RowModel.map`, built once per `edits`,
-  which the map caches by identity. It owns nothing.
+- **`RemoteEdits.reconcile`** is pure: it brings Remote's overlays in line
+  with the slice and returns the Model; Remote's reads, the grid's and any
+  other view's, then draw each edit over its row. It sends nothing. It runs
+  in `afterUpdate`, not in `update`: a durable Message is replayed through
+  `update` on the server and in the replica, where it may change the slice
+  alone.
 - **`settle`** is I/O: it runs `apply` for each committed change as a
   recovery intent. The effect ledger and the table are separate databases, so
   an intent may run twice after a crash; `apply` never moving a row back is
@@ -164,8 +171,9 @@ on the contract.
 
 **Held edits.** When the slice drops an edit whose row this page has cached at
 an older revision, the row would show the stale read until it is read again.
-`onReinstall` keeps such edits (`held`) and asks for the rows again; once a
-read reaches an edit, `settled` lets it go.
+`reconcile` keeps such an edit's overlay, held, and returns it in `held`, so
+the page can ask for its row again; once a read reaches the edit, the overlay
+is lifted.
 
 **Conflicts.** The later commit wins, by the journal's order, not by edit
 time: an edit made offline earlier but committed later wins. `replaced` tells
@@ -173,8 +181,9 @@ a page whose own edit lost: its replica wrote the cell, and another
 replica's commit holds another value. It compares replicas, not people, so
 the same person's two tabs are told of each other. When the journal absorbed
 the winning edit before the losing page heard of it, the slice no longer says
-whose it was; `settled` sees it in the row (at or past the edit, another
-value) and reports "a later edit".
+whose it was; `reconcile` sees it in the row as it lifts a held edit (at or
+past the edit, another value), returns it in `replaced`, and the page says "a
+later edit".
 
 **Refusals.** A refused operation comes back with its rejection, the operation
 itself included, and the replica drops it. `cellsOf` names what it changed, so
@@ -207,8 +216,8 @@ over a change another device made meanwhile.
   journal's floor, not at 0, so it does not ask for history that is gone.
 - **A server reset.** A new epoch: replicas rebuild and resend what they had
   not sent; committed edits of the old history are gone. `onReinstall` is told
-  (`reset`), and the page reads its rows again, since their revisions counted
-  the old history. The table must be reset with the journal: a table that
+  (`reset`), lifts what it held (`clear`), and reads its rows again, since
+  their revisions counted the old history. The table must be reset with the journal: a table that
   outlived it holds revisions past every new sequence, so `apply` would skip
   each new edit and the replicas would count it absorbed. `settle` refuses to
   start while `tableRevision` is past the journal's cursor

@@ -167,6 +167,9 @@ await mounted.dispose()                                        // waits for in-f
   previous, { reset })`, which returns the transition when an exchange or a
   failed persist replaces the shared slice (carry a selection across, patch a
   DOM); `reset` says the server's history is a new one (`status.epoch` changed).
+  `afterUpdate(model)` runs after every live update (durable and reinstall
+  included), never in replay: local state derived from the slice goes here,
+  since a replayed durable Message may change only the slice.
 - `Mounted` provides `model`, `dispatch`, `subscribe`, `observe`, `committed`,
   `settled` and `dispose`. `settled()` resolves once the Model has caught up
   with the replica (in a test: `await frames.settle(mounted)`, with
@@ -253,10 +256,14 @@ const server = Effect.gen(function* () {
   with `read`), `Journal.define`/`Journal.layer`, and `runEffect`/`recover` (an
   effect ledger, **not** exactly-once at external providers).
 - `foldkit-sync/entity`'s `EditableEntity.make(entity, { members })` keeps
-  edits to server-owned rows one per cell (`{ id, member, value, at, by }`)
-  and lays them over Remote's rows by revision (`overlay`), with `merge`,
-  `absorb`, `held`/`settled`, `replaced`, `cellsOf` and `changeAt` (a cell's
-  value as a change, for an undo) for `update` and `onReinstall`; pure, no state of its own. On the server,
+  edits to server-owned rows one per cell (`{ id, member, value, at, by }`),
+  with `merge`, `absorb`, `replaced`, `cellsOf` and `changeAt` (a cell's
+  value as a change, for an undo) for `update` and `onReinstall`; pure, no
+  state of its own. `foldkit-sync/remote`'s `RemoteEdits.make(Data, Edits)`
+  shows them as Remote overlays, so every read of a row draws them:
+  `reconcile(model, edits, replica)` from `afterUpdate` returns `{ model, held,
+  replaced }` (refresh the rows of `held`; say `replaced`), `shown(model)` for
+  cell marks, `clear(model)` on a reset. On the server,
   `editsJournal({ documentId, journal, editsOf, apply, tableRevision,
   holdsThrough, absorbed, server })` (`foldkit-sync/journal`) gives `settle`,
   which applies each committed change to the table from the journal's floor,

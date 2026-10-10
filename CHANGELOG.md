@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-sync/entity`: the overlay helpers are gone; `foldkit-sync/remote`
+  shows the edits.** `overlay`, `held`, `newlyHeld`, `settled` and `shows` are
+  removed: `RemoteEdits` does their work over Remote, where every read draws
+  it. `EditableEntity.make`'s value also carries the `entity` it was made over.
+- **`examples/registry`: the edits are Remote overlays.** The `retired` field,
+  `retiredOf`, `retiresAny`, `settledOf` and the edits laid over `rowsOf` are
+  gone; `RemoteEdits` reconciles in `afterUpdate`, so any read of a product,
+  not only the grid's row, shows its edit.
 - **`foldkit-remote`: a gap stays until its stream restarts.** An in-order
   event after a gap used to clear it, though the event that arrived ahead was
   dropped and what it said was lost. Now only the restart's `GapCleared`
@@ -122,6 +130,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-sync/remote`: a replica's cell edits as Remote overlays.**
+  `RemoteEdits.make(Data, Edits).reconcile(model, edits, replica)` shows each
+  edit its row has not reached, holds one the journal absorbed while the
+  cached row is below it, and lifts it once a read reaches it, returning the
+  newly `held` and the `replaced`. `shown` lists them for a cell's marks;
+  `clear` lifts them for a reset. `foldkit-remote` is an optional peer.
+- **`foldkit-sync`: `Sync.mount`'s `afterUpdate`** runs after every live
+  update, durable and reinstall included, and never in replay, for local state
+  derived from the shared slice.
+- **`foldkit-remote`: `Data.overlays(model)`**, the ids `overlay` shows now, in
+  drawing order.
 - **`foldkit-remote`: a broken live stream restarts itself.** A transport
   failure or a gap restarts the live entry after Sync's backoff (50 ms,
   doubling to 5 s, ±20% jitter; `retryBase` and `maxRetryDelay` in the

@@ -14,6 +14,9 @@
     },
     {
       "path": "../durable/tsconfig.build.json"
+    },
+    {
+      "path": "../remote/tsconfig.build.json"
     }
   ]
 }

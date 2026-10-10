@@ -59,7 +59,6 @@ const facts = (
       model.sort === null
         ? 'In the server’s own order'
         : `By ${model.sort.by}, ${model.sort.direction === 'asc' ? 'ascending' : 'descending'}`,
-    retired: `${counted(model.retired.length, 'absorbed edit')} shown until their rows are read`,
     exchange: `${counted(model.exchange.pending, 'edit')} waiting for the server`,
     refused: counted(model.refused.length, 'refused cell'),
     replaced: counted(model.replaced.length, 'replaced cell'),

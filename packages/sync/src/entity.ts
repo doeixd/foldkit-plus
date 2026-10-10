@@ -1,21 +1,13 @@
 /**
  * `foldkit-sync/entity`: edits to rows a server owns, kept in a replicated
- * slice that the journal owns, and laid over the rows Remote reads.
- *
- * ```text
- * cell shown = the row's value, unless an edit of that cell is pending,
- *              or committed after the row's revision (at > row.revision)
- * ```
+ * slice that the journal owns. `foldkit-sync/remote` shows them over the rows
+ * Remote reads.
  *
  * The journal orders the edits and stamps each with the sequence it
  * committed at (`at`) and who committed it from where (`by`); the table is
  * the journal's read model, each row carrying the highest sequence it has
  * applied (`revision`). An edit the table holds is absorbed: the server says
- * so (`absorbed`), every replica drops it, and the journal compacts. A page
- * keeps a dropped edit (`held`) while a row it has cached is below it, so the
- * row never shows the stale read, and lets it go once a read of the row is at
- * or past it (`settled`), noting when the row then holds another value, a
- * later edit's.
+ * so (`absorbed`), every replica drops it, and the journal compacts.
  *
  * Everything here is pure: it owns no state, does no I/O, and sends nothing.
  * The application keeps the edits in its Model and calls these from
@@ -55,7 +47,7 @@ export type CellEdit<E extends EntityFields, Ms extends Member<E>> = {
   }
 }[Ms]
 
-/** A row an overlay draws on: its id, the revision the table read it at, and its members. */
+/** A row as the table holds it: its id, the revision it has applied, and its members. */
 export type RowOf<E extends EntityFields, Ms extends Member<E>> = {
   readonly id: IdOf<E>
   readonly revision: number
@@ -127,6 +119,8 @@ const make = <E extends EntityFields, const Ms extends ReadonlyArray<Member<E>>>
     })
 
   return {
+    /** Carried so `foldkit-sync/remote` can name the rows it overlays by the Entity's own name. */
+    entity,
     members,
     /** The members, as a schema: what names a cell. */
     Member: Schema.Literals(members),
@@ -171,79 +165,6 @@ const make = <E extends EntityFields, const Ms extends ReadonlyArray<Member<E>>>
     /** Whether any edit is committed through `through`: whether an absorb would drop one. */
     holdsThrough: (edits: ReadonlyArray<Edit>, through: number): boolean =>
       edits.some(edit => reached(edit, through)),
-
-    /** Whether the row, read at `revision`, does not hold the edit yet: shown over it. */
-    shows: (edit: Edit, revision: number): boolean => !reached(edit, revision),
-
-    /**
-     * The rows as shown: each with the edits it has not absorbed laid over it.
-     * Built once per `edits`, for `RowModel.map`, which caches by its identity.
-     */
-    overlay: <R extends Row>(edits: ReadonlyArray<Edit>): ((row: R) => R) => {
-      const index = indexOf(edits)
-      return (row: R): R => {
-        const cells = index.get(row.id)
-        if (cells === undefined) return row
-        let shown = row
-        for (const edit of cells.values()) {
-          if (!reached(edit, row.revision)) shown = { ...shown, [edit.member]: edit.value }
-        }
-        return shown
-      }
-    },
-
-    /**
-     * Of `edits`, the committed ones that `next` no longer holds, whose row is
-     * cached below them: what the row would otherwise show stale. A row not
-     * cached keeps nothing; its next read has the table's value.
-     */
-    held: (
-      edits: ReadonlyArray<Edit>,
-      next: ReadonlyArray<Edit>,
-      revisionOf: (id: IdOf<E>) => Option.Option<number>,
-    ): ReadonlyArray<Edit> => {
-      const current = indexOf(next)
-      return edits.filter(
-        edit =>
-          Option.isSome(edit.at) &&
-          !current.get(edit.id)?.has(edit.member) &&
-          Option.exists(revisionOf(edit.id), revision => !reached(edit, revision)),
-      )
-    },
-
-    /** Whether `after` holds a committed cell `before` did not: one just taken from the slice. */
-    newlyHeld: (before: ReadonlyArray<Edit>, after: ReadonlyArray<Edit>): boolean =>
-      after.some(
-        edit => !before.some(kept => sameCell(kept, edit) && Equal.equals(kept.at, edit.at)),
-      ),
-
-    /**
-     * The held edits a read of their rows has reached, let go; of those,
-     * `replica`'s own that the row shows another value for, as replaced: the
-     * table applies in order, so a row at or past an edit that holds another
-     * value took a later one, whose author the journal has absorbed. With
-     * nothing reached, `held` comes back as it was given.
-     */
-    settled: (
-      held: ReadonlyArray<Edit>,
-      rowOf: (id: IdOf<E>) => Option.Option<Row>,
-      replica: string,
-    ): { readonly held: ReadonlyArray<Edit>; readonly replaced: ReadonlyArray<Replaced<Edit>> } => {
-      const replaced: Array<Replaced<Edit>> = []
-      const kept = held.filter(edit =>
-        Option.match(rowOf(edit.id), {
-          onNone: () => true,
-          onSome: row => {
-            if (!reached(edit, row.revision)) return true
-            if (mine(edit, replica) && !Equal.equals(row[edit.member], edit.value)) {
-              replaced.push({ edit, by: Option.none() })
-            }
-            return false
-          },
-        }),
-      )
-      return { held: kept.length === held.length ? held : kept, replaced }
-    },
 
     /**
      * What the slice replaced that `replica` had written: each cell whose

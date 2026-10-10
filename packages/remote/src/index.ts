@@ -74,6 +74,7 @@ import type { LiveCursor, LiveEvent } from './live.js'
 import {
   failureOf,
   initialRemoteModel,
+  overlaysOf,
   isFieldFailed,
   isLoadingThrough,
   onlyOverlaid,
@@ -547,6 +548,12 @@ export interface RemoteDomain<
   overlay(model: AppModel, id: string, optimistic: ReadonlyArray<OptimisticOperation>): AppModel
   /** Lifts what `overlay` showed under this id. Lifting nothing returns the same Model. */
   lift(model: AppModel, id: string): AppModel
+  /**
+   * The ids `overlay` shows now, in the order they are drawn, a later one over
+   * an earlier: what a caller that overlays from its own state reconciles
+   * against.
+   */
+  overlays(model: AppModel): ReadonlyArray<string>
   /** `Remote.refresh`: marks what a projection or a Surface requires as due, for its read entry to refetch. */
   refresh(
     model: AppModel,
@@ -3219,6 +3226,7 @@ const bindDomain = <
     forget: model => Remote.forget(bound, model),
     overlay: (model, id, optimistic) => reduce(model, { _tag: 'OverlayShown', id, optimistic }),
     lift: (model, id) => reduce(model, { _tag: 'OverlayLifted', id }),
+    overlays: model => overlaysOf(store.get(model)),
     mutate: (model, mutation, input, options = {}) => {
       assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
       const remote = store.get(model)

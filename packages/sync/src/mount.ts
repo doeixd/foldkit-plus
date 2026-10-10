@@ -126,6 +126,14 @@ export interface MountOptions<Model, Message, Shared, Resources> {
         change: Reinstall,
       ) => Update.Return<Model, Message, Resources>)
     | undefined
+  /**
+   * Runs on the Model after every update of the mounted application, a durable
+   * Message's and a reinstall's included, and never in replay: for local state
+   * derived from the shared slice, which a durable transition may not write
+   * (the overlays `foldkit-sync/remote` keeps in Remote). With nothing to
+   * change it returns the Model it was given.
+   */
+  readonly afterUpdate?: ((model: Model) => Update.Return<Model, Message, Resources>) | undefined
 }
 
 /**
@@ -405,8 +413,16 @@ export const mount = <
     model: Model,
     message: RuntimeMessage,
   ): Update.Return<Model, RuntimeMessage, Resources> => {
-    if (isPrivate(message)) return updatePrivate(model, message)
-    return transition(model, message as Message & Tagged)
+    const result = isPrivate(message)
+      ? updatePrivate(model, message)
+      : transition(model, message as Message & Tagged)
+    if (options.afterUpdate === undefined) return result
+    const after = applyFacts(
+      options.afterUpdate(result.model) as Update.Return<Model, RuntimeMessage, Resources>,
+    )
+    return after.model === result.model && (after.commands ?? []).length === 0
+      ? result
+      : { model: after.model, commands: [...(result.commands ?? []), ...(after.commands ?? [])] }
   }
 
   const reinstalled = (

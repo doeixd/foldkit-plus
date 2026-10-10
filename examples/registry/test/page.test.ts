@@ -15,6 +15,7 @@
  */
 import { Effect, Option, Stream } from 'effect'
 import { GridFocus } from 'foldkit-data-grid'
+import { Entity } from 'foldkit-entity'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Frames } from 'foldkit-mixins/testing'
 import { Remote, type RemoteRpcClient } from 'foldkit-remote'
@@ -28,8 +29,8 @@ import {
   type TransportClient,
 } from 'foldkit-sync'
 import { afterEach, expect, test, vi } from 'vitest'
-import { Message, Products, type Model } from '../src/app.js'
-import { ProductId } from '../src/domain.js'
+import { Data, Message, Products, Shown, type Model } from '../src/app.js'
+import { Product, ProductId } from '../src/domain.js'
 import { memoryJournal } from '../src/journalNode.js'
 import { openServer, productId, seedOf } from '../src/server.js'
 import { memorySqlite } from '../src/sqliteNode.js'
@@ -258,6 +259,10 @@ const commitElsewhere = async (
   )
   await Effect.runPromise(other.synchronize.pipe(Effect.provide(server.transportFor(device))))
 }
+/** The products whose absorbed edits the page still shows, held until their rows are read. */
+const heldOf = (model: Model) =>
+  Shown.shown(model).flatMap(({ edit, held }) => (held ? [edit.id] : []))
+
 /** The revision of a row as Remote last read it. */
 const revisionOf = (model: Model, id: string) => {
   const rows = GridCrud.rows(Products.page(model), row => row.id)
@@ -454,6 +459,27 @@ test('a price is drawn from this device’s edit, not from what Remote last read
   }
 })
 
+test('another read of an edited product shows the edit too, not only the grid', async () => {
+  const server = serve()
+  const { dispose, latest } = await mount(server, memoryStorage())
+  // Another view's Selection of the product: a price alone, not the grid's row.
+  const price = (model: Model) => {
+    const read = Data.get(
+      Entity.select(Product, { id: true, cents: true }),
+      ProductId.make(productId(5)),
+    ).read(model)
+    return read._tag === 'Ready' ? read.value.cents : read._tag
+  }
+  try {
+    await vi.waitFor(() => expect(cell(productId(5), 'cents')?.textContent).toBe(priceOf(5)))
+    expect(price(latest())).toBe(seedOf(5).cents)
+    await edit(productId(5), 'cents', '5.55')
+    await vi.waitFor(() => expect(price(latest())).toBe(555))
+  } finally {
+    await dispose()
+  }
+})
+
 test('a committed edit shows until the table has it, then the table shows, whoever wrote it next', async () => {
   const server = serve()
   const { dispose, exchange, mounted, settle } = await mount(server, memoryStorage())
@@ -555,22 +581,22 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
     await exchange()
     // The mount reinstalls on its own fiber; then a frame draws it.
     await vi.waitFor(() => expect(latest().edits).toEqual([]))
-    expect(latest().retired.map(kept => kept.id)).toEqual([productId(9)])
+    expect(heldOf(latest())).toEqual([productId(9)])
     await settle()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
 
     // Another reinstall before the row is read again keeps it still.
     await elsewhere('tab-2', 8)
     await vi.waitFor(() => expect(latest().edits.map(kept => kept.id)).toEqual([productId(8)]))
-    expect(latest().retired.map(kept => kept.id)).toEqual([productId(9)])
+    expect(heldOf(latest())).toEqual([productId(9)])
     await settle()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
 
     // Read again, the row has it at its revision: the price is the table's,
-    // and the retired edit goes in the same transition.
+    // and the held edit goes in the same transition.
     release()
     await vi.waitFor(() => expect(revisionOf(latest(), productId(9))).toEqual(Option.some(1)))
-    expect(latest().retired).toEqual([])
+    expect(heldOf(latest())).toEqual([])
     expect(latest().replaced).toEqual([])
     await settle()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
@@ -610,7 +636,33 @@ test('an edit replaced while this device was away is said, though the journal ab
         { id: productId(3), column: 'cents', by: Option.none(), was: '3.33' },
       ]),
     )
-    expect(latest().retired).toEqual([])
+    expect(heldOf(latest())).toEqual([])
+  } finally {
+    await dispose()
+  }
+})
+
+test('a server restarted under the page drops what it held of the old history', async () => {
+  const server = serve()
+  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4)))
+    await edit(productId(4), 'cents', '4.40')
+    await exchange()
+    await exchange()
+    // Absorbed while the cached row is older: held, and the row is asked for.
+    const release = server.holdReads()
+    await Effect.runPromise(server.journal.absorb)
+    await exchange()
+    await vi.waitFor(() => expect(heldOf(latest())).toEqual([productId(4)]))
+
+    // The new server's table is the seed, at revision 0, below the held
+    // edit's commit in a history that is gone: nothing is held over it.
+    server.restart()
+    await exchange()
+    await vi.waitFor(() => expect(heldOf(latest())).toEqual([]))
+    release()
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4)))
   } finally {
     await dispose()
   }

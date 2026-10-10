@@ -46,6 +46,11 @@
       "foldkit-plus:source": "./src/do.ts",
       "types": "./dist/do.d.mts",
       "import": "./dist/do.mjs"
+    },
+    "./remote": {
+      "foldkit-plus:source": "./src/remote.ts",
+      "types": "./dist/remote.d.mts",
+      "import": "./dist/remote.mjs"
     }
   },
   "files": [
@@ -63,7 +68,13 @@
   "peerDependencies": {
     "effect": "^4.0.0",
     "foldkit": "^0.165.0",
-    "foldkit-durable": "workspace:*"
+    "foldkit-durable": "workspace:*",
+    "foldkit-remote": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "foldkit-remote": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261008.1",
@@ -74,6 +85,8 @@
     "foldkit": "0.165.0",
     "foldkit-agent": "workspace:*",
     "foldkit-durable": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-remote": "workspace:*",
     "jsdom": "26.1.0",
     "miniflare": "3.20250718.3",
     "tsdown": "^0.23.0",

@@ -8,12 +8,50 @@ const tests = ['examples/registry/test/page.test.ts']
 
 export default [
   {
-    name: 'a newly retired edit asks for no read',
+    name: 'a newly held edit asks for no read',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'return shown.held.length === 0 ? next : Products.refresh(next)',
+        replace: 'return next',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the overlays never follow the edits',
     edits: [
       {
         file: '../src/sync.ts',
-        find: 'retiresAny(previous, retired) ? Products.refresh(kept) : kept',
-        replace: 'kept',
+        find: 'afterUpdate: model => ({ model: shownWith(model) }),',
+        replace: 'afterUpdate: model => ({ model }),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a reset reads no rows again',
+    edits: [{ file: '../src/sync.ts', find: 'if (reset) return', replace: 'if (false) return' }],
+    tests,
+  },
+  {
+    name: 'a reset keeps the overlays it had',
+    edits: [
+      {
+        file: '../src/sync.ts',
+        find: 'Products.refresh(Shown.clear(next))',
+        replace: 'Products.refresh(next)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a settled replacement is not said',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: '...shown.replaced.map(edit => replacementOf({ edit, by: Option.none() })),',
+        replace: '',
       },
     ],
     tests,
@@ -25,44 +63,6 @@ export default [
         file: '../src/sync.ts',
         find: 'mounted.dispatch(Message.ReplicaNamed({ replica: replica.replicaId }))',
         replace: '',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a reset reads no rows again',
-    edits: [{ file: '../src/sync.ts', find: '      if (reset) {', replace: '      if (false) {' }],
-    tests,
-  },
-  {
-    name: 'no transition settles the retired edits',
-    edits: [
-      {
-        file: '../src/app.ts',
-        find: '  const settled = settledOf(next.model)',
-        replace: '  const settled = next.model',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'nothing is retired',
-    edits: [
-      {
-        file: '../src/app.ts',
-        find: 'ProductEdits.held([...previous.retired, ...previous.edits], next.edits,',
-        replace: 'ProductEdits.held([], next.edits,',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a settled replacement is not said',
-    edits: [
-      {
-        file: '../src/app.ts',
-        find: 'replaced: before => [...before, ...replaced.map(replacementOf)],',
-        replace: 'replaced: before => before,',
       },
     ],
     tests,
@@ -163,17 +163,6 @@ export default [
         file: '../src/app.ts',
         find: 'taken.map(cell => cell.before)',
         replace: 'taken.map(cell => cell.after)',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'changed since is read from the rows Remote read',
-    edits: [
-      {
-        file: '../src/app.ts',
-        find: '    const rows = rowsOf(model)\n',
-        replace: '    const rows = GridCrud.rows(Products.page(model), row => row.id)\n',
       },
     ],
     tests,

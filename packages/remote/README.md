@@ -1414,6 +1414,10 @@ const back = Data.lift(previewed, 'post-preview')
   `Failed`, with an `Overlaid` error naming what is missing, since nothing will
   fetch it. Overlay every field the Selection reads, or preview through a
   smaller Selection.
+- `Data.overlays(model)` lists the ids shown now, in the order they are drawn.
+  A caller that overlays from state of its own reconciles against it:
+  `foldkit-sync/remote` shows a replica's pending cell edits this way, so the
+  durable edit stays Sync's and Remote only draws it.
 
 ### Reading past what is only pending
 

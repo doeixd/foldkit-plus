@@ -1,6 +1,6 @@
 /**
- * `EditableEntity`: per-cell edits laid over rows by revision, absorbed by
- * sequence, held while a cached row is behind them, and settled by a read.
+ * `EditableEntity`: per-cell edits, merged per cell, absorbed by sequence,
+ * and told when another replica's commit replaced one.
  * Two ids share a prefix (`a:1`, `a:10`) and each row has two members, so a
  * key built from the wrong parts would mix them up.
  */
@@ -94,24 +94,9 @@ describe('merging and absorbing', () => {
     expect(Edits.holdsThrough(edits, 2)).toBe(true)
     expect(Edits.holdsThrough(edits, 0)).toBe(false)
     expect(Edits.absorb(edits, 0)).toBe(edits)
-  })
-})
-
-describe('overlay', () => {
-  test.each([
-    ['a pending edit shows', pending('a:1', 9), 5, 9],
-    ['one committed after the row’s revision shows', committed('a:1', 9, 6), 5, 9],
-    ['one the row is at hides', committed('a:1', 9, 5), 5, 1],
-    ['one before the row hides', committed('a:1', 9, 4), 5, 1],
-  ])('%s', (_, edit, revision, shown) => {
-    expect(Edits.overlay([edit])(row('a:1', 1, revision)).price).toBe(shown)
-    // The other row whose id it begins is untouched.
-    expect(Edits.overlay([edit])(row('a:10', 1, 0)).price).toBe(1)
-  })
-
-  test('a row with no edit is the row itself', () => {
-    const plain = row('b', 1, 0)
-    expect(Edits.overlay([committed('a:1', 9, 6)])(plain)).toBe(plain)
+    // An edit committed at the sequence itself is in the table too.
+    expect(Edits.absorb(edits, 3)).toEqual([pending('b', 2)])
+    expect(Edits.holdsThrough(edits, 1)).toBe(true)
   })
 })
 
@@ -120,65 +105,6 @@ describe('changeAt', () => {
     const read = row('a:1', 4, 0)
     expect(Edits.changeAt(read, 'price')).toEqual({ id: 'a:1', member: 'price', value: 4 })
     expect(Edits.changeAt(read, 'status')).toEqual({ id: 'a:1', member: 'status', value: 'Active' })
-  })
-})
-
-describe('held edits', () => {
-  const revisions = new Map([
-    ['a:1', 2],
-    ['a:10', 9],
-  ])
-  const revisionOf = (id: string) => Option.fromUndefinedOr(revisions.get(id))
-
-  test('keeps what the slice dropped while its cached row is behind it', () => {
-    const before = [
-      committed('a:1', 5, 4),
-      committed('a:10', 6, 5),
-      pending('a:1', 7),
-      committed('c', 1, 9),
-    ]
-    // a:1's row is at 2, behind 4; a:10's at 9, past 5; c is not cached; the pending edit is not committed.
-    expect(Edits.held(before, [], revisionOf)).toEqual([committed('a:1', 5, 4)])
-    // A cell the slice still holds is shown from the slice, not held.
-    expect(Edits.held(before, [committed('a:1', 8, 6)], revisionOf)).toEqual([])
-  })
-
-  test('says when a cell is newly held', () => {
-    const held = [committed('a:1', 5, 4)]
-    expect(Edits.newlyHeld([], held)).toBe(true)
-    expect(Edits.newlyHeld(held, held)).toBe(false)
-    expect(Edits.newlyHeld(held, [committed('a:1', 5, 6)])).toBe(true)
-  })
-
-  test('lets go of what a read reached, saying when the row then holds another value', () => {
-    const held = [
-      committed('a:1', 5, 4),
-      committed('a:10', 6, 5),
-      committed('d', 7, 3, { actor: 'ben', replica: 'ben-tab' }),
-      committed('e', 8, 9),
-    ]
-    const rows = new Map([
-      ['a:1', row('a:1', 5, 4)],
-      ['a:10', row('a:10', 60, 7)],
-      ['d', row('d', 70, 8)],
-      ['e', row('e', 1, 2)],
-    ])
-    const settled = Edits.settled(held, id => Option.fromUndefinedOr(rows.get(id)), 'ada-tab')
-    // e is not reached yet and stays; a:1 holds its value; a:10 holds another: replaced;
-    // d holds another too, but it was ben's.
-    expect(settled.held).toEqual([committed('e', 8, 9)])
-    expect(settled.replaced).toEqual([{ edit: committed('a:10', 6, 5), by: Option.none() }])
-    const none = Edits.settled(
-      [committed('e', 8, 9)],
-      id => Option.fromUndefinedOr(rows.get(id)),
-      'ada-tab',
-    )
-    expect(none.held).toEqual([committed('e', 8, 9)])
-  })
-
-  test('keeps the same array when a read reached nothing', () => {
-    const held = [committed('e', 8, 9)]
-    expect(Edits.settled(held, () => Option.some(row('e', 1, 2)), 'ada-tab').held).toBe(held)
   })
 })
 

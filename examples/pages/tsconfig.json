@@ -40,7 +40,8 @@
       "foldkit-sync": ["../../packages/sync/src/index.ts"],
       "foldkit-sync/do": ["../../packages/sync/src/do.ts"],
       "foldkit-sync/entity": ["../../packages/sync/src/entity.ts"],
-      "foldkit-sync/journal": ["../../packages/sync/src/journal.ts"]
+      "foldkit-sync/journal": ["../../packages/sync/src/journal.ts"],
+      "foldkit-sync/remote": ["../../packages/sync/src/remote.ts"]
     }
   },
   "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],

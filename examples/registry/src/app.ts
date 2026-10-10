@@ -17,6 +17,8 @@
  * it: those still pending, and those committed after its revision. So an edit
  * shows at once, survives a reload while offline, shows while the table has
  * not written it, and gives way to the table once a read of the row has it.
+ * The edits reach Remote as overlays (`foldkit-sync/remote`), so every read of
+ * a row draws them, not just the grid's.
  */
 import { Equal, Match, Option, Schema, SchemaGetter } from 'effect'
 import { modifyFields } from 'foldkit/struct'
@@ -27,6 +29,7 @@ import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { Sync } from 'foldkit-sync'
+import { RemoteEdits } from 'foldkit-sync/remote'
 import {
   EditedColumn,
   Product,
@@ -172,12 +175,6 @@ const Base = Bundle.compose({
    * replicated slice: the journal's, not this device's.
    */
   edits: Schema.Array(ProductEdits.Edit),
-  /**
-   * Committed edits the journal has absorbed that this device's cached rows
-   * have not been read since: kept here, locally, so the row does not show the
-   * stale read for a moment. Set by the mount's `onReinstall` (`retiredOf`).
-   */
-  retired: Schema.Array(ProductEdits.Edit),
   exchange: Exchange,
   /** Edits the server refused, each cell it had changed, until dismissed. Local. */
   refused: Schema.Array(Refusal),
@@ -254,6 +251,12 @@ export const Data = Remote.make({
   entities: Object.values(Registry),
   queries: [ProductsQuery],
 })
+
+/**
+ * The edits as Remote overlays: each one its row has not reached, and each
+ * the journal absorbed while a cached row is still below it.
+ */
+export const Shown = RemoteEdits.make(Data, ProductEdits)
 
 export const Products = ProductList.at({
   data: Data,
@@ -374,7 +377,7 @@ const Page = Base.pipe(
 
 export const placements = Page.placements
 
-const transition = placements.update((model: Model, message: Message) =>
+export const update = placements.update((model: Model, message: Message) =>
   Match.value(message).pipe(
     Match.tags({
       SortedProducts: ({ column }) => ({
@@ -437,23 +440,12 @@ const transition = placements.update((model: Model, message: Message) =>
   ),
 )
 
-/**
- * Every transition, then what a read since says of the retired edits: a read
- * can arrive in any Message Remote sends, so the check follows them all.
- */
-export const update: typeof transition = (model, message) => {
-  const next = transition(model, message)
-  const settled = settledOf(next.model)
-  return settled === next.model ? next : { ...next, model: settled }
-}
-
 export const initial = (): Model =>
   placements.initial({
     remote: Remote.initial,
     sort: ProductSort.none,
     search: '',
     edits: [],
-    retired: [],
     exchange: { pending: 0, error: Option.none() },
     refused: [],
     replaced: [],
@@ -468,14 +460,6 @@ export const initial = (): Model =>
 /** The application as Sync replays it: the same references, with its initial value and update. */
 export const App = Made.runnable({ initial: initial(), update })
 
-/** The row Remote read for a product, if the page has it. */
-const rowOf =
-  (model: Model) =>
-  (id: ProductId): Option.Option<Row> => {
-    const rows = GridCrud.rows(Products.page(model), row => row.id)
-    return Option.flatMap(rows.indexOf(id), rows.rowAt)
-  }
-
 /** A product's row as the page shows it, with the edits over it, if the page has it. */
 const shownOf =
   (model: Model) =>
@@ -484,37 +468,9 @@ const shownOf =
     return Option.flatMap(rows.indexOf(id), rows.rowAt)
   }
 
-/**
- * The rows Remote read, with the edits over them: each row as it is read, so
- * a page of thousands is not copied when one product changes, and the same
- * rows while neither the page nor the edits do.
- */
+/** The rows Remote read, the edits over them as its overlays draw them. */
 export const rowsOf = (model: Model): RowModel<Row> =>
-  // Two maps, each cached by its own input: the retired edits beneath, the
-  // current ones over them.
-  RowModel.map(
-    RowModel.map(
-      GridCrud.rows(Products.page(model), row => row.id),
-      model.retired,
-      ProductEdits.overlay<Row>,
-    ),
-    model.edits,
-    ProductEdits.overlay<Row>,
-  )
-
-/**
- * The retired edits after the mount replaced the edits: what `previous`
- * showed, retired or not, that `next` no longer holds, while a cached row's
- * revision is still below it.
- */
-export const retiredOf = (previous: Model, next: Model): ReadonlyArray<ProductEdit> =>
-  ProductEdits.held([...previous.retired, ...previous.edits], next.edits, id =>
-    Option.map(rowOf(next)(id), row => row.revision),
-  )
-
-/** Whether `retired` holds a cell `previous` had not retired: one just taken from the slice. */
-export const retiresAny = (previous: Model, retired: ReadonlyArray<ProductEdit>): boolean =>
-  ProductEdits.newlyHeld(previous.retired, retired)
+  GridCrud.rows(Products.page(model), row => row.id)
 
 /** Where the edits stand with the server, for the status line. */
 export const exchangeOf = (model: Model): string => {
@@ -561,20 +517,25 @@ export const replacedOf = (previous: Model, next: Model): ReadonlyArray<Replacem
   ProductEdits.replaced(previous.edits, next.edits, next.replica).map(replacementOf)
 
 /**
- * The retired edits a read of their rows has reached, let go; of those, each
- * of this page's that the row shows another value for, said as replaced: the
- * table applies in order, so a row at or past an edit that holds another
- * value took a later edit, though the journal absorbed it before this page
- * heard whose. Nothing reached, it returns the Model it was given.
+ * The overlays brought in line with the edits, after every update of the
+ * mounted page (a read can land in any Message Remote sends), and what that
+ * says: this page's held edits a read reached with another value are said as
+ * replaced; an edit newly held asks for its row again rather than show it as
+ * saved until some other read, since a later edit may have replaced it and
+ * only the row says so. Nothing to change, it returns the Model it was given.
  */
-export const settledOf = (model: Model): Model => {
-  if (model.retired.length === 0) return model
-  const { held, replaced } = ProductEdits.settled(model.retired, rowOf(model), model.replica)
-  if (held === model.retired) return model
-  return modifyFields(model, {
-    retired: () => held,
-    replaced: before => [...before, ...replaced.map(replacementOf)],
-  })
+export const shownWith = (model: Model): Model => {
+  const shown = Shown.reconcile(model, model.edits, model.replica)
+  const next =
+    shown.replaced.length === 0
+      ? shown.model
+      : modifyFields(shown.model, {
+          replaced: before => [
+            ...before,
+            ...shown.replaced.map(edit => replacementOf({ edit, by: Option.none() })),
+          ],
+        })
+  return shown.held.length === 0 ? next : Products.refresh(next)
 }
 
 /** A cell's state for the grid's `marks`: a name to style, and words to say. */
@@ -591,10 +552,9 @@ interface CellMark {
 export const marksOf = (
   model: Model,
 ): ((address: CellAddress<keyof typeof columns.byId>) => Option.Option<CellMark>) => {
-  const rowAt = rowOf(model)
-  // The current edits after the retired ones, so a cell's latest is the one kept.
+  // In the order the overlays are drawn, so a cell's latest is the one kept.
   const edits = new Map<string, Map<string, ProductEdit>>()
-  for (const edit of [...model.retired, ...model.edits]) {
+  for (const { edit } of Shown.shown(model)) {
     const cells = edits.get(edit.id) ?? new Map<string, ProductEdit>()
     cells.set(edit.member, edit)
     edits.set(edit.id, cells)
@@ -606,15 +566,15 @@ export const marksOf = (
     model.replaced.map(replacement => [`${replacement.id}:${replacement.column}`, replacement]),
   )
   const peers = new Map(model.peers.map(peer => [`${peer.row}:${peer.column}`, peer]))
-  /** The mark of the cell's own edit: not yet sent, or saved and not in the table. */
+  /**
+   * The mark of the cell's own edit: not yet sent, or saved and not in the
+   * table. An overlay is shown only while its row has not reached its edit.
+   */
   const editMark = (row: string, column: string): Option.Option<CellMark> =>
-    Option.flatMap(Option.fromUndefinedOr(edits.get(row)?.get(column)), edit =>
+    Option.map(Option.fromUndefinedOr(edits.get(row)?.get(column)), edit =>
       Option.match(edit.at, {
-        onNone: () => Option.some({ name: 'pending', description: 'Not yet sent' }),
-        onSome: () =>
-          Option.exists(rowAt(ProductId.make(row)), read => ProductEdits.shows(edit, read.revision))
-            ? Option.some({ name: 'saved', description: 'Saved, not yet in the table' })
-            : Option.none(),
+        onNone: () => ({ name: 'pending', description: 'Not yet sent' }),
+        onSome: () => ({ name: 'saved', description: 'Saved, not yet in the table' }),
       }),
     )
   return ({ row, column }) => {

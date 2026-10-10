@@ -1,6 +1,6 @@
 /**
- * `Mounted.settled`, each broken in turn: `pnpm mutate packages/sync/test/mount.mutations.ts` checks that a
- * test fails for every one.
+ * `Sync.mount`'s guards (`Mounted.settled`, `afterUpdate`), each broken in turn:
+ * `pnpm mutate packages/sync/test/mount.mutations.ts` checks that a test fails for every one.
  */
 export default [
   {
@@ -58,6 +58,17 @@ export default [
         file: '../src/mount.ts',
         find: '        return reinstalled(install(model), model, { reset })',
         replace: '        return reinstalled(install(model), model, { reset: false })',
+      },
+    ],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'afterUpdate is never run',
+    edits: [
+      {
+        file: '../src/mount.ts',
+        find: 'if (options.afterUpdate === undefined) return result',
+        replace: 'return result',
       },
     ],
     tests: ['packages/sync/test/mount.test.ts'],

@@ -162,12 +162,14 @@ committed one is back to the seed.
 3. [app.ts](src/app.ts): Remote over the Product, the list, the grid's
    columns from it (`GridCrud.columns`, with pinning, widths and editing
    added), `EditedProducts` and the `edits` it folds into, each cell with when
-   it committed, and `rowsOf`, the rows with the edits they have not absorbed
-   over them. The rules are `ProductEdits`'; this file says them in the
-   page's words (marks, notices).
+   it committed, and `Shown`, the edits as Remote overlays
+   (`foldkit-sync/remote`), so every read of a row draws the edits it has not
+   absorbed. The rules are `ProductEdits`'; this file says them in the page's
+   words (marks, notices).
 4. [sync.ts](src/sync.ts): the Sync contract derived from the application,
    with the stamp that writes each edit's sequence in, and `mountRegistry`,
-   which runs it over a replica.
+   which runs it over a replica and keeps the overlays in step after every
+   update (`afterUpdate`).
 5. [server.ts](src/server.ts) and [journal.ts](src/journal.ts): the table, its
    seed, and the forward-only write of a change with its revision; the journal,
    its exchange, and the edits it applies.

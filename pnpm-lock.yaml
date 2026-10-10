@@ -2946,6 +2946,12 @@ importers:
       foldkit-durable:
         specifier: workspace:*
         version: link:../durable
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../remote
       jsdom:
         specifier: 26.1.0
         version: 26.1.0

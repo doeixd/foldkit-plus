@@ -41,11 +41,8 @@ type ItemRow = {
   readonly status: 'Active' | 'Paused'
   readonly revision: number
 }
-const overlay = Edits.overlay<ItemRow>([])
-// The row comes back as the type it went in: its other members kept.
-const shown: ItemRow = overlay({ id: 'a', name: 'a', price: 1, status: 'Active', revision: 0 })
-void shown
+// A row's member is its member's type, read back as the change that sets it.
+const row: ItemRow = { id: 'a', name: 'a', price: 1, status: 'Active', revision: 0 }
+void Edits.changeAt(row, 'price')
 // @ts-expect-error a row needs the revision the table read it at
-Edits.overlay<Omit<ItemRow, 'revision'>>([])
-// @ts-expect-error a row's member is its member's type
-Edits.overlay<Omit<ItemRow, 'price'> & { readonly price: string }>([])
+Edits.changeAt({ id: 'a', price: 1, status: 'Active' }, 'price')

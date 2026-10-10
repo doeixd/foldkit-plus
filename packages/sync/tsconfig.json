@@ -10,12 +10,17 @@
       "foldkit-agent": ["../agent/src/index.ts"],
       "foldkit-durable": ["../durable/src/index.ts"],
       "foldkit-durable/core": ["../durable/src/core.ts"],
+      "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
+      "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-remote/port": ["../remote/src/port.ts"],
       "foldkit-surface": ["../surface/src/index.ts"],
       "foldkit-sync": ["./src/index.ts"],
       "foldkit-sync/do": ["./src/do.ts"],
       "foldkit-sync/entity": ["./src/entity.ts"],
-      "foldkit-sync/journal": ["./src/journal.ts"]
+      "foldkit-sync/journal": ["./src/journal.ts"],
+      "foldkit-sync/remote": ["./src/remote.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "bench/**/*.ts", "tsdown.config.ts"],
@@ -31,6 +36,12 @@
     },
     {
       "path": "../durable/tsconfig.build.json"
+    },
+    {
+      "path": "../remote/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
     }
   ]
 }

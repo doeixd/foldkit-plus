@@ -231,9 +231,9 @@ is in flight, so every Selection and view draws the change before the server
 answers. Preview is that overlay for a mutation that is never sent: the draft's
 value, through the patches the application already wrote for publishing
 optimistically, laid over the store while preview is on and lifted when it is
-off. Remote has no overlay without a request today; adding one (an overlay by
-id, applied and removed by Message) is part of the seventh PR, and is useful
-beyond the CMS. A content type whose publish mutation declares no `optimistic`
+off. Remote shows one without a request (`Data.overlay` / `Data.lift`, an
+overlay by id, applied and removed by Message), and it is useful beyond the
+CMS: `foldkit-sync/remote` shows a replica's pending edits with it. A content type whose publish mutation declares no `optimistic`
 patches has no in-app preview, which is a capability declared, not implied.
 
 A shareable preview link for someone who is not the author is an audience, and

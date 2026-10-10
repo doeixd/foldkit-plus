@@ -556,27 +556,45 @@ shows. `reset` is true when the server's history is a new one (a new
 `status.epoch`: the server was reset), so whatever the application derived
 from the old one, such as reads keyed by commit sequence, is to be read again.
 
+`afterUpdate(model)` runs after every update of the mounted application, a
+durable Message's and a reinstall's included, and never in replay. A durable
+Message is replayed through `update` on the server and in the replica, where
+it may change only the shared slice; local state derived from the slice (the
+Remote overlays below) is kept in step here instead.
+
 ### Edit rows a server owns
 
 When rows are too many to replicate but edits to them must survive offline,
 let the journal own the edits and the table be its read model, each row
 carrying the highest sequence it has applied (`revision`). `foldkit-sync/entity`
-keeps such edits one per cell and lays them over the rows Remote reads:
+keeps such edits one per cell, and `foldkit-sync/remote` shows them over the
+rows Remote reads:
 
 ```text
-cell shown = the row's value, unless an edit of that cell is pending,
-             or committed after the row's revision (at > row.revision)
+cell shown = Remote's row, with each edit over it the row has not reached:
+             one pending, one committed after the row's revision, or one the
+             journal absorbed while the cached row is still below it
 ```
 
 `EditableEntity.make(Product, { members: ['description', 'cents'] })` gives
 the schemas (`Change` on the wire, `Edit` in the slice, the Message fields
 `edited` and `absorbed`) and pure functions for `update`, the stamp
-(`stamped`) and `onReinstall`: `merge`, `absorb`, `overlay` (for
-`RowModel.map`), `held` and `settled` (an edit the journal absorbed, kept until
-a read of its row reaches it), `replaced` (a cell of this tab's that another's
-later commit took), `cellsOf` (what a refusal undid) and `changeAt` (what a
-row holds in a member, as the change that sets it: an undo's value). It owns no state and
-does no I/O. On the server, `editsJournal` from `foldkit-sync/journal` keeps
+(`stamped`) and `onReinstall`: `merge`, `absorb`, `replaced` (a cell of this
+tab's that another's later commit took), `cellsOf` (what a refusal undid) and
+`changeAt` (what a row holds in a member, as the change that sets it: an
+undo's value). It owns no state and does no I/O.
+
+`RemoteEdits.make(Data, ProductEdits)` is the bridge to a Remote domain over
+the same Entity. Its `reconcile(model, edits, replica)` brings Remote's
+overlays (`Data.overlay`) in line with the slice, so every read of a row draws
+its edits, a second view or a filter as well as the grid. It holds an edit the
+journal absorbed while the cached row is below it, and lifts it once a read
+reaches it; it returns those newly `held` (ask for their rows again) and this
+replica's held edits a read reached with another value (`replaced`). Call it
+from `afterUpdate`. `shown(model)` lists what the overlays show, for a cell's
+mark, and `clear` lifts them all, for a reset. Remote stores none of it: after
+a reload, `reconcile` rebuilds the overlays from the slice the replica
+restored. On the server, `editsJournal` from `foldkit-sync/journal` keeps
 the table: its `settle` (for `journalExchange`) applies each committed change
 through your `apply` as a recovery intent, from the journal's floor and keyed
 by its epoch, and its `absorb` (on a clock) records what the table holds and

@@ -5,17 +5,17 @@
  * the server's database and its journal.
  */
 import { Effect, Layer, Option, Schema } from 'effect'
-import { RowModel } from 'foldkit-data-grid'
 import { applyEdits, type AnyEntityBinding, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import type { Journal } from 'foldkit-durable/core'
 import type { CommitStamp, Operation } from 'foldkit-sync'
 import { EditableEntity } from 'foldkit-sync/entity'
+import { RemoteEdits } from 'foldkit-sync/remote'
 import { editsJournal } from 'foldkit-sync/journal'
-import { Product, ProductRow } from '../src/domain.js'
+import { Data, type Model } from '../src/app.js'
+import { Product } from '../src/domain.js'
 
 // In the domain.
 const ProductEdits = EditableEntity.make(Product, { members: ['cents'] })
-type Row = typeof ProductRow.schema.Type
 
 // The Model's slice and the durable Message's fields.
 const edits = Schema.Array(ProductEdits.Edit)
@@ -34,10 +34,13 @@ const merged = ProductEdits.merge(
 )
 void merged
 
-// What the grid draws.
-declare const read: RowModel<Row>
-const shown: RowModel<Row> = RowModel.map(read, kept, ProductEdits.overlay<Row>)
-void shown
+// What every read draws, after each live update.
+const Shown = RemoteEdits.make(Data, ProductEdits)
+declare const replica: { readonly replicaId: string }
+const afterUpdate = (model: Model): { readonly model: Model } => ({
+  model: Shown.reconcile(model, kept, replica.replicaId).model,
+})
+void afterUpdate
 
 // The stamp.
 const stamp = ({ changes }: Edited, commit: CommitStamp): Edited => ({

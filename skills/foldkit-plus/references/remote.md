@@ -268,6 +268,8 @@ case 'SignedOut': {
   against a real SQLite. Cases are chosen to make interpreters disagree (case,
   nulls, `%`/`_` as literal text, empty search), because a fixture that cannot
   tell them apart tests nothing.
+- `Data.overlays(model)` is the ids `overlay` shows now, in drawing order, for a
+  caller that reconciles overlays against its own state (`foldkit-sync/remote`).
 - `Data.overlay(model, id, operations)` shows optimistic operations with no request
   (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
   A preview of an unsaved entity that lacks a field its Selection reads is

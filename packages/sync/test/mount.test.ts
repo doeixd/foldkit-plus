@@ -296,6 +296,31 @@ describe('Sync.mount', () => {
     stop()
   })
 
+  it('runs afterUpdate after every live update, facts included, and never in replay', async () => {
+    replica = await Effect.runPromise(TodoSync.openReplica(replicaId('a'), memoryStorage()))
+    // Local state derived from the shared slice: a durable transition may not write it.
+    const counted = (model: Model): Model => {
+      const count = `${model.todos.length} todos`
+      return model.lastError === count ? model : { ...model, lastError: count }
+    }
+    const app = mount(App, TodoSync, {
+      replica,
+      container,
+      view: (model, h) => ({ title: 'todos', body: h.p([], [model.lastError ?? '']) }),
+      afterUpdate: model => ({ model: counted(model) }),
+    })
+    mounted = app
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(app.model().lastError).toBe('1 todos'))
+    // A fact is applied within the transition that returned it, and so is this.
+    app.dispatch(Message.AddedTodo({ title: 'Eggs' }))
+    await vi.waitFor(() => expect(app.model().todos).toHaveLength(2))
+    expect(app.model().lastError).toBe('2 todos')
+    // Both persisted: the replica's replay never saw the derived field change.
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(2))
+    expect(app.model().lastError).toBe('2 todos')
+  })
+
   it('applies several facts in order, persisting only the durable ones', async () => {
     const app = await open()
     const seen: string[] = []
