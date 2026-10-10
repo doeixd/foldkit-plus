@@ -109,6 +109,15 @@ export const compile = (
     if (term.expr._tag !== 'Field') {
       throw new LiveStoreCompileError('this interpreter orders by fields only')
     }
+    // This engine's `orderBy` cannot say where rows without a value go, so it
+    // gets SQLite's: first ascending, last descending. A term asking otherwise
+    // is refused, except over the id, which no row is without.
+    const sqlitePlaces = term.direction === 'asc' ? 'first' : 'last'
+    if (term.nulls !== sqlitePlaces && term.expr.key !== 'id') {
+      throw new LiveStoreCompileError(
+        `this engine cannot put rows without "${term.expr.key}" ${term.nulls}, where the query asks`,
+      )
+    }
     built = built.orderBy(term.expr.key, term.direction)
   }
 

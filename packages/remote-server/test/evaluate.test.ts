@@ -85,7 +85,7 @@ const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
   const where = body.where.map(predicate)
   const order = Query.orderFor(body, input).map(term => {
     if (term.expr._tag !== 'Field') throw new Error('unsupported')
-    return `"${column[term.expr.key]}" ${term.direction}`
+    return `"${column[term.expr.key]}" ${term.direction} nulls ${term.nulls}`
   })
   return {
     sql: `select id from posts${where.length === 0 ? '' : ` where ${where.join(' and ')}`}${
@@ -253,18 +253,29 @@ describe('One body, two interpreters, the same rows', () => {
   })
 })
 
-describe('What the reference interpreter will not answer for', () => {
-  it('refuses to order by a column that is null in some row', () => {
-    // SQLite sorts nulls first; Postgres sorts them last for `asc`. The
-    // databases disagree with each other, so there is no answer to be
-    // conformant to, and guessing one would make this interpreter wrong
-    // against whichever it did not pick.
-    const body = Query.from(Post).pipe(Query.orderBy(Order.asc(Post.fields.archivedAt)))
-
-    expect(() => evaluate(body, {}, rows)).toThrow(QueryEvaluateError)
-    expect(() => evaluate(body, {}, rows)).toThrow('where nulls sort is a thing databases disagree')
+describe('Where rows without a value go, said on the term', () => {
+  // SQLite sorts nulls first ascending and Postgres last, when nothing says.
+  // A term always says, and SQL is told the same, so the two agree.
+  it.each([
+    ['ascending, nulls last by default', Order.asc(Post.fields.archivedAt), ['b', 'a', 'c', 'd']],
+    [
+      'descending, nulls first by default',
+      Order.desc(Post.fields.archivedAt),
+      ['a', 'c', 'd', 'b'],
+    ],
+    [
+      'ascending, nulls first when said',
+      Order.asc(Post.fields.archivedAt, { nulls: 'first' }),
+      ['a', 'c', 'd', 'b'],
+    ],
+  ])('%s', (_, term, expected) => {
+    const { inMemory, inSql } = bothWays(Query.from(Post).pipe(Query.orderBy(term)))
+    expect(inMemory).toEqual(expected)
+    expect(inSql).toEqual(expected)
   })
+})
 
+describe('What the reference interpreter will not answer for', () => {
   it('refuses to compare values of kinds it has no order for', () => {
     const mixed: ReadonlyArray<Row> = [
       { id: 'a', rank: 1 },

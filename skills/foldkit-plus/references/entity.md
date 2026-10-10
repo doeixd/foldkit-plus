@@ -264,6 +264,9 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   (Crud's `Sort.make(...).Schema`). Every name needs a field, or it does not compile;
   `null` chooses none. `Query.orderFor(query, input)` resolves it for one input and
   ends every order on the id, so ties break the same way on every interpreter.
+- **Nulls are placed by the term:** last ascending, first descending, or
+  `Order.asc(field, { nulls: 'first' })`. Every interpreter is told (Drizzle
+  compiles `NULLS FIRST/LAST`), so SQLite and Postgres agree and page alike.
 - **Two `where`s conjoin; two `orderBy`s append.** Neither replaces, so piping a
   fragment only ever narrows a query. There is no reset combinator: nothing has
   needed one.

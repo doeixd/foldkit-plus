@@ -246,6 +246,10 @@ export const compileOrderBy = (
         `query "${query}" orders by something that is not a field, which this compiler cannot run yet`,
       )
     }
-    return { column: columnFor(target, term.expr.key, query), direction: term.direction }
+    return {
+      column: columnFor(target, term.expr.key, query),
+      direction: term.direction,
+      nulls: term.nulls,
+    }
   })
 }

@@ -713,8 +713,12 @@ query(PostsQuery, {
   connection with its own cursors. A cursor from one order never pages another.
 - A computed order that leaves the id out is tie-broken by it, ascending, since
   what a user sorts by is rarely unique. An empty computed order is the id's.
-- Keyset paging over a nullable column follows Postgres `NULL` ordering; on
-  another dialect, sort by columns that are not null.
+- Where rows without a value go is said on every term and compiled as
+  `NULLS FIRST`/`NULLS LAST`, so a nullable column sorts and pages the same on
+  SQLite and Postgres. The default is Postgres's (last ascending, first
+  descending); a body's term says otherwise with
+  `Order.asc(field, { nulls: 'first' })`, and an `orderBy` term here with
+  `nulls: 'first'`.
 
 The wire cursor remains the row id. To continue a page, the Source re-reads that
 row's ordering tuple and builds the keyset predicate from the real ordered
@@ -973,8 +977,6 @@ Start with one id and one scalar before adding relations or pagination. The
 The binding accepts Drizzle's base `Table`, but the pagination semantics are
 currently designed around Postgres behavior:
 
-- keyset pagination follows Postgres NULL ordering (ASC nulls last, DESC nulls
-  first);
 - windowed nested pagination needs window functions and row-value `IN`
   (Postgres, SQLite 3.25+, MySQL 8+);
 - computed fields are counts only;

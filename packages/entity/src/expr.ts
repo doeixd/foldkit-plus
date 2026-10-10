@@ -304,7 +304,28 @@ export interface OrderTerm {
   readonly _tag: 'Term'
   readonly direction: 'asc' | 'desc'
   readonly expr: AnyExpr
+  /**
+   * Where rows without a value go, in the term's own direction. Databases
+   * disagree when it is left unsaid (Postgres puts them last ascending, SQLite
+   * first), so it is always said: last ascending and first descending unless
+   * a term asks otherwise, which is Postgres's.
+   */
+  readonly nulls: 'first' | 'last'
 }
+
+/** What a term may say besides its operand. */
+export interface TermOptions {
+  readonly nulls?: 'first' | 'last' | undefined
+}
+
+/** A term, its nulls placed by `options` or by the direction's default. */
+const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {}): OrderTerm =>
+  node({
+    _tag: 'Term',
+    direction,
+    expr,
+    nulls: options.nulls ?? (direction === 'asc' ? 'last' : 'first'),
+  })
 
 /** How a list is sorted, as its input holds it: one of its named orders, which way, or none. */
 export type ChosenSort<By extends string> = {
@@ -327,10 +348,12 @@ export interface ChosenOrder {
 export type Ordering = OrderTerm | ChosenOrder
 
 export const Order = {
-  asc: <E extends Operand<any>>(expr: E): OrderTerm =>
-    node({ _tag: 'Term', direction: 'asc', expr: toExpr(expr as never, 'asc') }),
-  desc: <E extends Operand<any>>(expr: E): OrderTerm =>
-    node({ _tag: 'Term', direction: 'desc', expr: toExpr(expr as never, 'desc') }),
+  /** Smallest first; rows without a value last, unless `nulls` says first. */
+  asc: <E extends Operand<any>>(expr: E, options?: TermOptions): OrderTerm =>
+    term('asc', toExpr(expr as never, 'asc'), options),
+  /** Largest first; rows without a value first, unless `nulls` says last. */
+  desc: <E extends Operand<any>>(expr: E, options?: TermOptions): OrderTerm =>
+    term('desc', toExpr(expr as never, 'desc'), options),
 
   /**
    * The order the input names, among `choices`: every name the sort can hold
@@ -371,9 +394,9 @@ const idTermOf = (entity: AnyEntity): OrderTerm => {
   if (id === undefined) {
     throw new Error(`[foldkit-entity] ${entity.name} has no id field to break an order's ties by`)
   }
-  const term: OrderTerm = node({ _tag: 'Term', direction: 'asc', expr: fieldExpr(id) })
-  idTerms.set(entity, term)
-  return term
+  const tieBreak = term('asc', fieldExpr(id))
+  idTerms.set(entity, tieBreak)
+  return tieBreak
 }
 
 /** The fixed term a chosen order is for one input, or none for a `null` sort. */
@@ -395,7 +418,7 @@ const chosenTerms = (
       `[foldkit-entity] Order.chosen: $${chosen.sort.key} names no order it offers (${Object.keys(chosen.choices).join(', ')})`,
     )
   }
-  return [node({ _tag: 'Term', direction, expr: chosen.choices[picked]! })]
+  return [term(direction, chosen.choices[picked]!)]
 }
 
 /** What a walk has found, and the nodes it has already been through. */

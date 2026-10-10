@@ -628,7 +628,7 @@ from queries, not from what a database could express.
 | `Expr.field(field)` | One field of one Entity, as a scalar. |
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |
-| `Order.asc(expr)` / `Order.desc(expr)` | One term of an ordering, over a field or a scalar. |
+| `Order.asc(expr, { nulls? })` / `Order.desc(expr, { nulls? })` | One term of an ordering, over a field or a scalar. Rows without a value go last ascending and first descending unless `nulls` says otherwise; every interpreter is told, since databases disagree when it is unsaid. |
 | `Order.chosen(sort, choices)` | The field an input's sort names (`{ by, direction }`, or `null` for none), among `choices`. |
 | `dependenciesOf(...nodes)` | The distinct fields, inputs, and operations those expressions use. |
 | `Query.from(entity)` | Every row of an Entity: the query each step narrows. |

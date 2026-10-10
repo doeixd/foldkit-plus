@@ -170,6 +170,13 @@ version changed; `pnpm` skips versions already in the registry.
   fixed terms; the evaluator, `foldkit-remote-drizzle`'s compiler and the
   in-memory server sort by it, and impact judges a list by the field its own
   input chose. The conformance suite has chosen-order cases.
+- **Where rows without a value go is said, and agreed.** An `OrderTerm` has
+  `nulls: 'first' | 'last'`, last ascending and first descending by default
+  (`Order.asc(field, { nulls })` to change it). The reference evaluator places
+  nulls by it instead of refusing them; `foldkit-remote-drizzle` compiles it as
+  `NULLS FIRST`/`NULLS LAST` and pages by it. That fixes paging over a nullable
+  column on SQLite, whose `ORDER BY` put nulls first while the keyset predicate
+  assumed last.
 - **`foldkit-entity`: every resolved order is total.** `Query.orderFor` ends
   it on the Entity's id unless the terms already read it, so ties break the
   same way on every interpreter; the evaluator used to leave them in row

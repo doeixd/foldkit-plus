@@ -130,7 +130,8 @@ const compare = (left: unknown, right: unknown): number => {
  * Refuses an ordering this interpreter will not answer for, before sorting, so
  * the refusal names the first offending row in row order rather than whichever
  * pair the engine's sort happened to compare first. Every term is checked over
- * every row: a null key, or a key whose kind differs from the first row's.
+ * every row: a key whose kind differs from the first present one's. A null key
+ * is not refused; the term says where it goes.
  */
 const checkOrder = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, query: string) => {
   for (const term of terms) {
@@ -143,11 +144,7 @@ const checkOrder = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, q
     let first: string | undefined
     for (const row of rows) {
       const value = row[key]
-      if (isNull(value)) {
-        throw new QueryEvaluateError(
-          `query "${query}" orders by "${key}", which is null in a row; where nulls sort is a thing databases disagree about, so it is outside what this interpreter will answer for`,
-        )
-      }
+      if (isNull(value)) continue
       const kind = typeof value
       first ??= kind
       if (kind !== first || !comparable.has(kind)) {
@@ -166,6 +163,14 @@ const ordered = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, quer
   return [...rows].sort((left, right) => {
     for (const term of terms) {
       const key = (term.expr as Extract<OrderTerm['expr'], { readonly _tag: 'Field' }>).key
+      const absentLeft = isNull(left[key])
+      const absentRight = isNull(right[key])
+      // Where a row without a value goes is the term's to say, whichever the
+      // direction; two such rows tie, for the next term.
+      if (absentLeft || absentRight) {
+        if (absentLeft && absentRight) continue
+        return absentLeft === (term.nulls === 'first') ? -1 : 1
+      }
       const sign = compare(left[key], right[key])
       if (sign !== 0) return term.direction === 'asc' ? sign : -sign
     }

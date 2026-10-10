@@ -50,18 +50,71 @@ const answer = (
 
 const named = cases.map((c, i) => ({ c, i, name: c.what }))
 
+/**
+ * The ids a case's query answers two at a time, each page after the last's
+ * cursor: the keyset predicate has to agree with the order, nulls included,
+ * or a page skips or repeats a row.
+ */
+const paged = async (
+  { body, input }: Pick<(typeof cases)[number], 'body' | 'input'>,
+  i: number,
+  target: typeof binding | typeof pgBinding,
+  layer: ReturnType<typeof databaseLayer>,
+) => {
+  const descriptor = {
+    ...Query.make(`Paged${i}`, { Input: {}, Result: Query.connection(Subject) }),
+    body,
+  }
+  const source = query(descriptor, { entity: target })
+  const ids: Array<string> = []
+  let after: string | undefined
+  for (let page = 0; page < rows.length + 1; page++) {
+    const read = await Effect.runPromise(
+      source
+        .run({
+          input,
+          window: { first: 2, ...(after === undefined ? {} : { after }) },
+          principal: null,
+        })
+        .pipe(Effect.provide(layer)),
+    )
+    ids.push(...read.edges.map(edge => edge.id))
+    if (read.end._tag !== 'Cursor') return ids
+    after = read.end.cursor
+  }
+  return ids
+}
+
+/** The cases that order rows, the ones paging can get wrong. */
+const ordered = named.filter(({ c }) => c.body.orderBy.length > 0)
+
 const create =
   'create table conformance_rows (id text primary key, label text not null, rank integer not null, tag text, at text not null)'
 
+const seeded = () => {
+  const sqlite = new DatabaseSync(':memory:')
+  sqlite.exec(create)
+  const insert = sqlite.prepare('insert into conformance_rows values (?, ?, ?, ?, ?)')
+  for (const row of rows) insert.run(row.id, row.label, row.rank, row.tag, row.at)
+  return sqlite
+}
+
 describe('foldkit-remote-drizzle conforms to the query semantics', () => {
   it.each(named)('$name', async ({ c, i }) => {
-    const sqlite = new DatabaseSync(':memory:')
+    const sqlite = seeded()
     try {
-      sqlite.exec(create)
-      const insert = sqlite.prepare('insert into conformance_rows values (?, ?, ?, ?, ?)')
-      for (const row of rows) insert.run(row.id, row.label, row.rank, row.tag, row.at)
       const layer = databaseLayer(drizzle({ client: sqlite }))
       expect(await answer(c, i, binding, layer)).toEqual(c.expected)
+    } finally {
+      sqlite.close()
+    }
+  })
+
+  it.each(ordered)('pages to the same answer, two rows at a time: $name', async ({ c, i }) => {
+    const sqlite = seeded()
+    try {
+      const layer = databaseLayer(drizzle({ client: sqlite }))
+      expect(await paged(c, i, binding, layer)).toEqual(c.expected)
     } finally {
       sqlite.close()
     }
@@ -111,6 +164,10 @@ describe('foldkit-remote-drizzle conforms to the query semantics on Postgres', (
   it.each(named)('$name', async ({ c, i }) => {
     const layer = databaseLayer(drizzlePg({ client: pglite }))
     expect(await answer(c, i, pgBinding, layer)).toEqual(c.expected)
+  })
+  it.each(ordered)('pages on Postgres too: $name', async ({ c, i }) => {
+    const layer = databaseLayer(drizzlePg({ client: pglite }))
+    expect(await paged(c, i, pgBinding, layer)).toEqual(c.expected)
   })
   it.each(refused)('refuses on Postgres too: $name', async ({ c, i }) => {
     const layer = databaseLayer(drizzlePg({ client: pglite }))

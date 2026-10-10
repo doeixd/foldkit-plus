@@ -152,16 +152,27 @@ describe('an ordering the interpreter refuses (#142)', () => {
     )
   })
 
-  it('refuses a null key wherever it is, even when an earlier term already separates the rows', () => {
-    const byIdThenRank = Query.from(Item).pipe(
-      Query.orderBy(Order.asc(Item.fields.id), Order.asc(Item.fields.rank)),
-    )
-    expect(() =>
-      evaluate(byIdThenRank, {}, [
-        { id: 'a', rank: 1 },
-        { id: 'b', rank: null },
-      ]),
-    ).toThrow(/orders by "rank", which is null in a row/)
+  it('places a null key where its term says, and still checks the kinds of the rest', () => {
+    const rows = [
+      { id: 'a', rank: 2 },
+      { id: 'b', rank: null },
+      { id: 'c', rank: 1 },
+    ]
+    const ids = (body: ReturnType<typeof Query.from>) => evaluate(body, {}, rows).map(row => row.id)
+    expect(ids(Query.from(Item).pipe(Query.orderBy(Order.asc(Item.fields.rank))))).toEqual([
+      'c',
+      'a',
+      'b',
+    ])
+    expect(
+      ids(Query.from(Item).pipe(Query.orderBy(Order.asc(Item.fields.rank, { nulls: 'first' })))),
+    ).toEqual(['b', 'c', 'a'])
+    expect(ids(Query.from(Item).pipe(Query.orderBy(Order.desc(Item.fields.rank))))).toEqual([
+      'b',
+      'a',
+      'c',
+    ])
+    expect(messageOf([{ rank: null }, { rank: 1 }, { rank: 'x' }])).toContain('(number and string)')
   })
 
   it('still orders one row, with nothing to compare it to', () => {

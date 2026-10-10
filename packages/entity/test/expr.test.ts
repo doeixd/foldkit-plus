@@ -62,7 +62,11 @@ describe('Order is a term over a scalar', () => {
       _tag: 'Term',
       direction: 'asc',
       expr: Expr.field(Post.fields.id),
+      nulls: 'last',
     })
+    // Rows without a value: last ascending and first descending, unless said.
+    expect(Order.desc(Post.fields.id).nulls).toBe('first')
+    expect(Order.asc(Post.fields.id, { nulls: 'first' }).nulls).toBe('first')
     expect(Order.desc(Expr.field(Post.fields.title)).direction).toBe('desc')
   })
 })

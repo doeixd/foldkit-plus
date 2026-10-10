@@ -130,7 +130,10 @@ export const run = (
     // collation at all; §6.0.1 now puts it outside the conformant subset,
     // because no rule exists that SQLite, Postgres and this engine can all be
     // held to. So this sorts by locale, as it would for anyone using it.
-    built = built.orderBy(({ row }: { row: any }) => row[key], term.direction)
+    built = built.orderBy(({ row }: { row: any }) => row[key], {
+      direction: term.direction,
+      nulls: term.nulls,
+    })
   }
   return built
 }

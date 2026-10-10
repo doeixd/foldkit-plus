@@ -162,8 +162,8 @@ describe('A compiled body is the query the binding used to spell out', () => {
     await run(defined, database)
 
     expect(calls[0]!.orderBy!.map(term => rendered(term).sql)).toEqual([
-      '"posts"."slug" desc',
-      '"posts"."id" asc',
+      '"posts"."slug" desc nulls first',
+      '"posts"."id" asc nulls last',
     ])
   })
 
@@ -173,7 +173,9 @@ describe('A compiled body is the query the binding used to spell out', () => {
 
     await run(defined, database)
 
-    expect(calls[0]!.orderBy!.map(term => rendered(term).sql)).toEqual(['"posts"."id" asc'])
+    expect(calls[0]!.orderBy!.map(term => rendered(term).sql)).toEqual([
+      '"posts"."id" asc nulls last',
+    ])
   })
 
   it('refuses at registration a body ordering by a field the binding has no column for', () => {
@@ -239,10 +241,10 @@ describe('A compiled body is the query the binding used to spell out', () => {
       return { result, order: (calls[0]?.orderBy ?? []).map(term => rendered(term).sql) }
     }
     expect((await ordered({ by: 'slug', direction: 'desc' })).order).toEqual([
-      '"posts"."slug" desc',
-      '"posts"."id" asc',
+      '"posts"."slug" desc nulls first',
+      '"posts"."id" asc nulls last',
     ])
-    expect((await ordered(null)).order).toEqual(['"posts"."id" asc'])
+    expect((await ordered(null)).order).toEqual(['"posts"."id" asc nulls last'])
     // A sort naming no order the body offers is the request's mistake.
     const unknown = await ordered({ by: 'id', direction: 'asc' })
     expect(unknown.result._tag).toBe('Failure')

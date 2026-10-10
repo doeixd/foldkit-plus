@@ -309,6 +309,30 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     expected: ['e', 'c', 'd', 'a', 'b'],
   },
   {
+    what: 'puts rows without a value last ascending, unless told otherwise',
+    body: from.pipe(Query.orderBy(Order.asc(Subject.fields.tag))),
+    input: {},
+    expected: ['b', 'd', 'e', 'a', 'c'],
+  },
+  {
+    what: 'puts rows without a value first descending, unless told otherwise',
+    body: from.pipe(Query.orderBy(Order.desc(Subject.fields.tag))),
+    input: {},
+    expected: ['a', 'c', 'e', 'b', 'd'],
+  },
+  {
+    what: 'puts rows without a value first ascending when the term says so',
+    body: from.pipe(Query.orderBy(Order.asc(Subject.fields.tag, { nulls: 'first' }))),
+    input: {},
+    expected: ['a', 'c', 'b', 'd', 'e'],
+  },
+  {
+    what: 'puts rows without a value last descending when the term says so',
+    body: from.pipe(Query.orderBy(Order.desc(Subject.fields.tag, { nulls: 'last' }))),
+    input: {},
+    expected: ['e', 'b', 'd', 'a', 'c'],
+  },
+  {
     what: 'breaks a tie by the id where the order does not say how',
     body: from.pipe(Query.orderBy(Order.desc(Subject.fields.rank))),
     input: {},

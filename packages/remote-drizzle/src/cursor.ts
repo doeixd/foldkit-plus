@@ -8,29 +8,24 @@
  * ordering columns for that row and builds the predicate from those values, so
  * the wire cursor stays a string regardless of the ordered column types.
  *
- * NULL handling follows Postgres' default ordering (ASC: nulls last, DESC:
- * nulls first), so a nullable ordering column sorts and pages correctly rather
- * than emitting `col > NULL`.
+ * Where nulls go is said on every term, and the `ORDER BY` says it too
+ * (`NULLS FIRST`/`NULLS LAST`): left unsaid, SQLite puts them first ascending
+ * and Postgres last, so the keyset predicate, which has to know, would match
+ * one of them only. The default is Postgres's (ASC: nulls last, DESC: nulls
+ * first). A null cursor value pages by `IS NULL`, never `col > NULL`.
  */
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gt,
-  isNotNull,
-  isNull,
-  lt,
-  or,
-  sql,
-  type AnyColumn,
-  type SQL,
-} from 'drizzle-orm'
+import { and, eq, gt, isNotNull, isNull, lt, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
 
 export interface OrderTerm {
   readonly column: AnyColumn
   readonly direction: 'asc' | 'desc'
+  /** Where rows without a value go; last ascending and first descending when unsaid. */
+  readonly nulls?: 'first' | 'last' | undefined
 }
+
+/** Whether a term puts rows without a value after every row with one, in its own direction. */
+const nullsLast = (term: OrderTerm): boolean =>
+  (term.nulls ?? (term.direction === 'asc' ? 'last' : 'first')) === 'last'
 
 /**
  * The order a client asked for, as order terms. `sort` names one of the orders
@@ -53,25 +48,19 @@ const cursorEquality = (column: AnyColumn, value: unknown): SQL =>
   value === null ? isNull(column) : eq(column, value)
 
 /**
- * Rows after (forward) or before (backward) the cursor on one column. `false`
- * means no row qualifies: with nulls last (ASC), nothing follows a null cursor;
- * with nulls first (DESC), nothing precedes one.
+ * Rows after (forward) or before (backward) the cursor on one column, nulls
+ * where the term puts them. `false` means no row qualifies: nothing follows a
+ * null cursor when nulls are last, and nothing precedes one when they are
+ * first.
  */
-const cursorCompare = (
-  column: AnyColumn,
-  direction: OrderTerm['direction'],
-  value: unknown,
-  traversal: Traversal,
-): SQL => {
-  const ascending = direction === 'asc'
+const cursorCompare = (term: OrderTerm, value: unknown, traversal: Traversal): SQL => {
+  const { column } = term
   const forward = traversal === 'forward'
-  if (value === null) {
-    return (forward ? !ascending : ascending) ? isNotNull(column) : sql`false`
-  }
-  if (forward) {
-    return ascending ? or(gt(column, value), isNull(column))! : lt(column, value)
-  }
-  return ascending ? lt(column, value) : or(gt(column, value), isNull(column))!
+  const last = nullsLast(term)
+  // After the cursor, forward; before it, backward.
+  if (value === null) return forward === last ? sql`false` : isNotNull(column)
+  const beyond = (term.direction === 'asc') === forward ? gt(column, value) : lt(column, value)
+  return forward === last ? or(beyond, isNull(column))! : beyond
 }
 
 /**
@@ -99,20 +88,26 @@ export function keysetWhere(
     const equalities = terms
       .slice(0, index)
       .map((previous, previousIndex) => cursorEquality(previous.column, values[previousIndex]))
-    const branch = cursorCompare(term.column, term.direction, values[index], traversal)
+    const branch = cursorCompare(term, values[index], traversal)
     return equalities.length === 0 ? branch : and(...equalities, branch)!
   })
   return branches.length === 1 ? branches[0] : or(...branches)
 }
 
-/** The `ORDER BY` for a traversal: backward reverses each term. */
+/**
+ * The `ORDER BY` for a traversal, nulls placed as the term says: backward
+ * reverses each term, its nulls with it.
+ */
 export const orderByTerms = (
   terms: readonly OrderTerm[],
   traversal: Traversal,
 ): ReadonlyArray<SQL> =>
-  terms.map(term =>
-    (term.direction === 'asc') === (traversal === 'forward') ? asc(term.column) : desc(term.column),
-  )
+  terms.map(term => {
+    const forward = traversal === 'forward'
+    const ascending = (term.direction === 'asc') === forward
+    const last = nullsLast(term) === forward
+    return sql`${term.column} ${ascending ? sql`asc` : sql`desc`} ${last ? sql`nulls last` : sql`nulls first`}`
+  })
 
 /** The tuple columns to re-read for a cursor, keyed as Drizzle select aliases. */
 export const cursorSelection = (terms: readonly OrderTerm[]): Record<string, AnyColumn> =>
