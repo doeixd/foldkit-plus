@@ -106,6 +106,22 @@ describe('RemoteEdits', () => {
     expect(reconcile(loaded, []).model).toBe(loaded)
   })
 
+  test('reads the overlays again only when the store, the overlays or the slice changed', () => {
+    let reads = 0
+    const Counted = RemoteEdits.make(
+      { ...Data, overlays: (model: Model) => (reads++, Data.overlays(model)) },
+      Edits,
+    )
+    const slice = [pending('a:1', 11)]
+    const { model } = Counted.reconcile(loaded, slice, here)
+    const before = reads
+    expect(Counted.reconcile(model, slice, here).model).toBe(model)
+    expect(reads).toBe(before)
+    // A read lands: the store is another, so the overlays are read again.
+    Counted.reconcile(read(model, { id: 'a:10', price: 21, revision: 1 }), slice, here)
+    expect(reads).toBe(before + 1)
+  })
+
   test('shows a committed edit until a read of its row reaches it', () => {
     const slice = [committed('a:1', 11, 5)]
     const { model } = reconcile(loaded, slice)

@@ -113,6 +113,17 @@ const make = <AppModel, Edit extends AnyEdit>(
       Option.exists(revisionOf(remote, edit), revision => at <= revision),
     )
 
+  // Reconciling runs after every update; what it depends on rarely changes, so
+  // the inputs it last left in line are kept by identity and a repeat is free.
+  let settled:
+    | {
+        readonly entities: RemoteModel['entities']
+        readonly optimistic: RemoteModel['optimistic']
+        readonly slice: ReadonlyArray<Edit>
+        readonly replica: string
+      }
+    | undefined
+
   const patchOf = (edit: Edit): OptimisticOperation => {
     const { id, member, value } = encodedOf(edit)
     return { entity, id: String(id), values: { [member]: value } }
@@ -134,6 +145,15 @@ const make = <AppModel, Edit extends AnyEdit>(
       replica: string,
     ): Reconciled<AppModel, Edit> => {
       const remote = data.store.get(model)
+      if (
+        settled !== undefined &&
+        settled.entities === remote.entities &&
+        settled.optimistic === remote.optimistic &&
+        settled.slice === slice &&
+        settled.replica === replica
+      ) {
+        return { model, held: [], replaced: [] }
+      }
       const wanted = new Map<string, Edit>()
       for (const edit of slice) if (!reached(remote, edit)) wanted.set(keyOf(edit), edit)
       const edited = new Set(slice.map(cellOf))
@@ -170,6 +190,12 @@ const make = <AppModel, Edit extends AnyEdit>(
         }
       }
       for (const [key, edit] of wanted) next = data.overlay(next, `${SHOWN}${key}`, [patchOf(edit)])
+      settled = {
+        entities: remote.entities,
+        optimistic: data.store.get(next).optimistic,
+        slice,
+        replica,
+      }
       return { model: next, held, replaced }
     },
 

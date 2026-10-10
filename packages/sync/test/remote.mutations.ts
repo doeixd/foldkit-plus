@@ -94,4 +94,14 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a repeat reconcile reads everything again',
+    edits: [{ file, find: '        settled !== undefined &&', replace: '        false &&' }],
+    tests,
+  },
+  {
+    name: 'a changed store is taken as the one reconciled',
+    edits: [{ file, find: 'settled.entities === remote.entities &&', replace: 'true &&' }],
+    tests,
+  },
 ]
