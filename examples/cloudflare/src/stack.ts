@@ -7,6 +7,7 @@
  */
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
+import { readdir, readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 
 const here = (file: string) => fileURLToPath(new URL(file, import.meta.url))
@@ -34,6 +35,21 @@ export const bundleWorker = (outfile?: string) =>
     logLevel: 'silent',
   })
 
+/**
+ * The migrations `wrangler d1 migrations apply` runs, in order, so the local
+ * database is the deployed one's. Each holds one statement per line.
+ */
+const migrate = async (db: StackDatabase) => {
+  const directory = here('../migrations/')
+  for (const file of (await readdir(directory)).filter(name => name.endsWith('.sql')).sort()) {
+    const text = await readFile(`${directory}${file}`, 'utf8')
+    for (const line of text.split(/\r?\n/)) {
+      const statement = line.trim()
+      if (statement !== '' && !statement.startsWith('--')) await db.exec(statement)
+    }
+  }
+}
+
 export const startStack = async (): Promise<CloudflareStack> => {
   const bundled = await bundleWorker()
   const script = bundled.outputFiles?.[0]?.text
@@ -49,8 +65,6 @@ export const startStack = async (): Promise<CloudflareStack> => {
   })
   const origin = (await mf.ready).origin
   const db = await mf.getD1Database('DB')
-  await db.exec(
-    'CREATE TABLE IF NOT EXISTS todos (id TEXT PRIMARY KEY, title TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0)',
-  )
+  await migrate(db)
   return { mf, origin, db, stop: () => mf.dispose() }
 }

@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/cloudflare`: a quiet tick of the live poll reads one row.**
+  Triggers keep a write count of `todos` (`migrations/0002_changes.sql`); the
+  poll reads it first and re-reads the rows and the list only when it moved.
+  `pollLive` takes an options object (`interval`, `list`, `changes`). The
+  local stack runs the migration files rather than repeating them. Apply the
+  migration before deploying the worker; until then it reads every tick.
 - **`examples/registry`: the rows the grid draws follow the table live.** The
   journal's writes are told to a hub (`applyEdits(Db.Product, { live })`); the
   dev server answers through `serveFetch`, live streams included, and the

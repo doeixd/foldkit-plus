@@ -563,10 +563,18 @@ intact.
   unsaid. The bridge now keeps this replica's landed edit until the slice
   drops it, and says `replaced` for any of its edits a read reaches with
   another value.
-- **Not built:** remote-drizzle's `transaction(...)` for handlers, one live
-  event per transaction (live events are per entity; a batch event is a new
-  wire variant), and the cross-request change log for Workers (cloudflare
-  still polls D1). A declared write is one statement, so it is atomic
+- **Workers: a write count, not a change log.** A log of changed rows would
+  let a tick re-read only those rows, but cloudflare's page subscribes to one
+  stable id and the list's window, which a change re-reads whole anyway; what
+  costs is reading it every tick when nothing changed. So triggers keep one
+  write count of `todos`, which every write path bumps with no code of its
+  own (a missing trigger fails the miniflare Sync test), and the poll reads
+  it first, re-reading only when it moved. Workers still poll; a quiet tick
+  is one row. A log by id is worth building when a page follows many rows
+  directly.
+- **Not built:** remote-drizzle's `transaction(...)` for handlers, and one
+  live event per transaction (live events are per entity; a batch event is a
+  new wire variant). A declared write is one statement, so it is atomic
   already; what remains is for handlers that write several rows, and for
   Workers.
 

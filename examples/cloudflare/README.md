@@ -59,15 +59,15 @@ joins or leaves is a connection event. The page subscribes to that stream
 (`Remote.httpWithLive`) on one stable id, not on every row, so a local edit
 does not restart it.
 
-Schematic. `makeServer` passes the list watch as the third argument: its
-`identity` is `AllTodos`, its `watchId` is the page's stable id, and `edges`
-runs that query for the subscriber's principal.
+Schematic. `makeServer` passes the list watch as `list`: its `identity` is
+`AllTodos`, its `watchId` is the page's stable id, and `edges` runs that query
+for the subscriber's principal. `changes` is the table's write count.
 
 ```ts
 server = RemoteServer.make({
   entities: [TodoSource],
   queries: [AllTodosSource],
-  live: [pollLive(TodoSource, '250 millis', { identity, watchId, edges })],
+  live: [pollLive(TodoSource, { list: { identity, watchId, edges }, changes: changeCount })],
 })
 ```
 
@@ -75,8 +75,13 @@ A server process that owns both sides (Node, a long-lived VM) can use
 `RemoteServer.liveHub` instead; `examples/kitchen-sink` does. The example would
 rather show what deploys.
 
-The cost of polling is a read per interval per subscription, so the interval is
-a knob (`'250 millis'` here). The subscribed fields are the ones the subscriber
+Most ticks read one row. `migrations/0002_changes.sql` keeps a write count of
+`todos` in `todo_changes` with triggers, so every path that writes the table (a
+Remote mutation, a declared write, the journal's `settle`) counts with no code
+of its own. Each tick reads the count first and re-reads the rows and the
+window only when it moved; a count that cannot be read, as before the
+migration is applied, counts as moved. The interval stays a knob (`'250
+millis'` by default). The subscribed fields are the ones the subscriber
 selected, and the list watch reads `id`, `title`, and `done` for the page's
 window. `settle` stays unconditional and crash-safe: `journal.recover` makes
 applying an operation twice a no-op, and the settled cursor persists in

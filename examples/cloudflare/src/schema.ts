@@ -69,6 +69,29 @@ export const todos = sqliteTable('todos', {
   done: integer('done').notNull().default(0),
 })
 
+/** One row: how many writes `todos` has taken, kept by triggers (`migrations/0002_changes.sql`). */
+const todoChanges = sqliteTable('todo_changes', {
+  id: integer('id').primaryKey(),
+  count: integer('count').notNull(),
+})
+
+const decodeCount = Schema.decodeUnknownEffect(Schema.Struct({ count: Schema.Number }))
+
+/** The write count of `todos`, for the live source to tell a quiet tick from a busy one. */
+const changeCount: Effect.Effect<number, RemoteServerError, DrizzleDatabase> = Effect.gen(
+  function* () {
+    const db = yield* DrizzleDatabase
+    const [row] = yield* Effect.tryPromise({
+      try: () => Promise.resolve(db.select({ count: todoChanges.count }).from(todoChanges)),
+      catch: () => new RemoteServerError({ message: 'The change count could not be read' }),
+    })
+    const decoded = yield* decodeCount(row).pipe(
+      Effect.mapError(() => new RemoteServerError({ message: 'The change count is not a number' })),
+    )
+    return decoded.count
+  },
+)
+
 const Db = bind(Domain, { Todo: { table: todos } })
 
 const Model = Schema.Struct({
@@ -256,11 +279,19 @@ const picked = (
  * the stream was watching can answer with the old page; the invalidate makes
  * the page ask again once the stream is already open. Later ticks do not
  * invalidate: that would mark the list busy on every change.
+ *
+ * With `changes`, the table's write count, a tick reads it first and reads
+ * nothing else while it has not moved: most ticks are one small query. It is
+ * read before the rows it guards, so a write between the two shows on the
+ * next tick. A count that cannot be read counts as moved.
  */
 export const pollLive = (
   binding: EntitySource<string, DrizzleDatabase>,
-  interval: Duration.Input = '250 millis',
-  list?: ListWatch,
+  options: {
+    readonly interval?: Duration.Input | undefined
+    readonly list?: ListWatch | undefined
+    readonly changes?: Effect.Effect<number, RemoteServerError, DrizzleDatabase> | undefined
+  } = {},
 ): LiveSource<string, DrizzleDatabase> => ({
   entity: binding.entity,
   subscribe: ({ requirements, after, principal }) => {
@@ -271,6 +302,7 @@ export const pollLive = (
       for (const field of requirement.fields) fields.add(field)
       wanted.set(requirement.id, fields)
     }
+    const { list, changes } = options
     if (wanted.size === 0 && list === undefined) return Stream.never
     const onlyWatch =
       list !== undefined &&
@@ -282,6 +314,9 @@ export const pollLive = (
       Effect.gen(function* () {
         const read = (id: string, fields: ReadonlyArray<string>) =>
           binding.read({ ids: [id], fields: [...fields], principal })
+        const countNow = changes === undefined ? Effect.void : orSkip(changes)
+        // The count the rows were last read at; none reads every tick.
+        let readAt = yield* countNow
         // The baseline: what each subscribed row looks like when the
         // subscription opens. A change that landed before it is already in
         // it, so open the stream before the change you wait for.
@@ -346,6 +381,9 @@ export const pollLive = (
         }
 
         const tick = Effect.gen(function* () {
+          const count = yield* countNow
+          if (count !== undefined && count === readAt) return []
+          readAt = count
           const patches: LivePatch[] = []
           const patched = new Set<string>()
           const deleted = new Set<string>()
@@ -466,7 +504,7 @@ export const pollLive = (
 
         return Stream.concat(
           Stream.fromIterable(opening),
-          Stream.fromSchedule(Schedule.spaced(interval)).pipe(
+          Stream.fromSchedule(Schedule.spaced(options.interval ?? '250 millis')).pipe(
             Stream.flatMap(() => Stream.fromIterableEffect(tick)),
           ),
         )
@@ -507,15 +545,18 @@ export const makeServer = () => {
   const list = AllTodos.ref({}).identity
   // The page subscribes only to LIST_WATCH, so the stream stays open across
   // local edits. This re-read is how another tab's row joins or leaves.
-  const TodoLive = pollLive(TodoSource, '250 millis', {
-    identity: list,
-    watchId: LIST_WATCH,
-    edges: principal =>
-      AllTodosSource.run({
-        input: {},
-        window: { first: TODO_PAGE_SIZE },
-        principal,
-      }).pipe(Effect.map(page => page.edges)),
+  const TodoLive = pollLive(TodoSource, {
+    list: {
+      identity: list,
+      watchId: LIST_WATCH,
+      edges: principal =>
+        AllTodosSource.run({
+          input: {},
+          window: { first: TODO_PAGE_SIZE },
+          principal,
+        }).pipe(Effect.map(page => page.edges)),
+    },
+    changes: changeCount,
   })
   const written = returning(Db.Todo, ['id', 'title', 'done'])
 
