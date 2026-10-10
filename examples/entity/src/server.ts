@@ -4,7 +4,7 @@
  * is said here.
  */
 import { DatabaseSync } from 'node:sqlite'
-import { eq, like } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
@@ -135,11 +135,7 @@ export const openServer = () => {
         // The body says the filter and the order. A title is not unique, so
         // ties break by id, and no sort is id order.
         query(PostsQuery, { entity: Db.Post }),
-        query(AuthorsQuery, {
-          entity: Db.Author,
-          where: ({ search }) => (search === '' ? undefined : like(authors.name, `%${search}%`)),
-          orderBy: [{ column: authors.id, direction: 'asc' }],
-        }),
+        query(AuthorsQuery, { entity: Db.Author }),
       ],
     }),
     layer: databaseLayer(db),

@@ -39,6 +39,10 @@ version changed; `pnpm` skips versions already in the registry.
 - **`examples/cloudflare`: `AllTodos` declares its order in its body**, and
   `title` declares `binary`. A create's answer names no list: the client
   places the row by title instead of the server's `prepend`.
+- **`examples/entity`: `AuthorsQuery` declares its body too**, a name search
+  by id, so an author a nested write creates joins the loaded list instead
+  of refetching it. With the id fix above, the example's tests invalidate no
+  list.
 - **`examples/entity`: `PostsQuery` declares its body** (`Query.define`, a
   title search and `Order.chosen`), and `title` declares `binary`, in place of
   the server's `where` and `orderBy`. A rename moves a post in a list sorted by

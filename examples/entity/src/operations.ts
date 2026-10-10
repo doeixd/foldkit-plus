@@ -39,11 +39,17 @@ export const PostsQuery = Query.define(
       Query.orderBy(Order.chosen(input.sort, { title: Blog.Post.fields.title })),
     ),
 )
-export const AuthorsQuery = Query.make('Authors', {
-  // What the editor picker's search box holds. Authors are found, not all listed.
-  Input: { search: Schema.String },
-  Result: Query.connection(Blog.Author),
-})
+/**
+ * Authors whose name holds what the editor picker's search box holds, by id.
+ * Authors are found, not all listed; a body, so a new author joins the list
+ * the client already holds with no request.
+ */
+export const AuthorsQuery = Query.define('Authors', { search: Schema.String }, ({ input }) =>
+  Query.from(Blog.Author).pipe(
+    Query.where(Expr.contains(Blog.Author.fields.name, input.search)),
+    Query.orderBy(Order.asc(Blog.Author.fields.id)),
+  ),
+)
 
 /** A post and its new author in one operation. What a nested write does is the handler's. */
 export const WritePostMutation = Mutation.make('WritePost', {

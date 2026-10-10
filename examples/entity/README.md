@@ -213,7 +213,9 @@ and checks the two agree.
 
 The editor's Editor picker has a search box. Its text is the form's
 (`EditPostForm.search`), and the author list takes it as `AuthorsQuery`'s input,
-so the server finds authors by name. The post's current editor stays a choice
+so the server finds authors by name. Its body (`Expr.contains` on the name, by
+id) is what the server compiles, and what lets an author a nested write
+creates join a loaded author list with no request. The post's current editor stays a choice
 when the search no longer finds them: `Crud.options` was given the form's Model
 as `chosen`, and `pickers.active` is wired beside the lists.
 
