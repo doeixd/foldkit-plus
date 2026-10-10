@@ -959,6 +959,12 @@ of its own named a form field "fits the Catalog". Read words with
   two mutation runs was already failing, so the second run "killed" its
   mutation for free. Confirm the suite is green before each run; `pnpm
   mutate` refuses a red baseline.
+- **Mutation specs do not run in CI, so their anchors rot.** Moving the
+  registry's sort into `ProductsQuery`'s body renamed
+  `Registry.Product.fields.description` to `fields.description`, and
+  `registry.mutations.ts` refused to run until a later change happened to
+  run it. After editing a file, run every spec that anchors into it
+  (`grep -l <file> **/*.mutations.ts`), not only the one you are writing.
 - **Read a library's handler table before describing its semantics.** A
   comment said Foldkit keeps the last of two `OnClick`s on an element; its
   `addDataOn` chains them all, so the resumable builder dropped bindings. Cite
