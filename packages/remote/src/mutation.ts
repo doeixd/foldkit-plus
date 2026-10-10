@@ -204,7 +204,9 @@ export const Mutation = {
   update: <const Name extends string, Fields extends Schema.Struct.Fields>(
     name: Name,
     write: Write<any, Fields>,
-  ): MutationDescriptor<Name, Schema.Struct.Type<Fields>, {}, typeof Refusal.conflict.Type> => ({
+  ): MutationDescriptor<Name, Schema.Struct.Type<Fields>, {}, typeof Refusal.conflict.Type> & {
+    readonly write: Write<any, Fields>
+  } => ({
     name,
     Input: write.input.schema as unknown as Schema.Codec<Schema.Struct.Type<Fields>>,
     Output: Schema.Struct({}),

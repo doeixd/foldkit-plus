@@ -730,12 +730,49 @@ count is the total relation count, not the current page count.
 
 Other aggregate shapes are intentionally not a generic compiler yet.
 
-## Mutations use Drizzle directly
+## Mutations
 
-This package does **not** add a mutation DSL. Mutation semantics belong to the
-application and `RemoteServer.mutation`.
+A mutation declared as a `Write` (`Mutation.update(name, Write.update(input,
+{ id }))`) needs no handler: `writer(binding)` lands it in the binding's table,
+and `RemoteServer.update` serves it.
 
-The adapter only helps normalize rows you already chose to return:
+```ts
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
+import { Entity, Write } from 'foldkit-entity'
+import { Mutation } from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
+import { bind, source, writer } from 'foldkit-remote-drizzle'
+
+const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const projects = sqliteTable('projects', { id: text('id').primaryKey(), name: text('name').notNull() })
+const Db = bind({ Project }, { Project: { table: projects } })
+
+const EditProject = Mutation.update(
+  'EditProject',
+  Write.update(Entity.input(Project, Schema.Struct({ id: Schema.String, name: Schema.String })), {
+    id: 'id',
+  }),
+)
+const Server = RemoteServer.make({
+  entities: [source(Db.Project)],
+  mutations: [RemoteServer.update(EditProject, writer(Db.Project))],
+})
+```
+
+It is one `update ... returning` of the row by id, each field's column set to
+the value as the store encodes it, and only the keys the client named when it
+named some, so two authors editing different fields of a row both land. The
+written fields answer as the mutation's patch. A write that `expect`s a revision
+is guarded by that column and moves it on by one in the same statement: of two
+writes made from one revision, the second finds no row and is refused as a
+conflict. A write that expects none, to a row that is not there, fails.
+
+### Writing in a handler
+
+Anything a declared write cannot say (an insert, a delete, several rows) is a
+`RemoteServer.mutation` handler using Drizzle directly. The adapter only helps
+normalize rows you already chose to return:
 
 ```ts
 import { eq } from 'drizzle-orm'

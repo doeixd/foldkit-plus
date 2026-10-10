@@ -2,7 +2,7 @@
  * A write as a value: `Write.update` over an operation's input, what it may
  * write, and the row and values one invocation writes, as the store holds them.
  */
-import { Schema, SchemaGetter } from 'effect'
+import { Option, Schema, SchemaGetter } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Entity, Relation, Write } from '../src/index.js'
 
@@ -44,7 +44,8 @@ describe('Write.update', () => {
     expect(write.sets.map(set => set.key)).toEqual(['title', 'due'])
     expect(Write.writes(write).map(field => field.key)).toEqual(['title', 'due'])
     expect(write.id.key).toBe('id')
-    expect(write.expect).toBe('revision')
+    expect(write.expect?.key).toBe('revision')
+    expect(write.expect?.field.key).toBe('revision')
   })
 
   it('sets the revision too when it is not what the write expects', () => {
@@ -118,6 +119,11 @@ describe('Write.bind', () => {
       id: 'p1',
       values: { title: 'Compilers', due: '2026-03-01T00:00:00.000Z' },
     })
+  })
+
+  it('says the revision the row was read at, encoded, when the write expects one', () => {
+    expect(Write.expected(write, value)).toEqual(Option.some({ field: 'revision', revision: 4 }))
+    expect(Write.expected(Write.update(EditPost, { id: 'id' }), value)).toEqual(Option.none())
   })
 
   it('writes only the keys asked for, when asked for some', () => {

@@ -10,13 +10,23 @@
  * Keyset pagination and required-column projection are adapted from fate's
  * Drizzle integration (MIT); see `THIRD_PARTY_NOTICES.md`.
  */
-import { and, eq, inArray, sql, type AnyColumn, type SQL, type Table } from 'drizzle-orm'
-import { Effect } from 'effect'
+import {
+  and,
+  eq,
+  getTableColumns,
+  inArray,
+  sql,
+  type AnyColumn,
+  type SQL,
+  type Table,
+} from 'drizzle-orm'
+import { Effect, Option } from 'effect'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Entity } from 'foldkit-remote'
 import {
   RemoteServerError,
   type EntityRecord,
+  type EntityWriter,
   type EntitySource,
   type EntitySourceContext,
   type QuerySource,
@@ -25,7 +35,7 @@ import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './bindi
 import { idColumn, projectsAny } from './columns.js'
 import { checkFields, compileOrderBy, compileWhere, QueryCompileError } from './compile.js'
 import { cursorSelection, keysetWhere, orderByTerms, type OrderTerm } from './cursor.js'
-import { DrizzleDatabase, type DrizzleDatabaseService } from './database.js'
+import { DrizzleDatabase, drizzleWrites, type DrizzleDatabaseService } from './database.js'
 import { toQueryPage } from './page.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
@@ -720,6 +730,72 @@ export const query = <P = unknown, Input = unknown>(
           cursor: shape.cursor,
           cursorOf: row => String(row.id),
         })
+      }),
+  }
+}
+
+/**
+ * Where a declared `Write` lands in this table, for `RemoteServer.update`: one
+ * `update ... returning` of the row by id, setting each field's column to its
+ * value as the store encodes it, and answering the written fields as they now
+ * are. With `expect`, the row is written only while its revision column still
+ * holds that value, and the column moves on by one in the same statement, so of
+ * two writes from one revision one finds nothing to write.
+ */
+export const writer = <P = unknown>(
+  binding: AnyEntityBinding,
+): EntityWriter<P, DrizzleDatabase> => {
+  // `set` is keyed by the table's own property names, not by its columns' SQL names.
+  const keys = new Map<unknown, string>(
+    Object.entries(getTableColumns(binding.table)).map(([key, column]) => [column, key]),
+  )
+  const keyOf = (field: string): string | undefined => {
+    const column = binding.columns[field]
+    return column === undefined ? undefined : keys.get(column)
+  }
+  return {
+    entity: binding.name,
+    update: ({ id, values, expect }) =>
+      Effect.gen(function* () {
+        const set: Record<string, unknown> = {}
+        for (const [field, value] of Object.entries(values)) {
+          const key = keyOf(field)
+          if (key === undefined) {
+            return yield* new RemoteServerError({
+              message: `${binding.name} has no column for "${field}" to write`,
+            })
+          }
+          set[key] = value
+        }
+        let guard: SQL | undefined
+        if (Option.isSome(expect)) {
+          const { field, revision } = expect.value
+          const column = binding.columns[field]
+          const key = keyOf(field)
+          if (column === undefined || key === undefined) {
+            return yield* new RemoteServerError({
+              message: `${binding.name} has no column for its revision "${field}"`,
+            })
+          }
+          set[key] = sql`${column} + 1`
+          guard = eq(column, revision)
+        }
+        const answered = returning(binding, [
+          ...Object.keys(values),
+          ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
+        ])
+        const where = and(eq(idColumn(binding), id), guard)
+        const writes = yield* drizzleWrites
+        const rows =
+          Object.keys(set).length === 0
+            ? // Nothing to set: the row as it is, if it is there.
+              yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, { where })
+            : yield* Effect.promise(() =>
+                Promise.resolve(
+                  writes.update(binding.table).set(set).where(where).returning(answered.columns),
+                ),
+              )
+        return Option.map(Option.fromUndefinedOr(answered.patches(rows)[0]), patch => patch.values)
       }),
   }
 }

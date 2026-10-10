@@ -570,6 +570,9 @@ const User = entity('User', users) // table must have an `id` column
 const Project = entity('Project', projects, { relations: { owner: one(User, { field: projects.ownerId }) } })
 const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema.String }, Result: Project })
 
+// A declared write needs no handler: RemoteServer.update(EditProject, writer(Db.Project)),
+// with Db = bind({ Project }, { Project: { table } }); it writes only the keys named, and an
+// `expect`ed revision guards the row and moves on in the same statement (else a conflict).
 const Server = RemoteServer.make({
   entities: [source(User), source(Project)], // source(binding, { authorize }) for field policy
   queries: [query(ProjectsByOwner, {

@@ -17,7 +17,13 @@ export default [
   },
   {
     name: 'the revision need not be a field',
-    edits: [{ file, find: "fieldAt(input, options.expect, 'expect')", replace: '' }],
+    edits: [
+      {
+        file,
+        find: "field: fieldAt(input, options.expect, 'expect')",
+        replace: 'field: undefined as never',
+      },
+    ],
     tests,
   },
   {

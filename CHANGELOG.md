@@ -104,6 +104,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-server`, `foldkit-remote-drizzle`: a declared write needs
+  no handler.** `RemoteServer.update(mutation, writer)` serves a
+  `Mutation.update`: the input bound to its write, only the keys the client
+  named, written through an `EntityWriter` and answered as the row's patch.
+  `writer(binding)` is one `update ... returning` on the binding's table; a
+  write that `expect`s a revision is guarded by it and moves it on in the same
+  statement, so the second of two writes from one revision is refused as a
+  conflict. `MutationSource.run` receives the request's `keys`.
+  `foldkit-entity`'s `Write.expected(write, value)` is that revision, encoded;
+  `Write.expect` now holds its field as well as its key.
 - **`foldkit-remote`: `Mutation.update(name, write)`, a mutation that is a
   declared `Write`.** `Data.mutate` shows the write bound to the input until
   the server answers, unless given its own `optimistic` list. The new

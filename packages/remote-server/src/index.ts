@@ -5,8 +5,8 @@
  * turning them into Effect RPC handlers. It does not own HTTP, serialization, or
  * auth protocol; `principal` is resolved outside and passed in.
  */
-import { Effect, Layer, Queue, Schema, Stream } from 'effect'
-import { evaluate, type Row } from 'foldkit-entity'
+import { Effect, Layer, Option, Queue, Schema, Stream } from 'effect'
+import { Write, evaluate, type AnyWrite, type Row } from 'foldkit-entity'
 import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
@@ -93,6 +93,22 @@ export interface EntitySource<P, R = never> {
   readonly authorize?: (principal: P, fields: readonly string[]) => readonly string[]
 }
 
+/**
+ * Where a declared write lands: one row's new values, encoded as the store holds
+ * them. With `expect`, the row is written only while its revision is still that
+ * value, and the revision moves on with the write. The row as written answers;
+ * none when no row matched.
+ */
+export interface EntityWriter<P, R = never> {
+  readonly entity: string
+  readonly update: (context: {
+    readonly id: string
+    readonly values: Readonly<Record<string, unknown>>
+    readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
+    readonly principal: P
+  }) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>
+}
+
 /** A connection change a mutation made, as the wire carries it. */
 export type ConnectionChange = Schema.Schema.Type<typeof ConnectionChangeSchema>
 
@@ -165,6 +181,8 @@ export interface MutationSource<P, R = never> {
      * Source keys a record of the write by, so a retry finds it was made.
      */
     readonly requestId: string
+    /** For a declared write: the input keys to write, when the client named only some. */
+    readonly keys?: ReadonlyArray<string> | undefined
   }) => Effect.Effect<
     {
       readonly output: unknown
@@ -1019,6 +1037,63 @@ export const RemoteServer = {
     message = `Mutation ${mutation.name} was refused`,
   ): MutationRefused => new MutationRefused({ mutation: mutation.name, refusal, message }),
 
+  /**
+   * The Source of a mutation that is a declared `Write`, with no handler: the
+   * input bound to the write (only the keys the client named, when it named
+   * some) lands through `writer`, and the row as written answers, as a patch.
+   * A row that moved past the revision the write `expect`s is refused as a
+   * conflict; a row that is not there fails.
+   */
+  update: <P = unknown, R = never, Name extends string = string, Input = unknown>(
+    mutation: MutationDescriptor<Name, Input, {}, { readonly _tag: 'Conflict' }> & {
+      readonly write: AnyWrite
+    },
+    writer: EntityWriter<P, R>,
+  ): MutationSource<P, R> => {
+    const { write } = mutation
+    if (write.input.entity.name !== writer.entity) {
+      throw new Error(
+        `[foldkit-remote-server] update "${mutation.name}" writes ${write.input.entity.name}, but its writer is for ${writer.entity}`,
+      )
+    }
+    return {
+      mutation: mutation.name,
+      Input: mutation.Input,
+      Output: mutation.Output,
+      Refusal: mutation.Refusal,
+      run: ({ input, principal, keys }) =>
+        Effect.gen(function* () {
+          const bound = Write.bind(write, input as never, keys)
+          const expect = Write.expected(write, input as never)
+          const written = yield* writer.update({
+            id: bound.id,
+            values: bound.values,
+            expect,
+            principal,
+          })
+          if (Option.isNone(written)) {
+            return yield* Option.isSome(expect)
+              ? Effect.fail(
+                  RemoteServer.refuse(
+                    mutation,
+                    { _tag: 'Conflict' },
+                    `${bound.entity} ${bound.id} changed since it was read`,
+                  ),
+                )
+              : Effect.fail(
+                  new RemoteServerError({ message: `No ${bound.entity} ${bound.id} to update` }),
+                )
+          }
+          return {
+            output: {},
+            entities: [{ entity: bound.entity, id: bound.id, values: written.value }],
+            connections: [],
+            deleted: [],
+          }
+        }),
+    }
+  },
+
   query: <P = unknown, R = never, Input = unknown>(
     query: QueryDescriptor<string, Input, unknown>,
     run: (context: {
@@ -1340,14 +1415,16 @@ export const RemoteServer = {
         ),
       )
 
-      const outcome = yield* source.run({ input, principal, requestId: payload.requestId }).pipe(
-        Effect.catchTag('RemoteServerError', error =>
-          Effect.fail(new RemoteMutationError({ message: error.message })),
-        ),
-        Effect.catchTag('MutationRefused', refused =>
-          refusalError(source.Refusal, payload.mutation, refused),
-        ),
-      )
+      const outcome = yield* source
+        .run({ input, principal, requestId: payload.requestId, keys: payload.keys })
+        .pipe(
+          Effect.catchTag('RemoteServerError', error =>
+            Effect.fail(new RemoteMutationError({ message: error.message })),
+          ),
+          Effect.catchTag('MutationRefused', refused =>
+            refusalError(source.Refusal, payload.mutation, refused),
+          ),
+        )
 
       const output = yield* Schema.encodeUnknownEffect(source.Output)(outcome.output).pipe(
         Effect.catchTag('SchemaError', () =>

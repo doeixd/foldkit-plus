@@ -12,7 +12,7 @@
  * It is authority someone declared, never something derived from an Entity: an
  * Entity having a field does not mean anyone may set it.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { AnyEntity, EntityField, EntityInput, InputMember } from './index.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
@@ -30,10 +30,10 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
   /** The input key holding the row's id, and the Entity's `id` field it is. */
   readonly id: WriteSet & { readonly key: keyof Fields & string }
   /**
-   * The input key holding the revision the row was read at, when the write is
-   * refused for a row that moved on since.
+   * The input key holding the revision the row was read at, and its field, when
+   * the write is refused for a row that moved on since.
    */
-  readonly expect: (keyof Fields & string) | undefined
+  readonly expect: (WriteSet & { readonly key: keyof Fields & string }) | undefined
   /** The keys it sets, in the input's order. */
   readonly sets: ReadonlyArray<WriteSet>
 }
@@ -88,10 +88,11 @@ export const Write = {
   ): Write<E, Fields> => {
     const id = fieldAt(input, options.id, 'id')
     if (id.key !== 'id') fail(input, `id "${options.id}" is mapped to "${id.key}", not to "id"`)
-    if (options.expect !== undefined) {
-      if (options.expect === options.id) fail(input, 'expect cannot be the id')
-      fieldAt(input, options.expect, 'expect')
-    }
+    if (options.expect === options.id) fail(input, 'expect cannot be the id')
+    const expect =
+      options.expect === undefined
+        ? undefined
+        : Object.freeze({ key: options.expect, field: fieldAt(input, options.expect, 'expect') })
     const sets: Array<WriteSet> = []
     for (const [key, member] of Object.entries(membersOf(input))) {
       if (member === undefined || key === options.id || key === options.expect) continue
@@ -111,10 +112,24 @@ export const Write = {
       _tag: 'Update' as const,
       input,
       id: Object.freeze({ key: options.id, field: id }),
-      expect: options.expect,
+      expect,
       sets: Object.freeze(sets),
     })
   },
+
+  /**
+   * The revision this input says the row was read at, encoded, with its field:
+   * what an interpreter writes only a row still at. None for a write that
+   * expects none.
+   */
+  expected: <Fields extends Schema.Struct.Fields>(
+    write: Write<AnyEntity, Fields>,
+    value: Schema.Struct.Type<Fields>,
+  ): Option.Option<{ readonly field: string; readonly revision: unknown }> =>
+    Option.map(Option.fromUndefinedOr(write.expect), ({ key, field }) => ({
+      field: field.key,
+      revision: encoded(field, (value as Readonly<Record<string, unknown>>)[key]),
+    })),
 
   /** The fields any invocation may write: what a query reading none of them cannot be changed by. */
   writes: (write: AnyWrite): ReadonlyArray<AnyField> => write.sets.map(set => set.field),
