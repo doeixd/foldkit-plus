@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/cloudflare`: the stored list is `Data.persistence`.** The
+  hand-written save Subscription and the boot-time `applyCache` are gone; the
+  wiring restores each actor's snapshot (`snapshot: snapshotFor` keeps the
+  visible edges) from `KeyValueStore.layerStorage(() => localStorage)`. The
+  rows now arrive just after the first frame instead of in it.
 - **`examples/entity`: the post edit is a declared write.** `EditPost` is
   `Mutation.write` over `Write.update`, its editor relation included, and the
   server serves it with `RemoteServer.write(..., writer(Db.Post))`; the Drizzle

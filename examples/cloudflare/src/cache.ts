@@ -1,7 +1,4 @@
-/**
- * The list kept in the browser, one snapshot per actor. A later visit paints
- * those rows and asks again. An unsent edit is not in it: Remote has no outbox.
- */
+/** What the browser keeps of the list, per actor: `app.ts`'s `persistence` stores it. */
 import {
   Remote,
   RemotePersistence,
@@ -54,6 +51,3 @@ export const snapshotFor = (remote: RemoteModel): Snapshot => {
     connections: { [identity]: [edges] },
   })
 }
-
-export const snapshotText = (remote: RemoteModel, actor: string): string =>
-  RemotePersistence.dehydrate(snapshotFor(remote), { scope: actor })

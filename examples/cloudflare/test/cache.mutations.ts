@@ -64,24 +64,23 @@ export default [
   },
   {
     name: 'any actor reads the snapshot',
+    edits: [{ file: app, find: 'scope: model => model.actor,', replace: "scope: () => 'ada'," }],
+    tests,
+  },
+  {
+    name: 'every actor reads one key',
     edits: [
       {
         file: app,
-        find: 'RemotePersistence.hydrate(raw, { scope: model.actor })',
-        replace: "RemotePersistence.hydrate(raw, { scope: 'ada' })",
+        find: 'key: model => cacheKey(model.actor),',
+        replace: "key: () => cacheKey('ada'),",
       },
     ],
     tests,
   },
   {
-    name: 'a refused snapshot is kept',
-    edits: [
-      {
-        file: app,
-        find: 'if (raw !== null && next === model)',
-        replace: 'if (false)',
-      },
-    ],
+    name: 'the snapshot keeps the connection’s own segments',
+    edits: [{ file: app, find: 'snapshot: snapshotFor,', replace: '' }],
     tests,
   },
 ]

@@ -7,18 +7,17 @@
  *
  * Sync still owns the Durable Object journal. This page does not speak it.
  */
-import { Effect, Option, Schema, Stream } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { Crud } from 'foldkit-crud'
 import { Style } from 'foldkit-mixins'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
-import { ConnectionChange, Remote, RemotePersistence, type RemoteClient } from 'foldkit-remote'
-import * as Subscription from 'foldkit/subscription'
+import { ConnectionChange, Remote, type RemoteClient } from 'foldkit-remote'
 import { modifyFields } from 'foldkit/struct'
 import { Surface, type Projection } from 'foldkit-surface'
-import { LIST_WATCH, cacheKey, snapshotText } from './cache.js'
+import { LIST_WATCH, cacheKey, snapshotFor } from './cache.js'
 import { Todo, TodoRow } from './domain.js'
 import { AddTodoForm, RenameTodoForm } from './forms.js'
 import {
@@ -126,6 +125,16 @@ const remoteWiring = Data.wiring({
 })
 
 /**
+ * The list kept in the browser, one snapshot per actor. A later visit paints
+ * those rows and asks again. An unsent edit is not in it: Remote has no outbox.
+ */
+export const persistence = Data.persistence({
+  key: model => cacheKey(model.actor),
+  scope: model => model.actor,
+  snapshot: snapshotFor,
+})
+
+/**
  * Remote's wiring reduces its own Messages, so the page's `update` never sees
  * them. A successful write's patches are the row. Asking for the list again
  * marked it busy, and that was the blink. A failure keeps the server's words.
@@ -189,7 +198,7 @@ const Page = Base.pipe(
       return { ...started, model: modifyFields(started.model, { notice: () => Option.none() }) }
     },
   }),
-  Bundle.withWiring({ ...remoteWiring, route: routeRemote }),
+  Bundle.withWiring({ ...remoteWiring, route: routeRemote }, persistence),
 )
 
 export const AddForm = Page.children.add
@@ -260,18 +269,15 @@ export const update = Rename.after(
           return { model: modifyFields(model, { actorDraft: () => actor }) }
         }
         sessionStorage.setItem(ACTOR_KEY, actor)
-        // The other actor's stored rows, when this browser has them. The
-        // restored connection is already stale, so the page asks again without
-        // a second refresh. Saving the empty store first would wipe that cache.
+        // The persistence wiring restores the other actor's stored rows, and
+        // saves nothing for them until it has.
         return {
-          model: applyCache(
-            Data.forget(
-              modifyFields(model, {
-                actor: () => actor,
-                actorDraft: () => actor,
-                notice: () => Option.none(),
-              }),
-            ),
+          model: Data.forget(
+            modifyFields(model, {
+              actor: () => actor,
+              actorDraft: () => actor,
+              notice: () => Option.none(),
+            }),
           ),
         }
       }
@@ -281,32 +287,6 @@ export const update = Rename.after(
   }),
 )
 
-/**
- * The stored list. The text is the snapshot, so the same rows are not written
- * again. The stream emits nothing: saving is not a Message, and a stream that
- * ends waits until the text changes.
- */
-export const subscriptions = Subscription.make<Model, Message>()(() => ({
-  cache: {
-    dependenciesSchema: Schema.Struct({ actor: Schema.String, text: Schema.String }),
-    modelToDependencies: (model: Model) => ({
-      actor: model.actor,
-      text: snapshotText(model.remote, model.actor),
-    }),
-    dependenciesToStream: ({ actor, text }: { readonly actor: string; readonly text: string }) =>
-      Stream.unwrap(
-        Effect.sync(() => {
-          try {
-            if (typeof localStorage !== 'undefined') localStorage.setItem(cacheKey(actor), text)
-          } catch {
-            // The quota is full. The previous snapshot stays. The next change tries again.
-          }
-          return Stream.empty
-        }),
-      ),
-  },
-}))
-
 export const initial = (actor: string): Model =>
   placements.initial({
     remote: Remote.initial,
@@ -314,40 +294,3 @@ export const initial = (actor: string): Model =>
     actor,
     actorDraft: actor,
   }).model
-
-/**
- * The stored rows for this actor, or `model` itself when there is nothing to
- * restore. The same reference is how a caller tells a refused snapshot from
- * an empty one: a snapshot that hydrates always reduces to a new Model.
- */
-export const modelFromCache = (model: Model, raw: string | null): Model => {
-  const snapshot = RemotePersistence.hydrate(raw, { scope: model.actor })
-  if (snapshot === undefined) return model
-  return Data.reduce(model, {
-    _tag: 'Hydrated',
-    entities: snapshot.entities,
-    connections: snapshot.connections,
-    merge: 'replace',
-  })
-}
-
-/** Paints `modelFromCache` at boot and when the actor changes. A refused snapshot is removed. */
-export const applyCache = (model: Model): Model => {
-  if (typeof localStorage === 'undefined') return model
-  const key = cacheKey(model.actor)
-  let raw: string | null
-  try {
-    raw = localStorage.getItem(key)
-  } catch {
-    return model
-  }
-  const next = modelFromCache(model, raw)
-  if (raw !== null && next === model) {
-    try {
-      localStorage.removeItem(key)
-    } catch {
-      // The bad snapshot stays until a later visit can remove it.
-    }
-  }
-  return next
-}

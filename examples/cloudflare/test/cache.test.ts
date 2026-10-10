@@ -3,11 +3,12 @@
  * The list kept in the browser. A snapshot is the server's rows for one actor.
  * A pending edit is not in it, and another actor's snapshot does not paint.
  */
-import { Option } from 'effect'
-import { ConnectionChange, Remote, RemoteData, entityKey } from 'foldkit-remote'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { applyCache, Data, initial, modelFromCache, Todos, type Model } from '../src/app.js'
-import { cacheKey, LIST_WATCH, snapshotFor, snapshotText } from '../src/cache.js'
+import { Effect, Option, Stream } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
+import { ConnectionChange, Remote, RemoteData, RemotePersistence, entityKey } from 'foldkit-remote'
+import { describe, expect, it } from 'vitest'
+import { Data, initial, persistence, Todos, type Model } from '../src/app.js'
+import { cacheKey, LIST_WATCH, snapshotFor } from '../src/cache.js'
 import { Todo } from '../src/domain.js'
 import { AllTodos, CreateTodo } from '../src/operations.js'
 
@@ -59,16 +60,58 @@ const succeed = (model: Model, requestId: string, id: string, title: string): Mo
     now: 1,
   })
 
+/** A browser store holding each actor's snapshot of `loaded`, under the key `key` names. */
+const storeWith = (
+  stored: ReadonlyArray<{ readonly key: string; readonly actor: string; readonly loaded: Model }>,
+): KeyValueStore.KeyValueStore =>
+  Effect.runSync(
+    Effect.gen(function* () {
+      for (const { key, actor, loaded } of stored) {
+        yield* RemotePersistence.save(snapshotFor(loaded.remote), { key, scope: actor })
+      }
+      return yield* KeyValueStore.KeyValueStore
+    }).pipe(Effect.provide(KeyValueStore.layerMemory)),
+  )
+
+/** What the page's persistence wiring restores into `model` from `kv`. */
+const restored = async (kv: KeyValueStore.KeyValueStore, model: Model): Promise<Model> => {
+  const restore = persistence.subscriptions!['persistence.restore']!
+  const dependencies = restore.modelToDependencies(model)
+  const messages = await Effect.runPromise(
+    Stream.runCollect(restore.dependenciesToStream(dependencies, () => dependencies)).pipe(
+      Effect.provideService(KeyValueStore.KeyValueStore, kv),
+    ),
+  )
+  return [...messages].reduce(Data.reduce, model)
+}
+
+/** What the page's persistence wiring saves of `model` into `kv`, after its debounce. */
+const saved = async (kv: KeyValueStore.KeyValueStore, model: Model): Promise<void> => {
+  const save = persistence.subscriptions!['persistence.save']!
+  const dependencies = save.modelToDependencies(model)
+  await Effect.runPromise(
+    Stream.runDrain(save.dependenciesToStream(dependencies, () => dependencies)).pipe(
+      Effect.provideService(KeyValueStore.KeyValueStore, kv),
+    ),
+  )
+}
+
+const milk = (actor: string) => pageOf(initial(actor), [{ id: 'milk', title: 'Milk', done: 0 }])
+const own = (actor: string, loaded: Model) => ({ key: cacheKey(actor), actor, loaded })
+
 describe('snapshot', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
+  it('paints a stored page as a stale list', async () => {
+    const model = await restored(storeWith([own('ada', milk('ada'))]), initial('ada'))
+    expect(Todos.page(model)._tag).toBe('Refreshing')
+    expect(titles(model)).toEqual(['Milk'])
   })
 
-  it('paints a stored page as a stale list', () => {
-    const loaded = pageOf(initial('ada'), [{ id: 'milk', title: 'Milk', done: 0 }])
-    const restored = modelFromCache(initial('ada'), snapshotText(loaded.remote, 'ada'))
-    expect(Todos.page(restored)._tag).toBe('Refreshing')
-    expect(titles(restored)).toEqual(['Milk'])
+  it('paints a stored page that arrives after the list was asked for', async () => {
+    const asked = Data.reduce(initial('ada'), {
+      _tag: 'QueryStarted',
+      connections: [AllTodos.ref({}).identity],
+    })
+    expect(titles(await restored(storeWith([own('ada', milk('ada'))]), asked))).toEqual(['Milk'])
   })
 
   it('leaves a pending insert out', () => {
@@ -139,17 +182,29 @@ describe('snapshot', () => {
     expect(edgeIds(watched)).toContain('milk')
   })
 
-  it('refuses another actor', () => {
-    const loaded = pageOf(initial('ada'), [{ id: 'milk', title: 'Milk', done: 0 }])
-    const grace = initial('grace')
-    expect(modelFromCache(grace, snapshotText(loaded.remote, 'ada'))).toBe(grace)
-    expect(Todos.page(grace)._tag).toBe('Initial')
+  it('keeps the page it saved for the next visit', async () => {
+    const kv = storeWith([])
+    const visit = await restored(kv, initial('ada'))
+    await saved(kv, pageOf(visit, [{ id: 'milk', title: 'Milk', done: 0 }]))
+    expect(titles(await restored(kv, initial('ada')))).toEqual(['Milk'])
   })
 
-  it('keeps the rows when the refetch fails', () => {
-    const loaded = pageOf(initial('ada'), [{ id: 'milk', title: 'Milk', done: 0 }])
-    const restored = modelFromCache(initial('ada'), snapshotText(loaded.remote, 'ada'))
-    const failed = Data.reduce(restored, {
+  it('paints each actor their own snapshot', async () => {
+    const tea = pageOf(initial('grace'), [{ id: 'tea', title: 'Tea', done: 0 }])
+    const kv = storeWith([own('ada', milk('ada')), own('grace', tea)])
+    expect(titles(await restored(kv, initial('grace')))).toEqual(['Tea'])
+  })
+
+  it('refuses and removes another actor’s snapshot stored under this actor', async () => {
+    const kv = storeWith([{ key: cacheKey('grace'), actor: 'ada', loaded: milk('ada') }])
+    const grace = await restored(kv, initial('grace'))
+    expect(Todos.page(grace)._tag).toBe('Initial')
+    expect(await Effect.runPromise(kv.has(cacheKey('grace')))).toBe(false)
+  })
+
+  it('keeps the rows when the refetch fails', async () => {
+    const model = await restored(storeWith([own('ada', milk('ada'))]), initial('ada'))
+    const failed = Data.reduce(model, {
       _tag: 'QueryFailed',
       connection: AllTodos.ref({}).identity,
       error: { _tag: 'RemoteQueryError', message: 'offline' },
@@ -158,29 +213,11 @@ describe('snapshot', () => {
     expect(titles(failed)).toEqual(['Milk'])
   })
 
-  it('stores an empty page as one empty segment', () => {
+  it('stores an empty page as one empty segment', async () => {
     const loaded = pageOf(initial('ada'), [])
     expect(snapshotFor(loaded.remote).connections[AllTodos.ref({}).identity]).toEqual([[]])
-    const restored = modelFromCache(initial('ada'), snapshotText(loaded.remote, 'ada'))
-    expect(Todos.page(restored)._tag).toBe('Refreshing')
-    expect(titles(restored)).toEqual([])
-  })
-
-  it('removes a snapshot the actor cannot read', () => {
-    const store = new Map<string, string>()
-    vi.stubGlobal('localStorage', {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        store.set(key, value)
-      },
-      removeItem: (key: string) => {
-        store.delete(key)
-      },
-    })
-    const loaded = pageOf(initial('ada'), [{ id: 'milk', title: 'Milk', done: 0 }])
-    store.set(cacheKey('grace'), snapshotText(loaded.remote, 'ada'))
-    const grace = initial('grace')
-    expect(applyCache(grace)).toBe(grace)
-    expect(store.has(cacheKey('grace'))).toBe(false)
+    const model = await restored(storeWith([own('ada', loaded)]), initial('ada'))
+    expect(Todos.page(model)._tag).toBe('Refreshing')
+    expect(titles(model)).toEqual([])
   })
 })
