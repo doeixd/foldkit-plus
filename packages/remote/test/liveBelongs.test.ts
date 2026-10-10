@@ -210,15 +210,16 @@ describe('A row the body cannot judge', () => {
     // declaration is the whole answer. Asserted against *both* connections from
     // one unjudgeable insert: an implementation that read "unknown" as "no"
     // would ignore both declarations and hide it in each, so only the contrast
-    // shows the declaration was consulted at all.
+    // shows the declaration was consulted at all. Admitted, it is drawn by
+    // its id, which its key holds though nothing else of it is known.
     expect(edges(insert(loaded([], quiet), 'p9', quiet), quiet)).toEqual(['p1'])
-    expect(edges(insert(loaded(), 'p9'))).toEqual(['p9', 'p1'])
+    expect(edges(insert(loaded(), 'p9'))).toEqual(['p1', 'p9'])
   })
 
   it('admits it where the application declared nothing, which is the default', () => {
     const model = insert(loaded(), 'p9')
 
-    expect(edges(model)).toEqual(['p9', 'p1'])
+    expect(edges(model)).toEqual(['p1', 'p9'])
     // And the page is not renderable until `p9`'s own fields arrive, which is
     // the ordinary rule rather than anything this phase changed.
     expect(shown(model)).toEqual([])
@@ -257,7 +258,7 @@ describe('The declared policy reaches the decision at all', () => {
       now: 0,
     })
 
-    expect(edges(model, quiet)).toEqual(['p9', 'p1'])
+    expect(edges(model, quiet)).toEqual(['p1', 'p9'])
   })
 })
 

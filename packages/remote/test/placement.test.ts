@@ -230,3 +230,35 @@ describe('a list a client can place rows in reads what its order needs', () => {
     expect(fieldsOf(RankedByName)).toEqual(['id', 'name'])
   })
 })
+
+describe('a row whose Selection stored no id', () => {
+  // Ranks only: a Selection that never asked for `id`. The order ties on rank
+  // and breaks by id, which each row's key holds.
+  const ranked = Data.reduce(
+    { remote: Remote.initial },
+    {
+      _tag: 'ReadReceived',
+      requests: ['a', 'b', 'x'].map(id => ({ entity: 'Project', id, fields: ['rank'] })),
+      result: {
+        settled: [],
+        entities: [
+          { entity: 'Project', id: 'a', values: { rank: 10 } },
+          { entity: 'Project', id: 'b', values: { rank: 10 } },
+          { entity: 'Project', id: 'x', values: { rank: 10 } },
+        ],
+      },
+      now: 0,
+    },
+  ).remote.entities
+
+  it('is placed by the id its key holds', () => {
+    const whole = list(segment(['a', 'b'], terminal, terminal))
+    expect(placeIn(ranked, whole, ByRank.body!, {}, entityKey('Project', 'x'))).toEqual(
+      RowPlace.End({ segment: 0 }),
+    )
+    const before = list(segment(['b', 'x'], terminal, terminal))
+    expect(placeIn(ranked, before, ByRank.body!, {}, entityKey('Project', 'a'))).toEqual(
+      RowPlace.Before({ segment: 0, edge: 'Project:b' }),
+    )
+  })
+})

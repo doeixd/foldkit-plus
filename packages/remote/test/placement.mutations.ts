@@ -124,4 +124,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a row is placed only by the id its Selection stored',
+    edits: [
+      {
+        file: placement,
+        find: "field === 'id' && Option.isSome(id) ? id : readField(store, key, field)",
+        replace: 'readField(store, key, field)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row reads its id from a key of another Entity',
+    edits: [
+      {
+        file: placement,
+        find: 'const prefix = `${body.entity.name}:`',
+        replace: "const prefix = ''",
+      },
+    ],
+    tests,
+  },
 ]

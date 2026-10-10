@@ -15,7 +15,7 @@
 import { Data, Match, Option } from 'effect'
 import { Query as Relational, compareRows, type AnyQuery, type OrderTerm } from 'foldkit-entity'
 import type { Connection, Edge } from './connection.js'
-import { readField, type EntityStore } from './store.js'
+import { entityKey, readField, type EntityStore } from './store.js'
 
 /** Where a row falls in a loaded list. */
 export type RowPlace = Data.TaggedEnum<{
@@ -30,18 +30,24 @@ export type RowPlace = Data.TaggedEnum<{
 }>
 export const RowPlace = Data.taggedEnum<RowPlace>()
 
-/** The values a row holds of the fields an order reads, or the first it lacks. */
+/**
+ * The values a row holds of the fields an order reads, or none when it lacks
+ * one. Its `id` is its key's, whether or not a Selection stored it, so the
+ * id tie-break every order ends on never makes a row unplaceable.
+ */
 const keysOf = (
   store: EntityStore,
   key: string,
+  id: Option.Option<string>,
   terms: ReadonlyArray<OrderTerm>,
 ): Option.Option<Readonly<Record<string, unknown>>> => {
   const values: Record<string, unknown> = Object.create(null)
   for (const term of terms) {
     if (term.expr._tag !== 'Field') return Option.none()
-    const value = readField(store, key, term.expr.key)
+    const field = term.expr.key
+    const value = field === 'id' && Option.isSome(id) ? id : readField(store, key, field)
     if (Option.isNone(value)) return Option.none()
-    values[term.expr.key] = value.value
+    values[field] = value.value
   }
   return Option.some(values)
 }
@@ -62,19 +68,25 @@ export const placeIn = (
   const placement = Relational.placement(body, input)
   if (placement._tag === 'NotPlaceable') return RowPlace.Unknown({ reason: placement.reason })
   const terms = Relational.orderFor(body, input)
-  const row = keysOf(store, key, terms)
+  // The row is of the body's Entity, so its key is that name, a colon, its id.
+  const prefix = `${body.entity.name}:`
+  const id = key.startsWith(prefix) ? Option.some(key.slice(prefix.length)) : Option.none()
+  const row = keysOf(store, key, id, terms)
   if (Option.isNone(row)) {
     return RowPlace.Unknown({ reason: `${key} lacks a field the order reads` })
   }
   /** Negative when the row sorts before the edge; none when the edge cannot be compared. */
-  const against = (edge: string): Option.Option<number> =>
-    Option.flatMap(keysOf(store, edge, terms), values => {
-      try {
-        return Option.some(compareRows(terms, row.value, values, body.entity.name))
-      } catch {
-        return Option.none()
-      }
-    })
+  const against = (edge: Edge): Option.Option<number> =>
+    Option.flatMap(
+      keysOf(store, entityKey(edge.ref.entity, edge.ref.id), Option.some(edge.ref.id), terms),
+      values => {
+        try {
+          return Option.some(compareRows(terms, row.value, values, body.entity.name))
+        } catch {
+          return Option.none()
+        }
+      },
+    )
 
   const { segments } = connection
   for (let index = 0; index < segments.length; index++) {
@@ -82,7 +94,7 @@ export const placeIn = (
     const edges = segment.edges.filter(edge => edge.key !== key)
     for (let position = 0; position < edges.length; position++) {
       const edge = edges[position]!
-      const sign = against(edge.key)
+      const sign = against(edge)
       if (Option.isNone(sign)) {
         return RowPlace.Unknown({ reason: `${edge.key} lacks a field the order reads` })
       }

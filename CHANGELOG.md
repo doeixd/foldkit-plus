@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote`: placement reads a row's id from its key.** Every order
+  ends on the id tie-break, and a row whose Selection never stored `id` was
+  unplaceable, so its list was fetched again: the entity example's post list
+  was, after every create.
 - **`examples/entity`: `WritePost` and `DeletePost` write in one
   transaction.** The author was inserted before the post, and the comments
   deleted before the post, each on its own, so a second statement that failed
