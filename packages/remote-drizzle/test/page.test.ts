@@ -12,7 +12,7 @@ const page = (
   traversal: Traversal,
   pageSize: number,
   cursor: string | undefined,
-) => toQueryPage({ entity: 'Project', rows, pageSize, traversal, cursor, cursorOf })
+) => toQueryPage({ entity: 'Project', rows, pageSize, traversal, cursor, idOf: cursorOf, cursorOf })
 
 describe('toQueryPage', () => {
   it('ends a forward page at its last row when a lookahead row exists', () => {

@@ -113,7 +113,8 @@ describe('RemoteDrizzle.query', () => {
       { entity: 'Project', id: 'p2', key: 'Project:p2' },
     ])
     expect(page.start).toEqual({ _tag: 'Terminal' })
-    expect(page.end).toEqual({ _tag: 'Cursor', cursor: 'p2' })
+    // Where the page ended: its order's keys at the last row, the id last.
+    expect(page.end).toEqual({ _tag: 'Cursor', cursor: 'k:["t2","p2"]' })
     expect(calls).toHaveLength(1)
     expect(calls[0]!.limit).toBe(3)
     expect(Object.keys(calls[0]!.selection)).toEqual(['id', 'created_at'])

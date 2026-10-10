@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote-drizzle`: a page's cursor holds the order's key values
+  where it ended.** It was the last row's id, which the next page looked up:
+  "load more" failed once that row was deleted or stopped matching, and
+  continued from the wrong place once it moved. A cursor (`k:[...]`) is
+  validated as client input; one from before keys is still read as an id.
+  Relation pages keep their id cursors.
 - **`foldkit-entity`: an `OrderTerm` is tagged `Term`, and a body's
   `orderBy` holds `Ordering`s (`Term | Chosen`).** An interpreter walking it
   resolves `Query.orderFor(body, input)` first.

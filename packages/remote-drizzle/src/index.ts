@@ -37,7 +37,15 @@ import {
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
 import { idColumn, projectsAny } from './columns.js'
 import { checkFields, compileOrderBy, compileWhere, QueryCompileError } from './compile.js'
-import { cursorSelection, keysetWhere, orderByTerms, type OrderTerm } from './cursor.js'
+import {
+  cursorSelection,
+  keyCursor,
+  keysetWhere,
+  orderByTerms,
+  readCursor,
+  CursorRead,
+  type OrderTerm,
+} from './cursor.js'
 import { DrizzleDatabase, drizzleWrites, type DrizzleDatabaseService } from './database.js'
 import { toQueryPage } from './page.js'
 import { buildPage } from './pagination.js'
@@ -711,19 +719,42 @@ export const query = <P = unknown, Input = unknown>(
         let where = baseWhere
 
         if (shape.cursor !== undefined) {
-          const cursorColumns = cursorSelection(orderBy)
-          const cursorRows = yield* selectRows(database, binding.table, cursorColumns, {
-            where:
-              baseWhere === undefined ? eq(id, shape.cursor) : and(baseWhere, eq(id, shape.cursor)),
-            limit: 1,
-          })
-          const cursorRow = cursorRows[0]
-          if (cursorRow === undefined) {
-            return yield* new RemoteServerError({
-              message: 'The query cursor no longer resolves to a row',
-            })
-          }
-          const values = orderBy.map(term => cursorRow[term.column.name])
+          // A keyed cursor says where its page ended. One from before keys is
+          // an id, whose row is read for its keys as it is now.
+          const values: ReadonlyArray<unknown> = yield* CursorRead.$match(
+            readCursor(shape.cursor, orderBy.length),
+            {
+              Keys: ({ values }) => Effect.succeed(values),
+              Id: ({ id: cursorId }) =>
+                Effect.gen(function* () {
+                  const cursorRows = yield* selectRows(
+                    database,
+                    binding.table,
+                    cursorSelection(orderBy),
+                    {
+                      where:
+                        baseWhere === undefined
+                          ? eq(id, cursorId)
+                          : and(baseWhere, eq(id, cursorId)),
+                      limit: 1,
+                    },
+                  )
+                  const cursorRow = cursorRows[0]
+                  if (cursorRow === undefined) {
+                    return yield* new RemoteServerError({
+                      message: 'The query cursor no longer resolves to a row',
+                    })
+                  }
+                  return orderBy.map(term => cursorRow[term.column.name])
+                }),
+              Invalid: () =>
+                Effect.fail(
+                  new RemoteServerError({
+                    message: 'The query cursor is not one this server minted for this order',
+                  }),
+                ),
+            },
+          )
           const predicate = keysetWhere(orderBy, values, shape.traversal)
           where =
             where === undefined
@@ -749,7 +780,11 @@ export const query = <P = unknown, Input = unknown>(
           pageSize: shape.pageSize,
           traversal: shape.traversal,
           cursor: shape.cursor,
-          cursorOf: row => String(row.id),
+          idOf: row => String(row.id),
+          cursorOf: row =>
+            Option.getOrElse(keyCursor(orderBy.map(term => row[term.column.name])), () =>
+              String(row.id),
+            ),
         })
       }),
   }

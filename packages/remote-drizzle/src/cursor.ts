@@ -28,7 +28,7 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import { PgColumn } from 'drizzle-orm/pg-core'
-import { Match, Option } from 'effect'
+import { Data, Match, Option } from 'effect'
 import type { Collation } from 'foldkit-entity'
 
 export interface OrderTerm {
@@ -185,3 +185,68 @@ export const orderByTerms = (
 /** The tuple columns to re-read for a cursor, keyed as Drizzle select aliases. */
 export const cursorSelection = (terms: readonly OrderTerm[]): Record<string, AnyColumn> =>
   Object.fromEntries(terms.map(term => [term.column.name, term.column]))
+
+/** What marks a cursor holding key values, apart from an id from before them. */
+const KEYED = 'k:'
+
+/** One key value as JSON keeps it: a date and a bigint tagged, so they come back as themselves. */
+const encodeKey = (value: unknown): Option.Option<unknown> => {
+  if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
+    return Option.some(value)
+  }
+  if (value instanceof Date) return Option.some({ $date: value.toISOString() })
+  if (typeof value === 'bigint') return Option.some({ $bigint: value.toString() })
+  return Option.none()
+}
+
+const decodeKey = (value: unknown): Option.Option<unknown> => {
+  if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
+    return Option.some(value)
+  }
+  if (typeof value === 'object' && Object.keys(value).length === 1) {
+    if ('$date' in value && typeof value.$date === 'string') {
+      const date = new Date(value.$date)
+      return Number.isNaN(date.getTime()) ? Option.none() : Option.some(date)
+    }
+    if ('$bigint' in value && typeof value.$bigint === 'string' && /^-?\d+$/.test(value.$bigint)) {
+      return Option.some(BigInt(value.$bigint))
+    }
+  }
+  return Option.none()
+}
+
+/**
+ * A cursor holding the order's key values at the row a page ended on, the id
+ * among them: where the page ended, whatever that row does after. None when a
+ * value is of a kind JSON cannot carry back, which pages by the row's id.
+ */
+export const keyCursor = (values: ReadonlyArray<unknown>): Option.Option<string> =>
+  Option.map(Option.all(values.map(encodeKey)), keys => KEYED + JSON.stringify(keys))
+
+/** What a cursor says: where its page ended, an id from before keys, or nothing this server minted. */
+export type CursorRead = Data.TaggedEnum<{
+  Keys: { readonly values: ReadonlyArray<unknown> }
+  Id: { readonly id: string }
+  Invalid: {}
+}>
+export const CursorRead = Data.taggedEnum<CursorRead>()
+
+/**
+ * What a cursor says: the key values a keyed one holds, checked against the
+ * order it pages (a client sends it, so nothing is trusted that is not one of
+ * these values), or the id of a cursor from before keys.
+ */
+export const readCursor = (cursor: string, terms: number): CursorRead => {
+  if (!cursor.startsWith(KEYED)) return CursorRead.Id({ id: cursor })
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(cursor.slice(KEYED.length))
+  } catch {
+    return CursorRead.Invalid()
+  }
+  if (!Array.isArray(parsed) || parsed.length !== terms) return CursorRead.Invalid()
+  return Option.match(Option.all(parsed.map(decodeKey)), {
+    onNone: () => CursorRead.Invalid(),
+    onSome: values => CursorRead.Keys({ values }),
+  })
+}

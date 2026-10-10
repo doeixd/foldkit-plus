@@ -725,14 +725,18 @@ query(PostsQuery, {
   `Order.asc(field, { nulls: 'first' })`, and an `orderBy` term here with
   `nulls: 'first'`.
 
-The wire cursor remains the row id. To continue a page, the Source re-reads that
-row's ordering tuple and builds the keyset predicate from the real ordered
-column values.
+A page's cursor is where it ended: the order's key values at its last row, the
+id among them (`k:[...]`). The next page's keyset predicate is built from those
+values, so "load more" carries on after the last row read was deleted, stopped
+matching, or moved, from where the page ended. A cursor is client input, and
+is refused unless it holds exactly one key value (text, a number, a boolean,
+null, or a tagged date or bigint) for each term of the order it pages. A cursor
+from before keys is a row id, still read by re-reading that row's keys; one
+whose row is gone fails rather than restarting at page one.
 
 Client-supplied windows are bounded: the default page size is `20`, the default
 maximum is `100`, and malformed combinations such as `after + before` or
-`first + last` fail rather than being guessed. A cursor that no longer resolves
-also fails rather than silently restarting at page one.
+`first + last` fail rather than being guessed.
 
 ## Computed fields
 

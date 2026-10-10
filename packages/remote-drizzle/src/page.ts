@@ -1,7 +1,8 @@
 /**
  * Mapping a page of rows to a Remote `QueryPage`.
  *
- * The cursor is the row identity. Boundaries advertise the known region so
+ * An edge is a row by its id; a boundary's cursor is the caller's, where the
+ * page ended (`keyCursor`). Boundaries advertise the known region so
  * `Connection.merge` can join pages: a forward page starts at the cursor it was
  * requested after and ends at its last row when another page exists; a backward
  * page is the mirror image. A boundary is never inferred from a row count.
@@ -28,6 +29,7 @@ export const toQueryPage = <Row>({
   pageSize,
   traversal,
   cursor,
+  idOf,
   cursorOf,
 }: {
   readonly entity: string
@@ -35,11 +37,12 @@ export const toQueryPage = <Row>({
   readonly pageSize: number
   readonly traversal: Traversal
   readonly cursor: string | undefined
+  readonly idOf: (row: Row) => string
   readonly cursorOf: (row: Row) => string
 }): QueryPage => {
   const page = buildPage({ rows, pageSize, traversal, cursor, cursorOf })
   const edges = page.rows.map(row => {
-    const id = cursorOf(row)
+    const id = idOf(row)
     return { entity, id, key: entityKey(entity, id) }
   })
   const first = page.rows[0]
