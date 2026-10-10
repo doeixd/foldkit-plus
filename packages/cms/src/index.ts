@@ -10,6 +10,7 @@
  */
 import { Schema } from 'effect'
 import {
+  Collation,
   Entity,
   Relation,
   Derived,
@@ -120,7 +121,12 @@ const Entry = Entity.define(
     // An entry's id is how it is opened, not something to read in a list.
     id: Display.of(Display.hidden()),
     state: Display.of(Kinds.Display.State.of({})),
-    createdAt: Display.of(Kinds.Display.Moment.of({})),
+    // An ISO-8601 instant, so code-point order is time order: said, so a
+    // client places a created or renamed entry in a list as the server does.
+    createdAt: Metadata.combine([
+      Display.of(Kinds.Display.Moment.of({})),
+      Collation.of(Collation.binary),
+    ]),
     archivedAt: Display.of(Kinds.Display.Moment.of({})),
   }),
 )

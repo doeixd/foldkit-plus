@@ -1250,6 +1250,14 @@ lists the client cannot place, and no live list here is one.
   `AllTodos`, which lists every row; a list that filters would need its
   membership judged, which `ListWatch` says. A log that cannot be read, or
   no longer reaches back, reads everything, as before.
+- **What still refetched, measured.** Every invalidation a mutation's answer
+  caused across the examples' tests, logged with its reason: the CMS
+  worklist (ordered by `createdAt`, text with no collation), the entity post
+  list (a row whose Selection stored no `id`, which the tie-break reads), and
+  the entity author picker (a `Query.make`). Placement now reads an id from
+  the key, `createdAt` declares `binary`, and `AuthorsQuery` has a body; the
+  same probe then logged none. `Missing` stays unbuilt: no answer here lacks
+  a field a body reads.
 - **Not built: `ConnectionInsert` `after(edge)` and hub placement per
   subscriber.** Gated on a live list the client cannot place: a server
   `orderBy`, or a `Locale` collation SQLite cannot compile.

@@ -42,12 +42,12 @@ describe('the posts list', () => {
 })
 
 describe('an entry saved for the first time', () => {
-  it('joins the worklist: the save’s answer marks the list to be asked again', () => {
+  it('joins the worklist where its creation puts it, with no request', () => {
     const identity = worklistIdentity(initial)
-    const entry = (id: string, label: string) => ({
+    const entry = (id: string, label: string, createdAt: string) => ({
       entity: 'CmsEntry',
       id,
-      values: { id, type: 'posts', label, createdAt: '2026-01-01', archivedAt: null },
+      values: { id, type: 'posts', label, createdAt, archivedAt: null },
     })
     const loaded = step(
       step(
@@ -69,21 +69,27 @@ describe('an entry saved for the first time', () => {
             fields: ['id', 'type', 'label', 'createdAt', 'archivedAt'],
           },
         ],
-        result: { settled: [], entities: [entry('e1', 'First')] },
+        result: { settled: [], entities: [entry('e1', 'First', '2026-01-01T00:00:00.000Z')] },
         now: 0,
       }),
     )
     expect(loaded.remote.connections[identity]?.stale).toBe(false)
 
-    // No code in the application asks for the list again; the answer does.
+    // No code in the application touches the list; the answer places the
+    // entry by the body's order, newest first, and nothing is asked again.
     const saved = step(
       loaded,
       Message.MutationSucceeded({
         requestId: 'save-e9',
-        entities: [entry('e9', 'Second')],
+        entities: [entry('e9', 'Second', '2026-02-01T00:00:00.000Z')],
         now: 1,
       }),
     )
-    expect(saved.remote.connections[identity]?.stale).toBe(true)
+    const pages = saved.remote.connections[identity]
+    expect(pages?.stale).toBe(false)
+    expect(pages?.segments.flatMap(segment => segment.edges.map(edge => edge.ref.id))).toEqual([
+      'e9',
+      'e1',
+    ])
   })
 })

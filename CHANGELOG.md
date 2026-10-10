@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-cms`: an entry's `createdAt` declares `binary`.** It is an
+  ISO-8601 instant, so code-point order is time order, and `CmsEntries`
+  orders by it: a saved or created entry is now placed in the worklist
+  instead of refetching it. On Postgres the order compiles with
+  `collate "C"`.
 - **`foldkit-remote`: placement reads a row's id from its key.** Every order
   ends on the id tie-break, and a row whose Selection never stored `id` was
   unplaceable, so its list was fetched again: the entity example's post list
