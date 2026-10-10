@@ -900,6 +900,28 @@ const PublishPostSource = RemoteServer.mutation(PublishPost, ({ input }) =>
 typed by each table's columns, so a handler writes without casting the
 `DrizzleDatabase` service, which names only the reads a Source makes.
 
+**Several rows: the driver's own transaction.** A declared write is one
+statement, so it is atomic already. A handler that writes several rows wraps
+them in its driver's transaction; the adapter adds none, because the drivers
+disagree on what one is. A synchronous SQLite driver (`node-sqlite`,
+`better-sqlite3`) takes a synchronous callback: given an `async` one, it
+commits before the awaits run, and a later failure rolls nothing back. A
+Postgres driver takes an `async` callback. D1 has no interactive transaction;
+`db.batch([...])` runs its statements as one. From
+[`examples/entity`](../../examples/entity/src/server.ts), over `node-sqlite`:
+
+```ts
+const DeletePost = RemoteServer.mutation(DeletePostMutation, ({ input }) =>
+  Effect.sync(() => {
+    db.transaction(tx => {
+      tx.delete(comments).where(eq(comments.postId, input.id)).run()
+      tx.delete(posts).where(eq(posts.id, input.id)).run()
+    })
+    return { output: {}, deleted: [{ entity: 'Post', id: input.id }] }
+  }),
+)
+```
+
 ## Compose the server
 
 ```ts

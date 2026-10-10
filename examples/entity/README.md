@@ -172,8 +172,8 @@ new post: Ready {"title":"On Looms","author":{"name":"Joseph"}}
 `WritePost` maps its `author` key with `Relation.nested`, so `WritePostForm`
 holds a row of the author's own form. An empty submit fails inside the row; a
 valid one carries the author in the value. The server inserts the author, then
-the post, and returns both as patches, so the new post reads with its author and
-no fetch. This runs in the printed trace; the browser page does not draw it.
+the post, in one transaction (a post that fails leaves no author), and returns
+both as patches, so the new post reads with its author and no fetch. This runs in the printed trace; the browser page does not draw it.
 
 ### The drawn list
 

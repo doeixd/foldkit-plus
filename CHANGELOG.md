@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/entity`: `WritePost` and `DeletePost` write in one
+  transaction.** The author was inserted before the post, and the comments
+  deleted before the post, each on its own, so a second statement that failed
+  left the first. They use Drizzle's SQLite transaction, which is synchronous.
+  `foldkit-remote-drizzle`'s README says why the adapter wraps no
+  transaction: the drivers disagree on what one is.
 - **`foldkit-remote`: an inserted row is drawn where its list's order puts
   it.** A `prepend`/`append` connection change and a live `ConnectionInsert`
   say a row is in a list, not where; in a list the client can place, a read

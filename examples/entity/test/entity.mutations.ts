@@ -60,4 +60,36 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a post and its author are written apart',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'return db.transaction(tx => {',
+        replace: 'return (tx => {',
+      },
+      {
+        file: '../src/server.ts',
+        find: '...writtenPost.patches(postRows)],\n        }\n      })',
+        replace: '...writtenPost.patches(postRows)],\n        }\n      })(db)',
+      },
+    ],
+    tests: ['examples/entity/test/server.test.ts'],
+  },
+  {
+    name: 'a post and its comments are deleted apart',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: '      db.transaction(tx => {',
+        replace: '      ;(tx => {',
+      },
+      {
+        file: '../src/server.ts',
+        find: 'tx.delete(posts).where(eq(posts.id, input.id)).run()\n      })',
+        replace: 'tx.delete(posts).where(eq(posts.id, input.id)).run()\n      })(db)',
+      },
+    ],
+    tests: ['examples/entity/test/server.test.ts'],
+  },
 ]

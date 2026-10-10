@@ -767,6 +767,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   request. `examples/cloudflare`'s polling `LiveSource` is the shape; a
   `LiveHub` push reaches nobody.
 
+- **Drizzle's SQLite transaction is synchronous.** `db.transaction(async tx
+  => …)` over `node-sqlite` commits before the callback's awaits run, so a
+  failure after an await rolls nothing back; a probe left the row of a
+  "failed" transaction in the table. Write the callback synchronously, with
+  `.run()` and `.all()`; Postgres takes an async one, and D1 only `batch`.
+
 - **Drizzle's Effect driver does not load under the pinned Effect.**
   `drizzle-orm@1.0.0-rc.4`'s `effect-postgres` driver imports
   `cache/core/cache-effect.ts`, which calls `Schema.TaggedErrorClass` — a name

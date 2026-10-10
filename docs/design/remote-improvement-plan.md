@@ -578,7 +578,13 @@ intact.
   live event per transaction (live events are per entity; a batch event is a
   new wire variant). A declared write is one statement, so it is atomic
   already; what remains is for handlers that write several rows, and for
-  Workers.
+  Workers. (Declined later: the drivers disagree on what a transaction is. A
+  probe showed `node-sqlite`'s is synchronous, so an `async` callback commits
+  before its awaits and rolls back nothing; Postgres's is async; D1 has only
+  `batch`. One wrapper would be wrong for at least one. The entity example's
+  two multi-row handlers use the driver's own, and the remote-drizzle README
+  says which. The batched live event waits for a client that draws a frame
+  between two events of one write.)
 
 ## 8. Phase 4 — Sync's pending edits as Remote overlays
 

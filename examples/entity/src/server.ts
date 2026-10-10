@@ -81,36 +81,46 @@ export const openServer = () => {
   // editor's foreign key, and answers the row as written.
   const EditPost = RemoteServer.write(EditPostMutation, writer(Db.Post))
 
-  // The nested write: the author first, then the post that points at them. Both
-  // come back as patches, so the client's store has the new post and its author.
+  // The nested write: the author first, then the post that points at them, in
+  // one transaction, so a post that fails leaves no author behind. Both come
+  // back as patches, so the client's store has the new post and its author.
+  // Drizzle's SQLite transaction is synchronous: an async callback would
+  // commit before its awaits, and a later failure would roll nothing back.
   let serial = 2
   const writtenAuthor = returning(Db.Author, ['id', 'name'])
   const writtenPost = returning(Db.Post, ['id', 'title', 'published', 'author'])
   const WritePost = RemoteServer.mutation(WritePostMutation, ({ input }) =>
-    Effect.promise(async () => {
+    Effect.sync(() => {
       // Ids the seed rows do not use; a count would reuse a deleted post's.
       serial += 1
       const authorId = `a${serial}`
       const postId = `p${serial}`
-      const authorRows = await db
-        .insert(authors)
-        .values({ id: authorId, name: input.author.name })
-        .returning(writtenAuthor.columns)
-      const postRows = await db
-        .insert(posts)
-        .values({ id: postId, headline: input.title, published: false, authorId, editorId: null })
-        .returning(writtenPost.columns)
-      return {
-        output: { id: PostId.make(postId) },
-        entities: [...writtenAuthor.patches(authorRows), ...writtenPost.patches(postRows)],
-      }
+      return db.transaction(tx => {
+        const authorRows = tx
+          .insert(authors)
+          .values({ id: authorId, name: input.author.name })
+          .returning(writtenAuthor.columns)
+          .all()
+        const postRows = tx
+          .insert(posts)
+          .values({ id: postId, headline: input.title, published: false, authorId, editorId: null })
+          .returning(writtenPost.columns)
+          .all()
+        return {
+          output: { id: PostId.make(postId) },
+          entities: [...writtenAuthor.patches(authorRows), ...writtenPost.patches(postRows)],
+        }
+      })
     }),
   )
 
   const DeletePost = RemoteServer.mutation(DeletePostMutation, ({ input }) =>
-    Effect.promise(async () => {
-      await db.delete(comments).where(eq(comments.postId, input.id))
-      await db.delete(posts).where(eq(posts.id, input.id))
+    Effect.sync(() => {
+      // Together, or a post that cannot go keeps its comments.
+      db.transaction(tx => {
+        tx.delete(comments).where(eq(comments.postId, input.id)).run()
+        tx.delete(posts).where(eq(posts.id, input.id)).run()
+      })
       // Saying what is gone is enough: the client drops it from every list it is in.
       return { output: {}, deleted: [{ entity: 'Post', id: input.id }] }
     }),
@@ -139,6 +149,8 @@ export const openServer = () => {
       Number(
         (sqlite.prepare(`select count(*) as n from ${table}`).get() as { readonly n: number }).n,
       ),
+    /** Runs a statement as it is, for a test that needs a state no mutation makes. */
+    exec: (statement: string) => sqlite.exec(statement),
     close: () => sqlite.close(),
   }
 }
