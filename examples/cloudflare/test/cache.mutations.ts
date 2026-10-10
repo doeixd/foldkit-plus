@@ -80,7 +80,13 @@ export default [
   },
   {
     name: 'the snapshot keeps the connection’s own segments',
-    edits: [{ file: app, find: 'snapshot: snapshotFor,', replace: '' }],
+    edits: [
+      {
+        file: app,
+        find: 'snapshot: remote => snapshotFor(remote, Data.visibleItems),',
+        replace: '',
+      },
+    ],
     tests,
   },
 ]

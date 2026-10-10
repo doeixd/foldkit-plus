@@ -131,7 +131,7 @@ const insert = (model: Model, id: string, into: Projection = projects, cursor = 
  * is about membership or about rendering.
  */
 const edges = (model: Model, of: Projection = projects): ReadonlyArray<string> =>
-  Remote.visibleItems(model.remote, of.ref.identity).map(edge => edge.ref.id)
+  Data.visibleItems(model.remote, of.ref.identity).map(edge => edge.ref.id)
 
 const shown = (model: Model, of: Projection = projects): ReadonlyArray<string> => {
   const page = of.read(model)
@@ -150,17 +150,19 @@ describe('A row the body can judge', () => {
     expect(shown(model)).toEqual(['p1'])
   })
 
-  it('is not hidden by being judged — a belonging row still appears', () => {
+  it('is not hidden by being judged — a belonging row still appears, where its order puts it', () => {
     const model = insert(loaded([{ id: 'p2', status: 'active' }]), 'p2')
 
-    expect(shown(model)).toEqual(['p2', 'p1'])
+    // Prepended on the wire; the list orders by id.
+    expect(shown(model)).toEqual(['p1', 'p2'])
   })
 })
 
 describe('A row the body cannot judge for this input', () => {
   it('takes the declared policy rather than ending the update', () => {
     // A search holding NUL is refused by every interpreter, so the body says
-    // nothing about `p2`; the default policy shows it, as the server asked.
+    // nothing about `p2`; the default policy shows it, as the server asked,
+    // where the order (by id, which no input touches) puts it.
     const named: Projection = Data.query(
       NamedProjects,
       { name: `Project${String.fromCharCode(0)}` },
@@ -168,7 +170,7 @@ describe('A row the body cannot judge for this input', () => {
     )
     const model = insert(loaded([{ id: 'p2', status: 'active' }], named), 'p2', named)
 
-    expect(edges(model, named)).toEqual(['p2', 'p1'])
+    expect(edges(model, named)).toEqual(['p1', 'p2'])
   })
 })
 
@@ -177,7 +179,7 @@ describe('A list read before an insert', () => {
     // No entity write rides on the insert, so only the overlay says it is there.
     const before = loaded([{ id: 'p2', status: 'active' }])
     expect(shown(before)).toEqual(['p1'])
-    expect(shown(insert(before, 'p2'))).toEqual(['p2', 'p1'])
+    expect(shown(insert(before, 'p2'))).toEqual(['p1', 'p2'])
   })
 })
 
@@ -194,7 +196,7 @@ describe('A row the body could judge, but only from a stale value', () => {
       requests: [{ entity: 'Project', id: 'p2', fields: ['status'] }],
     })
 
-    expect(edges(insert(stale, 'p2'))).toEqual(['p2', 'p1'])
+    expect(edges(insert(stale, 'p2'))).toEqual(['p1', 'p2'])
   })
 
   it('is still suppressed when the value it is judged on is fresh', () => {

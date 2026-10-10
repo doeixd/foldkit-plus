@@ -305,6 +305,11 @@ describe('cloudflare example', () => {
     })
     // It names no list: the client places the row by the list's body.
     expect(JSON.stringify(answer.result)).not.toContain('prepend')
+    // The triggers logged the row, for the live poll to read it alone.
+    const logged = await stack.db
+      .prepare('SELECT id FROM todo_row_changes ORDER BY seq DESC LIMIT 1')
+      .all()
+    expect(logged.results).toEqual([{ id: 't-remote' }])
     expect(await queryTodos(remote, { first: 50 })).toContain('t-remote')
     const created = await readTodo(remote, 't-remote', ['title', 'done'])
     expect(created.entities).toEqual([

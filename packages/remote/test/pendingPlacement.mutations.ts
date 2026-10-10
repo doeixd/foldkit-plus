@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'pendingPlaced(remote, ref.identity, connection),',
-        replace: 'connection,',
+        find: 'const pages = pendingPlaced(remote, identity, connection)',
+        replace: 'const pages = connection',
       },
     ],
     tests,
@@ -22,8 +22,9 @@ export default [
     edits: [
       {
         file: index,
-        find: 'pendingPlaced(remote, over.ref.identity, connection),',
-        replace: 'connection,',
+        find: ': shownEdges(remote, over.ref.identity, connection)',
+        replace:
+          ': visibleItems(connection, over.ref.identity, remote.optimistic.overlays, remote.entities)',
       },
     ],
     tests,
@@ -122,5 +123,61 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'an inserted row stays where its overlay put it',
+    edits: [{ file: index, find: 'const shown = inserts', replace: 'const shown = false' }],
+    tests,
+  },
+  {
+    name: 'an inserted row placed before a loaded one stays at the front',
+    edits: [
+      {
+        file: index,
+        find: 'Before: place => void (placed = withEdge(placed, edge, place)),',
+        replace: 'Before: () => undefined,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an inserted row placed at the end stays at the front',
+    edits: [
+      {
+        file: index,
+        find: 'End: place => void (placed = withEdge(placed, edge, place)),',
+        replace: 'End: () => undefined,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an inserted row past what is loaded is shown',
+    edits: [
+      {
+        file: index,
+        find: 'Outside: () => void outside.push(edge),',
+        replace: 'Outside: () => undefined,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an insert of a row the pages hold places it twice',
+    edits: [{ file: index, find: 'if (held.has(edge.key)) continue', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a removed row is placed too',
+    edits: [
+      {
+        file: index,
+        find: "if (overlay.connection !== identity || overlay.position === 'remove') continue",
+        replace: 'if (overlay.connection !== identity) continue',
+      },
+    ],
+    tests,
+    survives:
+      'a row a remove names is hidden by `visibleItems` wherever it is placed; the filter spares placing it',
   },
 ]

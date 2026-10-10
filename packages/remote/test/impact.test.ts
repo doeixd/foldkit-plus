@@ -232,16 +232,16 @@ describe('A list whose body proves the write left it as it was', () => {
   it('is kept on a deletion, which its tombstone already removes', () => {
     const removed = answered(loaded(), [], [{ entity: 'Project', id: 'p1' }])
     expect(stale(removed, active.ref.identity)).toBe(false)
-    expect(
-      Remote.visibleItems(removed.remote, active.ref.identity).map(edge => edge.ref.id),
-    ).toEqual(['p2'])
+    expect(Data.visibleItems(removed.remote, active.ref.identity).map(edge => edge.ref.id)).toEqual(
+      ['p2'],
+    )
   })
 })
 
 describe('A list the client places the change in, fetching nothing', () => {
   /** The ids a list shows, in its order, and whether it is due for a fetch. */
   const shown = (model: Model, identity: string) => ({
-    ids: Remote.visibleItems(model.remote, identity).map(edge => edge.ref.id),
+    ids: Data.visibleItems(model.remote, identity).map(edge => edge.ref.id),
     stale: stale(model, identity),
   })
 
@@ -395,7 +395,7 @@ describe('A list the write may have changed', () => {
   it('moves a row by the field its input chose to order by, and not by another', () => {
     const repriced = answered(loaded(), [patch('p1', { price: 50 })])
     expect(
-      Remote.visibleItems(repriced.remote, byPrice.ref.identity).map(edge => edge.ref.id),
+      Data.visibleItems(repriced.remote, byPrice.ref.identity).map(edge => edge.ref.id),
     ).toEqual(['p2', 'p3', 'p1'])
     expect(stale(repriced, byPrice.ref.identity)).toBe(false)
     // Name is a field it could have chosen; this list did not, so it stays.
@@ -451,9 +451,10 @@ describe('A list the answer itself names', () => {
       now: 1,
     })
     expect(stale(confirmed, active.ref.identity)).toBe(false)
+    // Appended on the wire, and drawn where its price of 15 puts it.
     expect(
-      Remote.visibleItems(confirmed.remote, active.ref.identity).map(edge => edge.ref.id),
-    ).toEqual(['p1', 'p2', 'p3'])
+      Data.visibleItems(confirmed.remote, active.ref.identity).map(edge => edge.ref.id),
+    ).toEqual(['p1', 'p3', 'p2'])
   })
 })
 

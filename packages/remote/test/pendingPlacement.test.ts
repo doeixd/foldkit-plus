@@ -8,7 +8,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote, RemoteData, type NormalizedPatch } from '../src/index.js'
+import { ConnectionChange, Query, Remote, RemoteData, type NormalizedPatch } from '../src/index.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -216,5 +216,83 @@ describe('What the server says of a row a list holds', () => {
     const base = loaded()
     const repeated = read(base, 'p1', rows[0]!)
     expect(repeated.remote.connections).toBe(base.remote.connections)
+  })
+})
+
+/** A row the client creates, shown at the front of `list` until it settles. */
+const created = (
+  model: Model,
+  values: Record<string, unknown>,
+  list: typeof active | typeof byName = active,
+) =>
+  Data.overlay(model, 'create', [
+    patch('p5', { id: 'p5', ...values }),
+    ConnectionChange.prepend(list.ref, { entity: 'Project', id: 'p5' }),
+  ])
+
+/** A live insert of `id` at the front of `list`, as a server that knows no place sends it. */
+const inserted = (model: Model, id: string, list = active) =>
+  Data.reduce(model, {
+    _tag: 'LiveReceived',
+    stream: 's',
+    event: {
+      _tag: 'ConnectionInsert',
+      cursor: 1,
+      connection: list.ref.identity,
+      edge: { key: `Project:${id}`, ref: { entity: 'Project', id } },
+      position: 'prepend',
+    },
+    now: 1,
+  })
+
+describe('A row an insert shows', () => {
+  it('is drawn where the order puts it, though its overlay prepends it', () => {
+    const shown = created(loaded(), { name: 'Europa', status: 'active', price: 15 })
+    expect(ids(active, shown)).toEqual(['p1', 'p5', 'p2', 'p3'])
+    // Its overlay is lifted with it.
+    expect(ids(active, Data.lift(shown, 'create'))).toEqual(['p1', 'p2', 'p3'])
+    // Past every row of a list loaded whole: its end.
+    const dearest = created(loaded(), { name: 'Europa', status: 'active', price: 99 })
+    expect(ids(active, dearest)).toEqual(['p1', 'p2', 'p3', 'p5'])
+  })
+
+  it('is drawn in order when a live insert brings a row the client holds', () => {
+    const joined = inserted(read(loaded(), 'p4', { status: 'active' }), 'p4')
+    expect(ids(active, joined)).toEqual(['p4', 'p1', 'p2', 'p3'])
+    const later = inserted(read(loaded(), 'p4', { status: 'active', price: 25 }), 'p4')
+    expect(ids(active, later)).toEqual(['p1', 'p2', 'p4', 'p3'])
+  })
+
+  it('is left out when it sorts past what is loaded', () => {
+    const partial = Data.reduce(stored(), {
+      _tag: 'ConnectionMerged',
+      connection: active.ref.identity,
+      page: {
+        edges: ['p1', 'p2'].map(id => ({ key: `Project:${id}`, ref: { entity: 'Project', id } })),
+        start: { _tag: 'Terminal' },
+        end: { _tag: 'Cursor', cursor: 'c2' },
+      },
+    })
+    const shown = created(partial, { name: 'Europa', status: 'active', price: 99 })
+    expect(ids(active, shown)).toEqual(['p1', 'p2'])
+  })
+
+  it('stays at the front when the client cannot place it', () => {
+    // No price, which the order reads.
+    const unpriced = created(loaded(), { name: 'Europa', status: 'active' })
+    expect(ids(active, unpriced)).toEqual(['p5', 'p1', 'p2', 'p3'])
+    // A list ordered by text with no declared collation.
+    const named = created(loaded(), { name: 'Europa', status: 'active', price: 15 }, byName)
+    expect(ids(byName, named)).toEqual(['p5', 'p1', 'p2', 'p3', 'p4'])
+  })
+
+  it('shows again, placed, when an insert follows a remove', () => {
+    const removed = Data.overlay(loaded(), 'hide', [
+      ConnectionChange.remove(active.ref, { entity: 'Project', id: 'p1' }),
+    ])
+    expect(ids(active, removed)).toEqual(['p2', 'p3'])
+    // The pages hold p1, so the later insert is no join: it only unhides.
+    const back = inserted(removed, 'p1')
+    expect(ids(active, back)).toEqual(['p1', 'p2', 'p3'])
   })
 })

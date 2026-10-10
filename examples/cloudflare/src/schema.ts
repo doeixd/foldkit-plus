@@ -20,11 +20,21 @@
  *   requests here is D1, and each live stream re-reads it. A field change is
  *   a patch. The list's own ids are diffed too, so a row can join or leave.
  */
-import { eq } from 'drizzle-orm'
+import { asc, eq, gt, max, min } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import type { D1Database } from '@cloudflare/workers-types'
-import { Context, Effect, Layer, Schedule, Schema, Scope, Stream, type Duration } from 'effect'
+import {
+  Context,
+  Effect,
+  Layer,
+  Option,
+  Schedule,
+  Schema,
+  Scope,
+  Stream,
+  type Duration,
+} from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
@@ -69,28 +79,69 @@ export const todos = sqliteTable('todos', {
   done: integer('done').notNull().default(0),
 })
 
-/** One row: how many writes `todos` has taken, kept by triggers (`migrations/0002_changes.sql`). */
-const todoChanges = sqliteTable('todo_changes', {
-  id: integer('id').primaryKey(),
-  count: integer('count').notNull(),
+/** Which row each write to `todos` touched, in order, kept by triggers (`migrations/0003_row_changes.sql`). */
+const rowChanges = sqliteTable('todo_row_changes', {
+  seq: integer('seq').primaryKey({ autoIncrement: true }),
+  id: text('id').notNull(),
 })
 
-const decodeCount = Schema.decodeUnknownEffect(Schema.Struct({ count: Schema.Number }))
+/** How much of the log a tick reads at once; the rest waits for the next. */
+const LOG_BATCH = 500
 
-/** The write count of `todos`, for the live source to tell a quiet tick from a busy one. */
-const changeCount: Effect.Effect<number, RemoteServerError, DrizzleDatabase> = Effect.gen(
-  function* () {
+const decodeLog = Schema.decodeUnknownEffect(
+  Schema.Struct({
+    oldest: Schema.NullOr(Schema.Number),
+    newest: Schema.NullOr(Schema.Number),
+    entries: Schema.Array(Schema.Struct({ seq: Schema.Number, id: Schema.String })),
+  }),
+)
+
+const decodeHead = Schema.decodeUnknownEffect(
+  Schema.Struct({ newest: Schema.NullOr(Schema.Number) }),
+)
+
+const logFailure = () => new RemoteServerError({ message: 'The row log could not be read' })
+
+/** The row log of `todos`, for the live source to read only the rows a write touched. */
+const rowLog: RowLog = {
+  head: Effect.gen(function* () {
     const db = yield* DrizzleDatabase
     const [row] = yield* Effect.tryPromise({
-      try: () => Promise.resolve(db.select({ count: todoChanges.count }).from(todoChanges)),
-      catch: () => new RemoteServerError({ message: 'The change count could not be read' }),
+      try: () => Promise.resolve(db.select({ newest: max(rowChanges.seq) }).from(rowChanges)),
+      catch: logFailure,
     })
-    const decoded = yield* decodeCount(row).pipe(
-      Effect.mapError(() => new RemoteServerError({ message: 'The change count is not a number' })),
-    )
-    return decoded.count
-  },
-)
+    const { newest } = yield* decodeHead(row).pipe(Effect.mapError(logFailure))
+    return newest ?? 0
+  }),
+  since: after =>
+    Effect.gen(function* () {
+      const db = yield* DrizzleDatabase
+      const [bounds, entries] = yield* Effect.tryPromise({
+        try: () =>
+          Promise.all([
+            db
+              .select({ oldest: min(rowChanges.seq), newest: max(rowChanges.seq) })
+              .from(rowChanges),
+            db
+              .select({ seq: rowChanges.seq, id: rowChanges.id })
+              .from(rowChanges)
+              .where(gt(rowChanges.seq, after))
+              .orderBy(asc(rowChanges.seq))
+              .limit(LOG_BATCH),
+          ]),
+        catch: logFailure,
+      })
+      const log = yield* decodeLog({ ...bounds[0], entries }).pipe(Effect.mapError(logFailure))
+      // Trimmed past `after`: the entries after it are gone, so they cannot say.
+      if (log.oldest !== null && after < log.oldest - 1) {
+        return { through: log.newest ?? after, ids: Option.none() }
+      }
+      return {
+        through: log.entries.at(-1)?.seq ?? after,
+        ids: Option.some(log.entries.map(entry => entry.id)),
+      }
+    }),
+}
 
 const Db = bind(Domain, { Todo: { table: todos } })
 
@@ -235,6 +286,9 @@ interface ListedEdge {
 /**
  * The list the page's stream diffs, besides the rows it subscribed to. The
  * page watches one stable id, so this is how a row it has never seen can join.
+ * With a row log, a row the log names joins when the principal can read it
+ * and leaves when it cannot: right for a list of every readable row, as
+ * `AllTodos` is, and not for one that filters.
  */
 interface ListWatch {
   readonly identity: string
@@ -242,6 +296,21 @@ interface ListWatch {
   readonly edges: (
     principal: string,
   ) => Effect.Effect<ReadonlyArray<ListedEdge>, RemoteServerError, DrizzleDatabase>
+}
+
+/** What a log of written rows says: what changed after an entry, and its newest entry. */
+export interface RowLog {
+  readonly head: Effect.Effect<number, RemoteServerError, DrizzleDatabase>
+  readonly since: (after: number) => Effect.Effect<
+    {
+      /** The newest entry read: the next tick asks after it. */
+      readonly through: number
+      /** The rows written after `after`; none when the log no longer reaches back to it. */
+      readonly ids: Option.Option<ReadonlyArray<string>>
+    },
+    RemoteServerError,
+    DrizzleDatabase
+  >
 }
 
 /** A failed list read is a skipped tick, not a dead stream. */
@@ -280,17 +349,18 @@ const picked = (
  * the page ask again once the stream is already open. Later ticks do not
  * invalidate: that would mark the list busy on every change.
  *
- * With `changes`, the table's write count, a tick reads it first and reads
- * nothing else while it has not moved: most ticks are one small query. It is
- * read before the rows it guards, so a write between the two shows on the
- * next tick. A count that cannot be read counts as moved.
+ * With `changes`, a log of the rows each write touched, a tick asks the log
+ * first and reads only the rows it names: none on a quiet tick, which is one
+ * small query. The log is read before the rows it guards, so a write between
+ * the two shows on the next tick. A log that cannot be read, or no longer
+ * reaches back to the last entry read, reads everything, as with no log.
  */
 export const pollLive = (
   binding: EntitySource<string, DrizzleDatabase>,
   options: {
     readonly interval?: Duration.Input | undefined
     readonly list?: ListWatch | undefined
-    readonly changes?: Effect.Effect<number, RemoteServerError, DrizzleDatabase> | undefined
+    readonly changes?: RowLog | undefined
   } = {},
 ): LiveSource<string, DrizzleDatabase> => ({
   entity: binding.entity,
@@ -314,9 +384,8 @@ export const pollLive = (
       Effect.gen(function* () {
         const read = (id: string, fields: ReadonlyArray<string>) =>
           binding.read({ ids: [id], fields: [...fields], principal })
-        const countNow = changes === undefined ? Effect.void : orSkip(changes)
-        // The count the rows were last read at; none reads every tick.
-        let readAt = yield* countNow
+        // The log entry the rows were last read at; none reads every tick.
+        let readAt = changes === undefined ? undefined : yield* orSkip(changes.head)
         // The baseline: what each subscribed row looks like when the
         // subscription opens. A change that landed before it is already in
         // it, so open the stream before the change you wait for.
@@ -380,14 +449,46 @@ export const pollLive = (
           if (marked !== undefined) opening.push(marked)
         }
 
+        /** The rows the log names since the last tick; none to read every row. */
+        const touched = Effect.gen(function* () {
+          if (changes === undefined) return Option.none<ReadonlySet<string>>()
+          const log = readAt === undefined ? undefined : yield* orSkip(changes.since(readAt))
+          if (log === undefined) {
+            // Read everything, from the log's head as it is before the reads.
+            readAt = yield* orSkip(changes.head)
+            return Option.none<ReadonlySet<string>>()
+          }
+          readAt = log.through
+          return Option.map(log.ids, (ids): ReadonlySet<string> => new Set(ids))
+        })
+
+        /** The listed rows of `ids` the principal can read, as a list read would give them. */
+        const loadRows = (ids: ReadonlyArray<string>) =>
+          Effect.gen(function* () {
+            const readable = new Map<string, Readonly<Record<string, unknown>>>()
+            const records = yield* orSkip(
+              binding.read({ ids: [...ids], fields: [...LIST_FIELDS], principal }),
+            )
+            if (records === undefined) return undefined
+            for (const record of records) readable.set(record.id, record.values)
+            const edges = [...readable.keys()].map(id => ({
+              entity: binding.entity,
+              id,
+              key: entityKey(binding.entity, id),
+            }))
+            return { edges, readable }
+          })
+
         const tick = Effect.gen(function* () {
-          const count = yield* countNow
-          if (count !== undefined && count === readAt) return []
-          readAt = count
+          const only = yield* touched
+          if (Option.isSome(only) && only.value.size === 0) return []
+          const reads = (id: string) =>
+            Option.match(only, { onNone: () => true, onSome: ids => ids.has(id) })
           const patches: LivePatch[] = []
           const patched = new Set<string>()
           const deleted = new Set<string>()
           for (const [rowId, fields] of wanted) {
+            if (!reads(rowId)) continue
             const [record] = yield* read(rowId, [...fields])
             const before = previous.get(rowId)
             if (record === undefined) {
@@ -416,8 +517,14 @@ export const pollLive = (
               cursor: (cursor += 1),
             })
           }
-          const loaded = yield* loadList
-          if (loaded === undefined || list === undefined) return patches
+          if (list === undefined) return patches
+          // Only the logged rows, once the list is known; else its whole window.
+          const logged = knownIds === undefined ? Option.none() : only
+          const loaded = yield* Option.match(logged, {
+            onNone: () => loadList,
+            onSome: ids => loadRows([...ids]),
+          })
+          if (loaded === undefined) return patches
           if (knownIds === undefined) {
             seed(loaded)
             const marked = invalidate()
@@ -425,10 +532,24 @@ export const pollLive = (
             return patches
           }
           const current = knownIds
-          const next = new Set<string>()
-          for (const edge of loaded.edges) {
-            if (loaded.readable.has(edge.id) || current.has(edge.id)) next.add(edge.id)
-          }
+          const next = Option.match(logged, {
+            onNone: () => {
+              const listed = new Set<string>()
+              for (const edge of loaded.edges) {
+                if (loaded.readable.has(edge.id) || current.has(edge.id)) listed.add(edge.id)
+              }
+              return listed
+            },
+            // A logged row is listed while the principal can read it.
+            onSome: ids => {
+              const listed = new Set(current)
+              for (const id of ids) {
+                if (loaded.readable.has(id)) listed.add(id)
+                else listed.delete(id)
+              }
+              return listed
+            },
+          })
           for (const id of current) {
             if (!next.has(id) || patched.has(id)) {
               const values = loaded.readable.get(id)
@@ -534,7 +655,7 @@ export const makeServer = () => {
   // Principals are pinned explicitly: every caller is an authenticated actor
   // name, and every field is readable to one.
   const TodoSource = source<string>(Db.Todo)
-  // The body's order, title then id. The page sorts the same way (`order.ts`).
+  // The body's order, title then id, which the page places rows by too.
   const AllTodosSource = query(AllTodos, { entity: Db.Todo })
   const list = AllTodos.ref({}).identity
   // The page subscribes only to LIST_WATCH, so the stream stays open across
@@ -550,7 +671,7 @@ export const makeServer = () => {
           principal,
         }).pipe(Effect.map(page => page.edges)),
     },
-    changes: changeCount,
+    changes: rowLog,
   })
   const written = returning(Db.Todo, ['id', 'title', 'done'])
 

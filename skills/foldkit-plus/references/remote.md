@@ -425,7 +425,10 @@ any disagreement with the server's first page in
 `remote.placementMismatches`. A pending edit (an `optimistic` patch, a
 `Data.overlay`) shows its row placed in what a read shows until it settles,
 and a read or a live `EntityPatched` places a held row in the pages; neither
-brings a row into a list or fetches. A `Query.make` list (no body) is
+brings a row into a list or fetches. A row an insert overlay or a live
+`ConnectionInsert` shows is drawn where the body's order puts it, in a list
+the client can place; `Data.visibleItems(remote, connection)` gives the edges
+as reads draw them (`Remote.visibleItems` is gone). A `Query.make` list (no body) is
 invalidated by any change to its Entity, and a list whose body declares no
 order (the server's `orderBy` decides it) by any change to a row it holds. `Data.refresh` remains for effects the answer does not name.
 

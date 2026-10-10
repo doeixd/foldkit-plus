@@ -47,7 +47,8 @@ const titles = (model: Model): ReadonlyArray<string> =>
   })
 
 const edgeIds = (model: Model): ReadonlyArray<string> => {
-  const segments = snapshotFor(model.remote).connections[AllTodos.ref({}).identity] ?? []
+  const segments =
+    snapshotFor(model.remote, Data.visibleItems).connections[AllTodos.ref({}).identity] ?? []
   return segments.flatMap(segment => segment.map(edge => edge.ref.id))
 }
 
@@ -66,7 +67,10 @@ const storeWith = (
   Effect.runSync(
     Effect.gen(function* () {
       for (const { key, actor, loaded } of stored) {
-        yield* RemotePersistence.save(snapshotFor(loaded.remote), { key, scope: actor })
+        yield* RemotePersistence.save(snapshotFor(loaded.remote, Data.visibleItems), {
+          key,
+          scope: actor,
+        })
       }
       return yield* KeyValueStore.KeyValueStore
     }).pipe(Effect.provide(KeyValueStore.layerMemory)),
@@ -177,7 +181,9 @@ describe('snapshot', () => {
       },
     )
     const watched = succeed(started.model, 'req-watch', LIST_WATCH, 'Watch')
-    expect(snapshotFor(watched.remote).entities[entityKey('Todo', LIST_WATCH)]).toBeUndefined()
+    expect(
+      snapshotFor(watched.remote, Data.visibleItems).entities[entityKey('Todo', LIST_WATCH)],
+    ).toBeUndefined()
     expect(edgeIds(watched)).not.toContain(LIST_WATCH)
     expect(edgeIds(watched)).toContain('milk')
   })
@@ -215,7 +221,9 @@ describe('snapshot', () => {
 
   it('stores an empty page as one empty segment', async () => {
     const loaded = pageOf(initial('ada'), [])
-    expect(snapshotFor(loaded.remote).connections[AllTodos.ref({}).identity]).toEqual([[]])
+    expect(
+      snapshotFor(loaded.remote, Data.visibleItems).connections[AllTodos.ref({}).identity],
+    ).toEqual([[]])
     const model = await restored(storeWith([own('ada', loaded)]), initial('ada'))
     expect(Todos.page(model)._tag).toBe('Refreshing')
     expect(titles(model)).toEqual([])

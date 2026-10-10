@@ -131,7 +131,7 @@ const remoteWiring = Data.wiring({
 export const persistence = Data.persistence({
   key: model => cacheKey(model.actor),
   scope: model => model.actor,
-  snapshot: snapshotFor,
+  snapshot: remote => snapshotFor(remote, Data.visibleItems),
 })
 
 /**

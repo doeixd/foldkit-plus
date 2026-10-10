@@ -66,7 +66,10 @@ const served = (Data: ReturnType<typeof make>, model: Model, ids: ReadonlyArray<
     page: { edges: edges(ids), start: { _tag: 'Terminal' }, end: { _tag: 'Terminal' } },
   })
 
-const order = (remote: RemoteModel) => Remote.visibleItems(remote, list).map(edge => edge.ref.id)
+const order = (remote: RemoteModel) =>
+  make(false)
+    .visibleItems(remote, list)
+    .map(edge => edge.ref.id)
 
 describe('verifyPlacement', () => {
   it('places, and also fetches the list, keeping the order it placed', () => {

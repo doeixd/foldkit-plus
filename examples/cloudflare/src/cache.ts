@@ -1,6 +1,5 @@
 /** What the browser keeps of the list, per actor: `app.ts`'s `persistence` stores it. */
 import {
-  Remote,
   RemotePersistence,
   entityKey,
   type Edge,
@@ -30,20 +29,24 @@ const withoutWatch = (snapshot: Snapshot): Snapshot => {
 }
 
 /**
- * The server's rows for `AllTodos`. A live insert stays an overlay, so the
- * connection's own segments would drop a row another tab wrote; the visible edges
- * are what the page shows. A connection that was never loaded is left out.
- * One that loaded empty keeps one empty segment, so the next visit can say
- * there is nothing to do instead of loading.
+ * The server's rows for `AllTodos`, as the page shows them: a live insert
+ * stays an overlay, so the connection's own segments would drop a row another
+ * tab wrote, and `shown` (the domain's `visibleItems`) draws it in its place.
+ * A connection that was never loaded is left out. One that loaded empty keeps
+ * one empty segment, so the next visit can say there is nothing to do instead
+ * of loading.
  */
-export const snapshotFor = (remote: RemoteModel): Snapshot => {
+export const snapshotFor = (
+  remote: RemoteModel,
+  shown: (remote: RemoteModel, connection: string) => ReadonlyArray<Edge>,
+): Snapshot => {
   const ref = AllTodos.ref({})
   const base = RemotePersistence.snapshotOf(remote, { connections: [ref.identity] })
   const identity = ref.identity
   if (base.connections[identity] === undefined) return withoutWatch(base)
   // The watch id is not a todo. An edge kept after its entity is stripped
   // cannot assemble, and the whole list fails.
-  const edges = Remote.visibleItems(remote, identity).filter(
+  const edges = shown(remote, identity).filter(
     edge => edge.ref.id !== LIST_WATCH && inStore(remote, edge),
   )
   return withoutWatch({

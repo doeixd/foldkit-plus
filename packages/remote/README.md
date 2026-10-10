@@ -1359,6 +1359,16 @@ the row back. A read or a live `EntityPatched` that brings a new value for a
 row a list holds moves it in the list's pages, as an answer does. Neither
 brings a row into a list, since what the list selects of it may not be
 loaded, and neither fetches: a list it cannot place stands as it is.
+
+**An inserted row is drawn in order.** A `ConnectionChange.prepend` or
+`append` (a pending create's, a confirmed one's) and a live
+`ConnectionInsert` say a row is in a list; they do not say where. In a list
+the client can place, a read draws the row where the body's order puts it,
+or leaves it out when it sorts past what is loaded; one it cannot place (a
+field the order reads is missing, the order is the server's) stays at the end
+its change names. `Data.visibleItems(remote, connection)` gives a list's edges
+as its reads draw them, for a persistence `snapshot` that stores a list as
+shown.
 `Data.refresh` stays for what an answer cannot say, such as a server-side
 effect on rows it did not return.
 
@@ -1964,7 +1974,7 @@ const ref = Query.first(25)(ProjectsByOwner.ref({ ownerId }))
 const page = yield* Remote.query(ref)
 
 updateRemote(remote, Remote.queryMessage(ref, page))
-Remote.visibleItems(remote, ref)
+Data.visibleItems(remote, ref)
 ```
 
 `items`, `hasNext`, `hasPrevious`, and `isGapped` describe the known region.

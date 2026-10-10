@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote`: an inserted row is drawn where its list's order puts
+  it.** A `prepend`/`append` connection change and a live `ConnectionInsert`
+  say a row is in a list, not where; in a list the client can place, a read
+  draws it in order, or leaves it out past a `Cursor`. One it cannot place
+  stays at the end its change names. **Breaking:** `Remote.visibleItems` is
+  replaced by `Data.visibleItems(remote, connection)`, which draws a list as
+  its reads do. `examples/cloudflare` drops `orderedPage`, its own sort of the
+  page.
 - **`examples/entity`, `examples/registry`: `verifyPlacement` is on in
   development and tests** (`import.meta.env.DEV`). The entity HTTP test checks
   a rename against SQLite's order, and every registry page test asserts no
@@ -62,12 +70,14 @@ version changed; `pnpm` skips versions already in the registry.
   on the server, say), by fields the client cannot see, so a change it judged
   harmless could have moved the row. It was kept before, and the row showed
   its new value in its old place.
-- **`examples/cloudflare`: a quiet tick of the live poll reads one row.**
-  Triggers keep a write count of `todos` (`migrations/0002_changes.sql`); the
-  poll reads it first and re-reads the rows and the list only when it moved.
-  `pollLive` takes an options object (`interval`, `list`, `changes`). The
-  local stack runs the migration files rather than repeating them. Apply the
-  migration before deploying the worker; until then it reads every tick.
+- **`examples/cloudflare`: a tick of the live poll reads only the rows
+  written since the last.** Triggers log each row a write touches
+  (`migrations/0003_row_changes.sql`, the last 1000 entries); the poll asks
+  the log first, re-reads only those rows, and reads the list's window only
+  when the stream opens. `pollLive` takes an options object (`interval`,
+  `list`, `changes`, a `RowLog`). The local stack runs the migration files
+  rather than repeating them. Apply the migrations before deploying the
+  worker; until then it reads every tick.
 - **`examples/registry`: the rows the grid draws follow the table live.** The
   journal's writes are told to a hub (`applyEdits(Db.Product, { live })`); the
   dev server answers through `serveFetch`, live streams included, and the

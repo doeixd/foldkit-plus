@@ -110,9 +110,11 @@ import {
   visibleItems,
   visibleStore,
   type ConnectionIdentity,
+  type ConnectionOverlay,
   type OptimisticState,
   type OptimisticOperation,
 } from './optimistic.js'
+import { RowPlace, placeIn, withEdge } from './placement.js'
 import { deadlineOf, plan, type Deadline, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { IDENTITY_SEPARATOR, stableStringify } from './query.js'
@@ -557,6 +559,14 @@ export interface RemoteDomain<
    * against.
    */
   overlays(model: AppModel): ReadonlyArray<string>
+  /**
+   * The edges a connection shows, as its reads draw them: the server's pages
+   * with pending edits placed, each inserted row where the body's order puts
+   * it (or at the end its overlay names, when it cannot be placed), minus
+   * removed edges and tombstones. Takes the `RemoteModel`, so a persistence
+   * `snapshot` can store a list as it is shown.
+   */
+  visibleItems(remote: RemoteModel, connection: ConnectionIdentity): ReadonlyArray<Edge>
   /** `Remote.refresh`: marks what a projection or a Surface requires as due, for its read entry to refetch. */
   refresh(
     model: AppModel,
@@ -2487,21 +2497,6 @@ export const Remote = {
     now?: number | undefined,
   ): RemoteMessage => pageMessage(ref.identity, result, false, ref.window, select, now),
 
-  /**
-   * The edges a connection shows: its server-known region with pending and
-   * confirmed overlays placed around it, minus removed edges and edges whose
-   * target is a tombstone.
-   */
-  visibleItems: (model: RemoteModel, connection: ConnectionIdentity): ReadonlyArray<Edge> => {
-    const identity = connectionIdentity(connection)
-    return visibleItems(
-      model.connections[identity] ?? emptyConnection,
-      identity,
-      model.optimistic.overlays,
-      model.entities,
-    )
-  },
-
   /** A pure, serializable view of the whole cache. */
   inspect: inspectRemote,
 
@@ -2781,6 +2776,73 @@ const bindDomain = <
         visibleStoreOf(remote.entities, remote.optimistic),
       ),
     )
+  }
+
+  /**
+   * The edges a loaded list shows: its pages with pending edits placed, and
+   * each row an insert overlay shows (a pending create, a confirmed or a live
+   * insert) where the body's order puts it, or left out when it sorts past
+   * what is loaded. An overlay says a row is in the list; in a list the
+   * client can place, the order says where. A row it cannot place stays at
+   * the end its overlay names.
+   */
+  const shownEdges = (
+    remote: RemoteModel,
+    identity: string,
+    connection: Connection,
+  ): ReadonlyArray<Edge> => {
+    const pages = pendingPlaced(remote, identity, connection)
+    const inserts = remote.optimistic.overlays.some(
+      overlay => overlay.connection === identity && overlay.position !== 'remove',
+    )
+    const shown = inserts
+      ? insertsPlaced(remote, identity, pages)
+      : { pages, overlays: remote.optimistic.overlays }
+    return visibleItems(shown.pages, identity, shown.overlays, remote.entities)
+  }
+
+  const insertsPlaced = (
+    remote: RemoteModel,
+    identity: string,
+    pages: Connection,
+  ): { readonly pages: Connection; readonly overlays: ReadonlyArray<ConnectionOverlay> } => {
+    const { overlays } = remote.optimistic
+    const store = visibleStoreOf(remote.entities, remote.optimistic)
+    return memoRead([pages, overlays, store], `inserted:${identity}`, () => {
+      const query = queryOf(identity)
+      const body = Option.isSome(query) ? query.value.descriptor.body : undefined
+      if (Option.isNone(query) || body === undefined) return { pages, overlays }
+      // A row a later remove hides is placed too: `visibleItems` hides it
+      // wherever it is.
+      const inserted = new Map<string, Edge>()
+      for (const overlay of overlays) {
+        if (overlay.connection !== identity || overlay.position === 'remove') continue
+        for (const edge of overlay.edges) inserted.set(edge.key, edge)
+      }
+      const held = new Set(items(pages).map(edge => edge.key))
+      let placed = pages
+      const outside: Array<Edge> = []
+      for (const edge of inserted.values()) {
+        if (held.has(edge.key)) continue
+        const key = entityKey(edge.ref.entity, edge.ref.id)
+        RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key), {
+          Before: place => void (placed = withEdge(placed, edge, place)),
+          End: place => void (placed = withEdge(placed, edge, place)),
+          Outside: () => void outside.push(edge),
+          Unknown: () => undefined,
+        })
+      }
+      return {
+        pages: placed,
+        overlays:
+          outside.length === 0
+            ? overlays
+            : [
+                ...overlays,
+                { id: 'placed:outside', connection: identity, edges: outside, position: 'remove' },
+              ],
+      }
+    })
   }
 
   /**
@@ -3097,16 +3159,7 @@ const bindDomain = <
       // a picker's `first: 50` and a Block's `first: 3` of one query share it.
       const sizeOf = (remote: RemoteModel) => windowSize(remote, ref)
       const shown = (remote: RemoteModel, connection: Connection) =>
-        cutToWindow(
-          visibleItems(
-            pendingPlaced(remote, ref.identity, connection),
-            ref.identity,
-            remote.optimistic.overlays,
-            remote.entities,
-          ),
-          ref.window,
-          sizeOf(remote),
-        )
+        cutToWindow(shownEdges(remote, ref.identity, connection), ref.window, sizeOf(remote))
       // The first failed field among the rows a list shows, if any. Decided
       // outside the memo, which is keyed on what the rows are read from: a
       // failure can arrive without any of it changing.
@@ -3367,14 +3420,7 @@ const bindDomain = <
       const connection = remote.connections[over.ref.identity]
       const visible = visibleStoreOf(remote.entities, remote.optimistic)
       const edges =
-        connection === undefined
-          ? []
-          : visibleItems(
-              pendingPlaced(remote, over.ref.identity, connection),
-              over.ref.identity,
-              remote.optimistic.overlays,
-              remote.entities,
-            )
+        connection === undefined ? [] : shownEdges(remote, over.ref.identity, connection)
       const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))
       let judged: Judged
       try {
@@ -3428,6 +3474,10 @@ const bindDomain = <
     overlay: (model, id, optimistic) => reduce(model, { _tag: 'OverlayShown', id, optimistic }),
     lift: (model, id) => reduce(model, { _tag: 'OverlayLifted', id }),
     overlays: model => overlaysOf(store.get(model)),
+    visibleItems: (remote, connection) => {
+      const identity = connectionIdentity(connection)
+      return shownEdges(remote, identity, remote.connections[identity] ?? emptyConnection)
+    },
     mutate: (model, mutation, input, options = {}) => {
       assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
       const remote = store.get(model)

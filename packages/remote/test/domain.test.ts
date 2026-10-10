@@ -212,7 +212,7 @@ describe('Data.mutate starts a mutation from update', () => {
     expect(started.model.remote.optimistic.overlays.map(overlay => overlay.connection)).toEqual([
       'Feed',
     ])
-    expect(Remote.visibleItems(started.model.remote, 'Feed').map(edge => edge.ref.id)).toEqual([
+    expect(Data.visibleItems(started.model.remote, 'Feed').map(edge => edge.ref.id)).toEqual([
       'remote-1.tmp',
     ])
   })

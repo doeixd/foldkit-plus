@@ -572,7 +572,8 @@ intact.
   own (a missing trigger fails the miniflare Sync test), and the poll reads
   it first, re-reading only when it moved. Workers still poll; a quiet tick
   is one row. A log by id is worth building when a page follows many rows
-  directly.
+  directly. (Phase 11 built it, once the client placed joining rows: the
+  window no longer needs re-reading to find them.)
 - **Not built:** remote-drizzle's `transaction(...)` for handlers, and one
   live event per transaction (live events are per entity; a batch event is a
   new wire variant). A declared write is one statement, so it is atomic
@@ -1188,8 +1189,8 @@ pending edits and news):
   that filters on nothing; and a row whose order moved it in from past a
   `Cursor` stayed out. `EntityChange.Changed` carries `created`, and a list
   with rows not loaded judges a row it does not hold when its order changes.
-  A pending create still shows by `prepend`, and the page still draws in
-  `orderItems` order for it and for other tabs' live inserts (Phase 11).
+  A pending create still showed by `prepend`, and the page drew in
+  `orderItems` order for it and for other tabs' live inserts, until Phase 11.
 - **The shadow check runs in the examples' integration tests, not the e2e
   suites.** A drifting collation shows only against the real backend, and
   the entity HTTP test and the registry page tests already run SQLite; the
@@ -1216,6 +1217,36 @@ pending edits and news):
   rows.
 - **Exit:** the registry's and the entity example's live lists reorder with
   no refetch; cloudflare's tick reads only the rows that changed.
+
+**As built.** The client places, not the server: once Phase 10 placed a
+held row by its order, what a server-sent position would add is only for
+lists the client cannot place, and no live list here is one.
+
+- **An inserted row is drawn where its list's order puts it.** A `prepend`
+  or `append` connection change and a live `ConnectionInsert` say a row is
+  in a list, not where. A read places each such row among the pages it shows
+  (a working copy, memoized like pending edits), leaves out one that sorts
+  past a `Cursor`, and keeps at the named end one it cannot place. So a
+  pending create, a confirmed one and another tab's insert all draw in
+  order, and cloudflare's `orderedPage` and `order.ts` are gone; its order
+  test now runs the same cases through Remote.
+- **`Data.visibleItems` replaces `Remote.visibleItems`.** The static one knew
+  no body, so it drew inserts at their ends while reads drew them in order:
+  two answers to one question. The bound one draws as reads do; cloudflare's
+  persistence snapshot stores a list through it.
+- **Live lists reorder with no refetch.** The registry's live rows move
+  through Phase 10's placement of news, and the entity example has no live
+  list. Cloudflare's joins are sent as `prepend` and drawn in order.
+- **Cloudflare reads only the rows written.** `migrations/0003_row_changes.sql`
+  logs each touched id (the last 1000), replacing the write count. A tick
+  asks the log, then re-reads those rows alone; the list's window is read
+  only when the stream opens. A logged row the subscriber can read is in
+  `AllTodos`, which lists every row; a list that filters would need its
+  membership judged, which `ListWatch` says. A log that cannot be read, or
+  no longer reaches back, reads everything, as before.
+- **Not built: `ConnectionInsert` `after(edge)` and hub placement per
+  subscriber.** Gated on a live list the client cannot place: a server
+  `orderBy`, or a `Locale` collation SQLite cannot compile.
 
 #### Phase 12: authorization and derived members as data (gated)
 

@@ -54,20 +54,21 @@ write path (`hub.changed(...)` in `settle`) reaches nobody on a Worker.
 What does cross requests is D1. So `TodoLive` is a `LiveSource` that polls D1
 **from inside the subscriber's own request**, re-reading each subscribed row
 through the entity's own source under the subscriber's principal, and emitting
-a patch for what moved. It also re-reads the `AllTodos` window, so an id that
-joins or leaves is a connection event. The page subscribes to that stream
+a patch for what moved. It also watches the `AllTodos` list, so an id that
+joins or leaves is a connection event; the page draws a joining row where the
+list's order puts it. The page subscribes to that stream
 (`Remote.httpWithLive`) on one stable id, not on every row, so a local edit
 does not restart it.
 
 Schematic. `makeServer` passes the list watch as `list`: its `identity` is
 `AllTodos`, its `watchId` is the page's stable id, and `edges` runs that query
-for the subscriber's principal. `changes` is the table's write count.
+for the subscriber's principal. `changes` is the table's row log.
 
 ```ts
 server = RemoteServer.make({
   entities: [TodoSource],
   queries: [AllTodosSource],
-  live: [pollLive(TodoSource, { list: { identity, watchId, edges }, changes: changeCount })],
+  live: [pollLive(TodoSource, { list: { identity, watchId, edges }, changes: rowLog })],
 })
 ```
 
@@ -75,12 +76,17 @@ A server process that owns both sides (Node, a long-lived VM) can use
 `RemoteServer.liveHub` instead; `examples/kitchen-sink` does. The example would
 rather show what deploys.
 
-Most ticks read one row. `migrations/0002_changes.sql` keeps a write count of
-`todos` in `todo_changes` with triggers, so every path that writes the table (a
-Remote mutation, a declared write, the journal's `settle`) counts with no code
-of its own. Each tick reads the count first and re-reads the rows and the
-window only when it moved; a count that cannot be read, as before the
-migration is applied, counts as moved. The interval stays a knob (`'250
+A tick reads only the rows written since the last one.
+`migrations/0003_row_changes.sql` logs the id of each row a write to `todos`
+touches in `todo_row_changes`, with triggers, so every path that writes the
+table (a Remote mutation, a declared write, the journal's `settle`) is logged
+with no code of its own; the last 1000 entries are kept. Each tick asks the
+log what follows the entry it last read and re-reads those rows alone: a quiet
+tick is one small query, and the window is read only when the stream opens. A
+logged row the subscriber can read is in the list, and one that is gone has
+left it, which holds because `AllTodos` lists every row. A log that cannot be
+read, as before the migration is applied, or that no longer reaches back to
+the last entry, reads everything, as before. The interval stays a knob (`'250
 millis'` by default). The subscribed fields are the ones the subscriber
 selected, and the list watch reads `id`, `title`, and `done` for the page's
 window. `settle` stays unconditional and crash-safe: `journal.recover` makes

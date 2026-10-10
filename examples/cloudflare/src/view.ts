@@ -22,7 +22,6 @@ import {
   type Model,
   type TodoItem,
 } from './app.js'
-import { orderedPage } from './order.js'
 
 /** Busy words fade in only once the wait has lasted. The line's box is page.css. */
 const held = Loading.shown
@@ -124,9 +123,8 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
 const rows = (model: Model, h: HtmlBuilder<Message>): Html =>
   TodoRows(
     {
-      // A prepended row is membership, not a place. This is the query's order,
-      // so a live insert does not move it.
-      page: orderedPage(Todos.page(model)),
+      // Remote draws each row where `AllTodos`' order puts it, an inserted one too.
+      page: Todos.page(model),
       onMore: Message.RequestedMoreTodos(),
       onRetry: Message.RetriedTodos(),
       words: { empty: 'Nothing to do.', loading: 'Loading…' },
