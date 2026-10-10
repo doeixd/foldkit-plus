@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/entity`: the post edit is a declared write.** `EditPost` is
+  `Mutation.write` over `Write.update`, its editor relation included, and the
+  server serves it with `RemoteServer.write(..., writer(Db.Post))`; the Drizzle
+  handler goes. The delete stays a handler: it removes the post's comments too.
 - **`examples/cloudflare`: rename and toggle are declared writes.** Their
   Drizzle handlers and hand-built optimistic patches are gone:
   `Mutation.write` and `RemoteServer.write(..., writer(Db.Todo))` say the

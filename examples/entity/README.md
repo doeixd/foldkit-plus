@@ -11,7 +11,7 @@ One domain declaration, read from both ends and written back through a form:
    demo.ts + editForm.ts        server.ts
    Remote.make({ entities })        bind(Blog, { tables })
    Data.get(PostPage, id)           Drizzle sources, RemoteServer
-   Form.make(Entity.input(…))       RemoteServer.mutation(EditPost)
+   Form.make(Entity.input(…))       RemoteServer.write(EditPost, writer)
    Crud.editor({ form, mutation })  query(PostsQuery), query(AuthorsQuery)
    Crud.list({ query, selection })
               |                     |
@@ -134,9 +134,13 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised" (refetching)
   into `Data.mutate`, and **`status`** reading Remote's own mutation state. The
   form knows nothing of Remote. The editor was picked from the choices.
 - **`row after`** is the database itself: `headline`, `published`, and
-  `editor_id` changed by an ordinary Drizzle `update`.
+  `editor_id` changed by one `update`. `EditPost` is a declared write
+  (`Mutation.write` over `Write.update`), so the server has no handler for it:
+  `RemoteServer.write(EditPostMutation, writer(Db.Post))` sets the columns and
+  the editor's foreign key from the binding, and only the keys the form
+  changed.
 - **`edited`**, **`author again`** and **`post list again`** moved without a refetch. The mutation
-  returned patches for the columns it wrote, and both Projections read the one
+  answered with the columns it wrote, and both Projections read the one
   normalized post. The list is also marked to be fetched again: the save
   changed a title, and `Posts` is a `Query.make` query, which declares no body
   Remote could judge its order by, so the server says where the row now sits.

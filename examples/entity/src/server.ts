@@ -8,7 +8,15 @@ import { eq, like } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
-import { bind, databaseLayer, query, returning, source, sortTerms } from 'foldkit-remote-drizzle'
+import {
+  bind,
+  databaseLayer,
+  query,
+  returning,
+  source,
+  sortTerms,
+  writer,
+} from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Blog, PostId } from './domain.js'
 import {
@@ -77,17 +85,9 @@ export const openServer = () => {
   `)
   const db = drizzle({ client: sqlite })
 
-  const edited = returning(Db.Post, ['id', 'title', 'published', 'editor'])
-  const EditPost = RemoteServer.mutation(EditPostMutation, ({ input }) =>
-    Effect.promise(async () => {
-      const rows = await db
-        .update(posts)
-        .set({ headline: input.title, published: input.published, editorId: input.editorId })
-        .where(eq(posts.id, input.id))
-        .returning(edited.columns)
-      return { output: { id: input.id }, entities: edited.patches(rows) }
-    }),
-  )
+  // A declared write: the binding's writer sets the post's columns and the
+  // editor's foreign key, and answers the row as written.
+  const EditPost = RemoteServer.write(EditPostMutation, writer(Db.Post))
 
   // The nested write: the author first, then the post that points at them. Both
   // come back as patches, so the client's store has the new post and its author.

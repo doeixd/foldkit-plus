@@ -4,14 +4,20 @@
  * submitted value is this mutation's input by construction.
  */
 import { Schema } from 'effect'
+import { Entity, Write } from 'foldkit-entity'
 import { Sort } from 'foldkit-crud'
 import { Mutation, Query } from 'foldkit-remote'
 import { Blog, EditPostInput, PostId, WritePostInput } from './domain.js'
 
-export const EditPostMutation = Mutation.make('EditPost', {
-  Input: EditPostInput,
-  Output: { id: PostId },
-})
+/**
+ * A declared write: the post's fields, and the `editor` relation the `editorId`
+ * key points. The page shows it before the server answers, and the server
+ * writes it with no handler of its own.
+ */
+export const EditPostMutation = Mutation.write(
+  'EditPost',
+  Write.update(Entity.input(Blog.Post, EditPostInput, { editorId: 'editor' }), { id: 'id' }),
+)
 
 /**
  * The orders the post list offers, by name. The client toggles them and the
