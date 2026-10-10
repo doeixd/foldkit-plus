@@ -6,7 +6,7 @@
  * kind, and the binding refuses it.
  */
 import { Schema } from 'effect'
-import { Entity } from 'foldkit-entity'
+import { Collation, Entity } from 'foldkit-entity'
 
 const TodoEntity = Entity.define(
   'Todo',
@@ -15,6 +15,10 @@ const TodoEntity = Entity.define(
     title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
     done: Schema.Literals([0, 1]),
   }),
+).pipe(
+  // D1 compares TEXT as BINARY over UTF-8, code-point order, said so a client
+  // can place a todo where the list's order puts it.
+  Entity.annotateMembers({ title: Collation.of(Collation.binary) }),
 )
 
 export const Domain = Entity.relate({ Todo: TodoEntity }, { Todo: {} })

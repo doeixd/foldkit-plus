@@ -30,8 +30,8 @@ const withoutWatch = (snapshot: Snapshot): Snapshot => {
 }
 
 /**
- * The server's rows for `AllTodos`. Confirmed inserts stay overlays, so the
- * connection's own segments would drop a row just written; the visible edges
+ * The server's rows for `AllTodos`. A live insert stays an overlay, so the
+ * connection's own segments would drop a row another tab wrote; the visible edges
  * are what the page shows. A connection that was never loaded is left out.
  * One that loaded empty keeps one empty segment, so the next visit can say
  * there is nothing to do instead of loading.

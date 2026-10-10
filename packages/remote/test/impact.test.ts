@@ -150,6 +150,19 @@ const loaded = (): Model => {
   })
 }
 
+/** Rows the client read, without any list. */
+const stored = (model: Model, entities: ReadonlyArray<NormalizedPatch>): Model =>
+  Data.reduce(model, {
+    _tag: 'ReadReceived',
+    requests: entities.map(row => ({
+      entity: row.entity,
+      id: row.id,
+      fields: Object.keys(row.values),
+    })),
+    result: { settled: [], entities: [...entities] },
+    now: 0,
+  })
+
 let sequence = 0
 /** A mutation's answer arriving, with these patches and deletions. */
 const answered = (
@@ -204,6 +217,11 @@ describe('A list whose body proves the write left it as it was', () => {
   it('is kept when a row it does not hold changed only an ordering field', () => {
     const repriced = answered(loaded(), [patch('p3', { price: 5 })])
     expect(stale(repriced, active.ref.identity)).toBe(false)
+    // Loaded whole, it holds every row that matches, so it is not judged:
+    // `p8`, whose status the client lacks, would otherwise be past judging.
+    const known = stored(loaded(), [patch('p8', { price: 40 })])
+    const unjudged = answered(known, [patch('p8', { price: 5 })])
+    expect(stale(unjudged, active.ref.identity)).toBe(false)
   })
 
   it('is kept when the write was to another Entity', () => {
@@ -288,6 +306,53 @@ describe('A list the client places the change in, fetching nothing', () => {
     expect(shown(repriced, active.ref.identity)).toEqual({ ids: ['p2'], stale: false })
   })
 
+  it('gains a row new to the client, though it filters on nothing', () => {
+    const created = answered(loaded(), [
+      patch('p5', { id: 'p5', name: 'Dawn', status: 'active', price: 15 }),
+    ])
+    expect(shown(created, byPrice.ref.identity)).toEqual({
+      ids: ['p1', 'p5', 'p2', 'p3'],
+      stale: false,
+    })
+  })
+
+  it('gains a row it does not hold whose order moves it in from past what it has loaded', () => {
+    const rows = loaded().remote
+    const partial = Data.reduce(
+      { remote: { ...rows, connections: {} } },
+      {
+        _tag: 'ConnectionMerged',
+        connection: byPrice.ref.identity,
+        page: {
+          edges: ['p1', 'p2'].map(id => ({ key: `Project:${id}`, ref: { entity: 'Project', id } })),
+          start: { _tag: 'Terminal' },
+          end: { _tag: 'Cursor', cursor: 'after-p2' },
+        },
+      },
+    )
+    const cheaper = answered(partial, [patch('p3', { price: 15 })])
+    expect(shown(cheaper, byPrice.ref.identity)).toEqual({ ids: ['p1', 'p3', 'p2'], stale: false })
+  })
+
+  it('does not gain a row that moves in from past what it has loaded but does not match', () => {
+    const rows = loaded().remote
+    const partial = Data.reduce(
+      { remote: { ...rows, connections: {} } },
+      {
+        _tag: 'ConnectionMerged',
+        connection: active.ref.identity,
+        page: {
+          edges: ['p1', 'p2'].map(id => ({ key: `Project:${id}`, ref: { entity: 'Project', id } })),
+          start: { _tag: 'Terminal' },
+          end: { _tag: 'Cursor', cursor: 'after-p2' },
+        },
+      },
+    )
+    // p3 is archived: cheaper now, and still not an active project.
+    const cheaper = answered(partial, [patch('p3', { price: 15 })])
+    expect(shown(cheaper, active.ref.identity)).toEqual({ ids: ['p1', 'p2'], stale: false })
+  })
+
   it('places each change of one answer against the list the last one left', () => {
     const both = answered(loaded(), [
       patch('p1', { price: 50 }),
@@ -358,9 +423,11 @@ describe('A list the write may have changed', () => {
     const before = loaded()
     const archived = answered(before, [patch('p1', { status: 'archived' })])
     expect(archived.remote.refresh.generation).toBe(before.remote.refresh.generation + 1)
-    // A write no list depends on restarts nothing.
-    const owner = answered(before, [{ entity: 'Owner', id: 'o1', values: { name: 'Ada' } }])
-    expect(owner.remote.refresh.generation).toBe(before.remote.refresh.generation)
+    // A write no list depends on restarts nothing: an owner the client holds,
+    // and no list shows, renamed in a list loaded whole.
+    const known = stored(before, [{ entity: 'Owner', id: 'o1', values: { name: 'Ada' } }])
+    const owner = answered(known, [{ entity: 'Owner', id: 'o1', values: { name: 'Grace' } }])
+    expect(owner.remote.refresh.generation).toBe(known.remote.refresh.generation)
   })
 })
 

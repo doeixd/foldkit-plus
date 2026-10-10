@@ -298,11 +298,13 @@ describe('cloudflare example', () => {
       return body
     }
 
-    await mutate({
+    const answer = await mutate({
       requestId: 'm-create',
       mutation: 'CreateTodo',
       input: { id: 't-remote', title: 'Peas' },
     })
+    // It names no list: the client places the row by the list's body.
+    expect(JSON.stringify(answer.result)).not.toContain('prepend')
     expect(await queryTodos(remote, { first: 50 })).toContain('t-remote')
     const created = await readTodo(remote, 't-remote', ['title', 'done'])
     expect(created.entities).toEqual([

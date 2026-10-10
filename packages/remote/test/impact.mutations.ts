@@ -30,7 +30,13 @@ export default [
   },
   {
     name: 'a change to no field a list reads is judged anyway',
-    edits: [{ file: impact, find: 'if (!reorders && !refilters) return kept', replace: '' }],
+    edits: [
+      {
+        file: impact,
+        find: 'if (!(held && reorders) && !refilters && !joins) return kept',
+        replace: '',
+      },
+    ],
     tests,
   },
   {
@@ -38,7 +44,7 @@ export default [
     edits: [
       {
         file: impact,
-        find: 'const reorders = held && touches(dependenciesOf(...order).fields)',
+        find: 'const reorders = touches(dependenciesOf(...order).fields)',
         replace: 'const reorders = false',
       },
     ],
@@ -49,8 +55,8 @@ export default [
     edits: [
       {
         file: impact,
-        find: 'const reorders = held && touches(dependenciesOf(...order).fields)',
-        replace: 'const reorders = touches(dependenciesOf(...order).fields)',
+        find: 'if (!(held && reorders) && !refilters && !joins) return kept',
+        replace: 'if (!reorders && !refilters && !joins) return kept',
       },
     ],
     tests,
@@ -182,6 +188,49 @@ export default [
         replace: 'if (body.orderBy.length === 0) {',
       },
     ],
+    tests,
+  },
+  {
+    name: 'a row new to the client joins no list it filters nothing for',
+    edits: [
+      {
+        file: impact,
+        find: 'const joins = !held && (created || (reorders && unloaded))',
+        replace: 'const joins = !held && reorders && unloaded',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row past a cursor cannot move into the loaded rows',
+    edits: [
+      {
+        file: impact,
+        find: 'const joins = !held && (created || (reorders && unloaded))',
+        replace: 'const joins = !held && created',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a list loaded whole judges a row it does not hold',
+    edits: [
+      {
+        file: impact,
+        find: 'const unloaded = hasPrevious(pages) || hasNext(pages) || isGapped(pages)',
+        replace: 'const unloaded = true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row a list does not hold is taken to belong',
+    edits: [{ file: impact, find: "held && !refilters ? 'yes'", replace: "!refilters ? 'yes'" }],
+    tests,
+  },
+  {
+    name: 'every row is new to the client',
+    edits: [{ file: impact, find: 'created: held === undefined,', replace: 'created: true,' }],
     tests,
   },
 ]

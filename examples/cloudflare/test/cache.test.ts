@@ -56,7 +56,6 @@ const succeed = (model: Model, requestId: string, id: string, title: string): Mo
     _tag: 'MutationSucceeded',
     requestId,
     entities: [{ entity: 'Todo', id, values: { id, title, done: 0 } }],
-    connections: [ConnectionChange.prepend(AllTodos.ref({}), Remote.ref(Todo, id))],
     now: 1,
   })
 
@@ -132,22 +131,23 @@ describe('snapshot', () => {
     expect(edgeIds(started.model)).toContain('milk')
   })
 
-  it('keeps a confirmed insert, which lives in an overlay', () => {
+  it('keeps a confirmed insert, placed by its title', () => {
     const loaded = pageOf(initial('ada'), [{ id: 'milk', title: 'Milk', done: 0 }])
     const started = Data.mutate(
       loaded,
       CreateTodo,
-      { id: 'confirmed', title: 'Confirmed' },
+      { id: 'zest', title: 'Zest' },
       {
         requestId: 'req-confirmed',
         optimistic: [
-          Remote.patch(Todo, 'confirmed', { id: 'confirmed', title: 'Confirmed', done: 0 }),
-          ConnectionChange.prepend(AllTodos.ref({}), Remote.ref(Todo, 'confirmed')),
+          Remote.patch(Todo, 'zest', { id: 'zest', title: 'Zest', done: 0 }),
+          ConnectionChange.prepend(AllTodos.ref({}), Remote.ref(Todo, 'zest')),
         ],
       },
     )
-    const confirmed = succeed(started.model, 'req-confirmed', 'confirmed', 'Confirmed')
-    expect(edgeIds(confirmed)).toContain('confirmed')
+    // Shown first while pending; placed after Milk once the server has it.
+    const confirmed = succeed(started.model, 'req-confirmed', 'zest', 'Zest')
+    expect(edgeIds(confirmed)).toEqual(['milk', 'zest'])
   })
 
   it('omits a tombstoned row', () => {

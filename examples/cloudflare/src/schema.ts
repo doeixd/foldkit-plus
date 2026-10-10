@@ -534,14 +534,8 @@ export const makeServer = () => {
   // Principals are pinned explicitly: every caller is an authenticated actor
   // name, and every field is readable to one.
   const TodoSource = source<string>(Db.Todo)
-  const AllTodosSource = query(AllTodos, {
-    entity: Db.Todo,
-    // Title, then id. The page sorts the same way (`order.ts`).
-    orderBy: [
-      { column: todos.title, direction: 'asc' },
-      { column: todos.id, direction: 'asc' },
-    ],
-  })
+  // The body's order, title then id. The page sorts the same way (`order.ts`).
+  const AllTodosSource = query(AllTodos, { entity: Db.Todo })
   const list = AllTodos.ref({}).identity
   // The page subscribes only to LIST_WATCH, so the stream stays open across
   // local edits. This re-read is how another tab's row joins or leaves.
@@ -575,11 +569,8 @@ export const makeServer = () => {
       // No row back means the id was already there: answer with the row as it is.
       const entities =
         inserted.length > 0 ? written.patches(inserted) : yield* returning.row(Db.Todo, input.id)
-      return {
-        output: { id: input.id },
-        entities,
-        connections: [RemoteServer.prepend(list, { entity: 'Todo', id: input.id })],
-      }
+      // No list named: the client places the row by the list's body.
+      return { output: { id: input.id }, entities }
     }),
   )
 

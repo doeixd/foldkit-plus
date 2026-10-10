@@ -5,14 +5,14 @@
  * stored row are the same one.
  */
 import { Schema } from 'effect'
-import { Entity, Write } from 'foldkit-entity'
+import { Entity, Order, Write } from 'foldkit-entity'
 import { Mutation, Query } from 'foldkit-remote'
 import { Todo } from './domain.js'
 
-export const AllTodos = Query.make('AllTodos', {
-  Input: Schema.Struct({}),
-  Result: Query.connection(Todo),
-})
+/** Every todo by title, ties by id: the body D1 is asked for, and the client places by. */
+export const AllTodos = Query.define('AllTodos', {}, () =>
+  Query.from(Todo).pipe(Query.orderBy(Order.asc(Todo.fields.title))),
+)
 
 /** The page and the live list watch share this window, so neither can drift. */
 export const TODO_PAGE_SIZE = 100

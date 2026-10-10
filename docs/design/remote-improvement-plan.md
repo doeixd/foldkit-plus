@@ -1182,8 +1182,15 @@ pending edits and news):
 - **The entity example's `PostsQuery` has a body**, with `title` declared
   `binary`; its HTTP test renames a post in a list sorted by title and sees it
   move, `Ready`, with no list request.
-- **Remaining exits:** the cloudflare create names its list with `prepend`,
-  and `verifyPlacement` is not yet on in the e2e suites.
+- **Cloudflare's `AllTodos` has a body**, and a create's answer names no
+  list. That found two rows impact never judged: a row new to the client
+  joined a list only through a filtered field, so it never joined a list
+  that filters on nothing; and a row whose order moved it in from past a
+  `Cursor` stayed out. `EntityChange.Changed` carries `created`, and a list
+  with rows not loaded judges a row it does not hold when its order changes.
+  A pending create still shows by `prepend`, and the page still draws in
+  `orderItems` order for it and for other tabs' live inserts (Phase 11).
+- **Remaining exit:** `verifyPlacement` is not yet on in the e2e suites.
 
 #### Phase 11: the server places, for live lists
 

@@ -415,7 +415,8 @@ list over its Entity by the list's query body (`Query.dependencies`'
 `predicate`/`order`, `belongsEncoded`): a list stands when the body proves its
 rows and order unchanged. Otherwise a placeable list (`Query.placement`) has
 the change placed in its pages with no request: a row that stops matching
-leaves, one that joins or moves goes where the body's order puts it among the
+leaves, one that joins (by its filter, new to the client, or from past a
+`Cursor`) or moves goes where the body's order puts it among the
 loaded rows, or out of them when it sorts past a `Cursor`. What cannot be
 placed is invalidated, restarting any read of it in flight, so its read entry
 refetches it. `Remote.make({ verifyPlacement: true })` (dev and tests) also

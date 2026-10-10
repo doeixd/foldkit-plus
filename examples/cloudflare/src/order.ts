@@ -3,8 +3,9 @@
  *
  * D1 compares TEXT with BINARY over UTF-8, which is code-point order. JS `<`
  * is UTF-16 code units and disagrees once a title holds a character past
- * U+FFFF. The connection only prepends a new row, for membership; this is
- * where that row is drawn, so the refresh does not move it.
+ * U+FFFF. A pending create and a live insert are only prepended, for
+ * membership; this is where such a row is drawn, so the refresh does not
+ * move it. A confirmed create is placed in the list by the query's body.
  */
 import { Option } from 'effect'
 import { RemoteData, type Page } from 'foldkit-remote'

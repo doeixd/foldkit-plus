@@ -1318,8 +1318,10 @@ the store the answer left:
   not, leaves it standing;
 - a held row that stops matching leaves it, with nothing fetched: whether a
   row belongs is the body's, judged exactly;
-- a row that starts matching, or a held row whose ordering field changed, is
-  placed where the body's order puts it among the rows loaded (`placeIn`), when
+- a row that starts matching, a row new to the client, a held row whose
+  ordering field changed, or a row whose order moves it in from past what a
+  list has loaded, is placed where the body's order puts it among the rows
+  loaded (`placeIn`), when
   the order is placeable (`Query.placement`); a row that sorts past what is
   loaded is left out of it (and out of what showed it), for the next page;
 - anything else invalidates it, and its read entry fetches it again: a row the

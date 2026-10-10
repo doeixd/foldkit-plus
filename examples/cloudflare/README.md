@@ -23,7 +23,7 @@ are at the end of [Run it](#run-it).
 | Piece | Owns |
 | --- | --- |
 | `todos` (Drizzle table) + `Todo` binding | the rows. One declaration reads and writes them |
-| `AllTodos` (Query) | the connection `remote-drizzle` compiles into SQL over D1 |
+| `AllTodos` (Query) | the connection, its order declared in its body, that `remote-drizzle` compiles into SQL over D1 |
 | `App`/`Message`/`update` + `Todos` (Sync contract) | which Messages are durable, and the replay they imply |
 | `SyncHost` (Durable Object) | the document's single writer: it opens the journal once, and each accepted socket exchanges against that journal |
 | `settleTodos` | applying what the journal committed to the `todos` table, where Remote reads it back |
@@ -135,7 +135,10 @@ two routes. `src/client.ts` drives the wire for the test and the demo;
   where it will stay. The "Saving…" line above the form is reserved the whole
   time, and its words use the same delay, so a fast save neither flashes nor
   moves the list.
-- The answer to a write is the row. The list is not asked again.
+- The answer to a write is the row, and names no list. `AllTodos` declares
+  its order in its body (title, declared `binary` as D1 compares it, then
+  id), so Remote places a created or renamed row in the list itself. The
+  list is not asked again.
 - The list is stored in the browser, one snapshot per actor. The next visit
   paints those rows at once and asks again. A failed ask, including offline,
   leaves them. An unsent write is not stored.

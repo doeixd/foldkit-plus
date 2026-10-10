@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote`: a mutation's answer places a row new to the client, and
+  one that moves in from past a `Cursor`.** A row joined a list only through
+  a filtered field, so a created row never joined a list that filters on
+  nothing, and a row past a list's loaded rows whose order now put it among
+  them stayed out. `EntityChange.Changed` gains `created`.
+- **`examples/cloudflare`: `AllTodos` declares its order in its body**, and
+  `title` declares `binary`. A create's answer names no list: the client
+  places the row by title instead of the server's `prepend`.
 - **`examples/entity`: `PostsQuery` declares its body** (`Query.define`, a
   title search and `Order.chosen`), and `title` declares `binary`, in place of
   the server's `where` and `orderBy`. A rename moves a post in a list sorted by
