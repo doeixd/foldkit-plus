@@ -625,9 +625,13 @@ order field refetches.
   the declared-collation work in §12. A committed edit reaches the order
   once the table has it, through the read its held row asks for.
 - **`ExchangeChanged` and `EditsRefused` are still bridged by hand** in
-  `mountRegistry`, and a refusal is not yet read as a §5.2 `Refusal`. Both
-  are about the replica's status rather than the overlays; they are next
-  for this seam.
+  `mountRegistry`, and a refusal is not read as a §5.2 `Refusal`. Decided to
+  leave them: the registry is the only application that turns the replica's
+  status into Messages (todo-app, pages and cloudflare show none of it), so
+  a `Sync.mount` option for it would have one user. A §5.2 refusal answers
+  a Remote request by its `requestId`; a Sync rejection names an operation,
+  and no page here refuses the same cell both ways. Revisit when a second
+  application bridges the status.
 
 ## 9. Phase 5 — persistence as a Wiring, and its order with SSR
 
