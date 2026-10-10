@@ -1,7 +1,8 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
-**Status:** Phases 0–2 done, 2026-10-10; Phase 3 in part (each section's *As
-built*); Phases 4–6 not started. §15 records the decisions taken while planning, each against the
+**Status:** Phases 0–2 done, 2026-10-10; Phase 3 in part; Phase 5 built
+except its registry exit, which waits for Phase 4 (each section's *As
+built*); Phases 4 and 6 not started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -137,7 +138,7 @@ Durable's type parameter.
 | | Remote mutation | Sync edit (registry pattern) |
 | --- | --- | --- |
 | Owner of the intent | the server, for the length of a request | the journal; the replica's outbox until then |
-| Survives a reload or crash | no ("Remote has no outbox", `cloudflare/src/cache.ts:3`) | yes, once the IndexedDB transaction completes |
+| Survives a reload or crash | no ("Remote has no outbox", cloudflare's `persistence` in `app.ts`) | yes, once the IndexedDB transaction completes |
 | Identity | `requestId`, client-only | `replicaId:localSequence`, deduplicated by Durable |
 | Optimistic display | a layer per `requestId`, seen by every read | `EditableEntity.overlay`, applied by hand per view |
 | Commit | the handler's own write | `journal.append` in one transaction, then `settle` → `apply` writes the table with a `revision` |
@@ -624,6 +625,44 @@ adopts it, and an e2e test reloads it with **both** transports down and sees
 cached rows with pending edits overlaid, then reconnects and converges;
 signing in as another user shows none of the first user's rows; a test
 resumes an SSR page over an older snapshot and draws the resumed values.
+
+### As built
+
+`Data.persistence({ key, scope, connections?, snapshot?, maxBytes?,
+debounce? })` (`78565403`) is a Wiring needing a `KeyValueStore`, assembled
+beside `Data.wiring`. It differs from the sketch above:
+
+- **Restore is a Subscription, not `init`.** It runs whenever `key(model)`
+  changes, so a change of principal restores that principal's snapshot with
+  no extra call; an `init` runs once. The cost is that the rows arrive just
+  after the first frame rather than in it.
+- **A save waits for its own key's restore.** `Hydrated` takes `from: key`,
+  recorded as `RemoteModel.restoredFrom`. The save Subscription writes only
+  while `restoredFrom` is the current key, so startup, or a principal not
+  yet restored, never writes the empty store over a snapshot. This replaces
+  "clear the cache before the new principal's first read": the wiring
+  clears nothing. `Data.forget` stays the application's call when its
+  principal changes, as cloudflare's `ActorCommitted` makes it.
+- **SSR order holds without ordering.** The restore uses
+  `preserve-existing`, so a fact the Model already holds, resumed or read
+  since the page started, wins over the older snapshot whenever the restore
+  lands. It is tested at the reducer, not yet through `foldkit-ssr`'s resume.
+- Saving is debounced (250 ms by default) and best-effort. A store that
+  cannot be read restores nothing and so saves nothing. A cache past
+  `maxBytes` removes its key.
+- **cloudflare** uses it with `snapshot: snapshotFor` and
+  `KeyValueStore.layerStorage(() => localStorage)` (`5229d911`). Its tests
+  drive the wiring's restore and save, including a restore that lands after
+  the list's query started.
+
+Not built: the registry's adoption and its reload e2e (they wait for Phase
+4's overlays), and naming Sync's storage by the same scope.
+
+**Found:** `placements.runtime({ resources })` does not check `resources`
+against what the assembly's wirings and Subscriptions require. cloudflare
+type-checks with `resources: Layer.empty`, missing both the Remote client
+and the store, and the gap shows only at runtime. It predates this phase;
+the fix belongs in Bundle's runtime config.
 
 ## 10. Phase 6 — recover from a gap
 
