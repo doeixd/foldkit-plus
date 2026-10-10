@@ -1,7 +1,8 @@
 # Plan: a declarative write side for Remote, and where it meets Sync, Form and Crud
 
 **Status:** Phases 0–2 and 4–6 done, 2026-10-10; Phase 3 in part (each
-section's *As built*). §15 records the decisions taken while planning, each against the
+section's *As built*). Part two (§16), placing rows in lists instead of
+refetching them, is planned: Phases 7–12, none started. §15 records the decisions taken while planning, each against the
 code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
@@ -798,7 +799,7 @@ Beyond those:
 | --- | --- |
 | Single-flight: a mutation's answer carries the refetch of what it invalidated (router-DESIGN, deferred on a benchmark) | Phase 1 lands; measure the CMS's save-then-refetch round trip |
 | Incremental local query maintenance and indexes (possibly `d2ts`) | A measured read path exceeds a frame; local-execution's §3.3 memo first |
-| Placing a joining or created row locally instead of refetching; optimistic inserts placed through the body (`optimistic.ts` uses `prepend`/`append`) | Declared collation (local-execution Phase 4), for ordered connections |
+| Placing a joining or created row locally instead of refetching; optimistic inserts placed through the body (`optimistic.ts` uses `prepend`/`append`) | Planned: §16, Phases 7–10 |
 | `Expr` growth: `and`/`or`/`not`, comparisons, `in` | An example query that cannot be written |
 | Relation keys, `where`-targeted and computed-value writes, server-minted ids | An example that needs one |
 | Disabled fields and Crud's `may` from the write's guard | guard-DESIGN's slices that touch writes (TODO "7. `may`") |
@@ -839,6 +840,8 @@ Beyond those:
 5 persistence Wiring (independent; its registry e2e waits for 4)
 6 gap recovery (independent)
 ```
+
+Part two's phases, 7–12, have their own sequence in §16.5.
 
 Each phase ships as small commits with tests shown to fail by mutation, the
 documentation in §11, and `pnpm check` and a Jev review before committing.
@@ -899,3 +902,252 @@ settled it.
 No question is left open. What remains uncertain is measured, not decided:
 single-flight waits on the CMS's round trip, an incremental engine on a read
 path that exceeds a frame (§12).
+
+## 16. Part two: place instead of refetch
+
+Phases 0–6 made a write a declared value: what it changes is known before it
+runs, and the client shows it, invalidates by it and publishes it. What a write
+does to a *list* is still settled by asking the server again. A query body
+declares which rows belong, and the evaluator answers that on both sides; it
+does not declare, in a form the client can use, *where* a row goes. This part
+makes a list's order as declared as its predicate, so that a write's effect on
+a loaded list is computed, and the server is asked only where something
+involved is undeclared or uncertain. It builds on, and must keep,
+[local-execution §9](./local-execution-DESIGN.md#9-what-local-evaluation-must-refuse):
+refuse what cannot be answered faithfully, never approximate it.
+
+### 16.1 Findings
+
+1. **Order is a direction on an expression, and nothing more.**
+   - **The IR:** an `OrderTerm` is `{ direction, expr }`
+     (`packages/entity/src/expr.ts:302-313`), with no collation, no nulls
+     placement and no tie-break. The Drizzle adapter appends the id as a
+     tie-break (`packages/remote-drizzle/src/index.ts:653-664`); the
+     evaluator does not.
+   - **The two sides disagree today.** The evaluator compares text with JS
+     `<`, by UTF-16 code unit (`packages/entity/src/evaluate.ts:120-121`),
+     where SQLite's `BINARY` compares UTF-8 bytes, which is code point order;
+     the two differ for characters outside the Basic Multilingual Plane. The
+     evaluator refuses a null key (`evaluate.ts:146-149`); the keyset puts
+     nulls last on `asc` (`packages/remote-drizzle/src/cursor.ts:11-13`).
+   - **The conformance suite** has two order cases, both numeric
+     (`packages/entity/src/conformance/index.ts:288-299`), and leaves text out
+     on purpose (`:300-304`).
+2. **No example declares its order where the client can read it.** The
+   registry's body is a filter, and its sort is a server function,
+   `orderBy: ({ sort }) => sortTerms(...)` (`examples/registry/src/server.ts:115`);
+   the entity example's posts sort the same way (`examples/entity/src/server.ts:138`);
+   cloudflare, kitchen-sink and the CMS pass `orderBy` arrays on the server.
+   `Query.dependencies(body).order` is empty for every one of them.
+   - **That hides a hazard.** `impactOn` invalidates a list when a change
+     touches an order field, and keeps it when no predicate field changed
+     (`packages/remote/src/impact.ts:106-111`). A body without its order has
+     no order fields, so a Remote mutation that changes the sorted column of
+     a row the list holds keeps the list, and the row shows its new value in
+     its old place. It is latent in the examples: the registry's edits go
+     through Sync, not mutations, and the entity example's `PostsQuery` has
+     no body, so any change to a post invalidates it.
+3. **Impact has two answers.** `Kept` or `Invalidated` (`impact.ts:61-65`). It
+   never works out a position, and ignores windows: a row that starts matching
+   invalidates the list even when it sorts past the loaded window.
+4. **Cursors are ids** (`packages/remote-drizzle/src/cursor.ts:7-9`). The
+   client cannot compare a row against one, so local-execution §9.4's rule
+   holds: a row is placeable only between two loaded edges, or at an end
+   whose boundary is `Terminal`. The server resolves a cursor by re-reading
+   its row's order columns (`packages/remote-drizzle/src/index.ts:695-714`).
+
+### 16.2 The end state
+
+```text
+list shown = server window
+           ⊕ place(confirmed answers and live events)
+           ⊕ place(pending writes: optimistic layers and Sync overlays)
+the server is asked again only where placement refuses
+```
+
+- **One placement function.** It answers, for one changed row and one loaded
+  connection: `Kept`, `Placed` (insert, move or remove, at a position
+  between loaded edges), `Outside` (it belongs past a non-`Terminal`
+  boundary, so this window does not show it), `Missing` (the row lacks a
+  field the body reads), or `Invalidated` with a reason. The client runs it
+  for answers, optimistic writes and pending Sync edits; the server runs it
+  to send live list events.
+- **Placement is a prediction, and is checked.** The server's next answer,
+  live event or page confirms it by revision. In development and tests a
+  shadow refetch compares the placed list with the server's, so a collation
+  that drifts is a failing test, not a wrong screen.
+- **What placement refuses, and what then happens:**
+
+  | Refused because | Instead |
+  | --- | --- |
+  | The order is undeclared (a server `orderBy` function or array) | Any change to the Entity invalidates the list |
+  | A text term with no declared collation | Invalidate (the server orders it) |
+  | The row lacks a field the body reads | `Missing`: read those fields of that row, then judge again |
+  | It sorts past a `Cursor` or `Unknown` boundary | `Outside`: not shown, nothing refetched |
+  | Visibility depends on the principal (§16.3, Phase 12) | Invalidate |
+  | A derived member only the server computes | Invalidate |
+
+### 16.3 Phases
+
+#### Phase 7: order the client can read
+
+- **An undeclared order makes impact conservative.** Until a query declares
+  its order, `impactOn` treats any change to its Entity as possibly
+  reordering it, as it already treats a query with no body. This closes
+  finding 2's hazard, and ships first, alone.
+- **A sort chosen by the input is declared in the body.** Crud's
+  `Sort.make` names the orders; the body maps each name to its terms, so
+  both sides read one declaration:
+
+  ```ts
+  // Proposed
+  Query.orderBy(Order.chosen(input.sort, {
+    upc: Product.fields.upc,
+    cents: Product.fields.cents,
+  }))
+  ```
+
+  `Order.chosen` is a new IR node: the input's `{ by, direction } | null`
+  picks a field and a direction, and `null` picks none. The Drizzle compiler,
+  the in-memory server and the evaluator each interpret it; the function
+  form of `orderBy` and `sortTerms` go once the registry and the entity
+  example use it.
+- **Every order is total in the IR.** `Query.from` ends every order with the
+  Entity's id, so the evaluator and every compiler break ties the same way;
+  the adapter's own append goes.
+- **Exit:** the registry's and the entity example's sorts are in their
+  bodies, and `Query.dependencies(body).order` names them; a test of a
+  mutation changing the sorted column of a held row fails before the
+  conservative rule and passes after it.
+
+#### Phase 8: collation and nulls, declared and conformant
+
+- **Collation is a trait of a text field**, a metadata key attached with
+  `Entity.annotateMembers`, as `Display` is:
+  - `Collation.binary`: code point order. SQLite `COLLATE BINARY`, Postgres
+    `COLLATE "C"`, the evaluator comparing code points, not code units.
+  - `Collation.asciiFold`: ASCII case folded, then binary. SQLite `NOCASE`
+    folds exactly ASCII; Postgres `lower(x) COLLATE "C"`.
+  - `Collation.locale(tag)`: the backend's, ordered on the server and never
+    placed locally.
+
+  Numbers, booleans, and ISO dates and times written in one format and zone
+  order intrinsically and need none. An `Order.asc(field, { collation })` term overrides the field's.
+- **Nulls are placed explicitly.** Each term has `nulls: 'first' | 'last'`,
+  defaulting to last for `asc` and first for `desc`, as Postgres and the
+  keyset do. It is compiled as `NULLS FIRST`/`NULLS LAST`, which SQLite's
+  opposite default needs, and the evaluator follows it instead of refusing.
+- **Whether a query can be placed is a value, read at definition.**
+  `Query.placement(body)` is `Placeable` or `NotPlaceable { reason }`, and
+  `Data.explain` shows it. A text order with no collation still compiles; it
+  is simply not placed. A type-level refusal was considered and declined:
+  most such queries are fine ordered by the server, and the error would land
+  far from any mistake.
+- **The conformance suite covers order.** Text per collation (astral
+  characters against `U+FFxx`, case variants, combining marks), nulls first
+  and last, and ties, run against the evaluator, SQLite, pglite and the
+  in-memory server.
+- **Exit:** the order cases pass on every subject; the evaluator's text
+  comparison is by code point; the registry declares `binary` on its text
+  columns, which is how its SQLite orders them today.
+
+#### Phase 9: where a row falls against a loaded window
+
+- **A placeable connection reads its body's fields.** Its edges' rows carry
+  the order and predicate fields, so a changed row can be compared with its
+  neighbours. This is local-execution §9.1's opt-in, turned on by
+  `Placeable`.
+- **Classification.** Against the loaded edges and boundaries, a row sorts
+  before the first edge (placed only if the start is `Terminal`), between
+  two edges (placed), or after the last (placed only if the end is
+  `Terminal`, otherwise `Outside`).
+- **Cursors carry key values only if they must.** A cursor whose row was
+  deleted or has moved is resolved by re-reading that row (finding 4). The
+  phase writes that test first; the cursor becomes the order key tuple plus
+  the id only if it fails.
+- **Exit:** classification tests over windows with each boundary kind,
+  shown to fail by mutation.
+
+#### Phase 10: impact becomes placement, on the client
+
+- **`Impact` gains `Placed`, `Outside` and `Missing`.** `Placed` applied to a
+  confirmed answer edits the connection itself: it is a deduction of server
+  state, with the answer's standing. Applied to an optimistic write or a
+  pending Sync edit, it is an overlay, lifted with the write.
+- **`Missing` reads one row.** It plans the missing fields of that row, then
+  judges again, instead of refetching the list.
+- **A field-to-query index, built at definition.** Each write's impact is
+  then proportional to the lists it can affect, not to every loaded list.
+- **Pending Sync edits move rows.** `RemoteEdits` places an edit to an order
+  field, so Phase 4's "a sorted page shows a pending edit in its old place"
+  ends.
+- **The shadow check ships with it**, not after: development and tests
+  refetch behind every placement and compare.
+- **Exit:** in the entity example, a renamed post moves within its sorted
+  list with no list request; in the registry, a pending price edit moves its
+  row; a created todo in cloudflare lands by title, not by `prepend`; and the
+  shadow check reports nothing across the e2e suites.
+
+#### Phase 11: the server places, for live lists
+
+- **The hub knows each subscriber's connections.** On a write, it runs
+  placement per connection and sends the event: insert at a position, move,
+  or remove. `ConnectionInsert`'s `position` is `prepend | append` today; it
+  gains `after(edge)`, which is a wire change.
+- **Workers keep polling, but read less.** A per-row change log, keyed by id,
+  lets a tick read only the changed rows and place them, instead of diffing
+  the window. This is the log `5a907d0b` deferred until a page follows many
+  rows.
+- **Exit:** the registry's and the entity example's live lists reorder with
+  no refetch; cloudflare's tick reads only the rows that changed.
+
+#### Phase 12: authorization and derived members as data (gated)
+
+- **Row policies as predicates** in the same IR, joined to every query, so a
+  client's placement is sound for what its principal may see.
+- **Field visibility declared**, so the hub can send written values without
+  re-reading per subscriber when visibility does not depend on the principal.
+- **Derived members as expressions**, evaluable on both sides, or marked
+  server-only, which forces the fallback.
+- **Gate:** guard-DESIGN's slices, and an application that needs placement
+  in a list under row-level authorization.
+
+### 16.4 Decisions
+
+13. **Collation is declared on the field, overridable per term.** Local-
+    execution §9.3 put it on the query. A column almost always orders one
+    way, so the field is the default and most queries declare nothing; the
+    term is where it is compiled, so the override lives there.
+14. **An undeclared order stays legal and becomes conservative.** Refusing a
+    server `orderBy` would break every example at once. Treating it as "any
+    change may reorder" is correct now and costs only refetches, which
+    Phase 7's declared sorts then remove.
+15. **The tie-break is the IR's, not the adapter's.** A tie-break the
+    evaluator does not know is a disagreement waiting for equal keys.
+16. **Placement of what the server said edits the connection; placement of
+    what it has not said is an overlay.** The two have different owners
+    (invariant: Remote is the server's view, layers are this client's).
+17. **The shadow check is part of placement**, because the failure it
+    catches, a collation that drifts, is silent otherwise.
+18. **Key cursors are built only if a deleted-cursor test fails.** The client
+    needs no key values: Phase 9 compares with loaded edges.
+
+### 16.5 Sequence
+
+```text
+7 conservative impact (alone, first) ─► declared sorts ─► total order
+        │
+        ▼
+8 collation, nulls, placement flag, conformance
+        │
+        ▼
+9 body fields on placeable connections, window classification
+        │
+        ▼
+10 client placement + shadow check + Sync edits ─► 11 server placement, live
+12 policies and derived members (gated)
+```
+
+Phase 7's first commit is a fix and does not wait for the rest. Each phase
+ships as Phases 0–6 did: small commits, tests shown to fail by mutation, the
+docs and the skill in step, `pnpm check` and a Jev review before each commit.
