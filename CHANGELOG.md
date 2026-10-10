@@ -112,6 +112,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`: `Data.persistence` keeps the cache across reloads as one
+  wiring.** It restores the snapshot stored under `key(model)` from a
+  `KeyValueStore`, keeping what the Model already holds, and saves the cache
+  under that key after each change (debounced, bounded by `maxBytes`). It saves
+  only once that key's own snapshot is in, so startup never writes the empty
+  store over it. `Hydrated` takes an optional `from`, the key it came from, and
+  `RemoteModel.restoredFrom` records it.
 - **`foldkit-remote-drizzle`: `applyEdits(binding, { live })` publishes what
   the journal applies.** Each edit it wrote is told to the hub (the member and
   the revision); one the row had passed is not.

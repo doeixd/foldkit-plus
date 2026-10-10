@@ -336,6 +336,22 @@ const ssr = Effect.gen(function* () {
 }).pipe(Effect.provide(clientLayer))
 ```
 
+To keep the cache across reloads, assemble `Data.persistence` beside
+`Data.wiring`. It restores under a key and saves on every change, and needs a
+`KeyValueStore` (for example `BrowserKeyValueStore.layerLocalStorage`):
+
+```ts
+const persistence = Data.persistence({
+  key: model => `remote-cache:${model.actor}`,
+  scope: model => model.actor,
+  // optional: `connections: [ref.identity]`, or `snapshot: remote => ...`
+})
+```
+
+The restore hydrates with `preserve-existing`, and records the key it came
+from in `model.remote.restoredFrom`. Saving waits until that key is
+restored, so startup never writes the empty store over the snapshot.
+
 `RemotePersistence.save(snapshot, { key, scope, maxBytes })` /
 `restore({ key, scope, maxBytes })` use Effect's `KeyValueStore`. Wrong
 version/scope, oversized, or malformed snapshots yield `undefined` from

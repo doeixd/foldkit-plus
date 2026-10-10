@@ -1548,6 +1548,50 @@ snapshot from another version/scope, an oversized snapshot, or malformed data is
 discarded and the planner refetches. `Hydrated` is itself a Remote Message, so
 hydration still changes the application through the reducer.
 
+### A cache kept across reloads: `Data.persistence`
+
+The calls above are the parts. `Data.persistence` puts them together as a
+wiring: it restores the snapshot stored under a key, and saves the cache under
+that key whenever it changes.
+
+```ts
+const persistence = Data.persistence({
+  key: model => `remote-cache:${model.userId}`,
+  scope: model => model.userId,
+  maxBytes: 512_000,
+})
+
+// Assembled beside `Data.wiring`; the runtime provides a `KeyValueStore`,
+// such as `BrowserKeyValueStore.layerLocalStorage`.
+const placements = Page.assemble(Data.wiring(actives), persistence)
+```
+
+The restore and the save each run as Subscriptions, when the key changes or the
+cache does:
+
+```text
+key -> restore -> Hydrated { from: key } -> restoredFrom = key -> save on each change
+```
+
+- **A restore keeps what the Model already holds.** It hydrates with
+  `merge: 'preserve-existing'`, so a fact resumed from the server, or read since
+  the page started, wins over the older snapshot.
+- **Nothing is saved before its own key is restored.** `Hydrated` records the
+  key it came from in `model.remote.restoredFrom`. Until that key is restored,
+  nothing is saved, so the empty store at startup cannot overwrite the
+  snapshot it has not read yet. When the key changes (a different principal),
+  saving stops again until the new key's snapshot is in.
+- **A store that cannot be read restores nothing, and so nothing is saved over
+  it.** A stored snapshot from another version or scope, or one that will not
+  decode, is removed, and an empty snapshot is restored in its place.
+- **Saving is debounced** (`debounce`, 250 ms by default) and best-effort: a
+  full store keeps the snapshot it had, and the next change tries again. A
+  cache grown past `maxBytes` removes its key, so an older, smaller snapshot
+  cannot outlive it.
+
+`snapshot` replaces `snapshotOf` when an application keeps something else, such
+as only the edges a page shows.
+
 ## Server rendering: `Remote.resume`
 
 A snapshot is built for a cache that survived a reload: it keeps the whole

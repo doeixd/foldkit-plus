@@ -3,7 +3,7 @@
  * optimistic layers an application keeps in its Model, the Messages that
  * change it, and the pure reducer over them.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { RelationRequirement, Requirement } from './requirement.js'
 import {
   emptyConnection,
@@ -113,6 +113,12 @@ export interface RemoteModel {
    * is how a view retries.
    */
   readonly failures: Failures
+  /**
+   * The storage key the cache was last restored from, through `Hydrated`'s
+   * `from`. `Data.persistence` saves under a key only once its own snapshot is
+   * in, so a save at startup cannot write the empty store over it.
+   */
+  readonly restoredFrom: Option.Option<string>
 }
 
 /**
@@ -188,6 +194,7 @@ export const initialRemoteModel: RemoteModel = {
   loading: new Set(),
   refresh: emptyRefresh,
   failures: noFailures,
+  restoredFrom: Option.none(),
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -209,6 +216,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
       connections: Schema.Record(Schema.String, remoteErrorSchema),
       fields: Schema.Record(Schema.String, remoteErrorSchema),
     }),
+    restoredFrom: runtimeSchema,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -261,6 +269,8 @@ export type RemoteMessage =
       readonly connections?:
         Readonly<Record<string, ReadonlyArray<ReadonlyArray<Edge>>>> | undefined
       readonly merge: MergePolicy
+      /** The storage key the snapshot was read from, when it was: `restoredFrom`. */
+      readonly from?: string | undefined
     }
   /** A mutation began; its optimistic operations show until it settles. */
   | {
@@ -369,6 +379,7 @@ export const remoteMessageCases = {
   RetentionChanged: { roots: retentionRootsSchema },
   Hydrated: {
     connections: Schema.optional(Schema.Unknown),
+    from: Schema.optional(Schema.String),
     entities: runtimeSchema,
     merge: Schema.Union([Schema.Literal('replace'), Schema.Literal('preserve-existing')]),
   },
@@ -817,6 +828,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
             : message.merge === 'replace'
               ? { ...model.connections, ...Object.fromEntries(restored) }
               : { ...Object.fromEntries(restored), ...model.connections },
+        restoredFrom: message.from === undefined ? model.restoredFrom : Option.some(message.from),
       }
     }
     case 'RefreshStarted': {
