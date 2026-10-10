@@ -5,7 +5,7 @@
  * live classification, optimistic layers) performs no I/O. The `Remote.*`
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
-import { Effect, Layer, Option, Result, Schema, Stream } from 'effect'
+import { Duration, Effect, Layer, Option, Result, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import {
   Entity as DomainEntity,
@@ -14,7 +14,6 @@ import {
   SelectionTypeId,
 } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
-import type { Duration } from 'effect'
 import type { RpcClientError } from 'effect/rpc'
 import { mapMessage, type Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
@@ -374,7 +373,29 @@ export interface LiveDependencies {
   readonly requirements: ReadonlyArray<Requirement>
   readonly cursor: LiveCursor
   readonly floor: number
+  /** How many times the stream broke; each break restarts it. */
+  readonly restarts: number
+  /** Breaks since its last applied event, which the restart's backoff grows with. */
+  readonly failures: number
 }
+
+/**
+ * Whether what an active entry reads live is arriving. `Reconnecting` is a
+ * stream that broke and waits to resubscribe; until it has, changes are
+ * missed, and its rows may be out of date.
+ */
+export type LiveStatus =
+  /** It reads nothing live. */
+  | { readonly _tag: 'Idle' }
+  /** Subscribed, and not broken since. */
+  | { readonly _tag: 'Live' }
+  | {
+      readonly _tag: 'Reconnecting'
+      /** Breaks in a row, the first being 1. */
+      readonly attempt: number
+      /** Why it broke; none for a gap in its events. */
+      readonly error: Option.Option<RemoteError>
+    }
 
 export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}
 
@@ -650,6 +671,12 @@ export interface RemoteDomain<
     requestId: string,
     mutation: MutationDescriptor<string, any, any, Refused>,
   ): Option.Option<Refused>
+  /**
+   * Whether what `active` reads live is arriving: `Reconnecting` from the
+   * moment its stream breaks until it resubscribes, which its live entry does
+   * on its own, with backoff.
+   */
+  liveStatus(model: AppModel, active: ActiveEntry<AppModel>): LiveStatus
   /** `updateRemote` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
   reduce(model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel
   /**
@@ -1064,6 +1091,13 @@ export class RemoteUnsatisfied extends Schema.TaggedError<RemoteUnsatisfied>()(
 export interface LiveOptions {
   /** The clock `LiveReceived` stamps events with; default `Date.now`, read at each use. */
   readonly now?: (() => number) | undefined
+  /**
+   * The first restart's delay after a stream breaks, doubled for each break in
+   * a row, with ±20% jitter: Sync's transport policy. Default `50 millis`.
+   */
+  readonly retryBase?: Duration.Input | undefined
+  /** The longest a restart waits. Default `5 seconds`. */
+  readonly maxRetryDelay?: Duration.Input | undefined
 }
 
 /** A stable key for a live subscription's requirement set. */
@@ -1687,6 +1721,14 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
 // application that spreads Remote's entries into its own.
 const resumeCursor = Schema.Number.pipe(Schema.overrideToEquivalence(() => () => true))
 
+/** The wait before a stream's restart after `failures` breaks in a row: Sync's transport backoff. */
+const restartDelay = (options: LiveOptions, failures: number): Duration.Duration => {
+  const base = Duration.toMillis(Duration.fromInputUnsafe(options.retryBase ?? '50 millis'))
+  const max = Duration.toMillis(Duration.fromInputUnsafe(options.maxRetryDelay ?? '5 seconds'))
+  const backoff = Math.min(max, base * 2 ** Math.min(Math.max(failures, 1) - 1, 30))
+  return Duration.millis(backoff * (0.8 + Math.random() * 0.4))
+}
+
 /** The live entry: subscribes to `requirementsOf(model)` from the Model's resume cursor. */
 const liveEntry = <AppModel, Store extends RemoteModel, Message>(
   bound: BoundRemote<AppModel, Store>,
@@ -1698,48 +1740,67 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
     requirements: Schema.Array(ReadRequest),
     cursor: resumeCursor,
     floor: Schema.Number,
+    restarts: Schema.Number,
+    // Read when a break restarts the stream; an applied event resetting it is no reason to.
+    failures: resumeCursor,
   }),
   modelToDependencies: model => {
     const requirements = requirementsOf(model)
     const stream = liveStreamKey(requirements)
     const remote = bound.store.get(model)
+    const health = remote.streams[stream]
     return {
       requirements,
       cursor: remote.live[stream]?.cursor ?? 0,
       // A stream is the principal's: `forget` moves the floor, and it restarts.
       floor: remote.refresh.floor,
+      restarts: health?.restarts ?? 0,
+      failures: health?.failures ?? 0,
     }
   },
-  dependenciesToStream: ({ requirements, cursor }) =>
-    requirements.length === 0
-      ? Stream.empty
-      : Stream.unwrap(
-          Effect.gen(function* () {
-            const client = yield* RemoteClient
-            return client.live({ requirements, after: cursor })
-          }),
-        ).pipe(
-          Stream.map(event =>
+  dependenciesToStream: ({ requirements, cursor, restarts, failures }) => {
+    if (requirements.length === 0) return Stream.empty
+    const stream = liveStreamKey(requirements)
+    const live = Stream.unwrap(
+      Effect.gen(function* () {
+        const client = yield* RemoteClient
+        return client.live({ requirements, after: cursor })
+      }),
+    ).pipe(
+      Stream.map(event =>
+        toMessage({
+          _tag: 'LiveReceived',
+          stream: liveStreamKey(requirements),
+          event,
+          now: (options.now ?? wallClock)(),
+        }),
+      ),
+      Stream.catchIf(
+        (_error): _error is RemoteLiveError | RemoteProtocolError => true,
+        error =>
+          Stream.succeed(
             toMessage({
-              _tag: 'LiveReceived',
+              _tag: 'ReadFailed',
+              requests: requirements,
+              error: remoteError(error),
               stream: liveStreamKey(requirements),
-              event,
-              now: (options.now ?? wallClock)(),
             }),
           ),
-          Stream.catchIf(
-            (_error): _error is RemoteLiveError | RemoteProtocolError => true,
-            error =>
-              Stream.succeed(
-                toMessage({
-                  _tag: 'ReadFailed',
-                  requests: requirements,
-                  error: remoteError(error),
-                  stream: liveStreamKey(requirements),
-                }),
-              ),
-          ),
-        ),
+      ),
+    )
+    if (restarts === 0) return live
+    // The server replays nothing a stream missed while it was down, so a
+    // restart refetches what the stream covers. It is marked once the stream
+    // is subscribing, so the refetch cannot read before what it would miss.
+    const resumed = Stream.make(
+      toMessage({ _tag: 'RefreshStarted', requests: requirements }),
+      toMessage({ _tag: 'GapCleared', stream }),
+    )
+    return Stream.fromEffect(Effect.sleep(restartDelay(options, failures))).pipe(
+      Stream.drain,
+      Stream.concat(Stream.merge(live, resumed)),
+    )
+  },
 })
 
 /** The projection an active entry has for this Model; none while it is inactive. */
@@ -2472,7 +2533,8 @@ export const Remote = {
    * requirements, emitting a `LiveReceived` per event and a `ReadFailed`
    * carrying its `stream` when the stream breaks (including
    * `ResumeUnavailable`). That records a gap on the stream rather than a failed
-   * read, since nothing was being read. The resume cursor is read
+   * read, since nothing was being read, and restarts the entry after a
+   * backoff; the restart refetches what it covers. The resume cursor is read
    * from `RemoteModel.live`, so the application tracks no cursor of its own.
    */
   live: <
@@ -3207,6 +3269,20 @@ const bindDomain = <
       return refusal === undefined
         ? Option.none()
         : Schema.decodeUnknownOption(mutation.Refusal)(refusal)
+    },
+    liveStatus: (model, active) => {
+      assertOwned(active)
+      const resolvedAt = readers.get(active) ?? memoizedResolved(active)
+      const requirements = askedUnion(
+        resolvedAt(model).map(({ projection }) => projection),
+      ).requirements.filter(requirement => requirement.live === true)
+      if (requirements.length === 0) return { _tag: 'Idle' }
+      const remote = store.get(model)
+      const stream = liveStreamKey(requirements)
+      const health = remote.streams[stream]
+      return health === undefined || !remote.gaps.has(stream)
+        ? { _tag: 'Live' }
+        : { _tag: 'Reconnecting', attempt: health.failures, error: health.error }
     },
     reduce,
     inspect: model => inspectRemote(store.get(model)),

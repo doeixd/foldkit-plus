@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote`: a gap stays until its stream restarts.** An in-order
+  event after a gap used to clear it, though the event that arrived ahead was
+  dropped and what it said was lost. Now only the restart's `GapCleared`
+  clears it. `LiveDependencies` gains `restarts` and `failures`, and
+  `RemoteModel` gains `streams`.
 - **`examples/cloudflare`: the stored list is `Data.persistence`.** The
   hand-written save Subscription and the boot-time `applyCache` are gone; the
   wiring restores each actor's snapshot (`snapshot: snapshotFor` keeps the
@@ -117,6 +122,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`: a broken live stream restarts itself.** A transport
+  failure or a gap restarts the live entry after Sync's backoff (50 ms,
+  doubling to 5 s, ±20% jitter; `retryBase` and `maxRetryDelay` in the
+  subscriptions options). It resubscribes from its cursor and refetches what
+  the stream covers, since no server replays what it missed.
+  `Data.liveStatus(model, active)` is `Idle`, `Live` or
+  `Reconnecting { attempt, error }`, for a view.
 - **`foldkit-remote`: `Data.persistence` keeps the cache across reloads as one
   wiring.** It restores the snapshot stored under `key(model)` from a
   `KeyValueStore`, keeping what the Model already holds, and saves the cache

@@ -188,7 +188,8 @@ describe('Remote.update', () => {
     expect(ahead.live.s1!.cursor).toBe(1)
     expect(readField(ahead.entities, entityKey('User', 'u1'), 'name')).toEqual(Option.some('ada'))
 
-    // The next in-order event applies and the gap heals.
+    // The next in-order event applies, but the gap stays: the event ahead was
+    // dropped, and only the restart's refetch brings back what it said.
     const healed = updateRemote(ahead, {
       _tag: 'LiveReceived',
       stream: 's1',
@@ -201,15 +202,15 @@ describe('Remote.update', () => {
         cursor: 2,
       },
     })
-    expect(healed.gaps.has('s1')).toBe(false)
+    expect(healed.gaps.has('s1')).toBe(true)
     expect(healed.live.s1!.cursor).toBe(2)
 
-    // A gap can also be cleared explicitly, for a host that resubscribed.
+    // The live entry clears it once it has resubscribed.
     const regapped = updateRemote(ahead, { _tag: 'GapCleared', stream: 's1' })
     expect(regapped.gaps.has('s1')).toBe(false)
   })
 
-  it('records a gap for a connection event ahead of its cursor and heals in order', () => {
+  it('records a gap for a connection event ahead of its cursor, which an in-order one leaves', () => {
     const inserted: LiveEvent = {
       _tag: 'ConnectionInsert',
       connection: 'c1',
@@ -243,7 +244,7 @@ describe('Remote.update', () => {
       now: 0,
       event: { ...inserted, cursor: 2 },
     })
-    expect(healed.gaps.has('s1')).toBe(false)
+    expect(healed.gaps.has('s1')).toBe(true)
     expect(healed.live.s1!.cursor).toBe(2)
     expect(healed.optimistic.overlays).toHaveLength(2)
   })

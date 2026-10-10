@@ -85,8 +85,14 @@ export interface RemoteModel {
   readonly live: Readonly<Record<string, LiveState>>
   /** Mutation pending/applied/failed ledger. */
   readonly mutations: MutationState
-  /** Streams whose live cursor fell behind; the caller should resync or refetch. */
+  /**
+   * Streams that broke, by an error or by an event ahead of their cursor, and
+   * have not resubscribed since: changes after the break are missed until the
+   * live entry restarts them and refetches what they cover.
+   */
   readonly gaps: ReadonlySet<string>
+  /** Each live stream that has ever broken, by stream key. One that never broke is absent. */
+  readonly streams: Readonly<Record<string, StreamHealth>>
   /**
    * The `entity\0id\0field` marks a read is currently fetching. A field absent
    * from the store reads as `Loading` while its mark is here and `Initial`
@@ -119,6 +125,16 @@ export interface RemoteModel {
    * in, so a save at startup cannot write the empty store over it.
    */
   readonly restoredFrom: Option.Option<string>
+}
+
+/** How a live stream has fared, as its live entry restarts it. */
+export interface StreamHealth {
+  /** How many times it broke. The live entry restarts on each, so it only grows. */
+  readonly restarts: number
+  /** Breaks since its last applied event: what the restart's backoff grows with. */
+  readonly failures: number
+  /** Why it last broke; none for a gap, which is not an error. */
+  readonly error: Option.Option<RemoteError>
 }
 
 /**
@@ -191,6 +207,7 @@ export const initialRemoteModel: RemoteModel = {
   live: {},
   mutations: emptyMutationState,
   gaps: new Set(),
+  streams: {},
   loading: new Set(),
   refresh: emptyRefresh,
   failures: noFailures,
@@ -210,6 +227,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     live: Schema.Record(Schema.String, runtimeSchema),
     mutations: runtimeSchema,
     gaps: runtimeSchema,
+    streams: Schema.Record(Schema.String, runtimeSchema),
     loading: runtimeSchema,
     refresh: runtimeSchema,
     failures: Schema.Struct({
@@ -234,8 +252,8 @@ export type RemoteMessage =
       /**
        * The live stream whose subscription broke, when this is that rather
        * than a read. Nothing was being read, so no field failed: the stream is
-       * recorded as a gap, since changes after it are missed until the host
-       * resubscribes.
+       * recorded as a gap, since changes after it are missed until the live
+       * entry restarts it.
        */
       readonly stream?: string | undefined
     }
@@ -705,8 +723,43 @@ const withLiveState = (
   state: LiveState,
 ): RemoteModel['live'] => (live[stream] === state ? live : { ...live, [stream]: state })
 
-const markGap = (model: RemoteModel, stream: string): RemoteModel =>
-  model.gaps.has(stream) ? model : { ...model, gaps: new Set([...model.gaps, stream]) }
+const noHealth: StreamHealth = { restarts: 0, failures: 0, error: Option.none() }
+
+/**
+ * A stream broke: it is marked a gap and its restart count moves, which
+ * restarts its live entry. A stream already broken and not yet restarted
+ * changes nothing, so the events a dying stream still delivers restart it once.
+ */
+const broke = (
+  model: RemoteModel,
+  stream: string,
+  error: Option.Option<RemoteError>,
+): RemoteModel => {
+  if (model.gaps.has(stream)) return model
+  const health = model.streams[stream] ?? noHealth
+  return {
+    ...model,
+    gaps: new Set([...model.gaps, stream]),
+    streams: {
+      ...model.streams,
+      [stream]: { restarts: health.restarts + 1, failures: health.failures + 1, error },
+    },
+  }
+}
+
+/**
+ * An event applied on a stream that resubscribed: it works, so its next break
+ * backs off from the start. A broken stream's last events prove nothing.
+ */
+const healthy = (model: RemoteModel, stream: string): RemoteModel => {
+  const health = model.streams[stream]
+  return health === undefined || health.failures === 0 || model.gaps.has(stream)
+    ? model
+    : {
+        ...model,
+        streams: { ...model.streams, [stream]: { ...health, failures: 0, error: Option.none() } },
+      }
+}
 
 const clearGap = (model: RemoteModel, stream: string): RemoteModel =>
   model.gaps.has(stream)
@@ -715,8 +768,8 @@ const clearGap = (model: RemoteModel, stream: string): RemoteModel =>
 
 /**
  * The pure reducer all four producers share. A live event that arrives ahead of
- * its cursor is a gap: it is not applied, and the stream is recorded so the host
- * can resubscribe rather than silently miss facts. When every field a Message
+ * its cursor is a gap: it is not applied, and the stream is recorded so its
+ * live entry restarts it rather than silently missing facts. When every field a Message
  * touches keeps its identity, `model` itself is returned, so the application's
  * root keeps its identity and Foldkit does not render. The common no-ops do (a
  * duplicate live event, a repeated `ReadStarted`); a repeated failure, or a
@@ -755,7 +808,9 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       // A broken live stream is not a failed read. Marking its fields failed
       // would take them out of the read entry's plan, and restart it, which is
       // the opposite of what missing changes calls for.
-      if (message.stream !== undefined) return markGap(model, message.stream)
+      if (message.stream !== undefined) {
+        return broke(model, message.stream, Option.some(message.error))
+      }
       // The read is over. Fields it refreshed read as they did, and every field
       // it asked for carries the error until something settles it.
       return {
@@ -924,7 +979,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       if (message.event._tag === 'EntityPatched' || message.event._tag === 'EntityDeleted') {
         const event = message.event
         const applied = applyEntityEvent(state, model.entities, event, message.now)
-        if (applied.outcome === 'gap') return markGap(model, message.stream)
+        if (applied.outcome === 'gap') return broke(model, message.stream, Option.none())
         // A value the server sent is newer than any failure to fetch it.
         const settled =
           applied.outcome !== 'applied'
@@ -932,26 +987,22 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
             : event._tag === 'EntityPatched'
               ? [...patchedMarks([{ ...event.ref, values: event.values }])]
               : entityFailureMarks(model.failures, entityKey(event.ref.entity, event.ref.id))
-        return clearGap(
-          {
-            ...model,
-            entities: applied.store,
-            live: withLiveState(model.live, message.stream, applied.state),
-            failures: withoutFieldFailures(model.failures, settled),
-          },
-          message.stream,
-        )
+        const next = {
+          ...model,
+          entities: applied.store,
+          live: withLiveState(model.live, message.stream, applied.state),
+          failures: withoutFieldFailures(model.failures, settled),
+        }
+        return applied.outcome === 'applied' ? healthy(next, message.stream) : next
       }
       const applied = applyConnectionEvent(state, model.optimistic, message.event, message.policy)
-      if (applied.outcome === 'gap') return markGap(model, message.stream)
-      const next = clearGap(
-        {
-          ...model,
-          optimistic: applied.optimistic,
-          live: withLiveState(model.live, message.stream, applied.state),
-        },
-        message.stream,
-      )
+      if (applied.outcome === 'gap') return broke(model, message.stream, Option.none())
+      const written = {
+        ...model,
+        optimistic: applied.optimistic,
+        live: withLiveState(model.live, message.stream, applied.state),
+      }
+      const next = applied.outcome === 'applied' ? healthy(written, message.stream) : written
       // An invalidating event means exactly what `ConnectionInvalidated` means,
       // so it goes through the same reduction rather than a parallel one.
       return applied.invalidated === undefined

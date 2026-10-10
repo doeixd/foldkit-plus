@@ -675,8 +675,8 @@ the same way, with the request's error; see
 Live events carry cursors. One behind the Model's is a duplicate and is
 dropped; one ahead of the next is a **gap**, recorded in `RemoteModel.gaps`
 and not applied, so the screen keeps what the server last said rather than
-a history with a hole in it. The host resynchronizes and clears the gap; see
-[Live data](#live-data).
+a history with a hole in it. The live entry then restarts the stream and
+refetches what it covers; see [When a stream breaks](#when-a-stream-breaks).
 
 ## Normalized entities and selections
 
@@ -1215,7 +1215,8 @@ identity and by `entity\0id\0field` mark.
 A broken live stream is not a failed read. Its `ReadFailed` carries the
 `stream`, and records a gap in `RemoteModel.gaps` rather than failing any
 field: nothing was being read, and the values on screen are still what the
-server last said.
+server last said. The stream restarts on its own; see
+[When a stream breaks](#when-a-stream-breaks).
 
 ### When a field is withheld
 
@@ -1470,13 +1471,52 @@ ordered cursors:
 - the next cursor is applied;
 - a cursor ahead of the expected value is a **gap** and is not applied.
 
-A gap is recorded in `RemoteModel.gaps` so the host can resynchronize rather than
-silently accepting missing history. An in-order event or `GapCleared` clears it.
-
 Entity patches update normalized fields, deletes create tombstones, and
 connection insert/remove/invalidate events reconcile the same connection model
 used by query pages and optimistic overlays. A stream failure becomes a Remote
 failure Message rather than mutating anything out of band.
+
+### When a stream breaks
+
+A stream breaks when its transport fails or when an event arrives ahead of
+its cursor (a gap). Either way, what the server said meanwhile is lost: no
+server replays it, since `after` only numbers the events that follow. So
+recovery is a refetch, and the live entry does it on its own:
+
+```text
+break -> gap marked, restarts + 1 -> backoff -> resubscribe from the cursor
+      -> RefreshStarted (what the stream covers) + GapCleared -> read entry refetches
+```
+
+- **The backoff is Sync's transport policy:** 50 ms after the first break,
+  doubling for each break in a row, at most 5 s, with ±20% jitter.
+  `retryBase` and `maxRetryDelay` in the `Data.subscriptions` options change
+  it. An event applied after a resubscribe starts it over.
+- **A gap stays until the restart.** An in-order event that a broken stream
+  still delivers is applied, but does not clear it. The event that arrived
+  ahead was dropped, and only the refetch brings back what it said.
+- **What a stream covers is its requirements.** A list the server watches
+  for it (a `ConnectionInvalidate` it sends) is the source's to re-send when
+  the stream opens; the cloudflare example's poll invalidates its list on
+  every open for this reason.
+
+`Data.liveStatus(model, active)` says how what one active entry reads live is
+doing, for a view that shows it:
+
+```ts
+Match.value(Data.liveStatus(model, Watched)).pipe(
+  Match.tagsExhaustive({
+    Idle: () => 'not live',
+    Live: () => 'live',
+    Reconnecting: ({ attempt }) => `reconnecting (attempt ${attempt})`,
+  }),
+)
+```
+
+`Reconnecting` lasts from the break until the stream has resubscribed, and
+carries the error, which is none for a gap. `RemoteModel.streams` holds each
+stream's restarts, its breaks in a row and its last error. `forget` clears it
+with every other server-derived fact.
 
 ## Retention and garbage collection
 

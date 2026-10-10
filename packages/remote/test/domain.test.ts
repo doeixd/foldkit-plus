@@ -555,11 +555,15 @@ describe('Data.live and Data.subscriptions', () => {
       requirements: [{ entity: 'Project', id: 'p7', fields: ['name'], live: true }],
       cursor: 0,
       floor: 0,
+      restarts: 0,
+      failures: 0,
     })
     expect(subscriptions['home.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [],
       cursor: 0,
       floor: 0,
+      restarts: 0,
+      failures: 0,
     })
   })
 

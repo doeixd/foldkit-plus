@@ -500,7 +500,12 @@ loaded. The value arriving (page, read, live patch, mutation result), a live
 invalidation or delete, or retention dropping it also clears it.
 `Remote.inspect(remote).failures` is `{ connections, fields }`. A live stream
 breaking emits `ReadFailed` with its `stream`, which records a gap and fails no
-field.
+field. The live entry restarts a broken stream itself: after Sync's backoff
+(50 ms doubling to 5 s, ±20% jitter; `retryBase`/`maxRetryDelay` in the
+subscriptions options) it resubscribes from its cursor and refetches what the
+stream covers, since no server replays missed events.
+`Data.liveStatus(model, active)` is `Idle | Live | Reconnecting { attempt, error }`
+for a view.
 
 `Data.explain(model, queryProjection)` explains one query read as a single
 serializable value: `domain`, `query`, `input`, `identity`, `window`, `select`,
@@ -680,7 +685,8 @@ is for fields; `visible` is for rows.
 - `staleWhileRevalidate` ages entities only; connections refetch only when
   invalidated or under `networkOnly`.
 - Live cursors: duplicates ignored, an ahead-of-cursor event is a **gap** (not
-  applied, recorded in `remote.gaps`); resync rather than ignoring it.
+  applied, recorded in `remote.gaps`). It restarts the stream; only the
+  restart clears it, not a later in-order event.
 - Coalescing is per `RemoteClient` layer; separate layers do not share batches.
 - `RemotePersistence.dehydrate` with `maxBytes` returns `undefined` when too big.
 - Wire limits: 256 fields per entity request, relation depth 8; protocol version
