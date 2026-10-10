@@ -259,6 +259,7 @@ form creates.
 | `Saved` | it was applied |
 | `SaveFailed` | it failed; the drafts are kept, and `saveError(model)` says why |
 | `Conflict` | the server refused it with `Refusal.conflict`: the row moved on since it was read |
+| `Moved` | someone else saved the row since it was read (a declared write that `expect`s a revision); the draft is kept, and a save of it would be a conflict |
 | `LoadFailed` | reading it failed, with no earlier value to show; `refresh(model)` asks again |
 | `NotFound` | it is gone: the server answered without it, a mutation deleted it, or a live event did. This outranks a save that landed |
 
@@ -288,6 +289,12 @@ a key the form does not have is left to the status and `saveError`.
   only those and two authors of different fields both land. Remote shows the
   write bound to those keys until the server answers, with no optimistic patch
   written here. Something new, never filled, is written whole.
+- **A write that `expect`s a revision follows its own saves.** Once this
+  editor's save is applied, the form takes the revision it moved the row to,
+  so the next save is not refused as a conflict with itself; until then, a
+  revision moved by anyone else reads as `Moved`. (A save applied while
+  another client also saves is taken as this editor's: the race is not told
+  apart.)
 
 ### Drawing it
 

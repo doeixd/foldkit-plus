@@ -125,6 +125,11 @@ export type EditorStatus =
   | 'SaveFailed'
   /** The server refused the save with `Refusal.conflict`: the row moved on since it was read. */
   | 'Conflict'
+  /**
+   * Someone else saved the row since it was read: its revision moved past the
+   * one the form holds. The draft is kept; a save of it would be a conflict.
+   */
+  | 'Moved'
 
 /** The parts of a bound Remote domain an editor uses. */
 export interface DomainLike<Root> {
@@ -651,6 +656,8 @@ export const Crud = {
           Schema.toEquivalence(schema as Schema.Codec<unknown, unknown>),
         ]),
       )
+    // The input key holding the revision a declared write expects, when it expects one.
+    const expectKey = mutation.write?.expect?.key
     // The keys a refusal can name: a nested key holds rows, not a draft to mark.
     const draftKeys = new Set(
       form.controls.filter(entry => !Input.Nested.is(entry.control)).map(entry => entry.key),
@@ -795,7 +802,52 @@ export const Crud = {
           })
         }
 
-        const sync: Update.Step<Root, never, never> = root => ({ model: refused(filledOf(root)) })
+        /** The revision the row is at now, as the form's `expect` key holds it. */
+        const currentRevision = (root: Root): Option.Option<unknown> => {
+          const read = loaded(root)
+          if (expectKey === undefined || read === undefined) return Option.none()
+          if (read._tag !== 'Ready' && read._tag !== 'Refreshing') return Option.none()
+          const values = Entity.valuesFor(form.input, read.value) as Readonly<
+            Record<string, unknown>
+          >
+          return Object.hasOwn(values, expectKey) ? Option.some(values[expectKey]) : Option.none()
+        }
+        /** Whether the row is at another revision than the one the form was filled with. */
+        const moved = (root: Root): boolean => {
+          const { filledWith } = slice.get(root)
+          return (
+            expectKey !== undefined &&
+            Option.isSome(filledWith) &&
+            Option.exists(
+              currentRevision(root),
+              revision => !sameValue[expectKey]!(filledWith.value[expectKey], revision),
+            )
+          )
+        }
+
+        /**
+         * After this editor's own save, the row's revision is the one that save
+         * moved it to: the form takes it, or its next save would conflict with
+         * itself.
+         */
+        const rebased = (root: Root): Root => {
+          if (expectKey === undefined || saveOf(root)._tag !== 'Applied' || !moved(root))
+            return root
+          const editor = slice.get(root)
+          const revision = Option.getOrThrow(currentRevision(root))
+          return slice.set(root, {
+            ...editor,
+            form: form.fill(editor.form, { [expectKey]: revision } as Partial<Value>).model,
+            filledWith: Option.map(editor.filledWith, filled => ({
+              ...filled,
+              [expectKey]: revision,
+            })),
+          })
+        }
+
+        const sync: Update.Step<Root, never, never> = root => ({
+          model: rebased(refused(filledOf(root))),
+        })
 
         /** Why the server refused the last save, when it refused it as data. */
         const refusalOf = (root: Root): Option.Option<unknown> => {
@@ -892,7 +944,7 @@ export const Crud = {
               case 'Applied':
                 return 'Saved'
               case 'Unknown':
-                if (editor.filled) return 'Editing'
+                if (editor.filled) return moved(root) ? 'Moved' : 'Editing'
                 return read?._tag === 'Failed' ? 'LoadFailed' : 'Loading'
             }
           },

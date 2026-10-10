@@ -44,4 +44,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the form keeps the revision its own save moved past',
+    edits: [
+      {
+        file,
+        find: "if (expectKey === undefined || saveOf(root)._tag !== 'Applied' || !moved(root))",
+        replace: 'if (true)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'another client’s save is not told',
+    edits: [
+      {
+        file,
+        find: "if (editor.filled) return moved(root) ? 'Moved' : 'Editing'",
+        replace: "if (editor.filled) return 'Editing'",
+      },
+    ],
+    tests,
+  },
 ]

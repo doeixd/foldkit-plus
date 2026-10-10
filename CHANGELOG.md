@@ -112,6 +112,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-crud`: an editor over a write that `expect`s a revision follows
+  it.** After its own save is applied, the form takes the revision the save
+  moved the row to, so its next save is not a conflict with itself; a revision
+  moved by another client reads as the new status `Moved`, the draft kept.
 - **Declared inserts and deletes.** `Write.insert(input, { id })` writes a row
   under an id the client chose and `Write.delete(input, { id, expect? })`
   deletes one; `Mutation.write` takes any kind (it was `Mutation.update`, and
