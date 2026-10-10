@@ -553,9 +553,16 @@ intact.
   nothing`. Every declared write is now retry-safe with no store. A handler
   still receives `requestId` to keep a log of its own.
 - **Journal settles publish:** `applyEdits(binding, { live })` tells a hub of
-  each edit it wrote. The registry does not use it yet: its client is plain
-  HTTP with no live stream, and giving its 100k-row grid live rows is a
-  change of its own.
+  each edit it wrote. The registry uses it since Phase 4: the rows the grid
+  draws are a live subscription (only those: a hub refuses more than a
+  thousand ids), on all three of its transports (Node through `serveFetch`
+  and a small adapter, the sandbox's port, the tests' handlers). A page test
+  sees another device's committed edit reach a drawn row with no read and no
+  exchange. Going live surfaced a gap in `RemoteEdits`: this device's edit
+  landed, its overlay was lifted, and a later edit arriving live replaced it
+  unsaid. The bridge now keeps this replica's landed edit until the slice
+  drops it, and says `replaced` for any of its edits a read reaches with
+  another value.
 - **Not built:** remote-drizzle's `transaction(...)` for handlers, one live
   event per transaction (live events are per entity; a batch event is a new
   wire variant), and the cross-request change log for Workers (cloudflare

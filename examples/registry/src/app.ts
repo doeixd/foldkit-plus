@@ -27,7 +27,7 @@ import { Crud } from 'foldkit-crud'
 import { type CellAddress, DataGrid, RowModel } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, RemotePersistence, type RemoteClient } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
+import { Projection, Surface } from 'foldkit-surface'
 import { Sync } from 'foldkit-sync'
 import { RemoteEdits } from 'foldkit-sync/remote'
 import {
@@ -372,6 +372,44 @@ const replay = (model: Model, by: 'undo' | 'redo') => {
   }
 }
 
+/** What the grid is drawn from: given to the grid, and to the rows read live. */
+export const geometryOf = (model: Model) => ({
+  state: model.grid,
+  rows: rowsOf(model),
+  rowHeight: 32,
+  headerHeight: 36,
+  overscan: { rows: 6, columns: 1 },
+})
+
+/** The rows the grid draws, by id, as the projection last built for them. */
+let followed: { readonly key: string; readonly projection: Projection<Model, unknown> } | undefined
+
+/**
+ * The rows the grid draws, followed live: an edit the journal writes to the
+ * table reaches them as it lands, with its revision, so the page need not ask
+ * again. Only those drawn: a server refuses a subscription of more than a
+ * thousand ids, and a list read a page at a time grows past that.
+ */
+const LiveRows = Data.active('ProductsLive', model => {
+  const geometry = geometryOf(model)
+  const { start, end } = Grid.window(geometry).rows
+  const ids: Array<ProductId> = []
+  for (let index = start; index < end; index++) {
+    Option.map(geometry.rows.rowAt(index), row => ids.push(row.id))
+  }
+  if (ids.length === 0) return Option.none()
+  const key = JSON.stringify(ids)
+  if (followed?.key !== key) {
+    followed = {
+      key,
+      projection: Projection.struct(
+        Object.fromEntries(ids.map(id => [id, Data.live(ProductRow, id)])),
+      ),
+    }
+  }
+  return Option.some(followed.projection)
+})
+
 const Page = Base.pipe(
   Bundle.withServices<RemoteClient>(),
   Bundle.configure('grid', {
@@ -386,7 +424,10 @@ const Page = Base.pipe(
         RedoRequested: () => replay(model, 'redo'),
       }),
   }),
-  Bundle.withWiring(Data.wiring(Crud.actives({ products: Products })), persistence),
+  Bundle.withWiring(
+    Data.wiring({ ...Crud.actives({ products: Products }), live: LiveRows }),
+    persistence,
+  ),
 )
 
 export const placements = Page.placements
@@ -540,16 +581,30 @@ export const replacedOf = (previous: Model, next: Model): ReadonlyArray<Replacem
  */
 export const shownWith = (model: Model): Model => {
   const shown = Shown.reconcile(model, model.edits, model.replica)
-  const next =
-    shown.replaced.length === 0
-      ? shown.model
-      : modifyFields(shown.model, {
-          replaced: before => [
-            ...before,
-            ...shown.replaced.map(edit => replacementOf({ edit, by: Option.none() })),
-          ],
-        })
+  const next = withReplaced(
+    shown.model,
+    shown.replaced.map(edit => replacementOf({ edit, by: Option.none() })),
+  )
   return shown.held.length === 0 ? next : Products.refresh(next)
+}
+
+/**
+ * `replacements` said, each cell once, the latest kept. The row (a read that
+ * reached this page's edit with another value) and the slice (another
+ * replica's later commit) can both say a cell was replaced; the row speaks
+ * first when it does at all, since the slice naming a later commit lifts the
+ * landed edit the row would have spoken of. So the latest is the one that can
+ * name the author.
+ */
+export const withReplaced = (model: Model, replacements: ReadonlyArray<Replacement>): Model => {
+  if (replacements.length === 0) return model
+  return modifyFields(model, {
+    replaced: before => {
+      const kept = new Map(before.map(entry => [`${entry.id}:${entry.column}`, entry]))
+      for (const entry of replacements) kept.set(`${entry.id}:${entry.column}`, entry)
+      return [...kept.values()]
+    },
+  })
 }
 
 /** A cell's state for the grid's `marks`: a name to style, and words to say. */

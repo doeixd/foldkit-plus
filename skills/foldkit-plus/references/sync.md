@@ -262,7 +262,8 @@ const server = Effect.gen(function* () {
   state of its own. `foldkit-sync/remote`'s `RemoteEdits.make(Data, Edits)`
   shows them as Remote overlays, so every read of a row draws them:
   `reconcile(model, edits, replica)` from `afterUpdate` returns `{ model, held,
-  replaced }` (refresh the rows of `held`; say `replaced`), `shown(model)` for
+  replaced }` (refresh the rows of `held`; say `replaced`: this replica's
+  edits a read reached with another value, held or not), `shown(model)` for
   cell marks, `clear(model)` on a reset. On the server,
   `editsJournal({ documentId, journal, editsOf, apply, tableRevision,
   holdsThrough, absorbed, server })` (`foldkit-sync/journal`) gives `settle`,

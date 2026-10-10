@@ -33,7 +33,7 @@ if (import.meta.env.MODE === 'sandbox') {
     key: 'foldkit-registry/replica',
     // The name this tab commits as, short enough to read in "replaced by …".
     name: replicaId => `tab-${replicaId.slice(0, 4)}`,
-    resources: Remote.clientLayer(Remote.http('/remote')),
+    resources: Remote.clientLayer(Remote.httpWithLive('/remote')),
     transport: device =>
       Sync.transport.socket({ url: `${protocol}://${location.host}/sync?device=${device}` }),
   })

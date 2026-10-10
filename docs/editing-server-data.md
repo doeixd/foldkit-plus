@@ -181,9 +181,10 @@ a page whose own edit lost: its replica wrote the cell, and another
 replica's commit holds another value. It compares replicas, not people, so
 the same person's two tabs are told of each other. When the journal absorbed
 the winning edit before the losing page heard of it, the slice no longer says
-whose it was; `reconcile` sees it in the row as it lifts a held edit (at or
-past the edit, another value), returns it in `replaced`, and the page says "a
-later edit".
+whose it was; `reconcile` sees it in the row, when a read reaches this
+replica's edit (at or past it, another value), returns it in `replaced`, and
+the page says "a later edit". The read may be live: the edit is then still in
+the slice, and `reconcile` keeps its landed overlay to notice.
 
 **Refusals.** A refused operation comes back with its rejection, the operation
 itself included, and the replica drops it. `cellsOf` names what it changed, so

@@ -12,15 +12,79 @@ export default [
     edits: [
       {
         file,
-        find: 'for (const edit of slice) if (!reached(remote, edit)) wanted.set(keyOf(edit), edit)',
-        replace: 'for (const edit of slice) wanted.set(keyOf(edit), edit)',
+        find: 'if (!reached(remote, edit)) next = data.overlay(next, `${SHOWN}${key}`, [patchOf(edit)])',
+        replace: 'next = data.overlay(next, `${SHOWN}${key}`, [patchOf(edit)])',
       },
     ],
     tests,
   },
   {
     name: 'a matching overlay is shown again',
-    edits: [{ file, find: 'if (!shown.held && wanted.has(shown.key)) {', replace: 'if (false) {' }],
+    edits: [
+      { file, find: 'if (!shown.held && inSlice.has(shown.key)) {', replace: 'if (false) {' },
+    ],
+    tests,
+  },
+  {
+    name: 'a landed edit of this replica is not kept',
+    edits: [
+      {
+        file,
+        find: 'if (!reachedNow || (!differs && edits.mine(shown.edit, replica))) continue',
+        replace: 'if (!reachedNow) continue',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'another replica’s landed edit is kept',
+    edits: [
+      {
+        file,
+        find: 'if (!reachedNow || (!differs && edits.mine(shown.edit, replica))) continue',
+        replace: 'if (!reachedNow || !differs) continue',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an edit still in the slice is never said replaced',
+    edits: [
+      {
+        file,
+        find: 'if (differs && edits.mine(shown.edit, replica)) replaced.push(shown.edit)',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'another replica’s edit is said replaced',
+    edits: [
+      {
+        file,
+        find: '} else if (differs && edits.mine(shown.edit, replica)) {',
+        replace: '} else if (differs) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an edit the row holds is said replaced',
+    edits: [
+      {
+        file,
+        find: 'const differs = reachedNow && !holdsValue(remote, shown.edit)',
+        replace: 'const differs = reachedNow',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a landed edit is listed for a mark',
+    edits: [
+      { file, find: 'reached(remote, edit) ? [] : [{ edit, held }]', replace: '[{ edit, held }]' },
+    ],
     tests,
   },
   {
@@ -53,16 +117,6 @@ export default [
     edits: [
       { file, find: '          !reached(remote, shown.edit)\n', replace: '          true\n' },
     ],
-    tests,
-  },
-  {
-    name: 'another replica’s edit is said replaced',
-    edits: [{ file, find: 'edits.mine(shown.edit, replica) &&', replace: '' }],
-    tests,
-  },
-  {
-    name: 'an edit the row holds is said replaced',
-    edits: [{ file, find: '!Equal.equals(', replace: 'true || !Equal.equals(' }],
     tests,
   },
   {

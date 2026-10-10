@@ -19,7 +19,7 @@ import {
   GridStyle,
   MoreOnScroll,
 } from 'foldkit-mixins-data-grid'
-import { Grid, Message, Products, exchangeOf, marksOf, rowsOf, type Model } from './app.js'
+import { Grid, Message, Products, exchangeOf, geometryOf, marksOf, type Model } from './app.js'
 import type { EditedColumn } from './domain.js'
 import { ProductSort } from './operations.js'
 import { ownershipPanel } from './ownership.js'
@@ -100,16 +100,10 @@ const list = (count: number) =>
 /** The page, with the panel listing `manifest`'s owners. */
 export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleManifest): Document => {
   const page = Products.page(model)
-  const rows = rowsOf(model)
   const status = exchangeOf(model)
   // What the grid is drawn from, given to the grid and to the count of what it draws.
-  const geometry = {
-    state: model.grid,
-    rows,
-    rowHeight: 32,
-    headerHeight: 36,
-    overscan: { rows: 6, columns: 1 },
-  }
+  const geometry = geometryOf(model)
+  const { rows } = geometry
   const shown = Grid.window(geometry)
   // Kept on the device, by choice or because the server cannot be reached.
   const waiting = model.offline || Option.isSome(model.exchange.error)

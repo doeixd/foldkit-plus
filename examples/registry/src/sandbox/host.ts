@@ -26,7 +26,8 @@ const Edits = Journal.define<Operation, Shared, Principal>('registry/Edits')
 export const openHost = async (): Promise<ConversationHandler<Opening>> => {
   const SQL = await initSqlJs({ locateFile: () => wasm })
   const backend = openServer(sqlJsSqlite(new SQL.Database()), { count: 10_000 })
-  const handlers = RemoteServer.handlers(backend.server, null)
+  // Live streams too: the table's writes reach both devices' rows through the hub.
+  const handlers = RemoteServer.handlers(backend.server, null, { live: backend.live })
   // The journal and its database live as long as the host: the runtime is
   // never disposed, since the host lasts as long as its worker or page.
   const runtime = ManagedRuntime.make(

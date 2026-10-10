@@ -6,7 +6,6 @@
  */
 import { Effect, Fiber, Layer, Match, Option, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
-import { modifyFields } from 'foldkit/struct'
 import type { RemoteClient } from 'foldkit-remote'
 import { BundleSurface } from 'foldkit-bundle-surface'
 import { type Contract, MessageSet, Module, Projection } from 'foldkit-surface'
@@ -31,6 +30,7 @@ import {
   replacedOf,
   Shown,
   shownWith,
+  withReplaced,
 } from './app.js'
 import { type ProductEdit, ProductEdits } from './domain.js'
 import { view } from './view.js'
@@ -154,13 +154,7 @@ export const mountRegistry = (
     // the rows are read again.
     onReinstall: (next, previous, { reset }) => {
       if (reset) return { model: Products.refresh(Shown.clear(next)) }
-      const replaced = replacedOf(previous, next)
-      return {
-        model:
-          replaced.length === 0
-            ? next
-            : modifyFields(next, { replaced: before => [...before, ...replaced] }),
-      }
+      return { model: withReplaced(next, replacedOf(previous, next)) }
     },
     // In the same update as every change to the edits or the rows, so no
     // frame draws a cached row without an edit the journal absorbed after

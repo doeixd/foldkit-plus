@@ -129,10 +129,25 @@ describe('RemoteEdits', () => {
     // A read below the commit leaves it shown.
     const below = reconcile(read(model, { id: 'a:1', price: 10, revision: 4 }), slice).model
     expect(priceOf(below, 'a:1')).toBe(11)
-    // A read at it shows the row, and the overlay is gone.
+    // A read at it shows the row, and nothing is shown over it.
     const at = reconcile(read(model, { id: 'a:1', price: 11, revision: 5 }), slice).model
     expect(Shown.shown(at)).toEqual([])
-    expect(priceOf(read(at, { id: 'a:1', price: 12, revision: 6 }), 'a:1')).toBe(12)
+    // This replica's edit, still in the slice: a later value is seen replacing it.
+    const later = reconcile(read(at, { id: 'a:1', price: 12, revision: 6 }), slice)
+    expect(priceOf(later.model, 'a:1')).toBe(12)
+    expect(later.replaced).toEqual([committed('a:1', 11, 5)])
+  })
+
+  test('keeps nothing of another replica’s edit once the row has it', () => {
+    const slice = [committed('a:1', 11, 5, grace)]
+    // Read at it first: nothing is shown.
+    const first = read(loaded, { id: 'a:1', price: 11, revision: 5 })
+    expect(Data.overlays(reconcile(first, slice).model)).toEqual([])
+    // Shown first, then read at it: lifted.
+    const shown = reconcile(loaded, slice).model
+    expect(Data.overlays(shown)).toHaveLength(1)
+    const at = reconcile(read(shown, { id: 'a:1', price: 11, revision: 5 }), slice).model
+    expect(Data.overlays(at)).toEqual([])
   })
 
   test('holds an absorbed edit while the cached row is below it, and says so once', () => {
@@ -154,6 +169,16 @@ describe('RemoteEdits', () => {
     const later = reconcile(read(held, { id: 'a:1', price: 13, revision: 7 }), [])
     expect(priceOf(later.model, 'a:1')).toBe(13)
     expect(later.replaced).toEqual([committed('a:1', 11, 5)])
+  })
+
+  test('says an edit still in the slice was replaced once a read reaches it with another value', () => {
+    const slice = [committed('a:1', 11, 5)]
+    const shown = reconcile(loaded, slice).model
+    const later = reconcile(read(shown, { id: 'a:1', price: 13, revision: 7 }), slice)
+    expect(later.replaced).toEqual([committed('a:1', 11, 5)])
+    expect(Shown.shown(later.model)).toEqual([])
+    const same = reconcile(read(shown, { id: 'a:1', price: 11, revision: 7 }), slice)
+    expect(same.replaced).toEqual([])
   })
 
   test('does not say another replica’s held edit was replaced', () => {

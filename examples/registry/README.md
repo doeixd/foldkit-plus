@@ -64,6 +64,12 @@ this example's own is below.
   would, so edits wait on the device, through a reload. Switching back
   exchanges at once. An unreachable server is retried on a backoff (0.5 s up
   to 30 s) and at once on the next edit.
+- **The rows drawn follow the table live.** The rows the grid draws are a
+  live subscription, and each edit the journal writes to the table is told to
+  a hub (`applyEdits(Db.Product, { live })`), so a row takes its new value and
+  revision as the table does, with no read. Only the drawn rows: a server
+  refuses more than a thousand ids in one subscription. A row read but not
+  drawn still catches up by being read again.
 - **The rows read are kept too.** `Data.persistence` saves Remote's cache in
   `localStorage`, every list loaded with its rows, so a reload paints them
   before the server answers, or while it cannot, with the pending edits over
@@ -99,11 +105,12 @@ this example's own is below.
 
 ```text
 cell text -> Out.Edited -> onOut -> Sync.fact(EditedProducts) -> update: ProductEdits.merge
+  -> afterUpdate: RemoteEdits lays it over the row as a Remote overlay
   -> replica persists the operation (IndexedDB) -> the cell shows it
   -> exchange: the journal commits it, stamped with its sequence, writes it to
-     the table with that revision, and wakes other replicas
+     the table with that revision, tells the hub, and wakes other replicas
+  -> every page drawing the row hears it live, at that revision; the edit gives way
   -> their exchange brings it into their edits
-  -> a read of the row at that revision shows the table's row, and the edit gives way
   -> the server records that the table holds it; replicas drop it, the log is compacted
 ```
 

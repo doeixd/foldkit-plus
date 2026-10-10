@@ -96,15 +96,18 @@ export const openServer = (
   // calls this once per change, in the order it committed them. Only the
   // journal writes the table. `applyEdits` writes the cell and the revision in
   // one statement that never moves a row back, so recovery may run it again
-  // (the effect ledger and this table are separate databases).
+  // (the effect ledger and this table are separate databases). Each edit it
+  // writes is told to the hub, so a page following the row live hears it.
   const layer = databaseLayer(sqlite.drizzle)
-  const applyProduct = applyEdits(Db.Product)
+  const productSource = source(Db.Product)
+  const live = Effect.runSync(RemoteServer.liveHub([productSource]))
+  const applyProduct = applyEdits(Db.Product, { live })
   const apply = (change: ProductChange, at: number) =>
     applyProduct(change, at).pipe(Effect.provide(layer))
 
   return {
     server: RemoteServer.make({
-      entities: [source(Db.Product)],
+      entities: [productSource],
       queries: [
         query(ProductsQuery, {
           entity: Db.Product,
@@ -121,6 +124,8 @@ export const openServer = (
       ],
     }),
     layer,
+    /** The hub the table's writes are told to; the handlers serve live streams from it. */
+    live,
     apply,
     /** The row as the database holds it, to check a write against. */
     row: (id: string) => sqlite.get('select * from products where id = ?', [id]),

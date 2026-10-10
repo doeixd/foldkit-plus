@@ -8,12 +8,57 @@ const tests = ['examples/registry/test/page.test.ts']
 
 export default [
   {
+    name: 'a cell is said replaced twice',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'for (const entry of replacements) kept.set(`${entry.id}:${entry.column}`, entry)',
+        replace: 'return [...before, ...replacements]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the first to say a cell was replaced is kept',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'for (const entry of replacements) kept.set(`${entry.id}:${entry.column}`, entry)',
+        replace:
+          'for (const entry of replacements) if (!kept.has(`${entry.id}:${entry.column}`)) kept.set(`${entry.id}:${entry.column}`, entry)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the table’s writes are told to no one',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'const applyProduct = applyEdits(Db.Product, { live })',
+        replace: 'const applyProduct = applyEdits(Db.Product)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'no row is followed live',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Data.wiring({ ...Crud.actives({ products: Products }), live: LiveRows }),',
+        replace: 'Data.wiring({ ...Crud.actives({ products: Products }) }),',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'nothing read is kept across a reload',
     edits: [
       {
         file: '../src/app.ts',
-        find: 'Bundle.withWiring(Data.wiring(Crud.actives({ products: Products })), persistence),',
-        replace: 'Bundle.withWiring(Data.wiring(Crud.actives({ products: Products }))),',
+        find: '    persistence,',
+        replace: '',
       },
     ],
     tests,
@@ -61,8 +106,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: '...shown.replaced.map(edit => replacementOf({ edit, by: Option.none() })),',
-        replace: '',
+        find: 'shown.replaced.map(edit => replacementOf({ edit, by: Option.none() })),',
+        replace: '[],',
       },
     ],
     tests,

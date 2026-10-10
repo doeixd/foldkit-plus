@@ -590,8 +590,11 @@ overlays (`Data.overlay`) in line with the slice, so every read of a row draws
 its edits, a second view or a filter as well as the grid. It holds an edit the
 journal absorbed while the cached row is below it, and lifts it once a read
 reaches it; it returns those newly `held` (ask for their rows again) and this
-replica's held edits a read reached with another value (`replaced`). Call it
-from `afterUpdate`. `shown(model)` lists what the overlays show, for a cell's
+replica's edits a read reached with another value (`replaced`: the table
+applies in commit order, so a later edit took the cell). To see that when the
+row arrives live after its own edit landed, it keeps this replica's landed
+edit, showing the row's own value, until the slice drops it. Call it from
+`afterUpdate`. `shown(model)` lists what the overlays show, for a cell's
 mark, and `clear` lifts them all, for a reset. Remote stores none of it: after
 a reload, `reconcile` rebuilds the overlays from the slice the replica
 restored. On the server, `editsJournal` from `foldkit-sync/journal` keeps

@@ -71,7 +71,11 @@ const serve = () => {
           ? backend.apply(change, at)
           : Effect.fail(new Error('the table cannot be written')),
     })
-    return { backend, journal, handlers: RemoteServer.handlers(backend.server, null) }
+    return {
+      backend,
+      journal,
+      handlers: RemoteServer.handlers(backend.server, null, { live: backend.live }),
+    }
   }
   let current = start()
   let online = true
@@ -120,9 +124,18 @@ const serve = () => {
       Effect.suspend(() =>
         current.handlers.FoldkitRemoteMutate(payload).pipe(Effect.provide(current.backend.layer)),
       ),
+    // A held read holds what a live stream delivers too, so a test sees the
+    // page before a row's new revision reaches it by either way.
     FoldkitRemoteLive: payload =>
       Stream.suspend(() =>
         current.handlers.FoldkitRemoteLive(payload).pipe(Stream.provide(current.backend.layer)),
+      ).pipe(
+        Stream.mapEffect(change =>
+          Effect.as(
+            Effect.promise(() => gate),
+            change,
+          ),
+        ),
       ),
   }
   return {
@@ -141,7 +154,7 @@ const serve = () => {
     setTampering: (value: boolean) => (tampering = value),
     /** How many reads and queries the server has answered so far. */
     reads: () => reads,
-    /** Holds every read until the returned function is called. */
+    /** Holds every read, and every live delivery, until the returned function is called. */
     holdReads: () => {
       let release = () => {}
       gate = new Promise(resolve => (release = resolve))
@@ -459,6 +472,21 @@ test('a reload with the server out of reach paints the kept rows, its edits over
   }
 })
 
+test('an edit the table takes reaches a row this page draws live, with no read and no exchange', async () => {
+  const server = serve()
+  const { dispose } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(5), 'cents')?.textContent).toBe(priceOf(5)))
+    const answered = server.reads()
+    // Another device commits; the journal writes the table and tells the hub.
+    await commitElsewhere(server, 5, 555)
+    await vi.waitFor(() => expect(cell(productId(5), 'cents')?.textContent).toBe('5.55'))
+    expect(server.reads()).toBe(answered)
+  } finally {
+    await dispose()
+  }
+})
+
 test('an edit another device made shows here after an exchange', async () => {
   const server = serve()
   const { dispose, exchange } = await mount(server, memoryStorage())
@@ -624,15 +652,17 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
     await vi.waitFor(() => expect(cell(productId(9), 'cents')?.textContent).toBe(priceOf(9)))
     await edit(productId(9), 'cents', '4.40')
     await vi.waitFor(() => expect(cell(productId(9), 'cents')?.textContent).toBe('4.40'))
-    // Committed, then written by the next exchange; the cached row is still the seed's.
+    // Committed, then written by the next exchange. Reads and the live stream
+    // are held from here, so the cached row is still the seed's: as for a row
+    // the page does not follow live.
+    const release = server.holdReads()
     await exchange()
     await exchange()
     expect(server.backend.row(productId(9))).toMatchObject({ cents: 440, revision: 1 })
 
     // The journal records what the table holds; the exchange drops the edit,
     // and in the same transition this page keeps it, for its row is older.
-    // It asks for the row again at once; held here, to see the page meanwhile.
-    const release = server.holdReads()
+    // It asks for the row again at once.
     await Effect.runPromise(server.journal.absorb)
     await exchange()
     // The mount reinstalls on its own fiber; then a frame draws it.
@@ -704,10 +734,11 @@ test('a server restarted under the page drops what it held of the old history', 
   try {
     await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4)))
     await edit(productId(4), 'cents', '4.40')
+    // Reads and the live stream held, so the cached row stays older.
+    const release = server.holdReads()
     await exchange()
     await exchange()
     // Absorbed while the cached row is older: held, and the row is asked for.
-    const release = server.holdReads()
     await Effect.runPromise(server.journal.absorb)
     await exchange()
     await vi.waitFor(() => expect(heldOf(latest())).toEqual([productId(4)]))
@@ -860,6 +891,50 @@ test('working offline keeps edits on the device, and going back online sends the
     await vi.waitFor(() => expect(status()).toBe(''))
     await exchange()
     expect(server.backend.row(productId(4))).toMatchObject({ cents: 404 })
+  } finally {
+    await dispose()
+  }
+})
+
+test('a cell replaced is said once, naming the later author, though the row and the slice both tell', async () => {
+  const server = serve()
+  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    await edit(productId(3), 'cents', '3.33')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    // The row is held back, so the slice says first, naming the later author.
+    const release = server.holdReads()
+    await commitElsewhere(server, 3, 444)
+    await exchange()
+    await vi.waitFor(() => expect(markOf(productId(3), 'cents')).toBe('replaced'))
+    // Then the row arrives; the cell is not said again.
+    release()
+    await vi.waitFor(() => expect(revisionOf(latest(), productId(3))).toEqual(Option.some(2)))
+    expect(latest().replaced).toEqual([
+      { id: productId(3), column: 'cents', by: Option.some('tab-2'), was: '3.33' },
+    ])
+  } finally {
+    await dispose()
+  }
+})
+
+test('an absorbed edit to a row read but not drawn asks for the row again', async () => {
+  const server = serve()
+  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  // Read with the first page, below what the grid draws, so not followed live.
+  const far = productId(50)
+  try {
+    await vi.waitFor(() => expect(revisionOf(latest(), far)).toEqual(Option.some(0)))
+    await commitElsewhere(server, 50, 5050)
+    await exchange()
+    await vi.waitFor(() => expect(latest().edits.map(kept => kept.id)).toEqual([far]))
+    expect(revisionOf(latest(), far)).toEqual(Option.some(0))
+    await Effect.runPromise(server.journal.absorb)
+    await exchange()
+    await vi.waitFor(() => expect(revisionOf(latest(), far)).toEqual(Option.some(1)))
+    expect(heldOf(latest())).toEqual([])
   } finally {
     await dispose()
   }

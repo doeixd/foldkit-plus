@@ -1,19 +1,55 @@
 /**
- * The server on one port: Remote's reads at `/remote`, reached by
- * `Remote.http`, and the edits' journal at `/sync`, a WebSocket the replica
+ * The server on one port: Remote's reads and live streams at `/remote`,
+ * reached by `Remote.httpWithLive`, and the edits' journal at `/sync`, a WebSocket the replica
  * exchanges over. Authentication would choose the principal here; this
  * example has none.
  */
-import { createServer, type Server } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Effect } from 'effect'
-import { RemoteServer } from 'foldkit-remote-server'
+import { serveFetch } from 'foldkit-remote-server/fetch'
 import type { SocketLike } from 'foldkit-sync'
 import { type WebSocket, WebSocketServer } from 'ws'
 import { memoryJournal } from './journalNode.js'
 import { openServer } from './server.js'
 import { memorySqlite } from './sqliteNode.js'
 import { everyone } from './sync.js'
+
+/**
+ * One Node request answered by a Fetch handler: its body read whole, the
+ * answer's bytes written as they come, so a live stream reaches the page as
+ * it goes. A page that leaves cancels the answer, which ends its stream.
+ */
+const respond = async (
+  answer: (request: Request, env: undefined) => Promise<Response>,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> => {
+  const chunks: Buffer[] = []
+  for await (const chunk of request) chunks.push(chunk as Buffer)
+  const headers = new Headers()
+  for (const [name, value] of Object.entries(request.headers)) {
+    if (typeof value === 'string') headers.set(name, value)
+  }
+  const answered = await answer(
+    new Request(`http://localhost${request.url ?? '/'}`, {
+      method: request.method ?? 'GET',
+      headers,
+      ...(request.method === 'POST' ? { body: Buffer.concat(chunks) } : {}),
+    }),
+    undefined,
+  )
+  response.writeHead(answered.status, Object.fromEntries(answered.headers))
+  if (answered.body === null) return void response.end()
+  const reader = answered.body.getReader()
+  response.on('close', () => void reader.cancel())
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    response.write(value)
+  }
+  response.end()
+}
 
 /** Adapts one `ws` socket to the transport's minimal socket. */
 const socketLike = (socket: WebSocket): SocketLike => ({
@@ -39,28 +75,21 @@ export const startHttpServer = async (
 }> => {
   const backend = openServer(memorySqlite())
   const journal = memoryJournal(backend)
-  const handlers = RemoteServer.handlers(backend.server, null)
+  // Reads, queries and mutations answered as JSON; live requirements as a
+  // stream of events, which the table's writes reach through the hub.
+  const answer = serveFetch({
+    server: backend.server,
+    resolvePrincipal: () => null,
+    layer: () => backend.layer,
+    live: backend.live,
+  })
 
   const server: Server = createServer((request, response) => {
-    const reply = (status: number, body: unknown) => {
-      response.writeHead(status, { 'content-type': 'application/json' })
-      response.end(JSON.stringify(body))
-    }
-    if (request.method !== 'POST' || request.url !== '/remote')
-      return reply(404, { error: 'not found' })
-    const chunks: Buffer[] = []
-    request.on('data', chunk => chunks.push(chunk as Buffer))
-    request.on('end', () => {
-      let body: unknown
-      try {
-        body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-      } catch {
-        return reply(400, { error: 'The body is not JSON' })
-      }
-      // Decoded by the protocol's own schemas, so an operation is one of three.
-      void Effect.runPromise(
-        RemoteServer.answer(handlers, body).pipe(Effect.provide(backend.layer)),
-      ).then(answered => reply(answered.status, answered.body))
+    // A stream that breaks partway ends the response; the page's live entry
+    // resubscribes. Before the head is sent, it is this side's failure.
+    respond(answer, request, response).catch(() => {
+      if (!response.headersSent) response.writeHead(500)
+      response.end()
     })
   })
 

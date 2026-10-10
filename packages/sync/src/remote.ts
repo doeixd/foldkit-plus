@@ -68,8 +68,9 @@ export interface Reconciled<AppModel, Edit> {
    */
   readonly held: ReadonlyArray<Edit>
   /**
-   * `replica`'s own held edits a read of their row reached with another value:
-   * a later edit replaced them, whose author the journal has absorbed.
+   * `replica`'s own edits a read of their row reached with another value: the
+   * table applies in commit order, so a later edit replaced them. The slice
+   * may say whose later, or may not yet; this is the row saying it.
    */
   readonly replaced: ReadonlyArray<Edit>
 }
@@ -124,6 +125,13 @@ const make = <AppModel, Edit extends AnyEdit>(
       }
     | undefined
 
+  /** Whether the row Remote holds has the edit's value in its cell. */
+  const holdsValue = (remote: RemoteModel, edit: Edit) =>
+    Equal.equals(
+      readField(remote.entities, rowKey(edit), edit.member),
+      Option.some(encodedOf(edit).value),
+    )
+
   const patchOf = (edit: Edit): OptimisticOperation => {
     const { id, member, value } = encodedOf(edit)
     return { entity, id: String(id), values: { [member]: value } }
@@ -154,15 +162,22 @@ const make = <AppModel, Edit extends AnyEdit>(
       ) {
         return { model, held: [], replaced: [] }
       }
-      const wanted = new Map<string, Edit>()
-      for (const edit of slice) if (!reached(remote, edit)) wanted.set(keyOf(edit), edit)
+      const inSlice = new Map(slice.map(edit => [keyOf(edit), edit]))
       const edited = new Set(slice.map(cellOf))
       const held: Array<Edit> = []
       const replaced: Array<Edit> = []
       let next = model
       for (const shown of shownIn(model)) {
-        if (!shown.held && wanted.has(shown.key)) {
-          wanted.delete(shown.key)
+        const reachedNow = reached(remote, shown.edit)
+        const differs = reachedNow && !holdsValue(remote, shown.edit)
+        if (!shown.held && inSlice.has(shown.key)) {
+          inSlice.delete(shown.key)
+          // Kept while the row is below it, and, landed, while it is this
+          // replica's and the row still holds it: a later edit that reaches the
+          // row live is then seen replacing it, though the slice may never say.
+          if (!reachedNow || (!differs && edits.mine(shown.edit, replica))) continue
+          next = data.lift(next, shown.id)
+          if (differs && edits.mine(shown.edit, replica)) replaced.push(shown.edit)
           continue
         }
         // Held only while nothing in the slice edits the cell and the cached
@@ -177,19 +192,13 @@ const make = <AppModel, Edit extends AnyEdit>(
         if (holds) {
           next = data.overlay(next, `${HELD}${shown.key}`, [patchOf(shown.edit)])
           held.push(shown.edit)
-        } else if (
-          shown.held &&
-          reached(remote, shown.edit) &&
-          edits.mine(shown.edit, replica) &&
-          !Equal.equals(
-            readField(remote.entities, rowKey(shown.edit), shown.edit.member),
-            Option.some(encodedOf(shown.edit).value),
-          )
-        ) {
+        } else if (differs && edits.mine(shown.edit, replica)) {
           replaced.push(shown.edit)
         }
       }
-      for (const [key, edit] of wanted) next = data.overlay(next, `${SHOWN}${key}`, [patchOf(edit)])
+      for (const [key, edit] of inSlice) {
+        if (!reached(remote, edit)) next = data.overlay(next, `${SHOWN}${key}`, [patchOf(edit)])
+      }
       settled = {
         entities: remote.entities,
         optimistic: data.store.get(next).optimistic,
@@ -199,9 +208,17 @@ const make = <AppModel, Edit extends AnyEdit>(
       return { model: next, held, replaced }
     },
 
-    /** The edits the overlays show now, in the order they are drawn: for a cell's mark. */
-    shown: (model: AppModel): ReadonlyArray<ShownEdit<Edit>> =>
-      shownIn(model).map(({ edit, held }) => ({ edit, held })),
+    /**
+     * The edits the overlays show over their rows now, in the order they are
+     * drawn: for a cell's mark. One the row has reached, kept only to see a
+     * later edit replace it, is not among them.
+     */
+    shown: (model: AppModel): ReadonlyArray<ShownEdit<Edit>> => {
+      const remote = data.store.get(model)
+      return shownIn(model).flatMap(({ edit, held }) =>
+        reached(remote, edit) ? [] : [{ edit, held }],
+      )
+    },
 
     /**
      * Lifts every overlay this bridge shows: for a server reset, after which

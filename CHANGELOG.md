@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/registry`: the rows the grid draws follow the table live.** The
+  journal's writes are told to a hub (`applyEdits(Db.Product, { live })`); the
+  dev server answers through `serveFetch`, live streams included, and the
+  client uses `Remote.httpWithLive`. A replacement said both by a read and by
+  the slice is listed once, the slice's, which names the author.
+- **`foldkit-sync/remote`: `replaced` covers an edit still in the slice.** A
+  read reaching this replica's edit with another value says it, held or not,
+  and this replica's landed edit is kept (showing the row's own value) until
+  the slice drops it, so a later edit arriving live is seen replacing it.
 - **`examples/registry`: the rows read survive a reload.** `Data.persistence`
   keeps Remote's cache in `localStorage`, so a reload with the server out of
   reach paints the last rows read, the pending edits over them.
