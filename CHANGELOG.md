@@ -112,6 +112,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-drizzle`: `applyEdits(binding, { live })` publishes what
+  the journal applies.** Each edit it wrote is told to the hub (the member and
+  the revision); one the row had passed is not.
 - **`foldkit-remote-drizzle`: a retried guarded write does not conflict with
   itself.** When a write's guard misses, the writer reads the row: one
   revision past the expected one with exactly these values means it landed,

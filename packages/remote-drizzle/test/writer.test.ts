@@ -8,12 +8,12 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Schema } from 'effect'
+import { Effect, Schema, Stream } from 'effect'
 import { Entity, Relation, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemoteServer, type LiveHub } from 'foldkit-remote-server'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
-import { applyEdits, bind, databaseLayer, writer } from '../src/index.js'
+import { applyEdits, bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
 
 const Project = Entity.define(
   'Project',
@@ -248,6 +248,27 @@ describe('applyEdits, a journal’s apply', () => {
     // A second change to the row in the same operation lands too.
     await run({ id: 'p1', member: 'status', value: 'archived' }, 5)
     expect(row('p1')).toMatchObject({ name: 'Five', status: 'archived', revision: 5 })
+  })
+
+  it('tells a live hub of each edit it applied, and of none the row had passed', async () => {
+    seed()
+    const told: Array<{ readonly id: string; readonly fields: ReadonlyArray<string> }> = []
+    const hub: LiveHub<unknown, DrizzleDatabase> = {
+      changed: (ref, fields) => Effect.sync(() => void told.push({ id: ref.id, fields })),
+      deleted: () => Effect.void,
+      subscribe: () => Stream.empty,
+      size: Effect.succeed(0),
+    }
+    const publishing = applyEdits(Db.Project, { live: hub })
+    const layer = databaseLayer(drizzle({ client: sqlite }))
+    await Effect.runPromise(
+      publishing({ id: 'p1', member: 'name', value: 'Five' }, 5).pipe(Effect.provide(layer)),
+    )
+    // Recovery runs an older edit again: the row has passed it, so nothing is told.
+    await Effect.runPromise(
+      publishing({ id: 'p1', member: 'name', value: 'Three' }, 3).pipe(Effect.provide(layer)),
+    )
+    expect(told).toEqual([{ id: 'p1', fields: ['name', 'revision'] }])
   })
 
   it('refuses a member the table has no column for, rather than naming one from the change', async () => {

@@ -154,4 +154,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'an edit the row had passed is told too',
+    edits: [
+      {
+        file: drizzle,
+        find: 'if (hub !== undefined && written.length > 0) {',
+        replace: 'if (hub !== undefined) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an applied edit is not told',
+    edits: [
+      {
+        file: drizzle,
+        find: 'if (hub !== undefined && written.length > 0) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
 ]

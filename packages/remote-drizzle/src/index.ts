@@ -29,6 +29,7 @@ import {
   RemoteServerError,
   type EntityRecord,
   type EntityWriter,
+  type LiveHub,
   type EntitySource,
   type EntitySourceContext,
   type QuerySource,
@@ -926,9 +927,17 @@ export const writer = <P = unknown>(
  * Here the revision is the journal's sequence. A table a journal writes this
  * way should not also take writes that `expect` a counter there.
  */
-export const applyEdits = (
+export const applyEdits = <P = unknown>(
   binding: AnyEntityBinding,
-  options: { readonly revision?: string } = {},
+  options: {
+    readonly revision?: string
+    /**
+     * A hub to tell of each edit applied, so a Remote reader following the row
+     * live hears it once the journal applies it. An edit the row had already
+     * passed (recovery running it again) changes nothing and is not told.
+     */
+    readonly live?: LiveHub<P, DrizzleDatabase>
+  } = {},
 ) => {
   const revisionField = options.revision ?? 'revision'
   const keys = new Map<unknown, string>(
@@ -957,13 +966,18 @@ export const applyEdits = (
       }
       const writes = yield* drizzleWrites
       const value = Schema.encodeUnknownSync(schema as Schema.Codec<unknown, unknown>)(change.value)
-      yield* Effect.promise(() =>
+      const written = yield* Effect.promise(() =>
         Promise.resolve(
           writes
             .update(binding.table)
             .set({ [key]: value, [revisionKey]: at })
-            .where(and(eq(idColumn(binding), change.id), lte(revision, at))),
+            .where(and(eq(idColumn(binding), change.id), lte(revision, at)))
+            .returning({ id: idColumn(binding) }),
         ),
       )
+      const hub = options.live
+      if (hub !== undefined && written.length > 0) {
+        yield* hub.changed({ entity: binding.name, id: change.id }, [change.member, revisionField])
+      }
     })
 }

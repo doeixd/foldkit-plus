@@ -791,6 +791,13 @@ column is the binding's, never one named by the change. Here the revision is
 the journal's sequence, so such a table should not also take writes that
 `expect` a counter.
 
+Given `{ live: hub }`, it tells that `liveHub` of each edit it applied (the
+member and the revision), so a Remote reader following the row with
+`Data.live` hears a settled edit as the journal applies it, with no refresh.
+An edit the row had already passed, run again by recovery, is not told. The
+hub is in-memory, so this reaches readers of the same process; across
+Workers requests, a live source reads the table instead.
+
 ### Writing in a handler
 
 Anything a declared write cannot say (an insert, a delete, several rows) is a
