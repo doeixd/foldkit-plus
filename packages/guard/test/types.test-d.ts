@@ -2,9 +2,9 @@
  * What a guard set's types accept and refuse, one defect per negative case.
  */
 import { Option, Schema } from 'effect'
-import { Entity, Expr, type InputExpr } from 'foldkit-entity'
+import { Entity, Expr, Relation, type InputExpr } from 'foldkit-entity'
 import { expectTypeOf } from 'vitest'
-import { Guards, type PrincipalGuard, type RowGuard } from '../src/index.js'
+import { Guards, Interaction, type PrincipalGuard, type RowGuard } from '../src/index.js'
 
 const User = Schema.Struct({ id: Schema.String, role: Schema.Literals(['admin', 'member']) })
 type User = typeof User.Type
@@ -28,8 +28,8 @@ const G = Guards.declare(
   { key: user => user.id },
 )
 
-expectTypeOf(G.isAdmin).toEqualTypeOf<PrincipalGuard<User>>()
-expectTypeOf(G.isOwner).toEqualTypeOf<RowGuard<User, typeof TodoFields>>()
+expectTypeOf(G.isAdmin).toEqualTypeOf<PrincipalGuard<User, 'Todos'>>()
+expectTypeOf(G.isOwner).toEqualTypeOf<RowGuard<User, typeof TodoFields, 'Todos'>>()
 
 Guards.declare(
   'Branching',
@@ -66,3 +66,95 @@ Policy.decide(Others.isGuest, { principal: Option.none(), interaction: 'Read' })
 
 // @ts-expect-error a body answers with a decision, not a string
 G.implement({ isAdmin: () => 'yes' })
+
+const Note = Entity.define('Note', Schema.Struct({ id: Schema.String, authorId: Schema.String }))
+const N = Guards.declare(
+  'Notes',
+  User,
+  guard => ({ isAuthor: guard.row(Note, p => Expr.eq(Note.fields.authorId, p.id)) }),
+  { key: user => user.id },
+)
+const Archive = Interaction.make('Archive')
+const { Todo: Related } = Entity.relate(
+  { Todo: TodoFields, Note },
+  { Todo: { note: Relation.one(Note), notes: Relation.many(Note) } },
+)
+
+TodoFields.pipe(
+  Guards.attach(G, {
+    row: {
+      Read: [G.isOwner, Guards.all(G.isAdmin, G.isOwner)],
+      [Archive.key]: Guards.on([G.isAdmin], Guards.explain('Admins only.')),
+    },
+    members: { rank: { Read: Guards.on([G.isOwner], Guards.redact(0)) } },
+  }),
+)
+
+TodoFields.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error `title` is not a member of Todo
+    members: { title: { Read: [G.isOwner] } },
+  }),
+)
+
+TodoFields.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error a guard over Note's rows on a Todo surface
+    row: { Read: [N.isAuthor] },
+  }),
+)
+
+TodoFields.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error a guard of another set
+    always: [Others.isGuest],
+  }),
+)
+
+TodoFields.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error a rank is a number: it cannot read as 'hidden'
+    members: { rank: { Read: Guards.on([G.isOwner], Guards.redact('hidden')) } },
+  }),
+)
+
+TodoFields.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error a hidden member is omitted or redacted, never explained
+    members: { ownerId: { Read: Guards.on([G.isOwner], Guards.explain('No.')) } },
+  }),
+)
+
+TodoFields.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error a misspelled interaction
+    row: { Raed: [G.isOwner] },
+  }),
+)
+
+Related.pipe(Guards.attach(G, { row: { Read: [Guards.inherit('note')] } }))
+
+Related.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error a row inherits through a `one` relation only
+    row: { Read: [Guards.inherit('notes')] },
+  }),
+)
+
+Related.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error only a Read is inherited
+    row: { Update: [Guards.inherit('note')] },
+  }),
+)
+
+const Twin = Guards.declare('Twin', User, guard => ({ isAdmin: guard.principal() }), {
+  key: user => user.id,
+})
+
+TodoFields.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error a guard of another set over the same principal
+    always: [Twin.isAdmin],
+  }),
+)

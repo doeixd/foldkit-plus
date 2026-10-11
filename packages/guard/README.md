@@ -2,12 +2,12 @@
 
 Who may do what, declared once on a Foldkit Plus domain.
 
-**Early.** This package declares a guard set and decides its guards. Attaching
-guards to an Entity, and the seams that derive their checks from them (a
-binding's `visible`, a Source's `authorize`, a mutation's write plan, the
-client's `may` hint), are the next slices of
-[`guard-DESIGN.md`](../../docs/design/guard-DESIGN.md), which explains the
-whole design and why.
+**Early.** This package declares a guard set, decides its guards, and
+attaches them to an Entity. Nothing enforces an attachment yet: the seams
+that derive their checks from it (a binding's `visible`, a Source's
+`authorize`, a mutation's write plan, the client's `may` hint) are the next
+slices of [`guard-DESIGN.md`](../../docs/design/guard-DESIGN.md), which
+explains the whole design and why.
 
 ## What it is
 
@@ -82,3 +82,57 @@ What each call does, and does not:
   principal's fields.
 - `G.Principal` is the server's Context key for who is asking, an
   `Option` of the principal; `G.key(user)` names a principal for grouping.
+
+## Attaching guards to an Entity
+
+A guard set names rules; attaching says where each one applies, per surface
+(the row, a member, a relation) and per interaction:
+
+```ts
+import { Interaction } from 'foldkit-guard'
+
+const Archive = Interaction.make('Archive')
+
+const Todo = TodoFields.pipe(
+  Guards.attach(G, {
+    row: {
+      Read: [G.isOwner, G.inProject, G.isAdmin],
+      Write: [G.isOwner],
+      [Archive.key]: Guards.on([G.isAdmin], Guards.explain('Only an admin may archive.')),
+    },
+    members: { ownerId: { Update: [G.isAdmin] } },
+  }),
+)
+
+Guards.matrix([Todo])
+// Todo.Read: isOwner | inProject | isAdmin → not_found
+// Todo.Create: isOwner → forbidden
+// Todo.Update: isOwner → forbidden
+// Todo.Delete: isOwner → forbidden
+// Todo.Archive: isAdmin → explain("Only an admin may archive.")
+// Todo.ownerId.Create: isAdmin → forbidden
+// Todo.ownerId.Update: isAdmin → forbidden
+```
+
+- A surface's list is a disjunction: "owner, or project member, or admin".
+  `Guards.all(a, b)` is a conjunction as one guard. `always: [...]` is ANDed
+  after every surface's list and cannot be out-voted: a tenant boundary or
+  "signed in" belongs there.
+- `Write` is shorthand for Create, Update and Delete. A member's `Update`
+  governs setting it on creation too, unless the member names a `Create`.
+- Each surface refuses its own way by default: a row Read answers not found,
+  so existence does not leak; a member or relation Read omits the value; a
+  write is forbidden. `Guards.on(guards, Guards.redact(value))` shows a hidden
+  member as `value` instead, typed by the member's schema;
+  `Guards.on(guards, Guards.explain(reason))` gives a refused write a sentence.
+- `Guards.inherit('project')` makes a row's Read its `one` relation's Read.
+- Every key is checked against the Entity: a member it lacks, a row guard over
+  another Entity, a guard of another set, or a misspelled interaction is a type
+  error where it is written.
+- Attaching is metadata: the result is the same Entity (`Entity.same`), and
+  attaching twice appends to each surface's list and replaces its refusal.
+- `Guards.guardFields(Todo, 'Read')` names the members a row interaction's
+  guards read, so a change to one is known to change who may.
+- A surface with no guards on a guarded Entity falls to the set's
+  `unguarded` (`'allow'` by default); the matrix prints it `open`, or
+  `closed` under `unguarded: 'deny'`.

@@ -54,8 +54,8 @@ export default [
     edits: [
       {
         file,
-        find: 'if (Option.isNone(principal) || row === undefined) return Effect.succeed(false)',
-        replace: 'if (Option.isNone(principal)) return Effect.succeed(false)',
+        find: '                  row !== undefined &&',
+        replace: '',
       },
     ],
     tests,

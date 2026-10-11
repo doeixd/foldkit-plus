@@ -1,8 +1,9 @@
 # foldkit-guard
 
-Early: a guard set can be declared and decided. Attaching guards to an Entity,
-and the seams that derive their checks from them (`visible`, a Source's
-`authorize`, a mutation's write plan, `may`), are the next slices of
+Early: a guard set can be declared, decided and attached to an Entity. Nothing
+enforces an attachment yet: the seams that derive their checks from it
+(`visible`, a Source's `authorize`, a mutation's write plan, `may`) are the
+next slices of
 [guard-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/guard-DESIGN.md).
 
 ## What it owns
@@ -31,5 +32,34 @@ the application's, handed in through `G.Principal`.
 - `G.inputOf(user)` is the principal's fields as query inputs, encoded.
 - `Expr.in(field, p.projectIds)` is how a membership the principal carries
   reads in a row guard.
+
+## Attaching
+
+```ts
+const Archive = Interaction.make('Archive')
+
+const Todo = TodoFields.pipe(
+  Guards.attach(G, {
+    row: {
+      Read: [G.isOwner, G.inProject, G.isAdmin], // a disjunction
+      Write: [G.isOwner], // Create, Update and Delete
+      [Archive.key]: Guards.on([G.isAdmin], Guards.explain('Only an admin may archive.')),
+    },
+    members: { ownerId: { Update: [G.isAdmin] } }, // governs Create too, unless named
+    always: [G.signedIn], // ANDed after every surface
+  }),
+)
+```
+
+- Default refusals: a row Read is not found, a member or relation Read is
+  omitted, a write is forbidden. `Guards.on(guards, Guards.redact(value))` and
+  `Guards.explain(reason)` choose another.
+- `Guards.all(a, b)` is a conjunction; `Guards.inherit('project')` makes a
+  row's Read its `one` relation's Read.
+- A member the Entity lacks, a row guard over another Entity, a guard of
+  another set, a mistyped redact or a misspelled interaction is a type error.
+- The result is the same Entity (metadata only); attaching twice appends.
+- `Guards.matrix([Todo])` prints every surface; `Guards.guardFields(Todo,
+  'Read')` names what a row interaction's guards read.
 
 See the [README](https://github.com/doeixd/foldkit-plus/blob/main/packages/guard/README.md).

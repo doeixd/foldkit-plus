@@ -2216,6 +2216,9 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
+      foldkit-metadata:
+        specifier: workspace:*
+        version: link:../metadata
     devDependencies:
       effect:
         specifier: 4.0.0

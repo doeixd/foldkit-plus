@@ -7,7 +7,8 @@
  * `Expr` over one Entity's fields with the principal's fields as inputs: data,
  * which the SQL compiler and `evaluate` both run. See `guard-DESIGN.md`.
  */
-import { Context, Effect, Option, Schema } from 'effect'
+import { Context, Effect, Match, Option, Schema } from 'effect'
+import { Attaching } from './attach.js'
 import {
   Expr,
   Query,
@@ -59,18 +60,22 @@ interface ForPrincipal<User> {
 }
 
 /** A guard whose body lives on the server, asked of the principal alone. */
-export interface PrincipalGuard<User> extends ForPrincipal<User> {
+export interface PrincipalGuard<User, Set extends string = string> extends ForPrincipal<User> {
   readonly _tag: 'PrincipalGuard'
   readonly name: string
   /** The name of the guard set it belongs to. */
-  readonly set: string
+  readonly set: Set
 }
 
 /** A guard over the rows of `E`: its predicate, and the query that asks it of rows. */
-export interface RowGuard<User, E extends AnyEntity> extends ForPrincipal<User> {
+export interface RowGuard<
+  User,
+  E extends AnyEntity,
+  Set extends string = string,
+> extends ForPrincipal<User> {
   readonly _tag: 'RowGuard'
   readonly name: string
-  readonly set: string
+  readonly set: Set
   readonly entity: E
   readonly body: Predicate
   /** `from(entity).where(body)`, for an interpreter that runs queries. */
@@ -79,7 +84,8 @@ export interface RowGuard<User, E extends AnyEntity> extends ForPrincipal<User> 
 
 export type AnyGuard<User> = PrincipalGuard<User> | RowGuard<User, AnyEntity>
 
-type GuardOf<User, S> = S extends RowSpec<infer E> ? RowGuard<User, E> : PrincipalGuard<User>
+type GuardOf<User, Set extends string, S> =
+  S extends RowSpec<infer E> ? RowGuard<User, E, Set> : PrincipalGuard<User, Set>
 
 /** The keys of a spec record that are principal guards: what `implement` must supply. */
 type PrincipalKeys<S> = { [K in keyof S]: S[K] extends PrincipalSpec ? K : never }[keyof S]
@@ -109,7 +115,7 @@ export interface PrincipalOf<Name extends string> {
 
 /** The guard set of one application, as `Guards.declare` returns it. */
 export type GuardSet<Name extends string, User, S> = {
-  readonly [K in keyof S]: GuardOf<User, S[K]>
+  readonly [K in keyof S]: GuardOf<User, Name, S[K]>
 } & {
   readonly name: Name
   /** The principal's schema, whose fields the row guards read. */
@@ -167,7 +173,24 @@ const placeholdersOf = <User>(fields: Schema.Struct.Fields): Placeholders<User> 
   return Object.freeze(inputs) as Placeholders<User>
 }
 
+export {
+  Interaction,
+  type All,
+  type AnyRule,
+  type Attach,
+  type Attachment,
+  type Deny,
+  type Explain,
+  type Inherit,
+  type InteractionKey,
+  type On,
+  type Redact,
+  type RuleFor,
+  type Surface,
+} from './attach.js'
+
 export const Guards = {
+  ...Attaching,
   /**
    * One application's guards, under `name` (its principal's Context key, and
    * what the matrix prints). `principal` is a `Schema.Struct`: its fields are
@@ -207,18 +230,20 @@ export const Guards = {
           `[foldkit-guard] ${name}: "${guard}" is a name the guard set keeps for itself`,
         )
       }
-      guards[guard] =
-        spec._tag === 'PrincipalSpec'
-          ? Object.freeze({ _tag: 'PrincipalGuard', name: guard, set: name })
-          : Object.freeze({
-              _tag: 'RowGuard',
-              name: guard,
-              set: name,
-              entity: spec.entity,
-              body: spec.body,
-              // Checks the body reads only this Entity's fields, where it is declared.
-              query: Query.from(spec.entity).pipe(Query.where(spec.body)),
-            })
+      guards[guard] = Match.valueTags(spec, {
+        PrincipalSpec: (): AnyGuard<User> =>
+          Object.freeze({ _tag: 'PrincipalGuard', name: guard, set: name }),
+        RowSpec: ({ entity, body }): AnyGuard<User> =>
+          Object.freeze({
+            _tag: 'RowGuard',
+            name: guard,
+            set: name,
+            entity,
+            body,
+            // Checks the body reads only this Entity's fields, where it is declared.
+            query: Query.from(entity).pipe(Query.where(body)),
+          }),
+      })
     }
     const principalNames = Object.keys(guards).filter(
       guard => guards[guard]!._tag === 'PrincipalGuard',
@@ -258,12 +283,18 @@ export const Guards = {
               new Error(`[foldkit-guard] ${name}: "${guard.name}" belongs to ${guard.set}`),
             )
           }
-          if (guard._tag === 'PrincipalGuard') {
-            const decided = bodies[guard.name]!(principal, { interaction })
-            return Effect.isEffect(decided) ? decided : Effect.succeed(decided)
-          }
-          if (Option.isNone(principal) || row === undefined) return Effect.succeed(false)
-          return Effect.succeed(evaluate(guard.query, inputOf(principal.value), [row]).length === 1)
+          return Match.valueTags(guard, {
+            PrincipalGuard: ({ name: body }) => {
+              const decided = bodies[body]!(principal, { interaction })
+              return Effect.isEffect(decided) ? decided : Effect.succeed(decided)
+            },
+            RowGuard: ({ query }) =>
+              Effect.succeed(
+                Option.isSome(principal) &&
+                  row !== undefined &&
+                  evaluate(query, inputOf(principal.value), [row]).length === 1,
+              ),
+          })
         },
       }
     }
