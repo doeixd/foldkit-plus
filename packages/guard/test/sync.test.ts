@@ -39,6 +39,7 @@ const G = Guards.declare(
     isPricer: guard.principal(),
     isGuest: guard.principal(),
     isOwner: guard.row(ProductFields, p => Expr.eq(ProductFields.fields.ownerId, p.id)),
+    isDowel: guard.row(ProductFields, () => Expr.eq(ProductFields.fields.name, 'Dowel')),
   }),
   { key: user => user.id },
 )
@@ -91,6 +92,9 @@ describe('GuardSync.document', () => {
         { readers: [G.isStaff] },
       ),
     ).toThrow('secret has a Read rule of its own')
+    expect(() =>
+      GuardSync.document({ entity: Product, members: ['constructor'] }, { readers: [G.isStaff] }),
+    ).toThrow('constructor is not a field of it')
     expect(() =>
       GuardSync.document({ entity: Product, members: ['name'] }, { readers: [G.isGuest] }),
     ).toThrow("isGuest is not in its rows' Read rule")
@@ -198,5 +202,44 @@ describe('GuardSync.admit, before the journal sees an edit', () => {
 
   it('admits an operation that edits nothing', async () => {
     expect(await admit(gus, [])).toBe(true)
+  })
+
+  it('refuses a member outside the document, or a value its member cannot encode', async () => {
+    expect(await admit(ada, [{ id: 'p1', member: 'constructor', value: 'x' }])).toBe(false)
+    expect(await admit(ada, [{ id: 'p1', member: 'secret', value: 'x' }])).toBe(false)
+    expect(await admit(ada, [{ id: 'p1', member: 'name', value: 7 }])).toBe(false)
+  })
+
+  it('judges every edit to a row together', async () => {
+    // Ada may update what she owns, and any Dowel: each edit alone keeps p1 in reach.
+    const Either = ProductFields.pipe(
+      Guards.attach(G, { row: { Read: [G.isStaff], Update: [G.isOwner, G.isDowel] } }),
+    )
+    const EitherEdits = GuardSync.document(
+      { entity: Either, members: ['name', 'ownerId'] },
+      { readers: [G.isStaff] },
+    )
+    const eitherSource = RemoteServer.memory({
+      domain: Remote.define({ entities: [Either] }),
+      rows,
+      principal: Option.none<User>(),
+      ...GuardServer.memory(Policy, [Either]),
+    }).server.entities.get('Product')!
+    const admitEither = (changes: ReadonlyArray<CellChange>) =>
+      Effect.runPromise(
+        GuardSync.admit(Policy, EitherEdits, {
+          principal: ada,
+          source: eitherSource,
+          changesOf: () => changes,
+        })(operation),
+      )
+    expect(await admitEither([{ id: 'p1', member: 'ownerId', value: 'pia' }])).toBe(true)
+    expect(await admitEither([{ id: 'p1', member: 'name', value: 'Rod' }])).toBe(true)
+    expect(
+      await admitEither([
+        { id: 'p1', member: 'ownerId', value: 'pia' },
+        { id: 'p1', member: 'name', value: 'Rod' },
+      ]),
+    ).toBe(false)
   })
 })

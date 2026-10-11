@@ -57,10 +57,24 @@ const first = (
 
 const isNever = (condition: Condition) => condition === Condition.never
 
+/** The schema of `member` when the document edits it: none for a name it does not own. */
+const memberOf = <User>(
+  entity: AnyEntity,
+  document: GuardedDocument<User>,
+  member: string,
+): Option.Option<Schema.Codec<unknown, unknown>> => {
+  const fields = entity.fields as Readonly<Record<string, { readonly schema: Schema.Top }>>
+  // `document` refused a member that is not a field, so one it names is one.
+  return document.members.includes(member)
+    ? Option.some(fields[member]!.schema as unknown as Schema.Codec<unknown, unknown>)
+    : Option.none()
+}
+
 export const GuardSync = {
   /**
    * A document of edits to `edits.entity`'s `edits.members`, opened by any of
-   * `readers`. Refused here, not discovered later: a member with a Read rule
+   * `readers`. Refused here, not discovered later: a member that is not a
+   * field of the Entity, a member with a Read rule
    * of its own (its value would reach a reader the rule hides it from), a
    * reader the row's Read rule does not name (it would receive edits to rows
    * it cannot read), a guarded row with no readers, and `always` rules that
@@ -77,6 +91,9 @@ export const GuardSync = {
     const { entity, members } = edits
     const fail = (why: string): never => {
       throw new Error(`[foldkit-guard] GuardSync.document of ${entity.name}: ${why}`)
+    }
+    for (const member of members) {
+      if (!Object.hasOwn(entity.fields, member)) fail(`${member} is not a field of it`)
     }
     Option.map(attached(entity), attachment => {
       for (const member of members) {
@@ -162,9 +179,15 @@ export const GuardSync = {
   /**
    * The exchange's `admit` for `principal`: each row an operation's edits
    * name is read through `source` (the Entity's guarded Source) and must let
-   * the principal update it, as it is and as it would be after, and each
-   * changed member must too. A row the principal cannot see is refused.
-   * `changesOf` reads the edits from an operation; one with none is admitted.
+   * the principal update it, as it is and as it would be after all of the
+   * operation's edits to it, and each changed member must too. A row the
+   * principal cannot see is refused, as is an edit to a member outside the
+   * document or a value its member cannot encode. `changesOf` reads the edits
+   * from an operation; one with none is admitted.
+   *
+   * The row is read from the table, which takes an edit only once its exchange
+   * settles: an edit that changes what a rule reads lets another, admitted
+   * before it lands, be judged against the row as it was.
    */
   admit:
     <User, R>(
@@ -182,6 +205,19 @@ export const GuardSync = {
         const changes = options.changesOf(operation)
         if (changes.length === 0) return true
         const { entity } = document
+        // A member is a client's word: only the document's own, by own key.
+        const encoded = Option.all(
+          changes.map(change =>
+            Option.flatMap(memberOf(entity, document, change.member), schema =>
+              Option.map(Schema.encodeUnknownOption(schema)(change.value), value => ({
+                id: String(change.id),
+                member: change.member,
+                value,
+              })),
+            ),
+          ),
+        )
+        if (Option.isNone(encoded)) return false
         const row = yield* policy.writable(entity, principal, 'Update')
         const members = yield* policy.writeMembers(
           entity,
@@ -196,31 +232,24 @@ export const GuardSync = {
             ...[row, ...members].flatMap(({ condition }) => Condition.members(condition)),
           ]),
         ]
-        for (const change of changes) {
-          const id = String(change.id)
+        const holdsOver = (values: Readonly<Record<string, unknown>>) => (condition: Condition) =>
+          Condition.holds(condition, values, input, () => false)
+        // Every edit to one row is judged together: two may each keep it in reach, and both not.
+        const byRow = new Map<string, Record<string, unknown>>()
+        for (const { id, member, value } of encoded.value) {
+          byRow.set(id, { ...byRow.get(id), [member]: value })
+        }
+        for (const [id, edits] of byRow) {
           const records = yield* source.read({ ids: [id], fields, principal })
           const current = Option.fromUndefinedOr(records.find(record => record.id === id)?.values)
           if (Option.isNone(current)) return refusal(row.deny)
-          const memberOf = (
-            entity.fields as Readonly<Record<string, { readonly schema: Schema.Top }>>
-          )[change.member]
-          const after = {
-            ...current.value,
-            [change.member]:
-              memberOf === undefined
-                ? change.value
-                : Schema.encodeUnknownSync(
-                    memberOf.schema as unknown as Schema.Codec<unknown, unknown>,
-                  )(change.value),
-          }
-          const holdsOver = (values: Readonly<Record<string, unknown>>) => (condition: Condition) =>
-            Condition.holds(condition, values, input, () => false)
+          const changed = new Set(Object.keys(edits))
           const before = first(
-            [row, ...members.filter(({ member }) => member === change.member)],
+            [row, ...members.filter(({ member }) => changed.has(member))],
             holdsOver(current.value),
           )
           if (before !== true) return before
-          const moved = first([row], holdsOver(after))
+          const moved = first([row], holdsOver({ ...current.value, ...edits }))
           if (moved !== true) return moved
         }
         return true

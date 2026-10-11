@@ -77,7 +77,8 @@ const idOf = (input: unknown): Option.Option<string> =>
  * rejected by its id when its message does not decode, it names another
  * document, or the journal refuses it (`authorize`, `validate`); the replica
  * drops it rather than send it again. Only an entry with no id at all, a
- * cursor ahead of the journal's, or the journal failing fails the exchange. The reply carries what committed
+ * cursor ahead of the journal's, a connection `opens` refuses, or `admit` or
+ * the journal failing fails the exchange. The reply carries what committed
  * after the replica's cursor, a checkpoint when that history was compacted,
  * and the journal's epoch, so a replica of a reset journal starts again.
  */
@@ -99,13 +100,13 @@ export const journalExchange = <Message, Shared, Principal>(
 
   const exchange = (cursor: number, pending: ReadonlyArray<unknown>, seen?: string) =>
     Effect.gen(function* () {
+      if (options.opens !== undefined && !(yield* options.opens)) {
+        return yield* Effect.fail(new Error('This connection may not open the document'))
+      }
       // A replica that saw another epoch holds a cursor into history this journal
       // lacks (it was reset): it is answered from the start. Otherwise a cursor
       // past the journal's is refused before anything is appended, or the
       // operations would commit and their acknowledgements be lost.
-      if (options.opens !== undefined && !(yield* options.opens)) {
-        return yield* Effect.fail(new Error('This connection may not open the document'))
-      }
       const epoch = yield* journal.epoch(key)
       const from = seen !== undefined && seen !== epoch ? 0 : cursor
       const at = yield* journal.cursor(key)

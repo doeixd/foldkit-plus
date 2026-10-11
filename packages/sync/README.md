@@ -262,7 +262,8 @@ an optional peer of this package):
   document, that `authorize` or `validate` refuses, or that reuses an id for
   other content fails the same way on every retry, so the replica drops it
   and the edits behind it still go. Only an entry with no id, a cursor ahead
-  of the journal's, or the journal failing fails the exchange.
+  of the journal's, a connection `opens` refuses, or `admit` or the journal
+  failing fails the exchange.
 - **`admit(operation)`** decides before the journal reads it, by what the
   transport established (a principal that may only read) or by what cannot
   run under the journal's lock (a rule that reads the rows an edit names,

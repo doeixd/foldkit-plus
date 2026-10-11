@@ -119,4 +119,48 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a document may name what is not a field',
+    edits: [
+      {
+        file,
+        find: 'if (!Object.hasOwn(entity.fields, member)) fail(',
+        replace: 'if (false) fail(',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an edit outside the document is judged',
+    edits: [
+      {
+        file,
+        find: 'return document.members.includes(member)',
+        replace: 'return Object.hasOwn(entity.fields, member)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a value is not encoded by its member',
+    edits: [
+      {
+        file,
+        find: 'Schema.encodeUnknownOption(schema)(change.value)',
+        replace: 'Option.some(change.value)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a row's edits are judged one by one",
+    edits: [
+      {
+        file,
+        find: 'byRow.set(id, { ...byRow.get(id), [member]: value })',
+        replace: 'byRow.set(id, { [member]: value })',
+      },
+    ],
+    tests,
+  },
 ]

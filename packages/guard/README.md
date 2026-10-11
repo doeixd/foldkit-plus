@@ -505,8 +505,10 @@ journalExchange({
   sentence. It reads no row, and its bodies must not suspend.
 - **Before the journal**, `admit` reads each row an edit names through the
   Entity's guarded Source: a row the principal cannot see is refused, the
-  row's `Update` must hold over it as it is and as it would be after, and
-  each changed member's rule must hold.
+  row's `Update` must hold over it as it is and as it would be after all of
+  the operation's edits to it, and each changed member's rule must hold. An
+  edit to a member outside the document, or a value its member cannot
+  encode, is refused.
 - **A document is one audience.** Every replica that opens it receives every
   edit, so `document` refuses where it is declared an edited member with a
   Read rule of its own, a reader the rows' Read rule does not name, a guarded
@@ -566,6 +568,12 @@ TodoAgent.expose(Message, {
 - **A Sync document is one audience.** Per-member or per-row secrecy within
   one is not something a replicated log offers: `GuardSync.document` refuses
   it where it is declared.
+- **Sync's `admit` reads the table, which lags the journal.** An edit lands
+  in the table when its exchange settles, so an edit admitted before another
+  lands is judged against the row as it was: a concurrent change of owner
+  can let its old owner's edit through. Where that matters, keep the fields
+  a row rule reads out of the document and change them through a guarded
+  Remote write.
 - **Sync's `authorize` is synchronous.** Its principal guards' bodies must not
   suspend; row guards run in `admit`, which may.
 - **A row guard over a field the client sets on create** reads as matching

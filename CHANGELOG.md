@@ -195,6 +195,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-guard/sync`: `admit` judges an operation's edits to a row
+  together.** Each edit was checked over the row with that edit alone, so
+  two that each kept a row in its editor's reach, and together moved it out,
+  were admitted. An edit to a member outside the document, or a value its
+  member cannot encode, is now refused by the operation's id rather than
+  failing the exchange; `GuardSync.document` refuses a member that is not a
+  field.
 - **`foldkit-remote`: a filter or live insert the reference interpreter
   refuses no longer throws in `update`.** `Data.filtered` with such an input
   (a search holding NUL) answers no items and `complete: false`; a live
