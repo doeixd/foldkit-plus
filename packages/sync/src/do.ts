@@ -74,7 +74,7 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env> {
     | ((
         principal: Principal,
         operation: Operation,
-      ) => AuthorizeDecision | Effect.Effect<AuthorizeDecision>)
+      ) => AuthorizeDecision | Effect.Effect<AuthorizeDecision, unknown>)
     | undefined
   /**
    * Makes the socket pair for an upgrade: the server end is accepted before

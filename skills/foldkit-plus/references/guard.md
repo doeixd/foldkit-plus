@@ -113,6 +113,12 @@ const Todo = TodoFields.pipe(
   `derived: { may: { supplied: true } }`); select `may: true` and read it with
   `May.can(may, Archive.key)`, `May.canSet(may, Todo, 'ownerId')`,
   `May.canLink(may, Todo, 'project', 'Link')`. A hint, never the check.
+- Sync: `foldkit-guard/sync`. `GuardSync.document(ProductEdits, { readers: [G.isStaff] })`
+  (refused at definition when an edit could reach a reader its rows hide it from);
+  `authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }` under the
+  journal's lock (principal guards only); `journalExchange({ …, opens:
+  GuardSync.opens(Policy, Edits, principal), admit: GuardSync.admit(Policy, Edits,
+  { principal, source, changesOf }) })` reads each edited row before the journal.
 - Agents: `foldkit-guard/agent`'s `GuardAgent.authorize(Archive.key, ({ input,
   model }) => Data.get(TodoRow, input.id).read(model))` and
   `GuardAgent.available(...)` gate a capability on the row's `may` (refused

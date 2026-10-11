@@ -43,6 +43,11 @@
       "foldkit-plus:source": "./src/agent.ts",
       "types": "./dist/agent.d.mts",
       "import": "./dist/agent.mjs"
+    },
+    "./sync": {
+      "foldkit-plus:source": "./src/sync.ts",
+      "types": "./dist/sync.d.mts",
+      "import": "./dist/sync.mjs"
     }
   },
   "files": [
@@ -63,7 +68,8 @@
     "effect": "^4.0.0",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
-    "foldkit-remote-server": "workspace:*"
+    "foldkit-remote-server": "workspace:*",
+    "foldkit-sync": "workspace:*"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
@@ -77,6 +83,9 @@
     },
     "foldkit-remote-server": {
       "optional": true
+    },
+    "foldkit-sync": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -88,6 +97,7 @@
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
     "foldkit-surface": "workspace:*",
+    "foldkit-sync": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
   }

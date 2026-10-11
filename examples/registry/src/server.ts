@@ -7,7 +7,7 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { applyEdits, bind, databaseLayer, query, source } from 'foldkit-remote-drizzle'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemoteServer, type EntitySource } from 'foldkit-remote-server'
 import { type ProductChange, Registry } from './domain.js'
 import { ProductsQuery } from './operations.js'
 
@@ -100,6 +100,11 @@ export const openServer = (
   // writes is told to the hub, so a page following the row live hears it.
   const layer = databaseLayer(sqlite.drizzle)
   const productSource = source(Db.Product)
+  // The same, with its database: for a check that runs where no layer is given.
+  const products: EntitySource<unknown> = {
+    entity: productSource.entity,
+    read: context => productSource.read(context).pipe(Effect.provide(layer)),
+  }
   const live = Effect.runSync(RemoteServer.liveHub([productSource]))
   const applyProduct = applyEdits(Db.Product, { live })
   const apply = (change: ProductChange, at: number) =>
@@ -124,6 +129,8 @@ export const openServer = (
     revision: () =>
       decodeRevision(sqlite.get('select coalesce(max(revision), 0) as revision from products', []))
         .revision,
+    /** The products as a principal may read them, for the guards' check of an edit. */
+    products,
     /** Whether the table has the product, for refusing an edit to one it has not. */
     holds: (id: string) => sqlite.get('select 1 from products where id = ?', [id]) !== undefined,
     close: () => sqlite.close(),

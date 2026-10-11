@@ -1,6 +1,6 @@
 # Guards: who may do what, declared once on the domain
 
-**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slices 1 (`Expr.in`) and 2 (the core, but `may`) built, and slice 3's decisions, its `memory` and `filter` seams, its Drizzle `visible`, relation Reads and `GuardServer.validate` (slice 3 complete), slice 4 (`G.Principal` read per call, a hub keyed by `Policy.keyOf`) and slice 5 (`Forbidden` end to end) and slice 6 (writes: `GuardServer.writer`, presets, `GuardServer.mutation`, the read-back), slice 7 (`may`, its readers, Crud's `locks` and the form's `locked`) slice 8 (`foldkit-guard/agent`, `withPrincipal(G.Principal)`) and slice 9 (the CMS on a guard set); the rest not.
+**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slices 1 (`Expr.in`) and 2 (the core, but `may`) built, and slice 3's decisions, its `memory` and `filter` seams, its Drizzle `visible`, relation Reads and `GuardServer.validate` (slice 3 complete), slice 4 (`G.Principal` read per call, a hub keyed by `Policy.keyOf`) and slice 5 (`Forbidden` end to end) and slice 6 (writes: `GuardServer.writer`, presets, `GuardServer.mutation`, the read-back), slice 7 (`may`, its readers, Crud's `locks` and the form's `locked`) slice 8 (`foldkit-guard/agent`, `withPrincipal(G.Principal)`) slice 9 (the CMS on a guard set) and slice 10 (`foldkit-guard/sync`); the rest not.
 **Target:** a new package, `foldkit-guard`, and small changes in `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-entity`, `foldkit-crud`, `foldkit-agent`, `foldkit-cms-drizzle`, `foldkit-sync`.
 **Inspirations:** this repository's authorization seams; `doeixd/gen2`'s `AUTHZ2_PLAN.md`, `src/authz/{surface,placement,deny,mutation-plan}.ts` and `rules_implementation_guide.md`; ZenStack, Ent's privacy layer, Hasura permissions, Postgres row-level security, Firebase security rules, Pundit, Zanzibar, Cedar (§2).
 **Related:** `remote-improvement-plan.md` §16 (client placement, Phases 7–12), whose Phase 12 is gated on this design.
@@ -457,6 +457,8 @@ Per-member or per-row secrecy *within* a document is not something a replicated 
 
 **Presence** is ephemeral broadcast, validated by `decodeValue`, scoped by the document's `readers`. Its values are application-chosen and must not carry guarded fields; that is the author's responsibility, as `decodeValue` already is. A peer's `id` on the channel should be stamped by the server from `G.Principal` and `key`, not declared by the peer, as the commit stamp already does for edits; whether the server side does this today was not traced for this note and is the first thing the Sync slice checks.
 
+*As built (slice 10):* the server does stamp it. The rest is `foldkit-guard/sync`'s `GuardSync` (`document`, `opens`, `authorize`, `admit`) over `foldkit-sync`'s new `admit` and `opens`; see slice 10 in §12.
+
 ---
 
 ## 9. Failure and denial, end to end
@@ -621,6 +623,28 @@ Each slice stands alone, is committed with its tests, and is reviewed before the
    specs are unchanged and pass. `CmsServer.make` takes a `Policy<User>` whose bodies need no
    service. Slice 9 is built.
 10. **Sync.** §8c: `Guards.document` as a connection-level refuse; `Guards.journal` deriving the journal's `authorize`; an Effect-returning `refuse` with a reason for row guards before `append`; `EditableEntity.make`'s audience check; the registry example's edits governed by `Product`'s guards. First, read the presence server to confirm whether a peer's id is stamped from the connection. Tests: a visitor's exchange refused by `readers`; an edit to an `Update`-guarded member rejected with its reason; a document declared over a member with a `Read` guard refused at `make`.
+
+   *Built:* first, presence: `Sync.presence.serve(socket, hub, { peerId })` stamps each frame
+   with the id the server gives the connection, and a client's frame carries none, so a peer
+   cannot speak as another; nothing to change. `foldkit-sync` gained what guards needed and
+   knows no guard: an exchange's `refuse` became `admit`, answering as the journal's `authorize`
+   does and possibly with an `Effect`, so a refusal carries its reason and a rule may read the
+   rows before the lock; and `opens`, which fails every exchange of a connection that may not
+   open the document (`defineDocumentHost` takes both as functions of the principal, which its
+   `refuse` never saw). `foldkit-guard/sync` is not `Guards.document` and `Guards.journal` but
+   one object, `GuardSync`: `document(edits, { readers })` takes an `EditableEntity` (its Entity
+   and members) and is refused at definition for an edited member with its own Read rule, a
+   reader not in the rows' Read disjunction, a guarded row with no readers, and `always` rules
+   over the row, which no reader can be shown to pass; `opens` is any reader (anyone, when it
+   names none, as for rows with no Read rule) who passes `always`'s principal guards;
+   `authorize(Policy, document)` is the per-variant rule, deciding the row's and the changed
+   members' `Update` principal guards under the lock with `Effect.runSync`, since Sync's rules
+   are synchronous; `admit` reads each edited row through the Entity's guarded Source and holds
+   the row's `Update` as it is and as it would be after, and each changed member's. Not
+   `EditableEntity.make`'s own check: `foldkit-sync/entity` knows no guards, so the audience
+   check is `GuardSync.document`'s. The registry example declares its guard set server-side and
+   wires all three into its journal; its rules let every device edit, so its behaviour, e2e
+   included, is unchanged. Slice 10 is built.
 11. **Docs.** `packages/guard/README.md` in the onboarding order; a `SKILL.md` row and `references/guard.md`; `remote.md`'s authorization gotchas pointing here; `CHANGELOG.md` per slice.
 
 The Remote plan's Phase 12 gate ("an application that needs placement in a list under row-level authorization") is met by slice 3's kitchen-sink Todo and by slice 9's public post list; §7a's rule 2 is what Phase 12 builds first.

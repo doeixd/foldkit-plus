@@ -14,6 +14,7 @@
       "foldkit-guard/agent": ["./src/agent.ts"],
       "foldkit-guard/drizzle": ["./src/drizzle.ts"],
       "foldkit-guard/server": ["./src/server.ts"],
+      "foldkit-guard/sync": ["./src/sync.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../remote-drizzle/src/index.ts"],
@@ -21,7 +22,12 @@
       "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../remote-server/src/port.ts"],
       "foldkit-remote/port": ["../remote/src/port.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-sync": ["../sync/src/index.ts"],
+      "foldkit-sync/do": ["../sync/src/do.ts"],
+      "foldkit-sync/entity": ["../sync/src/entity.ts"],
+      "foldkit-sync/journal": ["../sync/src/journal.ts"],
+      "foldkit-sync/remote": ["../sync/src/remote.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
@@ -40,6 +46,9 @@
     },
     {
       "path": "../remote-drizzle/tsconfig.build.json"
+    },
+    {
+      "path": "../sync/tsconfig.build.json"
     },
     {
       "path": "../agent/tsconfig.build.json"

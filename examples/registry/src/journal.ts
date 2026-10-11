@@ -31,8 +31,11 @@ import {
   type TransportClient,
 } from 'foldkit-sync'
 import { editsJournal, journalExchange, serveJournal } from 'foldkit-sync/journal'
+import type { EntitySource } from 'foldkit-remote-server'
+import { GuardSync } from 'foldkit-guard/sync'
 import { Message } from './app.js'
 import { type ProductChange, ProductEdits } from './domain.js'
+import { Policy, ProductDocument } from './guards.js'
 import {
   RegistrySync,
   everyone,
@@ -65,6 +68,20 @@ export interface EditJournal {
 const decodeMessage = Schema.decodeUnknownSync(Message)
 const encodeMessage = Schema.encodeSync(Message)
 
+/** The cell edits an operation carries; none for anything else, or a message that is not one. */
+const changesOf = (operation: Operation): ReadonlyArray<ProductChange> =>
+  Option.match(Schema.decodeUnknownOption(Message)(operation.message), {
+    onNone: () => [],
+    onSome: message =>
+      Match.value(message).pipe(
+        Match.tag('EditedProducts', ({ changes }) => changes),
+        Match.orElse(() => []),
+      ),
+  })
+
+/** What the guards' rules decide under the journal's lock: the principal's own guards. */
+const authorizeEdits = GuardSync.authorize(Policy, ProductDocument)
+
 /** The products table, as the journal writes and checks it (`openServer` gives one). */
 export interface ProductTable {
   /** Writes a committed change, with the sequence it committed at. */
@@ -73,6 +90,8 @@ export interface ProductTable {
   readonly revision: () => number
   /** Whether the table has the product. */
   readonly holds: (id: string) => boolean
+  /** The products as a principal may read them: what the guards' check of an edit reads. */
+  readonly products: EntitySource<Option.Option<Principal>>
 }
 
 /**
@@ -81,32 +100,46 @@ export interface ProductTable {
  */
 export const journalOptions = (
   table: ProductTable,
-): JournalStoreOptions<Operation, Shared, Principal> => ({
-  // The contract gives the codecs, the empty snapshot and the reducer, so
-  // the journal folds operations with the application's own update.
-  ...journalContract(),
-  opId: operation => OpId.make(operation.opId),
-  actorId: principal => ActorId.make(principal.actorId),
-  validate: ({ operation, cursor }) => {
-    if (operation.baseCursor > cursor) throw new Error('Operation cursor is ahead of the server')
-    // When an edit committed is the journal's to say: one that says so
-    // itself claims a commit it did not get, and its sender would show it
-    // as committed.
-    const message = decodeMessage(operation.message)
-    const claimsCommit = Match.value(message).pipe(
-      Match.tag('EditedProducts', ({ at, by }) => at !== undefined || by !== undefined),
-      Match.orElse(() => false),
-    )
-    if (claimsCommit) throw new Error('An edit cannot say when it committed')
-    // An edit to a product the table has not got would commit, change no row,
-    // and vanish once absorbed: refused here, so its sender is told.
-    const missing = Match.value(message).pipe(
-      Match.tag('EditedProducts', ({ changes }) => changes.some(change => !table.holds(change.id))),
-      Match.orElse(() => false),
-    )
-    if (missing) throw new Error('An edit names a product the table has not got')
-  },
-})
+): JournalStoreOptions<Operation, Shared, Principal> => {
+  const contract = journalContract()
+  return {
+    // The contract gives the codecs, the empty snapshot and the reducer, so
+    // the journal folds operations with the application's own update.
+    ...contract,
+    // The contract's own rules, then the guards' for an edit.
+    authorize: request => {
+      const declared = contract.authorize?.(request) ?? true
+      if (declared !== true) return declared
+      const changes = changesOf(request.operation)
+      return changes.length === 0
+        ? true
+        : authorizeEdits({ principal: Option.some(request.principal), message: { changes } })
+    },
+    opId: operation => OpId.make(operation.opId),
+    actorId: principal => ActorId.make(principal.actorId),
+    validate: ({ operation, cursor }) => {
+      if (operation.baseCursor > cursor) throw new Error('Operation cursor is ahead of the server')
+      // When an edit committed is the journal's to say: one that says so
+      // itself claims a commit it did not get, and its sender would show it
+      // as committed.
+      const message = decodeMessage(operation.message)
+      const claimsCommit = Match.value(message).pipe(
+        Match.tag('EditedProducts', ({ at, by }) => at !== undefined || by !== undefined),
+        Match.orElse(() => false),
+      )
+      if (claimsCommit) throw new Error('An edit cannot say when it committed')
+      // An edit to a product the table has not got would commit, change no row,
+      // and vanish once absorbed: refused here, so its sender is told.
+      const missing = Match.value(message).pipe(
+        Match.tag('EditedProducts', ({ changes }) =>
+          changes.some(change => !table.holds(change.id)),
+        ),
+        Match.orElse(() => false),
+      )
+      if (missing) throw new Error('An edit names a product the table has not got')
+    },
+  }
+}
 
 /** The journal's exchange, applying each committed change to `table`. */
 export const openJournal = (
@@ -143,15 +176,28 @@ export const openJournal = (
     server,
   })
 
-  const options = { sync: RegistrySync, journal, principal: everyone, settle }
+  // Each exchange is decided as its principal: whether they may open the
+  // document, and each edit against the rows it names.
+  const exchangeAs = (principal: Principal) => ({
+    sync: RegistrySync,
+    journal,
+    principal,
+    settle,
+    opens: GuardSync.opens(Policy, ProductDocument, Option.some(principal)),
+    admit: GuardSync.admit(Policy, ProductDocument, {
+      principal: Option.some(principal),
+      source: table.products,
+      changesOf,
+    }),
+  })
   // Presence fans out to every device; each validates what it receives.
   const presence = Sync.presence.hub<unknown>()
   return {
-    transport: journalExchange(options),
-    transportAs: principal => journalExchange({ ...options, principal }),
+    transport: journalExchange(exchangeAs(everyone)),
+    transportAs: principal => journalExchange(exchangeAs(principal)),
     serve: (socket, principal = everyone) => {
       const stops = [
-        serveJournal(socket, { ...options, principal }),
+        serveJournal(socket, exchangeAs(principal)),
         // On the same socket: where each device is, under the name it connected as.
         Sync.presence.serve(socket, presence, { peerId: principal.actorId }),
       ]

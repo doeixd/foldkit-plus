@@ -20,6 +20,11 @@
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
       "foldkit-example-site/guide": ["../site/src/guide.ts"],
+      "foldkit-guard": ["../../packages/guard/src/index.ts"],
+      "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
+      "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
+      "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
+      "foldkit-guard/sync": ["../../packages/guard/src/sync.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-data-grid": ["../../packages/mixins-data-grid/src/index.ts"],
@@ -67,6 +72,9 @@
     },
     {
       "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/guard/tsconfig.build.json"
     },
     {
       "path": "../../packages/surface/tsconfig.build.json"

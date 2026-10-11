@@ -18,6 +18,7 @@
     "foldkit-data-grid": "workspace:*",
     "foldkit-durable": "workspace:*",
     "foldkit-entity": "workspace:*",
+    "foldkit-guard": "workspace:*",
     "foldkit-example-site": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-data-grid": "workspace:*",

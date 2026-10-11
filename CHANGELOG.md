@@ -391,6 +391,13 @@ version changed; `pnpm` skips versions already in the registry.
   `foldkit-guard/agent`'s `GuardAgent.authorize` and `GuardAgent.available`
   gate a `foldkit-agent` capability on the `may` of a row the Model holds,
   refusing until it is answered.
+  `foldkit-guard/sync` rules `foldkit-sync/entity`'s cell edits:
+  `GuardSync.document(edits, { readers })` is a document's audience, refused
+  where it is declared when an edit could reach a reader its rows hide it
+  from; `GuardSync.authorize` is a journal `authorize` of the principal's own
+  guards, under its lock; `GuardSync.admit` and `GuardSync.opens` are an
+  exchange's `admit` and `opens`, reading each edited row through the
+  Entity's guarded Source.
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

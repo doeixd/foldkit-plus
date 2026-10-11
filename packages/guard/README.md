@@ -352,6 +352,48 @@ May.canLink(row.may, Todo, 'project', 'Link')
 - `foldkit-crud`'s editor locks the keys the reader may not set with
   `locks: May.locks(Todo)`, for `foldkit-mixins-form`'s `locked`.
 
+## Sync
+
+A `foldkit-sync/entity` cell edit is a write to a member of a row, through the
+journal instead of a mutation, so it answers to the same rules.
+`foldkit-guard/sync` checks it in two halves, by where each can run, and
+keeps a document's edits from reaching anyone the rows would hide them from:
+
+```ts
+import { GuardSync } from 'foldkit-guard/sync'
+
+const ProductEdits = EditableEntity.make(Product, { members: ['name', 'cents'] })
+
+// Who may open the edits' document: one of its readers, each in the rows' Read rule.
+const Edits = GuardSync.document(ProductEdits, { readers: [G.isStaff] })
+
+// Under the journal's lock: the principal's own guards, for the Sync contract's authorize.
+const authorize = { EditedProducts: GuardSync.authorize(Policy, Edits) }
+
+// Each exchange, as its principal: whether they may open it, and each edit against its row.
+journalExchange({
+  sync, journal, principal,
+  opens: GuardSync.opens(Policy, Edits, principal),
+  admit: GuardSync.admit(Policy, Edits, { principal, source: products, changesOf }),
+})
+```
+
+- **Under the lock**, `authorize` refuses what the principal guards settle:
+  the row's `Update`, and each changed member's, with an `explain`'s
+  sentence. It reads no row, and its bodies must not suspend.
+- **Before the journal**, `admit` reads each row an edit names through the
+  Entity's guarded Source: a row the principal cannot see is refused, the
+  row's `Update` must hold over it as it is and as it would be after, and
+  each changed member's rule must hold.
+- **A document is one audience.** Every replica that opens it receives every
+  edit, so `document` refuses where it is declared an edited member with a
+  Read rule of its own, a reader the rows' Read rule does not name, a guarded
+  row with no readers, and `always` rules over the row. `opens` lets any
+  reader (anyone, when it names none) who passes the Entity's `always`.
+- Presence on the same socket is stamped by the server with the connection's
+  peer id (`Sync.presence.serve(socket, hub, { peerId })`): a peer cannot
+  speak as another. What a presence value carries is the application's.
+
 ## Agents
 
 An agent should not be offered, or attempt, what the server would refuse.

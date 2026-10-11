@@ -17,6 +17,7 @@
       "foldkit-guard/agent": ["../guard/src/agent.ts"],
       "foldkit-guard/drizzle": ["../guard/src/drizzle.ts"],
       "foldkit-guard/server": ["../guard/src/server.ts"],
+      "foldkit-guard/sync": ["../guard/src/sync.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../remote-drizzle/src/index.ts"],

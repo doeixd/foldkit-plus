@@ -52,10 +52,12 @@ export interface JournalExchangeOptions<Message, Shared, Principal> {
    * that may only read, or a rule that reads the rows an edit names, which
    * cannot run under the journal's lock (`foldkit-guard/sync`). `true` admits;
    * a refusal is rejected by the operation's id, with its reason when it gives
-   * one. The journal's own `authorize` is where a rule about the document goes.
+   * one. One that fails fails the exchange, as the journal failing does. The
+   * journal's own `authorize` is where a rule about the document goes.
    */
   readonly admit?:
-    ((operation: Operation) => AuthorizeDecision | Effect.Effect<AuthorizeDecision>) | undefined
+    | ((operation: Operation) => AuthorizeDecision | Effect.Effect<AuthorizeDecision, unknown>)
+    | undefined
   /** The most committed operations one reply carries; a replica further behind asks again. Default 500. */
   readonly limit?: number | undefined
 }

@@ -54,6 +54,12 @@ this example's own is below.
   error. The journal decodes every operation against the Product's own field
   schemas, so an empty description or a negative price is refused whatever a
   client sent.
+- **Who may edit is a guard set** (`guards.ts`, server-only). `Product`'s
+  `Update` and its price's are guards, and the journal enforces them on every
+  edit: the principal's own guards under its lock (`GuardSync.authorize`), and
+  each edited row read before it (`GuardSync.admit`), through
+  `foldkit-guard/sync`. Every device may edit and price here; a registry with
+  roles changes the rules, not the journal.
 - **Marks.** Each edited cell says where its edit is (`marksOf`, drawn by the
   grid's `GridMarkStyle`, explained by the `GridLegend` above the grid and each
   mark's tooltip): not yet sent, saved and not yet in the table, refused, or

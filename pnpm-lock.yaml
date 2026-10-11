@@ -1344,6 +1344,9 @@ importers:
       foldkit-example-site:
         specifier: workspace:*
         version: link:../site
+      foldkit-guard:
+        specifier: workspace:*
+        version: link:../../packages/guard
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
@@ -2250,6 +2253,9 @@ importers:
       foldkit-surface:
         specifier: workspace:*
         version: link:../surface
+      foldkit-sync:
+        specifier: workspace:*
+        version: link:../sync
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)

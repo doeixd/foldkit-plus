@@ -10,6 +10,7 @@
     { "path": "../metadata/tsconfig.build.json" },
     { "path": "../remote/tsconfig.build.json" },
     { "path": "../remote-server/tsconfig.build.json" },
-    { "path": "../remote-drizzle/tsconfig.build.json" }
+    { "path": "../remote-drizzle/tsconfig.build.json" },
+    { "path": "../sync/tsconfig.build.json" }
   ]
 }
