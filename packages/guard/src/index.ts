@@ -8,8 +8,8 @@
  * which the SQL compiler and `evaluate` both run. See `guard-DESIGN.md`.
  */
 import { Context, Effect, Match, Option, Schema } from 'effect'
-import { Attaching, attached } from './attach.js'
-import { reading, type Condition, type MemberRead } from './condition.js'
+import { Attaching, attached, type InteractionKey } from './attach.js'
+import { deciding, type Condition, type MemberRead, type RowRule } from './condition.js'
 import {
   Expr,
   Query,
@@ -165,6 +165,30 @@ export interface Policy<User, R = never> {
     principal: Option.Option<User>,
     members: ReadonlyArray<string>,
   ) => Effect.Effect<ReadonlyArray<MemberRead>, never, R>
+  /**
+   * Which rows of `entity` `principal` may write by `interaction` (`Create`,
+   * `Update`, `Delete`, or one the application named), as a condition over
+   * the row, and what a refusal shows.
+   */
+  readonly writable: (
+    entity: AnyEntity,
+    principal: Option.Option<User>,
+    interaction: 'Create' | 'Update' | 'Delete' | InteractionKey,
+  ) => Effect.Effect<RowRule, never, R>
+  /** The rule of each of `members` that has one for setting it, decided for `principal`. */
+  readonly writeMembers: (
+    entity: AnyEntity,
+    principal: Option.Option<User>,
+    members: ReadonlyArray<string>,
+    interaction: 'Create' | 'Update',
+  ) => Effect.Effect<ReadonlyArray<MemberRead>, never, R>
+  /** A relation's rule for linking or unlinking a row, when it has one. */
+  readonly linkable: (
+    entity: AnyEntity,
+    principal: Option.Option<User>,
+    relation: string,
+    interaction: 'Link' | 'Unlink',
+  ) => Effect.Effect<Option.Option<RowRule>, never, R>
   /** The principal's fields as row guards' inputs; a visitor has none. */
   readonly inputOf: (principal: Option.Option<User>) => Readonly<Record<string, unknown>>
   /**
@@ -206,7 +230,7 @@ const placeholdersOf = <User>(fields: Schema.Struct.Fields): Placeholders<User> 
   return Object.freeze(inputs) as Placeholders<User>
 }
 
-export { Condition, type MemberRead } from './condition.js'
+export { Condition, type MemberRead, type RowRule } from './condition.js'
 export {
   Interaction,
   type All,
@@ -330,27 +354,39 @@ export const Guards = {
             ),
         })
       }
-      const readingFor = (entity: AnyEntity, principal: Option.Option<User>) => {
+      const decidingFor = (
+        entity: AnyEntity,
+        principal: Option.Option<User>,
+        interaction: string,
+      ) => {
         Option.map(attached(entity), ({ set }) => {
           if (set !== name) {
             throw new Error(`[foldkit-guard] ${name}: ${entity.name} carries the guards of ${set}`)
           }
         })
-        return reading(
+        return deciding(
           guard =>
-            Effect.map(
-              decide(guard, { principal, interaction: 'Read' }),
-              decision => decision === true,
-            ),
+            Effect.map(decide(guard, { principal, interaction }), decision => decision === true),
           Option.isNone(principal),
+          interaction,
         )
       }
       return {
         set: name,
         decide,
-        readable: (entity, principal) => readingFor(entity, principal).readable(entity),
+        readable: (entity, principal) =>
+          Effect.map(
+            decidingFor(entity, principal, 'Read').row(entity),
+            ({ condition }) => condition,
+          ),
         readMembers: (entity, principal, members) =>
-          readingFor(entity, principal).members(entity, members),
+          decidingFor(entity, principal, 'Read').members(entity, members),
+        writable: (entity, principal, interaction) =>
+          decidingFor(entity, principal, interaction).row(entity),
+        writeMembers: (entity, principal, members, interaction) =>
+          decidingFor(entity, principal, interaction).members(entity, members),
+        linkable: (entity, principal, relation, interaction) =>
+          decidingFor(entity, principal, interaction).relation(entity, relation),
         inputOf: principal =>
           Option.match(principal, { onNone: () => ({}), onSome: user => inputOf(user) }),
         // Prefixed, so no user's key is the visitor's. Not `declare`'s `key`

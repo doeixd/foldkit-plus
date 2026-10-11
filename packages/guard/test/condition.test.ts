@@ -6,7 +6,7 @@
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Relation, type AnyEntity } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
-import { Condition, Guards } from '../src/index.js'
+import { Condition, Guards, Interaction } from '../src/index.js'
 
 const User = Schema.Struct({
   id: Schema.String,
@@ -157,5 +157,80 @@ describe('Policy.readMembers', () => {
     expect(Condition.holds(email!.condition, own, input, () => false)).toBe(true)
     expect(Condition.holds(email!.condition, shared, input, () => false)).toBe(false)
     expect(notes!.condition).toBe(Condition.never)
+  })
+})
+
+describe('write rules', () => {
+  const Archive = Interaction.make('Archive')
+  const Writable = TodoFields.pipe(
+    Guards.attach(G, {
+      row: {
+        Write: [G.isOwner, G.isAdmin],
+        [Archive.key]: Guards.on([G.isAdmin], Guards.explain('Only an admin may archive.')),
+      },
+      members: { ownerId: { Update: [G.isAdmin] } },
+      relations: { project: { Link: [G.inProject] } },
+      always: [G.signedIn],
+    }),
+  )
+  const told: Array<string> = []
+  const Telling = G.implement({
+    isAdmin: principal => Option.exists(principal, user => user.role === 'admin'),
+    signedIn: (principal, { interaction }) => {
+      told.push(interaction)
+      return Option.isSome(principal)
+    },
+  })
+  const holds = (condition: Condition, user: User, row: Readonly<Record<string, unknown>>) =>
+    Condition.holds(condition, row, Telling.inputOf(Option.some(user)), () => false)
+
+  it('decides a row’s write by its interaction, its bodies told which one', () => {
+    told.length = 0
+    const update = Effect.runSync(Telling.writable(Writable, Option.some(ada), 'Update'))
+    expect(told).toEqual(['Update'])
+    expect(update.deny).toEqual({ _tag: 'Forbidden' })
+    expect(holds(update.condition, ada, own)).toBe(true)
+    expect(holds(update.condition, ada, shared)).toBe(false)
+    expect(Effect.runSync(Telling.writable(Writable, Option.some(root), 'Delete')).condition).toBe(
+      Condition.always,
+    )
+    expect(Effect.runSync(Telling.writable(Writable, Option.none(), 'Create')).condition).toBe(
+      Condition.never,
+    )
+  })
+
+  it('refuses a named interaction with its explanation', () => {
+    const archive = Effect.runSync(Telling.writable(Writable, Option.some(ada), Archive.key))
+    expect(archive).toEqual({
+      condition: Condition.never,
+      deny: { _tag: 'Explain', reason: 'Only an admin may archive.' },
+    })
+  })
+
+  it('decides setting a member, its Update governing its Create', () => {
+    for (const interaction of ['Create', 'Update'] as const) {
+      const [ownerId] = Effect.runSync(
+        Telling.writeMembers(Writable, Option.some(ada), ['ownerId', 'email'], interaction),
+      )
+      expect(ownerId).toEqual({
+        member: 'ownerId',
+        condition: Condition.never,
+        deny: { _tag: 'Forbidden' },
+      })
+    }
+    expect(
+      Effect.runSync(Telling.writeMembers(Writable, Option.some(root), ['ownerId'], 'Update')),
+    ).toMatchObject([{ member: 'ownerId', condition: Condition.always }])
+  })
+
+  it('decides linking a relation over the parent row, and none where it has no rule', () => {
+    const link = Option.getOrThrow(
+      Effect.runSync(Telling.linkable(Writable, Option.some(ada), 'project', 'Link')),
+    )
+    expect(holds(link.condition, ada, shared)).toBe(true)
+    expect(holds(link.condition, ada, other)).toBe(false)
+    expect(
+      Effect.runSync(Telling.linkable(Writable, Option.some(ada), 'project', 'Unlink')),
+    ).toEqual(Option.none())
   })
 })

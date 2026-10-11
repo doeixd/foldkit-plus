@@ -136,35 +136,56 @@ const conditionsFor = <R>(
     },
   )
 
-/** How `Policy.readable` and `Policy.readMembers` decide, given the set's principal guards. */
-export const reading = <R>(
+/** A row's rule for one interaction and principal: the condition, and what a refusal shows. */
+export interface RowRule {
+  readonly condition: Condition
+  readonly deny: Deny
+}
+
+/**
+ * How a Policy decides one interaction, given the set's principal guards as
+ * decided for it.
+ */
+export const deciding = <R>(
   decide: (guard: PrincipalGuard<any>) => Effect.Effect<boolean, never, R>,
   visitor: boolean,
+  interaction: string,
 ) => ({
-  /** Who may read which rows of `entity`: `always`, then the row's Read rules. */
-  readable: (entity: AnyEntity): Effect.Effect<Condition, never, R> =>
+  /** Who may do it to which rows of `entity`: `always`, then the row's rules for it. */
+  row: (entity: AnyEntity): Effect.Effect<RowRule, never, R> =>
     Option.match(attached(entity), {
-      onNone: () => Effect.succeed(always),
+      onNone: () =>
+        Effect.succeed({ condition: always, deny: defaultDeny(rowTarget(interaction)) }),
       onSome: attachment => {
-        const row = surfaceOf(attachment, { _tag: 'Row', interaction: 'Read' })
+        const target = rowTarget(interaction)
+        const row = surfaceOf(attachment, target)
         const rules = Option.match(row, {
           onNone: (): ReadonlyArray<AnyRule> => [],
           onSome: ({ rules }) => rules,
         })
-        // A Read left without rules falls to the set's default.
+        // An interaction left without rules falls to the set's default.
         const unguarded = attachment.unguarded === 'allow' ? always : never
         return Effect.map(
           conditionsFor([...attachment.always, ...rules], decide, visitor),
-          condition =>
-            and([
+          condition => ({
+            condition: and([
               condition(attachment.always, and),
               Option.isSome(row) ? condition(rules, or) : unguarded,
             ]),
+            deny: Option.getOrElse(
+              Option.flatMap(row, ({ deny }) => deny),
+              () => defaultDeny(target),
+            ),
+          }),
         )
       },
     }),
 
-  /** The read rule of each of `members`, relations included, that has one. One without follows its row. */
+  /**
+   * The rule of each of `members` that has one for this interaction. One
+   * without follows its row. A relation key's Read is its relation's, decided
+   * over the parent row as a member's is.
+   */
   members: (
     entity: AnyEntity,
     members: ReadonlyArray<string>,
@@ -173,10 +194,9 @@ export const reading = <R>(
       onNone: () => Effect.succeed([]),
       onSome: attachment => {
         const surfaces = members.flatMap(member => {
-          // A relation's Read is decided over its parent row, as a member's is.
           const target = Object.hasOwn(entity.relations, member)
-            ? ({ _tag: 'Relation', relation: member, interaction: 'Read' } as const)
-            : ({ _tag: 'Member', member, interaction: 'Read' } as const)
+            ? ({ _tag: 'Relation', relation: member, interaction } as const)
+            : ({ _tag: 'Member', member, interaction } as const)
           return Option.match(surfaceOf(attachment, target), {
             onNone: () => [],
             onSome: ({ rules, deny }) => [
@@ -199,4 +219,27 @@ export const reading = <R>(
         )
       },
     }),
+
+  /** A relation's rule for this interaction (`Link`, `Unlink`), when it has one. */
+  relation: (
+    entity: AnyEntity,
+    relation: string,
+  ): Effect.Effect<Option.Option<RowRule>, never, R> => {
+    const target = { _tag: 'Relation', relation, interaction } as const
+    return Option.match(
+      Option.flatMap(attached(entity), attachment => surfaceOf(attachment, target)),
+      {
+        onNone: () => Effect.succeed(Option.none()),
+        onSome: ({ rules, deny }) =>
+          Effect.map(conditionsFor(rules, decide, visitor), condition =>
+            Option.some({
+              condition: condition(rules, or),
+              deny: Option.getOrElse(deny, () => defaultDeny(target)),
+            }),
+          ),
+      },
+    )
+  },
 })
+
+const rowTarget = (interaction: string) => ({ _tag: 'Row', interaction }) as const

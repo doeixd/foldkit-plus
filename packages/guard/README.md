@@ -163,6 +163,12 @@ Condition.holds(readable, { id: 't1', ownerId: 'ada', projectId: 'p9' }, Policy.
   which only the caller can look up.
 - `Policy.readMembers(Todo, principal, members)` decides each member's own
   Read rule, with the refusal it shows (`Omit` or `Redact`).
+- Writes are decided alike, each principal guard's body told the interaction:
+  `Policy.writable(Todo, principal, 'Update')` is the row's rule for it,
+  `{ condition, deny }` (`Forbidden`, or `Explain` with its sentence);
+  `Policy.writeMembers(Todo, principal, members, 'Update')` each member's;
+  `Policy.linkable(Todo, principal, 'project', 'Link')` a relation's, when it
+  has one.
 
 ## Serving reads
 

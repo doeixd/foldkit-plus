@@ -317,7 +317,10 @@ version changed; `pnpm` skips versions already in the registry.
   throws naming each that does not. `RemoteServer.handlers(server,
   G.Principal)` reads who is asking per call, and `Policy.keyOf(principal)`
   names a principal by every field its rules may read, a visitor included,
-  for a live hub's `key`. Writes come next (`guard-DESIGN.md`).
+  for a live hub's `key`. `Policy.writable(entity, principal, interaction)`,
+  `Policy.writeMembers` and `Policy.linkable` decide write rules the same way,
+  a body told which interaction it is asked about. Enforcing them on writes
+  comes next (`guard-DESIGN.md`).
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

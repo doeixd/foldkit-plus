@@ -1,5 +1,5 @@
 /**
- * Read rules decided for one principal, broken in turn:
+ * Read and write rules decided for one principal, broken in turn:
  * `pnpm mutate packages/guard/test/condition.mutations.ts`.
  */
 const file = '../src/condition.ts'
@@ -47,8 +47,9 @@ export default [
     edits: [
       {
         file,
-        find: 'deny: Option.getOrElse(deny, () => defaultDeny(target))',
-        replace: "deny: Option.getOrElse(deny, () => defaultDeny({ ...target, _tag: 'Row' }))",
+        find: '{ member, rules, deny: Option.getOrElse(deny, () => defaultDeny(target)) },',
+        replace:
+          "{ member, rules, deny: Option.getOrElse(deny, () => defaultDeny({ ...target, _tag: 'Row' })) },",
       },
     ],
     tests,
@@ -93,5 +94,43 @@ export default [
       },
     ],
     tests: ['packages/guard/test/server.test.ts'],
+  },
+  {
+    name: 'a body is told every interaction is a Read',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'decide(guard, { principal, interaction })',
+        replace: "decide(guard, { principal, interaction: 'Read' })",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row’s chosen refusal is ignored',
+    edits: [{ file, find: 'Option.flatMap(row, ({ deny }) => deny)', replace: 'Option.none()' }],
+    tests,
+  },
+  {
+    name: 'a relation is asked about linking whatever the interaction',
+    edits: [
+      {
+        file,
+        find: "const target = { _tag: 'Relation', relation, interaction } as const",
+        replace: "const target = { _tag: 'Relation', relation, interaction: 'Link' } as const",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a write is decided by the Read rules',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'decidingFor(entity, principal, interaction).row(entity)',
+        replace: "decidingFor(entity, principal, 'Read').row(entity)",
+      },
+    ],
+    tests,
   },
 ]
