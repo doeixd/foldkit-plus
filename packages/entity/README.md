@@ -263,8 +263,9 @@ CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
 ```
 
 - A key that names a field, with a value that fits it, maps itself. Only the
-  present value has to fit: a key may be optional (a partial update) or admit
-  `null` (clearing it), which is the input schema's rule to make.
+  present value has to fit: a key may be optional (a partial update), admit
+  `null` (clearing it), or hold an `Option` (an id absent for something new),
+  which is the input schema's rule to make.
 - Every other key needs an entry: a Field under another name, a relation's ids
   with `Relation.input(relation)`, or `Entity.unmapped`. Nothing is inferred
   from a name like `authorId`.

@@ -351,7 +351,10 @@ GuardServer.mutation(
 - The row `id` names is read through `source`, which must apply the
   Entity's Read rules (it is refused where it is defined otherwise); a row
   the writer may not see is refused, and the rule must hold over the rest.
-- With no `id` (a create), the rule must hold of who is asking alone.
+- With no `id` (a create), the rule must hold of who is asking alone. An
+  `id` that answers an `Option` serves create and edit in one mutation (one
+  `Crud.editor` for both): `Option.none()` is a create, checked against the
+  row's `Create` rule.
 - What the handler writes is its own to check: members it sets, relations it
   points. `fields` reads more of the row for it.
 - Each row of the Entity its answer carries is read back through `source`, as

@@ -63,6 +63,13 @@ Entity.input(
 )
 // @ts-expect-error `published` names a field, but a string does not fit it
 Entity.input(Post, Schema.Struct({ published: Schema.String }))
+// An `Option` id is absent for something new: one input for create and edit.
+Entity.input(
+  Post,
+  Schema.Struct({ id: Schema.OptionFromNullOr(Schema.String), title: Schema.String }),
+)
+// @ts-expect-error an `Option` holds what it holds: a number does not fit `title`
+Entity.input(Post, Schema.Struct({ title: Schema.Option(Schema.Number) }))
 
 // @ts-expect-error `name` is a field of Author, not of Post
 Entity.input(Post, input, { authorId: Author.fields.name })

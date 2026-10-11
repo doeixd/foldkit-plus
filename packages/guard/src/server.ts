@@ -408,8 +408,12 @@ export const GuardServer = {
       readonly entity: AnyEntity
       readonly policy: Policy<User, R>
       readonly interaction: 'Create' | 'Update' | 'Delete' | InteractionKey
-      /** The row the input acts on; none for a create. */
-      readonly id?: ((input: Input) => string) | undefined
+      /**
+       * The row the input acts on; none for a create. An input whose id may be
+       * absent (`Option`, as one editor's for create and edit) creates when it
+       * is, checked against `Create`.
+       */
+      readonly id?: ((input: Input) => string | Option.Option<string>) | undefined
       /** Reads the row as its writer may see it: the Entity's guarded Source. */
       readonly source: EntitySource<Option.Option<User>, RS>
       /** More of the row for `run`, beside what the rule reads. */
@@ -461,10 +465,19 @@ export const GuardServer = {
       context =>
         Effect.gen(function* () {
           const { principal } = context
-          const rule = yield* policy.writable(entity, principal, interaction)
+          // `context.input` was decoded against the mutation's Input before this runs.
+          const target = Option.flatMap(Option.fromUndefinedOr(id), of => {
+            const named = of(context.input)
+            return typeof named === 'string' ? Option.some(named) : named
+          })
+          const rule = yield* policy.writable(
+            entity,
+            principal,
+            id !== undefined && Option.isNone(target) ? 'Create' : interaction,
+          )
           const ruled = Condition.members(rule.condition)
           const input = policy.inputOf(principal)
-          if (id === undefined) {
+          if (Option.isNone(target)) {
             const nothing = Object.fromEntries(ruled.map(field => [field, matchesNothing]))
             if (!Condition.holds(rule.condition, nothing, input, () => false)) {
               return yield* Effect.fail(refused(rule.deny))
@@ -472,9 +485,7 @@ export const GuardServer = {
             return yield* shown(yield* run({ ...context, row: Option.none() }), principal)
           }
           const fields = [...new Set(['id', ...ruled, ...(guard.fields ?? [])])]
-          const row = Option.fromUndefinedOr(
-            yield* rowOf(source, principal, fields, id(context.input)),
-          )
+          const row = Option.fromUndefinedOr(yield* rowOf(source, principal, fields, target.value))
           if (
             Option.isNone(row) ||
             !Condition.holds(rule.condition, row.value, input, () => false)

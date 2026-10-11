@@ -7,7 +7,7 @@
  * renders nothing. Remote, Drizzle, and form packages interpret it and attach
  * what they need as `foldkit-metadata`.
  */
-import { Pipeable, Schema } from 'effect'
+import { type Option, Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { SchemaShape } from './shape.js'
 
@@ -375,12 +375,22 @@ type NestedValues<R, I> =
       : Schema.Struct.Type<Fields>
     : never
 
+type Present<T> = Exclude<T, null | undefined>
+/** What an `Option` holds, else the value itself. */
+type Held<T> =
+  T extends Option.Some<infer A> ? Present<A> : T extends Option.None<any> ? never : Present<T>
 /**
- * Only the value that is present has to fit: an input may leave a key out (a
- * partial update) or send `null` to clear it. Whether it may is the input
+ * Whether an input value fits a field. Only the value that is present has to
+ * fit: an input may leave a key out (a partial update), send `null` to clear
+ * it, or hold an `Option` (an id absent for something new), whose value fits as
+ * it is (an `Option` field) or as what it holds. Whether it may is the input
  * schema's rule; the fit only guards against mapping the wrong member.
  */
-type Present<T> = Exclude<T, null | undefined>
+type Fits<Input, Field> = [Present<Input>] extends [Field]
+  ? true
+  : [Held<Input>] extends [Field]
+    ? true
+    : false
 
 type MappingFor<Name extends string, Input, M> = M extends Unmapped
   ? M
@@ -390,7 +400,7 @@ type MappingFor<Name extends string, Input, M> = M extends Unmapped
         | NestedInput<EntityRelation<infer Owner, any, any, any, any>, any>
     ? [Owner] extends [Name]
       ? M extends EntityField<any, any, infer S>
-        ? Present<Input> extends Schema.Schema.Type<S>
+        ? Fits<Input, Schema.Schema.Type<S>> extends true
           ? M
           : 'the input value does not fit this field'
         : M extends RelationInput<infer R>
@@ -414,7 +424,7 @@ type MappingFor<Name extends string, Input, M> = M extends Unmapped
 /** A key that names a field whose value it fits maps itself; every other key needs an entry. */
 type SelfMapped<E extends AnyEntity, Fields extends Schema.Struct.Fields> = {
   [K in keyof Fields]: K extends keyof E['fields']
-    ? Present<Schema.Schema.Type<Fields[K]>> extends Schema.Schema.Type<E['fields'][K]['schema']>
+    ? Fits<Schema.Schema.Type<Fields[K]>, Schema.Schema.Type<E['fields'][K]['schema']>> extends true
       ? K
       : never
     : never

@@ -253,6 +253,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **One editor for create and edit.** `foldkit-entity`: an `Option`-typed
+  input key maps itself to the field its value fits, as a nullable one does,
+  so an input's id may be `Schema.OptionFromNullOr(PostId)`. `foldkit-crud`'s
+  editor then saves a blank form with `Option.none()` and an opened one with
+  its id. `foldkit-guard`: `GuardServer.mutation`'s `id` may answer an
+  `Option`, and `none` is a create, checked against the row's `Create` rule.
 - **`foldkit-agent`: `authorize` may refuse with a reason.** It answers
   `{ allowed: false, reason }` (an `AuthorizationDecision`) beside a boolean,
   and the reason is the `AgentAuthorizationError`'s message.

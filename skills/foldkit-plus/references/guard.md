@@ -99,6 +99,8 @@ const Todo = TodoFields.pipe(
   ({ input, row }) => …)` checks the row's rule for that interaction over the
   row as its writer sees it before the handler runs, and reads its answer's
   rows back as the writer now sees them; what it writes is its own to check.
+  An `id` answering an `Option` (`Schema.OptionFromNullOr` in the input) is
+  create-or-edit: `none` is checked against `Create`.
 - Writes: `RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy,
   writer(Db.Todo)))` checks a declared write before it lands (row rule over
   the row as it is and, for an update, as it would be; each member's and

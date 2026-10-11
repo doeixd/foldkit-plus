@@ -262,7 +262,9 @@ Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 - Use `after` (or run `sync`), or the form never fills.
 - The form fills once per `open`. A later refresh does not overwrite drafts.
 - A form and a mutation with different inputs is a type error at `Crud.editor`.
-- One editor serves one form; create and edit are usually two editors.
+- One editor serves one form. Create and edit share one when the input's id is
+  an `Option` (`Schema.OptionFromNullOr(PostId)`, hidden): `blank()` saves with
+  `none`, `open(id)` with the id it was filled with. Otherwise they are two.
 
 ## See also
 

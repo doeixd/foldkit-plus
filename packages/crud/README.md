@@ -244,9 +244,29 @@ Placed.helpers.blank() // a new one: nothing to load, editing at once
 Placed.helpers.close()
 ```
 
-One editor serves one form. A create form and an edit form usually differ (the
-edit input has an `id`), so they are two editors; `blank` is for the one whose
-form creates.
+One editor serves one form. Create and edit share one when the input's id is
+an `Option`: a blank form saves with `Option.none()`, an opened one with the id
+it was filled with, and the server branches on which (`foldkit-guard`'s
+`GuardServer.mutation` checks a `none` against `Create`).
+
+```ts
+const SaveProjectInput = Entity.input(
+  Project,
+  Schema.Struct({ id: Schema.OptionFromNullOr(Schema.String), name: Schema.String }),
+)
+const SaveProject = Mutation.make('SaveProject', {
+  Input: SaveProjectInput.schema,
+  Output: { id: Schema.String },
+})
+const SaveProjectForm = Form.make('SaveProject', SaveProjectInput, {
+  inputs: { id: Input.hidden() },
+})
+const Editor = Crud.editor('ProjectEditor', { form: SaveProjectForm, mutation: SaveProject })
+```
+
+A declared write is one command (`Write.update` or `Write.insert`), so over
+those the create form and the edit form are two editors, and `blank` is for
+the one whose form creates.
 
 ### Its status
 

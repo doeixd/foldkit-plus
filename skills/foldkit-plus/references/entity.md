@@ -93,7 +93,8 @@ type Row = Selected<typeof PostRow> // the value it reads (import type { Selecte
 
 **Read an operation's input against an Entity** (experimental). The operation
 decides what may be written; `Entity.input` says what each key means. A key that
-names a field maps itself; the rest are mapped explicitly, never by a naming
+names a field maps itself (only its present value has to fit: optional, `null`
+or an `Option` key does too); the rest are mapped explicitly, never by a naming
 convention.
 
 ```ts

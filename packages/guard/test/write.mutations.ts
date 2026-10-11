@@ -193,8 +193,8 @@ export default [
     edits: [
       {
         file,
-        find: 'const rule = yield* policy.writable(entity, principal, interaction)',
-        replace: "const rule = yield* policy.writable(entity, principal, 'Update')",
+        find: "id !== undefined && Option.isNone(target) ? 'Create' : interaction,",
+        replace: "id !== undefined && Option.isNone(target) ? 'Create' : 'Update',",
       },
     ],
     tests,
@@ -255,6 +255,28 @@ export default [
         file,
         find: '.filter((_, index) => Option.isNone(read[index]!))',
         replace: '.filter(() => false)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an absent id is checked as the edit is',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: "id !== undefined && Option.isNone(target) ? 'Create' : interaction,",
+        replace: 'interaction,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an edit is checked as a create',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: "id !== undefined && Option.isNone(target) ? 'Create' : interaction,",
+        replace: "id !== undefined ? 'Create' : interaction,",
       },
     ],
     tests,

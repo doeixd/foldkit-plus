@@ -452,6 +452,11 @@ describe('GuardServer.mutation', () => {
     Input: { id: Schema.String, to: Schema.String },
     Output: {},
   })
+  // One editor's input for create and edit: no id is a new one.
+  const SaveTodo = Mutation.make('SaveTodo', {
+    Input: { id: Schema.OptionFromNullOr(Schema.String) },
+    Output: {},
+  })
   const seen: Array<unknown> = []
   let database = new DatabaseSync(':memory:')
   const handled = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
@@ -489,6 +494,17 @@ describe('GuardServer.mutation', () => {
               ],
             }
           }),
+      ),
+      GuardServer.mutation(
+        SaveTodo,
+        {
+          entity: Todo,
+          policy: Policy,
+          interaction: 'Update',
+          id: input => input.id,
+          source: source(Db.Todo),
+        },
+        ({ row }) => Effect.sync(() => (seen.push(row), { output: {} })),
       ),
       GuardServer.mutation(
         ImportTodos,
@@ -552,6 +568,28 @@ describe('GuardServer.mutation', () => {
     })
     expect(await handle(root, 'ImportTodos', {})).toMatchObject({ _tag: 'Success' })
     expect(seen).toEqual([Option.none()])
+  })
+
+  it('creates where the id is absent, under Create, and edits where it is given', async () => {
+    seen.length = 0
+    // Ada may update the todo she owns, and may create none: she owns nothing yet.
+    expect(await handle(ada, 'SaveTodo', { id: 't1' })).toMatchObject({ _tag: 'Success' })
+    expect(await handle(ada, 'SaveTodo', { id: null })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    // An editor may update any todo, so only Create refuses their new one.
+    expect(await handle(ed, 'SaveTodo', { id: null })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    // A viewer passes Create's isUnclaimed over t1, so only Update refuses their edit.
+    expect(await handle(vi, 'SaveTodo', { id: 't1' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(await handle(root, 'SaveTodo', { id: null })).toMatchObject({ _tag: 'Success' })
+    expect(seen).toEqual([Option.some({ id: 't1', ownerId: 'ada' }), Option.none()])
   })
 
   it('refuses a Source that does not apply the Read rules', () => {
