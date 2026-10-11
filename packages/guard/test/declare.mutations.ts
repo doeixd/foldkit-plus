@@ -63,17 +63,17 @@ export default [
   {
     name: 'a user may be keyed as the visitor is',
     edits: [
-      { file, find: 'onSome: user => `user:${options.key(user)}`', replace: 'onSome: options.key' },
+      { file, find: 'user => `user:${JSON.stringify(inputOf(user))}`', replace: "() => 'visitor'" },
     ],
     tests,
   },
   {
-    name: 'every principal has one key',
+    name: 'a principal is keyed by the declared key alone',
     edits: [
       {
         file,
-        find: 'onSome: user => `user:${options.key(user)}`',
-        replace: "onSome: () => 'user'",
+        find: 'user => `user:${JSON.stringify(inputOf(user))}`',
+        replace: 'user => `user:${options.key(user)}`',
       },
     ],
     tests,

@@ -96,6 +96,11 @@ describe('a principal’s key', () => {
     const named = { ...ada, id: Policy.keyOf(Option.none()) }
     expect(Policy.keyOf(Option.some(named))).not.toBe(Policy.keyOf(Option.none()))
   })
+
+  it('tells one person apart once a claim the rules read has changed', () => {
+    const moved = { ...ada, projectIds: ['p3'] }
+    expect(Policy.keyOf(Option.some(moved))).not.toBe(Policy.keyOf(Option.some(ada)))
+  })
 })
 
 describe('a declaration', () => {

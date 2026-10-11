@@ -123,7 +123,7 @@ export type GuardSet<Name extends string, User, S> = {
   readonly schema: Schema.Codec<User, unknown>
   /** The server's Context key for who is asking. Authentication provides it. */
   readonly Principal: Context.Service<PrincipalOf<Name>, Option.Option<User>>
-  /** A stable name for one principal, so two requests by one person share work. */
+  /** A stable name for the person, whatever their claims: for what is theirs, as a cache's scope. */
   readonly key: (user: User) => string
   readonly unguarded: 'allow' | 'deny'
   /** The principal's fields as row guards' inputs, encoded as stored values are. */
@@ -168,8 +168,9 @@ export interface Policy<User, R = never> {
   /** The principal's fields as row guards' inputs; a visitor has none. */
   readonly inputOf: (principal: Option.Option<User>) => Readonly<Record<string, unknown>>
   /**
-   * Who is asking, by `declare`'s `key`, a visitor included: two requests by
-   * one person answer alike, so a live hub shares their re-reads.
+   * Who is asking, as the rules see it: every field of the principal, encoded,
+   * a visitor included. Two requests by one person with the same claims answer
+   * alike, so a live hub shares their re-reads; a changed claim is not shared.
    *
    * ```ts
    * RemoteServer.liveHub(sources, { key: Policy.keyOf })
@@ -352,11 +353,13 @@ export const Guards = {
           readingFor(entity, principal).members(entity, members),
         inputOf: principal =>
           Option.match(principal, { onNone: () => ({}), onSome: user => inputOf(user) }),
-        // Prefixed, so no user's key is the visitor's.
+        // Prefixed, so no user's key is the visitor's. Not `declare`'s `key`
+        // alone: a re-read shared under it would read a newer request as an
+        // older one's claims.
         keyOf: principal =>
           Option.match(principal, {
             onNone: () => 'visitor',
-            onSome: user => `user:${options.key(user)}`,
+            onSome: user => `user:${JSON.stringify(inputOf(user))}`,
           }),
         isPrincipal,
       }

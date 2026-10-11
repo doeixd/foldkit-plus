@@ -308,7 +308,7 @@ describe('a guarded domain in memory', () => {
       [{ values: { email: 'hidden' } }],
       [{ values: { email: 'g@x' } }],
     ])
-    expect(decided.map(Policy.keyOf)).toEqual(['user:ada', 'user:root'])
+    expect(decided.map(principal => Option.getOrThrow(principal).id)).toEqual(['ada', 'root'])
   })
 
   it('reads an Entity it was not given as open, and ends a loop of inherited Reads', async () => {

@@ -81,8 +81,9 @@ What each call does, and does not:
   is `Option.none()`, and passes no row guard, whose body is over a
   principal's fields.
 - `G.Principal` is the server's Context key for who is asking, an
-  `Option` of the principal; `G.key(user)` names a principal, so two requests
-  by one person are known as one (see [Who is asking](#who-is-asking)).
+  `Option` of the principal; `G.key(user)` names the person, for what is
+  theirs whatever their claims, such as a cache snapshot (see
+  [Who is asking](#who-is-asking)).
 
 ## Attaching guards to an Entity
 
@@ -263,8 +264,8 @@ RemoteServer.answer(handlers, body).pipe(Effect.provideService(G.Principal, prin
 
 A live hub shares a re-read between subscribers with one principal. Two
 requests by one person each decode a principal of their own, so give the hub
-`Policy.keyOf`, which names a principal by `declare`'s `key` (a visitor
-included), and they share one:
+`Policy.keyOf`, which names a principal by every field the rules may read (a
+visitor included), and they share one:
 
 ```ts
 const hub = yield* RemoteServer.liveHub([...backend.server.entities.values()], {
@@ -272,8 +273,9 @@ const hub = yield* RemoteServer.liveHub([...backend.server.entities.values()], {
 })
 ```
 
-The key must name everything the rules read of a principal: two principals
-with one key are read as the first of them. On the client, a cache snapshot
-is scoped by the same key (`RemotePersistence`'s `scope: G.key(user)`), and a
-sign-in or sign-out is `Data.forget`, since every fact the cache holds was
-read as someone.
+Two principals with one key are read as the first of them, so a key that
+named only the person (`G.key`) would read a request made after their
+projects changed as an older request's claims; `Policy.keyOf` changes with
+any field. On the client, a cache snapshot is scoped by the person
+(`RemotePersistence`'s `scope: G.key(user)`), and a sign-in or sign-out is
+`Data.forget`, since every fact the cache holds was read as someone.

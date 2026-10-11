@@ -307,8 +307,8 @@ version changed; `pnpm` skips versions already in the registry.
   applies the rule and filter those seams built for it from that Policy, and
   throws naming each that does not. `RemoteServer.handlers(server,
   G.Principal)` reads who is asking per call, and `Policy.keyOf(principal)`
-  names a principal by `declare`'s `key`, a visitor included, for a live hub's
-  `key`. Writes come next (`guard-DESIGN.md`).
+  names a principal by every field its rules may read, a visitor included,
+  for a live hub's `key`. Writes come next (`guard-DESIGN.md`).
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

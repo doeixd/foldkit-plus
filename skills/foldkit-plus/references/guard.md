@@ -90,7 +90,8 @@ const Todo = TodoFields.pipe(
 - Who is asking: `RemoteServer.handlers(server, G.Principal)` reads it per
   call; authentication provides it per request
   (`Effect.provideService(G.Principal, principal)`). Give a live hub
-  `{ key: Policy.keyOf }` so two requests by one person share a re-read.
+  `{ key: Policy.keyOf }` (every field the rules may read, so a changed claim
+  is not shared) so two requests by one person share a re-read.
   Client side, scope a cache snapshot by `G.key(user)` and `Data.forget` on
   sign-in or sign-out.
 
