@@ -104,6 +104,7 @@ The onboarding guide and API reference for each package is its README under [`pa
 ```text
 Foundation       foldkit-surface + foldkit-metadata
 Domain           foldkit-entity (declaration and selection; Remote and remote-drizzle read it)
+Authorization    foldkit-guard (rules declared once; /server, /drizzle, /sync, /agent enforce them)
 Forms            foldkit-form (headless; on foldkit-bundle and foldkit-entity) + mixins-form (draws it)
 Screens          foldkit-crud (an editor, a list, a detail and a remover, joined from a form, Remote operations, and their Entity) + mixins-crud (draws lists and details)
 Content          foldkit-cms (drafts beside the row, derived lifecycle) + cms-drizzle (the audience boundary, drafts, publish)

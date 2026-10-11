@@ -1,9 +1,9 @@
 # foldkit-guard
 
-Early: a guard set can be declared, decided and attached to an Entity. Nothing
-enforces an attachment yet: the seams that derive their checks from it
-(`visible`, a Source's `authorize`, a mutation's write plan, `may`) are the
-next slices of
+A guard set is declared once, implemented on the server, attached to
+Entities, and enforced by each seam through a subpath: reads and writes
+(`/server`, `/drizzle`), Sync edits (`/sync`), agents (`/agent`). The design
+and its reasons are
 [guard-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/guard-DESIGN.md).
 
 ## What it owns

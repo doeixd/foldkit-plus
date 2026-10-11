@@ -320,8 +320,8 @@ version changed; `pnpm` skips versions already in the registry.
   lookup of another row by id), which
   hides a row the principal may not read from reads by id, from every query,
   and from relations (a `one` ref reads `null`), as a binding's `visible` does.
-- **`foldkit-guard`, early: a guard set declared once and decided on the
-  server.** `Guards.declare(name, PrincipalSchema, guard => ({ … }), { key })`
+- **`foldkit-guard`: a guard set declared once, decided on the server, and
+  enforced on every seam.** `Guards.declare(name, PrincipalSchema, guard => ({ … }), { key })`
   names principal guards (bodies only on the server, through `G.implement`,
   which must cover each one) and row guards (an `Expr` over one Entity's
   fields, the principal's fields as `principal.*` inputs). `Policy.decide` is

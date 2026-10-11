@@ -289,6 +289,7 @@ in a line.
 | Compile Foldkit views to React TSX source | `foldkit-react-codegen` | [package README](./packages/react-codegen) |
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
 | Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
+| Say once who may read and write what, and have every read, write, Sync edit and agent capability enforce it | `foldkit-guard` | [package README](./packages/guard) |
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
 | Edit an interactive grid over rows the application owns: keyboard focus, ranges, typed editors, copy and paste, fill, 100,000 rows virtualized | `foldkit-data-grid` (+ `foldkit-mixins-data-grid` to draw it; experimental, 0.1.0) | [package README](./packages/data-grid) |
@@ -325,6 +326,7 @@ flowchart TB
   mixinsSurface["foldkit-mixins-surface"]
   mixinsUi["foldkit-mixins-ui"]
   entity["foldkit-entity<br/>the domain, declared once"]
+  guard["foldkit-guard<br/>who may do what · enforced on every seam"]
   form["foldkit-form<br/>headless form from an operation's input"]
   mixinsForm["foldkit-mixins-form"]
   mixinsCrud["foldkit-mixins-crud"]
@@ -369,6 +371,8 @@ flowchart TB
   entity -- "read by" --> remote
   entity -- "bound to tables" --> drizzle
   entity --> form
+  entity --> guard
+  guard --> cmsDrizzle
   bundle --> form
   form --> mixinsForm
   mixins --> mixinsForm
@@ -480,6 +484,7 @@ pnpm add foldkit-bundle foldkit-bundle-surface foldkit-surface
 
 # a domain declared once, forms from an operation's input, and edit screens
 pnpm add foldkit-entity foldkit-form foldkit-mixins-form
+pnpm add foldkit-guard # who may do what, declared on the domain and enforced on the server
 pnpm add foldkit-crud foldkit-remote # an editor, list, detail, and remover over Remote
 pnpm add foldkit-mixins-crud # draws a list as a table and a detail as a description list
 pnpm add foldkit-cms # content types, drafts beside the row, and a derived lifecycle

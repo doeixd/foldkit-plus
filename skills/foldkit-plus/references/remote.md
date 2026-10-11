@@ -693,7 +693,10 @@ unchecked.
 (or `entity(name, table, { visible })`) hides rows from a principal on every path
 the table is read: by id (`NotFound`), as a relation's children (list, count,
 page), as a `one` ref's target (reads `null`), and through a query. `authorize`
-is for fields; `visible` is for rows.
+is for fields; `visible` is for rows. Rules declared once for every seam, rows,
+members, writes and the client's `may`, are `foldkit-guard`'s (see guard.md):
+`GuardDrizzle.visible` compiles them into `visible`, `GuardServer.filter` into a
+Source's `filter`.
 
 ## Gotchas
 
@@ -725,7 +728,9 @@ is for fields; `visible` is for rows.
   one handler set serves every request: `handlers(Server, CurrentUser)`, then
   `Effect.provideService(CurrentUser, user)` per request. `liveHub(sources, { key })`
   shares a re-read between subscribers whose principals have one key (default: the
-  same value). Query/mutation authorization belongs inside those Sources.
+  same value). Query/mutation authorization belongs inside those Sources, or, for
+  rules declared on the domain, in `foldkit-guard/server` (`GuardServer.writer`,
+  `GuardServer.mutation`, `GuardServer.validate` at startup); see guard.md.
 
 ## See also
 

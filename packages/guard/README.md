@@ -1,13 +1,8 @@
 # foldkit-guard
 
-Who may do what, declared once on a Foldkit Plus domain.
-
-**Early.** This package declares a guard set, decides its guards, attaches
-them to an Entity, and enforces reads: served from `RemoteServer.memory`,
-through a Source's `filter`, or compiled into a Drizzle binding's `visible`.
-Writes and the client's `may` hint are the next slices of
-[`guard-DESIGN.md`](../../docs/design/guard-DESIGN.md), which explains the
-whole design and why.
+Who may do what, declared once on a Foldkit Plus domain, and enforced on every
+path a row is read or written by. [`guard-DESIGN.md`](../../docs/design/guard-DESIGN.md)
+explains the design and why.
 
 ## What it is
 
@@ -22,7 +17,53 @@ server:
   fields as inputs. It is data, so the SQL compiler and `evaluate` run it, and
   the client may hold it without learning anything a query does not.
 
-Authentication stays the application's: it provides who is asking.
+## What it owns, and what it does not
+
+| Fact | Owner |
+| --- | --- |
+| Who is asking | your authentication, which provides it as `G.Principal` |
+| Who may do what | the guard set: declared once, in the shared domain code |
+| A principal guard's body | `G.implement`, on the server only |
+| Which rows a read returns | each binding's `visible`, compiled from the rules |
+| Enforcement | each seam of `foldkit-remote-server`, `-drizzle` and `foldkit-sync`, through this package's subpaths |
+| What a client shows as allowed | the server's `may` answer; no rule runs on a client |
+
+It does not authenticate, and it does not trust the client: a hint the client
+reads (`may`) is the server's answer, and the server checks every write
+again when it is made.
+
+## Mental model
+
+```text
+shared (client and server)               server only
+Guards.declare  names and Exprs          G.implement  principal guards' bodies ──> Policy
+Guards.attach   the rules on an Entity
+        │
+        └─> every seam reads the same rules, decided by the same Policy:
+              reads     GuardDrizzle.visible, GuardServer.memory    which rows
+                        GuardServer.filter                          members, relations, may
+              writes    GuardServer.writer, GuardServer.mutation    checked before, read back after
+              Sync      GuardSync.authorize, admit, opens           edits through the journal
+              agents    GuardAgent                                  reads may
+              startup   GuardServer.validate                        every guarded Source is guarded
+```
+
+A rule is decided in two steps: each principal guard by its body, once per
+request, then what is left, row guards, as a condition over the row that SQL
+or an evaluator runs. That split is why row guards are data and principal
+guards are names.
+
+## Install
+
+```sh
+pnpm add effect foldkit-entity foldkit-guard
+```
+
+`foldkit-guard` is the shared declaration. Its subpaths bring their packages
+as optional peers: `foldkit-guard/server` needs `foldkit-remote` and
+`foldkit-remote-server`, `/drizzle` also `foldkit-remote-drizzle` and
+`drizzle-orm`, `/sync` `foldkit-sync` and `foldkit-remote-server`, and
+`/agent` `foldkit-remote`.
 
 ## Sixty seconds
 
@@ -144,7 +185,7 @@ Guards.matrix([Todo])
   `unguarded` (`'allow'` by default); the matrix prints it `open`, or
   `closed` under `unguarded: 'deny'`.
 
-## Deciding reads
+## Deciding reads and writes
 
 A server asks the `Policy` which rows a principal may read. Every principal
 guard is decided by its body (once, however many rules name it); what is
@@ -317,6 +358,60 @@ GuardServer.mutation(
   a declared write's is: the answer shows the writer only what they may now
   see, and a row the handler hid from them answers as deleted.
 
+## Checking a server at startup
+
+A Source written by hand over a guarded Entity serves every row, and nothing
+at request time can tell. `GuardServer.validate` looks before any request:
+
+```ts
+GuardServer.validate(Policy, { entities: [Todo], domain: Data, server: backend.server })
+```
+
+It throws, naming each, for an Entity of `entities` whose Source lacks the
+rule `GuardDrizzle.visible` or `GuardServer.memory` built for it, or the
+`GuardServer.filter` built for it; for a query listing such an Entity without
+the rule; for a declared write of such an Entity that does not land through
+the `GuardServer.writer` built for it; and for an Entity carrying another
+set's guards. A rule built from another `Policy`, or for another Entity,
+does not count. Every guarded Entity's Source needs both its rule and its
+filter, even one with no member rules yet, so a rule attached later is
+applied rather than served past. `GuardServer.memory` gives both; over
+Drizzle, each Source takes its `filter`, and each binding its `visible`.
+
+A handler (`RemoteServer.mutation`) writes what its code writes, which no
+check at startup can read.
+
+## Who is asking
+
+Authentication decides who is asking; guards only read it. Give the handlers
+`G.Principal` instead of a principal, and each call reads it, so one handler
+set answers every request, and whatever authenticates a request provides it:
+
+```ts
+const handlers = RemoteServer.handlers(backend.server, G.Principal)
+
+// per request, once authentication has resolved `principal`
+RemoteServer.answer(handlers, body).pipe(Effect.provideService(G.Principal, principal))
+```
+
+A live hub shares a re-read between subscribers with one principal. Two
+requests by one person each decode a principal of their own, so give the hub
+`Policy.keyOf`, which names a principal by every field the rules may read (a
+visitor included), and they share one:
+
+```ts
+const hub = yield* RemoteServer.liveHub([...backend.server.entities.values()], {
+  key: Policy.keyOf,
+})
+```
+
+Two principals with one key are read as the first of them, so a key that
+named only the person (`G.key`) would read a request made after their
+projects changed as an older request's claims; `Policy.keyOf` changes with
+any field. On the client, a cache snapshot is scoped by the person
+(`RemotePersistence`'s `scope: G.key(user)`), and a sign-in or sign-out is
+`Data.forget`, since every fact the cache holds was read as someone.
+
 ## What the client may do
 
 The client must not run a rule: it has no bodies, its row may be stale, and it
@@ -351,6 +446,25 @@ May.canLink(row.may, Todo, 'project', 'Link')
   unavailable.
 - `foldkit-crud`'s editor locks the keys the reader may not set with
   `locks: May.locks(Todo)`, for `foldkit-mixins-form`'s `locked`.
+
+## When a rule refuses
+
+| Cause | Server | Client |
+| --- | --- | --- |
+| A row's Read refused | not returned, not settled | not found; a tombstone |
+| A member's Read refused (`omit`) | the field settled, unread | that field `Unavailable` |
+| A member's Read refused (`redact`) | the replacement value | `Ready` with it, by design indistinguishable |
+| A relation's Read refused | withheld, as a member's | unavailable |
+| A write refused | `Forbidden`, a 403 over JSON | `Data.mutation` is `Failed` with `_tag: 'Forbidden'`, `reason` from an `explain` |
+| A write moved a row out of its writer's sight | answered in `deleted` | tombstoned; it leaves every list |
+| A delete of a row its writer cannot see | nothing deleted; answered gone | tombstoned |
+| A Sync edit refused | rejected by its id, with its reason | the replica drops it, with the reason |
+| An agent's capability refused | — | `AgentAuthorizationError` before dispatch; not offered while `available` says no |
+| A Source left unguarded | `GuardServer.validate` throws at startup | — |
+
+A refusal says why only through `Guards.explain`: a plain one is `forbidden`,
+so a probing caller learns only "no", and a row a principal may not read is
+not found rather than forbidden, so its existence does not leak.
 
 ## Sync
 
@@ -427,56 +541,23 @@ TodoAgent.expose(Message, {
 - It is the agent's gate, not the check: the Message's mutation is checked on
   the server, under the same principal.
 
-## Checking a server at startup
+## Limits
 
-A Source written by hand over a guarded Entity serves every row, and nothing
-at request time can tell. `GuardServer.validate` looks before any request:
-
-```ts
-GuardServer.validate(Policy, { entities: [Todo], domain: Data, server: backend.server })
-```
-
-It throws, naming each, for an Entity of `entities` whose Source lacks the
-rule `GuardDrizzle.visible` or `GuardServer.memory` built for it, or the
-`GuardServer.filter` built for it; for a query listing such an Entity without
-the rule; for a declared write of such an Entity that does not land through
-the `GuardServer.writer` built for it; and for an Entity carrying another
-set's guards. A rule built from another `Policy`, or for another Entity,
-does not count. Every guarded Entity's Source needs both its rule and its
-filter, even one with no member rules yet, so a rule attached later is
-applied rather than served past. `GuardServer.memory` gives both; over
-Drizzle, each Source takes its `filter`, and each binding its `visible`.
-
-A handler (`RemoteServer.mutation`) writes what its code writes, which no
-check at startup can read.
-
-## Who is asking
-
-Authentication decides who is asking; guards only read it. Give the handlers
-`G.Principal` instead of a principal, and each call reads it, so one handler
-set answers every request, and whatever authenticates a request provides it:
-
-```ts
-const handlers = RemoteServer.handlers(backend.server, G.Principal)
-
-// per request, once authentication has resolved `principal`
-RemoteServer.answer(handlers, body).pipe(Effect.provideService(G.Principal, principal))
-```
-
-A live hub shares a re-read between subscribers with one principal. Two
-requests by one person each decode a principal of their own, so give the hub
-`Policy.keyOf`, which names a principal by every field the rules may read (a
-visitor included), and they share one:
-
-```ts
-const hub = yield* RemoteServer.liveHub([...backend.server.entities.values()], {
-  key: Policy.keyOf,
-})
-```
-
-Two principals with one key are read as the first of them, so a key that
-named only the person (`G.key`) would read a request made after their
-projects changed as an older request's claims; `Policy.keyOf` changes with
-any field. On the client, a cache snapshot is scoped by the person
-(`RemotePersistence`'s `scope: G.key(user)`), and a sign-in or sign-out is
-`Data.forget`, since every fact the cache holds was read as someone.
+- **No rule runs on the client.** `may` is the server's answer for the row as
+  it was read, as stale as the row; a live patch of a field its rules read
+  does not answer it again.
+- **A handler's own writes are its own to check.** `GuardServer.mutation`
+  checks the row's rule for its interaction; members it sets and relations
+  it points are not known to it, and no startup check can read them.
+- **Under a guard, a create refetches the lists over its Entity.** The client
+  cannot tell an answer read back under the writer's rule from one a plain
+  handler made up, so it does not place a created row by the list's body
+  alone.
+- **A Sync document is one audience.** Per-member or per-row secrecy within
+  one is not something a replicated log offers: `GuardSync.document` refuses
+  it where it is declared.
+- **Sync's `authorize` is synchronous.** Its principal guards' bodies must not
+  suspend; row guards run in `admit`, which may.
+- **A row guard over a field the client sets on create** reads as matching
+  nothing while the create leaves it unset; use a preset (`presets`) for a
+  field that should be the creator's.

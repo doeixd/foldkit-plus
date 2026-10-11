@@ -1,11 +1,11 @@
 # Guards: who may do what, declared once on the domain
 
-**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slices 1 (`Expr.in`) and 2 (the core, but `may`) built, and slice 3's decisions, its `memory` and `filter` seams, its Drizzle `visible`, relation Reads and `GuardServer.validate` (slice 3 complete), slice 4 (`G.Principal` read per call, a hub keyed by `Policy.keyOf`) and slice 5 (`Forbidden` end to end) and slice 6 (writes: `GuardServer.writer`, presets, `GuardServer.mutation`, the read-back), slice 7 (`may`, its readers, Crud's `locks` and the form's `locked`) slice 8 (`foldkit-guard/agent`, `withPrincipal(G.Principal)`) slice 9 (the CMS on a guard set) and slice 10 (`foldkit-guard/sync`); the rest not.
+**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it then stood; built, slices 1 to 11, by 2026-10-11. Each slice in §12 records what was built and where it departs from the plan above it; §13's questions stay open where no slice settled them.
 **Target:** a new package, `foldkit-guard`, and small changes in `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-entity`, `foldkit-crud`, `foldkit-agent`, `foldkit-cms-drizzle`, `foldkit-sync`.
 **Inspirations:** this repository's authorization seams; `doeixd/gen2`'s `AUTHZ2_PLAN.md`, `src/authz/{surface,placement,deny,mutation-plan}.ts` and `rules_implementation_guide.md`; ZenStack, Ent's privacy layer, Hasura permissions, Postgres row-level security, Firebase security rules, Pundit, Zanzibar, Cedar (§2).
 **Related:** `remote-improvement-plan.md` §16 (client placement, Phases 7–12), whose Phase 12 is gated on this design.
 
-Snippets below are the proposed API, not code that compiles today. Every name they use from existing packages (`Entity.define`, `Expr.eq`, `Mutation.write`, `RemoteServer.write`, `writer`, `bind`, `Data.forget`) is the current one; `Guards.*`, `Interaction.*` and `Expr.in` are what this design adds.
+Snippets in §3 to §8 are the design as it was proposed; the as-built notes and §12's slices say where the code differs, and the package README's snippets are the ones that compile.
 
 ---
 
@@ -646,6 +646,13 @@ Each slice stands alone, is committed with its tests, and is reviewed before the
    wires all three into its journal; its rules let every device edit, so its behaviour, e2e
    included, is unchanged. Slice 10 is built.
 11. **Docs.** `packages/guard/README.md` in the onboarding order; a `SKILL.md` row and `references/guard.md`; `remote.md`'s authorization gotchas pointing here; `CHANGELOG.md` per slice.
+
+   *Built:* the README in the onboarding order (what it is, what it owns, a mental model of
+   every seam reading one rule set, install with each subpath's peers, sixty seconds, then each
+   seam, how a refusal reaches the client, the integrations, and limits); `SKILL.md`'s row and
+   the dependency map name the subpaths; `references/guard.md` lost its "early" note;
+   `remote.md` points field, row and write authorization here; the root README and the docs
+   index list the package; each slice's `CHANGELOG.md` entry landed with it. Slice 11 is built.
 
 The Remote plan's Phase 12 gate ("an application that needs placement in a list under row-level authorization") is met by slice 3's kitchen-sink Todo and by slice 9's public post list; §7a's rule 2 is what Phase 12 builds first.
 

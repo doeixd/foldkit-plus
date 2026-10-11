@@ -41,7 +41,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | A React component in a Foldkit view, a Foldkit program in a React app, or views compiled to TSX | the Model / the embedded program | `foldkit-react` (+ `-codegen`) | [react.md](references/react.md) |
 | Typed facts a package attaches to another package's declaration (package authors only) | the key's package | `foldkit-metadata` (re-exported by `foldkit-surface`) | [surface.md](references/surface.md) |
 | A domain entity's fields, relations, and derived members, declared once, and typed selections of them (Remote registers and reads them as they are; `remote-drizzle` binds them to tables) | the domain declaration | `foldkit-entity` | [entity.md](references/entity.md) |
-| Who may do what: guards declared once on the domain, principal guards' bodies on the server, row guards as `Expr` | the domain declaration; bodies on the server | `foldkit-guard` (early: declare, decide, attach; enforcement to come) | [guard.md](references/guard.md) |
+| Who may do what: guards declared once on the domain, principal guards' bodies on the server, row guards as `Expr`, enforced on reads, writes, Sync edits and agents | the domain declaration; bodies on the server | `foldkit-guard` (`/server`, `/drizzle`, `/sync`, `/agent` for each seam) | [guard.md](references/guard.md) |
 | A form: drafts, validation, and a decoded value handed to the parent | the parent Model | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [form.md](references/form.md) |
 | An edit or create screen (load, fill a form, save, report status), or a list over a query | Remote and the form; the editor only joins them | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [crud.md](references/crud.md) |
 | An interactive data grid: which cells exist, keyboard moves and ranges over rows the application supplies | the grid owns geometry and interaction; the application owns the rows | `foldkit-data-grid` (+ `foldkit-mixins-data-grid` to draw it; experimental, 0.1.0) | [data-grid.md](references/data-grid.md) |
@@ -77,7 +77,7 @@ Foldkit app (Model · Message · update)
 foldkit-mixins (standalone) ─ foldkit-mixins-surface (with Surface), foldkit-mixins-ui, foldkit-mixins-form (with foldkit-form), foldkit-mixins-crud (with foldkit-crud)
 foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface), foldkit-primitives, foldkit-form
 foldkit-entity (standalone) ─ read by foldkit-remote, foldkit-remote-drizzle, foldkit-form
-foldkit-guard ─ over foldkit-entity: guards as data, decided on the server
+foldkit-guard ─ over foldkit-entity: guards as data, decided on the server; its subpaths enforce them in remote-server, -drizzle, sync and agent
 foldkit-crud ─ joins foldkit-form, foldkit-remote, foldkit-entity
 foldkit-cms ─ over foldkit-entity, foldkit-form, foldkit-crud, foldkit-remote: drafts beside the row, derived lifecycle
   └─ foldkit-cms-drizzle ─ over foldkit-remote-drizzle, -server: the audience boundary, drafts, publish in a transaction
