@@ -274,6 +274,19 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
 The binding must have a `visible` rule (`GuardDrizzle.visible`'s), which is
 how the writer reads a row as its writer may see it.
 
+A client should not choose whose a new row is. `presets` sets a field from
+who is asking on every create, before the rules are checked, so a rule over
+it holds of the creator:
+
+```ts
+GuardServer.writer(Todo, Policy, writer(Db.Todo), { presets: { ownerId: user => user.id } })
+```
+
+The create's input leaves `ownerId` out; an input that sets it is refused as
+the server's own mistake. A visitor has no one to preset from, and is refused
+even where the rules would let anyone create. A preset must be a field of the
+Entity, of that field's type.
+
 ## Checking a server at startup
 
 A Source written by hand over a guarded Entity serves every row, and nothing

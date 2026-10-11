@@ -9,6 +9,7 @@ import { Effect, Match, Option, Schema } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
 import {
   RemoteServer,
+  RemoteServerError,
   type EntityRecord,
   type EntityWriter,
   type MemoryReadable,
@@ -162,15 +163,40 @@ export const GuardServer = {
    * create leaves unset matches no guard, not even one for an empty value. A refusal is
    * `Forbidden`, with the sentence an `explain` gave; the write never runs.
    *
+   * `presets` are fields a create takes from who is asking, never from the
+   * client (`ownerId: user => user.id`): set before the rules are checked, so
+   * a rule over them holds of the creator. A visitor has nothing to preset
+   * from, and a create whose input sets a preset field is a mistake of the
+   * server's, refused.
+   *
    * ```ts
    * RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
    * ```
    */
-  writer: <User, R, RW>(
-    entity: AnyEntity,
+  writer: <E extends AnyEntity, User, R, RW>(
+    entity: E,
     policy: Policy<User, R>,
     writer: EntityWriter<Option.Option<User>, RW>,
+    options: {
+      readonly presets?: {
+        readonly [K in keyof E['fields']]?: (user: User) => E['fields'][K]['schema']['Type']
+      }
+    } = {},
   ): EntityWriter<Option.Option<User>, R | RW> => {
+    const presets = Object.entries(options.presets ?? {}).map(([field, preset]) => {
+      const declared = Object.hasOwn(entity.fields, field)
+        ? (entity.fields as Readonly<Record<string, { readonly schema: Schema.Top }>>)[field]
+        : undefined
+      if (declared === undefined) {
+        throw new Error(
+          `[foldkit-guard] GuardServer.writer: ${entity.name} has no field "${field}" to preset`,
+        )
+      }
+      const encode = Schema.encodeUnknownSync(
+        declared.schema as unknown as Schema.Codec<unknown, unknown>,
+      )
+      return { field, value: (user: User) => encode((preset as (user: User) => unknown)(user)) }
+    })
     const read = writer.read
     if (read === undefined) {
       throw new Error(
@@ -270,8 +296,27 @@ export const GuardServer = {
           yield* require([row], after, principal)
           return yield* writer.update(context)
         }),
-      insert: context =>
+      insert: given =>
         Effect.gen(function* () {
+          const preset = presets.find(({ field }) => Object.hasOwn(given.values, field))
+          if (preset !== undefined) {
+            return yield* new RemoteServerError({
+              message: `${entity.name}'s "${preset.field}" is preset by the server; the input may not set it`,
+            })
+          }
+          if (presets.length > 0 && Option.isNone(given.principal)) {
+            return yield* Effect.fail(RemoteServer.forbid())
+          }
+          const context = Option.match(given.principal, {
+            onNone: () => given,
+            onSome: user => ({
+              ...given,
+              values: {
+                ...given.values,
+                ...Object.fromEntries(presets.map(({ field, value }) => [field, value(user)])),
+              },
+            }),
+          })
           const { principal, values, links } = context
           const row = yield* policy.writable(entity, principal, 'Create')
           const members = yield* policy.writeMembers(

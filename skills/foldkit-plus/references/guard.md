@@ -96,6 +96,9 @@ const Todo = TodoFields.pipe(
   relation's own; a create over what it proposes, an unset field matching no
   guard), refuses as `Forbidden`, and answers as the writer now sees the row:
   a row the write hid from them in `deleted`. The binding needs `visible`.
+  `GuardServer.writer(Todo, Policy, writer(Db.Todo), { presets: { ownerId:
+  user => user.id } })` sets a field from who is asking on create; the input
+  must leave it out.
 - Who is asking: `RemoteServer.handlers(server, G.Principal)` reads it per
   call; authentication provides it per request
   (`Effect.provideService(G.Principal, principal)`). Give a live hub

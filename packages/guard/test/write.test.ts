@@ -23,6 +23,11 @@ const User = Schema.Struct({
 type User = typeof User.Type
 
 const projects = sqliteTable('projects', { id: text('id').primaryKey() })
+const notes = sqliteTable('notes', {
+  id: text('id').primaryKey(),
+  authorId: text('author_id').notNull(),
+  body: text('body').notNull(),
+})
 const todos = sqliteTable('todos', {
   id: text('id').primaryKey(),
   ownerId: text('owner_id').notNull(),
@@ -76,16 +81,24 @@ const Todo = Related.Todo.pipe(
   }),
 )
 
+// Anyone may write a note: its Create has no rule, and the set leaves that open.
+const NoteFields = Entity.define(
+  'Note',
+  Schema.Struct({ id: Schema.String, authorId: Schema.String, body: Schema.String }),
+)
+const Note = NoteFields.pipe(Guards.attach(G, { row: { Read: [G.isAdmin] } }))
+
 const Policy = G.implement({
   isAdmin: principal => Option.exists(principal, user => user.role === 'admin'),
   isEditor: principal => Option.exists(principal, user => user.role === 'editor'),
   isViewer: principal => Option.exists(principal, user => user.role === 'viewer'),
 })
 
-const visible = GuardDrizzle.visible(Policy, [Todo])
+const visible = GuardDrizzle.visible(Policy, [Todo, Note])
 const Db = bind(
-  { Todo, Project: Related.Project },
+  { Todo, Project: Related.Project, Note },
   {
+    Note: { table: notes, visible: visible.Note },
     Todo: {
       table: todos,
       relations: { project: { field: todos.projectId } },
@@ -132,6 +145,28 @@ const CreateBare = Mutation.write(
     id: 'id',
   }),
 )
+const CreateMine = Mutation.write(
+  'CreateMine',
+  Write.insert(Entity.input(Todo, Schema.Struct({ id: Schema.String, title: Schema.String })), {
+    id: 'id',
+  }),
+)
+const CreateAsAnyone = Mutation.write(
+  'CreateAsAnyone',
+  Write.insert(
+    Entity.input(
+      Todo,
+      Schema.Struct({ id: Schema.String, ownerId: Schema.String, title: Schema.String }),
+    ),
+    { id: 'id' },
+  ),
+)
+const CreateNote = Mutation.write(
+  'CreateNote',
+  Write.insert(Entity.input(Note, Schema.Struct({ id: Schema.String, body: Schema.String })), {
+    id: 'id',
+  }),
+)
 const Remove = Mutation.write(
   'RemoveTodo',
   Write.delete(Entity.input(Todo, Schema.Struct({ id: Schema.String })), { id: 'id' }),
@@ -140,9 +175,24 @@ const Remove = Mutation.write(
 const guarded = GuardServer.writer(Todo, Policy, writer(Db.Todo))
 const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
   entities: [],
-  mutations: [Edit, Move, Create, CreateBare, Remove].map(mutation =>
-    RemoteServer.write(mutation, guarded),
-  ),
+  mutations: [
+    ...[Edit, Move, Create, CreateBare, Remove].map(mutation =>
+      RemoteServer.write(mutation, guarded),
+    ),
+    RemoteServer.write(
+      CreateNote,
+      GuardServer.writer(Note, Policy, writer(Db.Note), { presets: { authorId: user => user.id } }),
+    ),
+    // The owner of a todo made here is whoever made it.
+    ...[CreateMine, CreateAsAnyone].map(mutation =>
+      RemoteServer.write(
+        mutation,
+        GuardServer.writer(Todo, Policy, writer(Db.Todo), {
+          presets: { ownerId: user => user.id },
+        }),
+      ),
+    ),
+  ],
 })
 
 const ada = Option.some<User>({ id: 'ada', role: 'member' })
@@ -154,6 +204,7 @@ const open = () => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     create table projects (id text primary key);
+    create table notes (id text primary key, author_id text not null, body text not null);
     create table todos (id text primary key, owner_id text not null, title text not null, claimed_by text, project_id text);
     insert into projects values ('p1');
     insert into todos values
@@ -303,5 +354,51 @@ describe('GuardServer.writer', () => {
       success: { deleted: [{ entity: 'Todo', id: 't1' }] },
     })
     expect(row('t1')).toBeUndefined()
+  })
+
+  it('presets a field from who is asking, and checks the create with it set', async () => {
+    const { mutate, row } = open()
+    expect(await mutate(ada, 'CreateMine', { id: 't8', title: 'Mine' })).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 't8', values: { ownerId: 'ada' } }] },
+    })
+    expect(row('t8')).toMatchObject({ owner_id: 'ada' })
+    expect(await mutate(Option.none(), 'CreateMine', { id: 't9', title: 'Whose?' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(row('t9')).toBeUndefined()
+  })
+
+  it('refuses a visitor a create with a preset, where its rules would let anyone create', async () => {
+    const { mutate } = open()
+    expect(await mutate(ada, 'CreateNote', { id: 'n1', body: 'Hello' })).toMatchObject({
+      _tag: 'Success',
+    })
+    expect(await mutate(Option.none(), 'CreateNote', { id: 'n2', body: 'Hi' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+  })
+
+  it('refuses an input that sets a field the server presets', async () => {
+    const { mutate, row } = open()
+    expect(
+      await mutate(ada, 'CreateAsAnyone', { id: 't8', ownerId: 'grace', title: 'Hers' }),
+    ).toMatchObject({ _tag: 'Failure', failure: { message: /is preset by the server/ } })
+    expect(row('t8')).toBeUndefined()
+  })
+
+  it('refuses a preset for a field the Entity does not have', () => {
+    expect(() =>
+      GuardServer.writer(Todo, Policy, writer(Db.Todo), {
+        // @ts-expect-error a preset names a field of the Entity
+        presets: { colour: () => 'red' },
+      }),
+    ).toThrow('Todo has no field "colour" to preset')
+    GuardServer.writer(Todo, Policy, writer(Db.Todo), {
+      // @ts-expect-error a preset gives the field's own type
+      presets: { ownerId: () => 1 },
+    })
   })
 })

@@ -333,7 +333,9 @@ version changed; `pnpm` skips versions already in the registry.
   as it would be after; each member set needs its own rule, each relation
   pointed elsewhere its `Unlink` and `Link`; a create is checked over what it
   proposes, an unset field matching no guard. A refusal is `Forbidden`, with
-  an `explain`'s sentence.
+  an `explain`'s sentence. `presets` (`{ ownerId: user => user.id }`) sets a
+  field from who is asking on every create, before the rules are checked;
+  an input that sets one is refused, and a visitor has none to give.
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and
