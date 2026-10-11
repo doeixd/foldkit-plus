@@ -259,6 +259,15 @@ export const surfaceOf = (attachment: Attachment, target: Target): Option.Option
       Option.fromUndefinedOr(attachment.relations[relation]?.[interaction]),
   })
 
+/** Whether who may read the rows depends on who is asking: a row Read rule, or `always`. */
+export const readRowsRuled = (attachment: Attachment): boolean =>
+  attachment.row['Read'] !== undefined || attachment.always.length > 0
+
+/** Whether `member`, a field or a relation, has a Read rule of its own. */
+export const readRuled = (attachment: Attachment, member: string): boolean =>
+  Option.isSome(surfaceOf(attachment, { _tag: 'Member', member, interaction: 'Read' })) ||
+  Option.isSome(surfaceOf(attachment, { _tag: 'Relation', relation: member, interaction: 'Read' }))
+
 const key = Metadata.key<Attachment>('foldkit-guard/attachment', {
   merge: attachments => [mergeAttachments(attachments)],
   summarize: attachment =>

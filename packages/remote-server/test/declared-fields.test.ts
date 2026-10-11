@@ -156,4 +156,9 @@ describe('RemoteServer.memory', () => {
     )
     expect(result.entities).toEqual([{ entity: 'Item', id: 'a', values: { name: 'x' } }])
   })
+
+  it('hands each entity the fields it declares shared', () => {
+    const backend = RemoteServer.memory({ domain, rows: { Item: [] }, shared: { Item: ['name'] } })
+    expect([...(backend.server.entities.get('Item')?.shared ?? [])]).toEqual(['name'])
+  })
 })

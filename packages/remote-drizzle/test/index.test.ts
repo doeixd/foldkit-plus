@@ -9,6 +9,7 @@ import {
   orderByTerms,
   reader,
   selectColumns,
+  source,
   whereIds,
   type SourceQuery,
 } from '../src/index.js'
@@ -199,5 +200,14 @@ describe('RemoteDrizzle', () => {
         computed: { ownerCount: { relation: 'owner' } },
       }),
     ).toThrow(/needs a collection relation/)
+  })
+})
+
+describe('source', () => {
+  it('declares the fields every principal reads alike, and refuses one it does not serve', () => {
+    expect([...(source(UserBinding, { shared: ['name'] }).shared ?? [])]).toEqual(['name'])
+    expect(() => source(UserBinding, { shared: ['nickname'] })).toThrow(
+      "User's shared fields name no member: nickname",
+    )
   })
 })

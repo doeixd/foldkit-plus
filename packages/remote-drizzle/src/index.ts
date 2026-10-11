@@ -328,6 +328,8 @@ export const source = <P = unknown>(
   options?: {
     readonly authorize?: EntitySource<P, DrizzleDatabase>['authorize'] | undefined
     readonly filter?: EntitySource<P, DrizzleDatabase>['filter'] | undefined
+    /** The fields every principal reads alike, of every row: see `EntitySource.shared`. */
+    readonly shared?: ReadonlyArray<string> | undefined
     readonly policies?:
       Readonly<Record<string, ((principal: P) => SQL | undefined) | undefined>> | undefined
   },
@@ -340,9 +342,16 @@ export const source = <P = unknown>(
       )
     }
   }
+  const unserved = (options?.shared ?? []).filter(field => !Object.hasOwn(binding.fields, field))
+  if (unserved.length > 0) {
+    throw new Error(
+      `[foldkit-remote-drizzle] ${binding.name}'s shared fields name no member: ${unserved.join(', ')}`,
+    )
+  }
   return {
     entity: binding.name,
     fields: new Set(Object.keys(binding.fields)),
+    ...(options?.shared === undefined ? {} : { shared: new Set(options.shared) }),
     read: context =>
       Effect.gen(function* () {
         if (context.ids.length === 0) return []

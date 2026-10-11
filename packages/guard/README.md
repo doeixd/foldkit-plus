@@ -375,8 +375,10 @@ rule `GuardDrizzle.visible` or `GuardServer.memory` built for it, or the
 `GuardServer.filter` built for it; for a query listing such an Entity without
 the rule; for a declared write of such an Entity that does not land through
 the `GuardServer.writer` built for it; and for an Entity carrying another
-set's guards. A rule built from another `Policy`, or for another Entity,
-does not count. Every guarded Entity's Source needs both its rule and its
+set's guards; and for a field its Source declares `shared` (sent to every
+live subscriber as written) when a Read rule could tell readers apart: the
+rows', `always`, the field's own, or, for a relation, its target rows'. A
+rule built from another `Policy`, or for another Entity, does not count. Every guarded Entity's Source needs both its rule and its
 filter, even one with no member rules yet, so a rule attached later is
 applied rather than served past. `GuardServer.memory` gives both; over
 Drizzle, each Source takes its `filter`, and each binding its `visible`.

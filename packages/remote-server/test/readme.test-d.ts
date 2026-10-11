@@ -102,6 +102,14 @@ const routeAs = async (request: Request, user: Principal): Promise<Response> => 
 }
 void routeAs
 
+// Everyone reads a project's name alike; only an admin reads its private notes.
+const SharedProjectSource = RemoteServer.entity<Principal>(Project, {
+  authorize: ProjectSource.authorize,
+  read: ProjectSource.read,
+  shared: ['name'],
+})
+void SharedProjectSource
+
 // Two requests by one person share a live re-read.
 const byPerson = RemoteServer.liveHub([ProjectSource], {
   key: (user: Principal) => (user.isAdmin ? 'admin' : 'member'),

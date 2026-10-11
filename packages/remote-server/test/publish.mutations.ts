@@ -29,4 +29,52 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a shared field is read again',
+    edits: [{ file: server, find: 'source.shared.has(field) &&', replace: 'false &&' }],
+    tests,
+  },
+  {
+    name: 'every given value is sent as written',
+    edits: [{ file: server, find: 'source.shared.has(field) &&', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a paged shared field is sent as written',
+    edits: [
+      {
+        file: server,
+        find: 'given(field) && !selected.windows.has(field)',
+        replace: 'given(field)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a handler's claim is sent as stored",
+    edits: [
+      {
+        file: server,
+        find: 'const stored = source.writes !== undefined',
+        replace: 'const stored = true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a declared write's values are not given",
+    edits: [
+      {
+        file: server,
+        find: 'const stored = source.writes !== undefined',
+        replace: 'const stored = false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a shared field naming no member is kept',
+    edits: [{ file: server, find: 'if (unserved.length > 0) {', replace: 'if (false) {' }],
+    tests,
+  },
 ]

@@ -1,4 +1,5 @@
-import { Effect, Fiber, Schema, Stream } from 'effect'
+import { Effect, Fiber, Option, Schema, Stream } from 'effect'
+import { Entity as EntityDefinition, Write } from 'foldkit-entity'
 import { RpcTest } from 'effect/rpc'
 import {
   Entity,
@@ -8,7 +9,7 @@ import {
   type ReadRequest,
 } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
-import { RemoteServer, RemoteServerError, type LiveHub } from '../src/index.js'
+import { RemoteServer, RemoteServerError, type EntityWriter, type LiveHub } from '../src/index.js'
 
 const User = Entity.make(
   'User',
@@ -628,5 +629,173 @@ describe('A mutation’s outcome reaches live subscribers', () => {
     )
     expect(answered._tag).toBe('Success')
     expect(people.u1).toEqual({ name: 'Ada' })
+  })
+})
+
+describe('Shared fields on the live hub', () => {
+  const Person = EntityDefinition.define(
+    'Person',
+    Schema.Struct({ id: Schema.String, name: Schema.String, email: Schema.String }),
+  )
+  const people: Record<string, Record<string, unknown>> = {}
+  const sourceReads: Array<ReadonlyArray<string>> = []
+  // `name` is everyone's alike; `email` only an admin's.
+  const personSource = RemoteServer.entity<string>(Person, {
+    shared: ['name'],
+    authorize: (principal, fields) =>
+      principal === 'admin' ? fields : fields.filter(field => field !== 'email'),
+    read: ({ ids, fields }) =>
+      Effect.sync(() => {
+        sourceReads.push(fields)
+        return ids.flatMap(id => {
+          const row = people[id]
+          return row === undefined
+            ? []
+            : [{ id, values: Object.fromEntries(fields.map(field => [field, row[field]])) }]
+        })
+      }),
+  })
+  const RenamePerson = Mutation.write(
+    'RenamePerson',
+    Write.update(
+      EntityDefinition.input(Person, Schema.Struct({ id: Schema.String, name: Schema.String })),
+      { id: 'id' },
+    ),
+  )
+  const RenameByHand = Mutation.make('RenameByHand', {
+    Input: { id: Schema.String, name: Schema.String },
+    Output: {},
+  })
+  const writer: EntityWriter<string> = {
+    entity: 'Person',
+    update: ({ id, values }) =>
+      Effect.sync(() => {
+        people[id] = { ...people[id], ...values }
+        return Option.some(values)
+      }),
+    insert: () => Effect.die('no inserts'),
+    delete: () => Effect.die('no deletes'),
+  }
+  const served = RemoteServer.make({
+    entities: [personSource],
+    mutations: [
+      RemoteServer.write(RenamePerson, writer),
+      // A handler's answer is its own claim, so it is read again.
+      RemoteServer.mutation(RenameByHand, ({ input }) =>
+        Effect.sync(() => {
+          people[input.id] = { ...people[input.id], name: input.name }
+          return {
+            output: {},
+            entities: [{ entity: 'Person', id: input.id, values: { name: 'claimed' } }],
+          }
+        }),
+      ),
+    ],
+  })
+
+  /** Each principal's first event after `act`, subscribed to both of u1's fields. */
+  const observe = (
+    principals: ReadonlyArray<string>,
+    act: (hub: LiveHub<string>) => Effect.Effect<unknown, unknown>,
+    windows?: Readonly<Record<string, { readonly first: number }>>,
+  ) =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const hub = yield* RemoteServer.liveHub([personSource])
+        const fibers = yield* Effect.forEach(principals, principal =>
+          Effect.forkChild(
+            Effect.scoped(
+              Effect.gen(function* () {
+                const client = yield* RpcTest.makeClient(RemoteRpc)
+                return yield* client
+                  .FoldkitRemoteLive({
+                    version: REMOTE_PROTOCOL_VERSION,
+                    requirements: [
+                      {
+                        entity: 'Person',
+                        id: 'u1',
+                        fields: ['name', 'email'],
+                        ...(windows === undefined ? {} : { windows }),
+                      },
+                    ],
+                    after: 0,
+                  })
+                  .pipe(Stream.take(1), Stream.runCollect)
+              }),
+            ).pipe(
+              Effect.provide(
+                RemoteRpc.toLayer(RemoteServer.handlers(served, principal, { live: hub })),
+              ),
+            ),
+          ),
+        )
+        yield* settle
+        sourceReads.length = 0
+        yield* act(hub)
+        return yield* Effect.forEach(fibers, fiber =>
+          Effect.map(Fiber.join(fiber), events => [...events][0]),
+        )
+      }),
+    )
+
+  it('sends a shared field’s written value with no read, and re-reads the rest per principal', async () => {
+    people.u1 = { name: 'Ada', email: 'ada@x' }
+    const [member, admin] = await observe(['member', 'admin'], hub =>
+      hub.changed({ entity: 'Person', id: 'u1' }, ['name'], { name: 'Ada' }),
+    )
+    expect(member).toMatchObject({ values: { name: 'Ada' }, changed: ['name'] })
+    expect(admin).toMatchObject({ values: { name: 'Ada' }, changed: ['name'] })
+    expect(sourceReads).toEqual([])
+  })
+
+  it('re-reads a field that is not shared, though its value was given', async () => {
+    people.u1 = { name: 'Ada', email: 'ada@y' }
+    const [member, admin] = await observe(['member', 'admin'], hub =>
+      Effect.andThen(
+        hub.changed({ entity: 'Person', id: 'u1' }, ['email'], { email: 'ada@y' }),
+        hub.changed({ entity: 'Person', id: 'u1' }, ['name'], { name: 'Ada' }),
+      ),
+    )
+    // The member may not read `email`: its first event is the name.
+    expect(member).toMatchObject({ values: { name: 'Ada' }, changed: ['name'] })
+    expect(admin).toMatchObject({ values: { email: 'ada@y' }, changed: ['email'] })
+    expect(sourceReads).toEqual([['email']])
+  })
+
+  it('re-reads a shared field its subscriber selected with a window', async () => {
+    people.u1 = { name: 'Ada', email: 'ada@x' }
+    const [member] = await observe(
+      ['member'],
+      hub => hub.changed({ entity: 'Person', id: 'u1' }, ['name'], { name: 'Ada' }),
+      { name: { first: 1 } },
+    )
+    expect(member).toMatchObject({ values: { name: 'Ada' } })
+    expect(sourceReads).toEqual([['name']])
+  })
+
+  it('publishes a declared write’s shared values as stored, and reads a handler’s again', async () => {
+    const mutate = (mutation: string, name: string) => (hub: LiveHub<string>) =>
+      Effect.scoped(
+        Effect.flatMap(RpcTest.makeClient(RemoteRpc), client =>
+          client.FoldkitRemoteMutate({ requestId: name, mutation, input: { id: 'u1', name } }),
+        ),
+      ).pipe(
+        Effect.provide(RemoteRpc.toLayer(RemoteServer.handlers(served, 'admin', { live: hub }))),
+      )
+    people.u1 = { name: 'Ada', email: 'ada@x' }
+    expect(await observe(['member'], mutate('RenamePerson', 'Grace'))).toMatchObject([
+      { values: { name: 'Grace' } },
+    ])
+    expect(sourceReads).toEqual([])
+    expect(await observe(['member'], mutate('RenameByHand', 'Hedy'))).toMatchObject([
+      { values: { name: 'Hedy' } },
+    ])
+    expect(sourceReads).toEqual([['name']])
+  })
+
+  it('refuses a shared field the source does not serve', () => {
+    expect(() =>
+      RemoteServer.entity(Person, { shared: ['nickname'], read: () => Effect.succeed([]) }),
+    ).toThrow("Person's shared fields name no member: nickname")
   })
 })

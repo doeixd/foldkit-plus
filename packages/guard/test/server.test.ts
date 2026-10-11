@@ -427,6 +427,48 @@ describe('GuardServer.validate', () => {
     )
   })
 
+  it('refuses a shared field a Read rule could tell its readers apart by', () => {
+    const CardRelated = Entity.relate(
+      {
+        Card: Entity.define(
+          'Card',
+          Schema.Struct({ id: Schema.String, title: Schema.String, secret: Schema.String }),
+        ),
+        Project: ProjectBase,
+      },
+      { Card: { project: Relation.one(ProjectBase) } },
+    )
+    const Card = CardRelated.Card.pipe(
+      Guards.attach(G, { members: { secret: { Read: [G.isAdmin] } } }),
+    )
+    const sharing =
+      (shared: Readonly<Record<string, ReadonlyArray<string>>>, card: typeof Card = Card) =>
+      () =>
+        GuardServer.validate(Policy, {
+          entities: [card, Todo, Project],
+          domain: Data,
+          server: RemoteServer.memory({
+            domain: Remote.define({ entities: [card, Todo, Project, Tag] }),
+            rows: { Card: [], Todo: [], Project: [], Tag: [] },
+            principal: Option.none<User>(),
+            shared,
+            ...GuardServer.memory(Policy, [card, Todo, Project]),
+          }).server,
+        })
+    expect(sharing({ Card: ['title'] })).not.toThrow()
+    expect(sharing({ Card: ['secret', 'project'] })).toThrow(
+      "Card's Source shares secret, which has a Read rule; Card's Source shares project, whose rows have a Read rule",
+    )
+    // Only an admin reads any Card: an `always` tells readers apart too.
+    const Watched = CardRelated.Card.pipe(Guards.attach(G, { always: [G.isAdmin] }))
+    expect(sharing({ Card: ['title'] }, Watched)).toThrow(
+      "Card's Source shares title, but its rows have a Read rule",
+    )
+    expect(sharing({ Todo: ['tag'] })).toThrow(
+      "Todo's Source shares tag, but its rows have a Read rule; Todo's Source shares tag, which has a Read rule",
+    )
+  })
+
   it('refuses rules built from another Policy, or another set', () => {
     const Other = G.implement({ isAdmin: () => false })
     expect(() =>

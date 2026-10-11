@@ -413,6 +413,10 @@ same way: the Source reads the fields its plan names, and `RemoteServer`
 applies the plan to each record. `foldkit-guard/server`'s `GuardServer.filter`
 is one.
 
+`shared` names the fields every principal reads alike, of every row, so a live
+hub sends a declared write's value of one without a read per principal (see
+`foldkit-remote-server`'s "Fields every principal reads alike").
+
 A request for a field the Entity does not declare never reaches the read. The
 Source still always selects the id needed to normalize rows.
 

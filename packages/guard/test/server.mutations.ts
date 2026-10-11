@@ -238,4 +238,41 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a shared field of rows only some may read is allowed',
+    edits: [{ file, find: 'shared.length > 0 && readRowsRuled(attachment)', replace: 'false' }],
+    tests,
+  },
+  {
+    name: 'a shared field with a Read rule of its own is allowed',
+    edits: [{ file, find: '...(readRuled(attachment, member)', replace: '...(false' }],
+    tests,
+  },
+  {
+    name: 'a shared relation to rows only some may read is allowed',
+    edits: [{ file, find: 'rowsRuled(byName.get(', replace: 'false && rowsRuled(byName.get(' }],
+    tests,
+  },
+  {
+    name: '`always` does not rule who reads the rows',
+    edits: [
+      {
+        file: '../src/attach.ts',
+        find: "attachment.row['Read'] !== undefined || attachment.always.length > 0",
+        replace: "attachment.row['Read'] !== undefined",
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a relation's Read rule is not its own",
+    edits: [
+      {
+        file: '../src/attach.ts',
+        find: "Option.isSome(surfaceOf(attachment, { _tag: 'Relation', relation: member, interaction: 'Read' }))",
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
 ]

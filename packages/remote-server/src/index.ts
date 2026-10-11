@@ -119,6 +119,13 @@ export interface EntitySource<P, R = never> {
    * requires.
    */
   readonly visible?: unknown
+  /**
+   * The fields every principal reads alike, of every row: no rule about who
+   * is asking hides the row or the field, or changes its value. A promise the
+   * server keeps by trusting it: the live hub sends a declared write's value
+   * of one to every subscriber as it is, with no read per principal.
+   */
+  readonly shared?: ReadonlySet<string> | undefined
 }
 
 /** What `EntitySource.filter` decides for one read. */
@@ -405,9 +412,15 @@ interface LiveRef {
  * duplicate and gap handling is unchanged.
  */
 export interface LiveHub<P, R = never> {
+  /**
+   * `values`, when given, are the row's stored values of `fields` (a declared
+   * write's answer): a field of them the source declares `shared` is sent as
+   * it is, and only the rest are re-read.
+   */
   readonly changed: (
     ref: LiveRef,
     fields: ReadonlyArray<string>,
+    values?: Readonly<Record<string, unknown>> | undefined,
   ) => Effect.Effect<void, RemoteServerError, R>
   readonly deleted: (ref: LiveRef) => Effect.Effect<void>
   /** Registers a subscriber for the stream's lifetime; `handlers` calls this. */
@@ -509,11 +522,17 @@ const liveHub = <P, R>(
           }),
         ),
 
-      changed: (ref, fields) =>
+      changed: (ref, fields, values) =>
         Effect.gen(function* () {
           const key = `${ref.entity}:${ref.id}`
           const source = sources.get(ref.entity)
           if (source === undefined) return
+          // A shared field's written value is every subscriber's alike: it needs no read.
+          const given = (field: string) =>
+            values !== undefined &&
+            source.shared !== undefined &&
+            source.shared.has(field) &&
+            Object.hasOwn(values, field)
           // One source read per principal key and window signature:
           // subscribers sharing both share the read, and a paged field is
           // re-read with the window the subscriber selected it with.
@@ -541,7 +560,22 @@ const liveHub = <P, R>(
               byWindows.set(groupKey, group)
               group.entries.push({ subscriber, fields: wanted })
             }
-            const wanted = fields.filter(field => selected.fields.has(field))
+            const selects = fields.filter(field => selected.fields.has(field))
+            // A paged field is read with its subscriber's window, so it is never sent as written.
+            const sent = selects.filter(field => given(field) && !selected.windows.has(field))
+            if (sent.length > 0) {
+              const patch: Record<string, unknown> = Object.create(null)
+              for (const field of sent) patch[field] = values![field]
+              yield* emit(subscriber, {
+                _tag: 'EntityPatched',
+                entity: ref.entity,
+                id: ref.id,
+                values: patch,
+                changed: sent,
+              })
+            }
+            const sentSet = new Set(sent)
+            const wanted = selects.filter(field => !sentSet.has(field))
             if (wanted.length > 0)
               join(
                 Object.fromEntries(
@@ -782,6 +816,8 @@ export type MemoryConfig<P> = {
   readonly authorize?: Readonly<Record<string, NonNullable<EntitySource<P>['authorize']>>>
   /** Per entity name, what a principal sees of each record, as `RemoteServer.entity` takes it. */
   readonly filter?: Readonly<Record<string, NonNullable<EntitySource<P>['filter']>>>
+  /** Per entity name, the fields every principal reads alike: see `EntitySource.shared`. */
+  readonly shared?: Readonly<Record<string, ReadonlyArray<string>>>
   /**
    * Which stored rows a principal may read, decided once per read. A row it
    * may not read is absent from a read by id and from every query, and a ref
@@ -894,6 +930,7 @@ const pageOf = <Item>(
 const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
   const authorize = config.authorize ?? {}
   const filter = config.filter ?? {}
+  const shared = config.shared ?? {}
   for (const [option, given] of [
     ['authorize', authorize],
     ['filter', filter],
@@ -995,6 +1032,7 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
       {
         ...(Object.hasOwn(authorize, name) ? { authorize: authorize[name]! } : {}),
         ...(Object.hasOwn(filter, name) ? { filter: filter[name]! } : {}),
+        ...(Object.hasOwn(shared, name) ? { shared: shared[name]! } : {}),
         read: ({ ids, fields, windows, principal }) =>
           Effect.flatMap(readableFor(principal), readable =>
             Effect.try({
@@ -1159,16 +1197,29 @@ export const RemoteServer = {
       readonly read: EntitySource<P, R>['read']
       readonly authorize?: EntitySource<P, R>['authorize']
       readonly filter?: EntitySource<P, R>['filter']
+      /** See `EntitySource.shared`: each must be a member the source serves. */
+      readonly shared?: ReadonlyArray<string> | undefined
     },
-  ): EntitySource<P, R> => ({
-    entity: entity.name,
-    ...((entity.members ?? entity.fields) === undefined
-      ? {}
-      : { fields: new Set(Object.keys(entity.members ?? entity.fields!)) }),
-    read: options.read,
-    ...(options.authorize === undefined ? {} : { authorize: options.authorize }),
-    ...(options.filter === undefined ? {} : { filter: options.filter }),
-  }),
+  ): EntitySource<P, R> => {
+    const declared = entity.members ?? entity.fields
+    const fields = declared === undefined ? undefined : new Set(Object.keys(declared))
+    const unserved = (options.shared ?? []).filter(
+      field => fields !== undefined && !fields.has(field),
+    )
+    if (unserved.length > 0) {
+      throw new Error(
+        `[foldkit-remote-server] ${entity.name}'s shared fields name no member: ${unserved.join(', ')}`,
+      )
+    }
+    return {
+      entity: entity.name,
+      ...(fields === undefined ? {} : { fields }),
+      read: options.read,
+      ...(options.authorize === undefined ? {} : { authorize: options.authorize }),
+      ...(options.filter === undefined ? {} : { filter: options.filter }),
+      ...(options.shared === undefined ? {} : { shared: new Set(options.shared) }),
+    }
+  },
 
   mutation: <
     P = unknown,
@@ -1706,8 +1757,14 @@ export const RemoteServer = {
         // would retry.
         const hub = options.live
         if (hub !== undefined) {
+          // A declared write's answer is the row as stored; a handler's is its own claim.
+          const stored = source.writes !== undefined
           yield* Effect.forEach(outcome.entities, patch =>
-            hub.changed({ entity: patch.entity, id: patch.id }, Object.keys(patch.values)),
+            hub.changed(
+              { entity: patch.entity, id: patch.id },
+              Object.keys(patch.values),
+              stored ? patch.values : undefined,
+            ),
           ).pipe(
             Effect.andThen(Effect.forEach(outcome.deleted, gone => hub.deleted(gone))),
             Effect.catchCause(cause =>

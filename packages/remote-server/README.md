@@ -551,6 +551,36 @@ const hub = yield* RemoteServer.liveHub(entitySources, {
 })
 ```
 
+#### Fields every principal reads alike
+
+A re-read per principal is how the hub stays exact when who is asking decides
+what a row shows. Where nothing does, a Source can say so, and the hub sends a
+written value as it is:
+
+```ts
+// Everyone reads a project's name alike; only an admin reads its private notes.
+const SharedProjectSource = RemoteServer.entity<Principal>(Project, {
+  authorize: ProjectSource.authorize,
+  read: ProjectSource.read,
+  shared: ['name'],
+})
+```
+
+- `shared` names fields every principal reads alike, of every row: no rule
+  about who is asking hides the row or the field, or changes its value. The
+  server trusts it, so declare it only where that holds; a field the Source
+  does not serve is refused when the Source is made.
+- `hub.changed(ref, fields, values)` takes the row's stored values. A
+  `shared` field among them goes to each subscriber that selected it with no
+  read; the rest are re-read as above. A field a subscriber pages with a
+  window is always re-read.
+- The handlers pass a declared write's answer (`RemoteServer.write`), which
+  is the row as stored. A handler's answer is its own claim, so its fields are
+  re-read.
+- `foldkit-remote-drizzle`'s `source` and `RemoteServer.memory` take it too,
+  and `foldkit-guard`'s `GuardServer.validate` refuses a shared field a Read
+  rule could tell readers apart by.
+
 A hub is an in-memory fan-out, so whatever calls `changed` must be able to wake
 the subscriber's fiber. In a worker it cannot: one request cannot wake another's
 stream, so a hub fed from a second request delivers nothing and tears the first

@@ -21,7 +21,7 @@ import {
   type ReadPlan,
   type ServerDefinition,
 } from 'foldkit-remote-server'
-import { attached, type Deny, type InteractionKey } from './attach.js'
+import { attached, readRowsRuled, readRuled, type Deny, type InteractionKey } from './attach.js'
 import { Condition, type RowRule } from './condition.js'
 import type { Policy } from './index.js'
 import type { MayAnswer } from './may.js'
@@ -523,6 +523,12 @@ export const GuardServer = {
       readonly server: ServerDefinition<any, any>
     },
   ): void => {
+    const byName = new Map(config.entities.map(entity => [entity.name, entity]))
+    /** Whether who may read the rows of `entity` depends on who is asking. */
+    const rowsRuled = (entity: AnyEntity | undefined) =>
+      Option.exists(Option.flatMap(Option.fromUndefinedOr(entity), attached), attachment =>
+        readRowsRuled(attachment),
+      )
     const problems = config.entities.flatMap(entity =>
       Option.match(attached(entity), {
         onNone: () => [],
@@ -562,7 +568,26 @@ export const GuardServer = {
               ? [`write ${mutation} writes ${name} without its write rules`]
               : [],
           )
-          return [...sourceProblems, ...queryProblems, ...writeProblems]
+          // A shared field goes to every live subscriber as written: no rule may tell them apart.
+          const shared = Option.match(source, {
+            onNone: () => [],
+            onSome: source => [...(source.shared ?? [])],
+          })
+          const sharedProblems = [
+            ...(shared.length > 0 && readRowsRuled(attachment)
+              ? [`${name}'s Source shares ${shared.join(', ')}, but its rows have a Read rule`]
+              : []),
+            ...shared.flatMap(member => [
+              ...(readRuled(attachment, member)
+                ? [`${name}'s Source shares ${member}, which has a Read rule`]
+                : []),
+              ...(Object.hasOwn(entity.relations, member) &&
+              rowsRuled(byName.get(entity.relations[member]!.target().name))
+                ? [`${name}'s Source shares ${member}, whose rows have a Read rule`]
+                : []),
+            ]),
+          ]
+          return [...sourceProblems, ...queryProblems, ...writeProblems, ...sharedProblems]
         },
       }),
     )

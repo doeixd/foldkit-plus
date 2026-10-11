@@ -253,6 +253,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-server`: fields every principal reads alike skip the live
+  hub's re-read.** A Source declares `shared` (`RemoteServer.entity`,
+  `RemoteServer.memory` per entity, `foldkit-remote-drizzle`'s `source`);
+  `hub.changed(ref, fields, values)` sends a shared field's given value to
+  each subscriber as it is and re-reads the rest, and the handlers give it a
+  declared write's answer, the row as stored (a handler's answer is still
+  re-read). A shared field the Source does not serve is refused when it is
+  made. `foldkit-guard`: `GuardServer.validate` refuses a shared field a Read
+  rule could tell readers apart by.
 - **One editor for create and edit.** `foldkit-entity`: an `Option`-typed
   input key maps itself to the field its value fits, as a nullable one does,
   so an input's id may be `Schema.OptionFromNullOr(PostId)`. `foldkit-crud`'s
