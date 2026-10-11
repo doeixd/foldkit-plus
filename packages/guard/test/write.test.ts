@@ -446,7 +446,12 @@ describe('GuardServer.validate over writes', () => {
 describe('GuardServer.mutation', () => {
   const ArchiveTodo = Mutation.make('ArchiveTodo', { Input: { id: Schema.String }, Output: {} })
   const ImportTodos = Mutation.make('ImportTodos', { Input: {}, Output: {} })
+  const GiveTodo = Mutation.make('GiveTodo', {
+    Input: { id: Schema.String, to: Schema.String },
+    Output: {},
+  })
   const seen: Array<unknown> = []
+  let database = new DatabaseSync(':memory:')
   const handled = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
     entities: [],
     mutations: [
@@ -462,6 +467,27 @@ describe('GuardServer.mutation', () => {
         },
         ({ row }) => Effect.sync(() => (seen.push(Option.getOrThrow(row)), { output: {} })),
       ),
+      // Writes the owner, and answers the row as it claims it now is.
+      GuardServer.mutation(
+        GiveTodo,
+        {
+          entity: Todo,
+          policy: Policy,
+          interaction: 'Update',
+          id: input => input.id,
+          source: source(Db.Todo),
+        },
+        ({ input }) =>
+          Effect.sync(() => {
+            database.prepare('update todos set owner_id = ? where id = ?').run(input.to, input.id)
+            return {
+              output: {},
+              entities: [
+                { entity: 'Todo', id: input.id, values: { ownerId: input.to, title: 'Claimed' } },
+              ],
+            }
+          }),
+      ),
       GuardServer.mutation(
         ImportTodos,
         { entity: Todo, policy: Policy, interaction: 'Create', source: source(Db.Todo) },
@@ -471,6 +497,7 @@ describe('GuardServer.mutation', () => {
   })
   const handle = (principal: Option.Option<User>, mutation: string, input: unknown) => {
     const sqlite = new DatabaseSync(':memory:')
+    database = sqlite
     sqlite.exec(`
       create table todos (id text primary key, owner_id text not null, title text not null, claimed_by text, project_id text);
       insert into todos values ('t1', 'ada', 'Own', null, null), ('t2', 'grace', 'Hidden', null, null);
@@ -499,6 +526,20 @@ describe('GuardServer.mutation', () => {
       failure: { _tag: 'Forbidden' },
     })
     expect(seen).toEqual([])
+  })
+
+  it('answers its rows as their writer now sees them, one it hid from them as deleted', async () => {
+    expect(await handle(root, 'GiveTodo', { id: 't1', to: 'grace' })).toMatchObject({
+      _tag: 'Success',
+      success: {
+        entities: [{ entity: 'Todo', id: 't1', values: { ownerId: 'grace', title: 'Own' } }],
+        deleted: [],
+      },
+    })
+    expect(await handle(ada, 'GiveTodo', { id: 't1', to: 'grace' })).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [], deleted: [{ entity: 'Todo', id: 't1' }] },
+    })
   })
 
   it('decides a create by who is asking alone', async () => {

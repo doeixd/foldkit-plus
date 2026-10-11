@@ -374,7 +374,10 @@ export const GuardServer = {
    * `id` (a create), the rule must hold of who is asking alone, a field it
    * reads matching no guard. `run` is given the row as read: its fields the
    * rule reads, its `id`, and `fields`. A refusal is `Forbidden`; `run` never
-   * runs. What `run` writes is its own: check members it sets there.
+   * runs. What `run` writes is its own: check members it sets there. Each
+   * row of `entity` its answer carries is read back through `source`, so the
+   * answer shows its writer only what they may see, a row it hid from them
+   * as deleted.
    *
    * ```ts
    * GuardServer.mutation(ArchiveTodo, {
@@ -413,6 +416,30 @@ export const GuardServer = {
         `[foldkit-guard] GuardServer.mutation: ${mutation.name}'s Source does not apply ${entity.name}'s Read rules`,
       )
     }
+    /**
+     * The answer as its writer may now see it: each row of `entity` it carries
+     * read back through `source`, and one the handler hid from them deleted.
+     */
+    const shown = (outcome: MutationOutcome<Output>, principal: Option.Option<User>) =>
+      Effect.map(
+        Effect.forEach(outcome.entities ?? [], patch =>
+          patch.entity !== entity.name
+            ? Effect.succeed(Option.some(patch))
+            : Effect.map(rowOf(source, principal, Object.keys(patch.values), patch.id), values =>
+                Option.map(Option.fromUndefinedOr(values), seen => ({ ...patch, values: seen })),
+              ),
+        ),
+        read => ({
+          ...outcome,
+          entities: read.flatMap(Option.toArray),
+          deleted: [
+            ...(outcome.deleted ?? []),
+            ...(outcome.entities ?? [])
+              .filter((_, index) => Option.isNone(read[index]!))
+              .map(({ entity, id }) => ({ entity, id })),
+          ],
+        }),
+      )
     return RemoteServer.mutation<Option.Option<User>, R | RS | RM, Name, Input, Output, Refused>(
       mutation,
       context =>
@@ -426,7 +453,7 @@ export const GuardServer = {
             if (!Condition.holds(rule.condition, nothing, input, () => false)) {
               return yield* Effect.fail(refused(rule.deny))
             }
-            return yield* run({ ...context, row: Option.none() })
+            return yield* shown(yield* run({ ...context, row: Option.none() }), principal)
           }
           const fields = [...new Set(['id', ...ruled, ...(guard.fields ?? [])])]
           const row = Option.fromUndefinedOr(
@@ -438,7 +465,7 @@ export const GuardServer = {
           ) {
             return yield* Effect.fail(refused(rule.deny))
           }
-          return yield* run({ ...context, row })
+          return yield* shown(yield* run({ ...context, row }), principal)
         }),
     )
   },

@@ -308,6 +308,9 @@ GuardServer.mutation(
 - With no `id` (a create), the rule must hold of who is asking alone.
 - What the handler writes is its own to check: members it sets, relations it
   points. `fields` reads more of the row for it.
+- Each row of the Entity its answer carries is read back through `source`, as
+  a declared write's is: the answer shows the writer only what they may now
+  see, and a row the handler hid from them answers as deleted.
 
 ## Checking a server at startup
 

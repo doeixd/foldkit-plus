@@ -94,8 +94,8 @@ const Todo = TodoFields.pipe(
 - Handlers: `GuardServer.mutation(ArchiveTodo, { entity: Todo, policy: Policy,
   interaction: Archive.key, id: input => input.id, source: source(Db.Todo) },
   ({ input, row }) => …)` checks the row's rule for that interaction over the
-  row as its writer sees it before the handler runs; what it writes is its
-  own to check.
+  row as its writer sees it before the handler runs, and reads its answer's
+  rows back as the writer now sees them; what it writes is its own to check.
 - Writes: `RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy,
   writer(Db.Todo)))` checks a declared write before it lands (row rule over
   the row as it is and, for an update, as it would be; each member's and

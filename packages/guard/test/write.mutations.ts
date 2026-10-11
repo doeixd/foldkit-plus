@@ -226,4 +226,37 @@ export default [
     edits: [{ file, find: '...(guard.fields ?? [])', replace: '' }],
     tests,
   },
+  {
+    name: 'a handler is answered as it claims',
+    edits: [
+      {
+        file,
+        find: 'return yield* shown(yield* run({ ...context, row }), principal)',
+        replace: 'return yield* run({ ...context, row })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row a handler hid stays in its answer',
+    edits: [
+      {
+        file,
+        find: 'entities: read.flatMap(Option.toArray),',
+        replace: 'entities: outcome.entities ?? [],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row a handler hid is not answered deleted',
+    edits: [
+      {
+        file,
+        find: '.filter((_, index) => Option.isNone(read[index]!))',
+        replace: '.filter(() => false)',
+      },
+    ],
+    tests,
+  },
 ]
