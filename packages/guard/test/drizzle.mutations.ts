@@ -89,4 +89,15 @@ export default [
     survives:
       'Every operation Expr has today is one this compiler runs, so no guard can reach the refusal; it is there for the next operation Expr gains.',
   },
+  {
+    name: 'a Drizzle source drops its filter',
+    edits: [
+      {
+        file: '../../remote-drizzle/src/index.ts',
+        find: '...(options?.filter === undefined ? {} : { filter: options.filter }),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

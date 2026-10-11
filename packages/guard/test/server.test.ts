@@ -23,15 +23,17 @@ const ProjectBase = Entity.define(
   Schema.Struct({ id: Schema.String, name: Schema.String }),
 )
 const NodeBase = Entity.define('Node', Schema.Struct({ id: Schema.String }))
-const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String }))
+const TagBase = Entity.define('Tag', Schema.Struct({ id: Schema.String }))
 const {
   Project: ProjectFields,
   Todo: TodoFields,
   Node: NodeFields,
+  Tag,
 } = Entity.relate(
   {
     Project: ProjectBase,
     Node: NodeBase,
+    Tag: TagBase,
     Todo: Entity.define(
       'Todo',
       Schema.Struct({
@@ -43,7 +45,10 @@ const {
       }),
     ),
   },
-  { Todo: { project: Relation.one(ProjectBase) }, Node: { parent: Relation.one(NodeBase) } },
+  {
+    Todo: { project: Relation.one(ProjectBase), tag: Relation.one(TagBase) },
+    Node: { parent: Relation.one(NodeBase) },
+  },
 )
 
 const G = Guards.declare(
@@ -65,6 +70,7 @@ const Todo = TodoFields.pipe(
       email: { Read: Guards.on([G.isOwner, G.isAdmin], Guards.redact('hidden')) },
       notes: { Read: [G.isOwner] },
     },
+    relations: { tag: { Read: [G.isOwner] } },
   }),
 )
 
@@ -86,7 +92,15 @@ const rows = {
     { id: 'p2', name: 'Apollo' },
   ],
   Todo: [
-    { id: 't1', ownerId: 'ada', title: 'Own', email: 'a@x', notes: 'n', project: 'Project:p2' },
+    {
+      id: 't1',
+      ownerId: 'ada',
+      title: 'Own',
+      email: 'a@x',
+      notes: 'n',
+      project: 'Project:p2',
+      tag: 'Tag:g1',
+    },
     {
       id: 't2',
       ownerId: 'grace',
@@ -94,6 +108,7 @@ const rows = {
       email: 'g@x',
       notes: 'n',
       project: 'Project:p1',
+      tag: 'Tag:g1',
     },
     {
       id: 't3',
@@ -178,6 +193,18 @@ describe('a guarded domain in memory', () => {
     ])
     // Withheld, so the client reads it as unavailable and stops asking.
     expect(result.settled).toEqual([{ entity: 'Todo', id: 't2', fields: ['notes'] }])
+  })
+
+  it('withholds a relation its rule refuses, decided over the parent row', async () => {
+    const result = await read(Option.some(ada), [
+      { entity: 'Todo', id: 't1', fields: ['tag'] },
+      { entity: 'Todo', id: 't2', fields: ['tag'] },
+    ])
+    expect(result.entities.map(entity => [entity.id, entity.values])).toEqual([
+      ['t1', { tag: 'Tag:g1' }],
+      ['t2', {}],
+    ])
+    expect(result.settled).toEqual([{ entity: 'Todo', id: 't2', fields: ['tag'] }])
   })
 
   it('decides an admin’s members by the principal guard alone', async () => {

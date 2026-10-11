@@ -164,7 +164,7 @@ export const reading = <R>(
       },
     }),
 
-  /** The read rule of each of `members` that has one. A member without one follows its row. */
+  /** The read rule of each of `members`, relations included, that has one. One without follows its row. */
   members: (
     entity: AnyEntity,
     members: ReadonlyArray<string>,
@@ -173,7 +173,10 @@ export const reading = <R>(
       onNone: () => Effect.succeed([]),
       onSome: attachment => {
         const surfaces = members.flatMap(member => {
-          const target = { _tag: 'Member', member, interaction: 'Read' } as const
+          // A relation's Read is decided over its parent row, as a member's is.
+          const target = Object.hasOwn(entity.relations, member)
+            ? ({ _tag: 'Relation', relation: member, interaction: 'Read' } as const)
+            : ({ _tag: 'Member', member, interaction: 'Read' } as const)
           return Option.match(surfaceOf(attachment, target), {
             onNone: () => [],
             onSome: ({ rules, deny }) => [

@@ -9,11 +9,13 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Relation } from 'foldkit-entity'
-import { Query } from 'foldkit-remote'
+import { Query, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { bind, databaseLayer, query, source, type AnyEntityBinding } from 'foldkit-remote-drizzle'
 import { describe, expect, it } from 'vitest'
+import { RemoteServer } from 'foldkit-remote-server'
 import { GuardDrizzle } from '../src/drizzle.js'
 import { Guards } from '../src/index.js'
+import { GuardServer } from '../src/server.js'
 
 const User = Schema.Struct({
   id: Schema.String,
@@ -63,7 +65,10 @@ const G = Guards.declare(
 
 const Project = Related.Project.pipe(Guards.attach(G, { row: { Read: [G.isMember, G.isAdmin] } }))
 const Todo = Related.Todo.pipe(
-  Guards.attach(G, { row: { Read: [G.isOwner, Guards.inherit('project'), G.isAdmin] } }),
+  Guards.attach(G, {
+    row: { Read: [G.isOwner, Guards.inherit('project'), G.isAdmin] },
+    members: { title: { Read: Guards.on([G.isOwner], Guards.redact('(private)')) } },
+  }),
 )
 
 const Policy = G.implement({
@@ -173,6 +178,32 @@ describe('GuardDrizzle.visible', () => {
     await expect(read(stranger, Db.Todo, ['t1'], ['title'])).rejects.toThrow(
       /not an Option of the guard set's/,
     )
+  })
+})
+
+describe('GuardServer.filter on a Drizzle source', () => {
+  it('decides a member per record, reading the fields its rule needs', async () => {
+    const server = RemoteServer.make({
+      entities: [source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })],
+    })
+    const { sqlite, database } = setup()
+    try {
+      // `ownerId` is not asked for: the rule reads it all the same.
+      const result = await run(
+        RemoteServer.handlers(server, ada)
+          .FoldkitRemoteRead({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: ['t1', 't2'].map(id => ({ entity: 'Todo', id, fields: ['title'] })),
+          })
+          .pipe(Effect.provide(databaseLayer(database))),
+      )
+      expect(result.entities.map(entity => [entity.id, entity.values])).toEqual([
+        ['t1', { title: 'Own' }],
+        ['t2', { title: '(private)' }],
+      ])
+    } finally {
+      sqlite.close()
+    }
   })
 })
 

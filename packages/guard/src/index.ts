@@ -159,7 +159,7 @@ export interface Policy<User, R = never> {
     entity: AnyEntity,
     principal: Option.Option<User>,
   ) => Effect.Effect<Condition, never, R>
-  /** The read rule of each of `members` that has one, decided for `principal`. */
+  /** The read rule of each of `members`, relations included, that has one, decided for `principal`. */
   readonly readMembers: (
     entity: AnyEntity,
     principal: Option.Option<User>,

@@ -190,6 +190,9 @@ const backend = RemoteServer.memory({
 - A member its own Read rule refuses is withheld (settled, so the client
   reads it as unavailable) or shows its `redact` value. The fields the rule
   reads are read too, so it can be decided.
+- A relation's Read rule is decided over its parent row, as a member's is:
+  where it refuses, the relation is withheld. The rows it leads to are still
+  narrowed by their own Read rules.
 - An Entity not listed has no guards to apply and is read by everyone.
 - For a Source of your own, `GuardServer.filter(Todo, Policy)` is its
   `filter`; the Source's own read must still apply the row's Read rules.
@@ -222,3 +225,5 @@ const Db = bind(
   inherited relation must be stored as a foreign key on this table.
 - The principal reaches a binding untyped, so it is checked: one that is not
   an `Option` of the set's schema is a defect, never read as a visitor.
+- `visible` is the row's Read. Member and relation Reads are the Source's
+  `filter`: `source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })`.

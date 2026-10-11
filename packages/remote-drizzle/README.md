@@ -408,6 +408,11 @@ Drizzle source
 SELECT id,name ...
 ```
 
+`filter` is `RemoteServer.entity`'s per-record decision, passed through the
+same way: the Source reads the fields its plan names, and `RemoteServer`
+applies the plan to each record. `foldkit-guard/server`'s `GuardServer.filter`
+is one.
+
 A request for a field the Entity does not declare never reaches the read. The
 Source still always selects the id needed to normalize rows.
 

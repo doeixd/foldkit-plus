@@ -246,6 +246,8 @@ version changed; `pnpm` skips versions already in the registry.
   something first (a guard's body) can, and one written before `bind` names
   columns through `self.columns`. Every path a table is read by applies it as
   before.
+- **`foldkit-remote-drizzle`: `source(binding, { filter })`**, the
+  per-record read plan `RemoteServer.entity` takes, passed through.
 - **`foldkit-remote-server`: what a principal sees, per record and per row.**
   `EntitySource.filter(principal, fields)` returns a read plan: the fields to
   read (the allowed ones, and any the decision needs) and `apply`, one record
@@ -282,7 +284,10 @@ version changed; `pnpm` skips versions already in the registry.
   `filter`. `foldkit-guard/drizzle`'s `GuardDrizzle.visible(Policy, entities)`
   compiles the row's Read rules into each binding's `visible`, an inherited
   Read as a subquery over the related table's own rule, checked when built
-  (the inherited Entity listed and ruled, no loop). Writes come next
+  (the inherited Entity listed and ruled, no loop). A relation's Read rules
+  are decided over its parent row, as a member's are, and withhold the
+  relation where they refuse; over Drizzle, member and relation Reads are the
+  Source's `filter` (`source(binding, { filter })`). Writes come next
   (`guard-DESIGN.md`).
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:

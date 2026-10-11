@@ -83,4 +83,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a relation’s Read is never asked',
+    edits: [
+      {
+        file,
+        find: 'const target = Object.hasOwn(entity.relations, member)',
+        replace: 'const target = false',
+      },
+    ],
+    tests: ['packages/guard/test/server.test.ts'],
+  },
 ]

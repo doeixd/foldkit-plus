@@ -319,12 +319,15 @@ const cursorId = (cursor: string): string => {
  * selects the requested columns in one batch, then resolves each selected
  * relation: a `one` relation becomes a ref key, and a `many` relation loads the
  * target ids in one `IN (...)`. `options.policies` adds a principal-scoped filter
- * to a collection relation (e.g. only rows this principal may see).
+ * to a collection relation (e.g. only rows this principal may see), and
+ * `options.filter` decides what a principal sees of each record, as
+ * `RemoteServer.entity`'s does.
  */
 export const source = <P = unknown>(
   binding: AnyEntityBinding,
   options?: {
     readonly authorize?: EntitySource<P, DrizzleDatabase>['authorize'] | undefined
+    readonly filter?: EntitySource<P, DrizzleDatabase>['filter'] | undefined
     readonly policies?:
       Readonly<Record<string, ((principal: P) => SQL | undefined) | undefined>> | undefined
   },
@@ -595,6 +598,7 @@ export const source = <P = unknown>(
         return rows.map(row => ({ id: String(row.id), values: row }))
       }),
     ...(options?.authorize === undefined ? {} : { authorize: options.authorize }),
+    ...(options?.filter === undefined ? {} : { filter: options.filter }),
   }
 }
 
