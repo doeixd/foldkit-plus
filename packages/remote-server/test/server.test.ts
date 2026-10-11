@@ -136,6 +136,63 @@ describe('RemoteServer', () => {
     ])
   })
 
+  it('reads a principal given as a Context key on each call, by every operation', async () => {
+    class Asking extends Context.Service<Asking, string>()('test/Asking') {}
+    const Echo = Mutation.make('Echo', {
+      Input: Schema.Struct({}),
+      Output: Schema.Struct({ principal: Schema.String }),
+    })
+    const echoing = RemoteServer.make<string>({
+      entities: [...server.entities.values()],
+      mutations: [
+        RemoteServer.mutation(Echo, ({ principal }) =>
+          Effect.succeed({ output: { principal }, entities: [] }),
+        ),
+      ],
+      queries: [
+        RemoteServer.query(ProjectsByOwner, ({ principal }) =>
+          Effect.succeed({
+            edges: [{ entity: 'Project', id: principal, key: `Project:${principal}` }],
+            start: { _tag: 'Terminal' as const },
+            end: { _tag: 'Terminal' as const },
+          }),
+        ),
+      ],
+    })
+    // Built once, as an RPC layer builds it; the principal is each call's own.
+    const answering = RemoteServer.handlers(echoing, Asking)
+    const as = (principal: string) =>
+      Effect.runPromise(
+        Effect.all([
+          answering.FoldkitRemoteRead({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: [{ entity: 'User', id: 'u1', fields: ['admin'] }],
+          }),
+          answering.FoldkitRemoteQuery({
+            query: 'ProjectsByOwner',
+            input: { ownerId: 'o' },
+            window: {},
+          }),
+          answering.FoldkitRemoteMutate({ requestId: 'r', mutation: 'Echo', input: {} }),
+        ]).pipe(Effect.provideService(Asking, principal)),
+      ).then(([read, page, echoed]) => ({
+        read: read.entities.map(entity => entity.values),
+        listed: page.edges.map(edge => edge.id),
+        echoed: echoed.output,
+      }))
+
+    expect(await as('admin')).toEqual({
+      read: [{ admin: true }],
+      listed: ['admin'],
+      echoed: { principal: 'admin' },
+    })
+    expect(await as('user')).toEqual({
+      read: [],
+      listed: ['user'],
+      echoed: { principal: 'user' },
+    })
+  })
+
   it('serves through Remote.clientLayer, the client adapter', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {

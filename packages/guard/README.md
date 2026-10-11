@@ -81,7 +81,8 @@ What each call does, and does not:
   is `Option.none()`, and passes no row guard, whose body is over a
   principal's fields.
 - `G.Principal` is the server's Context key for who is asking, an
-  `Option` of the principal; `G.key(user)` names a principal for grouping.
+  `Option` of the principal; `G.key(user)` names a principal, so two requests
+  by one person are known as one (see [Who is asking](#who-is-asking)).
 
 ## Attaching guards to an Entity
 
@@ -246,3 +247,33 @@ another `Policy`, or for another Entity, does not count. Every guarded Entity
 needs both, even one with no member rules yet, so a rule attached later is
 applied rather than served past. `GuardServer.memory` gives both; over
 Drizzle, each Source takes its `filter`, and each binding its `visible`.
+
+### Who is asking
+
+Authentication decides who is asking; guards only read it. Give the handlers
+`G.Principal` instead of a principal, and each call reads it, so one handler
+set answers every request, and whatever authenticates a request provides it:
+
+```ts
+const handlers = RemoteServer.handlers(backend.server, G.Principal)
+
+// per request, once authentication has resolved `principal`
+RemoteServer.answer(handlers, body).pipe(Effect.provideService(G.Principal, principal))
+```
+
+A live hub shares a re-read between subscribers with one principal. Two
+requests by one person each decode a principal of their own, so give the hub
+`Policy.keyOf`, which names a principal by `declare`'s `key` (a visitor
+included), and they share one:
+
+```ts
+const hub = yield* RemoteServer.liveHub([...backend.server.entities.values()], {
+  key: Policy.keyOf,
+})
+```
+
+The key must name everything the rules read of a principal: two principals
+with one key are read as the first of them. On the client, a cache snapshot
+is scoped by the same key (`RemotePersistence`'s `scope: G.key(user)`), and a
+sign-in or sign-out is `Data.forget`, since every fact the cache holds was
+read as someone.

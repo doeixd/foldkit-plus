@@ -526,7 +526,17 @@ The hub remembers each subscriber's requirements and principal. `changed`:
 3. applies that subscriber's authorization again;
 4. emits the resulting patch with a continuing cursor.
 
-Subscribers that selected none of the changed fields do no work.
+Subscribers that selected none of the changed fields do no work, and
+subscribers with one principal share one re-read. One principal means the same
+value, unless the hub is given a `key`: then two requests whose principals
+have one key, each with a principal object of its own, share it, read as the
+first of them. A key must therefore name everything the Sources decide by:
+
+```ts
+const hub = yield* RemoteServer.liveHub(entitySources, {
+  key: user => (user.isAdmin ? 'admin' : 'member'),
+})
+```
 
 A hub is an in-memory fan-out, so whatever calls `changed` must be able to wake
 the subscriber's fiber. In a worker it cannot: one request cannot wake another's
@@ -558,6 +568,20 @@ authorization
 
 `RemoteServer.handlers(Server, principal)` deliberately receives a resolved
 principal. It does not inspect headers, sessions, cookies, or bearer tokens.
+The principal is a value, or a Context key that each call reads, so one
+handler set (one RPC layer) answers every request and authentication provides
+the key per request:
+
+```ts
+class CurrentUser extends Context.Service<CurrentUser, Principal>()('app/CurrentUser') {}
+const handlers = RemoteServer.handlers(Server, CurrentUser)
+
+// per request, once authentication has resolved `user`
+RemoteServer.answer(handlers, body).pipe(Effect.provideService(CurrentUser, user))
+```
+
+Every handler then needs `CurrentUser`, which the types carry: a key holding
+another type than the Server's principal is a type error.
 
 For Entity reads:
 
@@ -601,7 +625,8 @@ RemoteServer.validate(Data, Server)
 That catches an Entity, Query, or Mutation Source whose name is not declared by
 the shared domain instead of letting it silently answer nothing at runtime.
 
-Then compile once per authenticated principal:
+Then compile it into handlers, once per principal, or once for every request
+with a Context key as the principal (see Authentication vs authorization):
 
 ```ts
 const handlers = RemoteServer.handlers(Server, principal, {

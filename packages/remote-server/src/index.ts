@@ -3,9 +3,9 @@
  *
  * Owns entity/query Sources, **selection authorization**, normalization, and
  * turning them into Effect RPC handlers. It does not own HTTP, serialization, or
- * auth protocol; `principal` is resolved outside and passed in.
+ * auth protocol; `principal` is resolved outside, and passed in or provided.
  */
-import { Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
+import { Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
 import {
   Write,
   evaluate,
@@ -421,8 +421,19 @@ interface Subscriber<P> {
   cursor: number
 }
 
-const liveHub = <P, R>(entities: ReadonlyArray<EntitySource<P, R>>): Effect.Effect<LiveHub<P, R>> =>
+const liveHub = <P, R>(
+  entities: ReadonlyArray<EntitySource<P, R>>,
+  options: {
+    /**
+     * Who a principal is, for sharing re-reads: subscribers whose principals
+     * have one key share one read, under the first one's principal. Default:
+     * the principal itself, so only the same value shares.
+     */
+    readonly key?: ((principal: P) => unknown) | undefined
+  } = {},
+): Effect.Effect<LiveHub<P, R>> =>
   Effect.sync(() => {
+    const keyOf = options.key ?? ((principal: P): unknown => principal)
     const sources = new Map(entities.map(source => [source.entity, source]))
     const subscribers = new Set<Subscriber<P>>()
     const emit = (subscriber: Subscriber<P>, change: Uncursored<LiveChangeValue>) => {
@@ -480,15 +491,23 @@ const liveHub = <P, R>(entities: ReadonlyArray<EntitySource<P, R>>): Effect.Effe
           const key = `${ref.entity}:${ref.id}`
           const source = sources.get(ref.entity)
           if (source === undefined) return
-          // One source read per principal (by identity) and window signature:
+          // One source read per principal key and window signature:
           // subscribers sharing both share the read, and a paged field is
           // re-read with the window the subscriber selected it with.
-          const groups = new Map<P, Map<string, ReadGroup<P>>>()
+          const groups = new Map<
+            unknown,
+            { readonly principal: P; readonly byWindows: Map<string, ReadGroup<P>> }
+          >()
           for (const subscriber of subscribers) {
             const selected = subscriber.selected.get(key)
             if (selected === undefined) continue
-            const byWindows = groups.get(subscriber.principal) ?? new Map<string, ReadGroup<P>>()
-            groups.set(subscriber.principal, byWindows)
+            const principalKey = keyOf(subscriber.principal)
+            const sharing = groups.get(principalKey) ?? {
+              principal: subscriber.principal,
+              byWindows: new Map<string, ReadGroup<P>>(),
+            }
+            groups.set(principalKey, sharing)
+            const { byWindows } = sharing
             const join = (
               windows: Readonly<Record<string, QueryWindow>>,
               renames: Readonly<Record<string, string>>,
@@ -520,7 +539,7 @@ const liveHub = <P, R>(entities: ReadonlyArray<EntitySource<P, R>>): Effect.Effe
               join({ [field]: window }, { [field]: alias }, [field])
             }
           }
-          for (const [principal, byWindows] of groups) {
+          for (const { principal, byWindows } of groups.values()) {
             for (const { windows, renames, entries: group } of byWindows.values()) {
               const requested = [...new Set(group.flatMap(entry => entry.fields))]
               const allowed = allowedFields(source, principal, requested)
@@ -1341,12 +1360,6 @@ export const RemoteServer = {
   },
 
   /**
-   * Compiles the server into the `Read`/`Mutate` RPC handlers. `principal` is
-   * resolved outside (authentication middleware in a later phase); unknown
-   * entities, entities with no allowed fields, and unknown mutations return an
-   * error or nothing rather than leaking existence.
-   */
-  /**
    * Reads entity requirements through the entity sources, level by level,
    * following relations as `FoldkitRemoteRead` does. Shared by the read
    * handler and the query handler's payload: a query page's items are just
@@ -1562,175 +1575,194 @@ export const RemoteServer = {
     )
   },
 
-  handlers: <P, R>(
+  /**
+   * Compiles the server into Remote's RPC handlers, answering as `principal`:
+   * a value, or a Context key (`G.Principal`) read on each call, which
+   * authentication provides per request. Unknown entities, entities with no
+   * allowed fields, and unknown mutations return an error or nothing rather
+   * than leaking existence.
+   */
+  handlers: <P, R, I = never>(
     server: ServerDefinition<P, R>,
-    principal: P,
+    principal: P | Context.Key<I, P>,
     options: HandlerOptions<P, R> = {},
-  ): RemoteRpcClient<R> => ({
-    FoldkitRemoteRead: Effect.fn('RemoteServer.FoldkitRemoteRead')(function* (payload) {
-      const mismatch = protocolMismatch(payload.version)
-      if (mismatch !== undefined) return yield* mismatch
-      return yield* RemoteServer.readHelper(server, principal, options, payload.requests)
-    }),
+  ): RemoteRpcClient<R | I> => {
+    // A Context key is read on each call, so one handler set answers every request.
+    const asking: Effect.Effect<P, never, I> = Context.isKey(principal)
+      ? principal
+      : Effect.succeed(principal)
+    return {
+      FoldkitRemoteRead: Effect.fn('RemoteServer.FoldkitRemoteRead')(function* (payload) {
+        const mismatch = protocolMismatch(payload.version)
+        if (mismatch !== undefined) return yield* mismatch
+        const caller = yield* asking
+        return yield* RemoteServer.readHelper(server, caller, options, payload.requests)
+      }),
 
-    FoldkitRemoteMutate: Effect.fn('RemoteServer.FoldkitRemoteMutate')(function* (payload) {
-      const source = server.mutations.get(payload.mutation)
-      if (source === undefined) {
-        return yield* new RemoteMutationError({
-          message: `Unknown mutation: ${payload.mutation}`,
-        })
-      }
-
-      const input = yield* Schema.decodeUnknownEffect(source.Input)(payload.input).pipe(
-        Effect.catchTag('SchemaError', () =>
-          Effect.fail(new RemoteMutationError({ message: 'Invalid mutation input' })),
-        ),
-      )
-
-      const outcome = yield* source
-        .run({ input, principal, requestId: payload.requestId, keys: payload.keys })
-        .pipe(
-          Effect.catchTag('RemoteServerError', error =>
-            Effect.fail(new RemoteMutationError({ message: error.message })),
-          ),
-          Effect.catchTag('MutationRefused', refused =>
-            refusalError(source.Refusal, payload.mutation, refused),
-          ),
-        )
-
-      const output = yield* Schema.encodeUnknownEffect(source.Output)(outcome.output).pipe(
-        Effect.catchTag('SchemaError', () =>
-          Effect.fail(new RemoteMutationError({ message: 'Invalid mutation output' })),
-        ),
-      )
-
-      // What the mutation answers is what changed, so live subscribers hear it
-      // without the handler naming it again. The write has committed by now: a
-      // failed publish is logged, never the mutation's failure, which a client
-      // would retry.
-      const hub = options.live
-      if (hub !== undefined) {
-        yield* Effect.forEach(outcome.entities, patch =>
-          hub.changed({ entity: patch.entity, id: patch.id }, Object.keys(patch.values)),
-        ).pipe(
-          Effect.andThen(Effect.forEach(outcome.deleted, gone => hub.deleted(gone))),
-          Effect.catchCause(cause =>
-            Effect.logWarning(
-              'RemoteServer: a mutation committed but its live publish failed',
-              cause,
-            ),
-          ),
-        )
-      }
-
-      return {
-        output,
-        entities: outcome.entities.map(patch => ({
-          entity: patch.entity,
-          id: patch.id,
-          values: patch.values,
-        })),
-        connections: outcome.connections,
-        deleted: outcome.deleted.map(gone => ({ entity: gone.entity, id: gone.id })),
-      }
-    }),
-
-    FoldkitRemoteQuery: Effect.fn('RemoteServer.FoldkitRemoteQuery')(function* (payload) {
-      const source = server.queries.get(payload.query)
-      if (source === undefined) {
-        return yield* new RemoteQueryError({ message: `Unknown query: ${payload.query}` })
-      }
-
-      const input = yield* Schema.decodeUnknownEffect(source.Input)(payload.input).pipe(
-        Effect.catchTag('SchemaError', () =>
-          Effect.fail(new RemoteQueryError({ message: 'Invalid query input' })),
-        ),
-      )
-
-      const select = payload.select
-      if (select !== undefined) {
-        const paged = checkPagesPerRelation([select])
-        if (paged !== undefined) {
-          return yield* new RemoteQueryError({
-            message: `Too many pages of "${paged}" in one query select`,
+      FoldkitRemoteMutate: Effect.fn('RemoteServer.FoldkitRemoteMutate')(function* (payload) {
+        const source = server.mutations.get(payload.mutation)
+        if (source === undefined) {
+          return yield* new RemoteMutationError({
+            message: `Unknown mutation: ${payload.mutation}`,
           })
         }
-      }
 
-      const page = yield* source
-        .run({
-          input,
-          window: payload.window,
-          principal,
-          ...(select === undefined ? {} : { select }),
-        })
-        .pipe(
-          Effect.catchTag('RemoteServerError', error =>
+        const input = yield* Schema.decodeUnknownEffect(source.Input)(payload.input).pipe(
+          Effect.catchTag('SchemaError', () =>
+            Effect.fail(new RemoteMutationError({ message: 'Invalid mutation input' })),
+          ),
+        )
+
+        const caller = yield* asking
+        const outcome = yield* source
+          .run({ input, principal: caller, requestId: payload.requestId, keys: payload.keys })
+          .pipe(
+            Effect.catchTag('RemoteServerError', error =>
+              Effect.fail(new RemoteMutationError({ message: error.message })),
+            ),
+            Effect.catchTag('MutationRefused', refused =>
+              refusalError(source.Refusal, payload.mutation, refused),
+            ),
+          )
+
+        const output = yield* Schema.encodeUnknownEffect(source.Output)(outcome.output).pipe(
+          Effect.catchTag('SchemaError', () =>
+            Effect.fail(new RemoteMutationError({ message: 'Invalid mutation output' })),
+          ),
+        )
+
+        // What the mutation answers is what changed, so live subscribers hear it
+        // without the handler naming it again. The write has committed by now: a
+        // failed publish is logged, never the mutation's failure, which a client
+        // would retry.
+        const hub = options.live
+        if (hub !== undefined) {
+          yield* Effect.forEach(outcome.entities, patch =>
+            hub.changed({ entity: patch.entity, id: patch.id }, Object.keys(patch.values)),
+          ).pipe(
+            Effect.andThen(Effect.forEach(outcome.deleted, gone => hub.deleted(gone))),
+            Effect.catchCause(cause =>
+              Effect.logWarning(
+                'RemoteServer: a mutation committed but its live publish failed',
+                cause,
+              ),
+            ),
+          )
+        }
+
+        return {
+          output,
+          entities: outcome.entities.map(patch => ({
+            entity: patch.entity,
+            id: patch.id,
+            values: patch.values,
+          })),
+          connections: outcome.connections,
+          deleted: outcome.deleted.map(gone => ({ entity: gone.entity, id: gone.id })),
+        }
+      }),
+
+      FoldkitRemoteQuery: Effect.fn('RemoteServer.FoldkitRemoteQuery')(function* (payload) {
+        const source = server.queries.get(payload.query)
+        if (source === undefined) {
+          return yield* new RemoteQueryError({ message: `Unknown query: ${payload.query}` })
+        }
+
+        const input = yield* Schema.decodeUnknownEffect(source.Input)(payload.input).pipe(
+          Effect.catchTag('SchemaError', () =>
+            Effect.fail(new RemoteQueryError({ message: 'Invalid query input' })),
+          ),
+        )
+
+        const select = payload.select
+        if (select !== undefined) {
+          const paged = checkPagesPerRelation([select])
+          if (paged !== undefined) {
+            return yield* new RemoteQueryError({
+              message: `Too many pages of "${paged}" in one query select`,
+            })
+          }
+        }
+
+        const caller = yield* asking
+        const page = yield* source
+          .run({
+            input,
+            window: payload.window,
+            principal: caller,
+            ...(select === undefined ? {} : { select }),
+          })
+          .pipe(
+            Effect.catchTag('RemoteServerError', error =>
+              Effect.fail(new RemoteQueryError({ message: error.message })),
+            ),
+          )
+
+        if (select === undefined) return { edges: page.edges, start: page.start, end: page.end }
+        // The page's items as requirements, so the selected fields ride back
+        // with the edges in one response. Edges of another entity (a query
+        // lists one) take no fields: the client's planner asks for them next.
+        const requirements: Requirement[] = page.edges.flatMap(edge =>
+          edge.entity === select.entity
+            ? [
+                {
+                  entity: select.entity,
+                  id: edge.id,
+                  fields: [...select.fields],
+                  ...(select.windows === undefined ? {} : { windows: select.windows }),
+                  ...(select.relations === undefined ? {} : { relations: select.relations }),
+                },
+              ]
+            : [],
+        )
+        if (requirements.length === 0)
+          return { edges: page.edges, start: page.start, end: page.end, entities: [], settled: [] }
+        const read = yield* RemoteServer.readHelper(server, caller, options, requirements).pipe(
+          Effect.catchTag('RemoteReadError', error =>
             Effect.fail(new RemoteQueryError({ message: error.message })),
           ),
         )
+        return { edges: page.edges, start: page.start, end: page.end, ...read }
+      }),
 
-      if (select === undefined) return { edges: page.edges, start: page.start, end: page.end }
-      // The page's items as requirements, so the selected fields ride back
-      // with the edges in one response. Edges of another entity (a query
-      // lists one) take no fields: the client's planner asks for them next.
-      const requirements: Requirement[] = page.edges.flatMap(edge =>
-        edge.entity === select.entity
-          ? [
-              {
-                entity: select.entity,
-                id: edge.id,
-                fields: [...select.fields],
-                ...(select.windows === undefined ? {} : { windows: select.windows }),
-                ...(select.relations === undefined ? {} : { relations: select.relations }),
-              },
-            ]
-          : [],
-      )
-      if (requirements.length === 0)
-        return { edges: page.edges, start: page.start, end: page.end, entities: [], settled: [] }
-      const read = yield* RemoteServer.readHelper(server, principal, options, requirements).pipe(
-        Effect.catchTag('RemoteReadError', error =>
-          Effect.fail(new RemoteQueryError({ message: error.message })),
-        ),
-      )
-      return { edges: page.edges, start: page.start, end: page.end, ...read }
-    }),
-
-    FoldkitRemoteLive: payload => {
-      const mismatch = protocolMismatch(payload.version)
-      if (mismatch !== undefined) return Stream.fail(mismatch)
-      const entities = [...new Set(payload.requirements.map(request => request.entity))]
-      const streams: Array<Stream.Stream<LiveChangeValue, RemoteServerError, R>> = entities.flatMap(
-        entity => {
-          const source = server.live.get(entity)
-          if (source === undefined) return []
-          return [
-            source.subscribe({
-              requirements: payload.requirements.filter(request => request.entity === entity),
-              after: payload.after,
-              principal,
-            }),
-          ]
-        },
-      )
-      if (options.live !== undefined) {
-        streams.push(
-          options.live.subscribe({
-            requirements: payload.requirements,
-            after: payload.after,
-            principal,
-            maxIdsPerEntity: options.maxIdsPerEntity,
+      FoldkitRemoteLive: payload => {
+        const mismatch = protocolMismatch(payload.version)
+        if (mismatch !== undefined) return Stream.fail(mismatch)
+        return Stream.unwrap(
+          Effect.map(asking, caller => {
+            const entities = [...new Set(payload.requirements.map(request => request.entity))]
+            const streams: Array<Stream.Stream<LiveChangeValue, RemoteServerError, R>> =
+              entities.flatMap(entity => {
+                const source = server.live.get(entity)
+                if (source === undefined) return []
+                return [
+                  source.subscribe({
+                    requirements: payload.requirements.filter(request => request.entity === entity),
+                    after: payload.after,
+                    principal: caller,
+                  }),
+                ]
+              })
+            if (options.live !== undefined) {
+              streams.push(
+                options.live.subscribe({
+                  requirements: payload.requirements,
+                  after: payload.after,
+                  principal: caller,
+                  maxIdsPerEntity: options.maxIdsPerEntity,
+                }),
+              )
+            }
+            // An entity with no live source simply contributes nothing; the client's
+            // planner refetches it rather than the stream failing.
+            return Stream.mergeAll(streams, { concurrency: 'unbounded' }).pipe(
+              Stream.mapError(error => new RemoteLiveError({ message: error.message })),
+            )
           }),
         )
-      }
-      // An entity with no live source simply contributes nothing; the client's
-      // planner refetches it rather than the stream failing.
-      return Stream.mergeAll(streams, { concurrency: 'unbounded' }).pipe(
-        Stream.mapError(error => new RemoteLiveError({ message: error.message })),
-      )
-    },
-  }),
+      },
+    }
+  },
 }
 
 export * from './evaluate.js'

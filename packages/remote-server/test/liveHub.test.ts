@@ -371,9 +371,13 @@ describe('RemoteServer.liveHub guards', () => {
     expect(String(outcome)).toContain('Too many "User" ids')
   })
 
-  it('shares a read between subscribers only when their principals are the same value', async () => {
-    const seen: Array<object> = []
-    const byObject = [
+  /** The principal of each source read one change makes, for these subscribers. */
+  const rereads = (
+    principals: ReadonlyArray<{ readonly role: string }>,
+    options?: { readonly key?: (principal: { readonly role: string }) => unknown },
+  ) => {
+    const seen: Array<{ readonly role: string }> = []
+    const byRole = [
       RemoteServer.entity<{ readonly role: string }>(User, {
         read: ({ ids, fields, principal }) => {
           seen.push(principal)
@@ -387,27 +391,39 @@ describe('RemoteServer.liveHub guards', () => {
       }),
     ]
     const requirements = [{ entity: 'User', id: 'u1', fields: ['name'] }]
-    await Effect.runPromise(
+    return Effect.runPromise(
       Effect.gen(function* () {
-        const hub = yield* RemoteServer.liveHub(byObject)
-        const shared = { role: 'admin' }
-        const listen = (principal: { readonly role: string }) =>
+        const hub = yield* RemoteServer.liveHub(byRole, options)
+        const fibers = yield* Effect.forEach(principals, principal =>
           Effect.forkChild(
             hub
               .subscribe({ requirements, after: 0, principal })
               .pipe(Stream.take(1), Stream.runCollect),
-          )
-        const fibers = [
-          yield* listen(shared),
-          yield* listen(shared),
-          yield* listen({ role: 'admin' }),
-        ]
+          ),
+        )
         yield* settle
         yield* hub.changed({ entity: 'User', id: 'u1' }, ['name'])
         for (const fiber of fibers) yield* Fiber.join(fiber)
+        return seen
       }),
     )
+  }
+
+  it('shares a read between subscribers only when their principals are the same value', async () => {
+    const shared = { role: 'admin' }
+    const copy = { role: 'admin' }
+    expect(await rereads([shared, shared, copy])).toEqual([shared, copy])
+  })
+
+  it('shares a read between subscribers whose principals have one key, as the first', async () => {
+    const first = { role: 'admin' }
+    const viewer = { role: 'viewer' }
+    const seen = await rereads([first, { role: 'admin' }, viewer], {
+      key: principal => principal.role,
+    })
     expect(seen).toHaveLength(2)
+    expect(seen[0]).toBe(first)
+    expect(seen[1]).toBe(viewer)
   })
 })
 

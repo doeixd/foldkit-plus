@@ -716,7 +716,11 @@ is for fields; `visible` is for rows.
 - Wire limits: 256 fields per entity request, relation depth 8; protocol version
   mismatch fails with `RemoteProtocolError`.
 - `RemoteServer.handlers` takes an already-authenticated principal; it never reads
-  headers/cookies. Query/mutation authorization belongs inside those Sources.
+  headers/cookies. Pass a Context key instead of a value and each call reads it, so
+  one handler set serves every request: `handlers(Server, CurrentUser)`, then
+  `Effect.provideService(CurrentUser, user)` per request. `liveHub(sources, { key })`
+  shares a re-read between subscribers whose principals have one key (default: the
+  same value). Query/mutation authorization belongs inside those Sources.
 
 ## See also
 

@@ -87,5 +87,11 @@ const Todo = TodoFields.pipe(
   throws for a guarded Entity whose Source, or a query listing it, lacks the
   rule or filter the guard seams built for it (a hand-written Source would
   serve every row). Every guarded Entity needs both.
+- Who is asking: `RemoteServer.handlers(server, G.Principal)` reads it per
+  call; authentication provides it per request
+  (`Effect.provideService(G.Principal, principal)`). Give a live hub
+  `{ key: Policy.keyOf }` so two requests by one person share a re-read.
+  Client side, scope a cache snapshot by `G.key(user)` and `Data.forget` on
+  sign-in or sign-out.
 
 See the [README](https://github.com/doeixd/foldkit-plus/blob/main/packages/guard/README.md).

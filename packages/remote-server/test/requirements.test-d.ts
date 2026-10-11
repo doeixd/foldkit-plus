@@ -66,3 +66,15 @@ const common = RemoteServer.handlers(
 )
 type _commonRead = Assert<Equals<Requirements<ReturnType<typeof common.FoldkitRemoteRead>>, Db>>
 type _commonMutate = Assert<Equals<Requirements<ReturnType<typeof common.FoldkitRemoteMutate>>, Db>>
+
+// A principal read from a Context key adds that key to what every handler needs.
+class Asking extends Context.Service<Asking, string>()('test/Asking') {}
+const provided = RemoteServer.handlers(RemoteServer.make({ entities: [userSource] }), Asking)
+type _provided = Assert<
+  Equals<Requirements<ReturnType<typeof provided.FoldkitRemoteRead>>, Db | Asking>
+>
+
+// A key must hold the server's principal.
+class Numbered extends Context.Service<Numbered, number>()('test/Numbered') {}
+// @ts-expect-error the key holds a number, the server answers as a string
+RemoteServer.handlers(RemoteServer.make({ entities: [userSource] }), Numbered)

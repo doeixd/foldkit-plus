@@ -249,6 +249,14 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `source(binding, { filter })`**, the
   per-record read plan `RemoteServer.entity` takes, passed through. A source
   and a `query` carry their binding's `visible`, for a startup check.
+- **`foldkit-remote-server`: a principal read from Context on each call, and
+  a live hub keyed by person.** `RemoteServer.handlers(server, principal)`
+  takes a Context key for `principal` as well as a value, read by every read,
+  query, mutation and live subscription, so one handler set (one RPC layer)
+  answers every request and authentication provides the key per request; the
+  key is added to what the handlers require. `RemoteServer.liveHub(sources,
+  { key })` shares a re-read between subscribers whose principals have one
+  key, read as the first of them; without one, only the same value shares.
 - **`foldkit-remote-server`: `EntitySource.visible` and
   `QuerySource.visible`**, the rule that decides which rows a source returns,
   as it was given one. The server never runs it; a startup check such as
@@ -297,7 +305,10 @@ version changed; `pnpm` skips versions already in the registry.
   `GuardServer.validate(Policy, { entities, domain, server })` checks at
   startup that every guarded Entity's Source, and each query listing it,
   applies the rule and filter those seams built for it from that Policy, and
-  throws naming each that does not. Writes come next (`guard-DESIGN.md`).
+  throws naming each that does not. `RemoteServer.handlers(server,
+  G.Principal)` reads who is asking per call, and `Policy.keyOf(principal)`
+  names a principal by `declare`'s `key`, a visitor included, for a live hub's
+  `key`. Writes come next (`guard-DESIGN.md`).
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

@@ -89,6 +89,15 @@ describe('a row guard', () => {
   })
 })
 
+describe('a principal’s key', () => {
+  it('names one person alike across requests, and no user as a visitor', () => {
+    expect(Policy.keyOf(Option.some({ ...ada }))).toBe(Policy.keyOf(Option.some(ada)))
+    expect(Policy.keyOf(Option.some(ada))).not.toBe(Policy.keyOf(Option.some(root)))
+    const named = { ...ada, id: Policy.keyOf(Option.none()) }
+    expect(Policy.keyOf(Option.some(named))).not.toBe(Policy.keyOf(Option.none()))
+  })
+})
+
 describe('a declaration', () => {
   it('refuses a row guard that reads another Entity’s field', () => {
     expect(() =>

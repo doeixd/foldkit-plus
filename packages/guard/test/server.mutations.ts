@@ -123,14 +123,30 @@ export default [
     edits: [
       {
         file: '../../remote-server/src/index.ts',
-        find: 'const byWindows = groups.get(subscriber.principal) ?? new Map<string, ReadGroup<P>>()',
-        replace:
-          'const first = [...groups.keys()][0] ?? subscriber.principal; const byWindows = groups.get(first) ?? new Map<string, ReadGroup<P>>()',
+        find: 'const principalKey = keyOf(subscriber.principal)',
+        replace: 'const principalKey = groups.keys().next().value ?? keyOf(subscriber.principal)',
       },
+    ],
+    tests,
+  },
+  {
+    name: 'the live hub shares a re-read only between equal principals',
+    edits: [
       {
         file: '../../remote-server/src/index.ts',
-        find: 'groups.set(subscriber.principal, byWindows)',
-        replace: 'groups.set(first, byWindows)',
+        find: 'const keyOf = options.key ?? ((principal: P): unknown => principal)',
+        replace: 'const keyOf = (principal: P): unknown => principal',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a live subscription is answered as no one',
+    edits: [
+      {
+        file: '../../remote-server/src/index.ts',
+        find: 'Effect.map(asking, caller => {',
+        replace: 'Effect.map(Effect.succeed(Option.none()), caller => {',
       },
     ],
     tests,

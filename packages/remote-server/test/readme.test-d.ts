@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Context, Effect, Schema } from 'effect'
 import { Entity, Remote, RemoteRpc } from 'foldkit-remote'
 import { RemoteServer } from '../src/index.js'
 import { servePort } from '../src/port.js'
@@ -89,3 +89,21 @@ const adminsOnly = RemoteServer.memory({
     Effect.succeed(entity => principal.isAdmin || entity !== 'Project'),
 })
 void adminsOnly
+
+// Who is asking, read on each call: one handler set answers every request.
+class CurrentUser extends Context.Service<CurrentUser, Principal>()('app/CurrentUser') {}
+const answering = RemoteServer.handlers(Server, CurrentUser)
+const routeAs = async (request: Request, user: Principal): Promise<Response> => {
+  const body: unknown = await request.json().catch(() => null)
+  const answered = await Effect.runPromise(
+    RemoteServer.answer(answering, body).pipe(Effect.provideService(CurrentUser, user)),
+  )
+  return Response.json(answered.body, { status: answered.status })
+}
+void routeAs
+
+// Two requests by one person share a live re-read.
+const byPerson = RemoteServer.liveHub([ProjectSource], {
+  key: (user: Principal) => (user.isAdmin ? 'admin' : 'member'),
+})
+void byPerson

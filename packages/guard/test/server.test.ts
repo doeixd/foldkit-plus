@@ -257,6 +257,60 @@ describe('a guarded domain in memory', () => {
     ])
   })
 
+  it('answers each request as the principal provided to it, sharing a re-read by key', async () => {
+    const guarded = GuardServer.memory(Policy, [Todo, Project, Node])
+    const decided: Array<Option.Option<User>> = []
+    const server = RemoteServer.memory({
+      domain: Data,
+      rows,
+      principal: Option.none<User>(),
+      ...guarded,
+      readable: (principal, row) => {
+        decided.push(principal)
+        return guarded.readable(principal, row)
+      },
+    }).server
+    const events = await Effect.runPromise(
+      Effect.gen(function* () {
+        const hub = yield* RemoteServer.liveHub([...server.entities.values()], {
+          key: Policy.keyOf,
+        })
+        // One handler set for every request, as an RPC layer builds it once.
+        const answering = RemoteServer.handlers(server, G.Principal, { live: hub })
+        const subscribe = (principal: Option.Option<User>) =>
+          Effect.forkChild(
+            answering
+              .FoldkitRemoteLive({
+                version: REMOTE_PROTOCOL_VERSION,
+                requirements: [{ entity: 'Todo', id: 't2', fields: ['email'] }],
+                after: 0,
+              })
+              .pipe(
+                Stream.provideService(G.Principal, principal),
+                Stream.take(1),
+                Stream.runCollect,
+              ),
+          )
+        // Two requests by ada, each with a principal of its own, and one by an admin.
+        const fibers = [
+          yield* subscribe(Option.some({ ...ada })),
+          yield* subscribe(Option.some({ ...ada })),
+          yield* subscribe(Option.some(root)),
+        ]
+        for (let i = 0; i < 5; i++) yield* Effect.yieldNow
+        decided.length = 0
+        yield* hub.changed({ entity: 'Todo', id: 't2' }, ['email'])
+        return yield* Effect.forEach(fibers, Fiber.join)
+      }),
+    )
+    expect(events.map(each => [...each])).toMatchObject([
+      [{ values: { email: 'hidden' } }],
+      [{ values: { email: 'hidden' } }],
+      [{ values: { email: 'g@x' } }],
+    ])
+    expect(decided.map(Policy.keyOf)).toEqual(['user:ada', 'user:root'])
+  })
+
   it('reads an Entity it was not given as open, and ends a loop of inherited Reads', async () => {
     const result = await read(Option.none(), [
       { entity: 'Tag', id: 'g1', fields: ['id'] },

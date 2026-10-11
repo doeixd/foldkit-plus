@@ -60,4 +60,22 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a user may be keyed as the visitor is',
+    edits: [
+      { file, find: 'onSome: user => `user:${options.key(user)}`', replace: 'onSome: options.key' },
+    ],
+    tests,
+  },
+  {
+    name: 'every principal has one key',
+    edits: [
+      {
+        file,
+        find: 'onSome: user => `user:${options.key(user)}`',
+        replace: "onSome: () => 'user'",
+      },
+    ],
+    tests,
+  },
 ]

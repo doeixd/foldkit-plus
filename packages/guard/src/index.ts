@@ -168,6 +168,15 @@ export interface Policy<User, R = never> {
   /** The principal's fields as row guards' inputs; a visitor has none. */
   readonly inputOf: (principal: Option.Option<User>) => Readonly<Record<string, unknown>>
   /**
+   * Who is asking, by `declare`'s `key`, a visitor included: two requests by
+   * one person answer alike, so a live hub shares their re-reads.
+   *
+   * ```ts
+   * RemoteServer.liveHub(sources, { key: Policy.keyOf })
+   * ```
+   */
+  readonly keyOf: (principal: Option.Option<User>) => string
+  /**
    * Whether `value` is this set's principal, an `Option` of its schema: for a
    * seam that is handed the principal untyped.
    */
@@ -343,6 +352,12 @@ export const Guards = {
           readingFor(entity, principal).members(entity, members),
         inputOf: principal =>
           Option.match(principal, { onNone: () => ({}), onSome: user => inputOf(user) }),
+        // Prefixed, so no user's key is the visitor's.
+        keyOf: principal =>
+          Option.match(principal, {
+            onNone: () => 'visitor',
+            onSome: user => `user:${options.key(user)}`,
+          }),
         isPrincipal,
       }
     }
