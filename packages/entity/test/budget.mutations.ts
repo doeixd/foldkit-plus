@@ -15,8 +15,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: 'if (known !== undefined) return known',
-        replace: 'if (known !== undefined) return 0',
+        find: 'const known = sizes.get(expr)\n  if (known !== undefined) return known',
+        replace: 'const known = sizes.get(expr)\n  if (known !== undefined) return 0',
       },
     ],
     tests,

@@ -66,8 +66,8 @@ export default [
     edits: [
       {
         file: impact,
-        find: 'if (held && touches(dependenciesOf(...order).fields)) {',
-        replace: 'if (held && touches(roles.order)) {',
+        find: 'const reorders = touches(dependenciesOf(...order).fields)',
+        replace: 'const reorders = touches(roles.order)',
       },
     ],
     tests,
