@@ -294,9 +294,10 @@ version changed; `pnpm` skips versions already in the registry.
   fields, the principal's fields as `principal.*` inputs). `Policy.decide` is
   an `Effect` of `true`, `false` or `{ allowed: false, reason }`; a visitor is
   `Option.none()`. `G.Principal` is the server's Context key for who is asking.
-  `Guards.attach(G, { row, members, relations, always })` attaches guards to
-  an Entity per surface and interaction (`Write` for all three writes,
-  `Interaction.make('Archive')` for one the application names), as metadata:
+  `Guards.attach(G, { row, interactions, members, relations, always })`
+  attaches guards to an Entity per surface and interaction (`Write` for all
+  three writes; one the application names, `Interaction.make('Archive')`,
+  under `interactions: { [Archive.key]: … }`), as metadata:
   a list is a disjunction, `Guards.all` a conjunction, `always` is ANDed
   after every surface, and `Guards.on` with `redact` or `explain` chooses a
   refusal other than the surface's default. A member the Entity lacks, a row

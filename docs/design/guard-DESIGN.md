@@ -147,6 +147,8 @@ export const Todo = TodoFields.pipe(
       Create: [G.signedIn],
       Update: [G.isOwner],
       Delete: [G.isOwner, G.isAdmin],
+    },
+    interactions: {
       [Archive.key]: [G.isAdmin],
     },
     members: {
@@ -167,7 +169,7 @@ export const Todo = TodoFields.pipe(
 Typing, which is what makes this safe to write:
 
 - `members` and `relations` are mapped over the Entity's member keys; a key the Entity lacks is an error at the key.
-- Interaction keys are `'Read' | 'Create' | 'Update' | 'Delete' | 'Write' | InteractionKey`; `Interaction.make` returns a value whose `key` is a branded string, so `[Archive.key]` is a computed key and a misspelling is an error. A relation admits `Read | Link | Unlink`; a member `Read | Update` (and `Create`, for a member only some may set); the row any interaction.
+- Interaction keys are `'Read' | 'Create' | 'Update' | 'Delete' | 'Write' | InteractionKey`; `Interaction.make` returns a value whose `key` is a branded string, so `[Archive.key]` is a computed key and a misspelling is an error. A named interaction goes under `interactions`, not `row` (as built in slice 7): a literal with a computed key is typed as an index signature, and `row.Read`'s rules, which may `inherit`, would then have to fit a named interaction's slot, which may not. A relation admits `Read | Link | Unlink`; a member `Read | Update` (and `Create`, for a member only some may set); the row any interaction.
 - A surface accepts `RowGuard<User, E>` for an `E` that is `Entity.same` as the target, or `PrincipalGuard<User>`, from the same `G`. A guard over `Post`, or from another guard set, is an error.
 - `Guards.redact(value)` is typed by the member's schema: `redact('hidden')` on a `Schema.Number` member is an error.
 

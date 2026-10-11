@@ -84,6 +84,8 @@ TodoFields.pipe(
   Guards.attach(G, {
     row: {
       Read: [G.isOwner, Guards.all(G.isAdmin, G.isOwner)],
+    },
+    interactions: {
       [Archive.key]: Guards.on([G.isAdmin], Guards.explain('Admins only.')),
     },
     members: { rank: { Read: Guards.on([G.isOwner], Guards.redact(0)) } },
@@ -145,6 +147,21 @@ Related.pipe(
   Guards.attach(G, {
     // @ts-expect-error only a Read is inherited
     row: { Update: [Guards.inherit('note')] },
+  }),
+)
+
+// A named interaction beside a Read that inherits.
+Related.pipe(
+  Guards.attach(G, {
+    row: { Read: [Guards.inherit('note')] },
+    interactions: { [Archive.key]: [G.isAdmin] },
+  }),
+)
+
+Related.pipe(
+  Guards.attach(G, {
+    // @ts-expect-error only a Read is inherited, not a named interaction
+    interactions: { [Archive.key]: [Guards.inherit('note')] },
   }),
 )
 

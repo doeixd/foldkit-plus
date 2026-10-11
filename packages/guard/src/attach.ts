@@ -110,7 +110,16 @@ export type Attach<User, Set extends string, E extends AnyEntity> = {
     readonly Delete?: WriteSlot<RuleFor<User, Set, E['name']>>
     /** The same guards on Create, Update and Delete. */
     readonly Write?: WriteSlot<RuleFor<User, Set, E['name']>>
-  } & { readonly [K: InteractionKey]: WriteSlot<RuleFor<User, Set, E['name']>> }
+  }
+  /**
+   * The row's interactions the application named, by key:
+   * `{ [Archive.key]: [G.isAdmin] }`. Apart from `row`, whose `Read` may
+   * inherit: a literal with a computed key is typed as an index signature,
+   * which `Read`'s rules would have to fit too.
+   */
+  readonly interactions?: {
+    readonly [K: InteractionKey]: WriteSlot<RuleFor<User, Set, E['name']>>
+  }
   /** Narrow a field or derived member: a member is reachable only if its row is. */
   readonly members?: {
     readonly [K in MemberKeys<E>]?: {
@@ -407,7 +416,8 @@ export const Attaching = {
       const attachment: Attachment = Object.freeze({
         set: G.name,
         unguarded: G.unguarded,
-        row: surfacesFrom(G.name, entity, '', config.row ?? {}),
+        // A named interaction is the row's, as the matrix and the decisions read it.
+        row: surfacesFrom(G.name, entity, '', { ...config.row, ...config.interactions }),
         members: nested(G.name, entity, config.members ?? {}),
         relations: nested(G.name, entity, config.relations ?? {}),
         always: Object.freeze([...always]),

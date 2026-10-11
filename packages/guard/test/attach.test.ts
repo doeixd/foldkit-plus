@@ -49,6 +49,8 @@ const Todo = TodoFields.pipe(
       Read: [G.isOwner, G.inProject, G.isAdmin],
       Write: [G.isOwner],
       Delete: [G.isAdmin],
+    },
+    interactions: {
       [Archive.key]: Guards.on([G.isAdmin], Guards.explain('Only an admin may archive.')),
     },
     members: {

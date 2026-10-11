@@ -166,6 +166,8 @@ describe('write rules', () => {
     Guards.attach(G, {
       row: {
         Write: [G.isOwner, G.isAdmin],
+      },
+      interactions: {
         [Archive.key]: Guards.on([G.isAdmin], Guards.explain('Only an admin may archive.')),
       },
       members: { ownerId: { Update: [G.isAdmin] } },

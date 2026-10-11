@@ -43,6 +43,8 @@ const Todo = TodoFields.pipe(
     row: {
       Read: [G.isOwner, G.inProject, G.isAdmin], // a disjunction
       Write: [G.isOwner], // Create, Update and Delete
+    },
+    interactions: {
       [Archive.key]: Guards.on([G.isAdmin], Guards.explain('Only an admin may archive.')),
     },
     members: { ownerId: { Update: [G.isAdmin] } }, // governs Create too, unless named

@@ -77,6 +77,8 @@ const Todo = Related.Todo.pipe(
       // An editor may change anyone's todo, though they read only their own.
       Update: [G.isOwner, G.isAdmin, G.isEditor],
       Delete: Guards.on([G.isAdmin], Guards.explain('Only an admin may delete a todo.')),
+    },
+    interactions: {
       [Archive.key]: Guards.on(
         [G.isOwner, G.isAdmin],
         Guards.explain('Only its owner may archive it.'),

@@ -43,8 +43,8 @@ export default [
     edits: [
       {
         file,
-        find: "policy.linkable(entity, principal, relation, 'Unlink'),",
-        replace: "policy.linkable(entity, principal, relation, 'Link'),",
+        find: "'Unlink'),\n            policy.linkable(entity, principal, relation, 'Link'),",
+        replace: "'Link'),\n            policy.linkable(entity, principal, relation, 'Link'),",
       },
     ],
     tests,

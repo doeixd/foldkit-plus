@@ -100,6 +100,8 @@ const Todo = TodoFields.pipe(
     row: {
       Read: [G.isOwner, G.inProject, G.isAdmin],
       Write: [G.isOwner],
+    },
+    interactions: {
       [Archive.key]: Guards.on([G.isAdmin], Guards.explain('Only an admin may archive.')),
     },
     members: { ownerId: { Update: [G.isAdmin] } },
@@ -122,6 +124,9 @@ Guards.matrix([Todo])
   "signed in" belongs there.
 - `Write` is shorthand for Create, Update and Delete. A member's `Update`
   governs setting it on creation too, unless the member names a `Create`.
+- An interaction the application names (`Interaction.make('Archive')`) is
+  the row's, under `interactions`, keyed by `[Archive.key]`, so a misspelling
+  is a type error. Only a Read inherits.
 - Each surface refuses its own way by default: a row Read answers not found,
   so existence does not leak; a member or relation Read omits the value; a
   write is forbidden. `Guards.on(guards, Guards.redact(value))` shows a hidden
