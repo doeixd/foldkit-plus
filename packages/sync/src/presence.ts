@@ -353,21 +353,41 @@ export const socketPresenceChannel = <Update>(
 /**
  * Serves presence frames on an accepted socket, stamping the connection's
  * identity, until the socket closes or the returned function is called.
+ * With `opens`, the connection joins only once it answers that it may open
+ * the document the presence accompanies: until then, and for good when it
+ * is refused or fails, nothing reaches it and nothing it sends is relayed.
  */
 export const servePresence = <Update>(
   socket: SocketLike,
   hub: PresenceHub<Update>,
-  options: { readonly peerId: string },
+  options: {
+    readonly peerId: string
+    readonly opens?: Effect.Effect<boolean, unknown> | undefined
+  },
 ): (() => void) => {
   const send = (update: PresenceUpdate<Update>): void =>
     socket.send(JSON.stringify({ [frameType]: { id: update.id, value: update.value } }))
-  const leave = hub.join(send)
-  const off = socket.onMessage(data => {
-    const frame = decodePresence<Update>(data)
-    // The connection owns the identity; a client-supplied id is ignored.
-    if (frame !== undefined) hub.publish({ id: options.peerId, value: frame.value })
-  })
+  let stopped = false
+  let leave = (): void => {}
+  let off = (): void => {}
+  const join = (): void => {
+    leave = hub.join(send)
+    off = socket.onMessage(data => {
+      const frame = decodePresence<Update>(data)
+      // The connection owns the identity; a client-supplied id is ignored.
+      if (frame !== undefined) hub.publish({ id: options.peerId, value: frame.value })
+    })
+  }
+  if (options.opens === undefined) join()
+  else
+    void Effect.runPromise(options.opens).then(
+      open => {
+        if (open && !stopped) join()
+      },
+      () => {},
+    )
   const stop = (): void => {
+    stopped = true
     off()
     leave()
   }

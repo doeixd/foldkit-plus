@@ -14,4 +14,26 @@ export default [
     ],
     tests: ['packages/sync/test/presence.test.ts'],
   },
+  {
+    name: 'a connection joins before it may open the document',
+    edits: [
+      {
+        file: '../src/presence.ts',
+        find: 'if (options.opens === undefined) join()',
+        replace: 'if (true) join()',
+      },
+    ],
+    tests: ['packages/sync/test/presence.test.ts'],
+  },
+  {
+    name: 'a refused connection joins anyway',
+    edits: [
+      {
+        file: '../src/presence.ts',
+        find: 'if (open && !stopped) join()',
+        replace: 'if (!stopped) join()',
+      },
+    ],
+    tests: ['packages/sync/test/presence.test.ts'],
+  },
 ]

@@ -457,7 +457,7 @@ Per-member or per-row secrecy *within* a document is not something a replicated 
 
 **Presence** is ephemeral broadcast, validated by `decodeValue`, scoped by the document's `readers`. Its values are application-chosen and must not carry guarded fields; that is the author's responsibility, as `decodeValue` already is. A peer's `id` on the channel should be stamped by the server from `G.Principal` and `key`, not declared by the peer, as the commit stamp already does for edits; whether the server side does this today was not traced for this note and is the first thing the Sync slice checks.
 
-*As built (slice 10):* the server does stamp it. The rest is `foldkit-guard/sync`'s `GuardSync` (`document`, `opens`, `authorize`, `admit`) over `foldkit-sync`'s new `admit` and `opens`; see slice 10 in §12.
+*As built (slice 10):* the server does stamp it, and presence is scoped by the readers: `Sync.presence.serve` takes the exchange's `opens`, joining only a connection it lets. The rest is `foldkit-guard/sync`'s `GuardSync` (`document`, `opens`, `authorize`, `admit`) over `foldkit-sync`'s new `admit` and `opens`; see slice 10 in §12.
 
 ---
 

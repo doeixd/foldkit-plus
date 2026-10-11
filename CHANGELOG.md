@@ -17,6 +17,9 @@ version changed; `pnpm` skips versions already in the registry.
   every exchange of a connection that may not open the document.
   `defineDocumentHost` takes both as functions of the principal, which its
   `refuse` was never given.
+  `Sync.presence.serve` takes `opens` too: a connection joins the presence
+  hub only once it may open the document, and one refused is relayed
+  nothing, either way.
 - **`foldkit-cms-drizzle`: the audience boundary is a `foldkit-guard` guard set.**
   `CmsServer.make` takes `policy` and `authors` (principal guards) in place of
   `isAuthor`, and `transitions` (principal guards per transition) beside

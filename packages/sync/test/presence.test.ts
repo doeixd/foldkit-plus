@@ -347,6 +347,33 @@ describe('presence', () => {
       }),
     ))
 
+  it('joins a connection only once it may open the document, and never one refused', async () => {
+    const hub = createPresenceHub<Cursor>()
+    const peers = [
+      ['open', Effect.succeed(true)],
+      ['refused', Effect.succeed(false)],
+      ['failed', Effect.fail('no session')],
+    ] as const
+    const received = new Map<string, Array<string>>()
+    const clients = peers.map(([peerId, opens]) => {
+      const { client, server } = socketPair()
+      received.set(peerId, [])
+      client.onMessage(data => received.get(peerId)!.push(data))
+      servePresence(server, hub, { peerId, opens })
+      return [peerId, client] as const
+    })
+    // Before `opens` answers, the connection has not joined: nothing reaches it.
+    hub.publish({ id: 'early', value: { cursor: 0 } })
+    expect([...received.values()].flat()).toEqual([])
+    await new Promise(resolve => setTimeout(resolve, 0))
+    for (const [, client] of clients)
+      client.send(JSON.stringify({ presence: { value: { cursor: 1 } } }))
+    // Only the open connection's frame is relayed, and only it hears it.
+    expect(received.get('open')!.map(data => JSON.parse(data).presence.id)).toEqual(['open'])
+    expect(received.get('refused')).toEqual([])
+    expect(received.get('failed')).toEqual([])
+  })
+
   it('ignores messages that are not presence updates', () => {
     const hub = createPresenceHub<Cursor>()
     const { client, server } = socketPair()

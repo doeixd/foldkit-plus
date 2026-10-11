@@ -199,7 +199,11 @@ export const openJournal = (
       const stops = [
         serveJournal(socket, exchangeAs(principal)),
         // On the same socket: where each device is, under the name it connected as.
-        Sync.presence.serve(socket, presence, { peerId: principal.actorId }),
+        // Only to who may open the document, as its exchanges are.
+        Sync.presence.serve(socket, presence, {
+          peerId: principal.actorId,
+          opens: GuardSync.opens(Policy, ProductDocument, Option.some(principal)),
+        }),
       ]
       return () => {
         for (const stop of stops) stop()

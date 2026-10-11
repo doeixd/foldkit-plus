@@ -780,7 +780,10 @@ throttle? })` is a TTL'd peer registry outside the log: values are decoded befor
 they enter it, a peer that stops refreshing is pruned, and `throttle` sends at
 most one value per interval, the latest. `Sync.presence.socketChannel(transport.socket)`
 shares the sync socket across reconnects; `Sync.presence.hub` and `.serve` are
-the server side. [`examples/pages`](../../examples/pages) shows remote carets.
+the server side. `.serve` stamps each frame with the connection's `peerId`, so a
+peer cannot speak as another, and with `opens` (the exchange's own) joins only
+a connection that may open the document, relaying nothing to or from one
+refused. [`examples/pages`](../../examples/pages) shows remote carets.
 
 ### Last-writer-wins fields (experimental)
 

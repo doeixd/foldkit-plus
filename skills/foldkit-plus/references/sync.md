@@ -327,6 +327,8 @@ operation ids when a schema-5 journal upgrades to schema 6.
 **Presence and LWW.** `Sync.presence.make` is a TTL'd peer registry for
 ephemeral state ("who is viewing"), never a durable Message; its `throttle`
 option sends at most one value per interval: the first at once, then the latest.
+Server side, `Sync.presence.serve(socket, hub, { peerId, opens? })` stamps the
+connection's id and joins only a connection `opens` lets (the exchange's own).
 `Sync.lww.register` (experimental) makes one field last-writer-wins. Allocate
 stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 

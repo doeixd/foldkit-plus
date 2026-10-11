@@ -505,8 +505,9 @@ journalExchange({
   row with no readers, and `always` rules over the row. `opens` lets any
   reader (anyone, when it names none) who passes the Entity's `always`.
 - Presence on the same socket is stamped by the server with the connection's
-  peer id (`Sync.presence.serve(socket, hub, { peerId })`): a peer cannot
-  speak as another. What a presence value carries is the application's.
+  peer id, and joins only who may open the document:
+  `Sync.presence.serve(socket, hub, { peerId, opens: GuardSync.opens(Policy, Edits, principal) })`.
+  What a presence value carries is the application's.
 
 ## Agents
 
