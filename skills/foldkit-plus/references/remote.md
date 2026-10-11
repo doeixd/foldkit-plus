@@ -684,7 +684,7 @@ that plainly cannot hold its field (text under a number, a nullable column under
 a field that admits no `null`); transforming schemas and custom columns pass
 unchecked.
 
-**Rows by principal.** `bind(..., { Post: { table, visible: principal => SQL | undefined } })`
+**Rows by principal.** `bind(..., { Post: { table, visible: (principal, self) => SQL | undefined | Effect<SQL | undefined> } })`
 (or `entity(name, table, { visible })`) hides rows from a principal on every path
 the table is read: by id (`NotFound`), as a relation's children (list, count,
 page), as a `one` ref's target (reads `null`), and through a query. `authorize`

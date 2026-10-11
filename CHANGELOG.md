@@ -231,6 +231,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-drizzle`: a `visible` rule may answer with an `Effect`,
+  and is given its own binding.** `(principal, self) => SQL | undefined |
+  Effect<SQL | undefined, RemoteServerError>`, so a rule that must ask
+  something first (a guard's body) can, and one written before `bind` names
+  columns through `self.columns`. Every path a table is read by applies it as
+  before.
 - **`foldkit-remote-server`: what a principal sees, per record and per row.**
   `EntitySource.filter(principal, fields)` returns a read plan: the fields to
   read (the allowed ones, and any the decision needs) and `apply`, one record

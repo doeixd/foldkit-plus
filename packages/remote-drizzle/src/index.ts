@@ -66,6 +66,16 @@ export * from './window.js'
  * names are developer-supplied, so an inherited member like `toString` must not
  * satisfy the lookup.
  */
+/** The binding's visibility rule for a principal, whichever form it answers in. */
+const visibleFor = (
+  binding: AnyEntityBinding,
+  principal: unknown,
+): Effect.Effect<SQL | undefined, RemoteServerError> => {
+  if (binding.visible === undefined) return Effect.succeed(undefined)
+  const visible = binding.visible(principal, binding)
+  return Effect.isEffect(visible) ? visible : Effect.succeed(visible)
+}
+
 const pick = <T>(record: Readonly<Record<string, T>> | undefined, key: string): T | undefined =>
   record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined
 
@@ -346,7 +356,10 @@ export const source = <P = unknown>(
         }
         // A row the principal may not see is not read, so it is not there to them.
         const rows = yield* selectRows(database, binding.table, columns, {
-          where: withFilters(whereIds(binding, context.ids), binding.visible?.(context.principal)),
+          where: withFilters(
+            whereIds(binding, context.ids),
+            yield* visibleFor(binding, context.principal),
+          ),
         })
 
         for (const field of context.fields) {
@@ -354,7 +367,7 @@ export const source = <P = unknown>(
           if (relation === undefined) continue
 
           // The relation's own policy, and the rows of its target this principal may see.
-          const targetVisible = relation.entity.visible?.(context.principal)
+          const targetVisible = yield* visibleFor(relation.entity, context.principal)
           const relationPolicy = pick(options?.policies, field)?.(context.principal)
           const policyWhere =
             relationPolicy === undefined || targetVisible === undefined
@@ -550,7 +563,7 @@ export const source = <P = unknown>(
             ),
           ]
           const counts = new Map<string, number>()
-          const countVisible = relation.entity.visible?.(context.principal)
+          const countVisible = yield* visibleFor(relation.entity, context.principal)
           const countRelation = pick(options?.policies, computed.relation)?.(context.principal)
           // A count of rows the principal may not see would say how many there are.
           const countPolicy =
@@ -714,7 +727,7 @@ export const query = <P = unknown, Input = unknown>(
                 ),
               )
         const asked = options.where?.(input as Input, principal)
-        const visible = binding.visible?.(principal)
+        const visible = yield* visibleFor(binding, principal)
         const baseWhere = and(...compiled, asked, visible)
         let where = baseWhere
 

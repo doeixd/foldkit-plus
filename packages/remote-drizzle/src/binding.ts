@@ -14,7 +14,8 @@ import { createSelectSchema } from 'drizzle-orm/effect-schema'
 import type { BuildSchema } from 'drizzle-orm/effect-schema'
 import { getTableColumns, type AnyColumn, type SQL, type Table as DrizzleTable } from 'drizzle-orm'
 import { Entity, type EntityDescriptor, type EntityRef } from 'foldkit-remote'
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
+import type { RemoteServerError } from 'foldkit-remote-server'
 import type { OrderTerm } from './cursor.js'
 
 /** The Effect select schema Drizzle derives for a table. */
@@ -117,8 +118,15 @@ export interface EntityBinding<
   readonly visible?: Visible | undefined
 }
 
-/** The rows of a table a principal may see, as a condition over that table's columns. */
-export type Visible = (principal: unknown) => SQL | undefined
+/**
+ * The rows of a table a principal may see, as a condition over that table's
+ * columns, or an Effect of one for a rule that must ask something first. It
+ * is given its own binding, so a rule built before `bind` can name columns.
+ */
+export type Visible = (
+  principal: unknown,
+  self: AnyEntityBinding,
+) => SQL | undefined | Effect.Effect<SQL | undefined, RemoteServerError>
 
 /**
  * A binding with its derived field map erased. The field map is invariant

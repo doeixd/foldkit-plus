@@ -358,6 +358,12 @@ const Db = bind(Blog, {
 })
 ```
 
+A rule may also answer with an `Effect` of the condition, for one that must
+ask something first (a guard's server-side body), and it is given its own
+binding as a second argument, `(principal, self)`, so a rule written before
+`bind` can name the table's columns through `self.columns`. `foldkit-guard`
+builds its rules that way.
+
 It is on the binding, not on a source, because a table is read four ways and a
 rule on one would leave three open. Every one applies it:
 

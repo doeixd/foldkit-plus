@@ -63,9 +63,10 @@ const Db = bind(Related, {
   },
   Post: {
     table: posts,
-    // A visitor sees what is published; an author sees every row.
-    visible: principal =>
-      (principal as Principal) === 'author' ? undefined : isNotNull(posts.publishedAt),
+    // A visitor sees what is published; an author sees every row. Asked as an
+    // Effect, over the binding's own column, as a rule built before `bind` is.
+    visible: (principal, self) =>
+      Effect.succeed(principal === 'author' ? undefined : isNotNull(self.columns['publishedAt']!)),
   },
   Comment: { table: comments, relations: { post: { field: comments.postId } } },
   Tag: {
