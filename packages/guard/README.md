@@ -2,12 +2,12 @@
 
 Who may do what, declared once on a Foldkit Plus domain.
 
-**Early.** This package declares a guard set, decides its guards, and
-attaches them to an Entity. Nothing enforces an attachment yet: the seams
-that derive their checks from it (a binding's `visible`, a Source's
-`authorize`, a mutation's write plan, the client's `may` hint) are the next
-slices of [`guard-DESIGN.md`](../../docs/design/guard-DESIGN.md), which
-explains the whole design and why.
+**Early.** This package declares a guard set, decides its guards, attaches
+them to an Entity, and enforces reads served from `RemoteServer.memory` or
+through a Source's `filter`. A Drizzle binding's `visible`, a mutation's
+write plan and the client's `may` hint are the next slices of
+[`guard-DESIGN.md`](../../docs/design/guard-DESIGN.md), which explains the
+whole design and why.
 
 ## What it is
 
@@ -161,3 +161,36 @@ Condition.holds(readable, { id: 't1', ownerId: 'ada', projectId: 'p9' }, Policy.
   which only the caller can look up.
 - `Policy.readMembers(Todo, principal, members)` decides each member's own
   Read rule, with the refusal it shows (`Omit` or `Redact`).
+
+## Serving reads
+
+`foldkit-guard/server` turns the rules into `foldkit-remote-server`'s seams.
+It is a subpath, so the shared declaration the browser imports never brings
+the server along.
+
+```ts
+import { GuardServer } from 'foldkit-guard/server'
+import { Remote } from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
+
+const visitor: Option.Option<typeof User.Type> = Option.none()
+
+const backend = RemoteServer.memory({
+  domain: Remote.define({ entities: [Todo] }),
+  rows: { Todo: [{ id: 't1', ownerId: 'ada', projectId: 'p1' }] },
+  principal: visitor, // reads nothing: every Read rule here needs a principal
+  ...GuardServer.memory(Policy, [Todo]),
+})
+```
+
+- A row its Read rules refuse is absent: from a read by id (the client reads
+  it as not found), from every query, and from relations, where a `one` ref
+  reads `null`. An inherited Read looks the related row up and decides it by
+  its own rules; a loop of them reads as refused.
+- A member its own Read rule refuses is withheld (settled, so the client
+  reads it as unavailable) or shows its `redact` value. The fields the rule
+  reads are read too, so it can be decided.
+- An Entity not listed has no guards to apply and is read by everyone.
+- For a Source of your own, `GuardServer.filter(Todo, Policy)` is its
+  `filter`; the Source's own read must still apply the row's Read rules,
+  which a Drizzle binding will do through `visible`.

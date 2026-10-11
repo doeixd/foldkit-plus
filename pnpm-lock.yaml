@@ -2219,10 +2219,16 @@ importers:
       foldkit-metadata:
         specifier: workspace:*
         version: link:../metadata
+      foldkit-remote-server:
+        specifier: workspace:*
+        version: link:../remote-server
     devDependencies:
       effect:
         specifier: 4.0.0
         version: 4.0.0
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../remote
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)

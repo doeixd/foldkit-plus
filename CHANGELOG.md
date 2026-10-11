@@ -259,8 +259,12 @@ version changed; `pnpm` skips versions already in the registry.
   `Policy.readable(entity, principal)` decides a principal's read rules into a
   `Condition` over the row, every principal guard asked once; `Condition.holds`
   runs it over stored values, and `Policy.readMembers` decides each member's
-  own Read rule with its refusal. Nothing enforces an attachment yet: the
-  seams that read it come next (`guard-DESIGN.md`).
+  own Read rule with its refusal. `foldkit-guard/server` enforces them:
+  `GuardServer.memory(Policy, entities)` gives `RemoteServer.memory` its
+  `readable` and `filter`, so a refused row is absent from reads, queries and
+  relations (an inherited Read decided by the related row's own rules) and a
+  refused member is withheld or redacted; `GuardServer.filter` is a Source's
+  `filter`. A Drizzle binding and writes come next (`guard-DESIGN.md`).
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

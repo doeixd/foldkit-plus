@@ -28,6 +28,11 @@
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./server": {
+      "foldkit-plus:source": "./src/server.ts",
+      "types": "./dist/server.d.mts",
+      "import": "./dist/server.mjs"
     }
   },
   "files": [
@@ -41,13 +46,15 @@
   },
   "dependencies": {
     "foldkit-entity": "workspace:*",
-    "foldkit-metadata": "workspace:*"
+    "foldkit-metadata": "workspace:*",
+    "foldkit-remote-server": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.0.0"
   },
   "devDependencies": {
     "effect": "4.0.0",
+    "foldkit-remote": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
   }

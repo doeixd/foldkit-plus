@@ -70,5 +70,9 @@ const Todo = TodoFields.pipe(
   Policy.inputOf(principal), inherit)` runs it over stored values.
 - `Policy.readMembers(Todo, principal, members)` gives each ruled member's
   condition and its refusal (`Omit` or `Redact`).
+- `foldkit-guard/server`: `...GuardServer.memory(Policy, [Todo, Project])`
+  spread into `RemoteServer.memory` enforces row and member Reads, inherited
+  Reads included; `GuardServer.filter(Todo, Policy)` is a Source's `filter`
+  for member Reads. The principal is an `Option` (none is a visitor).
 
 See the [README](https://github.com/doeixd/foldkit-plus/blob/main/packages/guard/README.md).
