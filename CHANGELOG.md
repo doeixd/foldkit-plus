@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-sync`: an exchange's `refuse` is `admit`, and an exchange may be
+  refused whole (`opens`).** `admit(operation)` answers as the journal's
+  `authorize` does (`true` admits; a refusal, with its reason, is rejected by
+  id) and may answer with an `Effect`, for a rule that reads the rows an edit
+  names before the journal's lock. `opens`, an `Effect` of a boolean, fails
+  every exchange of a connection that may not open the document.
+  `defineDocumentHost` takes both as functions of the principal, which its
+  `refuse` was never given.
 - **`foldkit-cms-drizzle`: the audience boundary is a `foldkit-guard` guard set.**
   `CmsServer.make` takes `policy` and `authors` (principal guards) in place of
   `isAuthor`, and `transitions` (principal guards per transition) beside

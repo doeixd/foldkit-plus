@@ -84,13 +84,13 @@ describe('journalExchange', () => {
     })
   })
 
-  it('rejects what `refuse` refuses, unread by the journal, and takes the rest', async () => {
+  it('rejects what `admit` refuses, unread by the journal, and takes the rest', async () => {
     const journal = openJournal()
     const exchange = journalExchange({
       sync: Todos,
       journal,
       principal: 'guest',
-      refuse: operation => operation.localSequence === 1,
+      admit: operation => operation.localSequence !== 1,
     })
     const [first, second] = await pendingOf('a', ['Milk', 'Eggs'])
     const reply = await send(exchange, 0, [first!, second!])
@@ -100,6 +100,42 @@ describe('journalExchange', () => {
       acknowledged: [second!.opId],
     })
     expect(reply.committed).toEqual([second!.opId])
+  })
+
+  it('rejects with the reason `admit` gives, decided as an Effect where it must ask', async () => {
+    const journal = openJournal()
+    const exchange = journalExchange({
+      sync: Todos,
+      journal,
+      principal: 'guest',
+      admit: operation =>
+        Effect.succeed(
+          operation.localSequence === 1 ? { allowed: false, reason: 'Not your list' } : true,
+        ),
+    })
+    const [first, second] = await pendingOf('a', ['Milk', 'Eggs'])
+    const reply = await send(exchange, 0, [first!, second!])
+    expect(reply).toMatchObject({
+      rejected: [first!.opId],
+      reasons: [{ opId: first!.opId, reason: 'Not your list' }],
+      acknowledged: [second!.opId],
+    })
+  })
+
+  it('refuses a connection that may not open the document, reading and appending nothing', async () => {
+    const journal = openJournal()
+    const [operation] = await pendingOf('a', ['Milk'])
+    const closed = journalExchange({
+      sync: Todos,
+      journal,
+      principal: 'visitor',
+      opens: Effect.succeed(false),
+    })
+    await expect(send(closed, 0, [operation!])).rejects.toThrow(
+      'This connection may not open the document',
+    )
+    const open = journalExchange({ sync: Todos, journal, principal: 'ada' })
+    expect((await send(open, 0, [])).committed).toEqual([])
   })
 
   it('rejects an id reused for other content', async () => {

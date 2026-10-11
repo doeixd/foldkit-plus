@@ -263,9 +263,15 @@ an optional peer of this package):
   other content fails the same way on every retry, so the replica drops it
   and the edits behind it still go. Only an entry with no id, a cursor ahead
   of the journal's, or the journal failing fails the exchange.
-- **`refuse(operation)`** rejects before the journal reads it, by what the
-  transport established (a principal that may only read); a rule about the
-  document belongs in `authorize`.
+- **`admit(operation)`** decides before the journal reads it, by what the
+  transport established (a principal that may only read) or by what cannot
+  run under the journal's lock (a rule that reads the rows an edit names,
+  `foldkit-guard/sync`): `true` admits, a refusal is rejected by id with its
+  reason, and it may answer with an `Effect`. A rule about the document
+  belongs in `authorize`.
+- **`opens`**, an `Effect` of whether the connection may open the document at
+  all: refused, every exchange fails and nothing is read or appended.
+  `defineDocumentHost` takes both as functions of the principal.
 - **`settle`** runs after each exchange's appends: apply what committed to
   another store, through `journal.recover`. It runs every exchange, so a
   write that failed is tried again.

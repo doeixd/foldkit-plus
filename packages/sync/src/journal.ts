@@ -17,6 +17,7 @@ import {
   type Journal,
 } from 'foldkit-durable/core'
 import { sequence } from './ids.js'
+import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync, TransportClient } from './sync.js'
 import { serveSocket, type SocketLike } from './transport.js'
 
@@ -40,12 +41,21 @@ export interface JournalExchangeOptions<Message, Shared, Principal> {
    */
   readonly settle?: Effect.Effect<void, unknown> | undefined
   /**
-   * Refuses an operation before the journal sees it, by what the transport
-   * established rather than by the document: a principal that may only read.
-   * A refused operation is rejected by its id. The journal's own `authorize`
-   * is where a rule about the document goes.
+   * Whether the connection may open the document at all, to read it or to
+   * change it: a principal outside its readers. Refused, every exchange fails,
+   * and nothing is read or appended.
    */
-  readonly refuse?: ((operation: Operation) => boolean) | undefined
+  readonly opens?: Effect.Effect<boolean> | undefined
+  /**
+   * Whether an operation may be appended, decided before the journal sees it,
+   * by what the transport established rather than by the document: a principal
+   * that may only read, or a rule that reads the rows an edit names, which
+   * cannot run under the journal's lock (`foldkit-guard/sync`). `true` admits;
+   * a refusal is rejected by the operation's id, with its reason when it gives
+   * one. The journal's own `authorize` is where a rule about the document goes.
+   */
+  readonly admit?:
+    ((operation: Operation) => AuthorizeDecision | Effect.Effect<AuthorizeDecision>) | undefined
   /** The most committed operations one reply carries; a replica further behind asks again. Default 500. */
   readonly limit?: number | undefined
 }
@@ -91,6 +101,9 @@ export const journalExchange = <Message, Shared, Principal>(
       // lacks (it was reset): it is answered from the start. Otherwise a cursor
       // past the journal's is refused before anything is appended, or the
       // operations would commit and their acknowledgements be lost.
+      if (options.opens !== undefined && !(yield* options.opens)) {
+        return yield* Effect.fail(new Error('This connection may not open the document'))
+      }
       const epoch = yield* journal.epoch(key)
       const from = seen !== undefined && seen !== epoch ? 0 : cursor
       const at = yield* journal.cursor(key)
@@ -116,8 +129,13 @@ export const journalExchange = <Message, Shared, Principal>(
           continue
         }
         const operation = decoded.value
-        if (options.refuse?.(operation) === true) {
-          reject(operation.opId, 'This connection may not make changes')
+        const admitted = options.admit === undefined ? true : options.admit(operation)
+        const decision = Effect.isEffect(admitted) ? yield* admitted : admitted
+        if (decision !== true) {
+          reject(
+            operation.opId,
+            decision === false ? 'This connection may not make changes' : decision.reason,
+          )
           continue
         }
         yield* journal.append(key, operation, principal).pipe(

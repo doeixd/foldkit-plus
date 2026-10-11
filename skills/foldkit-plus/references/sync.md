@@ -277,8 +277,10 @@ const server = Effect.gen(function* () {
   live hub when it wrote the row.
 - Durable does **not** speak the sync exchange; `foldkit-sync/journal` does
   (`foldkit-durable` an optional peer): `serveJournal(socket, { sync, journal,
-  principal, refuse?, settle? })` answers one socket and notifies it of each
-  commit; `journalExchange(options)` is the same as a `TransportClient` for an
+  principal, admit?, opens?, settle? })` answers one socket and notifies it of each
+  commit; `admit(operation)` (true, false, a refusal with a reason, or an Effect of one) decides
+  before the journal reads an operation, `opens` (an Effect of a boolean) whether the connection
+  may exchange at all; `journalExchange(options)` is the same as a `TransportClient` for an
   in-process replica. An op that does not decode, names another document, or
   is refused, invalid or a reused id is **rejected by id**, so it cannot block
   the outbox; only a cursor ahead of the journal's or a `JournalError` fails

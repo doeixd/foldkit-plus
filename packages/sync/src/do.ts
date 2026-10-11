@@ -26,6 +26,7 @@
 import type { Effect } from 'effect'
 import type { Journal } from 'foldkit-durable/core'
 import { serveJournal } from './journal.js'
+import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync } from './sync.js'
 import { workerSocket } from './transport.js'
 
@@ -63,8 +64,18 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env> {
         journal: Journal<Operation, Shared, Principal, Operation>,
       ) => Effect.Effect<void, unknown>)
     | undefined
-  /** Refuses an operation before the journal sees it, by connection. See `serveJournal`. */
-  readonly refuse?: ((operation: Operation) => boolean) | undefined
+  /** Whether `principal` may open the document. See `journalExchange`'s `opens`. */
+  readonly opens?: ((principal: Principal) => Effect.Effect<boolean>) | undefined
+  /**
+   * Whether an operation from `principal` may be appended, before the journal
+   * sees it. See `journalExchange`'s `admit`.
+   */
+  readonly admit?:
+    | ((
+        principal: Principal,
+        operation: Operation,
+      ) => AuthorizeDecision | Effect.Effect<AuthorizeDecision>)
+    | undefined
   /**
    * Makes the socket pair for an upgrade: the server end is accepted before
    * serving. Defaults to the `WebSocketPair` global where one exists (a
@@ -136,12 +147,16 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
       }
       const [client, server] = (config.pair ?? defaultPair)()
       server.accept()
+      const { admit } = config
       serveJournal(workerSocket(server), {
         sync: config.sync,
         journal,
         principal,
         ...(config.settle === undefined ? {} : { settle: config.settle(this.hostEnv, journal) }),
-        ...(config.refuse === undefined ? {} : { refuse: config.refuse }),
+        ...(config.opens === undefined ? {} : { opens: config.opens(principal) }),
+        ...(admit === undefined
+          ? {}
+          : { admit: (operation: Operation) => admit(principal, operation) }),
       })
       return new Response(null, {
         status: 101,

@@ -51,9 +51,9 @@ export default [
         file,
         find: `      const [client, server] = (config.pair ?? defaultPair)()
       server.accept()
-      serveJournal(workerSocket(server), {`,
+      const { admit } = config`,
         replace: `      const [client, server] = (config.pair ?? defaultPair)()
-      serveJournal(workerSocket(server), {`,
+      const { admit } = config`,
       },
     ],
     tests,
@@ -84,6 +84,28 @@ export default [
         this.ready = undefined
         return Response.json({ error: String(error) }, { status: 500 })
       }`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the host lets anyone open the document',
+    edits: [
+      {
+        file,
+        find: '...(config.opens === undefined ? {} : { opens: config.opens(principal) }),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the host admits every operation',
+    edits: [
+      {
+        file,
+        find: ': { admit: (operation: Operation) => admit(principal, operation) }),',
+        replace: ': {}),',
       },
     ],
     tests,

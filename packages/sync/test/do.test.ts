@@ -59,7 +59,8 @@ type TestJournal = Awaited<ReturnType<typeof openJournal>>
 
 const host = (
   options: {
-    readonly refuse?: (operation: Operation) => boolean
+    readonly admit?: (principal: string, operation: Operation) => boolean
+    readonly opens?: (principal: string) => Effect.Effect<boolean>
     readonly resolvePrincipal?: (request: Request) => string
     readonly openJournal?: () => Promise<TestJournal>
     readonly settle?: (env: unknown, journal: unknown) => Effect.Effect<void, unknown>
@@ -75,7 +76,8 @@ const host = (
     },
     resolvePrincipal:
       options.resolvePrincipal ?? (request => request.headers.get('x-actor') ?? 'anon'),
-    refuse: options.refuse,
+    admit: options.admit,
+    opens: options.opens,
     settle: options.settle,
     pair: () => {
       const pair = FakeWebSocket.linked()
@@ -161,7 +163,7 @@ describe('defineDocumentHost', () => {
   })
 
   it('refuses what the connection may not change, by id', async () => {
-    const { Host, pairs } = host({ refuse: () => true })
+    const { Host, pairs } = host({ admit: () => false })
     const served = new Host({}, undefined)
     const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
     const pending = await pendingOf('a', ['Milk'])
@@ -171,6 +173,16 @@ describe('defineDocumentHost', () => {
     expect(refused.reasons).toEqual([
       { opId: pending[0]!.opId, reason: 'This connection may not make changes' },
     ])
+  })
+
+  it('refuses a principal who may not open the document every exchange, and lets another', async () => {
+    const { Host, pairs } = host({ opens: principal => Effect.succeed(principal !== 'visitor') })
+    const served = new Host({}, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'visitor')
+    const reply = await roundTrip(client, { id: '1', cursor: 0, pending: [] })
+    expect(reply.error).toBe('This connection may not open the document')
+    const { client: ada } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    expect(resultOf(await roundTrip(ada, { id: '1', cursor: 0, pending: [] })).rejected).toEqual([])
   })
 
   it('answers the journal principal: a refusal it reports, by id', async () => {

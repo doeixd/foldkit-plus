@@ -31,7 +31,7 @@ export const journalOptions = (): JournalStoreOptions<Operation, Shared, SyncPri
 export const exchangeAs = (
   journal: Journal<Operation, Shared, SyncPrincipal>,
   principal: SyncPrincipal,
-) => ({ sync: TodoSync, journal, principal, refuse: () => !principal.canWrite })
+) => ({ sync: TodoSync, journal, principal, admit: () => principal.canWrite })
 
 /** Serves one socket as `principal`: its exchanges, and a notice after each commit. */
 export const serveAs =

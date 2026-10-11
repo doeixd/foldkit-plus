@@ -237,7 +237,7 @@ const server = Effect.gen(function* () {
       journal,
       principal,
       // A principal that may only read has every operation rejected.
-      refuse: () => !principal.canWrite,
+      admit: () => principal.canWrite,
     })
 }).pipe(Effect.scoped)
 ```
