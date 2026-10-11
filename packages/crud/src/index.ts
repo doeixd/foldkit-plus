@@ -8,7 +8,7 @@
  * ordinary Foldkit: a Bundle, an ActiveSurface, Update Steps. Nothing is
  * generated from an Entity alone; each capability is declared.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Entity,
@@ -17,6 +17,7 @@ import {
   type AnyEntity,
   type EntityInput,
   type EntityMember,
+  type InputMember,
   type Selection,
   type IdOf,
   type SelectionPage,
@@ -25,12 +26,12 @@ import { Form, Input, type FormControl, type Submitted } from 'foldkit-form'
 import { Display, type DisplayColumn } from './display.js'
 import {
   Refusal,
+  RemoteData,
   type MutationDescriptor,
   type Page,
   type QueryDescriptor,
   type MutationStatus,
   type RemoteClient,
-  type RemoteData,
   type RemoteError,
   type RemoteMessage,
 } from 'foldkit-remote'
@@ -78,6 +79,18 @@ export interface EditableForm<
  * `null` for a new one; `filled` is whether the loaded value has been shown;
  * `requestId` is the save in progress or last settled.
  */
+/**
+ * Which members of a row its reader may not set, read from members loaded
+ * beside the form's: what `Crud.editor`'s `locks` takes. `foldkit-guard`'s
+ * `May.locks(Todo)` is one, from the server's `may`.
+ */
+export interface Locks {
+  /** The members to load beside the form's, by key: `{ may: true }`. */
+  readonly select: Readonly<Record<string, true>>
+  /** Whether `member` of the loaded row may not be set by its reader. */
+  readonly locked: (row: Readonly<Record<string, unknown>>, member: string) => boolean
+}
+
 export interface EditorModel<FormModel> {
   readonly form: FormModel
   readonly mode: 'closed' | 'new' | 'edit'
@@ -644,10 +657,16 @@ export const Crud = {
     config: {
       readonly form: EditableForm<FormName, FormModel, FormMessage, Value, E, Fields, Members, R>
       readonly mutation: MutationDescriptor<string, Value, any>
+      /**
+       * Which of the form's keys the row being edited does not let its reader
+       * set, from members loaded beside the form's: `foldkit-guard`'s
+       * `May.locks(Todo)`. Read with `locked`.
+       */
+      readonly locks?: Locks | undefined
     },
   ) => {
     type Model = EditorModel<FormModel>
-    const { form, mutation } = config
+    const { form, mutation, locks } = config
     // How each input key's value is compared, built once from its own schema.
     const sameValue: Readonly<Record<string, (left: unknown, right: unknown) => boolean>> =
       Object.fromEntries(
@@ -713,7 +732,31 @@ export const Crud = {
       },
     })
 
-    const current = Entity.selectFor(form.input)
+    const written = Entity.selectFor(form.input)
+    // What is loaded: what the form writes, and what `locks` reads beside it,
+    // which the form never fills from.
+    const current: typeof written =
+      locks === undefined
+        ? written
+        : (Entity.select(form.input.entity, {
+            ...(written.members as Readonly<Record<string, unknown>>),
+            ...locks.select,
+          } as never) as typeof written)
+    /** The member each form key writes: a field's own key, or the relation it points. */
+    const writes: ReadonlyArray<readonly [keyof Fields & string, string]> = Object.entries(
+      form.input.members as Readonly<Record<string, InputMember | undefined>>,
+    ).flatMap(([key, member]) =>
+      member === undefined
+        ? []
+        : Match.valueTags(member, {
+            Field: ({ key: written }) => [[key as keyof Fields & string, written] as const],
+            RelationInput: ({ relation }) => [
+              [key as keyof Fields & string, relation.key] as const,
+            ],
+            NestedInput: () => [],
+            Unmapped: () => [],
+          }),
+    )
 
     return {
       bundle,
@@ -765,17 +808,27 @@ export const Crud = {
           })
         }
 
+        /** The value loaded, or the last one known good when a refresh failed. */
+        const known = (root: Root): Option.Option<any> => {
+          const read = loaded(root)
+          return read === undefined
+            ? Option.none()
+            : RemoteData.match(read, {
+                Initial: () => Option.none(),
+                Loading: () => Option.none(),
+                Ready: Option.some,
+                Refreshing: Option.some,
+                Failed: (_, previous) => previous,
+                NotFound: () => Option.none(),
+              })
+        }
+
         const filledOf = (root: Root): Root => {
           const editor = slice.get(root)
-          const read = loaded(root)
-          if (editor.filled || read === undefined) return root
-          const value =
-            read._tag === 'Ready' || read._tag === 'Refreshing'
-              ? read.value
-              : read._tag === 'Failed'
-                ? read.previous
-                : undefined
-          if (value === undefined) return root
+          if (editor.filled) return root
+          const shown = known(root)
+          if (Option.isNone(shown)) return root
+          const value = shown.value
           const values = Entity.valuesFor(form.input, value) as Partial<Value>
           return slice.set(root, {
             ...editor,
@@ -924,6 +977,20 @@ export const Crud = {
             const save = saveOf(root)
             return save._tag === 'Failed' ? save.error : undefined
           },
+
+          /**
+           * The form's keys the row being edited does not let its reader set, by
+           * `locks`, for `foldkit-mixins-form`'s `locked`. None for something new,
+           * whose create the server checks, and none until the row is loaded.
+           */
+          locked: (root: Root): ReadonlyArray<keyof Fields & string> =>
+            locks === undefined
+              ? []
+              : Option.match(known(root), {
+                  onNone: () => [],
+                  onSome: row =>
+                    writes.flatMap(([key, member]) => (locks.locked(row, member) ? [key] : [])),
+                }),
 
           /** The id being edited, typed as the Entity's own; `null` for a new one or a closed editor. */
           target: (root: Root): IdOf<E> | null => slice.get(root).target as IdOf<E> | null,

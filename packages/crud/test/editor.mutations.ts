@@ -16,8 +16,8 @@ export default [
       },
       {
         file: editor,
-        find: "import { Option, Schema } from 'effect'",
-        replace: "import { Option, Predicate, Schema } from 'effect'",
+        find: "import { Match, Option, Schema } from 'effect'",
+        replace: "import { Match, Option, Predicate, Schema } from 'effect'",
       },
     ],
     tests,
@@ -78,6 +78,40 @@ export default [
         file: editor,
         find: 'Option.exists(refusalOf(root), Refusal.isConflict)',
         replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'nothing is ever locked',
+    edits: [
+      {
+        file: editor,
+        find: '(locks.locked(row, member) ? [key] : [])',
+        replace: '[]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a relation key is never locked',
+    edits: [
+      { file: editor, find: '[key as keyof Fields & string, relation.key] as const,', replace: '' },
+    ],
+    tests,
+  },
+  {
+    name: 'what locks read is not loaded',
+    edits: [{ file: editor, find: '...locks.select,', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a failed refresh forgets the last value known good',
+    edits: [
+      {
+        file: editor,
+        find: 'Failed: (_, previous) => previous,',
+        replace: 'Failed: () => Option.none(),',
       },
     ],
     tests,

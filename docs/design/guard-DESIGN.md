@@ -1,6 +1,6 @@
 # Guards: who may do what, declared once on the domain
 
-**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slices 1 (`Expr.in`) and 2 (the core, but `may`) built, and slice 3's decisions, its `memory` and `filter` seams, its Drizzle `visible`, relation Reads and `GuardServer.validate` (slice 3 complete), slice 4 (`G.Principal` read per call, a hub keyed by `Policy.keyOf`) and slice 5 (`Forbidden` end to end) and slice 6 (writes: `GuardServer.writer`, presets, `GuardServer.mutation`, the read-back), and slice 7's `may` member, its server answer and its readers; the rest not.
+**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slices 1 (`Expr.in`) and 2 (the core, but `may`) built, and slice 3's decisions, its `memory` and `filter` seams, its Drizzle `visible`, relation Reads and `GuardServer.validate` (slice 3 complete), slice 4 (`G.Principal` read per call, a hub keyed by `Policy.keyOf`) and slice 5 (`Forbidden` end to end) and slice 6 (writes: `GuardServer.writer`, presets, `GuardServer.mutation`, the read-back), and slice 7 (`may`, its readers, Crud's `locks` and the form's `locked`); the rest not.
 **Target:** a new package, `foldkit-guard`, and small changes in `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-entity`, `foldkit-crud`, `foldkit-agent`, `foldkit-cms-drizzle`, `foldkit-sync`.
 **Inspirations:** this repository's authorization seams; `doeixd/gen2`'s `AUTHZ2_PLAN.md`, `src/authz/{surface,placement,deny,mutation-plan}.ts` and `rules_implementation_guide.md`; ZenStack, Ent's privacy layer, Hasura permissions, Postgres row-level security, Firebase security rules, Pundit, Zanzibar, Cedar (§2).
 **Related:** `remote-improvement-plan.md` §16 (client placement, Phases 7–12), whose Phase 12 is gated on this design.
@@ -571,6 +571,15 @@ Each slice stands alone, is committed with its tests, and is reviewed before the
    not answer it again: it is as stale as the row's last read. Building it found a type fault in
    `attach`: a computed `[Archive.key]` beside a `Read` that inherits did not compile, so named
    interactions moved under `interactions` (§3.2).
+
+   Then the consumers. `foldkit-mixins-form` takes `locked` keys as a view input and draws them
+   `disabled`, every control kind; a key in a nested row is not locked by it. `foldkit-crud`
+   cannot import `foldkit-guard`, whose types it would then require, so `Crud.editor` takes
+   `locks` (members to load beside the form's, and whether a member is locked) and
+   `locked(model)` maps it to the form's keys, a relation key by its relation; `May.locks(Todo)`
+   is guard's. There is no `Crud.may(model, Archive)`: a page reading a row for an action button
+   reads `may` with it and asks `May.can`. `Data.forget` drops `may` with every other server
+   fact, needing nothing new. Slice 7 is built.
 8. **Agent.** `Guards.variant`; `withPrincipal` inferred.
 9. **CMS.** §8; the casts removed; the example's `isAuthor`/`allow` rewritten; the e2e audience test unchanged and green.
 10. **Sync.** §8c: `Guards.document` as a connection-level refuse; `Guards.journal` deriving the journal's `authorize`; an Effect-returning `refuse` with a reason for row guards before `append`; `EditableEntity.make`'s audience check; the registry example's edits governed by `Product`'s guards. First, read the presence server to confirm whether a peer's id is stamped from the connection. Tests: a visitor's exchange refused by `readers`; an edit to an `Update`-guarded member rejected with its reason; a document declared over a member with a `Read` guard refused at `make`.

@@ -366,6 +366,20 @@ describe('a guarded domain in memory', () => {
     May.canSet(may, Todo, 'colour')
   })
 
+  it('locks for Crud what the reader may not set, and nothing while may is not answered', async () => {
+    const result = await read(Option.some(ada), [{ entity: 'Todo', id: 't1', fields: ['may'] }])
+    const row = result.entities[0]!.values
+    const locks = May.locks(Todo)
+    expect(locks.select).toEqual({ may: true })
+    expect(['title', 'ownerId', 'tag'].map(member => locks.locked(row, member))).toEqual([
+      false,
+      true,
+      // ada may unlink t1's tag, not link one: a relation needs both.
+      true,
+    ])
+    expect(locks.locked({}, 'ownerId')).toBe(false)
+  })
+
   it('reads an Entity it was not given as open, and ends a loop of inherited Reads', async () => {
     const result = await read(Option.none(), [
       { entity: 'Tag', id: 'g1', fields: ['id'] },

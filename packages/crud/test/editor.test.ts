@@ -1,6 +1,6 @@
 import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Entity, Relation } from 'foldkit-entity'
+import { Derived, Entity, Relation } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
 import {
@@ -21,6 +21,9 @@ const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: 
 const Post = Entity.define(
   'Post',
   Schema.Struct({ id: Schema.String, title: Schema.String.check(Schema.isMinLength(1)) }),
+).pipe(
+  // The members its reader may not set, as a server would answer them.
+  Entity.derived({ fixed: Derived.make(Schema.Array(Schema.String)) }),
 )
 const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
 
@@ -49,7 +52,14 @@ const EditPostForm = Form.make(
   },
 )
 
-const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
+const Editor = Crud.editor('PostEditor', {
+  form: EditPostForm,
+  mutation: EditPostMutation,
+  locks: {
+    select: { fixed: true },
+    locked: (row, member) => Array.isArray(row.fixed) && row.fixed.includes(member),
+  },
+})
 const Slot = Bundle.declare(Editor.bundle, 'editor')
 
 const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
@@ -102,7 +112,8 @@ const Client = Layer.succeed(RemoteClient, {
               {
                 entity: request.entity,
                 id: request.id,
-                values: { id: request.id, ...server.posts[request.id] },
+                // Nothing is fixed unless the row says so.
+                values: { id: request.id, fixed: [], ...server.posts[request.id] },
               },
             ],
       ),
@@ -170,15 +181,15 @@ describe('Crud.editor', () => {
     expect(Option.isNone(PostEditor.active.projectionOf(initial))).toBe(true)
   })
 
-  it('loads exactly what the form writes, and is Loading until it arrives', async () => {
+  it('loads what the form writes and what its locks read, and is Loading until it arrives', async () => {
     const opened = await dispatch(initial, Message.OpenedPost({ id: 'p1' }))
     const projection = Option.getOrThrow(PostEditor.active.projectionOf(opened))
 
     expect(PostEditor.status(opened)).toBe('Loading')
     expect(requirementsOf(projection)).toEqual([
-      { entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] },
+      { entity: 'Post', id: 'p1', fields: ['id', 'title', 'author', 'fixed'] },
     ])
-    expect(Editor.selection.members).toEqual({ id: true, title: true, author: true })
+    expect(Editor.selection.members).toEqual({ id: true, title: true, author: true, fixed: true })
   })
 
   it('fills the form once the value arrives, the relation as the id it holds', async () => {
@@ -186,6 +197,19 @@ describe('Crud.editor', () => {
 
     expect(PostEditor.status(ready)).toBe('Editing')
     expect(drafts(ready)).toEqual({ id: 'p1', title: 'Hello', authorId: 'a1' })
+  })
+
+  it('locks the form’s keys the row does not let its reader set, a relation by its key', async () => {
+    const opened = await dispatch(initial, Message.OpenedPost({ id: 'p1' }))
+    expect(PostEditor.locked(opened)).toEqual([])
+    server.posts.p1 = { title: 'Hello', author: 'Author:a1', fixed: ['title', 'author'] }
+    expect(PostEditor.locked(await load(opened))).toEqual(['title', 'authorId'])
+    // Something new is the server's to check: nothing is locked.
+    const blank = await dispatch(
+      initial,
+      Message.GotEditorMessage({ message: EditPostForm.Message.Blurred({ key: 'id' }) }),
+    )
+    expect(PostEditor.locked(Placed.helpers.blank()(blank).model)).toEqual([])
   })
 
   it('does not overwrite what the user typed when the value is read again', async () => {
@@ -296,7 +320,7 @@ describe('Crud.editor', () => {
     const elsewhere = await dispatch(held, Message.OpenedPost({ id: 'p2' }))
     const failed = Data.reduce(elsewhere, {
       _tag: 'ReadFailed',
-      requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] }],
+      requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'title', 'author', 'fixed'] }],
       error: { _tag: 'RemoteReadError', message: 'offline' },
     })
 
@@ -310,7 +334,7 @@ describe('Crud.editor', () => {
     const opened = await dispatch(initial, Message.OpenedPost({ id: 'p1' }))
     const failed = Data.reduce(opened, {
       _tag: 'ReadFailed',
-      requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] }],
+      requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'title', 'author', 'fixed'] }],
       error: { _tag: 'RemoteReadError', message: 'offline' },
     })
     const projection = Option.getOrThrow(PostEditor.active.projectionOf(failed))
@@ -320,7 +344,7 @@ describe('Crud.editor', () => {
     const retried = PostEditor.refresh(failed)
 
     expect(Data.plan(retried, projection)).toEqual([
-      { entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] },
+      { entity: 'Post', id: 'p1', fields: ['id', 'title', 'author', 'fixed'] },
     ])
     expect(PostEditor.status(await load(retried))).toBe('Editing')
     expect(PostEditor.refresh(initial)).toBe(initial)
@@ -382,7 +406,7 @@ describe('Crud.editor', () => {
     expect(Object.keys(entries)).toEqual(['editor.read', 'editor.live', 'retain'])
     expect(read.modelToDependencies(initial).requirements).toEqual([])
     expect(read.modelToDependencies(opened).requirements).toEqual([
-      { entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] },
+      { entity: 'Post', id: 'p1', fields: ['id', 'title', 'author', 'fixed'] },
     ])
   })
 

@@ -315,6 +315,28 @@ Placed.view(model, h, { options: pickers(model), words: { submit: 'Save' } })
 `Crud.editorView` works on any Submodel view of the form that takes view
 inputs; `foldkit-crud` itself stays headless.
 
+A key the reader may not set can be drawn but not edited. Give the editor
+`locks`, which name members to load beside the form's and say which the row
+does not let its reader set; `foldkit-guard`'s `May.locks(Post)` reads the
+server's `may`. `PostEditor.locked(model)` is then the form's keys to lock,
+a key mapped to a relation by the relation's lock, for the form view's
+`locked`:
+
+```ts
+const Editor = Crud.editor('PostEditor', {
+  form: EditPostForm,
+  mutation: EditPostMutation,
+  locks: May.locks(Post),
+})
+
+Placed.view(model, h, { options: pickers(model), locked: PostEditor.locked(model) })
+```
+
+Nothing is locked for something new, whose create the server checks, nor
+before the row is loaded. The Source must answer what `locks` selects, or the
+read of the row, and so the editor, fails. A lock is a hint: the server
+checks the save.
+
 ## Deleting
 
 A remover is a mutation with a yes in between. Like the editor it is a Bundle,

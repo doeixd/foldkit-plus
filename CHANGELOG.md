@@ -249,6 +249,12 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `source(binding, { filter })`**, the
   per-record read plan `RemoteServer.entity` takes, passed through. A source
   and a `query` carry their binding's `visible`, for a startup check.
+- **`foldkit-crud`: an editor locks the keys its row's reader may not set.**
+  `Crud.editor(name, { form, mutation, locks })` loads the members `locks`
+  selects beside the form's, and `editor.at(...).locked(model)` names the
+  form's keys whose member (or relation) `locks.locked` refuses, for
+  `foldkit-mixins-form`'s `locked`. Nothing is locked for a new one, or
+  before the row is loaded. `foldkit-guard`'s `May.locks` is one.
 - **`foldkit-mixins-form`: keys drawn but not editable.** The view input
   `locked: ['ownerId']` draws those keys `disabled`, every control kind (a
   many picker's choices included), for a key the person may not set. A key in
@@ -357,6 +363,7 @@ version changed; `pnpm` skips versions already in the registry.
   relation's `Link` and `Unlink`. `May.can`, `May.canSet` and `May.canLink`
   read it on the client, a member or relation following the row's `Update`.
   It is a hint read with the row; the write is checked when it is made.
+  `May.locks(entity)` is `foldkit-crud`'s `locks` for it.
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

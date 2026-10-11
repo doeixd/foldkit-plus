@@ -25,6 +25,19 @@ export type MayAnswer = typeof MaySchema.Type
 
 type MemberKeys<E extends AnyEntity> = (keyof E['fields'] | keyof E['derived']) & string
 
+const can = (may: MayAnswer, interaction: string): boolean => may.row[interaction] === true
+
+/** The row's `Update`, and the member's own rule when it has one. */
+const setting = (may: MayAnswer, member: string): boolean =>
+  can(may, 'Update') && (!Object.hasOwn(may.members, member) || may.members[member] === true)
+
+/** The row's `Update`, and the relation's own rule for the direction when it has one. */
+const linking = (may: MayAnswer, relation: string, interaction: 'Link' | 'Unlink'): boolean =>
+  can(may, 'Update') &&
+  (!Object.hasOwn(may.relations, relation) || may.relations[relation]![interaction])
+
+const isMay = Schema.is(MaySchema)
+
 export const May = {
   /**
    * Adds the `may` member to an Entity, after its guards are attached:
@@ -39,11 +52,11 @@ export const May = {
    * was read, and reads `false`: a hint errs on the side of asking.
    */
   can: (may: MayAnswer, interaction: 'Update' | 'Delete' | InteractionKey): boolean =>
-    may.row[interaction] === true,
+    can(may, interaction),
 
   /** Whether the principal may set `member` on this row: the row's `Update`, and the member's own rule. */
   canSet: <E extends AnyEntity>(may: MayAnswer, _entity: E, member: MemberKeys<E>): boolean =>
-    May.can(may, 'Update') && (!Object.hasOwn(may.members, member) || may.members[member] === true),
+    setting(may, member),
 
   /** Whether the principal may point `relation` at a row, or away from one. */
   canLink: <E extends AnyEntity>(
@@ -51,7 +64,26 @@ export const May = {
     _entity: E,
     relation: keyof E['relations'] & string,
     interaction: 'Link' | 'Unlink',
-  ): boolean =>
-    May.can(may, 'Update') &&
-    (!Object.hasOwn(may.relations, relation) || may.relations[relation]![interaction]),
+  ): boolean => linking(may, relation, interaction),
+
+  /**
+   * `foldkit-crud`'s `locks` for `entity`: an editor loads `may` beside the
+   * form's members and locks each the reader may not set. A relation is locked
+   * unless it may be both unlinked and linked. Nothing is locked while `may`
+   * is not answered (a Source without the filter): the write is checked anyway.
+   *
+   * ```ts
+   * Crud.editor('todo', { form, mutation: EditTodo, locks: May.locks(Todo) })
+   * ```
+   */
+  locks: (entity: AnyEntity) => ({
+    select: { may: true } as const,
+    locked: (row: Readonly<Record<string, unknown>>, member: string): boolean => {
+      const may = row.may
+      if (!isMay(may)) return false
+      return Object.hasOwn(entity.relations, member)
+        ? !(linking(may, member, 'Unlink') && linking(may, member, 'Link'))
+        : !setting(may, member)
+    },
+  }),
 }

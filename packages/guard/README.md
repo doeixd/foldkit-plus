@@ -349,6 +349,8 @@ May.canLink(row.may, Todo, 'project', 'Link')
   The write is checked when it is made, whatever `may` said.
 - A Source without the filter does not answer it: the client reads it as
   unavailable.
+- `foldkit-crud`'s editor locks the keys the reader may not set with
+  `locks: May.locks(Todo)`, for `foldkit-mixins-form`'s `locked`.
 
 ## Checking a server at startup
 
