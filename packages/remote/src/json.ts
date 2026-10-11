@@ -82,7 +82,7 @@ export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
   FoldkitRemoteLive: () => Stream.empty,
 })
 
-/** What a body that does not parse reads as, so a JSON `null` is still an answer. */
+/** A body that did not parse, told apart from every value one can parse to, `null` included. */
 const notJson = Symbol('not JSON')
 
 /**
