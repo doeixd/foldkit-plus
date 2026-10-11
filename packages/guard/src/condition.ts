@@ -96,6 +96,14 @@ export interface MemberRead {
   readonly deny: Deny
 }
 
+/**
+ * Whether a row guard reads the principal's fields. A visitor has none, so
+ * passes no guard that does; one over the row alone (`publishedAt` is set)
+ * holds for a visitor as for anyone.
+ */
+export const readsPrincipal = (guard: RowGuard<any, AnyEntity>): boolean =>
+  Query.dependencies(guard.query).inputs.length > 0
+
 /** Every principal guard the rules name, each once. */
 const principalGuardsIn = (rules: ReadonlyArray<AnyRule>): ReadonlyArray<PrincipalGuard<any>> => {
   const found = new Map<string, PrincipalGuard<any>>()
@@ -112,7 +120,8 @@ const principalGuardsIn = (rules: ReadonlyArray<AnyRule>): ReadonlyArray<Princip
 
 /**
  * Turns `rules` into a condition for one principal. Each principal guard is
- * decided once, however many rules name it; a visitor passes no row guard.
+ * decided once, however many rules name it; a visitor passes no row guard
+ * that reads the principal.
  */
 const conditionsFor = <R>(
   rules: ReadonlyArray<AnyRule>,
@@ -128,7 +137,10 @@ const conditionsFor = <R>(
       const conditionOf = (rule: AnyRule): Condition =>
         Match.valueTags(rule, {
           PrincipalGuard: ({ name }) => (allowed.get(name) === true ? always : never),
-          RowGuard: guard => (visitor ? never : Object.freeze({ _tag: 'Row' as const, guard })),
+          RowGuard: guard =>
+            visitor && readsPrincipal(guard)
+              ? never
+              : Object.freeze({ _tag: 'Row' as const, guard }),
           All: ({ rules }) => and(rules.map(conditionOf)),
           Inherit: ({ relation }) => Object.freeze({ _tag: 'Inherit' as const, relation }),
         })

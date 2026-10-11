@@ -18,7 +18,7 @@ export default [
   },
   {
     name: 'a visitor is asked a row guard',
-    edits: [{ file, find: 'visitor ? never : ', replace: '' }],
+    edits: [{ file, find: 'visitor && readsPrincipal(guard)', replace: 'false' }],
     tests,
   },
   {
@@ -129,6 +129,22 @@ export default [
         file: '../src/index.ts',
         find: 'decidingFor(entity, principal, interaction).row(entity)',
         replace: "decidingFor(entity, principal, 'Read').row(entity)",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a visitor passes no row guard, even one over the row alone',
+    edits: [{ file, find: 'visitor && readsPrincipal(guard)', replace: 'visitor' }],
+    tests,
+  },
+  {
+    name: 'a visitor is decided no row guard, even one over the row alone',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: '!readsPrincipal(rowGuard) && evaluate(rowGuard.query, {}, [row]).length === 1,',
+        replace: 'false,',
       },
     ],
     tests,

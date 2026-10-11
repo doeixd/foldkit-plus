@@ -118,6 +118,28 @@ describe('Policy.readable', () => {
     expect(rowsFor(Option.none(), Both)).toEqual([])
   })
 
+  it('passes a visitor a row guard over the row alone', () => {
+    const Open = Guards.declare(
+      'Open',
+      User,
+      guard => ({ isShared: guard.row(TodoFields, () => Expr.eq(TodoFields.fields.email, 'g@x')) }),
+      { key: user => user.id },
+    )
+    const Shared = TodoFields.pipe(Guards.attach(Open, { row: { Read: [Open.isShared] } }))
+    const Opened = Open.implement({})
+    const condition = Effect.runSync(Opened.readable(Shared, Option.none()))
+    expect(
+      [own, shared, other]
+        .filter(row => Condition.holds(condition, row, Opened.inputOf(Option.none()), () => false))
+        .map(row => row.id),
+    ).toEqual(['t2', 't3'])
+    const decided = (row: typeof own) =>
+      Effect.runSync(
+        Opened.decide(Open.isShared, { principal: Option.none(), interaction: 'Read', row }),
+      )
+    expect([decided(own), decided(shared)]).toEqual([false, true])
+  })
+
   it('asks the caller whether an inherited row is readable', () => {
     const Inherits = TodoFields.pipe(
       Guards.attach(G, { row: { Read: [Guards.inherit('project')] } }),

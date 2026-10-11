@@ -78,8 +78,8 @@ What each call does, and does not:
   type error, and refused at runtime for a caller the types do not reach.
 - `Policy.decide` is an `Effect` of a `Decision`: `true`, `false`, or
   `{ allowed: false, reason }` for a refusal the caller may read. A visitor
-  is `Option.none()`, and passes no row guard, whose body is over a
-  principal's fields.
+  is `Option.none()`, and passes no row guard that reads a principal's
+  fields; one over the row alone (`isPublished`) holds for a visitor too.
 - `G.Principal` is the server's Context key for who is asking, an
   `Option` of the principal; `G.key(user)` names the person, for what is
   theirs whatever their claims, such as a cache snapshot (see
@@ -162,7 +162,7 @@ Condition.holds(readable, { id: 't1', ownerId: 'ada', projectId: 'p9' }, Policy.
 ```
 
 - `Condition.always` and `Condition.never` are a read settled without
-  looking at rows: an admin, or a visitor (who passes no row guard).
+  looking at rows: an admin, or a visitor whose rules all read the principal.
 - `Condition.holds` is how an interpreter that has the rows runs it; a
   database compiles it instead. Its last argument answers an inherited Read,
   which only the caller can look up.

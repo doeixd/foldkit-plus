@@ -27,7 +27,8 @@ the application's, handed in through `G.Principal`.
 - `G.implement(bodies)` must give a body to every principal guard and nothing
   else (a type error, and refused at runtime too).
 - `policy.decide(guard, { principal, interaction, row })` is an
-  `Effect<Decision>`; a visitor is `Option.none()` and passes no row guard.
+  `Effect<Decision>`; a visitor is `Option.none()` and passes no row guard that
+  reads the principal (one over the row alone, `isPublished`, holds for anyone).
   `Decision` is `boolean | { allowed: false; reason }`.
 - `G.inputOf(user)` is the principal's fields as query inputs, encoded.
 - `Expr.in(field, p.projectIds)` is how a membership the principal carries

@@ -9,7 +9,13 @@
  */
 import { Context, Effect, Match, Option, Schema } from 'effect'
 import { Attaching, attached, type InteractionKey } from './attach.js'
-import { deciding, type Condition, type MemberRead, type RowRule } from './condition.js'
+import {
+  deciding,
+  readsPrincipal,
+  type Condition,
+  type MemberRead,
+  type RowRule,
+} from './condition.js'
 import { May } from './may.js'
 import {
   Expr,
@@ -140,8 +146,8 @@ export interface Policy<User, R = never> {
   readonly set: string
   /**
    * Whether `guard` allows `principal`, for a row guard over `row` (its stored,
-   * encoded values). A visitor passes no row guard, whose body is over a
-   * principal's fields.
+   * encoded values). A visitor passes no row guard that reads a principal's
+   * fields; one over the row alone holds for a visitor too.
    */
   readonly decide: (
     guard: AnyGuard<User>,
@@ -354,11 +360,15 @@ export const Guards = {
             const decided = bodies[body]!(principal, { interaction })
             return Effect.isEffect(decided) ? decided : Effect.succeed(decided)
           },
-          RowGuard: ({ query }) =>
+          RowGuard: rowGuard =>
             Effect.succeed(
-              Option.isSome(principal) &&
-                row !== undefined &&
-                evaluate(query, inputOf(principal.value), [row]).length === 1,
+              row !== undefined &&
+                Option.match(principal, {
+                  // A visitor has no fields: only a guard over the row alone can hold.
+                  onNone: () =>
+                    !readsPrincipal(rowGuard) && evaluate(rowGuard.query, {}, [row]).length === 1,
+                  onSome: user => evaluate(rowGuard.query, inputOf(user), [row]).length === 1,
+                }),
             ),
         })
       }

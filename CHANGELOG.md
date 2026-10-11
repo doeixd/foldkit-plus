@@ -318,6 +318,8 @@ version changed; `pnpm` skips versions already in the registry.
   guard over another Entity, a guard of another set, or a redacted value of
   the wrong type is a type error. `Guards.matrix` prints every surface and
   `Guards.guardFields` names what a row interaction's guards read.
+  A visitor passes no row guard that reads a principal's fields, and does
+  pass one over the row alone (`isPublished`).
   `Policy.readable(entity, principal)` decides a principal's read rules into a
   `Condition` over the row, every principal guard asked once; `Condition.holds`
   runs it over stored values, and `Policy.readMembers` decides each member's
