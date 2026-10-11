@@ -1,7 +1,7 @@
 /**
  * `Agent.forApplication` inference contract. Type-checked but not executed.
  */
-import { Schema } from 'effect'
+import { Context, Schema } from 'effect'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { Agent } from '../src/index.js'
 import { Message as MessageUnion, Model, emptyModel, type Message } from './todoApp.js'
@@ -55,6 +55,29 @@ AdminAgent.make({
     RequestedDeleteTodo: {
       description: 'Delete',
       // @ts-expect-error `owner` is not a field of the fixed principal
+      authorize: ({ principal }) => principal.owner === 'alice',
+    },
+  }),
+})
+
+// Or from the Context key a server reads it from: the two are one type.
+class Asking extends Context.Service<Asking, { readonly role: 'admin' | 'user' }>()(
+  'test/Asking',
+) {}
+const KeyedAgent = Agent.forApplication(App).withPrincipal(Asking)
+KeyedAgent.make({
+  messages: KeyedAgent.expose(MessageUnion, {
+    RequestedDeleteTodo: {
+      description: 'Delete',
+      authorize: ({ principal }) => principal.role === 'admin',
+    },
+  }),
+})
+KeyedAgent.make({
+  messages: KeyedAgent.expose(MessageUnion, {
+    RequestedDeleteTodo: {
+      description: 'Delete',
+      // @ts-expect-error `owner` is not a field of the key's principal
       authorize: ({ principal }) => principal.owner === 'alice',
     },
   }),

@@ -171,7 +171,7 @@ Read current state before deciding whether to retry an effectful operation.
 | `Agent.action(action, { available?, authorize? })` | A `foldkit-surface` Action as a variant: its name, description, input and Message. |
 | `Agent.resource(name, options)` | A named read-only projection of Model state. |
 | `Agent.make({ context, messages, resources })` | The protocol-neutral contract; `context` is a `Projection`, a `Projection.pick`, or a feature Surface. |
-| `Agent.forApplication(App)` / `Agent.forApplication(App).withPrincipal<Principal>()` | The above, with `Model` inferred from a `Surface.application`; `withPrincipal` fixes the `Principal` type. |
+| `Agent.forApplication(App)` / `Agent.forApplication(App).withPrincipal<Principal>()` | The above, with `Model` inferred from a `Surface.application`; `withPrincipal` fixes the `Principal` type, or takes it from the Context key a server reads it from (`withPrincipal(G.Principal)`), so the two are one type. |
 | `Agent.forModel<Model>()` | The same, when only a Model (no application) is available. |
 | `Agent.bind({ definition, host })` | Binds the contract to a live Runtime. |
 | `Agent.schema/messages/resources/contextSchema` | Introspection, as plain data. |

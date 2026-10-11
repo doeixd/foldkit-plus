@@ -352,6 +352,39 @@ May.canLink(row.may, Todo, 'project', 'Link')
 - `foldkit-crud`'s editor locks the keys the reader may not set with
   `locks: May.locks(Todo)`, for `foldkit-mixins-form`'s `locked`.
 
+## Agents
+
+An agent should not be offered, or attempt, what the server would refuse.
+`foldkit-guard/agent` reads `may` from the row the Model holds, for a
+`foldkit-agent` capability's `authorize` and `available`:
+
+```ts
+import { GuardAgent } from 'foldkit-guard/agent'
+
+const TodoAgent = Agent.forApplication(App).withPrincipal(G.Principal)
+
+TodoAgent.expose(Message, {
+  RequestedArchive: {
+    description: 'Archive a todo',
+    authorize: GuardAgent.authorize(Archive.key, ({ input, model }) =>
+      Data.get(TodoRow, input.id).read(model),
+    ),
+    available: GuardAgent.available(Archive.key, model =>
+      Data.get(TodoRow, model.selected).read(model),
+    ),
+  },
+})
+```
+
+- `TodoRow` selects `may`. A row not read yet, or whose read failed, refuses:
+  there is no answer to go on. One being read again answers as it last did.
+- `available` is for a capability over a row the Model alone names (the one
+  selected): a visitor is then not offered it at all.
+- `withPrincipal(G.Principal)` makes the agent's principal the server's
+  type.
+- It is the agent's gate, not the check: the Message's mutation is checked on
+  the server, under the same principal.
+
 ## Checking a server at startup
 
 A Source written by hand over a guarded Entity serves every row, and nothing

@@ -18,7 +18,8 @@ Use it when an assistant, a copilot, or another service should operate the app t
 ## 2. Mental model
 
 ```text
-Agent.forApplication(App)[.withPrincipal<P>()]   builder: infers Model (and fixes Principal)
+Agent.forApplication(App)[.withPrincipal<P>()]   builder: infers Model (and fixes Principal;
+                                                 .withPrincipal(G.Principal) takes it from a Context key)
   .make({ context, messages, resources })        Definition: pure data, no I/O, no state
   .bind({ definition, host, audit? })            AgentRuntime: live policy over a host
       host = { model, dispatch, subscribe?, observe?, principal? }

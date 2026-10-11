@@ -1,4 +1,4 @@
-import type { Schema } from 'effect'
+import type { Context, Schema } from 'effect'
 import {
   Metadata,
   Projection,
@@ -86,10 +86,12 @@ export interface ApplicationAgent<Model, Principal> extends Omit<
   /**
    * Fixes the `Principal` that `authorize` and the host's `principal` see. A
    * `Principal` cannot be a positional type argument beside an inferred Model,
-   * so it is supplied here: `Agent.forApplication(App).withPrincipal<Admin>()`.
-   * Type-only; the constructors are unchanged.
+   * so it is supplied here: `Agent.forApplication(App).withPrincipal<Admin>()`,
+   * or from the Context key a server reads it from, so the agent's and the
+   * server's are one type: `withPrincipal(G.Principal)` (`foldkit-guard`).
+   * Type-only; the key is not read, and the constructors are unchanged.
    */
-  readonly withPrincipal: <P>() => ApplicationAgent<Model, P>
+  readonly withPrincipal: <P>(key?: Context.Key<any, P>) => ApplicationAgent<Model, P>
 }
 
 const buildAgent = <Model, Principal>(
@@ -148,7 +150,7 @@ const buildAgent = <Model, Principal>(
     resource,
     bind,
     make: agentMake,
-    withPrincipal: <P>() => buildAgent<Model, P>(app),
+    withPrincipal: <P>(_key?: Context.Key<any, P>) => buildAgent<Model, P>(app),
   }
 }
 

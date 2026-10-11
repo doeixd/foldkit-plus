@@ -249,6 +249,9 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `source(binding, { filter })`**, the
   per-record read plan `RemoteServer.entity` takes, passed through. A source
   and a `query` carry their binding's `visible`, for a startup check.
+- **`foldkit-agent`: `withPrincipal(key)`**, the principal's type taken from
+  the Context key a server reads it from (`G.Principal`), so the agent's and
+  the server's are one type. `withPrincipal<P>()` stays.
 - **`foldkit-crud`: an editor locks the keys its row's reader may not set.**
   `Crud.editor(name, { form, mutation, locks })` loads the members `locks`
   selects beside the form's, and `editor.at(...).locked(model)` names the
@@ -364,6 +367,9 @@ version changed; `pnpm` skips versions already in the registry.
   read it on the client, a member or relation following the row's `Update`.
   It is a hint read with the row; the write is checked when it is made.
   `May.locks(entity)` is `foldkit-crud`'s `locks` for it.
+  `foldkit-guard/agent`'s `GuardAgent.authorize` and `GuardAgent.available`
+  gate a `foldkit-agent` capability on the `may` of a row the Model holds,
+  refusing until it is answered.
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

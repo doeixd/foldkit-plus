@@ -112,6 +112,10 @@ const Todo = TodoFields.pipe(
   `derived: { may: { supplied: true } }`); select `may: true` and read it with
   `May.can(may, Archive.key)`, `May.canSet(may, Todo, 'ownerId')`,
   `May.canLink(may, Todo, 'project', 'Link')`. A hint, never the check.
+- Agents: `foldkit-guard/agent`'s `GuardAgent.authorize(Archive.key, ({ input,
+  model }) => Data.get(TodoRow, input.id).read(model))` and
+  `GuardAgent.available(...)` gate a capability on the row's `may` (refused
+  until it is answered); `Agent.forApplication(App).withPrincipal(G.Principal)`.
 - Who is asking: `RemoteServer.handlers(server, G.Principal)` reads it per
   call; authentication provides it per request
   (`Effect.provideService(G.Principal, principal)`). Give a live hub

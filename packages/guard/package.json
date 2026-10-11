@@ -38,6 +38,11 @@
       "foldkit-plus:source": "./src/drizzle.ts",
       "types": "./dist/drizzle.d.mts",
       "import": "./dist/drizzle.mjs"
+    },
+    "./agent": {
+      "foldkit-plus:source": "./src/agent.ts",
+      "types": "./dist/agent.d.mts",
+      "import": "./dist/agent.mjs"
     }
   },
   "files": [
@@ -77,9 +82,12 @@
   "devDependencies": {
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "foldkit-agent": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
+    "foldkit-surface": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
   }
