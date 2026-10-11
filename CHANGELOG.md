@@ -339,6 +339,11 @@ version changed; `pnpm` skips versions already in the registry.
   an input that sets one is refused, and a visitor has none to give.
   `GuardServer.validate` also refuses a declared write of a guarded Entity
   that does not land through the `GuardServer.writer` built for it.
+  `GuardServer.mutation(M, { entity, policy, interaction, id, source }, run)`
+  is a handler's Source with the row's rule for `interaction` (a named one
+  such as `Archive.key` included) checked over the row `id` names, read
+  through the guarded `source`, before `run` is given it; with no `id`, of
+  who is asking alone.
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

@@ -7,18 +7,22 @@
  */
 import { Effect, Match, Option, Schema } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
+import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
 import {
   RemoteServer,
   RemoteServerError,
   type EntityRecord,
+  type EntitySource,
   type EntityWriter,
+  type MutationOutcome,
+  type MutationRefused,
+  type MutationSource,
   type MemoryReadable,
   type ReadPlan,
   type ServerDefinition,
 } from 'foldkit-remote-server'
-import { attached } from './attach.js'
+import { attached, type Deny, type InteractionKey } from './attach.js'
 import { Condition, type RowRule } from './condition.js'
-import type { Deny } from './attach.js'
 import type { Policy } from './index.js'
 import { memberRules, rowRules, writeRules } from './placed.js'
 
@@ -363,6 +367,83 @@ export const GuardServer = {
   },
 
   /**
+   * A handler's Source (`RemoteServer.mutation`'s) with `entity`'s rule for
+   * `interaction` checked before it runs. The row the input names (`id`) is
+   * read through `source`, which must apply the Entity's Read rules, and the
+   * rule must hold over it; a row its writer may not see is refused. With no
+   * `id` (a create), the rule must hold of who is asking alone, a field it
+   * reads matching no guard. `run` is given the row as read: its fields the
+   * rule reads, its `id`, and `fields`. A refusal is `Forbidden`; `run` never
+   * runs. What `run` writes is its own: check members it sets there.
+   *
+   * ```ts
+   * GuardServer.mutation(ArchiveTodo, {
+   *   entity: Todo, policy: Policy, interaction: Archive.key,
+   *   id: input => input.id, source: source(Db.Todo),
+   * }, ({ input, row }) => …)
+   * ```
+   */
+  mutation: <User, R, RS, RM, Name extends string, Input, Output, Refused>(
+    mutation: MutationDescriptor<Name, Input, Output, Refused>,
+    guard: {
+      readonly entity: AnyEntity
+      readonly policy: Policy<User, R>
+      readonly interaction: 'Create' | 'Update' | 'Delete' | InteractionKey
+      /** The row the input acts on; none for a create. */
+      readonly id?: ((input: Input) => string) | undefined
+      /** Reads the row as its writer may see it: the Entity's guarded Source. */
+      readonly source: EntitySource<Option.Option<User>, RS>
+      /** More of the row for `run`, beside what the rule reads. */
+      readonly fields?: ReadonlyArray<string> | undefined
+    },
+    run: (context: {
+      readonly input: Input
+      readonly principal: Option.Option<User>
+      readonly requestId: string
+      readonly row: Option.Option<Readonly<Record<string, unknown>>>
+    }) => Effect.Effect<
+      MutationOutcome<Output>,
+      RemoteServerError | MutationRefused | RemoteForbidden,
+      RM
+    >,
+  ): MutationSource<Option.Option<User>, R | RS | RM> => {
+    const { entity, policy, interaction, id, source } = guard
+    if (!rowRules.has(source.visible, policy, entity.name)) {
+      throw new Error(
+        `[foldkit-guard] GuardServer.mutation: ${mutation.name}'s Source does not apply ${entity.name}'s Read rules`,
+      )
+    }
+    return RemoteServer.mutation<Option.Option<User>, R | RS | RM, Name, Input, Output, Refused>(
+      mutation,
+      context =>
+        Effect.gen(function* () {
+          const { principal } = context
+          const rule = yield* policy.writable(entity, principal, interaction)
+          const ruled = Condition.members(rule.condition)
+          const input = policy.inputOf(principal)
+          if (id === undefined) {
+            const nothing = Object.fromEntries(ruled.map(field => [field, matchesNothing]))
+            if (!Condition.holds(rule.condition, nothing, input, () => false)) {
+              return yield* Effect.fail(refused(rule.deny))
+            }
+            return yield* run({ ...context, row: Option.none() })
+          }
+          const fields = [...new Set(['id', ...ruled, ...(guard.fields ?? [])])]
+          const row = Option.fromUndefinedOr(
+            yield* rowOf(source, principal, fields, id(context.input)),
+          )
+          if (
+            Option.isNone(row) ||
+            !Condition.holds(rule.condition, row.value, input, () => false)
+          ) {
+            return yield* Effect.fail(refused(rule.deny))
+          }
+          return yield* run({ ...context, row })
+        }),
+    )
+  },
+
+  /**
    * Checks, at startup, that `server` applies the guards of `entities`, the
    * Entities as `Guards.attach` returned them: each one's Source and each
    * query listing it apply its row's Read rules (`GuardDrizzle.visible`, or
@@ -446,6 +527,18 @@ const refused = (deny: Deny) =>
     Omit: () => RemoteServer.forbid(),
     Redact: () => RemoteServer.forbid(),
   })
+
+/** One row, by id, as `principal` may read it through `source`. */
+const rowOf = <P, R>(
+  source: EntitySource<P, R>,
+  principal: P,
+  fields: ReadonlyArray<string>,
+  id: string,
+) =>
+  Effect.map(
+    source.read({ ids: [id], fields: [...fields], principal }),
+    records => records.find(record => record.id === id)?.values,
+  )
 
 /** A value no guard's operand equals, and that is not null: what an unset field reads as. */
 const matchesNothing = Object.freeze({})

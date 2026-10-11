@@ -91,6 +91,11 @@ const Todo = TodoFields.pipe(
   rule or filter the guard seams built for it (a hand-written Source would
   serve every row). Every guarded Entity needs both. A declared write of one
   must land through its `GuardServer.writer`; a handler cannot be checked.
+- Handlers: `GuardServer.mutation(ArchiveTodo, { entity: Todo, policy: Policy,
+  interaction: Archive.key, id: input => input.id, source: source(Db.Todo) },
+  ({ input, row }) => …)` checks the row's rule for that interaction over the
+  row as its writer sees it before the handler runs; what it writes is its
+  own to check.
 - Writes: `RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy,
   writer(Db.Todo)))` checks a declared write before it lands (row rule over
   the row as it is and, for an update, as it would be; each member's and

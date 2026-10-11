@@ -56,11 +56,15 @@
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "^4.0.0",
+    "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
+      "optional": true
+    },
+    "foldkit-remote": {
       "optional": true
     },
     "foldkit-remote-drizzle": {

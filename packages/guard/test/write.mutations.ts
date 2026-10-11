@@ -177,4 +177,53 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a handler takes any Source',
+    edits: [
+      {
+        file,
+        find: 'if (!rowRules.has(source.visible, policy, entity.name)) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a handler is checked under another interaction',
+    edits: [
+      {
+        file,
+        find: 'const rule = yield* policy.writable(entity, principal, interaction)',
+        replace: "const rule = yield* policy.writable(entity, principal, 'Update')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a create by a handler is not checked',
+    edits: [
+      {
+        file,
+        find: 'if (!Condition.holds(rule.condition, nothing, input, () => false)) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a handler runs over a row its rule refuses',
+    edits: [
+      {
+        file,
+        find: '!Condition.holds(rule.condition, row.value, input, () => false)',
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a handler is not given the fields it asked for',
+    edits: [{ file, find: '...(guard.fields ?? [])', replace: '' }],
+    tests,
+  },
 ]

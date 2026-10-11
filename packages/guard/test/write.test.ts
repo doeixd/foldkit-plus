@@ -9,11 +9,11 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Relation, Write } from 'foldkit-entity'
 import { Mutation, Remote } from 'foldkit-remote'
-import { bind, databaseLayer, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
-import { Guards } from '../src/index.js'
+import { Guards, Interaction } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
 
 const User = Schema.Struct({
@@ -66,6 +66,8 @@ const G = Guards.declare(
   { key: user => user.id },
 )
 
+const Archive = Interaction.make('Archive')
+
 const Todo = Related.Todo.pipe(
   Guards.attach(G, {
     row: {
@@ -75,6 +77,10 @@ const Todo = Related.Todo.pipe(
       // An editor may change anyone's todo, though they read only their own.
       Update: [G.isOwner, G.isAdmin, G.isEditor],
       Delete: Guards.on([G.isAdmin], Guards.explain('Only an admin may delete a todo.')),
+      [Archive.key]: Guards.on(
+        [G.isOwner, G.isAdmin],
+        Guards.explain('Only its owner may archive it.'),
+      ),
     },
     members: { ownerId: { Create: [G.isOwner, G.isAdmin] } },
     relations: { project: { Link: [G.isAdmin], Unlink: [G.isOwner, G.isAdmin] } },
@@ -434,5 +440,92 @@ describe('GuardServer.validate over writes', () => {
     expect(check(GuardServer.writer(Todo, Other, writer(Db.Todo)))).toThrow(message)
     // A Note's writer, handed a Todo's binding: guarded, but for another Entity.
     expect(check(GuardServer.writer(Note, Policy, writer(Db.Todo)))).toThrow(message)
+  })
+})
+
+describe('GuardServer.mutation', () => {
+  const ArchiveTodo = Mutation.make('ArchiveTodo', { Input: { id: Schema.String }, Output: {} })
+  const ImportTodos = Mutation.make('ImportTodos', { Input: {}, Output: {} })
+  const seen: Array<unknown> = []
+  const handled = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+    entities: [],
+    mutations: [
+      GuardServer.mutation(
+        ArchiveTodo,
+        {
+          entity: Todo,
+          policy: Policy,
+          interaction: Archive.key,
+          id: input => input.id,
+          source: source(Db.Todo),
+          fields: ['title'],
+        },
+        ({ row }) => Effect.sync(() => (seen.push(Option.getOrThrow(row)), { output: {} })),
+      ),
+      GuardServer.mutation(
+        ImportTodos,
+        { entity: Todo, policy: Policy, interaction: 'Create', source: source(Db.Todo) },
+        ({ row }) => Effect.sync(() => (seen.push(row), { output: {} })),
+      ),
+    ],
+  })
+  const handle = (principal: Option.Option<User>, mutation: string, input: unknown) => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(`
+      create table todos (id text primary key, owner_id text not null, title text not null, claimed_by text, project_id text);
+      insert into todos values ('t1', 'ada', 'Own', null, null), ('t2', 'grace', 'Hidden', null, null);
+    `)
+    return Effect.runPromise(
+      RemoteServer.handlers(handled, principal)
+        .FoldkitRemoteMutate({ requestId: 'r', mutation, input })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+  }
+
+  it('runs a handler over the row its rule allows, read as its writer sees it', async () => {
+    seen.length = 0
+    expect(await handle(ada, 'ArchiveTodo', { id: 't1' })).toMatchObject({ _tag: 'Success' })
+    expect(seen).toEqual([{ id: 't1', ownerId: 'ada', title: 'Own' }])
+  })
+
+  it('refuses with the rule’s explanation, and a row its writer cannot see, without running', async () => {
+    seen.length = 0
+    expect(await handle(vi, 'ArchiveTodo', { id: 't2' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden', reason: 'Only its owner may archive it.' },
+    })
+    expect(await handle(ada, 'ArchiveTodo', { id: 't2' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(seen).toEqual([])
+  })
+
+  it('decides a create by who is asking alone', async () => {
+    seen.length = 0
+    expect(await handle(ada, 'ImportTodos', {})).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(await handle(root, 'ImportTodos', {})).toMatchObject({ _tag: 'Success' })
+    expect(seen).toEqual([Option.none()])
+  })
+
+  it('refuses a Source that does not apply the Read rules', () => {
+    expect(() =>
+      GuardServer.mutation(
+        ArchiveTodo,
+        {
+          entity: Todo,
+          policy: Policy,
+          interaction: Archive.key,
+          id: input => input.id,
+          source: RemoteServer.entity<Option.Option<User>>(Todo, {
+            read: () => Effect.succeed([]),
+          }),
+        },
+        () => Effect.succeed({ output: {} }),
+      ),
+    ).toThrow("ArchiveTodo's Source does not apply Todo's Read rules")
   })
 })

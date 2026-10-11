@@ -287,6 +287,28 @@ the server's own mistake. A visitor has no one to preset from, and is refused
 even where the rules would let anyone create. A preset must be a field of the
 Entity, of that field's type.
 
+A handler writes what its code writes, so it is guarded where it is defined:
+`GuardServer.mutation` is `RemoteServer.mutation` with the row's rule for one
+interaction checked before the handler runs.
+
+```ts
+const Archive = Interaction.make('Archive')
+const ArchiveTodo = Mutation.make('ArchiveTodo', { Input: { id: Schema.String }, Output: {} })
+
+GuardServer.mutation(
+  ArchiveTodo,
+  { entity: Todo, policy: Policy, interaction: Archive.key, id: input => input.id, source: source(Db.Todo) },
+  ({ input, row }) => Effect.succeed({ output: {} }), // `row`: the todo, as its writer sees it
+)
+```
+
+- The row `id` names is read through `source`, which must apply the
+  Entity's Read rules (it is refused where it is defined otherwise); a row
+  the writer may not see is refused, and the rule must hold over the rest.
+- With no `id` (a create), the rule must hold of who is asking alone.
+- What the handler writes is its own to check: members it sets, relations it
+  points. `fields` reads more of the row for it.
+
 ## Checking a server at startup
 
 A Source written by hand over a guarded Entity serves every row, and nothing
