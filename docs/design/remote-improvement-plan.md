@@ -1272,6 +1272,13 @@ lists the client cannot place, and no live list here is one.
   server-only, which forces the fallback.
 - **Gate:** guard-DESIGN's slices, and an application that needs placement
   in a list under row-level authorization.
+- **Soundness first (guard-DESIGN §7a, revised 2026-10-10).** Before any of
+  the above, three rules keep Phases 7–11 sound once rows can be hidden: a
+  guarded write's answer is read back under its writer's `visible` (a row it
+  hid arrives as `deleted`); impact treats a change to a field a row `Read`
+  guard reads as a membership it cannot judge (invalidate, never place); and
+  caches are scoped per principal. Evaluating row guards on the client, the
+  precise version, waits for that rule to refetch measurably.
 
 ### 16.4 Decisions
 
