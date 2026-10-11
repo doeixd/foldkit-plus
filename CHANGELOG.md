@@ -249,6 +249,11 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `source(binding, { filter })`**, the
   per-record read plan `RemoteServer.entity` takes, passed through. A source
   and a `query` carry their binding's `visible`, for a startup check.
+- **`foldkit-mixins-form`: keys drawn but not editable.** The view input
+  `locked: ['ownerId']` draws those keys `disabled`, every control kind (a
+  many picker's choices included), for a key the person may not set. A key in
+  a nested row is not locked by it, and a Bundle-backed key draws as its
+  Bundle does.
 - **`foldkit-remote`, `foldkit-remote-server`: a refusal of who is asking,
   end to end.** A mutation Source fails with `RemoteServer.forbid(reason?)`;
   the wire carries it as `RemoteForbidden` (`_tag: 'Forbidden'`, `reason`

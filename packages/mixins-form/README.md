@@ -140,6 +140,10 @@ EditForm.view(model, h, {
   for changing how fields are drawn.
 - `submits: false` draws the form without its submit button, for someone who
   may not submit it (a writer, where the submit publishes).
+- `locked: ['ownerId']` draws those keys `disabled`: shown, not editable, for
+  a key the person may not set (`foldkit-guard`'s `May.canSet` says which).
+  It is a hint; the server checks the write. A key in a nested row is not
+  locked by it, and a Bundle-backed key draws as its Bundle does.
 - `options` is keyed by the form's keys and is where a relation picker's choices
   come from. The form names the target Entity; listing it is a query you make,
   so the choices are yours to load, filter, and label.

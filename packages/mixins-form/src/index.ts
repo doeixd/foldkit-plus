@@ -88,6 +88,13 @@ export interface FormViewInputs<Key extends string = string> {
    */
   readonly submits?: boolean | undefined
   /**
+   * Keys shown but not editable, drawn `disabled`: one the person may not set,
+   * such as a member `foldkit-guard`'s `May.canSet` says no to. A hint, not a
+   * check: the server checks the write. A key edited by a Bundle draws as its
+   * Bundle does, and a key in a nested row is not locked by this.
+   */
+  readonly locked?: ReadonlyArray<Key> | undefined
+  /**
    * Whether the application's own work with a submitted value is in flight, such
    * as its request: the form hands the value over and cannot see what follows.
    */
@@ -128,6 +135,8 @@ export interface FieldInput<Key extends string = string> {
   readonly bundle?: BundleInput | undefined
   /** What was typed to find a choice, for a relation picker that searches. */
   readonly search: string
+  /** Shown but not editable: the view's `locked` names the key. */
+  readonly locked?: boolean | undefined
   /**
    * Whether the key is still written from the key it follows. A renderer offers
    * "regenerate" when it is not, by sending the key an empty draft.
@@ -386,11 +395,6 @@ const bundleRenderer =
 export type Renderers<Message> = Readonly<Record<string, Renderer<Message>>>
 
 /**
- * The renderers this package ships, by kind. They are entries like any other: an
- * application adds `Date`, or replaces `RelationOne` with a combobox, by passing
- * its own beside them.
- */
-/**
  * The choices, and after them each chosen value they lack, as `? value`: a
  * stored id whose row is gone, or a value the choices have not loaded yet,
  * stays shown and can be let go, rather than dropped from sight.
@@ -408,6 +412,11 @@ const withChosen = (
   ]
 }
 
+/**
+ * The renderers this package ships, by kind. They are entries like any other: an
+ * application adds `Date`, or replaces `RelationOne` with a combobox, by passing
+ * its own beside them.
+ */
 const defaultRenderers = <Message>(): Renderers<Message> => {
   const typed = ({ state, draft, change, blurred, h }: RenderContext<Message>) => [
     ...state,
@@ -507,6 +516,7 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
                 h.Name(input.control.key),
                 h.Value(option.value),
                 h.Checked(isChosen.has(option.value)),
+                ...(input.locked === true ? [h.Disabled(true)] : []),
                 h.OnClick(
                   change(
                     isChosen.has(option.value)
@@ -667,6 +677,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         ...(checking ? [h.AriaBusy(true)] : []),
         ...(required ? [h.AriaRequired(true)] : []),
         ...(describedBy.length === 0 ? [] : [h.AriaDescribedBy(describedBy.join(' '))]),
+        ...(input.locked === true ? [h.Disabled(true)] : []),
       ]
       // The Message leaves the way the input says: wrapped for a row, or the form's own.
       const held = input.bundle
@@ -764,6 +775,7 @@ export const FormView = {
           ...input.options,
         }
         const controls: Readonly<Record<string, unknown>> = input.controls ?? {}
+        const locked: ReadonlySet<string> = new Set(input.locked ?? [])
 
         /** The controls of a form or of a row. `id` and `path` say where: both are empty for the form itself. */
         const draw = (walk: Walk<Message>, id: string, path: string): ReadonlyArray<Html> =>
@@ -793,6 +805,7 @@ export const FormView = {
                     id: here,
                     search: walk.search(key),
                     following: walk.following(key),
+                    locked: path === '' && locked.has(key),
                     searchWord: input.words?.search,
                     noneWord: input.words?.none,
                     checkingWord: input.words?.checking,

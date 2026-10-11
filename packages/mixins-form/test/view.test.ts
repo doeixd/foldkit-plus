@@ -251,6 +251,66 @@ describe('FormView markup', () => {
   })
 })
 
+describe('locked keys', () => {
+  it('draws a locked key disabled, whatever its kind, and leaves the rest editable', () => {
+    const root = FormView.define(Edit)(
+      {
+        model: initial,
+        errors: [],
+        canSubmit: true,
+        options,
+        locked: ['title', 'status', 'featured', 'tagIds'],
+      },
+      SlotView.inertBuilder(),
+    )
+    const disabled = (node: Node | undefined) =>
+      node?.data?.props?.disabled ?? node?.data?.attrs?.disabled ?? false
+    expect(['title', 'status', 'featured'].map(key => disabled(byId(root, `Edit-${key}`)))).toEqual(
+      [true, true, true],
+    )
+    // A many picker is a group of checkboxes: each is locked.
+    const choices = Inert.all(byId(root, 'Edit-tagIds')).filter(node => node.sel === 'input')
+    expect(choices.length).toBeGreaterThan(0)
+    expect(choices.every(disabled)).toBe(true)
+    expect(['body', 'rating', 'editorId'].map(key => disabled(byId(root, `Edit-${key}`)))).toEqual([
+      false,
+      false,
+      false,
+    ])
+  })
+
+  it('locks the form’s own key, not a row’s key of the same name', () => {
+    const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String, name: Schema.String }))
+    const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, name: Schema.String }))
+    const Shop = Entity.relate({ Tag, Item }, { Item: { tags: Relation.many(Tag) } })
+    const NewTag = Entity.input(Shop.Tag, Schema.Struct({ name: Schema.String }))
+    const ItemForm = Form.make(
+      'Item',
+      Entity.input(
+        Shop.Item,
+        Schema.Struct({ name: Schema.String, tags: Schema.Array(NewTag.schema) }),
+        { tags: Relation.nested(Shop.Item.relations.tags, NewTag) },
+      ),
+    )
+    const model = ItemForm.bundle.update(
+      ItemForm.bundle.init(undefined).model,
+      ItemForm.Message.RowAdded({ key: 'tags' }),
+      undefined,
+    ).model
+    const root = FormView.define(ItemForm)(
+      { model, errors: [], canSubmit: true, locked: ['name'] },
+      SlotView.inertBuilder(),
+    )
+    const names = Inert.all(root).filter(
+      node => node.sel === 'input' && String(node.data?.props?.id).endsWith('-name'),
+    )
+    expect(names.map(node => [node.data?.props?.id, node.data?.props?.disabled ?? false])).toEqual([
+      ['Item-name', true],
+      [expect.stringMatching(/^Item-tags-.+-name$/), false],
+    ])
+  })
+})
+
 describe('its customization contract', () => {
   it.each([
     ['a first render, every picker with its choices', initial, []],

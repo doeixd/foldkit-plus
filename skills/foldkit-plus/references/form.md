@@ -189,7 +189,8 @@ const Drawn = Rename.bundle.pipe(Bundle.withView(FormView.submodel(Rename, View)
 Render the placement with `placed.view(model, h, { options, words: { submit: 'Save' } })`.
 `options` is keyed by the form's keys and supplies each relation picker's
 choices (`{ value, label }`); loading them is the application's query.
-`FormView.define(Rename)` alone is a complete unstyled form. `words.none` words the
+`locked: ['ownerId']` draws those keys `disabled` (a key the person may not set; a hint,
+the server still checks). `FormView.define(Rename)` alone is a complete unstyled form. `words.none` words the
 blank choice of a picker; a chosen value the choices lack is shown as `? value`. `FieldSlots`: `root`,
 `label`, `description`, `error`, `checking`, and one per control kind (`text`, `multiline`,
 `number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, and
