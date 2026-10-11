@@ -1,6 +1,6 @@
 # Guards: who may do what, declared once on the domain
 
-**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slice 1 (`Expr.in`) built; the rest not.
+**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slice 1 (`Expr.in`) built, and slice 2's declaration and decisions (`declare`, `principal`, `row`, `implement`, `decide`, `Principal`); the rest not.
 **Target:** a new package, `foldkit-guard`, and small changes in `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-entity`, `foldkit-crud`, `foldkit-agent`, `foldkit-cms-drizzle`, `foldkit-sync`.
 **Inspirations:** this repository's authorization seams; `doeixd/gen2`'s `AUTHZ2_PLAN.md`, `src/authz/{surface,placement,deny,mutation-plan}.ts` and `rules_implementation_guide.md`; ZenStack, Ent's privacy layer, Hasura permissions, Postgres row-level security, Firebase security rules, Pundit, Zanzibar, Cedar (§2).
 **Related:** `remote-improvement-plan.md` §16 (client placement, Phases 7–12), whose Phase 12 is gated on this design.
@@ -30,7 +30,7 @@ The decision:
 ```text
 shared domain                                   server
 ──────────────────────────────────────────      ──────────────────────────────────────────
-Guards.declare<User>()({ names, row Exprs })    G.implement({ bodies })          type-checked complete
+Guards.declare(name, User, guard => …)          G.implement({ bodies })          type-checked complete
 Guards.attach(G, { row, members, … })           │
    │  metadata on the Entity                    ├─ Guards.binding(E)  → visible + relation policies
    │                                            ├─ Guards.source(E)   → authorize + per-row member filter
@@ -107,20 +107,20 @@ A row guard reads an Entity's fields, and the guarded Entity carries the guards,
 // shared
 import { Guards } from 'foldkit-guard'
 
-interface User {
-  readonly id: UserId
-  readonly role: 'admin' | 'member'
-  readonly projectIds: ReadonlyArray<ProjectId>
-}
+const User = Schema.Struct({
+  id: UserId,
+  role: Schema.Literals(['admin', 'member']),
+  projectIds: Schema.Array(ProjectId),
+})
 
 const TodoFields = Entity.define('Todo', TodoStruct)
 
-const G = Guards.declare<User>()({
-  isAdmin: Guards.principal(),                                                  // body on the server
-  signedIn: Guards.principal(),
-  isOwner: Guards.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),   // data; ships
-  inProject: Guards.row(TodoFields, p => Expr.in(TodoFields.fields.projectId, p.projectIds)),
-}, { key: user => user.id, unguarded: 'allow' })
+const G = Guards.declare('Todos', User, guard => ({
+  isAdmin: guard.principal(),                                                   // body on the server
+  signedIn: guard.principal(),
+  isOwner: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),    // data; ships
+  inProject: guard.row(TodoFields, p => Expr.in(TodoFields.fields.projectId, p.projectIds)),
+}), { key: user => user.id, unguarded: 'allow' })
 
 export const Todo = TodoFields.pipe(Guards.attach(G, { … }))                    // §3.2
 
@@ -133,7 +133,7 @@ const Policy = G.implement({
 // principal guards `declare` was given, and nothing else.
 ```
 
-`declare<User>()` is curried so `User` is given once and the guard record is inferred (the trap list's "a curried generic's return type is an inference site" applies: the inner call's return is `NoInfer`). `G.isOwner` is a `RowGuard<User, typeof TodoFields>`, `G.isAdmin` a `PrincipalGuard<User>`, `G.Principal` the Context tag holding `Option<User>` (§3.4), `G.implement` the only place a body exists. A server is built from a `Policy`, and `RemoteServer.validate` fails startup for a declared guard the server's `Policy` does not implement, which the type already prevents in the common case; the runtime check is for a server assembled from several guard sets.
+The principal is a `Schema.Struct`, not a type parameter: a row guard's placeholders are `Expr.input`s, each needing its field's codec, and `G.inputOf(user)` encodes a principal's values as stored values are encoded, which a type alone cannot do. The guards are built by a function given the builders, so `p` is typed from that schema with nothing to annotate. `name` is the set's identity: the Context key's string and what the matrix prints. (As built in the core slice; an earlier draft had `declare<User>()({ … })`, which would have needed a cast to mint placeholders with no schema.) `G.isOwner` is a `RowGuard<User, typeof TodoFields>`, `G.isAdmin` a `PrincipalGuard<User>`, `G.Principal` the Context tag holding `Option<User>` (§3.4), `G.implement` the only place a body exists. A server is built from a `Policy`, and `RemoteServer.validate` fails startup for a declared guard the server's `Policy` does not implement, which the type already prevents in the common case; the runtime check is for a server assembled from several guard sets.
 
 ### 3.2 Attaching
 
@@ -181,7 +181,7 @@ Semantics:
 
 ### 3.3 Row guards and the placeholder principal
 
-`Guards.row(E, body)` checks the body against `E` where it is written, as `Query.where` refuses a foreign field. The `p` the body receives is a **placeholder record**, not a value: each property read mints an `Expr.input` named by the path (`p.id` is the input `principal.id`), typed from `User`. The body is built once, so branching on `p.role` is a type error (a placeholder is an `InputExpr`, not a string), which is Hasura's session-variable discipline enforced by the type rather than remembered.
+`guard.row(E, body)` checks the body against `E` where it is written, as `Query.where` refuses a foreign field. The `p` the body receives is a **placeholder record**, not a value: one `Expr.input` per field of the principal's schema, named by the field (`p.id` is the input `principal.id`) and carrying its codec. The body is built once, so branching on `p.role` is a type error (a placeholder is an `InputExpr`, not a string), which is Hasura's session-variable discipline enforced by the type rather than remembered.
 
 A row guard is written over `User`, never over the `Option`: a visitor never reaches one. A surface whose disjunction holds only row guards fails for a visitor before any row is read, and the usual spelling puts `signedIn` in `always`. This keeps `Expr.eq`'s rule that a nullable operand against a non-nullable field is an error where written, and reads as what it means.
 
@@ -389,11 +389,11 @@ Remote places rows itself: a mutation's answer, a read or a live patch moves a h
 ```ts
 const PostFields = Entity.define('Post', PostStruct)
 
-const G = Guards.declare<Author>()({
-  isAuthor: Guards.principal(),
-  isEditor: Guards.principal(),
-  isPublished: Guards.row(PostFields, () => Expr.isNotNull(PostFields.fields.publishedAt)),
-})
+const G = Guards.declare('Cms', Author, guard => ({
+  isAuthor: guard.principal(),
+  isEditor: guard.principal(),
+  isPublished: guard.row(PostFields, () => Expr.isNotNull(PostFields.fields.publishedAt)),
+}), { key: author => author.id })
 
 export const Post = PostFields.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
 

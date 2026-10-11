@@ -2211,6 +2211,22 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/guard:
+    dependencies:
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
+    devDependencies:
+      effect:
+        specifier: 4.0.0
+        version: 4.0.0
+      tsdown:
+        specifier: ^0.23.0
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/metadata:
     devDependencies:
       tsdown:

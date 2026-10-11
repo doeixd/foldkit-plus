@@ -231,6 +231,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-guard`, early: a guard set declared once and decided on the
+  server.** `Guards.declare(name, PrincipalSchema, guard => ({ … }), { key })`
+  names principal guards (bodies only on the server, through `G.implement`,
+  which must cover each one) and row guards (an `Expr` over one Entity's
+  fields, the principal's fields as `principal.*` inputs). `Policy.decide` is
+  an `Effect` of `true`, `false` or `{ allowed: false, reason }`; a visitor is
+  `Option.none()`. `G.Principal` is the server's Context key for who is asking.
+  Attaching guards to Entities and the seams that read them come next
+  (`guard-DESIGN.md`).
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

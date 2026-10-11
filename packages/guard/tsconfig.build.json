@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": ".tsbuild/build",
+    "tsBuildInfoFile": ".tsbuild/build/tsconfig.build.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../entity/tsconfig.build.json" },
+    { "path": "../metadata/tsconfig.build.json" }
+  ]
+}

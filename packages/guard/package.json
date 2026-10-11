@@ -1,0 +1,53 @@
+{
+  "name": "foldkit-guard",
+  "version": "0.1.0",
+  "description": "Who may do what, declared once on a Foldkit Plus domain: principal guards implemented on the server, row guards as query expressions.",
+  "keywords": [
+    "foldkit",
+    "authorization",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/guard"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/guard#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "foldkit-plus:source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-entity": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0"
+  },
+  "devDependencies": {
+    "effect": "4.0.0",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}
