@@ -241,6 +241,7 @@ describe('may on a Drizzle source', () => {
     }
     const may = (update: boolean) => ({
       row: { Update: update, Delete: true },
+      reasons: {},
       members: {},
       relations: {},
     })

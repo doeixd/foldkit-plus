@@ -239,6 +239,26 @@ describe('AgentRuntime.messages.dispatch', () => {
     expect(failure._tag).toBe('AgentAuthorizationError')
   })
 
+  it('refuses with the reason authorize gives, as the error’s message', () => {
+    const definition = Agent.make({
+      messages: Agent.expose(MessageUnion, {
+        RequestedCreateTodo: {
+          name: 'create_todo',
+          description: 'Create a todo',
+          authorize: ({ input }) =>
+            input.title === 'x' ? { allowed: false, reason: 'Not that title.' } : true,
+        },
+      }),
+    })
+    const bound = Agent.bind({ definition, host: host.host })
+
+    const failure = failureOf(bound.messages.dispatch('create_todo', { title: 'x' }, invocation()))
+    expect(failure).toMatchObject({ _tag: 'AgentAuthorizationError', message: 'Not that title.' })
+    expect(host.dispatched).toEqual([])
+    Effect.runSync(bound.messages.dispatch('create_todo', { title: 'y' }, invocation()))
+    expect(host.dispatched).toEqual([{ _tag: 'RequestedCreateTodo', title: 'y' }])
+  })
+
   it('carries the invocation through to the result', () => {
     const result = Effect.runSync(
       runtime.messages.dispatch('create_todo', { title: 'x' }, invocation('mcp')),

@@ -112,7 +112,8 @@ const Todo = TodoFields.pipe(
   member `GuardServer.filter` answers per row (over Drizzle, bind it
   `derived: { may: { supplied: true } }`); select `may: true` and read it with
   `May.can(may, Archive.key)`, `May.canSet(may, Todo, 'ownerId')`,
-  `May.canLink(may, Todo, 'project', 'Link')`. A hint, never the check.
+  `May.canLink(may, Todo, 'project', 'Link')`, and `May.reason(may, 'Delete')`
+  (an `explain`'s sentence for a refusal, else none). A hint, never the check.
 - Sync: `foldkit-guard/sync`. `GuardSync.document(ProductEdits, { readers: [G.isStaff] })`
   (refused at definition when an edit could reach a reader its rows hide it from);
   `authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }` under the
@@ -122,7 +123,7 @@ const Todo = TodoFields.pipe(
 - Agents: `foldkit-guard/agent`'s `GuardAgent.authorize(Archive.key, ({ input,
   model }) => Data.get(TodoRow, input.id).read(model))` and
   `GuardAgent.available(...)` gate a capability on the row's `may` (refused
-  until it is answered); `Agent.forApplication(App).withPrincipal(G.Principal)`.
+  until it is answered; an explained refusal is the agent error's message); `Agent.forApplication(App).withPrincipal(G.Principal)`.
 - Who is asking: `RemoteServer.handlers(server, G.Principal)` reads it per
   call; authentication provides it per request
   (`Effect.provideService(G.Principal, principal)`). Give a live hub

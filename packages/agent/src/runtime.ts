@@ -389,9 +389,13 @@ export const bind = <
           model,
           transport: invocation.transport,
         })
-        const allowed = Effect.isEffect(decision) ? yield* decision : decision
-        if (!allowed) {
-          return yield* AuthorizationError.of(name, variant.tag)
+        const decided = Effect.isEffect(decision) ? yield* decision : decision
+        if (decided !== true) {
+          return yield* AuthorizationError.of(
+            name,
+            variant.tag,
+            decided === false ? undefined : decided.reason,
+          )
         }
       }
 

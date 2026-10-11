@@ -597,9 +597,13 @@ Each slice stands alone, is committed with its tests, and is reviewed before the
    read yet, or whose read failed, refuses; a `Refreshing` one answers as it last did.
    `available` takes a row the Model alone names, since the input is not known when a tool list
    is drawn. `withPrincipal(G.Principal)` takes the principal's type from the Context key,
-   structurally, so `foldkit-agent` names no guard; `withPrincipal<P>()` stays. A refusal
-   carries no reason yet: `authorize` answering `false` is the agent's own
-   `AgentAuthorizationError`, and `may` carries no `explain` sentence. Slice 8 is built.
+   structurally, so `foldkit-agent` names no guard; `withPrincipal<P>()` stays. Slice 8 is
+   built.
+
+   *Since:* a refusal carries its reason. `authorize` may answer `{ allowed: false, reason }`,
+   the `AgentAuthorizationError`'s message; `may` carries `reasons`, each refused row
+   interaction's `explain` sentence (`May.reason`), and `GuardAgent.authorize` refuses with it.
+   The audit's guard name and the manifest's guards per capability are not built.
 9. **CMS.** §8; the casts removed; the example's `isAuthor`/`allow` rewritten; the e2e audience test unchanged and green.
 
    *Built:* not attachments the CMS makes on its own Entities: `Entry`, `Draft` and `Revision`

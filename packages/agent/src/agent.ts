@@ -43,6 +43,7 @@ export { bind, type AgentHost, type AgentRuntime, type BindOptions } from './run
 export type {
   AgentSchema,
   AnyMessage,
+  AuthorizationDecision,
   AuthorizationRequest,
   Completion,
   Correlation,

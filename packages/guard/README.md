@@ -439,6 +439,9 @@ May.canLink(row.may, Todo, 'project', 'Link')
   over it as it is.
 - A member or relation without its own rule follows the row's `Update`; an
   interaction the answer does not name reads `false`.
+- `May.reason(row.may, 'Delete')` is the sentence an `explain` gave a
+  refusal, `Option.none()` where the interaction is allowed or was refused
+  without one: as for a write, only an `explain` says why.
 - It is a hint, read when the row was: a live patch of the fields its rules
   read does not answer it again, so it is stale until the row is read again.
   The write is checked when it is made, whatever `may` said.
@@ -459,7 +462,7 @@ May.canLink(row.may, Todo, 'project', 'Link')
 | A write moved a row out of its writer's sight | answered in `deleted` | tombstoned; it leaves every list |
 | A delete of a row its writer cannot see | nothing deleted; answered gone | tombstoned |
 | A Sync edit refused | rejected by its id, with its reason | the replica drops it, with the reason |
-| An agent's capability refused | — | `AgentAuthorizationError` before dispatch; not offered while `available` says no |
+| An agent's capability refused | — | `AgentAuthorizationError` before dispatch, its message an `explain`'s; not offered while `available` says no |
 | A Source left unguarded | `GuardServer.validate` throws at startup | — |
 
 A refusal says why only through `Guards.explain`: a plain one is `forbidden`,
@@ -535,6 +538,7 @@ TodoAgent.expose(Message, {
 
 - `TodoRow` selects `may`. A row not read yet, or whose read failed, refuses:
   there is no answer to go on. One being read again answers as it last did.
+  A refusal its rule explained is the agent's error message.
 - `available` is for a capability over a row the Model alone names (the one
   selected): a visitor is then not offered it at all.
 - `withPrincipal(G.Principal)` makes the agent's principal the server's

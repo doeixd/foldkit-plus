@@ -641,6 +641,20 @@ const mayOf = <User, R>(
           row: Object.fromEntries(
             rows.map(([interaction, { condition }]) => [interaction, holds(condition, values)]),
           ),
+          // Only an `explain`'s sentence is for whoever asked.
+          reasons: Object.fromEntries(
+            rows.flatMap(([interaction, { condition, deny }]) =>
+              holds(condition, values)
+                ? []
+                : Match.valueTags(deny, {
+                    Explain: ({ reason }) => [[interaction, reason] as const],
+                    Forbidden: () => [],
+                    NotFound: () => [],
+                    Omit: () => [],
+                    Redact: () => [],
+                  }),
+            ),
+          ),
           members: Object.fromEntries(
             members.map(({ member, condition }) => [member, holds(condition, values)]),
           ),

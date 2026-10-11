@@ -23,6 +23,9 @@ export interface InvocationContext<Model, Principal = unknown> {
 }
 
 /** What an `authorize` hook is asked to decide. */
+/** What `authorize` answers: allowed, refused, or refused with a reason the caller reads. */
+export type AuthorizationDecision = boolean | { readonly allowed: false; readonly reason: string }
+
 export interface AuthorizationRequest<Input, Model, Principal = unknown> {
   readonly principal: Principal
   readonly input: Input
@@ -118,11 +121,15 @@ export interface VariantConfig<
     | ((input: ExternalInput, context: InvocationContext<Model, Principal>) => MessageInput)
     | undefined
 
-  /** Optional pre-dispatch authorization hook. Denied calls never dispatch. */
+  /**
+   * Optional pre-dispatch authorization hook. Denied calls never dispatch. A
+   * refusal with a `reason` is the error's message: words for whoever asked,
+   * so give one only where it may be read.
+   */
   readonly authorize?:
     | ((
         request: AuthorizationRequest<ExternalInput, Model, Principal>,
-      ) => boolean | Effect.Effect<boolean, AuthorizationError>)
+      ) => AuthorizationDecision | Effect.Effect<AuthorizationDecision, AuthorizationError>)
     | undefined
 
   /** Optional completion contract. Dispatch then waits for a completing Message or state. */

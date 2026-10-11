@@ -4,17 +4,19 @@
  * is the server's answer for the row as it was read, a hint for a greyed-out
  * button, never the check (the write is checked again when it is made).
  */
-import { Schema } from 'effect'
+import { Option, Record, Schema } from 'effect'
 import { Derived, Entity, type AnyEntity } from 'foldkit-entity'
 import type { InteractionKey } from './attach.js'
 
 /**
  * The answer: per row interaction (`Update`, `Delete`, and each one the
  * application named), per member with its own `Update` rule, and per relation
- * with a `Link` or `Unlink` rule.
+ * with a `Link` or `Unlink` rule; and, for a row interaction refused with an
+ * `explain`, its sentence.
  */
 export const MaySchema = Schema.Struct({
   row: Schema.Record(Schema.String, Schema.Boolean),
+  reasons: Schema.Record(Schema.String, Schema.String),
   members: Schema.Record(Schema.String, Schema.Boolean),
   relations: Schema.Record(
     Schema.String,
@@ -53,6 +55,16 @@ export const May = {
    */
   can: (may: MayAnswer, interaction: 'Update' | 'Delete' | InteractionKey): boolean =>
     can(may, interaction),
+
+  /**
+   * Why the row's rule for `interaction` refused, when it was refused with an
+   * `explain`: words for whoever asked. None where it was allowed (the server
+   * gives none then), or refused without one.
+   */
+  reason: (
+    may: MayAnswer,
+    interaction: 'Update' | 'Delete' | InteractionKey,
+  ): Option.Option<string> => Record.get(may.reasons, interaction),
 
   /** Whether the principal may set `member` on this row: the row's `Update`, and the member's own rule. */
   canSet: <E extends AnyEntity>(may: MayAnswer, _entity: E, member: MemberKeys<E>): boolean =>

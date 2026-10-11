@@ -253,6 +253,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-agent`: `authorize` may refuse with a reason.** It answers
+  `{ allowed: false, reason }` (an `AuthorizationDecision`) beside a boolean,
+  and the reason is the `AgentAuthorizationError`'s message.
+  **`foldkit-guard`: `may` carries explained refusals.** Its answer gains
+  `reasons`, the sentence an `explain` gave each row interaction it refused,
+  read with `May.reason`; `GuardAgent.authorize` refuses with it, so an
+  agent learns why as a client's write would.
 - **`foldkit-entity`, `foldkit-remote`: a list is fetched, not placed, when
   a row changes what the server's read rule filters on.** `ReadFilter.of(members)`
   is Entity metadata naming the members a server filters rows by under a rule

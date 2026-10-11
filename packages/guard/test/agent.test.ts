@@ -24,8 +24,9 @@ type Row = typeof Row.Type
 const Model = Schema.Struct({ todos: Schema.Record(Schema.String, Row), selected: Schema.String })
 type Model = typeof Model.Type
 
-const may = (archive: boolean): MayAnswer => ({
+const may = (archive: boolean, reason?: string): MayAnswer => ({
   row: { Update: true, Delete: false, Archive: archive },
+  reasons: reason === undefined ? {} : { Archive: reason },
   members: {},
   relations: {},
 })
@@ -80,6 +81,7 @@ describe('GuardAgent', () => {
       todos: {
         t1: ready(true),
         t2: ready(false),
+        t4: { _tag: 'Ready', value: { may: may(false, 'Only its owner may archive it.') } },
         // Being read again: the answer it has is still the answer.
         t3: { _tag: 'Refreshing', value: { may: may(true) } },
       },
@@ -90,6 +92,11 @@ describe('GuardAgent', () => {
     expect(archive('t2')).toMatchObject({
       _tag: 'Failure',
       failure: { _tag: 'AgentAuthorizationError' },
+    })
+    // A refusal its rule explained says why.
+    expect(archive('t4')).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'AgentAuthorizationError', message: 'Only its owner may archive it.' },
     })
     expect(dispatched).toEqual([
       Message.RequestedArchive({ id: 't1' }),

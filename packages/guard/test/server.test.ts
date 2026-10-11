@@ -71,7 +71,7 @@ const Todo = TodoFields.pipe(
     row: {
       Read: [G.isOwner, Guards.inherit('project'), G.isAdmin],
       Update: [G.isOwner, G.isAdmin],
-      Delete: [G.isAdmin],
+      Delete: Guards.on([G.isAdmin], Guards.explain('Only an admin may delete a todo.')),
     },
     interactions: {
       [Archive.key]: [G.isOwner],
@@ -334,17 +334,20 @@ describe('a guarded domain in memory', () => {
     expect(await mayOf(Option.some(ada))).toEqual({
       t1: {
         row: { Update: true, Delete: false, Archive: true },
+        reasons: { Delete: 'Only an admin may delete a todo.' },
         members: { ownerId: false },
         relations: { tag: { Link: false, Unlink: true } },
       },
       t2: {
         row: { Update: false, Delete: false, Archive: false },
+        reasons: { Delete: 'Only an admin may delete a todo.' },
         members: { ownerId: false },
         relations: { tag: { Link: false, Unlink: true } },
       },
     })
     expect((await mayOf(Option.some(root))).t2).toEqual({
       row: { Update: true, Delete: true, Archive: false },
+      reasons: {},
       members: { ownerId: true },
       relations: { tag: { Link: true, Unlink: true } },
     })
@@ -355,6 +358,14 @@ describe('a guarded domain in memory', () => {
     const may = Schema.decodeUnknownSync(MaySchema)(result.entities[0]!.values.may)
     expect(May.can(may, 'Update')).toBe(true)
     expect(May.can(may, Archive.key)).toBe(true)
+    // Why, where the rule explained it: words for whoever asked, and only then.
+    expect(May.reason(may, 'Delete')).toEqual(Option.some('Only an admin may delete a todo.'))
+    expect(May.reason(may, 'Update')).toEqual(Option.none())
+    const shared = Schema.decodeUnknownSync(MaySchema)(
+      (await read(Option.some(ada), [{ entity: 'Todo', id: 't2', fields: ['may'] }])).entities[0]!
+        .values.may,
+    )
+    expect(May.reason(shared, 'Update')).toEqual(Option.none())
     expect(May.canSet(may, Todo, 'title')).toBe(true)
     expect(May.canSet(may, Todo, 'ownerId')).toBe(false)
     expect(May.canLink(may, Todo, 'tag', 'Unlink')).toBe(true)

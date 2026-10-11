@@ -202,6 +202,11 @@ variant's own input -- the payload for a direct variant, the `input` codec's
 decoded type for a mapped one -- alongside `principal`, `model` and `transport`.
 No annotation is needed.
 
+`authorize` answers `true`, `false`, or `{ allowed: false, reason }`, or an
+`Effect` of one. A refusal with a `reason` is the `AgentAuthorizationError`'s
+message, so the agent learns why; a bare `false` says only that it was not
+authorized.
+
 The one thing `expose` cannot infer inline is `completion`. `success` and
 `failure` are inference sites, so written inline `correlate` receives any
 Message of the union; `Agent.variant` narrows it to the Messages the contract

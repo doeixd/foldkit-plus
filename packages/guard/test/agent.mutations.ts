@@ -38,8 +38,19 @@ export default [
     edits: [
       {
         file,
-        find: '(model: Model): boolean =>\n      allows(row(model), interaction),',
-        replace: '(model: Model): boolean =>\n      true,',
+        find: 'decided(row(model), interaction) === true,',
+        replace: 'true,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refusal its rule explained gives no reason',
+    edits: [
+      {
+        file,
+        find: 'onSome: reason => ({ allowed: false as const, reason }),',
+        replace: 'onSome: () => false,',
       },
     ],
     tests,

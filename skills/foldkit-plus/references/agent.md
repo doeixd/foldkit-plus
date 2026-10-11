@@ -250,6 +250,7 @@ registerPackageActions(AgentNative.actions({
 ## 6. Security and gotchas
 
 - **Agent authorization improves the interface. The server still owns trust.** Apply the same predicate at the authoritative boundary too, for example the Sync/Durable journal: `examples/todo-app` uses `isOwner` in both places.
+- `authorize` answers `true`, `false`, `{ allowed: false, reason }` (the reason becomes the `AgentAuthorizationError` message), or an `Effect` of one.
 - `available` runs **before** `authorize`. An unavailable capability is hidden and refused by name (`AgentCapabilityUnavailableError`), so an authorization result for something that does not exist cannot leak. Knowing a tool name does not bypass the check.
 - Decoding rejects undeclared fields, matching `additionalProperties: false`. A capability with no payload accepts only `{}`.
 - Error messages are written for the calling agent and never repeat decode details, which stay on `cause`. Adapters flatten host defects into a generic failure.

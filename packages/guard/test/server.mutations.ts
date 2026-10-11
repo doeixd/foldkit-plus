@@ -216,4 +216,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'may gives no reason',
+    edits: [
+      {
+        file,
+        find: 'Explain: ({ reason }) => [[interaction, reason] as const],',
+        replace: 'Explain: () => [],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'may gives a reason for what it allows',
+    edits: [
+      {
+        file,
+        find: 'holds(condition, values)\n                ? []',
+        replace: 'false\n                ? []',
+      },
+    ],
+    tests,
+  },
 ]
