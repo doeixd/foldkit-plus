@@ -7,15 +7,17 @@
  */
 import { eq } from 'drizzle-orm'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import {
   CmsServer,
   Transaction,
-  published,
   sqliteSchema,
   sqliteTables,
   type ServedContent,
 } from 'foldkit-cms-drizzle'
+import { Expr } from 'foldkit-entity'
+import { Guards } from 'foldkit-guard'
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import {
   DrizzleDatabase,
   bind,
@@ -25,6 +27,7 @@ import {
   type DrizzleWrites,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
+import { Article } from '../content/articleDomain.js'
 import { Post, PostById, PostInput, Posts, RecentPosts, PostId } from '../content/domain.js'
 import { Page, PageId, PageInput, Pages } from '../content/pageDomain.js'
 import { seed, SEEDED_AT } from '../content/seed.js'
@@ -38,9 +41,40 @@ export interface Sqlite {
   readonly drizzle: unknown
 }
 
-/** Who is asking. A visitor is nobody. */
-export type Principal = { readonly name: string; readonly role: 'author' | 'editor' } | null
-export const isAuthor = (principal: Principal): boolean => principal !== null
+/** Who is asking: an author, or an editor; `none` is a visitor. */
+export const Author = Schema.Struct({
+  name: Schema.String,
+  role: Schema.Literals(['author', 'editor']),
+})
+export type Principal = Option.Option<typeof Author.Type>
+
+/**
+ * Who reads and who publishes, once for every content type: an author reads
+ * everything and writes; an editor also puts it in front of visitors; a visitor
+ * reads what is published.
+ */
+export const G = Guards.declare(
+  'Cms',
+  Author,
+  guard => ({
+    isAuthor: guard.principal(),
+    isEditor: guard.principal(),
+    isPostPublished: guard.row(Post, () => Expr.isNotNull(Post.fields.publishedAt)),
+    isPagePublished: guard.row(Page, () => Expr.isNotNull(Page.fields.publishedAt)),
+    isArticlePublished: guard.row(Article, () => Expr.isNotNull(Article.fields.publishedAt)),
+  }),
+  { key: author => author.name },
+)
+export const Policy = G.implement({
+  isAuthor: Option.isSome,
+  isEditor: principal => Option.exists(principal, author => author.role === 'editor'),
+})
+const ServedPost = Post.pipe(Guards.attach(G, { row: { Read: [G.isPostPublished, G.isAuthor] } }))
+const ServedPage = Page.pipe(Guards.attach(G, { row: { Read: [G.isPagePublished, G.isAuthor] } }))
+/** The article story's content, guarded here with the rest. */
+export const ServedArticle = Article.pipe(
+  Guards.attach(G, { row: { Read: [G.isArticlePublished, G.isAuthor] } }),
+)
 
 const posts = sqliteTable('posts', {
   id: text('id').primaryKey(),
@@ -62,15 +96,13 @@ const pages = sqliteTable('pages', {
   publishedAt: text('published_at'),
 })
 
+// Each table applies its Entity's Read rules, compiled to SQL.
+const visible = GuardDrizzle.visible(Policy, [ServedPost, ServedPage])
 const Db = bind(
-  { Post, Page },
+  { Post: ServedPost, Page: ServedPage },
   {
-    Post: {
-      table: posts,
-      // A visitor sees what is published; an author sees every row.
-      visible: published<Principal>(posts.publishedAt, isAuthor),
-    },
-    Page: { table: pages, visible: published<Principal>(pages.publishedAt, isAuthor) },
+    Post: { table: posts, visible: visible.Post },
+    Page: { table: pages, visible: visible.Page },
   },
 )
 
@@ -118,11 +150,12 @@ export const openServer = (
   let made = highest('posts', 'post-')
   let madePages = highest('pages', 'page-')
 
-  const cms = CmsServer.make<Principal>({
+  const cms = CmsServer.make({
     tables: sqliteTables(),
     content: [
       {
         type: Posts,
+        entity: ServedPost,
         binding: Db.Post,
         // What publishing a post does is the application's own code.
         create: RemoteServer.mutation<
@@ -152,6 +185,7 @@ export const openServer = (
       },
       {
         type: Pages,
+        entity: ServedPage,
         binding: Db.Page,
         create: RemoteServer.mutation<
           Principal,
@@ -182,12 +216,12 @@ export const openServer = (
     ],
     // One connection, so begin and commit as statements. Postgres: Transaction.drizzle.
     transaction: Transaction.statements,
-    isAuthor,
-    // Anyone may write; only an editor may put it in front of visitors.
-    allow: (principal, transition) =>
-      !['publish', 'schedule', 'unpublish'].includes(transition) || principal?.role === 'editor',
+    policy: Policy,
+    authors: [G.isAuthor],
+    // Any author may write; only an editor may put it in front of visitors.
+    transitions: { publish: [G.isEditor], schedule: [G.isEditor], unpublish: [G.isEditor] },
     now: clock,
-    nameOf: principal => principal?.name ?? null,
+    nameOf: principal => Option.getOrNull(Option.map(principal, author => author.name)),
   })
 
   const server = RemoteServer.make({
@@ -210,9 +244,10 @@ export const openServer = (
     /** Starts with the posts and pages of `seed.ts`, imported as an editor, as `pnpm dev` does. */
     seed: () =>
       Effect.runPromise(
-        seed(item => cms.import({ ...item, as: { name: 'edda', role: 'editor' } }), SEEDED_AT).pipe(
-          Effect.provide(database),
-        ),
+        seed(
+          item => cms.import({ ...item, as: Option.some({ name: 'edda', role: 'editor' }) }),
+          SEEDED_AT,
+        ).pipe(Effect.provide(database)),
       ),
     rows: sqlite.all,
   }

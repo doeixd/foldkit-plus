@@ -105,9 +105,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     }
   }
 
-  const wren = chair({ name: 'wren', role: 'author' })
-  const edda = chair({ name: 'edda', role: 'editor' })
-  const visitor = chair(null)
+  const wren = chair(Option.some({ name: 'wren', role: 'author' }))
+  const edda = chair(Option.some({ name: 'edda', role: 'editor' }))
+  const visitor = chair(Option.none())
 
   say('— a writer starts a post —')
   await wren.send(Message.StartedPost({ entry: 'entry-1' }))
@@ -148,7 +148,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const due = (at: string) =>
     Effect.runPromise(
       backend.cms
-        .due(new Date(at), { as: name => (name === 'edda' ? { name, role: 'editor' } : null) })
+        .due(new Date(at), {
+          as: name =>
+            name === 'edda' ? Option.some({ name, role: 'editor' as const }) : Option.none(),
+        })
         .pipe(Effect.provide(backend.database)),
     )
   say(

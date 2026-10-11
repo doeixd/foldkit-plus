@@ -10,7 +10,9 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, type Transition } from 'foldkit-cms'
-import { Entity } from 'foldkit-entity'
+import { Entity, Expr } from 'foldkit-entity'
+import { Guards } from 'foldkit-guard'
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { Form } from 'foldkit-form'
 import { Mutation, Remote, RemoteClient } from 'foldkit-remote'
 import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
@@ -21,7 +23,6 @@ import { describe, expect, it } from 'vitest'
 import {
   CmsServer,
   Transaction,
-  published,
   sqliteSchema,
   sqliteTables,
   type ImportItem,
@@ -107,8 +108,19 @@ const place = (editor: typeof Editor) => {
 
 // ---- the server ----
 
-type Principal = { readonly name: string } | null
-const isAuthor = (principal: Principal): boolean => principal !== null
+const Author = Schema.Struct({ name: Schema.String })
+type Principal = Option.Option<typeof Author.Type>
+const G = Guards.declare(
+  'Cms',
+  Author,
+  guard => ({
+    isAuthor: guard.principal(),
+    isPublished: guard.row(Post, () => Expr.isNotNull(Post.fields.publishedAt)),
+  }),
+  { key: author => author.name },
+)
+const Policy = G.implement({ isAuthor: Option.isSome })
+const GuardedPost = Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
 type Writes = {
   insert: (table: unknown) => { values: (values: object) => unknown }
   update: (table: unknown) => { set: (values: object) => { where: (where: unknown) => unknown } }
@@ -119,8 +131,8 @@ const write = (run: (database: Writes) => unknown) =>
     yield* Effect.promise(() => Promise.resolve(run(database)))
   })
 const Db = bind(
-  { Post },
-  { Post: { table: posts, visible: published<Principal>(posts.publishedAt, isAuthor) } },
+  { Post: GuardedPost },
+  { Post: { table: posts, visible: GuardDrizzle.visible(Policy, [GuardedPost]).Post } },
 )
 
 const world = () => {
@@ -132,11 +144,12 @@ const world = () => {
     insert into cms_entries values ('e1', 'posts', 'p1', 'Live', 'ada', '2026-01-01T00:00:00.000Z', null, 1);
   `)
   let made = 0
-  const cms = CmsServer.make<Principal>({
+  const cms = CmsServer.make({
     tables: sqliteTables(),
     content: [
       {
         type: Posts,
+        entity: GuardedPost,
         binding: Db.Post,
         create: RemoteServer.mutation<
           Principal,
@@ -168,10 +181,12 @@ const world = () => {
       },
     ],
     transaction: Transaction.statements,
-    isAuthor,
+    policy: Policy,
+    authors: [G.isAuthor],
     // Grace writes; she may not take a post off the site.
-    allow: (principal, transition) => transition !== 'unpublish' || principal?.name !== 'grace',
-    nameOf: principal => principal?.name ?? null,
+    allow: (principal, transition) =>
+      transition !== 'unpublish' || !Option.exists(principal, ({ name }) => name === 'grace'),
+    nameOf: principal => Option.getOrNull(Option.map(principal, ({ name }) => name)),
   })
   const server = RemoteServer.make({
     entities: [...cms.sources],
@@ -185,7 +200,7 @@ const world = () => {
   /** One author's browser: its own Model, the same server. */
   const author = (name: string, editor: typeof Editor = Editor) => {
     const { PostEditor, update } = place(editor)
-    const handlers = RemoteServer.handlers(server, { name })
+    const handlers = RemoteServer.handlers(server, Option.some({ name }))
     const served = <A, E>(effect: Effect.Effect<A, E, DrizzleDatabase>) =>
       effect.pipe(Effect.provide(database)) as Effect.Effect<A, never>
     const service: (typeof RemoteClient)['Service'] = {
@@ -293,7 +308,7 @@ describe('an import', () => {
     const done = await imported({
       type: 'posts',
       values: { title: 'Imported', body: 'From before' },
-      as: { name: 'edda' },
+      as: Option.some({ name: 'edda' }),
       at,
       entry: 'old1',
     })
@@ -319,10 +334,15 @@ describe('an import', () => {
   it('is refused whole: an unknown type, or values its create does not take, leave nothing', async () => {
     const { imported, rows } = world()
     await expect(
-      imported({ type: 'recipes', values: {}, as: { name: 'edda' }, entry: 'bad1' }),
+      imported({ type: 'recipes', values: {}, as: Option.some({ name: 'edda' }), entry: 'bad1' }),
     ).rejects.toThrow('"recipes" is not a type of content this server knows')
     await expect(
-      imported({ type: 'posts', values: { title: 3 }, as: { name: 'edda' }, entry: 'bad2' }),
+      imported({
+        type: 'posts',
+        values: { title: 3 },
+        as: Option.some({ name: 'edda' }),
+        entry: 'bad2',
+      }),
     ).rejects.toThrow('This draft is not ready to publish')
     expect(rows(`select id from cms_entries where id like 'bad%'`)).toEqual([])
     expect(rows(`select id from cms_drafts where id like 'bad%'`)).toEqual([])

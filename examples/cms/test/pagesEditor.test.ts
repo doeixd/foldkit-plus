@@ -6,7 +6,7 @@
  * subscriptions send; saves and permissions run against one in-process
  * backend.
  */
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { RemotePolicy } from 'foldkit-remote'
 import { Inert } from 'foldkit-mixins/testing'
@@ -26,7 +26,7 @@ import { PageForm } from '../src/content/pageDomain.js'
 import type { Principal } from '../src/server/server.js'
 import { Page } from '../src/views/pagesView.js'
 
-const edda: Principal = { name: 'edda', role: 'editor' }
+const edda: Principal = Option.some({ name: 'edda', role: 'editor' })
 
 const setup = () => {
   const { backend } = openBackend()

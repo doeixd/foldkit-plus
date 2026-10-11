@@ -8,20 +8,22 @@
  * It is also what keeps time. The CMS owns no timer, so the host asks what is
  * due every few seconds; behind a load balancer it would be one cron trigger.
  */
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { RemoteServer } from 'foldkit-remote-server'
-import type { openServer, Principal } from './server.js'
+import type { Author, openServer, Principal } from './server.js'
 import type { Answer } from './transport.js'
 
 type Backend = ReturnType<typeof openServer>
 
-const principals: Readonly<Record<string, Principal>> = {
+const principals: Readonly<Record<string, typeof Author.Type>> = {
   wren: { name: 'wren', role: 'author' },
   edda: { name: 'edda', role: 'editor' },
 }
 /** A name the client chose: only the principals' own keys, never an Object member. */
 export const principalOf = (name: string | null): Principal =>
-  name !== null && Object.hasOwn(principals, name) ? (principals[name] ?? null) : null
+  name !== null && Object.hasOwn(principals, name)
+    ? Option.fromUndefinedOr(principals[name])
+    : Option.none()
 
 /**
  * Answers one request, the body as JSON sent it, as the chair: decoded by the

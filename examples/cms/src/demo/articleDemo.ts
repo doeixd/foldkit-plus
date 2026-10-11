@@ -15,11 +15,11 @@ import { eq } from 'drizzle-orm'
 import { Effect, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
-import { published } from 'foldkit-cms-drizzle'
 import { Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation, Remote, RemoteClient, RemotePolicy } from 'foldkit-remote'
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { bind, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import * as RichText from 'foldkit-richtext'
@@ -28,22 +28,9 @@ import { richTextInput } from 'foldkit-richtext-dom/input'
 import { markdownInputRules, print } from 'foldkit-richtext-markdown'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
-import { isAuthor, write, type Principal } from '../server/server.js'
+import { Article, ArticleId } from '../content/articleDomain.js'
+import { Policy, ServedArticle, write, type Principal } from '../server/server.js'
 import { chairHarness, openBackend, visitBySlug } from './harness.js'
-
-const ArticleId = Schema.String.pipe(Schema.brand('ArticleId'))
-type ArticleId = typeof ArticleId.Type
-
-const Article = Entity.define(
-  'Article',
-  Schema.Struct({
-    id: ArticleId,
-    title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
-    slug: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Address' }),
-    body: RichText.Document.annotate({ title: 'Body' }),
-    publishedAt: Schema.NullOr(Schema.String),
-  }),
-).pipe(Cms.roles({ label: 'title', slug: 'slug', published: 'publishedAt' }))
 
 const ArticleInput = Schema.Struct({
   title: Article.fields.title.schema,
@@ -91,8 +78,8 @@ const articles = sqliteTable('articles', {
   publishedAt: text('published_at'),
 })
 const Db = bind(
-  { Article },
-  { Article: { table: articles, visible: published<Principal>(articles.publishedAt, isAuthor) } },
+  { Article: ServedArticle },
+  { Article: { table: articles, visible: GuardDrizzle.visible(Policy, [ServedArticle]).Article } },
 )
 
 // A rest of zero: the scripted run does not wait on a clock to save.
@@ -164,6 +151,7 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
     content: [
       {
         type: Articles,
+        entity: ServedArticle,
         binding: Db.Article,
         create: RemoteServer.mutation<
           Principal,
@@ -273,9 +261,9 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
     }
   }
 
-  const wren = chair({ name: 'wren', role: 'author' })
-  const edda = chair({ name: 'edda', role: 'editor' })
-  const visitor = chair(null)
+  const wren = chair(Option.some({ name: 'wren', role: 'author' }))
+  const edda = chair(Option.some({ name: 'edda', role: 'editor' }))
+  const visitor = chair(Option.none())
   const caret = (node: string, offset: number): RichText.Selection => ({
     type: 'Range',
     anchor: { node: RichText.NodeId.make(node), offset, affinity: 'after' },
@@ -299,7 +287,7 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
   )
 
   say('— a reload resumes the draft —')
-  const reloaded = chair({ name: 'wren', role: 'author' })
+  const reloaded = chair(Option.some({ name: 'wren', role: 'author' }))
   await reloaded.send(Message.OpenedEntry({ entry: 'entry-a' }))
   await reloaded.look()
   say(`resumed from the ${reloaded.resumed()}: ${reloaded.body()}; caret at ${reloaded.caret()}`)
@@ -340,7 +328,10 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
   setNow(morning)
   const due = await Effect.runPromise(
     backend.cms
-      .due(morning, { as: name => (name === 'edda' ? { name, role: 'editor' } : null) })
+      .due(morning, {
+        as: name =>
+          name === 'edda' ? Option.some({ name, role: 'editor' as const }) : Option.none(),
+      })
       .pipe(Effect.provide(backend.database)),
   )
   say(`the host asks what is due: ${JSON.stringify(due)}`)

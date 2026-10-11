@@ -12,6 +12,7 @@ export default defineConfig({
       'drizzle-orm',
       'foldkit-cms',
       'foldkit-entity',
+      'foldkit-guard',
       'foldkit-remote',
       'foldkit-remote-drizzle',
       'foldkit-remote-server',

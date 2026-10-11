@@ -193,6 +193,9 @@ importers:
       foldkit-form:
         specifier: workspace:*
         version: link:../../packages/form
+      foldkit-guard:
+        specifier: workspace:*
+        version: link:../../packages/guard
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../packages/mirror
@@ -1975,6 +1978,9 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
+      foldkit-guard:
+        specifier: workspace:*
+        version: link:../guard
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote

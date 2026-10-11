@@ -17,9 +17,9 @@ browser, so what you write stays there; `?reset` starts afresh.
               |                                   |
               v                                   v
            app.ts                             server.ts
-   Cms.editor({ content })             bind({ Post }, { visible: published(…) })
+   Cms.editor({ content })             bind({ Post }, { visible: GuardDrizzle.visible(…) })
    Crud.list over Cms.Entries          your create / update handlers
-   Data.get(PostPage, id)              CmsServer.make({ content, transaction, allow })
+   Data.get(PostPage, id)              CmsServer.make({ content, policy, authors, transitions })
               |                                   |
               +------------- in process ----------+
    typing -> draft (beside the row) -> publish -> your mutation -> the row -> a visitor
@@ -121,7 +121,7 @@ fixed day, so both show the same dates.
 | `the address follows the title`                                      | `Cms.slug('title')`: the slug follows until the writer writes it.                                              |
 | `a visitor at /blog/hello-world: 404`, `a visitor's worklist: empty` | The audience boundary: to a visitor, entries and drafts are empty tables.                                      |
 | `the writer's page: … / preview off: NotFound`                       | In-app preview is the form laid over Remote's store. Nothing is sent, and with it off there is no row to read. |
-| `writer: PublishFailed (This author may not publish…)`               | The server asks your `allow`: anyone may write, an editor puts it in front of visitors.                        |
+| `writer: PublishFailed (This author may not publish…)`               | The server asks your guards: any author may write, an editor (`transitions`) puts it in front of visitors.     |
 | `resumed from the Model`                                             | The editor opens the writer's draft exactly as it was left.                                                    |
 | `Changed, scheduled` / `what is due that evening: []`                | A promise for later. The host calls `cms.due(now, { as })`; the package owns no timer.                         |
 | `editor: Conflict, with "Edda was here." still in the form`          | A second save is a conflict, not an overwrite, and the text is kept.                                           |
@@ -219,7 +219,7 @@ change of chair, or the public site, is still a full load.
 **Which chair you sit in is in the address** (`?as=wren`, `?as=edda`,
 `?as=visitor`), and the studio's sidebar switches it, so a reload is a change
 of chair, and two windows side by side are two authors on one entry. What a
-chair may do is the server's `allow`, read back per entry: the writer's editor
+chair may do is the server's guard set (`authors`, `transitions`), read back per entry: the writer's editor
 has no Publish button and says an editor publishes, where the editor's has one. The site reads as a visitor unless the address
 says otherwise, so it shows only what is published.
 

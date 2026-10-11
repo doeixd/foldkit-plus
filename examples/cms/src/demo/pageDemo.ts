@@ -277,9 +277,9 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
     }
   }
 
-  const wren = chair({ name: 'wren', role: 'author' })
-  const edda = chair({ name: 'edda', role: 'editor' })
-  const visitor = chair(null)
+  const wren = chair(Option.some({ name: 'wren', role: 'author' }))
+  const edda = chair(Option.some({ name: 'edda', role: 'editor' }))
+  const visitor = chair(Option.none())
 
   say('— a writer builds a page —')
   await wren.send(Message.StartedPage({ entry: 'page-entry-1' }))
@@ -294,7 +294,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`a visitor at /home: ${await visitor.visit('home')}`)
 
   say('— a reload resumes the draft —')
-  const again = chair({ name: 'wren', role: 'author' })
+  const again = chair(Option.some({ name: 'wren', role: 'author' }))
   await again.send(Message.OpenedEntry({ entry: 'page-entry-1' }))
   await again.look()
   say(`resumed from the ${again.resumed()}: ${again.outline()}`)
@@ -344,7 +344,10 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   setNow(morning)
   const due = await Effect.runPromise(
     backend.cms
-      .due(morning, { as: name => (name === 'edda' ? { name, role: 'editor' } : null) })
+      .due(morning, {
+        as: name =>
+          name === 'edda' ? Option.some({ name, role: 'editor' as const }) : Option.none(),
+      })
       .pipe(Effect.provide(backend.database)),
   )
   say(`the host asks what is due: ${JSON.stringify(due)}`)
@@ -377,7 +380,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`leaving out the page it is on: ${edda.drawn()}`)
 
   say('— a link to a Block —')
-  const linked = chair({ name: 'edda', role: 'editor' })
+  const linked = chair(Option.some({ name: 'edda', role: 'editor' }))
   const button = edda.idOf('Button')
   const url = Option.getOrThrow(
     fromString(`https://cms.example/pages?as=edda&page=page-entry-1&block=${button}`),

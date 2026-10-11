@@ -1,16 +1,21 @@
 // The README's snippets, compiled. Keep the two in step.
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
-import { Entity } from 'foldkit-entity'
+import { Entity, Expr } from 'foldkit-entity'
+import { Guards } from 'foldkit-guard'
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { Form } from 'foldkit-form'
 import { Mutation } from 'foldkit-remote'
 import { DrizzleDatabase, bind, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { CmsServer, Transaction, published, sqliteTables } from '../src/index.js'
+import { CmsServer, Transaction, sqliteTables } from '../src/index.js'
 
-type Principal = { readonly role: 'author' | 'reader' } | null
-const isAuthor = (principal: Principal): boolean => principal?.role === 'author'
+const User = Schema.Struct({
+  id: Schema.String,
+  role: Schema.Literals(['author', 'editor', 'reader']),
+})
+type Principal = Option.Option<typeof User.Type>
 
 const posts = sqliteTable('posts', {
   id: text('id').primaryKey(),
@@ -49,14 +54,31 @@ const Posts = Cms.content('posts', {
 
 const cmsTables = sqliteTables() // or pgTables(); add them to your schema and migrations
 
-const Db = bind(Blog, {
-  Post: {
-    table: posts,
-    // A visitor sees what is published; an author sees every row.
-    visible: published(posts.publishedAt, isAuthor),
-  },
-  Author: { table: authors },
+// Who is an author, who may publish, and what a visitor sees: a guard set.
+const G = Guards.declare(
+  'Cms',
+  User,
+  guard => ({
+    isAuthor: guard.principal(),
+    isEditor: guard.principal(),
+    isPublished: guard.row(Blog.Post, () => Expr.isNotNull(Blog.Post.fields.publishedAt)),
+  }),
+  { key: user => user.id },
+)
+const Policy = G.implement({
+  isAuthor: principal => Option.exists(principal, user => user.role !== 'reader'),
+  isEditor: principal => Option.exists(principal, user => user.role === 'editor'),
 })
+// A visitor sees what is published; an author sees every row.
+const Post = Blog.Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
+
+const Db = bind(
+  { ...Blog, Post },
+  {
+    Post: { table: posts, visible: GuardDrizzle.visible(Policy, [Post]).Post },
+    Author: { table: authors },
+  },
+)
 
 // Your own handlers of the two mutations the content type publishes through.
 const CreatePost = RemoteServer.mutation<Principal, DrizzleDatabase>(Posts.publish.create, () =>
@@ -66,11 +88,16 @@ const UpdatePost = RemoteServer.mutation<Principal, DrizzleDatabase>(Posts.publi
   Effect.succeed({ output: {} }),
 )
 
-const cms = CmsServer.make<Principal>({
+const cms = CmsServer.make({
   tables: cmsTables,
-  content: [{ type: Posts, binding: Db.Post, create: CreatePost, update: UpdatePost }],
+  content: [
+    { type: Posts, entity: Post, binding: Db.Post, create: CreatePost, update: UpdatePost },
+  ],
   transaction: Transaction.statements, // one connection; Transaction.drizzle for Postgres
-  isAuthor: principal => principal?.role === 'author',
+  policy: Policy,
+  authors: [G.isAuthor],
+  // An author writes; only an editor puts it in front of visitors.
+  transitions: { publish: [G.isEditor], schedule: [G.isEditor], unpublish: [G.isEditor] },
 })
 
 export const server = RemoteServer.make({

@@ -6,18 +6,22 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
-import { Entity } from 'foldkit-entity'
+import { Entity, Expr } from 'foldkit-entity'
+import { Guards } from 'foldkit-guard'
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { Form } from 'foldkit-form'
 import { Mutation } from 'foldkit-remote'
 import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
-import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from '../src/index.js'
+import { CmsServer, Transaction, sqliteSchema, sqliteTables } from '../src/index.js'
 
-type Principal = 'author' | null
-const isAuthor = (principal: Principal): boolean => principal === 'author'
+const Author = Schema.Struct({ name: Schema.String })
+type Principal = Option.Option<typeof Author.Type>
+const author: Principal = Option.some({ name: 'ada' })
+const visitor: Principal = Option.none()
 
 const articles = sqliteTable('articles', {
   id: text('id').primaryKey(),
@@ -59,9 +63,22 @@ const write = (run: (database: Writes) => unknown) =>
     yield* Effect.promise(() => Promise.resolve(run(database)))
   })
 
+const G = Guards.declare(
+  'Cms',
+  Author,
+  guard => ({
+    isAuthor: guard.principal(),
+    isPublished: guard.row(Article, () => Expr.isNotNull(Article.fields.publishedAt)),
+  }),
+  { key: author => author.name },
+)
+const Policy = G.implement({ isAuthor: Option.isSome })
+const GuardedArticle = Article.pipe(
+  Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }),
+)
 const Db = bind(
-  { Article },
-  { Article: { table: articles, visible: published<Principal>(articles.publishedAt, isAuthor) } },
+  { Article: GuardedArticle },
+  { Article: { table: articles, visible: GuardDrizzle.visible(Policy, [GuardedArticle]).Article } },
 )
 
 const open = () => {
@@ -75,11 +92,12 @@ const open = () => {
       ('e5', 'articles', null, 'New', null, '2026-01-05T00:00:00.000Z', null, null);
   `)
   let made = 0
-  const cms = CmsServer.make<Principal>({
+  const cms = CmsServer.make({
     tables: sqliteTables(),
     content: [
       {
         type: Articles,
+        entity: GuardedArticle,
         binding: Db.Article,
         create: RemoteServer.mutation<
           Principal,
@@ -106,7 +124,8 @@ const open = () => {
       },
     ],
     transaction: Transaction.statements,
-    isAuthor,
+    policy: Policy,
+    authors: [G.isAuthor],
   })
   const server = RemoteServer.make({
     entities: [...cms.sources],
@@ -158,15 +177,15 @@ const open = () => {
 describe('finding content by its slug', () => {
   it('finds the one row with that address, and none with another', async () => {
     const { as } = open()
-    expect(await as('author').bySlug('live')).toEqual(['a1'])
-    expect(await as('author').bySlug('liv')).toEqual([])
+    expect(await as(author).bySlug('live')).toEqual(['a1'])
+    expect(await as(author).bySlug('liv')).toEqual([])
   })
 
   it('does not find, for a visitor, what is not published', async () => {
     const { as } = open()
-    expect(await as('author').bySlug('hidden')).toEqual(['a2'])
-    expect(await as(null).bySlug('hidden')).toEqual([])
-    expect(await as(null).bySlug('live')).toEqual(['a1'])
+    expect(await as(author).bySlug('hidden')).toEqual(['a2'])
+    expect(await as(visitor).bySlug('hidden')).toEqual([])
+    expect(await as(visitor).bySlug('live')).toEqual(['a1'])
   })
 
   it('is declared, never implied: a type with no slug role has no such query', () => {
@@ -184,8 +203,8 @@ describe('finding content by its slug', () => {
 describe('publishing to a slug that is taken', () => {
   it('is refused by name, on the slug’s key, and nothing is published', async () => {
     const { as, count } = open()
-    await as('author').draft('e5', { title: 'New', slug: 'hidden' })
-    const refused = await as('author').refused('CmsPublish', { entry: 'e5', basedOn: null })
+    await as(author).draft('e5', { title: 'New', slug: 'hidden' })
+    const refused = await as(author).refused('CmsPublish', { entry: 'e5', basedOn: null })
     expect(refused.refusal).toEqual({
       _tag: 'Field',
       key: 'slug',
@@ -197,8 +216,8 @@ describe('publishing to a slug that is taken', () => {
 
   it('is the same news when the check passed and the unique index refused', async () => {
     const { as, count } = open()
-    await as('author').draft('e5', { title: 'Raced', slug: 'fresh' })
-    const refused = await as('author').refused('CmsPublish', { entry: 'e5', basedOn: null })
+    await as(author).draft('e5', { title: 'Raced', slug: 'fresh' })
+    const refused = await as(author).refused('CmsPublish', { entry: 'e5', basedOn: null })
     expect(refused.refusal).toMatchObject({ _tag: 'Field', key: 'slug' })
     // The transaction took the other writer's row with it: in a real race that
     // row is another connection's, and stays.
@@ -208,9 +227,9 @@ describe('publishing to a slug that is taken', () => {
 
   it('does not blame the slug for another unique index', async () => {
     const { as } = open()
-    await as('author').draft('e5', { title: 'Collides', slug: 'fresh' })
+    await as(author).draft('e5', { title: 'Collides', slug: 'fresh' })
     // A defect, not a refusal: nothing is said about the slug.
-    const failed = await as('author')
+    const failed = await as(author)
       .mutate('CmsPublish', { entry: 'e5', basedOn: null })
       .catch((error: unknown) => String(error))
     expect(failed).toContain('Failed query')
@@ -219,12 +238,10 @@ describe('publishing to a slug that is taken', () => {
 
   it('lets a row keep its own slug', async () => {
     const { as } = open()
-    await as('author').draft('e1', { title: 'Live', slug: 'live' })
+    await as(author).draft('e1', { title: 'Live', slug: 'live' })
     // The update handler here always dies: reaching it means the check let the slug by.
-    await expect(
-      as('author').mutate('CmsPublish', { entry: 'e1', basedOn: null }),
-    ).rejects.toThrow()
-    const refused = await as('author')
+    await expect(as(author).mutate('CmsPublish', { entry: 'e1', basedOn: null })).rejects.toThrow()
+    const refused = await as(author)
       .mutate('CmsPublish', { entry: 'e1', basedOn: null })
       .catch((error: unknown) => String(error))
     expect(refused).not.toContain('That address is taken')

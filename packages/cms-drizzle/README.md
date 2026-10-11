@@ -3,8 +3,9 @@
 The server half of [`foldkit-cms`](../cms/README.md), over
 [`foldkit-remote-drizzle`](../remote-drizzle/README.md). It keeps an author's
 unpublished work in three tables beside your own, and it is where the **audience
-boundary** is enforced: who is not an author is refused entries, drafts and
-revisions outright, and sees of your content only what is published.
+boundary** is enforced, by a [`foldkit-guard`](../guard/README.md) guard set:
+who is not an author is refused entries, drafts and revisions outright, and sees
+of your content only what its Read rules show, such as what is published.
 
 Supports SQLite and Postgres. The conflict check requires `returning`, so this
 adapter does not support MySQL. The [CMS example](../../examples/cms/README.md)
@@ -17,8 +18,8 @@ includes the server, in-app preview, and a browser mode over an in-memory databa
 | Published content | your tables, bound with `bind` as any are |
 | Unpublished work | `cms_entries`, `cms_drafts`, `cms_revisions` |
 | Which rows of those a principal may see | this package: none, unless they are an author |
-| Which rows of your content a visitor may see | your binding's `visible`, which `published(...)` makes |
-| Who is an author, and who may make a transition | your `isAuthor` and `allow` |
+| Which rows of your content a visitor may see | your content Entity's Read rules, compiled into its binding's `visible` |
+| Who is an author, and who may make a transition | your guard set's principal guards, as `authors` and `transitions`; `allow` for a rule about the entry |
 | What publishing a post *does* | your own `create` and `update` handlers |
 | That a publish is whole | this package, inside the `transaction` you name |
 | The time | your `now`, which defaults to the server's clock |
@@ -39,28 +40,40 @@ a visitor's principal ──> published content rows, and nothing else
 ## Install
 
 ```sh
-pnpm add effect drizzle-orm foldkit-cms foldkit-cms-drizzle foldkit-remote-drizzle foldkit-remote-server
+pnpm add effect drizzle-orm foldkit-cms foldkit-cms-drizzle foldkit-guard foldkit-remote-drizzle foldkit-remote-server
 ```
 
 ## Example
 
-The following is **wiring pseudocode**: `Blog`, `Posts`, `posts`, `isAuthor`,
-and the insert/update handlers belong to your application. Use
+The following is **wiring pseudocode**: `Blog`, `Posts`, `posts`, `User`,
+and the insert/update handlers belong to your application (a compiled version
+is [`test/readme.test-d.ts`](test/readme.test-d.ts)). Use
 [the runnable server](../../examples/cms/src/server.ts) for complete handlers,
 a database layer, and transaction setup. `sqliteTables()` describes tables;
 include them in your migrations before running the server.
 
 ```text
-import { CmsServer, Transaction, published, sqliteTables } from 'foldkit-cms-drizzle'
+import { CmsServer, Transaction, sqliteTables } from 'foldkit-cms-drizzle'
+import { Guards } from 'foldkit-guard'
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
 
 const cmsTables = sqliteTables() // or pgTables(); add them to your schema and migrations
 
-const Db = bind(Blog, {
-  Post: {
-    table: posts,
-    // A visitor sees what is published; an author sees every row.
-    visible: published(posts.publishedAt, isAuthor),
-  },
+// Who is an author, who may publish, and what a visitor sees: a guard set.
+const G = Guards.declare('Cms', User, guard => ({
+  isAuthor: guard.principal(),
+  isEditor: guard.principal(),
+  isPublished: guard.row(Blog.Post, () => Expr.isNotNull(Blog.Post.fields.publishedAt)),
+}), { key: user => user.id })
+const Policy = G.implement({
+  isAuthor: principal => Option.exists(principal, user => user.role !== 'reader'),
+  isEditor: principal => Option.exists(principal, user => user.role === 'editor'),
+})
+// A visitor sees what is published; an author sees every row.
+const Post = Blog.Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
+
+const Db = bind({ ...Blog, Post }, {
+  Post: { table: posts, visible: GuardDrizzle.visible(Policy, [Post]).Post },
 })
 
 // Your own handlers of the two mutations the content type publishes through.
@@ -69,9 +82,12 @@ const UpdatePost = RemoteServer.mutation(Posts.publish.update, ({ input }) => /*
 
 const cms = CmsServer.make({
   tables: cmsTables,
-  content: [{ type: Posts, binding: Db.Post, create: CreatePost, update: UpdatePost }],
+  content: [{ type: Posts, entity: Post, binding: Db.Post, create: CreatePost, update: UpdatePost }],
   transaction: Transaction.statements, // one connection; Transaction.drizzle for Postgres
-  isAuthor: principal => principal?.role === 'author',
+  policy: Policy,
+  authors: [G.isAuthor],
+  // An author writes; only an editor puts it in front of visitors.
+  transitions: { publish: [G.isEditor], schedule: [G.isEditor], unpublish: [G.isEditor] },
 })
 
 RemoteServer.make({
@@ -83,11 +99,17 @@ RemoteServer.make({
 
 - **Register `cms.sources`, not `source(Db.Post)`.** They are the content types'
   sources and the CMS's own, each behind the boundary.
-- **A content type that can be unpublished must be bound with a `visible` rule.**
-  `CmsServer.make` throws for a type with a `published` role whose binding shows
-  every row to everyone. It checks that a rule is there; whether the rule is
-  right is yours to say, since only you know what a principal is.
+- **A content type that can be unpublished must be guarded by whether it is.**
+  `CmsServer.make` throws for a type with a `published` role whose Read rule
+  does not read that field, and, through `GuardServer.validate`, for a binding
+  whose `visible` is not the rule your guard set built for it. `entity` is the
+  type's Entity with its guards attached, the one its table was bound from.
 - A content type with no `published` role has nothing to hide, and needs none.
+- **Who is an author** is any of `authors`, principal guards; anyone else is a
+  visitor. **Who may make a transition** is an author any of its
+  `transitions` guards lets; a transition not named is any author's. `allow`
+  stays for a rule about the entry itself. A refusal is `Forbidden`, with its
+  sentence.
 - **`create` and `update` go to the CMS, not to `RemoteServer.make`.** Registered
   there too, they are a way to publish with no draft, no revision and no `allow`.
 - **Content that exists already is imported, not inserted.** `cms.import({ type,
@@ -142,8 +164,8 @@ new (`Cms.newEntryId()`), and the first save of an id nobody has makes the entry
   with no refetch. Every operation patches the entry with its `state` and its
   `revision`, so what is on screen follows what was done.
 - Refused: a type the server does not know, an entry that is not there or is of
-  another type, an archived entry, a principal that is not an author, and an
-  author your `allow` refuses.
+  another type, an archived entry, and, as `Forbidden`, a principal that is not
+  an author and an author your `transitions` or `allow` refuse.
 
 `CmsDiscardDraft` removes the working copy. A published entry is left as it was
 published. An entry that was never published has nothing left, so it is removed
@@ -228,8 +250,8 @@ export default {
   draft changes: a fault the author must fix is not hammered every minute.
 - **What was promised is changed only by someone who could have promised it.**
   Since a scheduled draft is published as whoever scheduled it, saving over it,
-  restoring over it or discarding it is refused to an author your `allow` would
-  not let `schedule`. Otherwise someone who may not publish would publish through
+  restoring over it or discarding it is refused to an author your `transitions`
+  or `allow` would not let `schedule`. Otherwise someone who may not publish would publish through
   someone who may.
 - One failure does not stop the rest. `due` answers with each entry and its
   error, or `null`.
@@ -265,18 +287,19 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 | Call | Meaning |
 | --- | --- |
 | `sqliteTables()`, `pgTables()` | The three tables, per dialect. `sqliteSchema` is their `create table` statements. |
-| `published(column, isAuthor)` | A `visible` rule for a content table: a visitor sees rows whose column is set. |
 | `Transaction.statements`, `Transaction.drizzle` | How a publish is made whole, by driver. |
-| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf?, maxDraftSize? })` | `sources`, `queries`, `mutations`, `due`, `import`, and `bindings`. |
+| `CmsServer.make({ tables, content, transaction, policy, authors, transitions?, allow?, now?, nameOf?, maxDraftSize? })` | `sources`, `queries`, `mutations`, `due`, `import`, and `bindings`. Each `content` entry is `{ type, entity, binding, create, update }`. |
 | `cms.due(now, { as })` | Publishes what has come due; an Effect of `{ entry, error }` each. |
 | `cms.import({ type, values, as, at?, entry? })` | Content that is published already (a seed, or what another CMS held), written by the publish path; an Effect of `{ entry, targetId }`. |
 
 ## Limits
 
-- `allow` is asked about every transition, and again when an entry is read with
-  `may`: the entry's `may` is the transitions `allow` lets the reader ask
-  (`Cms.transitions` filtered), so the client can leave out what would be
-  refused. Whether the entry offers one now is its `state`'s to say.
+- `transitions` and `allow` are asked about every transition, and again when an
+  entry is read with `may`: the entry's `may` is the transitions they let the
+  reader ask (`Cms.transitions` filtered; each transition's guards decided once
+  per read), so the client can leave out what would be refused. Whether the
+  entry offers one now is its `state`'s to say. This `may` is the CMS's own,
+  not `foldkit-guard`'s.
 - `CmsPublish` needs a draft. To show an unpublished row again as it is, the
   editor's publish saves what is there first; a client of your own does the same.
 - A driver's refusal is recognised by its words (`unique` or `duplicate`, and the

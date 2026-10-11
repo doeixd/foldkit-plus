@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-cms-drizzle`: the audience boundary is a `foldkit-guard` guard set.**
+  `CmsServer.make` takes `policy` and `authors` (principal guards) in place of
+  `isAuthor`, and `transitions` (principal guards per transition) beside
+  `allow`, which stays for a rule about the entry; the principal is the guard
+  set's `Option`. Each `content` entry names `entity`, its Entity with guards
+  attached; its source carries `GuardServer.filter`, and `make` refuses a
+  publishable type whose Read rule does not read its published field, or
+  whose binding's `visible` is not the guard set's (`GuardServer.validate`).
+  `published(column, isAuthor)` is gone: bind with `GuardDrizzle.visible`. A
+  refusal of who is asking is `Forbidden`, with its sentence. The casts of an
+  untyped principal are gone: one that is not the set's is a defect.
 - **`foldkit-cms`: an entry's `createdAt` declares `binary`.** It is an
   ISO-8601 instant, so code-point order is time order, and `CmsEntries`
   orders by it: a saved or created entry is now placed in the worklist

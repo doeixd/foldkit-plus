@@ -1,6 +1,6 @@
 # Guards: who may do what, declared once on the domain
 
-**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slices 1 (`Expr.in`) and 2 (the core, but `may`) built, and slice 3's decisions, its `memory` and `filter` seams, its Drizzle `visible`, relation Reads and `GuardServer.validate` (slice 3 complete), slice 4 (`G.Principal` read per call, a hub keyed by `Policy.keyOf`) and slice 5 (`Forbidden` end to end) and slice 6 (writes: `GuardServer.writer`, presets, `GuardServer.mutation`, the read-back), slice 7 (`may`, its readers, Crud's `locks` and the form's `locked`) and slice 8 (`foldkit-guard/agent`, `withPrincipal(G.Principal)`); the rest not.
+**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slices 1 (`Expr.in`) and 2 (the core, but `may`) built, and slice 3's decisions, its `memory` and `filter` seams, its Drizzle `visible`, relation Reads and `GuardServer.validate` (slice 3 complete), slice 4 (`G.Principal` read per call, a hub keyed by `Policy.keyOf`) and slice 5 (`Forbidden` end to end) and slice 6 (writes: `GuardServer.writer`, presets, `GuardServer.mutation`, the read-back), slice 7 (`may`, its readers, Crud's `locks` and the form's `locked`) slice 8 (`foldkit-guard/agent`, `withPrincipal(G.Principal)`) and slice 9 (the CMS on a guard set); the rest not.
 **Target:** a new package, `foldkit-guard`, and small changes in `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-entity`, `foldkit-crud`, `foldkit-agent`, `foldkit-cms-drizzle`, `foldkit-sync`.
 **Inspirations:** this repository's authorization seams; `doeixd/gen2`'s `AUTHZ2_PLAN.md`, `src/authz/{surface,placement,deny,mutation-plan}.ts` and `rules_implementation_guide.md`; ZenStack, Ent's privacy layer, Hasura permissions, Postgres row-level security, Firebase security rules, Pundit, Zanzibar, Cedar (§2).
 **Related:** `remote-improvement-plan.md` §16 (client placement, Phases 7–12), whose Phase 12 is gated on this design.
@@ -415,6 +415,8 @@ const cms = CmsServer.make({
 
 `CmsServer.make` attaches `Read: [isAuthor]` to its Entry, Draft and Revision Entities, `Write: [isAuthor]` to its operations, and the transition interactions to the entry row; `cms.sources` come from `Guards.source`. Its startup check "a published type whose binding shows every row" becomes "its Entity has no row `Read` guard", the same fact read from metadata. `allow` stays as an escape hatch for a rule about the entry's own state. The worklist (`CmsEntries`) is author-only, so rule 2 of §7a never fires for it; a public list of posts is `isPublished ∨ isAuthor`, and a post an author unpublishes is a change to a guard field.
 
+*As built (slice 9):* see slice 9 in §12: the CMS's own tables keep a `visible` the CMS builds from `authors`, content types are guarded by the application's Entities (`entity` on each `content` entry), and `transitions` sits beside `allow`.
+
 ---
 
 ## 8a. Routing
@@ -597,6 +599,27 @@ Each slice stands alone, is committed with its tests, and is reviewed before the
    carries no reason yet: `authorize` answering `false` is the agent's own
    `AgentAuthorizationError`, and `may` carries no `explain` sentence. Slice 8 is built.
 9. **CMS.** §8; the casts removed; the example's `isAuthor`/`allow` rewritten; the e2e audience test unchanged and green.
+
+   *Built:* not attachments the CMS makes on its own Entities: `Entry`, `Draft` and `Revision`
+   belong to `foldkit-cms`, which knows no guard set, so their `visible` is still the CMS's, now
+   decided by the application's `authors` (principal guards, through `Policy.decide`), the
+   untyped principal checked with `Policy.isPrincipal` instead of cast. `transitions` gives each
+   transition its principal guards, decided once per read for an entry's `may`; `allow` stays
+   for a rule about the entry itself, as §8 has it. A refusal of who is asking is `Forbidden`. A
+   content type is guard-native: each `content` entry names `entity`, the type's Entity with the
+   guard set's rules attached that its table was bound from (`GuardDrizzle.visible`), its source
+   carries `GuardServer.filter`, and `make` runs `GuardServer.validate` over the content and its
+   slug queries; the old check "bound with a `visible`" became "its Read rule reads the
+   published field" (`Guards.guardFields`), with `published(column, isAuthor)` removed. Two
+   things the plan missed. A visitor passed no row guard at all, so `isPublished` hid published
+   rows from every visitor: a row guard now fails a visitor only when it reads the principal's
+   inputs (its own commit). And a guard set declares its row guards over each Entity, so
+   `isPublished` is one guard per content type, and the example's guard set had to see the
+   article story's Entity: `Article` moved to `content/articleDomain.ts`, and the example
+   attaches its guards on the server, beside the bindings, since the client's post lists already
+   filter on `publishedAt` in their own bodies. The demo, the e2e audience test and the sandbox
+   specs are unchanged and pass. `CmsServer.make` takes a `Policy<User>` whose bodies need no
+   service. Slice 9 is built.
 10. **Sync.** §8c: `Guards.document` as a connection-level refuse; `Guards.journal` deriving the journal's `authorize`; an Effect-returning `refuse` with a reason for row guards before `append`; `EditableEntity.make`'s audience check; the registry example's edits governed by `Product`'s guards. First, read the presence server to confirm whether a peer's id is stamped from the connection. Tests: a visitor's exchange refused by `readers`; an edit to an `Update`-guarded member rejected with its reason; a document declared over a member with a `Read` guard refused at `make`.
 11. **Docs.** `packages/guard/README.md` in the onboarding order; a `SKILL.md` row and `references/guard.md`; `remote.md`'s authorization gotchas pointing here; `CHANGELOG.md` per slice.
 

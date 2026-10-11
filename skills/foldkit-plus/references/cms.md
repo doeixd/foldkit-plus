@@ -18,7 +18,7 @@ publishing and unpublishing, the worklist, an entry's derived state. Both are on
 | Published content | the application's tables |
 | Unpublished work | a draft, kept beside the row, never in it |
 | Which state content is in | nobody stores it: `Cms.state` derives it |
-| Who may make a transition | the application's `allow`, asked by a server |
+| Who may make a transition | the application's guard set (`foldkit-guard`): `authors`, `transitions`, and `allow` for a rule about the entry |
 
 ## Mental model
 
@@ -88,7 +88,7 @@ PostEditor.status(model) // Closed Loading NotFound LoadFailed Opened Editing Sa
 // Incomplete (the form's checks stopped it; until the next edit)
 // Scheduling Scheduled ScheduleFailed
 PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model) // each an Option
-PostEditor.may(model, 'publish') // `allow`'s answer for this principal, read with the entry; false until then.
+PostEditor.may(model, 'publish') // the server's answer (`transitions`, `allow`) for this principal, read with the entry; false until then.
 // Hide what would be refused: EditorSlot.view(model, h, { submits: PostEditor.may(model, 'publish') })
 PostEditor.pageId(model) // Option: row id, else the entry's: what the app's own pages and a preview use
 PostEditor.entry(model) // Option: the entry open, none while closed
@@ -138,17 +138,21 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
 ## The server
 
 ```ts
-import { CmsServer, Transaction, published, sqliteTables } from 'foldkit-cms-drizzle'
+import { CmsServer, Transaction, sqliteTables } from 'foldkit-cms-drizzle'
 
-const Db = bind(Blog, {
-  Post: { table: posts, visible: published(posts.publishedAt, isAuthor) }, // a visitor sees published rows
+// A guard set: G.isAuthor, G.isEditor (principal guards), G.isPublished (a row guard over Blog.Post).
+const Post = Blog.Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
+const Db = bind({ ...Blog, Post }, {
+  Post: { table: posts, visible: GuardDrizzle.visible(Policy, [Post]).Post }, // a visitor sees published rows
 })
 const cms = CmsServer.make({
   tables: sqliteTables(), // or pgTables()
   // create/update: your own RemoteServer.mutation handlers of Posts.publish.create/.update
-  content: [{ type: Posts, binding: Db.Post, create: CreatePost, update: UpdatePost }],
+  content: [{ type: Posts, entity: Post, binding: Db.Post, create: CreatePost, update: UpdatePost }],
   transaction: Transaction.statements, // one connection (SQLite); Transaction.drizzle for Postgres, libSQL
-  isAuthor: principal => principal?.role === 'author',
+  policy: Policy,
+  authors: [G.isAuthor], // who reads and writes unpublished work
+  transitions: { publish: [G.isEditor], schedule: [G.isEditor], unpublish: [G.isEditor] },
 })
 RemoteServer.make({
   entities: [...cms.sources, source(Db.Author)], // cms.sources, not source(Db.Post)
@@ -183,7 +187,7 @@ RemoteServer.make({
 - `CmsRestore { entry, revision }` makes that revision's value the draft (replacing
   it, clearing its schedule) and publishes nothing.
 - A scheduled draft is published as its scheduler, so saving, restoring or
-  discarding it is refused to an author `allow` would not let `schedule`.
+  discarding it is refused to an author `transitions` or `allow` would not let `schedule`.
 - Every operation is one `transaction`; `Transaction.statements` serialises them
   on the connection. Wrap your own writes on that connection in it too.
 - `CmsArchive` also hides the row of a type with a `published` role; `CmsUnarchive`
@@ -206,7 +210,10 @@ RemoteServer.make({
   author types, add `Cms.addressFree('posts')` to the form's slug key with the
   `Form.checks` step; it asks that query and excepts the row the editor says the
   form is about.
-- `allow(principal, transition, entry)` decides which author may; `now` is the clock.
+- `authors` and `transitions` are principal guards, decided once per read; `allow(principal,
+  transition, entry)` adds a rule about the entry. A refusal is `Forbidden`. A publishable
+  type's Read rule must read its published field, and its binding's `visible` must be the
+  guard set's (`GuardServer.validate` runs at `make`). The principal is an `Option`; `now` is the clock.
 
 ## Gotchas
 

@@ -2,10 +2,11 @@
  * `foldkit-cms-drizzle` — the server half of `foldkit-cms`.
  *
  * It keeps an author's unpublished work in three tables beside the
- * application's own, and it is where the audience boundary is enforced: a
- * principal that is not an author is refused entries, drafts and revisions
- * outright, and sees of the content only the rows its `published` role shows.
- * Both are a binding's `visible`, so they hold on every path a table is read by.
+ * application's own, and it is where the audience boundary is enforced, by a
+ * `foldkit-guard` guard set: a principal its `authors` guards refuse is refused
+ * entries, drafts and revisions outright, and sees of the content only the
+ * rows the content's own Read rules show. Both are a binding's `visible`, so
+ * they hold on every path a table is read by.
  *
  * Publishing runs the application's own mutation with the draft's value, inside
  * a transaction that also appends the revision and removes the draft, so a
@@ -23,8 +24,11 @@ import {
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm'
-import { Effect, Exit, Schema, Semaphore } from 'effect'
+import { Effect, Exit, Option, Schema, Semaphore } from 'effect'
 import { Cms, type Content, type Facts, type Transition } from 'foldkit-cms'
+import { Entity, type AnyEntity } from 'foldkit-entity'
+import { Guards, type Policy, type PrincipalGuard } from 'foldkit-guard'
+import { GuardServer } from 'foldkit-guard/server'
 import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
 import {
   DrizzleDatabase,
@@ -51,12 +55,15 @@ import type { CmsTables } from './tables.js'
 export { pgTables, sqliteSchema, sqliteTables, type CmsTables } from './tables.js'
 
 /**
- * A content type as the server holds it: its declaration, the binding of its
- * table, and the application's own handlers of its two publish mutations. What
+ * A content type as the server holds it: its declaration, its Entity with the
+ * guards attached that its binding was bound from, the binding of its table,
+ * and the application's own handlers of its two publish mutations. What
  * publishing a post does stays the application's code.
  */
 export interface ServedContent<P = any> {
   readonly type: Content<string, any, any, any>
+  /** `type.entity` with the guard set's rules attached: `Post.pipe(Guards.attach(G, { … }))`. */
+  readonly entity: AnyEntity
   readonly binding: AnyEntityBinding
   readonly create: MutationSource<P, DrizzleDatabase>
   readonly update: MutationSource<P, DrizzleDatabase>
@@ -139,18 +146,34 @@ export const Transaction = {
     })) as Transaction,
 }
 
-export interface CmsServerConfig<P> {
+export interface CmsServerConfig<User> {
   readonly tables: CmsTables
-  readonly content: ReadonlyArray<ServedContent<P>>
+  readonly content: ReadonlyArray<ServedContent<Option.Option<User>>>
   /** How a publish is made whole: `Transaction.statements` or `Transaction.drizzle`. */
   readonly transaction: Transaction
-  /** Who reads and writes unpublished work. Everyone else is a visitor. */
-  readonly isAuthor: (principal: P) => boolean
+  /** The guard set's bodies, which decide `authors` and `transitions`. */
+  readonly policy: Policy<User>
   /**
-   * Whether this author may make this transition. It is asked after the entry is
-   * found and the transition is one its state offers. Default: any author may.
+   * Who reads and writes unpublished work: a principal any of these lets.
+   * Everyone else is a visitor.
    */
-  readonly allow?: (principal: P, transition: Transition, entry: EntryRow) => boolean
+  readonly authors: ReadonlyArray<PrincipalGuard<User>>
+  /**
+   * Who of the authors may make a transition: any of its guards lets. One not
+   * named is any author's.
+   */
+  readonly transitions?:
+    { readonly [T in Transition]?: ReadonlyArray<PrincipalGuard<User>> | undefined } | undefined
+  /**
+   * Whether this author may make this transition of this entry, for a rule
+   * about the entry itself: asked after the entry is found, the transition is
+   * one its state offers, and `transitions` let. Default: they may.
+   */
+  readonly allow?: (
+    principal: Option.Option<User>,
+    transition: Transition,
+    entry: EntryRow,
+  ) => boolean
   /** The server's clock, passed in so a test can hold it. */
   readonly now?: () => Date
   /**
@@ -160,7 +183,7 @@ export interface CmsServerConfig<P> {
    */
   readonly maxDraftSize?: number
   /** Who a principal is, for `createdBy` and `updatedBy`. */
-  readonly nameOf?: (principal: P) => string | null
+  readonly nameOf?: (principal: Option.Option<User>) => string | null
 }
 
 /** A row of `cms_entries`, as the server's rules see it. */
@@ -215,26 +238,20 @@ const refusedAsDuplicate = (defect: unknown, column: string): boolean => {
   return /unique|duplicate/i.test(text) && named.test(text)
 }
 
-/**
- * For a content table's binding: a visitor sees the rows whose `published`
- * column is set, and an author sees every row. Give it as the storage's
- * `visible` when the table is bound; `CmsServer.make` refuses a content type
- * that can be unpublished and whose binding shows every row to everyone.
- */
-export const published =
-  <P>(column: AnyColumn, isAuthor: (principal: P) => boolean): Visible =>
-  principal =>
-    isAuthor(principal as P) ? undefined : isNotNull(column)
-
 export const CmsServer = {
-  make: <P = unknown>(config: CmsServerConfig<P>) => {
-    const { tables, isAuthor } = config
+  make: <User>(config: CmsServerConfig<User>) => {
+    type P = Option.Option<User>
+    const { tables, policy } = config
     const now = config.now ?? (() => new Date())
     const nameOf = config.nameOf ?? (() => null)
     const maxDraftSize = config.maxDraftSize ?? 1_000_000
 
     const byType = new Map(config.content.map(served => [served.type.name, served]))
-    for (const { type, binding, create, update } of config.content) {
+    for (const { type, entity, create, update } of config.content) {
+      if (!Entity.same(entity, type.entity))
+        throw new Error(
+          `foldkit-cms-drizzle: content "${type.name}" is of ${type.entity.name}, but was given ${entity.name}'s guards`,
+        )
       for (const [handler, declared] of [
         [create, type.publish.create],
         [update, type.publish.update],
@@ -243,18 +260,45 @@ export const CmsServer = {
           throw new Error(
             `foldkit-cms-drizzle: content "${type.name}" publishes through "${declared.name}", but was given the handler of "${handler.mutation}"`,
           )
-      if (type.roles.published === undefined) continue
-      // Whether the rule is right is the application's to say: only it knows what a
-      // principal is. That there is one at all is checked here.
-      if (binding.visible === undefined)
+      const shown = type.roles.published
+      if (shown === undefined) continue
+      // Whether the rule is right is the application's to say. That it reads the
+      // published field at all is checked here: one that does not shows a visitor
+      // every row or none.
+      if (!Guards.guardFields(entity, 'Read').includes(shown.key))
         throw new Error(
-          `foldkit-cms-drizzle: content "${type.name}" can be unpublished, but its binding shows every row to everyone; bind its table with \`visible: published(column, isAuthor)\``,
+          `foldkit-cms-drizzle: content "${type.name}" can be unpublished, but its Read rule does not read "${shown.key}"; attach one that does, such as \`Read: [G.isPublished, G.isAuthor]\``,
         )
     }
 
+    /** Whether any of `guards` lets `principal`, each body told `interaction`. */
+    const anyOf = (
+      guards: ReadonlyArray<PrincipalGuard<User>>,
+      principal: P,
+      interaction: string,
+    ): Effect.Effect<boolean> =>
+      Effect.map(
+        Effect.forEach(guards, guard => policy.decide(guard, { principal, interaction })),
+        decisions => decisions.some(decision => decision === true),
+      )
+    const isAuthor = (principal: P) => anyOf(config.authors, principal, 'Read')
+    /** Whether `transitions` let this author make `transition`; an author's when it names none. */
+    const transitionLets = (principal: P, transition: Transition) =>
+      Option.match(Option.fromUndefinedOr(config.transitions?.[transition]), {
+        onNone: () => Effect.succeed(true),
+        onSome: guards => anyOf(guards, principal, transition),
+      })
+
     // Unpublished work is an author's. To anyone else these tables are empty, on
     // every path they are read by.
-    const authorsOnly: Visible = principal => (isAuthor(principal as P) ? undefined : sql`0 = 1`)
+    // The principal reaches a binding untyped: one that is not the guard set's is a
+    // defect, never read as a visitor.
+    const authorsOnly: Visible = principal =>
+      policy.isPrincipal(principal)
+        ? Effect.map(isAuthor(principal), author => (author ? undefined : sql`0 = 1`))
+        : Effect.die(
+            new Error('[foldkit-cms-drizzle] the principal is not an Option of the guard set’s'),
+          )
     const Db = bind(Cms.Entities, {
       Entry: {
         table: tables.entries,
@@ -410,6 +454,17 @@ export const CmsServer = {
           }))
           const facts = yield* factsOf(rows)
           const at = now()
+          // Each transition's guards are decided once for this reader, not per entry.
+          const lets = new Map(
+            wantsMay
+              ? yield* Effect.forEach(Cms.transitions, transition =>
+                  Effect.map(
+                    transitionLets(context.principal, transition),
+                    allowed => [transition, allowed] as const,
+                  ),
+                )
+              : [],
+          )
           return records.map((record, index) => {
             const row = rows[index]!
             const known = facts.get(record.id)!
@@ -422,13 +477,15 @@ export const CmsServer = {
                   ),
                 ),
                 ...(wantsState ? { state: Cms.state(known, at) } : {}),
-                // What `allow` lets this reader ask of this entry, whatever its state
-                // offers now: the state says that, and a draft saved a moment later
-                // changes it without asking the server again.
+                // What `transitions` and `allow` let this reader ask of this entry,
+                // whatever its state offers now: the state says that, and a draft
+                // saved a moment later changes it without asking the server again.
                 ...(wantsMay
                   ? {
                       may: Cms.transitions.filter(
-                        transition => config.allow?.(context.principal, transition, row) !== false,
+                        transition =>
+                          lets.get(transition) === true &&
+                          config.allow?.(context.principal, transition, row) !== false,
                       ),
                     }
                   : {}),
@@ -459,9 +516,11 @@ export const CmsServer = {
       // Then the whole of it is one transaction: a save that made an entry and
       // could not make its draft leaves neither.
       RemoteServer.mutation<P, DrizzleDatabase, Name, Input, Output>(descriptor, context =>
-        isAuthor(context.principal)
-          ? config.transaction(run(context))
-          : Effect.fail(refuse('Only an author may change unpublished work')),
+        Effect.flatMap(isAuthor(context.principal), author =>
+          author
+            ? config.transaction(run(context))
+            : Effect.fail(RemoteServer.forbid('Only an author may change unpublished work')),
+        ),
       )
 
     /**
@@ -478,17 +537,25 @@ export const CmsServer = {
           entry.id,
         )
         if (draft?.scheduledFor == null) return
-        if (config.allow?.(principal, 'schedule', entry) === false)
-          return yield* refuse(
+        if (
+          !(yield* transitionLets(principal, 'schedule')) ||
+          config.allow?.(principal, 'schedule', entry) === false
+        )
+          return yield* RemoteServer.forbid(
             'This draft is scheduled, and only someone who may schedule it may change it',
           )
       })
 
-    /** Whether the application lets this author do this, once the entry is known. */
+    /**
+     * Whether this author may make this transition: its `transitions`, and `allow`
+     * of the entry once there is one.
+     */
     const asking = (principal: P, transition: Transition, entry: EntryRow | undefined) =>
-      entry !== undefined && config.allow?.(principal, transition, entry) === false
-        ? Effect.fail(refuse(`This author may not ${transition} this entry`))
-        : Effect.void
+      Effect.flatMap(transitionLets(principal, transition), lets =>
+        !lets || (entry !== undefined && config.allow?.(principal, transition, entry) === false)
+          ? Effect.fail(RemoteServer.forbid(`This author may not ${transition} this entry`))
+          : Effect.void,
+      )
 
     const draftFields = ['values', 'model', 'form', 'updatedAt', 'updatedBy', 'baseRevision']
     const draftPatch = returning(Db.Draft, draftFields)
@@ -1045,8 +1112,8 @@ export const CmsServer = {
           const error = yield* config
             .transaction(
               Effect.gen(function* () {
-                if (!isAuthor(principal))
-                  return yield* refuse('Whoever scheduled this is no longer an author')
+                if (!(yield* isAuthor(principal)))
+                  return yield* RemoteServer.forbid('Whoever scheduled this is no longer an author')
                 const found = yield* offering(id, 'publish')
                 yield* asking(principal, 'publish', found.entry)
                 yield* publishing(found, principal, found.entry.revision)
@@ -1156,7 +1223,10 @@ export const CmsServer = {
       entries,
       source<P>(Db.Draft),
       source<P>(Db.Revision),
-      ...config.content.map(served => source<P>(served.binding)),
+      // A content type's own members' Read rules, as well as its rows'.
+      ...config.content.map(served =>
+        source<P>(served.binding, { filter: GuardServer.filter(served.entity, policy) }),
+      ),
     ]
     const mutations: ReadonlyArray<MutationSource<P, DrizzleDatabase>> = [
       SaveDraft,
@@ -1175,9 +1245,23 @@ export const CmsServer = {
     // The descriptor carries what the query means, so this registers the source
     // and says no more: the address column and the order come from the body,
     // through the binding that knows which column holds which field.
-    const bySlug = config.content.flatMap(({ type, binding }) =>
-      type.roles.slug === undefined ? [] : [query(Cms.bySlug(type), { entity: binding })],
+    const slugQueries = config.content.flatMap(({ type, binding }) =>
+      type.roles.slug === undefined ? [] : [{ descriptor: Cms.bySlug(type), binding }],
     )
+    const bySlug = slugQueries.map(({ descriptor, binding }) =>
+      query(descriptor, { entity: binding }),
+    )
+    // The content's bindings must apply the guard set's own rules, not one that only
+    // looks like them: what `GuardServer.validate` checks of any server.
+    GuardServer.validate(policy, {
+      entities: config.content.map(served => served.entity),
+      domain: {
+        registry: {
+          queries: new Map(slugQueries.map(({ descriptor }) => [descriptor.name, descriptor])),
+        },
+      },
+      server: RemoteServer.make({ entities: sources, queries: bySlug }),
+    })
 
     return {
       /**

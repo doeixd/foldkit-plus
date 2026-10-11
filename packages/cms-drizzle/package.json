@@ -45,6 +45,7 @@
   "dependencies": {
     "foldkit-cms": "workspace:*",
     "foldkit-entity": "workspace:*",
+    "foldkit-guard": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*"

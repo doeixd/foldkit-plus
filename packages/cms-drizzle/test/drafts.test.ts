@@ -7,22 +7,36 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { eq } from 'drizzle-orm'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
-import { Entity } from 'foldkit-entity'
+import { Entity, Expr } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
 import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
-import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from '../src/index.js'
+import { Guards } from 'foldkit-guard'
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
+import {
+  CmsServer,
+  Transaction,
+  sqliteSchema,
+  sqliteTables,
+  type CmsServerConfig,
+} from '../src/index.js'
 
-type Principal = { readonly name: string; readonly role: 'author' | 'writer' | 'intern' } | null
-const isAuthor = (principal: Principal): boolean => principal !== null
-const ada: Principal = { name: 'ada', role: 'author' }
-const ian: Principal = { name: 'ian', role: 'intern' }
+const Author = Schema.Struct({
+  name: Schema.String,
+  role: Schema.Literals(['author', 'writer', 'intern']),
+})
+type Principal = Option.Option<typeof Author.Type>
+const ada: Principal = Option.some({ name: 'ada', role: 'author' })
+const ian: Principal = Option.some({ name: 'ian', role: 'intern' })
 // May write, and may not put anything in front of a visitor.
-const wren: Principal = { name: 'wren', role: 'writer' }
+const wren: Principal = Option.some({ name: 'wren', role: 'writer' })
+const visitor: Principal = Option.none()
+// An author like ada, and not the one a stricter server lets publish.
+const bea: Principal = Option.some({ name: 'bea', role: 'author' })
 
 const posts = sqliteTable('posts', {
   id: text('id').primaryKey(),
@@ -41,6 +55,24 @@ const Post = Entity.define(
 ).pipe(Cms.roles({ label: 'title', published: 'publishedAt' }))
 // A content type with no `published` role: it cannot be unpublished.
 const Page = Entity.define('Page', Schema.Struct({ id: Schema.String, title: Schema.String }))
+
+// Every author reads everything; anyone else, what is published.
+const G = Guards.declare(
+  'Cms',
+  Author,
+  guard => ({
+    isAuthor: guard.principal(),
+    isSenior: guard.principal(),
+    isPublished: guard.row(Post, () => Expr.isNotNull(Post.fields.publishedAt)),
+  }),
+  { key: author => author.name },
+)
+const Policy = G.implement({
+  isAuthor: Option.isSome,
+  isSenior: principal => Option.exists(principal, ({ name }) => name === 'ada'),
+})
+const GuardedPost = Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
+const guarded = { policy: Policy, authors: [G.isAuthor] }
 
 const Input = Schema.Struct({ title: Schema.String })
 const content = <E extends typeof Post | typeof Page>(name: string, entity: E) =>
@@ -114,14 +146,14 @@ const handlers = (type: typeof Posts | typeof Pages, table: typeof posts | typeo
 
 const tables = sqliteTables()
 const Db = bind(
-  { Post, Page },
+  { Post: GuardedPost, Page },
   {
-    Post: { table: posts, visible: published<Principal>(posts.publishedAt, isAuthor) },
+    Post: { table: posts, visible: GuardDrizzle.visible(Policy, [GuardedPost]).Post },
     Page: { table: pages },
   },
 )
 
-const open = () => {
+const open = (options: Pick<CmsServerConfig<typeof Author.Type>, 'transitions'> = {}) => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     ${sqliteSchema}
@@ -140,21 +172,25 @@ const open = () => {
   `)
   let clock = new Date('2026-06-01T00:00:00.000Z')
   let requests = 0
-  const cms = CmsServer.make<Principal>({
+  const cms = CmsServer.make({
     tables,
     content: [
-      { type: Posts, binding: Db.Post, ...handlers(Posts, posts) },
-      { type: Pages, binding: Db.Page, ...handlers(Pages, pages) },
+      { type: Posts, entity: GuardedPost, binding: Db.Post, ...handlers(Posts, posts) },
+      { type: Pages, entity: Page, binding: Db.Page, ...handlers(Pages, pages) },
     ],
     transaction: Transaction.statements,
-    isAuthor,
+    ...guarded,
+    ...options,
     allow: (principal, transition) =>
-      principal?.role === 'intern'
-        ? false
-        : principal?.role !== 'writer' ||
-          !['publish', 'unpublish', 'schedule', 'unschedule'].includes(transition),
+      Option.exists(
+        principal,
+        ({ role }) =>
+          role !== 'intern' &&
+          (role !== 'writer' ||
+            !['publish', 'unpublish', 'schedule', 'unschedule'].includes(transition)),
+      ),
     now: () => clock,
-    nameOf: principal => principal?.name ?? null,
+    nameOf: principal => Option.getOrNull(Option.map(principal, ({ name }) => name)),
   })
   const server = RemoteServer.make({
     entities: [...cms.sources],
@@ -204,7 +240,7 @@ const open = () => {
     due: (at: string) =>
       Effect.runPromise(
         cms
-          .due(new Date(at), { as: name => (fired ? null : (known[name ?? ''] ?? null)) })
+          .due(new Date(at), { as: name => (fired ? visitor : (known[name ?? ''] ?? visitor)) })
           .pipe(Effect.provide(layer)),
       ),
     /** Everyone who scheduled anything has since lost the right to. */
@@ -237,13 +273,13 @@ describe('the audience boundary', () => {
   it('shows a visitor nothing of unpublished work, by id or through the worklist', async () => {
     const { as, sqlite } = open()
     try {
-      const visitor = as(null)
-      expect(await visitor.read('CmsEntry', ['e1', 'e3'], ['label', 'draft', 'revisions'])).toEqual(
-        {},
-      )
-      expect(await visitor.read('CmsDraft', ['e1'], ['values'])).toEqual({})
-      expect(await visitor.read('CmsRevision', ['e1:1'], ['values'])).toEqual({})
-      expect(await visitor.list({ type: 'posts' })).toEqual([])
+      const stranger = as(visitor)
+      expect(
+        await stranger.read('CmsEntry', ['e1', 'e3'], ['label', 'draft', 'revisions']),
+      ).toEqual({})
+      expect(await stranger.read('CmsDraft', ['e1'], ['values'])).toEqual({})
+      expect(await stranger.read('CmsRevision', ['e1:1'], ['values'])).toEqual({})
+      expect(await stranger.list({ type: 'posts' })).toEqual([])
 
       const author = as(ada)
       expect(Object.keys(await author.read('CmsDraft', ['e1'], ['values']))).toEqual([
@@ -258,7 +294,9 @@ describe('the audience boundary', () => {
   it('shows a visitor only the published rows of a content type', async () => {
     const { as, sqlite } = open()
     try {
-      expect(Object.keys(await as(null).read('Post', ['p1', 'p2'], ['title']))).toEqual(['Post:p1'])
+      expect(Object.keys(await as(visitor).read('Post', ['p1', 'p2'], ['title']))).toEqual([
+        'Post:p1',
+      ])
       expect(Object.keys(await as(ada).read('Post', ['p1', 'p2'], ['title']))).toEqual([
         'Post:p1',
         'Post:p2',
@@ -271,33 +309,55 @@ describe('the audience boundary', () => {
   it('refuses a visitor every operation, and changes nothing', async () => {
     const { as, sqlite, count } = open()
     try {
-      await expect(as(null).mutate('CmsSaveDraft', save({}))).rejects.toMatchObject({
+      await expect(as(visitor).mutate('CmsSaveDraft', save({}))).rejects.toMatchObject({
         message: 'Only an author may change unpublished work',
       })
-      await expect(as(null).mutate('CmsDiscardDraft', { entry: 'e1' })).rejects.toThrow()
+      await expect(as(visitor).mutate('CmsDiscardDraft', { entry: 'e1' })).rejects.toThrow()
       expect([count('cms_entries'), count('cms_drafts')]).toEqual([4, 2])
     } finally {
       sqlite.close()
     }
   })
 
-  it('refuses, when it is made, a content type that can be unpublished and is bound open to everyone', () => {
-    const Open = bind({ Post }, { Post: { table: posts } })
+  it('refuses, when it is made, a content type that can be unpublished and is shown to everyone', () => {
+    // Its rules never ask whether it is published.
+    const Unruled = Post.pipe(Guards.attach(G, { row: { Read: [G.isAuthor] } }))
     expect(() =>
-      CmsServer.make<Principal>({
+      CmsServer.make({
         tables,
-        content: [{ type: Posts, binding: Open.Post, ...handlers(Posts, posts) }],
+        content: [{ type: Posts, entity: Unruled, binding: Db.Post, ...handlers(Posts, posts) }],
         transaction: Transaction.statements,
-        isAuthor,
+        ...guarded,
       }),
-    ).toThrow('content "posts" can be unpublished, but its binding shows every row to everyone')
+    ).toThrow('content "posts" can be unpublished, but its Read rule does not read "publishedAt"')
+    // Its rules ask, and its table is bound without them.
+    const Open = bind({ Post: GuardedPost }, { Post: { table: posts } })
+    expect(() =>
+      CmsServer.make({
+        tables,
+        content: [
+          { type: Posts, entity: GuardedPost, binding: Open.Post, ...handlers(Posts, posts) },
+        ],
+        transaction: Transaction.statements,
+        ...guarded,
+      }),
+    ).toThrow("Post's Source does not apply its Read rules")
+    // Another Entity's guards.
+    expect(() =>
+      CmsServer.make({
+        tables,
+        content: [{ type: Posts, entity: Page, binding: Db.Post, ...handlers(Posts, posts) }],
+        transaction: Transaction.statements,
+        ...guarded,
+      }),
+    ).toThrow('content "posts" is of Post, but was given Page')
     // A type with no `published` role has nothing to hide.
     expect(() =>
-      CmsServer.make<Principal>({
+      CmsServer.make({
         tables,
-        content: [{ type: Pages, binding: Db.Page, ...handlers(Pages, pages) }],
+        content: [{ type: Pages, entity: Page, binding: Db.Page, ...handlers(Pages, pages) }],
         transaction: Transaction.statements,
-        isAuthor,
+        ...guarded,
       }),
     ).not.toThrow()
   })
@@ -497,7 +557,7 @@ describe('publishing', () => {
 
   it('makes the row of something new, shows it to a visitor, and names it on the entry', async () => {
     const { as, rows } = open()
-    expect(await as(null).list({ type: 'posts' })).toEqual([])
+    expect(await as(visitor).list({ type: 'posts' })).toEqual([])
     ranAs.length = 0
     const result = await as(ada).mutate('CmsPublish', { entry: 'e3', basedOn: null })
     expect(ranAs).toEqual(['publish:e3:new'])
@@ -509,7 +569,7 @@ describe('publishing', () => {
     expect(rows(`select title, published_at from posts where id = '${targetId}'`)).toEqual([
       { title: 'Unwritten', published_at: '2026-06-01T00:00:00.000Z' },
     ])
-    expect(await as(null).read('Post', [targetId], ['title'])).toEqual({
+    expect(await as(visitor).read('Post', [targetId], ['title'])).toEqual({
       [`Post:${targetId}`]: { title: 'Unwritten' },
     })
   })
@@ -567,7 +627,7 @@ describe('publishing', () => {
     await expect(as(ada).mutate('CmsPublish', { entry: 'e2', basedOn: null })).rejects.toThrow(
       'cannot be published',
     )
-    await expect(as(null).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })).rejects.toThrow(
+    await expect(as(visitor).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })).rejects.toThrow(
       'Only an author',
     )
     await expect(as(ian).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })).rejects.toThrow(
@@ -575,21 +635,49 @@ describe('publishing', () => {
     )
     // A visitor is not told which entries there are.
     for (const mutation of ['CmsPublish', 'CmsUnpublish', 'CmsDiscardDraft'])
-      await expect(as(null).mutate(mutation, { entry: 'nothing', basedOn: null })).rejects.toThrow(
-        'Only an author',
-      )
+      await expect(
+        as(visitor).mutate(mutation, { entry: 'nothing', basedOn: null }),
+      ).rejects.toThrow('Only an author')
     expect(count(`cms_revisions where entry_id = 'e1'`)).toBe(1)
   })
 
   it('refuses, when it is made, a handler of some other mutation', () => {
     expect(() =>
-      CmsServer.make<Principal>({
+      CmsServer.make({
         tables,
-        content: [{ type: Pages, binding: Db.Page, ...handlers(Posts, posts) }],
+        content: [{ type: Pages, entity: Page, binding: Db.Page, ...handlers(Posts, posts) }],
         transaction: Transaction.statements,
-        isAuthor,
+        ...guarded,
       }),
     ).toThrow('publishes through "Createpages", but was given the handler of "Createposts"')
+  })
+})
+
+describe('who may make a transition', () => {
+  it('is an author its guards let, refused to another, and said with the entry', async () => {
+    const { as } = open({ transitions: { publish: [G.isSenior] } })
+    await as(bea).mutate('CmsSaveDraft', save({ entry: 'n1' }))
+    await expect(
+      as(bea).mutate('CmsPublish', { entry: 'n1', basedOn: null }),
+    ).rejects.toMatchObject({
+      _tag: 'Forbidden',
+      message: 'This author may not publish this entry',
+    })
+    const may = async (principal: Principal) =>
+      ((await as(principal).read('CmsEntry', ['n1'], ['may']))['CmsEntry:n1']?.may ??
+        []) as ReadonlyArray<string>
+    expect(await may(bea)).not.toContain('publish')
+    expect(await may(ada)).toContain('publish')
+    await as(ada).mutate('CmsPublish', { entry: 'n1', basedOn: null })
+  })
+
+  it('keeps what one who may schedule promised from an author who may not', async () => {
+    const { as } = open({ transitions: { schedule: [G.isSenior] } })
+    await as(ada).mutate('CmsSchedule', { entry: 'e3', at: '2026-07-01T09:00:00.000Z' })
+    await expect(as(bea).mutate('CmsDiscardDraft', { entry: 'e3' })).rejects.toMatchObject({
+      _tag: 'Forbidden',
+      message: 'This draft is scheduled, and only someone who may schedule it may change it',
+    })
   })
 })
 
@@ -608,7 +696,7 @@ describe('unpublishing', () => {
       id: 'e1',
       values: { state: { _tag: 'Unpublished' } },
     })
-    expect(await as(null).read('Post', ['p1'], ['title'])).toEqual({})
+    expect(await as(visitor).read('Post', ['p1'], ['title'])).toEqual({})
     expect(rows(`select title from posts where id = 'p1'`)).toEqual([{ title: 'Live' }])
 
     await as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })
@@ -810,10 +898,10 @@ describe('what comes due', () => {
 describe('archiving', () => {
   it('puts the entry away and takes what can be hidden off show; unarchiving leaves it unpublished', async () => {
     const { as, rows } = open()
-    expect(await as(null).read('Post', ['p1'], ['title'])).not.toEqual({})
+    expect(await as(visitor).read('Post', ['p1'], ['title'])).not.toEqual({})
     const result = await as(ada).mutate('CmsArchive', { entry: 'e1' })
     expect(result.entities.map(patch => patch.entity).sort()).toEqual(['CmsEntry', 'Post'])
-    expect(await as(null).read('Post', ['p1'], ['title'])).toEqual({})
+    expect(await as(visitor).read('Post', ['p1'], ['title'])).toEqual({})
     expect(await as(ada).list({ type: 'posts', archived: true })).toContain('e1')
     expect(await as(ada).list({ type: 'posts' })).not.toContain('e1')
     // Put away, nothing else applies.
@@ -888,7 +976,7 @@ describe('restoring', () => {
     await expect(as(ada).mutate('CmsRestore', { entry: 'e3', revision: 1 })).rejects.toThrow(
       'cannot be restored',
     )
-    await expect(as(null).mutate('CmsRestore', { entry: 'e1', revision: 1 })).rejects.toThrow(
+    await expect(as(visitor).mutate('CmsRestore', { entry: 'e1', revision: 1 })).rejects.toThrow(
       'Only an author',
     )
     await expect(as(ian).mutate('CmsRestore', { entry: 'e1', revision: 1 })).rejects.toThrow(
@@ -959,14 +1047,14 @@ describe('one connection, two requests', () => {
 
   it('makes each operation one transaction', async () => {
     let transactions = 0
-    const counted = CmsServer.make<Principal>({
+    const counted = CmsServer.make({
       tables,
-      content: [{ type: Posts, binding: Db.Post, ...handlers(Posts, posts) }],
+      content: [{ type: Posts, entity: GuardedPost, binding: Db.Post, ...handlers(Posts, posts) }],
       transaction: work => {
         transactions += 1
         return Transaction.statements(work)
       },
-      isAuthor,
+      ...guarded,
     })
     const { sqlite } = open()
     const layer = databaseLayer(drizzle({ client: sqlite }))

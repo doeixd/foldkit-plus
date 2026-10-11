@@ -42,7 +42,10 @@ export const readSite = async (
 ) => {
   const { backend } = openBackend()
   if (seeded) await backend.seed()
-  const handlers: RemoteRpcClient<DrizzleDatabase> = RemoteServer.handlers(backend.server, null)
+  const handlers: RemoteRpcClient<DrizzleDatabase> = RemoteServer.handlers(
+    backend.server,
+    Option.none(),
+  )
   const served = <A, E>(effect: Effect.Effect<A, E, DrizzleDatabase>) =>
     effect.pipe(Effect.provide(backend.database))
   const client = Layer.succeed(RemoteClient, {
