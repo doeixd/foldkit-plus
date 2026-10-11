@@ -317,6 +317,39 @@ GuardServer.mutation(
   a declared write's is: the answer shows the writer only what they may now
   see, and a row the handler hid from them answers as deleted.
 
+## What the client may do
+
+The client must not run a rule: it has no bodies, its row may be stale, and it
+is not where a write is checked. To grey out a button for the reason the
+server would refuse it, it reads the server's answer instead: `Guards.may`
+adds a derived member, `may`, which `GuardServer.filter` answers from the row
+as its reader sees it.
+
+```ts
+const Todo = TodoFields.pipe(Guards.attach(G, { … }), Guards.may)
+
+// Over Drizzle, `may` is not a column: the filter supplies it.
+bind({ Todo }, { Todo: { table: todos, derived: { may: { supplied: true } }, visible: visible.Todo } })
+
+// Select it as any member, and read it with `May`; `row` is a Todo read through `Row`.
+const Row = Entity.select(Todo, { title: true, may: true })
+May.can(row.may, Archive.key) // the row's rule for Archive
+May.canSet(row.may, Todo, 'ownerId') // the row's Update, and ownerId's own
+May.canLink(row.may, Todo, 'project', 'Link')
+```
+
+- It answers the row's `Update`, `Delete` and each named interaction, each
+  member with its own `Update` rule, and each relation with a `Link` or
+  `Unlink` rule, all held over the row as a write's check would hold them
+  over it as it is.
+- A member or relation without its own rule follows the row's `Update`; an
+  interaction the answer does not name reads `false`.
+- It is a hint, read when the row was: a live patch of the fields its rules
+  read does not answer it again, so it is stale until the row is read again.
+  The write is checked when it is made, whatever `may` said.
+- A Source without the filter does not answer it: the client reads it as
+  unavailable.
+
 ## Checking a server at startup
 
 A Source written by hand over a guarded Entity serves every row, and nothing

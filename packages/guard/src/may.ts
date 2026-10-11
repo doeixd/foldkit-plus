@@ -1,0 +1,57 @@
+/**
+ * `may`: what the server says a principal may do with a row, as a derived
+ * member the client reads like any other. The client never runs a rule; this
+ * is the server's answer for the row as it was read, a hint for a greyed-out
+ * button, never the check (the write is checked again when it is made).
+ */
+import { Schema } from 'effect'
+import { Derived, Entity, type AnyEntity } from 'foldkit-entity'
+import type { InteractionKey } from './attach.js'
+
+/**
+ * The answer: per row interaction (`Update`, `Delete`, and each one the
+ * application named), per member with its own `Update` rule, and per relation
+ * with a `Link` or `Unlink` rule.
+ */
+export const MaySchema = Schema.Struct({
+  row: Schema.Record(Schema.String, Schema.Boolean),
+  members: Schema.Record(Schema.String, Schema.Boolean),
+  relations: Schema.Record(
+    Schema.String,
+    Schema.Struct({ Link: Schema.Boolean, Unlink: Schema.Boolean }),
+  ),
+})
+export type MayAnswer = typeof MaySchema.Type
+
+type MemberKeys<E extends AnyEntity> = (keyof E['fields'] | keyof E['derived']) & string
+
+export const May = {
+  /**
+   * Adds the `may` member to an Entity, after its guards are attached:
+   * `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)`. Select it as any
+   * member (`may: true`); `GuardServer.filter` answers it.
+   */
+  member: Entity.derived({ may: Derived.make(MaySchema) }),
+
+  /**
+   * Whether the row's rule for `interaction` let the principal, when it was
+   * read. An interaction the answer does not name was not ruled where the row
+   * was read, and reads `false`: a hint errs on the side of asking.
+   */
+  can: (may: MayAnswer, interaction: 'Update' | 'Delete' | InteractionKey): boolean =>
+    may.row[interaction] === true,
+
+  /** Whether the principal may set `member` on this row: the row's `Update`, and the member's own rule. */
+  canSet: <E extends AnyEntity>(may: MayAnswer, _entity: E, member: MemberKeys<E>): boolean =>
+    May.can(may, 'Update') && (!Object.hasOwn(may.members, member) || may.members[member] === true),
+
+  /** Whether the principal may point `relation` at a row, or away from one. */
+  canLink: <E extends AnyEntity>(
+    may: MayAnswer,
+    _entity: E,
+    relation: keyof E['relations'] & string,
+    interaction: 'Link' | 'Unlink',
+  ): boolean =>
+    May.can(may, 'Update') &&
+    (!Object.hasOwn(may.relations, relation) || may.relations[relation]![interaction]),
+}

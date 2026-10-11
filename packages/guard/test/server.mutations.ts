@@ -151,4 +151,69 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'may is never answered',
+    edits: [
+      {
+        file,
+        find: "fields.includes('may') && Object.hasOwn(entity.derived, 'may')",
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'may names no interaction the application named',
+    edits: [{ file, find: "['Update', 'Delete', ...named]", replace: "['Update', 'Delete']" }],
+    tests,
+  },
+  {
+    name: 'may answers no member',
+    edits: [
+      {
+        file,
+        find: 'policy.writeMembers(entity, principal, ruledMembers, ' + "'Update'),",
+        replace: "policy.writeMembers(entity, principal, [], 'Update'),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a relation with no rule for one direction is refused it',
+    edits: [{ file, find: 'onNone: () => true,', replace: 'onNone: () => false,' }],
+    tests,
+  },
+  {
+    name: 'may is answered without the fields its rules read',
+    edits: [
+      {
+        file,
+        find: '...Option.match(may, { onNone: () => [], onSome: ({ fields }) => fields }),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'may reads no id',
+    edits: [
+      {
+        file,
+        find: "fields: ['id', ...new Set(conditions.flatMap(Condition.members))],",
+        replace: 'fields: [...new Set(conditions.flatMap(Condition.members))],',
+      },
+    ],
+    tests: ['packages/guard/test/drizzle.test.ts'],
+  },
+  {
+    name: 'may holds every row rule',
+    edits: [
+      {
+        file,
+        find: 'rows.map(([interaction, { condition }]) => [interaction, holds(condition, values)]),',
+        replace: 'rows.map(([interaction]) => [interaction, true]),',
+      },
+    ],
+    tests,
+  },
 ]

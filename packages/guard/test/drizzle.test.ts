@@ -73,9 +73,13 @@ const G = Guards.declare(
 const Project = Related.Project.pipe(Guards.attach(G, { row: { Read: [G.isMember, G.isAdmin] } }))
 const Todo = Related.Todo.pipe(
   Guards.attach(G, {
-    row: { Read: [G.isOwner, Guards.inherit('project'), G.isAdmin] },
+    row: {
+      Read: [G.isOwner, Guards.inherit('project'), G.isAdmin],
+      Update: [G.isOwner, G.isAdmin],
+    },
     members: { title: { Read: Guards.on([G.isOwner], Guards.redact('(private)')) } },
   }),
+  Guards.may,
 )
 
 const Policy = G.implement({
@@ -89,6 +93,8 @@ const Db = bind(
     Todo: {
       table: todos,
       relations: { project: { field: todos.projectId } },
+      // Not a column: `GuardServer.filter` answers it.
+      derived: { may: { supplied: true } },
       visible: visible.Todo,
     },
     Project: { table: projects, visible: visible.Project },
@@ -212,6 +218,44 @@ describe('GuardServer.filter on a Drizzle source', () => {
   })
 })
 
+describe('may on a Drizzle source', () => {
+  it('answers it from the row as its reader sees it, asked alone', async () => {
+    const server = RemoteServer.make({
+      entities: [source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })],
+    })
+    const mayOf = async (principal: Option.Option<User>) => {
+      const { sqlite, database } = setup()
+      try {
+        const result = await run(
+          RemoteServer.handlers(server, principal)
+            .FoldkitRemoteRead({
+              version: REMOTE_PROTOCOL_VERSION,
+              requests: ['t1', 't2'].map(id => ({ entity: 'Todo', id, fields: ['may'] })),
+            })
+            .pipe(Effect.provide(databaseLayer(database))),
+        )
+        return result.entities.map(entity => [entity.id, entity.values.may])
+      } finally {
+        sqlite.close()
+      }
+    }
+    const may = (update: boolean) => ({
+      row: { Update: update, Delete: true },
+      members: {},
+      relations: {},
+    })
+    expect(await mayOf(ada)).toEqual([
+      ['t1', may(true)],
+      ['t2', may(false)],
+    ])
+    // An admin's rules read nothing of the row: it is read all the same.
+    expect(await mayOf(root)).toEqual([
+      ['t1', may(true)],
+      ['t2', may(true)],
+    ])
+  })
+})
+
 describe('GuardDrizzle.visible at registration', () => {
   it('refuses an inherited Read whose Entity is not listed, or has no Read rule', () => {
     expect(() => GuardDrizzle.visible(Policy, [Todo])).toThrow(
@@ -233,7 +277,11 @@ describe('GuardServer.validate over Drizzle', () => {
   const Open = bind(
     { Todo, Project },
     {
-      Todo: { table: todos, relations: { project: { field: todos.projectId } } },
+      Todo: {
+        table: todos,
+        relations: { project: { field: todos.projectId } },
+        derived: { may: { supplied: true } },
+      },
       Project: { table: projects },
     },
   )

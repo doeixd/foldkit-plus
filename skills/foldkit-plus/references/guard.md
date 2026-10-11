@@ -107,6 +107,11 @@ const Todo = TodoFields.pipe(
   `GuardServer.writer(Todo, Policy, writer(Db.Todo), { presets: { ownerId:
   user => user.id } })` sets a field from who is asking on create; the input
   must leave it out.
+- `may`: `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)` adds a derived
+  member `GuardServer.filter` answers per row (over Drizzle, bind it
+  `derived: { may: { supplied: true } }`); select `may: true` and read it with
+  `May.can(may, Archive.key)`, `May.canSet(may, Todo, 'ownerId')`,
+  `May.canLink(may, Todo, 'project', 'Link')`. A hint, never the check.
 - Who is asking: `RemoteServer.handlers(server, G.Principal)` reads it per
   call; authentication provides it per request
   (`Effect.provideService(G.Principal, principal)`). Give a live hub

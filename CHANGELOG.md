@@ -346,7 +346,12 @@ version changed; `pnpm` skips versions already in the registry.
   through the guarded `source`, before `run` is given it; with no `id`, of
   who is asking alone. Each row of the Entity its answer carries is read
   back through `source`, one the handler hid from its writer answered as
-  deleted.
+  deleted. `Guards.may` adds a derived member, `may`, which
+  `GuardServer.filter` answers per row as its reader sees it: the row's
+  `Update`, `Delete` and named interactions, each member's own `Update`, each
+  relation's `Link` and `Unlink`. `May.can`, `May.canSet` and `May.canLink`
+  read it on the client, a member or relation following the row's `Update`.
+  It is a hint read with the row; the write is checked when it is made.
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

@@ -1,6 +1,6 @@
 # Guards: who may do what, declared once on the domain
 
-**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slices 1 (`Expr.in`) and 2 (the core, but `may`) built, and slice 3's decisions, its `memory` and `filter` seams, its Drizzle `visible`, relation Reads and `GuardServer.validate` (slice 3 complete), slice 4 (`G.Principal` read per call, a hub keyed by `Policy.keyOf`) and slice 5 (`Forbidden` end to end) and slice 6 (writes: `GuardServer.writer`, presets, `GuardServer.mutation`, the read-back); the rest not.
+**Status:** Proposed, 2026-10-05; revised 2026-10-10 against the code as it now stands (Remote's client placement, declared writes, live row logs). Slices 1 (`Expr.in`) and 2 (the core, but `may`) built, and slice 3's decisions, its `memory` and `filter` seams, its Drizzle `visible`, relation Reads and `GuardServer.validate` (slice 3 complete), slice 4 (`G.Principal` read per call, a hub keyed by `Policy.keyOf`) and slice 5 (`Forbidden` end to end) and slice 6 (writes: `GuardServer.writer`, presets, `GuardServer.mutation`, the read-back), and slice 7's `may` member, its server answer and its readers; the rest not.
 **Target:** a new package, `foldkit-guard`, and small changes in `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-entity`, `foldkit-crud`, `foldkit-agent`, `foldkit-cms-drizzle`, `foldkit-sync`.
 **Inspirations:** this repository's authorization seams; `doeixd/gen2`'s `AUTHZ2_PLAN.md`, `src/authz/{surface,placement,deny,mutation-plan}.ts` and `rules_implementation_guide.md`; ZenStack, Ent's privacy layer, Hasura permissions, Postgres row-level security, Firebase security rules, Pundit, Zanzibar, Cedar (§2).
 **Related:** `remote-improvement-plan.md` §16 (client placement, Phases 7–12), whose Phase 12 is gated on this design.
@@ -555,6 +555,22 @@ Each slice stands alone, is committed with its tests, and is reviewed before the
    Entity; relaxing it waits for the answer to say it was read back. Slice 6 is built.
    `guard/test/write.test.ts` is the fixture, over SQLite.
 7. **`may`.** Served by `Guards.source`; Crud's `may` and `readonly`; `mixins-form` disabled fields; `Data.forget` dropping it.
+
+   *Built so far:* `may` is not added by `attach`, which may run more than once on an Entity and
+   merges what each run gives, but by its own step after it, `Guards.may`, an `Entity.derived`
+   of a fixed shape: per row interaction (`Update`, `Delete`, each named one), per member with
+   its own `Update` rule, per relation with a `Link` or `Unlink` rule. Its keys are data, not
+   types, so a `Selection` reads it whole; `May.can`, `May.canSet(may, Todo, 'ownerId')` and
+   `May.canLink` are typed by the Entity instead, a member or relation without its own rule
+   following the row's `Update`, an unanswered interaction reading `false`. There is no
+   `Guards.source`: `GuardServer.filter`, which every guarded Source already carries, answers it
+   from the row as read, deciding each principal guard once per read, so memory and Drizzle
+   (`derived: { may: { supplied: true } }`) answer it alike, and a Source without the filter
+   leaves it unavailable. It always reads `id`, since an admin's rules read nothing of the row
+   and a read projecting no column returns no row. A live patch of a field its rules read does
+   not answer it again: it is as stale as the row's last read. Building it found a type fault in
+   `attach`: a computed `[Archive.key]` beside a `Read` that inherits did not compile, so named
+   interactions moved under `interactions` (§3.2).
 8. **Agent.** `Guards.variant`; `withPrincipal` inferred.
 9. **CMS.** §8; the casts removed; the example's `isAuthor`/`allow` rewritten; the e2e audience test unchanged and green.
 10. **Sync.** §8c: `Guards.document` as a connection-level refuse; `Guards.journal` deriving the journal's `authorize`; an Effect-returning `refuse` with a reason for row guards before `append`; `EditableEntity.make`'s audience check; the registry example's edits governed by `Product`'s guards. First, read the presence server to confirm whether a peer's id is stamped from the connection. Tests: a visitor's exchange refused by `readers`; an edit to an `Update`-guarded member rejected with its reason; a document declared over a member with a `Read` guard refused at `make`.

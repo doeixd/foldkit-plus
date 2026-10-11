@@ -9,7 +9,7 @@ import { Entity, Expr, Order, Relation } from 'foldkit-entity'
 import { Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteRpc, type Requirement } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
-import { Guards } from '../src/index.js'
+import { Guards, Interaction, May, MaySchema } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
 
 const User = Schema.Struct({
@@ -64,15 +64,26 @@ const G = Guards.declare(
 )
 
 const Project = ProjectFields.pipe(Guards.attach(G, { row: { Read: [G.isMember, G.isAdmin] } }))
+const Archive = Interaction.make('Archive')
+
 const Todo = TodoFields.pipe(
   Guards.attach(G, {
-    row: { Read: [G.isOwner, Guards.inherit('project'), G.isAdmin] },
+    row: {
+      Read: [G.isOwner, Guards.inherit('project'), G.isAdmin],
+      Update: [G.isOwner, G.isAdmin],
+      Delete: [G.isAdmin],
+    },
+    interactions: {
+      [Archive.key]: [G.isOwner],
+    },
     members: {
       email: { Read: Guards.on([G.isOwner, G.isAdmin], Guards.redact('hidden')) },
       notes: { Read: [G.isOwner] },
+      ownerId: { Update: [G.isAdmin] },
     },
-    relations: { tag: { Read: [G.isOwner] } },
+    relations: { tag: { Read: [G.isOwner], Link: [G.isAdmin] } },
   }),
+  Guards.may,
 )
 
 // Each node is readable when its parent is: a loop of parents is readable by no one.
@@ -309,6 +320,50 @@ describe('a guarded domain in memory', () => {
       [{ values: { email: 'g@x' } }],
     ])
     expect(decided.map(principal => Option.getOrThrow(principal).id)).toEqual(['ada', 'root'])
+  })
+
+  it('answers may for each row as its reader may act on it', async () => {
+    const mayOf = (principal: Option.Option<User>) =>
+      read(principal, [
+        { entity: 'Todo', id: 't1', fields: ['may'] },
+        { entity: 'Todo', id: 't2', fields: ['may'] },
+      ]).then(result =>
+        Object.fromEntries(result.entities.map(entity => [entity.id, entity.values.may])),
+      )
+    // ada owns t1 and reads t2 through its project.
+    expect(await mayOf(Option.some(ada))).toEqual({
+      t1: {
+        row: { Update: true, Delete: false, Archive: true },
+        members: { ownerId: false },
+        relations: { tag: { Link: false, Unlink: true } },
+      },
+      t2: {
+        row: { Update: false, Delete: false, Archive: false },
+        members: { ownerId: false },
+        relations: { tag: { Link: false, Unlink: true } },
+      },
+    })
+    expect((await mayOf(Option.some(root))).t2).toEqual({
+      row: { Update: true, Delete: true, Archive: false },
+      members: { ownerId: true },
+      relations: { tag: { Link: true, Unlink: true } },
+    })
+  })
+
+  it('reads may through May, a member or relation joining the row’s Update', async () => {
+    const result = await read(Option.some(ada), [{ entity: 'Todo', id: 't1', fields: ['may'] }])
+    const may = Schema.decodeUnknownSync(MaySchema)(result.entities[0]!.values.may)
+    expect(May.can(may, 'Update')).toBe(true)
+    expect(May.can(may, Archive.key)).toBe(true)
+    expect(May.canSet(may, Todo, 'title')).toBe(true)
+    expect(May.canSet(may, Todo, 'ownerId')).toBe(false)
+    expect(May.canLink(may, Todo, 'tag', 'Unlink')).toBe(true)
+    expect(May.canLink(may, Todo, 'tag', 'Link')).toBe(false)
+    const readOnly = { ...may, row: { ...may.row, Update: false } }
+    expect(May.canSet(readOnly, Todo, 'title')).toBe(false)
+    expect(May.canLink(readOnly, Todo, 'tag', 'Unlink')).toBe(false)
+    // @ts-expect-error a member the Entity does not have
+    May.canSet(may, Todo, 'colour')
   })
 
   it('reads an Entity it was not given as open, and ends a loop of inherited Reads', async () => {

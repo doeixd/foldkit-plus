@@ -10,6 +10,7 @@
 import { Context, Effect, Match, Option, Schema } from 'effect'
 import { Attaching, attached, type InteractionKey } from './attach.js'
 import { deciding, type Condition, type MemberRead, type RowRule } from './condition.js'
+import { May } from './may.js'
 import {
   Expr,
   Query,
@@ -231,6 +232,7 @@ const placeholdersOf = <User>(fields: Schema.Struct.Fields): Placeholders<User> 
 }
 
 export { Condition, type MemberRead, type RowRule } from './condition.js'
+export { May, MaySchema, type MayAnswer } from './may.js'
 export {
   Interaction,
   type All,
@@ -249,6 +251,12 @@ export {
 
 export const Guards = {
   ...Attaching,
+  /**
+   * Adds the `may` member, the server's answer to what a principal may do
+   * with a row, after its guards are attached:
+   * `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)`.
+   */
+  may: May.member,
   /**
    * One application's guards, under `name` (its principal's Context key, and
    * what the matrix prints). `principal` is a `Schema.Struct`: its fields are
