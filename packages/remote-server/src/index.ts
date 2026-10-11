@@ -109,6 +109,14 @@ export interface EntitySource<P, R = never> {
     principal: P,
     fields: readonly string[],
   ) => Effect.Effect<ReadPlan, RemoteServerError, R>
+  /**
+   * The rule that decides which rows this source returns, as it was given one
+   * (a Drizzle binding's `visible`, `RemoteServer.memory`'s `readable`). The
+   * server never runs it: it is here so a check at startup, such as
+   * `GuardServer.validate`, can confirm a source applies the rule its Entity
+   * requires.
+   */
+  readonly visible?: unknown
 }
 
 /** What `EntitySource.filter` decides for one read. */
@@ -280,6 +288,8 @@ export interface QuerySource<P, R = never> {
      */
     readonly select?: RelationRequirement | undefined
   }) => Effect.Effect<QueryPage, RemoteServerError, R>
+  /** The rule that decides which rows the query lists. See `EntitySource.visible`. */
+  readonly visible?: unknown
 }
 
 export interface LiveSource<P, R = never> {
@@ -934,8 +944,11 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
     return shown(value) ? value : null
   }
 
-  const entities = [...config.domain.registry.entities.keys()].map(name =>
-    RemoteServer.entity<P>(
+  // Every row this backend reads, it reads through `readable`.
+  const visible = config.readable === undefined ? {} : { visible: config.readable }
+  const entities = [...config.domain.registry.entities.keys()].map(name => ({
+    ...visible,
+    ...RemoteServer.entity<P>(
       { name },
       {
         ...(Object.hasOwn(authorize, name) ? { authorize: authorize[name]! } : {}),
@@ -972,7 +985,7 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
           ),
       },
     ),
-  )
+  }))
 
   const given = new Set((config.queries ?? []).map(source => source.query))
   const bodiless = [...config.domain.registry.queries.values()].filter(
@@ -987,8 +1000,9 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
     ...(config.queries ?? []),
     ...[...config.domain.registry.queries.values()]
       .filter(query => !given.has(query.name))
-      .map(query =>
-        RemoteServer.query<P>(query, ({ input, window, principal }) =>
+      .map(query => ({
+        ...visible,
+        ...RemoteServer.query<P>(query, ({ input, window, principal }) =>
           Effect.flatMap(readableFor(principal), readable =>
             Effect.try({
               try: () => {
@@ -1032,7 +1046,7 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
             }),
           ),
         ),
-      ),
+      })),
   ]
 
   const server = RemoteServer.make<P>({

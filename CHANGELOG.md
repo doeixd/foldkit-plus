@@ -247,7 +247,13 @@ version changed; `pnpm` skips versions already in the registry.
   columns through `self.columns`. Every path a table is read by applies it as
   before.
 - **`foldkit-remote-drizzle`: `source(binding, { filter })`**, the
-  per-record read plan `RemoteServer.entity` takes, passed through.
+  per-record read plan `RemoteServer.entity` takes, passed through. A source
+  and a `query` carry their binding's `visible`, for a startup check.
+- **`foldkit-remote-server`: `EntitySource.visible` and
+  `QuerySource.visible`**, the rule that decides which rows a source returns,
+  as it was given one. The server never runs it; a startup check such as
+  `GuardServer.validate` reads it. `RemoteServer.memory`'s sources carry its
+  `readable`.
 - **`foldkit-remote-server`: what a principal sees, per record and per row.**
   `EntitySource.filter(principal, fields)` returns a read plan: the fields to
   read (the allowed ones, and any the decision needs) and `apply`, one record
@@ -287,8 +293,11 @@ version changed; `pnpm` skips versions already in the registry.
   (the inherited Entity listed and ruled, no loop). A relation's Read rules
   are decided over its parent row, as a member's are, and withhold the
   relation where they refuse; over Drizzle, member and relation Reads are the
-  Source's `filter` (`source(binding, { filter })`). Writes come next
-  (`guard-DESIGN.md`).
+  Source's `filter` (`source(binding, { filter })`).
+  `GuardServer.validate(Policy, { entities, domain, server })` checks at
+  startup that every guarded Entity's Source, and each query listing it,
+  applies the rule and filter those seams built for it from that Policy, and
+  throws naming each that does not. Writes come next (`guard-DESIGN.md`).
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

@@ -599,6 +599,7 @@ export const source = <P = unknown>(
       }),
     ...(options?.authorize === undefined ? {} : { authorize: options.authorize }),
     ...(options?.filter === undefined ? {} : { filter: options.filter }),
+    ...(binding.visible === undefined ? {} : { visible: binding.visible }),
   }
 }
 
@@ -661,6 +662,7 @@ export const query = <P = unknown, Input = unknown>(
   return {
     query: descriptor.name,
     Input: descriptor.Input,
+    ...(options.entity.visible === undefined ? {} : { visible: options.entity.visible }),
     run: ({ input, window, principal }) =>
       Effect.gen(function* () {
         if (

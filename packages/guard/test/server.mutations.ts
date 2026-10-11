@@ -60,4 +60,79 @@ export default [
     edits: [{ file, find: 'if (seen.has(key)) return false', replace: '' }],
     tests,
   },
+  {
+    name: 'validate takes any function for a placed rule',
+    edits: [
+      {
+        file: '../src/placed.ts',
+        find: 'return placed !== undefined && placed.policy === policy && placed.entities.has(entity)',
+        replace: 'return true',
+      },
+    ],
+    tests: ['packages/guard/test/server.test.ts', 'packages/guard/test/drizzle.test.ts'],
+  },
+  {
+    name: 'validate takes a rule built from another Policy',
+    edits: [{ file: '../src/placed.ts', find: '&& placed.policy === policy', replace: '' }],
+    tests,
+  },
+  {
+    name: 'validate takes a rule built for another Entity',
+    edits: [{ file: '../src/placed.ts', find: '&& placed.entities.has(entity)', replace: '' }],
+    tests: ['packages/guard/test/drizzle.test.ts'],
+  },
+  {
+    name: 'validate does not compare guard sets',
+    edits: [{ file, find: 'if (attachment.set !== policy.set) {', replace: 'if (false) {' }],
+    tests,
+  },
+  {
+    name: 'memory Sources do not say they apply readable',
+    edits: [
+      {
+        file: '../../remote-server/src/index.ts',
+        find: 'const visible = config.readable === undefined ? {} : { visible: config.readable }',
+        replace: 'const visible = {}',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'validate does not look at a Source',
+    edits: [
+      {
+        file,
+        find: 'const sourceProblems = Option.match(source, {',
+        replace: 'const sourceProblems = Option.match(Option.none(), {',
+      },
+    ],
+    tests: ['packages/guard/test/server.test.ts', 'packages/guard/test/drizzle.test.ts'],
+  },
+  {
+    name: 'validate does not look at queries',
+    edits: [{ file, find: '!rowRules.has(listed.visible, policy, name)', replace: 'false' }],
+    tests: ['packages/guard/test/server.test.ts', 'packages/guard/test/drizzle.test.ts'],
+  },
+  {
+    name: 'validate looks at every query, whatever it lists',
+    edits: [{ file, find: 'lists(query.Result, name) &&', replace: '' }],
+    tests: ['packages/guard/test/server.test.ts', 'packages/guard/test/drizzle.test.ts'],
+  },
+  {
+    name: 'the live hub re-reads every subscriber as the first',
+    edits: [
+      {
+        file: '../../remote-server/src/index.ts',
+        find: 'const byWindows = groups.get(subscriber.principal) ?? new Map<string, ReadGroup<P>>()',
+        replace:
+          'const first = [...groups.keys()][0] ?? subscriber.principal; const byWindows = groups.get(first) ?? new Map<string, ReadGroup<P>>()',
+      },
+      {
+        file: '../../remote-server/src/index.ts',
+        find: 'groups.set(subscriber.principal, byWindows)',
+        replace: 'groups.set(first, byWindows)',
+      },
+    ],
+    tests,
+  },
 ]

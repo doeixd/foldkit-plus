@@ -9,10 +9,17 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Relation } from 'foldkit-entity'
-import { Query, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
-import { bind, databaseLayer, query, source, type AnyEntityBinding } from 'foldkit-remote-drizzle'
+import { Query, REMOTE_PROTOCOL_VERSION, Remote } from 'foldkit-remote'
+import {
+  bind,
+  databaseLayer,
+  query,
+  source,
+  type AnyEntityBinding,
+  type DrizzleDatabase,
+} from 'foldkit-remote-drizzle'
 import { describe, expect, it } from 'vitest'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemoteServer, type ServerDefinition } from 'foldkit-remote-server'
 import { GuardDrizzle } from '../src/drizzle.js'
 import { Guards } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
@@ -136,10 +143,8 @@ const AllTodos = Query.make('AllTodos', {
   Input: Schema.Struct({}),
   Result: Query.connection({ name: 'Todo' }),
 })
-const listed = query<Option.Option<User>, {}>(AllTodos, {
-  entity: Db.Todo,
-  orderBy: [{ column: todos.id, direction: 'asc' }],
-})
+const orderBy = [{ column: todos.id, direction: 'asc' as const }]
+const listed = query<Option.Option<User>, {}>(AllTodos, { entity: Db.Todo, orderBy })
 const list = async (principal: Option.Option<User>) => {
   const { sqlite, database } = setup()
   try {
@@ -220,5 +225,58 @@ describe('GuardDrizzle.visible at registration', () => {
   it('refuses a loop of inherited Reads', () => {
     const Note = Related.Note.pipe(Guards.attach(G, { row: { Read: [Guards.inherit('parent')] } }))
     expect(() => GuardDrizzle.visible(Policy, [Note])).toThrow(/inherited Reads loop: Note → Note/)
+  })
+})
+
+describe('GuardServer.validate over Drizzle', () => {
+  const Data = Remote.define({ entities: [Todo, Project], queries: [AllTodos] })
+  const Open = bind(
+    { Todo, Project },
+    {
+      Todo: { table: todos, relations: { project: { field: todos.projectId } } },
+      Project: { table: projects },
+    },
+  )
+  const filter = GuardServer.filter(Todo, Policy)
+  const check = (server: ServerDefinition<Option.Option<User>, DrizzleDatabase>) => () =>
+    GuardServer.validate(Policy, { entities: [Todo, Project], domain: Data, server })
+
+  it('passes bindings, a filter and a query built from the guard set', () => {
+    expect(
+      check(
+        RemoteServer.make({
+          entities: [
+            source(Db.Todo, { filter }),
+            source(Db.Project, { filter: GuardServer.filter(Project, Policy) }),
+          ],
+          queries: [listed],
+        }),
+      ),
+    ).not.toThrow()
+  })
+
+  it('refuses a binding without the rule, a Source without the filter, and such a query', () => {
+    expect(
+      check(
+        RemoteServer.make({
+          entities: [source(Open.Todo, { filter }), source(Db.Project)],
+          queries: [query<Option.Option<User>, {}>(AllTodos, { entity: Open.Todo, orderBy })],
+        }),
+      ),
+    ).toThrow(
+      "Todo's Source does not apply its Read rules; query AllTodos lists Todo without its Read rules",
+    )
+    expect(check(RemoteServer.make({ entities: [source(Db.Todo), source(Db.Project)] }))).toThrow(
+      "Todo's Source does not apply its members' Read rules",
+    )
+    // Another Entity's filter does not decide this one's members.
+    const projectFilter = GuardServer.filter(Project, Policy)
+    expect(
+      check(
+        RemoteServer.make({
+          entities: [source(Db.Todo, { filter: projectFilter }), source(Db.Project)],
+        }),
+      ),
+    ).toThrow("Todo's Source does not apply its members' Read rules")
   })
 })

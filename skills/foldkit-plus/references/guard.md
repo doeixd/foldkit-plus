@@ -83,5 +83,9 @@ const Todo = TodoFields.pipe(
   `filter`: `source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })`.
 - A relation's Read rules are guards over the parent row: where they refuse,
   the relation is withheld, like a member.
+- `GuardServer.validate(Policy, { entities, domain, server })` at startup
+  throws for a guarded Entity whose Source, or a query listing it, lacks the
+  rule or filter the guard seams built for it (a hand-written Source would
+  serve every row). Every guarded Entity needs both.
 
 See the [README](https://github.com/doeixd/foldkit-plus/blob/main/packages/guard/README.md).

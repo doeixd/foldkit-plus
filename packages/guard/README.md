@@ -175,8 +175,9 @@ import { RemoteServer } from 'foldkit-remote-server'
 
 const visitor: Option.Option<typeof User.Type> = Option.none()
 
+const Data = Remote.define({ entities: [Todo] })
 const backend = RemoteServer.memory({
-  domain: Remote.define({ entities: [Todo] }),
+  domain: Data,
   rows: { Todo: [{ id: 't1', ownerId: 'ada', projectId: 'p1' }] },
   principal: visitor, // reads nothing: every Read rule here needs a principal
   ...GuardServer.memory(Policy, [Todo]),
@@ -227,3 +228,21 @@ const Db = bind(
   an `Option` of the set's schema is a defect, never read as a visitor.
 - `visible` is the row's Read. Member and relation Reads are the Source's
   `filter`: `source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })`.
+
+### Checking a server at startup
+
+A Source written by hand over a guarded Entity serves every row, and nothing
+at request time can tell. `GuardServer.validate` looks before any request:
+
+```ts
+GuardServer.validate(Policy, { entities: [Todo], domain: Data, server: backend.server })
+```
+
+It throws, naming each, for an Entity of `entities` whose Source lacks the
+rule `GuardDrizzle.visible` or `GuardServer.memory` built for it, or the
+`GuardServer.filter` built for it; for a query listing such an Entity without
+the rule; and for an Entity carrying another set's guards. A rule built from
+another `Policy`, or for another Entity, does not count. Every guarded Entity
+needs both, even one with no member rules yet, so a rule attached later is
+applied rather than served past. `GuardServer.memory` gives both; over
+Drizzle, each Source takes its `filter`, and each binding its `visible`.

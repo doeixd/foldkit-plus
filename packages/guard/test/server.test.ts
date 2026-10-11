@@ -3,9 +3,10 @@
  * A guarded domain served from memory through the real handlers: one Todo
  * read as its owner, a member of its project, an admin and a visitor.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Fiber, Option, Schema, Stream } from 'effect'
+import { RpcTest } from 'effect/rpc'
 import { Entity, Expr, Order, Relation } from 'foldkit-entity'
-import { Query, REMOTE_PROTOCOL_VERSION, Remote, type Requirement } from 'foldkit-remote'
+import { Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteRpc, type Requirement } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { Guards } from '../src/index.js'
@@ -214,11 +215,98 @@ describe('a guarded domain in memory', () => {
     expect(result.entities[0]?.values).toEqual({ email: 'g@x' })
   })
 
+  it('re-reads a live change under each subscriber’s own principal', async () => {
+    const server = RemoteServer.memory({
+      domain: Data,
+      rows,
+      principal: Option.none<User>(),
+      ...GuardServer.memory(Policy, [Todo, Project, Node]),
+    }).server
+    const events = await Effect.runPromise(
+      Effect.gen(function* () {
+        const hub = yield* RemoteServer.liveHub([...server.entities.values()])
+        const subscribe = (principal: Option.Option<User>) =>
+          Effect.forkChild(
+            Effect.gen(function* () {
+              const client = yield* RpcTest.makeClient(RemoteRpc)
+              return yield* client
+                .FoldkitRemoteLive({
+                  version: REMOTE_PROTOCOL_VERSION,
+                  requirements: [{ entity: 'Todo', id: 't2', fields: ['email'] }],
+                  after: 0,
+                })
+                .pipe(Stream.take(1), Stream.runCollect)
+            }).pipe(
+              Effect.scoped,
+              Effect.provide(
+                RemoteRpc.toLayer(RemoteServer.handlers(server, principal, { live: hub })),
+              ),
+            ),
+          )
+        const asAda = yield* subscribe(Option.some(ada))
+        const asRoot = yield* subscribe(Option.some(root))
+        for (let i = 0; i < 5; i++) yield* Effect.yieldNow
+        yield* hub.changed({ entity: 'Todo', id: 't2' }, ['email'])
+        return [...(yield* Fiber.join(asAda)), ...(yield* Fiber.join(asRoot))]
+      }),
+    )
+    // One change, two readers: ada through the project sees it redacted, an admin as it is.
+    expect(events).toMatchObject([
+      { _tag: 'EntityPatched', id: 't2', values: { email: 'hidden' } },
+      { _tag: 'EntityPatched', id: 't2', values: { email: 'g@x' } },
+    ])
+  })
+
   it('reads an Entity it was not given as open, and ends a loop of inherited Reads', async () => {
     const result = await read(Option.none(), [
       { entity: 'Tag', id: 'g1', fields: ['id'] },
       { entity: 'Node', id: 'n1', fields: ['id'] },
     ])
     expect(result.entities.map(entity => entity.id)).toEqual(['g1'])
+  })
+})
+
+describe('GuardServer.validate', () => {
+  const backend = (guarded: boolean) =>
+    RemoteServer.memory({
+      domain: Data,
+      rows,
+      principal: Option.none<User>(),
+      ...(guarded ? GuardServer.memory(Policy, [Todo, Project, Node]) : {}),
+    }).server
+
+  it('passes a backend that applies every guard', () => {
+    expect(() =>
+      GuardServer.validate(Policy, {
+        entities: [Todo, Project, Node],
+        domain: Data,
+        server: backend(true),
+      }),
+    ).not.toThrow()
+  })
+
+  it('names each Source and query that would serve a guarded row unguarded', () => {
+    expect(() =>
+      GuardServer.validate(Policy, { entities: [Todo], domain: Data, server: backend(false) }),
+    ).toThrow(
+      "Todo's Source does not apply its Read rules; Todo's Source does not apply its members' Read rules; query AllTodos lists Todo without its Read rules",
+    )
+  })
+
+  it('refuses rules built from another Policy, or another set', () => {
+    const Other = G.implement({ isAdmin: () => false })
+    expect(() =>
+      GuardServer.validate(Other, { entities: [Project], domain: Data, server: backend(true) }),
+    ).toThrow("Project's Source does not apply its Read rules")
+    const H = Guards.declare('Others', User, guard => ({ isAdmin: guard.principal() }), {
+      key: user => user.id,
+    })
+    expect(() =>
+      GuardServer.validate(H.implement({ isAdmin: () => true }), {
+        entities: [Project],
+        domain: Data,
+        server: backend(true),
+      }),
+    ).toThrow('Project carries the guards of Todos, not Others')
   })
 })

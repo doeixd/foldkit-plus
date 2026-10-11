@@ -17,6 +17,7 @@ import { RemoteServerError } from 'foldkit-remote-server'
 import { attached, type AnyRule } from './attach.js'
 import type { Condition } from './condition.js'
 import type { Policy } from './index.js'
+import { rowRules } from './placed.js'
 
 // A declaration, not an arrow, so a call narrows what follows it.
 function fail(message: string): never {
@@ -153,7 +154,12 @@ export const GuardDrizzle = {
             }),
         )
       }
-    return Object.fromEntries(entities.map(entity => [entity.name, visible(entity.name)])) as {
+    return Object.fromEntries(
+      entities.map(entity => [
+        entity.name,
+        rowRules.add(visible(entity.name), policy, [entity.name]),
+      ]),
+    ) as {
       readonly [K in Es[number]['name']]: Visible
     }
   },

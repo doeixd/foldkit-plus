@@ -235,6 +235,11 @@ Important consequences:
   fields the client did not ask for so it can decide (an owner id, say),
   and a member it drops from a record is settled like one the Source did not
   return. `foldkit-guard` builds one from a member's guards.
+- a Source, and a query Source, may carry `visible`: the rule that decides
+  which rows it returns, as it was given one (a Drizzle binding's `visible`,
+  `RemoteServer.memory`'s `readable`). The server never runs it; it is there
+  for a startup check such as `GuardServer.validate` to confirm a Source
+  applies the rule its Entity requires.
 
 The Source should still avoid reading or returning columns the request did not
 ask for. The handler filters returned values again, but the data boundary is the

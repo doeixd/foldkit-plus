@@ -100,4 +100,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a Drizzle source does not say which rule it applies',
+    edits: [
+      {
+        file: '../../remote-drizzle/src/index.ts',
+        find: '...(binding.visible === undefined ? {} : { visible: binding.visible }),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a Drizzle query does not say which rule it applies',
+    edits: [
+      {
+        file: '../../remote-drizzle/src/index.ts',
+        find: '...(options.entity.visible === undefined ? {} : { visible: options.entity.visible }),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]
