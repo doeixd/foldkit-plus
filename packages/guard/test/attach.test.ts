@@ -92,11 +92,13 @@ describe('attach', () => {
       key: user => user.id,
       unguarded: 'deny',
     })
-    const Locked = Project.pipe(Guards.attach(Closed, { row: { Read: [Closed.signedIn] } }))
+    const Locked = Project.pipe(
+      Guards.attach(Closed, { row: { Read: [Closed.signedIn], Create: [] } }),
+    )
     expect(Guards.matrix([Locked])).toBe(
       [
         'Project.Read: signedIn → not_found',
-        'Project.Create: closed',
+        'Project.Create: nobody → forbidden',
         'Project.Update: closed',
         'Project.Delete: closed',
       ].join('\n'),

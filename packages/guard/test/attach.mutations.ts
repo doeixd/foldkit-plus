@@ -95,6 +95,11 @@ export default [
     tests,
   },
   {
+    name: 'an empty list prints as no guard at all',
+    edits: [{ file, find: "rules.length === 0 ? 'nobody' : ", replace: '' }],
+    tests,
+  },
+  {
     name: 'an interaction may take a built-in name',
     edits: [
       {

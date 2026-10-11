@@ -265,7 +265,8 @@ const linesOf = (attachment: Attachment): ReadonlyArray<readonly [string, string
     Option.match(surfaceOf(attachment, target), {
       onNone: () => open,
       onSome: ({ rules, deny }) =>
-        `${rules.map(showRule).join(' | ')} → ${showDeny(Option.getOrElse(deny, () => defaultDeny(target)))}`,
+        // An empty disjunction allows no one.
+        `${rules.length === 0 ? 'nobody' : rules.map(showRule).join(' | ')} → ${showDeny(Option.getOrElse(deny, () => defaultDeny(target)))}`,
     })
   const interactions = [
     'Read',
