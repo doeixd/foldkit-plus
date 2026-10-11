@@ -2,8 +2,13 @@
 
 **Status:** Phases 0–2 and 4–6 done, 2026-10-10; Phase 3 in part (each
 section's *As built*). Part two (§16), placing rows in lists instead of
-refetching them: Phases 7–9 done, Phases 10–12 not started. §15 records the decisions taken while planning, each against the
-code that settled it.
+refetching them: Phases 7–11 done, with what each left unbuilt in its *As
+built*; Phase 12 in part, through guard-DESIGN's slices (2026-10-11): rows
+filtered by row rules on every query, a write's answer read back under its
+writer's rules, and a list refetched when a change touches what those rules
+read. Field visibility for the hub, derived members as expressions and
+client-side row rules stay gated. §15 records the decisions taken while
+planning, each against the code that settled it.
 **Source:** [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md), an
 outside review comparing Foldkit Plus with Convex, Fate and TanStack DB. This
 plan checks each of its proposals against the code as of `4c4f9ba4`, and
@@ -1279,6 +1284,14 @@ lists the client cannot place, and no live list here is one.
   guard reads as a membership it cannot judge (invalidate, never place); and
   caches are scoped per principal. Evaluating row guards on the client, the
   precise version, waits for that rule to refetch measurably.
+- **As built, in part** (guard-DESIGN slices 3 and 6): row rules are each
+  binding's `visible`, so every query and relation applies them; a guarded
+  write's answer is read back through its writer's read rule
+  (`EntityWriter.read`), a row it hid answered in `deleted`; `ReadFilter`
+  makes a change to a field a row rule reads invalidate a list rather than
+  place it, a create included. Caches per principal are `RemotePersistence`'s
+  `scope`, which nothing yet requires. Not built: field visibility for the
+  hub, derived members as expressions, and client-side row rules.
 
 ### 16.4 Decisions
 
