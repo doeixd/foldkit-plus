@@ -62,4 +62,13 @@ const Todo = TodoFields.pipe(
 - `Guards.matrix([Todo])` prints every surface; `Guards.guardFields(Todo,
   'Read')` names what a row interaction's guards read.
 
+## Deciding reads (server)
+
+- `Policy.readable(Todo, principal)` decides every principal guard and
+  returns a `Condition` over the row (`Always`, `Never`, or row guards joined
+  by and/or, plus inherited Reads); `Condition.holds(condition, values,
+  Policy.inputOf(principal), inherit)` runs it over stored values.
+- `Policy.readMembers(Todo, principal, members)` gives each ruled member's
+  condition and its refusal (`Omit` or `Redact`).
+
 See the [README](https://github.com/doeixd/foldkit-plus/blob/main/packages/guard/README.md).

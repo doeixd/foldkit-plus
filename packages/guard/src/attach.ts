@@ -228,13 +228,13 @@ const omit: Deny = Object.freeze({ _tag: 'Omit' })
 const forbidden: Deny = Object.freeze({ _tag: 'Forbidden' })
 
 /** The refusal a surface takes when none was chosen. */
-const defaultDeny = (target: Target): Deny =>
+export const defaultDeny = (target: Target): Deny =>
   target.interaction === 'Read'
     ? Match.valueTags(target, { Row: () => notFound, Member: () => omit, Relation: () => omit })
     : forbidden
 
 /** The guards a surface carries; `none` where it falls to the set's `unguarded`. */
-const surfaceOf = (attachment: Attachment, target: Target): Option.Option<Surface> =>
+export const surfaceOf = (attachment: Attachment, target: Target): Option.Option<Surface> =>
   Match.valueTags(target, {
     Row: ({ interaction }) => Option.fromUndefinedOr(attachment.row[interaction]),
     Member: ({ member, interaction }) => {
@@ -376,7 +376,7 @@ const membersRead = (rule: AnyRule): ReadonlyArray<string> =>
     Inherit: ({ relation }) => [relation],
   })
 
-const attached = (entity: AnyEntity): Option.Option<Attachment> =>
+export const attached = (entity: AnyEntity): Option.Option<Attachment> =>
   Option.fromUndefinedOr(key.get(entity.metadata)[0])
 
 export const Attaching = {

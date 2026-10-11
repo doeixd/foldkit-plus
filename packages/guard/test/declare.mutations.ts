@@ -54,7 +54,7 @@ export default [
     edits: [
       {
         file,
-        find: '                  row !== undefined &&',
+        find: 'row !== undefined &&',
         replace: '',
       },
     ],

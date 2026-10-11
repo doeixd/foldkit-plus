@@ -136,3 +136,28 @@ Guards.matrix([Todo])
 - A surface with no guards on a guarded Entity falls to the set's
   `unguarded` (`'allow'` by default); the matrix prints it `open`, or
   `closed` under `unguarded: 'deny'`.
+
+## Deciding reads
+
+A server asks the `Policy` which rows a principal may read. Every principal
+guard is decided by its body (once, however many rules name it); what is
+left is a `Condition` over the row, which an interpreter runs:
+
+```ts
+import { Condition } from 'foldkit-guard'
+
+const ada = Option.some({ id: 'ada', role: 'member' as const, projectIds: ['p1'] })
+const readable = Effect.runSync(Policy.readable(Todo, ada))
+// isAdmin was false, so: isOwner or inProject, over each row
+
+Condition.holds(readable, { id: 't1', ownerId: 'ada', projectId: 'p9' }, Policy.inputOf(ada), () => false)
+// true
+```
+
+- `Condition.always` and `Condition.never` are a read settled without
+  looking at rows: an admin, or a visitor (who passes no row guard).
+- `Condition.holds` is how an interpreter that has the rows runs it; a
+  database compiles it instead. Its last argument answers an inherited Read,
+  which only the caller can look up.
+- `Policy.readMembers(Todo, principal, members)` decides each member's own
+  Read rule, with the refusal it shows (`Omit` or `Redact`).

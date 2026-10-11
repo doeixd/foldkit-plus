@@ -8,7 +8,8 @@
  * which the SQL compiler and `evaluate` both run. See `guard-DESIGN.md`.
  */
 import { Context, Effect, Match, Option, Schema } from 'effect'
-import { Attaching } from './attach.js'
+import { Attaching, attached } from './attach.js'
+import { reading, type Condition, type MemberRead } from './condition.js'
 import {
   Expr,
   Query,
@@ -149,6 +150,23 @@ export interface Policy<User, R = never> {
       readonly row?: Readonly<Record<string, unknown>> | undefined
     },
   ) => Effect.Effect<Decision, never, R>
+  /**
+   * Which rows of `entity` `principal` may read, as a condition over the row
+   * with every principal guard already decided. An Entity without guards, or
+   * of no set, reads `Always`.
+   */
+  readonly readable: (
+    entity: AnyEntity,
+    principal: Option.Option<User>,
+  ) => Effect.Effect<Condition, never, R>
+  /** The read rule of each of `members` that has one, decided for `principal`. */
+  readonly readMembers: (
+    entity: AnyEntity,
+    principal: Option.Option<User>,
+    members: ReadonlyArray<string>,
+  ) => Effect.Effect<ReadonlyArray<MemberRead>, never, R>
+  /** The principal's fields as row guards' inputs; a visitor has none. */
+  readonly inputOf: (principal: Option.Option<User>) => Readonly<Record<string, unknown>>
 }
 
 /** The builders a guard set's declaration is given, typed by its principal. */
@@ -173,6 +191,7 @@ const placeholdersOf = <User>(fields: Schema.Struct.Fields): Placeholders<User> 
   return Object.freeze(inputs) as Placeholders<User>
 }
 
+export { Condition, type MemberRead } from './condition.js'
 export {
   Interaction,
   type All,
@@ -275,27 +294,48 @@ export const Guards = {
             .join('; ')}`,
         )
       }
+      const decide: Policy<User, R>['decide'] = (guard, { principal, interaction, row }) => {
+        if (guard.set !== name) {
+          return Effect.die(
+            new Error(`[foldkit-guard] ${name}: "${guard.name}" belongs to ${guard.set}`),
+          )
+        }
+        return Match.valueTags(guard, {
+          PrincipalGuard: ({ name: body }) => {
+            const decided = bodies[body]!(principal, { interaction })
+            return Effect.isEffect(decided) ? decided : Effect.succeed(decided)
+          },
+          RowGuard: ({ query }) =>
+            Effect.succeed(
+              Option.isSome(principal) &&
+                row !== undefined &&
+                evaluate(query, inputOf(principal.value), [row]).length === 1,
+            ),
+        })
+      }
+      const readingFor = (entity: AnyEntity, principal: Option.Option<User>) => {
+        Option.map(attached(entity), ({ set }) => {
+          if (set !== name) {
+            throw new Error(`[foldkit-guard] ${name}: ${entity.name} carries the guards of ${set}`)
+          }
+        })
+        return reading(
+          guard =>
+            Effect.map(
+              decide(guard, { principal, interaction: 'Read' }),
+              decision => decision === true,
+            ),
+          Option.isNone(principal),
+        )
+      }
       return {
         set: name,
-        decide: (guard, { principal, interaction, row }) => {
-          if (guard.set !== name) {
-            return Effect.die(
-              new Error(`[foldkit-guard] ${name}: "${guard.name}" belongs to ${guard.set}`),
-            )
-          }
-          return Match.valueTags(guard, {
-            PrincipalGuard: ({ name: body }) => {
-              const decided = bodies[body]!(principal, { interaction })
-              return Effect.isEffect(decided) ? decided : Effect.succeed(decided)
-            },
-            RowGuard: ({ query }) =>
-              Effect.succeed(
-                Option.isSome(principal) &&
-                  row !== undefined &&
-                  evaluate(query, inputOf(principal.value), [row]).length === 1,
-              ),
-          })
-        },
+        decide,
+        readable: (entity, principal) => readingFor(entity, principal).readable(entity),
+        readMembers: (entity, principal, members) =>
+          readingFor(entity, principal).members(entity, members),
+        inputOf: principal =>
+          Option.match(principal, { onNone: () => ({}), onSome: user => inputOf(user) }),
       }
     }
 

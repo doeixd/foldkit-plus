@@ -246,9 +246,12 @@ version changed; `pnpm` skips versions already in the registry.
   refusal other than the surface's default. A member the Entity lacks, a row
   guard over another Entity, a guard of another set, or a redacted value of
   the wrong type is a type error. `Guards.matrix` prints every surface and
-  `Guards.guardFields` names what a row interaction's guards read. Nothing
-  enforces an attachment yet: the seams that read it come next
-  (`guard-DESIGN.md`).
+  `Guards.guardFields` names what a row interaction's guards read.
+  `Policy.readable(entity, principal)` decides a principal's read rules into a
+  `Condition` over the row, every principal guard asked once; `Condition.holds`
+  runs it over stored values, and `Policy.readMembers` decides each member's
+  own Read rule with its refusal. Nothing enforces an attachment yet: the
+  seams that read it come next (`guard-DESIGN.md`).
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and
