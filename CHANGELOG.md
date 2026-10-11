@@ -231,6 +231,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-entity`, `foldkit-remote`: a list is fetched, not placed, when
+  a row changes what the server's read rule filters on.** `ReadFilter.of(members)`
+  is Entity metadata naming the members a server filters rows by under a rule
+  the client does not run; `foldkit-guard`'s `attach` declares it from the
+  row's Read rules. Remote gathers it per Entity name when the domain is
+  defined (`registry.filtered`), so a query declared over the Entity before
+  the rule was attached still sees it, and a row a list does not hold that
+  changes one invalidates the list. A row it holds is judged by the body as
+  before.
 - **`foldkit-remote-drizzle`: a `visible` rule may answer with an `Effect`,
   and is given its own binding.** `(principal, self) => SQL | undefined |
   Effect<SQL | undefined, RemoteServerError>`, so a rule that must ask

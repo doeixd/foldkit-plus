@@ -265,6 +265,9 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   (Crud's `Sort.make(...).Schema`). Every name needs a field, or it does not compile;
   `null` chooses none. `Query.orderFor(query, input)` resolves it for one input and
   ends every order on the id, so ties break the same way on every interpreter.
+- **A server's own read rule is declared, not run:** `Entity.annotate(ReadFilter.of(['ownerId']))`
+  names what it filters rows by (`foldkit-guard`'s `attach` does it); Remote fetches a list
+  rather than placing a row whose such member changed.
 - **Text orders by a declared collation, or by the server:** `Entity.annotateMembers({ name:
   Collation.of(Collation.asciiFold) })`; `binary` (code point; ids default to it), `asciiFold`
   (ASCII folded), `locale(name)` (server only). `Query.placement(query, input)` is `Placeable`

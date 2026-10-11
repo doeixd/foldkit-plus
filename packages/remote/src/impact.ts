@@ -96,6 +96,8 @@ export interface HeldConnection {
   readonly holds: ReadonlySet<EntityKey>
   /** Its pages as the server sent them, which a placement edits. */
   readonly connection: Connection
+  /** The members its Entity's server filters rows by under a rule the client does not run. */
+  readonly filtered: ReadonlyArray<string>
 }
 
 const kept = Impact.Kept()
@@ -124,6 +126,15 @@ export const impactOn = (
       }
       const key = entityKey(change.entity, change.id)
       const held = connection.holds.has(key)
+      // The server lists only the rows its read rules admit, and the client
+      // runs none of them: a row this list does not hold may have joined it
+      // on a change to what those rules read, which only the server can say.
+      const ruled = fields.find(field => connection.filtered.includes(field))
+      if (!held && ruled !== undefined) {
+        return Impact.Invalidated({
+          reason: `${key} changed "${ruled}", which the server's read rule for ${change.entity} filters on`,
+        })
+      }
       const roles = Relational.dependencies(body)
       const touches = (keys: ReadonlyArray<{ readonly key: string }>) =>
         keys.some(field => fields.includes(field.key))

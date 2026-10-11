@@ -3,7 +3,7 @@
  * as metadata only `foldkit-guard` reads. See `guard-DESIGN.md` §3.2.
  */
 import { Match, Option, type Schema } from 'effect'
-import { Entity, Query, type AnyEntity } from 'foldkit-entity'
+import { Entity, Query, ReadFilter, type AnyEntity } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import type { PrincipalGuard, RowGuard } from './index.js'
 
@@ -412,7 +412,15 @@ export const Attaching = {
         relations: nested(G.name, entity, config.relations ?? {}),
         always: Object.freeze([...always]),
       })
-      return entity.pipe(Entity.annotate(key.of(attachment)))
+      // What the row's Read rules read, so a client placing rows knows it cannot judge a change to them.
+      const filtered = [
+        ...new Set(
+          [...(attachment.row['Read']?.rules ?? []), ...attachment.always].flatMap(membersRead),
+        ),
+      ]
+      return entity.pipe(
+        Entity.annotate(Metadata.combine([key.of(attachment), ReadFilter.of(filtered)])),
+      )
     },
 
   /** The guards attached to `entity`, every attachment merged. */

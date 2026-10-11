@@ -4,7 +4,7 @@
  * attachments, read back through the matrix and the fields they read.
  */
 import { Option, Schema } from 'effect'
-import { Entity, Expr, Relation } from 'foldkit-entity'
+import { Entity, Expr, ReadFilter, Relation } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
 import { Guards, Interaction } from '../src/index.js'
@@ -65,6 +65,11 @@ describe('attach', () => {
   it('keeps the Entity, so a guard over the base is a guard over the result', () => {
     expect(Entity.same(Todo, TodoFields)).toBe(true)
     expect(Option.isNone(Guards.attached(TodoFields))).toBe(true)
+  })
+
+  it('declares what the row’s Read rules read, for a client that places rows', () => {
+    expect([...ReadFilter.members(Todo.metadata)].sort()).toEqual(['ownerId', 'projectId'])
+    expect(ReadFilter.members(TodoFields.metadata)).toEqual([])
   })
 
   it('prints every surface it decides, defaults and shorthands resolved', () => {

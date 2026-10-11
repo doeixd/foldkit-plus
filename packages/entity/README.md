@@ -664,6 +664,7 @@ from queries, not from what a database could express.
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |
 | `Order.asc(expr, { nulls? })` / `Order.desc(expr, { nulls? })` | One term of an ordering, over a field or a scalar. Rows without a value go last ascending and first descending unless `nulls` says otherwise; every interpreter is told, since databases disagree when it is unsaid. |
 | `Collation.binary` / `.asciiFold` / `.locale(name)` / `.of(collation)` | How a text field orders, as member metadata; see above. |
+| `ReadFilter.of(members)` / `.members(metadata)` | Entity metadata: the members a server filters rows by under a rule the client does not run (an authorization rule; `foldkit-guard` attaches it). A client placing rows in a list fetches the list instead when one changes. Annotations add up. |
 | `Query.placement(query, input)` | `Placeable`, or `NotPlaceable` with why: whether a client can order as the server does. |
 | `Order.chosen(sort, choices)` | The field an input's sort names (`{ by, direction }`, or `null` for none), among `choices`. |
 | `dependenciesOf(...nodes)` | The distinct fields, inputs, and operations those expressions use. |

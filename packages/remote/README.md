@@ -1331,6 +1331,12 @@ the store the answer left:
   it could answer with the rows before the write;
 - a list over a `Query.make` query, which declares no body, is invalidated by
   any change to its Entity;
+- a row a list does not hold that changes a member the server's own read rule
+  filters on (an owner, a team: declared on the Entity as `ReadFilter`, which
+  `foldkit-guard` attaches) invalidates it: whether the row now belongs is the
+  server's to say, since the client runs no such rule. A row it holds is
+  judged by the body as usual. A new row counts, so under such a rule a create
+  refetches the lists over its Entity;
 - a list whose body declares no order leaves its order to the server, by
   fields the client cannot see, so any change to a row it holds invalidates
   it. Declare the order in the body (`Query.orderBy`) to keep a list that a

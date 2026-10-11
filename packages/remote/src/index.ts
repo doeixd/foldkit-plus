@@ -11,6 +11,7 @@ import {
   Entity as DomainEntity,
   Query as Relational,
   QueryEvaluateError,
+  ReadFilter,
   SelectionTypeId,
 } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
@@ -272,6 +273,12 @@ export interface RemoteDescriptor<
     readonly entities: ReadonlyMap<string, EntityDescriptor<any, any>>
     readonly queries: ReadonlyMap<string, QueryDescriptor<any, any, any>>
     readonly mutations: ReadonlyMap<string, MutationDescriptor<any, any, any>>
+    /**
+     * Per entity name, the members its server filters rows by under a rule
+     * the client does not run (`ReadFilter`), so a change to one is fetched,
+     * not placed.
+     */
+    readonly filtered: ReadonlyMap<string, ReadonlyArray<string>>
   }
 }
 
@@ -1189,6 +1196,12 @@ const defineRemote = <
       entities: new Map(entities.map(entity => [entity.name, entity])),
       queries: new Map((config.queries ?? []).map(query => [query.name, query])),
       mutations: new Map((config.mutations ?? []).map(mutation => [mutation.name, mutation])),
+      // Read from the Entities as given: a descriptor keeps no metadata.
+      filtered: new Map(
+        config.entities.flatMap(entity =>
+          DomainEntity.is(entity) ? [[entity.name, ReadFilter.members(entity.metadata)]] : [],
+        ),
+      ),
     },
   }
 }
@@ -2721,12 +2734,14 @@ const bindDomain = <
   /** The registered query a connection identity names, and its encoded input. */
   const queryOf = (
     identity: string,
-  ): Option.Option<Pick<HeldConnection, 'descriptor' | 'encoded'>> => {
+  ): Option.Option<Pick<HeldConnection, 'descriptor' | 'encoded' | 'filtered'>> => {
     const separator = identity.indexOf(IDENTITY_SEPARATOR)
     const descriptor = definition.registry.queries.get(identity.slice(0, separator))
     if (descriptor === undefined) return Option.none()
     const encoded = JSON.parse(identity.slice(separator + 1)) as Record<string, unknown>
-    return Option.some({ descriptor, encoded })
+    const over = descriptor.body?.entity.name
+    const filtered = (over === undefined ? undefined : definition.registry.filtered.get(over)) ?? []
+    return Option.some({ descriptor, encoded, filtered })
   }
 
   /**

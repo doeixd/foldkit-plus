@@ -58,7 +58,9 @@ const Todo = TodoFields.pipe(
   row's Read its `one` relation's Read.
 - A member the Entity lacks, a row guard over another Entity, a guard of
   another set, a mistyped redact or a misspelled interaction is a type error.
-- The result is the same Entity (metadata only); attaching twice appends.
+- The result is the same Entity (metadata only); attaching twice appends. It
+  also declares `ReadFilter` (what the row's Read rules read), so Remote
+  fetches a list, rather than placing a row it does not hold, on a change to one.
 - `Guards.matrix([Todo])` prints every surface; `Guards.guardFields(Todo,
   'Read')` names what a row interaction's guards read.
 

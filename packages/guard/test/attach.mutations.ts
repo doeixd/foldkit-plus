@@ -100,6 +100,17 @@ export default [
     tests,
   },
   {
+    name: 'an attachment declares no read filter',
+    edits: [
+      {
+        file,
+        find: 'Metadata.combine([key.of(attachment), ReadFilter.of(filtered)])',
+        replace: 'key.of(attachment)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'an interaction may take a built-in name',
     edits: [
       {
