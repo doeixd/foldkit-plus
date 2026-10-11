@@ -18,6 +18,7 @@ import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
   RemoteClient,
+  RemoteForbidden,
   RemoteLiveError,
   RemoteMutationError,
   RemoteProtocolError,
@@ -56,6 +57,7 @@ type AnswerError =
   | RemoteReadError
   | RemoteQueryError
   | RemoteMutationError
+  | RemoteForbidden
   | RemoteProtocolError
 
 export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
@@ -258,7 +260,7 @@ export interface MutationSource<P, R = never> {
       readonly connections: ReadonlyArray<ConnectionChange>
       readonly deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }>
     },
-    RemoteServerError | MutationRefused,
+    RemoteServerError | MutationRefused | RemoteForbidden,
     R
   >
 }
@@ -1161,7 +1163,11 @@ export const RemoteServer = {
       readonly principal: P
       /** The client's id for this request, the same on every retry of it. */
       readonly requestId: string
-    }) => Effect.Effect<MutationOutcome<Output>, RemoteServerError | MutationRefused, R>,
+    }) => Effect.Effect<
+      MutationOutcome<Output>,
+      RemoteServerError | MutationRefused | RemoteForbidden,
+      R
+    >,
   ): MutationSource<P, R> => ({
     mutation: mutation.name,
     Input: mutation.Input,
@@ -1193,6 +1199,19 @@ export const RemoteServer = {
     refusal: NoInfer<Refused>,
     message = `Mutation ${mutation.name} was refused`,
   ): MutationRefused => new MutationRefused({ mutation: mutation.name, refusal, message }),
+
+  /**
+   * A refusal of who is asking: fail a Source with it
+   * (`yield* RemoteServer.forbid()`) and the write never runs. `reason`, when
+   * given, is what the person who asked reads; without it the refusal says
+   * nothing of why. `answer` sends it as a 403, and the client's mutation
+   * fails with `_tag: 'Forbidden'`.
+   */
+  forbid: (reason?: string): RemoteForbidden =>
+    new RemoteForbidden({
+      message: reason ?? 'Forbidden',
+      ...(reason === undefined ? {} : { reason }),
+    }),
 
   /**
    * The Source of a mutation that is a declared `Write`, with no handler: the
@@ -1523,15 +1542,16 @@ export const RemoteServer = {
    * worker or a server in the page calls with the body it received, parsed.
    * The request and its payload are decoded by the protocol's own schemas
    * before a handler sees them, so an operation name is one of Remote's three
-   * and nothing else. A body that is not a request is a 400; a handler's
-   * failure a 500 with its message; a defect a 500 that says nothing of it.
+   * and nothing else. A body that is not a request is a 400; a refusal of who
+   * is asking a 403; a handler's failure a 500 with its message; a defect a
+   * 500 that says nothing of it.
    * `Remote.json` and `Remote.http` are the other end.
    */
   answer: <R>(
     handlers: RemoteRpcClient<R>,
     body: unknown,
   ): Effect.Effect<
-    { readonly status: 200 | 400 | 422 | 500; readonly body: RemoteJsonAnswer },
+    { readonly status: 200 | 400 | 403 | 422 | 500; readonly body: RemoteJsonAnswer },
     never,
     R
   > => {
@@ -1556,6 +1576,15 @@ export const RemoteServer = {
       Effect.map(result => ({ status: 200 as const, body: { result } })),
       Effect.catchTag('SchemaError', error =>
         Effect.succeed({ status: 400 as const, body: { error: error.message } }),
+      ),
+      Effect.catchTag('Forbidden', error =>
+        Effect.succeed({
+          status: 403 as const,
+          body: {
+            error: error.message,
+            forbidden: error.reason === undefined ? {} : { reason: error.reason },
+          },
+        }),
       ),
       // A refusal is the mutation's answer, not a failure of the server.
       Effect.catchTag('RemoteMutationError', error =>

@@ -27,6 +27,16 @@ export class RemoteMutationError extends Schema.TaggedError<RemoteMutationError>
   },
 ) {}
 
+/**
+ * The server refused who is asking: they may not do this, and asking again
+ * as the same principal is refused again. `reason` is the application's own
+ * words for the person who asked; without it the refusal says nothing of why.
+ */
+export class RemoteForbidden extends Schema.TaggedError<RemoteForbidden>()('Forbidden', {
+  message: Schema.String,
+  reason: Schema.optional(Schema.String),
+}) {}
+
 export class RemoteLiveError extends Schema.TaggedError<RemoteLiveError>()('RemoteLiveError', {
   message: Schema.String,
 }) {}
@@ -205,7 +215,7 @@ export const Read = Rpc.make('FoldkitRemoteRead', {
 export const Mutate = Rpc.make('FoldkitRemoteMutate', {
   payload: MutationRequest,
   success: MutationResult,
-  error: RemoteMutationError,
+  error: Schema.Union([RemoteMutationError, RemoteForbidden]),
 })
 
 export const Live = Rpc.make('FoldkitRemoteLive', {

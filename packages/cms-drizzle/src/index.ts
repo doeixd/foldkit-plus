@@ -25,7 +25,7 @@ import {
 } from 'drizzle-orm'
 import { Effect, Exit, Schema, Semaphore } from 'effect'
 import { Cms, type Content, type Facts, type Transition } from 'foldkit-cms'
-import type { MutationDescriptor } from 'foldkit-remote'
+import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
 import {
   DrizzleDatabase,
   drizzleWrites,
@@ -451,7 +451,7 @@ export const CmsServer = {
         readonly principal: P
       }) => Effect.Effect<
         MutationOutcome<Output>,
-        RemoteServerError | MutationRefused,
+        RemoteServerError | MutationRefused | RemoteForbidden,
         DrizzleDatabase
       >,
     ): MutationSource<P, DrizzleDatabase> =>

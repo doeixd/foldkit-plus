@@ -7,7 +7,7 @@
  */
 import { Effect, Schema, Stream } from 'effect'
 import type { RemoteRpcClient } from './client.js'
-import { RemoteMutationError, RemoteQueryError, RemoteReadError } from './wire.js'
+import { RemoteForbidden, RemoteMutationError, RemoteQueryError, RemoteReadError } from './wire.js'
 
 /** A request: which of Remote's calls, and its payload as the RPC protocol encodes it. */
 export const RemoteJsonRequest = Schema.Struct({
@@ -19,11 +19,19 @@ export type RemoteJsonRequest = typeof RemoteJsonRequest.Type
 /** An answer: the call's result, or why there is none. */
 export const RemoteJsonAnswer = Schema.Union([
   Schema.Struct({ result: Schema.Unknown }),
-  Schema.Struct({ error: Schema.String, refusal: Schema.optional(Schema.Unknown) }),
+  Schema.Struct({
+    error: Schema.String,
+    refusal: Schema.optional(Schema.Unknown),
+    /** Who is asking was refused, with the application's reason when it gave one. */
+    forbidden: Schema.optional(Schema.Struct({ reason: Schema.optional(Schema.String) })),
+  }),
 ])
 export type RemoteJsonAnswer = typeof RemoteJsonAnswer.Type
 
+type ErrorAnswer = Extract<RemoteJsonAnswer, { readonly error: string }>
+
 const decodeAnswer = Schema.decodeUnknownEffect(RemoteJsonAnswer)
+const isAnswer = Schema.is(RemoteJsonAnswer)
 
 /**
  * Sends one request's text and resolves with its answer as parsed JSON. It
@@ -35,7 +43,7 @@ const call = <A, E>(
   send: RemoteJsonSend,
   operation: RemoteJsonRequest['operation'],
   payload: unknown,
-  fail: (answer: { readonly error: string; readonly refusal?: unknown }) => E,
+  fail: (answer: ErrorAnswer) => E,
 ): Effect.Effect<A, E> =>
   Effect.tryPromise({
     try: () => send(JSON.stringify({ operation, payload })),
@@ -63,20 +71,27 @@ export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
   FoldkitRemoteQuery: payload =>
     call(send, 'query', payload, ({ error }) => new RemoteQueryError({ message: error })),
   FoldkitRemoteMutate: payload =>
-    call(
-      send,
-      'mutate',
-      payload,
-      ({ error, refusal }) => new RemoteMutationError({ message: error, refusal }),
+    call(send, 'mutate', payload, ({ error, refusal, forbidden }) =>
+      forbidden === undefined
+        ? new RemoteMutationError({ message: error, refusal })
+        : new RemoteForbidden({
+            message: error,
+            ...(forbidden.reason === undefined ? {} : { reason: forbidden.reason }),
+          }),
     ),
   FoldkitRemoteLive: () => Stream.empty,
 })
 
+/** What a body that does not parse reads as, so a JSON `null` is still an answer. */
+const notJson = Symbol('not JSON')
+
 /**
  * Remote's client over HTTP: each call a `POST` of the request to `url`, the
- * answer its JSON body whatever its status. `headers` is read per request, so
- * a token that changes reaches the next call. `fetch` defaults to the global
- * one; pass it to route calls through another implementation in tests.
+ * answer its JSON body whatever its status. A 403 whose body is not an answer
+ * (what middleware in front of Remote sends) is answered as forbidden.
+ * `headers` is read per request, so a token that changes reaches the next
+ * call. `fetch` defaults to the global one; pass it to route calls through
+ * another implementation in tests.
  */
 export const http = (
   url: string,
@@ -92,7 +107,9 @@ export const http = (
       headers: { 'content-type': 'application/json', ...options.headers?.() },
       body: request,
     })
-    return response.json().catch(() => {
-      throw new Error(`${response.status} ${response.statusText}`)
-    })
+    const status = `${response.status} ${response.statusText}`
+    const body: unknown = await response.json().catch(() => notJson)
+    if (response.status === 403 && !isAnswer(body)) return { error: status, forbidden: {} }
+    if (body === notJson) throw new Error(status)
+    return body
   })

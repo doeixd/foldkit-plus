@@ -361,7 +361,9 @@ const overHttp = Remote.clientLayer(
 ```
 
 `headers` is read for each request, so a token that changes reaches the next
-call. Neither carries live data. For live data over the same `POST`s,
+call. A 403 whose body is not Remote's answer, as middleware in front of the
+server sends for a session it refuses, fails a mutation as `Forbidden` and
+any other call with the status. Neither carries live data. For live data over the same `POST`s,
 `Remote.httpWithLive` keeps reads, queries, and mutations as `http` sends
 them and streams live requirements as a `text/event-stream` of changes;
 [`serveFetch`](../remote-server/README.md#over-fetch-workers) is the other
@@ -1416,6 +1418,12 @@ Data.mutate(model, EditProject, { id: 'p1', name: 'Apollo II', status: 'active' 
 says the row moved on. The server sends the refusal encoded by this schema and
 `Data.refusal` decodes it by the same one; it is none while the mutation is
 pending or applied, or when it failed for another reason.
+
+A server may also refuse who is asking, whatever the mutation
+(`RemoteServer.forbid`). Then `Data.mutation(model, requestId)` is `Failed`
+with an error of `_tag: 'Forbidden'`, and `reason` when the server gave one,
+for the person who asked. Asking again as the same person is refused again,
+so show it rather than retry.
 
 Optimistic entity patches are **layers over the base store**, not inverse
 patches. If multiple mutations overlap, the visible cache is recomputed as base

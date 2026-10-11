@@ -442,6 +442,10 @@ changed and sends them with the request.
 the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,
 or any codec); a Source fails with `RemoteServer.refuse(mutation, value)`, and
 `Data.refusal(model, requestId, mutation)` reads it decoded, as an `Option`.
+`RemoteServer.forbid(reason?)` refuses who is asking, for any mutation: a 403
+over JSON, and `Data.mutation` is `Failed` with `error._tag === 'Forbidden'` and
+`error.reason` when given. `Remote.http` reads a 403 that is not Remote's
+answer (middleware) as `Forbidden` too.
 
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`

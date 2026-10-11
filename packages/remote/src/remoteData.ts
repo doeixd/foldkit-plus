@@ -9,6 +9,8 @@ export interface RemoteError {
    * decoded, by its mutation, with `Data.refusal`.
    */
   readonly refusal?: unknown
+  /** Why the server refused who is asking (`_tag: 'Forbidden'`), when it said. */
+  readonly reason?: string
 }
 
 export type RemoteData<A> =
@@ -38,6 +40,7 @@ export const remoteErrorSchema = Schema.Struct({
   _tag: Schema.String,
   message: Schema.String,
   refusal: Schema.optional(Schema.Unknown),
+  reason: Schema.optional(Schema.String),
 })
 
 /** A `RemoteData` schema, so a projection that reads remote state is typed. */

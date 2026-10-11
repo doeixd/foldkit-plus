@@ -18,6 +18,7 @@ import {
   ReadBatchResult,
   type ConnectionChangeSchema,
   RemoteLiveError,
+  RemoteForbidden,
   RemoteMutationError,
   RemoteProtocolError,
   RemoteQueryError,
@@ -44,7 +45,10 @@ export class RemoteClient extends Context.Service<
     ) => Effect.Effect<Schema.Schema.Type<typeof QueryResult>, RemoteQueryError>
     readonly mutate: (
       request: Schema.Schema.Type<typeof MutationRequest>,
-    ) => Effect.Effect<Schema.Schema.Type<typeof MutationResult>, RemoteMutationError>
+    ) => Effect.Effect<
+      Schema.Schema.Type<typeof MutationResult>,
+      RemoteMutationError | RemoteForbidden
+    >
     readonly live: (request: {
       readonly requirements: ReadonlyArray<Requirement>
       readonly after: LiveCursor
@@ -77,7 +81,7 @@ export interface RemoteRpcClient<R = never, TransportError = never> {
     payload: Schema.Schema.Type<typeof MutationRequest>,
   ) => Effect.Effect<
     Schema.Schema.Type<typeof MutationResult>,
-    RemoteMutationError | TransportError,
+    RemoteMutationError | RemoteForbidden | TransportError,
     R
   >
   readonly FoldkitRemoteLive: (
@@ -140,10 +144,12 @@ export const remoteError = (error: {
   readonly _tag: string
   readonly message: string
   readonly refusal?: unknown
+  readonly reason?: string | undefined
 }): RemoteError => ({
   _tag: error._tag,
   message: error.message,
   ...(error.refusal === undefined ? {} : { refusal: error.refusal }),
+  ...(error.reason === undefined ? {} : { reason: error.reason }),
 })
 
 export const coalescedLayer = <E, R>(

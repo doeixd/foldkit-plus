@@ -437,7 +437,13 @@ crosses the wire. A Source refuses with a value of the mutation's `Refusal`:
 `Effect.fail(RemoteServer.refuse(SetPrice, { _tag: 'Field', key: 'price', reason: 'too low' }))`.
 The value is type-checked against that mutation, encoded by its schema, and
 sent beside a message (a 422 over JSON); a refusal made for another mutation,
-or not one the mutation declares, is sent as an invalid refusal instead. The Source is also given `requestId`, the client's id for the
+or not one the mutation declares, is sent as an invalid refusal instead.
+
+A refusal of who is asking, rather than of what they asked, is
+`Effect.fail(RemoteServer.forbid('Only an admin may archive.'))`: sent as
+`Forbidden` with the reason (a 403 over JSON), or with none when `forbid()` is
+given none, so the refusal says nothing of why. It is the same for every
+mutation, so it needs no `Refusal` declared. The Source is also given `requestId`, the client's id for the
 request, which is the same on every retry of it: record a write under it, and a
 retry can find that the write was made. Nothing deduplicates by it yet. A Source
 may additionally return connection changes:

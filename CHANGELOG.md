@@ -249,6 +249,15 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `source(binding, { filter })`**, the
   per-record read plan `RemoteServer.entity` takes, passed through. A source
   and a `query` carry their binding's `visible`, for a startup check.
+- **`foldkit-remote`, `foldkit-remote-server`: a refusal of who is asking,
+  end to end.** A mutation Source fails with `RemoteServer.forbid(reason?)`;
+  the wire carries it as `RemoteForbidden` (`_tag: 'Forbidden'`, `reason`
+  only when given), `RemoteServer.answer` sends it as a 403 with
+  `{ error, forbidden: { reason? } }`, and `Remote.json` reads it back. A 403
+  whose body is not Remote's answer, from middleware in front of the server,
+  fails a mutation as `Forbidden` and any other call with the status.
+  `Data.mutation` is `Failed` with the `Forbidden` error, and `RemoteError`
+  carries `reason`.
 - **`foldkit-remote-server`: a principal read from Context on each call, and
   a live hub keyed by person.** `RemoteServer.handlers(server, principal)`
   takes a Context key for `principal` as well as a value, read by every read,

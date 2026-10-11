@@ -130,7 +130,7 @@ const open = () => {
         Effect.runPromise(
           handlers
             .FoldkitRemoteMutate({ requestId: `r${++requests}`, mutation, input })
-            .pipe(Effect.flip, Effect.provide(layer)),
+            .pipe(Effect.catchTag('Forbidden', Effect.die), Effect.flip, Effect.provide(layer)),
         ),
       bySlug: (slug: string) =>
         Effect.runPromise(
