@@ -25,7 +25,9 @@ import {
   RemoteReadError,
   connectionIdentity,
   entityKey,
+  refParts,
   refsIn,
+  relationShape,
   stableStringify,
   type Boundary,
   type ConnectionChangeSchema,
@@ -98,7 +100,39 @@ export interface EntitySource<P, R = never> {
   ) => Effect.Effect<ReadonlyArray<EntityRecord>, RemoteServerError, R>
   /** Returns the fields this principal may read; omitted means all requested. */
   readonly authorize?: (principal: P, fields: readonly string[]) => readonly string[]
+  /**
+   * Decides, per record, what a principal sees of the fields `authorize`
+   * allowed: run once per read, before `read`. A member it drops from a
+   * record is settled unread, as one the source did not return.
+   */
+  readonly filter?: (
+    principal: P,
+    fields: readonly string[],
+  ) => Effect.Effect<ReadPlan, RemoteServerError, R>
 }
+
+/** What `EntitySource.filter` decides for one read. */
+export interface ReadPlan {
+  /** The fields to read: those allowed, and any the decision itself needs. */
+  readonly fields: readonly string[]
+  /** One record as the principal sees it: a member dropped, or its value replaced. */
+  readonly apply: (record: EntityRecord) => EntityRecord
+}
+
+/** `source.read` of `fields`, through the source's `filter` when it has one. */
+const readFiltered = <P, R>(
+  source: EntitySource<P, R>,
+  principal: P,
+  fields: readonly string[],
+  read: (
+    fields: readonly string[],
+  ) => Effect.Effect<ReadonlyArray<EntityRecord>, RemoteServerError, R>,
+): Effect.Effect<ReadonlyArray<EntityRecord>, RemoteServerError, R> =>
+  source.filter === undefined
+    ? read(fields)
+    : Effect.flatMap(source.filter(principal, fields), plan =>
+        Effect.map(read(plan.fields), records => records.map(plan.apply)),
+      )
 
 /**
  * Where a declared write lands: one row's new values, encoded as the store holds
@@ -482,12 +516,9 @@ const liveHub = <P, R>(entities: ReadonlyArray<EntitySource<P, R>>): Effect.Effe
               const allowed = allowedFields(source, principal, requested)
               if (allowed.length === 0) continue
               const allowedSet = new Set(allowed)
-              const records = yield* source.read({
-                ids: [ref.id],
-                fields: allowed,
-                principal,
-                ...windowsOf(windows, allowed),
-              })
+              const records = yield* readFiltered(source, principal, allowed, fields =>
+                source.read({ ids: [ref.id], fields, principal, ...windowsOf(windows, allowed) }),
+              )
               const record = records.find(candidate => candidate.id === ref.id)
               if (record === undefined) continue
               for (const { subscriber, fields: wanted } of group) {
@@ -697,12 +728,27 @@ export type MemoryConfig<P> = {
   readonly mutations?: (store: MemoryStore) => ReadonlyArray<MutationSource<P>>
   /** Per entity name, the fields a principal may read, as `RemoteServer.entity` takes it. */
   readonly authorize?: Readonly<Record<string, NonNullable<EntitySource<P>['authorize']>>>
+  /** Per entity name, what a principal sees of each record, as `RemoteServer.entity` takes it. */
+  readonly filter?: Readonly<Record<string, NonNullable<EntitySource<P>['filter']>>>
+  /**
+   * Which stored rows a principal may read, decided once per read. A row it
+   * may not read is absent from a read by id and from every query, and a ref
+   * to one is dropped from a relation (a `one` ref reads as `null`). `row`
+   * looks another stored row up, for a decision that follows a relation.
+   */
+  readonly readable?: (
+    principal: P,
+    row: (entity: string, id: string) => Option.Option<Readonly<Record<string, unknown>>>,
+  ) => Effect.Effect<MemoryReadable, RemoteServerError>
 } & (undefined extends P
   ? { readonly principal?: P }
   : {
       /** Who the `layer` answers as. */
       readonly principal: P
     })
+
+/** Whether a stored row of `entity` may be read, given its whole stored values. */
+export type MemoryReadable = (entity: string, row: Readonly<Record<string, unknown>>) => boolean
 
 /** Where a cursor falls among ordered items: before `index`, or at it when `exact`. */
 interface Position {
@@ -795,12 +841,23 @@ const pageOf = <Item>(
  */
 const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
   const authorize = config.authorize ?? {}
-  const unknown = Object.keys(authorize).filter(name => !config.domain.registry.entities.has(name))
-  if (unknown.length > 0) {
-    throw new Error(
-      `RemoteServer.memory: \`authorize\` names ${unknown.map(name => `"${name}"`).join(', ')}, which the domain does not declare`,
-    )
+  const filter = config.filter ?? {}
+  for (const [option, given] of [
+    ['authorize', authorize],
+    ['filter', filter],
+  ] as const) {
+    const unknown = Object.keys(given).filter(name => !config.domain.registry.entities.has(name))
+    if (unknown.length > 0) {
+      throw new Error(
+        `RemoteServer.memory: \`${option}\` names ${unknown.map(name => `"${name}"`).join(', ')}, which the domain does not declare`,
+      )
+    }
   }
+  const everyRow: MemoryReadable = () => true
+  const readableFor = (principal: P) =>
+    config.readable === undefined
+      ? Effect.succeed(everyRow)
+      : config.readable(principal, (entity, id) => Option.fromUndefinedOr(table(entity).get(id)))
   const tables = new Map<string, Map<string, Record<string, unknown>>>()
   const table = (entity: string) => {
     const existing = tables.get(entity)
@@ -853,31 +910,66 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
     }
   }
 
+  // A relation's value is a ref, or a list of them; a ref to a row the
+  // principal may not read is not shown, as a database binding hides it.
+  const relationsOf = new Map(
+    [...config.domain.registry.entities].map(([name, descriptor]) => [
+      name,
+      new Set(
+        Object.entries(descriptor.fields as Readonly<Record<string, Schema.Top>>).flatMap(
+          ([field, schema]) => (relationShape(schema) === undefined ? [] : [field]),
+        ),
+      ),
+    ]),
+  )
+  const refsShown = (readable: MemoryReadable, entity: string, field: string, value: unknown) => {
+    if (readable === everyRow || relationsOf.get(entity)?.has(field) !== true) return value
+    const shown = (ref: unknown) => {
+      if (typeof ref !== 'string') return true
+      const { entity: target, id } = refParts(ref)
+      const row = table(target).get(id)
+      return row !== undefined && readable(target, row)
+    }
+    if (Array.isArray(value)) return value.filter(shown)
+    return shown(value) ? value : null
+  }
+
   const entities = [...config.domain.registry.entities.keys()].map(name =>
     RemoteServer.entity<P>(
       { name },
       {
         ...(Object.hasOwn(authorize, name) ? { authorize: authorize[name]! } : {}),
-        read: ({ ids, fields, windows }) =>
-          Effect.try({
-            try: () =>
-              ids.flatMap(id => {
-                const row = table(name).get(id)
-                if (row === undefined) return []
-                const values = Object.fromEntries(
-                  fields.flatMap(field =>
-                    Object.hasOwn(row, field)
-                      ? [[field, valueFor(row[field], windows?.[field])] as const]
-                      : [],
-                  ),
-                )
-                return [{ id, values }]
-              }),
-            catch: error =>
-              new RemoteServerError({
-                message: error instanceof Error ? error.message : String(error),
-              }),
-          }),
+        ...(Object.hasOwn(filter, name) ? { filter: filter[name]! } : {}),
+        read: ({ ids, fields, windows, principal }) =>
+          Effect.flatMap(readableFor(principal), readable =>
+            Effect.try({
+              try: () =>
+                ids.flatMap(id => {
+                  const row = table(name).get(id)
+                  if (row === undefined || !readable(name, row)) return []
+                  const values = Object.fromEntries(
+                    fields.flatMap(field =>
+                      Object.hasOwn(row, field)
+                        ? [
+                            [
+                              field,
+                              valueFor(
+                                refsShown(readable, name, field, row[field]),
+                                windows?.[field],
+                              ),
+                            ] as const,
+                          ]
+                        : [],
+                    ),
+                  )
+                  return [{ id, values }]
+                }),
+              catch: error =>
+                new RemoteServerError({
+                  message: error instanceof Error ? error.message : String(error),
+                }),
+            }),
+          ),
       },
     ),
   )
@@ -896,45 +988,49 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
     ...[...config.domain.registry.queries.values()]
       .filter(query => !given.has(query.name))
       .map(query =>
-        RemoteServer.query<P>(query, ({ input, window }) =>
-          Effect.try({
-            try: () => {
-              const body = query.body!
-              const encoded = Schema.encodeSync(query.Input)(input) as Readonly<
-                Record<string, unknown>
-              >
-              const entity = body.entity.name
-              const rows = store.rows(entity) as ReadonlyArray<Row>
-              const matched = evaluate(body, encoded, rows)
-              // A cursor row that no longer matches still has a place in the
-              // order, as a keyset has it: sort it among the matches with the
-              // predicates set aside. One that no longer exists has none.
-              const locate = (cursor: string) => {
-                const row = rows.find(candidate => String(candidate.id) === cursor)
-                if (row === undefined) {
-                  throw new Error(`Cursor "${cursor}" names a row that no longer exists`)
+        RemoteServer.query<P>(query, ({ input, window, principal }) =>
+          Effect.flatMap(readableFor(principal), readable =>
+            Effect.try({
+              try: () => {
+                const body = query.body!
+                const encoded = Schema.encodeSync(query.Input)(input) as Readonly<
+                  Record<string, unknown>
+                >
+                const entity = body.entity.name
+                const rows = (store.rows(entity) as ReadonlyArray<Row>).filter(row =>
+                  readable(entity, row),
+                )
+                const matched = evaluate(body, encoded, rows)
+                // A cursor row that no longer matches still has a place in the
+                // order, as a keyset has it: sort it among the matches with the
+                // predicates set aside. One that no longer exists has none.
+                const locate = (cursor: string) => {
+                  const row = rows.find(candidate => String(candidate.id) === cursor)
+                  if (row === undefined) {
+                    throw new Error(`Cursor "${cursor}" names a row that no longer exists`)
+                  }
+                  const placed = evaluate({ ...body, where: [] } as typeof body, encoded, [
+                    ...matched,
+                    row,
+                  ])
+                  return { index: placed.indexOf(row), exact: false }
                 }
-                const placed = evaluate({ ...body, where: [] } as typeof body, encoded, [
-                  ...matched,
-                  row,
-                ])
-                return { index: placed.indexOf(row), exact: false }
-              }
-              const page = pageOf(matched, window, row => String(row.id), locate)
-              return {
-                edges: page.items.map(row => {
-                  const id = String(row.id)
-                  return { entity, id, key: entityKey(entity, id) }
+                const page = pageOf(matched, window, row => String(row.id), locate)
+                return {
+                  edges: page.items.map(row => {
+                    const id = String(row.id)
+                    return { entity, id, key: entityKey(entity, id) }
+                  }),
+                  start: page.start,
+                  end: page.end,
+                }
+              },
+              catch: error =>
+                new RemoteServerError({
+                  message: error instanceof Error ? error.message : String(error),
                 }),
-                start: page.start,
-                end: page.end,
-              }
-            },
-            catch: error =>
-              new RemoteServerError({
-                message: error instanceof Error ? error.message : String(error),
-              }),
-          }),
+            }),
+          ),
         ),
       ),
   ]
@@ -1006,6 +1102,7 @@ export const RemoteServer = {
     options: {
       readonly read: EntitySource<P, R>['read']
       readonly authorize?: EntitySource<P, R>['authorize']
+      readonly filter?: EntitySource<P, R>['filter']
     },
   ): EntitySource<P, R> => ({
     entity: entity.name,
@@ -1014,6 +1111,7 @@ export const RemoteServer = {
       : { fields: new Set(Object.keys(entity.members ?? entity.fields!)) }),
     read: options.read,
     ...(options.authorize === undefined ? {} : { authorize: options.authorize }),
+    ...(options.filter === undefined ? {} : { filter: options.filter }),
   }),
 
   mutation: <
@@ -1343,23 +1441,21 @@ export const RemoteServer = {
           if (allowed.length === 0) continue
 
           const windows = windowsOf(slice.windows, allowed)
-          const records: EntityRecord[] = []
-          for (let start = 0; start < idList.length; start += maxIds) {
-            records.push(
-              ...(yield* source
-                .read({
-                  ids: idList.slice(start, start + maxIds),
-                  fields: allowed,
-                  principal,
-                  ...windows,
-                })
-                .pipe(
-                  Effect.catchTag('RemoteServerError', error =>
-                    Effect.fail(new RemoteReadError({ message: error.message })),
-                  ),
-                )),
-            )
-          }
+          const records = yield* readFiltered(source, principal, allowed, fields =>
+            Effect.map(
+              Effect.forEach(
+                Array.from({ length: Math.ceil(idList.length / maxIds) }, (_, chunk) =>
+                  idList.slice(chunk * maxIds, (chunk + 1) * maxIds),
+                ),
+                chunk => source.read({ ids: chunk, fields, principal, ...windows }),
+              ),
+              chunks => chunks.flat(),
+            ),
+          ).pipe(
+            Effect.catchTag('RemoteServerError', error =>
+              Effect.fail(new RemoteReadError({ message: error.message })),
+            ),
+          )
 
           for (const record of records) {
             const values: Record<string, unknown> = Object.create(null)

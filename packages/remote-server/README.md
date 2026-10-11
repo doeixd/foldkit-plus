@@ -207,6 +207,11 @@ RemoteServer.entity(entity, {
   >,
 
   authorize?: (principal, fields) => readonly string[]
+
+  filter?: (principal, fields) => Effect<{
+    fields: readonly string[]          // what to read: the allowed fields, and any the decision needs
+    apply: (record) => record          // one record as the principal sees it
+  }, RemoteServerError, R>
 })
 ```
 
@@ -224,7 +229,12 @@ Important consequences:
 - ids shared by several selections are de-duplicated;
 - relation targets are fetched level by level and shared targets are not loaded
   repeatedly;
-- a relation the principal may not read is never followed.
+- a relation the principal may not read is never followed;
+- `authorize` decides per field, for every row alike; `filter` decides per
+  record, after `read`. It runs once per read (by id or live), may read
+  fields the client did not ask for so it can decide (an owner id, say),
+  and a member it drops from a record is settled like one the Source did not
+  return. `foldkit-guard` builds one from a member's guards.
 
 The Source should still avoid reading or returning columns the request did not
 ask for. The handler filters returned values again, but the data boundary is the
@@ -720,6 +730,27 @@ const asAdmin = RemoteServer.handlers(guarded.server, { isAdmin: true })
 A withheld field is settled, as from any server: the client stops asking for
 it, and a selection that needs it fails as `Unavailable`. A name in
 `authorize` the domain does not declare is refused when the backend is made.
+
+`filter` takes the same per-entity form. `readable` decides which rows a
+principal may read, once per read, given each row's stored values; its second
+argument looks another stored row up by id, for a rule that follows a
+relation:
+
+```ts
+// Only an admin reads projects.
+const adminsOnly = RemoteServer.memory({
+  domain: Data,
+  rows: { Project: [{ id: 'p1', name: 'Apollo', privateNotes: 'Internal' }] },
+  principal: { isAdmin: false },
+  readable: (principal: Principal) =>
+    Effect.succeed(entity => principal.isAdmin || entity !== 'Project'),
+})
+```
+
+A row it may not read is absent from a read by id (the client reads it as
+not found) and from every query, and a ref to it is dropped from a relation:
+a list leaves it out and a `one` ref reads `null`, as a database binding's
+`visible` hides it.
 
 ## Over a MessagePort
 

@@ -79,3 +79,13 @@ const guarded = RemoteServer.memory({
 })
 const asAdmin = RemoteServer.handlers(guarded.server, { isAdmin: true })
 void asAdmin
+
+// Only an admin reads projects.
+const adminsOnly = RemoteServer.memory({
+  domain: Data,
+  rows: { Project: [{ id: 'p1', name: 'Apollo', privateNotes: 'Internal' }] },
+  principal: { isAdmin: false },
+  readable: (principal: Principal) =>
+    Effect.succeed(entity => principal.isAdmin || entity !== 'Project'),
+})
+void adminsOnly

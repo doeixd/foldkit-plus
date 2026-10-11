@@ -231,6 +231,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-server`: what a principal sees, per record and per row.**
+  `EntitySource.filter(principal, fields)` returns a read plan: the fields to
+  read (the allowed ones, and any the decision needs) and `apply`, one record
+  as the principal sees it; a member it drops is settled like one the Source
+  did not return. It runs for reads by id and live patches. `RemoteServer.memory`
+  takes `filter` per entity, as it takes `authorize`, and `readable` (given a
+  lookup of another row by id), which
+  hides a row the principal may not read from reads by id, from every query,
+  and from relations (a `one` ref reads `null`), as a binding's `visible` does.
 - **`foldkit-guard`, early: a guard set declared once and decided on the
   server.** `Guards.declare(name, PrincipalSchema, guard => ({ … }), { key })`
   names principal guards (bodies only on the server, through `G.implement`,

@@ -570,6 +570,8 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // Rows in wire shape (a relation is 'User:u1'); Query.define bodies run over them;
 // mutations: store => [...] write through store.write. No live.
 // authorize: { Project: (principal: Principal, fields) => ... } plus principal: the layer's.
+// filter: { Project: (principal, fields) => Effect<{ fields, apply }> } decides per record;
+// readable: principal => Effect<(entity, row) => boolean> hides rows from reads, queries and refs.
 // across a process boundary: RemoteRpc.toLayer(handlers) + your Effect RPC transport
 ```
 
