@@ -64,7 +64,7 @@ export type AnyExpr = Expr<unknown>
  * then be confused, which a structural phantom would allow. A scalar-valued
  * operation, if one is ever needed, joins `Expr` instead.
  */
-export type Predicate = EqPredicate | NullPredicate | ContainsPredicate
+export type Predicate = EqPredicate | NullPredicate | ContainsPredicate | InPredicate
 
 /** Two values are the same. */
 export interface EqPredicate {
@@ -93,6 +93,18 @@ export interface ContainsPredicate {
   readonly _tag: 'Contains'
   readonly value: AnyExpr
   readonly search: Operandish
+}
+
+/**
+ * Whether a value is one of a list. The list is a scalar whose value is an
+ * array: a literal, or an input (a principal's `projectIds`, a picker's
+ * chosen ids). Read as SQL's `in`: a null value is unknown, and so is no
+ * match against a list holding a null; an empty list matches nothing.
+ */
+export interface InPredicate {
+  readonly _tag: 'In'
+  readonly value: AnyExpr
+  readonly among: AnyExpr
 }
 
 /**
@@ -171,7 +183,7 @@ const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): Field
     ),
   })
 
-const predicateTags = new Set(['Eq', 'Null', 'Contains'])
+const predicateTags = new Set(['Eq', 'Null', 'Contains', 'In'])
 
 /** Whether a value is a predicate, and so usable where a boolean is wanted. */
 export const isPredicate = (value: unknown): value is Predicate =>
@@ -208,7 +220,7 @@ const toExpr = <T>(value: Operand<T> | T, step: string): AnyExpr => {
  * runs, and a body needing one it does not is refused rather than answered
  * wrongly — see `Query.unsupported`.
  */
-export type Operation = 'eq' | 'isNull' | 'isNotNull' | 'contains'
+export type Operation = 'eq' | 'isNull' | 'isNotNull' | 'contains' | 'in'
 
 /** One field an expression reads: its Entity's name and key, and the identity that owns it. */
 export interface FieldDependency {
@@ -303,6 +315,29 @@ export const Expr = {
       _tag: 'Contains',
       value: toExpr(value, 'contains'),
       search: toOperand(search as never),
+    }),
+
+  /**
+   * Whether a value is one of `among`: a list written out, or an input whose
+   * value is one. Each element is compared as `eq` compares.
+   *
+   * ```ts
+   * Expr.in(Todo.fields.projectId, input.projectIds)
+   * Expr.in(Todo.fields.status, ['open', 'blocked'])
+   * ```
+   *
+   * As SQL's `in`: a null value is unknown, as is no match against a list
+   * holding a null, and an empty list matches no row. A list written out is
+   * copied, so changing the array afterwards does not change the query.
+   */
+  in: <L extends Operand<any>>(
+    value: L,
+    among: ReadonlyArray<ValueOf<L>> | Expr<ReadonlyArray<ValueOf<L>>>,
+  ): InPredicate =>
+    node({
+      _tag: 'In',
+      value: toExpr(value, 'in'),
+      among: Array.isArray(among) ? literal(Object.freeze([...among])) : toExpr(among, 'in'),
     }),
 
   /** An expression as readable text; see `showExpr` for what it is and is not. */
@@ -535,6 +570,11 @@ const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
       walk(expr.value, found)
       walk(expr.search, found)
       return
+    case 'In':
+      found.operations.add('in')
+      walk(expr.value, found)
+      walk(expr.among, found)
+      return
     case 'Term':
       walk(expr.expr, found)
       return
@@ -617,6 +657,10 @@ const fieldsIn = function* (
       yield* fieldsIn(expr.value, seen)
       yield* fieldsIn(expr.search, seen)
       return
+    case 'In':
+      yield* fieldsIn(expr.value, seen)
+      yield* fieldsIn(expr.among, seen)
+      return
     case 'Term':
       yield* fieldsIn(expr.expr, seen)
       return
@@ -671,6 +715,8 @@ const childrenOf = (expr: AnyExpr | Predicate): ReadonlyArray<AnyExpr | Predicat
       return [expr.operand]
     case 'Contains':
       return [expr.value, expr.search]
+    case 'In':
+      return [expr.value, expr.among]
   }
 }
 
@@ -894,6 +940,8 @@ const showExpr = (node: AnyExpr | Predicate): string => {
       return `${showOperand(node.operand)} is ${node.present ? 'not null' : 'null'}`
     case 'Contains':
       return `contains(${showOperand(node.value)}, ${showOperand(node.search)})`
+    case 'In':
+      return `${showOperand(node.value)} in ${showOperand(node.among)}`
   }
 }
 

@@ -13,7 +13,7 @@
  * reproducing it as a non-goal. What is worth having is the answer to one
  * question: does a body mean the same thing to an engine nobody here designed?
  */
-import { and, eq, isNull, not, type Collection } from '@tanstack/db'
+import { and, eq, inArray, isNull, not, type Collection } from '@tanstack/db'
 import { Option } from 'effect'
 import { Query as Relational, isPredicate } from 'foldkit-entity'
 import type { AnyExpr, AnyQuery, Operandish, Operation, Predicate } from 'foldkit-entity'
@@ -42,7 +42,7 @@ export class TanstackCompileError extends Error {
  * question for any search containing a wildcard, which every conformance case
  * whose search is ordinary text would still pass.
  */
-export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull']
+export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'in']
 
 /** What an operand contributes: a row reference, or the value it stands for. */
 const operand = (node: AnyExpr, row: any, input: Readonly<Record<string, unknown>>): unknown => {
@@ -91,6 +91,14 @@ const predicate = (
       throw new TanstackCompileError(
         'contains is not run by this interpreter: ilike has no escape, so a search containing % or _ would match as a wildcard',
       )
+    case 'In': {
+      const among = operand(node.among, row, input)
+      // An empty list is false whatever the value, as in SQL; this engine
+      // reads a null against one as unknown, so it is settled here, where the
+      // list is known.
+      if (Array.isArray(among) && among.length === 0) return eq(0 as never, 1 as never)
+      return inArray(operand(node.value, row, input) as never, among as never)
+    }
   }
 }
 

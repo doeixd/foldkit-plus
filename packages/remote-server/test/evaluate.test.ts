@@ -80,6 +80,14 @@ const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
         params.push(`%${escapeLike(text as string)}%`)
         return `lower(${side(node.value)}) like lower(?) escape '\\'`
       }
+      case 'In': {
+        const among = node.among
+        if (among._tag !== 'Input' && among._tag !== 'Literal') throw new Error('unsupported')
+        const list = (among._tag === 'Input' ? input[among.key] : among.value) as unknown[]
+        if (list.length === 0) return 'false'
+        params.push(...list)
+        return `${side(node.value)} in (${list.map(() => '?').join(', ')})`
+      }
     }
   }
   const where = body.where.map(predicate)
@@ -210,6 +218,32 @@ describe('One body, two interpreters, the same rows', () => {
     expect(inSql).toEqual(ids)
   })
 
+  it.each([
+    { list: ['intro'], present: true, ids: ['a', 'b'] },
+    { list: ['intro', 'Other'], present: true, ids: ['a', 'b', 'c'] },
+    { list: [], present: true, ids: [] },
+    { list: ['intro'], present: false, ids: ['c', 'd'] },
+    // Nothing matched against a list holding a null is unknown, and so is
+    // its negation: SQL keeps no row that is not in the list.
+    { list: ['intro', null], present: false, ids: [] },
+    { list: [], present: false, ids: ['a', 'b', 'c', 'd'] },
+  ])('agrees on in $list, compared to $present', ({ list, present, ids }) => {
+    const body = Query.from(Post).pipe(
+      Query.where(
+        Expr.eq(
+          Expr.in(Post.fields.slug, Expr.input('slugs', Schema.Array(Schema.String))),
+          Expr.input('present', Schema.Boolean),
+        ),
+      ),
+      Query.orderBy(Order.asc(Post.fields.id)),
+    )
+
+    const { inMemory, inSql } = bothWays(body, { slugs: list, present })
+
+    expect(inMemory).toEqual(inSql)
+    expect(inSql).toEqual(ids)
+  })
+
   it('agrees on the CMS worklist, asked without a branch', () => {
     // `archived ? isNotNull : isNull` and `search === '' ? skip : like`, as one
     // static body: is-archived equals what you asked, and the slug contains
@@ -298,7 +332,7 @@ describe('What the reference interpreter will not answer for', () => {
 
 describe('An interpreter refuses what it does not run', () => {
   it('declares the operations it runs rather than leaving them implied', () => {
-    expect([...supported].sort()).toEqual(['contains', 'eq', 'isNotNull', 'isNull'])
+    expect([...supported].sort()).toEqual(['contains', 'eq', 'in', 'isNotNull', 'isNull'])
   })
 
   it('refuses a body needing an operation it does not run, naming it', () => {

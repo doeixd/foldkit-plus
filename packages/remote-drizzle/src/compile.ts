@@ -14,6 +14,7 @@
  */
 import {
   eq,
+  inArray,
   is,
   isNotNull,
   isNull,
@@ -185,6 +186,26 @@ const predicate = (
         ? sql`lower(${value} collate "C") like lower(${pattern} collate "C") escape '\\'`
         : sql`lower(${value}) like lower(${pattern}) escape '\\'`
     }
+    case 'In': {
+      const among = operand(node.among, target, input, query)
+      if (!Array.isArray(among)) {
+        throw new QueryCompileError(
+          `query "${query}" asks whether a value is in something that is not a list`,
+        )
+      }
+      // An empty list matches nothing, said here: SQLite reads `in ()` as
+      // false, and Postgres refuses it.
+      if (among.length === 0) return sql`false`
+      const value = operand(node.value, target, input, query)
+      // Over a column, Drizzle encodes each element as the column's own type,
+      // as `eq` does; anything else is compared as it is.
+      return node.value._tag === 'Field'
+        ? inArray(value as AnyColumn, among)
+        : sql`${value} in (${sql.join(
+            among.map(each => sql`${each}`),
+            sql`, `,
+          )})`
+    }
   }
 }
 
@@ -193,7 +214,7 @@ const predicate = (
  * which cases `predicate` happens to handle, so a body needing something else
  * is refused with a name instead of falling through.
  */
-export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'contains']
+export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'contains', 'in']
 
 /**
  * Every field the body reads has a column here, and every operation it needs is

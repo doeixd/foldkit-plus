@@ -231,6 +231,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
+  list**, written out or given as an input. SQL's `in` in every interpreter:
+  a null value is unknown, so is no match against a list holding a null, and
+  an empty list matches no row. The reference evaluator runs it (and is
+  checked against SQLite's own `in`), `foldkit-remote-drizzle` compiles it for
+  SQLite and Postgres (an empty list as `false`, which Postgres needs), and
+  the TanStack example runs it. The conformance suite gains eight cases. The
+  first slice of `guard-DESIGN.md`, whose membership rules need it.
 - **`foldkit-remote`: `verifyPlacement`, a placement checked against the
   server.** `Remote.make({ verifyPlacement: true })` places as usual, fetches
   each list it placed an answer, a read or a live patch in too, and keeps any

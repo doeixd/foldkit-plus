@@ -12,6 +12,7 @@ import {
   Query,
   dependenciesOf,
   type EqPredicate,
+  type InPredicate,
   type InputExpr,
   type Predicate,
 } from '../src/index.js'
@@ -132,3 +133,21 @@ const sortBy = Expr.input(
 Order.chosen(sortBy, { title: Post.fields.title, id: Post.fields.id })
 // @ts-expect-error a name the sort can hold, `id`, has no field
 Order.chosen(sortBy, { title: Post.fields.title })
+
+// ---------------------------------------------------------------------------
+// `in` takes a list of what the value holds
+// ---------------------------------------------------------------------------
+
+expectTypeOf(Expr.in(Doc.fields.rank, [1, 2])).toEqualTypeOf<InPredicate>()
+expectTypeOf(
+  Expr.in(Doc.fields.title, Expr.input('titles', Schema.Array(Schema.String))),
+).toEqualTypeOf<InPredicate>()
+
+// @ts-expect-error a rank is a number, so its list holds numbers
+Expr.in(Doc.fields.rank, ['1'])
+
+// @ts-expect-error an input of the wrong element type
+Expr.in(Doc.fields.rank, Expr.input('titles', Schema.Array(Schema.String)))
+
+// @ts-expect-error one value is not a list
+Expr.in(Doc.fields.rank, 1)

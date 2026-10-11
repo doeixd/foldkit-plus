@@ -231,8 +231,9 @@ either side; a field compared to the wrong type is an error where it is written.
 counting a shared node (`Expr.eq(n, n)`) on every path, since interpreters read
 a predicate as a tree.
 
-`Expr.isNull` / `Expr.isNotNull` (one node, the answer to absence flipped) and
-`Expr.contains` exist too. The operator set grows from real queries, not from
+`Expr.isNull` / `Expr.isNotNull` (one node, the answer to absence flipped),
+`Expr.contains` and `Expr.in(field, list | input)` (SQL's `in`; an empty list
+matches nothing) exist too. The operator set grows from real queries, not from
 what SQL can express — there is still no `and` (a `Query` holds a list of
 predicates, which *is* the conjunction) and no `or`.
 

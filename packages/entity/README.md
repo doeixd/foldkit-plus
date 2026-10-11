@@ -488,6 +488,13 @@ not match `é`, though each matches itself. Text holding a NUL character is
 refused by every interpreter here, since Postgres text cannot hold one and
 SQLite's `like` stops at it.
 
+**`in` asks whether a value is one of a list**, written out or given as an
+input: `Expr.in(Todo.fields.projectId, input.projectIds)`. Each element is
+compared as `eq` compares, and it reads as SQL's `in`: a null value is
+unknown, so is no match against a list holding a null, and an empty list
+matches no row (on Postgres too, which refuses `in ()`; the compiler says
+`false` instead).
+
 **It searches text, and the operand is constrained to text.** `contains` over a
 number would compile to `lower(rank) like …`, which SQLite coerces into an
 answer and Postgres rejects at runtime — so a non-text operand is a compile
@@ -651,6 +658,7 @@ from queries, not from what a database could express.
 | `Expr.eq(left, right)` | Two values are the same; a field or a plain value on either side is coerced, and a predicate may stand where a boolean is wanted. |
 | `Expr.isNull(field)` / `Expr.isNotNull(field)` | Whether a value is absent; one node, with the answer absence gives flipped. |
 | `Expr.contains(field, search)` | Whether text contains text, over a text or nullable-text operand only. Containing the empty string is everything, but a null contains nothing. |
+| `Expr.in(field, among)` | Whether a value is one of a list (written out, or an input), each compared as `eq` compares; SQL's `in`, an empty list matching nothing. |
 | `Expr.field(field)` | One field of one Entity, as a scalar. |
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |

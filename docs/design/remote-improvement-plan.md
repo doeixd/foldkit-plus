@@ -808,7 +808,7 @@ Beyond those:
 | Single-flight: a mutation's answer carries the refetch of what it invalidated (router-DESIGN, deferred on a benchmark) | Phase 1 lands; measure the CMS's save-then-refetch round trip |
 | Incremental local query maintenance and indexes (possibly `d2ts`) | A measured read path exceeds a frame; local-execution's §3.3 memo first |
 | Placing a joining or created row locally instead of refetching; optimistic inserts placed through the body (`optimistic.ts` uses `prepend`/`append`) | Planned: §16, Phases 7–10 |
-| `Expr` growth: `and`/`or`/`not`, comparisons, `in` | An example query that cannot be written |
+| `Expr` growth: `and`/`or`/`not`, comparisons (`in` built, guard-DESIGN slice 1) | An example query that cannot be written |
 | Relation keys, `where`-targeted and computed-value writes, server-minted ids | An example that needs one |
 | Disabled fields and Crud's `may` from the write's guard | guard-DESIGN's slices that touch writes (TODO "7. `may`") |
 | Range and phantom dependencies for live queries | Field-level invalidation measurably over-fetches |

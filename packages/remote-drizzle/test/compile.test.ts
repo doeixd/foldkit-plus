@@ -394,6 +394,6 @@ describe('A body needing what this compiler does not run', () => {
   })
 
   it('declares what it runs rather than leaving it to which cases exist', () => {
-    expect([...supported].sort()).toEqual(['contains', 'eq', 'isNotNull', 'isNull'])
+    expect([...supported].sort()).toEqual(['contains', 'eq', 'in', 'isNotNull', 'isNull'])
   })
 })

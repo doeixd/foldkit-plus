@@ -108,6 +108,20 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
       // `Expr.contains` documents and what the compiled SQL folds both sides to.
       return foldAscii(value).includes(foldAscii(search))
     }
+    case 'In': {
+      const among = valueOf(node.among, row, input)
+      if (!Array.isArray(among)) {
+        throw new QueryEvaluateError('a membership test was given a list that is not a list')
+      }
+      // SQL's `in`: an empty list is false whatever the value, then a null
+      // value is unknown, a match is true, and no match against a list
+      // holding a null is unknown, since that null might have been it.
+      if (among.length === 0) return false
+      const value = valueOf(node.value, row, input)
+      if (isNull(value)) return 'unknown'
+      if (among.some(each => each === value)) return true
+      return among.some(isNull) ? 'unknown' : false
+    }
   }
 }
 
@@ -232,7 +246,7 @@ export const compareRows = (
  * interpreter that gains an operator and forgets to say so is exactly what
  * `Query.unsupported` exists to catch.
  */
-export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'contains']
+export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'contains', 'in']
 
 /**
  * Refuses a body needing an operation this interpreter does not run, rather

@@ -100,6 +100,7 @@ const label = Expr.input('label', Schema.String)
 const text = Expr.input('text', Schema.String)
 const tag = Expr.input('tag', Schema.String)
 const present = Expr.input('present', Schema.Boolean)
+const labels = Expr.input('labels', Schema.Array(Schema.String))
 const at = Expr.input('at', Timestamp)
 /** A list sorted by what its reader picked: `Order.chosen`'s input. */
 const sort = Expr.input(
@@ -245,6 +246,57 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     what: 'an unknown containment compared to false stays unknown',
     body: from.pipe(Query.where(Expr.eq(Expr.contains(Subject.fields.label, label), false)), byId),
     input: { label: null },
+    expected: [],
+  },
+
+  // ---- in ------------------------------------------------------------------
+  {
+    what: 'in matches a field against a list written out',
+    body: from.pipe(Query.where(Expr.in(Subject.fields.rank, [1, 4])), byId),
+    input: {},
+    expected: ['b', 'e'],
+  },
+  {
+    what: 'in matches a field against the list the request supplies, exactly',
+    body: from.pipe(Query.where(Expr.in(Subject.fields.label, labels)), byId),
+    input: { labels: ['Other', 'intro'] },
+    expected: ['c'],
+  },
+  {
+    what: 'in against an empty list matches nothing',
+    body: from.pipe(Query.where(Expr.in(Subject.fields.label, labels)), byId),
+    input: { labels: [] },
+    expected: [],
+  },
+  {
+    what: 'in skips the rows whose column is null',
+    body: from.pipe(Query.where(Expr.in(Subject.fields.tag, ['x', 'y'])), byId),
+    input: {},
+    expected: ['b', 'd', 'e'],
+  },
+  {
+    what: 'in compared to false is its negation, and a null column stays unknown',
+    body: from.pipe(Query.where(Expr.eq(Expr.in(Subject.fields.tag, ['x']), present)), byId),
+    input: { present: false },
+    expected: ['e'],
+  },
+  {
+    what: 'in against an empty list compared to false matches every row, null or not',
+    body: from.pipe(Query.where(Expr.eq(Expr.in(Subject.fields.tag, labels), present)), byId),
+    input: { labels: [], present: false },
+    expected: ['a', 'b', 'c', 'd', 'e'],
+  },
+
+  {
+    what: 'in asks of an input as of a field: every row, when the input is listed',
+    body: from.pipe(Query.where(Expr.in(text, ['x', 'y'])), byId),
+    input: { text: 'y' },
+    expected: ['a', 'b', 'c', 'd', 'e'],
+  },
+  {
+    what: 'in asks of an input against an empty list: no row',
+    body: from.pipe(Query.where(Expr.in(text, labels)), byId),
+    input: { text: 'y', labels: [] },
     expected: [],
   },
 
