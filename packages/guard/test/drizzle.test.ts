@@ -1,0 +1,193 @@
+// @vitest-environment node
+/**
+ * A guard set's read rules compiled to SQL: one Todo read as its owner, a
+ * member of its project (through an inherited Read), an admin and a visitor,
+ * by id, as a ref's target and through a query, over real SQLite.
+ */
+import { DatabaseSync } from 'node:sqlite'
+import { drizzle } from 'drizzle-orm/node-sqlite'
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Effect, Option, Schema } from 'effect'
+import { Entity, Expr, Relation } from 'foldkit-entity'
+import { Query } from 'foldkit-remote'
+import { bind, databaseLayer, query, source, type AnyEntityBinding } from 'foldkit-remote-drizzle'
+import { describe, expect, it } from 'vitest'
+import { GuardDrizzle } from '../src/drizzle.js'
+import { Guards } from '../src/index.js'
+
+const User = Schema.Struct({
+  id: Schema.String,
+  role: Schema.Literals(['admin', 'member']),
+  projectIds: Schema.Array(Schema.String),
+})
+type User = typeof User.Type
+
+const projects = sqliteTable('projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+})
+const todos = sqliteTable('todos', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').notNull(),
+  projectId: text('project_id').notNull(),
+  title: text('title').notNull(),
+})
+
+const ProjectBase = Entity.define(
+  'Project',
+  Schema.Struct({ id: Schema.String, name: Schema.String }),
+)
+const NoteBase = Entity.define('Note', Schema.Struct({ id: Schema.String }))
+const Related = Entity.relate(
+  {
+    Project: ProjectBase,
+    Note: NoteBase,
+    Todo: Entity.define(
+      'Todo',
+      Schema.Struct({ id: Schema.String, ownerId: Schema.String, title: Schema.String }),
+    ),
+  },
+  { Todo: { project: Relation.one(ProjectBase) }, Note: { parent: Relation.one(NoteBase) } },
+)
+
+const G = Guards.declare(
+  'Todos',
+  User,
+  guard => ({
+    isAdmin: guard.principal(),
+    isMember: guard.row(Related.Project, p => Expr.in(Related.Project.fields.id, p.projectIds)),
+    isOwner: guard.row(Related.Todo, p => Expr.eq(Related.Todo.fields.ownerId, p.id)),
+  }),
+  { key: user => user.id },
+)
+
+const Project = Related.Project.pipe(Guards.attach(G, { row: { Read: [G.isMember, G.isAdmin] } }))
+const Todo = Related.Todo.pipe(
+  Guards.attach(G, { row: { Read: [G.isOwner, Guards.inherit('project'), G.isAdmin] } }),
+)
+
+const Policy = G.implement({
+  isAdmin: principal => Option.exists(principal, user => user.role === 'admin'),
+})
+
+const visible = GuardDrizzle.visible(Policy, [Todo, Project])
+const Db = bind(
+  { Todo, Project },
+  {
+    Todo: {
+      table: todos,
+      relations: { project: { field: todos.projectId } },
+      visible: visible.Todo,
+    },
+    Project: { table: projects, visible: visible.Project },
+  },
+)
+
+const setup = () => {
+  const sqlite = new DatabaseSync(':memory:')
+  sqlite.exec(`
+    create table projects (id text primary key, name text not null);
+    create table todos (id text primary key, owner_id text not null, project_id text not null, title text not null);
+    insert into projects values ('p1', 'Borealis'), ('p2', 'Apollo');
+    insert into todos values
+      ('t1', 'ada', 'p2', 'Own'),
+      ('t2', 'grace', 'p1', 'Shared'),
+      ('t3', 'grace', 'p2', 'Hidden');
+  `)
+  return { sqlite, database: drizzle({ client: sqlite }) }
+}
+
+const ada = Option.some<User>({ id: 'ada', role: 'member', projectIds: ['p1'] })
+const root = Option.some<User>({ id: 'root', role: 'admin', projectIds: [] })
+const visitor = Option.none<User>()
+
+const run = async <A>(effect: Effect.Effect<A, unknown, never>) => Effect.runPromise(effect)
+
+const read = async (
+  principal: Option.Option<User>,
+  binding: AnyEntityBinding,
+  ids: string[],
+  fields: string[],
+) => {
+  const { sqlite, database } = setup()
+  try {
+    const records = await run(
+      source<Option.Option<User>>(binding)
+        .read({ ids, fields, principal })
+        .pipe(Effect.provide(databaseLayer(database))),
+    )
+    return Object.fromEntries(
+      records.map(record => {
+        const { id: _, ...asked } = record.values as Record<string, unknown>
+        return [record.id, asked]
+      }),
+    )
+  } finally {
+    sqlite.close()
+  }
+}
+
+const AllTodos = Query.make('AllTodos', {
+  Input: Schema.Struct({}),
+  Result: Query.connection({ name: 'Todo' }),
+})
+const listed = query<Option.Option<User>, {}>(AllTodos, {
+  entity: Db.Todo,
+  orderBy: [{ column: todos.id, direction: 'asc' }],
+})
+const list = async (principal: Option.Option<User>) => {
+  const { sqlite, database } = setup()
+  try {
+    const page = await run(
+      listed
+        .run({ input: {}, window: { first: 10 }, principal })
+        .pipe(Effect.provide(databaseLayer(database))),
+    )
+    return page.edges.map(edge => edge.id)
+  } finally {
+    sqlite.close()
+  }
+}
+
+describe('GuardDrizzle.visible', () => {
+  it('reads by id, and lists, the same rows for each principal', async () => {
+    const ids = ['t1', 't2', 't3']
+    // Own, and through a project ada is a member of.
+    expect(Object.keys(await read(ada, Db.Todo, ids, ['title']))).toEqual(['t1', 't2'])
+    expect(await list(ada)).toEqual(['t1', 't2'])
+    expect(await list(root)).toEqual(['t1', 't2', 't3'])
+    expect(await list(visitor)).toEqual([])
+    expect(Object.keys(await read(visitor, Db.Todo, ids, ['title']))).toEqual([])
+  })
+
+  it('hides a ref to a row the principal may not read', async () => {
+    expect(await read(ada, Db.Todo, ['t1', 't2'], ['project'])).toEqual({
+      t1: { project: null },
+      t2: { project: 'Project:p1' },
+    })
+  })
+
+  it('refuses a principal of another shape, rather than reading it as a visitor', async () => {
+    // @ts-expect-error a principal of another shape
+    const stranger: Option.Option<User> = Option.some({ id: 'ada' })
+    await expect(read(stranger, Db.Todo, ['t1'], ['title'])).rejects.toThrow(
+      /not an Option of the guard set's/,
+    )
+  })
+})
+
+describe('GuardDrizzle.visible at registration', () => {
+  it('refuses an inherited Read whose Entity is not listed, or has no Read rule', () => {
+    expect(() => GuardDrizzle.visible(Policy, [Todo])).toThrow(
+      /Todo inherits Project's Read, but Project is not listed/,
+    )
+    expect(() => GuardDrizzle.visible(Policy, [Todo, Related.Project])).toThrow(
+      /Project has no Read rule/,
+    )
+  })
+
+  it('refuses a loop of inherited Reads', () => {
+    const Note = Related.Note.pipe(Guards.attach(G, { row: { Read: [Guards.inherit('parent')] } }))
+    expect(() => GuardDrizzle.visible(Policy, [Note])).toThrow(/inherited Reads loop: Note → Note/)
+  })
+})

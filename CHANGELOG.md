@@ -270,7 +270,11 @@ version changed; `pnpm` skips versions already in the registry.
   `readable` and `filter`, so a refused row is absent from reads, queries and
   relations (an inherited Read decided by the related row's own rules) and a
   refused member is withheld or redacted; `GuardServer.filter` is a Source's
-  `filter`. A Drizzle binding and writes come next (`guard-DESIGN.md`).
+  `filter`. `foldkit-guard/drizzle`'s `GuardDrizzle.visible(Policy, entities)`
+  compiles the row's Read rules into each binding's `visible`, an inherited
+  Read as a subquery over the related table's own rule, checked when built
+  (the inherited Entity listed and ruled, no loop). Writes come next
+  (`guard-DESIGN.md`).
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

@@ -167,6 +167,11 @@ export interface Policy<User, R = never> {
   ) => Effect.Effect<ReadonlyArray<MemberRead>, never, R>
   /** The principal's fields as row guards' inputs; a visitor has none. */
   readonly inputOf: (principal: Option.Option<User>) => Readonly<Record<string, unknown>>
+  /**
+   * Whether `value` is this set's principal, an `Option` of its schema: for a
+   * seam that is handed the principal untyped.
+   */
+  readonly isPrincipal: (value: unknown) => value is Option.Option<User>
 }
 
 /** The builders a guard set's declaration is given, typed by its principal. */
@@ -281,6 +286,8 @@ export const Guards = {
       return input
     }
 
+    const isPrincipal = Schema.is(Schema.Option(principal))
+
     const implement = <R>(bodies: Readonly<Record<string, Body<User, R>>>): Policy<User, R> => {
       const missing = principalNames.filter(guard => !Object.hasOwn(bodies, guard))
       const extra = Object.keys(bodies).filter(guard => !principalNames.includes(guard))
@@ -336,6 +343,7 @@ export const Guards = {
           readingFor(entity, principal).members(entity, members),
         inputOf: principal =>
           Option.match(principal, { onNone: () => ({}), onSome: user => inputOf(user) }),
+        isPrincipal,
       }
     }
 

@@ -74,5 +74,9 @@ const Todo = TodoFields.pipe(
   spread into `RemoteServer.memory` enforces row and member Reads, inherited
   Reads included; `GuardServer.filter(Todo, Policy)` is a Source's `filter`
   for member Reads. The principal is an `Option` (none is a visitor).
+- `foldkit-guard/drizzle`: `GuardDrizzle.visible(Policy, [Todo, Project])`
+  gives each binding's `visible` (`bind(..., { Todo: { table, visible:
+  visible.Todo } })`); an inherited Read compiles to a subquery, checked
+  (listed, ruled, no loop) when built.
 
 See the [README](https://github.com/doeixd/foldkit-plus/blob/main/packages/guard/README.md).

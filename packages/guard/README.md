@@ -3,9 +3,9 @@
 Who may do what, declared once on a Foldkit Plus domain.
 
 **Early.** This package declares a guard set, decides its guards, attaches
-them to an Entity, and enforces reads served from `RemoteServer.memory` or
-through a Source's `filter`. A Drizzle binding's `visible`, a mutation's
-write plan and the client's `may` hint are the next slices of
+them to an Entity, and enforces reads: served from `RemoteServer.memory`,
+through a Source's `filter`, or compiled into a Drizzle binding's `visible`.
+Writes and the client's `may` hint are the next slices of
 [`guard-DESIGN.md`](../../docs/design/guard-DESIGN.md), which explains the
 whole design and why.
 
@@ -192,5 +192,33 @@ const backend = RemoteServer.memory({
   reads are read too, so it can be decided.
 - An Entity not listed has no guards to apply and is read by everyone.
 - For a Source of your own, `GuardServer.filter(Todo, Policy)` is its
-  `filter`; the Source's own read must still apply the row's Read rules,
-  which a Drizzle binding will do through `visible`.
+  `filter`; the Source's own read must still apply the row's Read rules.
+
+Over Drizzle, `foldkit-guard/drizzle` compiles the row's Read rules into each
+binding's `visible`, which the binding applies on every path its table is
+read by (by id, as a relation's target and children, counted, through a
+query). Here `Todo` also has a `project` relation to a guarded `Project`,
+and `todos` and `projects` are their Drizzle tables; the whole fixture, run
+over SQLite, is [`test/drizzle.test.ts`](test/drizzle.test.ts):
+
+```ts
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
+
+const visible = GuardDrizzle.visible(Policy, [Todo, Project])
+const Db = bind(
+  { Todo, Project },
+  {
+    Todo: { table: todos, relations: { project: { field: todos.projectId } }, visible: visible.Todo },
+    Project: { table: projects, visible: visible.Project },
+  },
+)
+```
+
+- Each principal guard is decided first; what is left is SQL. An inherited
+  Read is `project_id in (select id from projects where …)`, the related
+  table's own rule inside.
+- It is checked when built, before any request: an inherited Read whose
+  Entity is not listed or has no Read rule, or a loop of them, throws. An
+  inherited relation must be stored as a foreign key on this table.
+- The principal reaches a binding untyped, so it is checked: one that is not
+  an `Option` of the set's schema is a defect, never read as a visitor.

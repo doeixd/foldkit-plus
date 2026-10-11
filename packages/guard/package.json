@@ -33,6 +33,11 @@
       "foldkit-plus:source": "./src/server.ts",
       "types": "./dist/server.d.mts",
       "import": "./dist/server.mjs"
+    },
+    "./drizzle": {
+      "foldkit-plus:source": "./src/drizzle.ts",
+      "types": "./dist/drizzle.d.mts",
+      "import": "./dist/drizzle.mjs"
     }
   },
   "files": [
@@ -46,15 +51,31 @@
   },
   "dependencies": {
     "foldkit-entity": "workspace:*",
-    "foldkit-metadata": "workspace:*",
-    "foldkit-remote-server": "workspace:*"
+    "foldkit-metadata": "workspace:*"
   },
   "peerDependencies": {
-    "effect": "^4.0.0"
+    "drizzle-orm": "1.0.0-rc.4",
+    "effect": "^4.0.0",
+    "foldkit-remote-drizzle": "workspace:*",
+    "foldkit-remote-server": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "drizzle-orm": {
+      "optional": true
+    },
+    "foldkit-remote-drizzle": {
+      "optional": true
+    },
+    "foldkit-remote-server": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "drizzle-orm": "1.0.0-rc.4",
     "effect": "4.0.0",
     "foldkit-remote": "workspace:*",
+    "foldkit-remote-drizzle": "workspace:*",
+    "foldkit-remote-server": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
   }
