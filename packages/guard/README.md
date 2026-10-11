@@ -299,11 +299,16 @@ GuardServer.validate(Policy, { entities: [Todo], domain: Data, server: backend.s
 It throws, naming each, for an Entity of `entities` whose Source lacks the
 rule `GuardDrizzle.visible` or `GuardServer.memory` built for it, or the
 `GuardServer.filter` built for it; for a query listing such an Entity without
-the rule; and for an Entity carrying another set's guards. A rule built from
-another `Policy`, or for another Entity, does not count. Every guarded Entity
-needs both, even one with no member rules yet, so a rule attached later is
+the rule; for a declared write of such an Entity that does not land through
+the `GuardServer.writer` built for it; and for an Entity carrying another
+set's guards. A rule built from another `Policy`, or for another Entity,
+does not count. Every guarded Entity's Source needs both its rule and its
+filter, even one with no member rules yet, so a rule attached later is
 applied rather than served past. `GuardServer.memory` gives both; over
 Drizzle, each Source takes its `filter`, and each binding its `visible`.
+
+A handler (`RemoteServer.mutation`) writes what its code writes, which no
+check at startup can read.
 
 ## Who is asking
 

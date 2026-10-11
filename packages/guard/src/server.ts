@@ -20,7 +20,7 @@ import { attached } from './attach.js'
 import { Condition, type RowRule } from './condition.js'
 import type { Deny } from './attach.js'
 import type { Policy } from './index.js'
-import { memberRules, rowRules } from './placed.js'
+import { memberRules, rowRules, writeRules } from './placed.js'
 
 const noMembers = (record: EntityRecord) => record
 
@@ -266,7 +266,7 @@ export const GuardServer = {
         ...rules.flatMap(({ condition }) => Condition.members(condition)),
       ]),
     ]
-    return {
+    const guarded: EntityWriter<Option.Option<User>, R | RW> = {
       entity: writer.entity,
       read,
       update: context =>
@@ -359,6 +359,7 @@ export const GuardServer = {
           return yield* writer.delete(context)
         }),
     }
+    return writeRules.add(guarded, policy, [entity.name])
   },
 
   /**
@@ -366,8 +367,11 @@ export const GuardServer = {
    * Entities as `Guards.attach` returned them: each one's Source and each
    * query listing it apply its row's Read rules (`GuardDrizzle.visible`, or
    * `GuardServer.memory`), its Source applies its members' and relations'
-   * (`GuardServer.filter`), all built from `policy`. A hand-written Source over
-   * a guarded Entity would serve every row; this throws instead, naming each.
+   * (`GuardServer.filter`), and each declared write of it lands through
+   * `GuardServer.writer`, all built from `policy`. A hand-written Source over
+   * a guarded Entity would serve every row, and a bare writer would take every
+   * write; this throws instead, naming each. A handler (`RemoteServer.mutation`)
+   * writes what its code writes, which no check at startup can read.
    *
    * ```ts
    * GuardServer.validate(Policy, { entities: [Todo, Project], domain: Data, server: Server })
@@ -416,7 +420,14 @@ export const GuardServer = {
                 : []
             },
           )
-          return [...sourceProblems, ...queryProblems]
+          const writeProblems = [...config.server.mutations].flatMap(([mutation, source]) =>
+            source.writes !== undefined &&
+            source.writes.entity === name &&
+            !writeRules.has(source.writes.writer, policy, name)
+              ? [`write ${mutation} writes ${name} without its write rules`]
+              : [],
+          )
+          return [...sourceProblems, ...queryProblems, ...writeProblems]
         },
       }),
     )

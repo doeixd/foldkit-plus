@@ -271,7 +271,8 @@ version changed; `pnpm` skips versions already in the registry.
   reads a row as a principal may see it; `RemoteServer.write` answers through
   it, and a row the write hid from its writer answers in `deleted`. A Drizzle
   `writer` over a binding with a `visible` rule reads through it. A writer may
-  fail with `RemoteForbidden`.
+  fail with `RemoteForbidden`. A declared write's Source carries `writes`,
+  the Entity and the writer, for a startup check.
 - **`foldkit-remote-server`: `EntitySource.visible` and
   `QuerySource.visible`**, the rule that decides which rows a source returns,
   as it was given one. The server never runs it; a startup check such as
@@ -336,6 +337,8 @@ version changed; `pnpm` skips versions already in the registry.
   an `explain`'s sentence. `presets` (`{ ownerId: user => user.id }`) sets a
   field from who is asking on every create, before the rules are checked;
   an input that sets one is refused, and a visitor has none to give.
+  `GuardServer.validate` also refuses a declared write of a guarded Entity
+  that does not land through the `GuardServer.writer` built for it.
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and

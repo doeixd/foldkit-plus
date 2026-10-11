@@ -89,7 +89,8 @@ const Todo = TodoFields.pipe(
 - `GuardServer.validate(Policy, { entities, domain, server })` at startup
   throws for a guarded Entity whose Source, or a query listing it, lacks the
   rule or filter the guard seams built for it (a hand-written Source would
-  serve every row). Every guarded Entity needs both.
+  serve every row). Every guarded Entity needs both. A declared write of one
+  must land through its `GuardServer.writer`; a handler cannot be checked.
 - Writes: `RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy,
   writer(Db.Todo)))` checks a declared write before it lands (row rule over
   the row as it is and, for an update, as it would be; each member's and

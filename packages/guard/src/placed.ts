@@ -16,7 +16,7 @@ const record = (registry: WeakMap<object, Placed>) => ({
     return built
   },
   has: (built: unknown, policy: Policy<any, any>, entity: string): boolean => {
-    if (typeof built !== 'function') return false
+    if (typeof built !== 'function' && (typeof built !== 'object' || built === null)) return false
     const placed = registry.get(built)
     return placed !== undefined && placed.policy === policy && placed.entities.has(entity)
   },
@@ -27,3 +27,6 @@ export const rowRules = record(new WeakMap())
 
 /** Member and relation rules: `GuardServer.filter`'s. */
 export const memberRules = record(new WeakMap())
+
+/** Write rules: `GuardServer.writer`'s. */
+export const writeRules = record(new WeakMap())

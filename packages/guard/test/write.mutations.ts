@@ -154,4 +154,27 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'validate does not look at writes',
+    edits: [
+      { file, find: '!writeRules.has(source.writes.writer, policy, name)', replace: 'false' },
+    ],
+    tests,
+  },
+  {
+    name: 'validate takes any writer of any Entity as guarded',
+    edits: [{ file, find: 'source.writes.entity === name &&', replace: '' }],
+    tests,
+  },
+  {
+    name: 'RemoteServer.write does not say which writer it lands through',
+    edits: [
+      {
+        file: '../../remote-server/src/index.ts',
+        find: 'writes: { entity: writer.entity, writer },',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

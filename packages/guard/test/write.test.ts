@@ -8,9 +8,9 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Relation, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
+import { Mutation, Remote } from 'foldkit-remote'
 import { bind, databaseLayer, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
 import { Guards } from '../src/index.js'
@@ -400,5 +400,39 @@ describe('GuardServer.writer', () => {
       // @ts-expect-error a preset gives the field's own type
       presets: { ownerId: () => 1 },
     })
+  })
+})
+
+describe('GuardServer.validate over writes', () => {
+  const Data = Remote.define({ entities: [Todo, Note, Related.Project] })
+  const check = (writing: EntityWriter<Option.Option<User>, DrizzleDatabase>) => () =>
+    GuardServer.validate(Policy, {
+      entities: [Todo],
+      domain: Data,
+      server: RemoteServer.make({
+        entities: [],
+        mutations: [
+          RemoteServer.write(Edit, writing),
+          // Another Entity's write, checked as that Entity's.
+          RemoteServer.write(CreateNote, GuardServer.writer(Note, Policy, writer(Db.Note))),
+        ],
+      }),
+    })
+
+  it('passes a declared write that lands through the guarded writer', () => {
+    expect(check(guarded)).not.toThrow()
+  })
+
+  it('refuses one through a bare writer, or a writer guarded by another Policy or Entity', () => {
+    const message = 'write EditTodo writes Todo without its write rules'
+    expect(check(writer(Db.Todo))).toThrow(message)
+    const Other = G.implement({
+      isAdmin: () => false,
+      isEditor: () => false,
+      isViewer: () => false,
+    })
+    expect(check(GuardServer.writer(Todo, Other, writer(Db.Todo)))).toThrow(message)
+    // A Note's writer, handed a Todo's binding: guarded, but for another Entity.
+    expect(check(GuardServer.writer(Note, Policy, writer(Db.Todo)))).toThrow(message)
   })
 })

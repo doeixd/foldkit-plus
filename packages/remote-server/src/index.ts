@@ -255,6 +255,12 @@ export interface MutationOutcome<Output> {
 
 export interface MutationSource<P, R = never> {
   readonly mutation: string
+  /**
+   * For a declared write (`RemoteServer.write`), the Entity it writes and the
+   * writer it lands through, as it was given one. The server never reads it;
+   * a startup check such as `GuardServer.validate` does.
+   */
+  readonly writes?: { readonly entity: string; readonly writer: unknown }
   readonly Input: Schema.Codec<unknown>
   readonly Output: Schema.Codec<unknown>
   readonly Refusal: Schema.Codec<unknown, unknown>
@@ -1251,6 +1257,7 @@ export const RemoteServer = {
     }
     return {
       mutation: mutation.name,
+      writes: { entity: writer.entity, writer },
       Input: mutation.Input,
       Output: mutation.Output,
       Refusal: mutation.Refusal,
