@@ -891,6 +891,20 @@ export const writer = <P = unknown>(
       }
     })
 
+  /** Whether `row` holds what a write set: each value, and each link as its ref. */
+  const holdsWritten = (
+    row: Readonly<Record<string, unknown>>,
+    values: Readonly<Record<string, unknown>>,
+    links: Readonly<Record<string, Option.Option<EntityRef>>>,
+  ): boolean =>
+    Object.entries(values).every(([key, value]) => sameStored(row[key], value)) &&
+    Object.entries(links).every(([key, link]) =>
+      sameStored(
+        row[key],
+        Option.match(link, { onNone: () => null, onSome: ref => Entity.refKey(ref) }),
+      ),
+    )
+
   const answeredOf = (
     rows: ReadonlyArray<Record<string, unknown>>,
     answered: ReturnType<typeof returning>,
@@ -930,21 +944,13 @@ export const writer = <P = unknown>(
           answered,
         )
         const { field, revision } = expect.value
-        const landed = Option.filter(now, row => {
-          const linked = Object.entries(links).every(([key, link]) =>
-            sameStored(
-              row[key],
-              Option.match(link, { onNone: () => null, onSome: ref => Entity.refKey(ref) }),
-            ),
-          )
-          return (
+        return Option.filter(
+          now,
+          row =>
             typeof revision === 'number' &&
             row[field] === revision + 1 &&
-            Object.entries(values).every(([key, value]) => sameStored(row[key], value)) &&
-            linked
-          )
-        })
-        return landed
+            holdsWritten(row, values, links),
+        )
       }),
     insert: ({ id, values, links }) =>
       Effect.gen(function* () {
@@ -962,17 +968,31 @@ export const writer = <P = unknown>(
               .returning(answered.columns),
           ),
         )
-        // Nothing inserted: the id is taken, by a retry of this insert. Answer that row.
-        const rows =
-          inserted.length > 0
-            ? inserted
-            : yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
-                where: eq(idColumn(binding), id),
-              })
-        return yield* Option.match(answeredOf(rows, answered), {
-          onNone: () => Effect.fail(missing(`row ${id} after inserting it`)),
-          onSome: Effect.succeed,
-        })
+        if (inserted.length > 0) {
+          return yield* Option.match(answeredOf(inserted, answered), {
+            onNone: () => Effect.fail(missing(`row ${id} after inserting it`)),
+            onSome: Effect.succeed,
+          })
+        }
+        // Nothing inserted: the id is taken. A retry of this insert finds the row
+        // holding what it wrote, and is answered with it; anything else is another
+        // row, whose values are not this write's to answer with.
+        const there = answeredOf(
+          yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
+            where: eq(idColumn(binding), id),
+          }),
+          answered,
+        )
+        return yield* Option.match(
+          Option.filter(there, row => holdsWritten(row, values, links)),
+          {
+            onNone: () =>
+              Effect.fail(
+                new RemoteServerError({ message: `${binding.name} ${id} could not be created` }),
+              ),
+            onSome: Effect.succeed,
+          },
+        )
       }),
     delete: ({ id, expect }) =>
       Effect.gen(function* () {
@@ -997,6 +1017,14 @@ export const writer = <P = unknown>(
           { where: eq(idColumn(binding), id) },
         )
         return still.length === 0 ? 'absent' : 'moved'
+      }),
+    linked: ({ id, relations }) =>
+      Effect.gen(function* () {
+        const answered = returning(binding, relations)
+        const rows = yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
+          where: eq(idColumn(binding), id),
+        })
+        return answeredOf(rows, answered)
       }),
     ...(binding.visible === undefined
       ? {}

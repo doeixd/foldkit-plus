@@ -165,6 +165,45 @@ describe('Policy.readable', () => {
   })
 })
 
+describe('Condition.unsetting', () => {
+  it('refuses every row guard reading an unset field, whatever it asks of it', () => {
+    const D = Guards.declare(
+      'Drafts',
+      User,
+      guard => ({
+        claimed: guard.row(TodoFields, () => Expr.isNotNull(TodoFields.fields.notes)),
+        unclaimed: guard.row(TodoFields, () => Expr.isNull(TodoFields.fields.notes)),
+        mentions: guard.row(TodoFields, () => Expr.contains(TodoFields.fields.notes, 'x')),
+        owned: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
+      }),
+      { key: user => user.id },
+    )
+    const unset = new Set(['notes'])
+    // Every followed row is readable here, so only `unset` can refuse one.
+    const holds = (condition: Condition) =>
+      Condition.holds(
+        Condition.unsetting(condition, unset),
+        { ownerId: 'ada' },
+        { 'principal.id': 'ada' },
+        () => true,
+      )
+    for (const guard of [D.claimed, D.unclaimed, D.mentions]) {
+      expect(holds({ _tag: 'Row', guard })).toBe(false)
+    }
+    // A guard over set fields still decides; a disjunction keeps it.
+    expect(holds({ _tag: 'Row', guard: D.owned })).toBe(true)
+    expect(
+      holds(
+        Condition.or([
+          { _tag: 'Row', guard: D.claimed },
+          { _tag: 'Row', guard: D.owned },
+        ]),
+      ),
+    ).toBe(true)
+    expect(holds({ _tag: 'Inherit', relation: 'notes' })).toBe(false)
+  })
+})
+
 describe('Policy.readMembers', () => {
   it('decides each ruled member, with the refusal it shows', () => {
     const members = Effect.runSync(

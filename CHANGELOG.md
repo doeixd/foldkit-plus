@@ -195,6 +195,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-guard`: three write checks that let a write through.** An
+  update that unlinked a relation whose row is hidden from its writer read the
+  link as none and skipped `Unlink`: the link is now read as stored, through
+  a new `EntityWriter.linked` (`foldkit-remote-drizzle`'s `writer` has it),
+  and a writer without it treats a link it sees as none as one that may be
+  there. A create's guard over a field it leaves unset held for `isNotNull`
+  (and died on `contains`): such a guard now never holds. A write's answer was
+  read back without the Entity's member Read rules, so it could carry a field
+  its writer may not read: `GuardServer.writer` and `GuardServer.mutation`
+  now answer through them, with no more fields than the write named.
+- **`foldkit-remote-drizzle`: an insert under an id taken by another row
+  fails.** It answered with whatever row held the id, values its writer may
+  not read included, and let the client think its own were stored. A retry,
+  whose row holds what it writes, is still answered with that row.
 - **`foldkit-guard/sync`: `admit` judges an operation's edits to a row
   together.** Each edit was checked over the row with that edit alone, so
   two that each kept a row in its editor's reach, and together moved it out,

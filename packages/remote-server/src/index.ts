@@ -171,7 +171,11 @@ export interface EntityWriter<P, R = never> {
     RemoteServerError | RemoteForbidden,
     R
   >
-  /** Inserts the row, or leaves one already there under that id; answers the row as it is. */
+  /**
+   * Inserts the row, or finds one already there under that id holding what
+   * it writes (a retry); answers the row as it is. Fails when the id holds
+   * any other row.
+   */
   readonly insert: (context: {
     readonly id: string
     readonly values: Readonly<Record<string, unknown>>
@@ -198,6 +202,16 @@ export interface EntityWriter<P, R = never> {
     readonly id: string
     readonly fields: ReadonlyArray<string>
     readonly principal: P
+  }) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>
+  /**
+   * Each of `relations`' links as stored, by ref key (`'Project:p1'`) or
+   * `null`, whatever a reader may see of the row it points at; none when there
+   * is no such row. A guard reads it to tell a write that unlinks a row hidden
+   * from its writer from one that changes nothing.
+   */
+  readonly linked?: (context: {
+    readonly id: string
+    readonly relations: ReadonlyArray<string>
   }) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>
 }
 
@@ -1290,7 +1304,8 @@ export const RemoteServer = {
    * input bound to the write lands through `writer`, and the row as written
    * answers as a patch (a deletion as `deleted`). An update writes only the
    * keys the client named, when it named some, and fails for a row that is not
-   * there; an insert of an id already there answers with that row; a delete of
+   * there; an insert of an id already holding what it writes (a retry)
+   * answers with that row, and of one holding anything else fails; a delete of
    * a row already gone succeeds. A row that moved past the revision the write
    * `expect`s is refused as a conflict.
    */

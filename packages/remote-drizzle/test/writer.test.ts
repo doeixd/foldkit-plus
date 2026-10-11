@@ -225,8 +225,9 @@ describe('A write that expects a revision, on Postgres', () => {
           .pipe(Effect.provide(pgLayer)),
       )
     await create('Pioneer')
-    const retried = await create('Other')
+    const retried = await create('Pioneer')
     expect(retried.entities[0]?.values).toMatchObject({ name: 'Pioneer' })
+    await expect(create('Other')).rejects.toThrow('Project p8 could not be created')
     const rows = await pglite.query("select name from projects where id = 'p8'")
     expect(rows.rows).toEqual([{ name: 'Pioneer' }])
   })
@@ -405,19 +406,16 @@ describe('Inserting and deleting a declared write', () => {
     )
 
   it('inserts under the id the client chose, and a retry answers the row it made', async () => {
-    const first = await send('CreateProject', {
-      id: 'p7',
-      name: 'Voyager',
-      status: 'active',
-      revision: 1,
+    const voyager = { id: 'p7', name: 'Voyager', status: 'active', revision: 1 }
+    const first = await send('CreateProject', voyager)
+    const retried = await send('CreateProject', voyager)
+    // Another create under that id is not a retry: the row there is not its answer.
+    const taken = await send('CreateProject', { ...voyager, name: 'Other' })
+    expect(row('p7')).toEqual(voyager)
+    expect(taken).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'RemoteMutationError', message: 'Project p7 could not be created' },
     })
-    const retried = await send('CreateProject', {
-      id: 'p7',
-      name: 'Other',
-      status: 'active',
-      revision: 1,
-    })
-    expect(row('p7')).toEqual({ id: 'p7', name: 'Voyager', status: 'active', revision: 1 })
     expect(first).toMatchObject({
       _tag: 'Success',
       success: { entities: [{ id: 'p7', values: { name: 'Voyager' } }] },

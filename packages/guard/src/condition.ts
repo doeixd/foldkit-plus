@@ -74,6 +74,28 @@ export const Condition = {
     return holds(condition)
   },
 
+  /**
+   * `condition` with every row guard that reads one of `unset`, and every
+   * relation of them it follows, refused: a field a create leaves unset
+   * matches no guard, `isNull` and `isNotNull` alike, since the create never
+   * said what it holds.
+   */
+  unsetting: (condition: Condition, unset: ReadonlySet<string>): Condition => {
+    const kept = (each: Condition): Condition =>
+      Match.valueTags(each, {
+        Always: () => each,
+        Never: () => each,
+        Row: ({ guard }) =>
+          Query.dependencies(guard.query).predicate.some(field => unset.has(field.key))
+            ? never
+            : each,
+        Inherit: ({ relation }) => (unset.has(relation) ? never : each),
+        And: ({ conditions }) => and(conditions.map(kept)),
+        Or: ({ conditions }) => or(conditions.map(kept)),
+      })
+    return kept(condition)
+  },
+
   /** The members a condition reads: its row guards' fields, and each relation it follows. */
   members: (condition: Condition): ReadonlyArray<string> => {
     const read = (each: Condition): ReadonlyArray<string> =>

@@ -252,7 +252,13 @@ export const GuardServer = {
           ([unlink, link]) => ({ relation, now: linkKey(target), unlink, link }),
         ),
       )
-    /** The rules a change from what `before` holds to what each relation now points at must meet. */
+    /**
+     * The rules a change from what each relation was linked to, to what it now
+     * points at, must meet; none `before` is a create, which unlinks nothing.
+     * Where `exact` is false, `links` are the row as its writer sees it, where
+     * a link to a row hidden from them reads as none: a relation seen unlinked
+     * may be linked after all, so changing it unlinks too.
+     */
     const linking = (
       rules: ReadonlyArray<{
         readonly relation: string
@@ -260,16 +266,24 @@ export const GuardServer = {
         readonly unlink: Option.Option<RowRule>
         readonly link: Option.Option<RowRule>
       }>,
-      before: Readonly<Record<string, unknown>>,
+      before: Option.Option<{
+        readonly links: Readonly<Record<string, unknown>>
+        readonly exact: boolean
+      }>,
     ): ReadonlyArray<RowRule> =>
-      rules.flatMap(({ relation, now, unlink, link }) => {
-        const was = before[relation] ?? null
-        if (was === now) return []
-        return [
-          ...(was === null ? [] : Option.toArray(unlink)),
-          ...(now === null ? [] : Option.toArray(link)),
-        ]
-      })
+      rules.flatMap(({ relation, now, unlink, link }) =>
+        Option.match(before, {
+          onNone: () => (now === null ? [] : Option.toArray(link)),
+          onSome: ({ links, exact }) => {
+            const was = links[relation] ?? null
+            if (was === now && (exact || was !== null)) return []
+            return [
+              ...(was === null && exact ? [] : Option.toArray(unlink)),
+              ...(now === null ? [] : Option.toArray(link)),
+            ]
+          },
+        }),
+      )
     const ruleOf = (
       rules: ReadonlyArray<{
         readonly unlink: Option.Option<RowRule>
@@ -286,9 +300,18 @@ export const GuardServer = {
         ...rules.flatMap(({ condition }) => Condition.members(condition)),
       ]),
     ]
+    // What an answer shows: the row as the writer may see it, members ruled.
+    const memberRead = GuardServer.filter(entity, policy)
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {
       entity: writer.entity,
-      read,
+      read: ({ id, fields, principal }) =>
+        seenRow(
+          { filter: memberRead },
+          seen => read({ id, fields: seen, principal }),
+          principal,
+          fields,
+          id,
+        ),
       update: context =>
         Effect.gen(function* () {
           const { principal, values, links } = context
@@ -304,7 +327,20 @@ export const GuardServer = {
           const current = yield* read({ id: context.id, fields, principal })
           if (Option.isNone(current)) return yield* Effect.fail(refused(row.deny))
           const before = current.value
-          const relations = linking(relating, before)
+          const linked = Object.keys(links)
+          const stored =
+            writer.linked === undefined || linked.length === 0
+              ? Option.none()
+              : yield* writer.linked({ id: context.id, relations: linked })
+          const relations = linking(
+            relating,
+            Option.some(
+              Option.match(stored, {
+                onNone: () => ({ links: before, exact: false }),
+                onSome: links => ({ links, exact: true }),
+              }),
+            ),
+          )
           const after = {
             ...before,
             ...values,
@@ -345,7 +381,7 @@ export const GuardServer = {
             Object.keys(values),
             'Create',
           )
-          const relations = linking(yield* linkRules(principal, links), {})
+          const relations = linking(yield* linkRules(principal, links), Option.none())
           const proposed = {
             ...values,
             id: context.id,
@@ -354,15 +390,12 @@ export const GuardServer = {
             ),
           }
           const rules = [row, ...members, ...relations]
-          // A field the create leaves unset matches no guard, `isNull` included:
-          // the create never said it is empty.
           const ruled = rules.flatMap(({ condition }) => Condition.members(condition))
-          const unset = Object.fromEntries(
-            ruled
-              .filter(field => !Object.hasOwn(proposed, field))
-              .map(field => [field, matchesNothing]),
-          )
-          yield* require(rules, { ...unset, ...proposed }, principal)
+          const unset = new Set(ruled.filter(field => !Object.hasOwn(proposed, field)))
+          yield* require(rules.map(rule => ({
+            ...rule,
+            condition: Condition.unsetting(rule.condition, unset),
+          })), proposed, principal)
           return yield* writer.insert(context)
         }),
       delete: context =>
@@ -445,8 +478,16 @@ export const GuardServer = {
         Effect.forEach(outcome.entities ?? [], patch =>
           patch.entity !== entity.name
             ? Effect.succeed(Option.some(patch))
-            : Effect.map(rowOf(source, principal, Object.keys(patch.values), patch.id), values =>
-                Option.map(Option.fromUndefinedOr(values), seen => ({ ...patch, values: seen })),
+            : Effect.map(
+                seenRow(
+                  source,
+                  fields =>
+                    Effect.map(rowOf(source, principal, fields, patch.id), Option.fromUndefinedOr),
+                  principal,
+                  Object.keys(patch.values),
+                  patch.id,
+                ),
+                Option.map(seen => ({ ...patch, values: seen })),
               ),
         ),
         read => ({
@@ -478,8 +519,8 @@ export const GuardServer = {
           const ruled = Condition.members(rule.condition)
           const input = policy.inputOf(principal)
           if (Option.isNone(target)) {
-            const nothing = Object.fromEntries(ruled.map(field => [field, matchesNothing]))
-            if (!Condition.holds(rule.condition, nothing, input, () => false)) {
+            const unset = Condition.unsetting(rule.condition, new Set(ruled))
+            if (!Condition.holds(unset, {}, input, () => false)) {
               return yield* Effect.fail(refused(rule.deny))
             }
             return yield* shown(yield* run({ ...context, row: Option.none() }), principal)
@@ -728,8 +769,34 @@ const rowOf = <P, R>(
     records => records.find(record => record.id === id)?.values,
   )
 
-/** A value no guard's operand equals, and that is not null: what an unset field reads as. */
-const matchesNothing = Object.freeze({})
+/**
+ * Row `id` of `fields` as `principal` may see it, through `see`'s `authorize`
+ * and `filter` as a Source applies them, and no more than was asked: what an
+ * answer shows its writer. None when the row is not there to them.
+ */
+const seenRow = <P, R, RS>(
+  see: Pick<EntitySource<P, RS>, 'authorize' | 'filter'>,
+  read: (
+    fields: ReadonlyArray<string>,
+  ) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>,
+  principal: P,
+  fields: ReadonlyArray<string>,
+  id: string,
+): Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R | RS> =>
+  Effect.gen(function* () {
+    const allowed = see.authorize === undefined ? fields : see.authorize(principal, [...fields])
+    const plan: ReadPlan =
+      see.filter === undefined
+        ? { fields: allowed, apply: noMembers }
+        : yield* see.filter(principal, allowed)
+    const row = yield* read(plan.fields)
+    return Option.map(row, values => {
+      const shown = plan.apply({ id, values }).values
+      return Object.fromEntries(
+        allowed.filter(field => Object.hasOwn(shown, field)).map(field => [field, shown[field]]),
+      )
+    })
+  })
 
 /** A link's value as a row holds it: the ref's key, or `null` for none. */
 const linkKey = (link: Option.Option<{ readonly entity: string; readonly id: string }>) =>

@@ -51,13 +51,17 @@ export default [
   },
   {
     name: 'a relation pointed nowhere new is still ruled',
-    edits: [{ file, find: 'if (was === now) return []', replace: '' }],
+    edits: [{ file, find: 'if (was === now && (exact || was !== null)) return []', replace: '' }],
     tests,
   },
   {
     name: 'a create is not checked',
     edits: [
-      { file, find: 'yield* require(rules, { ...unset, ...proposed }, principal)', replace: '' },
+      {
+        file,
+        find: 'yield* require(rules.map(rule => ({',
+        replace: 'void (rules.map(rule => ({',
+      },
     ],
     tests,
   },
@@ -66,8 +70,8 @@ export default [
     edits: [
       {
         file,
-        find: '.map(field => [field, matchesNothing]),',
-        replace: '.map(field => [field, null]),',
+        find: 'condition: Condition.unsetting(rule.condition, unset),',
+        replace: 'condition: rule.condition,',
       },
     ],
     tests,
@@ -204,7 +208,7 @@ export default [
     edits: [
       {
         file,
-        find: 'if (!Condition.holds(rule.condition, nothing, input, () => false)) {',
+        find: 'if (!Condition.holds(unset, {}, input, () => false)) {',
         replace: 'if (false) {',
       },
     ],
@@ -279,6 +283,65 @@ export default [
         replace: "id !== undefined ? 'Create' : interaction,",
       },
     ],
+    tests,
+  },
+  {
+    name: 'a create by a handler reads unset fields',
+    edits: [
+      {
+        file,
+        find: 'const unset = Condition.unsetting(rule.condition, new Set(ruled))',
+        replace: 'const unset = rule.condition',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'what is stored is never asked',
+    edits: [{ file, find: 'writer.linked === undefined || linked.length === 0', replace: 'true' }],
+    tests,
+  },
+  {
+    name: 'a link seen as none is taken as none',
+    edits: [
+      {
+        file,
+        find: 'if (was === now && (exact || was !== null)) return []',
+        replace: 'if (was === now) return []',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a link seen as none unlinks nothing',
+    edits: [
+      {
+        file,
+        find: '...(was === null && exact ? [] : Option.toArray(unlink)),',
+        replace: '...(was === null ? [] : Option.toArray(unlink)),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a declared write answers what its writer may not read',
+    edits: [{ file, find: '{ filter: memberRead },', replace: '{},' }],
+    tests,
+  },
+  {
+    name: 'an answer is shown more than was asked',
+    edits: [
+      {
+        file,
+        find: 'allowed.filter(field => Object.hasOwn(shown, field)).map(field => [field, shown[field]]),',
+        replace: 'Object.entries(shown),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a handler's answer is read back unfiltered",
+    edits: [{ file, find: 'see.filter === undefined', replace: 'true' }],
     tests,
   },
 ]

@@ -307,15 +307,20 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   over the row as it would be after it too: a write cannot move a row out of
   its writer's reach.
 - Each member the write sets needs its own `Create` or `Update` rule to
-  hold, and each relation it points elsewhere its `Unlink` and `Link`.
-- A create is checked over the values it proposes. A field it leaves unset
-  matches no guard, not even `Expr.isNull`: the create never said it is
-  empty.
+  hold, and each relation it points elsewhere its `Unlink` and `Link`. What
+  a relation was linked to is read as stored (the writer's `linked`), since a
+  link to a row hidden from its writer reads to them as none; a writer that
+  cannot say treats every link it sees as none as one that may be there, so
+  changing it needs `Unlink` too.
+- A create is checked over the values it proposes. A guard that reads a field
+  it leaves unset does not hold, whatever it asks (`isNull` and `isNotNull`
+  alike): the create never said what the field holds.
 - A refusal is `Forbidden`, with the sentence `Guards.explain` gave; the
   write never runs.
-- The answer is read back under the binding's `visible`: the row as its
-  writer may now see it, and a row the write hid from them in `deleted`, so
-  the client takes it out of its lists instead of placing it.
+- The answer is read back under the binding's `visible` and the Entity's
+  member Read rules: the row as its writer may now see it, with no more
+  fields than the write set, and a row the write hid from them in `deleted`,
+  so the client takes it out of its lists instead of placing it.
 
 The binding must have a `visible` rule (`GuardDrizzle.visible`'s), which is
 how the writer reads a row as its writer may see it.
@@ -357,9 +362,10 @@ GuardServer.mutation(
   row's `Create` rule.
 - What the handler writes is its own to check: members it sets, relations it
   points. `fields` reads more of the row for it.
-- Each row of the Entity its answer carries is read back through `source`, as
-  a declared write's is: the answer shows the writer only what they may now
-  see, and a row the handler hid from them answers as deleted.
+- Each row of the Entity its answer carries is read back through `source`,
+  its `authorize` and `filter` applied, as a declared write's is: the answer
+  shows the writer only what they may now see of the fields it named, and a
+  row the handler hid from them answers as deleted.
 
 ## Checking a server at startup
 

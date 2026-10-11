@@ -176,4 +176,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'any row under the id answers an insert',
+    edits: [
+      {
+        file: drizzle,
+        find: 'Option.filter(there, row => holdsWritten(row, values, links)),',
+        replace: 'there,',
+      },
+    ],
+    tests,
+  },
 ]

@@ -149,4 +149,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a row guard over an unset field still decides',
+    edits: [
+      {
+        file,
+        find: 'Query.dependencies(guard.query).predicate.some(field => unset.has(field.key))',
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an unset relation is still followed',
+    edits: [
+      {
+        file,
+        find: 'Inherit: ({ relation }) => (unset.has(relation) ? never : each),',
+        replace: 'Inherit: () => each,',
+      },
+    ],
+    tests,
+  },
 ]

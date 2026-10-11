@@ -6,7 +6,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 import { Entity, Expr, Relation, Write } from 'foldkit-entity'
 import { Mutation, Remote } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
@@ -84,7 +84,11 @@ const Todo = Related.Todo.pipe(
         Guards.explain('Only its owner may archive it.'),
       ),
     },
-    members: { ownerId: { Create: [G.isOwner, G.isAdmin] } },
+    members: {
+      ownerId: { Create: [G.isOwner, G.isAdmin] },
+      // Who claimed a todo is an admin's to read, and an editor's of their own.
+      claimedBy: { Read: [G.isAdmin, Guards.all(G.isEditor, G.isOwner)] },
+    },
     relations: { project: { Link: [G.isAdmin], Unlink: [G.isOwner, G.isAdmin] } },
   }),
 )
@@ -137,6 +141,16 @@ const Move = Mutation.write(
     { id: 'id' },
   ),
 )
+const Claim = Mutation.write(
+  'ClaimTodo',
+  Write.update(
+    Entity.input(
+      Todo,
+      Schema.Struct({ id: Schema.String, claimedBy: Schema.NullOr(Schema.String) }),
+    ),
+    { id: 'id' },
+  ),
+)
 const Create = Mutation.write(
   'CreateTodo',
   Write.insert(
@@ -184,7 +198,7 @@ const guarded = GuardServer.writer(Todo, Policy, writer(Db.Todo))
 const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
   entities: [],
   mutations: [
-    ...[Edit, Move, Create, CreateBare, Remove].map(mutation =>
+    ...[Edit, Move, Claim, Create, CreateBare, Remove].map(mutation =>
       RemoteServer.write(mutation, guarded),
     ),
     RemoteServer.write(
@@ -292,6 +306,26 @@ describe('GuardServer.writer', () => {
       success: { entities: [], deleted: [{ entity: 'Todo', id: 't4' }] },
     })
     expect(row('t4')).toMatchObject({ owner_id: 'grace' })
+  })
+
+  it('answers a write without a member its writer may not read', async () => {
+    const { mutate, row } = open()
+    expect(await mutate(ada, 'ClaimTodo', { id: 't1', claimedBy: 'ada' })).toMatchObject({
+      _tag: 'Success',
+      success: {
+        entities: [
+          {
+            entity: 'Todo',
+            id: 't1',
+            values: expect.not.objectContaining({ claimedBy: expect.anything() }),
+          },
+        ],
+      },
+    })
+    expect(row('t1')).toMatchObject({ claimed_by: 'ada' })
+    // What the rule read to decide (ed's ownerId) is not shown with it.
+    const own = Result.getOrThrow(await mutate(ed, 'ClaimTodo', { id: 't4', claimedBy: 'ed' }))
+    expect(own.entities[0]?.values).toEqual({ id: 't4', claimedBy: 'ed' })
   })
 
   it('refuses a link its relation’s rule refuses, and allows it to whom it allows', async () => {
@@ -448,6 +482,10 @@ describe('GuardServer.validate over writes', () => {
 describe('GuardServer.mutation', () => {
   const ArchiveTodo = Mutation.make('ArchiveTodo', { Input: { id: Schema.String }, Output: {} })
   const ImportTodos = Mutation.make('ImportTodos', { Input: {}, Output: {} })
+  const ClaimByHand = Mutation.make('ClaimByHand', {
+    Input: { id: Schema.String, by: Schema.String },
+    Output: {},
+  })
   const GiveTodo = Mutation.make('GiveTodo', {
     Input: { id: Schema.String, to: Schema.String },
     Output: {},
@@ -506,6 +544,25 @@ describe('GuardServer.mutation', () => {
         },
         ({ row }) => Effect.sync(() => (seen.push(row), { output: {} })),
       ),
+      // Answers only what it wrote; the read back must not add what its writer may not read.
+      GuardServer.mutation(
+        ClaimByHand,
+        {
+          entity: Todo,
+          policy: Policy,
+          interaction: 'Update',
+          id: input => input.id,
+          source: source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) }),
+        },
+        ({ input }) =>
+          Effect.sync(() => {
+            database.prepare('update todos set claimed_by = ? where id = ?').run(input.by, input.id)
+            return {
+              output: {},
+              entities: [{ entity: 'Todo', id: input.id, values: { claimedBy: input.by } }],
+            }
+          }),
+      ),
       GuardServer.mutation(
         ImportTodos,
         { entity: Todo, policy: Policy, interaction: 'Create', source: source(Db.Todo) },
@@ -560,6 +617,21 @@ describe('GuardServer.mutation', () => {
     })
   })
 
+  it('reads an answer back without a member its writer may not read', async () => {
+    expect(await handle(ada, 'ClaimByHand', { id: 't1', by: 'ada' })).toMatchObject({
+      _tag: 'Success',
+      success: {
+        entities: [
+          { id: 't1', values: expect.not.objectContaining({ claimedBy: expect.anything() }) },
+        ],
+      },
+    })
+    expect(await handle(root, 'ClaimByHand', { id: 't1', by: 'root' })).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 't1', values: { claimedBy: 'root' } }] },
+    })
+  })
+
   it('decides a create by who is asking alone', async () => {
     seen.length = 0
     expect(await handle(ada, 'ImportTodos', {})).toMatchObject({
@@ -608,5 +680,94 @@ describe('GuardServer.mutation', () => {
         () => Effect.succeed({ output: {} }),
       ),
     ).toThrow("ArchiveTodo's Source does not apply Todo's Read rules")
+  })
+})
+
+describe('GuardServer.writer over a link its writer cannot see', () => {
+  // An editor may update and point any todo, but only an admin unlinks one; no
+  // one but an admin reads a project.
+  const Todo = Related.Todo.pipe(
+    Guards.attach(G, {
+      row: { Read: [G.isEditor, G.isAdmin], Update: [G.isEditor, G.isAdmin] },
+      relations: { project: { Link: [G.isEditor, G.isAdmin], Unlink: [G.isAdmin] } },
+    }),
+  )
+  const Project = Related.Project.pipe(Guards.attach(G, { row: { Read: [G.isAdmin] } }))
+  const visible = GuardDrizzle.visible(Policy, [Todo, Project])
+  const Db = bind(
+    { Todo, Project },
+    {
+      Todo: {
+        table: todos,
+        relations: { project: { field: todos.projectId } },
+        visible: visible.Todo,
+      },
+      Project: { table: projects, visible: visible.Project },
+    },
+  )
+  const Move = Mutation.write(
+    'MoveTodo',
+    Write.update(
+      Entity.input(
+        Todo,
+        Schema.Struct({ id: Schema.String, projectId: Schema.NullOr(Schema.String) }),
+        { projectId: Relation.input(Todo.relations.project) },
+      ),
+      { id: 'id' },
+    ),
+  )
+  // A writer that cannot say what is stored: every link it sees as none may be hidden.
+  const { linked: _linked, ...unsure } = writer<Option.Option<User>>(Db.Todo)
+  const servers = {
+    exact: RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+      entities: [],
+      mutations: [RemoteServer.write(Move, GuardServer.writer(Todo, Policy, writer(Db.Todo)))],
+    }),
+    unsure: RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+      entities: [],
+      mutations: [RemoteServer.write(Move, GuardServer.writer(Todo, Policy, unsure))],
+    }),
+  }
+  const move = (
+    principal: Option.Option<User>,
+    id: string,
+    projectId: string | null,
+    served: keyof typeof servers = 'exact',
+  ) => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(`
+      create table projects (id text primary key);
+      create table todos (id text primary key, owner_id text not null, title text not null, claimed_by text, project_id text);
+      insert into projects values ('p1');
+      insert into todos values ('t1', 'ada', 'Linked', null, 'p1'), ('t2', 'ada', 'Loose', null, null);
+    `)
+    return Effect.runPromise(
+      RemoteServer.handlers(servers[served], principal)
+        .FoldkitRemoteMutate({ requestId: 'r', mutation: 'MoveTodo', input: { id, projectId } })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+  }
+
+  it('refuses unlinking a row hidden from its writer, and changes nothing that was empty', async () => {
+    // t1 points at p1, which the editor reads as no link at all.
+    expect(await move(ed, 't1', null)).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(await move(ed, 't2', null)).toMatchObject({ _tag: 'Success' })
+    expect(await move(root, 't1', null)).toMatchObject({ _tag: 'Success' })
+  })
+
+  it('unlinks wherever it sees none, when the writer cannot say what is stored', async () => {
+    expect(await move(ed, 't1', null, 'unsure')).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    // Refused though nothing was linked: it cannot tell.
+    expect(await move(ed, 't2', null, 'unsure')).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(await move(root, 't1', null, 'unsure')).toMatchObject({ _tag: 'Success' })
   })
 })

@@ -469,8 +469,9 @@ RemoteServer.write(EditProject, writer(Db.Project)) // `writer` from foldkit-rem
 The answer is the mutation's patch, or for a delete its deletion. With
 `expect`, the writer is told the revision the row was read at; no row at it is
 refused as `Refusal.conflict`. An update of no row fails; an insert of an id
-already there answers that row, and a delete of a row already gone succeeds,
-so a retry of either is safe. The writer must be for the write's own Entity,
+already holding what it writes answers that row, and a delete of a row already
+gone succeeds, so a retry of either is safe. An insert of an id holding
+anything else fails: that row is not its answer. The writer must be for the write's own Entity,
 which is checked where the mutation is served.
 
 A writer with a `read` (the row as a principal may see it, under the read
@@ -478,7 +479,10 @@ rule its Source applies) answers through it: the patch is the written row as
 its writer now sees it, and a row the write moved out of their sight answers
 in `deleted`, so the client takes it out of every list rather than placing
 it where the server would not list it. A writer may refuse with
-`RemoteServer.forbid`, as `foldkit-guard`'s `GuardServer.writer` does.
+`RemoteServer.forbid`, as `foldkit-guard`'s `GuardServer.writer` does. Its
+`linked` answers a row's links as stored, whatever a reader may see of the
+rows they point at, so such a guard can tell a write that unlinks a hidden row
+from one that changes nothing; `foldkit-remote-drizzle`'s `writer` has both.
 
 Remote mutations are immediate requests against **server-owned** state. They are
 not a durable offline intent log; client-authored edits that must survive offline
