@@ -809,18 +809,20 @@ export const query = <P = unknown, Input = unknown>(
   }
 }
 
+/** Two values as a store holds them, which are JSON: equal when they encode the same. */
+const sameStored = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right)
+
 /**
  * Where a declared `Write` lands in this table, for `RemoteServer.write`: one
  * `update ... returning` of the row by id, setting each field's column to its
  * value as the store encodes it, and answering the written fields as they now
  * are. With `expect`, the row is written only while its revision column still
  * holds that value, and the column moves on by one in the same statement, so of
- * two writes from one revision one finds nothing to write.
+ * two writes from one revision one finds nothing to write. A binding with a
+ * `visible` rule reads back through it (`read`), so an answer shows its writer
+ * only a row they may read.
  */
-/** Two values as a store holds them, which are JSON: equal when they encode the same. */
-const sameStored = (left: unknown, right: unknown): boolean =>
-  JSON.stringify(left) === JSON.stringify(right)
-
 export const writer = <P = unknown>(
   binding: AnyEntityBinding,
 ): EntityWriter<P, DrizzleDatabase> => {
@@ -834,6 +836,8 @@ export const writer = <P = unknown>(
   }
   const missing = (what: string) =>
     new RemoteServerError({ message: `${binding.name} has no ${what}` })
+  // The rows as a principal may read them, under the binding's `visible`.
+  const readable = source<P>(binding)
 
   /** The columns a write sets: each field's value, and each `one` relation's foreign key. */
   const setOf = (
@@ -985,6 +989,14 @@ export const writer = <P = unknown>(
         )
         return still.length === 0 ? 'absent' : 'moved'
       }),
+    ...(binding.visible === undefined
+      ? {}
+      : {
+          read: ({ id, fields, principal }) =>
+            Effect.map(readable.read({ ids: [id], fields: [...fields], principal }), records =>
+              Option.fromUndefinedOr(records.find(record => record.id === id)?.values),
+            ),
+        }),
   }
 }
 

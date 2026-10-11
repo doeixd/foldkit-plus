@@ -90,6 +90,12 @@ const Todo = TodoFields.pipe(
   throws for a guarded Entity whose Source, or a query listing it, lacks the
   rule or filter the guard seams built for it (a hand-written Source would
   serve every row). Every guarded Entity needs both.
+- Writes: `RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy,
+  writer(Db.Todo)))` checks a declared write before it lands (row rule over
+  the row as it is and, for an update, as it would be; each member's and
+  relation's own; a create over what it proposes, an unset field matching no
+  guard), refuses as `Forbidden`, and answers as the writer now sees the row:
+  a row the write hid from them in `deleted`. The binding needs `visible`.
 - Who is asking: `RemoteServer.handlers(server, G.Principal)` reads it per
   call; authentication provides it per request
   (`Effect.provideService(G.Principal, principal)`). Give a live hub

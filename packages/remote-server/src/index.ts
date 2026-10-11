@@ -159,14 +159,18 @@ export interface EntityWriter<P, R = never> {
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
     readonly principal: P
-  }) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>
+  }) => Effect.Effect<
+    Option.Option<Readonly<Record<string, unknown>>>,
+    RemoteServerError | RemoteForbidden,
+    R
+  >
   /** Inserts the row, or leaves one already there under that id; answers the row as it is. */
   readonly insert: (context: {
     readonly id: string
     readonly values: Readonly<Record<string, unknown>>
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly principal: P
-  }) => Effect.Effect<Readonly<Record<string, unknown>>, RemoteServerError, R>
+  }) => Effect.Effect<Readonly<Record<string, unknown>>, RemoteServerError | RemoteForbidden, R>
   /**
    * Deletes the row, while it is still at the revision when one is expected:
    * `deleted`, `absent` (no row, so nothing to delete; a retry's case), or
@@ -176,7 +180,18 @@ export interface EntityWriter<P, R = never> {
     readonly id: string
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
     readonly principal: P
-  }) => Effect.Effect<'deleted' | 'absent' | 'moved', RemoteServerError, R>
+  }) => Effect.Effect<'deleted' | 'absent' | 'moved', RemoteServerError | RemoteForbidden, R>
+  /**
+   * The row as `principal` may see it, under the read rule its Source applies:
+   * none when there is no such row, or it is hidden. Given, a write's answer
+   * is read back through it, so an answer never shows its writer a row it may
+   * not read, and a row the write hid from them answers as deleted.
+   */
+  readonly read?: (context: {
+    readonly id: string
+    readonly fields: ReadonlyArray<string>
+    readonly principal: P
+  }) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>
 }
 
 /** A connection change a mutation made, as the wire carries it. */
@@ -1248,12 +1263,30 @@ export const RemoteServer = {
             { _tag: 'Conflict' },
             `${bound.entity} ${bound.id} changed since it was read`,
           )
-        const answered = (bound: BoundWrite, values: Readonly<Record<string, unknown>>) => ({
-          output: {},
-          entities: [{ entity: bound.entity, id: bound.id, values }],
-          connections: [],
-          deleted: [],
-        })
+        const answered = (bound: BoundWrite, values: Readonly<Record<string, unknown>>) => {
+          const read = writer.read
+          const shown =
+            read === undefined
+              ? Effect.succeed(Option.some(values))
+              : read({ id: bound.id, fields: Object.keys(values), principal })
+          return Effect.map(
+            shown,
+            Option.match({
+              onNone: () => ({
+                output: {},
+                entities: [],
+                connections: [],
+                deleted: [{ entity: bound.entity, id: bound.id }],
+              }),
+              onSome: seen => ({
+                output: {},
+                entities: [{ entity: bound.entity, id: bound.id, values: seen }],
+                connections: [],
+                deleted: [],
+              }),
+            }),
+          )
+        }
         return Match.value(write).pipe(
           Match.tagsExhaustive({
             Update: () =>
@@ -1266,7 +1299,7 @@ export const RemoteServer = {
                   expect,
                   principal,
                 })
-                if (Option.isSome(written)) return answered(bound, written.value)
+                if (Option.isSome(written)) return yield* answered(bound, written.value)
                 return yield* Option.isSome(expect)
                   ? Effect.fail(conflict(bound))
                   : Effect.fail(
@@ -1285,7 +1318,7 @@ export const RemoteServer = {
                   links: bound.links,
                   principal,
                 })
-                return answered(bound, row)
+                return yield* answered(bound, row)
               }),
             Delete: () =>
               Effect.gen(function* () {

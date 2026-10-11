@@ -473,6 +473,13 @@ already there answers that row, and a delete of a row already gone succeeds,
 so a retry of either is safe. The writer must be for the write's own Entity,
 which is checked where the mutation is served.
 
+A writer with a `read` (the row as a principal may see it, under the read
+rule its Source applies) answers through it: the patch is the written row as
+its writer now sees it, and a row the write moved out of their sight answers
+in `deleted`, so the client takes it out of every list rather than placing
+it where the server would not list it. A writer may refuse with
+`RemoteServer.forbid`, as `foldkit-guard`'s `GuardServer.writer` does.
+
 Remote mutations are immediate requests against **server-owned** state. They are
 not a durable offline intent log; client-authored edits that must survive offline
 belong to `foldkit-sync`.

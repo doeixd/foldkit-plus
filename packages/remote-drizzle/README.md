@@ -809,7 +809,9 @@ named some, so two authors editing different fields of a row both land. The
 written fields answer as the mutation's patch. A write that `expect`s a revision
 is guarded by that column and moves it on by one in the same statement: of two
 writes made from one revision, the second finds no row and is refused as a
-conflict. A write that expects none, to a row that is not there, fails.
+conflict. A write that expects none, to a row that is not there, fails. A binding with a
+`visible` rule reads the answer back through it: the row as its writer may now
+see it, or, when the write hid it from them, a deletion.
 
 An insert is one `insert ... on conflict do nothing returning` under the id the
 client chose: a retry finds the id taken and answers the row it made. A delete

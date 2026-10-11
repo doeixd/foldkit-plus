@@ -237,7 +237,44 @@ const Db = bind(
 - `visible` is the row's Read. Member and relation Reads are the Source's
   `filter`: `source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })`.
 
-### Checking a server at startup
+## Serving writes
+
+A declared write (`Mutation.write`) is served by `RemoteServer.write` with no
+handler. Wrap its writer, and the write rules are checked before it lands:
+
+```ts
+import { writer } from 'foldkit-remote-drizzle'
+
+const EditTodo = Mutation.write(
+  'EditTodo',
+  Write.update(Entity.input(Todo, Schema.Struct({ id: Schema.String, title: Schema.String })), {
+    id: 'id',
+  }),
+)
+RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
+```
+
+- An update or a delete reads the row first, as its writer may see it. An
+  update of a row they may not see is refused; a delete of one changes
+  nothing and answers it gone, as for a row already deleted.
+- The row's rule for the command must hold over the row, and an update's
+  over the row as it would be after it too: a write cannot move a row out of
+  its writer's reach.
+- Each member the write sets needs its own `Create` or `Update` rule to
+  hold, and each relation it points elsewhere its `Unlink` and `Link`.
+- A create is checked over the values it proposes. A field it leaves unset
+  matches no guard, not even `Expr.isNull`: the create never said it is
+  empty.
+- A refusal is `Forbidden`, with the sentence `Guards.explain` gave; the
+  write never runs.
+- The answer is read back under the binding's `visible`: the row as its
+  writer may now see it, and a row the write hid from them in `deleted`, so
+  the client takes it out of its lists instead of placing it.
+
+The binding must have a `visible` rule (`GuardDrizzle.visible`'s), which is
+how the writer reads a row as its writer may see it.
+
+## Checking a server at startup
 
 A Source written by hand over a guarded Entity serves every row, and nothing
 at request time can tell. `GuardServer.validate` looks before any request:
@@ -255,7 +292,7 @@ needs both, even one with no member rules yet, so a rule attached later is
 applied rather than served past. `GuardServer.memory` gives both; over
 Drizzle, each Source takes its `filter`, and each binding its `visible`.
 
-### Who is asking
+## Who is asking
 
 Authentication decides who is asking; guards only read it. Give the handlers
 `G.Principal` instead of a principal, and each call reads it, so one handler

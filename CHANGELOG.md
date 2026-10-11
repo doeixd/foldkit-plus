@@ -266,6 +266,12 @@ version changed; `pnpm` skips versions already in the registry.
   key is added to what the handlers require. `RemoteServer.liveHub(sources,
   { key })` shares a re-read between subscribers whose principals have one
   key, read as the first of them; without one, only the same value shares.
+- **`foldkit-remote-server`, `foldkit-remote-drizzle`: a write answered as its
+  writer may now see the row.** `EntityWriter.read`, when a writer has one,
+  reads a row as a principal may see it; `RemoteServer.write` answers through
+  it, and a row the write hid from its writer answers in `deleted`. A Drizzle
+  `writer` over a binding with a `visible` rule reads through it. A writer may
+  fail with `RemoteForbidden`.
 - **`foldkit-remote-server`: `EntitySource.visible` and
   `QuerySource.visible`**, the rule that decides which rows a source returns,
   as it was given one. The server never runs it; a startup check such as
@@ -319,8 +325,15 @@ version changed; `pnpm` skips versions already in the registry.
   names a principal by every field its rules may read, a visitor included,
   for a live hub's `key`. `Policy.writable(entity, principal, interaction)`,
   `Policy.writeMembers` and `Policy.linkable` decide write rules the same way,
-  a body told which interaction it is asked about. Enforcing them on writes
-  comes next (`guard-DESIGN.md`).
+  a body told which interaction it is asked about.
+  `GuardServer.writer(entity, Policy, writer)` checks them on a declared
+  write before it lands: an update or a delete reads the row first as its
+  writer may see it (a hidden row's update is refused, its delete changes
+  nothing), the row's rule must hold over the row and, for an update, over it
+  as it would be after; each member set needs its own rule, each relation
+  pointed elsewhere its `Unlink` and `Link`; a create is checked over what it
+  proposes, an unset field matching no guard. A refusal is `Forbidden`, with
+  an `explain`'s sentence.
 - **`foldkit-entity`: `Expr.in(value, among)`, whether a value is one of a
   list**, written out or given as an input. SQL's `in` in every interpreter:
   a null value is unknown, so is no match against a list holding a null, and
