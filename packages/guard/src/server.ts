@@ -112,7 +112,7 @@ export const GuardServer = {
           },
         ),
       policy,
-      [entity.name],
+      [entity],
     ),
 
   /**
@@ -163,7 +163,7 @@ export const GuardServer = {
           },
         ),
       policy,
-      entities.map(entity => entity.name),
+      entities,
     ),
     filter: Object.fromEntries(
       entities.map(entity => [entity.name, GuardServer.filter(entity, policy)] as const),
@@ -412,7 +412,7 @@ export const GuardServer = {
           return yield* writer.delete(context)
         }),
     }
-    return writeRules.add(guarded, policy, [entity.name])
+    return writeRules.add(guarded, policy, [entity])
   },
 
   /**
@@ -464,7 +464,7 @@ export const GuardServer = {
     >,
   ): MutationSource<Option.Option<User>, R | RS | RM> => {
     const { entity, policy, interaction, id, source } = guard
-    if (!rowRules.has(source.visible, policy, entity.name)) {
+    if (!rowRules.has(source.visible, policy, entity)) {
       throw new Error(
         `[foldkit-guard] GuardServer.mutation: ${mutation.name}'s Source does not apply ${entity.name}'s Read rules`,
       )
@@ -570,7 +570,11 @@ export const GuardServer = {
       Option.exists(Option.flatMap(Option.fromUndefinedOr(entity), attached), attachment =>
         readRowsRuled(attachment),
       )
-    const problems = config.entities.flatMap(entity =>
+    // A query the domain does not declare lists an Entity no one can name.
+    const undeclared = [...config.server.queries.keys()]
+      .filter(query => !config.domain.registry.queries.has(query))
+      .map(query => `query ${query} is served, but the domain does not declare it`)
+    const entityProblems = config.entities.flatMap(entity =>
       Option.match(attached(entity), {
         onNone: () => [],
         onSome: attachment => {
@@ -584,10 +588,10 @@ export const GuardServer = {
           const sourceProblems = Option.match(source, {
             onNone: () => [],
             onSome: ({ visible, filter }) => [
-              ...(rowRules.has(visible, policy, name)
+              ...(rowRules.has(visible, policy, entity)
                 ? []
                 : [`${name}'s Source does not apply its Read rules`]),
-              ...(memberRules.has(filter, policy, name)
+              ...(memberRules.has(filter, policy, entity)
                 ? []
                 : [`${name}'s Source does not apply its members' Read rules`]),
             ],
@@ -597,7 +601,7 @@ export const GuardServer = {
               const listed = config.server.queries.get(queryName)
               return listed !== undefined &&
                 lists(query.Result, name) &&
-                !rowRules.has(listed.visible, policy, name)
+                !rowRules.has(listed.visible, policy, entity)
                 ? [`query ${queryName} lists ${name} without its Read rules`]
                 : []
             },
@@ -605,7 +609,7 @@ export const GuardServer = {
           const writeProblems = [...config.server.mutations].flatMap(([mutation, source]) =>
             source.writes !== undefined &&
             source.writes.entity === name &&
-            !writeRules.has(source.writes.writer, policy, name)
+            !writeRules.has(source.writes.writer, policy, entity)
               ? [`write ${mutation} writes ${name} without its write rules`]
               : [],
           )
@@ -618,20 +622,37 @@ export const GuardServer = {
             ...(shared.length > 0 && readRowsRuled(attachment)
               ? [`${name}'s Source shares ${shared.join(', ')}, but its rows have a Read rule`]
               : []),
-            ...shared.flatMap(member => [
-              ...(readRuled(attachment, member)
+            ...shared.flatMap(member => {
+              const own = readRuled(attachment, member)
                 ? [`${name}'s Source shares ${member}, which has a Read rule`]
-                : []),
-              ...(Object.hasOwn(entity.relations, member) &&
-              rowsRuled(byName.get(entity.relations[member]!.target().name))
-                ? [`${name}'s Source shares ${member}, whose rows have a Read rule`]
-                : []),
-            ]),
+                : []
+              if (!Object.hasOwn(entity.relations, member)) return own
+              const target = entity.relations[member]!.target().name
+              if (!byName.has(target))
+                return [
+                  ...own,
+                  `${name}'s Source shares ${member}, whose ${target} is not validated`,
+                ]
+              return rowsRuled(byName.get(target))
+                ? [...own, `${name}'s Source shares ${member}, whose rows have a Read rule`]
+                : own
+            }),
           ]
-          return [...sourceProblems, ...queryProblems, ...writeProblems, ...sharedProblems]
+          // A live Source of its own streams whatever it reads: nothing here can check it.
+          const liveProblems = config.server.live.has(name)
+            ? [`${name} has a live Source of its own; serve its changes through a live hub`]
+            : []
+          return [
+            ...sourceProblems,
+            ...queryProblems,
+            ...writeProblems,
+            ...sharedProblems,
+            ...liveProblems,
+          ]
         },
       }),
     )
+    const problems = [...undeclared, ...entityProblems]
     if (problems.length > 0) {
       throw new Error(`[foldkit-guard] GuardServer.validate: ${problems.join('; ')}`)
     }

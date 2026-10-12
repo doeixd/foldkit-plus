@@ -65,21 +65,21 @@ export default [
     edits: [
       {
         file: '../src/placed.ts',
-        find: 'return placed !== undefined && placed.policy === policy && placed.entities.has(entity)',
-        replace: 'return true',
+        find: 'placed !== undefined &&',
+        replace: 'true ||',
       },
     ],
     tests: ['packages/guard/test/server.test.ts', 'packages/guard/test/drizzle.test.ts'],
   },
   {
     name: 'validate takes a rule built from another Policy',
-    edits: [{ file: '../src/placed.ts', find: '&& placed.policy === policy', replace: '' }],
+    edits: [{ file: '../src/placed.ts', find: 'placed.policy === policy &&', replace: '' }],
     tests,
   },
   {
     name: 'validate takes a rule built for another Entity',
-    edits: [{ file: '../src/placed.ts', find: '&& placed.entities.has(entity)', replace: '' }],
-    tests: ['packages/guard/test/drizzle.test.ts'],
+    edits: [{ file: '../src/placed.ts', find: 'placed.entities.has(entity.name) &&', replace: '' }],
+    tests: ['packages/guard/test/drizzle.test.ts', 'packages/guard/test/write.test.ts'],
   },
   {
     name: 'validate does not compare guard sets',
@@ -110,7 +110,7 @@ export default [
   },
   {
     name: 'validate does not look at queries',
-    edits: [{ file, find: '!rowRules.has(listed.visible, policy, name)', replace: 'false' }],
+    edits: [{ file, find: '!rowRules.has(listed.visible, policy, entity)', replace: 'false' }],
     tests: ['packages/guard/test/server.test.ts', 'packages/guard/test/drizzle.test.ts'],
   },
   {
@@ -245,12 +245,14 @@ export default [
   },
   {
     name: 'a shared field with a Read rule of its own is allowed',
-    edits: [{ file, find: '...(readRuled(attachment, member)', replace: '...(false' }],
+    edits: [
+      { file, find: 'const own = readRuled(attachment, member)', replace: 'const own = false' },
+    ],
     tests,
   },
   {
     name: 'a shared relation to rows only some may read is allowed',
-    edits: [{ file, find: 'rowsRuled(byName.get(', replace: 'false && rowsRuled(byName.get(' }],
+    edits: [{ file, find: 'return rowsRuled(byName.get(target))', replace: 'return false' }],
     tests,
   },
   {
@@ -273,6 +275,44 @@ export default [
         replace: 'false',
       },
     ],
+    tests,
+  },
+  {
+    name: 'a seam built before the guards were attached counts',
+    edits: [
+      {
+        file: '../src/placed.ts',
+        find: 'placed.entities.get(entity.name) === guardsOf(entity)',
+        replace: 'true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a live Source of its own passes',
+    edits: [
+      {
+        file,
+        find: 'const liveProblems = config.server.live.has(name)',
+        replace: 'const liveProblems = false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an undeclared query passes',
+    edits: [
+      {
+        file,
+        find: '.filter(query => !config.domain.registry.queries.has(query))',
+        replace: '.filter(() => false)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a shared relation to an unvalidated target passes',
+    edits: [{ file, find: 'if (!byName.has(target))', replace: 'if (false)' }],
     tests,
   },
 ]

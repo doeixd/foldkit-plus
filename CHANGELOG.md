@@ -195,6 +195,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-guard`: `GuardServer.validate` refuses what it could not
+  check.** A seam built from an Entity before its guards were attached (a
+  `GuardDrizzle.visible` or `GuardServer.filter` given the base Entity)
+  decided nothing yet passed as the guarded one's, since seams were recorded
+  by name: they are now recorded by the Entity's attachment. A live Source of
+  its own over a guarded Entity, a served query the domain does not declare,
+  and a shared relation whose target is not validated are now refused.
 - **`foldkit-remote-server`: the live hub sends a deletion only to whom a
   row is gone.** A write that hid a row from its writer answered it as
   deleted, and the hub sent every subscriber that deletion, readers who still

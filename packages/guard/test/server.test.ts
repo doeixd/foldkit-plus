@@ -456,6 +456,20 @@ describe('GuardServer.validate', () => {
           }).server,
         })
     expect(sharing({ Card: ['title'] })).not.toThrow()
+    // Whether its rows are ruled is unknown when its target is not validated.
+    expect(() =>
+      GuardServer.validate(Policy, {
+        entities: [Card],
+        domain: Data,
+        server: RemoteServer.memory({
+          domain: Remote.define({ entities: [Card, Project] }),
+          rows: { Card: [], Project: [] },
+          principal: Option.none<User>(),
+          shared: { Card: ['project'] },
+          ...GuardServer.memory(Policy, [Card]),
+        }).server,
+      }),
+    ).toThrow("Card's Source shares project, whose Project is not validated")
     expect(sharing({ Card: ['secret', 'project'] })).toThrow(
       "Card's Source shares secret, which has a Read rule; Card's Source shares project, whose rows have a Read rule",
     )
@@ -467,6 +481,51 @@ describe('GuardServer.validate', () => {
     expect(sharing({ Todo: ['tag'] })).toThrow(
       "Todo's Source shares tag, but its rows have a Read rule; Todo's Source shares tag, which has a Read rule",
     )
+  })
+
+  it('refuses rules built from an Entity before its guards were attached', () => {
+    const unguarded = RemoteServer.memory({
+      domain: Data,
+      rows,
+      principal: Option.none<User>(),
+      ...GuardServer.memory(Policy, [TodoFields, ProjectFields, NodeFields]),
+    }).server
+    expect(() =>
+      GuardServer.validate(Policy, { entities: [Todo], domain: Data, server: unguarded }),
+    ).toThrow("Todo's Source does not apply its Read rules")
+  })
+
+  it('refuses a live Source of its own, and a query the domain does not declare', () => {
+    const server = backend(true)
+    expect(() =>
+      GuardServer.validate(Policy, {
+        entities: [Todo],
+        domain: Data,
+        server: {
+          ...server,
+          live: new Map([
+            [
+              'Todo',
+              RemoteServer.live<Option.Option<User>>(Todo, { subscribe: () => Stream.empty }),
+            ],
+          ]),
+        },
+      }),
+    ).toThrow('Todo has a live Source of its own; serve its changes through a live hub')
+    const Extra = Query.define('Extra', {}, () => Query.from(Todo))
+    expect(() =>
+      GuardServer.validate(Policy, {
+        entities: [Todo],
+        domain: Data,
+        server: {
+          ...server,
+          queries: new Map([
+            ...server.queries,
+            ['Extra', RemoteServer.query(Extra, () => Effect.die('unused'))],
+          ]),
+        },
+      }),
+    ).toThrow('query Extra is served, but the domain does not declare it')
   })
 
   it('refuses rules built from another Policy, or another set', () => {

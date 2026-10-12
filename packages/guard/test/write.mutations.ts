@@ -161,7 +161,7 @@ export default [
   {
     name: 'validate does not look at writes',
     edits: [
-      { file, find: '!writeRules.has(source.writes.writer, policy, name)', replace: 'false' },
+      { file, find: '!writeRules.has(source.writes.writer, policy, entity)', replace: 'false' },
     ],
     tests,
   },
@@ -186,7 +186,7 @@ export default [
     edits: [
       {
         file,
-        find: 'if (!rowRules.has(source.visible, policy, entity.name)) {',
+        find: 'if (!rowRules.has(source.visible, policy, entity)) {',
         replace: 'if (false) {',
       },
     ],

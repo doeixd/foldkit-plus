@@ -249,8 +249,10 @@ const backend = RemoteServer.memory({
   where it refuses, the relation is withheld. The rows it leads to are still
   narrowed by their own Read rules.
 - An Entity not listed has no guards to apply and is read by everyone.
-- For a Source of your own, `GuardServer.filter(Todo, Policy)` is its
-  `filter`; the Source's own read must still apply the row's Read rules.
+- A Source of your own cannot be shown to apply the row's Read rules:
+  `GuardServer.validate` refuses one, as it refuses a `RemoteServer.entity`
+  without `GuardServer.memory`'s or `GuardDrizzle.visible`'s rule. Serve a
+  guarded Entity through one of those.
 
 Over Drizzle, `foldkit-guard/drizzle` compiles the row's Read rules into each
 binding's `visible`, which the binding applies on every path its table is
@@ -376,15 +378,25 @@ at request time can tell. `GuardServer.validate` looks before any request:
 GuardServer.validate(Policy, { entities: [Todo], domain: Data, server: backend.server })
 ```
 
-It throws, naming each, for an Entity of `entities` whose Source lacks the
-rule `GuardDrizzle.visible` or `GuardServer.memory` built for it, or the
-`GuardServer.filter` built for it; for a query listing such an Entity without
-the rule; for a declared write of such an Entity that does not land through
-the `GuardServer.writer` built for it; and for an Entity carrying another
-set's guards; and for a field its Source declares `shared` (sent to every
-live subscriber as written) when a Read rule could tell readers apart: the
-rows', `always`, the field's own, or, for a relation, its target rows'. A
-rule built from another `Policy`, or for another Entity, does not count. Every guarded Entity's Source needs both its rule and its
+It throws, naming each:
+
+- for an Entity of `entities` whose Source lacks the rule `GuardDrizzle.visible`
+  or `GuardServer.memory` built for it, or the `GuardServer.filter` built for
+  it;
+- for a query listing such an Entity without the rule, and a query the server
+  serves that the domain does not declare, whose Entity no one can name;
+- for a declared write of such an Entity that does not land through the
+  `GuardServer.writer` built for it;
+- for a live Source of its own over such an Entity, whose stream nothing can
+  check: serve its changes through a live hub;
+- for an Entity carrying another set's guards;
+- for a field its Source declares `shared` (sent to every live subscriber as
+  written) when a Read rule could tell readers apart: the rows', `always`, the
+  field's own, or, for a relation, its target rows', a target not among
+  `entities` included.
+
+A rule built from another `Policy`, for another Entity, or for this one before
+its guards were attached does not count. Every guarded Entity's Source needs both its rule and its
 filter, even one with no member rules yet, so a rule attached later is
 applied rather than served past. `GuardServer.memory` gives both; over
 Drizzle, each Source takes its `filter`, and each binding its `visible`.

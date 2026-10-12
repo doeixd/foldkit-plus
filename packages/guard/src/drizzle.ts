@@ -155,10 +155,7 @@ export const GuardDrizzle = {
         )
       }
     return Object.fromEntries(
-      entities.map(entity => [
-        entity.name,
-        rowRules.add(visible(entity.name), policy, [entity.name]),
-      ]),
+      entities.map(entity => [entity.name, rowRules.add(visible(entity.name), policy, [entity])]),
     ) as {
       readonly [K in Es[number]['name']]: Visible
     }
