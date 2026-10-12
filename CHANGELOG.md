@@ -7,6 +7,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.18.0
+
+`foldkit-site` 0.2.0, `foldkit-remote` 0.15.0, `foldkit-primitives` 0.9.0,
+`foldkit-mixins` 0.10.0, `foldkit-mixins-ui` 0.9.0, and `foldkit-builder` and
+`foldkit-mixins-builder` 0.2.0 for the changes below, and `foldkit-plus` 0.1.0,
+published for the first time. Republished to re-pin: `foldkit-cms` and
+`foldkit-cms-drizzle` 0.6.2, `foldkit-crud` 0.7.2, `foldkit-data-grid` and
+`foldkit-mixins-data-grid` 0.1.4, `foldkit-mixins-crud` 0.6.6,
+`foldkit-mixins-form` 0.5.2, `foldkit-mixins-richtext` 0.2.4,
+`foldkit-remote-drizzle` 0.11.2, `foldkit-remote-server` 0.13.2 and
+`foldkit-sync` 0.10.2, each of which pins a bumped package. Every other
+package is unchanged.
+
+Two changes break code written for 0.17 (under Changed): a Site node's
+`shortcut` is now a `KeySequence`, and a Builder's keys go through
+`keyPressed`.
+
 ### Added
 
 - **`foldkit-remote`: `Data.preload`, prefetch from `update`.** `satisfy` as a
@@ -71,7 +88,8 @@ version changed; `pnpm` skips versions already in the registry.
   as it is: a key pressed before the frame that drew a new selection deleted
   nothing, or the node selected before it. A bound key with nothing to do
   now has its default held back on those two. A view drawing a Builder by hand
-  attaches `keyPressed` where it attached `keyCommand`.
+  attaches `keyPressed` where it attached `keyCommand`, and a Builder handed
+  to `foldkit-mixins-builder`'s views must offer `keyPressed` too.
 - **`foldkit-site`: `Site.routing` loads a link its tree does not hold.** A
   tree is one application's document, so a click on an address of this
   origin that no node takes is a full load, where it was a Navigate Command
