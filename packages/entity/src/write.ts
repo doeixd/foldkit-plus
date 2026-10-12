@@ -13,7 +13,7 @@
  * It is authority someone declared, never something derived from an Entity: an
  * Entity having a field does not mean anyone may set it.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, SchemaAST } from 'effect'
 import type {
   AnyEntity,
   EntityField,
@@ -85,6 +85,16 @@ const membersOf = (
 const encoded = (field: AnyField, value: unknown): unknown =>
   Schema.encodeUnknownSync(field.schema as unknown as Schema.Codec<unknown, unknown>)(value)
 
+/**
+ * A key's value as given, when it was: an absent key, and an `Option` that
+ * holds nothing, give none, and a `Some` what it holds. What `Entity.input`
+ * lets a key map itself to, a write can bind.
+ */
+const given = (value: unknown): Option.Option<unknown> => {
+  if (value === undefined) return Option.none()
+  return Option.isOption(value) ? value : Option.some(value)
+}
+
 const fieldAt = (input: EntityInput<AnyEntity, any, any>, key: string, role: string): AnyField => {
   const member = membersOf(input)[key]
   if (member === undefined) return fail(input, `${role} "${key}" is not a key of the input`)
@@ -103,6 +113,10 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
 ): Write<E, Fields> => {
   const id = fieldAt(input, options.id, 'id')
   if (id.key !== 'id') fail(input, `id "${options.id}" is mapped to "${id.key}", not to "id"`)
+  const idSchema = input.schema.fields[options.id] as unknown as Schema.Top
+  const takes = Schema.is(Schema.toType(idSchema) as Schema.Codec<unknown>)
+  if (SchemaAST.isOptional(idSchema.ast) || takes(undefined) || takes(Option.none()))
+    fail(input, `id "${options.id}" may be absent, and a declared write names its row`)
   if (options.expect === options.id) fail(input, 'expect cannot be the id')
   const expect =
     options.expect === undefined
@@ -234,26 +248,29 @@ export const Write = {
     value: Schema.Struct.Type<Fields>,
     keys?: ReadonlyArray<string>,
   ): BoundWrite => {
-    const given = value as Readonly<Record<string, unknown>>
+    const input = value as Readonly<Record<string, unknown>>
     const wanted = keys === undefined ? undefined : new Set(keys)
     const asked = (key: string) => wanted === undefined || wanted.has(key)
     const values: Record<string, unknown> = {}
     for (const { key, field } of write.sets) {
       if (!asked(key)) continue
-      values[field.key] = encoded(field, given[key])
+      // A key the input leaves out, or an `Option` holding nothing, writes nothing.
+      Option.map(given(input[key]), held => {
+        values[field.key] = encoded(field, held)
+      })
     }
     const links: Record<string, Option.Option<EntityRef>> = {}
     for (const { key, relation } of write.links) {
       if (!asked(key)) continue
       const target = relation.target()
-      links[relation.key] = Option.map(Option.fromNullishOr(given[key]), id => ({
-        entity: target.name,
-        id: String(encoded(target.fields.id as AnyField, id)),
-      }))
+      links[relation.key] = Option.map(
+        Option.flatMap(given(input[key]), Option.fromNullishOr),
+        id => ({ entity: target.name, id: String(encoded(target.fields.id as AnyField, id)) }),
+      )
     }
     return {
       entity: write.input.entity.name,
-      id: String(encoded(write.id.field, given[write.id.key])),
+      id: String(encoded(write.id.field, input[write.id.key])),
       values,
       links,
     }

@@ -195,6 +195,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-entity`: a declared write binds the keys `Entity.input` lets
+  map themselves.** An input key that is an `Option`, or optional, type-checked
+  and then threw in `Write.bind`. A `some` now writes what it holds, and a
+  `none` or a key left out writes nothing; a write whose id may be absent is
+  refused where it is declared.
 - **`foldkit-crud`: an editor's later saves no longer lose another author's
   change.** After its own save, the editor took any revision that came after
   as its own, so another client's later save was overwritten without a

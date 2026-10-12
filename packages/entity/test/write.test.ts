@@ -208,6 +208,42 @@ describe('A write that points a one relation', () => {
   })
 })
 
+describe('A write over keys that may be absent', () => {
+  const Partial = Entity.input(
+    Blog.Post,
+    Schema.Struct({
+      id: Schema.String,
+      title: Schema.optional(Schema.String),
+      revision: Schema.OptionFromNullOr(Schema.Number),
+    }),
+  )
+  const write = Write.update(Partial, { id: 'id' })
+
+  it('writes what an Option holds, and nothing for one that holds nothing or a key left out', () => {
+    expect(Write.bind(write, { id: 'p1', revision: Option.some(3) }).values).toEqual({
+      revision: 3,
+    })
+    expect(Write.bind(write, { id: 'p1', title: 'T', revision: Option.none() }).values).toEqual({
+      title: 'T',
+    })
+  })
+
+  it('refuses an id that may be absent: a declared write names its row', () => {
+    const Either = Entity.input(
+      Blog.Post,
+      Schema.Struct({ id: Schema.OptionFromNullOr(Schema.String), title: Schema.String }),
+    )
+    expect(() => Write.update(Either, { id: 'id' })).toThrow(
+      'id "id" may be absent, and a declared write names its row',
+    )
+    const Maybe = Entity.input(
+      Blog.Post,
+      Schema.Struct({ id: Schema.optional(Schema.String), title: Schema.String }),
+    )
+    expect(() => Write.insert(Maybe, { id: 'id' })).toThrow('may be absent')
+  })
+})
+
 describe('Write.insert and Write.delete', () => {
   it('inserts every key mapped to a member, under the id the client chose', () => {
     const insert = Write.insert(EditPost, { id: 'id' })

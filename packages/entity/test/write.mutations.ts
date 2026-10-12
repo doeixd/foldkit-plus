@@ -53,8 +53,8 @@ export default [
     edits: [
       {
         file,
-        find: 'values[field.key] = encoded(field, given[key])',
-        replace: 'values[field.key] = given[key]',
+        find: 'values[field.key] = encoded(field, held)',
+        replace: 'values[field.key] = held',
       },
     ],
     tests,
@@ -73,12 +73,40 @@ export default [
   },
   {
     name: 'a relation set to nothing points at a row with no id',
-    edits: [{ file, find: 'Option.fromNullishOr(given[key])', replace: 'Option.some(given[key])' }],
+    edits: [
+      {
+        file,
+        find: 'Option.flatMap(given(input[key]), Option.fromNullishOr)',
+        replace: 'given(input[key])',
+      },
+    ],
     tests,
   },
   {
     name: 'a delete may name a member it would not write',
     edits: [{ file, find: 'if (named !== undefined)', replace: 'if (false)' }],
     tests,
+  },
+  {
+    name: 'an Option is bound as itself',
+    edits: [
+      {
+        file: '../src/write.ts',
+        find: 'return Option.isOption(value) ? value : Option.some(value)',
+        replace: 'return Option.some(value)',
+      },
+    ],
+    tests: ['packages/entity/test/write.test.ts'],
+  },
+  {
+    name: 'an id that may be absent is declared',
+    edits: [
+      {
+        file: '../src/write.ts',
+        find: 'if (SchemaAST.isOptional(idSchema.ast) || takes(undefined) || takes(Option.none()))',
+        replace: 'if (false)',
+      },
+    ],
+    tests: ['packages/entity/test/write.test.ts'],
   },
 ]

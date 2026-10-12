@@ -266,6 +266,9 @@ CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
   present value has to fit: a key may be optional (a partial update), admit
   `null` (clearing it), or hold an `Option` (an id absent for something new),
   which is the input schema's rule to make.
+  A declared write (`Write.update`, `Write.insert`) writes what an `Option`
+  holds and nothing for one holding nothing or a key left out; its id may not
+  be absent, since it names the row it writes.
 - Every other key needs an entry: a Field under another name, a relation's ids
   with `Relation.input(relation)`, or `Entity.unmapped`. Nothing is inferred
   from a name like `authorId`.
