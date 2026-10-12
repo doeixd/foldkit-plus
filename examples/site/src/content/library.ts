@@ -13,7 +13,11 @@ import { compilerOptionsOf, extract, packageSource } from '../api/extract.js'
 import { allSubsites, type Subsite } from '../catalog.js'
 import type { Draw, Library, Region } from '../library.js'
 import { Page, type Example } from '../main.js'
-import { apiPages, type ApiPage } from './api.js'
+import type { RootContent } from 'mdast'
+
+import { packageName } from '../demos.js'
+import { apiPages, apiTargets, type ApiPage, type Mention } from './api.js'
+import { links, type Links, type Target } from './links.js'
 import { highlighter, type Highlight } from './highlight.js'
 import { guidePages, GITHUB, type Anchor, type GuidePage } from './guides.js'
 import { blocks, codeBlock } from './render.js'
@@ -42,7 +46,7 @@ interface DocPage {
   readonly body: (ih: Ih) => Region
 }
 
-const fromGuide = (highlight: Highlight, page: GuidePage): DocPage => ({
+const fromGuide = (highlight: Highlight, linkOf: Links['linkOf'], page: GuidePage): DocPage => ({
   path: page.path,
   subsite: page.subsite,
   group: page.source.label,
@@ -55,8 +59,24 @@ const fromGuide = (highlight: Highlight, page: GuidePage): DocPage => ({
   listed: true,
   module: page.path,
   crumb: `${page.subsite.title} / ${page.source.label}`,
-  body: ih => blocks(ih, { highlight, href: page.href, idOf: page.idOf }, page.nodes),
+  body: ih =>
+    blocks(
+      ih,
+      { highlight, href: page.href, idOf: page.idOf, codeLink: code => linkOf(code, page.path) },
+      page.nodes,
+    ),
 })
+
+/**
+ * The code spans a guide page links, as `render.ts` draws them: not inside a
+ * link or a heading, where a span stays text.
+ */
+const codeSpansIn = (nodes: ReadonlyArray<RootContent>): ReadonlyArray<string> =>
+  nodes.flatMap(node => {
+    if (node.type === 'inlineCode') return [node.value]
+    if (node.type === 'link' || node.type === 'heading' || !('children' in node)) return []
+    return codeSpansIn(node.children)
+  })
 
 const fromApi = (page: ApiPage): DocPage => ({ ...page, kind: 'api' })
 
@@ -92,17 +112,63 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
       .flatMap(dir => Option.toArray(packageSource(join(repository, 'packages', dir)))),
     compilerOptionsOf(repository),
   )
+  const packagesOf = (subsite: Subsite) =>
+    packages.filter(source => subsite.packages.includes(source.dir))
+  // A package's name leads to the first page of its README's guides.
+  const packageTargets = guides.pages.flatMap((page, index): ReadonlyArray<Target> => {
+    const readme = /^packages\/([^/]+)\/README\.md$/.exec(page.source.file)
+    const first = guides.pages[index - 1]?.source !== page.source
+    return readme === null || !first
+      ? []
+      : [
+          {
+            name: packageName(readme[1]!),
+            path: page.path,
+            subsite: page.subsite.id,
+            declared: true,
+            namespace: false,
+          },
+        ]
+  })
+  const subsiteOf = new Map<string, string>()
+  const { linkOf } = links(
+    [
+      ...packageTargets,
+      ...allSubsites.flatMap(subsite => apiTargets(subsite, packagesOf(subsite))),
+    ],
+    path => subsiteOf.get(path) ?? '',
+  )
+  for (const page of guides.pages) subsiteOf.set(page.path, page.subsite.id)
+  // Which guide pages name each API page, for the "In the guides" list there.
+  const mentions = new Map<string, Array<Mention>>()
+  for (const page of guides.pages)
+    for (const code of new Set(codeSpansIn(page.nodes))) {
+      const target = linkOf(code, page.path)
+      if (Option.isNone(target)) continue
+      const path = target.value.split('#')[0]!
+      const named = mentions.get(path) ?? []
+      if (!named.some(mention => mention.path === page.path))
+        named.push({
+          path: page.path,
+          title: page.title,
+          crumb: `${page.subsite.title} / ${page.source.label}`,
+        })
+      mentions.set(path, named)
+    }
   const docs = allSubsites.flatMap(subsite => [
     ...guides.pages
       .filter(page => page.subsite === subsite)
-      .map(page => fromGuide(highlight, page)),
-    ...apiPages(
+      .map(page => fromGuide(highlight, linkOf, page)),
+    ...apiPages({
       subsite,
-      packages.filter(source => subsite.packages.includes(source.dir)),
+      packages: packagesOf(subsite),
       highlight,
-      guides.linksFrom,
-    ).map(fromApi),
+      linksFrom: guides.linksFrom,
+      linkOf,
+      mentionsOf: path => mentions.get(path) ?? [],
+    }).map(fromApi),
   ])
+  for (const page of docs) subsiteOf.set(page.path, page.subsite.id)
   const byPath = new Map<string, DocPage>()
   for (const page of docs) {
     if (byPath.has(page.path)) throw new Error(`two doc pages claim ${page.path}`)

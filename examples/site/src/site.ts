@@ -28,7 +28,9 @@ export const site = {
   // The foundations and the classes the page draws, so the first paint is
   // styled before any script runs.
   head: rendered => `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`,
-  files: 'directory',
+  // `/remote` as `remote.html`: the host serves it at that address, with no
+  // redirect to `/remote/` on every link.
+  files: 'flat',
   sitemap: true,
   robots: true,
 } satisfies SiteModule

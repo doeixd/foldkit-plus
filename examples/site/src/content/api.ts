@@ -12,6 +12,7 @@ import type { ApiExport, ApiMember, ApiModule, ApiPackage } from '../api/model.j
 import type { Region } from '../library.js'
 import { GITHUB, parse, slugger, summarize, textOf, type Anchor } from './guides.js'
 import type { Highlight } from './highlight.js'
+import type { Target } from './links.js'
 import { blocks, codeBlock } from './render.js'
 
 type Ih = HtmlBuilder<never>
@@ -64,6 +65,14 @@ const firstLine = (markdown: string): string => {
 interface Drawing {
   readonly highlight: Highlight
   readonly href: (url: string) => string
+  readonly codeLink: (code: string) => Option.Option<string>
+}
+
+/** A guide page that names an export, listed on the export's page. */
+export interface Mention {
+  readonly path: string
+  readonly title: string
+  readonly crumb: string
 }
 
 /** A doc comment drawn as Markdown, its headings kept out of the page's outline. */
@@ -75,6 +84,7 @@ const prose = (ih: Ih, drawing: Drawing, markdown: string): Region => {
     {
       highlight: drawing.highlight,
       href: drawing.href,
+      codeLink: drawing.codeLink,
       idOf: heading => `doc-${ids(textOf(heading))}`,
     },
     parse(markdown).children,
@@ -126,7 +136,12 @@ const member = (ih: Ih, drawing: Drawing, owner: string, entry: ApiMember, id: s
   )
 
 const exportBody =
-  (drawing: Drawing, entry: ApiExport, ids: ReadonlyArray<string>) =>
+  (
+    drawing: Drawing,
+    entry: ApiExport,
+    ids: ReadonlyArray<string>,
+    mentions: ReadonlyArray<Mention>,
+  ) =>
   (ih: Ih): Region => [
     ih.p([], [ih.span([ih.Class('kind')], [entry.kind]), ' · ', sourceLink(ih, entry.source)]),
     codeBlock(ih, drawing.highlight, { code: entry.signature, lang: 'ts', copy: false }),
@@ -146,6 +161,20 @@ const exportBody =
           ih.h2([ih.Id('members')], ['Members']),
           ...entry.members.map((each, index) =>
             member(ih, drawing, entry.name, each, ids[index] ?? ''),
+          ),
+        ]),
+    ...(mentions.length === 0
+      ? []
+      : [
+          ih.h2([ih.Id('in-the-guides')], ['In the guides']),
+          ih.ul(
+            [ih.Class('mentions')],
+            mentions.map(mention =>
+              ih.li(
+                [],
+                [ih.a([ih.Href(mention.path)], [mention.title]), ih.small([], [mention.crumb])],
+              ),
+            ),
           ),
         ]),
   ]
@@ -189,17 +218,96 @@ const moduleBody =
     }),
   ]
 
-/** Every API page of a subsite: its packages' entry points, each followed by its exports. */
-export const apiPages = (
+/** An entry point's page: `foldkit-remote/port` is `/remote/api/remote-port`. */
+const modulePath = (subsite: Subsite, module: ApiModule) =>
+  `/${subsite.id}/api/${moduleSegment(module.specifier)}`
+
+const exportPath = (subsite: Subsite, module: ApiModule, entry: ApiExport) =>
+  `${modulePath(subsite, module)}/${entry.slug}`
+
+/** Each member's anchor on its export's page, unique on the page. */
+const memberIdsOf = (entry: ApiExport): ReadonlyArray<string> => {
+  const ids = slugger()
+  return entry.members.map(each => ids(each.name.replaceAll('.', '-')))
+}
+
+/** Whether an export is declared in the package that exports it, rather than re-exported. */
+const declaredIn = (source: ApiPackage, entry: ApiExport) =>
+  entry.source.file.startsWith(`packages/${source.dir}/`)
+
+/** What a code span in prose may name in a subsite's API, for `links.ts`. */
+export const apiTargets = (
   subsite: Subsite,
   packages: ReadonlyArray<ApiPackage>,
-  highlight: Highlight,
-  linksFrom: (file: string) => (url: string) => string,
-): ReadonlyArray<ApiPage> =>
+): ReadonlyArray<Target> =>
+  packages.flatMap(source =>
+    source.modules.flatMap(module => [
+      // A package's own name leads to its guides (`library.ts`); a subpath to its page here.
+      ...(module.specifier === source.name
+        ? []
+        : [
+            {
+              name: module.specifier,
+              path: modulePath(subsite, module),
+              subsite: subsite.id,
+              declared: true,
+              namespace: false,
+            },
+          ]),
+      ...module.exports.flatMap(entry => {
+        const path = exportPath(subsite, module, entry)
+        const declared = declaredIn(source, entry)
+        const ids = memberIdsOf(entry)
+        return [
+          {
+            name: entry.name,
+            path,
+            subsite: subsite.id,
+            declared,
+            namespace: entry.kind === 'namespace',
+          },
+          ...entry.members.map((each, index) => ({
+            name: `${entry.name}.${each.name}`,
+            path: `${path}#${ids[index] ?? ''}`,
+            subsite: subsite.id,
+            declared,
+            namespace: false,
+          })),
+        ]
+      }),
+    ]),
+  )
+
+export interface ApiPagesOf {
+  readonly subsite: Subsite
+  readonly packages: ReadonlyArray<ApiPackage>
+  readonly highlight: Highlight
+  /** Where a link written in a source file leads. */
+  readonly linksFrom: (file: string) => (url: string) => string
+  /** Where a code span on the page at `from` leads. */
+  readonly linkOf: (code: string, from: string) => Option.Option<string>
+  /** The guide pages that name the export at a path. */
+  readonly mentionsOf: (path: string) => ReadonlyArray<Mention>
+}
+
+/** Every API page of a subsite: its packages' entry points, each followed by its exports. */
+export const apiPages = ({
+  subsite,
+  packages,
+  highlight,
+  linksFrom,
+  linkOf,
+  mentionsOf,
+}: ApiPagesOf): ReadonlyArray<ApiPage> =>
   packages.flatMap(source =>
     source.modules.flatMap(module => {
-      const base = `/${subsite.id}/api/${moduleSegment(module.specifier)}`
-      const pathOf = (entry: ApiExport) => `${base}/${entry.slug}`
+      const base = modulePath(subsite, module)
+      const pathOf = (entry: ApiExport) => exportPath(subsite, module, entry)
+      const drawing = (file: string, path: string): Drawing => ({
+        highlight,
+        href: linksFrom(file),
+        codeLink: code => linkOf(code, path),
+      })
       const modulePage: ApiPage = {
         path: base,
         subsite,
@@ -214,30 +322,36 @@ export const apiPages = (
         listed: true,
         module: base,
         crumb: `${subsite.title} / API`,
-        body: moduleBody({ highlight, href: linksFrom(module.file) }, module, pathOf),
+        body: moduleBody(drawing(module.file, base), module, pathOf),
       }
       return [
         modulePage,
         ...module.exports.map((entry): ApiPage => {
-          const ids = slugger()
-          const memberIds = entry.members.map(each => ids(each.name.replaceAll('.', '-')))
+          const path = pathOf(entry)
+          const memberIds = memberIdsOf(entry)
+          const mentions = mentionsOf(path)
           return {
-            path: pathOf(entry),
+            path,
             subsite,
             group: source.name,
             label: entry.name,
             title: entry.name,
             description: firstLine(entry.summary),
-            anchors: entry.members.map((each, index) => ({
-              depth: 3,
-              text: each.name,
-              id: memberIds[index] ?? '',
-            })),
+            anchors: [
+              ...entry.members.map((each, index) => ({
+                depth: 3,
+                text: each.name,
+                id: memberIds[index] ?? '',
+              })),
+              ...(mentions.length === 0
+                ? []
+                : [{ depth: 2, text: 'In the guides', id: 'in-the-guides' }]),
+            ],
             file: entry.source.file,
             listed: false,
             module: base,
             crumb: `${subsite.title} / ${module.specifier}`,
-            body: exportBody({ highlight, href: linksFrom(entry.source.file) }, entry, memberIds),
+            body: exportBody(drawing(entry.source.file, path), entry, memberIds, mentions),
           }
         }),
       ]

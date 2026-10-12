@@ -29,6 +29,13 @@ const { t, slots, stylesheet } = AppStyle.make({
       },
     }),
   ),
+  // A link is a new document: let the browser cross-fade to it rather than
+  // flash white, unless the reader asked for less motion.
+  global: [
+    Style.global(
+      '@view-transition{navigation:auto}@media (prefers-reduced-motion: reduce){@view-transition{navigation:none}}',
+    ),
+  ],
 })
 
 export { stylesheet }
@@ -110,6 +117,11 @@ export const SiteStyle = slots(
         display: 'flex',
         flexDirection: 'column',
         gap: t.space.lg,
+        // Scrolling the rail to its end does not carry on into the page.
+        overscrollBehavior: 'contain',
+        scrollbarWidth: 'thin',
+        // Held still while the page beside it cross-fades.
+        viewTransitionName: 'rail',
       },
       Style.media(NARROW, {
         height: 'auto',
@@ -160,7 +172,14 @@ export const SiteStyle = slots(
     railBody: [
       { display: 'flex', flexDirection: 'column', gap: t.space.lg },
       Style.nest('&[data-open="false"]', { display: 'var(--rail-closed, flex)' }),
-      Style.media(NARROW, { paddingBlock: t.space.sm, '--rail-closed': 'none' }),
+      // On a phone the open menu scrolls on its own, under the bar it opens from.
+      Style.media(NARROW, {
+        paddingBlock: t.space.sm,
+        '--rail-closed': 'none',
+        maxBlockSize: 'calc(100dvh - 3.75rem)',
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
+      }),
     ],
     nav: [
       { display: 'flex', flexDirection: 'column', gap: '0.125rem' },
@@ -236,12 +255,37 @@ export const SiteStyle = slots(
 
     // HOME
 
-    hero: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: t.space.lg,
-      maxWidth: '50rem',
-      paddingBlockEnd: t.space['2xl'],
+    // A faint dot grid behind the opening, fading out below it.
+    hero: [
+      {
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.lg,
+        maxWidth: '50rem',
+        paddingBlockEnd: t.space['2xl'],
+        isolation: 'isolate',
+      },
+      Style.pseudo('::before', {
+        content: '""',
+        position: 'absolute',
+        inset: `calc(-1 * ${t.space['2xl']}) calc(-1 * ${t.space['2xl']}) 0`,
+        zIndex: '-1',
+        backgroundImage: `radial-gradient(${t.outline.default} 1px, transparent 1px)`,
+        backgroundSize: '18px 18px',
+        maskImage: 'linear-gradient(to bottom, black 20%, transparent 95%)',
+        pointerEvents: 'none',
+      }),
+    ],
+    eyebrow: {
+      ...mono,
+      alignSelf: 'flex-start',
+      margin: '0',
+      padding: `0.25rem ${t.space.sm}`,
+      border: rule,
+      borderRadius: '999px',
+      background: t.surface.base,
+      color: t.text.muted,
     },
     heroTitle: {
       margin: '0',
@@ -306,6 +350,8 @@ export const SiteStyle = slots(
       borderBlockStart: rule,
       scrollMarginTop: t.space.lg,
     },
+    sectionHead: { display: 'flex', flexDirection: 'column', gap: t.space['2xs'] },
+    sectionNumber: { ...mono, margin: '0', color: t.text.subtle },
     sectionTitle: {
       margin: '0',
       fontSize: '1.5rem',
@@ -322,7 +368,7 @@ export const SiteStyle = slots(
     grid: [
       {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(15rem, 1fr))',
+        gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
         border: rule,
         borderRadius: t.radius.lg,
         overflow: 'hidden',
@@ -332,6 +378,13 @@ export const SiteStyle = slots(
         gap: t.border.thin,
         background: t.outline.subtle,
       },
+      // Five across while they fit, then two, the fifth spanning; one on a phone.
+      Style.media('(max-width: 80rem)', { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }),
+      Style.at(
+        '@media (max-width: 80rem)',
+        Style.nest('> :last-child:nth-child(odd)', { gridColumn: '1 / -1' }),
+      ),
+      Style.media('(max-width: 36rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
     ],
     cell: {
       display: 'flex',
@@ -390,10 +443,12 @@ export const SiteStyle = slots(
       },
       Style.media('(max-width: 44rem)', { borderInlineEnd: '0', borderBlockEnd: rule }),
     ],
-    // The example's code block sits in the frame, which draws the border.
+    // The example's code block sits in the frame, which draws the border, and
+    // a long one scrolls within it rather than taking the page.
     code: [
       { minWidth: '0' },
       Style.nest('figure', { border: '0', borderRadius: '0', background: 'transparent' }),
+      Style.nest('pre', { maxBlockSize: '32rem', overflow: 'auto' }),
     ],
     // The packages, shelf by shelf, a card each.
     shelf: { display: 'flex', flexDirection: 'column', gap: t.space.sm },
@@ -569,6 +624,18 @@ export const SiteStyle = slots(
         background: t.surface.muted,
         border: rule,
       }),
+      // Code that names something the site explains: the span keeps its look,
+      // with the link's underline under it.
+      Style.nest('a.code-link', { textDecorationColor: t.outline.default }),
+      Style.nest('a.code-link:hover code', { background: t.surface.default }),
+      Style.nest('.mentions', { listStyle: 'none', paddingInlineStart: '0' }),
+      Style.nest('.mentions li', {
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'baseline',
+        gap: `0 ${t.space.sm}`,
+      }),
+      Style.nest('.mentions small', { ...mono, color: t.text.subtle }),
       Style.nest('.table', { overflowX: 'auto', marginBlock: t.space.lg }),
       Style.nest('table', { minWidth: '100%' }),
       Style.nest(':is(th, td)', {

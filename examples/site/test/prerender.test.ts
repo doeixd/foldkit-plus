@@ -126,6 +126,8 @@ describe('the generated site', () => {
     ])
     expect(live.querySelector('article h1')?.textContent).toBe('Live data')
     // A fence is a code block: named by its language, with a button the page's script answers.
+    // Code that names an export leads to it.
+    expect(hrefs(live, 'article a.code-link')).toContain('/remote/api/remote/remotemodel#streams')
     const fence = live.querySelector('article figure')
     expect(fence?.querySelector('[data-copy-code]')?.textContent).toBe('Copy')
     expect(fence?.querySelector('pre code')?.textContent).toContain('break -> gap marked')
@@ -149,6 +151,8 @@ describe('the generated site', () => {
     expect(hrefs(ssr, 'nav[aria-label="Documentation"] [aria-current="location"]')).toEqual([
       '/ssr/api/ssr',
     ])
+    // The guides that name it are listed under it.
+    expect(hrefs(ssr, '.mentions a')).toEqual(expect.arrayContaining(['/ssr/guides/a-first-page']))
     const plan = ssr.getElementById('plan')
     expect(plan?.textContent).toContain('SSR.plan')
     expect(plan?.parentElement?.querySelector('pre')?.textContent).toContain('plan<Model')

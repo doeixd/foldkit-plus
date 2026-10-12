@@ -3,6 +3,7 @@
  * elements, which the article's prose styling reaches by their names, and
  * code drawn by `foldkit-mixins-ui`'s `CodeBlock`, tokenized at build time.
  */
+import { Option } from 'effect'
 import type { Heading, PhrasingContent, RootContent, TableCell } from 'mdast'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
@@ -16,7 +17,12 @@ export interface Context {
   readonly highlight: Highlight
   readonly href: (url: string) => string
   readonly idOf: (heading: Heading) => string
+  /** Where a code span leads, when it names something the site explains (`links.ts`). */
+  readonly codeLink: (code: string) => Option.Option<string>
 }
+
+/** Inside a link or a heading a code span stays text: a link in a link is no link. */
+const unlinked = (context: Context): Context => ({ ...context, codeLink: () => Option.none() })
 
 type Ih = HtmlBuilder<never>
 
@@ -57,7 +63,10 @@ const inline = (ih: Ih, context: Context, node: PhrasingContent): Html | string 
     case 'text':
       return node.value
     case 'inlineCode':
-      return ih.code([], [node.value])
+      return Option.match(context.codeLink(node.value), {
+        onNone: () => ih.code([], [node.value]),
+        onSome: href => ih.a([ih.Href(href), ih.Class('code-link')], [ih.code([], [node.value])]),
+      })
     case 'emphasis':
       return ih.em([], phrasing(ih, context, node.children))
     case 'strong':
@@ -70,7 +79,7 @@ const inline = (ih: Ih, context: Context, node: PhrasingContent): Html | string 
       const href = context.href(node.url)
       return ih.a(
         [ih.Href(href), ...(external(href) ? [ih.Rel('noopener')] : [])],
-        phrasing(ih, context, node.children),
+        phrasing(ih, unlinked(context), node.children),
       )
     }
     case 'image':
@@ -108,7 +117,7 @@ export const block = (ih: Ih, context: Context, node: RootContent): Html | strin
       return headingAt(ih, node.depth)(
         [ih.Id(id)],
         [
-          ...phrasing(ih, context, node.children),
+          ...phrasing(ih, unlinked(context), node.children),
           ih.a([ih.Href(`#${id}`), ih.AriaHidden(true), ih.Class('anchor')], ['#']),
         ],
       )

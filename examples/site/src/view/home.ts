@@ -42,7 +42,13 @@ const section = (
   children: ReadonlyArray<Html>,
 ): Html =>
   h.section(slots.section.attrs([h.Id(id), h.AriaLabelledBy(`${id}-title`)]), [
-    h.h2(slots.sectionTitle.attrs([h.Id(`${id}-title`)]), [title]),
+    // Numbered as the rail numbers it.
+    h.header(slots.sectionHead.attrs(), [
+      h.p(slots.sectionNumber.attrs([h.AriaHidden(true)]), [
+        String(sections.findIndex(each => each.id === id) + 1).padStart(2, '0'),
+      ]),
+      h.h2(slots.sectionTitle.attrs([h.Id(`${id}-title`)]), [title]),
+    ]),
     ...children,
   ])
 
@@ -50,6 +56,7 @@ const code = (h: H, ...parts: ReadonlyArray<string>) => h.code([], [parts.join('
 
 const hero = (model: Model, slots: Slots, h: H): Html =>
   h.section(slots.hero.attrs(), [
+    h.p(slots.eyebrow.attrs(), ['Packages for Foldkit · Effect 4 · MIT']),
     h.h1(slots.heroTitle.attrs(), [
       'Your Foldkit app, extended to every boundary. ',
       h.span(slots.quiet.attrs(), ['Without a second place to keep state.']),

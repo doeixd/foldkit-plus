@@ -15,6 +15,9 @@ import { demosPage } from './demos.js'
 import { docPage } from './doc.js'
 import { homeContents, homePage } from './home.js'
 
+/** The rail's id, which the template's script keeps the sidebar's place by (`index.html`). */
+export const RAIL = 'rail'
+
 export type Slots = SlotBuilders<typeof SiteStyle.slots, Message>
 export type H = HtmlBuilder<Message>
 
@@ -46,7 +49,7 @@ const places: ReadonlyArray<{
 ]
 
 const rail = ({ model, library }: Input, slots: Slots, h: H): Html =>
-  h.aside(slots.rail.attrs(), [
+  h.aside(slots.rail.attrs([h.Id(RAIL)]), [
     h.div(slots.railTop.attrs(), [
       h.a(slots.brand.attrs([h.Href('/')]), [
         h.span(slots.brandMark.attrs([h.AriaHidden(true)]), ['F+']),

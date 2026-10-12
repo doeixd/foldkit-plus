@@ -12,9 +12,72 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
     />
+    <!-- Every page is a document: a browser that can renders the one a link
+         leads to while the pointer rests on it, so the click shows it at once. -->
+    <script type="speculationrules">
+      {
+        "prerender": [{ "where": { "href_matches": "/*" }, "eagerness": "moderate" }]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <!-- The sidebar keeps its place from page to page: its scroll is saved as a
+         page is left and restored before the next one is shown, unless the
+         page's own entry would be out of sight, which is then brought into
+         the upper third. -->
+    <script>
+      ;(() => {
+        // Looked up each time: taking the page over draws the rail anew.
+        const railNow = () => document.getElementById('rail')
+        if (railNow() === null) return
+        const key = 'foldkit-plus:rail'
+        const read = () => {
+          try {
+            const saved = sessionStorage.getItem(key)
+            return saved === null ? NaN : Number(saved)
+          } catch {
+            return NaN
+          }
+        }
+        const place = () => {
+          const rail = railNow()
+          if (rail === null) return
+          const saved = read()
+          const current = rail.querySelector('nav[aria-label="Documentation"] [aria-current]')
+          if (current === null) return
+          const top = current.offsetTop
+          const visible = scroll =>
+            top >= scroll && top + current.offsetHeight <= scroll + rail.clientHeight
+          rail.scrollTop =
+            Number.isFinite(saved) && visible(saved) ? saved : top - rail.clientHeight / 3
+        }
+        // Placed before the first paint, and again each time the application
+        // draws a new rail, as taking the page over does, which starts at its
+        // top. A page rendered ahead of a click is placed when it is shown,
+        // from where the page before it was left.
+        const start = () => {
+          let placed = railNow()
+          place()
+          const watch = new MutationObserver(() => {
+            const rail = railNow()
+            if (rail === null || rail === placed) return
+            placed = rail
+            place()
+          })
+          watch.observe(document.body, { childList: true, subtree: true })
+          setTimeout(() => watch.disconnect(), 10000)
+        }
+        if (document.prerendering)
+          document.addEventListener('prerenderingchange', start, { once: true })
+        else start()
+        addEventListener('pagehide', () => {
+          try {
+            sessionStorage.setItem(key, String(railNow()?.scrollTop ?? 0))
+          } catch {}
+        })
+      })()
+    </script>
     <script type="module" src="/src/entry.ts"></script>
   </body>
 </html>

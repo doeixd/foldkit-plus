@@ -8,6 +8,7 @@ const tests = [
   'examples/site/test/guides.test.ts',
   'examples/site/test/prerender.test.ts',
   'examples/site/test/copy.test.ts',
+  'examples/site/test/links.test.ts',
 ]
 export default [
   {
@@ -167,6 +168,46 @@ export default [
     name: 'a fence drawn without its copy button',
     edits: [
       { file: '../src/content/render.ts', find: '...(copy ? { copy: {} } : {}),', replace: '' },
+    ],
+    tests,
+  },
+  {
+    name: 'a plain word linked to another family',
+    edits: [
+      { file: '../src/content/links.ts', find: '/^[A-Z][a-z]+$/.test(name)', replace: 'false' },
+    ],
+    tests,
+  },
+  {
+    name: 'a re-export as good as the declaration',
+    edits: [
+      {
+        file: '../src/content/links.ts',
+        find: 'declared.length > 0 ? declared : found',
+        replace: 'found',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a page that links to itself',
+    edits: [
+      {
+        file: '../src/content/links.ts',
+        find: "Option.filter(path => path.split('#')[0] !== from),",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an export that does not list the guides naming it',
+    edits: [
+      {
+        file: '../src/content/library.ts',
+        find: 'mentionsOf: path => mentions.get(path) ?? [],',
+        replace: 'mentionsOf: () => [],',
+      },
     ],
     tests,
   },

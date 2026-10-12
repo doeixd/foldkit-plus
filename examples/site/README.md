@@ -37,6 +37,24 @@ A guide page is one `##` section of its file; a section shorter than about 700
 characters stays on the page before it. A link to another file that is on the
 site goes to the page holding its target, and anything else to GitHub.
 
+Code in prose links to what it names (`src/content/links.ts`): `` `Remote.make` ``
+to the member on its API page, `` `foldkit-sync` `` to the package's guides. It
+links only a name that names one thing: a re-export yields to the declaration,
+a name two packages declare links only from a page of one of them, and a
+lowercase word, a name every application has (`Model`, `Schema`) or a plain
+word that is not a namespace stays text outside its own family. Each export's
+page lists the guide pages that name it, under "In the guides".
+
+### Moving between pages
+
+Each page is a new document, so the build makes that fast rather than avoiding
+it. Pages are written as `remote.html`, which the host serves at `/remote` with
+no redirect. `index.html` asks the browser to prerender a link the pointer rests
+on (speculation rules), and the stylesheet asks for a cross-document view
+transition, the rail held still. A small script in `index.html` keeps the
+sidebar's scroll from page to page, or brings the current entry into view; it
+places the rail again whenever the application draws a new one.
+
 ## One list of demos
 
 [`src/demos.ts`](src/demos.ts) holds every demo once. The site draws its rows
