@@ -13,7 +13,8 @@ import type { Library } from '../library.js'
 import { Message, type Example, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
 
-const INSTALL = 'pnpm add effect foldkit foldkit-surface'
+/** What the reader hands their coding agent: it prints the rest for their project. */
+const SETUP = 'npx foldkit-plus setup'
 
 /** The page's sections, as the rail lists them. */
 const sections = [
@@ -71,14 +72,14 @@ const hero = (model: Model, slots: Slots, h: H): Html =>
       h.button(
         slots.install.attrs([
           h.Type('button'),
-          h.OnClick(Message.PressedCopy({ text: INSTALL })),
-          h.AriaLabel(`Copy “${INSTALL}”`),
+          h.OnClick(Message.PressedCopy({ text: SETUP })),
+          h.AriaLabel(`Copy “${SETUP}”`),
         ]),
-        [INSTALL, h.span(slots.installHint.attrs(), [model.copied ? 'Copied' : 'Copy'])],
+        [SETUP, h.span(slots.installHint.attrs(), [model.copied ? 'Copied' : 'Copy'])],
       ),
     ]),
     h.p(slots.note.attrs(), [
-      'Built on ',
+      'Tell your coding agent to run it in your project: it prints what to install, the agent skill, and which package does which job. Built on ',
       h.a([h.Href('https://foldkit.dev')], ['Foldkit']),
       ' and ',
       h.a([h.Href('https://effect.website')], ['Effect']),
