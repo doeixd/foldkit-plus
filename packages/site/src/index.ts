@@ -572,10 +572,8 @@ export const Site = {
     fallback: { readonly make: (data: { readonly path: string }) => Fallback },
   ): ((url: UrlValue) => Route | Fallback) => {
     const { read } = indexOf(site)
-    return url =>
-      Option.getOrElse(read(url) as Option.Option<Route>, () =>
-        fallback.make({ path: url.pathname }),
-      )
+    return (url): Route | Fallback =>
+      Option.getOrElse(read(url), () => fallback.make({ path: url.pathname }))
   },
 
   /**
