@@ -195,6 +195,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-cms-drizzle`: `authors` is asked as what the author is doing.**
+  Every operation asked its guards with interaction `Read`, so a body that let
+  a reviewer read drafts let them save and publish too. An operation now asks
+  `Update`, and reading unpublished work `Read`.
 - **`foldkit-sync`: a connection whose access went hears and speaks no more.**
   Presence asked `opens` once, at join, so a peer kept relaying presence after
   its access was taken; it is asked again with each frame, and a refused peer

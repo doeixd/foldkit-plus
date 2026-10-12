@@ -286,7 +286,12 @@ export const CmsServer = {
         Effect.forEach(guards, guard => policy.decide(guard, { principal, interaction })),
         decisions => decisions.some(decision => decision === true),
       )
-    const isAuthor = (principal: P) => anyOf(config.authors, principal, 'Read')
+    /**
+     * Whether `principal` is an author, asked as the interaction it is for:
+     * reading unpublished work, or changing it, so a body can tell the two.
+     */
+    const isAuthor = (principal: P, interaction: 'Read' | 'Update') =>
+      anyOf(config.authors, principal, interaction)
     /** Whether `transitions` let this author make `transition`; an author's when it names none. */
     const transitionLets = (principal: P, transition: Transition) =>
       Option.match(Option.fromUndefinedOr(config.transitions?.[transition]), {
@@ -300,7 +305,7 @@ export const CmsServer = {
     // defect, never read as a visitor.
     const authorsOnly: Visible = principal =>
       policy.isPrincipal(principal)
-        ? Effect.map(isAuthor(principal), author => (author ? undefined : sql`0 = 1`))
+        ? Effect.map(isAuthor(principal, 'Read'), author => (author ? undefined : sql`0 = 1`))
         : Effect.die(
             new Error('[foldkit-cms-drizzle] the principal is not an Option of the guard set’s'),
           )
@@ -521,7 +526,7 @@ export const CmsServer = {
       // Then the whole of it is one transaction: a save that made an entry and
       // could not make its draft leaves neither.
       RemoteServer.mutation<P, DrizzleDatabase, Name, Input, Output>(descriptor, context =>
-        Effect.flatMap(isAuthor(context.principal), author =>
+        Effect.flatMap(isAuthor(context.principal, 'Update'), author =>
           author
             ? config.transaction(run(context))
             : Effect.fail(RemoteServer.forbid('Only an author may change unpublished work')),
@@ -1128,7 +1133,7 @@ export const CmsServer = {
           const error = yield* config
             .transaction(
               Effect.gen(function* () {
-                if (!(yield* isAuthor(principal)))
+                if (!(yield* isAuthor(principal, 'Update')))
                   return yield* RemoteServer.forbid('Whoever scheduled this is no longer an author')
                 const found = yield* offering(id, 'publish')
                 yield* asking(principal, 'publish', found.entry)

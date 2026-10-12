@@ -106,7 +106,9 @@ RemoteServer.make({
   type's Entity with its guards attached, the one its table was bound from.
 - A content type with no `published` role has nothing to hide, and needs none.
 - **Who is an author** is any of `authors`, principal guards; anyone else is a
-  visitor. **Who may make a transition** is an author any of its
+  visitor. Their bodies are asked with the interaction it is for, `Read` for
+  reading unpublished work and `Update` for any operation on it, so a reviewer
+  can read what they may not change. **Who may make a transition** is an author any of its
   `transitions` guards lets; a transition not named is any author's. Archiving
   an entry on show takes it off, so it asks `unpublish`'s guards too. `allow`
   stays for a rule about the entry itself. A refusal is `Forbidden`, with its

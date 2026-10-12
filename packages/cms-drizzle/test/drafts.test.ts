@@ -27,7 +27,7 @@ import {
 
 const Author = Schema.Struct({
   name: Schema.String,
-  role: Schema.Literals(['author', 'writer', 'intern']),
+  role: Schema.Literals(['author', 'writer', 'intern', 'reviewer']),
 })
 type Principal = Option.Option<typeof Author.Type>
 const ada: Principal = Option.some({ name: 'ada', role: 'author' })
@@ -37,6 +37,8 @@ const wren: Principal = Option.some({ name: 'wren', role: 'writer' })
 const visitor: Principal = Option.none()
 // An author like ada, and not the one a stricter server lets publish.
 const bea: Principal = Option.some({ name: 'bea', role: 'author' })
+// Reads unpublished work, and changes none of it.
+const rex: Principal = Option.some({ name: 'rex', role: 'reviewer' })
 
 const posts = sqliteTable('posts', {
   id: text('id').primaryKey(),
@@ -68,7 +70,9 @@ const G = Guards.declare(
   { key: author => author.name },
 )
 const Policy = G.implement({
-  isAuthor: Option.isSome,
+  // A reviewer is an author for reading the work, and for nothing else.
+  isAuthor: (principal, { interaction }) =>
+    Option.exists(principal, ({ role }) => role !== 'reviewer' || interaction === 'Read'),
   isSenior: principal => Option.exists(principal, ({ name }) => name === 'ada'),
 })
 const GuardedPost = Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
@@ -669,6 +673,15 @@ describe('who may make a transition', () => {
     expect(await may(bea)).not.toContain('publish')
     expect(await may(ada)).toContain('publish')
     await as(ada).mutate('CmsPublish', { entry: 'n1', basedOn: null })
+  })
+
+  it('asks who is an author as what they are doing: a reviewer reads, and changes nothing', async () => {
+    const { as } = open()
+    expect(await as(rex).list({ type: 'posts' })).toContain('e2')
+    await expect(as(rex).mutate('CmsDiscardDraft', { entry: 'e3' })).rejects.toMatchObject({
+      _tag: 'Forbidden',
+      message: 'Only an author may change unpublished work',
+    })
   })
 
   it('asks unpublish of archiving what is on show, which takes it off', async () => {
