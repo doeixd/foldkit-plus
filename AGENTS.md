@@ -1223,8 +1223,10 @@ of its own named a form field "fits the Catalog". Read words with
 - **Read `Test Files`, not only `Tests`.** A file that fails to load, from a
   module-level `window` read in a node test or the machine running out of
   memory under a wide run ("22 failed" with every test passing), counts no
-  failed test. A grep for `Tests` showed all green twice here. Grep both lines,
-  and run wide sets with `--maxWorkers=2` on this machine.
+  failed test. A grep for `Tests` showed all green twice here. Grep both lines.
+  The root config sizes its workers by the memory free at start
+  (`vitest.config.ts`), so a wide run no longer needs `--maxWorkers`; pass a
+  smaller one if something else is using the memory as the run goes.
 - **Vitest does not typecheck.** A demo line mapped over the dependencies of a
   `Data.subscriptions` entry (typed `any`) passed its test and failed
   `pnpm typecheck` with an implicit `any`, after it was pushed. After editing an

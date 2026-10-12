@@ -1,3 +1,4 @@
+import { availableParallelism, freemem } from 'node:os'
 import { playwright } from '@vitest/browser-playwright'
 import { defineConfig, mergeConfig } from 'vitest/config'
 import { inBrowser, shared } from './vitest.shared.js'
@@ -14,8 +15,21 @@ const browserTests = [
   'examples/foldkit/*/test/**/*.browser.test.ts',
 ]
 
+/**
+ * Workers by the memory free when the run starts, not by cores alone. On a
+ * 16-core machine with 4 GiB free (2026-10-12), a worker per core less one
+ * ran out of memory and was killed; at 0.75 GiB each (5 workers), the whole
+ * suite peaked 5.1 GiB over its start, Chromium included, and finished in
+ * seven minutes. `--maxWorkers` still wins.
+ */
+const maxWorkers = Math.max(
+  1,
+  Math.min(availableParallelism() - 1, Math.floor(freemem() / (0.75 * 2 ** 30))),
+)
+
 export default defineConfig({
   test: {
+    maxWorkers,
     projects: [
       mergeConfig(shared, {
         test: {
