@@ -98,11 +98,12 @@ const runResult = (
 
 describe('RemoteDrizzle.query', () => {
   it('returns a page and a cursor boundary, limiting to pageSize + 1', async () => {
+    // A page selects each order key under its own name: `createdAt`, then the id.
     const { database, calls } = fakeDatabase([
       [
-        { id: 'p1', created_at: 't1' },
-        { id: 'p2', created_at: 't2' },
-        { id: 'p3', created_at: 't3' },
+        { id: 'p1', key0: 't1', key1: 'p1' },
+        { id: 'p2', key0: 't2', key1: 'p2' },
+        { id: 'p3', key0: 't3', key1: 'p3' },
       ],
     ])
 
@@ -117,7 +118,7 @@ describe('RemoteDrizzle.query', () => {
     expect(page.end).toEqual({ _tag: 'Cursor', cursor: 'k:["t2","p2"]' })
     expect(calls).toHaveLength(1)
     expect(calls[0]!.limit).toBe(3)
-    expect(Object.keys(calls[0]!.selection)).toEqual(['id', 'created_at'])
+    expect(Object.keys(calls[0]!.selection)).toEqual(['id', 'key0', 'key1'])
 
     const dialect = new PgDialect()
     expect(dialect.sqlToQuery(calls[0]!.where as SQL).sql).toContain('"projects"."owner_id" =')

@@ -987,11 +987,24 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
   for (const [option, given] of [
     ['authorize', authorize],
     ['filter', filter],
+    ['shared', shared],
   ] as const) {
     const unknown = Object.keys(given).filter(name => !config.domain.registry.entities.has(name))
     if (unknown.length > 0) {
       throw new Error(
         `RemoteServer.memory: \`${option}\` names ${unknown.map(name => `"${name}"`).join(', ')}, which the domain does not declare`,
+      )
+    }
+  }
+  for (const [name, fields] of Object.entries(shared)) {
+    const entity: EntityName = config.domain.registry.entities.get(name)!
+    const declared = entity.members ?? entity.fields
+    const unserved = fields.filter(
+      field => declared !== undefined && !Object.hasOwn(declared, field),
+    )
+    if (unserved.length > 0) {
+      throw new Error(
+        `RemoteServer.memory: ${name}'s shared fields name no member: ${unserved.join(', ')}`,
       )
     }
   }

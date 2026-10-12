@@ -160,5 +160,11 @@ describe('RemoteServer.memory', () => {
   it('hands each entity the fields it declares shared', () => {
     const backend = RemoteServer.memory({ domain, rows: { Item: [] }, shared: { Item: ['name'] } })
     expect([...(backend.server.entities.get('Item')?.shared ?? [])]).toEqual(['name'])
+    expect(() =>
+      RemoteServer.memory({ domain, rows: { Item: [] }, shared: { Item: ['nickname'] } }),
+    ).toThrow("Item's shared fields name no member: nickname")
+    expect(() =>
+      RemoteServer.memory({ domain, rows: { Item: [] }, shared: { Thing: ['name'] } }),
+    ).toThrow('`shared` names "Thing", which the domain does not declare')
   })
 })

@@ -12,7 +12,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'Option.getOrElse(keyCursor(orderBy.map(term => row[term.column.name])), () =>',
+        find: 'Option.getOrElse(keyCursor(orderBy.map((_, index) => row[`key${index}`])), () =>',
         replace: 'Option.getOrElse(Option.none<string>(), () =>',
       },
     ],
@@ -70,6 +70,17 @@ export default [
         file: cursor,
         find: 'if (!cursor.startsWith(KEYED)) return CursorRead.Id({ id: cursor })',
         replace: 'if (!cursor.startsWith(KEYED)) return CursorRead.Invalid()',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a key is read back by its column name',
+    edits: [
+      {
+        file: index,
+        find: 'keyCursor(orderBy.map((_, index) => row[`key${index}`]))',
+        replace: 'keyCursor(orderBy.map(term => row[term.column.name]))',
       },
     ],
     tests,

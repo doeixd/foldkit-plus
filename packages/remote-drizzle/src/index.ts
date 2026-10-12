@@ -797,9 +797,11 @@ export const query = <P = unknown, Input = unknown>(
                 : and(where, predicate)
         }
 
-        const columns: Record<string, AnyColumn> = { id }
-        for (const term of orderBy) {
-          if (!Object.values(columns).includes(term.column)) columns[term.column.name] = term.column
+        // Each order term under a key of its own: the id column may be named
+        // anything, and may be one of them.
+        const columns: Record<string, AnyColumn> = {
+          id,
+          ...Object.fromEntries(orderBy.map((term, index) => [`key${index}`, term.column])),
         }
         const rows = yield* selectRows(database, binding.table, columns, {
           where,
@@ -815,7 +817,7 @@ export const query = <P = unknown, Input = unknown>(
           cursor: shape.cursor,
           idOf: row => String(row.id),
           cursorOf: row =>
-            Option.getOrElse(keyCursor(orderBy.map(term => row[term.column.name])), () =>
+            Option.getOrElse(keyCursor(orderBy.map((_, index) => row[`key${index}`])), () =>
               String(row.id),
             ),
         })

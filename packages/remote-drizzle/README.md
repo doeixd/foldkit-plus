@@ -372,7 +372,7 @@ rule on one would leave three open. Every one applies it:
 | by id | not returned, so the client knows it as `NotFound` |
 | as the children of a relation | not listed, not counted by a derived count, and not a gap in a page |
 | as the target of a `one` ref | the ref reads `null`, so it does not say the row exists |
-| through a query | not in any page; a cursor on a hidden row does not resolve |
+| through a query | not in any page; an id cursor on a hidden row does not resolve |
 
 - A required `one` whose target can be hidden will read `null` for a principal
   who may not see it, which its schema refuses. Make such a relation
@@ -749,6 +749,11 @@ null, or a tagged date or bigint) for each term of the order it pages. A cursor
 from before keys is a row id, still read by re-reading that row's keys; one
 whose row is gone fails rather than restarting at page one.
 
+A key cursor carries those values to the client as they are stored. Ordering
+already tells a reader how rows compare by a field; the cursor tells them the
+value at each page's end. Do not offer an order (`Order.chosen`) by a field
+some reader may not read.
+
 Client-supplied windows are bounded: the default page size is `20`, the default
 maximum is `100`, and malformed combinations such as `after + before` or
 `first + last` fail rather than being guessed.
@@ -849,7 +854,8 @@ Workers requests, a live source reads the table instead.
 
 ### Writing in a handler
 
-Anything a declared write cannot say (an insert, a delete, several rows) is a
+Anything a declared write cannot say (several rows, a computed value, another
+table) is a
 `RemoteServer.mutation` handler using Drizzle directly. The adapter only helps
 normalize rows you already chose to return:
 

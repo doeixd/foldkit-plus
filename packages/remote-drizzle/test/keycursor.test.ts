@@ -132,3 +132,37 @@ describe('a cursor is client input, read as one', () => {
     }
   })
 })
+
+describe('a keyed cursor over an id column of another name', () => {
+  const tasks = sqliteTable('tasks', {
+    id: text('task_id').primaryKey(),
+    status: text('status').notNull(),
+    rank: integer('rank').notNull(),
+  })
+  const Task = DomainEntity.define(
+    'Task',
+    Schema.Struct({ id: Schema.String, status: Schema.String, rank: Schema.Number }),
+  )
+  // Ordered by the id itself, so the id's column is one of the keys too.
+  const ByRank = Query.define('ByRank', {}, () =>
+    Query.from(Task).pipe(Query.orderBy(Order.asc(Task.fields.rank), Order.desc(Task.fields.id))),
+  )
+  const tasksSource = query(ByRank, { entity: entity('Task', tasks) })
+
+  it('carries the key values, not an id to look up', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(
+      'create table tasks (task_id text primary key, status text not null, rank integer not null)',
+    )
+    sqlite.exec("insert into tasks values ('t1', 'open', 1), ('t2', 'open', 2), ('t3', 'open', 3)")
+    const first = await Effect.runPromise(
+      tasksSource
+        .run({ input: {}, window: { first: 2 }, principal: null })
+        .pipe(Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+    expect(first.end).toMatchObject({ _tag: 'Cursor' })
+    if (first.end._tag !== 'Cursor') return
+    expect(readCursor(first.end.cursor, 2)).toMatchObject({ _tag: 'Keys', values: [2, 't2'] })
+    sqlite.close()
+  })
+})

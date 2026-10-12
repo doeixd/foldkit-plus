@@ -28,4 +28,20 @@ export default [
     edits: [{ file, find: 'config.principal as P', replace: 'undefined as P' }],
     tests,
   },
+  {
+    name: 'memory takes a shared field the entity does not declare',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'field => declared !== undefined && !Object.hasOwn(declared, field),',
+        replace: '() => false,',
+      },
+    ],
+    tests: ['packages/remote-server/test/declared-fields.test.ts'],
+  },
+  {
+    name: 'memory takes shared fields of an entity the domain does not declare',
+    edits: [{ file: '../src/index.ts', find: "['shared', shared],", replace: '' }],
+    tests: ['packages/remote-server/test/declared-fields.test.ts'],
+  },
 ]

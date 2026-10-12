@@ -195,6 +195,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote-drizzle`: a keyed cursor over an id column of another
+  name.** A page read each order key back by its column's SQL name, beside an
+  id selected as `id`, so an id column named otherwise (`task_id`) read as
+  nothing and every page fell back to an id cursor. **`foldkit-remote-server`:**
+  `RemoteServer.memory` refuses a `shared` entity the domain does not declare,
+  or a field it does not, as `RemoteServer.entity` and `source` already did.
 - **`foldkit-guard`: `GuardServer.validate` refuses what it could not
   check.** A seam built from an Entity before its guards were attached (a
   `GuardDrizzle.visible` or `GuardServer.filter` given the base Entity)
