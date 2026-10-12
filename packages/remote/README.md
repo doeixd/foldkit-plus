@@ -1683,6 +1683,11 @@ key -> restore -> Hydrated { from: key } -> restoredFrom = key -> save on each c
 - **A restore keeps what the Model already holds.** It hydrates with
   `merge: 'preserve-existing'`, so a fact resumed from the server, or read since
   the page started, wins over the older snapshot.
+- **So a change of principal is `Data.forget`, in the same `update`.** What one
+  person read, left in memory, would be kept over the next one's snapshot and
+  then saved under their key; `forget` clears it as the key changes. The
+  `scope` check refuses a snapshot written for another reader; it cannot see
+  facts that are only in memory.
 - **Nothing is saved before its own key is restored.** `Hydrated` records the
   key it came from in `model.remote.restoredFrom`. Until that key is restored,
   nothing is saved, so the empty store at startup cannot overwrite the
@@ -1692,7 +1697,10 @@ key -> restore -> Hydrated { from: key } -> restoredFrom = key -> save on each c
   it.** A stored snapshot from another version or scope, or one that will not
   decode, is removed, and an empty snapshot is restored in its place.
 - **Saving is debounced** (`debounce`, 250 ms by default) and best-effort: a
-  full store keeps the snapshot it had, and the next change tries again. A
+  full store keeps the snapshot it had, and the next change tries again. The
+  write waits; the snapshot does not: it is serialized on each change of the
+  cache, so under a steady stream of live changes keep it small, with
+  `maxBytes` or a `snapshot` that stores only what a page shows. A
   cache grown past `maxBytes` removes its key, so an older, smaller snapshot
   cannot outlive it.
 

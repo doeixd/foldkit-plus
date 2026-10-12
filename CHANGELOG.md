@@ -195,6 +195,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`: `Data.persistence` says what keeps one reader's cache
+  from the next.** A restore keeps what the Model holds, so a change of
+  principal without `Data.forget` in the same `update` saved one person's rows
+  under the next one's key; the README now says `forget` is required there,
+  and that a snapshot is serialized on each change though its write waits.
 - **`foldkit-cms-drizzle`: `authors` is asked as what the author is doing.**
   Every operation asked its guards with interaction `Read`, so a body that let
   a reviewer read drafts let them save and publish too. An operation now asks

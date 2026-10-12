@@ -356,7 +356,9 @@ const persistence = Data.persistence({
 
 The restore hydrates with `preserve-existing`, and records the key it came
 from in `model.remote.restoredFrom`. Saving waits until that key is
-restored, so startup never writes the empty store over the snapshot.
+restored, so startup never writes the empty store over the snapshot. Since a
+restore keeps what memory holds, a change of principal must be `Data.forget`
+in the same `update`, or one person's rows are saved under the next one's key.
 
 `RemotePersistence.save(snapshot, { key, scope, maxBytes })` /
 `restore({ key, scope, maxBytes })` use Effect's `KeyValueStore`. Wrong
