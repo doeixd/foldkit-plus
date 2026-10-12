@@ -29,13 +29,6 @@ const { t, slots, stylesheet } = AppStyle.make({
       },
     }),
   ),
-  // A link is a new document: let the browser cross-fade to it rather than
-  // flash white, unless the reader asked for less motion.
-  global: [
-    Style.global(
-      '@view-transition{navigation:auto}@media (prefers-reduced-motion: reduce){@view-transition{navigation:none}}',
-    ),
-  ],
 })
 
 export { stylesheet }
@@ -120,8 +113,6 @@ export const SiteStyle = slots(
         // Scrolling the rail to its end does not carry on into the page.
         overscrollBehavior: 'contain',
         scrollbarWidth: 'thin',
-        // Held still while the page beside it cross-fades.
-        viewTransitionName: 'rail',
       },
       Style.media(NARROW, {
         height: 'auto',

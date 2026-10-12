@@ -50,8 +50,8 @@ page lists the guide pages that name it, under "In the guides".
 Each page is a new document, so the build makes that fast rather than avoiding
 it. Pages are written as `remote.html`, which the host serves at `/remote` with
 no redirect. `index.html` asks the browser to prerender a link the pointer rests
-on (speculation rules), and the stylesheet asks for a cross-document view
-transition, the rail held still. A small script in `index.html` keeps the
+on (speculation rules), so a click shows it at once, with no animation between
+the two. A small script in `index.html` keeps the
 sidebar's scroll from page to page, or brings the current entry into view; it
 places the rail again whenever the application draws a new one.
 
