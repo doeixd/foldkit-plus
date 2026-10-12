@@ -109,16 +109,18 @@ test('an edited price is written by the journal, and is there after a reload', a
   await expect.poll(() => page.locator('#exchange').textContent(), { timeout: 10_000 }).toBe('')
 
   // The journal wrote it to the table, at the sequence it committed at: Remote
-  // reads it from the server, edits aside.
-  const read = await Effect.runPromise(
-    Remote.http(server.url).FoldkitRemoteRead({
-      version: REMOTE_PROTOCOL_VERSION,
-      requests: [{ entity: 'Product', id: productId(4), fields: ['cents', 'revision'] }],
-    }),
-  )
-  expect(read.entities).toEqual([
-    { entity: 'Product', id: productId(4), values: { cents: 7770, revision: 1 } },
-  ])
+  // reads it from the server, edits aside. The table is written as the journal
+  // settles, which may follow the acknowledgement by a moment.
+  const read = () =>
+    Effect.runPromise(
+      Remote.http(server.url).FoldkitRemoteRead({
+        version: REMOTE_PROTOCOL_VERSION,
+        requests: [{ entity: 'Product', id: productId(4), fields: ['cents', 'revision'] }],
+      }),
+    ).then(answer => answer.entities)
+  await expect
+    .poll(read, { timeout: 10_000 })
+    .toEqual([{ entity: 'Product', id: productId(4), values: { cents: 7770, revision: 1 } }])
 
   await page.reload()
   await page.waitForSelector('#products [role="gridcell"]', { timeout: 60_000 })
