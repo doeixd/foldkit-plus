@@ -327,8 +327,8 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   semantic bundle/wiring. §34.1. After the placement slice: the wiring should
   compose placements, not replace them. Built: `Site.routing` (with `pages`,
   the routed placements), loading what the tree does not hold
-  (`Site.routeAt`); shortcuts are `Site.shortcuts`. The CMS site keeps its
-  own two branches, since a route change there moves focus.
+  (`Site.routeAt`); shortcuts are `Site.shortcuts`; `arrived` for what a new
+  route does (the CMS site's focus move, which put it on `Site.routing`).
 - [x] **Annotatable routes:** title, nav section, shortcut (and href source)
   declared once per route, with navigation rendering, active-section
   derivation, shortcut handling, href generation and titles derived. §34.4.

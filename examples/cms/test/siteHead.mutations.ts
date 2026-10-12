@@ -7,6 +7,8 @@ const app = '../src/apps/siteApp.ts'
 const head = ['examples/cms/test/siteHead.test.ts']
 const paths = ['examples/cms/test/sitePath.test.ts']
 const built = ['examples/cms/test/prerender.test.ts']
+const links = ['examples/cms/test/siteLinks.test.ts']
+const focus = ['examples/cms/test/siteFocus.test.ts']
 
 export default [
   {
@@ -102,5 +104,34 @@ export default [
       },
     ],
     tests: built,
+  },
+  {
+    name: 'another post replaces the one shown',
+    edits: [
+      {
+        file: app,
+        find: "  .meta<Model>(({ route, model }) => postMeta(route, model))\n  .history((prev, next) => (prev.slug === next.slug ? 'replace' : 'push')).node",
+        replace: '  .meta<Model>(({ route, model }) => postMeta(route, model)).node',
+      },
+    ],
+    tests: links,
+  },
+  {
+    name: 'a new route leaves focus where it was',
+    edits: [
+      { file: app, find: '  arrived: model => ({', replace: '  _arrived: (model: Model) => ({' },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'links are not the site tree’s to route',
+    edits: [
+      {
+        file: app,
+        find: 'Parent.assemble(Data.wiring(actives), Routing)',
+        replace: 'Parent.assemble(Data.wiring(actives))',
+      },
+    ],
+    tests: [...links, ...focus],
   },
 ]

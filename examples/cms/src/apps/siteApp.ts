@@ -25,8 +25,8 @@ import type { Meta } from 'foldkit-ssr/client'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
-import { UrlRequest } from 'foldkit/navigation'
-import { Url, toString as urlToString } from 'foldkit/url'
+import { modifyFields } from 'foldkit/struct'
+import { Url } from 'foldkit/url'
 import { ORIGIN, Post, PostPage, Posts, PostById, RecentPosts } from '../content/domain.js'
 import { Page, Pages, PublishedPages } from '../content/pageDomain.js'
 import { PostCard, Site as Kit } from '../content/site.js'
@@ -203,12 +203,13 @@ const BlogNode = Site.node(blogRouter, Route.Blog).meta(() => ({
   title: 'The blog',
   description: BLOG_LEDE,
 })).node
-export const PostNode = Site.node(postRouter, Route.Post).meta<Model>(({ route, model }) =>
-  postMeta(route, model),
-).node
-export const PageNode = Site.node(pageRouter, Route.Page).meta<Model>(({ model }) =>
-  pageMeta(model),
-).node
+// Another post or page is an entry of its own, which Back returns from.
+export const PostNode = Site.node(postRouter, Route.Post)
+  .meta<Model>(({ route, model }) => postMeta(route, model))
+  .history((prev, next) => (prev.slug === next.slug ? 'replace' : 'push')).node
+export const PageNode = Site.node(pageRouter, Route.Page)
+  .meta<Model>(({ model }) => pageMeta(model))
+  .history((prev, next) => (prev.slug === next.slug ? 'replace' : 'push')).node
 
 /** The site's addresses: the home page, the blog and its posts, and every other page. */
 export const SiteMap = Site.make(Site.mount(HomeNode, [Site.mount(BlogNode, [PostNode]), PageNode]))
@@ -240,9 +241,6 @@ export const answered = (model: Model): boolean => {
   )
 }
 
-const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
-export const placements = Parent.assemble(Data.wiring(actives))
-
 /**
  * Moves the reader to what a route change drew: the bar is the same, the page
  * is not. The site is rendered on the server too, where a route change is not
@@ -253,42 +251,41 @@ export const focusMain = (): void => {
   document.getElementById('site-main')?.focus()
 }
 
+/**
+ * Links and address changes: a link the tree holds is a route change, any
+ * other a full load (the studio is another application), and a new route
+ * moves focus to what it drew.
+ */
+const Routing = Site.routing<Model, Message, Route>({
+  site: SiteMap,
+  owner: App.owner,
+  route: {
+    dependency: App.model.route.dependency,
+    get: model => model.route,
+    set: (model, route) => modifyFields(model, { route: () => route }),
+  },
+  parse: routeOf,
+  tags: { clicked: 'UrlRequested', changed: 'UrlChanged' },
+  completed: Message.Ticked,
+  arrived: model => ({
+    model,
+    commands: [
+      { name: 'FocusMain', effect: Effect.sync(focusMain).pipe(Effect.as(Message.FocusedMain())) },
+    ],
+  }),
+})
+
+const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
+export const placements = Parent.assemble(Data.wiring(actives), Routing)
+
 export const update = placements.update((model, message) => {
   // Remote's Messages go to its wiring, so they never reach here; the guard
   // narrows to the application's own tags, which the match below covers all of.
-  if (Remote.reduces(message)) return { model }
+  if (Remote.reduces(message) || Routing.reduces(message)) return { model }
   return Match.valueTags(message, {
-    UrlChanged: ({ url }) => {
-      const route = routeOf(url)
-      // A URL the site wrote comes back as the route it already shows: nothing
-      // changes, and nothing is worth moving focus for.
-      if (Equal.equals(route, model.route)) return { model }
-      return {
-        model: { ...model, route },
-        commands: [
-          {
-            name: 'FocusMain',
-            effect: Effect.sync(focusMain).pipe(Effect.as(Message.FocusedMain())),
-          },
-        ],
-      }
-    },
-    UrlRequested: ({ request }) => {
-      // A link the site's tree holds is a route change; any other is another
-      // application's (the studio's), a full load away.
-      const effect = UrlRequest.match(request, {
-        Internal: ({ url }) =>
-          Option.match(Site.routeAt(SiteMap, url), {
-            onNone: () => Navigation.load(urlToString(url)),
-            onSome: () => Navigation.pushUrl(urlToString(url)),
-          }),
-        External: ({ href }) => Navigation.load(href),
-      })
-      return {
-        model,
-        commands: [{ name: 'FollowLink', effect: effect.pipe(Effect.as(Message.Ticked())) }],
-      }
-    },
+    // Site.routing's, which answered them.
+    UrlChanged: () => ({ model }),
+    UrlRequested: () => ({ model }),
     // Reads what the page there will read, so it draws at once if the reader goes.
     PointedAtLink: ({ url }) =>
       Option.match(Site.routeAt(SiteMap, url), {
