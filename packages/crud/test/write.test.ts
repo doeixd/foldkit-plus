@@ -137,6 +137,28 @@ describe('An editor over a declared write', () => {
     expect(sent[0]?.keys).toBeUndefined()
   })
 
+  it('names no key it already saved, so another author’s change to it stands', async () => {
+    /** Submits, runs the save, and hands its answer back to `update`. */
+    const landed = async (model: Model) => {
+      const submitted = step(
+        model,
+        Message.GotEditorMessage({ message: EditProjectForm.Message.Submitted() }),
+      )
+      let next = submitted.model
+      for (const command of submitted.commands ?? []) {
+        const answer = await Effect.runPromise(command.effect.pipe(Effect.provide(Client)))
+        next = step(next, answer as Message).model
+      }
+      return next
+    }
+    const mine = await landed(
+      form(await opened(), EditProjectForm.Message.Changed({ key: 'name', value: 'Mine' })),
+    )
+    expect(ProjectEditor.status(mine)).toBe('Saved')
+    await landed(form(mine, EditProjectForm.Message.Changed({ key: 'status', value: 'archived' })))
+    expect(sent.map(request => request.keys)).toEqual([['name'], ['status']])
+  })
+
   it('names a key changed back to what it was filled with as unchanged', async () => {
     const away = form(await opened(), EditProjectForm.Message.Changed({ key: 'name', value: 'X' }))
     const back = form(away, EditProjectForm.Message.Changed({ key: 'name', value: 'Apollo' }))
@@ -266,5 +288,51 @@ describe('An editor over a write that expects a revision', () => {
     const moved = savedElsewhere(typed, 2)
     expect(Placed.status(moved)).toBe('Moved')
     expect(DocForm.field(moved.editor.form, 'title').value).toBe('Mine')
+    // Untouched, it still shows what the row no longer holds.
+    expect(Placed.status(savedElsewhere(await openedDoc(), 2))).toBe('Moved')
+  })
+
+  it('reads Moved when someone else saves after its own save, rather than taking theirs', async () => {
+    const typed = await edit(
+      await openedDoc(),
+      DocForm.Message.Changed({ key: 'title', value: 'Mine' }),
+    )
+    const saved = await edit(typed, DocForm.Message.Submitted())
+    // Its own save moved the row to 2; another's, later, to 3.
+    const moved = savedElsewhere(saved, 3)
+    expect(Placed.status(moved)).toBe('Moved')
+    await edit(
+      await edit(moved, DocForm.Message.Changed({ key: 'title', value: 'Again' })),
+      DocForm.Message.Submitted(),
+    )
+    // The next save expects the revision its own left, so the server sees the conflict.
+    expect(sentRevisions).toEqual([1, 2])
+  })
+
+  it('takes its own save as its own though the author typed while it was saving', async () => {
+    const typed = await edit(
+      await openedDoc(),
+      DocForm.Message.Changed({ key: 'title', value: 'One' }),
+    )
+    // Submitted, and its save not yet run: the author types on.
+    const submitted = docUpdate(
+      typed,
+      DocMessage.GotEditorMessage({ message: DocForm.Message.Submitted() }),
+    )
+    const more = docUpdate(
+      submitted.model,
+      DocMessage.GotEditorMessage({
+        message: DocForm.Message.Changed({ key: 'title', value: 'Two' }),
+      }),
+    ).model
+    let landed = more
+    for (const command of submitted.commands ?? []) {
+      const answer = await Effect.runPromise(command.effect.pipe(Effect.provide(DocClient)))
+      landed = docUpdate(landed, answer as DocMessage).model
+    }
+    expect(Placed.status(landed)).toBe('Editing')
+    expect(DocForm.field(landed.editor.form, 'title').value).toBe('Two')
+    await edit(landed, DocForm.Message.Submitted())
+    expect(sentRevisions).toEqual([1, 2])
   })
 })

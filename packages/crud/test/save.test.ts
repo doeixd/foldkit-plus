@@ -71,14 +71,18 @@ beforeEach(() => {
 const initial: Model = { remote: Remote.initial, editor: Editor.bundle.init().model }
 const form = (model: Model, message: typeof SaveProjectForm.Message.Type) =>
   update(model, Message.GotEditorMessage({ message })).model
-const saved = async (model: Model) => {
+/** Submits, runs the save, and hands its answer back to `update`. */
+const saved = async (model: Model): Promise<Model> => {
   const submitted = update(
     model,
     Message.GotEditorMessage({ message: SaveProjectForm.Message.Submitted() }),
   )
+  let next = submitted.model
   for (const command of submitted.commands ?? []) {
-    await Effect.runPromise(command.effect.pipe(Effect.provide(Client)))
+    const answer = await Effect.runPromise(command.effect.pipe(Effect.provide(Client)))
+    next = update(next, answer as Message).model
   }
+  return next
 }
 
 it('saves a blank form with no id, and an opened one with its own', async () => {
@@ -96,4 +100,15 @@ it('saves a blank form with no id, and an opened one with its own', async () => 
     { id: null, name: 'New' },
     { id: 'p1', name: 'Apollo II' },
   ])
+})
+
+it('starts blank again once a create lands, so saving again is not the same create', async () => {
+  const created = await saved(
+    form(
+      Placed.helpers.blank()(initial).model,
+      SaveProjectForm.Message.Changed({ key: 'name', value: 'New' }),
+    ),
+  )
+  expect(ProjectEditor.status(created)).toBe('Saved')
+  expect(SaveProjectForm.field(created.editor.form, 'name').value).toBe('')
 })

@@ -195,6 +195,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-crud`: an editor's later saves no longer lose another author's
+  change.** After its own save, the editor took any revision that came after
+  as its own, so another client's later save was overwritten without a
+  conflict; it compared each save with what the form was first filled with,
+  so a key it had saved was sent again over another author's change; and
+  typing while a save was in flight lost that save's answer, so the next save
+  conflicted with itself. The editor now takes each save's answer once, as it
+  lands (`edited`, `sent` and `settledFor` in its Model), and `Moved`
+  outranks `Saved`. A create's form starts blank once it lands, so saving it
+  again is not the same create twice.
 - **`foldkit-remote-drizzle`: a keyed cursor over an id column of another
   name.** A page read each order key back by its column's SQL name, beside an
   id selected as `id`, so an id column named otherwise (`task_id`) read as

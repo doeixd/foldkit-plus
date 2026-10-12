@@ -462,12 +462,14 @@ describe('Crud.editor over nested rows', () => {
 
   it('starts a new round on an edit that is not a typed field: a row added', () => {
     const added = update(saved, ThreadForm.Message.RowAdded({ key: 'comments' }), undefined)
-    expect(added.model.requestId).toBeNull()
+    expect(added.model.edited).toBe(true)
+    // The save it sent is still the one whose answer the form takes.
+    expect(added.model.requestId).toBe('EditThread-1')
   })
 
   it('keeps the save for what the author did not write, and the Model for what changed nothing', () => {
     const blurred = update(saved, ThreadForm.Message.Blurred({ key: 'title' }), undefined)
-    expect(blurred.model.requestId).toBe('EditThread-1')
+    expect(blurred.model.edited).toBe(false)
     const dropped = update(
       saved,
       ThreadForm.Message.Nested({ key: 'comments', row: 'r9', message: { _tag: 'Nope' } }),

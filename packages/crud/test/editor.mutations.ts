@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: editor,
-        find: 'form.authoredChanged(model.form, next.model) ? null : model.requestId',
-        replace: "Predicate.isTagged(message, 'Changed') ? null : model.requestId",
+        find: 'model.edited || form.authoredChanged(model.form, next.model)',
+        replace: "model.edited || Predicate.isTagged(message, 'Changed')",
       },
       {
         file: editor,
@@ -27,8 +27,8 @@ export default [
     edits: [
       {
         file: editor,
-        find: 'form.authoredChanged(model.form, next.model) ? null : model.requestId',
-        replace: 'null',
+        find: 'model.edited || form.authoredChanged(model.form, next.model)',
+        replace: 'true',
       },
     ],
     tests,

@@ -264,7 +264,10 @@ Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 - A form and a mutation with different inputs is a type error at `Crud.editor`.
 - One editor serves one form. Create and edit share one when the input's id is
   an `Option` (`Schema.OptionFromNullOr(PostId)`, hidden): `blank()` saves with
-  `none`, `open(id)` with the id it was filled with. Otherwise they are two.
+  `none`, `open(id)` with the id it was filled with; a landed create's form
+  starts blank. Otherwise they are two.
+- Each save's answer is taken once, as it lands: later saves send only keys
+  changed since, and a revision moved after it reads `Moved`.
 
 ## See also
 

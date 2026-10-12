@@ -97,9 +97,19 @@ export interface EditorModel<FormModel> {
   readonly target: string | null
   readonly filled: boolean
   readonly requestId: string | null
+  /** Whether the author changed the form since its last save was sent. */
+  readonly edited: boolean
+  /** What the last save sent, for the form to take once it lands. */
+  readonly sent: Option.Option<Readonly<Record<string, unknown>>>
+  /** The save whose answer the form already took, so it is taken once. */
+  readonly settledFor: Option.Option<string>
   /** The save whose refusal of a field the form already shows, so it is shown once. */
   readonly refusedFor: Option.Option<string>
-  /** The input values the form was filled with: what a save compares to, to send only what changed. */
+  /**
+   * The input values the row held as the form knows it: filled from it, and
+   * moved on by each save of this editor's. A save compares to it, to send
+   * only what changed.
+   */
   readonly filledWith: Option.Option<Readonly<Record<string, unknown>>>
 }
 
@@ -688,6 +698,9 @@ export const Crud = {
       target: null,
       filled: false,
       requestId: null,
+      edited: false,
+      sent: Option.none(),
+      settledFor: Option.none(),
       refusedFor: Option.none(),
       filledWith: Option.none(),
     }
@@ -697,6 +710,9 @@ export const Crud = {
       target: Schema.NullOr(Schema.String),
       filled: Schema.Boolean,
       requestId: Schema.NullOr(Schema.String),
+      edited: Schema.Boolean,
+      sent: Schema.OptionFromNullOr(Schema.Record(Schema.String, Schema.Unknown)),
+      settledFor: Schema.OptionFromNullOr(Schema.String),
       refusedFor: Schema.OptionFromNullOr(Schema.String),
       filledWith: Schema.OptionFromNullOr(Schema.Record(Schema.String, Schema.Unknown)),
     }) as unknown as Schema.Codec<Model, unknown>
@@ -709,17 +725,18 @@ export const Crud = {
       init: () => ({ model: closed }),
       update: (model: Model, message: FormMessage) => {
         const next = form.bundle.update(model.form, message, undefined)
-        // An edit after a save starts a new round; the last save no longer describes the form.
+        // An edit after a save starts a new round: the last save no longer
+        // describes the form, though its answer is still the form's to take.
         // Any authored change counts, not only `Changed`: a row added or a
         // Bundle-backed control's edit is one too.
-        const requestId = form.authoredChanged(model.form, next.model) ? null : model.requestId
-        const unchanged = next.model === model.form && requestId === model.requestId
+        const edited = model.edited || form.authoredChanged(model.form, next.model)
+        const unchanged = next.model === model.form && edited === model.edited
         // The form's Commands are the editor's: a check the form started has to run.
-        const edited = {
-          model: unchanged ? model : { ...model, form: next.model, requestId },
+        const step = {
+          model: unchanged ? model : { ...model, form: next.model, edited },
           ...(next.commands === undefined ? {} : { commands: next.commands }),
         }
-        return next.outMessage === undefined ? edited : { ...edited, outMessage: next.outMessage }
+        return next.outMessage === undefined ? step : { ...step, outMessage: next.outMessage }
       },
       helpers: {
         /** Edits `id`: the form is emptied, and filled once the current values arrive. */
@@ -879,27 +896,49 @@ export const Crud = {
         }
 
         /**
-         * After this editor's own save, the row's revision is the one that save
-         * moved it to: the form takes it, or its next save would conflict with
-         * itself.
+         * Once this editor's save lands, the form takes its answer, once: what
+         * it sent is now what the row holds as the form knows it, and the
+         * revision is the one it moved the row to, or its next save would
+         * conflict with itself. A revision moved after that is another's, and
+         * reads as `Moved`. A create's form starts blank again, its values now
+         * the row's; one the author went on typing in is a new one's draft.
          */
-        const rebased = (root: Root): Root => {
-          if (expectKey === undefined || saveOf(root)._tag !== 'Applied' || !moved(root))
-            return root
+        const settled = (root: Root): Root => {
           const editor = slice.get(root)
-          const revision = Option.getOrThrow(currentRevision(root))
+          const { requestId } = editor
+          if (requestId === null || Option.contains(editor.settledFor, requestId)) return root
+          if (saveOf(root)._tag !== 'Applied') return root
+          const settledFor = Option.some(requestId)
+          if (editor.mode === 'new') {
+            return slice.set(root, {
+              ...editor,
+              settledFor,
+              ...(editor.edited ? {} : { form: form.initial }),
+            })
+          }
+          const revision = expectKey === undefined ? Option.none() : currentRevision(root)
+          const filledWith = Option.some({
+            ...Option.getOrElse(editor.filledWith, () => ({})),
+            ...Option.getOrElse(editor.sent, () => ({})),
+            ...Option.match(revision, {
+              onNone: () => ({}),
+              onSome: value => ({ [expectKey!]: value }),
+            }),
+          })
           return slice.set(root, {
             ...editor,
-            form: form.fill(editor.form, { [expectKey]: revision } as Partial<Value>).model,
-            filledWith: Option.map(editor.filledWith, filled => ({
-              ...filled,
-              [expectKey]: revision,
-            })),
+            settledFor,
+            filledWith,
+            form: Option.match(revision, {
+              onNone: () => editor.form,
+              onSome: value =>
+                form.fill(editor.form, { [expectKey!]: value } as Partial<Value>).model,
+            }),
           })
         }
 
         const sync: Update.Step<Root, never, never> = root => ({
-          model: rebased(refused(filledOf(root))),
+          model: settled(refused(filledOf(root))),
         })
 
         /** Why the server refused the last save, when it refused it as data. */
@@ -929,7 +968,12 @@ export const Crud = {
               )
               const editor = slice.get(started.model)
               return {
-                model: slice.set(started.model, { ...editor, requestId: started.requestId }),
+                model: slice.set(started.model, {
+                  ...editor,
+                  requestId: started.requestId,
+                  edited: false,
+                  sent: Option.some(submitted.value as Readonly<Record<string, unknown>>),
+                }),
                 commands: [started.command],
               }
             },
@@ -1001,6 +1045,8 @@ export const Crud = {
             const read = loaded(root)
             if (read?._tag === 'NotFound') return 'NotFound'
             const save = saveOf(root)
+            // Changed since the last save: that save no longer describes the form.
+            if (editor.edited) return moved(root) ? 'Moved' : 'Editing'
             switch (save._tag) {
               case 'Pending':
                 return 'Saving'
@@ -1009,7 +1055,8 @@ export const Crud = {
                   ? 'Conflict'
                   : 'SaveFailed'
               case 'Applied':
-                return 'Saved'
+                // Saved, and since moved on by someone else.
+                return moved(root) ? 'Moved' : 'Saved'
               case 'Unknown':
                 if (editor.filled) return moved(root) ? 'Moved' : 'Editing'
                 return read?._tag === 'Failed' ? 'LoadFailed' : 'Loading'
