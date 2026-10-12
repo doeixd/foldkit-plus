@@ -361,9 +361,10 @@ const overHttp = Remote.clientLayer(
 ```
 
 `headers` is read for each request, so a token that changes reaches the next
-call. A 403 whose body is not Remote's answer, as middleware in front of the
-server sends for a session it refuses, fails a mutation as `Forbidden` and
-any other call with the status. Neither carries live data. For live data over the same `POST`s,
+call. A 403 whose body does not say `forbidden` itself, as Remote's server's
+does, comes from middleware in front of it refusing a session (a bare
+`{ error }` included): it fails a mutation as `Forbidden` and any other call
+with the status. Neither carries live data. For live data over the same `POST`s,
 `Remote.httpWithLive` keeps reads, queries, and mutations as `http` sends
 them and streams live requirements as a `text/event-stream` of changes;
 [`serveFetch`](../remote-server/README.md#over-fetch-workers) is the other

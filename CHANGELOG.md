@@ -195,6 +195,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`: `Remote.http` reads a middleware's `{ error }` 403 as
+  `Forbidden`.** A 403 whose body happened to be shaped as an error answer was
+  taken for Remote's own, an ordinary mutation error; a 403 is now forbidden
+  unless its body says so itself, as Remote's server's does.
 - **`foldkit-remote`: placing a change no longer redraws or refetches what it
   left in place.** A row whose order field changed but whose place did not
   still gave its list a new identity, so every read of it was drawn again and,

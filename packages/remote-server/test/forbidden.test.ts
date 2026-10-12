@@ -115,16 +115,25 @@ describe('Remote.http', () => {
       response.writeHead(403, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: 'session expired' }))
     })
+    // A body shaped as an error answer, from middleware, is no answer of Remote's.
+    const { client: erring, close: closeErring } = await serving(response => {
+      response.writeHead(403, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'session expired' }))
+    })
     try {
       const mutated = await Effect.runPromise(Effect.flip(client.FoldkitRemoteMutate(archive)))
       expect(mutated).toMatchObject({ _tag: 'Forbidden', message: '403 Forbidden' })
       expect(mutated).not.toHaveProperty('reason')
+      expect(
+        await Effect.runPromise(Effect.flip(erring.FoldkitRemoteMutate(archive))),
+      ).toMatchObject({ _tag: 'Forbidden', message: '403 Forbidden' })
       const read = await Effect.runPromise(
         Effect.flip(client.FoldkitRemoteRead({ version: REMOTE_PROTOCOL_VERSION, requests: [] })),
       )
       expect(read).toMatchObject({ _tag: 'RemoteReadError', message: '403 Forbidden' })
     } finally {
       await close()
+      await closeErring()
     }
   })
 

@@ -31,7 +31,6 @@ export type RemoteJsonAnswer = typeof RemoteJsonAnswer.Type
 type ErrorAnswer = Extract<RemoteJsonAnswer, { readonly error: string }>
 
 const decodeAnswer = Schema.decodeUnknownEffect(RemoteJsonAnswer)
-const isAnswer = Schema.is(RemoteJsonAnswer)
 
 /**
  * Sends one request's text and resolves with its answer as parsed JSON. It
@@ -87,8 +86,9 @@ const notJson = Symbol('not JSON')
 
 /**
  * Remote's client over HTTP: each call a `POST` of the request to `url`, the
- * answer its JSON body whatever its status. A 403 whose body is not an answer
- * (what middleware in front of Remote sends) is answered as forbidden.
+ * answer its JSON body whatever its status. A 403 is answered as forbidden
+ * unless its body says so itself, as the server's own does: one from
+ * middleware in front of Remote (a refused session) may say only `{ error }`.
  * `headers` is read per request, so a token that changes reaches the next
  * call. `fetch` defaults to the global one; pass it to route calls through
  * another implementation in tests.
@@ -109,7 +109,9 @@ export const http = (
     })
     const status = `${response.status} ${response.statusText}`
     const body: unknown = await response.json().catch(() => notJson)
-    if (response.status === 403 && !isAnswer(body)) return { error: status, forbidden: {} }
+    const saysForbidden =
+      typeof body === 'object' && body !== null && Object.hasOwn(body, 'forbidden')
+    if (response.status === 403 && !saysForbidden) return { error: status, forbidden: {} }
     if (body === notJson) throw new Error(status)
     return body
   })

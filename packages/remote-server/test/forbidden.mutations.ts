@@ -38,8 +38,19 @@ export default [
     edits: [
       {
         file: json,
-        find: 'if (response.status === 403 && !isAnswer(body))',
+        find: 'if (response.status === 403 && !saysForbidden)',
         replace: 'if (false)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "Remote.http takes a middleware's error body for Remote's answer",
+    edits: [
+      {
+        file: json,
+        find: "typeof body === 'object' && body !== null && Object.hasOwn(body, 'forbidden')",
+        replace: "typeof body === 'object' && body !== null && Object.hasOwn(body, 'error')",
       },
     ],
     tests,
