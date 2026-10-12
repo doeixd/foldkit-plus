@@ -396,4 +396,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a new route arrives nowhere',
+    edits: [
+      {
+        file,
+        find: '            ...(arrived === undefined ? [] : [(model: Root) => arrived(model, next)]),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

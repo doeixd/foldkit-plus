@@ -181,7 +181,9 @@ same Model when the address parses to the route already shown, so an echo of
 the application's own write never re-renders or clears pending state. The
 wiring claims the click tag and shares the change tag with URL mirrors,
 which read their slices first. `pages` are routed placements (next section),
-informed through their own Messages when their route arrives.
+informed through their own Messages when their route arrives, and
+`arrived: (model, route) => ({ model, commands })` is what the application
+does after them for a new route (moving focus), never for an echo.
 
 ## Stateful pages: one placement
 

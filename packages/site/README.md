@@ -314,7 +314,10 @@ application serves it. A URL change sets the route field, or returns the
 same Model when the address parses to the route already shown, so an echo of
 our own write never re-renders or clears pending state. The application's own
 update answers nothing for either message; `reduces` names them for its
-guard, the way `Remote.reduces` does.
+guard, the way `Remote.reduces` does. What a new route does beyond setting
+the field is `arrived: (model, route) => ({ model, commands })`, run after the
+routed pages are told and never for an echo: the CMS site moves focus to what
+it drew there (`examples/cms/src/apps/siteApp.ts`).
 
 The wiring claims the click tag and shares the change tag with URL mirrors,
 which read their slices first. `CompletedNavigation` is one completion for

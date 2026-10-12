@@ -3,7 +3,7 @@
  * Clicks navigate (pushing or replacing per history); URL changes set the
  * route field, or touch nothing when the address is the route shown.
  */
-import { Option, Schema, pipe } from 'effect'
+import { Effect, Option, Schema, pipe } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
 import {
@@ -148,6 +148,34 @@ describe('URL changes', () => {
     const model = at('/people/3')
     const next = routed(model, Message.ChangedUrl({ url: urlOf('/people/3') }))
     expect(next?.model).toBe(model)
+  })
+
+  it('arrives once the route is set, and not at an echo', () => {
+    const seen: Array<AppRoute> = []
+    const Arriving = Site.routing<Model, Message, AppRoute>({
+      site: AppSite,
+      route: field,
+      parse: urlToAppRoute,
+      tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
+      completed: Message.CompletedNavigation,
+      arrived: model => {
+        seen.push(model.route)
+        return {
+          model,
+          commands: [{ name: 'Arrived', effect: Effect.succeed(Message.CompletedNavigation()) }],
+        }
+      },
+    })
+    const arrive = (model: Model, path: string) =>
+      Arriving.route === undefined
+        ? undefined
+        : Option.getOrUndefined(Arriving.route(model, Message.ChangedUrl({ url: urlOf(path) })))
+    const moved = arrive(at('/'), '/people/3')
+    expect(seen).toEqual([AppRoute.Person({ personId: 3 })])
+    expect(moved?.model.route).toEqual(AppRoute.Person({ personId: 3 }))
+    expect((moved?.commands ?? []).map(command => command.name)).toEqual(['Arrived'])
+    expect(arrive(at('/people/3'), '/people/3')?.commands ?? []).toEqual([])
+    expect(seen).toHaveLength(1)
   })
 
   it('applies the starting URL through onUrl', () => {

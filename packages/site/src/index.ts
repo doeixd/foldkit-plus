@@ -959,6 +959,12 @@ export const Site = {
      * `Site.routing<Model, Message, AppRoute, RemoteClient>`.
      */
     readonly pages?: ReadonlyArray<SitePage<Root, Message, R, any>> | undefined
+    /**
+     * What the application does once a new route is set and its pages are
+     * told: moving focus to what it drew, say. An echo of the shown address
+     * arrives nowhere, so it runs nothing.
+     */
+    readonly arrived?: ((model: Root, route: Route) => Update.Return<Root, Message, R>) | undefined
   }): Wiring<Root, Message, R> & {
     /** Whether the routing owns a message: its click or its URL change. */
     readonly reduces: (message: Message) => boolean
@@ -975,6 +981,7 @@ export const Site = {
           Effect.as(config.completed()),
         ),
     })
+    const { arrived } = config
     const Load = Command.define('Site.Load', {
       args: { href: Schema.String },
       messages: [config.completed],
@@ -1044,6 +1051,7 @@ export const Site = {
               page => (model: Root) =>
                 Option.getOrElse(page.inform(model, next), () => ({ model })),
             ),
+            ...(arrived === undefined ? [] : [(model: Root) => arrived(model, next)]),
           ]
           return Option.some(Update.combine(model, steps))
         }

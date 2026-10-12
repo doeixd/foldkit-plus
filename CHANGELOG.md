@@ -37,6 +37,9 @@ version changed; `pnpm` skips versions already in the registry.
   `Site.shortcuts(site, toMessage)` is every node's shortcut as a
   `Subscription.keyBindings` binding sending the Message made of its
   landing target, refusing a shortcut with no landing or keys used twice.
+- **`foldkit-site`: `Site.routing`'s `arrived`.** What the application does
+  once a new route is set and its routed pages are told, such as moving
+  focus to what it drew; an echo of the shown address runs nothing.
 
 - **`foldkit-plus`: every package in one install, and `npx foldkit-plus setup`.**
   Each package's entry points are re-exported by subpath (`foldkit-remote/port`

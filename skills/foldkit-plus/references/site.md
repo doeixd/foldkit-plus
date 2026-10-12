@@ -101,7 +101,8 @@ and viewless leaves fail loudly.
 key?, when?, onMessage? })`: the link states the relationship once;
 `placed.update` folds, `placed.view` draws. `changed: route => childMsg`
 tells the child on arrival (`undefined` = nothing needed; absent = never
-informed). `Site.routing({ ..., pages: [...] })` informs arrivals. Bundles
+informed). `Site.routing({ ..., pages: [...] })` informs arrivals, and `arrived: (model, route) => Update.Return` runs after
+them for a new route (focus, say), never for an echo. Bundles
 with OutMessages and non-Bundle children stay on `Bundle.at` / `Link.child`.
 
 ## Gotchas
