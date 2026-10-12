@@ -325,11 +325,13 @@ const tagOfConstructor = (constructor: unknown, what: string): string => {
 interface SiteIndex {
   readonly parent: ReadonlyMap<SiteNode<any>, SiteNode<any> | undefined>
   readonly byTag: ReadonlyMap<string, SiteNode<any>>
+  /** The route the first node in tree order reads at an address, or nothing. */
+  readonly read: (url: UrlValue) => Option.Option<any>
 }
 
 const indexes = new WeakMap<SiteTree, SiteIndex>()
 
-/** The parent and tag maps of a tree, computed once per tree value. */
+/** The parent and tag maps and the parser of a tree, computed once per tree value. */
 const indexOf = (site: SiteTree): SiteIndex => {
   const known = indexes.get(site)
   if (known !== undefined) return known
@@ -350,7 +352,16 @@ const indexOf = (site: SiteTree): SiteIndex => {
     for (const child of mount.children) visit(child, mount.node)
   }
   for (const root of site.roots) visit(root, undefined)
-  const index = { parent, byTag }
+  // Foldkit's parser takes only a fallback, so no match falls back to `None`.
+  const parser = parseUrlWithFallback<any, Option.Option<any>>(
+    oneOf(...[...parent.keys()].map(node => node.router)),
+    { make: () => Option.none() },
+  )
+  const read = (url: UrlValue): Option.Option<any> => {
+    const parsed = parser(url)
+    return Option.isOption(parsed) ? parsed : Option.some(parsed)
+  }
+  const index = { parent, byTag, read }
   indexes.set(site, index)
   return index
 }
@@ -559,11 +570,23 @@ export const Site = {
   parse: <Route extends { readonly _tag: string }, Fallback>(
     site: SiteTree<Route>,
     fallback: { readonly make: (data: { readonly path: string }) => Fallback },
-  ): ((url: UrlValue) => Route | Fallback) =>
-    parseUrlWithFallback<Route, Fallback>(
-      oneOf(...Site.nodesOf(site).map(node => node.router)),
-      fallback,
-    ),
+  ): ((url: UrlValue) => Route | Fallback) => {
+    const { read } = indexOf(site)
+    return url =>
+      Option.getOrElse(read(url) as Option.Option<Route>, () =>
+        fallback.make({ path: url.pathname }),
+      )
+  },
+
+  /**
+   * The route the tree reads at an address, as `Site.parse` does, or nothing
+   * when no node takes it: an address the tree does not hold is another
+   * document's, which a link reaches with a full load.
+   */
+  routeAt: <Route extends { readonly _tag: string }>(
+    site: SiteTree<Route>,
+    url: UrlValue,
+  ): Option.Option<Route> => indexOf(site).read(url),
 
   /**
    * The address of a route the tree holds, built by its node's router, so it
@@ -844,9 +867,10 @@ export const Site = {
 
   /**
    * The application's link-click and URL-change lifecycle as one wiring, so
-   * `update` stops hand-writing those two branches. A click on an internal
-   * link navigates (pushing or replacing per `Site.historyOf`); on an
-   * external link it loads; a URL change sets the route field — or touches
+   * `update` stops hand-writing those two branches. A click on a link the
+   * tree holds navigates (pushing or replacing per `Site.historyOf`); on any
+   * other, on this origin or not, it loads, since another document serves
+   * it (`Site.routeAt`); a URL change sets the route field — or touches
    * nothing when the address parses to the route already shown, so an echo
    * of our own write never re-renders or clears pending state. The
    * application's own update answers nothing for either message; `reduces`
@@ -952,22 +976,24 @@ export const Site = {
           const request = (message as unknown as { readonly request: UrlRequest }).request
           return Option.some(
             UrlRequest.match(request, {
-              Internal: ({ url }) => {
-                const next = config.parse(url)
-                const node = Site.nodeOf(config.site, next)
-                const intent =
-                  node === undefined
-                    ? ('push' as const)
-                    : Site.historyOf(currentTarget(model), {
-                        node,
-                        route: next,
-                        url: Url.toString(url),
-                      })
-                return {
-                  model,
-                  commands: [Navigate({ url: Url.toString(url), history: intent })],
-                }
-              },
+              Internal: ({ url }) =>
+                Option.match(Site.routeAt(config.site, url), {
+                  // No node takes it, so another document serves it.
+                  onNone: () => ({ model, commands: [Load({ href: Url.toString(url) })] }),
+                  onSome: next => {
+                    // A lookup: the route came from one of the tree's nodes.
+                    const node = Site.nodeOf(config.site, next)!
+                    const history = Site.historyOf(currentTarget(model), {
+                      node,
+                      route: next,
+                      url: Url.toString(url),
+                    })
+                    return {
+                      model,
+                      commands: [Navigate({ url: Url.toString(url), history })],
+                    }
+                  },
+                }),
               External: ({ href }) => ({ model, commands: [Load({ href })] }),
             }),
           )

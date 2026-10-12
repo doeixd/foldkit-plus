@@ -84,9 +84,8 @@ export default [
     edits: [
       {
         file,
-        find: "                const intent =\n                  node === undefined\n                    ? ('push' as const)\n                    : Site.historyOf(currentTarget(model), {\n                        node,\n                        route: next,\n                        url: Url.toString(url),\n                      })",
-        replace:
-          "                void node\n                void next\n                const intent = 'push' as const",
+        find: 'const history = Site.historyOf(currentTarget(model), {',
+        replace: "const history = 'push' as const; void ({",
       },
     ],
     tests,
@@ -342,6 +341,18 @@ export default [
         file,
         find: '    if (options?.indexed !== undefined) built = built.indexed(options.indexed)\n',
         replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a link the tree does not hold navigates in place',
+    edits: [
+      {
+        file,
+        find: 'onNone: () => ({ model, commands: [Load({ href: Url.toString(url) })] }),',
+        replace:
+          "onNone: () => ({ model, commands: [Navigate({ url: Url.toString(url), history: 'push' })] }),",
       },
     ],
     tests,

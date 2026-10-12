@@ -209,6 +209,14 @@ describe('link clicks', () => {
     })
   })
 
+  it('loads an address on this origin the tree does not hold', () => {
+    const internal = UrlRequest.Internal({ url: urlOf('/studio/posts') })
+    expect(navigated(at('/'), Message.ClickedLink({ request: internal }))).toMatchObject({
+      name: 'Site.Load',
+      args: { href: 'https://example.test/studio/posts' },
+    })
+  })
+
   it('loads an external link', () => {
     const external = UrlRequest.External({ href: 'https://example.com/x' })
     expect(navigated(at('/'), Message.ClickedLink({ request: external }))).toMatchObject({

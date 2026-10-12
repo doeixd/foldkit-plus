@@ -31,6 +31,8 @@ version changed; `pnpm` skips versions already in the registry.
   left unsaid. A tree's type now carries its routes: `Site.parse(site,
   NotFound)` is the application's URL parser and `Site.hrefOf(site, route)`
   builds an address back, refusing a route no node holds.
+  `Site.routeAt(site, url)` is the route at an address, or `None` where no
+  node takes it.
 
 - **`foldkit-plus`: every package in one install, and `npx foldkit-plus setup`.**
   Each package's entry points are re-exported by subpath (`foldkit-remote/port`
@@ -50,6 +52,13 @@ version changed; `pnpm` skips versions already in the registry.
   numbers and a copy button, its tokens (a `foldkit-richtext-code` tokenizer's
   `{ from, to, kind }`) drawn by kind and colored by `Recipes.CodeBlock` from
   the theme's `syntax` group. The block's text is the code exactly.
+
+### Changed
+
+- **`foldkit-site`: `Site.routing` loads a link its tree does not hold.** A
+  tree is one application's document, so a click on an address of this
+  origin that no node takes is a full load, where it was a Navigate Command
+  that could only draw the application's NotFound.
 
 ## 0.17.1
 

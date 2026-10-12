@@ -125,6 +125,12 @@ node that takes any segment (`/:slug`) after the nodes whose literal it would
 take too. `Site.hrefOf(site, route)` builds a route's address with its node's
 router, and refuses at compile time a route no node holds.
 
+**One tree, one document.** A tree holds the routes one application draws.
+`Site.routeAt(site, url)` is the route a node reads at an address, as
+`Site.parse` reads it, or `None` when no node takes it: an address the tree
+does not hold is another document's, reached with a full load, not a
+Navigate Command that could only draw NotFound.
+
 **Every address.** `Site.targets(site, paths)` lists the site in tree order:
 a node whose route has no params once, and a node with params by its
 `Site.paths(node, list)`, where `list` is an Effect giving each address's
@@ -299,9 +305,10 @@ const update = assembly.update((model, message) =>
 )
 ```
 
-A click on an internal link navigates — pushing or replacing per
+A click on a link the tree holds navigates — pushing or replacing per
 `Site.historyOf`, computed from the current route, so entries stay entries.
-An external link loads. A URL change sets the route field, or returns the
+Any other link loads, on this origin or not (`Site.routeAt`): another
+application serves it. A URL change sets the route field, or returns the
 same Model when the address parses to the route already shown, so an echo of
 our own write never re-renders or clears pending state. The application's own
 update answers nothing for either message; `reduces` names them for its

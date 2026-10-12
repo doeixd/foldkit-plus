@@ -173,9 +173,10 @@ const update = assembly.update((model, message) =>
 )
 ```
 
-A click on an internal link navigates — pushing or replacing per
+A click on a link the tree holds navigates — pushing or replacing per
 `Site.historyOf`, computed from the current route, so entries stay entries.
-An external link loads. A URL change sets the route field, or returns the
+Any other link loads, on this origin or not (`Site.routeAt`): another
+application serves it. A URL change sets the route field, or returns the
 same Model when the address parses to the route already shown, so an echo of
 the application's own write never re-renders or clears pending state. The
 wiring claims the click tag and shares the change tag with URL mirrors,
@@ -403,11 +404,9 @@ proven demand, never as framework.
 - A single-screen application has one node; the tree buys nothing.
 - Locales are route params when they arrive; themes are preferences, not
   routes. Neither is built.
-- Nodes do not know their document yet: links across applications are the
-  application's own full loads. Generated pages state no Navigate-vs-load
-  preference.
-- No `paths` enumeration: a node's addresses cannot yet be listed from a
-  query for builds and sitemaps.
+- A tree is one document: an address it does not hold is a full load. A
+  generated page of the same application states no Navigate-vs-load
+  preference; it is navigated to, drawn from what the browser holds.
 - No layout-spanning Surfaces, no per-node child models or route-local
   subscriptions — deliberately, until a real nested layout demands them.
 - Status caveat: the in-repo proof is tests plus the routing example

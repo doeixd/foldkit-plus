@@ -64,7 +64,8 @@ tree's routes. `Site.targets(site, [Site.paths(Post, listPosts), ...])` is an
 Effect of every `{ node, route, url, modified? }`: paramless nodes once,
 param nodes from their `paths` Effect (refused when missing; list none with
 `Effect.succeed([])`). Feed a static build and a sitemap (filter with
-`Site.indexedOf`).
+`Site.indexedOf`). `Site.routeAt(site, url)` is the route at an address as
+an `Option`: `None` means another document serves it (a full load).
 
 **History.** `Site.historyOf(prev, next)`: another node, or an unknown
 location, is a step; within a node its `history` rule (default replace; a
@@ -72,8 +73,8 @@ function for nodes where some param changes are entries of their own).
 
 **Lifecycle.** `Site.routing<Model, Message, Route>({ site, owner, route,
 parse, tags: { clicked, changed }, completed })` is the link-click and
-URL-change lifecycle as one wiring: internal clicks navigate per
-`historyOf`, external links load, URL changes set the route field (or touch
+URL-change lifecycle as one wiring: clicks on links the tree holds navigate
+per `historyOf`, every other link loads (another document), URL changes set the route field (or touch
 nothing on an echo). The app's own update guards with `Routing.reduces`.
 Needs a completion variant and a structural route field (`{ dependency, get,
 set }` — a union field is a union of refs, no single `ModelRef` accepts it).

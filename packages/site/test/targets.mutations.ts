@@ -12,8 +12,19 @@ export default [
     edits: [
       {
         file,
-        find: 'oneOf(...Site.nodesOf(site).map(node => node.router)),',
-        replace: 'oneOf(...[...Site.nodesOf(site)].reverse().map(node => node.router)),',
+        find: 'oneOf(...[...parent.keys()].map(node => node.router)),',
+        replace: 'oneOf(...[...parent.keys()].reverse().map(node => node.router)),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an address no node takes reads as a route',
+    edits: [
+      {
+        file,
+        find: '{ make: () => Option.none() },',
+        replace: "{ make: ({ path }) => Option.some({ _tag: 'NotFound', path }) },",
       },
     ],
     tests,

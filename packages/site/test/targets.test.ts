@@ -53,6 +53,16 @@ describe('Site.parse and Site.hrefOf', () => {
   })
 })
 
+describe('Site.routeAt', () => {
+  it('reads the route a node takes, and nothing where none does', () => {
+    expect(Site.routeAt(AppSite, urlOf('/blog/first'))).toEqual(
+      Option.some(AppRoute.Post({ slug: 'first' })),
+    )
+    expect(Site.routeAt(AppSite, urlOf('/blog'))).toEqual(Option.some(AppRoute.Blog()))
+    expect(Site.routeAt(AppSite, urlOf('/a/b/c'))).toEqual(Option.none())
+  })
+})
+
 describe('Site.targets', () => {
   const posts = Site.paths(
     Post,
