@@ -214,13 +214,26 @@ reader's are; two runs agreed within 10 ms.
 | Navigate | 54 ms | 52 ms |
 | Navigate after a hover | 33 ms | 32 ms |
 
-A full load pays the round trip for the page's HTML at least once, and a
-Navigate Command none, so the gap grows with the network: two to four times
-faster here, and three to six after a hover. The sandbox's server is in the browser, so its reads never
-cross the network; against a server, a Navigate Command without a hover
-adds one round trip for its read, still under a full load's, and the hover
-takes it away again. What a full load had over it, the page's metadata at
-once, matters only to a crawler, which loads every page whole anyway.
+The sandbox's server is in the browser, so there its reads never cross the
+network. `bench:navigation -- --server` runs the same against a build that
+reads over HTTP from the CMS's own server (`dist-server`, see the script),
+so a Navigate Command pays a round trip for its read as well:
+
+| over HTTP, from /site/blog to the post | 0 ms round trip | 100 ms round trip |
+| --- | ---: | ---: |
+| full load, content painted | 108 ms | 212 ms |
+| full load, scripts run | 93 ms | 195 ms |
+| Navigate | 63 ms | 164 ms |
+| Navigate after a hover | 32 ms | 33 ms |
+
+A full load and an unhovered Navigate Command each pay one round trip
+there, for the HTML or for the read, and the Navigate Command still wins by
+about 40 ms, the HTML's parse and paint. After a hover it pays none. So a
+Navigate Command was faster in every case measured: 1.3 to 4 times without
+a hover, 3 to 6 with one. A touch has no hover before its tap, so the
+unhovered row is what a phone gets. What a full load had over it, the
+page's metadata at once, matters only to a crawler, which loads every page
+whole anyway.
 
 So a generated page of the same application is navigated to, and only an
 address the tree does not hold (another application) is a full load, which

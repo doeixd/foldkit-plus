@@ -11,15 +11,22 @@
  * stand for a network; the sandbox's own server is in the browser, so its
  * reads never cross it. Medians of seven runs after two warm-ups.
  *
- * Run: pnpm --filter foldkit-example-cms bench:navigation
+ * With `--server`, the same against `dist-server` (`FOLDKIT_BUILD_ID=bench
+ * vite build --outDir dist-server`), whose pages read over HTTP from the
+ * CMS's own server, started here, so every read crosses the network too.
+ *
+ * Run: pnpm --filter foldkit-example-cms bench:navigation [-- --server]
  */
 import { readFile, stat } from 'node:fs/promises'
-import { createServer } from 'node:http'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Option } from 'effect'
 import { chromium, type Page } from 'playwright'
+import { startHttpServer } from '../src/server/http.js'
 
-const dist = fileURLToPath(new URL('../dist', import.meta.url))
+const overServer = process.argv.includes('--server')
+const dist = fileURLToPath(new URL(overServer ? '../dist-server' : '../dist', import.meta.url))
 const POST = '/site/blog/a-page-is-data'
 const TITLE = 'A page is data'
 const RUNS = 7
@@ -50,10 +57,32 @@ const fileOf = async (pathname: string): Promise<string | undefined> => {
   return undefined
 }
 
-const serve = () =>
+/** Hands a page's `/remote` request to the CMS server at `remote`, as the deploy's proxy would. */
+const forward = async (
+  request: IncomingMessage,
+  response: ServerResponse,
+  remote: string,
+): Promise<void> => {
+  const chunks: Array<Buffer> = []
+  for await (const chunk of request) chunks.push(chunk as Buffer)
+  const answered = await fetch(remote, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-chair': String(request.headers['x-chair']),
+    },
+    body: Buffer.concat(chunks),
+  })
+  response.writeHead(answered.status, { 'content-type': 'application/json' })
+  response.end(Buffer.from(await answered.arrayBuffer()))
+}
+
+const serve = (remote: Option.Option<string>) =>
   new Promise<{ readonly origin: string; readonly close: () => void }>(resolve => {
     const server = createServer(async (request, response) => {
       const url = new URL(request.url ?? '/', 'http://bench')
+      if (url.pathname === '/remote' && Option.isSome(remote))
+        return forward(request, response, remote.value)
       const path = await fileOf(url.pathname)
       if (path === undefined) {
         response.writeHead(404).end()
@@ -165,7 +194,8 @@ const navigatePreloaded: Scenario = async (page, origin, latency) => {
 }
 
 const main = async () => {
-  const { origin, close } = await serve()
+  const remote = overServer ? Option.some(await startHttpServer(0)) : Option.none()
+  const { origin, close } = await serve(Option.map(remote, server => server.url))
   const browser = await chromium.launch()
   const scenarios: ReadonlyArray<readonly [string, Scenario]> = [
     ['full load, content painted', fullLoad],
@@ -197,6 +227,7 @@ const main = async () => {
   }
   await browser.close()
   close()
+  if (Option.isSome(remote)) await remote.value.close()
 }
 
 void main()

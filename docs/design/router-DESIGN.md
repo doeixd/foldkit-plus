@@ -128,8 +128,8 @@ application's own code, in its owning package.
    which only the Model holds.
 4. **Which document does a target prefer?** Answered 2026-10-12 by
    measurement (`docs/benchmarks.md`, "Navigating to a generated page"): a
-   Navigate Command, two to four times faster than a full load, three to
-   six after a hover's read-ahead. A generated page of the same
+   Navigate Command, 1.3 to 4 times faster than a full load (over HTTP and
+   in the sandbox), 3 to 6 after a hover's read-ahead. A generated page of the same
    application is navigated to; no target states a preference.
 5. **What is the single-flight wire?** `refresh` list vs declarative
    requirement diff vs connection-change subscription; server evaluation
@@ -7152,7 +7152,7 @@ is none yet, and so hand-wrote:
 
 > Status 2026-10-12: built and decided — a link the tree does not hold is
 > a full load (`Site.routeAt`, `Site.routing`), and a generated page of the
-> same application is navigated to, which measured two to four times
+> same application is navigated to, which measured 1.3 to 4 times
 > faster than its full load (open question 4, `docs/benchmarks.md`).
 
 §33.7 said a target must know its document. With generated pages there are

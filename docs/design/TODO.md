@@ -293,7 +293,7 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   tree is one document; `Site.routeAt(site, url)` is `None` for an address
   no node takes, and `Site.routing` loads it. The CMS site decides its links
   and preloads by its tree instead of a `/site` prefix. A generated page of
-  the same application is navigated to, measured two to four times faster
+  the same application is navigated to, measured 1.3 to 4 times faster
   than its full load (`docs/benchmarks.md`, `bench:navigation`).
 - [x] **Prefetch a target's data before navigating,** which removes the waits
   the demo still shows between screens. §16, §33.6 The mechanism is built:
