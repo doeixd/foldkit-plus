@@ -44,4 +44,9 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a locked key is not posted',
+    edits: [{ file, find: '? posted(draft).map(value =>', replace: '? [].map((value: string) =>' }],
+    tests,
+  },
 ]

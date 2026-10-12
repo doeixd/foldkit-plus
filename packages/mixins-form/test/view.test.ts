@@ -279,6 +279,24 @@ describe('locked keys', () => {
     ])
   })
 
+  it('posts a locked key as a hidden input, since a disabled control is not posted', () => {
+    const root = FormView.define(Edit)(
+      {
+        model: Edit.fill(initial, { title: 'Kept' }).model,
+        errors: [],
+        canSubmit: true,
+        options,
+        locked: ['title'],
+      },
+      SlotView.inertBuilder(),
+    )
+    const hidden = Inert.all(root)
+      .filter(node => node.sel === 'input' && node.data?.attrs?.type === 'hidden')
+      .map(node => [node.data?.attrs?.name, node.data?.attrs?.value])
+    // As attributes, so a server's markup holds them; an editable key needs none.
+    expect(hidden).toEqual([['title', 'Kept']])
+  })
+
   it('locks the form’s own key, not a row’s key of the same name', () => {
     const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String, name: Schema.String }))
     const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, name: Schema.String }))

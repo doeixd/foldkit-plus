@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-form`: a locked key is posted with scripts off.** It was
+  drawn `disabled`, and a browser leaves a disabled control out of a form post,
+  so a locked required key was missing and the save failed to decode; its
+  value is also drawn as a hidden input.
 - **`foldkit-entity`, `foldkit-remote-drizzle`: NUL is refused in `eq` and
   `in`, as in `contains`.** Given text holding one, the evaluator and SQLite
   answered while Postgres failed the request; every interpreter now refuses it

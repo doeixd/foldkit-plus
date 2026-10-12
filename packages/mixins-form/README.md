@@ -144,6 +144,8 @@ EditForm.view(model, h, {
   a key the person may not set (`foldkit-guard`'s `May.canSet` says which).
   It is a hint; the server checks the write. A key in a nested row is not
   locked by it, and a Bundle-backed key draws as its Bundle does.
+  A disabled control is left out of a form post, so a locked key's value is
+  also drawn as a hidden input: a form posted with scripts off still sends it.
 - `options` is keyed by the form's keys and is where a relation picker's choices
   come from. The form names the target Entity; listing it is a query you make,
   so the choices are yours to load, filter, and label.

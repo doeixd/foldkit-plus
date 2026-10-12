@@ -728,6 +728,18 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
             ]
           : []),
         body,
+        // A disabled control is left out of a post, so a locked key's value goes
+        // as hidden inputs: a form posted with scripts off still carries it.
+        // Attributes, not properties, so a server's markup holds them.
+        ...(input.locked === true
+          ? posted(draft).map(value =>
+              h.input([
+                h.Attribute('type', 'hidden'),
+                h.Attribute('name', key),
+                h.Attribute('value', value),
+              ]),
+            )
+          : []),
         ...(description === undefined
           ? []
           : [h.p(slots.description.attrs([h.Id(`${id}-description`)]), [description])]),
@@ -745,6 +757,12 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
     },
     { name: 'FormField' },
   )
+}
+
+/** What a draft posts as: its text, each of its values, or nothing for a control's own Model. */
+const posted = (draft: unknown): ReadonlyArray<string> => {
+  if (typeof draft === 'string') return [draft]
+  return Array.isArray(draft) ? draft.map(String) : []
 }
 
 export const FormView = {
