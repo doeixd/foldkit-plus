@@ -203,7 +203,7 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
       join(repository, 'examples/site/src/snippets', SNIPPETS[name]),
       'utf8',
     )
-    return ih => [codeBlock(ih, highlight, source.trimEnd(), 'ts')]
+    return ih => [codeBlock(ih, highlight, { code: source.trimEnd(), lang: 'ts', copy: true })]
   }
 
   return {

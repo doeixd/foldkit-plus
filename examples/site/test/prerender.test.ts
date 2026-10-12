@@ -98,7 +98,7 @@ describe('the generated site', () => {
     const panels = Array.from(home.querySelectorAll('[role="tabpanel"]'))
     expect(panels.map(panel => panel.hasAttribute('hidden'))).toEqual([false, true, true, true])
     expect(panels[1]?.querySelector('pre')?.textContent).toContain('Agent.forApplication(App)')
-    expect(panels[1]?.querySelector('pre span[style*="light-dark"]')).not.toBeNull()
+    expect(panels[1]?.querySelector('pre [data-kind="syntax-keyword"]')?.textContent).toBe('import')
   })
 
   test('the demos page has a row for each demo, with the way in, its code and its packages', () => {
@@ -125,6 +125,10 @@ describe('the generated site', () => {
       '/remote/guides/live-data',
     ])
     expect(live.querySelector('article h1')?.textContent).toBe('Live data')
+    // A fence is a code block: named by its language, with a button the page's script answers.
+    const fence = live.querySelector('article figure')
+    expect(fence?.querySelector('[data-copy-code]')?.textContent).toBe('Copy')
+    expect(fence?.querySelector('pre code')?.textContent).toContain('break -> gap marked')
     expect(hrefs(live, 'nav[aria-label="Documentation"] a')).toContain(
       '/remote/guides/remote-server',
     )

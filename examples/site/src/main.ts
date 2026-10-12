@@ -5,8 +5,8 @@
  * holds what a page is called and the little the browser changes on it: the
  * menu on a phone and which example the home page shows.
  */
-import { Effect, Schema } from 'effect'
-import { Command, type Update } from 'foldkit'
+import { Effect, Option, Schema } from 'effect'
+import { Command, Subscription, type Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
@@ -15,7 +15,7 @@ import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { allSubsites } from './catalog.js'
-import type { Library } from './library.js'
+import { COPY_ATTRIBUTE, type Library } from './library.js'
 import { Body } from './view/layout.js'
 
 // MODEL
@@ -48,16 +48,46 @@ export const Message = defineMessageUnion({
   ChoseExample: { example: Example },
   PressedCopy: { text: Schema.String },
   CopiedText: {},
+  PressedCodeCopy: { index: Schema.Number },
+  CopiedCode: {},
+  FailedToCopy: {},
 })
 export type Message = typeof Message.Type
 
 // COMMAND
 
+/** The clipboard refuses outside a secure context, or when the reader denies it. */
+const writeClipboard = (text: string) =>
+  Effect.tryPromise(() => navigator.clipboard.writeText(text))
+
 const CopyText = Command.define('CopyText', {
   args: { text: Schema.String },
-  messages: [Message.CopiedText],
+  messages: [Message.CopiedText, Message.FailedToCopy],
   execute: ({ text }) =>
-    Effect.promise(() => navigator.clipboard.writeText(text)).pipe(Effect.as(Message.CopiedText())),
+    writeClipboard(text).pipe(
+      Effect.as(Message.CopiedText()),
+      Effect.orElseSucceed(() => Message.FailedToCopy()),
+    ),
+})
+
+/**
+ * Copies the code of the code block whose button is the `index`th on the
+ * page, and marks the button done. The block is in a static region, which
+ * the browser never draws again, so the button is marked where it stands.
+ */
+export const CopyCode = Command.define('CopyCode', {
+  args: { index: Schema.Number },
+  messages: [Message.CopiedCode, Message.FailedToCopy],
+  execute: ({ index }) =>
+    Effect.gen(function* () {
+      const button = document.querySelectorAll<HTMLElement>(`[${COPY_ATTRIBUTE}]`)[index]
+      const code = button?.closest('figure')?.querySelector('pre code')?.textContent
+      if (button === undefined || code === undefined || code === null) return Message.FailedToCopy()
+      yield* writeClipboard(code)
+      button.dataset['copied'] = 'true'
+      button.textContent = 'Copied'
+      return Message.CopiedCode()
+    }).pipe(Effect.orElseSucceed(() => Message.FailedToCopy())),
 })
 
 // UPDATE
@@ -73,7 +103,32 @@ export const update = (model: Model, message: Message) =>
         : { model: modifyFields(model, { example: () => example }) },
     PressedCopy: ({ text }) => ({ model, commands: [CopyText({ text })] }),
     CopiedText: () => ({ model: modifyFields(model, { copied: () => true }) }),
+    PressedCodeCopy: ({ index }) => ({ model, commands: [CopyCode({ index })] }),
+    CopiedCode: () => ({ model }),
+    FailedToCopy: () => ({ model }),
   })
+
+// SUBSCRIPTION
+
+/** Which copy button a click landed on, counted in the page's order. */
+export const codeCopyOf = (event: MouseEvent): Option.Option<Message> => {
+  const button =
+    event.target instanceof Element ? event.target.closest(`[${COPY_ATTRIBUTE}]`) : null
+  if (button === null) return Option.none()
+  const index = Array.from(document.querySelectorAll(`[${COPY_ATTRIBUTE}]`)).indexOf(button)
+  return index === -1 ? Option.none() : Option.some(Message.PressedCodeCopy({ index }))
+}
+
+/** A code block's copy button, answered for the static region that drew it without a handler. */
+export const subscriptions = Subscription.make<Model, Message>()(() => ({
+  codeCopy: Subscription.persistent(
+    Subscription.fromEventFilterMap({
+      target: () => document,
+      type: 'click',
+      filterMapEvent: codeCopyOf,
+    }),
+  ),
+}))
 
 // INIT
 

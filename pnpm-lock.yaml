@@ -1479,9 +1479,15 @@ importers:
       foldkit-mixins-surface:
         specifier: workspace:*
         version: link:../../packages/mixins-surface
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
       foldkit-remote:
         specifier: workspace:*
         version: link:../../packages/remote
+      foldkit-richtext-code-shiki:
+        specifier: workspace:*
+        version: link:../../packages/richtext-code-shiki
       foldkit-sync:
         specifier: workspace:*
         version: link:../../packages/sync

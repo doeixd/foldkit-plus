@@ -1,20 +1,17 @@
 /**
- * Code coloured at build time with Shiki: each token carries a
- * `light-dark()` colour, so one rendering serves both schemes and the browser
- * loads no highlighter.
+ * Code tokenized at build time by `foldkit-richtext-code-shiki`: Shiki's
+ * grammars read into the `syntax-*` kinds, which the theme colors, so the page
+ * carries kinds and no colors and the browser loads no highlighter.
  */
-import { createHighlighter, type BundledLanguage } from 'shiki'
+import type { CodeBlock } from 'foldkit-mixins-ui'
+import { shikiTokenizers } from 'foldkit-richtext-code-shiki'
+import { createHighlighter } from 'shiki'
 
-export interface Token {
-  readonly text: string
-  /** A CSS colour, `light-dark(…, …)`, or empty for the block's own colour. */
-  readonly color: string
-}
-
+/** A language's tokens, or none for a language with no grammar here. */
 export type Highlight = (
   code: string,
   lang: string | null | undefined,
-) => ReadonlyArray<ReadonlyArray<Token>>
+) => ReadonlyArray<CodeBlock.CodeToken>
 
 const languages = [
   'typescript',
@@ -28,50 +25,29 @@ const languages = [
   'yaml',
   'diff',
   'markdown',
-] as const satisfies ReadonlyArray<BundledLanguage>
+]
 
 /** What a fence may call a language, and the grammar it means. */
-const aliases: Readonly<Record<string, (typeof languages)[number]>> = {
+const aliases: Readonly<Record<string, string>> = {
   ts: 'typescript',
-  typescript: 'typescript',
-  tsx: 'tsx',
   js: 'javascript',
-  javascript: 'javascript',
   mjs: 'javascript',
-  json: 'json',
   jsonc: 'json',
   sh: 'bash',
   shell: 'bash',
-  bash: 'bash',
   console: 'bash',
-  html: 'html',
-  css: 'css',
-  sql: 'sql',
-  yaml: 'yaml',
   yml: 'yaml',
-  diff: 'diff',
   md: 'markdown',
-  markdown: 'markdown',
 }
 
-const THEMES = { light: 'github-light', dark: 'github-dark' } as const
-
 export const highlighter = async (): Promise<Highlight> => {
-  const shiki = await createHighlighter({ themes: Object.values(THEMES), langs: [...languages] })
+  // A theme is loaded only because tokenizing needs one; its colors are not used.
+  const tokenizers = shikiTokenizers(
+    await createHighlighter({ themes: ['github-light'], langs: languages }),
+  )
   return (code, lang) => {
-    const grammar = lang === null || lang === undefined ? undefined : aliases[lang.toLowerCase()]
-    if (grammar === undefined) return code.split('\n').map(line => [{ text: line, color: '' }])
-    return shiki
-      .codeToTokens(code, { lang: grammar, themes: THEMES, defaultColor: false })
-      .tokens.map(line =>
-        line.map(token => {
-          const light = token.htmlStyle?.['--shiki-light']
-          const dark = token.htmlStyle?.['--shiki-dark']
-          return {
-            text: token.content,
-            color: light === undefined || dark === undefined ? '' : `light-dark(${light}, ${dark})`,
-          }
-        }),
-      )
+    if (lang === null || lang === undefined) return []
+    const name = lang.toLowerCase()
+    return tokenizers.get(Object.hasOwn(aliases, name) ? aliases[name]! : name)?.(code) ?? []
   }
 }

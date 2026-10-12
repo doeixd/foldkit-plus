@@ -73,7 +73,11 @@ renamed heading or a moved file fails the test rather than a reader.
 - `src/view/`: the frame and rail (`layout.ts`), the home page, the demos, and a
   doc page's two regions.
 - `src/content/`: the build-time half: Markdown cut into guide pages, drawn with
-  the inert builder, code coloured by Shiki, and the library the view asks.
+  the inert builder, code tokenized by `foldkit-richtext-code-shiki` into the
+  `syntax-*` kinds and drawn by `foldkit-mixins-ui`'s `CodeBlock`, colored by
+  the theme, and the library the view asks. A code block's copy button is in a
+  static region, which draws no handler: a click subscription in `main.ts`
+  finds which button was pressed and copies its block's code.
 - `src/api/`: the API data, read with the TypeScript checker from the source
   file behind each of a package's `exports`, when the library is built. An
   entry point is a page listing its exports by kind, and each export a page

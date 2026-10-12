@@ -118,7 +118,7 @@ const member = (ih: Ih, drawing: Drawing, owner: string, entry: ApiMember, id: s
         ],
       ),
       ih.p([], [ih.span([ih.Class('kind')], [entry.kind]), ' · ', sourceLink(ih, entry.source)]),
-      codeBlock(ih, drawing.highlight, entry.signature, 'ts'),
+      codeBlock(ih, drawing.highlight, { code: entry.signature, lang: 'ts', copy: false }),
       ...prose(ih, drawing, entry.summary),
       ...paramsOf(ih, drawing, entry.params),
       ...tagsOf(ih, drawing, entry.tags),
@@ -129,12 +129,12 @@ const exportBody =
   (drawing: Drawing, entry: ApiExport, ids: ReadonlyArray<string>) =>
   (ih: Ih): Region => [
     ih.p([], [ih.span([ih.Class('kind')], [entry.kind]), ' · ', sourceLink(ih, entry.source)]),
-    codeBlock(ih, drawing.highlight, entry.signature, 'ts'),
+    codeBlock(ih, drawing.highlight, { code: entry.signature, lang: 'ts', copy: false }),
     ...Option.match(entry.typeSignature, {
       onNone: () => [],
       onSome: signature => [
         ih.h4([], ['Its type']),
-        codeBlock(ih, drawing.highlight, signature, 'ts'),
+        codeBlock(ih, drawing.highlight, { code: signature, lang: 'ts', copy: false }),
       ],
     }),
     ...prose(ih, drawing, entry.summary),

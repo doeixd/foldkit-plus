@@ -15,6 +15,7 @@
       "foldkit-mirror": ["../../packages/mirror/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-surface": ["../../packages/mixins-surface/src/index.ts"],
+      "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],
@@ -26,6 +27,8 @@
       "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
+      "foldkit-richtext": ["../../packages/richtext/src/index.ts"],
+      "foldkit-richtext-code-shiki": ["../../packages/richtext-code-shiki/src/index.ts"],
       "foldkit-ssr": ["../../packages/ssr/src/index.ts"],
       "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
       "foldkit-ssr/vite": ["../../packages/ssr/src/vite.ts"],
@@ -39,6 +42,15 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
   "references": [
+    {
+      "path": "../../packages/mixins-ui/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/richtext-code-shiki/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/richtext/tsconfig.build.json"
+    },
     {
       "path": "../../packages/agent/tsconfig.build.json"
     },

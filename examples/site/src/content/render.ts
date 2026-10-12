@@ -1,11 +1,15 @@
 /**
  * Markdown drawn with Foldkit's inert builder, for a static region: plain
  * elements, which the article's prose styling reaches by their names, and
- * code coloured by Shiki at build time.
+ * code drawn by `foldkit-mixins-ui`'s `CodeBlock`, tokenized at build time.
  */
 import type { Heading, PhrasingContent, RootContent, TableCell } from 'mdast'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
+import { Behavior, Style } from 'foldkit-mixins'
+import { CodeBlock, CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
+
+import { COPY_ATTRIBUTE } from '../library.js'
 import type { Highlight } from './highlight.js'
 
 export interface Context {
@@ -16,28 +20,34 @@ export interface Context {
 
 type Ih = HtmlBuilder<never>
 
-/** A code block: the colour of each token, and a label naming its language. */
-export const codeBlock = (
-  ih: Ih,
-  highlight: Highlight,
-  code: string,
-  lang: string | null | undefined,
-): Html =>
-  ih.pre(
-    [ih.DataAttribute('lang', lang ?? 'text')],
-    [
-      ih.code(
-        [],
-        highlight(code, lang).flatMap((line, index) => [
-          ...(index === 0 ? [] : ['\n']),
-          ...line.map(token =>
-            token.color === ''
-              ? token.text
-              : ih.span([ih.Style({ color: token.color })], [token.text]),
-          ),
-        ]),
-      ),
-    ],
+/** The site's code: the shipped recipe, colored from the theme's `syntax` group. */
+const CodeStyle = Style.forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
+
+const CopyHook = Behavior.forSlots(CodeBlockSlots)<undefined, never>({
+  copy: { attributes: ({ h }) => [h.Attribute(COPY_ATTRIBUTE, '')] },
+})
+
+export interface Code {
+  readonly code: string
+  readonly lang?: string | null | undefined
+  /** Named over the code: its language, for a guide's fence. */
+  readonly label?: string | undefined
+  /** Drawn with a copy button. */
+  readonly copy: boolean
+}
+
+/** A code block, its tokens colored by kind, drawn with the shipped `CodeBlock`. */
+export const codeBlock = (ih: Ih, highlight: Highlight, { code, lang, label, copy }: Code): Html =>
+  CodeBlock.view(
+    {
+      code,
+      tokens: highlight(code, lang),
+      ...(label === undefined ? {} : { language: label }),
+      ...(copy ? { copy: {} } : {}),
+      style: CodeStyle,
+      mixins: [CopyHook.mixin],
+    },
+    ih,
   )
 
 const external = (url: string) => /^https?:/.test(url)
@@ -104,7 +114,15 @@ export const block = (ih: Ih, context: Context, node: RootContent): Html | strin
       )
     }
     case 'code':
-      return codeBlock(ih, context.highlight, node.value, node.lang)
+      return codeBlock(ih, context.highlight, {
+        code: node.value,
+        lang: node.lang,
+        // A fence with no language, or a diagram in `text`, is named by nothing.
+        ...(node.lang === null || node.lang === undefined || node.lang === 'text'
+          ? {}
+          : { label: node.lang }),
+        copy: true,
+      })
     case 'blockquote':
       return ih.blockquote(
         [],

@@ -390,17 +390,10 @@ export const SiteStyle = slots(
       },
       Style.media('(max-width: 44rem)', { borderInlineEnd: '0', borderBlockEnd: rule }),
     ],
+    // The example's code block sits in the frame, which draws the border.
     code: [
       { minWidth: '0' },
-      Style.nest('pre', {
-        margin: '0',
-        padding: t.space.lg,
-        overflowX: 'auto',
-        fontFamily: t.font.mono,
-        fontSize: '0.8125rem',
-        lineHeight: '1.65',
-        tabSize: '2',
-      }),
+      Style.nest('figure', { border: '0', borderRadius: '0', background: 'transparent' }),
     ],
     // The packages, shelf by shelf, a card each.
     shelf: { display: 'flex', flexDirection: 'column', gap: t.space.sm },
@@ -521,7 +514,7 @@ export const SiteStyle = slots(
       Style.nest(`> [${STATIC_ATTRIBUTE}] > * + *`, { marginBlockStart: t.space.md }),
       Style.nest(`> [${STATIC_ATTRIBUTE}] > :is(h2, h3, h4)`, { marginBlockStart: t.space['2xl'] }),
       Style.nest(`> [${STATIC_ATTRIBUTE}] > :is(h2, h3, h4) + *`, { marginBlockStart: t.space.sm }),
-      Style.nest(`> [${STATIC_ATTRIBUTE}] > :is(pre, .table, blockquote, hr)`, {
+      Style.nest(`> [${STATIC_ATTRIBUTE}] > :is(figure, .table, blockquote, hr)`, {
         marginBlock: t.space.lg,
       }),
       { color: t.text.default, fontSize: '0.96875rem' },
@@ -575,15 +568,6 @@ export const SiteStyle = slots(
         borderRadius: t.radius.sm,
         background: t.surface.muted,
         border: rule,
-      }),
-      Style.nest('pre', {
-        ...codeBox,
-        padding: t.space.md,
-        overflowX: 'auto',
-        fontFamily: t.font.mono,
-        fontSize: '0.8125rem',
-        lineHeight: '1.65',
-        tabSize: '2',
       }),
       Style.nest('.table', { overflowX: 'auto', marginBlock: t.space.lg }),
       Style.nest('table', { minWidth: '100%' }),

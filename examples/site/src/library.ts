@@ -7,6 +7,12 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import type { Example, Page } from './main.js'
 
+/**
+ * The attribute a code block's copy button carries for the page's script: a
+ * static region draws no handler, so `main.ts` answers its clicks itself.
+ */
+export const COPY_ATTRIBUTE = 'data-copy-code'
+
 /** What a static region holds. */
 export type Region = ReadonlyArray<Html | string>
 

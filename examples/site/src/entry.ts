@@ -2,7 +2,7 @@ import { Style } from 'foldkit-mixins'
 import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-ssr/client'
 
 import { browserLibrary } from './library.js'
-import { Message, Model, initial, plan, update, viewWith } from './main.js'
+import { Message, Model, initial, plan, subscriptions, update, viewWith } from './main.js'
 import { stylesheet } from './style.js'
 
 // A page the build rendered carries the stylesheet in its head already, which
@@ -27,6 +27,7 @@ SSR.hydrate(
     init: () => ({ model: initial }),
     update,
     view: viewWith(browserLibrary),
+    subscriptions,
     container,
     devTools: { Message },
   },

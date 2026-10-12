@@ -7,6 +7,7 @@ const tests = [
   'examples/site/test/demos.test.ts',
   'examples/site/test/guides.test.ts',
   'examples/site/test/prerender.test.ts',
+  'examples/site/test/copy.test.ts',
 ]
 export default [
   {
@@ -113,8 +114,8 @@ export default [
     edits: [
       {
         file: '../src/content/highlight.ts',
-        find: "light === undefined || dark === undefined ? '' : `light-dark(${light}, ${dark})`",
-        replace: "''",
+        find: '?.(code) ?? []',
+        replace: '&& []',
       },
     ],
     tests,
@@ -149,6 +150,23 @@ export default [
         find: "member(ih, drawing, entry.name, each, ids[index] ?? ''),",
         replace: 'ih.span([], [String(index)]),',
       },
+    ],
+    tests,
+  },
+  {
+    name: 'a click credited to the button after it',
+    edits: [{ file: '../src/main.ts', find: '.indexOf(button)', replace: '.indexOf(button) + 1' }],
+    tests,
+  },
+  {
+    name: 'a copy that marks no button done',
+    edits: [{ file: '../src/main.ts', find: "button.textContent = 'Copied'", replace: '' }],
+    tests,
+  },
+  {
+    name: 'a fence drawn without its copy button',
+    edits: [
+      { file: '../src/content/render.ts', find: '...(copy ? { copy: {} } : {}),', replace: '' },
     ],
     tests,
   },
