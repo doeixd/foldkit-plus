@@ -1,6 +1,6 @@
 /**
  * The conformance suite for a query body: what
- * [data-query-DESIGN §6.0.1](../../../docs/design/data-query-DESIGN.md) says
+ * [data-query-DESIGN §6.0.1](../../../../docs/design/data-query-DESIGN.md) says
  * each operator means, as cases an interpreter can be run against.
  *
  * Exported rather than kept in this repository's tests, because the interpreter
