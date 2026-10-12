@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-plus`: every package in one install, and `npx foldkit-plus setup`.**
+  Each package's entry points are re-exported by subpath (`foldkit-remote/port`
+  is `foldkit-plus/remote/port`), the namespaces most applications use from the
+  root, and an adapter that needs a library of its own (React, Drizzle, Shiki,
+  `@foldkit/ui`, Agent Native) is an optional peer, so none of those libraries
+  is installed with it. `setup` prints, for the project it runs in, how to
+  install Effect, Foldkit and Foldkit Plus with that project's package manager,
+  which `effect` or `foldkit` version is wrong or missing, the agent skill, and
+  which package does which job, written for a coding agent to follow.
+
 - **`foldkit-mixins`: code colors in `Theme.oklch`.** A `syntax` group colors
   each kind `foldkit-richtext-code` and `foldkit-richtext-code-shiki` name
   (`syntax-keyword` reads `--fk-syntax-keyword`), in hues the palette already

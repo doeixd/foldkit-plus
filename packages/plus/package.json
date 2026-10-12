@@ -1,0 +1,587 @@
+{
+  "name": "foldkit-plus",
+  "version": "0.1.0",
+  "description": "Every Foldkit Plus package in one install, and `npx foldkit-plus setup`, which tells a coding agent how to start.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "typescript",
+    "agents"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/plus"
+  },
+  "homepage": "https://foldkit-plus.pages.dev",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "bin": {
+    "foldkit-plus": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "foldkit-plus:source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./agent": {
+      "foldkit-plus:source": "./src/agent.ts",
+      "types": "./dist/agent.d.mts",
+      "import": "./dist/agent.mjs"
+    },
+    "./agent-a2a": {
+      "foldkit-plus:source": "./src/agent-a2a.ts",
+      "types": "./dist/agent-a2a.d.mts",
+      "import": "./dist/agent-a2a.mjs"
+    },
+    "./agent-mcp": {
+      "foldkit-plus:source": "./src/agent-mcp.ts",
+      "types": "./dist/agent-mcp.d.mts",
+      "import": "./dist/agent-mcp.mjs"
+    },
+    "./agent-native": {
+      "foldkit-plus:source": "./src/agent-native.ts",
+      "types": "./dist/agent-native.d.mts",
+      "import": "./dist/agent-native.mjs"
+    },
+    "./agent-webmcp": {
+      "foldkit-plus:source": "./src/agent-webmcp.ts",
+      "types": "./dist/agent-webmcp.d.mts",
+      "import": "./dist/agent-webmcp.mjs"
+    },
+    "./builder": {
+      "foldkit-plus:source": "./src/builder.ts",
+      "types": "./dist/builder.d.mts",
+      "import": "./dist/builder.mjs"
+    },
+    "./bundle": {
+      "foldkit-plus:source": "./src/bundle.ts",
+      "types": "./dist/bundle.d.mts",
+      "import": "./dist/bundle.mjs"
+    },
+    "./bundle-surface": {
+      "foldkit-plus:source": "./src/bundle-surface.ts",
+      "types": "./dist/bundle-surface.d.mts",
+      "import": "./dist/bundle-surface.mjs"
+    },
+    "./cms": {
+      "foldkit-plus:source": "./src/cms.ts",
+      "types": "./dist/cms.d.mts",
+      "import": "./dist/cms.mjs"
+    },
+    "./cms-drizzle": {
+      "foldkit-plus:source": "./src/cms-drizzle.ts",
+      "types": "./dist/cms-drizzle.d.mts",
+      "import": "./dist/cms-drizzle.mjs"
+    },
+    "./composition": {
+      "foldkit-plus:source": "./src/composition.ts",
+      "types": "./dist/composition.d.mts",
+      "import": "./dist/composition.mjs"
+    },
+    "./composition/foldkit": {
+      "foldkit-plus:source": "./src/composition/foldkit.ts",
+      "types": "./dist/composition/foldkit.d.mts",
+      "import": "./dist/composition/foldkit.mjs"
+    },
+    "./composition/richtext": {
+      "foldkit-plus:source": "./src/composition/richtext.ts",
+      "types": "./dist/composition/richtext.d.mts",
+      "import": "./dist/composition/richtext.mjs"
+    },
+    "./composition/appearance": {
+      "foldkit-plus:source": "./src/composition/appearance.ts",
+      "types": "./dist/composition/appearance.d.mts",
+      "import": "./dist/composition/appearance.mjs"
+    },
+    "./composition/remote": {
+      "foldkit-plus:source": "./src/composition/remote.ts",
+      "types": "./dist/composition/remote.d.mts",
+      "import": "./dist/composition/remote.mjs"
+    },
+    "./composition/surface": {
+      "foldkit-plus:source": "./src/composition/surface.ts",
+      "types": "./dist/composition/surface.d.mts",
+      "import": "./dist/composition/surface.mjs"
+    },
+    "./crud": {
+      "foldkit-plus:source": "./src/crud.ts",
+      "types": "./dist/crud.d.mts",
+      "import": "./dist/crud.mjs"
+    },
+    "./data-grid/crud": {
+      "foldkit-plus:source": "./src/data-grid/crud.ts",
+      "types": "./dist/data-grid/crud.d.mts",
+      "import": "./dist/data-grid/crud.mjs"
+    },
+    "./data-grid": {
+      "foldkit-plus:source": "./src/data-grid.ts",
+      "types": "./dist/data-grid.d.mts",
+      "import": "./dist/data-grid.mjs"
+    },
+    "./durable": {
+      "foldkit-plus:source": "./src/durable.ts",
+      "types": "./dist/durable.d.mts",
+      "import": "./dist/durable.mjs"
+    },
+    "./durable/core": {
+      "foldkit-plus:source": "./src/durable/core.ts",
+      "types": "./dist/durable/core.d.mts",
+      "import": "./dist/durable/core.mjs"
+    },
+    "./entity": {
+      "foldkit-plus:source": "./src/entity.ts",
+      "types": "./dist/entity.d.mts",
+      "import": "./dist/entity.mjs"
+    },
+    "./entity/conformance": {
+      "foldkit-plus:source": "./src/entity/conformance.ts",
+      "types": "./dist/entity/conformance.d.mts",
+      "import": "./dist/entity/conformance.mjs"
+    },
+    "./form": {
+      "foldkit-plus:source": "./src/form.ts",
+      "types": "./dist/form.d.mts",
+      "import": "./dist/form.mjs"
+    },
+    "./guard": {
+      "foldkit-plus:source": "./src/guard.ts",
+      "types": "./dist/guard.d.mts",
+      "import": "./dist/guard.mjs"
+    },
+    "./guard/server": {
+      "foldkit-plus:source": "./src/guard/server.ts",
+      "types": "./dist/guard/server.d.mts",
+      "import": "./dist/guard/server.mjs"
+    },
+    "./guard/drizzle": {
+      "foldkit-plus:source": "./src/guard/drizzle.ts",
+      "types": "./dist/guard/drizzle.d.mts",
+      "import": "./dist/guard/drizzle.mjs"
+    },
+    "./guard/agent": {
+      "foldkit-plus:source": "./src/guard/agent.ts",
+      "types": "./dist/guard/agent.d.mts",
+      "import": "./dist/guard/agent.mjs"
+    },
+    "./guard/sync": {
+      "foldkit-plus:source": "./src/guard/sync.ts",
+      "types": "./dist/guard/sync.d.mts",
+      "import": "./dist/guard/sync.mjs"
+    },
+    "./metadata": {
+      "foldkit-plus:source": "./src/metadata.ts",
+      "types": "./dist/metadata.d.mts",
+      "import": "./dist/metadata.mjs"
+    },
+    "./mirror": {
+      "foldkit-plus:source": "./src/mirror.ts",
+      "types": "./dist/mirror.d.mts",
+      "import": "./dist/mirror.mjs"
+    },
+    "./mixins": {
+      "foldkit-plus:source": "./src/mixins.ts",
+      "types": "./dist/mixins.d.mts",
+      "import": "./dist/mixins.mjs"
+    },
+    "./mixins/layers": {
+      "foldkit-plus:source": "./src/mixins/layers.ts",
+      "types": "./dist/mixins/layers.d.mts",
+      "import": "./dist/mixins/layers.mjs"
+    },
+    "./mixins/theme": {
+      "foldkit-plus:source": "./src/mixins/theme.ts",
+      "types": "./dist/mixins/theme.d.mts",
+      "import": "./dist/mixins/theme.mjs"
+    },
+    "./mixins/layout": {
+      "foldkit-plus:source": "./src/mixins/layout.ts",
+      "types": "./dist/mixins/layout.d.mts",
+      "import": "./dist/mixins/layout.mjs"
+    },
+    "./mixins/defaults": {
+      "foldkit-plus:source": "./src/mixins/defaults.ts",
+      "types": "./dist/mixins/defaults.d.mts",
+      "import": "./dist/mixins/defaults.mjs"
+    },
+    "./mixins/prose": {
+      "foldkit-plus:source": "./src/mixins/prose.ts",
+      "types": "./dist/mixins/prose.d.mts",
+      "import": "./dist/mixins/prose.mjs"
+    },
+    "./mixins/app": {
+      "foldkit-plus:source": "./src/mixins/app.ts",
+      "types": "./dist/mixins/app.d.mts",
+      "import": "./dist/mixins/app.mjs"
+    },
+    "./mixins/utilities": {
+      "foldkit-plus:source": "./src/mixins/utilities.ts",
+      "types": "./dist/mixins/utilities.d.mts",
+      "import": "./dist/mixins/utilities.mjs"
+    },
+    "./mixins/testing": {
+      "foldkit-plus:source": "./src/mixins/testing.ts",
+      "types": "./dist/mixins/testing.d.mts",
+      "import": "./dist/mixins/testing.mjs"
+    },
+    "./mixins/foundations": {
+      "foldkit-plus:source": "./src/mixins/foundations.ts",
+      "types": "./dist/mixins/foundations.d.mts",
+      "import": "./dist/mixins/foundations.mjs"
+    },
+    "./mixins-builder": {
+      "foldkit-plus:source": "./src/mixins-builder.ts",
+      "types": "./dist/mixins-builder.d.mts",
+      "import": "./dist/mixins-builder.mjs"
+    },
+    "./mixins-crud": {
+      "foldkit-plus:source": "./src/mixins-crud.ts",
+      "types": "./dist/mixins-crud.d.mts",
+      "import": "./dist/mixins-crud.mjs"
+    },
+    "./mixins-data-grid": {
+      "foldkit-plus:source": "./src/mixins-data-grid.ts",
+      "types": "./dist/mixins-data-grid.d.mts",
+      "import": "./dist/mixins-data-grid.mjs"
+    },
+    "./mixins-form/ui": {
+      "foldkit-plus:source": "./src/mixins-form/ui.ts",
+      "types": "./dist/mixins-form/ui.d.mts",
+      "import": "./dist/mixins-form/ui.mjs"
+    },
+    "./mixins-form": {
+      "foldkit-plus:source": "./src/mixins-form.ts",
+      "types": "./dist/mixins-form.d.mts",
+      "import": "./dist/mixins-form.mjs"
+    },
+    "./mixins-richtext": {
+      "foldkit-plus:source": "./src/mixins-richtext.ts",
+      "types": "./dist/mixins-richtext.d.mts",
+      "import": "./dist/mixins-richtext.mjs"
+    },
+    "./mixins-surface": {
+      "foldkit-plus:source": "./src/mixins-surface.ts",
+      "types": "./dist/mixins-surface.d.mts",
+      "import": "./dist/mixins-surface.mjs"
+    },
+    "./mixins-ui": {
+      "foldkit-plus:source": "./src/mixins-ui.ts",
+      "types": "./dist/mixins-ui.d.mts",
+      "import": "./dist/mixins-ui.mjs"
+    },
+    "./primitives": {
+      "foldkit-plus:source": "./src/primitives.ts",
+      "types": "./dist/primitives.d.mts",
+      "import": "./dist/primitives.mjs"
+    },
+    "./primitives/dom": {
+      "foldkit-plus:source": "./src/primitives/dom.ts",
+      "types": "./dist/primitives/dom.d.mts",
+      "import": "./dist/primitives/dom.mjs"
+    },
+    "./primitives/device": {
+      "foldkit-plus:source": "./src/primitives/device.ts",
+      "types": "./dist/primitives/device.d.mts",
+      "import": "./dist/primitives/device.mjs"
+    },
+    "./primitives/events": {
+      "foldkit-plus:source": "./src/primitives/events.ts",
+      "types": "./dist/primitives/events.d.mts",
+      "import": "./dist/primitives/events.mjs"
+    },
+    "./primitives/interaction": {
+      "foldkit-plus:source": "./src/primitives/interaction.ts",
+      "types": "./dist/primitives/interaction.d.mts",
+      "import": "./dist/primitives/interaction.mjs"
+    },
+    "./primitives/media": {
+      "foldkit-plus:source": "./src/primitives/media.ts",
+      "types": "./dist/primitives/media.d.mts",
+      "import": "./dist/primitives/media.mjs"
+    },
+    "./primitives/motion": {
+      "foldkit-plus:source": "./src/primitives/motion.ts",
+      "types": "./dist/primitives/motion.d.mts",
+      "import": "./dist/primitives/motion.mjs"
+    },
+    "./primitives/net": {
+      "foldkit-plus:source": "./src/primitives/net.ts",
+      "types": "./dist/primitives/net.d.mts",
+      "import": "./dist/primitives/net.mjs"
+    },
+    "./primitives/observers": {
+      "foldkit-plus:source": "./src/primitives/observers.ts",
+      "types": "./dist/primitives/observers.d.mts",
+      "import": "./dist/primitives/observers.mjs"
+    },
+    "./primitives/state": {
+      "foldkit-plus:source": "./src/primitives/state.ts",
+      "types": "./dist/primitives/state.d.mts",
+      "import": "./dist/primitives/state.mjs"
+    },
+    "./primitives/time": {
+      "foldkit-plus:source": "./src/primitives/time.ts",
+      "types": "./dist/primitives/time.d.mts",
+      "import": "./dist/primitives/time.mjs"
+    },
+    "./react": {
+      "foldkit-plus:source": "./src/react.ts",
+      "types": "./dist/react.d.mts",
+      "import": "./dist/react.mjs"
+    },
+    "./react-codegen": {
+      "foldkit-plus:source": "./src/react-codegen.ts",
+      "types": "./dist/react-codegen.d.mts",
+      "import": "./dist/react-codegen.mjs"
+    },
+    "./remote": {
+      "foldkit-plus:source": "./src/remote.ts",
+      "types": "./dist/remote.d.mts",
+      "import": "./dist/remote.mjs"
+    },
+    "./remote/port": {
+      "foldkit-plus:source": "./src/remote/port.ts",
+      "types": "./dist/remote/port.d.mts",
+      "import": "./dist/remote/port.mjs"
+    },
+    "./remote-drizzle": {
+      "foldkit-plus:source": "./src/remote-drizzle.ts",
+      "types": "./dist/remote-drizzle.d.mts",
+      "import": "./dist/remote-drizzle.mjs"
+    },
+    "./remote-server": {
+      "foldkit-plus:source": "./src/remote-server.ts",
+      "types": "./dist/remote-server.d.mts",
+      "import": "./dist/remote-server.mjs"
+    },
+    "./remote-server/port": {
+      "foldkit-plus:source": "./src/remote-server/port.ts",
+      "types": "./dist/remote-server/port.d.mts",
+      "import": "./dist/remote-server/port.mjs"
+    },
+    "./remote-server/fetch": {
+      "foldkit-plus:source": "./src/remote-server/fetch.ts",
+      "types": "./dist/remote-server/fetch.d.mts",
+      "import": "./dist/remote-server/fetch.mjs"
+    },
+    "./richtext": {
+      "foldkit-plus:source": "./src/richtext.ts",
+      "types": "./dist/richtext.d.mts",
+      "import": "./dist/richtext.mjs"
+    },
+    "./richtext-code": {
+      "foldkit-plus:source": "./src/richtext-code.ts",
+      "types": "./dist/richtext-code.d.mts",
+      "import": "./dist/richtext-code.mjs"
+    },
+    "./richtext-code-shiki": {
+      "foldkit-plus:source": "./src/richtext-code-shiki.ts",
+      "types": "./dist/richtext-code-shiki.d.mts",
+      "import": "./dist/richtext-code-shiki.mjs"
+    },
+    "./richtext-dom": {
+      "foldkit-plus:source": "./src/richtext-dom.ts",
+      "types": "./dist/richtext-dom.d.mts",
+      "import": "./dist/richtext-dom.mjs"
+    },
+    "./richtext-dom/editor": {
+      "foldkit-plus:source": "./src/richtext-dom/editor.ts",
+      "types": "./dist/richtext-dom/editor.d.mts",
+      "import": "./dist/richtext-dom/editor.mjs"
+    },
+    "./richtext-dom/editor-bundle": {
+      "foldkit-plus:source": "./src/richtext-dom/editor-bundle.ts",
+      "types": "./dist/richtext-dom/editor-bundle.d.mts",
+      "import": "./dist/richtext-dom/editor-bundle.mjs"
+    },
+    "./richtext-dom/events": {
+      "foldkit-plus:source": "./src/richtext-dom/events.ts",
+      "types": "./dist/richtext-dom/events.d.mts",
+      "import": "./dist/richtext-dom/events.mjs"
+    },
+    "./richtext-dom/host": {
+      "foldkit-plus:source": "./src/richtext-dom/host.ts",
+      "types": "./dist/richtext-dom/host.d.mts",
+      "import": "./dist/richtext-dom/host.mjs"
+    },
+    "./richtext-dom/input": {
+      "foldkit-plus:source": "./src/richtext-dom/input.ts",
+      "types": "./dist/richtext-dom/input.d.mts",
+      "import": "./dist/richtext-dom/input.mjs"
+    },
+    "./richtext-dom/html": {
+      "foldkit-plus:source": "./src/richtext-dom/html.ts",
+      "types": "./dist/richtext-dom/html.d.mts",
+      "import": "./dist/richtext-dom/html.mjs"
+    },
+    "./richtext-dom/toolbar": {
+      "foldkit-plus:source": "./src/richtext-dom/toolbar.ts",
+      "types": "./dist/richtext-dom/toolbar.d.mts",
+      "import": "./dist/richtext-dom/toolbar.mjs"
+    },
+    "./richtext-dom/view": {
+      "foldkit-plus:source": "./src/richtext-dom/view.ts",
+      "types": "./dist/richtext-dom/view.d.mts",
+      "import": "./dist/richtext-dom/view.mjs"
+    },
+    "./richtext-markdown": {
+      "foldkit-plus:source": "./src/richtext-markdown.ts",
+      "types": "./dist/richtext-markdown.d.mts",
+      "import": "./dist/richtext-markdown.mjs"
+    },
+    "./site": {
+      "foldkit-plus:source": "./src/site.ts",
+      "types": "./dist/site.d.mts",
+      "import": "./dist/site.mjs"
+    },
+    "./ssr": {
+      "foldkit-plus:source": "./src/ssr.ts",
+      "types": "./dist/ssr.d.mts",
+      "import": "./dist/ssr.mjs"
+    },
+    "./ssr/client": {
+      "foldkit-plus:source": "./src/ssr/client.ts",
+      "types": "./dist/ssr/client.d.mts",
+      "import": "./dist/ssr/client.mjs"
+    },
+    "./ssr/vite": {
+      "foldkit-plus:source": "./src/ssr/vite.ts",
+      "types": "./dist/ssr/vite.d.mts",
+      "import": "./dist/ssr/vite.mjs"
+    },
+    "./surface": {
+      "foldkit-plus:source": "./src/surface.ts",
+      "types": "./dist/surface.d.mts",
+      "import": "./dist/surface.mjs"
+    },
+    "./sync": {
+      "foldkit-plus:source": "./src/sync.ts",
+      "types": "./dist/sync.d.mts",
+      "import": "./dist/sync.mjs"
+    },
+    "./sync/journal": {
+      "foldkit-plus:source": "./src/sync/journal.ts",
+      "types": "./dist/sync/journal.d.mts",
+      "import": "./dist/sync/journal.mjs"
+    },
+    "./sync/entity": {
+      "foldkit-plus:source": "./src/sync/entity.ts",
+      "types": "./dist/sync/entity.d.mts",
+      "import": "./dist/sync/entity.mjs"
+    },
+    "./sync/do": {
+      "foldkit-plus:source": "./src/sync/do.ts",
+      "types": "./dist/sync/do.d.mts",
+      "import": "./dist/sync/do.mjs"
+    },
+    "./sync/remote": {
+      "foldkit-plus:source": "./src/sync/remote.ts",
+      "types": "./dist/sync/remote.d.mts",
+      "import": "./dist/sync/remote.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "generate": "tsx scripts/generate.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-agent": "workspace:*",
+    "foldkit-agent-a2a": "workspace:*",
+    "foldkit-agent-mcp": "workspace:*",
+    "foldkit-agent-webmcp": "workspace:*",
+    "foldkit-builder": "workspace:*",
+    "foldkit-bundle": "workspace:*",
+    "foldkit-bundle-surface": "workspace:*",
+    "foldkit-cms": "workspace:*",
+    "foldkit-composition": "workspace:*",
+    "foldkit-crud": "workspace:*",
+    "foldkit-data-grid": "workspace:*",
+    "foldkit-durable": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-form": "workspace:*",
+    "foldkit-guard": "workspace:*",
+    "foldkit-metadata": "workspace:*",
+    "foldkit-mirror": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-builder": "workspace:*",
+    "foldkit-mixins-crud": "workspace:*",
+    "foldkit-mixins-data-grid": "workspace:*",
+    "foldkit-mixins-form": "workspace:*",
+    "foldkit-mixins-richtext": "workspace:*",
+    "foldkit-mixins-surface": "workspace:*",
+    "foldkit-primitives": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-server": "workspace:*",
+    "foldkit-richtext": "workspace:*",
+    "foldkit-richtext-code": "workspace:*",
+    "foldkit-richtext-dom": "workspace:*",
+    "foldkit-richtext-markdown": "workspace:*",
+    "foldkit-site": "workspace:*",
+    "foldkit-ssr": "workspace:*",
+    "foldkit-surface": "workspace:*",
+    "foldkit-sync": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0",
+    "foldkit": "^0.165.0",
+    "foldkit-agent-native": "workspace:^",
+    "foldkit-cms-drizzle": "workspace:^",
+    "foldkit-mixins-ui": "workspace:^",
+    "foldkit-react": "workspace:^",
+    "foldkit-react-codegen": "workspace:^",
+    "foldkit-remote-drizzle": "workspace:^",
+    "foldkit-richtext-code-shiki": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "foldkit-agent-native": {
+      "optional": true
+    },
+    "foldkit-cms-drizzle": {
+      "optional": true
+    },
+    "foldkit-mixins-ui": {
+      "optional": true
+    },
+    "foldkit-react": {
+      "optional": true
+    },
+    "foldkit-react-codegen": {
+      "optional": true
+    },
+    "foldkit-remote-drizzle": {
+      "optional": true
+    },
+    "foldkit-richtext-code-shiki": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "tsdown": "^0.23.0",
+    "tsx": "^4.23.13",
+    "typescript": "5.9.3",
+    "foldkit-agent-native": "workspace:*",
+    "foldkit-cms-drizzle": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*",
+    "foldkit-react": "workspace:*",
+    "foldkit-react-codegen": "workspace:*",
+    "foldkit-remote-drizzle": "workspace:*",
+    "foldkit-richtext-code-shiki": "workspace:*"
+  }
+}

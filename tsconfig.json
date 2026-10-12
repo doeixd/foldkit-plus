@@ -14,6 +14,7 @@
     { "path": "./packages/durable" },
     { "path": "./packages/sync" },
     { "path": "./packages/metadata" },
+    { "path": "./packages/plus" },
     { "path": "./packages/composition" },
     { "path": "./packages/builder" },
     { "path": "./packages/mixins-builder" },

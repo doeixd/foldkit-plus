@@ -10,6 +10,7 @@ declaration; `npm view <name> version` says what the registry serves.
 
 | Package | Version | Status | Role |
 | --- | --- | --- | --- |
+| [`foldkit-plus`](../packages/plus) | 0.1.0 | Next release | Every package below in one install, re-exported by subpath (`foldkit-plus/remote`), and `npx foldkit-plus setup`, which tells a coding agent how to start. Adapters with a library of their own are optional peers. |
 | [`foldkit-cms-drizzle`](../packages/cms-drizzle) | 0.6.1 | Published | The server half of `foldkit-cms`: the entries, drafts and revisions tables, saving and discarding a draft with a conflict rule, publishing through the application's own mutation in a transaction, unpublishing, the worklist, and the audience boundary. |
 | [`foldkit-crud`](../packages/crud) | 0.7.1 | Published | Create, read, update and delete screens assembled from a form, a Remote operation, and their Entity: an editor, a list, a detail, and a remover. Published as `foldkit-admin` in 0.7.0, which is deprecated. |
 | [`foldkit-agent`](../packages/agent) | 0.7.0 | Published | Protocol-neutral agent contract: projects a Model and Message union into an agent interface. |

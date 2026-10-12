@@ -48,6 +48,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | Drafts, revisions, a schedule, and what a visitor may see | the application's tables; a draft is kept beside the row | `foldkit-cms` + `foldkit-cms-drizzle` (editor state and server) | [cms.md](references/cms.md) |
 | What crosses from a server render to the browser: the browser's slice of the Model, handed over instead of rerunning `init` | the application, in a resume plan | `foldkit-ssr` (early) | [ssr.md](references/ssr.md) |
 | What a page is: Blocks in Regions, stored as a Document and checked against a Catalog; editing it | the Document, as a stored field; the Builder, as one form key | `foldkit-composition` + `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; experimental, 0.1.0) | [composition.md](references/composition.md) |
+| Every package above in one install, each under a subpath (`foldkit-plus/remote`), and a project-specific setup guide (`npx foldkit-plus setup`) | nothing: it re-exports the packages, which own what they own | `foldkit-plus` | this file |
 | The route, a selection, a transient error | the local Model (topology in `foldkit-site`) | none: plain Foldkit | — |
 | A semantic rich-text document, the commands that edit it, and what each kind may hold | the local Model | `foldkit-richtext` (early) | [richtext.md](references/richtext.md) |
 | An editable rich-text subtree the browser mutates directly (the `contenteditable` island) | the DOM adapter, over the document the Model owns | `foldkit-richtext-dom` (early) | [richtext.md](references/richtext.md) |
@@ -138,9 +139,13 @@ App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoL
   placements and integration wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`,
   contract-only `….wiring()`); routing, startup Commands, Subscriptions, and the
   Module derive from the list. See `bundle.md` and the integration's page.
-- **Install only what the boundary needs**, with its peers (`pnpm add effect foldkit
-  foldkit-surface foldkit-sync`): `effect` for every package, `foldkit` for client-side
-  ones, an adapter's own (`@foldkit/ui`). `foldkit-durable` needs Node >= 22.
+- **Install** `foldkit-plus` for every package at once (`pnpm add effect@4.0.0
+  foldkit@0.165.0 foldkit-plus`, then import `foldkit-plus/<package>`, as in
+  `foldkit-plus/remote-server`), or each package on its own with its peers; both name
+  the same modules. Adapters that need a library of their own (`foldkit-react`, the
+  Drizzle packages, `foldkit-mixins-ui`, `-richtext-code-shiki`, `-agent-native`) are
+  added with it. `npx foldkit-plus setup` prints all of this for the project it runs
+  in. `foldkit-durable` needs Node >= 22.
 
 ## More
 

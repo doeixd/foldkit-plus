@@ -459,8 +459,23 @@ reading order.
 
 ## Install
 
-Install the pieces for the boundary you are adding; the packages are designed to
-be adopted independently.
+Tell your coding agent to run:
+
+```bash
+npx foldkit-plus setup
+```
+
+It reads your project and prints what to install with your package manager, the
+`effect` or `foldkit` version that needs changing, the agent skill, and which
+package does which job. By hand, `foldkit-plus` brings every package at once,
+each under a subpath named for it (`foldkit-plus/remote-server`):
+
+```bash
+pnpm add effect@4.0.0 foldkit@0.165.0 @effect/platform-browser@4.0.0 foldkit-plus
+```
+
+Or install the pieces for the boundary you are adding; the packages are designed
+to be adopted independently.
 
 ```bash
 # typed application boundaries

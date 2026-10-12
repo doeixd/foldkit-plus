@@ -2612,6 +2612,151 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/plus:
+    dependencies:
+      foldkit-agent:
+        specifier: workspace:*
+        version: link:../agent
+      foldkit-agent-a2a:
+        specifier: workspace:*
+        version: link:../agent-a2a
+      foldkit-agent-mcp:
+        specifier: workspace:*
+        version: link:../agent-mcp
+      foldkit-agent-webmcp:
+        specifier: workspace:*
+        version: link:../agent-webmcp
+      foldkit-builder:
+        specifier: workspace:*
+        version: link:../builder
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
+      foldkit-bundle-surface:
+        specifier: workspace:*
+        version: link:../bundle-surface
+      foldkit-cms:
+        specifier: workspace:*
+        version: link:../cms
+      foldkit-composition:
+        specifier: workspace:*
+        version: link:../composition
+      foldkit-crud:
+        specifier: workspace:*
+        version: link:../crud
+      foldkit-data-grid:
+        specifier: workspace:*
+        version: link:../data-grid
+      foldkit-durable:
+        specifier: workspace:*
+        version: link:../durable
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
+      foldkit-form:
+        specifier: workspace:*
+        version: link:../form
+      foldkit-guard:
+        specifier: workspace:*
+        version: link:../guard
+      foldkit-metadata:
+        specifier: workspace:*
+        version: link:../metadata
+      foldkit-mirror:
+        specifier: workspace:*
+        version: link:../mirror
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../mixins
+      foldkit-mixins-builder:
+        specifier: workspace:*
+        version: link:../mixins-builder
+      foldkit-mixins-crud:
+        specifier: workspace:*
+        version: link:../mixins-crud
+      foldkit-mixins-data-grid:
+        specifier: workspace:*
+        version: link:../mixins-data-grid
+      foldkit-mixins-form:
+        specifier: workspace:*
+        version: link:../mixins-form
+      foldkit-mixins-richtext:
+        specifier: workspace:*
+        version: link:../mixins-richtext
+      foldkit-mixins-surface:
+        specifier: workspace:*
+        version: link:../mixins-surface
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../primitives
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../remote
+      foldkit-remote-server:
+        specifier: workspace:*
+        version: link:../remote-server
+      foldkit-richtext:
+        specifier: workspace:*
+        version: link:../richtext
+      foldkit-richtext-code:
+        specifier: workspace:*
+        version: link:../richtext-code
+      foldkit-richtext-dom:
+        specifier: workspace:*
+        version: link:../richtext-dom
+      foldkit-richtext-markdown:
+        specifier: workspace:*
+        version: link:../richtext-markdown
+      foldkit-site:
+        specifier: workspace:*
+        version: link:../site
+      foldkit-ssr:
+        specifier: workspace:*
+        version: link:../ssr
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../surface
+      foldkit-sync:
+        specifier: workspace:*
+        version: link:../sync
+    devDependencies:
+      effect:
+        specifier: 4.0.0
+        version: 4.0.0
+      foldkit:
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
+      foldkit-agent-native:
+        specifier: workspace:*
+        version: link:../agent-native
+      foldkit-cms-drizzle:
+        specifier: workspace:*
+        version: link:../cms-drizzle
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../mixins-ui
+      foldkit-react:
+        specifier: workspace:*
+        version: link:../react
+      foldkit-react-codegen:
+        specifier: workspace:*
+        version: link:../react-codegen
+      foldkit-remote-drizzle:
+        specifier: workspace:*
+        version: link:../remote-drizzle
+      foldkit-richtext-code-shiki:
+        specifier: workspace:*
+        version: link:../richtext-code-shiki
+      tsdown:
+        specifier: ^0.23.0
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/primitives:
     dependencies:
       foldkit-bundle:
