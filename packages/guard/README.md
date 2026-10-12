@@ -312,7 +312,8 @@ const TodoSource = source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })
   table's own rule inside.
 - It is checked when built, before any request: an inherited Read whose
   Entity is not listed or has no Read rule, or a loop of them, throws. An
-  inherited relation must be stored as a foreign key on this table.
+  inherited relation must be stored as a foreign key on this table; one that
+  is not fails its first read, which is when the binding is first known.
 - The principal reaches a binding untyped, so it is checked: one that is not
   an `Option` of the set's schema is a defect, never read as a visitor.
 - `visible` is the row's Read. Member and relation Reads are the Source's
@@ -359,8 +360,10 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   fields than the write set, and a row the write hid from them in `deleted`,
   so the client takes it out of its lists instead of placing it.
 
-The binding must have a `visible` rule (`GuardDrizzle.visible`'s), which is
-how the writer reads a row as its writer may see it.
+The binding must have a `visible` rule, which is how the writer reads a row
+as its writer may see it; the writer refuses one without. That the rule is
+`GuardDrizzle.visible`'s is what `GuardServer.validate` checks of the
+Entity's Source, so give the writer that Source's binding.
 
 A client should not choose whose a new row is. `presets` sets a field from
 who is asking on every create, before the rules are checked, so a rule over
@@ -577,9 +580,11 @@ differ from person to person, and a document is one audience.
   edit to a member outside the document, or a value its member cannot
   encode, is refused.
 - **A document is one audience.** Every replica that opens it receives every
-  edit, so `document` refuses where it is declared an edited member with a
-  Read rule of its own, a reader the rows' Read rule does not name, a guarded
-  row with no readers, and `always` rules over the row. `opens` lets any
+  edit, so `document` refuses where it is declared an edited member that is
+  not a field or has a Read rule of its own, a reader the rows' Read rule
+  does not name among its top-level guards (one inside `Guards.all` is not
+  enough: all of it must hold), rows with a Read rule and no readers named,
+  and `always` rules over the row. `opens` lets any
   reader (anyone, when it names none) who passes the Entity's `always`.
 - Presence on the same socket is stamped by the server with the connection's
   peer id, and joins only who may open the document:

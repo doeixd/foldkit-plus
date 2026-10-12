@@ -55,10 +55,6 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | Markdown in and out of a semantic rich-text document | the document; this package only maps its syntax | `foldkit-richtext-markdown` (early) | [richtext.md](references/richtext.md) |
 | Syntax highlighting for a rich-text code block | nobody: tokens are derived decorations, never stored | `foldkit-richtext-code` (JSON) or `foldkit-richtext-code-shiki` (any Shiki grammar) (early) | [richtext.md](references/richtext.md) |
 
-Install the peers with the packages you pick, for example
-`pnpm add effect foldkit foldkit-surface foldkit-sync`. `foldkit-durable` needs
-Node >= 22.
-
 Read only the reference for the package you are working with. Each has the
 mental model, a minimal example, common tasks, and gotchas.
 
@@ -126,10 +122,8 @@ const TodoList = App.surface('TodoList', {
 })
 ```
 
-From here: `Sync.forApplication(App)` replicates a slice, `Agent.forApplication(App)`
-exposes Messages to an agent, `Remote.make({ model: App.model.remote, … })` binds
-server data, `Mirror.url(App, …)` puts fields in the URL, and
-`SurfaceView.define(TodoList, …)` renders it with Mixins.
+From here: `Sync.forApplication(App)`, `Agent.forApplication(App)`, `Remote.make({ model:
+App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoList, …)` to draw it.
 
 ## Rules that apply to every package
 
@@ -144,12 +138,9 @@ server data, `Mirror.url(App, …)` puts fields in the URL, and
   placements and integration wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`,
   contract-only `….wiring()`); routing, startup Commands, Subscriptions, and the
   Module derive from the list. See `bundle.md` and the integration's page.
-- **Install only what the boundary needs.** The packages are adopted
-  independently. `effect` is a peer of every package and `foldkit` of every
-  client-side one (not `foldkit-durable`, `foldkit-remote-server`,
-  `foldkit-remote-drizzle`). Adapters also need `foldkit-agent`,
-  `foldkit-mixins-ui` needs `@foldkit/ui`, and `foldkit-agent-native` needs
-  `@agent-native/core`.
+- **Install only what the boundary needs**, with its peers (`pnpm add effect foldkit
+  foldkit-surface foldkit-sync`): `effect` for every package, `foldkit` for client-side
+  ones, an adapter's own (`@foldkit/ui`). `foldkit-durable` needs Node >= 22.
 
 ## More
 

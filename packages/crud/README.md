@@ -356,6 +356,7 @@ const Editor = Crud.editor('PostEditor', {
   mutation: EditPostMutation,
   locks: May.locks(Post),
 })
+const PostEditor = Editor.at({ data: Data, model: App.model.editor })
 
 Placed.view(model, h, { options: pickers(model), locked: PostEditor.locked(model) })
 ```

@@ -9,8 +9,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-- **`foldkit-sync`: an exchange's `refuse` is `admit`, and an exchange may be
-  refused whole (`opens`).** `admit(operation)` answers as the journal's
+- **Breaking: `foldkit-sync`: an exchange's `refuse` is `admit`, and an
+  exchange may be refused whole (`opens`).** `admit(operation)` answers as the journal's
   `authorize` does (`true` admits; a refusal, with its reason, is rejected by
   id) and may answer with an `Effect`, for a rule that reads the rows an edit
   names before the journal's lock. `opens`, an `Effect` of a boolean, fails

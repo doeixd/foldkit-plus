@@ -84,7 +84,8 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   `EditPostForm.controls`.
 - **Lock keys the reader may not set:** `Crud.editor(name, { form, mutation,
   locks: May.locks(Post) })` (`foldkit-guard`) loads `may` beside the form's
-  members; pass `locked: PostEditor.locked(model)` to the form view, which
+  members; pass `locked: PostEditor.locked(model)` (`PostEditor` being
+  `Editor.at({ data, model })`) to the form view, which
   draws those keys disabled. Nothing is locked for a new one.
 - **A declared write** (`mutation: Mutation.write(...)`): a save names only the
   input keys changed from what the form was filled with, and Remote shows them
