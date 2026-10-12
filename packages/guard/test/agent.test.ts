@@ -4,7 +4,7 @@
  * allowed where the row lets the principal, refused before dispatch where it
  * does not, or where there is no answer yet.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Record, Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { RemoteData } from 'foldkit-remote'
 import { Projection, Surface } from 'foldkit-surface'
@@ -38,6 +38,9 @@ const App = Surface.application({ Model, Message })
 // The principal is the one the server reads: an Option of the guard set's.
 const TodoAgent = Agent.forApplication(App).withPrincipal(G.Principal)
 
+const rowOf = (model: Model, id: string) =>
+  Option.getOrElse(Record.get(model.todos, id), (): typeof Row.Type => ({ _tag: 'Initial' }))
+
 const bound = (model: Model) => {
   const dispatched: Array<typeof Message.Type> = []
   const runtime = Agent.bind({
@@ -48,11 +51,11 @@ const bound = (model: Model) => {
           description: 'Archive a todo',
           authorize: GuardAgent.authorize(Archive.key, ({ input, model }) => {
             expectTypeOf(input.id).toEqualTypeOf<string>()
-            return model.todos[input.id] ?? { _tag: 'Initial' }
+            // The id is the agent's: read it as an own key, never off Object's prototype.
+            return rowOf(model, input.id)
           }),
-          available: GuardAgent.available(
-            Archive.key,
-            (model: Model) => model.todos[model.selected] ?? { _tag: 'Initial' },
+          available: GuardAgent.available(Archive.key, (model: Model) =>
+            rowOf(model, model.selected),
           ),
         },
       }),

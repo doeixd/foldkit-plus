@@ -22,10 +22,10 @@ export interface InvocationContext<Model, Principal = unknown> {
   readonly invocation: Invocation
 }
 
-/** What an `authorize` hook is asked to decide. */
 /** What `authorize` answers: allowed, refused, or refused with a reason the caller reads. */
 export type AuthorizationDecision = boolean | { readonly allowed: false; readonly reason: string }
 
+/** What an `authorize` hook is asked to decide. */
 export interface AuthorizationRequest<Input, Model, Principal = unknown> {
   readonly principal: Principal
   readonly input: Input
