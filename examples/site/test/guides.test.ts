@@ -62,7 +62,7 @@ const fixture = () => {
       { id: 'beta', label: 'foldkit-beta', file: 'packages/beta/README.md' },
     ],
   }
-  return guidePages(root, [subsite])
+  return guidePages(root, [subsite]).pages
 }
 
 describe('slugger', () => {

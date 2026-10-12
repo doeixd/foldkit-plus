@@ -102,7 +102,7 @@ export default [
     edits: [
       {
         file: '../src/content/library.ts',
-        find: "...(page === current ? [ih.AriaCurrent('page')] : [])",
+        find: "if (page === current) return [ih.AriaCurrent('page')]",
         replace: '',
       },
     ],
@@ -115,6 +115,39 @@ export default [
         file: '../src/content/highlight.ts',
         find: "light === undefined || dark === undefined ? '' : `light-dark(${light}, ${dark})`",
         replace: "''",
+      },
+    ],
+    tests,
+  },
+  {
+    name: "every export in the sidebar, beside its entry point's page",
+    edits: [
+      {
+        file: '../src/content/library.ts',
+        find: 'page.kind === kind && page.listed',
+        replace: 'page.kind === kind',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "an export's page that marks no entry point",
+    edits: [
+      {
+        file: '../src/content/library.ts',
+        find: "page.path === current.module ? [ih.AriaCurrent('location')] : []",
+        replace: '[]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a namespace's members left out of its page",
+    edits: [
+      {
+        file: '../src/content/api.ts',
+        find: "member(ih, drawing, entry.name, each, ids[index] ?? ''),",
+        replace: 'ih.span([], [String(index)]),',
       },
     ],
     tests,

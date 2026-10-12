@@ -2,7 +2,8 @@
 /**
  * The pages the build writes, read back through an HTML parser as a browser
  * reads them: the home page's cards and examples, the demos, a subsite's
- * sidebar, and every link on every page leading somewhere that exists.
+ * sidebar, its API pages, and every link on every page leading somewhere that
+ * exists.
  */
 import { Effect } from 'effect'
 import { generateStaticSite } from 'foldkit-ssr/vite'
@@ -18,7 +19,30 @@ import { site } from '../src/site.js'
 const repository = join(import.meta.dirname, '../../..')
 const template = readFileSync(join(import.meta.dirname, '../index.html'), 'utf8')
 
-let pages: ReadonlyMap<string, Document>
+/** What the link check needs of a page: the ids it carries and where it links. */
+interface Links {
+  readonly ids: ReadonlySet<string>
+  readonly hrefs: ReadonlyArray<string>
+}
+
+/**
+ * The pages the tests read whole. Of every other page only its links are kept:
+ * three thousand parsed documents do not fit in a test worker's memory.
+ */
+const READ = [
+  '/',
+  '/demos',
+  '/404.html',
+  '/remote/guides/live-data',
+  '/ssr/api/ssr',
+  '/ssr/api/ssr/ssr',
+]
+
+const hrefs = (root: ParentNode, selector = 'a') =>
+  Array.from(root.querySelectorAll(selector), a => a.getAttribute('href') ?? '')
+
+let links: ReadonlyMap<string, Links>
+let read: ReadonlyMap<string, Document>
 let sitemap = ''
 
 beforeAll(async () => {
@@ -26,18 +50,24 @@ beforeAll(async () => {
     generateStaticSite({ ...site, buildId: 'test-build', template }),
   )
   sitemap = built.sitemap ?? ''
-  pages = new Map(
-    built.pages.map(page => [page.path, new DOMParser().parseFromString(page.html, 'text/html')]),
+  const parser = new DOMParser()
+  const kept = new Map<string, Document>()
+  links = new Map(
+    built.pages.map(page => {
+      const document = parser.parseFromString(page.html, 'text/html')
+      if (READ.includes(page.path)) kept.set(page.path, document)
+      const ids = new Set(Array.from(document.querySelectorAll('[id]'), element => element.id))
+      return [page.path, { ids, hrefs: hrefs(document) }] as const
+    }),
   )
-}, 240_000)
+  read = kept
+}, 600_000)
 
 const page = (path: string): Document => {
-  const found = pages.get(path)
-  if (found === undefined) throw new Error(`no page at ${path}`)
+  const found = read.get(path)
+  if (found === undefined) throw new Error(`no page read at ${path}`)
   return found
 }
-const hrefs = (root: ParentNode, selector = 'a') =>
-  Array.from(root.querySelectorAll(selector), a => a.getAttribute('href') ?? '')
 
 describe('the generated site', () => {
   test('has a home page, the demos, a not-found page and every subsite, with a sitemap', () => {
@@ -47,7 +77,7 @@ describe('the generated site', () => {
       '/404.html',
       ...allSubsites.map(subsite => `/${subsite.id}`),
     ])
-      expect(pages.has(path), path).toBe(true)
+      expect(links.has(path), path).toBe(true)
     expect(sitemap).toContain('<loc>https://foldkit-plus.pages.dev/remote</loc>')
     expect(page('/404.html').querySelector('h1')?.textContent).toContain('Not found')
   })
@@ -100,21 +130,39 @@ describe('the generated site', () => {
     )
   })
 
+  test("a subsite's API lists its entry points, each leading to a page per export", () => {
+    const entry = page('/ssr/api/ssr')
+    const sidebar = (at: Document) => hrefs(at, 'nav[aria-label="Documentation"] a')
+    expect(sidebar(entry)).toEqual(
+      expect.arrayContaining(['/ssr/api/ssr', '/ssr/api/ssr-client', '/ssr/api/ssr-vite']),
+    )
+    // An export's page is not in the sidebar; its entry point is marked instead.
+    expect(sidebar(entry)).not.toContain('/ssr/api/ssr/ssr')
+    expect(hrefs(entry, 'article table a')).toContain('/ssr/api/ssr/ssr')
+
+    const ssr = page('/ssr/api/ssr/ssr')
+    expect(ssr.querySelector('article h1')?.textContent).toBe('SSR')
+    expect(hrefs(ssr, 'nav[aria-label="Documentation"] [aria-current="location"]')).toEqual([
+      '/ssr/api/ssr',
+    ])
+    const plan = ssr.getElementById('plan')
+    expect(plan?.textContent).toContain('SSR.plan')
+    expect(plan?.parentElement?.querySelector('pre')?.textContent).toContain('plan<Model')
+    expect(plan?.parentElement?.textContent).toContain('A resume plan for an application.')
+  })
+
   test('every link on every page leads to a page the build wrote, or a file in the repository', () => {
     const broken: Array<string> = []
-    for (const [path, document] of pages)
-      for (const href of hrefs(document)) {
-        if (href.startsWith('/')) {
+    for (const [path, at] of links)
+      for (const href of at.hrefs) {
+        if (href.startsWith('/') || href.startsWith('#')) {
           const [target = '', anchor] = href.split('#')
-          const at = target === '' ? document : pages.get(target)
-          if (at === undefined) broken.push(`${path} -> ${href}`)
-          else if (anchor !== undefined && anchor !== '' && at.getElementById(anchor) === null)
+          const to = target === '' ? at : links.get(target)
+          if (to === undefined) broken.push(`${path} -> ${href}`)
+          else if (anchor !== undefined && anchor !== '' && !to.ids.has(anchor))
             broken.push(`${path} -> ${href} (no #${anchor})`)
-        } else if (href.startsWith('#')) {
-          if (href.length > 1 && document.getElementById(href.slice(1)) === null)
-            broken.push(`${path} -> ${href}`)
         } else if (href.startsWith(`${GITHUB}/blob/`) || href.startsWith(`${GITHUB}/tree/`)) {
-          const file = href.replace(/^.*?\/(blob|tree)\/main\//, '').split('#')[0]!
+          const file = href.slice(`${GITHUB}/blob/main/`.length).split('#')[0]!
           if (!existsSync(join(repository, decodeURIComponent(file))))
             broken.push(`${path} -> ${href}`)
         }

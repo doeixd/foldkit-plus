@@ -63,7 +63,7 @@ export const slugger = () => {
   }
 }
 
-const parse = (markdown: string): Root =>
+export const parse = (markdown: string): Root =>
   fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] })
 
 const headingsIn = (nodes: ReadonlyArray<RootContent>): ReadonlyArray<MdHeading> =>
@@ -177,16 +177,19 @@ const resolver = (repository: string, cuts: ReadonlyArray<Cut>) => {
     }
 }
 
-/** Every guide page of every subsite, in reading order. */
-export const guidePages = (
-  repository: string,
-  subsites: ReadonlyArray<Subsite>,
-): ReadonlyArray<GuidePage> => {
+export interface Guides {
+  /** Every guide page of every subsite, in reading order. */
+  readonly pages: ReadonlyArray<GuidePage>
+  /** Where a link written in a repository file leads, now its Markdown is pages. */
+  readonly linksFrom: (file: string) => (url: string) => string
+}
+
+export const guidePages = (repository: string, subsites: ReadonlyArray<Subsite>): Guides => {
   const cuts = subsites.flatMap(subsite =>
     subsite.sources.map((source, index) => cut(repository, subsite, source, index)),
   )
   const resolve = resolver(repository, cuts)
-  return cuts.flatMap(each => {
+  const pages = cuts.flatMap(each => {
     const href = resolve(each.source.file)
     const idOf = (heading: MdHeading) => each.ids.get(heading) ?? ''
     return each.sections.map((section, at): GuidePage => {
@@ -209,10 +212,11 @@ export const guidePages = (
       }
     })
   })
+  return { pages, linksFrom: resolve }
 }
 
 /** A description for search results: the first sentence or so, at most 160 characters. */
-const summarize = (text: string): string => {
+export const summarize = (text: string): string => {
   const flat = text.replace(/\s+/g, ' ').trim()
   return flat.length <= 160 ? flat : `${flat.slice(0, 157).replace(/\s+\S*$/, '')}…`
 }

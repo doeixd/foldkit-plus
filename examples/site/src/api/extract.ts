@@ -767,7 +767,13 @@ export const extract = async (
         members,
       })
     }
-    return { specifier: entry.specifier, slug: entry.slug, summary: fileSummary(file), exports }
+    return {
+      specifier: entry.specifier,
+      slug: entry.slug,
+      file: relative(root, entry.file).replaceAll('\\', '/'),
+      summary: fileSummary(file),
+      exports,
+    }
   }
 
   const result: Array<ApiPackage> = []

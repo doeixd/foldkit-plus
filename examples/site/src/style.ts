@@ -69,7 +69,7 @@ const navList = Style.compose(
     lineHeight: '1.35',
   }),
   Style.nest('li a:hover', { color: t.text.overt }),
-  Style.nest('li a[aria-current="page"]', {
+  Style.nest('li a[aria-current]', {
     color: t.text.overt,
     fontWeight: t.weight.medium,
     borderInlineStartColor: t.text.overt,
@@ -220,6 +220,7 @@ export const SiteStyle = slots(
       }),
       Style.nest('h3 code', { fontFamily: t.font.mono, fontSize: '0.75rem' }),
       navList,
+      Style.nest(`> [${STATIC_ATTRIBUTE}] > * + *`, { marginBlockStart: t.space.lg }),
       // The subsite's own name, heading its sidebar.
       Style.nest('.subsite', { margin: '0', fontSize: '1rem', fontWeight: t.weight.semibold }),
       Style.nest('.subsite a', { color: t.text.overt, textDecoration: 'none' }),
@@ -593,6 +594,8 @@ export const SiteStyle = slots(
         verticalAlign: 'top',
       }),
       Style.nest('th', { fontWeight: t.weight.medium, color: t.text.overt }),
+      // An entry point's index: the name never breaks, the summary takes the rest.
+      Style.nest('td:first-child', { whiteSpace: 'nowrap' }),
       Style.nest('blockquote', { color: t.text.muted }),
       Style.nest('strong', { color: t.text.overt, fontWeight: t.weight.semibold }),
       Style.nest('.pager', {
@@ -656,7 +659,7 @@ export const SiteStyle = slots(
       Style.nest('a', { color: t.text.muted, textDecoration: 'none', lineHeight: '1.4' }),
       Style.nest('a:hover', { color: t.text.overt }),
       Style.nest('.depth-3', { paddingInlineStart: t.space.sm }),
-      Style.nest('p', { margin: '0', color: t.text.subtle }),
+      Style.nest('p', { margin: `${t.space.md} 0 0`, color: t.text.subtle }),
       Style.media(NO_OUTLINE, { display: 'none' }),
     ],
   },

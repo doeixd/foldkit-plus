@@ -1,6 +1,6 @@
 /**
- * The API reference's data: one JSON file per package, written at build time by
- * `scripts/api.ts` from each package's entry points and read back here.
+ * The API reference's data: per package, its entry points and what each
+ * exports, read at build time by `extract.ts` from each package's source.
  */
 import { Schema } from 'effect'
 
@@ -62,6 +62,8 @@ export const ApiModule = Schema.Struct({
   specifier: Schema.String,
   /** `index` for the package's root, else the subpath with `/` as `-`. */
   slug: Schema.String,
+  /** The entry file, from the repository root, with forward slashes. */
+  file: Schema.String,
   /** The entry file's own doc comment, as Markdown. */
   summary: Schema.String,
   /** Sorted by name, ignoring case. */
@@ -77,8 +79,3 @@ export const ApiPackage = Schema.Struct({
   modules: Schema.Array(ApiModule),
 })
 export type ApiPackage = typeof ApiPackage.Type
-
-/** Reads a package's JSON, parsed; throws a `SchemaError` naming the path that does not fit. */
-export const decodeApi = Schema.decodeUnknownSync(ApiPackage)
-
-export const encodeApi = Schema.encodeSync(ApiPackage)

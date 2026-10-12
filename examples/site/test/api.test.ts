@@ -7,7 +7,7 @@ import ts from 'typescript'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { extract, packageSource } from '../src/api/extract.js'
-import { decodeApi, encodeApi, type ApiExport, type ApiPackage } from '../src/api/model.js'
+import type { ApiExport, ApiPackage } from '../src/api/model.js'
 
 const fixture = {
   'package.json': JSON.stringify({
@@ -404,10 +404,9 @@ describe('extract', () => {
     ])
   })
 
-  test('the JSON names no absolute path and decodes through decodeApi', () => {
-    const json = JSON.stringify(encodeApi(api))
+  test('names no absolute path', () => {
+    const json = JSON.stringify(api)
     expect(json).not.toContain(tmpdir().replaceAll('\\', '/'))
     expect(json).not.toContain(JSON.stringify(tmpdir()).slice(1, -1))
-    expect(decodeApi(JSON.parse(json))).toEqual(api)
   })
 })

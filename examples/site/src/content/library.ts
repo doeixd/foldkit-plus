@@ -7,9 +7,13 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { Option } from 'effect'
+
+import { compilerOptionsOf, extract, packageSource } from '../api/extract.js'
 import { allSubsites, type Subsite } from '../catalog.js'
 import type { Draw, Library, Region } from '../library.js'
 import { Page, type Example } from '../main.js'
+import { apiPages, type ApiPage } from './api.js'
 import { highlighter, type Highlight } from './highlight.js'
 import { guidePages, GITHUB, type Anchor, type GuidePage } from './guides.js'
 import { blocks, codeBlock } from './render.js'
@@ -29,6 +33,12 @@ interface DocPage {
   /** The file to edit it in, from the repository root. */
   readonly file: string
   readonly kind: 'guide' | 'api'
+  /** Whether the sidebar lists it; an export's page is reached from its entry point's. */
+  readonly listed: boolean
+  /** The listed page the sidebar marks while this one is open. */
+  readonly module: string
+  /** Where it sits, over its title. */
+  readonly crumb: string
   readonly body: (ih: Ih) => Region
 }
 
@@ -42,8 +52,13 @@ const fromGuide = (highlight: Highlight, page: GuidePage): DocPage => ({
   anchors: page.anchors,
   file: page.source.file,
   kind: 'guide',
+  listed: true,
+  module: page.path,
+  crumb: `${page.subsite.title} / ${page.source.label}`,
   body: ih => blocks(ih, { highlight, href: page.href, idOf: page.idOf }, page.nodes),
 })
+
+const fromApi = (page: ApiPage): DocPage => ({ ...page, kind: 'api' })
 
 /** The site's own pages beside the doc pages. */
 const HOME = '/'
@@ -69,7 +84,25 @@ export interface ServerLibrary extends Library {
 
 export const makeLibrary = async (repository: string): Promise<ServerLibrary> => {
   const highlight = await highlighter()
-  const docs = guidePages(repository, allSubsites).map(page => fromGuide(highlight, page))
+  const guides = guidePages(repository, allSubsites)
+  const packages = await extract(
+    repository,
+    allSubsites
+      .flatMap(subsite => subsite.packages)
+      .flatMap(dir => Option.toArray(packageSource(join(repository, 'packages', dir)))),
+    compilerOptionsOf(repository),
+  )
+  const docs = allSubsites.flatMap(subsite => [
+    ...guides.pages
+      .filter(page => page.subsite === subsite)
+      .map(page => fromGuide(highlight, page)),
+    ...apiPages(
+      subsite,
+      packages.filter(source => subsite.packages.includes(source.dir)),
+      highlight,
+      guides.linksFrom,
+    ).map(fromApi),
+  ])
   const byPath = new Map<string, DocPage>()
   for (const page of docs) {
     if (byPath.has(page.path)) throw new Error(`two doc pages claim ${page.path}`)
@@ -88,18 +121,14 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     (current: DocPage) =>
     (ih: Ih): Region => {
       const pages = inSubsite.get(current.subsite) ?? []
+      const marked = (page: DocPage) => {
+        if (page === current) return [ih.AriaCurrent('page')]
+        return page.path === current.module ? [ih.AriaCurrent('location')] : []
+      }
       const link = (page: DocPage) =>
-        ih.li(
-          [],
-          [
-            ih.a(
-              [ih.Href(page.path), ...(page === current ? [ih.AriaCurrent('page')] : [])],
-              [page.label],
-            ),
-          ],
-        )
+        ih.li([], [ih.a([ih.Href(page.path), ...marked(page)], [page.label])])
       const groups = (kind: DocPage['kind']) => {
-        const ofKind = pages.filter(page => page.kind === kind)
+        const ofKind = pages.filter(page => page.kind === kind && page.listed)
         const labels = [...new Set(ofKind.map(page => page.group))]
         return labels.flatMap(label => [
           ...(labels.length === 1 ? [] : [ih.h3([], [label])]),
@@ -117,11 +146,12 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
       ]
     }
 
+  /** The listed pages around this one; an export's page leads back to its entry point. */
   const pager = (current: DocPage, ih: Ih): Html => {
-    const pages = inSubsite.get(current.subsite) ?? []
+    const pages = (inSubsite.get(current.subsite) ?? []).filter(page => page.listed)
     const at = pages.indexOf(current)
-    const previous = pages[at - 1]
-    const next = pages[at + 1]
+    const previous = current.listed ? pages[at - 1] : byPath.get(current.module)
+    const next = current.listed ? pages[at + 1] : undefined
     return ih.nav(
       [ih.Class('pager'), ih.AriaLabel('Pages')],
       [
@@ -143,13 +173,7 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
   const article =
     (current: DocPage) =>
     (ih: Ih): Region => [
-      ih.header(
-        [],
-        [
-          ih.p([ih.Class('crumb')], [`${current.subsite.title} / ${current.group}`]),
-          ih.h1([], [current.title]),
-        ],
-      ),
+      ih.header([], [ih.p([ih.Class('crumb')], [current.crumb]), ih.h1([], [current.title])]),
       ...current.body(ih),
       pager(current, ih),
     ]
