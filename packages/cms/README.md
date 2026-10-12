@@ -60,7 +60,7 @@ pnpm add effect foldkit foldkit-entity foldkit-form foldkit-crud foldkit-remote 
 
 This integration extends an existing Entity, form, and pair of Remote mutations.
 `Blog.Post`, `PostForm`, `CreatePostMutation`, and `UpdatePostMutation` come from
-your domain module; [the example domain](../../examples/cms/src/domain.ts) shows
+your domain module; [the example domain](../../examples/cms/src/content/domain.ts) shows
 those definitions together. Start with [Form](../form/README.md) if you have not
 yet defined the operation's input.
 
@@ -192,7 +192,7 @@ PostEditor.storedEntry(model) // Option: the entry the server knows, none until 
   publish now.
 - **Leaving within the rest.** `open`, `create` and `close` drop what is in the
   form. Run `PostEditor.flush(model)` first, as
-  [the example](../../examples/cms/src/app.ts) does: it saves what has not been
+  [the example](../../examples/cms/src/apps/app.ts) does: it saves what has not been
   saved, now, and does nothing when there is nothing to save.
 - **A draft never fails to open.** The saved Model is tried first, guarded by the
   form's name and `version`; then the saved values, key by key, keeping what the

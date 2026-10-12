@@ -48,7 +48,7 @@ pnpm add effect drizzle-orm foldkit-cms foldkit-cms-drizzle foldkit-guard foldki
 The following is **wiring pseudocode**: `Blog`, `Posts`, `posts`, `User`,
 and the insert/update handlers belong to your application (a compiled version
 is [`test/readme.test-d.ts`](test/readme.test-d.ts)). Use
-[the runnable server](../../examples/cms/src/server.ts) for complete handlers,
+[the runnable server](../../examples/cms/src/server/server.ts) for complete handlers,
 a database layer, and transaction setup. `sqliteTables()` describes tables;
 include them in your migrations before running the server.
 

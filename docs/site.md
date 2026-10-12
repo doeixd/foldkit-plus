@@ -7,7 +7,7 @@ runs. This guide builds a site end to end: nodes, navigation, data fetching
 without waterfalls, prefetching, server rendering, and SEO.
 
 The package README is the onboarding reference; the
-[router design](../design/router-DESIGN.md) (see its Status section first)
+[router design](./design/router-DESIGN.md) (see its Status section first)
 is the reasoning. This guide is the path between them.
 
 ## The one rule
