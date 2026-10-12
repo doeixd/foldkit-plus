@@ -36,4 +36,9 @@ export default [
     ],
     tests: ['packages/sync/test/presence.test.ts'],
   },
+  {
+    name: 'a connection whose access went stays in the hub',
+    edits: [{ file: '../src/presence.ts', find: 'else stop()', replace: '' }],
+    tests: ['packages/sync/test/presence.test.ts'],
+  },
 ]

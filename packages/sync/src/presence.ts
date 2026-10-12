@@ -374,8 +374,19 @@ export const servePresence = <Update>(
     leave = hub.join(send)
     off = socket.onMessage(data => {
       const frame = decodePresence<Update>(data)
+      if (frame === undefined) return
       // The connection owns the identity; a client-supplied id is ignored.
-      if (frame !== undefined) hub.publish({ id: options.peerId, value: frame.value })
+      const publish = () => hub.publish({ id: options.peerId, value: frame.value })
+      if (options.opens === undefined) return publish()
+      // Asked again with each frame: one no longer let open the document leaves.
+      void Effect.runPromise(options.opens).then(
+        open => {
+          if (stopped) return
+          if (open) publish()
+          else stop()
+        },
+        () => stop(),
+      )
     })
   }
   if (options.opens === undefined) join()

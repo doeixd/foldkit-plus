@@ -226,9 +226,24 @@ export const serveJournal = <Message, Shared, Principal>(
   options: JournalExchangeOptions<Message, Shared, Principal>,
 ): (() => void) => {
   const client = journalExchange(options)
+  const notices = journalChanges(options.journal, options.sync.documentId)
+  const { opens } = options
   return serveSocket(socket, {
     exchange: (cursor, pending, epoch) => client.exchange(sequence(cursor), pending, epoch),
-    changes: journalChanges(options.journal, options.sync.documentId),
+    // A connection that may not open the document is told nothing of its commits.
+    changes:
+      opens === undefined
+        ? notices
+        : listener =>
+            notices(
+              () =>
+                void Effect.runPromise(opens).then(
+                  open => {
+                    if (open) listener()
+                  },
+                  () => {},
+                ),
+            ),
   })
 }
 

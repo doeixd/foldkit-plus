@@ -368,10 +368,34 @@ describe('presence', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     for (const [, client] of clients)
       client.send(JSON.stringify({ presence: { value: { cursor: 1 } } }))
+    await new Promise(resolve => setTimeout(resolve, 0))
     // Only the open connection's frame is relayed, and only it hears it.
     expect(received.get('open')!.map(data => JSON.parse(data).presence.id)).toEqual(['open'])
     expect(received.get('refused')).toEqual([])
     expect(received.get('failed')).toEqual([])
+  })
+
+  it('leaves a connection no longer let open the document, at its next frame', async () => {
+    const hub = createPresenceHub<Cursor>()
+    let open = true
+    const { client, server } = socketPair()
+    const heard: Array<string> = []
+    hub.join(update => heard.push(update.id))
+    servePresence(server, hub, { peerId: 'revoked', opens: Effect.sync(() => open) })
+    const tick = () => new Promise(resolve => setTimeout(resolve, 0))
+    await tick()
+    client.send(JSON.stringify({ presence: { value: { cursor: 1 } } }))
+    await tick()
+    open = false
+    client.send(JSON.stringify({ presence: { value: { cursor: 2 } } }))
+    await tick()
+    // Its first frame was relayed; the one after its access went was not.
+    expect(heard).toEqual(['revoked'])
+    // And it has left: what others publish no longer reaches it.
+    const received: Array<string> = []
+    client.onMessage(data => received.push(data))
+    hub.publish({ id: 'other', value: { cursor: 3 } })
+    expect(received).toEqual([])
   })
 
   it('ignores messages that are not presence updates', () => {

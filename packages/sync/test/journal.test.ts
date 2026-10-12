@@ -312,4 +312,31 @@ describe('serveJournal', () => {
     Effect.runSync(Fiber.interrupt(loop))
     for (const stop of stops) stop()
   })
+
+  it('tells a connection that may not open the document nothing of its commits', async () => {
+    const journal = openJournal()
+    const [refused, open] = [socketPair(), socketPair()]
+    const heard: Array<string> = []
+    refused.client.onMessage(data => heard.push(data))
+    const stops = [
+      serveJournal(refused.server, {
+        sync: Todos,
+        journal,
+        principal: 'eve',
+        opens: Effect.succeed(false),
+      }),
+      serveJournal(open.server, { sync: Todos, journal, principal: 'ada' }),
+    ]
+    const writing = await replica('writing')
+    await Effect.runPromise(writing.submit(Message.CreatedTodo({ id: 'w1', title: 'Milk' })))
+    await Effect.runPromise(
+      writing.synchronize.pipe(
+        Effect.provide(Sync.transport.socket({ makeSocket: () => open.client })),
+      ),
+    )
+    expect(Effect.runSync(writing.status).pending).toBe(0)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(heard).toEqual([])
+    for (const stop of stops) stop()
+  })
 })

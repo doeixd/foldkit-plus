@@ -44,4 +44,9 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a refused connection hears every commit',
+    edits: [{ file, find: '      opens === undefined', replace: '      true' }],
+    tests,
+  },
 ]

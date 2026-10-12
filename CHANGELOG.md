@@ -195,6 +195,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-sync`: a connection whose access went hears and speaks no more.**
+  Presence asked `opens` once, at join, so a peer kept relaying presence after
+  its access was taken; it is asked again with each frame, and a refused peer
+  leaves. `serveJournal` sent a refused connection a notice of every commit,
+  which woke it into a failing exchange and told it when the document
+  changed; notices now pass `opens` too.
 - **`foldkit-remote`: `Remote.http` reads a middleware's `{ error }` 403 as
   `Forbidden`.** A 403 whose body happened to be shaped as an error answer was
   taken for Remote's own, an ordinary mutation error; a 403 is now forbidden

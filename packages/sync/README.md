@@ -271,7 +271,9 @@ an optional peer of this package):
   reason, and it may answer with an `Effect`. A rule about the document
   belongs in `authorize`.
 - **`opens`**, an `Effect` of whether the connection may open the document at
-  all: refused, every exchange fails and nothing is read or appended.
+  all: refused, every exchange fails and nothing is read or appended, and
+  `serveJournal` sends it no notice of a commit. It is asked each exchange, so
+  access taken away holds from the next one.
   `defineDocumentHost` takes both as functions of the principal.
 - **`settle`** runs after each exchange's appends: apply what committed to
   another store, through `journal.recover`. It runs every exchange, so a
@@ -784,7 +786,8 @@ shares the sync socket across reconnects; `Sync.presence.hub` and `.serve` are
 the server side. `.serve` stamps each frame with the connection's `peerId`, so a
 peer cannot speak as another, and with `opens` (the exchange's own) joins only
 a connection that may open the document, relaying nothing to or from one
-refused. [`examples/pages`](../../examples/pages) shows remote carets.
+refused. It asks again with each frame the connection sends, and one no
+longer let open the document leaves. [`examples/pages`](../../examples/pages) shows remote carets.
 
 ### Last-writer-wins fields (experimental)
 
