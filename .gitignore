@@ -13,3 +13,4 @@ PLAN.md
 examples/cloudflare/pages/public/
 # Vitest browser mode: screenshots and traces of failed browser tests.
 .vitest/
+examples/site/generated/
