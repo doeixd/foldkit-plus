@@ -667,9 +667,11 @@ describe('who may make a transition', () => {
       _tag: 'Forbidden',
       message: 'This author may not publish this entry',
     })
+    // What the wire carries, read as the client would: decoded, not assumed.
     const may = async (principal: Principal) =>
-      ((await as(principal).read('CmsEntry', ['n1'], ['may']))['CmsEntry:n1']?.may ??
-        []) as ReadonlyArray<string>
+      Schema.decodeUnknownSync(Schema.Array(Schema.String))(
+        (await as(principal).read('CmsEntry', ['n1'], ['may']))['CmsEntry:n1']?.may,
+      )
     expect(await may(bea)).not.toContain('publish')
     expect(await may(ada)).toContain('publish')
     await as(ada).mutate('CmsPublish', { entry: 'n1', basedOn: null })

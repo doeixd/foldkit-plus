@@ -15,9 +15,9 @@ const step = (model: Model, message: Message): Model => update(model, message).m
 
 /** The identity of the worklist's connection as `model` asks for it. */
 const worklistIdentity = (model: Model): string => {
-  const active = Worklist.active.projectionOf(model)
-  const connections = Option.isSome(active) ? connectionsOf(active.value as never) : []
-  return (connections[0] as { readonly identity?: string } | undefined)?.identity ?? ''
+  const [connection] = connectionsOf(Option.getOrThrow(Worklist.active.projectionOf(model)))
+  if (connection === undefined) throw new Error('the worklist asks for no connection')
+  return connection.identity
 }
 
 /** The worklist as it stands after its query read failed. */
