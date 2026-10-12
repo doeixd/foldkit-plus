@@ -163,8 +163,10 @@ Guards.matrix([Todo])
   `Guards.all(a, b)` is a conjunction as one guard. `always: [...]` is ANDed
   after every surface's list and cannot be out-voted: a tenant boundary or
   "signed in" belongs there.
-- `Write` is shorthand for Create, Update and Delete. A member's `Update`
-  governs setting it on creation too, unless the member names a `Create`.
+- `Write` is shorthand for Create, Update and Delete. Beside it, a slot of its
+  own (`Delete`) adds its rules to Write's, and its refusal replaces Write's,
+  whichever is written first. A member's `Update` governs setting it on
+  creation too, unless the member names a `Create`.
 - An interaction the application names (`Interaction.make('Archive')`) is
   the row's, under `interactions`, keyed by `[Archive.key]`, so a misspelling
   is a type error. Only a Read inherits.
@@ -419,8 +421,8 @@ RemoteServer.answer(handlers, body).pipe(Effect.provideService(G.Principal, prin
 
 A live hub shares a re-read between subscribers with one principal. Two
 requests by one person each decode a principal of their own, so give the hub
-`Policy.keyOf`, which names a principal by every field the rules may read (a
-visitor included), and they share one:
+`Policy.keyOf`, which names a principal by every field, as JSON keeps it (a
+set, a bigint, a date included; a visitor too), and they share one:
 
 ```ts
 const hub = yield* RemoteServer.liveHub([...backend.server.entities.values()], {

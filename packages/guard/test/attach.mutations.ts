@@ -121,4 +121,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'Write is taken in the order written',
+    edits: [
+      {
+        file: '../src/attach.ts',
+        find: "([left], [right]) => Number(right === 'Write') - Number(left === 'Write'),",
+        replace: '() => 0,',
+      },
+    ],
+    tests: ['packages/guard/test/attach.test.ts'],
+  },
+  {
+    name: "a later attachment's always is dropped",
+    edits: [
+      {
+        file: '../src/attach.ts',
+        find: '    always.push(...attachment.always)',
+        replace: '    if (always.length === 0) always.push(...attachment.always)',
+      },
+    ],
+    tests: ['packages/guard/test/attach.test.ts'],
+  },
 ]

@@ -356,7 +356,12 @@ const surfacesFrom = (
   slots: Readonly<Record<string, ReadonlyArray<AnyRule> | On<AnyRule, Deny> | undefined>>,
 ): Surfaces => {
   const surfaces = record<Surface>()
-  for (const [interaction, slot] of Object.entries(slots)) {
+  // `Write` goes first, whatever order the keys were written in: beside it, a
+  // slot of its own adds rules to it and its refusal replaces Write's.
+  const ordered = Object.entries(slots).sort(
+    ([left], [right]) => Number(right === 'Write') - Number(left === 'Write'),
+  )
+  for (const [interaction, slot] of ordered) {
     if (slot === undefined) continue
     const added = surfaceFrom(slot)
     checkRules(set, entity, `${where}${interaction}`, added.rules)

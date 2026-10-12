@@ -171,4 +171,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a refusal with a reason holds',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'decision => decision === true),',
+        replace: 'decision => decision !== false),',
+      },
+    ],
+    tests,
+  },
 ]

@@ -335,6 +335,11 @@ export const Guards = {
     }
 
     const isPrincipal = Schema.is(Schema.Option(principal))
+    // Every claim as JSON keeps it, a set, a number past JSON's or a date
+    // included: two principals that differ in one never share a key.
+    const asJson = Schema.encodeSync(
+      Schema.toCodecJson(principal) as unknown as Schema.Codec<unknown, unknown>,
+    )
 
     const implement = <R>(bodies: Readonly<Record<string, Body<User, R>>>): Policy<User, R> => {
       const missing = principalNames.filter(guard => !Object.hasOwn(bodies, guard))
@@ -413,7 +418,7 @@ export const Guards = {
         keyOf: principal =>
           Option.match(principal, {
             onNone: () => 'visitor',
-            onSome: user => `user:${JSON.stringify(inputOf(user))}`,
+            onSome: user => `user:${JSON.stringify(asJson(user))}`,
           }),
         isPrincipal,
       }

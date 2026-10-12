@@ -195,6 +195,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-guard`: `Policy.keyOf` tells every claim apart.** It keyed a
+  principal by `JSON.stringify` of its rule inputs, so a set claim read as
+  `{}` (an admin and a revoked admin shared a live hub's re-read) and a
+  bigint threw. It keys by the principal encoded through `Schema.toCodecJson`.
+  And beside `Write`, a slot of its own's refusal replaces Write's whichever
+  key is written first; it hung on the order.
 - **`foldkit-cms-drizzle`: a statement the database refuses no longer sends
   its SQL.** Its statements ran as defects, as `foldkit-remote-drizzle`'s
   writes did, so a refusal reached the client with the driver's error; they

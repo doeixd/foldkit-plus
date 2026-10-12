@@ -63,6 +63,20 @@ const Todo = TodoFields.pipe(
   }),
 )
 
+describe('Write beside a slot of its own', () => {
+  it('lets the slot’s refusal replace Write’s, in whichever order they are written', () => {
+    const write = Guards.on([G.isOwner], Guards.explain('Write'))
+    const update = Guards.on([G.isAdmin], Guards.explain('Update'))
+    const first = TodoFields.pipe(Guards.attach(G, { row: { Write: write, Update: update } }))
+    const last = TodoFields.pipe(Guards.attach(G, { row: { Update: update, Write: write } }))
+    for (const entity of [first, last]) {
+      expect(Option.map(Guards.attached(entity), ({ row }) => row['Update']?.deny)).toEqual(
+        Option.some(Option.some(Guards.explain('Update'))),
+      )
+    }
+  })
+})
+
 describe('attach', () => {
   it('keeps the Entity, so a guard over the base is a guard over the result', () => {
     expect(Entity.same(Todo, TodoFields)).toBe(true)
@@ -125,6 +139,11 @@ describe('attach', () => {
     )
     expect(lines).toContain('Todo.Delete: isOwner | isAdmin | isOwner → forbidden')
     expect(lines).toContain('Todo.email.Read: isOwner | isAdmin → redact("***")')
+    // `always` narrows every surface, so a second attachment's adds to the first's.
+    const Narrowed = Todo.pipe(Guards.attach(G, { always: [G.isAdmin] }))
+    expect(Option.map(Guards.attached(Narrowed), ({ always }) => always.length)).toEqual(
+      Option.some(2),
+    )
   })
 
   it('lets a member’s own Create rule override its Update rule on creation', () => {

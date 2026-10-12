@@ -101,6 +101,22 @@ describe('a principal’s key', () => {
     const moved = { ...ada, projectIds: ['p3'] }
     expect(Policy.keyOf(Option.some(moved))).not.toBe(Policy.keyOf(Option.some(ada)))
   })
+
+  it('tells claims apart that JSON alone would not: a set, a bigint', () => {
+    const Staff = Schema.Struct({
+      id: Schema.String,
+      roles: Schema.ReadonlySet(Schema.String),
+      quota: Schema.BigInt,
+    })
+    const S = Guards.declare('Staff', Staff, guard => ({ isAdmin: guard.principal() }), {
+      key: user => user.id,
+    })
+    const Staffed = S.implement({ isAdmin: () => true })
+    const key = (roles: ReadonlyArray<string>) =>
+      Staffed.keyOf(Option.some({ id: 'ada', roles: new Set(roles), quota: 3n }))
+    expect(key(['admin'])).not.toBe(key([]))
+    expect(key(['admin'])).toBe(key(['admin']))
+  })
 })
 
 describe('a declaration', () => {

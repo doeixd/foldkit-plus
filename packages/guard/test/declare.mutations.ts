@@ -63,7 +63,7 @@ export default [
   {
     name: 'a user may be keyed as the visitor is',
     edits: [
-      { file, find: 'user => `user:${JSON.stringify(inputOf(user))}`', replace: "() => 'visitor'" },
+      { file, find: 'user => `user:${JSON.stringify(asJson(user))}`', replace: "() => 'visitor'" },
     ],
     tests,
   },
@@ -72,10 +72,21 @@ export default [
     edits: [
       {
         file,
-        find: 'user => `user:${JSON.stringify(inputOf(user))}`',
+        find: 'user => `user:${JSON.stringify(asJson(user))}`',
         replace: 'user => `user:${options.key(user)}`',
       },
     ],
     tests,
+  },
+  {
+    name: 'a key is its claims as JSON alone keeps them',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'onSome: user => `user:${JSON.stringify(asJson(user))}`,',
+        replace: 'onSome: user => `user:${JSON.stringify(inputOf(user))}`,',
+      },
+    ],
+    tests: ['packages/guard/test/declare.test.ts'],
   },
 ]

@@ -81,6 +81,24 @@ const rowsFor = (user: Option.Option<User>, entity = Todo) => {
     .map(row => row.id)
 }
 
+describe('a body that refuses with a reason', () => {
+  // `{ allowed: false, reason }` is an object, and so truthy: it must still refuse.
+  const Refusing = G.implement({
+    isAdmin: () => ({ allowed: false, reason: 'Only an admin.' }),
+    signedIn: () => true,
+  })
+  it('refuses inside a rule as a plain refusal does', () => {
+    const Admins = TodoFields.pipe(
+      Guards.attach(G, { row: { Read: [G.isAdmin], Update: [G.isAdmin] } }),
+    )
+    const someone = Option.some(root)
+    expect(Effect.runSync(Refusing.readable(Admins, someone))).toEqual(Condition.never)
+    expect(Effect.runSync(Refusing.writable(Admins, someone, 'Update')).condition).toEqual(
+      Condition.never,
+    )
+  })
+})
+
 describe('Policy.readable', () => {
   it('leaves the row guards of a disjunction a principal guard did not settle', () => {
     asked = 0
