@@ -577,7 +577,7 @@ Query.placement(byName, {}) // { _tag: 'Placeable' }
 
 A term overrides its field's: `Order.asc(field, { collation })`.
 `Query.placement(query, input)` says whether a client can order the rows exactly
-as the server does: every term over a number or a boolean, or over text with a
+as the server does: every term over a number or a boolean (a row may lack it), or over text with a
 portable collation. A body with no order, text with none declared, or a locale
 is `NotPlaceable`, with the reason.
 `foldkit-crud`'s `Sort.make(['title', 'id']).Schema` is such a sort.

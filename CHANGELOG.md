@@ -195,6 +195,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-entity`: an order over a number a row may lack is placeable.**
+  `Query.placement` read `NullOr(Number)` (and `OptionFromNullOr(Number)`) as
+  text with no collation, so such a list was fetched on every change; where
+  nulls go is said on every term, so it is placed now.
 - **`foldkit-remote-drizzle`: `asciiFold` folds only ASCII on Postgres.** It
   ordered by `lower(x) COLLATE "C"`, where `lower` still follows the column's
   collation and, under a UTF-8 one, folds `É` to `é`; the client's evaluator

@@ -147,4 +147,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a null among numbers makes them text',
+    edits: [
+      {
+        file: '../src/expr.ts',
+        find: 'ast.types.every(member => SchemaAST.isNull(member) || ordersIntrinsically(member)))',
+        replace: 'ast.types.every(ordersIntrinsically))',
+      },
+    ],
+    tests,
+  },
 ]

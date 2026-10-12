@@ -101,6 +101,18 @@ describe('Query.placement says whether a client can order as the server does', (
     expect(placement(Query.from(Item).pipe(Query.orderBy(Order.desc(Item.fields.id))))).toBe(
       'Placeable',
     )
+    // A number a row may lack: where it goes is said on the term.
+    const Ranked = Entity.define(
+      'Ranked',
+      Schema.Struct({
+        id: Schema.String,
+        rank: Schema.NullOr(Schema.Number),
+        score: Schema.OptionFromNullOr(Schema.Number),
+      }),
+    )
+    for (const field of [Ranked.fields.rank, Ranked.fields.score]) {
+      expect(placement(Query.from(Ranked).pipe(Query.orderBy(Order.asc(field))))).toBe('Placeable')
+    }
   })
 
   it('is not over text with no collation, or a locale one, or with no order at all', () => {

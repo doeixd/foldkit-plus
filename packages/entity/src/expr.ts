@@ -453,12 +453,17 @@ export type Placement =
 const placeable: Placement = Object.freeze({ _tag: 'Placeable' })
 const notPlaceable = (reason: string): Placement => Object.freeze({ _tag: 'NotPlaceable', reason })
 
-/** Whether values encoded by `ast` order the same everywhere: numbers and booleans, never text. */
+/**
+ * Whether values encoded by `ast` order the same everywhere: numbers and
+ * booleans, never text. A null among them does too: where it goes is said on
+ * every order term.
+ */
 const ordersIntrinsically = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isNumber(ast) ||
   SchemaAST.isBoolean(ast) ||
   (SchemaAST.isLiteral(ast) && typeof ast.literal !== 'string') ||
-  (SchemaAST.isUnion(ast) && ast.types.every(ordersIntrinsically))
+  (SchemaAST.isUnion(ast) &&
+    ast.types.every(member => SchemaAST.isNull(member) || ordersIntrinsically(member)))
 
 /** Why a term cannot be placed by a client, if it cannot. */
 const unplaceable = (orderTerm: OrderTerm): Option.Option<string> =>
@@ -823,7 +828,7 @@ export const Query = {
 
   /**
    * Whether a client can order this query's rows exactly as the server does,
-   * for one input: every term over a number or a boolean, or over text with a
+   * for one input: every term over a number or a boolean (a row may lack it), or over text with a
    * portable collation (`binary`, `asciiFold`). A body that names no order
    * leaves it to the server, and is never placeable.
    */
