@@ -268,6 +268,15 @@ describe('A list the client places the change in, fetching nothing', () => {
     expect(shown(repriced, active.ref.identity)).toEqual({ ids: ['p2', 'p1'], stale: false })
   })
 
+  it('keeps the very list when a held row’s order changed but its place did not', () => {
+    const before = loaded()
+    // p1 is cheaper than p2 still, so it stands where it stood.
+    const nudged = answered(before, [patch('p1', { price: 11 })])
+    expect(nudged.remote.connections[active.ref.identity]).toBe(
+      before.remote.connections[active.ref.identity],
+    )
+  })
+
   it('leaves out a row that joins past what it has loaded, and fetches nothing', () => {
     // The same rows in the store; the list loaded up to p2, with more after it.
     const rows = loaded().remote

@@ -102,6 +102,17 @@ export interface HeldConnection {
 
 const kept = Impact.Kept()
 
+/** Whether two versions of a list hold the same rows in the same order, segment by segment. */
+const sameOrder = (left: Connection, right: Connection): boolean =>
+  left.segments.length === right.segments.length &&
+  left.segments.every((segment, index) => {
+    const other = right.segments[index]!.edges
+    return (
+      segment.edges.length === other.length &&
+      segment.edges.every((edge, position) => edge.key === other[position]!.key)
+    )
+  })
+
 /**
  * What `change` does to `connection`, judged against `store`, the store after
  * the write.
@@ -185,23 +196,18 @@ export const impactOn = (
       }
       // Leaving is exact whatever the order: membership is the body's.
       if (belongs === 'no') return Impact.Placed({ connection: withoutEdge(pages, key) })
+      /** The row where `place` says; the list as it was when that is where it already stood. */
+      const placedAt = (place: Extract<RowPlace, { readonly _tag: 'Before' | 'End' }>) => {
+        const next = withEdge(
+          withoutEdge(pages, key),
+          edge({ entity: change.entity, id: change.id }),
+          place,
+        )
+        return sameOrder(pages, next) ? kept : Impact.Placed({ connection: next })
+      }
       return RowPlace.$match(placeIn(store, pages, body, connection.encoded, key), {
-        Before: place =>
-          Impact.Placed({
-            connection: withEdge(
-              withoutEdge(pages, key),
-              edge({ entity: change.entity, id: change.id }),
-              place,
-            ),
-          }),
-        End: place =>
-          Impact.Placed({
-            connection: withEdge(
-              withoutEdge(pages, key),
-              edge({ entity: change.entity, id: change.id }),
-              place,
-            ),
-          }),
+        Before: placedAt,
+        End: placedAt,
         // It belongs to rows not loaded: gone from these, if they showed it.
         Outside: () => (held ? Impact.Placed({ connection: withoutEdge(pages, key) }) : kept),
         Unknown: ({ reason }) =>

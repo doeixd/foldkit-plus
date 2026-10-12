@@ -195,6 +195,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`: placing a change no longer redraws or refetches what it
+  left in place.** A row whose order field changed but whose place did not
+  still gave its list a new identity, so every read of it was drawn again and,
+  under `verifyPlacement`, the list was fetched; it is now kept as it was. Each
+  list's held rows were rebuilt for every change of a read or an answer; they
+  are read once per list.
 - **`foldkit-guard`: `Policy.keyOf` tells every claim apart.** It keyed a
   principal by `JSON.stringify` of its rule inputs, so a set claim read as
   `{}` (an admin and a revoked admin shared a live hub's re-read) and a

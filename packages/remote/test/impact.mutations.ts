@@ -71,6 +71,8 @@ export default [
       },
     ],
     tests,
+    survives:
+      'a row placed where it already stood keeps the list (sameOrder), so the shortcut only spares placing it',
   },
   {
     name: 'a row shown by an overlay is placed in the pages anyway',
@@ -231,6 +233,17 @@ export default [
   {
     name: 'every row is new to the client',
     edits: [{ file: impact, find: 'created: held === undefined,', replace: 'created: true,' }],
+    tests,
+  },
+  {
+    name: 'a row placed where it stood makes a new list',
+    edits: [
+      {
+        file: '../src/impact.ts',
+        find: 'return sameOrder(pages, next) ? kept : Impact.Placed({ connection: next })',
+        replace: 'return Impact.Placed({ connection: next })',
+      },
+    ],
     tests,
   },
 ]

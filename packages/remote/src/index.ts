@@ -2759,9 +2759,11 @@ const bindDomain = <
   ): Connection => {
     const query = queryOf(identity)
     if (Option.isNone(query)) return pages
+    // Built once: each change is of a row of its own, judged against the store
+    // as every change left it, so what the list held before them all is enough.
+    const holds = new Set(items(pages).map(edge => entityKey(edge.ref.entity, edge.ref.id)))
     let placed = pages
     for (const change of changes) {
-      const holds = new Set(items(placed).map(edge => entityKey(edge.ref.entity, edge.ref.id)))
       if (!holds.has(entityKey(change.entity, change.id))) continue
       placed = Impact.$match(
         impactOn({ ...query.value, connection: placed, holds }, store, change),
@@ -2925,19 +2927,18 @@ const bindDomain = <
       const query = queryOf(identity)
       if (Option.isNone(query)) continue
       const original = remote.connections[identity]!
-      // Each change is judged against the pages the one before it left.
+      // Each change is judged against the pages the one before it left. What the
+      // list holds is read once: a change is of a row of its own, judged against
+      // the store as the whole answer left it.
+      const holds = new Set(
+        visibleItems(original, identity, remote.optimistic.overlays, remote.entities).map(edge =>
+          entityKey(edge.ref.entity, edge.ref.id),
+        ),
+      )
       let pages = original
       let invalid = false
       for (const change of changes) {
-        const held: HeldConnection = {
-          ...query.value,
-          connection: pages,
-          holds: new Set(
-            visibleItems(pages, identity, remote.optimistic.overlays, remote.entities).map(edge =>
-              entityKey(edge.ref.entity, edge.ref.id),
-            ),
-          ),
-        }
+        const held: HeldConnection = { ...query.value, connection: pages, holds }
         const after = Impact.$match(impactOn(held, visible, change), {
           Kept: () => Option.some(pages),
           Placed: ({ connection }) => Option.some(connection),
