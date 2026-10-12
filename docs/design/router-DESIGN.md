@@ -6,7 +6,7 @@ That distinction matters because, after looking through the current `foldkit-plu
 
 Your own design docs almost predicted this. `data-query-DESIGN.md` says a `Page/RouteContract` would become justified once several things repeatedly needed one route-associated value: Surface activation, head metadata, SSR/preload policy, actions, layout metadata. I think you've now crossed that threshold. [See §31.11](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/data-query-DESIGN.md).
 
-# Status (2026-10-07)
+# Status (2026-10-12)
 
 The core thesis held: there is no router runtime. `foldkit-site` (0.1.0,
 `packages/site`) is a thin topology — stable nodes, hierarchy, typed targets,
@@ -15,7 +15,18 @@ placement shape — compiling to the Foldkit Router, `Surface.when`, Bundle
 placements, and wirings the runtime already runs. `SurfaceSource` is the
 centre, as §32 says; Site is one producer, Composition another.
 
-## Built (§31 steps 1–6 and 8, step 7's mechanism, §§33–34 slices)
+## Built (§31 steps 1–8, §§33–34 slices)
+
+- **A Site + Remote + SSR application (§§16, 23, 33.9, 33.10):** the CMS
+  public site is a Site tree. `Site.parse` and `Site.hrefOf` are its two
+  directions; `Site.routeAt` says an address is another document's, which
+  `Site.routing` loads; each node's `meta` and `indexed` feed the SSR plan
+  through `Site.metaOf`; `Site.paths` and `Site.targets` list what the build
+  renders and the sitemap names; `Site.routing`'s `arrived` moves focus; and
+  pointing at a link (`pointedLinks`) runs `Data.preload`, so the page there
+  draws at once. Navigating to a generated page was measured against its
+  full load and chosen (open question 4). `Site.shortcuts` makes key
+  bindings from the annotated nodes (`examples/foldkit/routing`).
 
 - **Sources and activation (§31.1):** `SurfaceSource` / `SurfaceInstance` /
   `Surface.each` in `foldkit-surface`; `at` / `when` resolve their lone
@@ -81,25 +92,10 @@ centre, as §32 says; Site is one producer, Composition another.
 
 ## Still to do, and why each waits
 
-- **Prefetch adoption:** hover/programmatic prefetch in a Remote-backed app.
-  The routing example is Remote-free, so adopting there would prove nothing.
-- **Head metadata (§§23, 33.9):** `meta` as a function of the Model feeding
-  SSR's head, indexed flags, per-page descriptions/images/article facts.
-  Waits for a Site + SSR consumer; the CMS prerender hand-writes all of it
-  today (`examples/cms/src/ssr/`).
 - **Access policy (§25):** `Site.access`-shaped navigation/SSR presentation
   policy. Waits for a consumer; server authority stays `RemoteServer`.
-- **Paths and targets (§33.9):** `Site.paths(node, source)` enumerating a
-  node's addresses from a query, `Site.targets(site)` for builds/sitemaps/
-  prefetch, one declaration giving both `routeOf` and `pathOf`. (Half held:
-  `Site.target` already builds route + URL from one declaration; the parser
-  direction is still each app's own `urlToRoute`.)
 - **Scaffold derivation (§35):** entities to a sectioned site — proposed,
   unbuilt. `paths` comes first; everything else hangs off enumeration.
-- **Document-aware targets (§§33.7, 33.10):** built as one tree per
-  document (`Site.routeAt`; `Site.routing` loads what the tree does not
-  hold). A generated page of the same application is navigated to:
-  measured faster than its full load (open question 4).
 - **Locales (§33.11)** with the first localized content, and **themes**
   staying preferences (§33.12, decided: not routes).
 - **Single flight (§§27, 31.10), last:** starts with a request-count
@@ -112,30 +108,24 @@ centre, as §32 says; Site is one producer, Composition another.
   view for facts drawn before they are read, and whether the convention
   generalizes from crud to `foldkit-mixins` as sketched.
 
-## The binding constraint
+## The binding constraint, met
 
-The only Site consumer is `examples/foldkit/routing` — no Remote, no SSR,
-no prerender. The CMS, the app with real data/SSR/static pipelines, is not
-on Site: its studio and site hand-roll addresses (`linkIn` /
-`writeAddress`), its prerender lists SQL rows into paths by hand, and its
-head/meta is bespoke per page. Every item above is adoption-gated on a
-Site + Remote (+ SSR) application. Until one exists — a Remote-backed page
-in the routing example, or a CMS section ported to Site — **no further
-Site API**. Small slices before the graph, each in its owning package,
-is still the rule (§33's preamble); elimination (§34.5) is still the test.
+Until 2026-10-12 the only Site consumer was `examples/foldkit/routing`, with
+no Remote, SSR or prerender, and the rule was no further Site API until a
+Site + Remote (+ SSR) application existed. The CMS public site is now one
+(above), and every API added since answered something it hand-wrote. The
+rule that remains is elimination (§34.5): an API lands when it deletes an
+application's own code, in its owning package.
 
 ## Open questions
 
-1. **Who ports first?** A Remote-backed routing-example page proves
-   prefetch/SSR adoption cheaply but invents demand; a CMS section port
-   proves them against real demand expensively (its addresses, mirrors, and
-   editor holds are load-bearing). Undecided.
-2. **What carries a node's data source for `paths`?** A Remote query read
-   through the same `satisfy` as the page (§33.9's sketch) is the lead, but
-   no caller has forced the shape.
-3. **What is the `meta` function of?** Whole-Model access (the CMS's need:
-   a post's excerpt for its description) vs a declared Surface projection
-   (§23's preference). Undecided; the consumer decides.
+1. **Who ports first?** Answered: the CMS public site, against real demand.
+2. **What carries a node's data source for `paths`?** Answered: an Effect,
+   which the CMS build makes from a Remote query read as a visitor
+   (`examples/cms/src/ssr/prerender.ts`); `Site.paths` asks nothing more.
+3. **What is the `meta` function of?** Answered by the consumer: the
+   route and the whole Model, since a post's description is its excerpt,
+   which only the Model holds.
 4. **Which document does a target prefer?** Answered 2026-10-12 by
    measurement (`docs/benchmarks.md`, "Navigating to a generated page"): a
    Navigate Command, two to four times faster than a full load, three to
