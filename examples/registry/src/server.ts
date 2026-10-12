@@ -131,8 +131,6 @@ export const openServer = (
         .revision,
     /** The products as a principal may read them, for the guards' check of an edit. */
     products,
-    /** Whether the table has the product, for refusing an edit to one it has not. */
-    holds: (id: string) => sqlite.get('select 1 from products where id = ?', [id]) !== undefined,
     close: () => sqlite.close(),
   }
 }

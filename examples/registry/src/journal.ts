@@ -88,8 +88,6 @@ export interface ProductTable {
   readonly apply: (change: ProductChange, at: number) => Effect.Effect<void, unknown>
   /** The highest revision any row holds. */
   readonly revision: () => number
-  /** Whether the table has the product. */
-  readonly holds: (id: string) => boolean
   /** The products as a principal may read them: what the guards' check of an edit reads. */
   readonly products: EntitySource<Option.Option<Principal>>
 }
@@ -98,9 +96,7 @@ export interface ProductTable {
  * How the journal is opened, wherever it runs: over a `node:sqlite` file
  * (`journalNode.ts`) or SQLite compiled to WebAssembly in a browser.
  */
-export const journalOptions = (
-  table: ProductTable,
-): JournalStoreOptions<Operation, Shared, Principal> => {
+export const journalOptions = (): JournalStoreOptions<Operation, Shared, Principal> => {
   const contract = journalContract()
   return {
     // The contract gives the codecs, the empty snapshot and the reducer, so
@@ -128,15 +124,6 @@ export const journalOptions = (
         Match.orElse(() => false),
       )
       if (claimsCommit) throw new Error('An edit cannot say when it committed')
-      // An edit to a product the table has not got would commit, change no row,
-      // and vanish once absorbed: refused here, so its sender is told.
-      const missing = Match.value(message).pipe(
-        Match.tag('EditedProducts', ({ changes }) =>
-          changes.some(change => !table.holds(change.id)),
-        ),
-        Match.orElse(() => false),
-      )
-      if (missing) throw new Error('An edit names a product the table has not got')
     },
   }
 }

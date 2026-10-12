@@ -8,7 +8,7 @@ export const memoryJournal = (
 ): EditJournal & { readonly close: () => void } => {
   const scope = Effect.runSync(Scope.make())
   const journal = Effect.runSync(
-    Journal.make({ ...journalOptions(table), file: ':memory:' }).pipe(
+    Journal.make({ ...journalOptions(), file: ':memory:' }).pipe(
       Effect.provideService(Scope.Scope, scope),
     ),
   )

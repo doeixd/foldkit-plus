@@ -150,8 +150,8 @@ export default [
     edits: [
       {
         file: '../src/journal.ts',
-        find: "    if (missing) throw new Error('An edit names a product the table has not got')",
-        replace: '',
+        find: '    admit: GuardSync.admit(Policy, ProductDocument, {',
+        replace: '    _admit: GuardSync.admit(Policy, ProductDocument, {',
       },
     ],
     tests: ['examples/registry/test/journal.test.ts'],
