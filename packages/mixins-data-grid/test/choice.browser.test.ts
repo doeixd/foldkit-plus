@@ -164,7 +164,8 @@ test('a press on an option chooses it, and the blur does not commit the old draf
   try {
     await vi.waitFor(() => expect(cell('t0')).not.toBeNull())
     await userEvent.dblClick(cell('t0'))
-    await vi.waitFor(() => expect(list()).not.toBeNull())
+    // A double-click and the drawing after it: given the time a slow CI browser takes.
+    await vi.waitFor(() => expect(list()).not.toBeNull(), { timeout: 5000 })
     await userEvent.click(option('Pending'))
     await vi.waitFor(() => expect(edits()).toEqual(['t0=Pending']))
     await vi.waitFor(() => expect(combobox()).toBeNull())
@@ -178,7 +179,8 @@ test('the list opens below a cell high in the view, and above one low in it', as
   try {
     await vi.waitFor(() => expect(cell('t4')).not.toBeNull())
     await userEvent.dblClick(cell('t0'))
-    await vi.waitFor(() => expect(list()).not.toBeNull())
+    // A double-click and the drawing after it: given the time a slow CI browser takes.
+    await vi.waitFor(() => expect(list()).not.toBeNull(), { timeout: 5000 })
     expect(list()!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
       cell('t0').getBoundingClientRect().bottom - 1,
     )
@@ -186,7 +188,7 @@ test('the list opens below a cell high in the view, and above one low in it', as
     await vi.waitFor(() => expect(list()).toBeNull())
 
     await userEvent.dblClick(cell('t4'))
-    await vi.waitFor(() => expect(list()).not.toBeNull())
+    await vi.waitFor(() => expect(list()).not.toBeNull(), { timeout: 5000 })
     expect(list()!.getBoundingClientRect().bottom).toBeLessThanOrEqual(
       cell('t4').getBoundingClientRect().top + 1,
     )
