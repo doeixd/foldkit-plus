@@ -37,6 +37,9 @@ version changed; `pnpm` skips versions already in the registry.
   `Site.shortcuts(site, toMessage)` is every node's shortcut as a
   `Subscription.keyBindings` binding sending the Message made of its
   landing target, refusing a shortcut with no landing or keys used twice.
+- **`foldkit-primitives`: `pointedLinks()`** in `foldkit-primitives/dom`, the
+  address of each same-origin link the reader points at or tabs to, once
+  while they stay on it: the trigger for reading a page ahead.
 - **`foldkit-site`: `Site.routing`'s `arrived`.** What the application does
   once a new route is set and its routed pages are told, such as moving
   focus to what it drew; an echo of the shown address runs nothing.

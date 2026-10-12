@@ -154,7 +154,7 @@ reference: every Model shape, Message, argument, and failure rule.
 | [`device`](./device/README.md) | hardware | `Geolocation`, `mediaDevices`, `mediaStream`, `permissions`, fullscreen |
 | [`events`](./events/README.md) | raw window events | `Visibility`, `WindowSize`, `Idle`, `InputModality`, `keyboardEvents`, `pointerEvents`, `scrollEvents`, `activeElementEvents`, `matchHotkey` |
 | [`observers`](./observers/README.md) | element observers | `Resize`, `Intersection`, `Mutation`, `Bounds` |
-| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FocusScope`, `FollowTabStop`, `ScrollLock`, `HideOutside`, `copyText`, `readText`, `share`, `loadScript`, `keepScroll` |
+| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FocusScope`, `FollowTabStop`, `ScrollLock`, `HideOutside`, `copyText`, `readText`, `share`, `loadScript`, `keepScroll`, `pointedLinks` |
 
 ## Rules every primitive keeps
 
