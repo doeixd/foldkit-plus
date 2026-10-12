@@ -7,9 +7,14 @@
     "composite": true,
     "types": ["node", "vite/client"],
     "paths": {
+      "foldkit-agent": ["../../packages/agent/src/index.ts"],
+      "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-example-site/demos": ["./src/demos.ts"],
       "foldkit-example-site/guide": ["./src/guide.ts"],
+      "foldkit-mirror": ["../../packages/mirror/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
+      "foldkit-mixins-surface": ["../../packages/mixins-surface/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],
@@ -19,14 +24,39 @@
       "foldkit-mixins/testing": ["../../packages/mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
       "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
+      "foldkit-remote": ["../../packages/remote/src/index.ts"],
+      "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
       "foldkit-ssr": ["../../packages/ssr/src/index.ts"],
       "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
       "foldkit-ssr/vite": ["../../packages/ssr/src/vite.ts"],
-      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+      "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-sync": ["../../packages/sync/src/index.ts"],
+      "foldkit-sync/do": ["../../packages/sync/src/do.ts"],
+      "foldkit-sync/entity": ["../../packages/sync/src/entity.ts"],
+      "foldkit-sync/journal": ["../../packages/sync/src/journal.ts"],
+      "foldkit-sync/remote": ["../../packages/sync/src/remote.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
   "references": [
+    {
+      "path": "../../packages/agent/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mirror/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-surface/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/sync/tsconfig.build.json"
+    },
     {
       "path": "../../packages/mixins/tsconfig.build.json"
     },

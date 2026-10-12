@@ -1,69 +1,63 @@
 /**
- * The landing site: one page, a card for each published demo, rendered at
- * build time and taken over in the browser. Every link leaves the site, so the
- * only Messages are the ones routing sends.
+ * The website: a home page, the demos, and a subsite of guides and API pages
+ * per package family, every page rendered at build time and taken over in the
+ * browser. Links are ordinary links, so a page is a new document; the Model
+ * holds what a page is called and the little the browser changes on it: the
+ * menu on a phone and which example the home page shows.
  */
-import { Effect, Equal, Schema, pipe } from 'effect'
-import { Command, Route, type Runtime, type Update } from 'foldkit'
-import { type Document, type Html, type HtmlBuilder } from 'foldkit/html'
+import { Effect, Schema } from 'effect'
+import { Command, type Update } from 'foldkit'
+import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
-import { defineRouteUnion } from 'foldkit/route'
+import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
-import { Url, toString as urlToString } from 'foldkit/url'
-import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
-import { demos, onGitHub, packageName, type Demo } from './demos.js'
-import { SiteStyle } from './style.js'
-
-// ROUTE
-
-export const AppRoute = defineRouteUnion({
-  Home: {},
-  NotFound: { path: Schema.String },
-})
-export type AppRoute = typeof AppRoute.Type
-
-const urlToAppRoute = Route.parseUrlWithFallback(
-  pipe(Route.root, Route.mapTo(AppRoute.Home)),
-  AppRoute.NotFound,
-)
+import { allSubsites } from './catalog.js'
+import type { Library } from './library.js'
+import { Body } from './view/layout.js'
 
 // MODEL
 
-export const Model = Schema.Struct({ route: AppRoute })
+/** What the page at an address is, as much as the browser needs to know. */
+export const Page = defineTaggedUnion({
+  Home: {},
+  Demos: {},
+  Doc: { subsite: Schema.String, title: Schema.String, description: Schema.String },
+  Missing: {},
+})
+export type Page = typeof Page.Type
+
+export const Example = Schema.Literals(['view', 'agent', 'sync', 'mirror'])
+export type Example = typeof Example.Type
+
+export const Model = Schema.Struct({
+  path: Schema.String,
+  page: Page,
+  menuOpen: Schema.Boolean,
+  example: Example,
+  copied: Schema.Boolean,
+})
 export type Model = typeof Model.Type
 
 // MESSAGE
 
 export const Message = defineMessageUnion({
-  ClickedLink: { request: UrlRequest },
-  ChangedUrl: { url: Url },
-  CompletedNavigateInternal: {},
-  CompletedLoadExternal: {},
+  ToggledMenu: {},
+  ChoseExample: { example: Example },
+  PressedCopy: { text: Schema.String },
+  CopiedText: {},
 })
 export type Message = typeof Message.Type
 
-// INIT
-
-export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
-  model: { route: urlToAppRoute(url) },
-})
-
 // COMMAND
 
-const NavigateInternal = Command.define('NavigateInternal', {
-  args: { url: Schema.String },
-  messages: [Message.CompletedNavigateInternal],
-  execute: ({ url }) => pushUrl(url).pipe(Effect.as(Message.CompletedNavigateInternal())),
-})
-
-const LoadExternal = Command.define('LoadExternal', {
-  args: { href: Schema.String },
-  messages: [Message.CompletedLoadExternal],
-  execute: ({ href }) => load(href).pipe(Effect.as(Message.CompletedLoadExternal())),
+const CopyText = Command.define('CopyText', {
+  args: { text: Schema.String },
+  messages: [Message.CopiedText],
+  execute: ({ text }) =>
+    Effect.promise(() => navigator.clipboard.writeText(text)).pipe(Effect.as(Message.CopiedText())),
 })
 
 // UPDATE
@@ -72,118 +66,85 @@ type UpdateReturn = Update.Return<Model, Message>
 
 export const update = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {
-    ClickedLink: ({ request }) =>
-      UrlRequest.match<UpdateReturn>(request, {
-        Internal: ({ url }) => ({ model, commands: [NavigateInternal({ url: urlToString(url) })] }),
-        External: ({ href }) => ({ model, commands: [LoadExternal({ href })] }),
-      }),
-    ChangedUrl: ({ url }) => {
-      const next = urlToAppRoute(url)
-      // The address already shown comes back as the same route: the same Model.
-      return Equal.equals(next, model.route)
+    ToggledMenu: () => ({ model: modifyFields(model, { menuOpen: open => !open }) }),
+    ChoseExample: ({ example }) =>
+      example === model.example
         ? { model }
-        : { model: modifyFields(model, { route: () => next }) }
-    },
-    CompletedNavigateInternal: () => ({ model }),
-    CompletedLoadExternal: () => ({ model }),
+        : { model: modifyFields(model, { example: () => example }) },
+    PressedCopy: ({ text }) => ({ model, commands: [CopyText({ text })] }),
+    CopiedText: () => ({ model: modifyFields(model, { copied: () => true }) }),
   })
 
-// ROUTING
+// INIT
 
-export const routing: Runtime.RoutingConfig<Message> = {
-  onUrlRequest: request => Message.ClickedLink({ request }),
-  onUrlChange: url => Message.ChangedUrl({ url }),
+/** The Model a page starts from, before the server names it. */
+export const initial: Model = {
+  path: '/',
+  page: Page.Missing(),
+  menuOpen: false,
+  example: 'view',
+  copied: false,
 }
+
+/** The page at `path`, as the library knows it; the browser never runs this. */
+export const modelAt = (library: Library, path: string): Model =>
+  modifyFields(initial, { path: () => path, page: () => library.pageAt(path) })
 
 // SSR
 
-const App = Surface.application({ Model, Message })
+const App = Surface.application({ Model, Message, initial, update })
 
-/** The one page the build generates. */
-export const prerenderPaths = ['/'] as const
+const DESCRIPTION =
+  'Foldkit Plus extends a Foldkit application to agents, servers, other devices, the URL and design systems, without a second place to keep state.'
 
-/** Only the route crosses to the browser: the cards are this module's own data. */
-export const plan = SSR.plan(
-  { initial: { route: AppRoute.Home() } },
-  { id: 'site', state: Projection.pick(App.model.route) },
-)
+const descriptionOf = (page: Page): string =>
+  Page.match(page, {
+    Home: () => DESCRIPTION,
+    Demos: () => 'Examples from the Foldkit Plus repository, built as static files.',
+    Doc: ({ description }) => (description === '' ? DESCRIPTION : description),
+    Missing: () => DESCRIPTION,
+  })
+
+/**
+ * The address and what the page is cross to the browser; the menu, the
+ * example and the copy state start from `initial`. The guides, the API and the
+ * sidebars are static regions, rendered on the server only.
+ */
+const planOf = (withMeta: boolean) =>
+  SSR.plan(App, {
+    id: 'site',
+    state: Projection.pick(App.model.path, App.model.page),
+    local: [App.model.menuOpen, App.model.example, App.model.copied],
+    ...(withMeta ? { meta: (model: Model) => ({ description: descriptionOf(model.page) }) } : {}),
+  })
+
+/** The plan the build generates pages with. */
+export const plan = planOf(true)
+/** The dev server's plan: it serves pages without a template head to write meta into. */
+export const servingPlan = planOf(false)
 
 // VIEW
 
 /** Where the site is served: a canonical address starts here. */
 export const ORIGIN = 'https://foldkit-plus.pages.dev'
 
-type Slots = SlotBuilders<typeof SiteStyle.slots, Message>
+const titleOf = (page: Page): string =>
+  Page.match(page, {
+    Home: () => 'Foldkit Plus: one state machine, every boundary',
+    Demos: () => 'Demos · Foldkit Plus',
+    Doc: ({ subsite, title }) => {
+      const family = allSubsites.find(each => each.id === subsite)
+      return family === undefined || family.title === title
+        ? `${title} · Foldkit Plus`
+        : `${title} · ${family.title} · Foldkit Plus`
+    },
+    Missing: () => 'Not found · Foldkit Plus',
+  })
 
-/**
- * A demo's row: what it is and what it shows on the left, the way in and to its
- * code on the right. What to try is the demo's own to say, in its guide.
- */
-const row = (demo: Demo, slots: Slots, h: HtmlBuilder<Message>): Html =>
-  h.li(slots.row.attrs(), [
-    h.div(slots.about.attrs(), [
-      h.h2(slots.rowTitle.attrs(), [h.a(slots.titleLink.attrs([h.Href(demo.url)]), [demo.title])]),
-      h.p(slots.proves.attrs(), [demo.proves]),
-      h.p(slots.packages.attrs([h.AriaLabel('Packages')]), [
-        ...demo.packages.flatMap((name, index) => [
-          ...(index === 0 ? [] : [' · ']),
-          h.a(slots.package.attrs([h.Href(onGitHub(`packages/${name}/README.md`))]), [
-            packageName(name),
-          ]),
-        ]),
-      ]),
-    ]),
-    h.p(slots.actions.attrs(), [
-      h.a(slots.open.attrs([h.Href(demo.url)]), ['Open']),
-      h.a(slots.source.attrs([h.Href(onGitHub(demo.readFirst))]), ['Source']),
-    ]),
-  ])
-
-const home = (slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
-  h.header(slots.header.attrs(), [
-    h.p(slots.eyebrow.attrs(), ['Foldkit Plus']),
-    h.h1(slots.heading.attrs([h.Id('page-title')]), ['Demos']),
-    h.p(slots.lede.attrs(), [
-      'Examples from the repository, built as static files. Those with a server run it in your browser, so nothing you do leaves it. Each says how to try it in its corner.',
-    ]),
-  ]),
-  h.ul(
-    slots.rows.attrs(),
-    demos.map(demo => row(demo, slots, h)),
-  ),
-  h.p(slots.footer.attrs(), [
-    'This page is a demo too, rendered at build time with foldkit-ssr. ',
-    h.a(slots.link.attrs([h.Href(onGitHub('examples/site/src/main.ts'))]), ['Source']),
-  ]),
-]
-
-export const Page = SlotView.forMessages<Message>()
-  .define(SiteStyle.slots, (model: Model, slots, h) =>
-    h.main(
-      slots.page.attrs(),
-      AppRoute.match(model.route, {
-        Home: () => home(slots, h),
-        NotFound: ({ path }) => [
-          h.h1(slots.heading.attrs([h.Id('page-title')]), ['Not found']),
-          h.p(slots.lede.attrs(), [
-            `Nothing is at ${path}. `,
-            h.a(slots.link.attrs([h.Href('/')]), ['The demos']),
-            ' are on the front page.',
-          ]),
-        ],
-      }),
-    ),
-  )
-  .pipe(Style.attach(SiteStyle.style))
-
-const pathOf = (route: AppRoute): string =>
-  AppRoute.match(route, { Home: () => '/', NotFound: ({ path }) => path })
-
-export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
-  title: AppRoute.match(model.route, {
-    Home: () => 'Foldkit Plus demos',
-    NotFound: () => 'Not found · Foldkit Plus demos',
-  }),
-  canonical: `${ORIGIN}${pathOf(model.route)}`,
-  body: Page(model, h),
-})
+export const viewWith =
+  (library: Library) =>
+  (model: Model, h: HtmlBuilder<Message>): Document => ({
+    title: titleOf(model.page),
+    canonical: `${ORIGIN}${model.path}`,
+    body: Body({ model, library }, h),
+  })

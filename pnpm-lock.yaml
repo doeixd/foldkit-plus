@@ -1467,6 +1467,24 @@ importers:
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
+      foldkit-agent:
+        specifier: workspace:*
+        version: link:../../packages/agent
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../../packages/entity
+      foldkit-mirror:
+        specifier: workspace:*
+        version: link:../../packages/mirror
+      foldkit-mixins-surface:
+        specifier: workspace:*
+        version: link:../../packages/mixins-surface
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../../packages/remote
+      foldkit-sync:
+        specifier: workspace:*
+        version: link:../../packages/sync
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
