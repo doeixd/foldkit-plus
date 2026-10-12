@@ -18,7 +18,13 @@ export default [
   },
   {
     name: 'a second close fires onClose again',
-    edits: [{ file, find: '    closeListeners.clear()\n', replace: '' }],
+    edits: [
+      {
+        file,
+        find: '    port.close()\n    for (const listener of [...closeListeners]) listener()\n    closeListeners.clear()\n',
+        replace: '    port.close()\n    for (const listener of [...closeListeners]) listener()\n',
+      },
+    ],
     tests,
   },
   {
@@ -35,7 +41,12 @@ export default [
   {
     name: 'a listener after the close never hears of it',
     edits: [
-      { file, find: '      if (closed) {\n        listener()', replace: '      if (closed) {' },
+      {
+        file,
+        find: "      return () => port.removeEventListener('message', handler)\n    },\n    onClose: listener => {\n      if (closed) {\n        listener()",
+        replace:
+          "      return () => port.removeEventListener('message', handler)\n    },\n    onClose: listener => {\n      if (closed) {",
+      },
     ],
     tests,
   },

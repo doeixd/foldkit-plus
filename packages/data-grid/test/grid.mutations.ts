@@ -42,9 +42,9 @@ export default [
     edits: [
       {
         file: '../src/grid.ts',
-        find: 'onSome: open => ({ ...open, draft: open.draft + text, error: Option.none() }),',
+        find: 'onSome: edit => ({ ...edit, draft: typed(edit.draft), error: Option.none() }),',
         replace:
-          'onSome: open => ({ ...open, from, draft: open.draft + text, error: Option.none() }),',
+          'onSome: edit => ({ ...edit, from, draft: typed(edit.draft), error: Option.none() }),',
       },
     ],
     tests: ['packages/data-grid', 'examples/registry/test/page.test.ts', 'examples/data-grid'],
@@ -54,7 +54,7 @@ export default [
     edits: [
       {
         file: '../src/grid.ts',
-        find: '            if (unchanged(cell.column, from, cell.text)) continue\n',
+        find: '      if (unchanged(cell.column, from, cell.text)) continue\n',
         replace: '',
       },
     ],

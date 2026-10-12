@@ -74,8 +74,27 @@ export default [
   },
   {
     name: 'a shared field naming no member is kept',
-    edits: [{ file: server, find: 'if (unserved.length > 0) {', replace: 'if (false) {' }],
+    edits: [
+      {
+        file: server,
+        find: '      field => fields !== undefined && !fields.has(field),\n    )\n    if (unserved.length > 0) {',
+        replace:
+          '      field => fields !== undefined && !fields.has(field),\n    )\n    if (false) {',
+      },
+    ],
     tests,
+  },
+  {
+    name: 'a memory backend keeps a shared field naming no member',
+    edits: [
+      {
+        file: server,
+        find: '      field => declared !== undefined && !Object.hasOwn(declared, field),\n    )\n    if (unserved.length > 0) {',
+        replace:
+          '      field => declared !== undefined && !Object.hasOwn(declared, field),\n    )\n    if (false) {',
+      },
+    ],
+    tests: ['packages/remote-server/test/declared-fields.test.ts'],
   },
   {
     name: 'a row gone for one subscriber is kept for them',

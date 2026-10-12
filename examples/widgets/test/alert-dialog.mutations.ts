@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/alert-dialog/app.ts',
-        find: "return { model: { ...model, open: false, answer: 'confirmed' } }",
-        replace: "return { model: { ...model, open: false, answer: 'cancelled' } }",
+        find: "return { model: { ...model, open: false, answer: Option.some('confirmed') } }",
+        replace: "return { model: { ...model, open: false, answer: Option.some('cancelled') } }",
       },
     ],
     tests,

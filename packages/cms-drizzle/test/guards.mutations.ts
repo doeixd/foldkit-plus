@@ -15,7 +15,7 @@ export default [
     edits: [
       {
         file,
-        find: 'Effect.map(isAuthor(principal), author => (author ? undefined : sql`0 = 1`))',
+        find: "Effect.map(isAuthor(principal, 'Read'), author => (author ? undefined : sql`0 = 1`))",
         replace: 'Effect.succeed(undefined)',
       },
     ],
@@ -26,7 +26,7 @@ export default [
     edits: [
       {
         file,
-        find: 'Effect.flatMap(isAuthor(context.principal), author =>',
+        find: "Effect.flatMap(isAuthor(context.principal, 'Update'), author =>",
         replace: 'Effect.flatMap(Effect.succeed(true), author =>',
       },
     ],
@@ -65,7 +65,7 @@ export default [
   },
   {
     name: 'whoever scheduled a publish need not be an author when it comes due',
-    edits: [{ file, find: 'if (!(yield* isAuthor(principal)))', replace: 'if (false)' }],
+    edits: [{ file, find: "if (!(yield* isAuthor(principal, 'Update')))", replace: 'if (false)' }],
     tests,
   },
   {

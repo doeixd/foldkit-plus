@@ -66,8 +66,8 @@ export default [
     edits: [
       {
         file: '../src/otp-field/app.ts',
-        find: "return code.length === LENGTH && model.cells.every(cell => cell !== '') ? code : null",
-        replace: 'return code.length >= LENGTH - 1 ? code : null',
+        find: "  return code.length === LENGTH && model.cells.every(cell => cell !== '')\n",
+        replace: '  return code.length >= LENGTH - 1\n',
       },
     ],
     tests,
