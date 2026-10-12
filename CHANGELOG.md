@@ -13,6 +13,10 @@ version changed; `pnpm` skips versions already in the registry.
   each kind `foldkit-richtext-code` and `foldkit-richtext-code-shiki` name
   (`syntax-keyword` reads `--fk-syntax-keyword`), in hues the palette already
   has, readable in both schemes; `syntaxChroma` sets how colorful.
+- **`foldkit-mixins-ui`: `CodeBlock`.** Code with a title or language, line
+  numbers and a copy button, its tokens (a `foldkit-richtext-code` tokenizer's
+  `{ from, to, kind }`) drawn by kind and colored by `Recipes.CodeBlock` from
+  the theme's `syntax` group. The block's text is the code exactly.
 
 ## 0.17.1
 

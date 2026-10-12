@@ -304,7 +304,7 @@ input-driven Mixin reads. `X.resolve(attributes, mixins, { h, input })` stays fo
 hand, such as a Calendar whose Mixins read `attributes._tag`. Result types: `ResolvedButton<M>`,
 `ResolvedRadioGroup<V, M>`, and so on.
 
-`Recipes.Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
+`Recipes.Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CodeBlock | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the
@@ -342,6 +342,7 @@ that derived.
 | `Empty` | `{ title, description?, icon?, action? }`. | No axis. Slots `root`, `icon`, `title`, `description`, `action`. |
 | `Icon` | `{ content, label? }`. A `label` is `role="img"`; without one the glyph is `aria-hidden`. | `size`: `sm`, `md` (default), `lg`. Slot `glyph`. |
 | `Item` | `{ content, media?, title?, description?, actions? }`. | `density`: `comfortable` (default), `compact`. Slots `root`, `media`, `content`, `title`, `description`, `actions`. |
+| `CodeBlock` | `{ code, tokens?, language?, title?, lineNumbers?, copy? }`; `tokens` are a tokenizer's `{ from, to, kind }` (`foldkit-richtext-code`, `-shiki`); `copy.onCopy(code)` sends a Message, so run `copyText` from `foldkit-primitives`. | No axis; colors kinds from the theme's `syntax` group. Slots `root`, `header`, `title`, `copy`, `body`, `code`, `line`, `token`. |
 | `Kbd` | `{ key }`. Names the key. | No axis. Slot `key`. |
 | `Label` | `{ for, text }`. `for` is the control's id. | No axis. Slot `label`. |
 | `Pagination` | `{ page, pageCount, onPage, label? }`. Fewer than two pages draws nothing. `Pagination.itemsOf(page, pageCount)` is the stops. | No axis. The current stop reads `aria-current`. Slots `root`, `prev`, `next`, `page`, `ellipsis`. |
