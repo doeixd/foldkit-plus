@@ -289,6 +289,11 @@ export interface SitePaths<E, R> {
   readonly list: Effect.Effect<ReadonlyArray<SitePath<any>>, E, R>
 }
 
+/** How a listing of `SitePaths` can fail: each one's error, and none for no paths. */
+export type PathsError<Paths> = Paths extends SitePaths<infer E, any> ? E : never
+/** What a listing of `SitePaths` needs: each one's services, and none for no paths. */
+export type PathsServices<Paths> = Paths extends SitePaths<any, infer R> ? R : never
+
 /** One address of the whole site, from `Site.targets`: a target, and when it last changed. */
 export interface SiteListed<Route extends { readonly _tag: string }> extends SiteTarget<Route> {
   readonly modified?: string | undefined
@@ -603,8 +608,8 @@ export const Site = {
     paths: Paths,
   ): Effect.Effect<
     ReadonlyArray<SiteListed<any>>,
-    Paths[number] extends SitePaths<infer E, any> ? E : never,
-    Paths[number] extends SitePaths<any, infer R> ? R : never
+    PathsError<Paths[number]>,
+    PathsServices<Paths[number]>
   > => {
     const nodes = Site.nodesOf(site)
     const listed = new Map<SiteNode<any>, SitePaths<any, any>>()

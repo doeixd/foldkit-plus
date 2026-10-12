@@ -141,6 +141,11 @@ export const listing: Effect.Effect<ReadonlyArray<unknown>, 'down', never> = Sit
   PathsSite,
   [Site.paths(People, Effect.fail('down' as const))],
 )
+// A listing of no paths cannot fail and needs nothing.
+export const listingNone: Effect.Effect<ReadonlyArray<unknown>, never, never> = Site.targets(
+  Site.make(Home),
+  [],
+)
 // @ts-expect-error: the listing fails as its paths fail
 export const unfailing: Effect.Effect<ReadonlyArray<unknown>, never, never> = Site.targets(
   PathsSite,
