@@ -43,6 +43,7 @@
   },
   "dependencies": {
     "foldkit-bundle": "workspace:*",
+    "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*"
   },
   "peerDependencies": {

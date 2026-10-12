@@ -305,8 +305,11 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
 - [ ] **Site paths and targets:** `Site.paths(node, source)` enumerating a
   node's addresses from a query, `Site.targets(site)` for a build, a sitemap
   and prefetch, and one declaration giving both `routeOf` and `pathOf`. §33.9
-- [ ] **Site metadata:** `Site.meta` as a function of the Model feeding SSR's
-  head, and whether a node is indexed. §23, §33.9
+- [x] **Site metadata:** `Site.meta` as a function of the Model feeding SSR's
+  head, and whether a node is indexed. §23, §33.9 Built: a node's `meta` and
+  `indexed`, merged by `Site.metaOf` into an SSR plan's `meta`
+  (`packages/site/test/ssr.test.ts`). The CMS site still has its own routing
+  and its own `metaOf`; moving it onto a Site tree is the routing item's.
 - [ ] **Locales in the route graph:** a top-level locale parameter, targets
   with alternates, and data sources that take the locale. §33.11
 - [ ] **Route lifecycle as a reusable wiring,** not app-owned update branches:

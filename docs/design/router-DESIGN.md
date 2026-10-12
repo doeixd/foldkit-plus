@@ -67,8 +67,8 @@ centre, as §32 says; Site is one producer, Composition another.
 ## Deliberately not built
 
 - **No `SitePlan` object (§28):** the chain is `Site.chainOf`, the route-level
-  Sources are `Site.sourcesFor`; head/access/metadata arrive with real
-  consumers (§31.9), not ahead of them.
+  Sources are `Site.sourcesFor`, the head is `Site.metaOf` (§23); access
+  arrives with a real consumer, not ahead of it.
 - **No `Site.prefetch` / `prepare`:** preparation stays caller-composed
   (`Data.satisfy`), for hover, programmatic, and SSR alike.
 - **No route actions (§24)** and **no server authorization in access (§25)**:
@@ -6393,9 +6393,11 @@ This is an extremely strong unification.
 
 # 23. Head metadata should be pure Site metadata
 
-> Status 2026-10-07: open. Only title/section annotations exist;
-> meta-as-function-of-Model, indexed flags, and the SSR head feed wait for a
-> Site + SSR consumer. The CMS prerender still hand-writes all of it.
+> Status 2026-10-12: built. A node's `meta` (`({ route, model }) => Meta`,
+> SSR's own type) and `indexed` flag; `Site.metaOf` merges the chain
+> root-to-leaf, a deeper field winning, the preview title falling back to
+> `title`, and is an SSR plan's `meta` as it stands. The CMS site, which has
+> no Site tree, still writes its own.
 
 What a page's metadata must hold, learned from a generated site: see §33.9.
 
@@ -7121,7 +7123,7 @@ still shows is a wait prefetch removes.
 > Status 2026-10-07: open. Nothing enumerates a node's addresses from a query
 > yet (`Site.paths` / `Site.targets`), and `routeOf` / `pathOf` remain each
 > app's own pair — except that `Site.target` already builds route + URL from
-> one declaration. Meta/indexed are §31.9.
+> one declaration. Meta and indexed are built (§23: a node's `meta`, `Site.metaOf`).
 
 The example's public site is now rendered at build time and taken over in
 the browser ([ssr-PLAN.md](./ssr-PLAN.md) Phase S has the rendering half). The

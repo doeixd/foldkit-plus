@@ -52,7 +52,7 @@ pnpm add foldkit-site
 ```
 
 Peers: `effect`, `foldkit`. `foldkit-surface` is a dependency (for
-`Site.sources`).
+`Site.sources`), and `foldkit-ssr` for the `Meta` a node's head returns.
 
 ## 60-second example
 
@@ -137,6 +137,35 @@ item points: the first node of the section that declares a landing, as a
 target. Shortcuts ride beside their destinations; key bindings stay
 application-owned, derived with each name validated against the application's
 union. Annotate once; derive nav, titles, shortcuts, and breadcrumbs from it.
+
+**Head metadata.** `meta` is what a node says of itself to a search result
+and a link preview: a function of its route and the Model, since a post's
+excerpt is data, not an address. It returns `foldkit-ssr`'s `Meta`
+(description, image, type, article dates, JSON-LD, ...). `indexed: false`
+keeps a node, and every node below it that does not say otherwise, out of
+search engines. `Site.metaOf(site, route, model)` reads the route's chain
+root first, a deeper node's field replacing its ancestor's, the preview
+title falling back to the node's `title`, and `noindex` for an unindexed
+route whatever its `meta` says. It is an SSR plan's `meta` as it stands:
+
+```ts
+const Person = Site.node(personRouter, AppRoute.Person)
+  .title(({ personId }) => `Person ${personId} | Routing`)
+  .meta<Model>(({ route, model }) => ({ description: model.bios[route.personId] }))
+  .node
+const Nested = Site.route(nestedRouter, AppRoute.Nested, { indexed: false })
+
+const plan = SSR.plan(App, {
+  id: 'site',
+  state: Projection.pick(App.model.route, App.model.bios),
+  meta: model => Site.metaOf(AppSite, model.route, model),
+})
+```
+
+The plan writes it into the generated page and keeps the head in step as the
+reader moves; the Site only says what it is. `meta` must read what crosses
+to the browser (the route, a resumed read), as any plan's `meta` must.
+`Site.indexedOf(site, route)` is the same flag for a sitemap.
 
 ## Nested rendering
 

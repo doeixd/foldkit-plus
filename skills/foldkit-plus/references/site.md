@@ -48,6 +48,14 @@ there; bindings stay application-owned, derived with the name validated
 against the Message union. Annotate once; derive nav, titles, shortcuts, and
 breadcrumbs from it.
 
+**Head metadata.** `.meta<Model>(({ route, model }) => Meta)` (or the `meta`
+option) says what a node's page tells a search result and a link preview, as
+`foldkit-ssr`'s `Meta`; `indexed: false` marks a node and the nodes below it
+`noindex`. `Site.metaOf(site, route, model)` merges the chain root first
+(deeper fields win; the preview title falls back to `title`) and is an SSR
+plan's `meta` directly: `meta: model => Site.metaOf(AppSite, model.route,
+model)`. `Site.indexedOf(site, route)` is the flag for a sitemap.
+
 **History.** `Site.historyOf(prev, next)`: another node, or an unknown
 location, is a step; within a node its `history` rule (default replace; a
 function for nodes where some param changes are entries of their own).

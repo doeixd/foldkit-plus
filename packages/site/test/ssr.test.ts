@@ -25,7 +25,7 @@ import {
 import { fromString } from 'foldkit/url'
 import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Query, Remote, RemoteClient } from 'foldkit-remote'
-import { SSR } from 'foldkit-ssr'
+import { SSR, metaMarkup } from 'foldkit-ssr'
 import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Site } from '../src/index.js'
@@ -86,11 +86,25 @@ const OwnerPage = App.surface('OwnerPage', {
   }),
 })
 
-const HomeNode = Site.route(homeRouter, AppRoute.Home)
-const OwnerNode = Site.route(ownerRouter, AppRoute.Owner, {
-  surface: { surface: OwnerPage, params: route => ({ ownerId: route.ownerId }) },
-})
-const AppSite = Site.make(HomeNode, OwnerNode)
+/** The owner's projects as the page holds them, for its view and its head. */
+const projectsOf = (model: Model, ownerId: string) =>
+  OwnerPage.projection({ ownerId }).read(model).projects
+
+const HomeNode = Site.node(homeRouter, AppRoute.Home)
+  .title(() => 'Projects')
+  .meta(() => ({ siteName: 'Projects', description: 'Every project' }))
+const OwnerNode = Site.node(ownerRouter, AppRoute.Owner)
+  .title(({ ownerId }) => `Projects of ${ownerId}`)
+  .surface({ surface: OwnerPage, params: route => ({ ownerId: route.ownerId }) })
+  // Read from the data the page resumes, which crosses with it.
+  .meta<Model>(({ route, model }) => {
+    const read = projectsOf(model, route.ownerId)
+    return {
+      description:
+        read._tag === 'Ready' ? read.value.items.map(item => item.name).join(', ') : undefined,
+    }
+  })
+const AppSite = Site.make(Site.mount(HomeNode.node, [OwnerNode.node]))
 
 /** The server's client: answers the Owner query, records what ran. */
 const recording = () => {
@@ -120,10 +134,7 @@ const recording = () => {
 }
 
 const view = (model: Model, h: HtmlBuilder<Message>) => {
-  const read =
-    model.route._tag === 'Owner'
-      ? OwnerPage.projection({ ownerId: model.route.ownerId }).read(model).projects
-      : undefined
+  const read = model.route._tag === 'Owner' ? projectsOf(model, model.route.ownerId) : undefined
   return {
     title: 'Owner',
     body: h.p(
@@ -175,5 +186,37 @@ describe('serving a route', () => {
     )
     expect(page).toContain('name of p1')
     expect(page).toContain('name of p2')
+  })
+
+  it('writes the route’s head from the chain, its own data included', async () => {
+    const route = routeOf('/owners/u1')
+    const active = Site.sourcesFor(AppSite, App.owner, App.model.route, route)
+    const prepared = await Effect.runPromise(
+      Data.satisfy({ route, remote: Remote.initial }, active).pipe(
+        Effect.provide(recording().layer),
+      ),
+    )
+    const plan = SSR.plan(App, {
+      id: 'owner',
+      state: Projection.pick(App.model.route),
+      surfaces: Object.values(active),
+      parts: [Remote.resume(Data)],
+      meta: model => Site.metaOf(AppSite, model.route, model),
+    })
+    const config = {
+      Model,
+      init: () => ({ model: prepared }),
+      update: (model: Model) => ({ model }),
+      view,
+      container: null,
+    }
+    const rendered = await Effect.runPromise(SSR.render(config, plan, { buildId: 'b' }))
+    expect(rendered.meta).toBe(
+      metaMarkup({
+        siteName: 'Projects',
+        description: 'name of p1, name of p2',
+        title: 'Projects of u1',
+      }),
+    )
   })
 })

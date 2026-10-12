@@ -30,6 +30,23 @@ export const peopleTarget = Site.target(People, { searchText: Option.none() })
 // @ts-expect-error: Person params need a personId, not a search
 export const badTarget = Site.target(People, { personId: 3 })
 
+// A node's meta reads its own route, and the Model it names.
+export const described = Site.node(peopleRouter, AppRoute.People).meta<{ blurb: string }>(
+  ({ route, model }) => ({
+    description: Option.getOrElse(route.searchText, () => model.blurb),
+  }),
+)
+export const wrongRoute = Site.node(peopleRouter, AppRoute.People).meta(({ route }) => ({
+  // @ts-expect-error: the People route has no personId
+  description: String(route.personId),
+}))
+export const wrongModel = Site.node(peopleRouter, AppRoute.People).meta<{ blurb: string }>(
+  // @ts-expect-error: the named Model has no title
+  ({ model }) => ({ description: model.title }),
+)
+// @ts-expect-error: a Meta field the head does not write
+export const wrongField = Site.node(homeRouter, AppRoute.Home).meta(() => ({ keywords: 'a' }))
+
 const Model = Schema.Struct({ route: AppRoute })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ Noted: {} })

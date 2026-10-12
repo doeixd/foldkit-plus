@@ -359,12 +359,12 @@ sitemap and robots derived from the generated pages. The browser takeover
   rendered pages with the data in them, plus sitemap and robots from the
   static plugin.
 - **Rich head metadata** (per-page descriptions, images, article dates,
-  JSON-LD) is the honest gap: `Site.meta` does not exist yet (§31.9). The
-  CMS prerender hand-writes it per page today, and SSR's head supports it —
-  but no route-level declaration feeds it. It waits for a Site + SSR
-  consumer, by design. Do not invent a second meta system in the meantime;
-  the template's canonical/`og:url` tags plus the SSR head are the current
-  path.
+  JSON-LD) is a node's `meta`, a function of its route and the Model, and
+  `indexed: false` marks a node and those below it `noindex`.
+  `Site.metaOf(site, route, model)` merges the chain into SSR's own `Meta`,
+  so it is an SSR plan's `meta` as it stands; there is no second meta
+  system. The template's canonical/`og:url` tags are still filled from the
+  `Document` the view returns.
 
 ## Comparison: TanStack Start
 
@@ -379,7 +379,7 @@ The other side, from its docs ([preloading](https://tanstack.com/router/latest/d
 | Waterfalls | Parallel loaders per depth; deferred data for the rest | No loader gate at all; `satisfy` fixed-point per data-dependence level; pending UI by convention |
 | Prefetch | Built in: intent/viewport/render strategies, freshness/retention windows, `preloadRoute` | Same composition as navigation (`sourcesFor` + `satisfy`), trigger app-owned; no windows or lanes — Remote policy + retention decide |
 | Guards | `beforeLoad` redirects; server functions enforce | Route access would be presentation policy only (unbuilt); authority stays at `RemoteServer`/audience — the split is explicit, not layered |
-| Head/SEO | Per-route `head()` meta; SSR + streaming; prerender crawls links | Titles from the tree; SSR/static HTML + sitemap; rich per-page meta is the open gap (§31.9) |
+| Head/SEO | Per-route `head()` meta; SSR + streaming; prerender crawls links | Titles and head metadata (`Site.metaOf`) from the tree; SSR/static HTML + sitemap |
 | Mutations + refresh | Router invalidation reruns loaders | Entity/connection patches apply directly; membership-changing queries refetch (single-flight designed, last) |
 | Server boundary | Server functions alongside routes | Separate by design: documents → SSR, semantic data → `RemoteServer`, HTTP → Effect HttpApi — the Site never becomes an HTTP router (§26) |
 

@@ -245,4 +245,105 @@ export default [
     ],
     tests: ['packages/site/test/view.test.ts'],
   },
+  {
+    name: 'an ancestor’s meta overrides its descendant’s',
+    edits: [
+      {
+        file,
+        find: 'meta = { ...meta, ...saidOf(node.meta({ route, model })) }',
+        replace: 'meta = { ...saidOf(node.meta({ route, model })), ...meta }',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a field left undefined erases the ancestor’s',
+    edits: [
+      {
+        file,
+        find: '...saidOf(node.meta({ route, model }))',
+        replace: '...node.meta({ route, model })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the preview title ignores the route’s title',
+    edits: [
+      {
+        file,
+        find: 'const title = meta.title ?? Site.titleOf(site, route)',
+        replace: 'const title = meta.title',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a route’s own meta overrides the preview title it names',
+    edits: [
+      {
+        file,
+        find: 'const title = meta.title ?? Site.titleOf(site, route)',
+        replace: 'const title = Site.titleOf(site, route) ?? meta.title',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an unindexed route says nothing of it',
+    edits: [
+      { file, find: "...(Site.indexedOf(site, route) ? {} : { robots: 'noindex' }),", replace: '' },
+    ],
+    tests,
+  },
+  {
+    name: 'a meta reindexes an unindexed route',
+    edits: [
+      {
+        file,
+        find: "...(Site.indexedOf(site, route) ? {} : { robots: 'noindex' }),",
+        replace:
+          "...(Site.indexedOf(site, route) || meta.robots !== undefined ? {} : { robots: 'noindex' }),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the farthest declaration of indexed wins',
+    edits: [
+      {
+        file,
+        find: '    for (let at = chain.length - 1; at >= 0; at--) {\n      const indexed',
+        replace: '    for (let at = 0; at < chain.length; at++) {\n      const indexed',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an undeclared route is unindexed',
+    edits: [
+      {
+        file,
+        find: '      if (indexed !== undefined) return indexed\n    }\n    return true',
+        replace: '      if (indexed !== undefined) return indexed\n    }\n    return false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'route options drop meta and indexed',
+    edits: [
+      {
+        file,
+        find: '    if (options?.meta !== undefined) built = built.meta(options.meta)\n',
+        replace: '',
+      },
+      {
+        file,
+        find: '    if (options?.indexed !== undefined) built = built.indexed(options.indexed)\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

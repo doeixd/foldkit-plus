@@ -186,6 +186,84 @@ describe('metadata', () => {
   })
 })
 
+describe('head metadata', () => {
+  /** What the page shows, as an application's Model holds it. */
+  interface Shown {
+    readonly excerpt: Option.Option<string>
+  }
+  const shown = (excerpt?: string): Shown => ({ excerpt: Option.fromUndefinedOr(excerpt) })
+
+  const Blog = Site.node(peopleRouter, AppRoute.People)
+    .title(() => 'People')
+    .meta(() => ({ siteName: 'Routing', description: 'Everyone here', image: '/og.png' }))
+  const Profile = Site.node(personRouter, AppRoute.Person)
+    .title(({ personId }) => `Person ${personId}`)
+    .meta<Shown>(({ route, model }) => ({
+      type: 'article',
+      // Left out when the Model has none, so the section's stays.
+      description: Option.getOrUndefined(model.excerpt),
+      jsonLd: [{ '@type': 'Person', identifier: route.personId }],
+    }))
+  const Studio = Site.node(nestedRouter, AppRoute.Nested).indexed(false)
+  const tree = Site.make(Site.mount(Blog.node, [Profile.node]), Studio.node, Home)
+
+  it('merges the chain root first, a deeper field replacing its ancestor’s', () => {
+    expect(Site.metaOf(tree, routeOf('/people/3'), shown('Three writes'))).toEqual({
+      siteName: 'Routing',
+      description: 'Three writes',
+      image: '/og.png',
+      type: 'article',
+      jsonLd: [{ '@type': 'Person', identifier: 3 }],
+      title: 'Person 3',
+    })
+  })
+
+  it('keeps an ancestor’s field the node leaves undefined', () => {
+    expect(Site.metaOf(tree, routeOf('/people/3'), shown())).toMatchObject({
+      description: 'Everyone here',
+    })
+  })
+
+  it('takes the preview title from the route’s title unless meta names one', () => {
+    expect(Site.metaOf(tree, routeOf('/people'), shown()).title).toBe('People')
+    const named = Site.make(Blog.meta(() => ({ title: 'Our people' })).node)
+    expect(Site.metaOf(named, routeOf('/people'), shown()).title).toBe('Our people')
+    expect(Site.metaOf(tree, routeOf('/'), shown())).toEqual({ title: 'Routing' })
+  })
+
+  it('marks an unindexed node and everything below it noindex', () => {
+    expect(Site.indexedOf(tree, routeOf('/nested/route'))).toBe(false)
+    expect(Site.metaOf(tree, routeOf('/nested/route'), shown())).toEqual({ robots: 'noindex' })
+    // A meta that says otherwise does not reindex it.
+    const loud = Site.make(Studio.meta(() => ({ robots: 'index, follow' })).node)
+    expect(Site.metaOf(loud, routeOf('/nested/route'), shown()).robots).toBe('noindex')
+    // Inherited, and a nearer declaration wins.
+    const below = Site.make(Site.mount(Blog.indexed(false).node, [Profile.node]))
+    expect(Site.indexedOf(below, routeOf('/people/3'))).toBe(false)
+    const reopened = Site.make(Site.mount(Blog.indexed(false).node, [Profile.indexed(true).node]))
+    expect(Site.indexedOf(reopened, routeOf('/people/3'))).toBe(true)
+    expect(Site.metaOf(reopened, routeOf('/people/3'), shown()).robots).toBeUndefined()
+  })
+
+  it('says nothing, and indexes, a route the tree does not hold', () => {
+    expect(Site.metaOf(tree, routeOf('/nowhere'), shown())).toEqual({})
+    expect(Site.indexedOf(tree, routeOf('/nowhere'))).toBe(true)
+  })
+
+  it('takes meta and indexed as route options too', () => {
+    const optioned = Site.make(
+      Site.route(nestedRouter, AppRoute.Nested, {
+        meta: () => ({ description: 'Inside' }),
+        indexed: false,
+      }),
+    )
+    expect(Site.metaOf(optioned, routeOf('/nested/route'), shown())).toEqual({
+      description: 'Inside',
+      robots: 'noindex',
+    })
+  })
+})
+
 describe('history', () => {
   const home = Site.target(Home, {})
   const people = (text: string) => Site.target(People, { searchText: Option.some(text) })

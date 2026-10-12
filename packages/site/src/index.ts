@@ -35,6 +35,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
 import { UrlRequest } from 'foldkit/navigation'
 import type { Router } from 'foldkit/route'
+import type { Meta } from 'foldkit-ssr/client'
 import * as Update from 'foldkit/update'
 import * as Url from 'foldkit/url'
 import type { Url as UrlValue } from 'foldkit/url'
@@ -93,6 +94,17 @@ export interface NodeLayout {
 export interface NodeView {
   readonly render: (model: any, h: any) => Html
 }
+
+/**
+ * What a node says of itself in the document's head, from its route value and
+ * the Model (a post's excerpt is in the Model, not the route). The node keeps
+ * it with the Model as `any`, quarantined as `NodeLayout`'s is: name the Model
+ * where it is declared (`.meta<Model>(...)`) and it checks there.
+ */
+export type NodeMeta<Route, Model = any> = (page: {
+  readonly route: Route
+  readonly model: Model
+}) => Meta
 
 /**
  * The route's place in the Model, read and written. A field holding a tagged
@@ -174,6 +186,13 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
   readonly layout?: NodeLayout | undefined
   /** What this node draws for its own route, if it draws anything. */
   readonly view?: NodeView | undefined
+  /** What this node says of itself in the head; nodes below override it per field. */
+  readonly meta?: NodeMeta<Route> | undefined
+  /**
+   * Whether search engines index this node and, unless they say otherwise,
+   * the nodes below it. Undeclared up the whole chain, a node is indexed.
+   */
+  readonly indexed?: boolean | undefined
 }
 
 /** A node mounted with its children: structure, not state. */
@@ -224,6 +243,10 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
   layout(layout: NodeLayout): NodeBuilder<Route>
   /** What this node draws for its own route. */
   view(view: NodeView): NodeBuilder<Route>
+  /** What this node says of itself in the head, from its route and the Model. */
+  meta<Model = any>(meta: NodeMeta<Route, Model>): NodeBuilder<Route>
+  /** Whether search engines index this node and the nodes below it. */
+  indexed(indexed: boolean): NodeBuilder<Route>
   /** The Surface this route activates. */
   surface<SRoot, SModel, SMessage, SParams>(config: {
     readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
@@ -308,6 +331,10 @@ const sourceOf = <Root>(
   return [node.tag, Surface.when(bound.surface, place, node.case, bound.params)]
 }
 
+/** The fields a `Meta` gives, so one left `undefined` does not erase an ancestor's. */
+const saidOf = (meta: Meta): Meta =>
+  Object.fromEntries(Object.entries(meta).filter(([, value]) => value !== undefined))
+
 const freezeMount = (mount: SiteMount): SiteMount =>
   Object.freeze({
     node: mount.node,
@@ -353,6 +380,8 @@ export const Site = {
       readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
       readonly layout?: NodeLayout | undefined
       readonly view?: NodeView | undefined
+      readonly meta?: NodeMeta<Route> | undefined
+      readonly indexed?: boolean | undefined
       readonly surface?:
         | {
             readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
@@ -369,6 +398,8 @@ export const Site = {
     if (options?.history !== undefined) built = built.history(options.history)
     if (options?.layout !== undefined) built = built.layout(options.layout)
     if (options?.view !== undefined) built = built.view(options.view)
+    if (options?.meta !== undefined) built = built.meta(options.meta)
+    if (options?.indexed !== undefined) built = built.indexed(options.indexed)
     if (options?.surface !== undefined)
       built = built.surface<SRoot, SModel, SMessage, SParams>(options.surface)
     return built.node
@@ -407,6 +438,8 @@ export const Site = {
       history: history => at(Object.freeze({ ...built, history })),
       layout: layout => at(Object.freeze({ ...built, layout })),
       view: view => at(Object.freeze({ ...built, view })),
+      meta: meta => at(Object.freeze({ ...built, meta })),
+      indexed: indexed => at(Object.freeze({ ...built, indexed })),
       surface: config => at(Object.freeze({ ...built, bound: config as BoundSurface })),
     })
     return at(baseNode(router, routeCase))
@@ -520,6 +553,44 @@ export const Site = {
     return node?.title?.(route)
   },
 
+  /**
+   * Whether search engines index a route: the nearest declaration up its
+   * chain, so a `noindex` studio covers every node below it. A route the tree
+   * does not hold is indexed, as a page with no declaration is.
+   */
+  indexedOf: (site: SiteTree, route: { readonly _tag: string }): boolean => {
+    const chain = Site.chainOf(site, route)
+    for (let at = chain.length - 1; at >= 0; at--) {
+      const indexed = chain[at]!.indexed
+      if (indexed !== undefined) return indexed
+    }
+    return true
+  },
+
+  /**
+   * What a route says of itself in the head, for an SSR plan's `meta`:
+   *
+   * ```ts
+   * SSR.plan(App, { id: 'site', state, meta: model => Site.metaOf(AppSite, model.route, model) })
+   * ```
+   *
+   * Each node of the chain's `meta`, root first, with a deeper node's field
+   * replacing its ancestor's and a field it leaves out keeping the ancestor's.
+   * The preview title falls back to the route's `title`. An unindexed route
+   * (`Site.indexedOf`) is `noindex` whatever its `meta` says.
+   */
+  metaOf: <Root>(site: SiteTree, route: { readonly _tag: string }, model: Root): Meta => {
+    let meta: Meta = {}
+    for (const node of Site.chainOf(site, route))
+      if (node.meta !== undefined) meta = { ...meta, ...saidOf(node.meta({ route, model })) }
+    const title = meta.title ?? Site.titleOf(site, route)
+    return {
+      ...meta,
+      ...(title === undefined ? {} : { title }),
+      ...(Site.indexedOf(site, route) ? {} : { robots: 'noindex' }),
+    }
+  },
+
   /** The navigation section the tree annotates for a route value, or nothing. */
   sectionOf: (site: SiteTree, route: { readonly _tag: string }): string | undefined =>
     indexOf(site).byTag.get(route._tag)?.section,
@@ -610,9 +681,8 @@ export const Site = {
    * const prepared = yield* Data.satisfy({ ...model, route: target.route }, active)
    * ```
    *
-   * There is deliberately no `SitePlan` object yet: the chain is already
-   * `Site.chainOf`, and head/access metadata arrive with their real consumers
-   * (§31.9), not ahead of them.
+   * There is deliberately no `SitePlan` object: the chain is already
+   * `Site.chainOf`, and the head is `Site.metaOf`.
    */
   sourcesFor: <Root>(
     site: SiteTree,

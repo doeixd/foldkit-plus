@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-site`: head metadata from the tree.** A node's `meta` (a function
+  of its route and the Model, returning `foldkit-ssr`'s `Meta`) and `indexed`
+  flag, on `Site.route` or the `Site.node` builder. `Site.metaOf(site, route,
+  model)` merges the route's chain root first, a deeper node's field replacing
+  its ancestor's, the preview title falling back to the node's `title`, and an
+  unindexed route `noindex`; it is an SSR plan's `meta` as it stands.
+  `Site.indexedOf` reads the flag, which a node inherits from the nearest
+  ancestor that declares it. `foldkit-ssr` is now a dependency, for the type.
+
 - **`foldkit-plus`: every package in one install, and `npx foldkit-plus setup`.**
   Each package's entry points are re-exported by subpath (`foldkit-remote/port`
   is `foldkit-plus/remote/port`), the namespaces most applications use from the
