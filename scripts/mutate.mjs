@@ -16,7 +16,9 @@
  * module that no longer loads, a different collection), and not applied
  * when no module it edits was loaded. Anything but killed fails the run,
  * except a mutation that says why it survives (`survives: 'reason'`).
- * `--only <name>` runs one mutation.
+ * `--only <name>` runs one mutation. `--check` runs nothing: it checks every
+ * spec's anchors and tests (or those of the specs named) and lists every
+ * problem, which CI does, since the mutations themselves are too slow to.
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
@@ -33,40 +35,67 @@ const fail = message => {
   process.exit(2)
 }
 
-/** A spec's mutations, checked against their files before anything runs. */
+/**
+ * A spec's mutations, checked against their files and tests before anything
+ * runs, with every problem found rather than the first.
+ */
 const load = async path => {
   const absolute = resolve(path)
+  const problems = []
   const { default: mutations } = await import(pathToFileURL(absolute).href)
   if (!Array.isArray(mutations) || mutations.length === 0) {
-    fail(`${path} exports no mutations`)
+    return { mutations: [], problems: [`${path} exports no mutations`] }
   }
-  return mutations.map(mutation => {
+  const checked = mutations.map(mutation => {
     const { name, edits, tests, survives } = mutation ?? {}
     const where = `${path}: ${typeof name === 'string' ? name : '(unnamed)'}`
-    if (typeof name !== 'string' || name === '') fail(`${where}: a mutation needs a name`)
+    if (typeof name !== 'string' || name === '') problems.push(`${where}: a mutation needs a name`)
     if (!Array.isArray(tests) || tests.length === 0 || !tests.every(test => typeof test === 'string')) {
-      fail(`${where}: name the tests that should fail`)
+      problems.push(`${where}: name the tests that should fail`)
+    } else {
+      // A test file renamed away leaves the mutation nothing to fail.
+      for (const test of tests)
+        if (!existsSync(resolve(root, test))) problems.push(`${where}: the test ${test} does not exist`)
     }
     if (survives !== undefined && (typeof survives !== 'string' || survives === '')) {
-      fail(`${where}: say why it survives`)
+      problems.push(`${where}: say why it survives`)
     }
-    if (!Array.isArray(edits) || edits.length === 0) fail(`${where}: no edits`)
-    const checked = edits.map(edit => {
+    if (!Array.isArray(edits) || edits.length === 0) {
+      problems.push(`${where}: no edits`)
+      return { name, edits: [], tests, survives }
+    }
+    const applied = edits.flatMap(edit => {
       const { file, find, replace, all = false } = edit ?? {}
       if (typeof file !== 'string' || typeof find !== 'string' || typeof replace !== 'string') {
-        fail(`${where}: an edit needs a file, a find and a replace`)
+        problems.push(`${where}: an edit needs a file, a find and a replace`)
+        return []
       }
       const target = resolve(dirname(absolute), file)
-      if (!existsSync(target)) fail(`${where}: ${file} does not exist`)
+      if (!existsSync(target)) {
+        problems.push(`${where}: ${file} does not exist`)
+        return []
+      }
       const source = readFileSync(target, 'utf8')
       const count = source.split(find).length - 1
-      if (count === 0) fail(`${where}: the anchor is not in ${file}: ${JSON.stringify(find)}`)
-      if (count > 1 && !all) fail(`${where}: the anchor occurs ${count} times in ${file}; pass all: true or narrow it`)
-      if (find === replace) fail(`${where}: the edit changes nothing`)
-      return { file: target, find, replace, all }
+      if (count === 0) problems.push(`${where}: the anchor is not in ${file}: ${JSON.stringify(find)}`)
+      if (count > 1 && !all)
+        problems.push(`${where}: the anchor occurs ${count} times in ${file}; pass all: true or narrow it`)
+      if (find === replace) problems.push(`${where}: the edit changes nothing`)
+      return [{ file: target, find, replace, all }]
     })
-    return { name, edits: checked, tests, survives }
+    return { name, edits: applied, tests, survives }
   })
+  return { mutations: checked, problems }
+}
+
+/** Every spec in the repository, as git knows them. */
+const everySpec = () => {
+  const listed = spawnSync('git', ['ls-files', '*.mutations.ts', '*.mutations.mjs'], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+  if (listed.status !== 0) fail(`git ls-files failed:\n${listed.stderr}`)
+  return listed.stdout.split('\n').filter(Boolean)
 }
 
 /** One Vitest run of `tests`, with the JSON report it wrote. */
@@ -109,10 +138,30 @@ const reasonOf = ({ mutation, outcome, failed }) => {
 
 const args = process.argv.slice(2)
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : undefined
-const specs = args.filter((arg, index) => arg !== '--only' && args[index - 1] !== '--only')
-if (specs.length === 0) fail('name a spec: pnpm mutate <path/to/area.mutations.ts>')
+const checkOnly = args.includes('--check')
+const named = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--only')
 
-const mutations = (await Promise.all(specs.map(load))).flat().filter(m => only === undefined || m.name === only)
+// `--check`: every anchor and test of every spec (or of those named), and no
+// test run, so a spec whose code moved under it says so before anyone needs it.
+if (checkOnly) {
+  const specs = named.length === 0 ? everySpec() : named
+  const loaded = await Promise.all(specs.map(load))
+  const problems = loaded.flatMap(spec => spec.problems)
+  for (const problem of problems) console.error(`pnpm mutate: ${problem}`)
+  const count = loaded.reduce((sum, spec) => sum + spec.mutations.length, 0)
+  console.log(
+    problems.length === 0
+      ? `${specs.length} specs, ${count} mutations: every anchor and test found`
+      : `\n${problems.length} problems in ${specs.length} specs`,
+  )
+  process.exit(problems.length === 0 ? 0 : 1)
+}
+
+if (named.length === 0) fail('name a spec: pnpm mutate <path/to/area.mutations.ts>')
+const loaded = await Promise.all(named.map(load))
+const [problem] = loaded.flatMap(spec => spec.problems)
+if (problem !== undefined) fail(problem)
+const mutations = loaded.flatMap(spec => spec.mutations).filter(m => only === undefined || m.name === only)
 if (mutations.length === 0) fail(`no mutation named ${only}`)
 
 // A mutation killed by a test that was already red proves nothing.

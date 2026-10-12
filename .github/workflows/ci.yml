@@ -29,6 +29,10 @@ jobs:
       # Every branch on a `_tag` goes through a type the checker holds (AGENTS.md).
       - run: pnpm tags:check
 
+      # Every mutation spec still finds the code it edits; the mutations
+      # themselves are too slow for CI, and a spec that rots runs nothing.
+      - run: pnpm mutate:check
+
   typecheck:
     runs-on: ubuntu-latest
     steps:

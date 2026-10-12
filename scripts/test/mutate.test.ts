@@ -25,10 +25,11 @@ const mutate = (
   name: string,
   mutations: ReadonlyArray<unknown>,
   env: Record<string, string> = {},
+  flags: ReadonlyArray<string> = [],
 ) => {
   const spec = join(directory, `${name}.mutations.mjs`)
   writeFileSync(spec, `export default ${JSON.stringify(mutations)}\n`)
-  const result = spawnSync('pnpm', ['exec', 'tsx', 'scripts/mutate.mjs', spec], {
+  const result = spawnSync('pnpm', ['exec', 'tsx', 'scripts/mutate.mjs', ...flags, spec], {
     cwd: root,
     env: { ...process.env, ...env },
     encoding: 'utf8',
@@ -58,6 +59,36 @@ test('refuses an anchor found twice unless told to take every one', () => {
   const { status, output } = mutate('twice', [{ name: 'twice', edits: [twice], tests }])
   expect(status).toBe(2)
   expect(output).toMatch(/occurs \d+ times/)
+}, 60_000)
+
+test('checks every anchor and test without running one, and names each problem', () => {
+  const { status, output } = mutate(
+    'checked',
+    [
+      { name: 'gone anchor', edits: [edit('a * b', 'a - b')], tests },
+      {
+        name: 'gone test',
+        edits: [edit('a + b', 'a - b')],
+        tests: ['scripts/test/fixture/gone.test.ts'],
+      },
+      { name: 'fine', edits: [edit('a + b', 'a - b')], tests },
+    ],
+    {},
+    ['--check'],
+  )
+  expect(status).toBe(1)
+  expect(output).toMatch(/gone anchor: the anchor is not in/)
+  expect(output).toMatch(
+    /gone test: the test scripts\/test\/fixture\/gone\.test\.ts does not exist/,
+  )
+  expect(output).toMatch(/2 problems in 1 specs/)
+  expect(output).not.toMatch(/as expected|killed/)
+
+  const clean = mutate('clean', [{ name: 'fine', edits: [edit('a + b', 'a - b')], tests }], {}, [
+    '--check',
+  ])
+  expect(clean.status).toBe(0)
+  expect(clean.output).toMatch(/1 specs, 1 mutations: every anchor and test found/)
 }, 60_000)
 
 test('refuses to judge mutations against tests already red', () => {
