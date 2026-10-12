@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`: `Data.preload`, prefetch from `update`.** `satisfy` as a
+  Command for a destination the reader has not reached (a hover over a link):
+  it reads what the given Surfaces read in the Model you give it and yields one
+  new Message, `Preloaded`, carrying the Messages that wrote it, so they reduce
+  into the live Model as it is by then. It never fails, and refuses a Surface
+  of another application when the Command is made. `Remote.fold` lifts it.
+
 - **`foldkit-site`: head metadata from the tree.** A node's `meta` (a function
   of its route and the Model, returning `foldkit-ssr`'s `Meta`) and `indexed`
   flag, on `Site.route` or the `Site.node` builder. `Site.metaOf(site, route,

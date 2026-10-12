@@ -396,6 +396,12 @@ export type RemoteMessage =
    * arrives, it is invalidated, or retention drops it.
    */
   | { readonly _tag: 'QueryFailed'; readonly connection: string; readonly error: RemoteError }
+  /**
+   * What `Data.preload` read for a destination, as the Messages that wrote it,
+   * reduced in order into the Model as it is now rather than the one the
+   * preload started from.
+   */
+  | { readonly _tag: 'Preloaded'; readonly messages: ReadonlyArray<RemoteMessage> }
 
 export const retentionRootsSchema = Schema.Struct({
   requirements: Schema.Array(ReadRequest),
@@ -465,6 +471,9 @@ export const remoteMessageCases = {
   ConnectionInvalidated: { connection: Schema.String },
   ConnectionRefreshed: { connection: Schema.String },
   QueryFailed: { connection: Schema.String, error: remoteErrorSchema },
+  Preloaded: {
+    messages: Schema.Array(Schema.suspend(() => remoteMessageSchema)),
+  },
 } satisfies Record<RemoteMessage['_tag'], Schema.Struct.Fields>
 
 export type RemoteMessageTag = RemoteMessage['_tag']
@@ -493,7 +502,7 @@ export const remoteMessageSchema = Schema.Union(
   Object.entries(remoteMessageCases).map(([tag, fields]) =>
     Schema.Struct({ _tag: Schema.Literal(tag), ...fields }),
   ),
-) as unknown as Schema.Schema<RemoteMessage>
+) as unknown as Schema.Codec<RemoteMessage, unknown>
 
 /** An overlay's layer, named apart from every request's: a request id is the application's to choose too. */
 const OVERLAY = 'overlay:'
@@ -861,6 +870,8 @@ const checkedPlacement = (
 
 const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel => {
   switch (message._tag) {
+    case 'Preloaded':
+      return message.messages.reduce(reduceRemote, model)
     case 'ReadReceived':
       return {
         ...model,

@@ -26,6 +26,7 @@ import {
   type LiveDependencies,
   type ReadDependencies,
   type RemoteRpcClient,
+  type RemoteMessage,
   type RetentionRoots,
 } from '../src/index.js'
 import { port } from '../src/port.js'
@@ -163,6 +164,13 @@ declare const model: Model
       : Option.none(),
   )
   const owner = Data.active('Owner', () => Option.some(Data.get(UserSummary, 'u1')))
+
+  // Preloading a destination from update.
+  const preload = Data.preload(
+    { ...model, route: { _tag: 'project', projectId: 'p2' } },
+    { project: projectPage },
+  )
+  expectTypeOf(preload.effect).toEqualTypeOf<Effect.Effect<RemoteMessage, never, RemoteClient>>()
 
   const pageEntries = Data.subscriptions({ page: projectPage })
   // Retention is the domain's: one `retain` roots every read, so the second

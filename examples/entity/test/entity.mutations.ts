@@ -54,8 +54,8 @@ export default [
     edits: [
       {
         file: '../../../packages/remote/src/model.ts',
-        find: 'const agrees = served.every((key, index) => key === asPlaced[index])',
-        replace: 'const agrees = false',
+        find: 'served.every((key, index) => key === asPlaced[index]) &&',
+        replace: 'false &&',
       },
     ],
     tests,

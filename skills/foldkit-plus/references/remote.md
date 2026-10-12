@@ -315,6 +315,14 @@ const page = await Effect.runPromise(
 )
 ```
 
+In a running app, preload a destination with `Data.preload(model, actives)`
+from `update`: the Command reads what `actives` read in the Model you give it
+(the live one with the target route) and yields one `Preloaded` Message with
+the reads, reduced into the Model as it is when it lands. It never fails; a
+failed read leaves the rest for the destination. Use it for hover prefetch,
+not `prefetch`/`satisfy`, whose returned Model would overwrite what changed
+meanwhile.
+
 Prefetch (SSR, route/hover, tests) and persistence:
 
 ```ts

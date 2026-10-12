@@ -6,7 +6,7 @@ import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Entity, Remote, RemoteClient, RemoteUnsatisfied } from '../src/index.js'
+import { Entity, Remote, RemoteClient, RemoteReadError, RemoteUnsatisfied } from '../src/index.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Project = Entity.make(
@@ -124,3 +124,92 @@ const Page = App.surface('Page', {
 export const unplaced = () =>
   // @ts-expect-error the Surface's params are unknown
   Data.satisfy(initial, { page: Page })
+
+describe('Data.preload', () => {
+  const Message = defineMessageUnion({ ...Remote.messages })
+  const name = (model: Model, id: string) => Data.get(User.select({ name: true }), id).read(model)
+  const preloaded = async (model: Model, layer: Layer.Layer<RemoteClient>) =>
+    Effect.runPromise(
+      Data.preload(model, actives, { now: () => 5 }).effect.pipe(Effect.provide(layer)),
+    )
+
+  it('hands on what satisfy reads, for the Model as it is when it lands', async () => {
+    const client = recording()
+    const message = await preloaded(initial, client.layer)
+    expect(client.reads).toEqual([['Project:p1'], ['User:u7']])
+    // Meanwhile the live Model read someone else.
+    const moved = Data.reduce(initial, {
+      _tag: 'ReadReceived',
+      requests: [{ entity: 'User', id: 'u9', fields: ['name'] }],
+      result: { settled: [], entities: [{ entity: 'User', id: 'u9', values: { name: 'Nine' } }] },
+      now: 0,
+    })
+    const landed = Data.reduce(moved, message)
+    expect(name(landed, 'u7')).toEqual({ _tag: 'Ready', value: { name: 'name of u7' } })
+    expect(name(landed, 'u9')).toEqual({ _tag: 'Ready', value: { name: 'Nine' } })
+    // What landed over the starting Model is what satisfy gives.
+    const satisfied = await Effect.runPromise(
+      Data.satisfy(initial, actives, { now: () => 5 }).pipe(Effect.provide(recording().layer)),
+    )
+    expect(Data.reduce(initial, message).remote.entities).toEqual(satisfied.remote.entities)
+  })
+
+  it('crosses a Message schema, as a Port or a recording sends it', async () => {
+    const message = await preloaded(initial, recording().layer)
+    const crossed = Schema.decodeUnknownSync(Message)(Schema.encodeSync(Message)(message))
+    expect(Data.reduce(initial, crossed).remote.entities).toEqual(
+      Data.reduce(initial, message).remote.entities,
+    )
+    // What it carries is checked as Remote's Messages, not taken on trust.
+    expect(() =>
+      Schema.decodeUnknownSync(Message)({ _tag: 'Preloaded', messages: [{ _tag: 'Nope' }] }),
+    ).toThrow()
+  })
+
+  it('hands on what it read before a failure, and never fails itself', async () => {
+    let asked = 0
+    const failingSecond = Layer.succeed(RemoteClient, {
+      read: batch => {
+        asked++
+        if (asked > 1) return Effect.fail(new RemoteReadError({ message: 'down' }))
+        return Effect.succeed({
+          settled: [],
+          entities: batch.requests.map(request => ({
+            entity: request.entity,
+            id: request.id,
+            values: { id: request.id, name: 'Apollo', lead: 'u7' },
+          })),
+        })
+      },
+      query: () => Effect.die('unused'),
+      mutate: () => Effect.die('unused'),
+      live: () => Stream.empty,
+    })
+    const partial = Data.reduce(initial, await preloaded(initial, failingSecond))
+    expect(project.read(partial)).toMatchObject({ _tag: 'Ready' })
+    expect(name(partial, 'u7')._tag).not.toBe('Ready')
+    // A client that dies hands on nothing, and the Command still answers.
+    const dying = Layer.succeed(RemoteClient, {
+      read: () => Effect.die('broken'),
+      query: () => Effect.die('unused'),
+      mutate: () => Effect.die('unused'),
+      live: () => Stream.empty,
+    })
+    expect(await preloaded(initial, dying)).toEqual({ _tag: 'Preloaded', messages: [] })
+  })
+
+  it('refuses a Surface of another application when the Command is made', () => {
+    const Other = Surface.application({ Model, Message })
+    const foreign = { other: Other.surface('Other', { model: () => project }) }
+    expect(() => Data.preload(initial, foreign)).toThrow(/belongs to another application/)
+  })
+
+  it('arrives wrapped through Remote.fold', async () => {
+    const Wrapped = defineMessageUnion({ GotRemote: { message: Remote.Message } })
+    const fold = Remote.fold(Data, message => Wrapped.GotRemote({ message }))
+    const wrapped = await Effect.runPromise(
+      fold.preload(initial, actives).effect.pipe(Effect.provide(recording().layer)),
+    )
+    expect(wrapped).toMatchObject({ _tag: 'GotRemote', message: { _tag: 'Preloaded' } })
+  })
+})

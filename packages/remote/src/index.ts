@@ -672,6 +672,23 @@ export interface RemoteDomain<
     RemoteClient
   >
   /**
+   * `satisfy` from `update`, for a destination the reader has not reached:
+   * a hover over a link, or a navigation the app expects. `model` is the
+   * Model as it would be there (the route set to the target's); the Command
+   * reads what `active` would read in it and yields one `Preloaded`
+   * carrying the Messages that wrote it, which reduce into the Model as it is
+   * by then. It never fails: a read that fails is one the destination makes
+   * again, and what was read before it still arrives.
+   *
+   * What it reads is kept like any other read until the next change of what
+   * is retained, so preload close to the navigation it expects.
+   */
+  preload(
+    model: AppModel,
+    active: Readonly<Record<string, ActiveEntry<AppModel>>>,
+    options?: SatisfyOptions,
+  ): Command<RemoteMessage, never, RemoteClient>
+  /**
    * Starts a registered mutation from `update`: applies `MutationStarted` (with
    * the optimistic operations) to the Model and returns the Command that runs
    * it and yields the settling Message. The request id comes from the model's
@@ -763,6 +780,10 @@ export interface RemoteFold<
   readonly mutate: (
     ...args: Parameters<Domain['mutate']>
   ) => FoldedMutationStarted<AppModel, ParentMessage>
+  /** `Data.preload`, its Command lifted. */
+  readonly preload: (
+    ...args: Parameters<Domain['preload']>
+  ) => Command<ParentMessage, never, RemoteClient>
   /** `Data.subscriptions`, every entry lifted to the wrapper Message. */
   readonly subscriptions: <const Active extends Readonly<Record<string, ActiveEntry<AppModel>>>>(
     active: Active,
@@ -2009,6 +2030,13 @@ export const Remote = {
         )
         return { ...started, command: mapMessage(started.command, toParentMessage) }
       },
+      preload: (...args: Parameters<Domain['preload']>) =>
+        mapMessage(
+          domain.preload(
+            ...(args as Parameters<RemoteDomain<AppModel, any, any, any, any>['preload']>),
+          ),
+          toParentMessage,
+        ),
       subscriptions: (
         active: Readonly<Record<string, ActiveEntry<AppModel>>>,
         options?: SubscriptionsOptions,
@@ -3019,6 +3047,97 @@ const bindDomain = <
       )
     }
   }
+  /**
+   * `prefetch` and `satisfy`, each Message they reduce also kept in `heard`,
+   * so `preload` can hand them to the Model as it is by the time they land.
+   */
+  const prefetchInto = (
+    model: AppModel,
+    projection: Projection<AppModel, unknown>,
+    options: ObserveOptions,
+    heard: Array<RemoteMessage>,
+  ) => {
+    const hear = (current: AppModel, message: RemoteMessage): AppModel => {
+      heard.push(message)
+      return reduce(current, message)
+    }
+    return Effect.gen(function* () {
+      const { policy = RemotePolicy.cacheFirst, now = wallClock } = options
+      const client = yield* RemoteClient
+      const planOptions = RemotePolicy.toPlan(policy, now())
+      let current = model
+      // The pages first, so their items join the one entity read below. A
+      // page with a payload already writes its items' selected fields, so
+      // the read below is only for what the server left out.
+      for (const query of planAsked(store.get(current), askedOf(projection), planOptions).queries) {
+        const page = yield* queryRequestOf(query).pipe(
+          Effect.flatMap(request => client.query(request)),
+        )
+        current = hear(
+          current,
+          pageMessage(query.identity, page, true, query.window, query.select, now()),
+        )
+      }
+      const requirements = planAsked(
+        store.get(current),
+        askedOf(projection),
+        planOptions,
+      ).requirements
+      if (requirements.length === 0) return current
+      const at = now()
+      const result = yield* client.read({
+        version: REMOTE_PROTOCOL_VERSION,
+        requests: requirements,
+      })
+      return hear(current, { _tag: 'ReadReceived', requests: requirements, result, now: at })
+    })
+  }
+  const satisfyInto = (
+    model: AppModel,
+    active: Readonly<Record<string, ActiveEntry<AppModel>>>,
+    options: SatisfyOptions,
+    heard: Array<RemoteMessage>,
+  ) =>
+    Effect.gen(function* () {
+      const { passes = 8, now = wallClock } = options
+      const entries = Object.values(active)
+      entries.forEach(assertOwned)
+      const planOptions = RemotePolicy.toPlan(RemotePolicy.cacheFirst, now())
+      const plans = (
+        current: AppModel,
+        projections: ReadonlyArray<Projection<AppModel, unknown>>,
+      ) => {
+        const planned = planAsked(store.get(current), askedUnion(projections), planOptions)
+        return planned.queries.length > 0 || planned.requirements.length > 0
+      }
+      let current = model
+      for (let pass = 0; pass < passes; pass++) {
+        if (
+          !entries.some(entry =>
+            plans(
+              current,
+              resolvedOf(entry, current).map(({ projection }) => projection),
+            ),
+          )
+        )
+          return current
+        for (const entry of entries) {
+          // Asked again over the Model the Surface before it left. A family
+          // resolves its parent first: a pass fetches the parent, and the
+          // instances the parent reveals are read in a later pass.
+          for (const { projection } of resolvedOf(entry, current))
+            current = yield* prefetchInto(current, projection, { now }, heard)
+        }
+      }
+      const reading = entries.flatMap(entry =>
+        resolvedOf(entry, current).filter(({ projection }) => plans(current, [projection])),
+      )
+      if (reading.length === 0) return current
+      return yield* new RemoteUnsatisfied({
+        surfaces: reading.map(({ name }) => name),
+        passes,
+      })
+    })
   const domain: RemoteDomain<AppModel, Store, Entities, Queries, Mutations> = {
     ...definition,
     ...bound,
@@ -3084,79 +3203,25 @@ const bindDomain = <
     meta: (model, projection) => Remote.meta(bound, model, projection),
     storeOf: model => storeOf(bound, model),
     confirmed: projection => confirmed(bound, projection),
-    prefetch: (model, projection, options = {}) =>
-      Effect.gen(function* () {
-        const { policy = RemotePolicy.cacheFirst, now = wallClock } = options
-        const client = yield* RemoteClient
-        const planOptions = RemotePolicy.toPlan(policy, now())
-        let current = model
-        // The pages first, so their items join the one entity read below. A
-        // page with a payload already writes its items' selected fields, so
-        // the read below is only for what the server left out.
-        for (const query of planAsked(store.get(current), askedOf(projection), planOptions)
-          .queries) {
-          const page = yield* queryRequestOf(query).pipe(
-            Effect.flatMap(request => client.query(request)),
+    prefetch: (model, projection, options = {}) => prefetchInto(model, projection, options, []),
+    satisfy: (model, active, options = {}) => satisfyInto(model, active, options, []),
+    preload: (model, active, options = {}) => {
+      // A Surface of another application is a mistake in `update`, refused there.
+      Object.values(active).forEach(assertOwned)
+      return {
+        name: 'Remote.preload',
+        args: { active: Object.keys(active).join(', ') },
+        effect: Effect.suspend(() => {
+          const heard: Array<RemoteMessage> = []
+          // Speculative: however the read ends, defects included, what it
+          // heard is all it hands on, and the destination reads the rest.
+          return satisfyInto(model, active, options, heard).pipe(
+            Effect.exit,
+            Effect.map((): RemoteMessage => ({ _tag: 'Preloaded', messages: heard })),
           )
-          current = reduce(
-            current,
-            pageMessage(query.identity, page, true, query.window, query.select, now()),
-          )
-        }
-        const requirements = planAsked(
-          store.get(current),
-          askedOf(projection),
-          planOptions,
-        ).requirements
-        if (requirements.length === 0) return current
-        const at = now()
-        const result = yield* client.read({
-          version: REMOTE_PROTOCOL_VERSION,
-          requests: requirements,
-        })
-        return reduce(current, { _tag: 'ReadReceived', requests: requirements, result, now: at })
-      }),
-    satisfy: (model, active, options = {}) =>
-      Effect.gen(function* () {
-        const { passes = 8, now = wallClock } = options
-        const entries = Object.values(active)
-        entries.forEach(assertOwned)
-        const planOptions = RemotePolicy.toPlan(RemotePolicy.cacheFirst, now())
-        const plans = (
-          current: AppModel,
-          projections: ReadonlyArray<Projection<AppModel, unknown>>,
-        ) => {
-          const planned = planAsked(store.get(current), askedUnion(projections), planOptions)
-          return planned.queries.length > 0 || planned.requirements.length > 0
-        }
-        let current = model
-        for (let pass = 0; pass < passes; pass++) {
-          if (
-            !entries.some(entry =>
-              plans(
-                current,
-                resolvedOf(entry, current).map(({ projection }) => projection),
-              ),
-            )
-          )
-            return current
-          for (const entry of entries) {
-            // Asked again over the Model the Surface before it left. A family
-            // resolves its parent first: a pass fetches the parent, and the
-            // instances the parent reveals are read in a later pass.
-            for (const { projection } of resolvedOf(entry, current))
-              current = yield* domain.prefetch(current, projection, { now })
-          }
-        }
-        const reading = entries.flatMap(entry =>
-          resolvedOf(entry, current).filter(({ projection }) => plans(current, [projection])),
-        )
-        if (reading.length === 0) return current
-        return yield* new RemoteUnsatisfied({
-          surfaces: reading.map(({ name }) => name),
-          passes,
-        })
-      }),
+        }),
+      }
+    },
     query: <Q extends QueryDescriptor<any, any, any>, Value, Entity extends string>(
       query: Q,
       input: QueryInput<Q>,

@@ -46,8 +46,8 @@ export default [
     edits: [
       {
         file,
-        find: '            for (const { projection } of resolvedOf(entry, current))',
-        replace: '            for (const { projection } of resolvedOf(entry, current).slice(0, 1))',
+        find: '          for (const { projection } of resolvedOf(entry, current))',
+        replace: '          for (const { projection } of resolvedOf(entry, current).slice(0, 1))',
       },
     ],
     tests,
