@@ -36,15 +36,12 @@ export type Model = typeof Model.Type
 
 // MESSAGE
 
-const NavigationShortcut = Schema.Literals(['GH', 'GP', 'GF', 'GN'])
-type NavigationShortcut = typeof NavigationShortcut.Type
-
 export const Message = defineMessageUnion({
   CompletedNavigateInternal: {},
   CompletedNavigation: {},
   ClickedLink: { request: UrlRequest },
   ChangedUrl: { url: Url },
-  EnteredNavigationShortcut: { shortcut: NavigationShortcut },
+  EnteredNavigationShortcut: { url: Schema.String },
   GotPeopleMessage: { message: People.Message },
 })
 
@@ -56,13 +53,13 @@ const HomeNode = Site.route(homeRouter, AppRoute.Home, {
   title: () => 'Routing',
   section: 'Home',
   landing: {},
-  shortcut: 'GH',
+  shortcut: ['G', 'H'],
 })
 const PeopleNode = Site.route(peopleRouter, AppRoute.People, {
   title: () => 'People | Routing',
   section: 'People',
   landing: { searchText: Option.none() },
-  shortcut: 'GP',
+  shortcut: ['G', 'P'],
 })
 const PersonNode = Site.route(personRouter, AppRoute.Person, {
   title: ({ personId }) => `Person ${personId} | Routing`,
@@ -73,7 +70,7 @@ const FilesIndexNode = Site.route(filesIndexRouter, AppRoute.FilesIndex, {
   title: () => 'Files | Routing',
   section: 'Files',
   landing: {},
-  shortcut: 'GF',
+  shortcut: ['G', 'F'],
 })
 const FilesNode = Site.route(filesRouter, AppRoute.Files, {
   title: ({ path }) => `${Array.lastNonEmpty(path)} | Files | Routing`,
@@ -85,7 +82,7 @@ const NestedNode = Site.route(nestedRouter, AppRoute.Nested, {
   title: () => 'Nested | Routing',
   section: 'Nested',
   landing: {},
-  shortcut: 'GN',
+  shortcut: ['G', 'N'],
 })
 
 export const AppSite = Site.make(
@@ -145,13 +142,6 @@ export const NavigateInternal = Command.define('NavigateInternal', {
 
 type UpdateReturn = Update.Return<Model, Message>
 
-const navigationUrlByShortcut: Readonly<Record<NavigationShortcut, () => string>> = {
-  GH: () => Site.href(HomeNode, {}),
-  GP: () => Site.href(PeopleNode, { searchText: Option.none() }),
-  GF: () => Site.href(FilesIndexNode, {}),
-  GN: () => Site.href(NestedNode, {}),
-}
-
 type OwnMessage = Bundle.OwnMessage<Message, typeof assembly.placements>
 
 const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
@@ -163,35 +153,21 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
     // Shared with Site.routing, which already routed it.
     ChangedUrl: () => ({ model }),
 
-    EnteredNavigationShortcut: ({ shortcut }) => {
-      const url = navigationUrlByShortcut[shortcut]()
-
-      return { model, commands: [NavigateInternal({ url })] }
-    },
+    EnteredNavigationShortcut: ({ url }) => ({ model, commands: [NavigateInternal({ url })] }),
   })
 
 export const update = assembly.update(updateOwn)
 
 // SUBSCRIPTION
 
+// One binding per annotated node, going to its landing.
+export const shortcutBindings = Site.shortcuts(AppSite, target =>
+  Message.EnteredNavigationShortcut({ url: target.url }),
+)
+
 const ownSubscriptions = Subscription.make<Model, Message>()(() => ({
   keyBindings: Subscription.persistent(
-    Subscription.keyBindings<Message>({
-      // One binding per annotated node: the shortcut names the destination
-      // beside it, and the union check fails the application that misnames one.
-      bindings: Site.nodesOf(AppSite).flatMap(node => {
-        if (node.shortcut === undefined) return []
-        const shortcut = Schema.decodeUnknownSync(NavigationShortcut)(node.shortcut)
-        // Every shortcut is a two-key chord (`G H`); the union check above
-        // fails the application that misnames one.
-        return [
-          {
-            keys: [...shortcut] as [string, string],
-            mapEvent: () => Message.EnteredNavigationShortcut({ shortcut }),
-          },
-        ]
-      }),
-    }),
+    Subscription.keyBindings<Message>({ bindings: shortcutBindings }),
   ),
 }))
 

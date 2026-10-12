@@ -1,9 +1,17 @@
+// @vitest-environment jsdom
 import { Array, Option, String } from 'effect'
 import { Command, given, message, model, story } from 'foldkit/story'
 import { fromString } from 'foldkit/url'
 import { describe, expect, test } from 'vitest'
 
-import { AppRoute, Message, Model, NavigateInternal, update } from '../src/main.js'
+import {
+  AppRoute,
+  Message,
+  Model,
+  NavigateInternal,
+  shortcutBindings,
+  update,
+} from '../src/main.js'
 import { People } from '../src/page/index.js'
 import { filesIndexRouter, homeRouter, nestedRouter, peopleRouter } from '../src/route.js'
 
@@ -46,48 +54,26 @@ const resolveFetch = (searchText: string) =>
 
 describe('update', () => {
   describe('EnteredNavigationShortcut', () => {
-    test('GH produces the Home navigation Command', () => {
+    // The bindings come from the tree: each node's keys go to its landing.
+    test.each([
+      [['G', 'H'], homeRouter()],
+      [['G', 'P'], peopleRouter({ searchText: Option.none() })],
+      [['G', 'F'], filesIndexRouter()],
+      [['G', 'N'], nestedRouter()],
+    ])('%j produces the navigation Command to %s', (keys, url) => {
+      const binding = shortcutBindings.find(each => `${each.keys}` === `${keys}`)
+      expect(binding).not.toBeUndefined()
       story(
         update,
         given(home),
-        message(Message.EnteredNavigationShortcut({ shortcut: 'GH' })),
-        Command.expectHas(NavigateInternal({ url: homeRouter() })),
+        message(binding!.mapEvent(new KeyboardEvent('keydown'))),
+        Command.expectHas(NavigateInternal({ url })),
         Command.resolve(NavigateInternal, Message.CompletedNavigateInternal()),
       )
     })
 
-    test('GP produces the People navigation Command', () => {
-      story(
-        update,
-        given(home),
-        message(Message.EnteredNavigationShortcut({ shortcut: 'GP' })),
-        Command.expectHas(
-          NavigateInternal({
-            url: peopleRouter({ searchText: Option.none() }),
-          }),
-        ),
-        Command.resolve(NavigateInternal, Message.CompletedNavigateInternal()),
-      )
-    })
-
-    test('GF produces the Files navigation Command', () => {
-      story(
-        update,
-        given(home),
-        message(Message.EnteredNavigationShortcut({ shortcut: 'GF' })),
-        Command.expectHas(NavigateInternal({ url: filesIndexRouter() })),
-        Command.resolve(NavigateInternal, Message.CompletedNavigateInternal()),
-      )
-    })
-
-    test('GN produces the Nested navigation Command', () => {
-      story(
-        update,
-        given(home),
-        message(Message.EnteredNavigationShortcut({ shortcut: 'GN' })),
-        Command.expectHas(NavigateInternal({ url: nestedRouter() })),
-        Command.resolve(NavigateInternal, Message.CompletedNavigateInternal()),
-      )
+    test('binds only the nodes that declare a shortcut', () => {
+      expect(shortcutBindings).toHaveLength(4)
     })
   })
 

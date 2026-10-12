@@ -321,15 +321,20 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   and its own `metaOf`; moving it onto a Site tree is the routing item's.
 - [ ] **Locales in the route graph:** a top-level locale parameter, targets
   with alternates, and data sources that take the locale. §33.11
-- [ ] **Route lifecycle as a reusable wiring,** not app-owned update branches:
+- [x] **Route lifecycle as a reusable wiring,** not app-owned update branches:
   `ClickedLink`/`ChangedUrl` handling, internal-vs-external dispatch
   (`pushUrl` vs `load`, Navigate vs load Commands), and shortcut mapping, as a
   semantic bundle/wiring. §34.1. After the placement slice: the wiring should
-  compose placements, not replace them.
-- [ ] **Annotatable routes:** title, nav section, shortcut (and href source)
+  compose placements, not replace them. Built: `Site.routing` (with `pages`,
+  the routed placements), loading what the tree does not hold
+  (`Site.routeAt`); shortcuts are `Site.shortcuts`. The CMS site keeps its
+  own two branches, since a route change there moves focus.
+- [x] **Annotatable routes:** title, nav section, shortcut (and href source)
   declared once per route, with navigation rendering, active-section
   derivation, shortcut handling, href generation and titles derived. §34.4.
-  With the graph, not before it: annotations need nodes to hang on.
+  Built: `title`, `section`, `landing`, `shortcut` on a node, read with
+  `Site.titleOf`, `Site.sectionOf`, `Site.landing`, `Site.shortcuts` and
+  `Site.hrefOf` (`examples/foldkit/routing`).
 - [ ] **Genuine nested route nodes:** layout, child routes, child models and
   route-local subscriptions/effects per node, not a flat match arm over a
   nested URL. §34.2. Last: flat routes plus section tags scale further than
