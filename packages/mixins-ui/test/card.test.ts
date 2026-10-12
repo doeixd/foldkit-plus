@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { Card, CardSlots, view } from '../src/card.js'
+import { CardSlots, view } from '../src/card.js'
 import { Recipes } from '../src/index.js'
 
 const h = SlotView.inertBuilder<never>()
@@ -22,8 +22,8 @@ describe('CardSlots', () => {
       'footer',
       'action',
     ])
-    for (const name of Object.keys(CardSlots)) {
-      expect(CardSlots[name]?.capability).toBe(Capability.Container)
+    for (const slot of Object.values(CardSlots)) {
+      expect(slot.capability).toBe(Capability.Container)
     }
   })
 })
@@ -34,9 +34,9 @@ describe('Card view', () => {
       {
         title: 'Usage',
         description: 'This month',
-        content: '42 runs',
-        footer: 'Updated just now',
-        action: 'View',
+        content: h.span([], ['42 runs']),
+        footer: h.span([], ['Updated just now']),
+        action: h.span([], ['View']),
         style: Style.forSlots(CardSlots)(Recipes.Card({})),
       },
       h,
@@ -50,7 +50,7 @@ describe('Card view', () => {
   })
 
   it('skips regions the card does not earn', () => {
-    const card = view({ content: 'bare' }, h)
+    const card = view({ content: h.span([], ['bare']) }, h)
     expect(Inert.text(card)).toBe('bare')
     expect(Inert.byTag(card, 'h3')).toHaveLength(0)
     expect(Inert.byTag(card, 'p')).toHaveLength(0)

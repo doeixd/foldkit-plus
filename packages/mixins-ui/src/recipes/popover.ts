@@ -6,8 +6,7 @@ import { Style } from 'foldkit-mixins'
 import { PopoverSlots } from '../popover.js'
 import { component, disabled, focusRing, hover, ref, transition, variant } from './design.js'
 
-const width = (max: string) =>
-  variant(Style.self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
+const width = (max: string) => variant(Style.self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
 
 export const Popover = Style.recipeFor(PopoverSlots)({
   base: {

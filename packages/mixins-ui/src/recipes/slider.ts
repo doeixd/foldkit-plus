@@ -68,7 +68,12 @@ export const Slider = Style.recipeFor(SliderSlots)({
       disabled,
     ),
     label: component(
-      Style.self({ margin: '0', color: ref.text.overt, fontSize: ref.size.sm, fontWeight: ref.weight.medium }),
+      Style.self({
+        margin: '0',
+        color: ref.text.overt,
+        fontSize: ref.size.sm,
+        fontWeight: ref.weight.medium,
+      }),
     ),
   },
   variants: {
