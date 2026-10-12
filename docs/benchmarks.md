@@ -194,3 +194,34 @@ The same 100 placements written with `Bundle.parent` and `Bundle.declare`
 
 Inferring from the scope costs about 800 more instantiations per placement and
 10% more check time, inside the 25% budget the DX plan set.
+
+## Navigating to a generated page
+
+`pnpm --filter foldkit-example-cms bench:navigation` (after
+`build:sandbox`) serves the CMS demo's `dist` as Cloudflare Pages does and
+goes from the blog to a post in headless Chromium four ways: a full load of
+the post's generated HTML, timed to its first contentful paint and to its
+`load`; a Navigate Command, timed in the page from the click to the post's
+heading painted; and the same after a 400 ms hover, which reads the post
+ahead (`Data.preload`). Every request is delayed by the round trip given.
+Medians of seven runs after two warm-ups, assets cached as a returning
+reader's are; two runs agreed within 10 ms.
+
+| from /site/blog to the post | 0 ms round trip | 100 ms round trip |
+| --- | ---: | ---: |
+| full load, content painted | 104 ms | 204 ms |
+| full load, scripts run | 80 ms | 180 ms |
+| Navigate | 54 ms | 52 ms |
+| Navigate after a hover | 33 ms | 32 ms |
+
+A full load pays the round trip for the page's HTML at least once, and a
+Navigate Command none, so the gap grows with the network: two to four times
+faster here, and three to six after a hover. The sandbox's server is in the browser, so its reads never
+cross the network; against a server, a Navigate Command without a hover
+adds one round trip for its read, still under a full load's, and the hover
+takes it away again. What a full load had over it, the page's metadata at
+once, matters only to a crawler, which loads every page whole anyway.
+
+So a generated page of the same application is navigated to, and only an
+address the tree does not hold (another application) is a full load, which
+`Site.routing` already does. No target states a preference.

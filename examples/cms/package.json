@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx src/dev.ts",
     "demo": "tsx src/demo/main.ts",
+    "bench:navigation": "tsx bench/navigation.ts",
     "build:sandbox": "pnpm --filter foldkit-ssr... --filter foldkit-mixins... build && vite build --mode sandbox",
     "typecheck": "tsc -b"
   },

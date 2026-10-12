@@ -406,9 +406,10 @@ proven demand, never as framework.
 - A single-screen application has one node; the tree buys nothing.
 - Locales are route params when they arrive; themes are preferences, not
   routes. Neither is built.
-- A tree is one document: an address it does not hold is a full load. A
-  generated page of the same application states no Navigate-vs-load
-  preference; it is navigated to, drawn from what the browser holds.
+- A tree is one document: an address it does not hold is a full load, and
+  a generated page of the same application is navigated to, drawn from what
+  the browser holds. That is measured, not assumed: a Navigate Command was
+  two to four times faster than the page's full load (`docs/benchmarks.md`).
 - No layout-spanning Surfaces, no per-node child models or route-local
   subscriptions — deliberately, until a real nested layout demands them.
 - Status caveat: the in-repo proof is tests plus the routing example

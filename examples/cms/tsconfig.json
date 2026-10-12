@@ -83,7 +83,7 @@
     },
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
+  "include": ["bench/**/*.ts", "e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
   "references": [
     {
       "path": "../site/tsconfig.json"

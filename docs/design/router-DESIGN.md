@@ -98,7 +98,8 @@ centre, as §32 says; Site is one producer, Composition another.
   unbuilt. `paths` comes first; everything else hangs off enumeration.
 - **Document-aware targets (§§33.7, 33.10):** built as one tree per
   document (`Site.routeAt`; `Site.routing` loads what the tree does not
-  hold). Open: generated pages stating their preference.
+  hold). A generated page of the same application is navigated to:
+  measured faster than its full load (open question 4).
 - **Locales (§33.11)** with the first localized content, and **themes**
   staying preferences (§33.12, decided: not routes).
 - **Single flight (§§27, 31.10), last:** starts with a request-count
@@ -135,9 +136,11 @@ is still the rule (§33's preamble); elimination (§34.5) is still the test.
 3. **What is the `meta` function of?** Whole-Model access (the CMS's need:
    a post's excerpt for its description) vs a declared Surface projection
    (§23's preference). Undecided; the consumer decides.
-4. **Which document does a target prefer?** For generated pages, full load
-   (HTML + metadata at once) vs Navigate + prefetch (§33.10). Needs
-   measurement, not principle.
+4. **Which document does a target prefer?** Answered 2026-10-12 by
+   measurement (`docs/benchmarks.md`, "Navigating to a generated page"): a
+   Navigate Command, two to four times faster than a full load, three to
+   six after a hover's read-ahead. A generated page of the same
+   application is navigated to; no target states a preference.
 5. **What is the single-flight wire?** `refresh` list vs declarative
    requirement diff vs connection-change subscription; server evaluation
    cost vs second round trip. Needs the benchmark first, then the wire
@@ -7157,9 +7160,10 @@ is none yet, and so hand-wrote:
 
 ## 33.10 Documents, and taking a page over
 
-> Status 2026-10-12: half built — a link the tree does not hold is a full
-> load (`Site.routeAt`, `Site.routing`). Open: a generated page of the same
-> application stating its preference; see open question 4.
+> Status 2026-10-12: built and decided — a link the tree does not hold is
+> a full load (`Site.routeAt`, `Site.routing`), and a generated page of the
+> same application is navigated to, which measured two to four times
+> faster than its full load (open question 4, `docs/benchmarks.md`).
 
 §33.7 said a target must know its document. With generated pages there are
 three kinds of navigation, and the Site graph is what tells them apart:
