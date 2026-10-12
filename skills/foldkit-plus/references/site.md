@@ -43,9 +43,11 @@ for an unknown tag); `Site.parentOf`, `Site.ancestorsOf`, `Site.depthOf`,
 **Metadata.** `title` (of the route value), `section`, read with
 `Site.titleOf` / `Site.sectionOf` (`undefined` when absent). `landing` is a
 section's nav address as its node's params; `Site.landing(site, section)` is
-the first declaring node as a target. `shortcut` names the keys that go
-there; bindings stay application-owned, derived with the name validated
-against the Message union. Annotate once; derive nav, titles, shortcuts, and
+the first declaring node as a target. `shortcut` is a Foldkit
+`KeySequence` (`'/'`, `['G', 'H']`) going to the node's landing;
+`Site.shortcuts(site, target => Message.Pressed({ url: target.url }))` is
+every one as `Subscription.keyBindings` bindings (no landing, or keys used
+twice, throws). Annotate once; derive nav, titles, shortcuts, and
 breadcrumbs from it.
 
 **Head metadata.** `.meta<Model>(({ route, model }) => Meta)` (or the `meta`
@@ -106,8 +108,7 @@ with OutMessages and non-Bundle children stay on `Bundle.at` / `Link.child`.
 
 - A layout surface active for several tags is not expressible yet (a future
   `whenAny`-shaped extension); each entry answers its own tag.
-- Route-local model ownership and shortcuts are still per-application
-  code. Bundles with OutMessages and non-Bundle children stay on
+- Route-local model ownership is still per-application code. Bundles with OutMessages and non-Bundle children stay on
   `Bundle.at` / `Link.child`.
 - `Site.target(Node, {})` for param-less routes: params are always explicit.
 - Locales are route params when they arrive; themes are preferences, not routes.

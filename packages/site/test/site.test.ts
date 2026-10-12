@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The `foldkit-site` first cut: stable route nodes in a hierarchy, typed
  * targets with hrefs from one declaration, chain inspection, annotatable
@@ -53,13 +54,13 @@ const routeOf = (path: string): AppRoute => {
 const Home = Site.route(homeRouter, AppRoute.Home, {
   title: () => 'Routing',
   landing: {},
-  shortcut: 'GH',
+  shortcut: ['G', 'H'],
 })
 const People = Site.route(peopleRouter, AppRoute.People, {
   title: () => 'People | Routing',
   section: 'People',
   landing: { searchText: Option.none() },
-  shortcut: 'GP',
+  shortcut: ['G', 'P'],
 })
 const Person = Site.route(personRouter, AppRoute.Person, {
   title: ({ personId }) => `Person ${personId} | Routing`,
@@ -70,7 +71,8 @@ const Person = Site.route(personRouter, AppRoute.Person, {
 const Nested = Site.route(nestedRouter, AppRoute.Nested, {
   title: () => 'Nested | Routing',
   landing: {},
-  shortcut: 'GN',
+  // One press, where the others are sequences.
+  shortcut: '/',
   history: 'push',
 })
 
@@ -173,16 +175,29 @@ describe('metadata', () => {
     expect(Site.landing(bare, 'People')).toBeUndefined()
   })
 
-  it('names each shortcut beside its destination', () => {
+  it('binds each shortcut to its node’s landing, in tree order', () => {
+    const bindings = Site.shortcuts(AppSite, target => target.url)
     expect(
-      Site.nodesOf(AppSite).flatMap(node =>
-        node.shortcut === undefined ? [] : [[node.shortcut, node.tag] as const],
-      ),
+      bindings.map(binding => [binding.keys, binding.mapEvent(new KeyboardEvent('keydown'))]),
     ).toEqual([
-      ['GH', 'Home'],
-      ['GP', 'People'],
-      ['GN', 'Nested'],
+      [['G', 'H'], '/'],
+      [['G', 'P'], '/people'],
+      ['/', '/nested/route'],
     ])
+  })
+
+  it('refuses a shortcut with no landing, and one that goes to two nodes', () => {
+    const lost = Site.route(personRouter, AppRoute.Person, { shortcut: ['G', 'X'] })
+    expect(() => Site.shortcuts(Site.make(lost), target => target)).toThrow(
+      'Site.shortcuts: "Person" has a shortcut and no landing to go to',
+    )
+    const twice = Site.route(nestedRouter, AppRoute.Nested, {
+      landing: {},
+      shortcut: ['G', 'H'],
+    })
+    expect(() => Site.shortcuts(Site.make(Home, twice), target => target)).toThrow(
+      'Site.shortcuts: "G H" goes to both "Home" and "Nested"',
+    )
   })
 })
 
@@ -460,7 +475,7 @@ describe('incremental nodes', () => {
     .title(({ personId }) => `Person ${personId} | Routing`)
     .section('People')
     .landing({ personId: 1 })
-    .shortcut('GP')
+    .shortcut(['G', 'P'])
     .history((prev, next) => (prev.personId === next.personId ? 'replace' : 'push'))
     .layout(layout)
     .view(view)
@@ -469,7 +484,7 @@ describe('incremental nodes', () => {
     title: ({ personId }) => `Person ${personId} | Routing`,
     section: 'People',
     landing: { personId: 1 },
-    shortcut: 'GP',
+    shortcut: ['G', 'P'],
     history: (prev, next) => (prev.personId === next.personId ? 'replace' : 'push'),
     layout,
     view,
@@ -488,7 +503,7 @@ describe('incremental nodes', () => {
       expect(Site.titleOf(tree, person)).toBe('Person 3 | Routing')
       expect(Site.sectionOf(tree, person)).toBe('People')
       expect(Site.landing(tree, 'People')).toMatchObject({ url: '/people/1' })
-      expect(node.shortcut).toBe('GP')
+      expect(node.shortcut).toEqual(['G', 'P'])
       expect(node.layout).toBe(layout)
       expect(node.view).toBe(view)
       expect(
@@ -518,13 +533,13 @@ describe('incremental nodes', () => {
     // node it meets, so both sections still type.
     const inPeopleSection = <Route extends { readonly _tag: string }>(
       built: NodeBuilder<Route>,
-    ): NodeBuilder<Route> => built.section('People').shortcut('GP')
+    ): NodeBuilder<Route> => built.section('People').shortcut(['G', 'P'])
     const one = inPeopleSection(Site.node(peopleRouter, AppRoute.People)).node
     const two = inPeopleSection(Site.node(nestedRouter, AppRoute.Nested)).node
     expect(one.section).toBe('People')
     expect(two.section).toBe('People')
-    expect(one.shortcut).toBe('GP')
-    expect(two.shortcut).toBe('GP')
+    expect(one.shortcut).toEqual(['G', 'P'])
+    expect(two.shortcut).toEqual(['G', 'P'])
   })
 
   it('pipes bundles, chained or free', () => {
@@ -533,7 +548,7 @@ describe('incremental nodes', () => {
     ): NodeBuilder<Route> => built.section('People')
     const withShortcut = <Route extends { readonly _tag: string }>(
       built: NodeBuilder<Route>,
-    ): NodeBuilder<Route> => built.shortcut('GP')
+    ): NodeBuilder<Route> => built.shortcut(['G', 'P'])
     // The method, chained for two bundles; and free pipe, which threads the
     // builder's type through the generic bundle the same way.
     const viaMethod = Site.node(peopleRouter, AppRoute.People)
@@ -543,7 +558,7 @@ describe('incremental nodes', () => {
     for (const node of [viaMethod, viaFree]) {
       expect(node.section).toBe('People')
     }
-    expect(viaMethod.shortcut).toBe('GP')
+    expect(viaMethod.shortcut).toEqual(['G', 'P'])
     // An inline stage reads the builder's route with no annotation.
     const titled = Site.node(personRouter, AppRoute.Person).pipe(built =>
       built.title(({ personId }) => `Person ${personId}`),

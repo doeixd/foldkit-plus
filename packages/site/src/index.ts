@@ -33,6 +33,7 @@ import {
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
+import type { KeyBinding, KeySequence } from 'foldkit/subscription'
 import { UrlRequest } from 'foldkit/navigation'
 import { oneOf, parseUrlWithFallback, type Router } from 'foldkit/route'
 import type { Meta } from 'foldkit-ssr/client'
@@ -167,12 +168,11 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
    */
   readonly landing?: Omit<Route, '_tag'> | undefined
   /**
-   * The keyboard shortcut announcing this node, for key bindings derived
-   * beside the application (`G H` for Home): the characters pressed in
-   * sequence. Key bindings stay application-owned; this only names them once,
-   * next to the destination they go to.
+   * The keys that go to this node's `landing`, as Foldkit's key bindings name
+   * them: one press (`'/'`, `'Mod+K'`) or a sequence (`['G', 'H']`).
+   * `Site.shortcuts` makes the bindings.
    */
-  readonly shortcut?: string | undefined
+  readonly shortcut?: KeySequence | undefined
   /**
    * Which history step a move within this node is: a string, or a function
    * for nodes where some param changes are entries of their own (another
@@ -230,7 +230,7 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
    *
    * ```ts
    * const inSection = <R extends { readonly _tag: string }>(b: NodeBuilder<R>) =>
-   *   b.section('People').shortcut('GP')
+   *   b.section('People').shortcut(['G', 'P'])
    *
    * const Person = Site.node(personRouter, AppRoute.Person).pipe(inSection).node
    * ```
@@ -245,8 +245,8 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
   section(section: string): NodeBuilder<Route>
   /** Where the section's nav item points, as this node's params. */
   landing(landing: Omit<Route, '_tag'>): NodeBuilder<Route>
-  /** The keyboard shortcut announcing this node. */
-  shortcut(shortcut: string): NodeBuilder<Route>
+  /** The keys that go to this node's landing. */
+  shortcut(shortcut: KeySequence): NodeBuilder<Route>
   /** Which history step a move within this node is. */
   history(
     history: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent),
@@ -431,7 +431,7 @@ export const Site = {
       readonly title?: ((route: Route) => string) | undefined
       readonly section?: string | undefined
       readonly landing?: Omit<Route, '_tag'> | undefined
-      readonly shortcut?: string | undefined
+      readonly shortcut?: KeySequence | undefined
       readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
       readonly layout?: NodeLayout | undefined
       readonly view?: NodeView | undefined
@@ -773,6 +773,41 @@ export const Site = {
       return Site.target(candidate, landing)
     }
     return undefined
+  },
+
+  /**
+   * The tree's shortcuts as key bindings, each sending the Message
+   * `toMessage` makes of its node's landing:
+   *
+   * ```ts
+   * Subscription.keyBindings({
+   *   bindings: Site.shortcuts(AppSite, target => Message.PressedShortcut({ url: target.url })),
+   * })
+   * ```
+   *
+   * A shortcut on a node with no `landing` goes nowhere, and one used twice
+   * goes to two places; both are refused.
+   */
+  shortcuts: <Message>(
+    site: SiteTree,
+    toMessage: (target: SiteTarget<any>) => Message,
+  ): ReadonlyArray<KeyBinding<Message>> => {
+    const taken = new Map<string, string>()
+    return Site.nodesOf(site).flatMap((node): ReadonlyArray<KeyBinding<Message>> => {
+      const keys = node.shortcut
+      if (keys === undefined) return []
+      if (node.landing === undefined)
+        throw new Error(`Site.shortcuts: "${node.tag}" has a shortcut and no landing to go to`)
+      const named = typeof keys === 'string' ? keys : keys.join(' ')
+      const other = taken.get(named)
+      if (other !== undefined)
+        throw new Error(`Site.shortcuts: "${named}" goes to both "${other}" and "${node.tag}"`)
+      taken.set(named, node.tag)
+      const message = toMessage(Site.target(node, node.landing))
+      const mapEvent = () => message
+      // The binding's two shapes are told apart by `keys`, so each is made whole.
+      return [typeof keys === 'string' ? { keys, mapEvent } : { keys, mapEvent }]
+    })
   },
 
   /**

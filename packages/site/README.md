@@ -87,8 +87,8 @@ without re-parsing anything.
 
 **Nodes.** `Site.route(router, case, options?)` declares one location. Options
 are `title` (a function of the route value), `section`, `landing` (the
-section's nav address as this node's params), `shortcut` (the keys that go
-here), `history`, and `surface` (below). The node is frozen; keep the
+section's nav address as this node's params), `shortcut` (the keys that go to
+its landing, as Foldkit's key bindings name them: `'/'`, `['G', 'H']`), `history`, and `surface` (below). The node is frozen; keep the
 exported value and use it for targets and hrefs. To annotate in steps, or to
 share an annotation bundle across nodes, build incrementally instead — the
 options are sugar over this builder:
@@ -169,9 +169,11 @@ rule by hand.
 **Navigation metadata.** Titles and sections read with `Site.titleOf` and
 `Site.sectionOf`. `Site.landing(site, section)` is where the section's nav
 item points: the first node of the section that declares a landing, as a
-target. Shortcuts ride beside their destinations; key bindings stay
-application-owned, derived with each name validated against the application's
-union. Annotate once; derive nav, titles, shortcuts, and breadcrumbs from it.
+target. `Site.shortcuts(site, toMessage)` is the tree's shortcuts as key
+bindings for `Subscription.keyBindings`, each sending the Message
+`toMessage` makes of its node's landing target; a shortcut with no landing,
+or one used twice, is refused. Annotate once; derive nav, titles, shortcuts,
+and breadcrumbs from it.
 
 **Head metadata.** `meta` is what a node says of itself to a search result
 and a link preview: a function of its route and the Model, since a post's
@@ -324,7 +326,7 @@ placements land; until then informing them stays hand-written.
 
 **Navigation rendering.** Derive the nav from the tree instead of keeping
 parallel tables: sections in tree order, hrefs from `Site.landing`, titles
-from `Site.titleOf`, shortcuts from the annotated nodes, and the current
+from `Site.titleOf`, key bindings from `Site.shortcuts`, and the current
 section by comparing tags.
 
 **Route changes.** On a URL change, resolve the route value once, then
@@ -342,7 +344,6 @@ caller-composed — there is no `prepare` in any plan.
 ## Limits / when not to use it
 
 - A single-screen application has one node; the tree buys nothing.
-- Keyboard shortcuts are still hand-written per application.
 - Bundles with OutMessages, and children that are not Bundles, stay on
   `Bundle.at` and `Link.child`: `Site.placement` takes neither `onOut` nor a
   non-Bundle child.

@@ -357,4 +357,43 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a shortcut with no landing is taken',
+    edits: [
+      {
+        file,
+        find: '      if (node.landing === undefined)\n        throw new Error(`Site.shortcuts:',
+        replace: '      if (false)\n        throw new Error(`Site.shortcuts:',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a shortcut used twice is taken',
+    edits: [{ file, find: '      if (other !== undefined)\n', replace: '      if (false)\n' }],
+    tests,
+  },
+  {
+    name: 'one press is bound as a sequence',
+    edits: [
+      {
+        file,
+        find: "typeof keys === 'string' ? { keys, mapEvent } :",
+        replace: "typeof keys === 'string' ? { keys: [keys, keys], mapEvent } :",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a binding sends where the first shortcut goes',
+    edits: [
+      {
+        file,
+        find: '      const message = toMessage(Site.target(node, node.landing))\n',
+        replace:
+          '      const first = Site.nodesOf(site)[0]!\n      const message = toMessage(Site.target(first, first.landing))\n',
+      },
+    ],
+    tests,
+  },
 ]

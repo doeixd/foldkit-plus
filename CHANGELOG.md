@@ -33,6 +33,10 @@ version changed; `pnpm` skips versions already in the registry.
   builds an address back, refusing a route no node holds.
   `Site.routeAt(site, url)` is the route at an address, or `None` where no
   node takes it.
+- **`foldkit-site`: `Site.shortcuts`, key bindings from the tree.**
+  `Site.shortcuts(site, toMessage)` is every node's shortcut as a
+  `Subscription.keyBindings` binding sending the Message made of its
+  landing target, refusing a shortcut with no landing or keys used twice.
 
 - **`foldkit-plus`: every package in one install, and `npx foldkit-plus setup`.**
   Each package's entry points are re-exported by subpath (`foldkit-remote/port`
@@ -59,6 +63,9 @@ version changed; `pnpm` skips versions already in the registry.
   tree is one application's document, so a click on an address of this
   origin that no node takes is a full load, where it was a Navigate Command
   that could only draw the application's NotFound.
+- **`foldkit-site`: a node's `shortcut` is a Foldkit `KeySequence`.** Write
+  a sequence as an array (`['G', 'H']`, where it was `'GH'`) and one press as
+  a string (`'/'`, `'Mod+K'`), as `Subscription.keyBindings` names keys.
 
 ## 0.17.1
 

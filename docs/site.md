@@ -83,7 +83,7 @@ with no annotation:
 
 ```ts
 const inPeopleSection = <R extends { readonly _tag: string }>(b: NodeBuilder<R>) =>
-  b.section('People').shortcut('GP')
+  b.section('People').shortcut(['G', 'P'])
 
 const People = Site.node(peopleRouter, AppRoute.People).pipe(inPeopleSection).node
 ```
@@ -91,7 +91,7 @@ const People = Site.node(peopleRouter, AppRoute.People).pipe(inPeopleSection).no
 Read `.node` at any stage: every step freezes, so intermediates are usable
 nodes too (targets, hrefs), never drafts. The full annotation set is
 `title`, `section`, `landing` (the section's nav address, as this node's
-params), `shortcut` (key names beside their destination), `history` (below),
+params), `shortcut` (the keys that go to its landing; `Site.shortcuts` binds them), `history` (below),
 `surface` (below), `layout`, and `view` (below).
 
 Two deliberate absences, both load-bearing. The tag always derives from the
