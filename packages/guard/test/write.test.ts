@@ -482,6 +482,7 @@ describe('GuardServer.validate over writes', () => {
 describe('GuardServer.mutation', () => {
   const ArchiveTodo = Mutation.make('ArchiveTodo', { Input: { id: Schema.String }, Output: {} })
   const ImportTodos = Mutation.make('ImportTodos', { Input: {}, Output: {} })
+  const TouchTodo = Mutation.make('TouchTodo', { Input: { id: Schema.String }, Output: {} })
   const ClaimByHand = Mutation.make('ClaimByHand', {
     Input: { id: Schema.String, by: Schema.String },
     Output: {},
@@ -543,6 +544,19 @@ describe('GuardServer.mutation', () => {
           source: source(Db.Todo),
         },
         ({ row }) => Effect.sync(() => (seen.push(row), { output: {} })),
+      ),
+      // Changes nothing it names: its row is answered as there, with no values.
+      GuardServer.mutation(
+        TouchTodo,
+        {
+          entity: Todo,
+          policy: Policy,
+          interaction: 'Update',
+          id: input => input.id,
+          source: source(Db.Todo),
+        },
+        ({ input }) =>
+          Effect.succeed({ output: {}, entities: [{ entity: 'Todo', id: input.id, values: {} }] }),
       ),
       // Answers only what it wrote; the read back must not add what its writer may not read.
       GuardServer.mutation(
@@ -629,6 +643,13 @@ describe('GuardServer.mutation', () => {
     expect(await handle(root, 'ClaimByHand', { id: 't1', by: 'root' })).toMatchObject({
       _tag: 'Success',
       success: { entities: [{ id: 't1', values: { claimedBy: 'root' } }] },
+    })
+  })
+
+  it('answers a row its handler named with no values as still there', async () => {
+    expect(await handle(ada, 'TouchTodo', { id: 't1' })).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 't1' }], deleted: [] },
     })
   })
 

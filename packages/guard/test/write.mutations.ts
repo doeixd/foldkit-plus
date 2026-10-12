@@ -344,4 +344,15 @@ export default [
     edits: [{ file, find: 'see.filter === undefined', replace: 'true' }],
     tests,
   },
+  {
+    name: 'an answer is read back without its id',
+    edits: [
+      {
+        file,
+        find: "const row = yield* read([...new Set(['id', ...plan.fields])])",
+        replace: 'const row = yield* read(plan.fields)',
+      },
+    ],
+    tests,
+  },
 ]

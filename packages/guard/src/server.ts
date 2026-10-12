@@ -810,7 +810,8 @@ const seenRow = <P, R, RS>(
       see.filter === undefined
         ? { fields: allowed, apply: noMembers }
         : yield* see.filter(principal, allowed)
-    const row = yield* read(plan.fields)
+    // The id too: a row asked for nothing else is still there or not.
+    const row = yield* read([...new Set(['id', ...plan.fields])])
     return Option.map(row, values => {
       const shown = plan.apply({ id, values }).values
       return Object.fromEntries(

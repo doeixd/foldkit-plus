@@ -195,6 +195,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-guard`: a handler's answer naming a row with no values keeps
+  it.** The read-back asked for no field, which Drizzle's Source answers with
+  no row, so the row was answered as deleted; it reads the id too.
 - **`foldkit-remote`: a list an answer names still has its other rows
   judged.** A list the answer put a row into was skipped whole, so a second
   row of it the same answer moved was neither placed nor fetched; only the
