@@ -222,7 +222,7 @@ export const returning = Object.assign(
     row: (
       binding: AnyEntityBinding,
       id: string,
-    ): Effect.Effect<ReadonlyArray<NormalizedPatch>, never, DrizzleDatabase> =>
+    ): Effect.Effect<ReadonlyArray<NormalizedPatch>, RemoteServerError, DrizzleDatabase> =>
       Effect.gen(function* () {
         // Every column, and each `one` relation as the ref its foreign key encodes.
         const fields = [
@@ -233,13 +233,13 @@ export const returning = Object.assign(
         ]
         const columns = selectColumns(binding, fields)
         const database = yield* DrizzleDatabase
-        const rows = yield* Effect.promise(() =>
-          Promise.resolve(
+        const rows = yield* run(
+          () =>
             database
               .select(columns)
               .from(binding.table)
               .where(whereIds(binding, [id])),
-          ),
+          'Database query failed',
         )
         return normalize(binding, rows, fields)
       }),
@@ -290,17 +290,22 @@ const selectRows = (
   if (options.groupBy !== undefined) statement = statement.groupBy(...options.groupBy)
   if (options.orderBy !== undefined) statement = statement.orderBy(...options.orderBy)
   if (options.limit !== undefined) statement = statement.limit(options.limit)
-  return Effect.tryPromise({
-    try: () => Promise.resolve(statement),
-    catch: (error: unknown) => error,
-  }).pipe(
-    // The driver detail is for operators; the client gets no schema or SQL.
-    Effect.tapError(error =>
-      Effect.logError('[foldkit-remote-drizzle] database query failed', error),
-    ),
-    Effect.mapError(() => new RemoteServerError({ message: 'Database query failed' })),
-  )
+  return run(() => statement, 'Database query failed')
 }
+
+/**
+ * A statement, failing as a `RemoteServerError` that says only `failed`. The
+ * driver's error carries the SQL and its parameters: it is logged for
+ * operators and never sent, where a defect would reach the client over RPC.
+ */
+const run = <A>(
+  statement: () => PromiseLike<A>,
+  failed: string,
+): Effect.Effect<A, RemoteServerError> =>
+  Effect.tryPromise({ try: () => Promise.resolve(statement()), catch: error => error }).pipe(
+    Effect.tapError(error => Effect.logError(`[foldkit-remote-drizzle] ${failed}`, error)),
+    Effect.mapError(() => new RemoteServerError({ message: failed })),
+  )
 
 const withFilters = (base: SQL, ...filters: ReadonlyArray<SQL | undefined>): SQL => {
   const conditions: SQL[] = [base]
@@ -927,10 +932,10 @@ export const writer = <P = unknown>(
           Object.keys(set).length === 0
             ? // Nothing to set: the row as it is, if it is there.
               yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, { where })
-            : yield* Effect.promise(() =>
-                Promise.resolve(
+            : yield* run(
+                () =>
                   writes.update(binding.table).set(set).where(where).returning(answered.columns),
-                ),
+                'Database write failed',
               )
         const written = answeredOf(rows, answered)
         if (Option.isSome(written) || Option.isNone(expect)) return written
@@ -959,14 +964,14 @@ export const writer = <P = unknown>(
         const set = { ...(yield* setOf(values, links)), [idKey]: id }
         const answered = returning(binding, [...Object.keys(values), ...Object.keys(links)])
         const writes = yield* drizzleWrites
-        const inserted = yield* Effect.promise(() =>
-          Promise.resolve(
+        const inserted = yield* run(
+          () =>
             writes
               .insert(binding.table)
               .values(set)
               .onConflictDoNothing()
               .returning(answered.columns),
-          ),
+          'Database write failed',
         )
         if (inserted.length > 0) {
           return yield* Option.match(answeredOf(inserted, answered), {
@@ -998,13 +1003,13 @@ export const writer = <P = unknown>(
       Effect.gen(function* () {
         const { where } = yield* rowOf(id, expect)
         const writes = yield* drizzleWrites
-        const deleted = yield* Effect.promise(() =>
-          Promise.resolve(
+        const deleted = yield* run(
+          () =>
             writes
               .delete(binding.table)
               .where(where)
               .returning({ id: idColumn(binding) }),
-          ),
+          'Database write failed',
         )
         if (deleted.length > 0) return 'deleted'
         if (Option.isNone(expect)) return 'absent'
@@ -1087,14 +1092,14 @@ export const applyEdits = <P = unknown>(
       }
       const writes = yield* drizzleWrites
       const value = Schema.encodeUnknownSync(schema as Schema.Codec<unknown, unknown>)(change.value)
-      const written = yield* Effect.promise(() =>
-        Promise.resolve(
+      const written = yield* run(
+        () =>
           writes
             .update(binding.table)
             .set({ [key]: value, [revisionKey]: at })
             .where(and(eq(idColumn(binding), change.id), lte(revision, at)))
             .returning({ id: idColumn(binding) }),
-        ),
+        'Database write failed',
       )
       const hub = options.live
       if (hub !== undefined && written.length > 0) {

@@ -187,4 +187,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: "a failed statement sends the driver's message",
+    edits: [
+      {
+        file: drizzle,
+        find: 'Effect.mapError(() => new RemoteServerError({ message: failed })),',
+        replace: 'Effect.mapError(error => new RemoteServerError({ message: String(error) })),',
+      },
+    ],
+    tests,
+  },
 ]

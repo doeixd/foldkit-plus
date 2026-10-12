@@ -426,6 +426,25 @@ describe('Inserting and deleting a declared write', () => {
     })
   })
 
+  it('fails a write the database refuses without sending its SQL', async () => {
+    sqlite.exec('alter table projects rename to projects_gone')
+    try {
+      const failed = await send('CreateProject', {
+        id: 'p9',
+        name: 'Lost',
+        status: 'active',
+        revision: 1,
+      })
+      expect(failed).toMatchObject({
+        _tag: 'Failure',
+        failure: { _tag: 'RemoteMutationError', message: 'Database write failed' },
+      })
+      expect(JSON.stringify(failed)).not.toContain('insert into')
+    } finally {
+      sqlite.exec('alter table projects_gone rename to projects')
+    }
+  })
+
   it('deletes the row, answers its deletion, and a retry of a row already gone succeeds', async () => {
     seed()
     const first = await send('ForgetProject', { id: 'p1' })

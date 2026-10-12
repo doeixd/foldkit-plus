@@ -195,6 +195,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote-drizzle`: a write the database refuses fails as
+  `Database write failed`.** Writes, `applyEdits` and `returning.row` ran
+  their statements as defects, which Effect RPC sends whole: the driver's
+  error, with the SQL and its parameters, reached the client. They now fail
+  as a `RemoteServerError`, the driver's error logged, as reads already did;
+  `returning.row`'s error type says so.
 - **`foldkit-guard`: three write checks that let a write through.** An
   update that unlinked a relation whose row is hidden from its writer read the
   link as none and skipped `Unlink`: the link is now read as stored, through
