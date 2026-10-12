@@ -376,6 +376,34 @@ describe('A search the compiled SQL cannot hold', () => {
     expect(failure?.message).toMatch(/NUL character/)
     expect(calls).toEqual([])
   })
+
+  it('is refused in an equality or a membership test too', async () => {
+    const BySlug = Query.define('PostsBySlug', { slug: Schema.String }, ({ input }) =>
+      Query.from(Post).pipe(
+        Query.where(Expr.eq(Post.fields.slug, input.slug)),
+        Query.orderBy(Order.asc(Post.fields.id)),
+      ),
+    )
+    // A list is values, so the NUL is the body's own here.
+    const AmongSlugs = Query.define('PostsAmongSlugs', { slug: Schema.String }, () =>
+      Query.from(Post).pipe(
+        Query.where(Expr.in(Post.fields.slug, ['a', `b${String.fromCharCode(0)}`])),
+        Query.orderBy(Order.asc(Post.fields.id)),
+      ),
+    )
+    for (const declared of [BySlug, AmongSlugs]) {
+      const { database, calls } = fakeDatabase()
+      const result = await run(
+        query(declared, { entity: PostBinding }),
+        database,
+        `a${String.fromCharCode(0)}b`,
+      )
+      expect(result._tag === 'Failure' ? result.failure.message : 'answered').toMatch(
+        /NUL character/,
+      )
+      expect(calls).toEqual([])
+    }
+  })
 })
 
 describe('A body needing what this compiler does not run', () => {

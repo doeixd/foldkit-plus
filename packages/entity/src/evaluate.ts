@@ -62,6 +62,12 @@ const foldAscii = (text: string): string => text.replace(/[A-Z]+/g, upper => upp
 
 const NUL = String.fromCharCode(0)
 
+/**
+ * Whether `value` is text holding a NUL, which Postgres text cannot hold and
+ * SQLite compares only up to: no two interpreters agree on it.
+ */
+const holdsNul = (value: unknown): boolean => typeof value === 'string' && value.includes(NUL)
+
 /** A predicate used as a value is its own truth; anything else is its value. */
 const sideOf = (node: Operandish, row: Row, input: Row): unknown =>
   isPredicate(node) ? truthValue(holds(node, row, input)) : valueOf(node, row, input)
@@ -82,6 +88,11 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
       // saying so explicitly is what keeps this honest about three-valued logic
       // rather than accidentally right about it.
       if (isNull(left) || isNull(right)) return 'unknown'
+      if (holdsNul(left) || holdsNul(right)) {
+        throw new QueryEvaluateError(
+          'an equality was given text holding a NUL character, which SQL text cannot hold portably',
+        )
+      }
       return left === right
     }
     case 'Null':
@@ -99,7 +110,7 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
       }
       // Postgres text cannot hold NUL and SQLite's `like` stops at it, so no
       // two interpreters agree on such a value: refused rather than answered.
-      if (value.includes(NUL) || search.includes(NUL)) {
+      if (holdsNul(value) || holdsNul(search)) {
         throw new QueryEvaluateError(
           'a containment test was given text holding a NUL character, which SQL text cannot hold portably',
         )
@@ -118,6 +129,11 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
       // holding a null is unknown, since that null might have been it.
       if (among.length === 0) return false
       const value = valueOf(node.value, row, input)
+      if (holdsNul(value) || among.some(holdsNul)) {
+        throw new QueryEvaluateError(
+          'a membership test was given text holding a NUL character, which SQL text cannot hold portably',
+        )
+      }
       if (isNull(value)) return 'unknown'
       if (among.some(each => each === value)) return true
       return among.some(isNull) ? 'unknown' : false

@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file: '../src/compile.ts',
-        find: "(typeof value === 'string' && value.includes(nul))",
-        replace: 'false',
+        find: 'if (holdsNul(search) || holdsNul(value)) {',
+        replace: 'if (holdsNul(search)) {',
       },
     ],
     tests: ['packages/remote-drizzle/test/conformance.test.ts'],
@@ -42,8 +42,34 @@ export default [
   {
     name: 'a search holding NUL is answered',
     edits: [
-      { file: '../src/compile.ts', find: 'if (search.includes(nul) ||', replace: 'if (false ||' },
+      {
+        file: '../src/compile.ts',
+        find: 'if (holdsNul(search) || holdsNul(value)) {',
+        replace: 'if (holdsNul(value)) {',
+      },
     ],
     tests: ['packages/remote-drizzle/test/conformance.test.ts'],
+  },
+  {
+    name: 'an equality compiles text holding NUL',
+    edits: [
+      {
+        file: '../src/compile.ts',
+        find: 'if (holdsNul(left) || holdsNul(right)) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a membership test compiles text holding NUL',
+    edits: [
+      {
+        file: '../src/compile.ts',
+        find: 'if (holdsNul(value) || among.some(holdsNul)) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
   },
 ]

@@ -131,6 +131,18 @@ describe('contains in the reference interpreter (#136)', () => {
     expect(() => run({ text: 'a\u0000b', search: 'b' })).toThrow(QueryEvaluateError)
     expect(() => run({ text: 'ab', search: '\u0000' })).toThrow(QueryEvaluateError)
   })
+
+  it('refuses it in an equality or a membership test too', () => {
+    const id = Expr.input('id', Schema.String)
+    const ids = Expr.input('ids', Schema.Array(Schema.String))
+    const rows = [{ id: 'a' }]
+    const eq = Query.from(Item).pipe(Query.where(Expr.eq(Item.fields.id, id)))
+    const among = Query.from(Item).pipe(Query.where(Expr.in(Item.fields.id, ids)))
+    expect(() => evaluate(eq, { id: 'a\u0000' }, rows)).toThrow(QueryEvaluateError)
+    expect(() => evaluate(among, { ids: ['b', 'a\u0000'] }, rows)).toThrow(QueryEvaluateError)
+    // Text without one is answered as ever.
+    expect(evaluate(among, { ids: ['b', 'a'] }, rows)).toHaveLength(1)
+  })
 })
 
 describe('an ordering the interpreter refuses (#142)', () => {

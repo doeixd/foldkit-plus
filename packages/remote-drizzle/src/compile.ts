@@ -85,6 +85,14 @@ const operand = (
   }
 }
 
+/**
+ * Whether `value` is text holding a NUL, which Postgres text cannot hold and
+ * SQLite compares only up to: the reference interpreter refuses it too. Only an
+ * input or a literal is seen here; a NUL inside a stored column is not.
+ */
+const holdsNul = (value: unknown): boolean =>
+  typeof value === 'string' && value.includes(String.fromCharCode(0))
+
 /** A predicate used as a value: `(archived_at is not null) = ?` compares one. */
 const side = (
   node: Operandish,
@@ -144,6 +152,11 @@ const predicate = (
       if (asked !== undefined) return asked
       const left = side(node.left, target, input, query)
       const right = side(node.right, target, input, query)
+      if (holdsNul(left) || holdsNul(right)) {
+        throw new QueryCompileError(
+          `query "${query}" compares text holding a NUL character, which SQL text cannot hold portably`,
+        )
+      }
       // Drizzle's `eq` wants a column or expression on the left; a body may
       // compare either way round, and equality does not care. Normalising keeps
       // the generated SQL the shape a binding would have been written in.
@@ -167,8 +180,7 @@ const predicate = (
       // holding one means nothing portable; the reference interpreter refuses
       // it too. A searched value that is an input or a literal is seen here; a
       // NUL inside a stored column is not.
-      const nul = String.fromCharCode(0)
-      if (search.includes(nul) || (typeof value === 'string' && value.includes(nul))) {
+      if (holdsNul(search) || holdsNul(value)) {
         throw new QueryCompileError(
           `query "${query}" searches text holding a NUL character, which SQL text cannot hold portably`,
         )
@@ -197,6 +209,11 @@ const predicate = (
       // false, and Postgres refuses it.
       if (among.length === 0) return sql`false`
       const value = operand(node.value, target, input, query)
+      if (holdsNul(value) || among.some(holdsNul)) {
+        throw new QueryCompileError(
+          `query "${query}" asks about text holding a NUL character, which SQL text cannot hold portably`,
+        )
+      }
       // Over a column, Drizzle encodes each element as the column's own type,
       // as `eq` does; anything else is compared as it is.
       return node.value._tag === 'Field'

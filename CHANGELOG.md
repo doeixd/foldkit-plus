@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Fixed
+
+- **`foldkit-entity`, `foldkit-remote-drizzle`: NUL is refused in `eq` and
+  `in`, as in `contains`.** Given text holding one, the evaluator and SQLite
+  answered while Postgres failed the request; every interpreter now refuses it
+  as the query's own error.
+
 ## 0.17.0
 
 `foldkit-agent` 0.7.0; `foldkit-bundle` 0.6.0; `foldkit-cms` 0.6.0;

@@ -489,8 +489,8 @@ has to be said, not left to the interpreter: SQLite's `like` ignores case and
 Postgres's does not, so a body that left it open would mean two things. Folding
 is ASCII-only, since that is what `lower` does in SQLite without ICU: `É` does
 not match `é`, though each matches itself. Text holding a NUL character is
-refused by every interpreter here, since Postgres text cannot hold one and
-SQLite's `like` stops at it.
+refused by every interpreter here, in `contains`, `eq` and `in` alike, since
+Postgres text cannot hold one and SQLite compares only up to it.
 
 **`in` asks whether a value is one of a list**, written out or given as an
 input: `Expr.in(Todo.fields.projectId, input.projectIds)`. Each element is
