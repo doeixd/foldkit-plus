@@ -1,6 +1,6 @@
 {
   "name": "foldkit-data-grid",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A Foldkit-native data grid: the grid owns interaction state and geometry, the application owns the records.",
   "keywords": [
     "foldkit",

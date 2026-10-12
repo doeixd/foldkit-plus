@@ -7,6 +7,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.17.1
+
+`foldkit-entity` 0.8.1, `foldkit-remote-drizzle` 0.11.1 and
+`foldkit-mixins-form` 0.5.1 for the fixes below. Republished to re-pin:
+`foldkit-builder` and `foldkit-mixins-builder` 0.1.2, `foldkit-cms` and
+`foldkit-cms-drizzle` 0.6.1, `foldkit-crud` 0.7.1, `foldkit-data-grid` and
+`foldkit-mixins-data-grid` 0.1.3, `foldkit-form` 0.4.3, `foldkit-guard` 0.1.1,
+`foldkit-mixins-crud` 0.6.5, `foldkit-remote` 0.14.1, `foldkit-remote-server`
+0.13.1 and `foldkit-sync` 0.10.1, each of which pins a bumped package. Every
+other package is unchanged.
+
 ### Fixed
 
 - **`foldkit-mixins-form`: a locked key is posted with scripts off.** It was
