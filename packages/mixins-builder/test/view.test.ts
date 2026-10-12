@@ -900,8 +900,11 @@ describe('its Behaviors', () => {
   ] as const)('takes the editor’s shortcuts on the %s', (slot, builder) => {
     const handler = Attributes.find(builder.attrs(), 'OnKeyDownPreventDefault')?.f
     if (handler === undefined) throw new Error(`no shortcuts on the ${slot}`)
-    const up = handler('ArrowUp', { shiftKey: false, ctrlKey: false, altKey: true, metaKey: false })
-    expect(up._tag === 'Some' && up.value._tag).toBe('Applied')
+    const alt = { shiftKey: false, ctrlKey: false, altKey: true, metaKey: false }
+    // A bound key goes to `update` as it was pressed, which picks the command.
+    expect(handler('ArrowUp', alt)).toEqual(
+      Option.some({ _tag: 'KeyPressed', key: 'ArrowUp', modifiers: alt }),
+    )
     expect(
       handler('x', { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false })._tag,
     ).toBe('None')

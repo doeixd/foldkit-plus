@@ -178,8 +178,12 @@ Behaviors; `foldkit-mixins-builder` does.
   | Enter | edit its first text in place |
   | Escape | deselect it |
 
-  Attach `keyCommand` to the layers panel and the canvas, not the whole editor,
-  so Delete in a text box edits the text. A move the page refuses is refused
+  Attach `PageBuilder.keyPressed(model, key, modifiers)` to the layers panel
+  and the canvas, not the whole editor, so Delete in a text box edits the
+  text. It sends `KeyPressed` for every key a command binds, and `update`
+  runs `keyCommand` against the Model as it is then, not as the view last drew
+  it: a key pressed before the frame that draws a new selection acts on that
+  selection. A bound key with nothing to do has its default held back there. A move the page refuses is refused
   as any edit is. A key's `mod` is Ctrl, or ⌘ on a Mac; `mod` and `alt` must be
   as given, and `shift` only where given, so Delete takes Shift+Delete too.
 - **`Builder.make(name, { commands: built => ... })`** changes the table: another
@@ -223,8 +227,8 @@ Enter or leaving it ─► EditingCommitted      Escape ─► EditingCancelled:
   already holds, so no step is empty. A session in which nothing was typed
   writes nothing when it ends, so a field only looked at does not put back
   over another's edit the text it showed.
-- **While text is edited, the keys are the text's:** `keyCommand` offers
-  nothing, so Backspace deletes a letter, not the block.
+- **While text is edited, the keys are the text's:** `keyPressed` and
+  `keyCommand` offer nothing, so Backspace deletes a letter, not the block.
 - **Editing ends when its node is no longer the one selected**, as a click
   elsewhere or a removal makes it, and at an undo or a redo, which change the
   page under the field.
@@ -432,9 +436,11 @@ Each helper that may have no answer returns an `Option`, as the Model's
   among its siblings; none at an end.
 - `PageBuilder.dropAt(document, source, target, zone)` is where a drag over
   `target` would put `dragged`; none where the page refuses it.
+- `PageBuilder.keyPressed(model, key, modifiers)` is what a key on the layers
+  or the canvas sends, for Foldkit's `OnKeyDownPreventDefault`: `KeyPressed`
+  for a key a command binds, none for another or while text is edited.
 - `PageBuilder.keyCommand(model, key, modifiers)` is the Message a shortcut
-  sends; none for a key it does not handle, which is what Foldkit's
-  `OnKeyDownPreventDefault` takes.
+  runs in the Model given; none for a key with nothing to do there.
 - `PageBuilder.replace(model, document)` and `PageBuilder.settle(model)` are what
   the form control's fill and settle do.
 

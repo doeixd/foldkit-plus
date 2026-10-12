@@ -11,7 +11,7 @@
  *
  * Interaction comes from `foldkit-primitives`, attached as Behaviors:
  * `TreeNavigation` on the layers, `Targets` on the canvas (hover and click pick
- * a node), and the Builder's `keyCommand` shortcuts on the layers panel.
+ * a node), and the Builder's `keyPressed` shortcuts on the layers and the canvas.
  */
 import { Option, Schema } from 'effect'
 import {
@@ -258,6 +258,11 @@ export interface BuilderLike {
   ) => Option.Option<Inspecting>
   readonly keyCommand: (
     model: Pick<Model, 'page' | 'selected' | 'editing'>,
+    key: string,
+    modifiers: KeyboardModifiers,
+  ) => Option.Option<Message>
+  readonly keyPressed: (
+    model: Pick<Model, 'editing'>,
     key: string,
     modifiers: KeyboardModifiers,
   ) => Option.Option<Message>
@@ -1014,7 +1019,7 @@ export const BuilderView = {
     }: {
       readonly input: Pick<BuilderInput, 'page' | 'selected' | 'editing'>
       readonly h: HtmlBuilder<Message>
-    }) => [h.OnKeyDownPreventDefault((key, modifiers) => builder.keyCommand(input, key, modifiers))]
+    }) => [h.OnKeyDownPreventDefault((key, modifiers) => builder.keyPressed(input, key, modifiers))]
 
     /**
      * A button, disabled where there is nothing to send: by `aria-disabled`, so

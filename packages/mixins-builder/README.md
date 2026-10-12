@@ -91,7 +91,7 @@ Five Behaviors are attached, each from `foldkit-primitives`:
 | Where | Behavior | What it does |
 | --- | --- | --- |
 | `tree`, `row` | `TreeNavigation` | Up, Down, Home and End move focus between rows; Right opens a row, then moves to its first child; Left closes it, then moves to its parent. Focus moving selects the row's node. |
-| `layers`, `canvas` | the Builder's `keyCommand`, from its commands | Alt with an arrow moves the selected node; Mod+D duplicates; Delete removes; Mod+Z, Mod+Shift+Z and Mod+Y undo and redo; Escape deselects. |
+| `layers`, `canvas` | the Builder's `keyPressed`, judged in `update` by its commands | Alt with an arrow moves the selected node; Mod+D duplicates; Delete removes; Mod+Z, Mod+Shift+Z and Mod+Y undo and redo; Escape deselects. |
 | `canvas` | `Targets` | The pointer over a node marks it hovered; a press selects it and does not follow a link. |
 | `canvas` | `EditableText` | A double-click on text the page draws as a field, or Enter on its node, edits it where it is: typing sets the prop, Enter or leaving commits, Escape puts it back. A press in it selects text rather than dragging the node. |
 | `layers`, `canvas` | `KeepInView` | Whatever became selected (a click, a shortcut, an insert, the address) is scrolled into view, its row in the layers and its element on the page. |

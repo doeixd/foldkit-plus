@@ -447,9 +447,8 @@ it('keeps focus on a command button that its own press leaves with nothing to do
     row()?.focus()
     expect(document.activeElement).toBe(row())
   })
-  // The keys act on the selection as last drawn, so a Delete sent before the
-  // frame that draws the focused row selected would find nothing to delete.
-  await vi.waitFor(() => expect(row()?.getAttribute('aria-selected')).toBe('true'))
+  // Pressed at once: the key is judged in `update`, so it meets the selection
+  // the focus made even before the frame that draws it.
   await userEvent.keyboard('{Delete}')
   await vi.waitFor(() => expect(undo()?.getAttribute('aria-disabled')).toBeNull())
   const button = undo()

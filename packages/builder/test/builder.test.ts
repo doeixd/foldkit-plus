@@ -272,6 +272,27 @@ describe('the keyboard, the layers and the announcer', () => {
   const body = (model: Model, section: NodeId) =>
     required(model.page.present.nodes[section]?.regions['body'], 'a body')
 
+  it('sends every key a command binds to update, which judges it by the Model as it is', () => {
+    const { model, first } = twoSections()
+    const [upper] = body(model, first)
+    const heading = required(upper, 'the upper heading')
+    // Drawn with nothing selected: the press still names the key, not a command.
+    const drawn = send(model, Message.Deselected())
+    const sent = PageBuilder.keyPressed(drawn, 'Delete', plain)
+    expect(sent).toEqual(Option.some(Message.KeyPressed({ key: 'Delete', modifiers: plain })))
+    // The selection that landed before the press's frame is what it deletes.
+    const selected = send(drawn, Message.Selected({ id: heading }))
+    const deleted = send(selected, required(Option.getOrUndefined(sent), 'a press'))
+    expect(deleted.page.present.nodes[heading]).toBeUndefined()
+    // With nothing to do in the Model as it is, the press changes nothing.
+    expect(send(drawn, Message.KeyPressed({ key: 'Delete', modifiers: plain }))).toBe(drawn)
+  })
+
+  it('leaves a key no command binds to the browser', () => {
+    const { model } = twoSections()
+    expect(PageBuilder.keyPressed(model, 'q', plain)).toEqual(Option.none())
+  })
+
   it('moves the selected node with Alt and the arrows, out of its parent and into the one above', () => {
     const { model, first } = twoSections()
     const [upper, lower] = body(model, first)
@@ -1106,6 +1127,7 @@ describe('text edited in place', () => {
 
   it('leaves the keys to the text while it is edited', () => {
     const editing = typed(page, ['On'])
+    expect(PageBuilder.keyPressed(editing, 'Delete', plain)).toEqual(Option.none())
     expect(PageBuilder.keyCommand(editing, 'Delete', plain)).toEqual(Option.none())
     expect(PageBuilder.keyCommand(editing, 'z', { ...plain, ctrlKey: true })).toEqual(Option.none())
     // Not editing, Delete removes the selected node.

@@ -233,6 +233,19 @@ export const Message = defineMessageUnion({
   EditingCancelled: { field: Schema.String },
   /** The ids a request waited for. */
   Minted: { ids: Schema.Array(NodeId), request: Request },
+  /**
+   * A key a command binds, pressed on the layers or the canvas: which command
+   * it runs is decided in `update`, from the Model as it is then.
+   */
+  KeyPressed: {
+    key: Schema.String,
+    modifiers: Schema.Struct({
+      shiftKey: Schema.Boolean,
+      ctrlKey: Schema.Boolean,
+      altKey: Schema.Boolean,
+      metaKey: Schema.Boolean,
+    }),
+  },
   Undid: {},
   Redid: {},
   PanelChosen: { panel: Panel },
@@ -1164,6 +1177,13 @@ export const Builder = {
       message: Message,
     ): { readonly model: Model; readonly commands?: Commands } => {
       switch (message._tag) {
+        // Judged against the Model as it is, not as last drawn: a key pressed
+        // before the frame that draws a new selection acts on that selection.
+        case 'KeyPressed':
+          return Option.match(keyCommand(model, message.key, message.modifiers), {
+            onNone: () => ({ model }),
+            onSome: sent => own(model, sent),
+          })
         case 'Selected':
           // A node the page does not hold selects nothing.
           return documentOf(model).nodes[message.id] === undefined
@@ -1898,6 +1918,22 @@ export const Builder = {
       return Option.none()
     }
 
+    /**
+     * What a key press on the layers or the canvas sends, for the view: a
+     * `KeyPressed` for any key a command binds, so its default is held back
+     * and `update` decides with the Model as it is; nothing for another key,
+     * or while text is edited in place, where the key is the text's.
+     */
+    const keyPressed = (
+      model: Pick<Model, 'editing'>,
+      key: string,
+      modifiers: KeyboardModifiers,
+    ): Option.Option<Message> =>
+      Option.isNone(model.editing) &&
+      commands.some(command => command.keys.some(spec => pressed(spec, key, modifiers)))
+        ? Option.some(Message.KeyPressed({ key, modifiers }))
+        : Option.none()
+
     /** The form control that places this Builder as a key, drawn by `drawn`. */
     const inputWith = <ViewInputs>(drawn: Submodel.View<Model, Message, ViewInputs>) =>
       Input.bundle('Composition', {
@@ -1944,6 +1980,7 @@ export const Builder = {
       /** The editor's commands: what a key, a node's action or the toolbar runs. */
       commands,
       keyCommand,
+      keyPressed,
       /**
        * The selected node's settings form and its Model, for the inspector to
        * draw: the Model it holds for the node, else one filled from the props.

@@ -65,6 +65,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-builder`: a shortcut is judged in `update`.** The layers and the
+  canvas send `KeyPressed` for every key a command binds
+  (`PageBuilder.keyPressed`), and `update` runs `keyCommand` against the Model
+  as it is: a key pressed before the frame that drew a new selection deleted
+  nothing, or the node selected before it. A bound key with nothing to do
+  now has its default held back on those two. A view drawing a Builder by hand
+  attaches `keyPressed` where it attached `keyCommand`.
 - **`foldkit-site`: `Site.routing` loads a link its tree does not hold.** A
   tree is one application's document, so a click on an address of this
   origin that no node takes is a full load, where it was a Navigate Command
