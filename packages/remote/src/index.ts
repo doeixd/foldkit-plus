@@ -2917,13 +2917,24 @@ const bindDomain = <
   ): RemoteModel => {
     const changes = changesOf(answer, before)
     if (changes.length === 0) return remote
-    // A list the answer itself changed is as the server says it is now.
-    const named = new Set((answer.connections ?? []).map(change => change.connection))
+    // A row the answer itself put in or took out of a list is where the server
+    // says; every other change to that list's rows is judged as anywhere.
+    const named = new Map<string, Set<string>>()
+    for (const change of answer.connections ?? []) {
+      const keys = named.get(change.connection) ?? new Set<string>()
+      keys.add(change.edge.key)
+      named.set(change.connection, keys)
+    }
     const visible = visibleStoreOf(remote.entities, remote.optimistic)
     const placed: Record<string, Connection> = {}
     const invalidated: Array<string> = []
     for (const identity of Object.keys(remote.connections)) {
-      if (named.has(identity)) continue
+      const answered = named.get(identity)
+      const judged =
+        answered === undefined
+          ? changes
+          : changes.filter(change => !answered.has(entityKey(change.entity, change.id)))
+      if (judged.length === 0) continue
       const query = queryOf(identity)
       if (Option.isNone(query)) continue
       const original = remote.connections[identity]!
@@ -2937,7 +2948,7 @@ const bindDomain = <
       )
       let pages = original
       let invalid = false
-      for (const change of changes) {
+      for (const change of judged) {
         const held: HeldConnection = { ...query.value, connection: pages, holds }
         const after = Impact.$match(impactOn(held, visible, change), {
           Kept: () => Option.some(pages),

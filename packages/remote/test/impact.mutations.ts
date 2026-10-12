@@ -152,7 +152,13 @@ export default [
   },
   {
     name: 'a list the answer names is judged anyway',
-    edits: [{ file: '../src/index.ts', find: 'if (named.has(identity)) continue', replace: '' }],
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: ': changes.filter(change => !answered.has(entityKey(change.entity, change.id)))',
+        replace: ': changes',
+      },
+    ],
     tests,
   },
   {
@@ -242,6 +248,17 @@ export default [
         file: '../src/impact.ts',
         find: 'return sameOrder(pages, next) ? kept : Impact.Placed({ connection: next })',
         replace: 'return Impact.Placed({ connection: next })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a list the answer names is not judged at all',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: ': changes.filter(change => !answered.has(entityKey(change.entity, change.id)))',
+        replace: ': []',
       },
     ],
     tests,

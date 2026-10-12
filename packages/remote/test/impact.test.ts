@@ -465,6 +465,29 @@ describe('A list the answer itself names', () => {
       Data.visibleItems(confirmed.remote, active.ref.identity).map(edge => edge.ref.id),
     ).toEqual(['p1', 'p3', 'p2'])
   })
+
+  it('still judges a change to another row the list holds', () => {
+    // The server put p3 in, and the same answer repriced p1 past p2.
+    const both = Data.reduce(loaded(), {
+      _tag: 'MutationSucceeded',
+      requestId: 'named-and-moved',
+      entities: [patch('p3', { status: 'active', price: 15 }), patch('p1', { price: 50 })],
+      connections: [
+        {
+          _tag: 'Insert',
+          connection: active.ref.identity,
+          position: 'append',
+          edge: { key: 'Project:p3', ref: { entity: 'Project', id: 'p3' } },
+        },
+      ],
+      now: 1,
+    })
+    expect(Data.visibleItems(both.remote, active.ref.identity).map(edge => edge.ref.id)).toEqual([
+      'p3',
+      'p2',
+      'p1',
+    ])
+  })
 })
 
 describe('An answer that arrives twice', () => {

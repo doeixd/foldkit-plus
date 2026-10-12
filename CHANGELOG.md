@@ -195,6 +195,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`: a list an answer names still has its other rows
+  judged.** A list the answer put a row into was skipped whole, so a second
+  row of it the same answer moved was neither placed nor fetched; only the
+  rows the answer itself placed are taken as the server says now.
 - **`foldkit-entity`: an order over a number a row may lack is placeable.**
   `Query.placement` read `NullOr(Number)` (and `OptionFromNullOr(Number)`) as
   text with no collation, so such a list was fetched on every change; where
