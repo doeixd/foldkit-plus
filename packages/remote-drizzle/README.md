@@ -856,14 +856,16 @@ Workers requests, a live source reads the table instead.
 
 Anything a declared write cannot say (several rows, a computed value, another
 table) is a
-`RemoteServer.mutation` handler using Drizzle directly. The adapter only helps
-normalize rows you already chose to return:
+`RemoteServer.mutation` handler using Drizzle directly. The adapter helps
+normalize rows you already chose to return, and runs each statement so a
+database error fails as a `RemoteServerError` saying only what failed, the
+driver's own (which carries the SQL and its parameters) logged, never sent:
 
 ```ts
 import { eq } from 'drizzle-orm'
 import { Effect } from 'effect'
 import { RemoteServer } from 'foldkit-remote-server'
-import { returning } from 'foldkit-remote-drizzle'
+import { returning, runStatement } from 'foldkit-remote-drizzle'
 
 const project = returning(Project, [
   'id',
@@ -875,12 +877,14 @@ const RenameProjectSource = RemoteServer.mutation(
   RenameProject,
   ({ input }) =>
     Effect.gen(function* () {
-      const rows = yield* Effect.promise(() =>
-        db
-          .update(projects)
-          .set({ name: input.name })
-          .where(eq(projects.id, input.id))
-          .returning(project.columns),
+      const rows = yield* runStatement(
+        () =>
+          db
+            .update(projects)
+            .set({ name: input.name })
+            .where(eq(projects.id, input.id))
+            .returning(project.columns),
+        'Database write failed',
       )
 
       return {

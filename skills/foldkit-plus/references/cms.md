@@ -188,6 +188,8 @@ RemoteServer.make({
   it, clearing its schedule) and publishes nothing.
 - A scheduled draft is published as its scheduler, so saving, restoring or
   discarding it is refused to an author `transitions` or `allow` would not let `schedule`.
+- A statement the database refuses fails the operation as a `RemoteServerError`
+  (`Database write failed`), its SQL logged, never sent; a `Transaction` may fail so.
 - Every operation is one `transaction`; `Transaction.statements` serialises them
   on the connection. Wrap your own writes on that connection in it too.
 - `CmsArchive` also hides the row of a type with a `published` role; `CmsUnarchive`

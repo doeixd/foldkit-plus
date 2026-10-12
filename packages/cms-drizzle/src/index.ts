@@ -36,6 +36,7 @@ import {
   bind,
   query,
   returning,
+  runStatement,
   source,
   type AnyEntityBinding,
   type DrizzleDatabaseService,
@@ -71,11 +72,13 @@ export interface ServedContent<P = any> {
 
 /**
  * Runs some work so that it happened entirely or did not. Drizzle's own
- * transactions differ by driver, so the application says which this is.
+ * transactions differ by driver, so the application says which this is. It
+ * fails as the work does, or, when the database refuses the transaction
+ * itself, as a `RemoteServerError` that says nothing of why.
  */
 export type Transaction = <A, E>(
   work: Effect.Effect<A, E, DrizzleDatabase>,
-) => Effect.Effect<A, E, DrizzleDatabase>
+) => Effect.Effect<A, E | RemoteServerError, DrizzleDatabase>
 
 const statement = (database: DrizzleDatabaseService, text: string) =>
   Effect.promise(() => {
@@ -130,17 +133,19 @@ export const Transaction = {
       const failed = Symbol('failed')
       let exit: Exit.Exit<A, E> | undefined
       // A failure must leave the callback as a rejection, or Drizzle commits.
-      yield* Effect.promise(() =>
-        database
-          .transaction(async inner => {
-            exit = await Effect.runPromiseExit(
-              work.pipe(Effect.provideService(DrizzleDatabase, inner)),
-            )
-            if (!Exit.isSuccess(exit)) throw failed
-          })
-          .catch(error => {
-            if (error !== failed) throw error
-          }),
+      yield* runStatement(
+        () =>
+          database
+            .transaction(async inner => {
+              exit = await Effect.runPromiseExit(
+                work.pipe(Effect.provideService(DrizzleDatabase, inner)),
+              )
+              if (!Exit.isSuccess(exit)) throw failed
+            })
+            .catch(error => {
+              if (error !== failed) throw error
+            }),
+        'Database write failed',
       )
       return yield* exit!
     })) as Transaction,
@@ -325,8 +330,8 @@ export const CmsServer = {
         const drafts =
           ids.length === 0
             ? []
-            : yield* Effect.promise(() =>
-                Promise.resolve(
+            : yield* runStatement(
+                () =>
                   database
                     .select({
                       id: tables.drafts.id,
@@ -335,7 +340,7 @@ export const CmsServer = {
                     })
                     .from(tables.drafts)
                     .where(inArray(tables.drafts.id, ids)),
-                ),
+                'Database query failed',
               )
         const draftOf = new Map(drafts.map(draft => [String(draft.id), draft]))
 
@@ -351,8 +356,8 @@ export const CmsServer = {
             type.roles.published === undefined
               ? undefined
               : binding.columns[type.roles.published.key]
-          const found = yield* Effect.promise(() =>
-            Promise.resolve(
+          const found = yield* runStatement(
+            () =>
               database
                 .select({
                   id,
@@ -360,7 +365,7 @@ export const CmsServer = {
                 })
                 .from(binding.table)
                 .where(inArray(id, targets)),
-            ),
+            'Database query failed',
           )
           for (const row of found)
             rows.set(
@@ -404,14 +409,14 @@ export const CmsServer = {
     const findEntry = (id: string) =>
       Effect.gen(function* () {
         const database = yield* DrizzleDatabase
-        const [row] = yield* Effect.promise(() =>
-          Promise.resolve(
+        const [row] = yield* runStatement(
+          () =>
             database
               .select(entryColumns)
               .from(tables.entries)
               .where(eq(tables.entries.id, id))
               .limit(1),
-          ),
+          'Database query failed',
         )
         return row as EntryRow | undefined
       })
@@ -585,10 +590,9 @@ export const CmsServer = {
     const readRows = (binding: AnyEntityBinding, columns: Record<string, AnyColumn>, id: string) =>
       Effect.gen(function* () {
         const database = yield* DrizzleDatabase
-        return yield* Effect.promise(() =>
-          Promise.resolve(
-            database.select(columns).from(binding.table).where(eq(binding.columns.id!, id)),
-          ),
+        return yield* runStatement(
+          () => database.select(columns).from(binding.table).where(eq(binding.columns.id!, id)),
+          'Database query failed',
         )
       })
 
@@ -639,8 +643,8 @@ export const CmsServer = {
             'This draft was discarded',
           )
         if (existing === undefined) {
-          yield* Effect.promise(() =>
-            Promise.resolve(
+          yield* runStatement(
+            () =>
               database.insert(tables.entries).values({
                 id,
                 type: input.type,
@@ -651,20 +655,19 @@ export const CmsServer = {
                 archivedAt: null,
                 revision: null,
               }),
-            ),
+            'Database write failed',
           )
         }
         if (previous === null) {
-          yield* Effect.promise(() =>
-            Promise.resolve(
-              database.insert(tables.drafts).values({ id, ...written, baseRevision: null }),
-            ),
+          yield* runStatement(
+            () => database.insert(tables.drafts).values({ id, ...written, baseRevision: null }),
+            'Database write failed',
           )
         } else {
           // Compare and set: the save names what it was made from, and a newer one
           // on the server means someone else saved in between.
-          const changed = yield* Effect.promise(() =>
-            Promise.resolve(
+          const changed = yield* runStatement(
+            () =>
               database
                 .update(tables.drafts)
                 .set(written)
@@ -672,7 +675,7 @@ export const CmsServer = {
                   and(eq(tables.drafts.id, id), eq(tables.drafts.updatedAt, input.basedOn ?? '')),
                 )
                 .returning({ id: tables.drafts.id }),
-            ),
+            'Database write failed',
           )
           if (changed.length === 0)
             return yield* RemoteServer.refuse(
@@ -682,14 +685,14 @@ export const CmsServer = {
             )
         }
         if (existing !== undefined && existing.label !== input.label) {
-          yield* Effect.promise(() =>
-            Promise.resolve(
+          yield* runStatement(
+            () =>
               database
                 .update(tables.entries)
                 .set({ label: input.label })
                 .where(eq(tables.entries.id, id))
                 .returning({ id: tables.entries.id }),
-            ),
+            'Database write failed',
           )
         }
 
@@ -708,15 +711,17 @@ export const CmsServer = {
         yield* asking(principal, 'discard', entry)
         yield* promised(principal, entry)
         const database = yield* drizzleWrites
-        yield* Effect.promise(() =>
-          Promise.resolve(database.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
+        yield* runStatement(
+          () => database.delete(tables.drafts).where(eq(tables.drafts.id, entry.id)),
+          'Database write failed',
         )
         const gone = [{ entity: 'CmsDraft', id: entry.id }]
         // Never published, and now with nothing entered: there is nothing left of it.
         if (entry.targetId !== null)
           return { output: {}, deleted: gone, entities: yield* entryPatches(entry.id) }
-        yield* Effect.promise(() =>
-          Promise.resolve(database.delete(tables.entries).where(eq(tables.entries.id, entry.id))),
+        yield* runStatement(
+          () => database.delete(tables.entries).where(eq(tables.entries.id, entry.id)),
+          'Database write failed',
         )
         return { output: {}, deleted: [...gone, { entity: 'CmsEntry', id: entry.id }] }
       }),
@@ -802,14 +807,14 @@ export const CmsServer = {
         if (address !== undefined && typeof slug === 'string') {
           const column = served.binding.columns[address.key]!
           const id = served.binding.columns.id!
-          const others = yield* Effect.promise(() =>
-            Promise.resolve(
+          const others = yield* runStatement(
+            () =>
               database
                 .select({ id })
                 .from(served.binding.table)
                 .where(and(eq(column, slug), creating ? undefined : ne(id, entry.targetId!)))
                 .limit(1),
-            ),
+            'Database query failed',
           )
           if (others.length > 0) return yield* taken(address.key)
         }
@@ -819,8 +824,8 @@ export const CmsServer = {
           const n = (held ?? 0) + 1
           // Compare and set, first: of two publishes made from one revision, one
           // finds the number already moved, and nothing of it is written.
-          const moved = yield* Effect.promise(() =>
-            Promise.resolve(
+          const moved = yield* runStatement(
+            () =>
               writes
                 .update(tables.entries)
                 .set({ revision: n })
@@ -833,7 +838,7 @@ export const CmsServer = {
                   ),
                 )
                 .returning({ id: tables.entries.id }),
-            ),
+            'Database write failed',
           )
           if (moved.length === 0) return yield* conflict
           // Scheduled publishing has no client request, so the id names this
@@ -850,19 +855,19 @@ export const CmsServer = {
           if (shown !== undefined) {
             // Publishing shows the row. One already shown keeps its first date.
             const column = served.binding.columns[shown.key]!
-            yield* Effect.promise(() =>
-              Promise.resolve(
+            yield* runStatement(
+              () =>
                 writes
                   .update(served.binding.table)
                   .set({ [shown.key]: stamp(column, at) })
                   .where(and(eq(served.binding.columns.id!, targetId), isNull(column)))
                   .returning({ id: served.binding.columns.id! }),
-              ),
+              'Database write failed',
             )
           }
           const revisionId = `${entry.id}:${n}`
-          yield* Effect.promise(() =>
-            Promise.resolve(
+          yield* runStatement(
+            () =>
               writes.insert(tables.revisions).values({
                 id: revisionId,
                 entryId: entry.id,
@@ -871,19 +876,20 @@ export const CmsServer = {
                 publishedAt: at.toISOString(),
                 publishedBy: nameOf(principal),
               }),
-            ),
+            'Database write failed',
           )
-          yield* Effect.promise(() =>
-            Promise.resolve(writes.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
+          yield* runStatement(
+            () => writes.delete(tables.drafts).where(eq(tables.drafts.id, entry.id)),
+            'Database write failed',
           )
-          yield* Effect.promise(() =>
-            Promise.resolve(
+          yield* runStatement(
+            () =>
               writes
                 .update(tables.entries)
                 .set({ targetId })
                 .where(eq(tables.entries.id, entry.id))
                 .returning({ id: tables.entries.id }),
-            ),
+            'Database write failed',
           )
           return {
             output: { entry: entry.id as never, targetId, revision: n },
@@ -923,14 +929,14 @@ export const CmsServer = {
     const drafted = (id: string, values: object) =>
       Effect.gen(function* () {
         const writes = yield* drizzleWrites
-        yield* Effect.promise(() =>
-          Promise.resolve(
+        yield* runStatement(
+          () =>
             writes
               .update(tables.drafts)
               .set(values)
               .where(eq(tables.drafts.id, id))
               .returning({ id: tables.drafts.id }),
-          ),
+          'Database write failed',
         )
         return {
           output: {},
@@ -989,26 +995,26 @@ export const CmsServer = {
               if (onShow) yield* asking(principal, 'unpublish', entry)
             }
             const writes = yield* drizzleWrites
-            yield* Effect.promise(() =>
-              Promise.resolve(
+            yield* runStatement(
+              () =>
                 writes
                   .update(tables.entries)
                   .set({ archivedAt: transition === 'archive' ? now().toISOString() : null })
                   .where(eq(tables.entries.id, entry.id))
                   .returning({ id: tables.entries.id }),
-              ),
+              'Database write failed',
             )
             if (transition === 'unarchive' || shown === undefined || entry.targetId === null)
               return { output: {}, entities: yield* entryPatches(entry.id) }
             // What is put away is not left on show. It comes back as unpublished work.
-            yield* Effect.promise(() =>
-              Promise.resolve(
+            yield* runStatement(
+              () =>
                 writes
                   .update(served.binding.table)
                   .set({ [shown.key]: null })
                   .where(eq(served.binding.columns.id!, entry.targetId!))
                   .returning({ id: served.binding.columns.id! }),
-              ),
+              'Database write failed',
             )
             const content = returning(served.binding, [shown.key])
             return {
@@ -1035,8 +1041,8 @@ export const CmsServer = {
         yield* asking(principal, 'restore', entry)
         yield* promised(principal, entry)
         const database = yield* DrizzleDatabase
-        const [revision] = yield* Effect.promise(() =>
-          Promise.resolve(
+        const [revision] = yield* runStatement(
+          () =>
             database
               .select({ values: tables.revisions.values })
               .from(tables.revisions)
@@ -1044,7 +1050,7 @@ export const CmsServer = {
                 and(eq(tables.revisions.entryId, entry.id), eq(tables.revisions.n, input.revision)),
               )
               .limit(1),
-          ),
+          'Database query failed',
         )
         if (revision === undefined)
           return yield* refuse(`This entry has no revision ${input.revision}`)
@@ -1067,8 +1073,8 @@ export const CmsServer = {
           scheduledBy: null,
           scheduleError: null,
         }
-        yield* Effect.promise(() =>
-          Promise.resolve(
+        yield* runStatement(
+          () =>
             held === undefined
               ? writes.insert(tables.drafts).values({ id: entry.id, ...restored })
               : writes
@@ -1076,7 +1082,7 @@ export const CmsServer = {
                   .set(restored)
                   .where(eq(tables.drafts.id, entry.id))
                   .returning({ id: tables.drafts.id }),
-          ),
+          'Database write failed',
         )
         return {
           output: { updatedAt },
@@ -1099,8 +1105,8 @@ export const CmsServer = {
     const due = (at: Date, options: { readonly as: (scheduledBy: string | null) => P }) =>
       Effect.gen(function* () {
         const database = yield* DrizzleDatabase
-        const waiting = yield* Effect.promise(() =>
-          Promise.resolve(
+        const waiting = yield* runStatement(
+          () =>
             database
               .select({ id: tables.drafts.id, scheduledBy: tables.drafts.scheduledBy })
               .from(tables.drafts)
@@ -1113,7 +1119,7 @@ export const CmsServer = {
                   sql`${tables.drafts.id} in (select ${tables.entries.id} from ${tables.entries} where ${tables.entries.archivedAt} is null)`,
                 ),
               ),
-          ),
+          'Database query failed',
         )
         const outcomes: Array<{ readonly entry: string; readonly error: string | null }> = []
         for (const draft of waiting) {
@@ -1171,17 +1177,17 @@ export const CmsServer = {
             archivedAt: null,
             revision: null,
           }
-          yield* Effect.promise(() =>
-            Promise.resolve(
+          yield* runStatement(
+            () =>
               writes.insert(tables.entries).values({
                 ...entry,
                 createdBy: nameOf(item.as),
                 createdAt: at.toISOString(),
               }),
-            ),
+            'Database write failed',
           )
-          yield* Effect.promise(() =>
-            Promise.resolve(
+          yield* runStatement(
+            () =>
               writes.insert(tables.drafts).values({
                 id,
                 values: item.values,
@@ -1191,7 +1197,7 @@ export const CmsServer = {
                 updatedBy: nameOf(item.as),
                 baseRevision: null,
               }),
-            ),
+            'Database write failed',
           )
           const facts: Facts = {
             archivedAt: null,
@@ -1209,14 +1215,14 @@ export const CmsServer = {
         yield* asking(principal, 'unpublish', entry)
         const shown = served.type.roles.published!
         const writes = yield* drizzleWrites
-        yield* Effect.promise(() =>
-          Promise.resolve(
+        yield* runStatement(
+          () =>
             writes
               .update(served.binding.table)
               .set({ [shown.key]: null })
               .where(eq(served.binding.columns.id!, entry.targetId!))
               .returning({ id: served.binding.columns.id! }),
-          ),
+          'Database write failed',
         )
         const content = returning(served.binding, [shown.key])
         return {

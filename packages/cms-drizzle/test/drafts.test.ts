@@ -907,6 +907,22 @@ describe('what comes due', () => {
   })
 })
 
+describe('a statement the database refuses', () => {
+  it('fails as a server error that says nothing of the SQL', async () => {
+    const { as, sqlite } = open()
+    // Reads still work; the delete a discard makes is refused.
+    sqlite.exec(
+      "create trigger keep before delete on cms_drafts begin select raise(abort, 'kept in cms_drafts'); end",
+    )
+    const failed = as(ada).mutate('CmsDiscardDraft', { entry: 'e3' })
+    await expect(failed).rejects.toMatchObject({
+      _tag: 'RemoteMutationError',
+      message: 'Database write failed',
+    })
+    await failed.catch(error => expect(JSON.stringify(error)).not.toContain('cms_drafts'))
+  })
+})
+
 describe('archiving', () => {
   it('puts the entry away and takes what can be hidden off show; unarchiving leaves it unpublished', async () => {
     const { as, rows } = open()

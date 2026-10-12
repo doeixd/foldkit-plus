@@ -233,7 +233,7 @@ export const returning = Object.assign(
         ]
         const columns = selectColumns(binding, fields)
         const database = yield* DrizzleDatabase
-        const rows = yield* run(
+        const rows = yield* runStatement(
           () =>
             database
               .select(columns)
@@ -290,15 +290,20 @@ const selectRows = (
   if (options.groupBy !== undefined) statement = statement.groupBy(...options.groupBy)
   if (options.orderBy !== undefined) statement = statement.orderBy(...options.orderBy)
   if (options.limit !== undefined) statement = statement.limit(options.limit)
-  return run(() => statement, 'Database query failed')
+  return runStatement(() => statement, 'Database query failed')
 }
 
 /**
  * A statement, failing as a `RemoteServerError` that says only `failed`. The
  * driver's error carries the SQL and its parameters: it is logged for
  * operators and never sent, where a defect would reach the client over RPC.
+ * Run every statement a handler makes through it.
+ *
+ * ```ts
+ * yield* runStatement(() => db.update(posts).set({ title }).where(eq(posts.id, id)), 'Database write failed')
+ * ```
  */
-const run = <A>(
+export const runStatement = <A>(
   statement: () => PromiseLike<A>,
   failed: string,
 ): Effect.Effect<A, RemoteServerError> =>
@@ -934,7 +939,7 @@ export const writer = <P = unknown>(
           Object.keys(set).length === 0
             ? // Nothing to set: the row as it is, if it is there.
               yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, { where })
-            : yield* run(
+            : yield* runStatement(
                 () =>
                   writes.update(binding.table).set(set).where(where).returning(answered.columns),
                 'Database write failed',
@@ -966,7 +971,7 @@ export const writer = <P = unknown>(
         const set = { ...(yield* setOf(values, links)), [idKey]: id }
         const answered = returning(binding, [...Object.keys(values), ...Object.keys(links)])
         const writes = yield* drizzleWrites
-        const inserted = yield* run(
+        const inserted = yield* runStatement(
           () =>
             writes
               .insert(binding.table)
@@ -1005,7 +1010,7 @@ export const writer = <P = unknown>(
       Effect.gen(function* () {
         const { where } = yield* rowOf(id, expect)
         const writes = yield* drizzleWrites
-        const deleted = yield* run(
+        const deleted = yield* runStatement(
           () =>
             writes
               .delete(binding.table)
@@ -1094,7 +1099,7 @@ export const applyEdits = <P = unknown>(
       }
       const writes = yield* drizzleWrites
       const value = Schema.encodeUnknownSync(schema as Schema.Codec<unknown, unknown>)(change.value)
-      const written = yield* run(
+      const written = yield* runStatement(
         () =>
           writes
             .update(binding.table)

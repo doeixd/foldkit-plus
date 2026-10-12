@@ -195,6 +195,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-cms-drizzle`: a statement the database refuses no longer sends
+  its SQL.** Its statements ran as defects, as `foldkit-remote-drizzle`'s
+  writes did, so a refusal reached the client with the driver's error; they
+  now fail as a `RemoteServerError`. `Transaction`'s type says it may fail so.
+  `foldkit-remote-drizzle` exports the helper, `runStatement(statement,
+  failed)`, for a handler's own statements, and its README's handler uses it.
 - **`foldkit-cms-drizzle`: archiving an entry on show asks `unpublish`.**
   Archiving takes a published row off show, as unpublishing does, but asked
   only `archive`'s guards: an author `transitions` kept from unpublishing
