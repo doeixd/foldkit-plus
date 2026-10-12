@@ -201,7 +201,7 @@ resource     the surface, and for a row guard the row: an existing one, the prop
 context      Effect services through R; the Clock for time; nothing else
 ```
 
-A principal guard body is `(principal: Option<User>, about: { interaction, surface }) => boolean | { allowed: false; reason: string } | Effect<…, never, R>`, so one `isAdmin` serves every surface, and a body that needs a membership service names it in `R`, which flows onto the Source as `read`'s `R` already does. Time comes from Effect's `Clock`, never `Date.now`, so "published before now" is testable under `TestClock`. Tenant is in the principal, not the context.
+A principal guard body is `(principal: Option<User>, about: { interaction, surface }) => boolean | { allowed: false; reason: string } | Effect<…, never, R>`, so one `isAdmin` serves every surface, and a body that needs a membership service names it in `R`, which flows onto the Source as `read`'s `R` already does. (As built, `about` carries the `interaction` alone; no seam needed the surface.) Time comes from Effect's `Clock`, never `Date.now`, so "published before now" is testable under `TestClock`. Tenant is in the principal, not the context.
 
 The decision type is Sync's existing `boolean | { allowed: false; reason }`, so a guard body and a Sync `authorize` rule read the same.
 

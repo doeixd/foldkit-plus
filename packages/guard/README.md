@@ -643,6 +643,10 @@ has a `RequestedArchive` with the todo's `id`.
 - **A Sync document is one audience.** Per-member or per-row secrecy within
   one is not something a replicated log offers: `GuardSync.document` refuses
   it where it is declared.
+- **A write's check and the write are two statements.** The row is read and
+  its rules decided, then it is written; a change of owner landing between
+  them is not seen. A write that `expect`s a revision is refused once the row
+  moved; one that does not takes that window.
 - **Sync's `admit` reads the table, which lags the journal.** An edit lands
   in the table when its exchange settles, so an edit admitted before another
   lands is judged against the row as it was: a concurrent change of owner

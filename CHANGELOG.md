@@ -195,6 +195,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-guard`: `GuardServer.writer` refuses a writer for another
+  Entity** where they meet, rather than leaving it to `validate`; the README's
+  limits say a write's check and the write are two statements.
 - **`foldkit-guard`: a handler's answer naming a row with no values keeps
   it.** The read-back asked for no field, which Drizzle's Source answers with
   no row, so the row was answered as deleted; it reads the id too.

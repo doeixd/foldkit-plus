@@ -355,4 +355,9 @@ export default [
     ],
     tests,
   },
+  {
+    name: "a writer for another Entity takes this one's rules",
+    edits: [{ file, find: 'if (writer.entity !== entity.name) {', replace: 'if (false) {' }],
+    tests,
+  },
 ]

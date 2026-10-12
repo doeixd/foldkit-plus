@@ -474,8 +474,10 @@ describe('GuardServer.validate over writes', () => {
       isViewer: () => false,
     })
     expect(check(GuardServer.writer(Todo, Other, writer(Db.Todo)))).toThrow(message)
-    // A Note's writer, handed a Todo's binding: guarded, but for another Entity.
-    expect(check(GuardServer.writer(Note, Policy, writer(Db.Todo)))).toThrow(message)
+    // Note's rules over a Todo's writer are refused where they meet.
+    expect(() => GuardServer.writer(Note, Policy, writer(Db.Todo))).toThrow(
+      "Note's rules over a writer for Todo",
+    )
   })
 })
 

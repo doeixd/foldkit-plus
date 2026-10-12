@@ -217,6 +217,11 @@ export const GuardServer = {
       )
       return { field, value: (user: User) => encode((preset as (user: User) => unknown)(user)) }
     })
+    if (writer.entity !== entity.name) {
+      throw new Error(
+        `[foldkit-guard] GuardServer.writer: ${entity.name}'s rules over a writer for ${writer.entity}`,
+      )
+    }
     const read = writer.read
     if (read === undefined) {
       throw new Error(
