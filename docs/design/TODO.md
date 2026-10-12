@@ -302,9 +302,12 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   §33.7 Built as one studio application (`examples/cms/src/apps/studioApp.ts`)
   with section-gated subscriptions; see [cms-demo-PLAN.md](./cms-demo-PLAN.md)
   §1b. Prefetch (the item above) is what removes the remaining waits.
-- [ ] **Site paths and targets:** `Site.paths(node, source)` enumerating a
+- [x] **Site paths and targets:** `Site.paths(node, source)` enumerating a
   node's addresses from a query, `Site.targets(site)` for a build, a sitemap
   and prefetch, and one declaration giving both `routeOf` and `pathOf`. §33.9
+  Built: `Site.paths(node, list)` and `Site.targets(site, paths)`, and a
+  tree typed by its routes, so `Site.parse` and `Site.hrefOf` are the two
+  directions (`packages/site/test/targets.test.ts`).
 - [x] **Site metadata:** `Site.meta` as a function of the Model feeding SSR's
   head, and whether a node is indexed. §23, §33.9 Built: a node's `meta` and
   `indexed`, merged by `Site.metaOf` into an SSR plan's `meta`

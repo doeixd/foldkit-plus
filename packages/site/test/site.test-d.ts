@@ -1,4 +1,5 @@
-import { Option } from 'effect'
+import { Effect, Option } from 'effect'
+import type { Url } from 'foldkit/url'
 import { Schema, pipe } from 'effect'
 import { Bundle, Link } from 'foldkit-bundle'
 import { Submodel } from 'foldkit'
@@ -113,3 +114,35 @@ export const ChildPageBadChanged = Site.placement(ChildNode, ChildBundle, {
   // @ts-expect-error: the arrival message is the child's, not a number
   changed: () => 42,
 })
+
+// The tree carries its routes: parsed to their union, built only from one of them.
+const Other = defineRouteUnion({ Away: {}, Lost: { path: Schema.String } })
+const PathsSite = Site.make(Site.mount(Home, [People]))
+export const parsedRoute: (url: Url) => AppRoute | typeof Other.Type = Site.parse(
+  PathsSite,
+  Other.Lost,
+)
+// @ts-expect-error: the parser yields the tree's routes or the fallback, not a narrower type
+export const narrowParse: (url: Url) => { readonly _tag: 'Home' } = Site.parse(
+  PathsSite,
+  Other.Lost,
+)
+export const builtHref = Site.hrefOf(PathsSite, AppRoute.Home())
+// @ts-expect-error: a route no node of the tree holds
+export const strangerHref = Site.hrefOf(PathsSite, Other.Away())
+export const peoplePaths = Site.paths(
+  People,
+  Effect.succeed([{ params: { searchText: Option.none() } }]),
+)
+// @ts-expect-error: People's params are a search, not a slug
+export const wrongPaths = Site.paths(People, Effect.succeed([{ params: { slug: 'x' } }]))
+// The failures and services of every node's paths reach the whole listing.
+export const listing: Effect.Effect<ReadonlyArray<unknown>, 'down', never> = Site.targets(
+  PathsSite,
+  [Site.paths(People, Effect.fail('down' as const))],
+)
+// @ts-expect-error: the listing fails as its paths fail
+export const unfailing: Effect.Effect<ReadonlyArray<unknown>, never, never> = Site.targets(
+  PathsSite,
+  [Site.paths(People, Effect.fail('down' as const))],
+)

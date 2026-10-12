@@ -56,6 +56,16 @@ option) says what a node's page tells a search result and a link preview, as
 plan's `meta` directly: `meta: model => Site.metaOf(AppSite, model.route,
 model)`. `Site.indexedOf(site, route)` is the flag for a sitemap.
 
+**Both directions and every address.** `Site.parse(site, NotFound)` is the
+app's URL parser from the tree (first node in tree order whose router takes
+the address; a catch-all `/:slug` node goes after the literals it would
+shadow); `Site.hrefOf(site, route)` builds an address back, typed to the
+tree's routes. `Site.targets(site, [Site.paths(Post, listPosts), ...])` is an
+Effect of every `{ node, route, url, modified? }`: paramless nodes once,
+param nodes from their `paths` Effect (refused when missing; list none with
+`Effect.succeed([])`). Feed a static build and a sitemap (filter with
+`Site.indexedOf`).
+
 **History.** `Site.historyOf(prev, next)`: another node, or an unknown
 location, is a step; within a node its `history` rule (default replace; a
 function for nodes where some param changes are entries of their own).

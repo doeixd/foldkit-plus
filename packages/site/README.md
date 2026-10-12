@@ -65,7 +65,7 @@ const Person = Site.route(personRouter, AppRoute.Person, {
   section: 'People',
 })
 
-const AppSite = Site.make(Home, Site.mount(People, []))
+const AppSite = Site.make(Home, Site.mount(People, [Person]))
 
 // One declaration builds the value and the address together.
 const target = Site.target(Person, { personId: 3 })
@@ -116,6 +116,35 @@ throw at `make`: both would make chain inspection ambiguous.
 `Site.href(target)` — or `Site.href(node, params)` — is its URL. Because the
 URL is built by the node's own router, a round trip holds by construction: a
 built URL parses back to the target's route (there is a test proving it).
+
+**Both directions.** A tree's type carries its routes, so the tree is the
+one declaration of address to route and back. `Site.parse(site, NotFound)`
+is the application's parser: the first node, in tree order (depth-first,
+parents first), whose router takes the whole address, or the fallback; put a
+node that takes any segment (`/:slug`) after the nodes whose literal it would
+take too. `Site.hrefOf(site, route)` builds a route's address with its node's
+router, and refuses at compile time a route no node holds.
+
+**Every address.** `Site.targets(site, paths)` lists the site in tree order:
+a node whose route has no params once, and a node with params by its
+`Site.paths(node, list)`, where `list` is an Effect giving each address's
+params and, for a sitemap, when it last changed:
+
+```ts
+const list = Site.paths(People, Effect.succeed([{ params: { searchText: Option.none() } }]))
+const people = Site.paths(
+  Person,
+  Effect.succeed([{ params: { personId: 3 }, modified: '2026-10-01' }]),
+)
+const listed = Site.targets(AppSite, [list, people])
+// an Effect of [..., { node: Person, route, url: '/people/3', modified: '2026-10-01' }]
+```
+
+A build renders what it lists, a sitemap keeps what `Site.indexedOf` keeps,
+and prefetch can warm it. A node with params and no `paths`, `paths` for a
+node the tree does not hold, and `paths` given twice are refused, so no page
+is left out unsaid; `Site.paths(node, Effect.succeed([]))` lists none. Its
+failures and services are those of the lists, typed.
 
 **Inspection.** `Site.nodeOf(site, route)` and `Site.chainOf(site, route)`
 resolve a route value to its node and its root-first chain (`[]` for a tag

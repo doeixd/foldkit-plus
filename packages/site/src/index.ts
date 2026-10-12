@@ -34,7 +34,7 @@ import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
 import { UrlRequest } from 'foldkit/navigation'
-import type { Router } from 'foldkit/route'
+import { oneOf, parseUrlWithFallback, type Router } from 'foldkit/route'
 import type { Meta } from 'foldkit-ssr/client'
 import * as Update from 'foldkit/update'
 import * as Url from 'foldkit/url'
@@ -195,11 +195,23 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
   readonly indexed?: boolean | undefined
 }
 
-/** A node mounted with its children: structure, not state. */
-export interface SiteMount {
+/** Carries the routes a mount or tree holds, in its type only: nothing sets it. */
+declare const routes: unique symbol
+
+/** A node mounted with its children: structure, not state. `Route` is every route it holds. */
+export interface SiteMount<Route extends { readonly _tag: string } = any> {
   readonly node: SiteNode<any>
   readonly children: ReadonlyArray<SiteMount>
+  readonly [routes]?: (route: Route) => void
 }
+
+/** The routes a bare node or a mount holds. */
+export type RoutesOf<Mounted> =
+  Mounted extends SiteNode<infer Route>
+    ? Route
+    : Mounted extends SiteMount<infer Route>
+      ? Route
+      : never
 
 /**
  * A node under construction, from `Site.node`: each method annotates and
@@ -254,9 +266,32 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
   }): NodeBuilder<Route>
 }
 
-/** The deployed topology: roots with everything mounted under them, frozen. */
-export interface SiteTree {
+/**
+ * The deployed topology: roots with everything mounted under them, frozen.
+ * `Route` is the union of every node's route, so the tree parses an address
+ * to it (`Site.parse`) and builds one back (`Site.hrefOf`).
+ */
+export interface SiteTree<Route extends { readonly _tag: string } = any> {
   readonly roots: ReadonlyArray<SiteMount>
+  readonly [routes]?: (route: Route) => void
+}
+
+/** One address a node's `Site.paths` lists: the route's params, and when its content last changed. */
+export interface SitePath<Route extends { readonly _tag: string }> {
+  readonly params: Omit<Route, '_tag'>
+  /** When what the page shows last changed, as ISO 8601 text, for a sitemap. */
+  readonly modified?: string | undefined
+}
+
+/** A node's addresses, listed by an Effect the build runs: from `Site.paths`. */
+export interface SitePaths<E, R> {
+  readonly node: SiteNode<any>
+  readonly list: Effect.Effect<ReadonlyArray<SitePath<any>>, E, R>
+}
+
+/** One address of the whole site, from `Site.targets`: a target, and when it last changed. */
+export interface SiteListed<Route extends { readonly _tag: string }> extends SiteTarget<Route> {
+  readonly modified?: string | undefined
 }
 
 /**
@@ -314,6 +349,10 @@ const indexOf = (site: SiteTree): SiteIndex => {
   indexes.set(site, index)
   return index
 }
+
+/** Whether a node's route has params beyond its tag, so its addresses must be listed. */
+const takesParams = (node: SiteNode<any>): boolean =>
+  Object.keys((node.case as { fields?: object }).fields ?? {}).some(field => field !== '_tag')
 
 const asMount = (node: SiteNode<any> | SiteMount): SiteMount =>
   'children' in node ? node : { node, children: [] }
@@ -450,18 +489,24 @@ export const Site = {
    * so it stays usable bare for targets and hrefs. Children may be bare
    * nodes (childless) or mounts.
    */
-  mount: (
-    node: SiteNode<any>,
-    children: ReadonlyArray<SiteNode<any> | SiteMount> = [],
-  ): SiteMount => Object.freeze({ node, children: Object.freeze(children.map(asMount)) }),
+  mount: <
+    Route extends { readonly _tag: string },
+    const Children extends ReadonlyArray<SiteNode<any> | SiteMount> = [],
+  >(
+    node: SiteNode<Route>,
+    children?: Children,
+  ): SiteMount<Route | RoutesOf<Children[number]>> =>
+    Object.freeze({ node, children: Object.freeze((children ?? []).map(asMount)) }),
 
   /**
    * The deployed topology from its roots: bare nodes or mounts, frozen.
    * Refuses two nodes sharing a tag and one node mounted twice, since both
    * would make chain inspection ambiguous.
    */
-  make: (...roots: ReadonlyArray<SiteNode<any> | SiteMount>): SiteTree => {
-    const tree: SiteTree = Object.freeze({
+  make: <const Roots extends ReadonlyArray<SiteNode<any> | SiteMount>>(
+    ...roots: Roots
+  ): SiteTree<RoutesOf<Roots[number]>> => {
+    const tree: SiteTree<RoutesOf<Roots[number]>> = Object.freeze({
       roots: Object.freeze(roots.map(asMount).map(freezeMount)),
     })
     // Fail at definition time, not at the first inspection.
@@ -497,6 +542,100 @@ export const Site = {
       node: SiteNode<Route>,
       params: Omit<Route, '_tag'>,
     ): string
+  },
+
+  /**
+   * The tree's parser: an address to the route of the first node, in tree
+   * order (depth-first, parents first), whose router takes all of it, or the
+   * fallback. A router that takes any segment (`/:slug`) belongs after the
+   * nodes whose literal it would take too. With `Site.hrefOf`, the tree is
+   * the one declaration of both directions.
+   */
+  parse: <Route extends { readonly _tag: string }, Fallback>(
+    site: SiteTree<Route>,
+    fallback: { readonly make: (data: { readonly path: string }) => Fallback },
+  ): ((url: UrlValue) => Route | Fallback) =>
+    parseUrlWithFallback<Route, Fallback>(
+      oneOf(...Site.nodesOf(site).map(node => node.router)),
+      fallback,
+    ),
+
+  /**
+   * The address of a route the tree holds, built by its node's router, so it
+   * parses back to the same route (`Site.parse`).
+   */
+  hrefOf: <Route extends { readonly _tag: string }>(
+    site: SiteTree<Route>,
+    route: Route,
+  ): string => {
+    const node = indexOf(site).byTag.get(route._tag)
+    if (node === undefined) throw new Error(`Site.hrefOf: no node holds the tag "${route._tag}"`)
+    const { _tag, ...params } = route
+    return node.router.build(params)
+  },
+
+  /**
+   * A node's addresses, from data: every published post is one. `list` is an
+   * Effect the build runs, such as a Remote query read through
+   * `Data.satisfy`, so it lists what a visitor may see.
+   *
+   * ```ts
+   * const posts = Site.paths(PostNode, listPosts.pipe(
+   *   Effect.map(rows => rows.map(row => ({ params: { slug: row.slug }, modified: row.at }))),
+   * ))
+   * ```
+   */
+  paths: <Route extends { readonly _tag: string }, E, R>(
+    node: SiteNode<Route>,
+    list: Effect.Effect<ReadonlyArray<SitePath<Route>>, E, R>,
+  ): SitePaths<E, R> => ({ node, list }),
+
+  /**
+   * Every address of the site, in tree order: one for each node whose route
+   * has no params, and what `paths` lists for each node whose route has
+   * them. What a build renders, a sitemap lists (with `Site.indexedOf`), and
+   * a prefetch warms. A node with params and no `paths` is refused, as are
+   * `paths` for a node the tree does not hold or twice for one node, so no
+   * page is left out unsaid; `Site.paths(node, Effect.succeed([]))` lists none.
+   */
+  targets: <const Paths extends ReadonlyArray<SitePaths<any, any>>>(
+    site: SiteTree,
+    paths: Paths,
+  ): Effect.Effect<
+    ReadonlyArray<SiteListed<any>>,
+    Paths[number] extends SitePaths<infer E, any> ? E : never,
+    Paths[number] extends SitePaths<any, infer R> ? R : never
+  > => {
+    const nodes = Site.nodesOf(site)
+    const listed = new Map<SiteNode<any>, SitePaths<any, any>>()
+    for (const each of paths) {
+      if (!nodes.includes(each.node))
+        throw new Error(`Site.targets: "${each.node.tag}" has paths but is not in the tree`)
+      if (listed.has(each.node)) throw new Error(`Site.targets: "${each.node.tag}" has paths twice`)
+      listed.set(each.node, each)
+    }
+    const unlisted = nodes.filter(node => takesParams(node) && !listed.has(node))
+    if (unlisted.length > 0)
+      throw new Error(
+        `Site.targets: ${unlisted.map(node => `"${node.tag}"`).join(', ')} take params and have no paths`,
+      )
+    return Effect.map(
+      Effect.forEach(
+        nodes,
+        node => {
+          const source = listed.get(node)
+          if (source === undefined) return Effect.succeed([Site.target(node, {})])
+          return Effect.map(source.list, found =>
+            found.map(({ params, modified }) => ({
+              ...Site.target(node, params),
+              ...(modified === undefined ? {} : { modified }),
+            })),
+          )
+        },
+        { concurrency: 'unbounded' },
+      ),
+      perNode => perNode.flat(),
+    )
   },
 
   /** Every node in the tree, depth-first, parents before children. */

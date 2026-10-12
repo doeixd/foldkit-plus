@@ -7120,10 +7120,11 @@ still shows is a wait prefetch removes.
 
 ## 33.9 What a static site asked of the route graph
 
-> Status 2026-10-07: open. Nothing enumerates a node's addresses from a query
-> yet (`Site.paths` / `Site.targets`), and `routeOf` / `pathOf` remain each
-> app's own pair — except that `Site.target` already builds route + URL from
-> one declaration. Meta and indexed are built (§23: a node's `meta`, `Site.metaOf`).
+> Status 2026-10-12: built. `Site.paths(node, list)` lists a node's
+> addresses from an Effect (a Remote read), `Site.targets(site, paths)` the
+> whole site; a tree is typed by its routes, so `Site.parse` and
+> `Site.hrefOf` are the pair no application writes. Meta and indexed are
+> built too (§23: a node's `meta`, `Site.metaOf`).
 
 The example's public site is now rendered at build time and taken over in
 the browser ([ssr-PLAN.md](./ssr-PLAN.md) Phase S has the rendering half). The

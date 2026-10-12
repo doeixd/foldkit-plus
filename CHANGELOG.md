@@ -17,6 +17,13 @@ version changed; `pnpm` skips versions already in the registry.
   unindexed route `noindex`; it is an SSR plan's `meta` as it stands.
   `Site.indexedOf` reads the flag, which a node inherits from the nearest
   ancestor that declares it. `foldkit-ssr` is now a dependency, for the type.
+- **`foldkit-site`: every address, and both directions, from the tree.**
+  `Site.paths(node, list)` lists a node's addresses from an Effect (with when
+  each last changed), and `Site.targets(site, paths)` lists the whole site in
+  tree order for a build, a sitemap or prefetch, refusing a node with params
+  left unsaid. A tree's type now carries its routes: `Site.parse(site,
+  NotFound)` is the application's URL parser and `Site.hrefOf(site, route)`
+  builds an address back, refusing a route no node holds.
 
 - **`foldkit-plus`: every package in one install, and `npx foldkit-plus setup`.**
   Each package's entry points are re-exported by subpath (`foldkit-remote/port`
