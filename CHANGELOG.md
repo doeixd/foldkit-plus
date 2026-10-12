@@ -7,382 +7,64 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
-### Changed
+## 0.17.0
 
-- **Breaking: `foldkit-sync`: an exchange's `refuse` is `admit`, and an
-  exchange may be refused whole (`opens`).** `admit(operation)` answers as the journal's
-  `authorize` does (`true` admits; a refusal, with its reason, is rejected by
-  id) and may answer with an `Effect`, for a rule that reads the rows an edit
-  names before the journal's lock. `opens`, an `Effect` of a boolean, fails
-  every exchange of a connection that may not open the document.
-  `defineDocumentHost` takes both as functions of the principal, which its
-  `refuse` was never given.
-  `Sync.presence.serve` takes `opens` too: a connection joins the presence
-  hub only once it may open the document, and one refused is relayed
-  nothing, either way.
-- **`foldkit-cms-drizzle`: the audience boundary is a `foldkit-guard` guard set.**
-  `CmsServer.make` takes `policy` and `authors` (principal guards) in place of
-  `isAuthor`, and `transitions` (principal guards per transition) beside
-  `allow`, which stays for a rule about the entry; the principal is the guard
-  set's `Option`. Each `content` entry names `entity`, its Entity with guards
-  attached; its source carries `GuardServer.filter`, and `make` refuses a
-  publishable type whose Read rule does not read its published field, or
-  whose binding's `visible` is not the guard set's (`GuardServer.validate`).
-  `published(column, isAuthor)` is gone: bind with `GuardDrizzle.visible`. A
-  refusal of who is asking is `Forbidden`, with its sentence. The casts of an
-  untyped principal are gone: one that is not the set's is a defect.
-- **`foldkit-cms`: an entry's `createdAt` declares `binary`.** It is an
-  ISO-8601 instant, so code-point order is time order, and `CmsEntries`
-  orders by it: a saved or created entry is now placed in the worklist
-  instead of refetching it. On Postgres the order compiles with
-  `collate "C"`.
-- **`foldkit-remote`: placement reads a row's id from its key.** Every order
-  ends on the id tie-break, and a row whose Selection never stored `id` was
-  unplaceable, so its list was fetched again: the entity example's post list
-  was, after every create.
-- **`examples/entity`: `WritePost` and `DeletePost` write in one
-  transaction.** The author was inserted before the post, and the comments
-  deleted before the post, each on its own, so a second statement that failed
-  left the first. They use Drizzle's SQLite transaction, which is synchronous.
-  `foldkit-remote-drizzle`'s README says why the adapter wraps no
-  transaction: the drivers disagree on what one is.
-- **`foldkit-remote`: an inserted row is drawn where its list's order puts
-  it.** A `prepend`/`append` connection change and a live `ConnectionInsert`
-  say a row is in a list, not where; in a list the client can place, a read
-  draws it in order, or leaves it out past a `Cursor`. One it cannot place
-  stays at the end its change names. **Breaking:** `Remote.visibleItems` is
-  replaced by `Data.visibleItems(remote, connection)`, which draws a list as
-  its reads do. `examples/cloudflare` drops `orderedPage`, its own sort of the
-  page.
-- **`examples/entity`, `examples/registry`: `verifyPlacement` is on in
-  development and tests** (`import.meta.env.DEV`). The entity HTTP test checks
-  a rename against SQLite's order, and every registry page test asserts no
-  placement disagreed with the server's.
-- **`foldkit-remote`: a mutation's answer places a row new to the client, and
-  one that moves in from past a `Cursor`.** A row joined a list only through
-  a filtered field, so a created row never joined a list that filters on
-  nothing, and a row past a list's loaded rows whose order now put it among
-  them stayed out. `EntityChange.Changed` gains `created`.
-- **`examples/cloudflare`: `AllTodos` declares its order in its body**, and
-  `title` declares `binary`. A create's answer names no list: the client
-  places the row by title instead of the server's `prepend`.
-- **`examples/entity`: `AuthorsQuery` declares its body too**, a name search
-  by id, so an author a nested write creates joins the loaded list instead
-  of refetching it. With the id fix above, the example's tests invalidate no
-  list.
-- **`examples/entity`: `PostsQuery` declares its body** (`Query.define`, a
-  title search and `Order.chosen`), and `title` declares `binary`, in place of
-  the server's `where` and `orderBy`. A rename moves a post in a list sorted by
-  title with no list request; the list was refetched before.
-- **`foldkit-remote`: a pending edit, a read and a live patch place the rows
-  a list holds.** A pending `optimistic` patch or `Data.overlay` to an
-  ordering or filtered field shows its row where the edit puts it, or out of
-  the list, until it settles; the server's pages are untouched. A read or an
-  `EntityPatched` with a new value moves a held row in the pages. Before, the
-  row kept its old place until the list was fetched again, so a registry
-  price edit stayed out of order even after the server had it. Neither brings
-  a row into a list.
-- **`foldkit-remote`: a mutation's answer is placed in the lists it changed,
-  not refetched.** A held row that stops matching leaves a list; a row that
-  joins, or a held row whose ordering field changed, goes where the body's
-  order puts it among the loaded rows (`placeIn`), or out of them past a
-  `Cursor`. A list is still invalidated for what cannot be placed: no body or
-  no declared order, text with no collation, a row it cannot judge, or a row
-  an overlay shows. `Impact` gains `Placed`, and is a `Data.taggedEnum`.
-- **`examples/registry`: its text columns declare `binary`**, as its SQLite
-  orders them, so its sorted page is placeable.
-- **`foldkit-remote-drizzle`: a page's cursor holds the order's key values
-  where it ended.** It was the last row's id, which the next page looked up:
-  "load more" failed once that row was deleted or stopped matching, and
-  continued from the wrong place once it moved. A cursor (`k:[...]`) is
-  validated as client input; one from before keys is still read as an id.
-  Relation pages keep their id cursors.
-- **`foldkit-entity`: an `OrderTerm` is tagged `Term`, and a body's
-  `orderBy` holds `Ordering`s (`Term | Chosen`).** An interpreter walking it
-  resolves `Query.orderFor(body, input)` first.
-- **`foldkit-remote-drizzle`: a body that declares its order refuses an
-  `orderBy` beside it.** Overriding the body's order was allowed; it let the
-  server sort one way while the client read another. A body's order is
-  compiled per request now, since a chosen order depends on the input.
-- **`examples/registry`: its sort is in `ProductsQuery`'s body**
-  (`Order.chosen`), not a server `orderBy` function.
-- **`foldkit-remote`: a list whose body declares no order is invalidated by
-  any change to a row it holds.** Its order is the server's (an `orderBy`
-  on the server, say), by fields the client cannot see, so a change it judged
-  harmless could have moved the row. It was kept before, and the row showed
-  its new value in its old place.
-- **`examples/cloudflare`: a tick of the live poll reads only the rows
-  written since the last.** Triggers log each row a write touches
-  (`migrations/0003_row_changes.sql`, the last 1000 entries); the poll asks
-  the log first, re-reads only those rows, and reads the list's window only
-  when the stream opens. `pollLive` takes an options object (`interval`,
-  `list`, `changes`, a `RowLog`). The local stack runs the migration files
-  rather than repeating them. Apply the migrations before deploying the
-  worker; until then it reads every tick.
-- **`examples/registry`: the rows the grid draws follow the table live.** The
-  journal's writes are told to a hub (`applyEdits(Db.Product, { live })`); the
-  dev server answers through `serveFetch`, live streams included, and the
-  client uses `Remote.httpWithLive`. A replacement said both by a read and by
-  the slice is listed once, the slice's, which names the author.
-- **`foldkit-sync/remote`: `replaced` covers an edit still in the slice.** A
-  read reaching this replica's edit with another value says it, held or not,
-  and this replica's landed edit is kept (showing the row's own value) until
-  the slice drops it, so a later edit arriving live is seen replacing it.
-- **`examples/registry`: the rows read survive a reload.** `Data.persistence`
-  keeps Remote's cache in `localStorage`, so a reload with the server out of
-  reach paints the last rows read, the pending edits over them.
-  `mountRegistry`'s `resources` also provides a `KeyValueStore`.
-- **`foldkit-sync/entity`: the overlay helpers are gone; `foldkit-sync/remote`
-  shows the edits.** `overlay`, `held`, `newlyHeld`, `settled` and `shows` are
-  removed: `RemoteEdits` does their work over Remote, where every read draws
-  it. `EditableEntity.make`'s value also carries the `entity` it was made over.
-- **`examples/registry`: the edits are Remote overlays.** The `retired` field,
-  `retiredOf`, `retiresAny`, `settledOf` and the edits laid over `rowsOf` are
-  gone; `RemoteEdits` reconciles in `afterUpdate`, so any read of a product,
-  not only the grid's row, shows its edit.
-- **`foldkit-remote`: a gap stays until its stream restarts.** An in-order
-  event after a gap used to clear it, though the event that arrived ahead was
-  dropped and what it said was lost. Now only the restart's `GapCleared`
-  clears it. `LiveDependencies` gains `restarts` and `failures`, and
-  `RemoteModel` gains `streams`.
-- **`examples/cloudflare`: the stored list is `Data.persistence`.** The
-  hand-written save Subscription and the boot-time `applyCache` are gone; the
-  wiring restores each actor's snapshot (`snapshot: snapshotFor` keeps the
-  visible edges) from `KeyValueStore.layerStorage(() => localStorage)`. The
-  rows now arrive just after the first frame instead of in it.
-- **`examples/entity`: the post edit is a declared write.** `EditPost` is
-  `Mutation.write` over `Write.update`, its editor relation included, and the
-  server serves it with `RemoteServer.write(..., writer(Db.Post))`; the Drizzle
-  handler goes. The delete stays a handler: it removes the post's comments too.
-- **`examples/cloudflare`: rename and toggle are declared writes.** Their
-  Drizzle handlers and hand-built optimistic patches are gone:
-  `Mutation.write` and `RemoteServer.write(..., writer(Db.Todo))` say the
-  same, and the rename editor sends only the title it changed.
-- **`foldkit-cms`, `foldkit-cms-drizzle`: refusals are data, not prefixes.**
-  `SaveDraft` and `Publish` declare `Refusal`: `Cms.refusal.field(key, reason)`
-  for a taken address on its key, `Cms.refusal.conflict` for work saved or
-  published since. The editor reads both with `Data.refusal`. `Cms.slugTaken`
-  is removed, and the `CmsConflict: ` and `CmsSlugTaken: ` message prefixes are
-  gone: a message is now only for a person to read. `EditorDomain` gains
-  `refusal`. `RemoteServer.refuse` takes an optional message for that person.
-- **`foldkit-remote`: a mutation's answer invalidates the loaded lists it may
-  have changed.** Each patch is judged against every loaded list over its
-  Entity by the list's query body: a list stands when its rows and order are
-  provably unchanged (a rename, a row that still matches), and is otherwise
-  marked stale for its read entry to fetch again, restarting a read of it in
-  flight. A list over a `Query.make` query, with no body to judge by, is
-  invalidated by any change to its Entity, so such lists now refetch after a
-  mutation of their rows. A live `ConnectionInvalidate` also restarts a read in
-  flight now.
-- **`foldkit-remote-server`: a mutation Source is given the client's
-  `requestId`**, which the client already sent and which is the same on every
-  retry of a request. Record a write under it to recognise a retry; nothing
-  deduplicates by it yet. `foldkit-cms-drizzle` runs the application's own
-  mutation, when it publishes, as `publish:<entry>:<revision>`.
-- **`foldkit-remote-server`: handlers given a `live` hub publish every
-  mutation's answer to it.** Each answered patch is a change of the fields it
-  carries and each deletion a deletion, re-read per subscriber as before. Delete
-  a `hub.changed` call that follows a mutation's write, or subscribers hear the
-  change twice; keep one for writes that are not mutations. A failed publish is
-  logged and the mutation still answers, since its write has happened.
-- **`examples/cloudflare` page:** the Pages site is a Foldkit app. The list is
-  `Crud.list` over the `AllTodos` query. The first visit says "Loading…". A
-  later visit paints the rows stored in the browser at once and asks again.
-  Add, rename, toggle, and delete are Remote mutations; `Data.mutate` applies
-  the optimistic patch before the POST returns. Another tab hears the change
-  on the live stream. Sync through the Durable Object stays for the demo and
-  the tests; both writers use the same `todos` table.
+`foldkit-agent` 0.7.0; `foldkit-bundle` 0.6.0; `foldkit-cms` 0.6.0;
+`foldkit-cms-drizzle` 0.6.0; `foldkit-composition` 0.2.0; `foldkit-crud` 0.7.0;
+`foldkit-durable` 0.8.0; `foldkit-entity` 0.8.0; `foldkit-mixins` 0.9.0;
+`foldkit-mixins-form` 0.5.0; `foldkit-mixins-ui` 0.8.0; `foldkit-primitives`
+0.8.0; `foldkit-remote` 0.14.0; `foldkit-remote-server` 0.13.0;
+`foldkit-remote-drizzle` 0.11.0; `foldkit-ssr` 0.5.0; `foldkit-surface` 0.8.0;
+`foldkit-sync` 0.10.0; `foldkit-data-grid` and `foldkit-mixins-data-grid` 0.1.2.
+New: `foldkit-guard` and `foldkit-site` 0.1.0. Republished to re-pin:
+`foldkit-agent-a2a`, `foldkit-agent-mcp` and `foldkit-agent-native` 0.5.2,
+`foldkit-agent-webmcp` 0.6.1, `foldkit-builder` and `foldkit-mixins-builder`
+0.1.1, `foldkit-bundle-surface` 0.3.2, `foldkit-form` 0.4.2, `foldkit-mirror`
+0.5.2, `foldkit-mixins-crud` 0.6.4, `foldkit-mixins-richtext` 0.2.3,
+`foldkit-mixins-surface` 0.5.3 and `foldkit-richtext-dom` 0.3.1, each of which
+pins a bumped package. Every other package is unchanged.
 
-### Fixed
+**Who may do what is declared once, and Remote places rows instead of
+refetching them.** `foldkit-guard` declares guards on the shared domain and
+enforces them on every seam: reads compiled into SQL, declared writes and
+handlers checked before they land and answered as their writer may see the
+row, Sync's cell edits, live updates and agents, with a startup check that
+refuses a Source left unguarded. A write is declared as data (`Write.update`,
+`insert`, `delete`) and served with no handler. A list whose query body
+declares its order has a change placed in it with no request, checked against
+the server under `verifyPlacement`. `foldkit-site` states a routed site's
+topology once. And a review of this release's work fixed the ways a write or a
+read could get past its rules, lose another author's edit, or send the server's
+SQL to a client.
 
-- **`foldkit-guard`: `GuardServer.writer` refuses a writer for another
-  Entity** where they meet, rather than leaving it to `validate`; the README's
-  limits say a write's check and the write are two statements.
-- **`foldkit-guard`: a handler's answer naming a row with no values keeps
-  it.** The read-back asked for no field, which Drizzle's Source answers with
-  no row, so the row was answered as deleted; it reads the id too.
-- **`foldkit-remote`: a list an answer names still has its other rows
-  judged.** A list the answer put a row into was skipped whole, so a second
-  row of it the same answer moved was neither placed nor fetched; only the
-  rows the answer itself placed are taken as the server says now.
-- **`foldkit-entity`: an order over a number a row may lack is placeable.**
-  `Query.placement` read `NullOr(Number)` (and `OptionFromNullOr(Number)`) as
-  text with no collation, so such a list was fetched on every change; where
-  nulls go is said on every term, so it is placed now.
-- **`foldkit-remote-drizzle`: `asciiFold` folds only ASCII on Postgres.** It
-  ordered by `lower(x) COLLATE "C"`, where `lower` still follows the column's
-  collation and, under a UTF-8 one, folds `É` to `é`; the client's evaluator
-  and SQLite's `NOCASE` do not, so a client placed rows where Postgres would
-  not. It is `lower(x COLLATE "C")` now, the cursor's values folded alike, as
-  `contains` already did.
-- **`foldkit-remote`: `Data.persistence` says what keeps one reader's cache
-  from the next.** A restore keeps what the Model holds, so a change of
-  principal without `Data.forget` in the same `update` saved one person's rows
-  under the next one's key; the README now says `forget` is required there,
-  and that a snapshot is serialized on each change though its write waits.
-- **`foldkit-cms-drizzle`: `authors` is asked as what the author is doing.**
-  Every operation asked its guards with interaction `Read`, so a body that let
-  a reviewer read drafts let them save and publish too. An operation now asks
-  `Update`, and reading unpublished work `Read`.
-- **`foldkit-sync`: a connection whose access went hears and speaks no more.**
-  Presence asked `opens` once, at join, so a peer kept relaying presence after
-  its access was taken; it is asked again with each frame, and a refused peer
-  leaves. `serveJournal` sent a refused connection a notice of every commit,
-  which woke it into a failing exchange and told it when the document
-  changed; notices now pass `opens` too.
-- **`foldkit-remote`: `Remote.http` reads a middleware's `{ error }` 403 as
-  `Forbidden`.** A 403 whose body happened to be shaped as an error answer was
-  taken for Remote's own, an ordinary mutation error; a 403 is now forbidden
-  unless its body says so itself, as Remote's server's does.
-- **`foldkit-remote`: placing a change no longer redraws or refetches what it
-  left in place.** A row whose order field changed but whose place did not
-  still gave its list a new identity, so every read of it was drawn again and,
-  under `verifyPlacement`, the list was fetched; it is now kept as it was. Each
-  list's held rows were rebuilt for every change of a read or an answer; they
-  are read once per list.
-- **`foldkit-guard`: `Policy.keyOf` tells every claim apart.** It keyed a
-  principal by `JSON.stringify` of its rule inputs, so a set claim read as
-  `{}` (an admin and a revoked admin shared a live hub's re-read) and a
-  bigint threw. It keys by the principal encoded through `Schema.toCodecJson`.
-  And beside `Write`, a slot of its own's refusal replaces Write's whichever
-  key is written first; it hung on the order.
-- **`foldkit-cms-drizzle`: a statement the database refuses no longer sends
-  its SQL.** Its statements ran as defects, as `foldkit-remote-drizzle`'s
-  writes did, so a refusal reached the client with the driver's error; they
-  now fail as a `RemoteServerError`. `Transaction`'s type says it may fail so.
-  `foldkit-remote-drizzle` exports the helper, `runStatement(statement,
-  failed)`, for a handler's own statements, and its README's handler uses it.
-- **`foldkit-cms-drizzle`: archiving an entry on show asks `unpublish`.**
-  Archiving takes a published row off show, as unpublishing does, but asked
-  only `archive`'s guards: an author `transitions` kept from unpublishing
-  could archive a published post, and unarchive it as unpublished work.
-- **`foldkit-remote`: placement no longer drops a row it cannot judge, and
-  compares a number id as a number.** A row that was the last edge before a
-  cursor (or the first after one) was left out when it sorted past its
-  page's other rows, though its own old keys were the boundary and might
-  still hold it: it now invalidates the list. Placement read every id from its
-  key, so a number id ordered as text ('10' before '9'): the stored id is used,
-  and the key's only for an id stored as text. `verifyPlacement` also records
-  a row placing took out that the server's page still lists, which comparing
-  the shared prefix never could; `placed` now holds `{ order, dropped }`.
-- **`foldkit-entity`: a declared write binds the keys `Entity.input` lets
-  map themselves.** An input key that is an `Option`, or optional, type-checked
-  and then threw in `Write.bind`. A `some` now writes what it holds, and a
-  `none` or a key left out writes nothing; a write whose id may be absent is
-  refused where it is declared.
-- **`foldkit-crud`: an editor's later saves no longer lose another author's
-  change.** After its own save, the editor took any revision that came after
-  as its own, so another client's later save was overwritten without a
-  conflict; it compared each save with what the form was first filled with,
-  so a key it had saved was sent again over another author's change; and
-  typing while a save was in flight lost that save's answer, so the next save
-  conflicted with itself. The editor now takes each save's answer once, as it
-  lands (`edited`, `sent` and `settledFor` in its Model), and `Moved`
-  outranks `Saved`. A create's form starts blank once it lands, so saving it
-  again is not the same create twice.
-- **`foldkit-remote-drizzle`: a keyed cursor over an id column of another
-  name.** A page read each order key back by its column's SQL name, beside an
-  id selected as `id`, so an id column named otherwise (`task_id`) read as
-  nothing and every page fell back to an id cursor. **`foldkit-remote-server`:**
-  `RemoteServer.memory` refuses a `shared` entity the domain does not declare,
-  or a field it does not, as `RemoteServer.entity` and `source` already did.
-- **`foldkit-guard`: `GuardServer.validate` refuses what it could not
-  check.** A seam built from an Entity before its guards were attached (a
-  `GuardDrizzle.visible` or `GuardServer.filter` given the base Entity)
-  decided nothing yet passed as the guarded one's, since seams were recorded
-  by name: they are now recorded by the Entity's attachment. A live Source of
-  its own over a guarded Entity, a served query the domain does not declare,
-  and a shared relation whose target is not validated are now refused.
-- **`foldkit-remote-server`: the live hub sends a deletion only to whom a
-  row is gone.** A write that hid a row from its writer answered it as
-  deleted, and the hub sent every subscriber that deletion, readers who still
-  saw it included; one who lost sight of a row was sent nothing. `deleted`
-  now re-reads each subscriber's selection and `changed` sends a deletion
-  where the re-read finds no row. One subscriber's failed read no longer
-  stops the rest. **Breaking:** `LiveHub.deleted` may fail and needs the
-  Sources' services, as `changed` does.
-- **`foldkit-remote-drizzle`: a write the database refuses fails as
-  `Database write failed`.** Writes, `applyEdits` and `returning.row` ran
-  their statements as defects, which Effect RPC sends whole: the driver's
-  error, with the SQL and its parameters, reached the client. They now fail
-  as a `RemoteServerError`, the driver's error logged, as reads already did;
-  `returning.row`'s error type says so.
-- **`foldkit-guard`: three write checks that let a write through.** An
-  update that unlinked a relation whose row is hidden from its writer read the
-  link as none and skipped `Unlink`: the link is now read as stored, through
-  a new `EntityWriter.linked` (`foldkit-remote-drizzle`'s `writer` has it),
-  and a writer without it treats a link it sees as none as one that may be
-  there. A create's guard over a field it leaves unset held for `isNotNull`
-  (and died on `contains`): such a guard now never holds. A write's answer was
-  read back without the Entity's member Read rules, so it could carry a field
-  its writer may not read: `GuardServer.writer` and `GuardServer.mutation`
-  now answer through them, with no more fields than the write named.
-- **`foldkit-remote-drizzle`: an insert under an id taken by another row
-  fails.** It answered with whatever row held the id, values its writer may
-  not read included, and let the client think its own were stored. A retry,
-  whose row holds what it writes, is still answered with that row.
-- **`foldkit-guard/sync`: `admit` judges an operation's edits to a row
-  together.** Each edit was checked over the row with that edit alone, so
-  two that each kept a row in its editor's reach, and together moved it out,
-  were admitted. An edit to a member outside the document, or a value its
-  member cannot encode, is now refused by the operation's id rather than
-  failing the exchange; `GuardSync.document` refuses a member that is not a
-  field.
-- **`foldkit-remote`: a filter or live insert the reference interpreter
-  refuses no longer throws in `update`.** `Data.filtered` with such an input
-  (a search holding NUL) answers no items and `complete: false`; a live
-  insert into such a connection takes its declared policy.
-- **`foldkit-remote-drizzle`: `contains` refuses searched text holding NUL
-  when that text is an input or a literal**, as `evaluate` does. It refused a
-  NUL only in the search, and answered `[]` on SQLite and Postgres for the
-  rest. `foldkit-entity/conformance` now exports `refusals`, bodies every
-  interpreter must refuse, and the reference, Drizzle (SQLite and Postgres)
-  and Remote matching suites run them.
-- **`foldkit-crud`: any authored edit after a save returns the editor to
-  `Editing`.** It used to take only a typed field (`Changed`), so a nested row
-  added or removed, or a Bundle-backed control's edit, left it at `Saved` or
-  `SaveFailed`. The editor now asks the form (`authoredChanged`), and a
-  Message that changes nothing returns its Model as it was.
-- **`foldkit-primitives`: a popup placed in the same turn stays where it was placed.**
-  `keepWithin` and the placement write start together, so the fit runs again
-  when the write lands and judges that box. A point that would hang off the
-  bottom shifts up (`Placing.shiftIntoViewport`). A trigger still flips, and
-  the panel carries `data-fk-placed="above"` when it does. Enter in
-  `ListNavigation` commits an enabled current item.
+### Upgrading from 0.16
 
-- **`examples/widgets`: the hover bridge follows a flip.** Navigation and the
-  hover card overlap the trigger on the side the panel opened. Opening the
-  context menu for the row it already shows returns the same model.
-
-- **`examples/cloudflare` page:** a new or renamed row is drawn where the
-  title order will keep it. The list sorts by title, then id, which is what
-  `AllTodos` asks D1 for, so a live insert does not move it.
-
-- **`examples/cloudflare` page:** the list is kept in the browser, one snapshot
-  per actor. A later visit paints those rows immediately. A failed refetch,
-  including offline, leaves them. The snapshot is the server's rows. An unsent
-  edit is not kept.
-
-- **`examples/cloudflare` page:** an update no longer refetches the list. The
-  one-second refresh, and the refresh after a successful write, flashed the
-  rows. The page subscribes to the live stream. A field change is a patch. A
-  row joining or leaving is a connection event.
-
-- **`examples/cloudflare` page:** saving, loading, and a field error keep the
-  space they will occupy. "Saving…" and "Loading…" use `Loading.shown`, so a
-  fast answer does not flash, and none of them push the form or the list.
-
-- **`examples/widgets`: a context menu opens at the pointer.** A right-click
-  records the point, and the menu opens there. The keyboard, which has no
-  point, still opens under the row. Navigation and the hover card keep a
-  hit target across the gap, so the pointer can move onto the panel.
-
-- **`examples/widgets`: hover, placement, and keyboard on the showcase.**
-  A click after a hover leaves that section open. A popup sits under the
-  trigger that opened it, and reopening a menu keeps the chosen item
-  selected. Enter in the command field runs the highlighted command. Shut
-  accordion panels stay mounted. Absent values in these models are
-  `Option`, and the page theme reads tokens.
+- **`journalExchange`'s `refuse` is `admit`** (`foldkit-sync`), which answers as
+  `authorize` does and may be an `Effect`; `opens` refuses a connection whole.
+  `defineDocumentHost` takes both as functions of the principal, and its
+  `settle` is `(env, journal) => Effect`.
+- **`foldkit-sync/entity`'s overlay helpers are gone** (`overlay`, `held`,
+  `newlyHeld`, `settled`, `shows`): `RemoteEdits` from `foldkit-sync/remote`
+  shows the edits through Remote.
+- **`Remote.visibleItems` is `Data.visibleItems(remote, connection)`**
+  (`foldkit-remote`), which draws a list as its reads do.
+- **An `OrderTerm` is tagged `Term`, and a body's `orderBy` holds `Ordering`s**
+  (`foldkit-entity`): an interpreter resolves `Query.orderFor(body, input)`
+  first. `foldkit-remote-drizzle` refuses an `orderBy` beside a body that
+  declares its order.
+- **`Cms.slugTaken` and the `CmsConflict: ` / `CmsSlugTaken: ` message prefixes
+  are gone** (`foldkit-cms`): read a refusal with `Data.refusal`
+  (`Cms.refusal.field`, `Cms.refusal.conflict`).
+- **`CmsServer.make` takes a guard set** (`foldkit-cms-drizzle`): `policy` and
+  `authors` for `isAuthor`, `transitions` beside `allow`, and each `content`
+  entry its guarded `entity`; `published(column, isAuthor)` is gone, bind with
+  `GuardDrizzle.visible`. `Transaction` may fail with a `RemoteServerError`.
+- **`LiveHub.deleted` may fail and needs the Sources' services**
+  (`foldkit-remote-server`), as `changed` does; it re-reads each subscriber's
+  selection rather than deleting for all.
+- **`returning.row` fails with a `RemoteServerError`** (`foldkit-remote-drizzle`)
+  when the database refuses it; run a handler's own statements through
+  `runStatement`.
 
 ### Added
 
@@ -976,6 +658,189 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: `foldkit-sync`: an exchange's `refuse` is `admit`, and an
+  exchange may be refused whole (`opens`).** `admit(operation)` answers as the journal's
+  `authorize` does (`true` admits; a refusal, with its reason, is rejected by
+  id) and may answer with an `Effect`, for a rule that reads the rows an edit
+  names before the journal's lock. `opens`, an `Effect` of a boolean, fails
+  every exchange of a connection that may not open the document.
+  `defineDocumentHost` takes both as functions of the principal, which its
+  `refuse` was never given.
+  `Sync.presence.serve` takes `opens` too: a connection joins the presence
+  hub only once it may open the document, and one refused is relayed
+  nothing, either way.
+- **`foldkit-cms-drizzle`: the audience boundary is a `foldkit-guard` guard set.**
+  `CmsServer.make` takes `policy` and `authors` (principal guards) in place of
+  `isAuthor`, and `transitions` (principal guards per transition) beside
+  `allow`, which stays for a rule about the entry; the principal is the guard
+  set's `Option`. Each `content` entry names `entity`, its Entity with guards
+  attached; its source carries `GuardServer.filter`, and `make` refuses a
+  publishable type whose Read rule does not read its published field, or
+  whose binding's `visible` is not the guard set's (`GuardServer.validate`).
+  `published(column, isAuthor)` is gone: bind with `GuardDrizzle.visible`. A
+  refusal of who is asking is `Forbidden`, with its sentence. The casts of an
+  untyped principal are gone: one that is not the set's is a defect.
+- **`foldkit-cms`: an entry's `createdAt` declares `binary`.** It is an
+  ISO-8601 instant, so code-point order is time order, and `CmsEntries`
+  orders by it: a saved or created entry is now placed in the worklist
+  instead of refetching it. On Postgres the order compiles with
+  `collate "C"`.
+- **`foldkit-remote`: placement reads a row's id from its key.** Every order
+  ends on the id tie-break, and a row whose Selection never stored `id` was
+  unplaceable, so its list was fetched again: the entity example's post list
+  was, after every create.
+- **`examples/entity`: `WritePost` and `DeletePost` write in one
+  transaction.** The author was inserted before the post, and the comments
+  deleted before the post, each on its own, so a second statement that failed
+  left the first. They use Drizzle's SQLite transaction, which is synchronous.
+  `foldkit-remote-drizzle`'s README says why the adapter wraps no
+  transaction: the drivers disagree on what one is.
+- **`foldkit-remote`: an inserted row is drawn where its list's order puts
+  it.** A `prepend`/`append` connection change and a live `ConnectionInsert`
+  say a row is in a list, not where; in a list the client can place, a read
+  draws it in order, or leaves it out past a `Cursor`. One it cannot place
+  stays at the end its change names. **Breaking:** `Remote.visibleItems` is
+  replaced by `Data.visibleItems(remote, connection)`, which draws a list as
+  its reads do. `examples/cloudflare` drops `orderedPage`, its own sort of the
+  page.
+- **`examples/entity`, `examples/registry`: `verifyPlacement` is on in
+  development and tests** (`import.meta.env.DEV`). The entity HTTP test checks
+  a rename against SQLite's order, and every registry page test asserts no
+  placement disagreed with the server's.
+- **`foldkit-remote`: a mutation's answer places a row new to the client, and
+  one that moves in from past a `Cursor`.** A row joined a list only through
+  a filtered field, so a created row never joined a list that filters on
+  nothing, and a row past a list's loaded rows whose order now put it among
+  them stayed out. `EntityChange.Changed` gains `created`.
+- **`examples/cloudflare`: `AllTodos` declares its order in its body**, and
+  `title` declares `binary`. A create's answer names no list: the client
+  places the row by title instead of the server's `prepend`.
+- **`examples/entity`: `AuthorsQuery` declares its body too**, a name search
+  by id, so an author a nested write creates joins the loaded list instead
+  of refetching it. With the id fix above, the example's tests invalidate no
+  list.
+- **`examples/entity`: `PostsQuery` declares its body** (`Query.define`, a
+  title search and `Order.chosen`), and `title` declares `binary`, in place of
+  the server's `where` and `orderBy`. A rename moves a post in a list sorted by
+  title with no list request; the list was refetched before.
+- **`foldkit-remote`: a pending edit, a read and a live patch place the rows
+  a list holds.** A pending `optimistic` patch or `Data.overlay` to an
+  ordering or filtered field shows its row where the edit puts it, or out of
+  the list, until it settles; the server's pages are untouched. A read or an
+  `EntityPatched` with a new value moves a held row in the pages. Before, the
+  row kept its old place until the list was fetched again, so a registry
+  price edit stayed out of order even after the server had it. Neither brings
+  a row into a list.
+- **`foldkit-remote`: a mutation's answer is placed in the lists it changed,
+  not refetched.** A held row that stops matching leaves a list; a row that
+  joins, or a held row whose ordering field changed, goes where the body's
+  order puts it among the loaded rows (`placeIn`), or out of them past a
+  `Cursor`. A list is still invalidated for what cannot be placed: no body or
+  no declared order, text with no collation, a row it cannot judge, or a row
+  an overlay shows. `Impact` gains `Placed`, and is a `Data.taggedEnum`.
+- **`examples/registry`: its text columns declare `binary`**, as its SQLite
+  orders them, so its sorted page is placeable.
+- **`foldkit-remote-drizzle`: a page's cursor holds the order's key values
+  where it ended.** It was the last row's id, which the next page looked up:
+  "load more" failed once that row was deleted or stopped matching, and
+  continued from the wrong place once it moved. A cursor (`k:[...]`) is
+  validated as client input; one from before keys is still read as an id.
+  Relation pages keep their id cursors.
+- **`foldkit-entity`: an `OrderTerm` is tagged `Term`, and a body's
+  `orderBy` holds `Ordering`s (`Term | Chosen`).** An interpreter walking it
+  resolves `Query.orderFor(body, input)` first.
+- **`foldkit-remote-drizzle`: a body that declares its order refuses an
+  `orderBy` beside it.** Overriding the body's order was allowed; it let the
+  server sort one way while the client read another. A body's order is
+  compiled per request now, since a chosen order depends on the input.
+- **`examples/registry`: its sort is in `ProductsQuery`'s body**
+  (`Order.chosen`), not a server `orderBy` function.
+- **`foldkit-remote`: a list whose body declares no order is invalidated by
+  any change to a row it holds.** Its order is the server's (an `orderBy`
+  on the server, say), by fields the client cannot see, so a change it judged
+  harmless could have moved the row. It was kept before, and the row showed
+  its new value in its old place.
+- **`examples/cloudflare`: a tick of the live poll reads only the rows
+  written since the last.** Triggers log each row a write touches
+  (`migrations/0003_row_changes.sql`, the last 1000 entries); the poll asks
+  the log first, re-reads only those rows, and reads the list's window only
+  when the stream opens. `pollLive` takes an options object (`interval`,
+  `list`, `changes`, a `RowLog`). The local stack runs the migration files
+  rather than repeating them. Apply the migrations before deploying the
+  worker; until then it reads every tick.
+- **`examples/registry`: the rows the grid draws follow the table live.** The
+  journal's writes are told to a hub (`applyEdits(Db.Product, { live })`); the
+  dev server answers through `serveFetch`, live streams included, and the
+  client uses `Remote.httpWithLive`. A replacement said both by a read and by
+  the slice is listed once, the slice's, which names the author.
+- **`foldkit-sync/remote`: `replaced` covers an edit still in the slice.** A
+  read reaching this replica's edit with another value says it, held or not,
+  and this replica's landed edit is kept (showing the row's own value) until
+  the slice drops it, so a later edit arriving live is seen replacing it.
+- **`examples/registry`: the rows read survive a reload.** `Data.persistence`
+  keeps Remote's cache in `localStorage`, so a reload with the server out of
+  reach paints the last rows read, the pending edits over them.
+  `mountRegistry`'s `resources` also provides a `KeyValueStore`.
+- **`foldkit-sync/entity`: the overlay helpers are gone; `foldkit-sync/remote`
+  shows the edits.** `overlay`, `held`, `newlyHeld`, `settled` and `shows` are
+  removed: `RemoteEdits` does their work over Remote, where every read draws
+  it. `EditableEntity.make`'s value also carries the `entity` it was made over.
+- **`examples/registry`: the edits are Remote overlays.** The `retired` field,
+  `retiredOf`, `retiresAny`, `settledOf` and the edits laid over `rowsOf` are
+  gone; `RemoteEdits` reconciles in `afterUpdate`, so any read of a product,
+  not only the grid's row, shows its edit.
+- **`foldkit-remote`: a gap stays until its stream restarts.** An in-order
+  event after a gap used to clear it, though the event that arrived ahead was
+  dropped and what it said was lost. Now only the restart's `GapCleared`
+  clears it. `LiveDependencies` gains `restarts` and `failures`, and
+  `RemoteModel` gains `streams`.
+- **`examples/cloudflare`: the stored list is `Data.persistence`.** The
+  hand-written save Subscription and the boot-time `applyCache` are gone; the
+  wiring restores each actor's snapshot (`snapshot: snapshotFor` keeps the
+  visible edges) from `KeyValueStore.layerStorage(() => localStorage)`. The
+  rows now arrive just after the first frame instead of in it.
+- **`examples/entity`: the post edit is a declared write.** `EditPost` is
+  `Mutation.write` over `Write.update`, its editor relation included, and the
+  server serves it with `RemoteServer.write(..., writer(Db.Post))`; the Drizzle
+  handler goes. The delete stays a handler: it removes the post's comments too.
+- **`examples/cloudflare`: rename and toggle are declared writes.** Their
+  Drizzle handlers and hand-built optimistic patches are gone:
+  `Mutation.write` and `RemoteServer.write(..., writer(Db.Todo))` say the
+  same, and the rename editor sends only the title it changed.
+- **`foldkit-cms`, `foldkit-cms-drizzle`: refusals are data, not prefixes.**
+  `SaveDraft` and `Publish` declare `Refusal`: `Cms.refusal.field(key, reason)`
+  for a taken address on its key, `Cms.refusal.conflict` for work saved or
+  published since. The editor reads both with `Data.refusal`. `Cms.slugTaken`
+  is removed, and the `CmsConflict: ` and `CmsSlugTaken: ` message prefixes are
+  gone: a message is now only for a person to read. `EditorDomain` gains
+  `refusal`. `RemoteServer.refuse` takes an optional message for that person.
+- **`foldkit-remote`: a mutation's answer invalidates the loaded lists it may
+  have changed.** Each patch is judged against every loaded list over its
+  Entity by the list's query body: a list stands when its rows and order are
+  provably unchanged (a rename, a row that still matches), and is otherwise
+  marked stale for its read entry to fetch again, restarting a read of it in
+  flight. A list over a `Query.make` query, with no body to judge by, is
+  invalidated by any change to its Entity, so such lists now refetch after a
+  mutation of their rows. A live `ConnectionInvalidate` also restarts a read in
+  flight now.
+- **`foldkit-remote-server`: a mutation Source is given the client's
+  `requestId`**, which the client already sent and which is the same on every
+  retry of a request. Record a write under it to recognise a retry; nothing
+  deduplicates by it yet. `foldkit-cms-drizzle` runs the application's own
+  mutation, when it publishes, as `publish:<entry>:<revision>`.
+- **`foldkit-remote-server`: handlers given a `live` hub publish every
+  mutation's answer to it.** Each answered patch is a change of the fields it
+  carries and each deletion a deletion, re-read per subscriber as before. Delete
+  a `hub.changed` call that follows a mutation's write, or subscribers hear the
+  change twice; keep one for writes that are not mutations. A failed publish is
+  logged and the mutation still answers, since its write has happened.
+- **`examples/cloudflare` page:** the Pages site is a Foldkit app. The list is
+  `Crud.list` over the `AllTodos` query. The first visit says "Loading…". A
+  later visit paints the rows stored in the browser at once and asks again.
+  Add, rename, toggle, and delete are Remote mutations; `Data.mutate` applies
+  the optimistic patch before the POST returns. Another tab hears the change
+  on the live stream. Sync through the Durable Object stays for the demo and
+  the tests; both writers use the same `todos` table.
 - **`foldkit-sync/do`: `settle` now takes the environment and the journal.**
   `settle: (env, journal) => Effect` is called per exchange with the object's
   own environment and the journal it serves, so applying what committed to a D1
@@ -1007,6 +872,194 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-guard`: `GuardServer.writer` refuses a writer for another
+  Entity** where they meet, rather than leaving it to `validate`; the README's
+  limits say a write's check and the write are two statements.
+- **`foldkit-guard`: a handler's answer naming a row with no values keeps
+  it.** The read-back asked for no field, which Drizzle's Source answers with
+  no row, so the row was answered as deleted; it reads the id too.
+- **`foldkit-remote`: a list an answer names still has its other rows
+  judged.** A list the answer put a row into was skipped whole, so a second
+  row of it the same answer moved was neither placed nor fetched; only the
+  rows the answer itself placed are taken as the server says now.
+- **`foldkit-entity`: an order over a number a row may lack is placeable.**
+  `Query.placement` read `NullOr(Number)` (and `OptionFromNullOr(Number)`) as
+  text with no collation, so such a list was fetched on every change; where
+  nulls go is said on every term, so it is placed now.
+- **`foldkit-remote-drizzle`: `asciiFold` folds only ASCII on Postgres.** It
+  ordered by `lower(x) COLLATE "C"`, where `lower` still follows the column's
+  collation and, under a UTF-8 one, folds `É` to `é`; the client's evaluator
+  and SQLite's `NOCASE` do not, so a client placed rows where Postgres would
+  not. It is `lower(x COLLATE "C")` now, the cursor's values folded alike, as
+  `contains` already did.
+- **`foldkit-remote`: `Data.persistence` says what keeps one reader's cache
+  from the next.** A restore keeps what the Model holds, so a change of
+  principal without `Data.forget` in the same `update` saved one person's rows
+  under the next one's key; the README now says `forget` is required there,
+  and that a snapshot is serialized on each change though its write waits.
+- **`foldkit-cms-drizzle`: `authors` is asked as what the author is doing.**
+  Every operation asked its guards with interaction `Read`, so a body that let
+  a reviewer read drafts let them save and publish too. An operation now asks
+  `Update`, and reading unpublished work `Read`.
+- **`foldkit-sync`: a connection whose access went hears and speaks no more.**
+  Presence asked `opens` once, at join, so a peer kept relaying presence after
+  its access was taken; it is asked again with each frame, and a refused peer
+  leaves. `serveJournal` sent a refused connection a notice of every commit,
+  which woke it into a failing exchange and told it when the document
+  changed; notices now pass `opens` too.
+- **`foldkit-remote`: `Remote.http` reads a middleware's `{ error }` 403 as
+  `Forbidden`.** A 403 whose body happened to be shaped as an error answer was
+  taken for Remote's own, an ordinary mutation error; a 403 is now forbidden
+  unless its body says so itself, as Remote's server's does.
+- **`foldkit-remote`: placing a change no longer redraws or refetches what it
+  left in place.** A row whose order field changed but whose place did not
+  still gave its list a new identity, so every read of it was drawn again and,
+  under `verifyPlacement`, the list was fetched; it is now kept as it was. Each
+  list's held rows were rebuilt for every change of a read or an answer; they
+  are read once per list.
+- **`foldkit-guard`: `Policy.keyOf` tells every claim apart.** It keyed a
+  principal by `JSON.stringify` of its rule inputs, so a set claim read as
+  `{}` (an admin and a revoked admin shared a live hub's re-read) and a
+  bigint threw. It keys by the principal encoded through `Schema.toCodecJson`.
+  And beside `Write`, a slot of its own's refusal replaces Write's whichever
+  key is written first; it hung on the order.
+- **`foldkit-cms-drizzle`: a statement the database refuses no longer sends
+  its SQL.** Its statements ran as defects, as `foldkit-remote-drizzle`'s
+  writes did, so a refusal reached the client with the driver's error; they
+  now fail as a `RemoteServerError`. `Transaction`'s type says it may fail so.
+  `foldkit-remote-drizzle` exports the helper, `runStatement(statement,
+  failed)`, for a handler's own statements, and its README's handler uses it.
+- **`foldkit-cms-drizzle`: archiving an entry on show asks `unpublish`.**
+  Archiving takes a published row off show, as unpublishing does, but asked
+  only `archive`'s guards: an author `transitions` kept from unpublishing
+  could archive a published post, and unarchive it as unpublished work.
+- **`foldkit-remote`: placement no longer drops a row it cannot judge, and
+  compares a number id as a number.** A row that was the last edge before a
+  cursor (or the first after one) was left out when it sorted past its
+  page's other rows, though its own old keys were the boundary and might
+  still hold it: it now invalidates the list. Placement read every id from its
+  key, so a number id ordered as text ('10' before '9'): the stored id is used,
+  and the key's only for an id stored as text. `verifyPlacement` also records
+  a row placing took out that the server's page still lists, which comparing
+  the shared prefix never could; `placed` now holds `{ order, dropped }`.
+- **`foldkit-entity`: a declared write binds the keys `Entity.input` lets
+  map themselves.** An input key that is an `Option`, or optional, type-checked
+  and then threw in `Write.bind`. A `some` now writes what it holds, and a
+  `none` or a key left out writes nothing; a write whose id may be absent is
+  refused where it is declared.
+- **`foldkit-crud`: an editor's later saves no longer lose another author's
+  change.** After its own save, the editor took any revision that came after
+  as its own, so another client's later save was overwritten without a
+  conflict; it compared each save with what the form was first filled with,
+  so a key it had saved was sent again over another author's change; and
+  typing while a save was in flight lost that save's answer, so the next save
+  conflicted with itself. The editor now takes each save's answer once, as it
+  lands (`edited`, `sent` and `settledFor` in its Model), and `Moved`
+  outranks `Saved`. A create's form starts blank once it lands, so saving it
+  again is not the same create twice.
+- **`foldkit-remote-drizzle`: a keyed cursor over an id column of another
+  name.** A page read each order key back by its column's SQL name, beside an
+  id selected as `id`, so an id column named otherwise (`task_id`) read as
+  nothing and every page fell back to an id cursor. **`foldkit-remote-server`:**
+  `RemoteServer.memory` refuses a `shared` entity the domain does not declare,
+  or a field it does not, as `RemoteServer.entity` and `source` already did.
+- **`foldkit-guard`: `GuardServer.validate` refuses what it could not
+  check.** A seam built from an Entity before its guards were attached (a
+  `GuardDrizzle.visible` or `GuardServer.filter` given the base Entity)
+  decided nothing yet passed as the guarded one's, since seams were recorded
+  by name: they are now recorded by the Entity's attachment. A live Source of
+  its own over a guarded Entity, a served query the domain does not declare,
+  and a shared relation whose target is not validated are now refused.
+- **`foldkit-remote-server`: the live hub sends a deletion only to whom a
+  row is gone.** A write that hid a row from its writer answered it as
+  deleted, and the hub sent every subscriber that deletion, readers who still
+  saw it included; one who lost sight of a row was sent nothing. `deleted`
+  now re-reads each subscriber's selection and `changed` sends a deletion
+  where the re-read finds no row. One subscriber's failed read no longer
+  stops the rest. **Breaking:** `LiveHub.deleted` may fail and needs the
+  Sources' services, as `changed` does.
+- **`foldkit-remote-drizzle`: a write the database refuses fails as
+  `Database write failed`.** Writes, `applyEdits` and `returning.row` ran
+  their statements as defects, which Effect RPC sends whole: the driver's
+  error, with the SQL and its parameters, reached the client. They now fail
+  as a `RemoteServerError`, the driver's error logged, as reads already did;
+  `returning.row`'s error type says so.
+- **`foldkit-guard`: three write checks that let a write through.** An
+  update that unlinked a relation whose row is hidden from its writer read the
+  link as none and skipped `Unlink`: the link is now read as stored, through
+  a new `EntityWriter.linked` (`foldkit-remote-drizzle`'s `writer` has it),
+  and a writer without it treats a link it sees as none as one that may be
+  there. A create's guard over a field it leaves unset held for `isNotNull`
+  (and died on `contains`): such a guard now never holds. A write's answer was
+  read back without the Entity's member Read rules, so it could carry a field
+  its writer may not read: `GuardServer.writer` and `GuardServer.mutation`
+  now answer through them, with no more fields than the write named.
+- **`foldkit-remote-drizzle`: an insert under an id taken by another row
+  fails.** It answered with whatever row held the id, values its writer may
+  not read included, and let the client think its own were stored. A retry,
+  whose row holds what it writes, is still answered with that row.
+- **`foldkit-guard/sync`: `admit` judges an operation's edits to a row
+  together.** Each edit was checked over the row with that edit alone, so
+  two that each kept a row in its editor's reach, and together moved it out,
+  were admitted. An edit to a member outside the document, or a value its
+  member cannot encode, is now refused by the operation's id rather than
+  failing the exchange; `GuardSync.document` refuses a member that is not a
+  field.
+- **`foldkit-remote`: a filter or live insert the reference interpreter
+  refuses no longer throws in `update`.** `Data.filtered` with such an input
+  (a search holding NUL) answers no items and `complete: false`; a live
+  insert into such a connection takes its declared policy.
+- **`foldkit-remote-drizzle`: `contains` refuses searched text holding NUL
+  when that text is an input or a literal**, as `evaluate` does. It refused a
+  NUL only in the search, and answered `[]` on SQLite and Postgres for the
+  rest. `foldkit-entity/conformance` now exports `refusals`, bodies every
+  interpreter must refuse, and the reference, Drizzle (SQLite and Postgres)
+  and Remote matching suites run them.
+- **`foldkit-crud`: any authored edit after a save returns the editor to
+  `Editing`.** It used to take only a typed field (`Changed`), so a nested row
+  added or removed, or a Bundle-backed control's edit, left it at `Saved` or
+  `SaveFailed`. The editor now asks the form (`authoredChanged`), and a
+  Message that changes nothing returns its Model as it was.
+- **`foldkit-primitives`: a popup placed in the same turn stays where it was placed.**
+  `keepWithin` and the placement write start together, so the fit runs again
+  when the write lands and judges that box. A point that would hang off the
+  bottom shifts up (`Placing.shiftIntoViewport`). A trigger still flips, and
+  the panel carries `data-fk-placed="above"` when it does. Enter in
+  `ListNavigation` commits an enabled current item.
+
+- **`examples/widgets`: the hover bridge follows a flip.** Navigation and the
+  hover card overlap the trigger on the side the panel opened. Opening the
+  context menu for the row it already shows returns the same model.
+
+- **`examples/cloudflare` page:** a new or renamed row is drawn where the
+  title order will keep it. The list sorts by title, then id, which is what
+  `AllTodos` asks D1 for, so a live insert does not move it.
+
+- **`examples/cloudflare` page:** the list is kept in the browser, one snapshot
+  per actor. A later visit paints those rows immediately. A failed refetch,
+  including offline, leaves them. The snapshot is the server's rows. An unsent
+  edit is not kept.
+
+- **`examples/cloudflare` page:** an update no longer refetches the list. The
+  one-second refresh, and the refresh after a successful write, flashed the
+  rows. The page subscribes to the live stream. A field change is a patch. A
+  row joining or leaving is a connection event.
+
+- **`examples/cloudflare` page:** saving, loading, and a field error keep the
+  space they will occupy. "Saving…" and "Loading…" use `Loading.shown`, so a
+  fast answer does not flash, and none of them push the form or the list.
+
+- **`examples/widgets`: a context menu opens at the pointer.** A right-click
+  records the point, and the menu opens there. The keyboard, which has no
+  point, still opens under the row. Navigation and the hover card keep a
+  hit target across the gap, so the pointer can move onto the panel.
+
+- **`examples/widgets`: hover, placement, and keyboard on the showcase.**
+  A click after a hover leaves that section open. A popup sits under the
+  trigger that opened it, and reopening a menu keeps the chosen item
+  selected. Enter in the command field runs the highlighted command. Shut
+  accordion panels stay mounted. Absent values in these models are
+  `Option`, and the page theme reads tokens.
 - **Examples: the todo app's chosen filter is one color.** Its pill drew a grey
   line around the accent's tint, and its text went to the default color on
   hover; it is the tint and the accent's ink, hovered or not.
