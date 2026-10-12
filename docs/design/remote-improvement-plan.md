@@ -437,7 +437,8 @@ write, which is what disagreed in cloudflare. Its fix is to make the Sync
 path send absolute values through `EditableEntity`, as the registry does,
 instead of a relative `ToggledTodo`. And invariant 3 holds: nothing is
 generated from the Entity; the `Write` is the grant, which is also where
-guard-DESIGN's `Guards.guarded` can read the write's plan (TODO "6. Writes").
+`foldkit-guard` reads the write's plan (`GuardServer.writer`; a handler is
+`GuardServer.mutation`).
 
 ### 6.3 Order of `Write` kinds
 
@@ -816,7 +817,7 @@ Beyond those:
 | Placing a joining or created row locally instead of refetching; optimistic inserts placed through the body (`optimistic.ts` uses `prepend`/`append`) | Planned: §16, Phases 7–10 |
 | `Expr` growth: `and`/`or`/`not`, comparisons (`in` built, guard-DESIGN slice 1) | An example query that cannot be written |
 | Relation keys, `where`-targeted and computed-value writes, server-minted ids | An example that needs one |
-| Disabled fields and Crud's `may` from the write's guard | guard-DESIGN's slices that touch writes (TODO "7. `may`") |
+| Disabled fields and Crud's `may` from the write's guard | Built, guard-DESIGN slice 7: `May.locks` for `Crud.editor`'s `locks`, drawn by `foldkit-mixins-form`'s `locked` |
 | Range and phantom dependencies for live queries | Field-level invalidation measurably over-fetches |
 | Remote live over Sync's socket, one connection per app | An app measurably pays for two |
 | Prefetch on navigation in a Remote app | router-DESIGN's adoption gate: a Site + Remote application |

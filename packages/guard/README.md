@@ -80,7 +80,12 @@ const User = Schema.Struct({
 
 const TodoFields = Entity.define(
   'Todo',
-  Schema.Struct({ id: Schema.String, ownerId: Schema.String, projectId: Schema.String }),
+  Schema.Struct({
+    id: Schema.String,
+    ownerId: Schema.String,
+    projectId: Schema.String,
+    title: Schema.String,
+  }),
 )
 
 // Shared: names and predicates, which are data.
@@ -104,7 +109,7 @@ Effect.runSync(
   Policy.decide(G.isOwner, {
     principal: Option.some({ id: 'ada', role: 'member', projectIds: [] }),
     interaction: 'Read',
-    row: { id: 't1', ownerId: 'ada', projectId: 'p1' },
+    row: { id: 't1', ownerId: 'ada', projectId: 'p1', title: 'Write the README' },
   }),
 ) // true
 ```
@@ -129,14 +134,28 @@ What each call does, and does not:
 ## Attaching guards to an Entity
 
 A guard set names rules; attaching says where each one applies, per surface
-(the row, a member, a relation) and per interaction:
+(the row, a member, a relation) and per interaction. Here a todo also has a
+relation, `project`, which a client follows to its `Project`; it is stored as
+the same `projectId` the row guard reads, and `Project` has no guards, so
+anyone may read one:
 
 ```ts
+import { Relation } from 'foldkit-entity'
 import { Interaction } from 'foldkit-guard'
+
+const ProjectFields = Entity.define(
+  'Project',
+  Schema.Struct({ id: Schema.String, name: Schema.String }),
+)
+const Related = Entity.relate(
+  { Todo: TodoFields, Project: ProjectFields },
+  { Todo: { project: Relation.one(ProjectFields) } },
+)
+const Project = Related.Project
 
 const Archive = Interaction.make('Archive')
 
-const Todo = TodoFields.pipe(
+const Todo = Related.Todo.pipe(
   Guards.attach(G, {
     row: {
       Read: [G.isOwner, G.inProject, G.isAdmin],
@@ -147,6 +166,7 @@ const Todo = TodoFields.pipe(
     },
     members: { ownerId: { Update: [G.isAdmin] } },
   }),
+  Guards.may, // the server's answer to what a reader may do: see What the client may do
 )
 
 Guards.matrix([Todo])
@@ -200,7 +220,8 @@ const ada = Option.some({ id: 'ada', role: 'member' as const, projectIds: ['p1']
 const readable = Effect.runSync(Policy.readable(Todo, ada))
 // isAdmin was false, so: isOwner or inProject, over each row
 
-Condition.holds(readable, { id: 't1', ownerId: 'ada', projectId: 'p9' }, Policy.inputOf(ada), () => false)
+const t1 = { id: 't1', ownerId: 'ada', projectId: 'p9', title: 'Write the README' }
+Condition.holds(readable, t1, Policy.inputOf(ada), () => false)
 // true
 ```
 
@@ -231,11 +252,14 @@ import { RemoteServer } from 'foldkit-remote-server'
 
 const visitor: Option.Option<typeof User.Type> = Option.none()
 
-const Data = Remote.define({ entities: [Todo] })
+const Data = Remote.define({ entities: [Todo, Project] })
 const backend = RemoteServer.memory({
   domain: Data,
-  rows: { Todo: [{ id: 't1', ownerId: 'ada', projectId: 'p1' }] },
-  principal: visitor, // reads nothing: every Read rule here needs a principal
+  rows: {
+    Todo: [{ id: 't1', ownerId: 'ada', projectId: 'p1', title: 'Write', project: 'Project:p1' }],
+    Project: [{ id: 'p1', name: 'Borealis' }],
+  },
+  principal: visitor, // reads no todo: every Read rule here needs a principal
   ...GuardServer.memory(Policy, [Todo]),
 })
 ```
@@ -259,21 +283,28 @@ const backend = RemoteServer.memory({
 Over Drizzle, `foldkit-guard/drizzle` compiles the row's Read rules into each
 binding's `visible`, which the binding applies on every path its table is
 read by (by id, as a relation's target and children, counted, through a
-query). Here `Todo` also has a `project` relation to a guarded `Project`,
-and `todos` and `projects` are their Drizzle tables; the whole fixture, run
-over SQLite, is [`test/drizzle.test.ts`](test/drizzle.test.ts):
+query). Here `todos` and `projects` are your Drizzle tables for `Todo` and
+`Project`; a fixture with a guarded `Project` too, run over SQLite, is
+[`test/drizzle.test.ts`](test/drizzle.test.ts):
 
 ```ts
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
+import { bind, source } from 'foldkit-remote-drizzle'
 
-const visible = GuardDrizzle.visible(Policy, [Todo, Project])
+const visible = GuardDrizzle.visible(Policy, [Todo])
 const Db = bind(
   { Todo, Project },
   {
-    Todo: { table: todos, relations: { project: { field: todos.projectId } }, visible: visible.Todo },
-    Project: { table: projects, visible: visible.Project },
+    Todo: {
+      table: todos,
+      relations: { project: { field: todos.projectId } },
+      derived: { may: { supplied: true } }, // not a column: `GuardServer.filter` answers it
+      visible: visible.Todo,
+    },
+    Project: { table: projects },
   },
 )
+const TodoSource = source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })
 ```
 
 - Each principal guard is decided first; what is left is SQL. An inherited
@@ -285,7 +316,7 @@ const Db = bind(
 - The principal reaches a binding untyped, so it is checked: one that is not
   an `Option` of the set's schema is a defect, never read as a visitor.
 - `visible` is the row's Read. Member and relation Reads are the Source's
-  `filter`: `source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })`.
+  `filter`, as `TodoSource` has it.
 
 ## Serving writes
 
@@ -293,6 +324,8 @@ A declared write (`Mutation.write`) is served by `RemoteServer.write` with no
 handler. Wrap its writer, and the write rules are checked before it lands:
 
 ```ts
+import { Write } from 'foldkit-entity'
+import { Mutation } from 'foldkit-remote'
 import { writer } from 'foldkit-remote-drizzle'
 
 const EditTodo = Mutation.write(
@@ -347,12 +380,11 @@ A handler writes what its code writes, so it is guarded where it is defined:
 interaction checked before the handler runs.
 
 ```ts
-const Archive = Interaction.make('Archive')
 const ArchiveTodo = Mutation.make('ArchiveTodo', { Input: { id: Schema.String }, Output: {} })
 
 GuardServer.mutation(
   ArchiveTodo,
-  { entity: Todo, policy: Policy, interaction: Archive.key, id: input => input.id, source: source(Db.Todo) },
+  { entity: Todo, policy: Policy, interaction: Archive.key, id: input => input.id, source: TodoSource },
   ({ input, row }) => Effect.succeed({ output: {} }), // `row`: the todo, as its writer sees it
 )
 ```
@@ -415,7 +447,7 @@ set answers every request, and whatever authenticates a request provides it:
 ```ts
 const handlers = RemoteServer.handlers(backend.server, G.Principal)
 
-// per request, once authentication has resolved `principal`
+// per request: `body` is what it sent, and authentication resolved `principal`
 RemoteServer.answer(handlers, body).pipe(Effect.provideService(G.Principal, principal))
 ```
 
@@ -435,7 +467,8 @@ named only the person (`G.key`) would read a request made after their
 projects changed as an older request's claims; `Policy.keyOf` changes with
 any field. On the client, a cache snapshot is scoped by the person
 (`RemotePersistence`'s `scope: G.key(user)`), and a sign-in or sign-out is
-`Data.forget`, since every fact the cache holds was read as someone.
+`Remote.forget` (`forget` on a domain made with `Remote.make`), since every
+fact the cache holds was read as someone.
 
 ## What the client may do
 
@@ -443,13 +476,11 @@ The client must not run a rule: it has no bodies, its row may be stale, and it
 is not where a write is checked. To grey out a button for the reason the
 server would refuse it, it reads the server's answer instead: `Guards.may`
 adds a derived member, `may`, which `GuardServer.filter` answers from the row
-as its reader sees it.
+as its reader sees it. `Todo` above is piped through it after its guards, and
+over Drizzle its binding marks it `supplied`, since it is not a column.
 
 ```ts
-const Todo = TodoFields.pipe(Guards.attach(G, { … }), Guards.may)
-
-// Over Drizzle, `may` is not a column: the filter supplies it.
-bind({ Todo }, { Todo: { table: todos, derived: { may: { supplied: true } }, visible: visible.Todo } })
+import { May } from 'foldkit-guard'
 
 // Select it as any member, and read it with `May`; `row` is a Todo read through `Row`.
 const Row = Entity.select(Todo, { title: true, may: true })
@@ -503,22 +534,38 @@ keeps a document's edits from reaching anyone the rows would hide them from:
 
 ```ts
 import { GuardSync } from 'foldkit-guard/sync'
+import { databaseLayer } from 'foldkit-remote-drizzle'
+import { EditableEntity } from 'foldkit-sync/entity'
+import { journalExchange } from 'foldkit-sync/journal'
 
-const ProductEdits = EditableEntity.make(Product, { members: ['name', 'cents'] })
+// Edits to titles: a member with a Read rule of its own could not be one.
+const TodoEdits = EditableEntity.make(Todo, { members: ['title'] })
 
-// Who may open the edits' document: one of its readers, each in the rows' Read rule.
-const Edits = GuardSync.document(ProductEdits, { readers: [G.isStaff] })
+// Who may open it: its readers, each in the rows' Read rule. Only an admin reads every todo.
+const Edits = GuardSync.document(TodoEdits, { readers: [G.isAdmin] })
 
 // Under the journal's lock: the principal's own guards, for the Sync contract's authorize.
-const authorize = { EditedProducts: GuardSync.authorize(Policy, Edits) }
+const authorize = { EditedTodos: GuardSync.authorize(Policy, Edits) }
 
 // Each exchange, as its principal: whether they may open it, and each edit against its row.
 journalExchange({
-  sync, journal, principal,
+  sync,
+  journal,
+  principal,
   opens: GuardSync.opens(Policy, Edits, principal),
-  admit: GuardSync.admit(Policy, Edits, { principal, source: products, changesOf }),
+  admit: operation =>
+    GuardSync.admit(Policy, Edits, { principal, source: TodoSource, changesOf })(operation).pipe(
+      Effect.provide(databaseLayer(db)),
+    ),
 })
 ```
+
+`sync` and `journal` are the document's Sync contract and journal
+(`foldkit-sync/journal`), here with the principal as `G.Principal` holds it;
+`changesOf` reads an operation's cell edits, and `db` is the database
+`TodoSource` reads. A document's readers are principal guards, so of
+`Todo`'s Read rule only `isAdmin` can be one: the rows anyone else reads
+differ from person to person, and a document is one audience.
 
 - **Under the lock**, `authorize` refuses what the principal guards settle:
   the row's `Update`, and each changed member's, with an `explain`'s
@@ -546,24 +593,27 @@ An agent should not be offered, or attempt, what the server would refuse.
 `foldkit-agent` capability's `authorize` and `available`:
 
 ```ts
+import { Agent } from 'foldkit-agent'
 import { GuardAgent } from 'foldkit-guard/agent'
 
 const TodoAgent = Agent.forApplication(App).withPrincipal(G.Principal)
+// The Todo an id names, read through `Row` from the client's Model.
+const todo = Remote.select(Remote.at(Data, App.model.remote), Row)
 
 TodoAgent.expose(Message, {
   RequestedArchive: {
     description: 'Archive a todo',
-    authorize: GuardAgent.authorize(Archive.key, ({ input, model }) =>
-      Data.get(TodoRow, input.id).read(model),
-    ),
-    available: GuardAgent.available(Archive.key, model =>
-      Data.get(TodoRow, model.selected).read(model),
-    ),
+    authorize: GuardAgent.authorize(Archive.key, ({ input, model }) => todo(input.id).read(model)),
+    available: GuardAgent.available(Archive.key, model => todo(model.selected).read(model)),
   },
 })
 ```
 
-- `TodoRow` selects `may`. A row not read yet, or whose read failed, refuses:
+`App` and `Message` are the client application's: its Model holds Remote's
+store at `remote` and the selected todo's id at `selected`, and `Message`
+has a `RequestedArchive` with the todo's `id`.
+
+- `Row` selects `may`. A row not read yet, or whose read failed, refuses:
   there is no answer to go on. One being read again answers as it last did.
   A refusal its rule explained is the agent's error message.
 - `available` is for a capability over a row the Model alone names (the one

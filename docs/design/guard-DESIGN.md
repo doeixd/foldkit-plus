@@ -5,7 +5,7 @@
 **Inspirations:** this repository's authorization seams; `doeixd/gen2`'s `AUTHZ2_PLAN.md`, `src/authz/{surface,placement,deny,mutation-plan}.ts` and `rules_implementation_guide.md`; ZenStack, Ent's privacy layer, Hasura permissions, Postgres row-level security, Firebase security rules, Pundit, Zanzibar, Cedar (§2).
 **Related:** `remote-improvement-plan.md` §16 (client placement, Phases 7–12), whose Phase 12 is gated on this design.
 
-Snippets in §3 to §8 are the design as it was proposed; the as-built notes and §12's slices say where the code differs, and the package README's snippets are the ones that compile.
+Snippets in §3 to §8 are the design as it was proposed; the as-built notes and §12's slices say where the code differs, and the package README's snippets are the ones that compile: `packages/guard/test/readme.test-d.ts` type-checks every one of them.
 
 ---
 
@@ -40,6 +40,8 @@ Guards.attach(G, { row, members, … })           │
    ├─ Guards.may             derived members    └─ RemoteServer.validate → every declared guard placed and implemented
    └─ Guards.matrix(…)       the whole picture as data, committed and diffed
 ```
+
+*As built (slices 1 to 11):* the server's seams are not `Guards.*` builders, since `foldkit-remote-server` and the binding cannot know guards; they are `foldkit-guard`'s subpaths. A binding's row rule is `GuardDrizzle.visible(Policy, entities)` (`/drizzle`), an in-memory backend's `GuardServer.memory(Policy, entities)`, and a Source's member and relation Reads, with `may`, are `GuardServer.filter(E, Policy)` (`/server`). A declared write is not checked with no code: its writer is wrapped, `GuardServer.writer(E, Policy, writer(Db.E))`, and a handler is `GuardServer.mutation`. The startup check is `GuardServer.validate(Policy, { entities, domain, server })`, not `RemoteServer.validate`. Agents take `GuardAgent.authorize` and `GuardAgent.available` (`/agent`), which read `may` from the Model's row, not a two-mode `variant`; Sync's cell edits take `GuardSync.document`, `authorize`, `admit` and `opens` (`/sync`). §12's slices say why each changed.
 
 §8a–8c say how this meets routing (routes carry no authorization; a `Me` Entity answers the visitor's questions), agents (one principal type with the MCP adapter; a two-mode `variant`), and Sync (a document is one audience, checked by guard identity). §7a says what client placement needs to stay sound once rows can be hidden.
 
@@ -667,7 +669,7 @@ The Remote plan's Phase 12 gate ("an application that needs placement in a list 
 
 ## 13. Open questions
 
-1. **Should `Guards.row`'s placeholder be the only way to reference the principal in an `Expr`,** or should a hand-written `Expr.input('principal.id', …)` also be recognised by `Guards.binding`? Leaning: placeholder only; a hand-written input name is a string the type cannot check.
+1. **Should `Guards.row`'s placeholder be the only way to reference the principal in an `Expr`,** or should a hand-written `Expr.input('principal.id', …)` also be recognised by `Guards.binding`? Leaning: placeholder only; a hand-written input name is a string the type cannot check. *Settled in slice 3:* there is no `Guards.binding`. `GuardDrizzle.visible` compiles a row guard with the inputs `Policy.inputOf` gives, and the placeholder stays the one documented way to name the principal.
 2. **Does `redact` belong in the first slice?** It is the only deny the client cannot tell from a real value. It is in because the alternative is a second Selection per role.
 3. **A row guard on a `supplied` derived member** has no row value until the application supplies it. Leaning: `attach` refuses it.
 4. **Should the committed matrix be a check?** `validate` comparing a committed matrix against the live one catches an unreviewed access change at startup. Cheap once the matrix exists; not in the core slice.
