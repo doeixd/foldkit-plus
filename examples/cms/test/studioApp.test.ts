@@ -13,11 +13,11 @@ import {
   Message,
   init,
   navigateSearch,
-  sectionOf,
   update,
   withoutNew,
   type Model,
 } from '../src/apps/studioApp.js'
+import { sectionHref, sectionOf } from '../src/routing/studioRoutes.js'
 
 const urlOf = (pathname: string, search = ''): Url => ({
   protocol: 'http:',
@@ -112,12 +112,20 @@ describe('navigateSearch', () => {
 })
 
 describe('sectionOf', () => {
-  it('names the posts, the pages, and nothing else', () => {
-    expect(sectionOf('/')).toEqual(Option.some('posts'))
-    expect(sectionOf('/pages')).toEqual(Option.some('pages'))
-    expect(sectionOf('/pages/e1')).toEqual(Option.some('pages'))
-    expect(sectionOf('/site')).toEqual(Option.none())
-    expect(sectionOf('/pagesfoo')).toEqual(Option.none())
+  it('names the posts, the pages, and nothing else, whatever the query says', () => {
+    expect(sectionOf(urlOf('/'))).toEqual(Option.some('posts'))
+    expect(sectionOf(urlOf('/', 'as=edda&post=p1'))).toEqual(Option.some('posts'))
+    expect(sectionOf(urlOf('/pages', 'as=edda'))).toEqual(Option.some('pages'))
+    for (const other of ['/site', '/pagesfoo', '/pages/e1'])
+      expect(sectionOf(urlOf(other))).toEqual(Option.none())
+  })
+
+  it('builds each section’s address, which it reads back', () => {
+    for (const section of ['posts', 'pages'] as const) {
+      const [pathname = '', search = ''] = sectionHref(section, 'edda').split('?')
+      expect(sectionOf(urlOf(pathname, search))).toEqual(Option.some(section))
+    }
+    expect(sectionHref('pages', 'wren')).toBe('/pages?as=wren')
   })
 })
 

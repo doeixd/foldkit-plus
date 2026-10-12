@@ -331,6 +331,11 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   the routed placements), loading what the tree does not hold
   (`Site.routeAt`); shortcuts are `Site.shortcuts`; `arrived` for what a new
   route does (the CMS site's focus move, which put it on `Site.routing`).
+  The studio's sections are a Site tree too (`routing/studioRoutes.ts`), but
+  it keeps its own two branches: most of its address is query state each
+  section reads (an open entry, `new`), which `Site.routing` would take for
+  an echo of the shown route. Moving those onto the tree means modelling
+  each section's query as route params.
 - [x] **Annotatable routes:** title, nav section, shortcut (and href source)
   declared once per route, with navigation rendering, active-section
   derivation, shortcut handling, href generation and titles derived. §34.4.

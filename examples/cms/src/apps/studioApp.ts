@@ -26,11 +26,10 @@ import { Url, toString as urlToString } from 'foldkit/url'
 import { keepScroll, pointedLinks } from 'foldkit-primitives/dom'
 import * as Posts from './app.js'
 import * as Pages from './pageApp.js'
+import { type Section, sectionOf } from '../routing/studioRoutes.js'
 import { chairOf } from '../server/transport.js'
 import { Page as PagesShell, titleOf as pagesTitle } from '../views/pagesView.js'
 import { Studio as PostsShell, titleOf as postsTitle } from '../views/view.js'
-
-export type Section = 'posts' | 'pages'
 
 export const Model = Schema.Struct({
   section: Schema.Literals(['posts', 'pages']),
@@ -55,14 +54,6 @@ export const Message = defineMessageUnion({
   Ticked: {},
 })
 export type Message = typeof Message.Type
-
-/** The section a pathname names, if it names one. */
-export const sectionOf = (pathname: string): Option.Option<Section> =>
-  pathname === '/'
-    ? Option.some('posts')
-    : pathname === '/pages' || pathname.startsWith('/pages/')
-      ? Option.some('pages')
-      : Option.none()
 
 /**
  * Each section stated once: the Link names its field and wrapper, the
@@ -107,7 +98,7 @@ export const withoutNew = (url: Url): Url => navigateSearch('', url, true)
  */
 const sectionFor = (model: Model, target: Url): Option.Option<Section> =>
   Option.filter(
-    sectionOf(target.pathname),
+    sectionOf(target),
     () =>
       chairOf(
         Option.getOrElse(target.search, () => ''),
@@ -153,7 +144,7 @@ export const update = (model: Model, message: Message) =>
     GotPagesMessage: ({ message }) => pages.update(model, message),
     Ticked: () => ({ model }),
     UrlChanged: ({ url }) => {
-      const section = Option.getOrElse(sectionOf(url.pathname), () => model.section)
+      const section = Option.getOrElse(sectionOf(url), () => model.section)
       const chair = chairOf(
         Option.getOrElse(url.search, () => ''),
         'wren',
@@ -307,7 +298,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
 })
 
 export const init = (url: Url) => {
-  const section = Option.getOrElse(sectionOf(url.pathname), (): Section => 'posts')
+  const section = Option.getOrElse(sectionOf(url), (): Section => 'posts')
   const chair = chairOf(
     Option.getOrElse(url.search, () => ''),
     'wren',

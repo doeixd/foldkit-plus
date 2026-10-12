@@ -11,6 +11,7 @@ import { RemoteData } from 'foldkit-remote'
 import { cmsDemo } from 'foldkit-example-site/demos'
 import type { AdminSlots } from '../styles/adminStyle.js'
 import { icon } from './icons.js'
+import { sectionHref } from '../routing/studioRoutes.js'
 import { chairOf, chairs, type Chair } from '../server/transport.js'
 
 export const chair: Chair = chairOf(window.location.search)
@@ -174,13 +175,13 @@ export const shell = <M>(
   return h.div(slots.root.attrs(), [
     h.a(slots.skipLink.attrs([h.Href('#studio-main')]), ['Skip to content']),
     h.aside(slots.sidebar.attrs([h.AriaLabel('Studio')]), [
-      h.a(slots.brand.attrs([h.Href(`/?as=${chair}`)]), [
+      h.a(slots.brand.attrs([h.Href(sectionHref('posts', chair))]), [
         h.span(slots.brandMark.attrs(), ['J']),
         h.span([], ['Journal']),
       ]),
       h.nav(slots.nav.attrs([h.AriaLabel('Sections')]), [
-        link('posts', 'Posts', `/?as=${chair}`),
-        link('pages', 'Pages', `/pages?as=${chair}`),
+        link('posts', 'Posts', sectionHref('posts', chair)),
+        link('pages', 'Pages', sectionHref('pages', chair)),
         // In this tab, as the site links back here: no mark of a link that leaves.
         h.a(slots.navLink.attrs([h.Href(`/site?as=${chair}`)]), [icon(h, 'site'), 'View site']),
       ]),
