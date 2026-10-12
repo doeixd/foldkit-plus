@@ -107,7 +107,8 @@ RemoteServer.make({
 - A content type with no `published` role has nothing to hide, and needs none.
 - **Who is an author** is any of `authors`, principal guards; anyone else is a
   visitor. **Who may make a transition** is an author any of its
-  `transitions` guards lets; a transition not named is any author's. `allow`
+  `transitions` guards lets; a transition not named is any author's. Archiving
+  an entry on show takes it off, so it asks `unpublish`'s guards too. `allow`
   stays for a rule about the entry itself. A refusal is `Forbidden`, with its
   sentence.
 - **`create` and `update` go to the CMS, not to `RemoteServer.make`.** Registered

@@ -195,6 +195,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-cms-drizzle`: archiving an entry on show asks `unpublish`.**
+  Archiving takes a published row off show, as unpublishing does, but asked
+  only `archive`'s guards: an author `transitions` kept from unpublishing
+  could archive a published post, and unarchive it as unpublished work.
 - **`foldkit-remote`: placement no longer drops a row it cannot judge, and
   compares a number id as a number.** A row that was the last edge before a
   cursor (or the first after one) was left out when it sorted past its

@@ -977,6 +977,17 @@ export const CmsServer = {
           Effect.gen(function* () {
             const { entry, served } = yield* offering(input.entry, transition)
             yield* asking(principal, transition, entry)
+            const shown = served.type.roles.published
+            // Archiving what is on show takes it off: that is unpublishing, and asks as it does.
+            if (transition === 'archive' && shown !== undefined && entry.targetId !== null) {
+              const published = returning(served.binding, [shown.key])
+              const [row] = published.patches(
+                yield* readRows(served.binding, published.columns, entry.targetId),
+              )
+              const onShow =
+                row !== undefined && Option.isSome(Option.fromNullishOr(row.values[shown.key]))
+              if (onShow) yield* asking(principal, 'unpublish', entry)
+            }
             const writes = yield* drizzleWrites
             yield* Effect.promise(() =>
               Promise.resolve(
@@ -987,7 +998,6 @@ export const CmsServer = {
                   .returning({ id: tables.entries.id }),
               ),
             )
-            const shown = served.type.roles.published
             if (transition === 'unarchive' || shown === undefined || entry.targetId === null)
               return { output: {}, entities: yield* entryPatches(entry.id) }
             // What is put away is not left on show. It comes back as unpublished work.

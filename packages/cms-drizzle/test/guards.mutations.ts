@@ -95,4 +95,22 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'an archive of a row on show is not checked as an unpublish',
+    edits: [
+      { file, find: "if (onShow) yield* asking(principal, 'unpublish', entry)", replace: '' },
+    ],
+    tests,
+  },
+  {
+    name: 'every archive is checked as an unpublish',
+    edits: [
+      {
+        file,
+        find: "if (onShow) yield* asking(principal, 'unpublish', entry)",
+        replace: "yield* asking(principal, 'unpublish', entry)",
+      },
+    ],
+    tests,
+  },
 ]

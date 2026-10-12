@@ -671,6 +671,18 @@ describe('who may make a transition', () => {
     await as(ada).mutate('CmsPublish', { entry: 'n1', basedOn: null })
   })
 
+  it('asks unpublish of archiving what is on show, which takes it off', async () => {
+    const { as } = open({ transitions: { unpublish: [G.isSenior] } })
+    // e1 is published: putting it away unpublishes it.
+    await expect(as(bea).mutate('CmsArchive', { entry: 'e1' })).rejects.toMatchObject({
+      _tag: 'Forbidden',
+      message: 'This author may not unpublish this entry',
+    })
+    // e2 is not on show: archiving it hides nothing.
+    await as(bea).mutate('CmsArchive', { entry: 'e2' })
+    await as(ada).mutate('CmsArchive', { entry: 'e1' })
+  })
+
   it('keeps what one who may schedule promised from an author who may not', async () => {
     const { as } = open({ transitions: { schedule: [G.isSenior] } })
     await as(ada).mutate('CmsSchedule', { entry: 'e3', at: '2026-07-01T09:00:00.000Z' })
