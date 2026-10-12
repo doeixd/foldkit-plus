@@ -301,8 +301,9 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   `packages/site/test/prefetch.test.ts`). Built for a running app:
   `Data.preload`, satisfy as a Command whose reads land as one `Preloaded`
   Message in the live Model; the CMS site preloads the page a reader points
-  at or tabs to (`examples/cms/e2e/cms.e2e.ts`). The studio's sections do not
-  preload yet.
+  at or tabs to (`examples/cms/e2e/cms.e2e.ts`), and the studio reads a
+  section ahead the same way, into the hidden section's Model, both from
+  `pointedLinks` in `foldkit-primitives/dom`.
 - [x] **The studio's one blank frame between sections:** one application with
   lazily loaded sections, or rendered first paints as the public site now has.
   §33.7 Built as one studio application (`examples/cms/src/apps/studioApp.ts`)

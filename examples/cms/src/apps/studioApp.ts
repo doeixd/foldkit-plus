@@ -15,15 +15,15 @@
  * remount did. An in-flight Command that lands after a switch still folds
  * into the section that started it: its wrapper names that section.
  */
-import { Effect, Equal, Option, Schema } from 'effect'
+import { Effect, Equal, Option, Schema, Stream } from 'effect'
 import { Link } from 'foldkit-bundle'
-import { mapMessages } from 'foldkit/command'
+import { mapMessage, mapMessages } from 'foldkit/command'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
 import * as Subscription from 'foldkit/subscription'
 import { Url, toString as urlToString } from 'foldkit/url'
-import { keepScroll } from 'foldkit-primitives/dom'
+import { keepScroll, pointedLinks } from 'foldkit-primitives/dom'
 import * as Posts from './app.js'
 import * as Pages from './pageApp.js'
 import { chairOf } from '../server/transport.js'
@@ -49,6 +49,8 @@ export const Message = defineMessageUnion({
   UrlChanged: { url: Url },
   /** A link was followed. */
   UrlRequested: { request: Navigation.UrlRequest },
+  /** The reader is over, or on, a link: where they may go next. */
+  PointedAtLink: { url: Url },
   /** Nothing happened; something may have arrived. */
   Ticked: {},
 })
@@ -97,6 +99,44 @@ export const navigateSearch = (query: string, target: Url, dropNew: boolean): Ur
  * addresses, which arrive without going through a link.
  */
 export const withoutNew = (url: Url): Url => navigateSearch('', url, true)
+
+/**
+ * The section a link opens in this document, or none when following it is a
+ * full load: another application, or another chair, which is another
+ * transport.
+ */
+const sectionFor = (model: Model, target: Url): Option.Option<Section> =>
+  Option.filter(
+    sectionOf(target.pathname),
+    () =>
+      chairOf(
+        Option.getOrElse(target.search, () => ''),
+        model.chair,
+      ) === model.chair,
+  )
+
+/**
+ * Reads what a section will read at an address, into that section's Model as
+ * it is when the reads land, so following the link draws at once. The
+ * section's own `UrlChanged` says where it would be there; only its reads
+ * are kept, not the move.
+ */
+const preloadAt = (model: Model, section: Section, url: Url) =>
+  section === 'pages'
+    ? mapMessage(
+        Pages.Data.preload(
+          Pages.update(model.pages, Pages.Message.UrlChanged({ url })).model,
+          Pages.actives,
+        ),
+        message => Message.GotPagesMessage({ message }),
+      )
+    : mapMessage(
+        Posts.Data.preload(
+          Posts.update(model.posts, Posts.Message.UrlChanged({ url })).model,
+          Posts.actives,
+        ),
+        message => Message.GotPostsMessage({ message }),
+      )
 
 const followLoad = (href: string) => ({
   commands: [
@@ -147,27 +187,33 @@ export const update = (model: Model, message: Message) =>
     UrlRequested: ({ request }) => {
       if (request._tag === 'External') return { ...followLoad(request.href), model }
       const target = request.url
-      // Another chair is another transport, and another application another
-      // document: both are still a full load.
-      const sameReader =
-        Option.isSome(sectionOf(target.pathname)) &&
-        chairOf(
-          Option.getOrElse(target.search, () => ''),
-          model.chair,
-        ) === model.chair
-      if (!sameReader) return { ...followLoad(urlToString(target)), model }
-      const section = Option.getOrElse(sectionOf(target.pathname), () => model.section)
-      const merged = navigateSearch(model.query, target, section !== model.section)
-      return {
-        model,
-        commands: [
-          {
-            name: 'Navigate',
-            effect: Navigation.pushUrl(urlToString(merged)).pipe(Effect.as(Message.Ticked())),
-          },
-        ],
-      }
+      return Option.match(sectionFor(model, target), {
+        onNone: () => ({ ...followLoad(urlToString(target)), model }),
+        onSome: section => {
+          const merged = navigateSearch(model.query, target, section !== model.section)
+          return {
+            model,
+            commands: [
+              {
+                name: 'Navigate',
+                effect: Navigation.pushUrl(urlToString(merged)).pipe(Effect.as(Message.Ticked())),
+              },
+            ],
+          }
+        },
+      })
     },
+    // Reads what the section there will read, so it draws at once if the reader goes.
+    PointedAtLink: ({ url }) =>
+      Option.match(sectionFor(model, url), {
+        onNone: () => ({ model }),
+        onSome: section => ({
+          model,
+          commands: [
+            preloadAt(model, section, navigateSearch(model.query, url, section !== model.section)),
+          ],
+        }),
+      }),
   })
 
 /** A Remote wiring's subscriptions, which a wiring may leave out. */
@@ -242,6 +288,10 @@ export const subscriptions = {
   // The window's scroll across the studio's navigations, kept while it runs.
   ...Subscription.make<Model, Message>()(() => ({
     scroll: Subscription.persistent(keepScroll()),
+    // Where the reader may go next, read ahead (`PointedAtLink`).
+    pointing: Subscription.persistent(
+      Stream.map(pointedLinks(), url => Message.PointedAtLink({ url })),
+    ),
   })),
   ...prefixed(postsAddress, 'posts'),
   ...prefixed(postsRemote, 'posts.remote'),
