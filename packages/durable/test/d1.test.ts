@@ -197,10 +197,12 @@ describe('durable over D1', () => {
   }, 30_000)
 
   it('commits concurrent appends with gap-free sequences', async () => {
+    // More writers than a commit once retried: one of them loses many races.
+    const writers = 30
     const journal = await openJournal()
     const results = await Effect.runPromise(
       Effect.all(
-        Array.from({ length: 12 }, (_, index) => journal.append(key, note(index + 1), 'ada')),
+        Array.from({ length: writers }, (_, index) => journal.append(key, note(index + 1), 'ada')),
         { concurrency: 'unbounded' },
       ),
     )
@@ -208,12 +210,12 @@ describe('durable over D1', () => {
       results
         .map(result => (result._tag === 'Committed' ? Number(result.committed.sequence) : -1))
         .sort((a, b) => a - b),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+    ).toEqual(Array.from({ length: writers }, (_, index) => index + 1))
     const { snapshot, cursor: at } = await Effect.runPromise(journal.load(key))
-    expect(at).toBe(cursor(12))
+    expect(at).toBe(cursor(writers))
     const byNumber = (entry: Note): number => Number(entry.opId.slice(2))
     expect([...snapshot].sort((a, b) => byNumber(a) - byNumber(b))).toEqual(
-      Array.from({ length: 12 }, (_, index) => note(index + 1)),
+      Array.from({ length: writers }, (_, index) => note(index + 1)),
     )
   }, 30_000)
 

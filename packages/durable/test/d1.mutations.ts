@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file,
-        find: 'schedule: Schedule.recurs(MAX_COMMIT_RETRIES)',
-        replace: 'schedule: Schedule.recurs(0)',
+        find: 'times: MAX_COMMIT_RETRIES,',
+        replace: 'times: 0,',
       },
     ],
     tests,
@@ -67,6 +67,18 @@ export default [
   {
     name: 'd1 is accepted over a file',
     edits: [{ file: '../src/node.ts', find: 'if (options.d1 === true)', replace: 'if (false)' }],
+    tests,
+  },
+  {
+    name: 'a commit retries ten times at once, as it did',
+    edits: [
+      { file, find: 'times: MAX_COMMIT_RETRIES,', replace: 'times: 10,' },
+      {
+        file,
+        find: "schedule: Schedule.jittered(Schedule.spaced('5 millis')),",
+        replace: 'schedule: Schedule.recurs(10),',
+      },
+    ],
     tests,
   },
 ]

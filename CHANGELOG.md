@@ -872,6 +872,10 @@ SQL to a client.
 
 ### Fixed
 
+- **`foldkit-durable`: concurrent appends over D1 commit.** A commit that lost
+  a race for its sequence retried at once and at most ten times, so with a
+  dozen writers on one document one could lose every round and fail with a
+  `JournalError`; it retries up to 64 times, spaced and jittered.
 - **`foldkit-guard`: `GuardServer.writer` refuses a writer for another
   Entity** where they meet, rather than leaving it to `validate`; the README's
   limits say a write's check and the write are two statements.

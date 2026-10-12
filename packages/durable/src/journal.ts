@@ -656,8 +656,12 @@ const atomically = <A, E, R>(
   unit: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | SqlError, R> => (d1 ? unit : sql.withTransaction(unit))
 
-/** How many times a D1 commit retries on a uniqueness conflict before failing. */
-const MAX_COMMIT_RETRIES = 10
+/**
+ * How many times a D1 commit retries on a uniqueness conflict before failing.
+ * Each round of a race has one winner, so n concurrent writers can make one
+ * lose n - 1 times: this bounds the writers one document takes at once.
+ */
+const MAX_COMMIT_RETRIES = 64
 
 /**
  * Whether a storage failure is a uniqueness conflict a retried commit can
@@ -1211,7 +1215,9 @@ const makeShape = <
       ? unit.pipe(
           Effect.retry({
             while: error => error._tag === 'SqlError' && isConstraintViolation(error),
-            schedule: Schedule.recurs(MAX_COMMIT_RETRIES),
+            times: MAX_COMMIT_RETRIES,
+            // Spaced and jittered, so the losers of one round do not all meet again.
+            schedule: Schedule.jittered(Schedule.spaced('5 millis')),
           }),
         )
       : sql.withTransaction(unit)
