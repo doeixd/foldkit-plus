@@ -195,6 +195,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote-server`: the live hub sends a deletion only to whom a
+  row is gone.** A write that hid a row from its writer answered it as
+  deleted, and the hub sent every subscriber that deletion, readers who still
+  saw it included; one who lost sight of a row was sent nothing. `deleted`
+  now re-reads each subscriber's selection and `changed` sends a deletion
+  where the re-read finds no row. One subscriber's failed read no longer
+  stops the rest. **Breaking:** `LiveHub.deleted` may fail and needs the
+  Sources' services, as `changed` does.
 - **`foldkit-remote-drizzle`: a write the database refuses fails as
   `Database write failed`.** Writes, `applyEdits` and `returning.row` ran
   their statements as defects, which Effect RPC sends whole: the driver's

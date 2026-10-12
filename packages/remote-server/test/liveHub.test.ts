@@ -176,6 +176,7 @@ describe('RemoteServer.liveHub', () => {
   })
 
   it('deleted reaches every subscriber of the entity, with the next cursor', async () => {
+    const kept = rows.u1!
     const events = await Effect.runPromise(
       Effect.gen(function* () {
         const hub = yield* RemoteServer.liveHub(entities)
@@ -186,10 +187,13 @@ describe('RemoteServer.liveHub', () => {
         // u2's deletion is not this subscriber's; it must not consume a cursor.
         yield* hub.deleted({ entity: 'User', id: 'u2' })
         yield* hub.changed({ entity: 'User', id: 'u1' }, ['name'])
+        delete rows.u1
         yield* hub.deleted({ entity: 'User', id: 'u1' })
         return [...(yield* Fiber.join(fiber))]
       }),
-    )
+    ).finally(() => {
+      rows.u1 = kept
+    })
     expect(events.map(event => [event._tag, event.cursor])).toEqual([
       ['EntityPatched', 10],
       ['EntityDeleted', 11],
@@ -254,7 +258,7 @@ describe('RemoteServer.liveHub', () => {
 })
 
 describe('RemoteServer.liveHub guards', () => {
-  it('a change of an id the source no longer returns reaches nobody', async () => {
+  it('a change of a row the source no longer returns is its deletion', async () => {
     const events = await Effect.runPromise(
       Effect.gen(function* () {
         const hub = yield* RemoteServer.liveHub(entities)
@@ -263,7 +267,6 @@ describe('RemoteServer.liveHub guards', () => {
         )
         yield* settle
         yield* hub.changed({ entity: 'User', id: 'gone' }, ['name'])
-        yield* hub.deleted({ entity: 'User', id: 'gone' })
         return [...(yield* Fiber.join(fiber))]
       }),
     )
@@ -797,5 +800,80 @@ describe('Shared fields on the live hub', () => {
     expect(() =>
       RemoteServer.entity(Person, { shared: ['nickname'], read: () => Effect.succeed([]) }),
     ).toThrow("Person's shared fields name no member: nickname")
+  })
+})
+
+describe('The live hub asks each subscriber again', () => {
+  // `ada` reads every row; `bo` only rows that are not secret; `broken` makes the read fail.
+  const notes: Record<string, { readonly body: string; readonly secret: boolean }> = {}
+  const Note = Entity.make('Note', Schema.Struct({ id: Schema.String, body: Schema.String }))
+  const noteSources = [
+    RemoteServer.entity<string>(Note, {
+      read: ({ ids, fields, principal }) =>
+        principal === 'broken'
+          ? Effect.fail(new RemoteServerError({ message: 'db down' }))
+          : Effect.succeed(
+              ids.flatMap(id => {
+                const note = notes[id]
+                return note === undefined || (note.secret && principal !== 'ada')
+                  ? []
+                  : [{ id, values: Object.fromEntries(fields.map(field => [field, note.body])) }]
+              }),
+            ),
+    }),
+  ]
+  const noteServer = RemoteServer.make({ entities: noteSources })
+  const first = (hub: LiveHub<string>, principal: string) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const client = yield* RpcTest.makeClient(RemoteRpc)
+        return yield* client
+          .FoldkitRemoteLive({
+            version: REMOTE_PROTOCOL_VERSION,
+            requirements: [{ entity: 'Note', id: 'n1', fields: ['body'] }],
+            after: 0,
+          })
+          .pipe(Stream.take(1), Stream.runCollect)
+      }),
+    ).pipe(
+      Effect.provide(
+        RemoteRpc.toLayer(RemoteServer.handlers(noteServer, principal, { live: hub })),
+      ),
+      Effect.map(events => [...events][0]),
+    )
+
+  it('sends a deletion only to whom the row is gone, and the rest what they now see', async () => {
+    notes.n1 = { body: 'Hidden now', secret: true }
+    const [ada, bo] = await Effect.runPromise(
+      Effect.gen(function* () {
+        const hub = yield* RemoteServer.liveHub(noteSources)
+        const fibers = yield* Effect.forEach(['ada', 'bo'], principal =>
+          Effect.forkChild(first(hub, principal)),
+        )
+        yield* settle
+        yield* hub.deleted({ entity: 'Note', id: 'n1' })
+        return yield* Effect.forEach(fibers, Fiber.join)
+      }),
+    )
+    expect(ada).toMatchObject({ _tag: 'EntityPatched', values: { body: 'Hidden now' } })
+    expect(bo).toMatchObject({ _tag: 'EntityDeleted', id: 'n1' })
+  })
+
+  it('sends the rest their change though one principal’s read failed, then fails', async () => {
+    notes.n1 = { body: 'Changed', secret: false }
+    const { failed, ada } = await Effect.runPromise(
+      Effect.gen(function* () {
+        const hub = yield* RemoteServer.liveHub(noteSources)
+        // The broken subscriber subscribes first, so its group is read first.
+        const broken = yield* Effect.forkChild(first(hub, 'broken'))
+        const ada = yield* Effect.forkChild(first(hub, 'ada'))
+        yield* settle
+        const failed = yield* Effect.result(hub.changed({ entity: 'Note', id: 'n1' }, ['body']))
+        yield* Fiber.interrupt(broken)
+        return { failed, ada: yield* Fiber.join(ada) }
+      }),
+    )
+    expect(failed._tag).toBe('Failure')
+    expect(ada).toMatchObject({ _tag: 'EntityPatched', values: { body: 'Changed' } })
   })
 })

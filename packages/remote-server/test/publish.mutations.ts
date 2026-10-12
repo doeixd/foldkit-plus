@@ -77,4 +77,37 @@ export default [
     edits: [{ file: server, find: 'if (unserved.length > 0) {', replace: 'if (false) {' }],
     tests,
   },
+  {
+    name: 'a row gone for one subscriber is kept for them',
+    edits: [
+      {
+        file: server,
+        find: '// Deleted, or no longer there to this principal: either way, gone.',
+        replace: 'continue',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a deletion asks for none of a subscriber's fields",
+    edits: [
+      {
+        file: server,
+        find: 'deleted: ref => refresh(ref, Option.none(), undefined),',
+        replace: 'deleted: ref => refresh(ref, Option.some([]), undefined),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a group's failure is dropped",
+    edits: [
+      {
+        file: server,
+        find: 'if (failures.length > 0) return yield* Effect.fail(failures[0]!)',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

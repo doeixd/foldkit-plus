@@ -436,7 +436,12 @@ export interface LiveHub<P, R = never> {
     fields: ReadonlyArray<string>,
     values?: Readonly<Record<string, unknown>> | undefined,
   ) => Effect.Effect<void, RemoteServerError, R>
-  readonly deleted: (ref: LiveRef) => Effect.Effect<void>
+  /**
+   * `ref` may be gone: each subscriber's selection of it is read again, and
+   * one it is no longer there to is sent a deletion. A row deleted for one
+   * writer may only be hidden from them, and still there to others.
+   */
+  readonly deleted: (ref: LiveRef) => Effect.Effect<void, RemoteServerError, R>
   /** Registers a subscriber for the stream's lifetime; `handlers` calls this. */
   readonly subscribe: (context: {
     readonly requirements: ReadonlyArray<Requirement>
@@ -494,6 +499,151 @@ const liveHub = <P, R>(
       } as LiveChangeValue)
     }
 
+    /**
+     * Re-reads row `ref` for each subscriber that selects it, of `which` of
+     * its fields (none: every field it selects), and sends what it now sees:
+     * a patch, or, where the row is no longer there to it, a deletion. One
+     * group's failed read fails the call after the others are sent.
+     */
+    const refresh = (
+      ref: LiveRef,
+      which: Option.Option<ReadonlyArray<string>>,
+      values: Readonly<Record<string, unknown>> | undefined,
+    ): Effect.Effect<void, RemoteServerError, R> =>
+      Effect.gen(function* () {
+        const key = `${ref.entity}:${ref.id}`
+        const source = sources.get(ref.entity)
+        if (source === undefined) {
+          // Nothing to ask: a deletion reaches every subscriber as it is.
+          if (Option.isSome(which)) return
+          for (const subscriber of subscribers) {
+            if (subscriber.selected.has(key))
+              yield* emit(subscriber, { _tag: 'EntityDeleted', entity: ref.entity, id: ref.id })
+          }
+          return
+        }
+        // A shared field's written value is every subscriber's alike: it needs no read.
+        const given = (field: string) =>
+          values !== undefined &&
+          source.shared !== undefined &&
+          source.shared.has(field) &&
+          Object.hasOwn(values, field)
+        // One source read per principal key and window signature:
+        // subscribers sharing both share the read, and a paged field is
+        // re-read with the window the subscriber selected it with.
+        const groups = new Map<
+          unknown,
+          { readonly principal: P; readonly byWindows: Map<string, ReadGroup<P>> }
+        >()
+        for (const subscriber of subscribers) {
+          const selected = subscriber.selected.get(key)
+          if (selected === undefined) continue
+          const fields = Option.getOrElse(which, () => [
+            ...new Set([...selected.fields].map(aliasedField)),
+          ])
+          const principalKey = keyOf(subscriber.principal)
+          const sharing = groups.get(principalKey) ?? {
+            principal: subscriber.principal,
+            byWindows: new Map<string, ReadGroup<P>>(),
+          }
+          groups.set(principalKey, sharing)
+          const { byWindows } = sharing
+          const join = (
+            windows: Readonly<Record<string, QueryWindow>>,
+            renames: Readonly<Record<string, string>>,
+            wanted: string[],
+          ): void => {
+            const groupKey = `${stableStringify(windows)}\u0000${stableStringify(renames)}`
+            const group = byWindows.get(groupKey) ?? { windows, renames, entries: [] }
+            byWindows.set(groupKey, group)
+            group.entries.push({ subscriber, fields: wanted })
+          }
+          const selects = fields.filter(field => selected.fields.has(field))
+          // A paged field is read with its subscriber's window, so it is never sent as written.
+          const sent = selects.filter(field => given(field) && !selected.windows.has(field))
+          if (sent.length > 0) {
+            const patch: Record<string, unknown> = Object.create(null)
+            for (const field of sent) patch[field] = values![field]
+            yield* emit(subscriber, {
+              _tag: 'EntityPatched',
+              entity: ref.entity,
+              id: ref.id,
+              values: patch,
+              changed: sent,
+            })
+          }
+          const sentSet = new Set(sent)
+          const wanted = selects.filter(field => !sentSet.has(field))
+          if (wanted.length > 0)
+            join(
+              Object.fromEntries(
+                wanted.flatMap(field => {
+                  const window = selected.windows.get(field)
+                  return window === undefined ? [] : [[field, window] as const]
+                }),
+              ),
+              {},
+              wanted,
+            )
+          // A page read under an alias changes when the relation it reads does, and
+          // is re-read on its own, with its window, so the whole list can be too.
+          for (const alias of selected.fields) {
+            const window = selected.windows.get(alias)
+            const field = aliasedField(alias)
+            if (field === alias || window === undefined || !fields.includes(field)) continue
+            join({ [field]: window }, { [field]: alias }, [field])
+          }
+        }
+        const gone = new Set<Subscriber<P>>()
+        const read = (
+          principal: P,
+          { windows, renames, entries: group }: ReadGroup<P>,
+        ): Effect.Effect<void, RemoteServerError, R> =>
+          Effect.gen(function* () {
+            const requested = [...new Set(group.flatMap(entry => entry.fields))]
+            const allowed = allowedFields(source, principal, requested)
+            if (allowed.length === 0) return
+            const allowedSet = new Set(allowed)
+            const records = yield* readFiltered(source, principal, allowed, fields =>
+              source.read({ ids: [ref.id], fields, principal, ...windowsOf(windows, allowed) }),
+            )
+            const record = records.find(candidate => candidate.id === ref.id)
+            for (const { subscriber, fields: wanted } of group) {
+              if (gone.has(subscriber)) continue
+              if (record === undefined) {
+                // Deleted, or no longer there to this principal: either way, gone.
+                gone.add(subscriber)
+                yield* emit(subscriber, { _tag: 'EntityDeleted', entity: ref.entity, id: ref.id })
+                continue
+              }
+              const values: Record<string, unknown> = Object.create(null)
+              for (const field of wanted) {
+                if (allowedSet.has(field) && Object.hasOwn(record.values, field)) {
+                  values[renamed(renames, field)] = record.values[field]
+                }
+              }
+              const changed = Object.keys(values)
+              if (changed.length === 0) continue
+              yield* emit(subscriber, {
+                _tag: 'EntityPatched',
+                entity: ref.entity,
+                id: ref.id,
+                values,
+                changed,
+              })
+            }
+          })
+        const failures: Array<RemoteServerError> = []
+        for (const { principal, byWindows } of groups.values()) {
+          for (const group of byWindows.values()) {
+            yield* read(principal, group).pipe(
+              Effect.catch(error => Effect.sync(() => void failures.push(error))),
+            )
+          }
+        }
+        if (failures.length > 0) return yield* Effect.fail(failures[0]!)
+      })
+
     return {
       subscribe: ({ requirements, after, principal, maxIdsPerEntity }) =>
         Stream.unwrap(
@@ -536,120 +686,9 @@ const liveHub = <P, R>(
           }),
         ),
 
-      changed: (ref, fields, values) =>
-        Effect.gen(function* () {
-          const key = `${ref.entity}:${ref.id}`
-          const source = sources.get(ref.entity)
-          if (source === undefined) return
-          // A shared field's written value is every subscriber's alike: it needs no read.
-          const given = (field: string) =>
-            values !== undefined &&
-            source.shared !== undefined &&
-            source.shared.has(field) &&
-            Object.hasOwn(values, field)
-          // One source read per principal key and window signature:
-          // subscribers sharing both share the read, and a paged field is
-          // re-read with the window the subscriber selected it with.
-          const groups = new Map<
-            unknown,
-            { readonly principal: P; readonly byWindows: Map<string, ReadGroup<P>> }
-          >()
-          for (const subscriber of subscribers) {
-            const selected = subscriber.selected.get(key)
-            if (selected === undefined) continue
-            const principalKey = keyOf(subscriber.principal)
-            const sharing = groups.get(principalKey) ?? {
-              principal: subscriber.principal,
-              byWindows: new Map<string, ReadGroup<P>>(),
-            }
-            groups.set(principalKey, sharing)
-            const { byWindows } = sharing
-            const join = (
-              windows: Readonly<Record<string, QueryWindow>>,
-              renames: Readonly<Record<string, string>>,
-              wanted: string[],
-            ): void => {
-              const groupKey = `${stableStringify(windows)}\u0000${stableStringify(renames)}`
-              const group = byWindows.get(groupKey) ?? { windows, renames, entries: [] }
-              byWindows.set(groupKey, group)
-              group.entries.push({ subscriber, fields: wanted })
-            }
-            const selects = fields.filter(field => selected.fields.has(field))
-            // A paged field is read with its subscriber's window, so it is never sent as written.
-            const sent = selects.filter(field => given(field) && !selected.windows.has(field))
-            if (sent.length > 0) {
-              const patch: Record<string, unknown> = Object.create(null)
-              for (const field of sent) patch[field] = values![field]
-              yield* emit(subscriber, {
-                _tag: 'EntityPatched',
-                entity: ref.entity,
-                id: ref.id,
-                values: patch,
-                changed: sent,
-              })
-            }
-            const sentSet = new Set(sent)
-            const wanted = selects.filter(field => !sentSet.has(field))
-            if (wanted.length > 0)
-              join(
-                Object.fromEntries(
-                  wanted.flatMap(field => {
-                    const window = selected.windows.get(field)
-                    return window === undefined ? [] : [[field, window] as const]
-                  }),
-                ),
-                {},
-                wanted,
-              )
-            // A page read under an alias changes when the relation it reads does, and
-            // is re-read on its own, with its window, so the whole list can be too.
-            for (const alias of selected.fields) {
-              const window = selected.windows.get(alias)
-              const field = aliasedField(alias)
-              if (field === alias || window === undefined || !fields.includes(field)) continue
-              join({ [field]: window }, { [field]: alias }, [field])
-            }
-          }
-          for (const { principal, byWindows } of groups.values()) {
-            for (const { windows, renames, entries: group } of byWindows.values()) {
-              const requested = [...new Set(group.flatMap(entry => entry.fields))]
-              const allowed = allowedFields(source, principal, requested)
-              if (allowed.length === 0) continue
-              const allowedSet = new Set(allowed)
-              const records = yield* readFiltered(source, principal, allowed, fields =>
-                source.read({ ids: [ref.id], fields, principal, ...windowsOf(windows, allowed) }),
-              )
-              const record = records.find(candidate => candidate.id === ref.id)
-              if (record === undefined) continue
-              for (const { subscriber, fields: wanted } of group) {
-                const values: Record<string, unknown> = Object.create(null)
-                for (const field of wanted) {
-                  if (allowedSet.has(field) && Object.hasOwn(record.values, field)) {
-                    values[renamed(renames, field)] = record.values[field]
-                  }
-                }
-                const changed = Object.keys(values)
-                if (changed.length === 0) continue
-                yield* emit(subscriber, {
-                  _tag: 'EntityPatched',
-                  entity: ref.entity,
-                  id: ref.id,
-                  values,
-                  changed,
-                })
-              }
-            }
-          }
-        }),
-
-      deleted: ref =>
-        Effect.gen(function* () {
-          const key = `${ref.entity}:${ref.id}`
-          for (const subscriber of subscribers) {
-            if (!subscriber.selected.has(key)) continue
-            yield* emit(subscriber, { _tag: 'EntityDeleted', entity: ref.entity, id: ref.id })
-          }
-        }),
+      changed: (ref, fields, values) => refresh(ref, Option.some(fields), values),
+      // Gone for one writer may be hidden from them alone: each subscriber is asked again.
+      deleted: ref => refresh(ref, Option.none(), undefined),
 
       size: Effect.sync(() => subscribers.size),
     }

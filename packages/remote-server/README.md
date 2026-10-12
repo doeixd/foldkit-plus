@@ -541,7 +541,15 @@ The hub remembers each subscriber's requirements and principal. `changed`:
 1. intersects the changed fields with what each subscriber selected;
 2. re-reads only that intersection through the Entity Source;
 3. applies that subscriber's authorization again;
-4. emits the resulting patch with a continuing cursor.
+4. emits the resulting patch with a continuing cursor, or a deletion where
+   the re-read no longer finds the row: deleted, or moved out of that
+   subscriber's sight.
+
+`deleted` asks each subscriber again too, for every field it selects: a row
+deleted for one writer may only be hidden from them, so a subscriber that
+still reads it is sent what it now sees, and only one it is gone for a
+deletion. One subscriber's failed read does not keep the others from theirs;
+the call fails once they are sent.
 
 Subscribers that selected none of the changed fields do no work, and
 subscribers with one principal share one re-read. One principal means the same
