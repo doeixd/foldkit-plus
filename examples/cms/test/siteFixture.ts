@@ -35,11 +35,8 @@ const urlOf = (pathname: string, search = ''): Url => ({
  * page's Blocks' reads answered too (`'blocks'`); from the demo's seed when
  * `seeded`, else from an empty site.
  */
-export const readSite = async (
-  pathname: string,
-  stage: 'none' | 'route' | 'blocks',
-  seeded = false,
-) => {
+/** A Remote client answered by one in-process backend, from the demo's seed when `seeded`. */
+export const siteClient = async (seeded: boolean): Promise<Layer.Layer<RemoteClient>> => {
   const { backend } = openBackend()
   if (seeded) await backend.seed()
   const handlers: RemoteRpcClient<DrizzleDatabase> = RemoteServer.handlers(
@@ -48,7 +45,7 @@ export const readSite = async (
   )
   const served = <A, E>(effect: Effect.Effect<A, E, DrizzleDatabase>) =>
     effect.pipe(Effect.provide(backend.database))
-  const client = Layer.succeed(RemoteClient, {
+  return Layer.succeed(RemoteClient, {
     read: (batch: Parameters<typeof handlers.FoldkitRemoteRead>[0]) =>
       served(handlers.FoldkitRemoteRead(batch)),
     query: (request: Parameters<typeof handlers.FoldkitRemoteQuery>[0]) =>
@@ -57,6 +54,14 @@ export const readSite = async (
       served(handlers.FoldkitRemoteMutate(request)),
     live: () => Stream.empty,
   })
+}
+
+export const readSite = async (
+  pathname: string,
+  stage: 'none' | 'route' | 'blocks',
+  seeded = false,
+) => {
+  const client = await siteClient(seeded)
   let model: Model = initial(urlOf(pathname, 'as=visitor')).model
   if (stage === 'none') return model
   // The reads answer different shapes, so each is prefetched under its own

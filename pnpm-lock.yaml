@@ -235,6 +235,9 @@ importers:
       foldkit-richtext-markdown:
         specifier: workspace:*
         version: link:../../packages/richtext-markdown
+      foldkit-site:
+        specifier: workspace:*
+        version: link:../../packages/site
       foldkit-ssr:
         specifier: workspace:*
         version: link:../../packages/ssr

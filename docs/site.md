@@ -268,7 +268,13 @@ const prepared = yield* Data.satisfy(there, active)
 ```
 
 Only the destination's query runs, once; the page navigation will then draw
-reads synchronously, already `Ready`. Satisfying over every Source would
+reads synchronously, already `Ready`. That is the shape for a render with no
+Model yet (SSR, a test). In a running application, write the same
+composition as a Command, `Data.preload(there, active)`, from the Message a
+hover or a focus sends: its reads land as one `Preloaded` Message in the
+Model as it is by then, rather than as a Model that would undo what happened
+while they were out. The CMS site does this for every link on its own origin
+(`examples/cms/src/content/siteConfig.ts`). Satisfying over every Source would
 fetch no more — off-chain Surfaces resolve to nothing under the target
 Model either way — so the subset is precision and inspection, not a
 different fetch. What the app still owns is the trigger: a hover

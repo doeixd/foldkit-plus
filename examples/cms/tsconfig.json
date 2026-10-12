@@ -75,6 +75,7 @@
       "foldkit-richtext-dom/toolbar": ["../../packages/richtext-dom/src/toolbar.ts"],
       "foldkit-richtext-dom/view": ["../../packages/richtext-dom/src/view.ts"],
       "foldkit-richtext-markdown": ["../../packages/richtext-markdown/src/index.ts"],
+      "foldkit-site": ["../../packages/site/src/index.ts"],
       "foldkit-ssr": ["../../packages/ssr/src/index.ts"],
       "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
       "foldkit-ssr/vite": ["../../packages/ssr/src/vite.ts"],
@@ -131,6 +132,9 @@
     },
     {
       "path": "../../packages/ssr/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/site/tsconfig.build.json"
     },
     {
       "path": "../../packages/remote/tsconfig.build.json"

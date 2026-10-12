@@ -621,6 +621,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   the markup, would be nameless. Write an attribute that must be in the markup
   with `h.Attribute('name', …)`, and check a builder's vnode (`data.props`
   versus `data.attrs`) before relying on it in server output.
+- **Foldkit's `string` route segment neither encodes nor decodes.** Built with
+  a slug `a/b` it gives `/site/a/b`, which parses as `a` plus a stray segment,
+  and a browser's `a%20b` reads back as `a%20b`, not `a b`. The CMS's hand-written
+  `pathOf` encoded and hid it until the site moved onto a Site tree. Route text
+  that is not URL-safe through `schemaSegment` with an encoding Schema
+  (`examples/cms/src/apps/siteApp.ts`'s `Slug`).
 - **Foldkit fills head tags into the template; it adds none.** A view's
   `canonical` reached no generated page until the template had an empty
   `<link rel="canonical">` (and `og:url` a `<meta property="og:url">`) to fill.

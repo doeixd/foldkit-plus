@@ -30,7 +30,7 @@ import {
 import { RemoteServer } from 'foldkit-remote-server'
 import { Article } from '../content/articleDomain.js'
 import { Post, PostById, PostInput, Posts, RecentPosts, PostId } from '../content/domain.js'
-import { Page, PageId, PageInput, Pages } from '../content/pageDomain.js'
+import { Page, PageId, PageInput, Pages, PublishedPages } from '../content/pageDomain.js'
 import { seed, SEEDED_AT } from '../content/seed.js'
 
 /** A SQLite database the server runs on, and whether it is new, so needs its tables. */
@@ -233,6 +233,7 @@ export const openServer = (
       ...cms.queries,
       query(RecentPosts, { entity: Db.Post }),
       query(PostById, { entity: Db.Post }),
+      query(PublishedPages, { entity: Db.Page }),
     ],
     mutations: [...cms.mutations],
   })

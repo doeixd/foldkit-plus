@@ -35,7 +35,7 @@ import {
   stateIs,
   statusLine,
 } from './shell.js'
-import { pageHref } from '../content/site.js'
+import { pageHref } from '../content/siteRoutes.js'
 import { PageForm } from '../content/pageDomain.js'
 import { AdminSlots, AdminStyle, PagesListStyle } from '../styles/adminStyle.js'
 

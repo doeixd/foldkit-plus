@@ -40,7 +40,8 @@ import {
   stateIs,
   statusLine,
 } from './shell.js'
-import { article, postHref } from '../content/site.js'
+import { article } from '../content/site.js'
+import { postHref } from '../content/siteRoutes.js'
 import { AdminSlots, AdminStyle } from '../styles/adminStyle.js'
 import { ListStyle } from '../styles/formStyles.js'
 import { SiteSlots, SiteStyle } from '../styles/siteStyle.js'

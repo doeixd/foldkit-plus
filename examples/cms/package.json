@@ -35,6 +35,7 @@
     "foldkit-richtext": "workspace:*",
     "foldkit-richtext-dom": "workspace:*",
     "foldkit-richtext-markdown": "workspace:*",
+    "foldkit-site": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
     "sql.js": "1.13.0"

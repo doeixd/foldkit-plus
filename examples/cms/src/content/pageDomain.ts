@@ -7,10 +7,10 @@
 import { Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Composition } from 'foldkit-composition'
-import { Entity } from 'foldkit-entity'
+import { Entity, Expr, Order } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { BuilderView } from 'foldkit-mixins-builder'
-import { Mutation } from 'foldkit-remote'
+import { Mutation, Query } from 'foldkit-remote'
 import { PageBuilder, PageEditing, Site } from './site.js'
 
 export const PageId = Schema.String.pipe(Schema.brand('PageId'))
@@ -62,3 +62,14 @@ export const Pages = Cms.content('pages', {
 
 /** The public site's reading of a page. */
 export const PageView = Entity.select(Page, { title: true, slug: true, document: true })
+
+/**
+ * Every page a visitor can read, by address: what the build lists the site's
+ * pages from. Only what is published, whoever asks, as the blog's own list.
+ */
+export const PublishedPages = Query.define('PublishedPages', {}, () =>
+  Query.from(Page).pipe(
+    Query.where(Expr.isNotNull(Page.fields.publishedAt)),
+    Query.orderBy(Order.asc(Page.fields.slug)),
+  ),
+)

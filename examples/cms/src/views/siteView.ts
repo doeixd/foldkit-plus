@@ -4,31 +4,30 @@
  * uses; a post by the article below; the blog by the PostList Block's cards.
  */
 import { Option } from 'effect'
+import { Site as Sites } from 'foldkit-site'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
 import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import {
+  BLOG_LEDE,
+  SiteMap,
   actives,
   blogRead,
   firstOf,
   pageDocument,
   pageRead,
-  pathOf,
   postRead,
   type Message,
   type Model,
 } from '../apps/siteApp.js'
 import { ORIGIN, SOURCE } from '../content/domain.js'
 import { SiteRenderer, article, postGrid } from '../content/site.js'
+import { Route } from '../content/siteRoutes.js'
 import { SiteSlots, SiteStyle } from '../styles/siteStyle.js'
 import type { Chair } from '../server/transport.js'
 
 type Slots = SlotView.SlotBuilders<typeof SiteSlots, Message>
-
-/** What the blog's index says it is: its subtitle, and its description to a search engine. */
-export const BLOG_LEDE =
-  'How this demo is made, one part at a time: its CMS, its page builder and the packages under them.'
 
 /** A link on the site that keeps who is reading. */
 const siteLink = (reader: Chair, path: string) =>
@@ -125,30 +124,31 @@ const blog = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
   ]
 }
 
-const titleOf = (model: Model): string => {
-  switch (model.route._tag) {
-    case 'Blog':
-      return 'The blog'
-    case 'Post':
-      return Option.getOrElse(
+/** A page's title, once it is read; the site's name alone until then, not "Journal · Journal". */
+const pageTitle = (model: Model): string =>
+  Option.getOrElse(
+    Option.map(
+      Option.flatMap(pageRead(model), read => firstOf(read.read(model))),
+      found => found.title,
+    ),
+    () => '',
+  )
+
+const titleOf = (model: Model): string =>
+  Route.match(model.route, {
+    Blog: () => 'The blog',
+    Post: () =>
+      Option.getOrElse(
         Option.map(
           Option.flatMap(postRead(model), read => firstOf(read.read(model))),
           found => found.title,
         ),
         // Not a post (yet): the miss, not the index it is missed from.
         () => 'Not found',
-      )
-    case 'Page':
-      return Option.getOrElse(
-        Option.map(
-          Option.flatMap(pageRead(model), read => firstOf(read.read(model))),
-          found => found.title,
-        ),
-        // Not a page (yet): the site's name alone, not "Journal · Journal".
-        () => '',
-      )
-  }
-}
+      ),
+    Home: () => pageTitle(model),
+    Page: () => pageTitle(model),
+  })
 
 const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Message>) => {
   const here = (tag: Model['route']['_tag'], slug?: string) =>
@@ -158,7 +158,7 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
       : []
   // The site's sections: the header's links, and again in the footer.
   const sections = [
-    { label: 'Home', path: '/site', current: here('Page', 'home') },
+    { label: 'Home', path: '/site', current: here('Home') },
     { label: 'Blog', path: '/site/blog', current: [...here('Blog'), ...here('Post')] },
     { label: 'About', path: '/site/about', current: here('Page', 'about') },
   ]
@@ -185,11 +185,12 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
       // Focusable by the skip link alone: a keyboard arrives here, not back at
       // the bar.
       slots.main.attrs([h.Id('site-main'), h.Tabindex(-1)]),
-      model.route._tag === 'Page'
-        ? page(model, slots, h)
-        : model.route._tag === 'Post'
-          ? post(model, slots, h)
-          : blog(model, slots, h),
+      Route.match(model.route, {
+        Home: () => page(model, slots, h),
+        Page: () => page(model, slots, h),
+        Post: () => post(model, slots, h),
+        Blog: () => blog(model, slots, h),
+      }),
     ),
     h.footer(slots.footer.attrs(), [
       h.span([], ['Journal · written in the studio, built with Foldkit Plus.']),
@@ -206,7 +207,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   return {
     title: title === '' ? 'Journal' : `${title} · Journal`,
     // Where the page lives, whoever reads it: the address without `?as=`.
-    canonical: `${ORIGIN}${pathOf(model.route)}`,
+    canonical: `${ORIGIN}${Sites.hrefOf(SiteMap, model.route)}`,
     body: Site(model, h),
   }
 }

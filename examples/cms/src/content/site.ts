@@ -25,6 +25,7 @@ import { Prose } from 'foldkit-mixins/prose'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Post, PostById, PostId, PostPreview, RecentPosts } from './domain.js'
+import { postHref } from './siteRoutes.js'
 import {
   BuilderStyle,
   InspectorFieldStyle,
@@ -38,10 +39,6 @@ import { t } from '../styles/style.js'
 const components = Layers.standard.layer('components')
 /** Every part of a look is a container another style may dress. */
 const part = Slot.make({ capability: Capability.Container })
-
-/** Where the public site shows a post and a page. */
-export const postHref = (slug: string) => `/site/blog/${slug}`
-export const pageHref = (slug: string) => (slug === 'home' ? '/site' : `/site/${slug}`)
 
 /** A picture for a post without one: a gradient from its title, so each post has its own. */
 export const coverOf = (post: { readonly title: string; readonly cover: string }) => {

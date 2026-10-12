@@ -8,6 +8,10 @@
  *   /site/blog        the blog, newest first
  *   /site/blog/<slug> a post
  *   /site/<slug>      any other page
+ *
+ * The addresses are one Site tree (`foldkit-site`): it parses an address to
+ * its route, builds the address back, and says what each page tells a search
+ * engine and a link preview, from the page's own data.
  */
 import { Array as Arr, Effect, Equal, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
@@ -16,44 +20,24 @@ import type { Document } from 'foldkit-composition'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity } from 'foldkit-entity'
 import { Remote, RemoteData, type Page as RemotePage, type RemoteClient } from 'foldkit-remote'
+import { Site } from 'foldkit-site'
+import type { Meta } from 'foldkit-ssr/client'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
 import { Url, toString as urlToString } from 'foldkit/url'
-import { Post, PostPage, Posts, PostById, RecentPosts } from '../content/domain.js'
-import { Page, Pages } from '../content/pageDomain.js'
-import { PostCard, Site } from '../content/site.js'
+import { ORIGIN, Post, PostPage, Posts, PostById, RecentPosts } from '../content/domain.js'
+import { Page, Pages, PublishedPages } from '../content/pageDomain.js'
+import { PostCard, Site as Kit } from '../content/site.js'
+import {
+  Route,
+  blogRouter,
+  homeRouter,
+  pageRouter,
+  pageSlugOf,
+  postRouter,
+} from '../content/siteRoutes.js'
 import { chairOf, chairs } from '../server/transport.js'
-
-export const Route = Schema.Union([
-  Schema.TaggedStruct('Page', { slug: Schema.String }),
-  Schema.TaggedStruct('Blog', {}),
-  Schema.TaggedStruct('Post', { slug: Schema.String }),
-])
-export type Route = typeof Route.Type
-
-/** Where an address is on the site. Anything under `/site` is a page until it is not found. */
-export const routeOf = (url: Url): Route => {
-  const [, first, second] = url.pathname
-    .split('/')
-    .filter(part => part !== '')
-    .map(part => decodeURIComponent(part))
-  if (first === undefined) return { _tag: 'Page', slug: 'home' }
-  if (first !== 'blog') return { _tag: 'Page', slug: first }
-  return second === undefined ? { _tag: 'Blog' } : { _tag: 'Post', slug: second }
-}
-
-/** The address of a route: the inverse of `routeOf`. */
-export const pathOf = (route: Route): string => {
-  switch (route._tag) {
-    case 'Page':
-      return route.slug === 'home' ? '/site' : `/site/${encodeURIComponent(route.slug)}`
-    case 'Blog':
-      return '/site/blog'
-    case 'Post':
-      return `/site/blog/${encodeURIComponent(route.slug)}`
-  }
-}
 
 export const Model = Schema.Struct({
   remote: Remote.Model,
@@ -67,6 +51,8 @@ export const Message = defineMessageUnion({
   ...Remote.messages,
   UrlChanged: { url: Url },
   UrlRequested: { request: Navigation.UrlRequest },
+  /** The reader is over, or on, a link: where they may go next. */
+  PointedAtLink: { url: Url },
   /** Nothing happened. */
   Ticked: {},
   /** The reader was moved to what a route change drew. */
@@ -78,7 +64,14 @@ export const App = Surface.application({ Model, Message })
 export const Data = Remote.make({
   model: App.model.remote,
   entities: [Post, Page, ...Object.values(Cms.Entities)],
-  queries: [Cms.Entries, Cms.bySlug(Posts), Cms.bySlug(Pages), RecentPosts, PostById],
+  queries: [
+    Cms.Entries,
+    Cms.bySlug(Posts),
+    Cms.bySlug(Pages),
+    RecentPosts,
+    PostById,
+    PublishedPages,
+  ],
   mutations: [],
 })
 
@@ -86,11 +79,9 @@ const PageRead = Entity.select(Page, { title: true, slug: true, document: true }
 
 /** The page the address names, read by its slug; none on another route. */
 export const pageRead = (model: Model) =>
-  model.route._tag === 'Page'
-    ? Option.some(
-        Data.query(Cms.bySlug(Pages), { slug: model.route.slug }, { select: PageRead, first: 1 }),
-      )
-    : Option.none()
+  Option.map(pageSlugOf(model.route), slug =>
+    Data.query(Cms.bySlug(Pages), { slug }, { select: PageRead, first: 1 }),
+  )
 
 /** The post the address names. */
 export const postRead = (model: Model) =>
@@ -122,8 +113,113 @@ export const actives = {
   page: Data.active('SitePage', pageRead),
   post: Data.active('SitePost', postRead),
   blog: Data.active('SiteBlog', blogRead),
-  blocks: QueryBlock.active('SiteBlocks', App.owner, Data, Site, pageDocument),
+  blocks: QueryBlock.active('SiteBlocks', App.owner, Data, Kit, pageDocument),
 }
+
+// HEAD
+
+/** What the blog's index says it is: its subtitle, and its description to a search engine. */
+export const BLOG_LEDE =
+  'How this demo is made, one part at a time: its CMS, its page builder and the packages under them.'
+
+/** What the site says of itself where a page says nothing of its own. */
+const SITE_DESCRIPTION =
+  'A blog, its studio and its server, built with Foldkit Plus: posts that explain how the demo is made.'
+
+/** The preview image every page offers a link preview. */
+const IMAGE = `${ORIGIN}/og.jpg`
+
+/** A description a search result can show: the first sentences, within 160 characters. */
+const summary = (text: string): string => {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  if (flat.length <= 160) return flat
+  const cut = flat.slice(0, 157)
+  return `${cut.slice(0, cut.lastIndexOf(' '))}…`
+}
+
+/** What a page says of itself: its title, and its Hero's lead or first Text. */
+const pageMeta = (model: Model): Meta => {
+  const said = Option.flatMap(pageDocument(model), document =>
+    Option.fromUndefinedOr(
+      Object.values(document.nodes)
+        .map(node => node.props['lead'] ?? node.props['body'])
+        .find((text): text is string => typeof text === 'string' && text !== ''),
+    ),
+  )
+  const title = Option.map(
+    Option.flatMap(pageRead(model), read => firstOf(read.read(model))),
+    page => page.title,
+  )
+  return {
+    title: Option.getOrElse(title, () => 'Journal'),
+    description: summary(Option.getOrElse(said, () => SITE_DESCRIPTION)),
+  }
+}
+
+/** A post's excerpt, and, once it is published, its article facts and structured data. */
+const postMeta = (route: Route & { readonly _tag: 'Post' }, model: Model): Meta =>
+  Option.match(
+    Option.flatMap(postRead(model), read => firstOf(read.read(model))),
+    {
+      // Not a post (yet): the site, not the blog it is missed from.
+      onNone: () => ({ title: 'Journal', description: SITE_DESCRIPTION }),
+      onSome: post => {
+        const description = summary(post.excerpt)
+        return Option.match(Option.fromNullOr(post.publishedAt), {
+          onNone: () => ({ title: post.title, description }),
+          onSome: at => ({
+            title: post.title,
+            description,
+            type: 'article',
+            article: { published: at },
+            // What a search engine reads of a post, as it would a published article.
+            jsonLd: [
+              {
+                '@context': 'https://schema.org',
+                '@type': 'BlogPosting',
+                headline: post.title,
+                description,
+                datePublished: at,
+                url: `${ORIGIN}${Site.hrefOf(SiteMap, route)}`,
+                image: IMAGE,
+              },
+            ],
+          }),
+        })
+      },
+    },
+  )
+
+const HomeNode = Site.node(homeRouter, Route.Home)
+  // Every page's: a page below says its own title and description over these.
+  .meta<Model>(({ model }) => ({
+    siteName: 'Journal',
+    image: IMAGE,
+    type: 'website',
+    ...pageMeta(model),
+  })).node
+const BlogNode = Site.node(blogRouter, Route.Blog).meta(() => ({
+  title: 'The blog',
+  description: BLOG_LEDE,
+})).node
+export const PostNode = Site.node(postRouter, Route.Post).meta<Model>(({ route, model }) =>
+  postMeta(route, model),
+).node
+export const PageNode = Site.node(pageRouter, Route.Page).meta<Model>(({ model }) =>
+  pageMeta(model),
+).node
+
+/** The site's addresses: the home page, the blog and its posts, and every other page. */
+export const SiteMap = Site.make(Site.mount(HomeNode, [Site.mount(BlogNode, [PostNode]), PageNode]))
+
+/**
+ * Where an address is on the site. One the tree does not hold is a page by
+ * that address, which the server does not have, so it reads as missing.
+ */
+export const routeOf = Site.parse(SiteMap, { make: ({ path }) => Route.Page({ slug: path }) })
+
+/** What a route says of itself to a search engine and a link preview: the plan's `meta`. */
+export const metaOf = (model: Model): Meta => Site.metaOf(SiteMap, model.route, model)
 
 /**
  * Whether the route's read, and each read of the page's Blocks, has an
@@ -156,6 +252,9 @@ export const focusMain = (): void => {
   document.getElementById('site-main')?.focus()
 }
 
+/** Whether an address is the site's own: another is the studio, a full load away. */
+const onSite = (url: Url): boolean => url.pathname === '/site' || url.pathname.startsWith('/site/')
+
 export const update = placements.update((model, message) => {
   // Remote's Messages go to its wiring, so they never reach here; the guard
   // narrows to the application's own tags, which the match below covers all of.
@@ -179,13 +278,20 @@ export const update = placements.update((model, message) => {
     UrlRequested: ({ request }) => {
       // A link within the site is a route change; anything else is another application.
       const effect =
-        request._tag === 'Internal' && request.url.pathname.startsWith('/site')
+        request._tag === 'Internal' && onSite(request.url)
           ? Navigation.pushUrl(urlToString(request.url))
           : Navigation.load(request._tag === 'Internal' ? urlToString(request.url) : request.href)
       return {
         model,
         commands: [{ name: 'FollowLink', effect: effect.pipe(Effect.as(Message.Ticked())) }],
       }
+    },
+    // Reads what the page there will read, so it draws at once if the reader goes.
+    PointedAtLink: ({ url }) => {
+      if (!onSite(url)) return { model }
+      const route = routeOf(url)
+      if (Equal.equals(route, model.route)) return { model }
+      return { model, commands: [Data.preload({ ...model, route }, actives)] }
     },
     Ticked: () => ({ model }),
     FocusedMain: () => ({ model }),

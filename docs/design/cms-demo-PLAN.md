@@ -70,10 +70,12 @@ to own it, or the explicit code stays clearer.
   by convention. Becomes Site targets-with-intents (§33.3: `{ route,
   intents }` with readiness + apply) plus one history-intent declaration
   (§33.4: node/entry change is a step, in-node param change replaces).
-- **`siteApp.ts` `routeOf`/`pathOf`.** A hand-written bidirectional
-  route codec with an invertibility test. One Site declaration must give
-  both (`Site.target` carries route + url, §15/§33.9); no application writes
-  the pair.
+- **`siteApp.ts` `routeOf`/`pathOf`.** Done 2026-10-12: the site is a
+  Site tree (`SiteMap`) over the routers in `content/siteRoutes.ts`;
+  `Site.parse` and `Site.hrefOf` are the pair, each node's `meta` replaced
+  `siteMeta.ts`, `Site.targets` lists what the build renders, and pointing
+  at a link preloads its page (`Data.preload`). The studio keeps its own
+  routing.
 - **`pageApp.ts:243-263` `follow` (deferred `linked{block,panel,viewport}`
   replayed through the Builder's own `update` once its Model exists).**
   Ordering (select → panel → viewport), id validation via `Object.hasOwn`

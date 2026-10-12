@@ -36,6 +36,10 @@ describe('the generated site', () => {
       ]),
     )
     expect(pages.filter(page => page.path.startsWith('/site/blog/'))).toHaveLength(8)
+    // Each address once, and the home page only at the site's own.
+    const paths = pages.map(page => page.path)
+    expect(new Set(paths).size).toBe(paths.length)
+    expect(paths).not.toContain('/site/home')
   })
 
   it('puts a post’s text, description and article facts in its HTML', () => {

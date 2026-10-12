@@ -9,11 +9,21 @@
  * server the sandbox runs, through the site's own config (`siteConfig.ts`).
  */
 import { Effect, Option } from 'effect'
+import { Entity } from 'foldkit-entity'
 import { Style } from 'foldkit-mixins'
-import { Remote } from 'foldkit-remote'
+import {
+  Remote,
+  RemotePolicy,
+  type Page as RemotePage,
+  type RemoteClient,
+  type RemoteData,
+} from 'foldkit-remote'
+import { Site as Sites } from 'foldkit-site'
+import type { Projection } from 'foldkit-surface'
 import { generateStaticSite } from 'foldkit-ssr/vite'
 import type { Url } from 'foldkit/url'
-import { ORIGIN } from '../content/domain.js'
+import { ORIGIN, Post, RecentPosts } from '../content/domain.js'
+import { Page, PublishedPages } from '../content/pageDomain.js'
 import { answer } from '../server/endpoint.js'
 import { openServer } from '../server/server.js'
 import { siteConfig } from '../content/siteConfig.js'
@@ -75,7 +85,7 @@ export const generateSite = async (
       config: path => site.configFor(path),
       plan,
       origin: ORIGIN,
-      paths: site.paths(),
+      paths: site.paths,
       template,
       head: rendered => stylesOf(rendered.html),
       files: 'flat',
@@ -102,7 +112,7 @@ export const prepareSite = async (now: Date = new Date()) => {
   const remote = Remote.clientLayer(remoteClient(send, 'visitor'))
   return {
     /** Every published page and post: its path and its sitemap date. */
-    paths: () => listSitePaths(backend),
+    paths: () => Effect.runPromise(listSite(now).pipe(Effect.provide(remote))),
     /** The site's config for one path, its Model prepared. */
     configFor: async (path: string) => {
       const prepared = await Effect.runPromise(
@@ -125,29 +135,78 @@ export const prepareSite = async (now: Date = new Date()) => {
   }
 }
 
-/** Every published page and post of the seed: its path and its sitemap date. */
-export const listSitePaths = (backend: {
-  readonly rows: (query: string) => ReadonlyArray<Record<string, unknown>>
-}): ReadonlyArray<{ readonly path: string; readonly modified: string }> => {
-  const posts = backend.rows(
-    'select slug, published_at from posts where published_at is not null order by published_at',
+const PostListed = Entity.select(Post, { slug: true, publishedAt: true })
+const PageListed = Entity.select(Page, { slug: true })
+
+/** Every row a list read holds, refusing one longer than a read takes, which would lose pages. */
+const everyRow = <A>(
+  model: Site.Model,
+  projection: Projection<Site.Model, RemoteData<RemotePage<A>>>,
+  now: Date,
+) =>
+  Site.Data.prefetch(model, projection, {
+    policy: RemotePolicy.networkOnly,
+    now: () => now.getTime(),
+  }).pipe(
+    Effect.flatMap(read => {
+      const listed = projection.read(read)
+      if (listed._tag !== 'Ready')
+        return Effect.die(new Error(`the site could not be listed: ${listed._tag}`))
+      if (listed.value.hasNext)
+        return Effect.die(new Error('the site lists more than one read takes'))
+      return Effect.succeed(listed.value.items)
+    }),
   )
-  const pages = backend.rows('select slug from pages where published_at is not null')
-  const text = (row: Readonly<Record<string, unknown>>, key: string) => String(row[key])
-  const newest =
-    posts
-      .map(row => text(row, 'published_at'))
-      .sort()
-      .at(-1) ?? ''
-  return [
-    ...pages.map(row => ({
-      path: text(row, 'slug') === 'home' ? '/site' : `/site/${text(row, 'slug')}`,
-      modified: newest,
-    })),
-    { path: '/site/blog', modified: newest },
-    ...posts.map(row => ({
-      path: `/site/blog/${text(row, 'slug')}`,
-      modified: text(row, 'published_at'),
-    })),
-  ]
+
+/**
+ * Every published page and post, read as a visitor reads them, through the
+ * site's own tree (`Site.targets`): its path, and when it last changed for the
+ * sitemap. A post changed when it was published; anything else shows the
+ * newest post (the home page and the blog list them), so it changed then.
+ */
+export const listSite = (
+  now: Date,
+): Effect.Effect<
+  ReadonlyArray<{ readonly path: string; readonly modified: string }>,
+  never,
+  RemoteClient
+> => {
+  const start = Site.initial(urlAt('/site')).model
+  const posts = everyRow(
+    start,
+    Site.Data.query(RecentPosts, {}, { select: PostListed, first: 500 }),
+    now,
+  )
+  const pages = everyRow(
+    start,
+    Site.Data.query(PublishedPages, {}, { select: PageListed, first: 500 }),
+    now,
+  )
+  return Effect.gen(function* () {
+    const published = yield* posts
+    const newest =
+      published
+        .flatMap(post => (post.publishedAt === null ? [] : [post.publishedAt]))
+        .sort()
+        .at(-1) ?? ''
+    const listed = yield* Sites.targets(Site.SiteMap, [
+      Sites.paths(
+        Site.PostNode,
+        Effect.succeed(
+          published.map(post => ({
+            params: { slug: post.slug },
+            ...(post.publishedAt === null ? {} : { modified: post.publishedAt }),
+          })),
+        ),
+      ),
+      Sites.paths(
+        Site.PageNode,
+        Effect.map(pages, rows =>
+          // The home page's address is the site's own, listed by its node.
+          rows.filter(page => page.slug !== 'home').map(page => ({ params: { slug: page.slug } })),
+        ),
+      ),
+    ])
+    return listed.map(({ url, modified }) => ({ path: url, modified: modified ?? newest }))
+  }).pipe(Effect.orDie)
 }
