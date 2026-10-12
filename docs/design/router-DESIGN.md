@@ -96,9 +96,9 @@ centre, as §32 says; Site is one producer, Composition another.
   direction is still each app's own `urlToRoute`.)
 - **Scaffold derivation (§35):** entities to a sectioned site — proposed,
   unbuilt. `paths` comes first; everything else hangs off enumeration.
-- **Document-aware targets (§§33.7, 33.10):** nodes saying which
-  application/document serves them, so `Site.navigate` chooses Navigate
-  Command vs full load (and generated pages state their preference).
+- **Document-aware targets (§§33.7, 33.10):** built as one tree per
+  document (`Site.routeAt`; `Site.routing` loads what the tree does not
+  hold). Open: generated pages stating their preference.
 - **Locales (§33.11)** with the first localized content, and **themes**
   staying preferences (§33.12, decided: not routes).
 - **Single flight (§§27, 31.10), last:** starts with a request-count
@@ -7079,9 +7079,11 @@ the rest.
 
 ## 33.7 Document boundaries: Vite and SSR
 
-> Status 2026-10-07: foundations-in-HTML built (`foundations` plugin + SSR
-> head); one studio application built. Open: document-aware targets (which
-> application serves a node) and prefetch closing the remaining waits.
+> Status 2026-10-12: foundations-in-HTML built (`foundations` plugin + SSR
+> head); one studio application built; document-aware targets built (a tree
+> is one document: `Site.routeAt` is `None` where no node takes an address,
+> and `Site.routing` loads it); prefetch built (`Data.preload`, the CMS
+> site's links).
 
 Posts, pages and the site are three applications, so moving between them is a
 full document load. That load painted white with a line of text, because the
@@ -7155,9 +7157,9 @@ is none yet, and so hand-wrote:
 
 ## 33.10 Documents, and taking a page over
 
-> Status 2026-10-07: open — targets do not know their document yet, so link
-> handlers cannot tell Navigate from full load, and generated pages state no
-> preference. See open question 4.
+> Status 2026-10-12: half built — a link the tree does not hold is a full
+> load (`Site.routeAt`, `Site.routing`). Open: a generated page of the same
+> application stating its preference; see open question 4.
 
 §33.7 said a target must know its document. With generated pages there are
 three kinds of navigation, and the Site graph is what tells them apart:

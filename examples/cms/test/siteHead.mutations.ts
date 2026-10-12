@@ -14,15 +14,22 @@ export default [
     edits: [
       {
         file: app,
-        find: '      return { model, commands: [Data.preload({ ...model, route }, actives)] }',
-        replace: '      return { model }',
+        find: ': { model, commands: [Data.preload({ ...model, route }, actives)] },',
+        replace: ': { model },',
       },
     ],
     tests: head,
   },
   {
     name: 'a link to another application is read ahead too',
-    edits: [{ file: app, find: '      if (!onSite(url)) return { model }\n', replace: '' }],
+    edits: [
+      {
+        file: app,
+        find: '      Option.match(Site.routeAt(SiteMap, url), {\n        onNone: () => ({ model }),',
+        replace:
+          '      Option.match(Option.some(routeOf(url)), {\n        onNone: () => ({ model }),',
+      },
+    ],
     tests: head,
   },
   {
@@ -30,8 +37,8 @@ export default [
     edits: [
       {
         file: app,
-        find: '      if (Equal.equals(route, model.route)) return { model }\n      return { model, commands',
-        replace: '      return { model, commands',
+        find: '          Equal.equals(route, model.route)\n            ? { model }',
+        replace: '          false\n            ? { model }',
       },
     ],
     tests: head,

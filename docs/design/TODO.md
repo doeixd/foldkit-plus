@@ -288,8 +288,12 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   Built 2026-09-30 as `foundations` in `foldkit-mixins/foundations` (the
   sheet module compiled through a server into the head), adopted by the CMS
   example's config with its local plugin deleted.
-- [ ] **Targets that know their document,** so a link to another application
-  is a full load and one within it is a Navigate Command. §33.7
+- [x] **Targets that know their document,** so a link to another application
+  is a full load and one within it is a Navigate Command. §33.7 Built: a
+  tree is one document; `Site.routeAt(site, url)` is `None` for an address
+  no node takes, and `Site.routing` loads it. The CMS site decides its links
+  and preloads by its tree instead of a `/site` prefix. Open (§33.10): a
+  generated page of the same application stating Navigate or load.
 - [x] **Prefetch a target's data before navigating,** which removes the waits
   the demo still shows between screens. §16, §33.6 The mechanism is built:
   `Site.sourcesFor` is the target chain as Sources, prepared caller-side with

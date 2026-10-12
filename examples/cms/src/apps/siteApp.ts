@@ -25,6 +25,7 @@ import type { Meta } from 'foldkit-ssr/client'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
+import { UrlRequest } from 'foldkit/navigation'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { ORIGIN, Post, PostPage, Posts, PostById, RecentPosts } from '../content/domain.js'
 import { Page, Pages, PublishedPages } from '../content/pageDomain.js'
@@ -252,9 +253,6 @@ export const focusMain = (): void => {
   document.getElementById('site-main')?.focus()
 }
 
-/** Whether an address is the site's own: another is the studio, a full load away. */
-const onSite = (url: Url): boolean => url.pathname === '/site' || url.pathname.startsWith('/site/')
-
 export const update = placements.update((model, message) => {
   // Remote's Messages go to its wiring, so they never reach here; the guard
   // narrows to the application's own tags, which the match below covers all of.
@@ -276,23 +274,30 @@ export const update = placements.update((model, message) => {
       }
     },
     UrlRequested: ({ request }) => {
-      // A link within the site is a route change; anything else is another application.
-      const effect =
-        request._tag === 'Internal' && onSite(request.url)
-          ? Navigation.pushUrl(urlToString(request.url))
-          : Navigation.load(request._tag === 'Internal' ? urlToString(request.url) : request.href)
+      // A link the site's tree holds is a route change; any other is another
+      // application's (the studio's), a full load away.
+      const effect = UrlRequest.match(request, {
+        Internal: ({ url }) =>
+          Option.match(Site.routeAt(SiteMap, url), {
+            onNone: () => Navigation.load(urlToString(url)),
+            onSome: () => Navigation.pushUrl(urlToString(url)),
+          }),
+        External: ({ href }) => Navigation.load(href),
+      })
       return {
         model,
         commands: [{ name: 'FollowLink', effect: effect.pipe(Effect.as(Message.Ticked())) }],
       }
     },
     // Reads what the page there will read, so it draws at once if the reader goes.
-    PointedAtLink: ({ url }) => {
-      if (!onSite(url)) return { model }
-      const route = routeOf(url)
-      if (Equal.equals(route, model.route)) return { model }
-      return { model, commands: [Data.preload({ ...model, route }, actives)] }
-    },
+    PointedAtLink: ({ url }) =>
+      Option.match(Site.routeAt(SiteMap, url), {
+        onNone: () => ({ model }),
+        onSome: route =>
+          Equal.equals(route, model.route)
+            ? { model }
+            : { model, commands: [Data.preload({ ...model, route }, actives)] },
+      }),
     Ticked: () => ({ model }),
     FocusedMain: () => ({ model }),
   })
