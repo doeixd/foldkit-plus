@@ -26,6 +26,8 @@ export interface OklchKnobs {
   readonly surfaceContrast?: string
   /** Multiplies text chroma. */
   readonly contrastFactor?: number
+  /** Chroma of the code colors (`syntax-*`), 0–0.4; default `0.14`. */
+  readonly syntaxChroma?: number
   /** Hues of the feedback families. */
   readonly feedback?: {
     readonly success?: number
@@ -102,6 +104,13 @@ const family = (name: string, defaultValue: string) => {
   }
 }
 
+/**
+ * A code color in `hue`: the same lightness for every kind, so no kind shouts,
+ * dark enough to read on a light surface and light enough on a dark one.
+ */
+const syntaxInk = (hue: string) =>
+  ld(`oklch(48% ${v('knob', 'syntax-c')} ${hue})`, `oklch(80% ${v('knob', 'syntax-c')} ${hue})`)
+
 /** A feedback family, lighter in a dark scheme so its fill reads on a dark page. */
 const feedback = (name: string, l: number, c: number, dark: number) =>
   family(
@@ -134,6 +143,7 @@ export const oklch = (knobs: OklchKnobs) => {
       'warning-h': String(knobs.feedback?.warning ?? 75),
       'error-h': String(knobs.feedback?.error ?? 25),
       'info-h': String(knobs.feedback?.info ?? 245),
+      'syntax-c': num(knobs.syntaxChroma ?? 0.14),
     },
     hue: {
       accent: v('knob', 'accent-h'),
@@ -202,6 +212,20 @@ export const oklch = (knobs: OklchKnobs) => {
     // Under 65% in the dark, where the text on a fill turns dark: on red that reads muddy.
     error: feedback('error', 60, 0.2, 64),
     info: feedback('info', 65, 0.15, 70),
+    // Code, by the kinds a tokenizer names (`syntax-keyword` is
+    // `--fk-syntax-keyword`): each kind in a hue the palette already has, so
+    // code follows the brand, and the quiet kinds in the text's own grey.
+    syntax: {
+      keyword: syntaxInk(v('hue', 'accent')),
+      function: syntaxInk(v('hue', 'secondary')),
+      type: syntaxInk(v('hue', 'tertiary')),
+      string: syntaxInk(v('knob', 'success-h')),
+      number: syntaxInk(v('knob', 'warning-h')),
+      property: syntaxInk(v('knob', 'info-h')),
+      operator: v('text', 'default'),
+      punctuation: v('text', 'muted'),
+      comment: text([52, 1], [62, 1]),
+    },
   })
 }
 

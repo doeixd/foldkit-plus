@@ -135,4 +135,26 @@ export default [
     ],
     tests: ['packages/mixins/test/themePage.test.ts'],
   },
+  {
+    name: 'code as dark on a dark page as on a light one',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "`oklch(80% ${v('knob', 'syntax-c')} ${hue})`",
+        replace: "`oklch(30% ${v('knob', 'syntax-c')} ${hue})`",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'a function the color of a keyword',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "function: syntaxInk(v('hue', 'secondary')),",
+        replace: "function: syntaxInk(v('hue', 'accent')),",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
 ]

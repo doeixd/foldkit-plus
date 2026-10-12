@@ -346,7 +346,12 @@ text on that fill (near white on a mid accent), and `ink` is text in the family'
 base surface, dark enough to read in a light scheme and light enough in a dark one. Colored text
 is `ink`, never `default`. The surfaces are the base at a few lightnesses with its chroma, so a
 panel and a sidebar read as the page's own color; `bedrock` is the deepest of them in both
-schemes, and the focus ring, `outline.focus`, is the accent. `Theme.tokens` is the
+schemes, and the focus ring, `outline.focus`, is the accent. The `syntax` group colors code by
+the kinds a tokenizer names (`syntax-keyword` is `--fk-syntax-keyword`, as
+`foldkit-richtext-code` and its Shiki adapter name them): `keyword`, `function` and `type` in
+the accent, secondary and tertiary hues, `string`, `number` and `property` in the success,
+warning and info hues, all at one lightness per scheme and the `syntaxChroma` knob's chroma, and
+`operator`, `punctuation` and `comment` in the text's own grey. `Theme.tokens` is the
 non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
 
 A theme reaches the page as pieces, and the page chooses the layers:

@@ -156,3 +156,18 @@ test('the error fill keeps light text in a dark scheme', () => {
     lightnessOf(computed('error-default')),
   )
 })
+
+test.each(['light', 'dark'] as const)(
+  'in a %s scheme, every code color reads on the base, and the hued kinds tell apart',
+  scheme => {
+    install(scheme)
+    const base = lightnessOf(computed('surface-base'))
+    const kinds = ['keyword', 'function', 'type', 'string', 'number', 'property']
+    for (const kind of [...kinds, 'operator', 'punctuation', 'comment'])
+      expect(Math.abs(lightnessOf(computed(`syntax-${kind}`)) - base), kind).toBeGreaterThan(0.3)
+    const hues = kinds.map(kind => hueOf(computed(`syntax-${kind}`)))
+    hues.forEach((hue, index) =>
+      hues.slice(index + 1).forEach(other => expect(distance(hue, other)).toBeGreaterThan(15)),
+    )
+  },
+)

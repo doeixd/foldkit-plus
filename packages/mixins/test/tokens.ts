@@ -9,6 +9,17 @@ export const declaredTokens: ReadonlyArray<string> = [
   ...['success', 'warning', 'error', 'info'].flatMap(g =>
     ['default', 'subtle', 'on-fill', 'ink', 'outline'].map(n => `${g}-${n}`),
   ),
+  ...[
+    'keyword',
+    'function',
+    'type',
+    'string',
+    'number',
+    'property',
+    'operator',
+    'punctuation',
+    'comment',
+  ].map(n => `syntax-${n}`),
   ...['3xs', '2xs', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl'].map(n => `space-${n}`),
   ...['xs', 'sm', 'md', 'lg', 'xl', 'full'].map(n => `radius-${n}`),
   ...['body', 'heading', 'mono'].map(n => `font-${n}`),

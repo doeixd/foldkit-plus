@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-mixins`: code colors in `Theme.oklch`.** A `syntax` group colors
+  each kind `foldkit-richtext-code` and `foldkit-richtext-code-shiki` name
+  (`syntax-keyword` reads `--fk-syntax-keyword`), in hues the palette already
+  has, readable in both schemes; `syntaxChroma` sets how colorful.
+
 ## 0.17.1
 
 `foldkit-entity` 0.8.1, `foldkit-remote-drizzle` 0.11.1 and
