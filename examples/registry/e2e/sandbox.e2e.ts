@@ -140,8 +140,10 @@ test('the later of two edits wins, the device whose edit lost is told, and an of
     .toBe('pending')
   const frameB = page.frames().find(frame => frame.url().includes('pane=device-b'))!
   await frameB.goto(frameB.url())
+  // The reloaded device starts its database and connection again, which the
+  // first load is given a minute for.
   await expect
-    .poll(() => cell(page, 'Device A', 'p000006', 'cents').textContent(), { timeout: 15_000 })
+    .poll(() => cell(page, 'Device A', 'p000006', 'cents').textContent(), { timeout: 60_000 })
     .toBe('6.66')
   expect(errors).toEqual([])
   await page.close()
