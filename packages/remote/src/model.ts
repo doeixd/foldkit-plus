@@ -128,11 +128,18 @@ export interface RemoteModel {
   readonly restoredFrom: Option.Option<string>
   /**
    * Under `verifyPlacement`, the order each list was placed in, by edge key,
-   * until the server's page for it arrives to be compared with it.
+   * and the rows placing took out of its first page, until the server's page
+   * for it arrives to be compared with them.
    */
-  readonly placed: Readonly<Record<string, ReadonlyArray<string>>>
+  readonly placed: Readonly<Record<string, PlacedOrder>>
   /** Under `verifyPlacement`, each placement the server's page disagreed with. */
   readonly placementMismatches: ReadonlyArray<PlacementMismatch>
+}
+
+/** A list's first page as the client placed it: its keys in order, and those it took out. */
+export interface PlacedOrder {
+  readonly order: ReadonlyArray<string>
+  readonly dropped: ReadonlyArray<string>
 }
 
 /** A list the client placed rows in one order and the server then listed in another. */
@@ -822,8 +829,9 @@ const sameFields = (model: RemoteModel, next: RemoteModel): boolean => {
 
 /**
  * A placement compared with the server's first page of the list it placed
- * in, under `verifyPlacement`: the keys as far as both reach must agree. The
- * record goes once compared; a disagreement is kept.
+ * in, under `verifyPlacement`: the keys as far as both reach must agree, and
+ * no row placing took out may be one the page still lists. The record goes
+ * once compared; a disagreement is kept.
  */
 const checkedPlacement = (
   model: RemoteModel,
@@ -836,10 +844,13 @@ const checkedPlacement = (
     return { placed: model.placed, placementMismatches: model.placementMismatches }
   }
   const { [connection]: _, ...rest } = model.placed
-  const reach = Math.min(placed.length, page.edges.length)
+  const reach = Math.min(placed.order.length, page.edges.length)
   const served = page.edges.slice(0, reach).map(edge => edge.key)
-  const asPlaced = placed.slice(0, reach)
-  const agrees = served.every((key, index) => key === asPlaced[index])
+  const asPlaced = placed.order.slice(0, reach)
+  const listed = new Set(page.edges.map(edge => edge.key))
+  const agrees =
+    served.every((key, index) => key === asPlaced[index]) &&
+    !placed.dropped.some(key => listed.has(key))
   return {
     placed: rest,
     placementMismatches: agrees

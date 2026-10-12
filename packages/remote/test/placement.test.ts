@@ -136,11 +136,32 @@ describe('a row past what a list has loaded is outside it', () => {
     )
   })
 
-  it('when it was the first edge loaded and moved below it, where rows precede it', () => {
-    const moved = storeOf([...rows.filter(([id]) => id !== 'a'), ['a', 5]])
-    const loaded = list(segment(['a', 'b', 'c'], cursor, terminal))
-    // Its own old edge says nothing of where it is now.
-    expect(placeIn(moved, loaded, ByRank.body!, {}, 'Project:a')).toEqual(RowPlace.Outside())
+  it('not at all when it was where its page met rows not loaded, and moved', () => {
+    // a began a page after rows not loaded, and b ended one before them: each
+    // was the boundary, and its old keys are gone, so whether it moved past
+    // that boundary cannot be told.
+    const first = storeOf([...rows.filter(([id]) => id !== 'a'), ['a', 5]])
+    expect(
+      placeIn(
+        first,
+        list(segment(['a', 'b', 'c'], cursor, terminal)),
+        ByRank.body!,
+        {},
+        'Project:a',
+      ),
+    ).toMatchObject({ _tag: 'Unknown' })
+    const last = storeOf([...rows.filter(([id]) => id !== 'c'), ['c', 25]])
+    expect(
+      placeIn(
+        last,
+        list(segment(['a', 'b', 'c'], terminal, cursor)),
+        ByRank.body!,
+        {},
+        'Project:c',
+      ),
+    ).toMatchObject({ _tag: 'Unknown' })
+    // Any other row past a boundary is outside, as ever.
+    expect(at(list(segment(['a', 'b'], terminal, cursor)), 'late')).toEqual(RowPlace.Outside())
   })
 
   it('in the gap between two loaded segments', () => {
@@ -260,5 +281,63 @@ describe('a row whose Selection stored no id', () => {
     expect(placeIn(ranked, before, ByRank.body!, {}, entityKey('Project', 'a'))).toEqual(
       RowPlace.Before({ segment: 0, edge: 'Project:b' }),
     )
+  })
+})
+
+describe('a row with a number id', () => {
+  const Item = DomainEntity.define(
+    'Item',
+    Schema.Struct({ id: Schema.Number, rank: Schema.Number }),
+  )
+  const Newest = Query.define('Newest', {}, () =>
+    Query.from(Item).pipe(Query.orderBy(Order.desc(Item.fields.id))),
+  )
+  const Items = Remote.make({ model: App.model.remote, entities: [Item], queries: [Newest] })
+  const items = Items.reduce(
+    { remote: Remote.initial },
+    {
+      _tag: 'ReadReceived',
+      requests: [8, 9, 10].map(id => ({ entity: 'Item', id: String(id), fields: ['id', 'rank'] })),
+      result: {
+        settled: [],
+        entities: [8, 9, 10].map(id => ({
+          entity: 'Item',
+          id: String(id),
+          values: { id, rank: 0 },
+        })),
+      },
+      now: 0,
+    },
+  ).remote.entities
+
+  it('is ordered by its number, never by its key as text', () => {
+    const loaded: Connection = {
+      segments: [
+        {
+          edges: [9, 8].map(id => ({
+            key: entityKey('Item', String(id)),
+            ref: { entity: 'Item', id: String(id) },
+          })),
+          start: terminal,
+          end: terminal,
+        },
+      ],
+      stale: false,
+    }
+    // As text, '10' sorts below '9' and '8'; as a number it comes first.
+    expect(placeIn(items, loaded, Newest.body!, {}, 'Item:10')).toEqual(
+      RowPlace.Before({ segment: 0, edge: 'Item:9' }),
+    )
+    // Read without its id, a row's key is text, and its number is not known.
+    const unread = Items.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ReadReceived',
+        requests: [{ entity: 'Item', id: '11', fields: ['rank'] }],
+        result: { settled: [], entities: [{ entity: 'Item', id: '11', values: { rank: 0 } }] },
+        now: 0,
+      },
+    ).remote.entities
+    expect(placeIn(unread, loaded, Newest.body!, {}, 'Item:11')).toMatchObject({ _tag: 'Unknown' })
   })
 })

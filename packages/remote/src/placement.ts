@@ -12,7 +12,7 @@
  *
  * Pure: it reads the store and the list it is given.
  */
-import { Data, Match, Option } from 'effect'
+import { Data, Match, Option, Schema, SchemaAST } from 'effect'
 import { Query as Relational, compareRows, type AnyQuery, type OrderTerm } from 'foldkit-entity'
 import type { Connection, Edge } from './connection.js'
 import { entityKey, readField, type EntityStore } from './store.js'
@@ -32,20 +32,23 @@ export const RowPlace = Data.taggedEnum<RowPlace>()
 
 /**
  * The values a row holds of the fields an order reads, or none when it lacks
- * one. Its `id` is its key's, whether or not a Selection stored it, so the
- * id tie-break every order ends on never makes a row unplaceable.
+ * one. An `id` no Selection stored is its key's, when the id is stored as
+ * text as a key holds it, so the id tie-break every order ends on does not
+ * make such a row unplaceable; a number id is never compared as text.
  */
 const keysOf = (
   store: EntityStore,
   key: string,
   id: Option.Option<string>,
+  idIsText: boolean,
   terms: ReadonlyArray<OrderTerm>,
 ): Option.Option<Readonly<Record<string, unknown>>> => {
   const values: Record<string, unknown> = Object.create(null)
   for (const term of terms) {
     if (term.expr._tag !== 'Field') return Option.none()
     const field = term.expr.key
-    const value = field === 'id' && Option.isSome(id) ? id : readField(store, key, field)
+    const stored = readField(store, key, field)
+    const value = field === 'id' && Option.isNone(stored) && idIsText ? id : stored
     if (Option.isNone(value)) return Option.none()
     values[field] = value.value
   }
@@ -71,14 +74,23 @@ export const placeIn = (
   // The row is of the body's Entity, so its key is that name, a colon, its id.
   const prefix = `${body.entity.name}:`
   const id = key.startsWith(prefix) ? Option.some(key.slice(prefix.length)) : Option.none()
-  const row = keysOf(store, key, id, terms)
+  const idField = (body.entity.fields as Readonly<Record<string, { readonly schema: Schema.Top }>>)
+    .id
+  const idIsText = idField !== undefined && SchemaAST.isString(Schema.toEncoded(idField.schema).ast)
+  const row = keysOf(store, key, id, idIsText, terms)
   if (Option.isNone(row)) {
     return RowPlace.Unknown({ reason: `${key} lacks a field the order reads` })
   }
   /** Negative when the row sorts before the edge; none when the edge cannot be compared. */
   const against = (edge: Edge): Option.Option<number> =>
     Option.flatMap(
-      keysOf(store, entityKey(edge.ref.entity, edge.ref.id), Option.some(edge.ref.id), terms),
+      keysOf(
+        store,
+        entityKey(edge.ref.entity, edge.ref.id),
+        Option.some(edge.ref.id),
+        idIsText,
+        terms,
+      ),
       values => {
         try {
           return Option.some(compareRows(terms, row.value, values, body.entity.name))
@@ -88,9 +100,14 @@ export const placeIn = (
       },
     )
 
+  // A row that was a segment's first or last edge beside a `Cursor` was
+  // itself where its page began or ended: its old keys are gone from the
+  // store, so whether it moved past that boundary cannot be told.
+  const boundary = RowPlace.Unknown({ reason: `${key} was where its page met rows not loaded` })
   const { segments } = connection
   for (let index = 0; index < segments.length; index++) {
     const segment = segments[index]!
+    const held = segment.edges.findIndex(edge => edge.key === key)
     const edges = segment.edges.filter(edge => edge.key !== key)
     for (let position = 0; position < edges.length; position++) {
       const edge = edges[position]!
@@ -104,7 +121,7 @@ export const placeIn = (
         // Before this segment's first edge is loaded only when nothing precedes it.
         return Match.value(segment.start).pipe(
           Match.tag('Terminal', () => before),
-          Match.orElse(() => RowPlace.Outside()),
+          Match.orElse(() => (held === 0 ? boundary : RowPlace.Outside())),
         )
       }
     }
@@ -115,6 +132,7 @@ export const placeIn = (
       Match.orElse(() => false),
     )
     if (ends) return RowPlace.End({ segment: index })
+    if (held >= 0 && held === segment.edges.length - 1) return boundary
   }
   return RowPlace.Outside()
 }

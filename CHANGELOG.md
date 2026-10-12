@@ -195,6 +195,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`: placement no longer drops a row it cannot judge, and
+  compares a number id as a number.** A row that was the last edge before a
+  cursor (or the first after one) was left out when it sorted past its
+  page's other rows, though its own old keys were the boundary and might
+  still hold it: it now invalidates the list. Placement read every id from its
+  key, so a number id ordered as text ('10' before '9'): the stored id is used,
+  and the key's only for an id stored as text. `verifyPlacement` also records
+  a row placing took out that the server's page still lists, which comparing
+  the shared prefix never could; `placed` now holds `{ order, dropped }`.
 - **`foldkit-entity`: a declared write binds the keys `Entity.input` lets
   map themselves.** An input key that is an `Option`, or optional, type-checked
   and then threw in `Write.bind`. A `some` now writes what it holds, and a

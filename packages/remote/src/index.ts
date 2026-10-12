@@ -2969,11 +2969,20 @@ const bindDomain = <
     if (identities.length === 0) return invalidateConnections(remote, invalidated)
     const withPlaced = { ...remote, connections: { ...remote.connections, ...placed } }
     if (options.verifyPlacement !== true) return invalidateConnections(withPlaced, invalidated)
+    const firstPage = (connection: Connection | undefined) =>
+      (connection?.segments[0]?.edges ?? []).map(edge => edge.key)
     const orders = Object.fromEntries(
-      identities.map(identity => [
-        identity,
-        (placed[identity]!.segments[0]?.edges ?? []).map(edge => edge.key),
-      ]),
+      identities.map(identity => {
+        const order = firstPage(placed[identity])
+        const kept = new Set(order)
+        return [
+          identity,
+          {
+            order,
+            dropped: firstPage(remote.connections[identity]).filter(key => !kept.has(key)),
+          },
+        ]
+      }),
     )
     return invalidateConnections({ ...withPlaced, placed: { ...remote.placed, ...orders } }, [
       ...invalidated,

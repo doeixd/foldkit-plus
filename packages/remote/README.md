@@ -1325,7 +1325,10 @@ the store the answer left:
   list has loaded, is placed where the body's order puts it among the rows
   loaded (`placeIn`), when
   the order is placeable (`Query.placement`); a row that sorts past what is
-  loaded is left out of it (and out of what showed it), for the next page;
+  loaded is left out of it (and out of what showed it), for the next page. A
+  row that was itself where a page met rows not loaded (the last before a
+  cursor, the first after one) cannot be told to have moved past it, its old
+  values being gone, so it invalidates the list instead;
 - anything else invalidates it, and its read entry fetches it again: a row the
   client cannot judge (it lacks a field the body reads), an order it cannot
   place (text with no declared collation, the server's own), or a row an
@@ -1349,7 +1352,8 @@ verifyPlacement: true })` places as usual, and also fetches each list it placed
 what the server said in (an answer, as above, or a read or a live patch, as
 below); when the server's first page arrives it is compared with the order
 placed, and a disagreement is kept in `model.remote.placementMismatches` (and
-`Data.inspect`). A pending edit is not checked: the server does not have it
+`Data.inspect`): an order the page does not share, or a row placing took out
+that the page still lists. A pending edit is not checked: the server does not have it
 yet. Turn it on in development and tests: a collation the client
 and the server disagree on then fails an assertion instead of misplacing a row
 for a reader.

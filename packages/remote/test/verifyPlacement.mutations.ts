@@ -28,8 +28,8 @@ export default [
     edits: [
       {
         file: model,
-        find: 'const agrees = served.every((key, index) => key === asPlaced[index])',
-        replace: 'const agrees = true',
+        find: 'served.every((key, index) => key === asPlaced[index]) &&',
+        replace: 'true &&',
       },
     ],
     tests,
@@ -46,6 +46,22 @@ export default [
         file: '../src/index.ts',
         find: 'return withPlacements(remote, placed, [])',
         replace: 'return { ...remote, connections: { ...remote.connections, ...placed } }',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row placing took out is not compared',
+    edits: [{ file: model, find: '!placed.dropped.some(key => listed.has(key))', replace: 'true' }],
+    tests,
+  },
+  {
+    name: 'placing records nothing it took out',
+    edits: [
+      {
+        file: index,
+        find: 'dropped: firstPage(remote.connections[identity]).filter(key => !kept.has(key)),',
+        replace: 'dropped: [],',
       },
     ],
     tests,

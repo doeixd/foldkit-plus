@@ -129,8 +129,8 @@ export default [
     edits: [
       {
         file: placement,
-        find: "field === 'id' && Option.isSome(id) ? id : readField(store, key, field)",
-        replace: 'readField(store, key, field)',
+        find: "field === 'id' && Option.isNone(stored) && idIsText ? id : stored",
+        replace: 'stored',
       },
     ],
     tests,
@@ -142,6 +142,50 @@ export default [
         file: placement,
         find: 'const prefix = `${body.entity.name}:`',
         replace: "const prefix = ''",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row that began its page is placed outside it',
+    edits: [
+      {
+        file: placement,
+        find: 'Match.orElse(() => (held === 0 ? boundary : RowPlace.Outside())),',
+        replace: 'Match.orElse(() => RowPlace.Outside()),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row that ended its page is placed past it',
+    edits: [
+      {
+        file: placement,
+        find: 'if (held >= 0 && held === segment.edges.length - 1) return boundary',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an id is always its key',
+    edits: [
+      {
+        file: placement,
+        find: "field === 'id' && Option.isNone(stored) && idIsText ? id : stored",
+        replace: "field === 'id' && Option.isSome(id) ? id : stored",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a number id is taken from its key as text',
+    edits: [
+      {
+        file: placement,
+        find: 'idField !== undefined && SchemaAST.isString(Schema.toEncoded(idField.schema).ast)',
+        replace: 'true',
       },
     ],
     tests,

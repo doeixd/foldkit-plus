@@ -27,8 +27,11 @@ const list = ByPrice.ref({}).identity
 const edges = (ids: ReadonlyArray<string>) =>
   ids.map(id => ({ key: `Project:${id}`, ref: { entity: 'Project', id } }))
 
-/** Two projects loaded, at 10 and 20, and then p1 repriced to 50. */
-const repriced = (Data: ReturnType<typeof make>): Model => {
+/** Two projects loaded, at 10 and 20, the list ending at `end`. */
+const loadedTo = (
+  Data: ReturnType<typeof make>,
+  end: { readonly _tag: 'Terminal' } | { readonly _tag: 'Cursor'; readonly cursor: string },
+): Model => {
   const stored = Data.reduce(
     { remote: Remote.initial },
     {
@@ -44,18 +47,21 @@ const repriced = (Data: ReturnType<typeof make>): Model => {
       now: 0,
     },
   )
-  const loaded = Data.reduce(stored, {
+  return Data.reduce(stored, {
     _tag: 'ConnectionMerged',
     connection: list,
-    page: { edges: edges(['p1', 'p2']), start: { _tag: 'Terminal' }, end: { _tag: 'Terminal' } },
+    page: { edges: edges(['p1', 'p2']), start: { _tag: 'Terminal' }, end },
   })
-  return Data.reduce(loaded, {
+}
+
+/** Two projects loaded, at 10 and 20, and then p1 repriced to 50. */
+const repriced = (Data: ReturnType<typeof make>): Model =>
+  Data.reduce(loadedTo(Data, { _tag: 'Terminal' }), {
     _tag: 'MutationSucceeded',
     requestId: 'r1',
     entities: [{ entity: 'Project', id: 'p1', values: { price: 50 } }],
     now: 1,
   })
-}
 
 /** The server's page for the list, answering its fetch. */
 const served = (Data: ReturnType<typeof make>, model: Model, ids: ReadonlyArray<string>) =>
@@ -77,7 +83,23 @@ describe('verifyPlacement', () => {
     const model = repriced(Data)
     expect(order(model.remote)).toEqual(['p2', 'p1'])
     expect(model.remote.connections[list]!.stale).toBe(true)
-    expect(model.remote.placed[list]).toEqual(['Project:p2', 'Project:p1'])
+    expect(model.remote.placed[list]).toEqual({ order: ['Project:p2', 'Project:p1'], dropped: [] })
+  })
+
+  it('records a row placing took out that the server still lists', () => {
+    const Data = make(true)
+    // The list ends where more rows begin, so a row moved past its last is taken out.
+    const moved = Data.reduce(loadedTo(Data, { _tag: 'Cursor', cursor: 'after-p2' }), {
+      _tag: 'MutationSucceeded',
+      requestId: 'r2',
+      entities: [{ entity: 'Project', id: 'p1', values: { price: 60 } }],
+      now: 2,
+    })
+    expect(moved.remote.placed[list]).toEqual({ order: ['Project:p2'], dropped: ['Project:p1'] })
+    const checked = served(Data, moved, ['p2', 'p1'])
+    expect(checked.remote.placementMismatches).toEqual([
+      { connection: list, placed: ['Project:p2'], served: ['Project:p2'] },
+    ])
   })
 
   it('records nothing when the server lists the rows as placed, and lets the order go', () => {
@@ -120,7 +142,7 @@ describe('verifyPlacement', () => {
     })
     expect(order(read.remote)).toEqual(['p1', 'p2'])
     expect(read.remote.connections[list]!.stale).toBe(true)
-    expect(read.remote.placed[list]).toEqual(['Project:p1', 'Project:p2'])
+    expect(read.remote.placed[list]).toEqual({ order: ['Project:p1', 'Project:p2'], dropped: [] })
   })
 
   it('without it, places and fetches nothing', () => {
