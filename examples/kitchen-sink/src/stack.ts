@@ -27,7 +27,15 @@ import {
   type RemoteMessageTag,
   type RemoteModel,
 } from 'foldkit-remote'
-import { databaseLayer, entity, returning, one, query, source } from 'foldkit-remote-drizzle'
+import {
+  databaseLayer,
+  entity,
+  one,
+  query,
+  returning,
+  runStatement,
+  source,
+} from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { ActorId as DurableActorId, Journal, OpId } from 'foldkit-durable'
@@ -116,14 +124,14 @@ export const liveHub = Effect.runSync(RemoteServer.liveHub(entitySources))
 const RenameProjectSource = RemoteServer.mutation(RenameProject, ({ input }) =>
   Effect.gen(function* () {
     const project = returning(Project, ['id', 'name', 'status'])
-    const rows = yield* Effect.promise(() =>
-      Promise.resolve(
+    const rows = yield* runStatement(
+      () =>
         db
           .update(projects)
           .set({ name: input.name })
           .where(eq(projects.id, input.id))
           .returning(project.columns),
-      ),
+      'Database write failed',
     )
     // The patches answered here are what live subscribers hear: the handlers
     // given `live: liveHub` publish them, so nothing names the change twice.

@@ -24,6 +24,7 @@ import {
   databaseLayer,
   drizzleWrites,
   query,
+  runStatement,
   type DrizzleWrites,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -109,7 +110,7 @@ const Db = bind(
 export const write = (run: (database: DrizzleWrites) => PromiseLike<unknown>) =>
   Effect.gen(function* () {
     const database = yield* drizzleWrites
-    yield* Effect.promise(() => Promise.resolve(run(database)))
+    yield* runStatement(() => run(database), 'Database write failed')
   })
 
 /**

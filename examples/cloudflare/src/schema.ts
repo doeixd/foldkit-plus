@@ -54,6 +54,7 @@ import {
   drizzleWrites,
   query,
   returning,
+  runStatement,
   source,
   writer,
   DrizzleDatabase,
@@ -678,14 +679,14 @@ export const makeServer = () => {
   const Create = RemoteServer.mutation(CreateTodo, ({ input }) =>
     Effect.gen(function* () {
       const db = (yield* DrizzleDatabase) as unknown as InsertOnConflict
-      const inserted = yield* Effect.promise(() =>
-        Promise.resolve(
+      const inserted = yield* runStatement(
+        () =>
           db
             .insert(todos)
             .values({ id: input.id, title: input.title, done: 0 })
             .onConflictDoNothing()
             .returning(written.columns),
-        ),
+        'Database write failed',
       )
       // No row back means the id was already there: answer with the row as it is.
       const entities =
@@ -702,8 +703,9 @@ export const makeServer = () => {
   const Delete = RemoteServer.mutation(DeleteTodo, ({ input }) =>
     Effect.gen(function* () {
       const writes = yield* drizzleWrites
-      yield* Effect.promise(() =>
-        Promise.resolve(writes.delete(todos).where(eq(todos.id, input.id))),
+      yield* runStatement(
+        () => writes.delete(todos).where(eq(todos.id, input.id)),
+        'Database write failed',
       )
       return { output: {}, deleted: [{ entity: 'Todo', id: input.id }] }
     }),
