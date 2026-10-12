@@ -794,11 +794,11 @@ test('a server restarted under the page drops what it held of the old history', 
     await edit(productId(4), 'cents', '4.40')
     // Reads and the live stream held, so the cached row stays older.
     const release = server.holdReads()
-    await exchange()
-    await exchange()
-    await vi.waitFor(() =>
-      expect(latest().edits.map(kept => Option.isSome(kept.at))).toEqual([true]),
-    )
+    // Exchanged until committed: the edit may reach the outbox after an exchange ran.
+    await vi.waitFor(async () => {
+      await exchange()
+      expect(latest().edits.map(kept => Option.isSome(kept.at))).toEqual([true])
+    })
     // Absorbed while the cached row is older: held, and the row is asked for.
     await Effect.runPromise(server.journal.absorb)
     await exchange()
