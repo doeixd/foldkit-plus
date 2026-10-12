@@ -195,6 +195,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote-drizzle`: `asciiFold` folds only ASCII on Postgres.** It
+  ordered by `lower(x) COLLATE "C"`, where `lower` still follows the column's
+  collation and, under a UTF-8 one, folds `É` to `é`; the client's evaluator
+  and SQLite's `NOCASE` do not, so a client placed rows where Postgres would
+  not. It is `lower(x COLLATE "C")` now, the cursor's values folded alike, as
+  `contains` already did.
 - **`foldkit-remote`: `Data.persistence` says what keeps one reader's cache
   from the next.** A restore keeps what the Model holds, so a change of
   principal without `Data.forget` in the same `update` saved one person's rows

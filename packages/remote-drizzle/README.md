@@ -731,7 +731,8 @@ query(PostsQuery, {
 - A body term's collation is compiled with it, in the `ORDER BY` and the
   keyset alike: `binary` as `COLLATE BINARY` (SQLite) or `COLLATE "C"`
   (Postgres, text columns only; a `uuid` takes none and orders by bytes),
-  `asciiFold` as `COLLATE NOCASE` or `lower(x) COLLATE "C"`, and a locale as
+  `asciiFold` as `COLLATE NOCASE` or `lower(x COLLATE "C")` (folded under
+  `"C"`, so only ASCII letters fold), and a locale as
   `COLLATE "name"` on Postgres; SQLite, which has no locales, refuses one.
 - Where rows without a value go is said on every term and compiled as
   `NULLS FIRST`/`NULLS LAST`, so a nullable column sorts and pages the same on

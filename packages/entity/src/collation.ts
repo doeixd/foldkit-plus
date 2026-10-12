@@ -16,7 +16,7 @@ import { Metadata } from 'foldkit-metadata'
 export type Collation =
   /** By code point: SQLite `BINARY`, Postgres `COLLATE "C"`. */
   | { readonly _tag: 'Binary' }
-  /** ASCII letters folded to lower case, then by code point: SQLite `NOCASE`, Postgres `lower(x) COLLATE "C"`. */
+  /** ASCII letters folded to lower case, then by code point: SQLite `NOCASE`, Postgres `lower(x COLLATE "C")`. */
   | { readonly _tag: 'AsciiFold' }
   /** The backend's collation by this name: ordered by the server, never by a client. */
   | { readonly _tag: 'Locale'; readonly locale: string }

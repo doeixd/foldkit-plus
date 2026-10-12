@@ -571,7 +571,7 @@ Query.placement(byName, {}) // { _tag: 'Placeable' }
 - `Collation.binary` is code point order: SQLite `BINARY`, Postgres
   `COLLATE "C"`. An id is `binary` unless it says otherwise.
 - `Collation.asciiFold` folds ASCII letters, then compares by code point:
-  SQLite `NOCASE`, Postgres `lower(x) COLLATE "C"`.
+  SQLite `NOCASE`, Postgres `lower(x COLLATE "C")`.
 - `Collation.locale('en-US')` is the backend's own, ordered on the server and
   never by a client.
 

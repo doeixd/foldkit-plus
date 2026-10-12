@@ -119,7 +119,7 @@ export default [
     edits: [
       {
         file: cursor,
-        find: 'value: (value: unknown) => sql`lower(${value})`,',
+        find: 'value: (value: unknown) => sql`lower(${value} collate "C")`,',
         replace: 'value: plain,',
       },
     ],

@@ -1065,7 +1065,7 @@ them):
   - `Collation.binary`: code point order. SQLite `COLLATE BINARY`, Postgres
     `COLLATE "C"`, the evaluator comparing code points, not code units.
   - `Collation.asciiFold`: ASCII case folded, then binary. SQLite `NOCASE`
-    folds exactly ASCII; Postgres `lower(x) COLLATE "C"`.
+    folds exactly ASCII; Postgres `lower(x COLLATE "C")`.
   - `Collation.locale(tag)`: the backend's, ordered on the server and never
     placed locally.
 

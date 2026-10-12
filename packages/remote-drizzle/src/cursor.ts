@@ -72,10 +72,13 @@ const collated = (
             : Option.none(),
       AsciiFold: () =>
         Option.some(
+          // Folded under "C" on both sides: Postgres's `lower` follows the collation
+          // of what it folds, and under a UTF-8 one folds `É` too, which the
+          // evaluator and SQLite's NOCASE leave alone.
           postgres
             ? {
-                key: sql`lower(${column}) collate "C"`,
-                value: (value: unknown) => sql`lower(${value})`,
+                key: sql`lower(${column} collate "C")`,
+                value: (value: unknown) => sql`lower(${value} collate "C")`,
               }
             : { key: sql`${column} collate nocase`, value: plain },
         ),

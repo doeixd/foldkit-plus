@@ -225,7 +225,7 @@ describe('A compiled body is the query the binding used to spell out', () => {
     ])
     expect(
       await orderedBy(Order.asc(Post.fields.slug, { collation: Collation.asciiFold })),
-    ).toEqual(['lower("posts"."slug") collate "C" asc nulls last', '"posts"."id" asc nulls last'])
+    ).toEqual(['lower("posts"."slug" collate "C") asc nulls last', '"posts"."id" asc nulls last'])
     expect(
       await orderedBy(Order.desc(Post.fields.slug, { collation: Collation.locale('en-US') })),
     ).toEqual(['"posts"."slug" collate "en-US" desc nulls first', '"posts"."id" asc nulls last'])
