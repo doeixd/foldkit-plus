@@ -154,6 +154,10 @@ describe('the generated site', () => {
     ])
     // The guides that name it are listed under it.
     expect(hrefs(ssr, '.mentions a')).toEqual(expect.arrayContaining(['/ssr/guides/a-first-page']))
+    // Before the members, where a reader looking for it at work stops first.
+    expect(
+      Array.from(ssr.querySelectorAll('article h2[id]'), heading => heading.id).slice(0, 2),
+    ).toEqual(['in-the-guides', 'members'])
     const plan = ssr.getElementById('plan')
     expect(plan?.textContent).toContain('SSR.plan')
     expect(plan?.parentElement?.querySelector('pre')?.textContent).toContain('plan<Model')

@@ -214,14 +214,7 @@ const exportBody =
     ...prose(ih, drawing, entry.summary),
     ...paramsOf(ih, drawing, entry.params),
     ...tagsOf(ih, drawing, entry.tags),
-    ...(entry.members.length === 0
-      ? []
-      : [
-          ih.h2([ih.Id('members')], ['Members']),
-          ...entry.members.map((each, index) =>
-            member(ih, drawing, entry.name, each, ids[index] ?? ''),
-          ),
-        ]),
+    // Before the members: a guide is where it is shown at work.
     ...(mentions.length === 0
       ? []
       : [
@@ -234,6 +227,14 @@ const exportBody =
                 [ih.a([ih.Href(mention.path)], [mention.title]), ih.small([], [mention.crumb])],
               ),
             ),
+          ),
+        ]),
+    ...(entry.members.length === 0
+      ? []
+      : [
+          ih.h2([ih.Id('members')], ['Members']),
+          ...entry.members.map((each, index) =>
+            member(ih, drawing, entry.name, each, ids[index] ?? ''),
           ),
         ]),
   ]
@@ -434,14 +435,14 @@ export const apiPages = ({
               title: entry.name,
               description: firstLine(entry.summary),
               anchors: [
+                ...(mentions.length === 0
+                  ? []
+                  : [{ depth: 2, text: 'In the guides', id: 'in-the-guides' }]),
                 ...entry.members.map((each, index) => ({
                   depth: 3,
                   text: each.name,
                   id: memberIds[index] ?? '',
                 })),
-                ...(mentions.length === 0
-                  ? []
-                  : [{ depth: 2, text: 'In the guides', id: 'in-the-guides' }]),
               ],
               file: entry.source.file,
               listed: false,
