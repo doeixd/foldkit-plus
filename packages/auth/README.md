@@ -120,6 +120,50 @@ const transport = Remote.httpWithLive('/remote', {
 A refusal reaches the Model as a failure; `RemoteData.refused(error)` from
 `foldkit-remote` reads it as `Unauthenticated` with the `reason` below.
 
+## Who the client believes it is
+
+The cookie is the browser's, shared by every tab: a sign-in in one tab
+changes who another tab's next read is answered as. A broadcast between
+tabs tells the others, but a read already on its way would land the new
+account's answers in a cache that shows the old one. So the server says
+whom it answered as, and the client repeats it:
+
+```ts
+import { believing } from 'foldkit-auth'
+
+const resolving = { auth: AppAuth, http, principal, key: Policy.key }
+serveFetch({
+  server,
+  resolvePrincipal: AuthServer.resolver(resolving),
+  headers: AuthServer.answered(resolving), // `x-foldkit-subject` on each answer
+  layer: () => AppAuthLive,
+})
+
+// The browser: Remote's transport through a fetch that repeats it.
+export const belief = believing()
+Remote.httpWithLive('/remote', {
+  headers: () => ({ 'x-effect-auth-csrf': '1' }),
+  fetch: belief.fetch,
+})
+```
+
+- `AuthServer.answered` takes the resolver's own config, and needs its
+  `key`, so the header names the principal as the check reads it:
+  `subjectSaid(Option.some(key(user)))`, or `visitor`.
+- `believing()` holds what the last answer said, beside the cookie it
+  describes, never in the Model. Once the cookie means someone else, the
+  next request is refused with `SUBJECT_CHANGED` instead of answered.
+- Any 401 makes it believe no one, so the reads asked after it learn who is
+  signed in now. The application's `update` answers a read refused with
+  `SUBJECT_CHANGED` with `Remote.forget`, which asks them; a refusal for any
+  other reason (`Your session ended.`) is shown, since asking again would
+  be refused again.
+- A sign-in or sign-out this tab makes calls `belief.forget()` in its
+  Command, before `update` forgets what Remote holds, so the reads after
+  it are not refused once first.
+
+`examples/auth` wires all of it.
+
 ## Sync's socket
 
 A browser's `WebSocket` sends no header of the page's, so an upgrade cannot
@@ -187,7 +231,7 @@ not a way back to sign-in (auth-DESIGN §6.5, slice 10).
 | A cookie, from a request without a trusted `Origin` (and, for `'scripted'`, the CSRF header) | 401, `The request did not show it came from this application.` |
 | A cookie that no longer verifies (signed out, expired, idle, revoked) | 401, `Your session ended.` |
 | Two session cookies | 401, `Sign in again.` |
-| `x-foldkit-subject` naming someone other than the session | 401, `Who is signed in changed.` |
+| `x-foldkit-subject` naming someone other than the session | 401, `Who is signed in changed.` (`SUBJECT_CHANGED`) |
 | A session store that fails | a defect (500), never a visitor |
 
 A page served with `Referrer-Policy: no-referrer` sends `Origin: null` on its
@@ -209,16 +253,11 @@ session renew operation (`renewSession`) while the reader is active, or
 choose an idle timeout that fits.
 
 The `x-foldkit-subject` header (`SUBJECT_HEADER`, from `foldkit-auth`, which
-imports nothing of Yielded's and so suits a browser bundle) is what the
-client believes it is: `subjectSaid(Option.none())` (`visitor`) or
-`subjectSaid(Option.some(id))` (`subject:<id>`). A server that would answer
-as anyone else refuses, so a sign-out or a switch of account in another tab,
-or an expiry, never fills the client's cache with someone else's answers. The
-header carries no secret. A client that sends none is answered as whoever the
-session says. `foldkit-guard`'s `Me` tells a client who it is: send
-`subjectSaid(me.key)`, and give the resolver `key: Policy.key`, so it
-compares the header with the principal's key rather than the session's
-`subjectId`.
+imports nothing of Yielded's and so suits a browser bundle) carries no
+secret: `visitor` or `subject:<key>`, what `Me` already shows the client. A
+client that sends none is answered as whoever the session says. Without
+`key` the resolver compares it with the session's `subjectId`, for a client
+that writes the header itself; `AuthServer.answered` needs `key`.
 
 ## Limits
 

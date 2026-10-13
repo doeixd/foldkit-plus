@@ -6,7 +6,7 @@
 import { Layer } from 'effect'
 import * as Runtime from 'foldkit/runtime'
 import { Remote } from 'foldkit-remote'
-import { AppClient, Model, initial, subscriptions, update } from './app.js'
+import { AppClient, Model, belief, initial, subscriptions, update } from './app.js'
 import { view } from './view.js'
 
 const container = document.getElementById('app')
@@ -23,7 +23,10 @@ Runtime.run(
     resources: Layer.mergeAll(
       // A cookie authorizes these reads only beside Yielded's CSRF header.
       Remote.clientLayer(
-        Remote.httpWithLive('/remote', { headers: () => ({ 'x-effect-auth-csrf': '1' }) }),
+        Remote.httpWithLive('/remote', {
+          headers: () => ({ 'x-effect-auth-csrf': '1' }),
+          fetch: belief.fetch,
+        }),
       ),
       // Its only failure is a `baseUrl` that is not a URL, which `location.origin` is.
       AppClient.layerFetch.pipe(Layer.orDie),

@@ -14,10 +14,11 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
+import { SUBJECT_CHANGED, believing } from 'foldkit-auth'
 import { Entity } from 'foldkit-entity'
 import { ME } from 'foldkit-guard'
 import { BroadcastMessage, broadcastMessages, postBroadcast } from 'foldkit-primitives/net'
-import { Remote, type RemoteClient } from 'foldkit-remote'
+import { Remote, RemoteData, type RemoteClient, type RemoteError } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { AuthApi, Me, Note, Notes, served } from './domain.js'
 
@@ -28,6 +29,13 @@ import { AuthApi, Me, Note, Notes, served } from './domain.js'
  * @internal Its type names Yielded's unexported modules (TS2742), as `AuthApi`'s does.
  */
 export const AppClient = Client.make(AuthApi, { baseUrl: location.origin })
+
+/**
+ * The `fetch` Remote's transport goes through: it repeats whom the server
+ * last answered as, so once the cookie means someone else (another tab
+ * signed in) a read is refused rather than answered as them.
+ */
+export const belief = believing()
 
 /** The channel every tab of this application hears a change of principal on. */
 export const PRINCIPAL_CHANNEL = 'foldkit-example-auth/principal'
@@ -80,7 +88,11 @@ const SignIn = Command.define('SignIn', {
       const { auth } = yield* AppClient
       const completion = yield* auth.signIn({ email, password })
       return Match.valueTags(completion, {
-        Authenticated: () => Message.SucceededSignIn(),
+        Authenticated: () => {
+          // Before `update` forgets and reads again: the reads after are the new principal's.
+          belief.forget()
+          return Message.SucceededSignIn()
+        },
         // A second factor: the accounts here have none, so this is another setup's.
         PendingAuthentication: () =>
           Message.FailedSignIn({ reason: 'This account needs a second step.' }),
@@ -98,6 +110,7 @@ const SignOut = Command.define('SignOut', {
   execute: Effect.gen(function* () {
     const { auth } = yield* AppClient
     yield* auth.signOut()
+    belief.forget()
     return Message.SucceededSignOut()
   }).pipe(Effect.catch(error => Effect.succeed(Message.FailedSignOut({ reason: error.message })))),
 })
@@ -144,9 +157,28 @@ export function update(model: Model, message: Message): Update.Return<Model, Mes
           model: noticed(model, `Other tabs were not told: ${message}`),
         }),
       }),
-    GotRemoteMessage: ({ message }) => foldData(model, message),
+    GotRemoteMessage: ({ message }) =>
+      changedElsewhere(message) ? { model: Data.forget(model) } : foldData(model, message),
   })
 }
+
+const isSubjectChanged = (error: RemoteError): boolean =>
+  Option.exists(RemoteData.refused(error), refusal =>
+    Option.contains(refusal.reason, SUBJECT_CHANGED),
+  )
+
+/**
+ * A read refused because who is signed in changed since this tab last heard:
+ * what Remote holds is the old principal's, and `belief` has already let go
+ * of it, so forgetting reads everything again as whoever is signed in now.
+ */
+const changedElsewhere = Match.type<typeof Remote.Message.Type>().pipe(
+  Match.tags({
+    ReadFailed: ({ error }) => isSubjectChanged(error),
+    QueryFailed: ({ error }) => isSubjectChanged(error),
+  }),
+  Match.orElse(() => false),
+)
 
 const App = Surface.application({ Model, Message, initial, update })
 export const Data = Remote.make({ model: App.model.remote, ...served })

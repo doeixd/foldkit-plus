@@ -251,3 +251,51 @@ describe('serveFetch', () => {
     })
   })
 })
+
+describe('serveFetch, headers for whom it answered', () => {
+  const said = serveFetch({
+    server: backend.server,
+    resolvePrincipal: request =>
+      request.headers.get('x-admin') === 'refused'
+        ? Effect.fail(RemoteServer.unauthenticated('No.'))
+        : Effect.succeed<Principal>({ isAdmin: request.headers.get('x-admin') === 'yes' }),
+    layer: () => Layer.empty,
+    headers: principal => ({ 'x-answered-as': principal.isAdmin ? 'admin' : 'guest' }),
+  })
+  const send = (body: string, admin: string) =>
+    said(
+      new Request('http://worker.test/remote', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-admin': admin },
+        body,
+      }),
+      {},
+    )
+
+  it.each([
+    ['an answer', JSON.stringify({ operation: 'read', payload: readA }), 200],
+    ['a body that is not JSON', '{', 400],
+    ['a live open', JSON.stringify({ operation: 'live', payload: { bogus: true } }), 400],
+    [
+      'a live stream',
+      JSON.stringify({
+        operation: 'live',
+        payload: { version: REMOTE_PROTOCOL_VERSION, requirements: [], after: 0 },
+      }),
+      200,
+    ],
+  ])('names the principal on %s', async (_, body, status) => {
+    const admin = await send(body, 'yes')
+    const guest = await send(body, 'no')
+    expect([admin.status, guest.status]).toEqual([status, status])
+    expect(admin.headers.get('x-answered-as')).toBe('admin')
+    expect(guest.headers.get('x-answered-as')).toBe('guest')
+    await Promise.all([admin.body?.cancel(), guest.body?.cancel()])
+  })
+
+  it('names nobody on a refusal, which answered no one', async () => {
+    const refused = await send(JSON.stringify({ operation: 'read', payload: readA }), 'refused')
+    expect(refused.status).toBe(401)
+    expect(refused.headers.has('x-answered-as')).toBe(false)
+  })
+})

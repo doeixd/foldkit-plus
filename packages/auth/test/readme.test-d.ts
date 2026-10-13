@@ -11,6 +11,7 @@ import { RemoteServer } from 'foldkit-remote-server'
 import { serveFetch } from 'foldkit-remote-server/fetch'
 import { SSR } from 'foldkit-ssr'
 import { defineDocumentHost, type DocumentHostConfig } from 'foldkit-sync/do'
+import { believing } from 'foldkit-auth'
 import { AuthServer } from 'foldkit-auth/server'
 
 const AppAuth = Auth.make(
@@ -45,6 +46,27 @@ export const remote = serveFetch({
 
 export const transport = Remote.httpWithLive('/remote', {
   headers: () => ({ 'x-effect-auth-csrf': '1' }),
+})
+
+// ## Who the client believes it is
+
+declare const Policy: { readonly key: (user: { readonly id: string }) => string }
+const principal = (session: { readonly subjectId: string }) =>
+  Effect.succeed({ id: session.subjectId })
+
+const resolving = { auth: AppAuth, http, principal, key: Policy.key }
+export const echoing = serveFetch({
+  server,
+  resolvePrincipal: AuthServer.resolver(resolving),
+  headers: AuthServer.answered(resolving), // `x-foldkit-subject` on each answer
+  layer: () => AppAuthLive,
+})
+
+// The browser: Remote's transport through a fetch that repeats it.
+export const belief = believing()
+export const believingTransport = Remote.httpWithLive('/remote', {
+  headers: () => ({ 'x-effect-auth-csrf': '1' }),
+  fetch: belief.fetch,
 })
 
 // ## Sync's socket

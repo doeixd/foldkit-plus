@@ -6,6 +6,7 @@
  * real server's handlers.
  */
 import { Effect, Option } from 'effect'
+import { SUBJECT_CHANGED } from 'foldkit-auth'
 import { Surface } from 'foldkit-surface'
 import { BroadcastMessage } from 'foldkit-primitives/net'
 import { Remote } from 'foldkit-remote'
@@ -78,6 +79,33 @@ describe('a change of principal', () => {
     const { model } = update(read, Message.FailedSignIn({ reason: 'No.' }))
     expect([meOf(model), notesOf(model)]).toEqual(['Ready', 'Ready'])
     expect(model.notice).toEqual(Option.some('No.'))
+  })
+
+  it.each([
+    [
+      'ReadFailed',
+      (error: { _tag: string; message: string; reason: string }) =>
+        Remote.Message.ReadFailed({ requests: [], error }),
+    ],
+    [
+      'QueryFailed',
+      (error: { _tag: string; message: string; reason: string }) =>
+        Remote.Message.QueryFailed({ connection: 'Notes', error }),
+    ],
+  ])('forgets everything on a %s refused because who is signed in changed', (_, failed) => {
+    const refused = (reason: string) =>
+      update(
+        read,
+        Message.GotRemoteMessage({
+          message: failed({ _tag: 'Unauthenticated', message: reason, reason }),
+        }),
+      ).model
+    expect([meOf(refused(SUBJECT_CHANGED)), notesOf(refused(SUBJECT_CHANGED))]).toEqual([
+      'Initial',
+      'Initial',
+    ])
+    // A session that ended is shown, not forgotten: forgetting would ask again forever.
+    expect(meOf(refused('Your session ended.'))).toBe('Ready')
   })
 
   it('signs in with what was typed', () => {

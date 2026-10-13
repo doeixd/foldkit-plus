@@ -146,4 +146,37 @@ export default [
     ],
     tests: app,
   },
+  {
+    name: 'a refusal for a changed subject is only shown',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'changedElsewhere(message) ? { model: Data.forget(model) } : foldData(model, message)',
+        replace: 'foldData(model, message)',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a failed query is never a changed subject',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: '    QueryFailed: ({ error }) => isSubjectChanged(error),\n',
+        replace: '',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'every refusal forgets',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Option.contains(refusal.reason, SUBJECT_CHANGED)',
+        replace: 'Option.isSome(Option.some(refusal))',
+      },
+    ],
+    tests: app,
+  },
 ]

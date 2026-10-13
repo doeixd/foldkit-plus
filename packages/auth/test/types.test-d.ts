@@ -92,3 +92,18 @@ describe("AuthServer.resolver for requests: 'browser'", () => {
     defineDocumentHost(Base, { ...host, resolvePrincipal: socket })
   })
 })
+
+describe('AuthServer.answered', () => {
+  const principal = (session: { readonly subjectId: string }) => Effect.succeed(session.subjectId)
+
+  it('takes the resolver config that names a key, and answers a Option of its principal', () => {
+    const config = { auth: AppAuth, http, principal, key: (user: string) => user }
+    expectTypeOf(AuthServer.answered(config)).parameter(0).toEqualTypeOf<Option.Option<string>>()
+  })
+
+  it('refuses a config with no key, whose resolver compares the session subject', () => {
+    const config: { readonly key?: (user: string) => string } = {}
+    // @ts-expect-error the answer would name a principal the resolver does not compare by
+    AuthServer.answered(config)
+  })
+})

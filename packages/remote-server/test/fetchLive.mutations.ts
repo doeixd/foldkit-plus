@@ -91,8 +91,9 @@ export default [
     edits: [
       {
         file,
-        find: "{ error: 'The live payload is not a requirement' }, { status: 400 }",
-        replace: "{ error: 'The live payload is not a requirement' }, { status: 200 }",
+        find: "{ error: 'The live payload is not a requirement' },\n            { status: 400, headers },",
+        replace:
+          "{ error: 'The live payload is not a requirement' },\n            { status: 200, headers },",
       },
     ],
     tests,

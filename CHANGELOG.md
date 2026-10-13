@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-auth`: the client repeats whom it was answered as.**
+  `AuthServer.answered(config)` (the resolver's config, with its `key`) is
+  `serveFetch`'s `headers`, naming each answer's principal in
+  `x-foldkit-subject`; `believing()` from `foldkit-auth` is a `fetch` for
+  `Remote.http`/`httpWithLive` that repeats it, so once another tab switches
+  account a read is refused with `SUBJECT_CHANGED` rather than answered as
+  the new account. Any 401 makes it believe no one; `forget()` is for this
+  tab's own sign-in and sign-out.
+
+- **`foldkit-remote-server`: `serveFetch` takes `headers: principal => …`,**
+  added to every answer to that principal, a live stream's included.
+
 - **`foldkit-auth` (early, 0.1.0): a Yielded Auth session as the principal.**
   `AuthServer.resolver({ auth, http, principal })` from `foldkit-auth/server`
   is a `resolvePrincipal` for `serveFetch`: it reads the session cookie Yielded
@@ -166,6 +178,11 @@ version changed; `pnpm` skips versions already in the registry.
   `foldkit>effect`, and an override of `foldkit>@effect/platform-browser`.
 
 ### Fixed
+
+- **A Remote Message's error is a `RemoteError`.** `RemoteError.reason` is
+  `string | undefined`, as the decoded `ReadFailed`/`QueryFailed` error is,
+  so `RemoteData.refused(message.error)` type-checks under
+  `exactOptionalPropertyTypes`.
 
 - **`serveFetch` keeps a live stream's layer open while it streams.** The
   request's `layer` was closed as soon as the response was built, so a live

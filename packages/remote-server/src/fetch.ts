@@ -55,6 +55,13 @@ export interface FetchConfig<P, R, Env, RP = never> {
   readonly layer: (env: Env) => Layer.Layer<R | RP>
   /** The path answered; anything else is a 404. Default `/remote`. */
   readonly path?: string | undefined
+  /**
+   * Headers every answer to `principal` carries, a live stream's included;
+   * a refusal has no principal and carries none. Whom the request was
+   * answered as, say, for a client to repeat (`foldkit-auth`'s
+   * `AuthServer.answered`).
+   */
+  readonly headers?: ((principal: P) => Readonly<Record<string, string>>) | undefined
   /** A hub whose `changed`/`deleted` signals reach the live streams this serves. */
   readonly live?: LiveHub<P, R> | undefined
   /**
@@ -173,12 +180,16 @@ const liveResponse = <R, RC>(
   heartbeat: Duration.Input,
   checked: Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RC>,
   release: Effect.Effect<void>,
+  headers: Readonly<Record<string, string>>,
 ): Effect.Effect<Response, never, R | RC> =>
   Schema.decodeUnknownEffect(LiveRequirement)(payload).pipe(
     Effect.matchEffect({
       onFailure: () =>
         Effect.succeed(
-          Response.json({ error: 'The live payload is not a requirement' }, { status: 400 }),
+          Response.json(
+            { error: 'The live payload is not a requirement' },
+            { status: 400, headers },
+          ),
         ),
       onSuccess: requirement =>
         Effect.map(
@@ -187,7 +198,11 @@ const liveResponse = <R, RC>(
           ),
           body =>
             new Response(body, {
-              headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
+              headers: {
+                ...headers,
+                'content-type': 'text/event-stream',
+                'cache-control': 'no-cache',
+              },
             }),
         ),
     }),
@@ -252,10 +267,11 @@ export const serveFetch = <P, R, Env, RP = never>(
   ): Effect.Effect<{ readonly response: Response; readonly live: boolean }, never, R | RP> =>
     Effect.gen(function* () {
       const principal = yield* config.resolvePrincipal(request, env)
+      const headers = config.headers?.(principal) ?? {}
       const body = yield* Effect.option(Effect.tryPromise(() => request.json()))
       if (Option.isNone(body)) {
         return {
-          response: Response.json({ error: 'The body is not JSON' }, { status: 400 }),
+          response: Response.json({ error: 'The body is not JSON' }, { status: 400, headers }),
           live: false,
         }
       }
@@ -272,12 +288,16 @@ export const serveFetch = <P, R, Env, RP = never>(
           heartbeat,
           revalidation(request, env, principal),
           Scope.close(scope, Exit.void),
+          headers,
         )
         // A 400 for a payload no stream speaks has no stream to close it.
         return { response, live: response.status === 200 }
       }
       const answered = yield* RemoteServer.answer(handlers, body.value)
-      return { response: Response.json(answered.body, { status: answered.status }), live: false }
+      return {
+        response: Response.json(answered.body, { status: answered.status, headers }),
+        live: false,
+      }
     }).pipe(
       Effect.catchTag('Unauthenticated', refusal => {
         const { status, body } = unauthenticatedAnswer(refusal)

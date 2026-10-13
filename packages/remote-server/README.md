@@ -927,6 +927,11 @@ else this side breaks, the resolver's defects and the layer included, is a
 principal your Sources treat as nobody, and refuse only a credential that was
 sent and no longer holds.
 
+`headers: principal => ({ … })` adds headers to every answer to that
+principal, a live stream's included; a refusal answered no one and carries
+none. `foldkit-auth`'s `AuthServer.answered` uses it to say whom each answer
+was for.
+
 `revalidate: { every, key? }` asks `resolvePrincipal` again, of the same
 request, every `every` while a live stream is open. A refusal ends the
 stream with `Unauthenticated`; a principal whose `key` differs from the one

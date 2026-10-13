@@ -261,9 +261,8 @@ orders the slices; step 0 and slices 1–10 are built.
 - [x] **8. The client:** `RemoteData.refused`; sign-in, sign-out, the
   cross-tab channel and the persistence scope are application code over
   Yielded's client, `Remote.forget` and `foldkit-primitives`. §6.4
-- [ ] **The client's `x-foldkit-subject`.** A transport that learns whom the
-  server answered as (an echoed header) and repeats it; needs `serveFetch` to
-  report the principal's key. §6.4
+- [x] **The client's `x-foldkit-subject`.** `serveFetch`'s `headers`,
+  `AuthServer.answered` and `believing()`; wired in `examples/auth`. §6.4
 - [x] **9. An example, with an e2e test:** `examples/auth`. §9
 - [ ] **The example's SSR and Sync socket.** A server render as the request's
   principal, and a Sync document over `AuthServer.resolver({ requests:

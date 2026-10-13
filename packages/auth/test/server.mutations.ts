@@ -3,6 +3,7 @@
  * `pnpm mutate packages/auth/test/server.mutations.ts`.
  */
 const file = '../src/server.ts'
+const index = '../src/index.ts'
 const tests = ['packages/auth/test/server.test.ts']
 
 export default [
@@ -158,6 +159,78 @@ export default [
         replace: 'yield* checkBelieved(request, Option.some(session.subjectId))',
       },
     ],
+    tests,
+  },
+  {
+    name: 'a 401 keeps the belief',
+    edits: [
+      {
+        file: index,
+        find: 'if (response.status === 401) believed = Option.none()',
+        replace: 'if (false) believed = Option.none()',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the belief is never sent',
+    edits: [
+      { file: index, find: 'headers.set(SUBJECT_HEADER, believed.value)', replace: 'void 0' },
+    ],
+    tests,
+  },
+  {
+    name: "a caller's own header is overwritten",
+    edits: [{ file: index, find: ' && !headers.has(SUBJECT_HEADER)', replace: '' }],
+    tests,
+  },
+  {
+    name: 'an answer that says nothing forgets',
+    edits: [
+      {
+        file: index,
+        find: 'else if (said !== null) believed = Option.some(said)',
+        replace: 'else believed = said === null ? Option.none() : Option.some(said)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'forget forgets nothing',
+    edits: [
+      {
+        file: index,
+        find: '    forget: () => {\n      believed = Option.none()',
+        replace: '    forget: () => {\n      void 0',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a Request's own headers are dropped",
+    edits: [
+      {
+        file: index,
+        find: 'init?.headers ?? (input instanceof Request ? input.headers : {})',
+        replace: 'init?.headers',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the answer names someone other than the key',
+    edits: [
+      {
+        file,
+        find: 'Option.map(principal, config.key)',
+        replace: "Option.map(principal, () => 'x')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a changed subject is refused for another reason',
+    edits: [{ file, find: 'refuse(SUBJECT_CHANGED)', replace: "refuse('changed')" }],
     tests,
   },
 ]

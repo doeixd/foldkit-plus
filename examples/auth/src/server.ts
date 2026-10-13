@@ -133,13 +133,12 @@ export const openServer = async (origin: string) => {
     ),
     { disableLogger: true },
   )
+  // `key` names the principal as `Me` does, for the answer's header and the check of it.
+  const resolving = { auth: App, http, principal: principalOf, key: Policy.key }
   const remote = serveFetch({
     server,
-    resolvePrincipal: AuthServer.resolver({
-      auth: App,
-      http,
-      principal: principalOf,
-    }),
+    resolvePrincipal: AuthServer.resolver(resolving),
+    headers: AuthServer.answered(resolving),
     layer: () => App.layer.pipe(Layer.provide(shared), Layer.orDie),
   })
   return {

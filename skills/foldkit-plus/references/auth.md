@@ -70,17 +70,21 @@ on every Remote call kind.
   (`pnpm.peerDependencyRules.allowedVersions: { "foldkit>effect": "4.0.4" }`),
   since Yielded needs 4.0.3 or later.
 
-- `x-foldkit-subject` (`SUBJECT_HEADER` from `foldkit-auth`, browser-safe) is
-  `subjectSaid(me.key)` from `foldkit-guard`'s `Me`, with `key: Policy.key`
-  on the resolver so it compares the principal's key (without `key`, the
-  session's `subjectId`). A client that sends it is never answered as anyone
-  else; one that sends none is answered as the session says.
+- `x-foldkit-subject` (`SUBJECT_HEADER` from `foldkit-auth`, browser-safe):
+  give `serveFetch` `headers: AuthServer.answered(config)` (the resolver's
+  config, with `key: Policy.key`) and the client's transport
+  `fetch: believing().fetch`. The client then repeats whom it was answered
+  as, and a read after another tab switched account is refused with
+  `SUBJECT_CHANGED` rather than answered as the new account: answer that
+  refusal with `Remote.forget`, and call `belief.forget()` in this tab's own
+  sign-in and sign-out Commands.
 - Sync's upgrade and SSR's posted forms send no header of the page's: pass
   `requests: 'browser'`, and a trusted `Origin` alone vouches for the
   cookie. Sync takes the resolver with `layer: () => AppAuthLive`; SSR builds
   a post's `resources` from it, behind `SSR.entry`'s `origins`.
-- Only cookie sessions so far. The `Me` Entity and the
-  client's Commands are planned.
+- Only cookie sessions so far; `Me` is `foldkit-guard`'s (`Guards.me`), and
+  the client's sign-in and sign-out are the application's Commands over
+  Yielded's client (`examples/auth`).
 
 ## See also
 

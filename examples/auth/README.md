@@ -77,7 +77,8 @@ Read the files in this order.
    turns another tab's post on `PRINCIPAL_CHANNEL` into a Message.
 5. [`src/view.ts`](src/view.ts) and [`src/client.ts`](src/client.ts). The page,
    and the runtime with its two services: `Remote.httpWithLive('/remote')`,
-   sending Yielded's CSRF header, and `AppClient.layerFetch`.
+   sending Yielded's CSRF header through `belief.fetch`, and
+   `AppClient.layerFetch`.
 
 What some calls do, and do not:
 
@@ -86,6 +87,12 @@ What some calls do, and do not:
   verifies the session and never renews it, and writes nothing. `principalOf`
   builds the principal from the session's subject on every request, not from
   claims taken at sign-in (the contract's claims are empty on purpose).
+- Each answer from `/remote` says whom it was for (`AuthServer.answered`),
+  and `belief.fetch` repeats it on the next read. A read after the cookie
+  changed hands is refused with `SUBJECT_CHANGED`, which `update` answers
+  with `Data.forget`, rather than answered as the new account. The sign-in
+  and sign-out Commands call `belief.forget()` first, so this tab's own
+  change is not refused once.
 - `Data.forget` performs no I/O: it drops what Remote holds and every active
   read starts again, `Me` included.
 - `postBroadcast` is a one-shot Command; by spec a tab never hears its own
@@ -100,6 +107,7 @@ What some calls do, and do not:
 | --- | --- |
 | A wrong password | the sign-in form, with "That email and password do not match." |
 | Signed out in another tab | the broadcast: this tab forgets and reads `Me` again, as a visitor |
+| A read that left before that broadcast arrived | refused (`SUBJECT_CHANGED`), never answered as the other account; this tab forgets and reads again |
 | A cookie the server no longer knows (a restart, an expired session) | the read fails as `Unauthenticated` (`RemoteData.refused`): "Your session ended. Sign in again." and the form |
 | A browser without `BroadcastChannel` | the other tabs are not told until they read again; this tab says so |
 
@@ -129,9 +137,6 @@ only for an `http:` origin.
 
 - `@yielded/auth-persistence/Testing` is Yielded's test store: in memory,
   seeded, lost on restart. A deployment uses its SQL persistence.
-- The client sends no `x-foldkit-subject`, so the server answers as whoever
-  the cookie says; a switch of account in another tab is closed by the
-  broadcast and `forget`, not by the server (auth-DESIGN §6.4).
 - Remote's reads never renew the session: it ends an hour after its last
   renewal, however busy the page is. Yielded's `renewSession` is not wired.
 - Not yet here: a server render (SSR) signed in as the request's principal,

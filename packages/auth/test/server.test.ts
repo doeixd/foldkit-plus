@@ -23,7 +23,7 @@ import {
   type SessionVerifier,
   type VerifiedSession,
 } from '../src/server.js'
-import { SUBJECT_HEADER, subjectSaid } from '../src/index.js'
+import { SUBJECT_CHANGED, SUBJECT_HEADER, believing, subjectSaid } from '../src/index.js'
 
 const AuthApi = AuthContract.make('test/Auth', {
   claims: Schema.Struct({ displayName: Schema.String }),
@@ -417,5 +417,135 @@ describe('AuthServer.resolver with a key', () => {
         }),
       ),
     )
+  })
+})
+
+describe('AuthServer.answered and believing, end to end', () => {
+  const config = {
+    auth: App,
+    http,
+    principal: (session: { readonly subjectId: string }) =>
+      Effect.succeed({ id: session.subjectId }),
+    key: (user: { readonly id: string }) => user.id,
+  }
+  const echoing = serveFetch({
+    server,
+    resolvePrincipal: AuthServer.resolver(config),
+    headers: AuthServer.answered(config),
+    layer: () => App.layer.pipe(Layer.provide(Layer.succeedContext(services)), Layer.orDie),
+  })
+  const read = (client: ReturnType<typeof believing>, cookie: Option.Option<string>) =>
+    client
+      .fetch('https://app.test/remote', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...fromApplication,
+          ...Option.match(cookie, { onNone: () => ({}), onSome: cookie => ({ cookie }) }),
+        },
+        body: JSON.stringify({
+          operation: 'read',
+          payload: {
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: [{ entity: 'Whoami', id: 'me', fields: ['who'] }],
+          },
+        }),
+      })
+      .then(async response => ({
+        status: response.status,
+        said: response.headers.get(SUBJECT_HEADER),
+        body: (await response.json()) as unknown,
+      }))
+  const client = () => believing((input, init) => echoing(new Request(input, init), undefined))
+
+  it('says whom it answered, a visitor or a subject by its key', async () => {
+    const tab = client()
+    expect((await read(tab, Option.none())).said).toBe(subjectSaid(Option.none()))
+    const signedIn = client()
+    expect((await read(signedIn, Option.some(ada))).said).toBe(subjectSaid(Option.some('ada')))
+  })
+
+  it('refuses a client whose cookie changed since it last heard, then answers the next ask', async () => {
+    const tab = client()
+    expect((await read(tab, Option.none())).status).toBe(200)
+    // Another tab signed in: the cookie now names ada, and this one believes a visitor.
+    const refused = await read(tab, Option.some(ada))
+    expect(refused).toMatchObject({
+      status: 401,
+      said: null,
+      body: { unauthenticated: { reason: SUBJECT_CHANGED } },
+    })
+    // The refusal forgot the belief: the read Remote.forget asks again is answered.
+    expect(await read(tab, Option.some(ada))).toMatchObject({
+      status: 200,
+      said: subjectSaid(Option.some('ada')),
+    })
+  })
+
+  it('believes no one after forget, for a change this client made', async () => {
+    const tab = client()
+    await read(tab, Option.none())
+    tab.forget()
+    expect((await read(tab, Option.some(ada))).status).toBe(200)
+  })
+})
+
+describe('believing', () => {
+  const answering = (status: number, said?: string) => {
+    const sent: Array<string | null> = []
+    const tab = believing(async (input, init) => {
+      sent.push(new Headers(init?.headers).get(SUBJECT_HEADER))
+      return new Response('{}', {
+        status,
+        headers: said === undefined ? {} : { [SUBJECT_HEADER]: said },
+      })
+    })
+    return { tab, sent }
+  }
+
+  it('repeats what the last answer said, and nothing before one has', async () => {
+    const { tab, sent } = answering(200, 'subject:ada')
+    await tab.fetch('https://app.test/remote')
+    await tab.fetch('https://app.test/remote')
+    expect(sent).toEqual([null, 'subject:ada'])
+  })
+
+  it('keeps its belief through an answer that says nothing', async () => {
+    let said: string | undefined = 'subject:ada'
+    const sent: Array<string | null> = []
+    const tab = believing(async (_, init) => {
+      sent.push(new Headers(init?.headers).get(SUBJECT_HEADER))
+      const headers: Record<string, string> = said === undefined ? {} : { [SUBJECT_HEADER]: said }
+      said = undefined
+      return new Response('{}', { headers })
+    })
+    for (let at = 0; at < 3; at++) await tab.fetch('https://app.test/remote')
+    expect(sent).toEqual([null, 'subject:ada', 'subject:ada'])
+  })
+
+  it('forgets on any 401, even one that names someone', async () => {
+    const { tab, sent } = answering(401, 'subject:ada')
+    await tab.fetch('https://app.test/remote')
+    await tab.fetch('https://app.test/remote')
+    expect(sent).toEqual([null, null])
+  })
+
+  it('leaves a header the caller set alone', async () => {
+    const { tab, sent } = answering(200, 'subject:ada')
+    await tab.fetch('https://app.test/remote')
+    await tab.fetch('https://app.test/remote', { headers: { [SUBJECT_HEADER]: 'visitor' } })
+    expect(sent).toEqual([null, 'visitor'])
+  })
+
+  it("keeps a Request's own headers", async () => {
+    const seen: Array<string | null> = []
+    const tab = believing(async (input, init) => {
+      seen.push(new Headers(init?.headers).get('x-effect-auth-csrf'))
+      return new Response('{}', { headers: { [SUBJECT_HEADER]: 'visitor' } })
+    })
+    await tab.fetch(
+      new Request('https://app.test/remote', { headers: { 'x-effect-auth-csrf': '1' } }),
+    )
+    expect(seen).toEqual(['1'])
   })
 })

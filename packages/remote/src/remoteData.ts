@@ -9,8 +9,11 @@ export interface RemoteError {
    * decoded, by its mutation, with `Data.refusal`.
    */
   readonly refusal?: unknown
-  /** Why the server refused who is asking (`_tag: 'Forbidden'`), when it said. */
-  readonly reason?: string
+  /**
+   * Why the server refused who is asking (`_tag: 'Unauthenticated'` or
+   * `'Forbidden'`), when it said. Read it with `RemoteData.refused`.
+   */
+  readonly reason?: string | undefined
 }
 
 /**

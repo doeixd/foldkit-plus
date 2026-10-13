@@ -7,7 +7,7 @@
 import type { Auth, Http } from '@yielded/auth'
 import { Effect, Option, Redacted, type Context } from 'effect'
 import { RemoteUnauthenticated } from 'foldkit-remote'
-import { SUBJECT_HEADER, subjectSaid } from './index.js'
+import { SUBJECT_CHANGED, SUBJECT_HEADER, subjectSaid } from './index.js'
 
 /** The part of a session this package reads; the application's `principal` reads the rest. */
 export interface VerifiedSession {
@@ -66,7 +66,7 @@ const checkBelieved = (request: Request, subject: Option.Option<string>) => {
   const believed = request.headers.get(SUBJECT_HEADER)
   return believed === null || believed === subjectSaid(subject)
     ? Effect.void
-    : refuse('Who is signed in changed.')
+    : refuse(SUBJECT_CHANGED)
 }
 
 const asVisitor = (request: Request) =>
@@ -173,4 +173,26 @@ export const AuthServer = {
    * ```
    */
   resolver,
+  /**
+   * The header saying whom an answer was for, for `serveFetch`'s `headers`:
+   * what `believing`'s `fetch` repeats on the client's next request, so the
+   * resolver refuses it once the cookie means someone else. Takes the
+   * resolver's own config, whose `key` it requires, so the two name the
+   * principal alike.
+   *
+   * ```ts
+   * const auth = { auth: AppAuth, http, principal, key: Policy.key }
+   * serveFetch({
+   *   server,
+   *   resolvePrincipal: AuthServer.resolver(auth),
+   *   headers: AuthServer.answered(auth),
+   *   layer: env => AuthLive(env),
+   * })
+   * ```
+   */
+  answered:
+    <User>(config: { readonly key: (user: User) => string }) =>
+    (principal: Option.Option<User>): Readonly<Record<string, string>> => ({
+      [SUBJECT_HEADER]: subjectSaid(Option.map(principal, config.key)),
+    }),
 }
