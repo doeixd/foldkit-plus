@@ -58,6 +58,16 @@
       "types": "./dist/agent-webmcp.d.mts",
       "import": "./dist/agent-webmcp.mjs"
     },
+    "./auth": {
+      "foldkit-plus:source": "./src/auth.ts",
+      "types": "./dist/auth.d.mts",
+      "import": "./dist/auth.mjs"
+    },
+    "./auth/server": {
+      "foldkit-plus:source": "./src/auth/server.ts",
+      "types": "./dist/auth/server.d.mts",
+      "import": "./dist/auth/server.mjs"
+    },
     "./builder": {
       "foldkit-plus:source": "./src/builder.ts",
       "types": "./dist/builder.d.mts",
@@ -540,6 +550,7 @@
     "effect": "^4.0.0",
     "foldkit": "^0.165.0",
     "foldkit-agent-native": "workspace:^",
+    "foldkit-auth": "workspace:^",
     "foldkit-cms-drizzle": "workspace:^",
     "foldkit-mixins-ui": "workspace:^",
     "foldkit-react": "workspace:^",
@@ -549,6 +560,9 @@
   },
   "peerDependenciesMeta": {
     "foldkit-agent-native": {
+      "optional": true
+    },
+    "foldkit-auth": {
       "optional": true
     },
     "foldkit-cms-drizzle": {
@@ -577,6 +591,7 @@
     "tsx": "^4.23.13",
     "typescript": "5.9.3",
     "foldkit-agent-native": "workspace:*",
+    "foldkit-auth": "workspace:*",
     "foldkit-cms-drizzle": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
     "foldkit-react": "workspace:*",

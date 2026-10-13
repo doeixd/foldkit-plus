@@ -1,0 +1,69 @@
+# foldkit-auth
+
+A [Yielded Auth](https://github.com/yielded-dev/auth) session read from a
+request and handed to a Foldkit Plus host as its principal. The design and
+its reasons are
+[auth-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/auth-DESIGN.md).
+
+## What it owns
+
+Which session a request carries, and whether the request is trusted to use
+it. Yielded owns sign-in, sessions and the cookie (the application mounts
+`Http.layer(AppAuth, http)` itself); the application's `principal` function
+owns who a session is in its terms; `foldkit-guard` owns who may do what.
+
+## Basic use
+
+```ts
+import { AuthServer } from 'foldkit-auth/server'
+import { serveFetch } from 'foldkit-remote-server/fetch'
+
+const http = { origin: 'https://app.example' } as const // the options given Http.make(AppAuth, http)
+
+export const remote = serveFetch({
+  server,
+  resolvePrincipal: AuthServer.resolver({
+    auth: AppAuth, // Auth.make(…)
+    http,
+    principal: session => Effect.succeed({ id: session.subjectId }),
+  }),
+  layer: () => AppAuthLive, // AppAuth.layer, with its persistence
+})
+```
+
+- The result is `Option<User>`: `none` is a visitor. The host's `layer` must
+  provide `AppAuth`, the same store the sign-in routes write.
+- Pass the same `http` object given `Http.make`: the cookie name, trusted
+  origins and CSRF header come from it.
+- Build the principal from `session.subjectId`, reading memberships fresh;
+  claims are a snapshot from sign-in. `principal` may refuse with
+  `RemoteServer.unauthenticated(reason)`.
+
+## What it answers
+
+| Request | Answer |
+| --- | --- |
+| No session cookie | visitor |
+| A cookie without a trusted `Origin` and the CSRF header (`x-effect-auth-csrf: 1`) | visitor |
+| A cookie that no longer verifies | 401 `Your session ended.` |
+| Two session cookies | 401 `Sign in again.` |
+| `x-foldkit-subject` naming someone else | 401 `Who is signed in changed.` |
+| The session store fails | defect, a 500 |
+
+A 401 reaches the client as `RemoteUnauthenticated` (`_tag: 'Unauthenticated'`)
+on every Remote call kind.
+
+## Gotchas
+
+- `x-foldkit-subject` (`SUBJECT_HEADER` from `foldkit-auth`, browser-safe) is
+  `subjectSaid(Option.none())` (`visitor`) or
+  `subjectSaid(Option.some(id))`. A client that sends it is never answered as
+  anyone else; one that sends none is answered as the session says.
+- Only cookie sessions, and only `serveFetch`-shaped hosts (a `Request` in)
+  so far. A socket resolver for Sync's document host, the `Me` Entity and the
+  client's Commands are planned.
+
+## See also
+
+- [foldkit-auth README](https://github.com/doeixd/foldkit-plus/blob/main/packages/auth/README.md)
+- [guard.md](guard.md): deciding what the principal may do.

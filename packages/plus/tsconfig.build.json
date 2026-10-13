@@ -11,6 +11,7 @@
     { "path": "../agent-mcp/tsconfig.build.json" },
     { "path": "../agent-native/tsconfig.build.json" },
     { "path": "../agent-webmcp/tsconfig.build.json" },
+    { "path": "../auth/tsconfig.build.json" },
     { "path": "../builder/tsconfig.build.json" },
     { "path": "../bundle/tsconfig.build.json" },
     { "path": "../bundle-surface/tsconfig.build.json" },

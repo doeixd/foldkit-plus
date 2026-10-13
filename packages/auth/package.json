@@ -1,0 +1,64 @@
+{
+  "name": "foldkit-auth",
+  "version": "0.1.0",
+  "description": "Yielded Auth in Foldkit Plus: a verified session as the principal every host reads.",
+  "keywords": [
+    "foldkit",
+    "authentication",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/auth"
+  },
+  "homepage": "https://foldkit-plus.pages.dev/auth",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "foldkit-plus:source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./server": {
+      "foldkit-plus:source": "./src/server.ts",
+      "types": "./dist/server.d.mts",
+      "import": "./dist/server.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "peerDependencies": {
+    "@yielded/auth": "0.1.0-beta.38",
+    "effect": "^4.0.4",
+    "foldkit-remote": "workspace:^"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "4.0.4",
+    "@yielded/auth": "0.1.0-beta.38",
+    "@yielded/auth-persistence": "0.1.0-beta.38",
+    "effect": "4.0.4",
+    "foldkit": "0.165.0",
+    "foldkit-entity": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-server": "workspace:*",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}

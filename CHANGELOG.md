@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-auth` (early, 0.1.0): a Yielded Auth session as the principal.**
+  `AuthServer.resolver({ auth, http, principal })` from `foldkit-auth/server`
+  is a `resolvePrincipal` for `serveFetch`: it reads the session cookie Yielded
+  set (named from the same `Http.make` options), verifies it with the
+  application's `Auth` service, and builds the principal with the
+  application's `principal`. No cookie, or a request without a trusted
+  `Origin` and Yielded's CSRF header, is a visitor; a cookie that no longer
+  verifies, two session cookies, or an `x-foldkit-subject` header naming
+  someone else is a 401 `Unauthenticated`; `SUBJECT_HEADER` and `subjectSaid`,
+  from `foldkit-auth`, are what a client sends. Also re-exported as
+  `foldkit-plus/auth` and `foldkit-plus/auth/server`, an optional peer.
+
 - **`foldkit-ssr`: a posted form's own resources.** `SSR.entry` takes
   `resources: request => Layer` and `SSR.handle` `resources: Layer`, built
   once for the post and provided to the Commands its fallback runs beside the

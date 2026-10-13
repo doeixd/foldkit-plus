@@ -219,6 +219,8 @@ For a socket, `Auth.socket` reads the session cookie (same origin) or an `Author
 
 Workers: per-request SQL and a per-request `Proofs.ProofRequestContext` (there is no socket peer for Yielded's proof rate limiter) are the application's, as Yielded documents; `Auth.fetch` takes the per-request Layer.
 
+*As built (slice 6, the resolver):* `AuthServer.resolver({ auth, http, principal })` in `foldkit-auth/server`, a `resolvePrincipal` for `serveFetch`; tested against Yielded's own sign-in route and Testing Layer. Three departures from the sketch. There is no `Auth.remote` or `Auth.fetch`: `serveFetch` is already the endpoint, and a wrapper that only passes `resolvePrincipal` through would be a second way to build it. It does not run Yielded's HTTP stack (`http.withRequest`, `beforeMutation`): it names the cookie from the same `http` options and verifies it with `auth.verifySession`, so a host's `layer` needs `AppAuth` and nothing of Yielded's HTTP. And the Origin and CSRF check applies to every Remote request, reads too, with a failure answered as a visitor rather than refused: a request that cannot show it came from the application is simply not authenticated by its cookie, which is what a cross-site page should get, while a client of the application's own that sends `x-foldkit-subject` is told why (`The request did not show it came from this application.`). Two session cookies are refused (`Sign in again.`) rather than one picked. `same`/`Policy.keyOf` need nothing here: `revalidate` is the host's, given the same resolver.
+
 ### 6.3 Why reuse Yielded's CSRF check
 
 One policy, configured once: the trusted origins and the header name that protect sign-in protect every write the session authorizes. The header also forces a CORS preflight cross-origin, which no form can send, so the check is not only `Origin` (absent in some legacy requests).
@@ -308,7 +310,7 @@ Each slice stands alone, with its tests and a review before the next.
 3. **`R` for reads** (§5.2): `Visible`, `MemoryReadable`, Sync's `opens`/`admit`; guard's read seams and `CmsServer.make` take `Policy<User, R>`. *Built* as `Policy.provide` (§5.2), with `unguarded` required.
 4. **Revalidation** (§5.5) for the live hub and the journal exchange. *Built* on `serveFetch` and `defineDocumentHost` (§5.5).
 5. **SSR's per-request `provide`** (§5.4). *Built* as the fallback's per-post `resources` (§5.4).
-6. **`foldkit-auth/server`**: the principal mapping, the Remote endpoint (route Layer and Web handler), the Origin/CSRF and subject checks, `socket` (with agent-mcp's `authenticate` taking an Effect), `ssr`. Tested against Yielded's in-memory Testing Layer, as the probe was.
+6. **`foldkit-auth/server`**: the principal mapping, the Remote endpoint (route Layer and Web handler), the Origin/CSRF and subject checks, `socket` (with agent-mcp's `authenticate` taking an Effect), `ssr`. Tested against Yielded's in-memory Testing Layer, as the probe was. *The resolver is built* (§6.2); the socket resolver and SSR's posted-form Origin check are next.
 7. **`Me`** (§6.1): `FoldkitAuth.me`, its Source, `may` for named interactions. Closes the TODO item.
 8. **`foldkit-auth/client`** (§6.4): Commands, `Session.http`, `Session.lost`, the cross-tab channel, persistence scope.
 9. **An example end to end:** password sign-in, a guarded list, sign-out in a second tab, SSR, a Sync socket; an e2e test in Chromium (`pnpm e2e`), since only a running page shows cookies, redirects and tabs.

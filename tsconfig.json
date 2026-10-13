@@ -21,6 +21,7 @@
     { "path": "./packages/ssr" },
     { "path": "./packages/entity" },
     { "path": "./packages/guard" },
+    { "path": "./packages/auth" },
     { "path": "./packages/form" },
     { "path": "./packages/crud" },
     { "path": "./packages/data-grid" },
