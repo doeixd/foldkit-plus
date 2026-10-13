@@ -14,8 +14,12 @@
  */
 import {
   eq,
+  gt,
+  gte,
   inArray,
   is,
+  lt,
+  lte,
   isNotNull,
   isNull,
   not,
@@ -25,7 +29,7 @@ import {
   type Table,
 } from 'drizzle-orm'
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core'
-import { Option } from 'effect'
+import { Match, Option } from 'effect'
 import { Query, QueryEvaluateError, decided, isPredicate } from 'foldkit-entity'
 import type {
   AnyExpr,
@@ -33,11 +37,13 @@ import type {
   EqPredicate,
   OrderTerm as ExprOrderTerm,
   Operandish,
+  CompareOperator,
+  ComparePredicate,
   Operation,
   Predicate,
   PredicateTruth,
 } from 'foldkit-entity'
-import type { OrderTerm } from './cursor.js'
+import { collatedColumn, type OrderTerm } from './cursor.js'
 
 /**
  * What a binding has to offer to be compiled against: a column per field key,
@@ -191,6 +197,83 @@ const connective = (
   return sql`(${sql.join(kept, joiner === 'and' ? sql` and ` : sql` or `)})`
 }
 
+/** The same comparison with its sides swapped: `3 > rank` is `rank < 3`. */
+const flipped: Readonly<Record<CompareOperator, CompareOperator>> = {
+  lt: 'gt',
+  lte: 'gte',
+  gt: 'lt',
+  gte: 'lte',
+}
+const symbols: Readonly<Record<CompareOperator, string>> = {
+  lt: '<',
+  lte: '<=',
+  gt: '>',
+  gte: '>=',
+}
+const comparing = { lt, lte, gt, gte }
+
+/**
+ * A comparison, column first as a binding writes one: Drizzle's own operator
+ * over a number, so the value is encoded as the column's type, and text under
+ * its collation as the cursor applies one (`collate binary` on SQLite,
+ * `collate "C"` on Postgres text, both sides lowered for ASCII folding).
+ */
+const comparison = (
+  node: ComparePredicate,
+  target: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): SQL => {
+  const fieldFirst = Match.value(node.left).pipe(
+    Match.tag('Field', () => true),
+    Match.orElse(() =>
+      Match.value(node.right).pipe(
+        Match.tag('Field', () => false),
+        Match.orElse(() => true),
+      ),
+    ),
+  )
+  const [first, second, operator] = fieldFirst
+    ? [node.left, node.right, node.operator]
+    : [node.right, node.left, flipped[node.operator]]
+  const left = operand(first, target, input, query)
+  const right = operand(second, target, input, query)
+  if (holdsNul(left) || holdsNul(right)) {
+    throw new QueryCompileError(
+      `query "${query}" compares text holding a NUL character, which SQL text cannot hold portably`,
+    )
+  }
+  const symbol = sql.raw(symbols[operator])
+  return Option.match(node.collation, {
+    onNone: () =>
+      Match.value(first).pipe(
+        Match.tag('Field', () => comparing[operator](left as AnyColumn, right)),
+        Match.orElse(() => sql`${left} ${symbol} ${right}`),
+      ),
+    // Text compares only against a field, which the swap above put first.
+    onSome: collation => {
+      const column = left as AnyColumn
+      const under = collatedColumn(column, collation)
+      const key = Option.match(under, { onNone: () => sql`${column}`, onSome: ({ key }) => key })
+      const value = Match.value(second).pipe(
+        Match.tag('Field', () =>
+          Option.match(collatedColumn(right as AnyColumn, collation), {
+            onNone: () => sql`${right}`,
+            onSome: ({ key }) => key,
+          }),
+        ),
+        Match.orElse(() =>
+          Option.match(under, {
+            onNone: () => sql`${right}`,
+            onSome: ({ value }) => sql`${value(right)}`,
+          }),
+        ),
+      )
+      return sql`${key} ${symbol} ${value}`
+    },
+  })
+}
+
 const predicate = (
   node: Predicate,
   target: CompileTarget,
@@ -213,6 +296,8 @@ const predicate = (
         onSome: constant,
         onNone: () => not(predicate(node.operand, target, input, query)),
       })
+    case 'Compare':
+      return comparison(node, target, input, query)
     case 'Eq': {
       // A predicate compared to a boolean is that predicate, or its negation.
       // The value is known here — this runs per request, with the input in
@@ -312,6 +397,7 @@ export const supported: ReadonlyArray<Operation> = [
   'and',
   'or',
   'not',
+  'compare',
 ]
 
 /**

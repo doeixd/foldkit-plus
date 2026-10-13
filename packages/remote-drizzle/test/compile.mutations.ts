@@ -55,8 +55,8 @@ export default [
     edits: [
       {
         file: '../src/compile.ts',
-        find: 'if (holdsNul(left) || holdsNul(right)) {',
-        replace: 'if (false) {',
+        find: '      if (holdsNul(left) || holdsNul(right)) {',
+        replace: '      if (false) {',
       },
     ],
     tests,

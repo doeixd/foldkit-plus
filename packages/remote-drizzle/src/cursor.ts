@@ -55,10 +55,10 @@ const postgresText = new Set(['PgText', 'PgVarchar', 'PgChar'])
  * other collation is said on the column alone, which SQL applies to the
  * comparison.
  */
-const collated = (
-  term: OrderTerm,
+export const collatedColumn = (
+  column: AnyColumn,
+  collation: Collation | undefined,
 ): Option.Option<{ readonly key: SQL; readonly value: (value: unknown) => unknown }> => {
-  const { column, collation } = term
   const plain = (value: unknown) => value
   if (collation === undefined) return Option.none()
   const postgres = is(column, PgColumn)
@@ -88,6 +88,9 @@ const collated = (
     }),
   )
 }
+
+/** A term's column under its collation, as `collatedColumn` makes it. */
+const collated = (term: OrderTerm) => collatedColumn(term.column, term.collation)
 
 /**
  * The order a client asked for, as order terms. `sort` names one of the orders

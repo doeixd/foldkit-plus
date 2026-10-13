@@ -8,7 +8,14 @@ import { eq, isNotNull, type SQL } from 'drizzle-orm'
 import { pgTable, PgDialect, text, uuid } from 'drizzle-orm/pg-core'
 import { sqliteTable, text as sqliteText } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Collation, Entity as DomainEntity, Expr, Order, type OrderTerm } from 'foldkit-entity'
+import {
+  Collation,
+  Entity as DomainEntity,
+  Expr,
+  Order,
+  type OrderTerm,
+  type Predicate,
+} from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
 import { RemoteServerError } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -424,6 +431,7 @@ describe('A body needing what this compiler does not run', () => {
   it('declares what it runs rather than leaving it to which cases exist', () => {
     expect([...supported].sort()).toEqual([
       'and',
+      'compare',
       'contains',
       'eq',
       'in',
@@ -512,5 +520,43 @@ describe('And, or and not', () => {
     const failure = result._tag === 'Failure' ? result.failure : undefined
     expect(failure?.message).toMatch(/NUL character/)
     expect(where).toBeUndefined()
+  })
+})
+
+describe('Comparisons', () => {
+  const whereOf = async (
+    body: (input: { readonly s: ReturnType<typeof Expr.input<string>> }) => Predicate,
+  ) => {
+    const Compared = Query.define('Compared', { s: Schema.String }, ({ input }) =>
+      Query.from(Post).pipe(Query.where(body(input)), Query.orderBy(Order.asc(Post.fields.id))),
+    )
+    const { database, calls } = fakeDatabase()
+    await Effect.runPromise(
+      Effect.result(
+        query(Compared, { entity: PostBinding })
+          .run({ input: { s: 'm' }, window: { first: 5 }, principal: null })
+          .pipe(Effect.provideService(DrizzleDatabase, database)),
+      ),
+    )
+    return rendered(calls[0]!.where)
+  }
+
+  it('compares Postgres text under "C" for binary, column first however it was written', async () => {
+    const binary = { collation: Collation.binary }
+    const written = await whereOf(input => Expr.lt(Post.fields.slug, input.s, binary))
+    const swapped = await whereOf(input => Expr.gt(input.s, Expr.field(Post.fields.slug), binary))
+    expect(written).toEqual({ sql: '"posts"."slug" collate "C" < $1', params: ['m'] })
+    expect(swapped).toEqual(written)
+  })
+
+  it('folds both sides under "C" for asciiFold on Postgres', async () => {
+    expect(
+      await whereOf(input =>
+        Expr.gte(Post.fields.slug, input.s, { collation: Collation.asciiFold }),
+      ),
+    ).toEqual({
+      sql: 'lower("posts"."slug" collate "C") >= lower($1 collate "C")',
+      params: ['m'],
+    })
   })
 })

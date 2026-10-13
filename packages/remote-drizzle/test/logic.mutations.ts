@@ -57,6 +57,33 @@ export default [
     tests,
   },
   {
+    name: 'a field written second keeps its operator',
+    edits: [
+      {
+        file: compile,
+        find: '[node.right, node.left, flipped[node.operator]]',
+        replace: '[node.right, node.left, node.operator]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a comparison ignores its collation',
+    edits: [
+      {
+        file: compile,
+        find: '  return Option.match(node.collation, {',
+        replace: '  return Option.match(Option.none(), {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'lt is written as lte',
+    edits: [{ file: compile, find: "  lt: '<',\n", replace: "  lt: '<=',\n" }],
+    tests,
+  },
+  {
     name: 'a not compiles to its operand',
     edits: [
       {
