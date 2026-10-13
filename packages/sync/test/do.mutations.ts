@@ -17,17 +17,6 @@ export default [
     tests,
   },
   {
-    name: 'the resolver is asked once, and its first answer checked ever after',
-    edits: [
-      {
-        file,
-        find: 'Effect.andThen(() => config.resolvePrincipal(request, this.hostEnv))',
-        replace: 'Effect.andThen(config.resolvePrincipal(request, this.hostEnv))',
-      },
-    ],
-    tests,
-  },
-  {
     name: 'the checks outlive the socket',
     edits: [
       {
@@ -98,8 +87,9 @@ export default [
     edits: [
       {
         file,
-        find: ').catch(() => undefined)',
-        replace: ').catch((error: unknown) => Result.fail({ message: String(error) }))',
+        find: 'Effect.runPromise(Effect.result(resolve)).catch(() => undefined)',
+        replace:
+          'Effect.runPromise(Effect.result(resolve)).catch((error: unknown) => Result.fail({ message: String(error) }))',
       },
     ],
     tests,
@@ -142,11 +132,13 @@ export default [
         find: `      } catch {
         // A failed open provisions nothing: the next upgrade tries again.
         this.ready = undefined
+        release()
         return Response.json({ error: 'Internal error' }, { status: 500 })
       }`,
         replace: `      } catch (error) {
         // A failed open provisions nothing: the next upgrade tries again.
         this.ready = undefined
+        release()
         return Response.json({ error: String(error) }, { status: 500 })
       }`,
       },
@@ -181,7 +173,7 @@ export default [
     tests,
   },
   {
-    name: 'a resolver that throws escapes the upgrade',
+    name: 'the resolver is called once: a throw escapes, and its first answer is checked ever after',
     edits: [
       {
         file,
@@ -199,6 +191,41 @@ export default [
         find: "throw new Error('defineDocumentHost: revalidate.every must be longer than zero')",
         replace: '{}',
       },
+    ],
+    tests,
+  },
+  {
+    name: 'the resolver runs without its layer',
+    edits: [
+      {
+        file,
+        find: '.pipe(\n        Effect.provide(services),\n      )',
+        replace: ' as unknown as Effect.Effect<Principal, RemoteUnauthenticated>',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refused upgrade keeps its layer',
+    edits: [
+      {
+        file,
+        find: '        release()\n        return Response.json({ error: resolved.failure.message }, { status: 401 })',
+        replace:
+          '        return Response.json({ error: resolved.failure.message }, { status: 401 })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a socket that closes keeps its layer',
+    edits: [{ file, find: '      socket.onClose(release)\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a socket revalidation closed keeps its layer until the replica answers',
+    edits: [
+      { file, find: '              })\n              release()\n', replace: '              })\n' },
     ],
     tests,
   },

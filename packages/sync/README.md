@@ -329,6 +329,10 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   makes one): a 401 carrying its message. Non-upgrades are 404s that open
   nothing. A resolver that breaks, or a journal that never opened, is a 500
   that says nothing of it.
+- A resolver that reads a service (a session store) takes it from
+  `layer: env => Layer`, required exactly when the resolver needs one. It is
+  built per upgrade and kept until the socket closes, so `revalidate` reads
+  an open store; a refused upgrade closes it at once.
 - `revalidate: { every, key? }` asks the resolver again, of the upgrade
   request, while the socket is open: a refusal closes it with 4401, and a
   principal whose `key` (`Policy.keyOf`) changed with 1012, which the

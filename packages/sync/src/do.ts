@@ -24,7 +24,7 @@
  * .documentId)`); its in-memory cache and change stream are then exact
  * because nothing else writes.
  */
-import { Cause, Duration, Effect, Fiber, Option, Result } from 'effect'
+import { Cause, Context, Duration, Effect, Exit, Fiber, Layer, Option, Result, Scope } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Journal } from 'foldkit-durable/core'
 import { serveJournal } from './journal.js'
@@ -38,7 +38,7 @@ export interface DocumentHostContext {
 }
 
 /** What `defineDocumentHost` needs of the application, per document. */
-export interface DocumentHostConfig<Message, Shared, Principal, Env> {
+export interface DocumentHostConfig<Message, Shared, Principal, Env, RP = never> {
   /** The document's contract: its codecs and journal shape. */
   readonly sync: Sync<Message, Shared>
   /**
@@ -56,12 +56,13 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env> {
    * Who is opening this socket, from the upgrade request. Fails with a
    * `RemoteUnauthenticated` (`foldkit-remote`; `RemoteServer.unauthenticated()`
    * makes one) to refuse it: a 401 carrying its message. A defect is a 500
-   * that says nothing of it.
+   * that says nothing of it. What it needs (a session store) comes from
+   * `layer`.
    */
   readonly resolvePrincipal: (
     request: Request,
     env: Env,
-  ) => Effect.Effect<Principal, RemoteUnauthenticated>
+  ) => Effect.Effect<Principal, RemoteUnauthenticated, RP>
   /**
    * Runs after each exchange's appends and before the reply is read: apply
    * what committed to another store, through `journal.recover`. Takes the
@@ -110,6 +111,16 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env> {
 }
 
 /**
+ * What the resolver needs, from the environment: required exactly when it
+ * needs something. Built per upgrade and kept until the socket closes, since
+ * `revalidate` asks the resolver again while it is open; an upgrade that is
+ * refused closes it at once.
+ */
+export type DocumentHostLayer<Env, RP> = [RP] extends [never]
+  ? { readonly layer?: undefined }
+  : { readonly layer: (env: Env) => Layer.Layer<RP> }
+
+/**
  * A server `WebSocket`: accepted once it serves. The `accept` member is a
  * worker-runtime extension the DOM type does not declare.
  */
@@ -155,9 +166,9 @@ const defaultPair = (): readonly [client: WebSocket, server: AcceptingWebSocket]
  * resolver that breaks, or a journal that never opened, a 500 that says
  * nothing of it.
  */
-export const defineDocumentHost = <Message, Shared, Principal, Env>(
+export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
   Base: new (ctx: DocumentHostContext, env: Env) => object,
-  config: DocumentHostConfig<Message, Shared, Principal, Env>,
+  config: DocumentHostConfig<Message, Shared, Principal, Env, RP> & DocumentHostLayer<Env, RP>,
 ): new (ctx: DocumentHostContext, env: Env) => { fetch(request: Request): Promise<Response> } => {
   if (
     config.revalidate !== undefined &&
@@ -178,13 +189,36 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
     async fetch(request: Request): Promise<Response> {
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
         return Response.json({ error: 'not found' }, { status: 404 })
-      const resolved = await Effect.runPromise(
-        // Suspended, so a resolver that throws is a 500 like one that dies.
-        Effect.result(Effect.suspend(() => config.resolvePrincipal(request, this.hostEnv))),
+      // The upgrade's services live as long as its socket: revalidation asks
+      // the resolver again while it is open.
+      const scope = Effect.runSync(Scope.make())
+      const release = (): void => void Effect.runFork(Scope.close(scope, Exit.void))
+      const { layer } = config
+      const services = await Effect.runPromise(
+        layer === undefined
+          ? // No layer is a resolver that needs nothing (`DocumentHostLayer`).
+            Effect.succeed(Context.empty() as Context.Context<RP>)
+          : Effect.suspend(() => Layer.buildWithScope(layer(this.hostEnv), scope)),
       ).catch(() => undefined)
-      if (resolved === undefined) return Response.json({ error: 'Internal error' }, { status: 500 })
-      if (Result.isFailure(resolved))
+      if (services === undefined) {
+        release()
+        return Response.json({ error: 'Internal error' }, { status: 500 })
+      }
+      // Suspended, so the resolver is called each time this runs (a resolver
+      // may decide when called, not when its Effect runs), and one that throws
+      // is a 500 like one that dies.
+      const resolve = Effect.suspend(() => config.resolvePrincipal(request, this.hostEnv)).pipe(
+        Effect.provide(services),
+      )
+      const resolved = await Effect.runPromise(Effect.result(resolve)).catch(() => undefined)
+      if (resolved === undefined) {
+        release()
+        return Response.json({ error: 'Internal error' }, { status: 500 })
+      }
+      if (Result.isFailure(resolved)) {
+        release()
         return Response.json({ error: resolved.failure.message }, { status: 401 })
+      }
       const principal = resolved.success
       let journal: Journal<Operation, Shared, Principal, Operation>
       try {
@@ -192,6 +226,7 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
       } catch {
         // A failed open provisions nothing: the next upgrade tries again.
         this.ready = undefined
+        release()
         return Response.json({ error: 'Internal error' }, { status: 500 })
       }
       const [client, server] = (config.pair ?? defaultPair)()
@@ -211,8 +246,7 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
       if (config.revalidate !== undefined) {
         const { every, key } = config.revalidate
         const checking = Effect.sleep(every).pipe(
-          // Called each time: a resolver may decide when called, not when its Effect runs.
-          Effect.andThen(() => config.resolvePrincipal(request, this.hostEnv)),
+          Effect.andThen(resolve),
           Effect.flatMap(now =>
             key === undefined || key(principal) === key(now) ? Effect.void : Effect.fail(changed),
           ),
@@ -232,12 +266,14 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
                     ? closeWith(server, 1012, 'Who is asking changed')
                     : closeWith(server, 4401, error.message),
               })
+              release()
             }),
           ),
         )
         const fiber = Effect.runFork(checking)
         socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))
       }
+      socket.onClose(release)
       return new Response(null, {
         status: 101,
         // The worker runtime reads the client out of the upgrade response;

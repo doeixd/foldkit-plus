@@ -6,7 +6,7 @@
  * open socket as notices.
  */
 import { ActorId, Journal, OpId } from 'foldkit-durable'
-import { Effect, Scope, type Duration } from 'effect'
+import { Context, Effect, Layer, Scope, type Duration } from 'effect'
 import { RemoteUnauthenticated } from 'foldkit-remote'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sync, type Operation } from '../src/index.js'
@@ -393,5 +393,93 @@ describe('defineDocumentHost, asking who a socket serves again', () => {
     // Ten intervals: a check still running would have asked again in each.
     await new Promise(resolve => setTimeout(resolve, 100))
     expect(asked()).toBe(after)
+  })
+})
+
+describe("defineDocumentHost, the resolver's layer", () => {
+  class Sessions extends Context.Service<
+    Sessions,
+    { readonly who: (token: string) => Effect.Effect<string, RemoteUnauthenticated> }
+  >()('do-test/Sessions') {}
+
+  /** A host whose resolver reads `Sessions`, from a layer that logs its life. */
+  const withSessions = (revoked: Set<string>) => {
+    const log: Array<string> = []
+    const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
+    const Host = defineDocumentHost(FakeBase, {
+      sync: Todos,
+      openJournal: async () => openJournal(),
+      resolvePrincipal: request =>
+        Effect.flatMap(Sessions, sessions => sessions.who(request.headers.get('x-actor') ?? '')),
+      layer: () =>
+        Layer.effect(
+          Sessions,
+          Effect.acquireRelease(
+            Effect.sync(() => {
+              log.push('acquire')
+              return {
+                who: (token: string) =>
+                  revoked.has(token)
+                    ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
+                    : Effect.succeed(token),
+              }
+            }),
+            () => Effect.sync(() => void log.push('release')),
+          ),
+        ),
+      revalidate: { every: '10 millis' },
+      pair: () => {
+        const pair = FakeWebSocket.linked({ lingering: true })
+        pairs.push(pair)
+        return pair as unknown as readonly [WebSocket, AcceptingWebSocket]
+      },
+    })
+    return { Host, pairs, log }
+  }
+
+  const settledOn = async (done: () => boolean): Promise<void> => {
+    for (let waited = 0; !done(); waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+  }
+
+  it('keeps it while the socket is open, and closes it with the socket', async () => {
+    const { Host, pairs, log } = withSessions(new Set())
+    const served = new Host({}, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    expect(resultOf(await roundTrip(client, { id: '1', cursor: 0, pending: [] })).rejected).toEqual(
+      [],
+    )
+    expect(log).toEqual(['acquire'])
+    client.close()
+    await settledOn(() => log.length === 2)
+    expect(log).toEqual(['acquire', 'release'])
+  })
+
+  it('closes it at once for an upgrade it refuses', async () => {
+    const { Host, log } = withSessions(new Set(['mallory']))
+    const served = new Host({}, undefined)
+    const response = await served.fetch(
+      new Request('http://host/sync', { headers: { Upgrade: 'websocket', 'x-actor': 'mallory' } }),
+    )
+    expect(response.status).toBe(401)
+    await settledOn(() => log.length === 2)
+    expect(log).toEqual(['acquire', 'release'])
+  })
+
+  it('asks it again while open, and closes it once with a revoked socket', async () => {
+    const revoked = new Set<string>()
+    const { Host, pairs, log } = withSessions(revoked)
+    const served = new Host({}, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    revoked.add('ada')
+    await settledOn(() => pairs[0]![1].closed !== undefined)
+    expect(pairs[0]![1].closed).toEqual({ code: 4401, reason: 'Session revoked' })
+    await settledOn(() => log.length === 2)
+    // The replica answers the close; nothing is released twice.
+    client.close()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(log).toEqual(['acquire', 'release'])
   })
 })

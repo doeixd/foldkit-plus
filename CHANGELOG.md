@@ -22,6 +22,12 @@ version changed; `pnpm` skips versions already in the registry.
   from `foldkit-auth`, are what a client sends. Also re-exported as
   `foldkit-plus/auth` and `foldkit-plus/auth/server`, an optional peer.
 
+- **`defineDocumentHost` takes `layer: env => Layer` for its resolver.**
+  `resolvePrincipal` may need a service (a session store), which `layer`
+  provides; it is required exactly when the resolver needs one, built per
+  upgrade, kept while the socket is open for `revalidate`, and closed at once
+  for a refused upgrade.
+
 - **`foldkit-ssr`: a posted form's own resources.** `SSR.entry` takes
   `resources: request => Layer` and `SSR.handle` `resources: Layer`, built
   once for the post and provided to the Commands its fallback runs beside the
