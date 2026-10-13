@@ -527,7 +527,12 @@ const oneOf = Query.from(Blog.Post).pipe(published, Query.where(byTitle))
 
 `published` and `newest` are fragments: written once, piped into any query over
 the same Entity. Composing performs no work — no table is named, no connection
-opened, nothing read.
+opened, nothing read. A fragment over another Entity is refused where it is
+piped: a predicate's type names the Entities its fields belong to, so
+`Query.from(Blog.Post).pipe(Query.where(Expr.eq(Blog.Comment.fields.body, 'x')))`
+reads `a predicate reads Comment, but the query is from Post`. The same check
+runs again when the query is built, for what a type cannot see: a predicate
+typed plainly as `Predicate`, or two Entities that share a name.
 
 **Two `where`s conjoin and two `orderBy`s append.** Neither replaces what came
 before, so piping a fragment can only ever narrow a query, never silently undo

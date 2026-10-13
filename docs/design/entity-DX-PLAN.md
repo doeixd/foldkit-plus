@@ -180,7 +180,7 @@ Worth checking the same way: nothing stops `Order.asc` over a field whose type
 has no total order the backends agree on. That is the collation question rather
 than a typing one, and belongs with it.
 
-## 12. A predicate over the wrong Entity is a runtime error (open)
+## 12. A predicate over the wrong Entity is a runtime error (resolved)
 
 **Friction.** This compiles and throws when it runs:
 
@@ -205,6 +205,16 @@ it is what catches two Entities that share a name, which no type can.
 Sized honestly: this touches every `Expr` signature and is the largest of these
 four. It is also the one that removes a whole class of error rather than
 improving a message.
+
+**Resolved** (2026-10-13), without touching `FieldExpr`'s type or any
+predicate interface: each `Expr` constructor's return type is intersected with
+`Reads<Names>`, a type-only marker of the Entity names its operands' fields
+belong to (`ReadsOf` reads it off a field, a marked node, or nothing for a value
+or input). `Query.where`'s returned step refuses a query whose Entity is not
+among them, with `a predicate reads Comment, but the query is from Post`. A
+predicate typed plainly as `Predicate` reads as unknown and passes to the
+run-time check, which stays for that and for two Entities sharing a name.
+`orderBy` is not checked by type yet.
 
 ## 13. A body with no ordering fails at registration, not at compile time (declined)
 

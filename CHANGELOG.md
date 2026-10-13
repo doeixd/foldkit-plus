@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-entity`: a predicate over another Entity is a compile error.**
+  Each `Expr` constructor's result carries the names of the Entities its
+  fields belong to (`Reads<Names>`, type-only), and `Query.where` refuses a
+  query from another: `a predicate reads Comment, but the query is from Post`.
+  The run-time check stays for a predicate typed plainly as `Predicate`.
+
 - **`foldkit-form`: `form.Check`, the Command a key's check runs as.** A
   definition (`Command.define('<form>.check', …)`) rather than an inline
   Command, so a test resolves it with `Command.resolve(form.Check, …)` instead

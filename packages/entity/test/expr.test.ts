@@ -376,6 +376,7 @@ describe('The operations the CMS worklist needs', () => {
 
   it('checks a nested predicate against the Entity the query is from', () => {
     expect(() =>
+      // @ts-expect-error the type refuses it too; the run-time check is for what the type cannot see
       Query.from(Post).pipe(Query.where(Expr.eq(Expr.isNotNull(Blog.Comment.fields.body), true))),
     ).toThrow('reads Comment.body, but the query is from Post')
   })
@@ -536,6 +537,7 @@ describe('and, or and not', () => {
   it('is checked against the Entity the query is from, however deep', () => {
     expect(() =>
       Query.from(Post).pipe(
+        // @ts-expect-error the type refuses it too, however deep
         Query.where(Expr.or(titled, Expr.not(Expr.eq(Blog.Comment.fields.body, 'x')))),
       ),
     ).toThrow('reads Comment.body, but the query is from Post')
