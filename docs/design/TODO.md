@@ -147,15 +147,20 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   query semantics, paging, writes, and now the batched relation graph and the
   ranked nested pages (`test/nested.test.ts` runs each case on both). The
   package shipped. [REVISION_PLAN.md](./REVISION_PLAN.md) §20
-- [ ] **Entity DX item 10:** a branded "put the field on the left" error for a
-  reversed operand, plus documentation of operand orientation.
+- [x] **Entity DX item 10:** a branded "put the field on the left" error for a
+  reversed operand, plus documentation of operand orientation. Done
+  2026-10-13: a plain value on the left types the right side as an `Invalid`
+  naming the order. The plan's workaround, `Expr.literal`, is not public, and
+  would not type a field on the right either.
   [entity-DX-PLAN.md](./entity-DX-PLAN.md)
 - [ ] **Entity DX item 12:** a predicate over the wrong Entity is a runtime error;
   an owner type parameter on `FieldExpr` would make it a type error.
   [entity-DX-PLAN.md](./entity-DX-PLAN.md)
-- [ ] **Entity DX item 13:** a query body with no ordering fails when it is
+- [x] **Entity DX item 13:** a query body with no ordering fails when it is
   registered, through remote-drizzle's runtime throw; make it a compile-time
-  error. [entity-DX-PLAN.md](./entity-DX-PLAN.md)
+  error. Declined 2026-10-13, as the plan itself weighs it: an `Ordered` type
+  parameter through `from`, `where` and `orderBy` costs more inference noise
+  than a refusal at boot, which already names the query. [entity-DX-PLAN.md](./entity-DX-PLAN.md)
 - [ ] **Entity §54:** Remote integration beyond its first slice
   (`Entity.from`/`Selection.from`). [entity-DESIGN.md](./entity-DESIGN.md) §54
 - [x] **Query native findings** ([query-native-FINDINGS.md](./query-native-FINDINGS.md),

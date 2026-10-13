@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Changed
+
+- **`foldkit-entity`: `Expr.eq` with a plain value on the left says to put the
+  field there.** The right side is typed from the left, so `Expr.eq(3, field)`
+  was refused with `'number' is not assignable to 'Operand<any>'`; it now
+  reads `Expr.eq takes the field on the left and the value on the right`.
+
 ### Fixed
 
 - **`foldkit-form`: a filled optional key not checked yet is refused, not left

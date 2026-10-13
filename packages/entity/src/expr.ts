@@ -168,6 +168,14 @@ export type Operandish = AnyExpr | Predicate
 /** A field, a scalar already built from one, or a predicate used as a boolean. */
 type Operand<T> = EntityField<string, string, Schema.Constraint> | Expr<T> | Predicate
 
+/** A plain value, which `Expr.eq` takes on the right only. */
+type PlainValue = string | number | boolean | bigint | null
+
+/** A compile-time failure whose type is the sentence that says what to do. */
+interface Invalid<Message extends string> {
+  readonly '~invalid': Message
+}
+
 /** What an operand is worth, so a comparison's other side is checked against it. */
 export type ValueOf<E> =
   E extends EntityField<string, string, infer S>
@@ -519,9 +527,13 @@ export const Expr = {
    * Expr.eq(Post.fields.status, 'active')
    * ```
    */
-  eq: <L extends Operand<any>>(
+  eq: <L extends Operand<any> | PlainValue>(
     left: L,
-    right: ValueOf<L> | Expr<ValueOf<L>> | (boolean extends ValueOf<L> ? Predicate : never),
+    // The right side is typed from the left, so a plain value on the left has
+    // nothing to type it by: say so, rather than that 3 is no `Operand`.
+    right: L extends PlainValue
+      ? Invalid<'foldkit-entity: Expr.eq takes the field on the left and the value on the right'>
+      : ValueOf<L> | Expr<ValueOf<L>> | (boolean extends ValueOf<L> ? Predicate : never),
   ): EqPredicate => node({ _tag: 'Eq', left: toOperand(left), right: toOperand(right as never) }),
 
   /**

@@ -41,6 +41,13 @@ expectTypeOf(Expr.field(Post.fields.published).schema).toEqualTypeOf<
 // @ts-expect-error a title is a string, not a number
 Expr.eq(Post.fields.title, 42)
 
+// A plain value on the left: the right side is typed from the left, and the
+// error names the order rather than calling 3 a bad operand.
+// @ts-expect-error the field goes on the left
+Expr.eq(3, Post.fields.title)
+// @ts-expect-error a value on the left is refused against another value too
+Expr.eq('a', 'a')
+
 // @ts-expect-error a published flag is a boolean, not a string
 Expr.eq(Post.fields.published, 'yes')
 

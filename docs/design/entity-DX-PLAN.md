@@ -109,7 +109,7 @@ so a library cannot hand over a partly configured form.
   Recorded, not planned: it is the accessible floor, and a combobox is a renderer
   an application can now add (item 1).
 
-## 10. `Expr.eq` is not symmetric, and the error does not say so (open)
+## 10. `Expr.eq` is not symmetric, and the error does not say so (resolved)
 
 **Friction.** `Expr.eq(Post.fields.rank, 3)` compiles. `Expr.eq(3, Post.fields.rank)`
 does not, and the message is:
@@ -133,6 +133,13 @@ a plain value and fail it with a branded type whose name is the sentence —
 — which is the technique `Registered` already uses for an unregistered
 descriptor. Document the orientation and `Expr.literal` in the README's `Expr`
 section, since the workaround currently exists and is undiscoverable.
+
+**Resolved** (2026-10-13). A plain value on the left now types the right side
+as `Invalid<"foldkit-entity: Expr.eq takes the field on the left and the value
+on the right">`, so the error names the order. The plan's workaround was wrong:
+`Expr.literal` is not public, and a literal on the left would type the right
+side as that literal's value, which a field is not. The README says the field
+goes on the left, and that the comparisons take one on either side.
 
 ## 11. `Expr.contains` compiles over a field that holds no text (resolved)
 
@@ -199,7 +206,7 @@ Sized honestly: this touches every `Expr` signature and is the largest of these
 four. It is also the one that removes a whole class of error rather than
 improving a message.
 
-## 13. A body with no ordering fails at registration, not at compile time (open)
+## 13. A body with no ordering fails at registration, not at compile time (declined)
 
 **Friction.** `Query.define('NoOrder', {}, () => Query.from(Post))` compiles, and
 `foldkit-remote-drizzle` throws when the domain is registered:
