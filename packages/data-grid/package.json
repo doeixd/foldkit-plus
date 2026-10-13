@@ -64,12 +64,12 @@
     }
   },
   "devDependencies": {
-    "effect": "4.0.0",
+    "effect": "^4.0.4",
     "foldkit": "0.165.0",
     "foldkit-crud": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-remote": "workspace:*",
-    "tsdown": "^0.23.0",
+    "tsdown": "^0.23.1",
     "typescript": "5.9.3"
   }
 }

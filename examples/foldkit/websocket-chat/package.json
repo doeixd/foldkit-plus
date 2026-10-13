@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@foldkit/ui": "0.165.0",
-    "effect": "4.0.0",
+    "effect": "^4.0.4",
     "foldkit": "0.165.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-mixins": "workspace:*",
@@ -17,8 +17,8 @@
     "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.0",
-    "jsdom": "26.1.0",
+    "@effect/platform-browser": "^4.0.4",
+    "jsdom": "30.1.2",
     "typescript": "5.9.3",
     "vite": "5.4.21"
   }

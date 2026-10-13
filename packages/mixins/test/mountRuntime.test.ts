@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { Effect, Result, Stream } from 'effect'
+import { describe, expect, it, vi } from 'vitest'
+import { Effect, Fiber, Stream } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { liveViewStateChanges, type MountAction } from 'foldkit/mount'
@@ -38,16 +38,44 @@ describe('Mount composition at runtime', () => {
     )
   })
 
-  it('fails the merge when one mount stream fails', async () => {
-    const failing: MountAction<TestMessage, Error> = {
-      name: 'Failing',
-      f: () => Stream.fail(new Error('boom')),
+  it.each([
+    ['fails', Stream.fail(new Error('boom'))],
+    // Measure's shape: a constructor jsdom lacks, thrown as the Mount attaches.
+    [
+      'dies',
+      Stream.callback<TestMessage>(() =>
+        Effect.sync(() => {
+          throw new Error('ResizeObserver is not defined')
+        }),
+      ),
+    ],
+  ])('reports a mount that %s and runs the rest', async (_, stream) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const failing: MountAction<TestMessage, Error> = { name: 'Failing', f: () => stream }
+      expect(await collect(composed([failing, emitA]).f(element, liveViewStateChanges))).toEqual([
+        { _tag: 'GotA' },
+      ])
+      expect(errors).toHaveBeenCalledOnce()
+      expect(errors.mock.calls[0]![0]).toBe('[OnMount Failing] unhandled failure')
+    } finally {
+      errors.mockRestore()
     }
-    const mount = composed([failing, emitA])
-    const result = await Effect.runPromise(
-      Effect.result(Stream.runCollect(mount.f(element, liveViewStateChanges))),
-    )
-    expect(Result.isFailure(result)).toBe(true)
+  })
+
+  it('reports nothing when the composed mount is torn down', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const waiting: MountAction<TestMessage> = { name: 'Waiting', f: () => Stream.never }
+      const fiber = Effect.runFork(
+        Stream.runDrain(composed([waiting, emitA]).f(element, liveViewStateChanges)),
+      )
+      await Effect.runPromise(Effect.yieldNow)
+      await Effect.runPromise(Fiber.interrupt(fiber))
+      expect(errors).not.toHaveBeenCalled()
+    } finally {
+      errors.mockRestore()
+    }
   })
 
   it('is observed by Scene as exactly one Mount', () => {

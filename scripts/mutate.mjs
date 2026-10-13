@@ -98,14 +98,26 @@ const everySpec = () => {
   return listed.stdout.split('\n').filter(Boolean)
 }
 
-/** One Vitest run of `tests`, with the JSON report it wrote. */
+/**
+ * One Vitest run of `tests`, with the JSON report it wrote. Without the module
+ * cache: Vitest 5 keeps transformed modules on disk, keyed without the edits,
+ * so a run would reuse another's transform and never call the plugin.
+ */
 const run = (tests, env) => {
   mkdirSync(work, { recursive: true })
   const report = join(work, 'report.json')
   rmSync(report, { force: true })
   const result = spawnSync(
     'pnpm',
-    ['exec', 'vitest', 'run', ...tests, '--reporter=json', `--outputFile=${report}`],
+    [
+      'exec',
+      'vitest',
+      'run',
+      ...tests,
+      '--fsModuleCache=false',
+      '--reporter=json',
+      `--outputFile=${report}`,
+    ],
     { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8', shell: process.platform === 'win32' },
   )
   const json = existsSync(report) ? JSON.parse(readFileSync(report, 'utf8')) : undefined

@@ -79,7 +79,7 @@
     "foldkit-metadata": "workspace:*"
   },
   "devDependencies": {
-    "effect": "4.0.0",
+    "effect": "^4.0.4",
     "foldkit": "0.165.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
@@ -91,10 +91,10 @@
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
     "@types/react": "^19.3.0",
-    "jsdom": "26.1.0",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "tsdown": "^0.23.0",
+    "jsdom": "30.1.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tsdown": "^0.23.1",
     "typescript": "5.9.3"
   },
   "peerDependenciesMeta": {

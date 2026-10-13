@@ -61,7 +61,11 @@ export const makeJournal = Effect.fn('Journal.make')(function* <
   const file = yield* resolveFile(options.file)
   // Build the driver into the journal's own scope, not the transient scope of
   // this effect, so the connection outlives `makeJournal`.
-  const context = yield* Layer.build(SqliteClient.layer({ filename: file }))
+  const context = yield* Layer.build(SqliteClient.layer({ filename: file })).pipe(
+    Effect.catchTag('SqlError', cause =>
+      Effect.fail(new JournalError({ message: `Could not open ${file}`, cause })),
+    ),
+  )
   return yield* makeJournalOn(options).pipe(Effect.provide(context))
 })
 

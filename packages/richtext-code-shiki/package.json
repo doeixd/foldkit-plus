@@ -50,9 +50,9 @@
     "shiki": "^4.4.3"
   },
   "devDependencies": {
-    "effect": "4.0.0",
-    "shiki": "4.4.3",
-    "tsdown": "^0.23.0",
+    "effect": "^4.0.4",
+    "shiki": "4.5.0",
+    "tsdown": "^0.23.1",
     "typescript": "5.9.3"
   }
 }
