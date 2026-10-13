@@ -13,7 +13,9 @@ bidirectional parsers. `foldkit-site` answers the structural half: a tree of
 stable route nodes over those parsers, with one annotated place for the
 metadata (titles, sections, history intent) that applications otherwise
 recompute in four parallel tables. [Site and Foldkit's Router](../../docs/site-and-router.md)
-draws the line between the two and shows how the Site works.
+draws the line between the two and shows how the Site works, and
+[Site, Remote and SSR together](../../docs/site-remote-ssr.md) builds a routed
+application with its data rendered on the server.
 
 ## When it owns the problem
 

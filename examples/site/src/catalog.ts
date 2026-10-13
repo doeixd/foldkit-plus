@@ -238,6 +238,7 @@ export const subsites: ReadonlyArray<Subsite> = [
     [
       doc('router', 'Site and the Router', 'site-and-router'),
       doc('building', 'Creating a site', 'site'),
+      doc('together', 'With Remote and SSR', 'site-remote-ssr'),
     ],
   ),
   family(

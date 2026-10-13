@@ -844,3 +844,5 @@ const Message = defineMessageUnion({
   why, phase by phase.
 - [What the tests prove](./test/README.md).
 - [What this package asks of Foldkit](../../docs/upstream-foldkit-ssr.md).
+- [Site, Remote and SSR together](../../docs/site-remote-ssr.md): a routed
+  application rendered with its server data, taken over, and built statically.
