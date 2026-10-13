@@ -1,9 +1,3 @@
-/**
- * Server-sent events as a bundle: connection lifecycle in the Model, the
- * event stream through one Managed Resource. One-directional, so there is no
- * send: the server speaks, the Model listens. The browser reconnects dropped
- * streams itself; a Failed only records the error.
- */
 import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
@@ -101,6 +95,12 @@ type SourceResources = Readonly<{
 const failMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
+/**
+ * Server-sent events as a bundle: connection lifecycle in the Model, the
+ * event stream through one Managed Resource. One-directional, so there is no
+ * send: the server speaks, the Model listens. The browser reconnects dropped
+ * streams itself; a Failed only records the error.
+ */
 export const sse = <const Name extends string>(config: {
   readonly name: Name
   /** Defaults to the platform EventSource, read lazily so tests can substitute a double. */

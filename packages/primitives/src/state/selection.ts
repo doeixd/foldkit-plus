@@ -1,8 +1,3 @@
-/**
- * A selection set as a bundle: the selected ids in the Model, changed one at
- * a time or replaced whole. Order follows first selection; toggling moves a
- * reselected id to the end. Pure logic, no streams.
- */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
@@ -27,6 +22,11 @@ const without = (selected: ReadonlyArray<string>, id: string): ReadonlyArray<str
 export const isSelected = (model: SelectionSetModel, id: string): boolean =>
   model.selected.includes(id)
 
+/**
+ * A selection set as a bundle: the selected ids in the Model, changed one at
+ * a time or replaced whole. Order follows first selection; toggling moves a
+ * reselected id to the end. Pure logic, no streams.
+ */
 export const SelectionSet = Bundle.make('SelectionSet', {
   Model: SelectionSetModel,
   Message: SelectionSetMessage,

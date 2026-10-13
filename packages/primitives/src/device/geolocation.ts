@@ -1,9 +1,3 @@
-/**
- * Geolocation as a bundle: the device position in the Model, watched while
- * placed. Permission denial is its own status (actionable UI); transient
- * failures keep the last fix and note the error. No geolocation API yields
- * an empty stream instead of throwing.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -85,6 +79,12 @@ const watchStream = (): Stream.Stream<GeolocationMessage> => {
   )
 }
 
+/**
+ * Geolocation as a bundle: the device position in the Model, watched while
+ * placed. Permission denial is its own status (actionable UI); transient
+ * failures keep the last fix and note the error. No geolocation API yields
+ * an empty stream instead of throwing.
+ */
 export const Geolocation = Bundle.make<
   'Geolocation',
   GeolocationModel,

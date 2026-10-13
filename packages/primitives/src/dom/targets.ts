@@ -1,13 +1,3 @@
-/**
- * Which marked descendant of an element the pointer is over, and which one was
- * pressed, as a Mount: one set of listeners on the container, not one per item.
- * A descendant is marked by an attribute whose value is its id, such as a
- * canvas's `data-composition-node` or a table's `data-row`. The nearest marked
- * ancestor of the event's target, inside the container, is the one reported.
- *
- * What hovering or pressing means (a selection, an outline, a menu) is the
- * parent's `update`.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
@@ -42,6 +32,16 @@ export const targetOf = (container: Element, from: EventTarget | null, attribute
   return marked !== null && container.contains(marked) ? marked.getAttribute(attribute) : null
 }
 
+/**
+ * Which marked descendant of an element the pointer is over, and which one was
+ * pressed, as a Mount: one set of listeners on the container, not one per item.
+ * A descendant is marked by an attribute whose value is its id, such as a
+ * canvas's `data-composition-node` or a table's `data-row`. The nearest marked
+ * ancestor of the event's target, inside the container, is the one reported.
+ *
+ * What hovering or pressing means (a selection, an outline, a menu) is the
+ * parent's `update`.
+ */
 export const Targets = Mount.defineStream('Targets', {
   messages: [TargetHovered, TargetPressed],
   args: {

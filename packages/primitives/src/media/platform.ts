@@ -36,6 +36,11 @@ const hintedPlatform = (platform: string): Platform | null => {
   }
 }
 
+/**
+ * The platform a user-agent string names, preferring Client Hints when given
+ * (`navigator.userAgentData.platform`), with touch points telling a desktop-mode
+ * iPad from a Mac. `unknown` when nothing matches.
+ */
 export const platformFromUA = (userAgent: string, hints: PlatformHints = {}): Platform => {
   const hinted = hints.platform === undefined ? null : hintedPlatform(hints.platform)
   const ua = userAgent.toLowerCase()

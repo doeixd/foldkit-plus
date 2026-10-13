@@ -1,3 +1,6 @@
+import { Effect, Schema, Stream } from 'effect'
+import * as Mount from 'foldkit/mount'
+
 /**
  * Keeps what is marked in view as a Mount: whenever an element in the mounted
  * one's subtree newly matches `selector`, such as the row just selected in a
@@ -7,9 +10,6 @@
  * It watches with a `MutationObserver` for as long as it is mounted, which is as
  * long as the list or canvas that can change what is marked.
  */
-import { Effect, Schema, Stream } from 'effect'
-import * as Mount from 'foldkit/mount'
-
 export const KeepInView = Mount.defineStream('KeepInView', {
   messages: [Schema.Never],
   args: {

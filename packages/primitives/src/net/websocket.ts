@@ -1,11 +1,3 @@
-/**
- * A WebSocket as a bundle: connection lifecycle in the Model, full duplex
- * through one Managed Resource. The resource owns the socket; a `send`
- * helper writes through its tag service (lifted to the parent like every
- * helper); a subscription stream reads incoming messages through the same
- * tag. No hidden hub: everything the bundle touches is the Model, the
- * resource registry, or a Message.
- */
 import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
@@ -138,6 +130,14 @@ const closeSilently = (socket: SocketHandle): void => {
 const failMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
+/**
+ * A WebSocket as a bundle: connection lifecycle in the Model, full duplex
+ * through one Managed Resource. The resource owns the socket; a `send`
+ * helper writes through its tag service (lifted to the parent like every
+ * helper); a subscription stream reads incoming messages through the same
+ * tag. No hidden hub: everything the bundle touches is the Model, the
+ * resource registry, or a Message.
+ */
 export const websocket = <const Name extends string>(config: {
   readonly name: Name
   /** Defaults to the platform WebSocket, read lazily so tests can substitute a double. */

@@ -1,8 +1,3 @@
-/**
- * Online presence as a bundle: `online` in the Model, kept current by the
- * window's online/offline events. The browser reports facts; the Model owns
- * the state, so presence replays like any other transition.
- */
 import { Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -30,6 +25,11 @@ const presenceStream = (): Stream.Stream<OnlineMessage> => {
   )
 }
 
+/**
+ * Online presence as a bundle: `online` in the Model, kept current by the
+ * window's online/offline events. The browser reports facts; the Model owns
+ * the state, so presence replays like any other transition.
+ */
 export const Online = Bundle.make('Online', {
   Model: OnlineModel,
   Message: OnlineMessage,

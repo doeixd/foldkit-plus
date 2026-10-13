@@ -1,17 +1,3 @@
-/**
- * Dragging one marked descendant of an element onto another, as a Mount. A
- * descendant is marked by an attribute whose value is its id, as `Targets`
- * marks them; a press on one that then moves past a threshold starts a drag,
- * and the pointer's place over another marked descendant is reported with the
- * zone of it the pointer is in: its first third (`before`), its middle
- * (`inside`), or its last third (`after`). Releasing drops, and Escape or a
- * cancelled pointer ends the drag with nothing dropped.
- *
- * It writes no roles, no `tabindex` and no key handling, so the marked
- * elements can be anything: a tree's rows, a canvas's nodes. The keyboard's way
- * to do what a drag does is the parent's to give. Geometry is measured when the
- * pointer moves and never kept; what a drop means is the parent's `update`.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { targetOf } from './targets.js'
@@ -97,6 +83,20 @@ type Positioned = Event & {
   readonly key?: string
 }
 
+/**
+ * Dragging one marked descendant of an element onto another, as a Mount. A
+ * descendant is marked by an attribute whose value is its id, as `Targets`
+ * marks them; a press on one that then moves past a threshold starts a drag,
+ * and the pointer's place over another marked descendant is reported with the
+ * zone of it the pointer is in: its first third (`before`), its middle
+ * (`inside`), or its last third (`after`). Releasing drops, and Escape or a
+ * cancelled pointer ends the drag with nothing dropped.
+ *
+ * It writes no roles, no `tabindex` and no key handling, so the marked
+ * elements can be anything: a tree's rows, a canvas's nodes. The keyboard's way
+ * to do what a drag does is the parent's to give. Geometry is measured when the
+ * pointer moves and never kept; what a drop means is the parent's `update`.
+ */
 export const PointerDrag = Mount.defineStream('PointerDrag', {
   messages: [DragStarted, DraggedOver, DragDropped, DragCancelled],
   args: {

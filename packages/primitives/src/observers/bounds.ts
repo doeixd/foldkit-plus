@@ -1,10 +1,3 @@
-/**
- * Element bounds as a Mount: the bounding rect re-measured on
- * ResizeObserver, window scroll, and window resize, starting with the
- * current rect. Without a ResizeObserver the window events still measure —
- * position changes never needed the observer. No window (SSR) emits nothing
- * instead of throwing.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
@@ -21,6 +14,13 @@ type ObserverCtor = new (callback: () => void) => {
   disconnect(): void
 }
 
+/**
+ * Element bounds as a Mount: the bounding rect re-measured on
+ * ResizeObserver, window scroll, and window resize, starting with the
+ * current rect. Without a ResizeObserver the window events still measure —
+ * position changes never needed the observer. No window (SSR) emits nothing
+ * instead of throwing.
+ */
 export const Bounds = Mount.defineStream('Bounds', {
   messages: [Measured],
   execute: ({ element }) =>

@@ -1,11 +1,3 @@
-/**
- * A wall-clock interval as a bundle: the last tick time in the Model,
- * advanced by a tick stream while running. Sibling of Timer (which counts
- * ticks); this one records *when* they happened, so views can render clocks
- * and elapsed times. The clock is Effect's, so tests drive it with TestClock.
- * For a clock whose running or interval the parent's Model decides, use the
- * `ticks` entry instead.
- */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -25,6 +17,14 @@ export const IntervalMessage = defineMessageUnion({
 })
 export type IntervalMessage = typeof IntervalMessage.Type
 
+/**
+ * A wall-clock interval as a bundle: the last tick time in the Model,
+ * advanced by a tick stream while running. Sibling of Timer (which counts
+ * ticks); this one records *when* they happened, so views can render clocks
+ * and elapsed times. The clock is Effect's, so tests drive it with TestClock.
+ * For a clock whose running or interval the parent's Model decides, use the
+ * `ticks` entry instead.
+ */
 export const Interval = Bundle.make('Interval', {
   Model: IntervalModel,
   Message: IntervalMessage,

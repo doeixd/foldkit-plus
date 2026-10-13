@@ -1,10 +1,3 @@
-/**
- * A spring as a bundle: a number pulled toward a target with stiffness and
- * damping, in the Model. Semi-implicit Euler at a fixed 16ms step, so the
- * trajectory is deterministic under TestClock; the stream ends with
- * Finished, and the value rests exactly at `to`. Underdamped springs
- * overshoot — that is the point — but the rest value is still exact.
- */
 import { Effect, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -38,6 +31,13 @@ interface Point {
 const settled = (point: Point, to: number): boolean =>
   Math.abs(to - point.x) < epsilon && Math.abs(point.v) < epsilon
 
+/**
+ * A spring as a bundle: a number pulled toward a target with stiffness and
+ * damping, in the Model. Semi-implicit Euler at a fixed 16ms step, so the
+ * trajectory is deterministic under TestClock; the stream ends with
+ * Finished, and the value rests exactly at `to`. Underdamped springs
+ * overshoot — that is the point — but the rest value is still exact.
+ */
 export const Spring = Bundle.make('Spring', {
   Model: SpringModel,
   Message: SpringMessage,

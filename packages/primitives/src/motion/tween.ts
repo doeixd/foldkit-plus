@@ -1,9 +1,3 @@
-/**
- * A tween as a bundle: a number animated from one value to another over a
- * duration, in the Model. Progress comes from Effect's clock, so tests drive
- * it with TestClock; the stream ends with Finished, and the value rests at
- * `to`. Linear interpolation only: easing curves stay the application's job.
- */
 import { Clock, Effect, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -22,6 +16,12 @@ export const TweenMessage = defineMessageUnion({
 })
 export type TweenMessage = typeof TweenMessage.Type
 
+/**
+ * A tween as a bundle: a number animated from one value to another over a
+ * duration, in the Model. Progress comes from Effect's clock, so tests drive
+ * it with TestClock; the stream ends with Finished, and the value rests at
+ * `to`. Linear interpolation only: easing curves stay the application's job.
+ */
 export const Tween = Bundle.make('Tween', {
   Model: TweenModel,
   Message: TweenMessage,

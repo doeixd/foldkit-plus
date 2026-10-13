@@ -1,15 +1,7 @@
-/**
- * An input mask as a Mount plus a pure mask function. The pattern language
- * is three placeholders — `#` digit, `A` letter, `*` either, all ASCII —
- * with every other character literal. Literals appear only once a later placeholder
- * consumes input, so partial values never dangle a separator. The Mount
- * rewrites the field, restores the caret approximately, and emits `Input`
- * with both the masked and raw values; the parent owns the state, like any
- * controlled input.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
+/** What `InputMask` reports after each edit: the masked text shown, and the characters typed. */
 export const Input = Schema.TaggedStruct('Input', {
   value: Schema.String,
   raw: Schema.String,
@@ -41,6 +33,12 @@ const fillable = (pattern: string, from: number, value: string, at: number): boo
   return false
 }
 
+/**
+ * The mask as a pure function: `#` takes a digit, `A` a letter, `*` either, and
+ * any other character of the pattern is written in once input reaches past it.
+ * Input that fits no placeholder is skipped. `masked` is what the field shows;
+ * `raw` is only the characters typed.
+ */
 export const applyMask = (
   value: string,
   pattern: string,
@@ -80,6 +78,15 @@ const asField = (element: Element): MaskableField | null => {
     : null
 }
 
+/**
+ * An input mask as a Mount plus a pure mask function. The pattern language
+ * is three placeholders — `#` digit, `A` letter, `*` either, all ASCII —
+ * with every other character literal. Literals appear only once a later placeholder
+ * consumes input, so partial values never dangle a separator. The Mount
+ * rewrites the field, restores the caret approximately, and emits `Input`
+ * with both the masked and raw values; the parent owns the state, like any
+ * controlled input.
+ */
 export const InputMask = Mount.defineStream('InputMask', {
   messages: [Input],
   args: { pattern: Schema.String },

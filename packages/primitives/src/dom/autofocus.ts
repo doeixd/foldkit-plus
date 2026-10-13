@@ -1,3 +1,9 @@
+import { Effect, Schema } from 'effect'
+import * as Mount from 'foldkit/mount'
+
+export const Focused = Schema.TaggedStruct('Focused', {})
+export type Focused = typeof Focused.Type
+
 /**
  * Autofocus as a Mount: focuses the element on insert, then emits `Focused`.
  * The message means focus was requested — a non-focusable element or a
@@ -5,12 +11,6 @@
  * `focus()`, no scroll options: scroll behavior stays the application's
  * choice.
  */
-import { Effect, Schema } from 'effect'
-import * as Mount from 'foldkit/mount'
-
-export const Focused = Schema.TaggedStruct('Focused', {})
-export type Focused = typeof Focused.Type
-
 export const Autofocus = Mount.define('Autofocus', {
   messages: [Focused],
   execute: ({ element }) =>

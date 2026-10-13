@@ -1,10 +1,3 @@
-/**
- * Leading-edge throttle as a bundle: the first `Attempted` in an interval
- * surfaces a `Throttled` OutMessage, the rest are dropped. `Attempted`
- * reads the clock through a Command, so the check runs against Effect time
- * and tests drive it with TestClock. Trailing-edge needs are Debounce's:
- * pair the two rather than adding a second timer here.
- */
 import { Clock, Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -22,6 +15,13 @@ export type ThrottleMessage = typeof ThrottleMessage.Type
 export const Throttled = Schema.TaggedStruct('Throttled', { at: Schema.Number })
 export type Throttled = typeof Throttled.Type
 
+/**
+ * Leading-edge throttle as a bundle: the first `Attempted` in an interval
+ * surfaces a `Throttled` OutMessage, the rest are dropped. `Attempted`
+ * reads the clock through a Command, so the check runs against Effect time
+ * and tests drive it with TestClock. Trailing-edge needs are Debounce's:
+ * pair the two rather than adding a second timer here.
+ */
 export const Throttle = Bundle.make('Throttle', {
   Model: ThrottleModel,
   Message: ThrottleMessage,

@@ -1,11 +1,3 @@
-/**
- * Idleness as a bundle: `idle` in the Model, flipped by activity and
- * silence. While active, activity debounced past `timeoutMs` settles to
- * `BecameIdle`; while idle, the first activity wakes to `BecameActive` and
- * the dependency flip restarts the watch. Starts active — a lurker idles
- * when the timeout elapses. The clock is Effect's, so tests drive it with
- * TestClock.
- */
 import { Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -30,6 +22,14 @@ const activity = (): Stream.Stream<unknown> => {
   return Stream.mergeAll(senses, { concurrency: 'unbounded' })
 }
 
+/**
+ * Idleness as a bundle: `idle` in the Model, flipped by activity and
+ * silence. While active, activity debounced past `timeoutMs` settles to
+ * `BecameIdle`; while idle, the first activity wakes to `BecameActive` and
+ * the dependency flip restarts the watch. Starts active — a lurker idles
+ * when the timeout elapses. The clock is Effect's, so tests drive it with
+ * TestClock.
+ */
 export const Idle = Bundle.make('Idle', {
   Model: IdleModel,
   Message: IdleMessage,

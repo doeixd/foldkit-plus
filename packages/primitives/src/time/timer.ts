@@ -1,9 +1,3 @@
-/**
- * A timer as a bundle: a count in the Model, advanced by a tick stream while
- * running. The clock is Effect's, so tests drive it with TestClock instead of
- * waiting. For a clock whose running or interval the parent's Model decides,
- * use the `ticks` entry instead.
- */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
@@ -19,6 +13,12 @@ export const TimerMessage = defineMessageUnion({
 })
 export type TimerMessage = typeof TimerMessage.Type
 
+/**
+ * A timer as a bundle: a count in the Model, advanced by a tick stream while
+ * running. The clock is Effect's, so tests drive it with TestClock instead of
+ * waiting. For a clock whose running or interval the parent's Model decides,
+ * use the `ticks` entry instead.
+ */
 export const Timer = Bundle.make('Timer', {
   Model: TimerModel,
   Message: TimerMessage,

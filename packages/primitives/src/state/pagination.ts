@@ -1,8 +1,3 @@
-/**
- * Pagination as a bundle: the page, page size, and total live in the Model,
- * so page changes replay and every transition clamps into range. Pure logic,
- * no streams: data loading stays the application's job.
- */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
@@ -38,6 +33,11 @@ export const pageCount = (model: PaginationModel): number | null =>
 /** The offset of the first item on the page, for a slice or a query. */
 export const offset = (model: PaginationModel): number => (model.page - 1) * model.perPage
 
+/**
+ * Pagination as a bundle: the page, page size, and total live in the Model,
+ * so page changes replay and every transition clamps into range. Pure logic,
+ * no streams: data loading stays the application's job.
+ */
 export const Pagination = Bundle.make('Pagination', {
   Model: PaginationModel,
   Message: PaginationMessage,

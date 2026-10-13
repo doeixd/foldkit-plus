@@ -1,11 +1,3 @@
-/**
- * Media devices as a bundle factory: the enumerated device list in the
- * Model, scanned on placement and re-scanned on every `devicechange`.
- * Denial lands as `denied` while keeping the last list (actionable UI over
- * stale data, like Geolocation's last fix); any other failure keeps the
- * list and notes the error. No media-devices API yields an empty stream
- * and a `Failed` scan instead of throwing.
- */
 import { Effect, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -68,6 +60,14 @@ const isDenied = (error: unknown): boolean =>
   typeof (error as { readonly name?: unknown } | null)?.name === 'string' &&
   ['NotAllowedError', 'SecurityError'].includes((error as { readonly name: string }).name)
 
+/**
+ * Media devices as a bundle factory: the enumerated device list in the
+ * Model, scanned on placement and re-scanned on every `devicechange`.
+ * Denial lands as `denied` while keeping the last list (actionable UI over
+ * stale data, like Geolocation's last fix); any other failure keeps the
+ * list and notes the error. No media-devices API yields an empty stream
+ * and a `Failed` scan instead of throwing.
+ */
 export const mediaDevices = <const Name extends string>(config: {
   readonly name: Name
   /** Read lazily so tests can substitute a double, like the SSE bundle. */

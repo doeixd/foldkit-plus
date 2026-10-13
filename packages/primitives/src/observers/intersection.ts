@@ -1,8 +1,3 @@
-/**
- * Element visibility as a Mount: IntersectionObserver reports viewport
- * crossings as Messages for the element carrying this Mount. No observer
- * (SSR, old browser) emits nothing instead of throwing.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
@@ -14,6 +9,11 @@ export type IntersectionChanged = typeof IntersectionChanged.Type
 
 type ObserverCtor = new (callback: IntersectionObserverCallback) => IntersectionObserver
 
+/**
+ * Element visibility as a Mount: IntersectionObserver reports viewport
+ * crossings as Messages for the element carrying this Mount. No observer
+ * (SSR, old browser) emits nothing instead of throwing.
+ */
 export const Intersection = Mount.defineStream('Intersection', {
   messages: [IntersectionChanged],
   execute: ({ element }) =>

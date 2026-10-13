@@ -1,10 +1,3 @@
-/**
- * Window size as a bundle: `{ width, height }` in the Model, read from the
- * window at startup and kept current by one `resize` listener. Breakpoints
- * owns its own listener and derives names; place this one when views need
- * the raw pixels. Placing both doubles resize listeners — pick the one the
- * view reads.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -52,6 +45,13 @@ const sizeStream = (): Stream.Stream<WindowSizeMessage> => {
   )
 }
 
+/**
+ * Window size as a bundle: `{ width, height }` in the Model, read from the
+ * window at startup and kept current by one `resize` listener. Breakpoints
+ * owns its own listener and derives names; place this one when views need
+ * the raw pixels. Placing both doubles resize listeners — pick the one the
+ * view reads.
+ */
 export const WindowSize = Bundle.make('WindowSize', {
   Model: WindowSizeModel,
   Message: WindowSizeMessage,

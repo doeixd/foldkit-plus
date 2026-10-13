@@ -41,6 +41,7 @@ declare global {
   }
 }
 
+/** How `keepScroll` remembers and restores each history entry's offset. */
 export interface KeepScrollOptions {
   /** The `sessionStorage` key holding entry offsets. Default `'foldkit:scroll'`. */
   readonly storageKey?: string | undefined

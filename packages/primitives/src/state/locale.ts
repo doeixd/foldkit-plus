@@ -1,9 +1,3 @@
-/**
- * Locale as a bundle: the current locale string in the Model. Starts from
- * `navigator.language` where available, falling back to the configured
- * default; changes arrive as Messages. No subscriptions: language changes
- * take effect on reload.
- */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
@@ -14,6 +8,12 @@ export type LocaleModel = typeof LocaleModel.Type
 export const LocaleMessage = defineMessageUnion({ SetLocale: { locale: Schema.String } })
 export type LocaleMessage = typeof LocaleMessage.Type
 
+/**
+ * Locale as a bundle: the current locale string in the Model. Starts from
+ * `navigator.language` where available, falling back to the configured
+ * default; changes arrive as Messages. No subscriptions: language changes
+ * take effect on reload.
+ */
 export const Locale = Bundle.make('Locale', {
   Model: LocaleModel,
   Message: LocaleMessage,

@@ -1,11 +1,3 @@
-/**
- * DOM mutations as a Mount: MutationObserver reports child, attribute, and
- * text changes as Messages for the element carrying this Mount. Nodes cross
- * as their names (serializable); the live nodes stay in the DOM, never in
- * the Model. No observer (SSR, old browser) emits nothing instead of
- * throwing. Observes the whole subtree — narrow by placing on a smaller
- * element, not by options.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
@@ -22,6 +14,14 @@ type ObserverCtor = new (callback: MutationCallback) => MutationObserver
 const recordType = (type: string): Mutated['type'] | null =>
   type === 'childList' || type === 'attributes' || type === 'characterData' ? type : null
 
+/**
+ * DOM mutations as a Mount: MutationObserver reports child, attribute, and
+ * text changes as Messages for the element carrying this Mount. Nodes cross
+ * as their names (serializable); the live nodes stay in the DOM, never in
+ * the Model. No observer (SSR, old browser) emits nothing instead of
+ * throwing. Observes the whole subtree — narrow by placing on a smaller
+ * element, not by options.
+ */
 export const Mutation = Mount.defineStream('Mutation', {
   messages: [Mutated],
   execute: ({ element }) =>

@@ -1,25 +1,3 @@
-/**
- * Text typed into an editable descendant of an element, as a Mount: one set of
- * listeners on the container, like `Targets`. A field is a descendant marked
- * by an attribute whose value names it, while it is `contenteditable`. The
- * view decides which one is; the Mount focuses it as it becomes so (made
- * editable, or drawn editable), with the caret at its end, and at no other
- * time. When Enter or Escape ends an edit and the view then removes the field
- * or makes it no longer editable, focus, left on nothing, comes back to the
- * container, so the next key reaches it; give the container a `tabindex`. A double-click on a marked field that is not editable yet asks for it
- * to be (`EditAsked`).
- *
- * It reads `innerText`, never `innerHTML`, so what arrives is text. A field is
- * one line unless it carries `aria-multiline="true"`: in one line, a line
- * break becomes a space. Nothing is reported while an input method composes;
- * the composed text arrives once, when it is done.
- *
- * Enter commits (Shift+Enter breaks a line in a multiline field), and so does
- * leaving the field. Escape cancels, and puts the text the field had when
- * editing began back in the DOM, since a view that stopped redrawing the field
- * while it was edited will not. Where the browser lacks `plaintext-only`, a
- * paste is inserted as text. What an edit means is the parent's `update`.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
@@ -78,6 +56,28 @@ const caretAtEnd = (field: HTMLElement) => {
 /** Whether a key press belongs to an input method still composing, not to the field. */
 const composing = (event: KeyboardEvent) => event.isComposing || event.keyCode === 229
 
+/**
+ * Text typed into an editable descendant of an element, as a Mount: one set of
+ * listeners on the container, like `Targets`. A field is a descendant marked
+ * by an attribute whose value names it, while it is `contenteditable`. The
+ * view decides which one is; the Mount focuses it as it becomes so (made
+ * editable, or drawn editable), with the caret at its end, and at no other
+ * time. When Enter or Escape ends an edit and the view then removes the field
+ * or makes it no longer editable, focus, left on nothing, comes back to the
+ * container, so the next key reaches it; give the container a `tabindex`. A double-click on a marked field that is not editable yet asks for it
+ * to be (`EditAsked`).
+ *
+ * It reads `innerText`, never `innerHTML`, so what arrives is text. A field is
+ * one line unless it carries `aria-multiline="true"`: in one line, a line
+ * break becomes a space. Nothing is reported while an input method composes;
+ * the composed text arrives once, when it is done.
+ *
+ * Enter commits (Shift+Enter breaks a line in a multiline field), and so does
+ * leaving the field. Escape cancels, and puts the text the field had when
+ * editing began back in the DOM, since a view that stopped redrawing the field
+ * while it was edited will not. Where the browser lacks `plaintext-only`, a
+ * paste is inserted as text. What an edit means is the parent's `update`.
+ */
 export const EditableText = Mount.defineStream('EditableText', {
   messages: [TextEdited, TextCommitted, TextCancelled, EditAsked],
   args: {

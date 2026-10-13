@@ -1,9 +1,3 @@
-/**
- * Named breakpoints over the viewport width: one `resize` listener, derived
- * names in `update`. Thresholds are mobile-first min-widths: the breakpoint
- * is the largest name whose threshold is <= width. Ties break
- * alphabetically so duplicates stay deterministic.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -18,6 +12,11 @@ export type BreakpointsModel = typeof BreakpointsModel.Type
 export const BreakpointsMessage = defineMessageUnion({ Changed: { width: Schema.Number } })
 export type BreakpointsMessage = typeof BreakpointsMessage.Type
 
+/**
+ * The breakpoint a width falls in: the name with the largest threshold at or
+ * below it, or `null` below every threshold. `Breakpoints` uses it; a view that
+ * has a width of its own can too.
+ */
 export const breakpointFor = (
   width: number,
   breakpoints: Readonly<Record<string, number>>,
@@ -61,6 +60,12 @@ const widthStream = (): Stream.Stream<BreakpointsMessage> => {
   )
 }
 
+/**
+ * Named breakpoints over the viewport width: one `resize` listener, derived
+ * names in `update`. Thresholds are mobile-first min-widths: the breakpoint
+ * is the largest name whose threshold is <= width. Ties break
+ * alphabetically so duplicates stay deterministic.
+ */
 export const Breakpoints = Bundle.make('Breakpoints', {
   Model: BreakpointsModel,
   Message: BreakpointsMessage,

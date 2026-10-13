@@ -1,10 +1,3 @@
-/**
- * Input modality as a bundle: whether the user last drove the page by
- * keyboard or by pointer. The browser reports the facts; the Model keeps the
- * answer, so a view can show a focus ring only for keyboard users without
- * reading the DOM, and a replay sees the same answer. CSS `:focus-visible`
- * is the floor; this is for JavaScript that must know.
- */
 import { Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -41,6 +34,13 @@ const modalityStream = (): Stream.Stream<InputModalityMessage> => {
   )
 }
 
+/**
+ * Input modality as a bundle: whether the user last drove the page by
+ * keyboard or by pointer. The browser reports the facts; the Model keeps the
+ * answer, so a view can show a focus ring only for keyboard users without
+ * reading the DOM, and a replay sees the same answer. CSS `:focus-visible`
+ * is the floor; this is for JavaScript that must know.
+ */
 export const InputModality = Bundle.make('InputModality', {
   Model: InputModalityModel,
   Message: InputModalityMessage,

@@ -1,23 +1,10 @@
-/**
- * Windowing math for virtualized lists as pure functions: which rows to
- * render, how tall the scrollable area is, and where each row starts. Row
- * heights come from measured values with a per-row estimate fallback, so
- * unmeasured rows still occupy space and measuring later only corrects.
- * Keys are strings; heights are non-negative, and non-finite measurements
- * fall back to the estimate instead of poisoning the sums.
- *
- * The `Virtual` bundle below owns the scroll position and the measured
- * heights; `Viewport` reports container scrolls and `MeasureRow` reports
- * row heights, both as Mounts on the elements they observe. The application
- * renders `windowFor(...)` rows with its own views (keyed, so `each`
- * placements keep identity) inside a spacer of `totalHeight(...)`.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 
+/** The rows to draw: a half-open range of indexes. */
 export interface VirtualWindow {
   /** First visible row index, inclusive. */
   readonly start: number
@@ -245,6 +232,20 @@ const saneTop = (top: number): number | null => (Number.isFinite(top) ? Math.max
 const saneMeasured = (height: number): number | null =>
   Number.isFinite(height) && height >= 0 ? height : null
 
+/**
+ * Windowing math for virtualized lists as pure functions: which rows to
+ * render, how tall the scrollable area is, and where each row starts. Row
+ * heights come from measured values with a per-row estimate fallback, so
+ * unmeasured rows still occupy space and measuring later only corrects.
+ * Keys are strings; heights are non-negative, and non-finite measurements
+ * fall back to the estimate instead of poisoning the sums.
+ *
+ * The `Virtual` bundle below owns the scroll position and the measured
+ * heights; `Viewport` reports container scrolls and `MeasureRow` reports
+ * row heights, both as Mounts on the elements they observe. The application
+ * renders `windowFor(...)` rows with its own views (keyed, so `each`
+ * placements keep identity) inside a spacer of `totalHeight(...)`.
+ */
 export const Virtual = Bundle.make<
   'Virtual',
   VirtualModel,
@@ -445,6 +446,7 @@ export const stickyHeader = (
   return current
 }
 
+/** Where `masonry` puts one item: its column and its box, in pixels. */
 export interface MasonryPlacement {
   readonly key: string
   readonly column: number

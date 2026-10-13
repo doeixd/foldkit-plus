@@ -1,12 +1,3 @@
-/**
- * A camera/mic stream as a bundle factory: one live MediaStream held in a
- * Managed Resource while the Model asks for it. `Started` requests,
- * `Stopped` releases; denial parks at `denied` (actionable UI), any other
- * acquire failure parks at `idle` with the error noted — both clear
- * requirements, so a failing device never spins an acquire loop. Release
- * stops every track. No media-devices API fails the acquire instead of
- * throwing.
- */
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as ManagedResource from 'foldkit/managedResource'
@@ -40,6 +31,7 @@ export interface MediaStreamHandle {
   getTracks(): ReadonlyArray<MediaTrackHandle>
 }
 
+/** Which tracks `mediaStream` asks `getUserMedia` for. */
 export interface MediaStreamConstraints {
   readonly audio: boolean
   readonly video: boolean
@@ -69,6 +61,15 @@ const isDenied = (error: unknown): boolean =>
   typeof (error as { readonly name?: unknown } | null)?.name === 'string' &&
   ['NotAllowedError', 'SecurityError'].includes((error as { readonly name: string }).name)
 
+/**
+ * A camera/mic stream as a bundle factory: one live MediaStream held in a
+ * Managed Resource while the Model asks for it. `Started` requests,
+ * `Stopped` releases; denial parks at `denied` (actionable UI), any other
+ * acquire failure parks at `idle` with the error noted — both clear
+ * requirements, so a failing device never spins an acquire loop. Release
+ * stops every track. No media-devices API fails the acquire instead of
+ * throwing.
+ */
 export const mediaStream = <const Name extends string>(config: {
   readonly name: Name
   /** Read lazily so tests can substitute a double, like the SSE bundle. */

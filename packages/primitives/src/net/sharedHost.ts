@@ -1,14 +1,3 @@
-/**
- * One server in the browser for many documents: every tab and frame of an
- * application meets the same host. A page opens conversations, each a
- * `MessagePort` with a decoded opening that says what it is for; the host, in
- * a SharedWorker shared by every tab, or in the top document where there is no
- * SharedWorker, is handed each one with a signal that aborts when the page
- * that opened it is gone.
- *
- * It owns the host's lifetime and the routing of conversations, nothing
- * spoken over them: Sync's `portSocket` and Remote's `port` do that.
- */
 import { Option, Schema } from 'effect'
 
 /** One conversation a page opened: its port, and a signal that aborts once the page is gone. */
@@ -24,6 +13,7 @@ export type ConversationHandler<Opening> = (opening: Opening, conversation: Conv
 export type StartHost<Opening> = () =>
   ConversationHandler<Opening> | Promise<ConversationHandler<Opening>>
 
+/** Where `SharedHost` runs the host: in a SharedWorker, or in the page when there is none. */
 export interface SharedHostOptions<Opening> {
   /**
    * The SharedWorker whose entry calls `serve`. Constructed by the
@@ -190,4 +180,15 @@ const hold = (lock: string): Promise<void> =>
 /** Web Locks, which a page outside a secure context, or an older browser, lacks. */
 const locks = (): Option.Option<LockManager> => Option.fromUndefinedOr(navigator.locks)
 
+/**
+ * One server in the browser for many documents: every tab and frame of an
+ * application meets the same host. A page opens conversations, each a
+ * `MessagePort` with a decoded opening that says what it is for; the host, in
+ * a SharedWorker shared by every tab, or in the top document where there is no
+ * SharedWorker, is handed each one with a signal that aborts when the page
+ * that opened it is gone.
+ *
+ * It owns the host's lifetime and the routing of conversations, nothing
+ * spoken over them: Sync's `portSocket` and Remote's `port` do that.
+ */
 export const SharedHost = { define }

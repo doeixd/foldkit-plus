@@ -1,16 +1,3 @@
-/**
- * Undo/redo as a bundle factory: the past, present, and future of one value
- * live in the Model, so every step replays. Pushing records, even an unchanged
- * value; skipping duplicates is the application's policy, not the stack's.
- *
- * A push may name a `group`. Consecutive pushes of the same group are one step:
- * the present moves and nothing new is recorded, so typing a word undoes as a
- * whole. Grouping needs no clock; the application names what belongs together.
- *
- * The steps are also pure functions (`History.push`, `undo`, `redo`, `goTo`, `clear`),
- * for a parent that records an edit in the same transition that makes it
- * rather than dispatching a Message to a placed bundle.
- */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
@@ -156,6 +143,19 @@ export const History = {
   canRedo,
 }
 
+/**
+ * Undo/redo as a bundle factory: the past, present, and future of one value
+ * live in the Model, so every step replays. Pushing records, even an unchanged
+ * value; skipping duplicates is the application's policy, not the stack's.
+ *
+ * A push may name a `group`. Consecutive pushes of the same group are one step:
+ * the present moves and nothing new is recorded, so typing a word undoes as a
+ * whole. Grouping needs no clock; the application names what belongs together.
+ *
+ * The steps are also pure functions (`History.push`, `undo`, `redo`, `goTo`, `clear`),
+ * for a parent that records an edit in the same transition that makes it
+ * rather than dispatching a Message to a placed bundle.
+ */
 export const history = <const Name extends string, Value>(config: {
   readonly name: Name
   readonly value: Schema.Codec<Value, unknown>

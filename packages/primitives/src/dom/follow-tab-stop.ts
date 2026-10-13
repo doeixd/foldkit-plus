@@ -1,3 +1,6 @@
+import { Effect, Schema, Stream } from 'effect'
+import * as Mount from 'foldkit/mount'
+
 /**
  * Keeps focus that is inside a container of roving tab stops on its stop, as a
  * Mount: when a transition moves the stop (a row made current by a command the
@@ -6,9 +9,6 @@
  * `tabindex="0"`. It sends no Message. Focus outside the container is never
  * taken, and focus the user moved away stays where it went.
  */
-import { Effect, Schema, Stream } from 'effect'
-import * as Mount from 'foldkit/mount'
-
 export const FollowTabStop = Mount.defineStream('FollowTabStop', {
   messages: [Schema.Never],
   execute: ({ element }) =>

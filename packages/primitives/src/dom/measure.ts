@@ -1,3 +1,16 @@
+import { Effect, Schema, Stream } from 'effect'
+import * as Mount from 'foldkit/mount'
+
+/** The custom properties `Measure` writes for a target named `name`. */
+export const measured = (name: string) =>
+  ({
+    x: `--fk-${name}-x`,
+    y: `--fk-${name}-y`,
+    w: `--fk-${name}-w`,
+    h: `--fk-${name}-h`,
+    display: `--fk-${name}-display`,
+  }) as const
+
 /**
  * Measures marked elements as a Mount, for a view to draw something over them,
  * such as an editor's selection outline, with no Message and no Model: where
@@ -17,19 +30,6 @@
  * such as a stylesheet added that shifts it without resizing it, is seen at
  * the next of these.
  */
-import { Effect, Schema, Stream } from 'effect'
-import * as Mount from 'foldkit/mount'
-
-/** The custom properties `Measure` writes for a target named `name`. */
-export const measured = (name: string) =>
-  ({
-    x: `--fk-${name}-x`,
-    y: `--fk-${name}-y`,
-    w: `--fk-${name}-w`,
-    h: `--fk-${name}-h`,
-    display: `--fk-${name}-display`,
-  }) as const
-
 export const Measure = Mount.defineStream('Measure', {
   messages: [Schema.Never],
   args: {

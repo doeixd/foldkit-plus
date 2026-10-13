@@ -1,3 +1,8 @@
+import { Effect, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+import { Bundle } from 'foldkit-bundle'
+
 /**
  * Debounced input as a bundle factory: `Changed` restarts a timer, and the
  * latest value settles as an OutMessage the placement must handle with
@@ -6,11 +11,6 @@
  * as Presence's exit timeout. Generic over the value Schema, like History.
  * The clock is Effect's, so tests drive it with TestClock.
  */
-import { Effect, Schema } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
-import type * as Update from 'foldkit/update'
-import { Bundle } from 'foldkit-bundle'
-
 export const debounce = <const Name extends string, Value>(config: {
   readonly name: Name
   readonly value: Schema.Codec<Value, unknown>

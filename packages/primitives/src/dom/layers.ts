@@ -13,6 +13,7 @@ import { Effect, Schema, Stream } from 'effect'
 import * as Dom from 'foldkit/dom'
 import * as Mount from 'foldkit/mount'
 
+/** Locks the document's scroll while the element is mounted; nested locks release with the last. */
 export const ScrollLock = Mount.defineStream('ScrollLock', {
   messages: [Schema.Never],
   execute: () =>
@@ -23,6 +24,7 @@ const HIDE_OUTSIDE_ATTRIBUTE = 'data-foldkit-plus-hide-outside'
 
 let minted = 0
 
+/** Makes everything outside the element inert while it is mounted, and restores it after. */
 export const HideOutside = Mount.defineStream('HideOutside', {
   messages: [Schema.Never],
   execute: ({ element }) =>

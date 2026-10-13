@@ -1,16 +1,3 @@
-/**
- * Hotkey matching as a pure function over a `Pressed` payload: `matchHotkey`
- * answers whether a press is the shortcut, so `update` stays a table of
- * chords instead of a nest of modifier checks. Patterns read like
- * `"ctrl+shift+k"`: modifiers first (any order), the key last,
- * case-insensitive, with `cmd`/`command` and `option` as the Mac names for
- * meta and alt. Matching is exact — unlisted modifiers must be up — and
- * auto-repeat never matches, so holding a chord fires once. `space` (or a
- * bare space) means the space key; `esc` means escape. A pattern with
- * no key, or two keys, matches nothing: predicates return false, they do
- * not throw on the hot path.
- */
-
 export interface KeyPress {
   readonly key: string
   readonly repeat: boolean
@@ -51,6 +38,18 @@ const keyNameOf = (part: string): string => {
   }
 }
 
+/**
+ * Hotkey matching as a pure function over a `Pressed` payload: `matchHotkey`
+ * answers whether a press is the shortcut, so `update` stays a table of
+ * chords instead of a nest of modifier checks. Patterns read like
+ * `"ctrl+shift+k"`: modifiers first (any order), the key last,
+ * case-insensitive, with `cmd`/`command` and `option` as the Mac names for
+ * meta and alt. Matching is exact — unlisted modifiers must be up — and
+ * auto-repeat never matches, so holding a chord fires once. `space` (or a
+ * bare space) means the space key; `esc` means escape. A pattern with
+ * no key, or two keys, matches nothing: predicates return false, they do
+ * not throw on the hot path.
+ */
 export const matchHotkey = (pattern: string, press: KeyPress): boolean => {
   if (press.repeat) return false
   const trimmed = pattern

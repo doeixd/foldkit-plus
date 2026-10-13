@@ -1,9 +1,3 @@
-/**
- * Presence as a bundle: mount-transition state for exit animations. `Hide`
- * starts a timed `hiding` phase; the `Hidden` fact it yields carries the
- * generation it was scheduled under, so a `Show` in between wins and the
- * late fact is ignored. The clock is Effect's, so tests drive it.
- */
 import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -26,6 +20,12 @@ export type PresenceMessage = typeof PresenceMessage.Type
 /** Whether the content renders: shown or mid-exit. */
 export const isVisible = (model: PresenceModel): boolean => model.phase !== 'hidden'
 
+/**
+ * Presence as a bundle: mount-transition state for exit animations. `Hide`
+ * starts a timed `hiding` phase; the `Hidden` fact it yields carries the
+ * generation it was scheduled under, so a `Show` in between wins and the
+ * late fact is ignored. The clock is Effect's, so tests drive it.
+ */
 export const Presence = Bundle.make<
   'Presence',
   PresenceModel,

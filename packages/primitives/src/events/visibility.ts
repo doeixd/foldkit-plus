@@ -1,9 +1,3 @@
-/**
- * Page visibility as a bundle: `visible` in the Model, read from the
- * document at startup and kept current by `visibilitychange`. A hidden page
- * is the application's cue to pause polling, animations, and realtime
- * streams; the decision stays in application `update`, not here.
- */
 import { Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -30,6 +24,12 @@ const visibilityStream = (): Stream.Stream<VisibilityMessage> => {
   )
 }
 
+/**
+ * Page visibility as a bundle: `visible` in the Model, read from the
+ * document at startup and kept current by `visibilitychange`. A hidden page
+ * is the application's cue to pause polling, animations, and realtime
+ * streams; the decision stays in application `update`, not here.
+ */
 export const Visibility = Bundle.make('Visibility', {
   Model: VisibilityModel,
   Message: VisibilityMessage,

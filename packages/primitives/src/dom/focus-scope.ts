@@ -1,10 +1,3 @@
-/**
- * A focus scope as a Mount: on insert it remembers what was focused, focuses
- * an initial element inside, and with `contain` keeps Tab and Shift+Tab
- * cycling inside; on unmount it gives focus back. Nothing crosses to the
- * Model: which element had focus is a DOM fact, so this is element lifecycle,
- * not state. It emits no Messages.
- */
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
@@ -36,6 +29,13 @@ const focusFirst = (elements: ReadonlyArray<HTMLElement>): boolean => {
   return true
 }
 
+/**
+ * A focus scope as a Mount: on insert it remembers what was focused, focuses
+ * an initial element inside, and with `contain` keeps Tab and Shift+Tab
+ * cycling inside; on unmount it gives focus back. Nothing crosses to the
+ * Model: which element had focus is a DOM fact, so this is element lifecycle,
+ * not state. It emits no Messages.
+ */
 export const FocusScope = Mount.defineStream('FocusScope', {
   messages: [Schema.Never],
   args: {

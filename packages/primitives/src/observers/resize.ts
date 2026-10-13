@@ -1,8 +1,3 @@
-/**
- * Element size as a Mount: ResizeObserver reports content-box changes as
- * Messages for the element carrying this Mount. No observer (SSR, old
- * browser) emits nothing instead of throwing.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
@@ -14,6 +9,11 @@ export type Resized = typeof Resized.Type
 
 type ObserverCtor = new (callback: ResizeObserverCallback) => ResizeObserver
 
+/**
+ * Element size as a Mount: ResizeObserver reports content-box changes as
+ * Messages for the element carrying this Mount. No observer (SSR, old
+ * browser) emits nothing instead of throwing.
+ */
 export const Resize = Mount.defineStream('Resize', {
   messages: [Resized],
   execute: ({ element }) =>

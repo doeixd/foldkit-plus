@@ -1,10 +1,3 @@
-/**
- * Pointer movement on an element as a Mount: a primary-button pointer down
- * captures the pointer, each move reports the delta from where it started,
- * and up, cancel, or lost capture ends it. Nothing is decided here: a drag
- * threshold, a snap, or a constraint is the parent's `update`. Capture is
- * released with the Mount.
- */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
@@ -45,6 +38,13 @@ type Capturing = Element & {
   releasePointerCapture?: (pointerId: number) => void
 }
 
+/**
+ * Pointer movement on an element as a Mount: a primary-button pointer down
+ * captures the pointer, each move reports the delta from where it started,
+ * and up, cancel, or lost capture ends it. Nothing is decided here: a drag
+ * threshold, a snap, or a constraint is the parent's `update`. Capture is
+ * released with the Mount.
+ */
 export const Move = Mount.defineStream('Move', {
   messages: [MoveStarted, Moved, MoveEnded],
   execute: ({ element }) =>
