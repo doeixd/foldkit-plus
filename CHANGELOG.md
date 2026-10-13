@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-sync`: the browser asks before leaving while an edit is unsaved.**
+  `Sync.mount` shows a durable edit before it is stored; a reload in between
+  lost it. From the first such edit until the last is stored, `beforeunload`
+  asks the reader first.
+
 - **Public types a dependent's declarations need.** A library built on these
   packages could not emit declarations under TypeScript 7 for a value whose
   inferred type reaches a type it cannot name. The package indexes now export

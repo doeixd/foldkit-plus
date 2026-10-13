@@ -380,7 +380,10 @@ The three milestones each have a reader.
 
 **Visible** is the Model. Nothing to do.
 
-**Saved** is the persist. `onPersistenceFailure` runs when it fails, after the
+**Saved** is the persist. Between the edit showing and the persist finishing,
+a reload would lose what the user saw, so the browser asks before the page
+unloads (`beforeunload`) until every shown edit is stored; it usually takes
+milliseconds. `onPersistenceFailure` runs when it fails, after the
 edit has been reverted; the Model it returns is what the user sees next. The
 error names why: `ReplayError` for a Message that cannot be durable,
 `StorageError` for IndexedDB.
@@ -667,6 +670,8 @@ application come first.
   grows; the loop retries. Nothing to handle.
 - **The server rejects an edit.** Dropped from `pending`, the rest replayed,
   the Model re-installed. Explain it from `status.rejected`.
+- **The page unloads before the persist finishes.** The browser asks first;
+  leaving anyway loses the edits not yet stored.
 - **The persist fails.** The edit is reverted and `onPersistenceFailure` runs.
   The user has to redo it.
 - **Local storage was evicted.** The replica starts at cursor 0 and catches up

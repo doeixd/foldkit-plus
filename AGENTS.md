@@ -848,6 +848,15 @@ of its own named a form field "fits the Catalog". Read words with
   `typescript@6.0.3` as their own dev dependency, and `scripts/tags-check.mjs`
   imports the root's `typescript-6` alias. Their packages' own `tsc -b` is 6;
   the root's, which CI runs, is 7.
+- **Effect's diagnostics under TypeScript 7 are `@effect/tsgo`, not run in CI.**
+  `@effect/language-service` is a TypeScript plugin, which 7 does not load;
+  its tsconfig entry still serves an editor on a JavaScript TypeScript. Its
+  successor patches the native compiler to report inside `tsc`, or runs alone:
+  `npx @effect/tsgo diagnostics --project <tsconfig> --severity error,warning`.
+  Run over every project on 2026-10-13, its errors were all in tests (unrun
+  Effects in type tests, `return yield*` style), and its warnings mostly
+  `unstableApiUsage` for `effect/rpc` and `effect/persistence`, which are used
+  on purpose. Run it after a large Effect change.
 - **Since TypeScript 6 no `@types` package is included by itself.** Its `types`
   defaults to none, so every `process`, `Buffer` and `node:` import failed
   until `tsconfig.base.json` named `"types": ["node"]`. A project that sets
