@@ -13,7 +13,7 @@ import { NodeHttpServer } from '@effect/platform-node'
 import { Context, Effect, Exit, Layer, Option, Redacted, Schema, Scope } from 'effect'
 import { HttpRouter } from 'effect/http'
 import { Entity } from 'foldkit-entity'
-import { REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
+import { REMOTE_PROTOCOL_VERSION, RemoteUnauthenticated } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { serveFetch } from 'foldkit-remote-server/fetch'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -316,4 +316,37 @@ describe('AuthServer.resolver', () => {
       ).toThrow('is not an origin')
     },
   )
+})
+
+describe('AuthServer.socket', () => {
+  const upgrade = (headers: Record<string, string>) =>
+    Effect.runPromiseExit(
+      AuthServer.socket({
+        auth: Verifier,
+        http,
+        principal: session => Effect.succeed(session.subjectId),
+      })(
+        new Request('https://app.test/sync', {
+          headers: { upgrade: 'websocket', cookie: '__Host-effect-auth-session=good', ...headers },
+        }),
+      ).pipe(Effect.provide(verifier(new Sessions.SessionInvalid()))),
+    )
+
+  it('reads the cookie of an upgrade from an Origin it trusts, which sends no CSRF header', async () => {
+    expect(await upgrade({ origin: 'https://app.test' })).toEqual(Exit.succeed(Option.some('ada')))
+  })
+
+  it.each([
+    ['an Origin it does not trust', { origin: 'https://elsewhere.test' }],
+    ['no Origin', {}],
+  ])('refuses the cookie of an upgrade with %s', async (_, headers) => {
+    expect(await upgrade(headers)).toEqual(
+      Exit.fail(
+        new RemoteUnauthenticated({
+          message: 'The request did not show it came from this application.',
+          reason: 'The request did not show it came from this application.',
+        }),
+      ),
+    )
+  })
 })

@@ -216,7 +216,7 @@ questions still open.
 ## Authentication
 
 Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
-orders the slices; step 0, slices 1–5 and slice 6's resolver are built.
+orders the slices; step 0, slices 1–5 and slice 6's two resolvers are built.
 
 - [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
   `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
@@ -235,9 +235,10 @@ orders the slices; step 0, slices 1–5 and slice 6's resolver are built.
 - [x] **5. SSR's per-request resources,** for the fallback's Commands. §5.4
 - [x] **6a. `AuthServer.resolver`:** the session cookie, Origin and CSRF,
   the subject header, `principal`; for `serveFetch`. §6.2
-- [ ] **6b. The socket resolver** for `defineDocumentHost` (Origin only, as a
-  browser `WebSocket` sends no header), and SSR's posted-form Origin check.
-  §6.2, §5.4
+- [x] **6b. The socket resolver:** `AuthServer.socket`, Origin only, as a
+  browser `WebSocket` sends no header; `defineDocumentHost` takes a `layer`
+  for it, kept while the socket is open. §6.2
+- [ ] **6c. SSR's posted-form Origin check.** §5.4
 - [ ] **The client acts on a refusal.** A 4401 close makes Sync's transport
   stop reconnecting (today every close code reconnects, each upgrade a 401); a
   refused live stream stops restarting until `forget`; a typed predicate for

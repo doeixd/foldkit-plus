@@ -1,22 +1,22 @@
 # foldkit-auth
 
-Who is signed in, for a Remote server: a [Yielded Auth](https://github.com/yielded-dev/auth)
-session read from the request and handed to `serveFetch` as its principal.
+Who is signed in, for a Foldkit Plus server: a [Yielded Auth](https://github.com/yielded-dev/auth)
+session read from the request and handed to Remote's `serveFetch` and Sync's
+document host as their principal.
 [`auth-DESIGN.md`](../../docs/design/auth-DESIGN.md) explains the design and
 why.
 
 ## What it is
 
 Yielded Auth signs people in and keeps their sessions. `serveFetch`, Remote's
-Web handler, asks "who is this request?" through a `resolvePrincipal` Effect.
-`AuthServer.resolver` is that Effect for an application on Yielded: it reads
-the session cookie Yielded set, verifies it with the application's own `Auth`
-service, and gives back the application's principal, a visitor, or a refusal
-the client decodes.
+Web handler, and `defineDocumentHost`, Sync's Durable Object, each ask "who
+is this request?" through a `resolvePrincipal` Effect. `AuthServer.resolver`
+(for Remote) and `AuthServer.socket` (for Sync's upgrade) are that Effect for
+an application on Yielded: they read the session cookie Yielded set, verify
+it with the application's own `Auth` service, and give back the
+application's principal, a visitor, or a refusal the client decodes.
 
-It serves `serveFetch` only, so far. Sync's document host cannot use it yet:
-its resolver takes no services, and a browser `WebSocket` cannot send the
-CSRF header this package asks for (auth-DESIGN §6.2, slice 6b).
+SSR's posted forms and agents do not use it yet (auth-DESIGN §9).
 
 ## What it owns, and what it does not
 
@@ -119,6 +119,30 @@ const transport = Remote.httpWithLive('/remote', {
 A refusal reaches the Model as a failure whose error has `_tag:
 'Unauthenticated'` and the `reason` below.
 
+## Sync's socket
+
+A browser's `WebSocket` sends no header of the page's, so an upgrade cannot
+carry the CSRF header. `AuthServer.socket` takes the same config and reads
+the cookie of an upgrade whose `Origin`, which every browser sends on one,
+is trusted; the rest is `resolver`'s. `defineDocumentHost` takes the `Auth`
+service from its `layer`, kept while the socket is open, so `revalidate`
+can ask the session store again and close a socket whose session ended
+(4401):
+
+```ts
+export class SyncHost extends defineDocumentHost(DurableObject, {
+  sync, // Sync.make(…)
+  openJournal,
+  resolvePrincipal: AuthServer.socket({
+    auth: AppAuth,
+    http,
+    principal: session => Effect.succeed({ id: session.subjectId }),
+  }),
+  layer: () => AppAuthLive,
+  revalidate: { every: '1 minute' },
+}) {}
+```
+
 ## Refusals
 
 | Request | Answer |
@@ -150,8 +174,9 @@ the header only if it learned the id itself.
 
 ## Limits
 
-- `serveFetch` only; Sync's socket, SSR's posted forms and agents are planned
-  (auth-DESIGN §9).
+- SSR's posted forms and agents are planned (auth-DESIGN §9). A Sync replica
+  reconnects after a 4401 today, refused at each upgrade, until the client
+  learns to stop (slice 8).
 - Cookie sessions only; a bearer credential is not read.
 - A session cookie with a `domain` trusts every subdomain, as Yielded
   documents: one that sets its own cookie of the same name makes every

@@ -1,8 +1,8 @@
 # foldkit-auth
 
 A [Yielded Auth](https://github.com/yielded-dev/auth) session read from a
-request and handed to `serveFetch` as its principal (only `serveFetch` so far:
-Sync's socket cannot send the CSRF header it asks for). The design and
+request and handed to Remote's `serveFetch` (`AuthServer.resolver`) and
+Sync's `defineDocumentHost` (`AuthServer.socket`) as their principal. The design and
 its reasons are
 [auth-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/auth-DESIGN.md).
 
@@ -74,8 +74,10 @@ on every Remote call kind.
   `subjectSaid(Option.none())` (`visitor`) or
   `subjectSaid(Option.some(id))`. A client that sends it is never answered as
   anyone else; one that sends none is answered as the session says.
-- Only cookie sessions, and only `serveFetch`-shaped hosts (a `Request` in)
-  so far. A socket resolver for Sync's document host, the `Me` Entity and the
+- Sync's upgrade: `resolvePrincipal: AuthServer.socket(config)` with
+  `layer: () => AppAuthLive`. A `WebSocket` sends no CSRF header, so a
+  trusted `Origin` alone vouches for its cookie.
+- Only cookie sessions so far. The `Me` Entity and the
   client's Commands are planned.
 
 ## See also

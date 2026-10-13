@@ -9,6 +9,7 @@ import { type Context, Effect, type Layer, type Option, Schema } from 'effect'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { serveFetch } from 'foldkit-remote-server/fetch'
+import { defineDocumentHost, type DocumentHostConfig } from 'foldkit-sync/do'
 import { AuthServer } from 'foldkit-auth/server'
 
 const AppAuth = Auth.make(
@@ -44,3 +45,29 @@ export const remote = serveFetch({
 export const transport = Remote.httpWithLive('/remote', {
   headers: () => ({ 'x-effect-auth-csrf': '1' }),
 })
+
+// ## Sync's socket
+
+class DurableObject {
+  constructor(_ctx: unknown, _env: unknown) {}
+}
+type HostConfig = DocumentHostConfig<
+  unknown,
+  unknown,
+  Option.Option<{ readonly id: string }>,
+  unknown
+>
+declare const sync: HostConfig['sync']
+declare const openJournal: HostConfig['openJournal']
+
+export class SyncHost extends defineDocumentHost(DurableObject, {
+  sync, // Sync.make(…)
+  openJournal,
+  resolvePrincipal: AuthServer.socket({
+    auth: AppAuth,
+    http,
+    principal: session => Effect.succeed({ id: session.subjectId }),
+  }),
+  layer: () => AppAuthLive,
+  revalidate: { every: '1 minute' },
+}) {}

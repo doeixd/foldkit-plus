@@ -18,7 +18,9 @@ version changed; `pnpm` skips versions already in the registry.
   without a trusted `Origin` and Yielded's CSRF header, a cookie that no
   longer verifies, two session cookies, or an `x-foldkit-subject` header
   naming someone else is a 401 `Unauthenticated`; `http` naming something
-  that is not an origin throws at once; `SUBJECT_HEADER` and `subjectSaid`,
+  that is not an origin throws at once. `AuthServer.socket` is the same for
+  `defineDocumentHost`'s upgrade, where a trusted `Origin` alone vouches for
+  the cookie, since a `WebSocket` sends no CSRF header; `SUBJECT_HEADER` and `subjectSaid`,
   from `foldkit-auth`, are what a client sends. Also re-exported as
   `foldkit-plus/auth` and `foldkit-plus/auth/server`, an optional peer.
 

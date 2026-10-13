@@ -19,13 +19,17 @@ export default [
   },
   {
     name: 'a cookie is read from any Origin',
-    edits: [{ file, find: "!trusted.has(request.headers.get('origin') ?? '') ||", replace: '' }],
+    edits: [{ file, find: "trusted.has(request.headers.get('origin') ?? '') &&", replace: '' }],
     tests,
   },
   {
     name: 'a cookie is read without the CSRF header',
     edits: [
-      { file, find: '||\n          request.headers.get(csrf.header) !== csrf.value', replace: '' },
+      {
+        file,
+        find: '(!asks.csrf || request.headers.get(csrf.header) === csrf.value)',
+        replace: 'true',
+      },
     ],
     tests,
   },
@@ -122,6 +126,11 @@ export default [
     edits: [
       { file, find: 'const secure = http.cookie?.secure ?? true', replace: 'const secure = true' },
     ],
+    tests,
+  },
+  {
+    name: 'a socket must send the CSRF header no WebSocket can',
+    edits: [{ file, find: '(!asks.csrf || ', replace: '(' }],
     tests,
   },
 ]

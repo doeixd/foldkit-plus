@@ -58,6 +58,69 @@ const checkBelieved = (request: Request, subject: Option.Option<string>) => {
 const asVisitor = (request: Request) =>
   Effect.as(checkBelieved(request, Option.none()), Option.none())
 
+/** What `AuthServer.resolver` and `AuthServer.socket` take. */
+export interface ResolverConfig<I, S extends VerifiedSession, User, R> {
+  /** The `Auth.make(…)` service, which the host's `layer` provides. */
+  readonly auth: Context.Key<I, SessionVerifier<S>>
+  /** The options given `Http.make`: the cookie's name, trusted origins and CSRF header. */
+  readonly http: HttpOptions
+  /** The application's principal for a verified session; it may refuse it. */
+  readonly principal: (session: S) => Effect.Effect<User, RemoteUnauthenticated, R>
+}
+
+/** Who a request is: a visitor, someone, or refused. */
+export type Resolver<User, R> = (
+  request: Request,
+) => Effect.Effect<Option.Option<User>, RemoteUnauthenticated, R>
+
+/**
+ * A resolver whose request vouches for its cookie by a trusted `Origin`, and,
+ * where `csrf` is asked, Yielded's CSRF header too.
+ */
+const resolving =
+  (caller: string, asks: { readonly csrf: boolean }) =>
+  <I, S extends VerifiedSession, User, R = never>(
+    config: ResolverConfig<I, S, User, R>,
+  ): Resolver<User, I | R> => {
+    const name = sessionCookieName(config.http)
+    const trusted = new Set([config.http.origin, ...(config.http.trustedOrigins ?? [])])
+    for (const origin of trusted) {
+      // What Http.make refuses too: an Origin header is exactly `URL.origin`, so
+      // anything else (`null`, a trailing slash) trusts what no browser sends,
+      // or what a sandboxed page does.
+      if (!URL.canParse(origin) || new URL(origin).origin !== origin)
+        throw new Error(`AuthServer.${caller}: ${JSON.stringify(origin)} is not an origin`)
+    }
+    const csrf = config.http.csrf ?? { header: 'x-effect-auth-csrf', value: '1' }
+    const vouched = (request: Request): boolean =>
+      trusted.has(request.headers.get('origin') ?? '') &&
+      (!asks.csrf || request.headers.get(csrf.header) === csrf.value)
+    return request =>
+      Effect.gen(function* () {
+        const credentials = cookieValues(request.headers.get('cookie'), name)
+        if (credentials.length === 0) return yield* asVisitor(request)
+        // A cookie rides along with any request to the site; only one that
+        // shows it came from the application may use it, as Yielded's own
+        // mutations must. Refused rather than answered as a visitor, so a
+        // client that forgot the header learns it at once.
+        if (!vouched(request))
+          return yield* refuse('The request did not show it came from this application.')
+        if (credentials.length > 1) return yield* refuse('Sign in again.')
+        const auth = yield* config.auth
+        const session = yield* auth.verifySession(Redacted.make(credentials[0]!)).pipe(
+          Effect.catchTag('SessionInvalid', () => refuse('Your session ended.')),
+          // Anything else is the session store failing, not the caller.
+          Effect.catchIf(
+            (error): error is Exclude<typeof error, RemoteUnauthenticated> =>
+              !(error instanceof RemoteUnauthenticated),
+            Effect.die,
+          ),
+        )
+        yield* checkBelieved(request, Option.some(session.subjectId))
+        return Option.some(yield* config.principal(session))
+      })
+  }
+
 export const AuthServer = {
   /**
    * Who a request is, from its Yielded session cookie, for `serveFetch`'s
@@ -81,48 +144,23 @@ export const AuthServer = {
    * })
    * ```
    */
-  resolver: <I, S extends VerifiedSession, User, R = never>(config: {
-    readonly auth: Context.Key<I, SessionVerifier<S>>
-    readonly http: HttpOptions
-    /** The application's principal for a verified session; it may refuse it. */
-    readonly principal: (session: S) => Effect.Effect<User, RemoteUnauthenticated, R>
-  }): ((request: Request) => Effect.Effect<Option.Option<User>, RemoteUnauthenticated, I | R>) => {
-    const name = sessionCookieName(config.http)
-    const trusted = new Set([config.http.origin, ...(config.http.trustedOrigins ?? [])])
-    for (const origin of trusted) {
-      // What Http.make refuses too: an Origin header is exactly `URL.origin`, so
-      // anything else (`null`, a trailing slash) trusts what no browser sends,
-      // or what a sandboxed page does.
-      if (!URL.canParse(origin) || new URL(origin).origin !== origin)
-        throw new Error(`AuthServer.resolver: ${JSON.stringify(origin)} is not an origin`)
-    }
-    const csrf = config.http.csrf ?? { header: 'x-effect-auth-csrf', value: '1' }
-    return request =>
-      Effect.gen(function* () {
-        const credentials = cookieValues(request.headers.get('cookie'), name)
-        if (credentials.length === 0) return yield* asVisitor(request)
-        // A cookie rides along with any request to the site; only one that
-        // shows it came from the application may use it, as Yielded's own
-        // mutations must. Refused rather than answered as a visitor, so a
-        // client that forgot the header learns it at once.
-        if (
-          !trusted.has(request.headers.get('origin') ?? '') ||
-          request.headers.get(csrf.header) !== csrf.value
-        )
-          return yield* refuse('The request did not show it came from this application.')
-        if (credentials.length > 1) return yield* refuse('Sign in again.')
-        const auth = yield* config.auth
-        const session = yield* auth.verifySession(Redacted.make(credentials[0]!)).pipe(
-          Effect.catchTag('SessionInvalid', () => refuse('Your session ended.')),
-          // Anything else is the session store failing, not the caller.
-          Effect.catchIf(
-            (error): error is Exclude<typeof error, RemoteUnauthenticated> =>
-              !(error instanceof RemoteUnauthenticated),
-            Effect.die,
-          ),
-        )
-        yield* checkBelieved(request, Option.some(session.subjectId))
-        return Option.some(yield* config.principal(session))
-      })
-  },
+  resolver: resolving('resolver', { csrf: true }),
+
+  /**
+   * `resolver` for a WebSocket upgrade, Sync's `defineDocumentHost`: a
+   * browser's `WebSocket` sends no header of the page's, so the CSRF header
+   * cannot come, and the upgrade's `Origin`, which every browser sends on
+   * one, is what vouches for the cookie. Everything else is `resolver`'s.
+   *
+   * ```ts
+   * defineDocumentHost(DurableObject, {
+   *   sync,
+   *   openJournal,
+   *   resolvePrincipal: AuthServer.socket({ auth: AppAuth, http, principal }),
+   *   layer: env => AuthLive(env),
+   *   revalidate: { every: '1 minute', key: Policy.keyOf },
+   * })
+   * ```
+   */
+  socket: resolving('socket', { csrf: false }),
 }

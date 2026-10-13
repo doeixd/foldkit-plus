@@ -1,8 +1,9 @@
 /** What `AuthServer.resolver` accepts and what it says it needs. */
 import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
-import { Context, Effect, Option, Schema } from 'effect'
+import { Context, Effect, type Layer, Option, Schema } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import { AuthServer } from 'foldkit-auth/server'
+import { defineDocumentHost, type DocumentHostConfig } from 'foldkit-sync/do'
 import { describe, expectTypeOf, it } from 'vitest'
 
 const AppAuth = Auth.make(
@@ -62,5 +63,31 @@ describe('AuthServer.resolver', () => {
       http: { trustedOrigins: ['https://app.example'] },
       principal: () => Effect.succeed('ada'),
     })
+  })
+})
+
+type SocketUser = { readonly id: string }
+type HostConfig = DocumentHostConfig<unknown, unknown, Option.Option<SocketUser>, unknown>
+// A document's contract and journal, and the application's Auth layer: never run here.
+declare const host: Pick<HostConfig, 'sync' | 'openJournal'>
+declare const AppAuthLive: Layer.Layer<Context.Service.Identifier<typeof AppAuth>>
+
+describe('AuthServer.socket', () => {
+  class Base {
+    constructor(_ctx: unknown, _env: unknown) {}
+  }
+  const socket = AuthServer.socket({
+    auth: AppAuth,
+    http,
+    principal: session => Effect.succeed<SocketUser>({ id: session.subjectId }),
+  })
+
+  it("is a document host's resolver, with the layer that provides Auth", () => {
+    defineDocumentHost(Base, { ...host, resolvePrincipal: socket, layer: () => AppAuthLive })
+  })
+
+  it('needs that layer', () => {
+    // @ts-expect-error nothing provides the Auth service
+    defineDocumentHost(Base, { ...host, resolvePrincipal: socket })
   })
 })
