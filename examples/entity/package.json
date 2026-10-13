@@ -24,8 +24,8 @@
     "foldkit-surface": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.0",
-    "effect": "4.0.0",
+    "@effect/platform-browser": "4.0.4",
+    "effect": "4.0.4",
     "foldkit": "0.165.0",
     "jsdom": "26.1.0",
     "playwright": "^1.63.0",

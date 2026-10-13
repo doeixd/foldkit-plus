@@ -36,6 +36,14 @@ version changed; `pnpm` skips versions already in the registry.
   when its input is null and to the predicate alone when it is given, with no
   parameter for the check.
 
+### Changed
+
+- **Built and tested on Effect 4.0.4.** The packages' peer stays
+  `effect: ^4.0.0`. Foldkit's own peer is exactly `4.0.0`, so an application
+  on 4.0.4 (which Yielded Auth's `^4.0.3` needs) allows it the way the root
+  `package.json` does: `pnpm.peerDependencyRules.allowedVersions` for
+  `foldkit>effect`, and an override of `foldkit>@effect/platform-browser`.
+
 ## 0.18.0
 
 `foldkit-site` 0.2.0, `foldkit-remote` 0.15.0, `foldkit-primitives` 0.9.0,

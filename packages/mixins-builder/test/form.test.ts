@@ -14,9 +14,12 @@ import { FormView } from 'foldkit-mixins-form'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { PageBuilder, PageView } from './fixture.js'
+import { observeLayout } from './layout.js'
+
+beforeEach(observeLayout)
 
 afterEach(() => {
   vi.unstubAllGlobals()

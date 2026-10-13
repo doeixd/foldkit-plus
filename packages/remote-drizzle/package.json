@@ -55,7 +55,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
     "drizzle-orm": "1.0.0-rc.4",
-    "effect": "4.0.0",
+    "effect": "4.0.4",
     "foldkit-remote-server": "workspace:*",
     "miniflare": "3.20250718.3",
     "tsdown": "^0.23.0",

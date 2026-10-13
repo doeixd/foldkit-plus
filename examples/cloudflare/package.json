@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "drizzle-orm": "1.0.0-rc.4",
-    "effect": "4.0.0",
+    "effect": "4.0.4",
     "foldkit": "0.165.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-crud": "workspace:*",
@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261008.1",
-    "@effect/sql-d1": "4.0.0",
+    "@effect/sql-d1": "4.0.4",
     "esbuild": "0.28.2",
     "miniflare": "3.20250718.3",
     "typescript": "5.9.3",

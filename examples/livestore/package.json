@@ -12,6 +12,9 @@
     "foldkit-remote-server": "workspace:*"
   },
   "devDependencies": {
+    "@effect/platform-browser": "4.0.0",
+    "@effect/platform-node": "4.0.0",
+    "@effect/platform-node-shared": "4.0.0",
     "effect": "4.0.0-rc.112",
     "typescript": "5.9.3"
   }

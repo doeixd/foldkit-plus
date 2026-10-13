@@ -56,8 +56,8 @@
   },
   "devDependencies": {
     "drizzle-orm": "1.0.0-rc.4",
-    "@effect/platform-browser": "4.0.0",
-    "effect": "4.0.0",
+    "@effect/platform-browser": "4.0.4",
+    "effect": "4.0.4",
     "foldkit": "0.165.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-form": "workspace:*",

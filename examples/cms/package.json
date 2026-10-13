@@ -42,9 +42,9 @@
     "sql.js": "1.13.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.0",
+    "@effect/platform-browser": "4.0.4",
     "@types/sql.js": "1.4.11",
-    "effect": "4.0.0",
+    "effect": "4.0.4",
     "foldkit": "0.165.0",
     "playwright": "^1.63.0",
     "typescript": "5.9.3",

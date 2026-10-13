@@ -8,15 +8,15 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "effect": "4.0.0",
+    "effect": "4.0.4",
     "foldkit": "0.165.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.0",
-    "effect": "4.0.0",
+    "@effect/platform-browser": "4.0.4",
+    "effect": "4.0.4",
     "foldkit": "0.165.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-mixins": "workspace:*",

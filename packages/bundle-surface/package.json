@@ -49,8 +49,8 @@
     "foldkit": "^0.165.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.0",
-    "effect": "4.0.0",
+    "@effect/platform-browser": "4.0.4",
+    "effect": "4.0.4",
     "foldkit": "0.165.0",
     "foldkit-mirror": "workspace:*",
     "jsdom": "26.1.0",

@@ -101,9 +101,9 @@
     "foldkit-mixins": "workspace:^"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.0",
+    "@effect/platform-browser": "4.0.4",
     "@types/ws": "^8.5.12",
-    "effect": "4.0.0",
+    "effect": "4.0.4",
     "foldkit": "0.165.0",
     "foldkit-mixins": "workspace:*",
     "jsdom": "26.1.0",
