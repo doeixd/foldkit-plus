@@ -179,7 +179,7 @@ export function update(model: Model, message: Message): Update.Return<Model, Mes
 }
 
 const isSubjectChanged = (error: RemoteError): boolean =>
-  Option.exists(RemoteData.refused(error), refusal =>
+  Option.exists(RemoteData.denied(error), refusal =>
     Option.contains(refusal.reason, SUBJECT_CHANGED),
   )
 

@@ -117,7 +117,7 @@ const transport = Remote.httpWithLive('/remote', {
 })
 ```
 
-A refusal reaches the Model as a failure; `RemoteData.refused(error)` from
+A refusal reaches the Model as a failure; `RemoteData.denied(error)` from
 `foldkit-remote` reads it as `Unauthenticated` with the `reason` below.
 
 ## Who the client believes it is

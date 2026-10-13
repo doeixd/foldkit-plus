@@ -245,7 +245,7 @@ orders the slices; step 0 and slices 1–10 are built.
   required by a plan with a server fallback. §5.4
 - [ ] **A posted form whose session ended** is a 500: `resources` cannot
   fail. With `Site.access`'s 303 (slice 10). §6.5
-- [x] **A typed refusal:** `RemoteData.refused`. §5.3
+- [x] **A typed refusal:** `RemoteData.denied`. §5.3
 - [ ] **Stopping after a refusal that holds.** Sync's transport and a live
   stream reopen after a refusal, as Yielded's renewal makes a 4401 routine;
   stopping needs to tell a refused fresh upgrade from a dropped one, which a
@@ -258,7 +258,7 @@ orders the slices; step 0 and slices 1–10 are built.
 - [x] **7. `Me`:** in `foldkit-guard` (`Guards.me`, `GuardServer.me`,
   `Guards.anyone`, `Policy.key`); the resolver's `key` compares the subject
   header with it. §6.1
-- [x] **8. The client:** `RemoteData.refused`; sign-in, sign-out, the
+- [x] **8. The client:** `RemoteData.denied`; sign-in, sign-out, the
   cross-tab channel and the persistence scope are application code over
   Yielded's client, `Remote.forget` and `foldkit-primitives`. §6.4
 - [x] **The client's `x-foldkit-subject`.** `serveFetch`'s `headers`,

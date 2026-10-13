@@ -3,19 +3,19 @@
  * follows from it, and the notes it may read. Everything shown of who is
  * signed in is read from `Me`; nothing here decides who may see what.
  */
-import { Match, Option } from 'effect'
+import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { May } from 'foldkit-guard'
-import { RemoteData, type RemoteError } from 'foldkit-remote'
+import { Denied, RemoteData, type RemoteError } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { Message, type Model, NoteList, Session } from './app.js'
 import { OpenAdmin } from './domain.js'
 
 /** A failed read, told apart: a refusal of who is asking, or anything else. */
 const failure = (error: RemoteError): string =>
-  Option.match(RemoteData.refused(error), {
+  Option.match(RemoteData.denied(error), {
     onNone: () => `Could not read: ${error.message}`,
-    onSome: Match.valueTags({
+    onSome: Denied.match({
       Unauthenticated: () => 'Your session ended. Sign in again.',
       Forbidden: () => 'You may not read this.',
     }),
@@ -78,7 +78,7 @@ const notes = (model: Model, h: HtmlBuilder<Message>): Html =>
         notFound: () => [h.p([], ['No list.'])],
         // A refusal is announced once, by the session line above.
         failed: error => [
-          h.p(Option.isSome(RemoteData.refused(error)) ? [] : [h.Role('alert')], [failure(error)]),
+          h.p(Option.isSome(RemoteData.denied(error)) ? [] : [h.Role('alert')], [failure(error)]),
         ],
         data: page =>
           page.items.length === 0

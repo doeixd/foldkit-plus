@@ -463,7 +463,7 @@ over JSON, and `Data.mutation` is `Failed` with `error._tag === 'Forbidden'` and
 answer (middleware) as `Forbidden` too. A 401 (`RemoteServer.unauthenticated`,
 or middleware) fails every call kind, reads and live streams included, with
 `_tag: 'Unauthenticated'` and `reason` when given: the session is gone; read it
-with `RemoteData.refused(error)` (`Option<Unauthenticated | Forbidden>`, typed). Remote
+with `RemoteData.denied(error)` (`Option<Denied>`: `Unauthenticated` or `Forbidden`, read with `Denied.match`; not a mutation's `refusal`). Remote
 treats it as any failure (a live stream restarts with backoff, refused each
 time); the application signs in again and `forget`s.
 

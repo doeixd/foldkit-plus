@@ -1,6 +1,6 @@
-import { Match, Option } from 'effect'
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { RemoteData, type RemoteError } from '../src/index.js'
+import { Denied, RemoteData, type RemoteError } from '../src/index.js'
 
 describe('RemoteData', () => {
   const label = (data: RemoteData<number>): string =>
@@ -131,11 +131,11 @@ describe('RemoteData.render keeps useful data on screen', () => {
   })
 })
 
-describe('RemoteData.refused', () => {
+describe('RemoteData.denied', () => {
   const said = (error: RemoteError) =>
-    Option.match(RemoteData.refused(error), {
+    Option.match(RemoteData.denied(error), {
       onNone: () => 'Could not load',
-      onSome: Match.valueTags({
+      onSome: Denied.match({
         Unauthenticated: () => 'Sign in again',
         Forbidden: () => 'Not yours',
       }),
@@ -152,10 +152,10 @@ describe('RemoteData.refused', () => {
 
   it('keeps the reason the server gave, and says when it gave none', () => {
     expect(
-      RemoteData.refused({ _tag: 'Unauthenticated', message: 'x', reason: 'Your session ended.' }),
-    ).toEqual(Option.some({ _tag: 'Unauthenticated', reason: Option.some('Your session ended.') }))
-    expect(RemoteData.refused({ _tag: 'Forbidden', message: 'x' })).toEqual(
-      Option.some({ _tag: 'Forbidden', reason: Option.none() }),
+      RemoteData.denied({ _tag: 'Unauthenticated', message: 'x', reason: 'Your session ended.' }),
+    ).toEqual(Option.some(Denied.Unauthenticated({ reason: Option.some('Your session ended.') })))
+    expect(RemoteData.denied({ _tag: 'Forbidden', message: 'x' })).toEqual(
+      Option.some(Denied.Forbidden({ reason: Option.none() })),
     )
   })
 })

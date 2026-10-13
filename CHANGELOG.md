@@ -57,8 +57,9 @@ version changed; `pnpm` skips versions already in the registry.
   other tabs; unit, mutation and Chromium e2e tests, the e2e across two tabs
   and a server restart.
 
-- **`foldkit-remote`: `RemoteData.refused(error)`,** the refusal a failure
-  was (`Unauthenticated` or `Forbidden`, with the server's `reason`), typed,
+- **`foldkit-remote`: `RemoteData.denied(error)`,** the denial a failure
+  was, a `Denied` (`Unauthenticated` or `Forbidden`, with the server's
+  `reason`; not a mutation's `refusal`), typed,
   or none for any other failure: a `RemoteError`'s `_tag` is open, so a view
   had to compare strings to tell "sign in again" from "could not load".
 
@@ -185,7 +186,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **A Remote Message's error is a `RemoteError`.** `RemoteError.reason` is
   `string | undefined`, as the decoded `ReadFailed`/`QueryFailed` error is,
-  so `RemoteData.refused(message.error)` type-checks under
+  so `RemoteData.denied(message.error)` type-checks under
   `exactOptionalPropertyTypes`.
 
 - **`serveFetch` keeps a live stream's layer open while it streams.** The
