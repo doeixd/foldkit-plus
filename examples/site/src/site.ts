@@ -4,6 +4,7 @@
  * address, which `init` names the page from.
  */
 import { Style } from 'foldkit-mixins'
+import { schemeScript } from 'foldkit-mixins/theme'
 import type { SiteModule } from 'foldkit-ssr/vite'
 
 import { library } from './content/load.js'
@@ -25,9 +26,11 @@ export const site = {
     }
   },
   plan,
-  // The foundations and the classes the page draws, so the first paint is
-  // styled before any script runs.
-  head: rendered => `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`,
+  // The reader's light or dark, applied before anything draws; then the
+  // foundations and the classes the page draws, so the first paint is styled
+  // before any other script runs.
+  head: rendered =>
+    `<script>${schemeScript()}</script><style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`,
   // `/remote` as `remote.html`: the host serves it at that address, with no
   // redirect to `/remote/` on every link.
   files: 'flat',

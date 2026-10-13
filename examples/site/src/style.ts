@@ -204,6 +204,32 @@ export const SiteStyle = slots(
     ],
     railRule: { border: '0', borderBlockStart: rule, margin: '0' },
     railNote: [{ ...mono, color: t.text.subtle, margin: '0', lineHeight: '1.6' }],
+    // The page's light or dark: three buttons in one outline, the chosen one filled.
+    schemeChoice: [
+      {
+        display: 'flex',
+        alignSelf: 'flex-start',
+        border: rule,
+        borderRadius: t.radius.md,
+        overflow: 'hidden',
+      },
+      Style.nest('button', {
+        ...mono,
+        color: t.text.muted,
+        background: 'transparent',
+        border: '0',
+        padding: `0.25rem ${t.space.sm}`,
+        cursor: 'pointer',
+      }),
+      Style.nest('button[aria-pressed="true"]', {
+        color: t.text.overt,
+        background: t.surface.muted,
+      }),
+      Style.nest('button:focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '-2px',
+      }),
+    ],
     // The home page's sections, numbered, in the mono voice.
     contents: [
       { listStyle: 'none', margin: '0', padding: '0', counterReset: 'section' },

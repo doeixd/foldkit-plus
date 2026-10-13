@@ -6,6 +6,7 @@
  * exists.
  */
 import { Effect } from 'effect'
+import { schemeScript } from 'foldkit-mixins/theme'
 import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
 import { generateStaticSite } from 'foldkit-ssr/vite'
 import { existsSync, readFileSync } from 'node:fs'
@@ -88,6 +89,13 @@ describe('the generated site', () => {
       expect(links.has(path), path).toBe(true)
     expect(sitemap).toContain('<loc>https://foldkit-plus.pages.dev/remote</loc>')
     expect(page('/404.html').querySelector('h1')?.textContent).toContain('Not found')
+  })
+
+  test("applies the reader's scheme in the head, before any style", () => {
+    const head = page('/').head
+    const first = head.querySelector('script:not([type]), style')
+    expect(first?.tagName).toBe('SCRIPT')
+    expect(first?.textContent).toBe(schemeScript())
   })
 
   test('the home page has a card for each package family, leading to its subsite', () => {

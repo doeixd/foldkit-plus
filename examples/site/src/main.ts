@@ -14,6 +14,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
+import { chooseScheme, currentScheme, type Scheme as ThemeScheme } from 'foldkit-mixins/theme'
 import { PrefersDark } from 'foldkit-primitives/media'
 import { Timer } from 'foldkit-primitives/time'
 import { SSR } from 'foldkit-ssr/client'
@@ -51,6 +52,9 @@ export type Page = typeof Page.Type
 export const Example = Schema.Literals(['view', 'agent', 'sync', 'mirror'])
 export type Example = typeof Example.Type
 
+/** The page's own light or dark, which the head script applied before the first paint. */
+export const PageScheme: Schema.Codec<ThemeScheme> = Schema.Literals(['system', 'light', 'dark'])
+
 /** The primitives the Primitives overview shows running: each a field of this Model. */
 const Dark = Bundle.declare(PrefersDark, 'dark')
 const Ticks = Bundle.declare(Timer, 'ticks')
@@ -69,6 +73,7 @@ export const Model = Schema.Struct({
   previewPage: Schema.Number,
   knobs: Knobs,
   scheme: Scheme,
+  pageScheme: PageScheme,
   ...Dark.fields,
   ...Ticks.fields,
 })
@@ -92,6 +97,9 @@ export const Message = defineMessageUnion({
   MovedKnob: { knob: Knob, value: Schema.Number },
   ChoseFont: { font: Font },
   ChoseScheme: { scheme: Scheme },
+  ChosePageScheme: { scheme: PageScheme },
+  FoundPageScheme: { scheme: PageScheme },
+  AppliedPageScheme: {},
   ...Dark.cases,
   ...Ticks.cases,
 })
@@ -138,6 +146,19 @@ export const CopyCode = Command.define('CopyCode', {
       button.textContent = 'Copied'
       return Message.CopiedCode()
     }).pipe(Effect.orElseSucceed(() => Message.FailedToCopy())),
+})
+
+/** Applies the reader's scheme to the page and keeps it for the next visit. */
+const ApplyPageScheme = Command.define('ApplyPageScheme', {
+  args: { scheme: PageScheme },
+  messages: [Message.AppliedPageScheme],
+  execute: ({ scheme }) => chooseScheme(scheme).pipe(Effect.as(Message.AppliedPageScheme())),
+})
+
+/** What the head script applied, read once the browser takes the page over. */
+const ReadPageScheme = Command.define('ReadPageScheme', {
+  messages: [Message.FoundPageScheme],
+  execute: Effect.sync(() => Message.FoundPageScheme({ scheme: currentScheme() })),
 })
 
 // UPDATE
@@ -191,6 +212,18 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       scheme === model.scheme
         ? { model }
         : { model: modifyFields(model, { scheme: () => scheme }) },
+    ChosePageScheme: ({ scheme }) =>
+      scheme === model.pageScheme
+        ? { model }
+        : {
+            model: modifyFields(model, { pageScheme: () => scheme }),
+            commands: [ApplyPageScheme({ scheme })],
+          },
+    FoundPageScheme: ({ scheme }) =>
+      scheme === model.pageScheme
+        ? { model }
+        : { model: modifyFields(model, { pageScheme: () => scheme }) },
+    AppliedPageScheme: () => ({ model }),
   })
 
 export const update = placements.update(updateOwn)
@@ -234,6 +267,7 @@ export const initial: Model = placements.initial({
   previewPage: 4,
   knobs: defaultKnobs,
   scheme: 'system',
+  pageScheme: 'system',
 }).model
 
 /** The page at `path`, as the library knows it; the browser never runs this. */
@@ -283,9 +317,12 @@ const planOf = (withMeta: boolean) =>
       App.model.previewPage,
       App.model.knobs,
       App.model.scheme,
+      App.model.pageScheme,
       App.model.dark,
       App.model.ticks,
     ],
+    // The server cannot know a reader's scheme; the head script applied it.
+    boot: () => [ReadPageScheme()],
     ...(withMeta ? { meta: (model: Model) => ({ description: descriptionOf(model.page) }) } : {}),
   })
 

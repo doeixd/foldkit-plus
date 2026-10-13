@@ -56,6 +56,28 @@ const places: ReadonlyArray<{
   { place: 'demos', label: 'Demos', href: '/demos' },
 ]
 
+const schemes: ReadonlyArray<{ readonly scheme: Model['pageScheme']; readonly label: string }> = [
+  { scheme: 'system', label: 'Auto' },
+  { scheme: 'light', label: 'Light' },
+  { scheme: 'dark', label: 'Dark' },
+]
+
+/** The page's light or dark, each a button pressed while chosen. */
+const schemeChoice = (model: Model, slots: Slots, h: H): Html =>
+  h.div(
+    slots.schemeChoice.attrs([h.Role('group'), h.AriaLabel('Color scheme')]),
+    schemes.map(({ scheme, label }) =>
+      h.button(
+        [
+          h.Type('button'),
+          h.AriaPressed(String(scheme === model.pageScheme)),
+          h.OnClick(Message.ChosePageScheme({ scheme })),
+        ],
+        [label],
+      ),
+    ),
+  )
+
 const rail = ({ model, library }: Input, slots: Slots, h: H): Html =>
   h.aside(slots.rail.attrs([h.Id(RAIL)]), [
     h.div(slots.railTop.attrs(), [
@@ -106,6 +128,7 @@ const rail = ({ model, library }: Input, slots: Slots, h: H): Html =>
           Missing: () => [],
         }),
         h.hr(slots.railRule.attrs()),
+        schemeChoice(model, slots, h),
         h.p(slots.railNote.attrs(), ['Open source, MIT', h.br([]), 'Foldkit 0.168 · Effect 4']),
       ],
     ),

@@ -79,8 +79,10 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   module through a server so the config names a file; `foundations` in
   `foldkit-mixins` compiles the sheet module into the head. The CMS example
   builds through both and deletes its script and local plugin.
-- [ ] **S8. A chosen theme before the first paint:** `local` in the plan, and a
-  head script from `foldkit-mixins`' `Theme` that sets it from storage.
+- [x] **S8. A chosen theme before the first paint:** `local` in the plan, and a
+  head script from `foldkit-mixins`' `Theme` that sets it from storage. Built
+  2026-10-13: `Theme.schemeScript`, `chooseScheme` and `currentScheme`; the
+  docs site's Auto/Light/Dark choice is `local`, read back in its plan's `boot`.
 - [ ] **S9. Localized pages:** the locale in the route, `lang` from the Model,
   `hreflang` alternates in the head and sitemap, words and formats by explicit
   locale.
@@ -381,8 +383,8 @@ and server/SSR sequences.
   shape into server/local-execution designs. The SSG half is built: S1
   browser entry (client boundary + import walk), S5 takeover decision
   (`when`/`otherwise`/`fresh`), S6 determinism check, S7 build step
-  (`staticSite` plugin + `foundations`, example script deleted). S8/S9 wait
-  for a theme choice and a second language; §19.5–19.8 wait for a real
+  (`staticSite` plugin + `foundations`, example script deleted), and S8. S9
+  waits for a second language; §19.5–19.8 wait for a real
   deployment (see Server).
 - [x] **3. `mixins-ui` gaps:** `Badge`, `Loading`/`Empty`/`Failure`,
   Button variants, icon machinery, touch targets; `historyCard`/`moreCard`
