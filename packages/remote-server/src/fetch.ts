@@ -19,7 +19,7 @@ import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
 export interface FetchConfig<P, R, Env> {
   /** The server definition, as `RemoteServer.make` built it. */
   readonly server: ServerDefinition<P, R>
-  /** Who this request is, from the request and the environment. May throw. */
+  /** Who this request is, from the request and the environment. May throw: a 401 carrying its message. */
   readonly resolvePrincipal: (request: Request, env: Env) => P | Promise<P>
   /** What the Sources need, from the environment. Kept cheap: built per request. */
   readonly layer: (env: Env) => Layer.Layer<R>
@@ -129,10 +129,11 @@ const liveResponse = <R>(
 }
 /**
  * Answers Remote `POST`s with `Response`s: what a Worker's `fetch` hands to
- * the route. A body that is not JSON, or not a request, is a 400 that reaches
- * no handler; a handler's failure a 500 with its message; anything this side
- * breaks, including principal resolution and layer provision, a 500 that says
- * nothing of it. A live open is answered with the stream instead.
+ * the route. A `resolvePrincipal` that throws is a 401 carrying its message,
+ * so throw only what the caller may read. A body that is not JSON, or not a
+ * request, is a 400 that reaches no handler; a handler's failure a 500 with
+ * its message; anything else this side breaks, layer provision included, a
+ * 500 that says nothing of it. A live open is answered with the stream instead.
  *
  * ```ts
  * export default {
