@@ -8,7 +8,13 @@ const file = '../src/evaluate.ts'
 export default [
   {
     name: 'an equality answers text holding NUL',
-    edits: [{ file, find: 'if (holdsNul(left) || holdsNul(right)) {', replace: 'if (false) {' }],
+    edits: [
+      {
+        file,
+        find: "if (holdsNul(left) || holdsNul(right)) {\n        throw new QueryEvaluateError(\n          'an equality",
+        replace: "if (false) {\n        throw new QueryEvaluateError(\n          'an equality",
+      },
+    ],
     tests,
   },
   {

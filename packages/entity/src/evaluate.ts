@@ -22,7 +22,7 @@
  * `null = null` is unknown in SQL and a row is not matched by it, where
  * JavaScript would happily call the two equal.
  */
-import { Option } from 'effect'
+import { Match, Option } from 'effect'
 import type { Collation } from './collation.js'
 import { Query, dependenciesOf, isPredicate } from './expr.js'
 import type { AnyExpr, AnyQuery, Operandish, Operation, OrderTerm, Predicate } from './expr.js'
@@ -153,6 +153,30 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
     case 'Not': {
       const truth = holds(node.operand, row, input)
       return truth === 'unknown' ? 'unknown' : !truth
+    }
+    case 'Compare': {
+      const left = valueOf(node.left, row, input)
+      const right = valueOf(node.right, row, input)
+      if (isNull(left) || isNull(right)) return 'unknown'
+      if (holdsNul(left) || holdsNul(right)) {
+        throw new QueryEvaluateError(
+          'a comparison was given text holding a NUL character, which SQL text cannot hold portably',
+        )
+      }
+      // Numbers with numbers and text with text, as `orderBy` compares them,
+      // so a comparison and an ordering never disagree about what is first.
+      const kind = typeof left
+      if (kind !== typeof right || (kind !== 'number' && kind !== 'string')) {
+        throw new QueryEvaluateError('a comparison was given values that do not order together')
+      }
+      const order = compare(left, right, node.collation)
+      return Match.value(node.operator).pipe(
+        Match.when('lt', () => order < 0),
+        Match.when('lte', () => order <= 0),
+        Match.when('gt', () => order > 0),
+        Match.when('gte', () => order >= 0),
+        Match.exhaustive,
+      )
     }
   }
 }
@@ -308,6 +332,7 @@ export const supported: ReadonlyArray<Operation> = [
   'and',
   'or',
   'not',
+  'compare',
 ]
 
 /**

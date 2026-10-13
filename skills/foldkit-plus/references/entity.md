@@ -240,8 +240,11 @@ unknown, so a null matches neither a comparison nor its `not`. A `Query`'s list
 of predicates is already the conjunction; `and` is for one inside an `or`.
 `Expr.whenGiven(input.status, status => Expr.eq(fields.status, status))` is a
 filter that applies only when a nullable input is given. The operator set grows
-from real queries, not from what SQL can express: there are no comparisons
-(`lt`, `gt`) yet.
+from real queries, not from what SQL can express. `Expr.lt` / `lte` / `gt` /
+`gte(left, right, { collation? })` compare numbers, and text only under
+`Collation.binary` or `asciiFold` (declared on the field or passed) and against
+a field, since backends order text by different defaults; a date stored as an
+ISO string is text, compared under `binary`.
 
 **Asking about an input without branching on it.** An input is a placeholder, so
 a query cannot pick a shape from a value. It does not need to:

@@ -76,8 +76,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: 'ordersIntrinsically(Schema.toEncoded(field.schema).ast)',
-        replace: 'true',
+        find: '          ordersIntrinsically(Schema.toEncoded(field.schema).ast)\n',
+        replace: '          true\n',
       },
     ],
     tests,

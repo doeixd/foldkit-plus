@@ -17,6 +17,15 @@ version changed; `pnpm` skips versions already in the registry.
   applies only when a nullable input is given. `evaluate` runs them, and
   `decided(predicate, input)` is a predicate's truth from the input alone,
   when it reads no field. The conformance suite covers them.
+- **`foldkit-entity`: comparisons, `Expr.lt`, `lte`, `gt` and `gte`.** Numbers
+  compare as numbers; text only under `Collation.binary` or `asciiFold`
+  (declared on the field or passed) and against a field, refused where it is
+  written otherwise, since backends order text by different defaults. A value
+  compares in its encoded form, so a date stored as an ISO string is text. The
+  evaluator compares as `orderBy` does, and the conformance suite covers them.
+- **`foldkit-remote-drizzle`: comparisons compiled,** the column first however
+  the body wrote it, and text under its collation as keyset paging applies one
+  (`collate "C"` on Postgres, `collate binary` or `nocase` on SQLite).
 - **`foldkit-remote-drizzle`: `and`, `or` and `not` compiled,** and an operand
   that reads no field decided per request, so `whenGiven` compiles to `true`
   when its input is null and to the predicate alone when it is given, with no

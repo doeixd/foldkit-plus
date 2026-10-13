@@ -6,12 +6,14 @@
 import { Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
 import {
+  Collation,
   Entity,
   Expr,
   Order,
   Query,
   dependenciesOf,
   type AndPredicate,
+  type ComparePredicate,
   type EqPredicate,
   type InPredicate,
   type NotPredicate,
@@ -183,3 +185,14 @@ expectTypeOf(
 ).toEqualTypeOf<Predicate>()
 // @ts-expect-error without it, a nullable input against a field that is never null
 Expr.eq(Post.fields.title, chosen)
+
+// A comparison orders numbers, text and dates, typed like eq on its other side.
+expectTypeOf(
+  Expr.lt(Post.fields.title, 'm', { collation: Collation.binary }),
+).toEqualTypeOf<ComparePredicate>()
+// @ts-expect-error a boolean does not order
+Expr.lt(Post.fields.published, true)
+// @ts-expect-error the other side is of the field's type
+Expr.lt(Post.fields.title, 3)
+// @ts-expect-error a predicate is an answer, not a value to order
+Expr.lt(Expr.eq(Post.fields.title, 'x'), 'y')

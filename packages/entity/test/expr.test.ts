@@ -567,3 +567,44 @@ describe('and, or and not', () => {
     expect(Expr.show(filter)).toBe('$title is null or Post.title = $title')
   })
 })
+
+describe('comparisons', () => {
+  const Ranked = Entity.define(
+    'Ranked',
+    Schema.Struct({ id: Schema.String, rank: Schema.Number, name: Schema.String }),
+  ).pipe(Entity.annotateMembers({ name: Collation.of(Collation.binary) }))
+
+  it('orders numbers with no collation, and text under the field’s', () => {
+    expect(Expr.lt(Ranked.fields.rank, 3).collation).toEqual(Option.none())
+    expect(Expr.gte(Ranked.fields.name, 'm').collation).toEqual(Option.some(Collation.binary))
+    expect(Expr.gte(Post.fields.title, 'm', { collation: Collation.asciiFold }).collation).toEqual(
+      Option.some(Collation.asciiFold),
+    )
+  })
+
+  it('refuses text no interpreter would order alike: no collation, a locale, or no field', () => {
+    expect(() => Expr.lt(Post.fields.title, 'm')).toThrow(
+      'Post.title is text with no declared collation',
+    )
+    expect(() => Expr.lt(Post.fields.title, 'm', { collation: Collation.locale('en') })).toThrow(
+      'compares by the backend\'s "en" collation',
+    )
+    expect(() =>
+      Expr.lt(Expr.input('a', Schema.String), 'm', { collation: Collation.binary }),
+    ).toThrow('text compared with no field')
+    // Numbers need neither a field nor a collation.
+    expect(() => Expr.lt(Expr.input('n', Schema.Number), 3)).not.toThrow()
+  })
+
+  it('reads both sides, and is named as one operation', () => {
+    expect(dependenciesOf(Expr.gt(Ranked.fields.rank, Expr.input('n', Schema.Number)))).toEqual({
+      fields: [{ entity: 'Ranked', key: 'rank', owner: Ranked.identity }],
+      inputs: ['n'],
+      operations: ['compare'],
+    })
+  })
+
+  it('is shown with its symbol', () => {
+    expect(Expr.show(Expr.lte(Ranked.fields.rank, 3))).toBe('Ranked.rank <= 3')
+  })
+})

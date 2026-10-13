@@ -72,6 +72,7 @@ export type Predicate =
   | AndPredicate
   | OrPredicate
   | NotPredicate
+  | ComparePredicate
 
 /** Two values are the same. */
 export interface EqPredicate {
@@ -138,6 +139,22 @@ export interface OrPredicate {
 export interface NotPredicate {
   readonly _tag: 'Not'
   readonly operand: Predicate
+}
+
+/** Which way a comparison orders its two sides: `left < right` for `lt`. */
+export type CompareOperator = 'lt' | 'lte' | 'gt' | 'gte'
+
+/**
+ * One scalar orders before, or after, the other. A null on either side is
+ * unknown. `collation` is how text compares, decided where the comparison is
+ * written (see `Expr.lt`); none for values that order intrinsically, numbers.
+ */
+export interface ComparePredicate {
+  readonly _tag: 'Compare'
+  readonly operator: CompareOperator
+  readonly left: AnyExpr
+  readonly right: AnyExpr
+  readonly collation: Option.Option<Collation>
 }
 
 /**
@@ -216,7 +233,7 @@ const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): Field
     ),
   })
 
-const predicateTags = new Set(['Eq', 'Null', 'Contains', 'In', 'And', 'Or', 'Not'])
+const predicateTags = new Set(['Eq', 'Null', 'Contains', 'In', 'And', 'Or', 'Not', 'Compare'])
 
 /** Whether a value is a predicate, and so usable where a boolean is wanted. */
 export const isPredicate = (value: unknown): value is Predicate =>
@@ -253,7 +270,8 @@ const toExpr = <T>(value: Operand<T> | T, step: string): AnyExpr => {
  * runs, and a body needing one it does not is refused rather than answered
  * wrongly — see `Query.unsupported`.
  */
-export type Operation = 'eq' | 'isNull' | 'isNotNull' | 'contains' | 'in' | 'and' | 'or' | 'not'
+export type Operation =
+  'eq' | 'isNull' | 'isNotNull' | 'contains' | 'in' | 'and' | 'or' | 'not' | 'compare'
 
 /** One field an expression reads: its Entity's name and key, and the identity that owns it. */
 export interface FieldDependency {
@@ -283,6 +301,117 @@ export interface QueryDependencies extends Dependencies {
   readonly predicate: ReadonlyArray<FieldDependency>
   readonly order: ReadonlyArray<FieldDependency>
 }
+
+/**
+ * A field or scalar whose value orders: a number, text, a date (which orders by
+ * its encoded form), or one of those absent. A boolean does not order here.
+ * A constraint on the type parameter, as `TextOperand` is, so inference cannot
+ * fall back past it.
+ */
+export type OrderedOperand =
+  | EntityField<
+      string,
+      string,
+      Schema.Constraint & Schema.Codec<number | string | Date | null, any, any, any>
+    >
+  | Expr<number>
+  | Expr<number | null>
+  | Expr<string>
+  | Expr<string | null>
+  | Expr<Date>
+  | Expr<Date | null>
+
+/** Whether a side encodes as text, which orders only by a collation. */
+const encodesAsText = (side: AnyExpr): boolean =>
+  Match.value(side).pipe(
+    Match.tagsExhaustive({
+      Field: field => !ordersIntrinsically(Schema.toEncoded(field.schema).ast),
+      Input: input => !ordersIntrinsically(Schema.toEncoded(input.schema).ast),
+      Literal: literal => typeof literal.value === 'string',
+    }),
+  )
+
+/**
+ * How a comparison's text compares: the collation given, else the field's
+ * declared one. Text orders differently by backend (SQLite's `BINARY`, the
+ * Postgres database's locale, JavaScript's UTF-16 units), so it is compared
+ * only under `binary` or `asciiFold`, which every interpreter here agrees on,
+ * and only against a field, whose collation it is. Values that order
+ * intrinsically, numbers, need none.
+ */
+const collationFor = (
+  step: CompareOperator,
+  left: AnyExpr,
+  right: AnyExpr,
+  given: Option.Option<Collation>,
+): Option.Option<Collation> => {
+  if (!encodesAsText(left) && !encodesAsText(right)) return Option.none()
+  const fields = [left, right].flatMap(side =>
+    Match.value(side).pipe(
+      Match.tag('Field', field => [field]),
+      Match.orElse(() => []),
+    ),
+  )
+  const [first] = fields
+  if (first === undefined) {
+    throw new Error(
+      `[foldkit-entity] Expr.${step}: text compared with no field, whose collation would say how it orders`,
+    )
+  }
+  const named = fields.map(field => `${field.owner.name}.${field.key}`).join(' and ')
+  const collations = Option.match(given, {
+    onSome: collation => [collation],
+    onNone: () =>
+      fields.map(field =>
+        Option.getOrElse(field.collation, () => {
+          throw new Error(
+            `[foldkit-entity] Expr.${step}: ${field.owner.name}.${field.key} is text with no declared collation, so backends would order it differently; declare Collation.binary or Collation.asciiFold on it, or pass one`,
+          )
+        }),
+      ),
+  })
+  const [collation] = collations
+  if (collation === undefined || collations.some(each => each._tag !== collation._tag)) {
+    throw new Error(
+      `[foldkit-entity] Expr.${step}: ${named} declare different collations; pass one to compare them by`,
+    )
+  }
+  return Match.value(collation).pipe(
+    Match.tagsExhaustive({
+      Binary: () => Option.some(collation),
+      AsciiFold: () => Option.some(collation),
+      Locale: ({ locale }) => {
+        throw new Error(
+          `[foldkit-entity] Expr.${step}: ${named} compares by the backend's "${locale}" collation, which only that backend has`,
+        )
+      },
+    }),
+  )
+}
+
+/** `Expr.lt` and its three siblings: the operator fixed, the sides typed alike. */
+const comparison =
+  (operator: CompareOperator) =>
+  <L extends OrderedOperand>(
+    left: L,
+    right: ValueOf<L> | Expr<ValueOf<L>>,
+    options: { readonly collation?: Collation | undefined } = {},
+  ): ComparePredicate => {
+    const leftSide = toExpr<unknown>(left, operator)
+    const rightSide = toExpr<unknown>(right, operator)
+    return node({
+      _tag: 'Compare',
+      operator,
+      left: leftSide,
+      right: rightSide,
+      collation: collationFor(
+        operator,
+        leftSide,
+        rightSide,
+        Option.fromUndefinedOr(options.collation),
+      ),
+    })
+  }
 
 /** A connective's operands, each checked to be a predicate, with one of the same kind flattened in. */
 const connected = (
@@ -420,6 +549,27 @@ export const Expr = {
       value: toExpr(value, 'in'),
       among: Array.isArray(among) ? literal(Object.freeze([...among])) : toExpr(among, 'in'),
     }),
+
+  /**
+   * `left` orders before `right`. Numbers compare as numbers; text compares
+   * under a collation, the one given or the field's declared one, which must be
+   * `binary` or `asciiFold` (so every backend agrees), and text needs a field on
+   * one side. A date compares by its encoded form: as text when it is stored as
+   * an ISO string, so its field declares `Collation.binary`. A null on either
+   * side is unknown, so the row is matched by neither this nor its `not`.
+   *
+   * ```ts
+   * Expr.lt(fields.cents, 1000)
+   * Expr.and(Expr.gte(fields.at, input.from), Expr.lt(fields.at, input.until))
+   * ```
+   */
+  lt: comparison('lt'),
+  /** `left` orders before `right`, or with it; see `Expr.lt`. */
+  lte: comparison('lte'),
+  /** `left` orders after `right`; see `Expr.lt`. */
+  gt: comparison('gt'),
+  /** `left` orders after `right`, or with it; see `Expr.lt`. */
+  gte: comparison('gte'),
 
   /**
    * Every operand holds, as one predicate to place inside another: `where`'s
@@ -731,6 +881,11 @@ const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
       found.operations.add('not')
       walk(expr.operand, found)
       return
+    case 'Compare':
+      found.operations.add('compare')
+      walk(expr.left, found)
+      walk(expr.right, found)
+      return
     case 'Term':
       walk(expr.expr, found)
       return
@@ -824,6 +979,10 @@ const fieldsIn = function* (
     case 'Not':
       yield* fieldsIn(expr.operand, seen)
       return
+    case 'Compare':
+      yield* fieldsIn(expr.left, seen)
+      yield* fieldsIn(expr.right, seen)
+      return
     case 'Term':
       yield* fieldsIn(expr.expr, seen)
       return
@@ -885,6 +1044,8 @@ const childrenOf = (expr: AnyExpr | Predicate): ReadonlyArray<AnyExpr | Predicat
       return expr.operands
     case 'Not':
       return [expr.operand]
+    case 'Compare':
+      return [expr.left, expr.right]
   }
 }
 
@@ -1122,7 +1283,16 @@ const showExpr = (node: AnyExpr | Predicate): string => {
       return node.operands.map(showConnected).join(' or ')
     case 'Not':
       return `not (${showExpr(node.operand)})`
+    case 'Compare':
+      return `${showOperand(node.left)} ${symbols[node.operator]} ${showOperand(node.right)}`
   }
+}
+
+const symbols: Readonly<Record<CompareOperator, string>> = {
+  lt: '<',
+  lte: '<=',
+  gt: '>',
+  gte: '>=',
 }
 
 /** An operand of `and` or `or`: another connective is parenthesised, so its grouping shows. */

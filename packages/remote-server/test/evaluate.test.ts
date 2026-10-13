@@ -7,8 +7,8 @@
  * same order. A body that means two things is a bug in whichever is wrong, and
  * these say which.
  */
-import { Schema } from 'effect'
-import { Entity, Expr, Order, Query, isPredicate } from 'foldkit-entity'
+import { Option, Schema } from 'effect'
+import { Collation, Entity, Expr, Order, Query, isPredicate } from 'foldkit-entity'
 import type { Operandish, Predicate } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
@@ -94,6 +94,15 @@ const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
         return `(${node.operands.map(predicate).join(' or ')})`
       case 'Not':
         return `not (${predicate(node.operand)})`
+      case 'Compare': {
+        const symbol = { lt: '<', lte: '<=', gt: '>', gte: '>=' }[node.operator]
+        const collate = Option.match(node.collation, {
+          onNone: () => '',
+          onSome: collation =>
+            collation._tag === 'AsciiFold' ? ' collate nocase' : ' collate binary',
+        })
+        return `${side(node.left)}${collate} ${symbol} ${side(node.right)}${collate}`
+      }
     }
   }
   const where = body.where.map(predicate)
@@ -215,6 +224,25 @@ describe('One body, two interpreters, the same rows', () => {
       what: 'not of an and that is false where any operand is',
       where: () => Expr.not(Expr.and(slug('other'), archived('never'))),
       ids: ['a', 'b', 'c'],
+    },
+    {
+      what: 'a comparison of a number, and of a null, which is unknown',
+      where: () =>
+        Expr.or(
+          Expr.lt(Post.fields.rank, 2),
+          Expr.gte(Post.fields.archivedAt, '2026', { collation: Collation.binary }),
+        ),
+      ids: ['b'],
+    },
+    {
+      what: 'text compared by code point under binary',
+      where: () => Expr.lt(Post.fields.slug, 'a', { collation: Collation.binary }),
+      ids: ['c'],
+    },
+    {
+      what: 'text compared with ASCII case folded',
+      where: () => Expr.gte(Post.fields.slug, 'o', { collation: Collation.asciiFold }),
+      ids: ['c', 'd'],
     },
     {
       what: 'everything but one value, nulls included',
@@ -404,6 +432,7 @@ describe('An interpreter refuses what it does not run', () => {
   it('declares the operations it runs rather than leaving them implied', () => {
     expect([...supported].sort()).toEqual([
       'and',
+      'compare',
       'contains',
       'eq',
       'in',

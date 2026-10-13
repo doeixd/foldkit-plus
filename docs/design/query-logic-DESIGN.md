@@ -1,8 +1,8 @@
 # `and`, `or` and `not` in queries
 
-> Status 2026-10-12: phases 1 to 4 built. The IR, the evaluator, the Drizzle
-> compiler and the registry's search; `Expr.whenGiven` added (below). Open:
-> phase 5 (Guard) and phase 6 (comparisons), each waiting for its reason.
+> Status 2026-10-13: phases 1 to 4 and 6 built: the connectives, the
+> comparisons, the registry's search and `Expr.whenGiven`. Phase 5 is decided
+> against (below).
 
 A query body can say "every one of these holds" today, and nothing else. This
 adds the other two connectives, `or` and `not`, and an `and` that can sit
@@ -214,12 +214,44 @@ each test is shown to fail by a mutation spec.
    cases. Docs: the Entity README's operator table (and its "no `Expr.and`"
    paragraph), the skill's Entity and Remote references, data-query-DESIGN's
    "There is no `and` and no `or`" status, and the changelog.
-5. **Guard, if it deletes code.** Lower `Condition` to one predicate where a
-   binding compiles it; keep `Condition` where principal guards decide whether
-   row guards apply at all.
+5. **Guard, if it deletes code.** Decided against, 2026-10-13: a `Condition`
+   holds `Inherit` too (the row a relation points at is readable), which no
+   predicate can say until there is an `exists`. Lowering only the row guards
+   would be a second path beside the first, not one instead of it.
 6. **Comparisons**, as their own design: `lt`, `lte`, `gt`, `gte`, over the
    values `Query.placement` already calls intrinsically ordered (numbers,
    booleans) and text only under a declared `Binary` or `AsciiFold` collation.
+
+## Comparisons (phase 6)
+
+`Expr.lt`, `lte`, `gt` and `gte` compare two scalars, one node, `Compare`,
+with the operator on it as `Null` carries `present`. One operation, `compare`,
+for an interpreter to declare: one that orders values can order them all four
+ways.
+
+- **Values that order the same everywhere.** Numbers do. Text orders by a
+  collation, which differs by backend (SQLite's `BINARY`, the Postgres
+  database's locale, JavaScript's UTF-16 units), so a comparison over text is
+  refused where it is written unless the field declares `Collation.binary` or
+  `Collation.asciiFold`, the two the evaluator and both dialects agree on. It
+  is the rule `Query.placement` keeps for ordering, read the same way: from the
+  field's **encoded** form, so a `Date` stored as an ISO string compares as
+  text and needs `binary` (under which ISO-8601 UTC strings order by time), and
+  one stored as a number does not.
+- **The collation** is the field's declared one, or one passed
+  (`Expr.lt(field, value, { collation })`), as an order term takes one.
+- **Text needs a field.** The collation is the field's, so text compared with
+  no field on either side (an input against a literal) is refused too; a
+  number compared so is decided per request like any operand that reads no
+  field.
+- **Booleans do not order** here: the type refuses a boolean operand.
+- **Null is unknown**, as in SQL: `rank < 3` neither holds nor fails for a row
+  whose `rank` is null.
+- **The compiler** puts the column first (flipping the operator when the body
+  wrote it second) and applies the collation as the cursor does: `collate
+  binary` on SQLite, `collate "C"` on Postgres text, `lower(… collate "C")`
+  on both sides for ASCII folding on Postgres and `collate nocase` on SQLite.
+- **No `between`.** It is `and(gte(x, a), lte(x, b))`.
 
 ## Open questions
 

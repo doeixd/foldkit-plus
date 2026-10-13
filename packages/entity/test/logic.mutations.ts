@@ -10,6 +10,7 @@ const semantics = [
   'packages/remote-server/test/evaluate.test.ts',
   'packages/remote-server/test/conformance.test.ts',
 ]
+const comparisons = [...ir, ...semantics]
 
 export default [
   {
@@ -84,8 +85,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: '      return [expr.operand]\n  }\n}',
-        replace: '      return []\n  }\n}',
+        find: "      return [expr.operand]\n    case 'Compare':",
+        replace: "      return []\n    case 'Compare':",
       },
     ],
     tests: ir,
@@ -121,6 +122,60 @@ export default [
       { file: evaluate, find: '      if (truths.includes(true)) return true\n', replace: '' },
     ],
     tests: semantics,
+  },
+  {
+    name: 'lt holds where the two order together',
+    edits: [
+      {
+        file: evaluate,
+        find: "Match.when('lt', () => order < 0)",
+        replace: "Match.when('lt', () => order <= 0)",
+      },
+    ],
+    tests: comparisons,
+  },
+  {
+    name: 'a comparison ignores its collation',
+    edits: [
+      {
+        file: evaluate,
+        find: 'const order = compare(left, right, node.collation)',
+        replace: 'const order = compare(left, right, Option.none())',
+      },
+    ],
+    tests: comparisons,
+  },
+  {
+    name: 'text with no collation is compared anyway',
+    edits: [
+      {
+        file: expr,
+        find: '  if (!encodesAsText(left) && !encodesAsText(right)) return Option.none()',
+        replace: '  return Option.none()',
+      },
+    ],
+    tests: comparisons,
+  },
+  {
+    name: 'a locale is taken for a comparison',
+    edits: [
+      {
+        file: expr,
+        find: '      Locale: ({ locale }) => {\n        throw new Error(',
+        replace: '      Locale: ({ locale }) => {\n        if (locale !== locale) throw new Error(',
+      },
+    ],
+    tests: comparisons,
+  },
+  {
+    name: 'text compared with no field is taken',
+    edits: [{ file: expr, find: '  if (first === undefined) {', replace: '  if (false) {' }],
+    tests: comparisons,
+  },
+  {
+    name: 'a comparison is not named among the operations',
+    edits: [{ file: expr, find: "found.operations.add('compare')", replace: 'void 0' }],
+    tests: comparisons,
   },
   {
     name: 'not of an unknown is true',

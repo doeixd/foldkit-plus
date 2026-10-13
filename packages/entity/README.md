@@ -609,6 +609,26 @@ operand. An interpreter that runs per request decides an operand that reads no
 field before it writes anything: `whenGiven` compiles to `true`, which filters
 nothing, when its input is null, and to the predicate alone when it is given.
 
+**Comparisons** order two values: `Expr.lt`, `lte`, `gt` and `gte`.
+
+```ts
+Expr.lt(Product.fields.cents, 1000)
+// A range of dates, stored as ISO strings, which order by time under binary:
+Expr.and(
+  Expr.gte(Shipment.fields.shippedAt, input.from, { collation: Collation.binary }),
+  Expr.lt(Shipment.fields.shippedAt, input.until, { collation: Collation.binary }),
+)
+```
+
+Numbers compare as numbers. Text orders by a collation, and backends disagree
+about the default one (SQLite's `BINARY`, the Postgres database's locale,
+JavaScript's UTF-16 units), so text is compared only under `Collation.binary`
+or `Collation.asciiFold`, declared on the field or passed, and only against a
+field: anything else is refused where the comparison is written. A value is
+compared in its encoded form, which is why a date stored as an ISO string is
+text here. A null on either side is unknown, as in SQL. There is no `between`;
+it is the `and` above.
+
 A query reads one Entity, so a predicate or ordering term naming a different
 one is refused where it is piped: an interpreter would otherwise be asked for a
 column of a table it was never told to read. Entities are compared by identity,
@@ -687,6 +707,7 @@ from queries, not from what a database could express.
 | `Expr.in(field, among)` | Whether a value is one of a list (written out, or an input), each compared as `eq` compares; SQL's `in`, an empty list matching nothing. |
 | `Expr.and(a, b, …)` / `Expr.or(a, b, …)` | Every operand holds / at least one does, as SQL's three-valued `and` and `or`. At least one operand; a nested one of the same kind is flattened in. |
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
+| `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
 | `Expr.whenGiven(input, given => predicate)` | A filter applying only when a nullable input is given: `or(isNull(input), predicate)`, the predicate seeing the input as never null. |
 | `Expr.field(field)` | One field of one Entity, as a scalar. |
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
