@@ -48,12 +48,18 @@ it('keeps React state through a keyed reorder and isolates sibling islands', asy
       ),
   })
   try {
-    await vi.waitFor(() => expect(text('.counter-a')).toBe('a:0'))
+    // Each island mounts its own root: a click on one not yet drawn is lost.
+    await vi.waitFor(() => {
+      expect(text('.counter-a')).toBe('a:0')
+      expect(text('.counter-b')).toBe('b:0')
+    })
     click('.counter-a')
     click('.counter-a')
     click('.counter-b')
-    await vi.waitFor(() => expect(text('.counter-a')).toBe('a:2'))
-    expect(text('.counter-b')).toBe('b:1')
+    await vi.waitFor(() => {
+      expect(text('.counter-a')).toBe('a:2')
+      expect(text('.counter-b')).toBe('b:1')
+    })
 
     click('.toggle')
     await vi.waitFor(() =>
