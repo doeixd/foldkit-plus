@@ -42,17 +42,6 @@ export default [
     tests: reference,
   },
   {
-    name: 'the SQL compiler sends an empty list to the database',
-    edits: [
-      {
-        file: '../../remote-drizzle/src/compile.ts',
-        find: 'if (among.length === 0) return sql`false`',
-        replace: '',
-      },
-    ],
-    tests: ['packages/remote-drizzle/test/conformance.test.ts'],
-  },
-  {
     name: 'TanStack reads a null against an empty list as unknown',
     edits: [
       {

@@ -150,7 +150,7 @@ export default [
     edits: [
       {
         file: expr,
-        find: '  if (!encodesAsText(left) && !encodesAsText(right)) return Option.none()',
+        find: "  if (!kinds.has('text')) return Option.none()",
         replace: '  return Option.none()',
       },
     ],
@@ -163,6 +163,17 @@ export default [
         file: expr,
         find: '      Locale: ({ locale }) => {\n        throw new Error(',
         replace: '      Locale: ({ locale }) => {\n        if (locale !== locale) throw new Error(',
+      },
+    ],
+    tests: comparisons,
+  },
+  {
+    name: 'a value that does not order is compared anyway',
+    edits: [
+      {
+        file: expr,
+        find: "  if (kinds.has('none') || kinds.size > 1) {",
+        replace: '  if (false) {',
       },
     ],
     tests: comparisons,

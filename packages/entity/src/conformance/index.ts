@@ -426,6 +426,12 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     expected: ['a', 'b'],
   },
   {
+    what: 'a comparison that reads no field orders numbers as numbers: 9 is below 10',
+    body: from.pipe(Query.where(Expr.lt(below, 10)), byId),
+    input: { below: 9 },
+    expected: ['a', 'b', 'c', 'd', 'e'],
+  },
+  {
     what: 'a range of dates compares their encoded ISO strings under binary',
     body: from.pipe(
       Query.where(

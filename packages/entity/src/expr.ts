@@ -321,13 +321,39 @@ export type OrderedOperand =
   | Expr<Date>
   | Expr<Date | null>
 
-/** Whether a side encodes as text, which orders only by a collation. */
-const encodesAsText = (side: AnyExpr): boolean =>
+/** How values encoded by `ast` order: as numbers, as text, or not at all. */
+const orderKindOf = (ast: SchemaAST.AST): 'number' | 'text' | 'none' => {
+  if (SchemaAST.isNumber(ast)) return 'number'
+  if (SchemaAST.isString(ast) || SchemaAST.isTemplateLiteral(ast)) return 'text'
+  if (SchemaAST.isLiteral(ast)) {
+    if (typeof ast.literal === 'number') return 'number'
+    if (typeof ast.literal === 'string') return 'text'
+    return 'none'
+  }
+  if (SchemaAST.isUnion(ast)) {
+    // A null orders nowhere, as every comparison of it is unknown.
+    const kinds = new Set(ast.types.filter(member => !SchemaAST.isNull(member)).map(orderKindOf))
+    const [only] = kinds
+    return kinds.size === 1 && only !== undefined ? only : 'none'
+  }
+  return 'none'
+}
+
+/** How a literal orders; a null orders as anything, since comparing it is unknown. */
+const literalKind = (value: unknown): 'number' | 'text' | 'none' | 'null' => {
+  if (value === null) return 'null'
+  if (typeof value === 'number') return 'number'
+  if (typeof value === 'string') return 'text'
+  return 'none'
+}
+
+/** How a side orders, read from its encoded form. */
+const sideKind = (side: AnyExpr): 'number' | 'text' | 'none' | 'null' =>
   Match.value(side).pipe(
     Match.tagsExhaustive({
-      Field: field => !ordersIntrinsically(Schema.toEncoded(field.schema).ast),
-      Input: input => !ordersIntrinsically(Schema.toEncoded(input.schema).ast),
-      Literal: literal => typeof literal.value === 'string',
+      Field: field => orderKindOf(Schema.toEncoded(field.schema).ast),
+      Input: input => orderKindOf(Schema.toEncoded(input.schema).ast),
+      Literal: ({ value }) => literalKind(value),
     }),
   )
 
@@ -345,7 +371,13 @@ const collationFor = (
   right: AnyExpr,
   given: Option.Option<Collation>,
 ): Option.Option<Collation> => {
-  if (!encodesAsText(left) && !encodesAsText(right)) return Option.none()
+  const kinds = new Set([sideKind(left), sideKind(right)].filter(kind => kind !== 'null'))
+  if (kinds.has('none') || kinds.size > 1) {
+    throw new Error(
+      `[foldkit-entity] Expr.${step}: only numbers with numbers, or text with text, order alike in every interpreter, as stored`,
+    )
+  }
+  if (!kinds.has('text')) return Option.none()
   const fields = [left, right].flatMap(side =>
     Match.value(side).pipe(
       Match.tag('Field', field => [field]),

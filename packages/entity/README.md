@@ -620,7 +620,8 @@ Expr.and(
 )
 ```
 
-Numbers compare as numbers. Text orders by a collation, and backends disagree
+Numbers compare as numbers, and nothing compares across kinds or for a value
+stored as neither a number nor text. Text orders by a collation, and backends disagree
 about the default one (SQLite's `BINARY`, the Postgres database's locale,
 JavaScript's UTF-16 units), so text is compared only under `Collation.binary`
 or `Collation.asciiFold`, declared on the field or passed, and only against a

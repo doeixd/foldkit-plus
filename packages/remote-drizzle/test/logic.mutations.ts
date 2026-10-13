@@ -84,12 +84,24 @@ export default [
     tests,
   },
   {
+    name: 'a predicate that reads no field is sent to the database',
+    edits: [
+      {
+        file: compile,
+        find: '    onSome: constant,\n    onNone: () => undecided(node, target, input, query),',
+        replace:
+          '    onSome: () => undecided(node, target, input, query),\n    onNone: () => undecided(node, target, input, query),',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a not compiles to its operand',
     edits: [
       {
         file: compile,
-        find: '        onNone: () => not(predicate(node.operand, target, input, query)),',
-        replace: '        onNone: () => predicate(node.operand, target, input, query),',
+        find: '      return not(predicate(node.operand, target, input, query))',
+        replace: '      return predicate(node.operand, target, input, query)',
       },
     ],
     tests,
@@ -99,8 +111,8 @@ export default [
     edits: [
       {
         file: compile,
-        find: "        onNone: () => connective(node.operands, 'or', target, input, query),",
-        replace: "        onNone: () => connective(node.operands, 'and', target, input, query),",
+        find: "      return connective(node.operands, 'or', target, input, query)",
+        replace: "      return connective(node.operands, 'and', target, input, query)",
       },
     ],
     tests,

@@ -596,6 +596,17 @@ describe('comparisons', () => {
     expect(() => Expr.lt(Expr.input('n', Schema.Number), 3)).not.toThrow()
   })
 
+  it('refuses what does not order as stored, and a number against text', () => {
+    // @ts-expect-error a boolean does not order
+    expect(() => Expr.lt(Expr.input('flag', Schema.Boolean), true)).toThrow(
+      'only numbers with numbers, or text with text',
+    )
+    expect(() =>
+      // @ts-expect-error the sides are of two kinds
+      Expr.lt(Ranked.fields.rank, Expr.input('name', Schema.String)),
+    ).toThrow('only numbers with numbers, or text with text')
+  })
+
   it('reads both sides, and is named as one operation', () => {
     expect(dependenciesOf(Expr.gt(Ranked.fields.rank, Expr.input('n', Schema.Number)))).toEqual({
       fields: [{ entity: 'Ranked', key: 'rank', owner: Ranked.identity }],

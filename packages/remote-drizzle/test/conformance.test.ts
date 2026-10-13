@@ -13,6 +13,7 @@ import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-co
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { Expr, Order } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
 import { Subject, cases, refusals, rows } from 'foldkit-entity/conformance'
 import { databaseLayer, entity, query } from '../src/index.js'
@@ -172,5 +173,35 @@ describe('foldkit-remote-drizzle conforms to the query semantics on Postgres', (
   it.each(refused)('refuses on Postgres too: $name', async ({ c, i }) => {
     const layer = databaseLayer(drizzlePg({ client: pglite }))
     await expect(answer(c, i, pgBinding, layer)).rejects.toThrow(/NUL/)
+  })
+})
+
+// The suite's rows hold no accented text, and its accented cases read no field,
+// so the compiler decides them without SQL: this is the one that folds a row.
+describe('foldkit-remote-drizzle folds a stored row as the evaluator does, on Postgres', () => {
+  const pglite = new PGlite()
+  beforeAll(async () => {
+    await pglite.exec(create)
+    await pglite.query('insert into conformance_rows values ($1, $2, $3, $4, $5)', [
+      'f',
+      'Élan',
+      1,
+      null,
+      '2026-01-01T00:00:00.000Z',
+    ])
+  })
+  afterAll(() => pglite.close())
+
+  it.each([
+    { search: 'é', expected: [] },
+    { search: 'Él', expected: ['f'] },
+    { search: 'LAN', expected: ['f'] },
+  ])('finds "$search" in "Élan" only as ASCII folds', async ({ search, expected }) => {
+    const body = Query.from(Subject).pipe(
+      Query.where(Expr.contains(Subject.fields.label, search)),
+      Query.orderBy(Order.asc(Subject.fields.id)),
+    )
+    const layer = databaseLayer(drizzlePg({ client: pglite }))
+    expect(await answer({ body, input: {} }, 900, pgBinding, layer)).toEqual(expected)
   })
 })

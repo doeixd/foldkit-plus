@@ -244,7 +244,12 @@ ways.
   no field on either side (an input against a literal) is refused too; a
   number compared so is decided per request like any operand that reads no
   field.
-- **Booleans do not order** here: the type refuses a boolean operand.
+- **Booleans do not order** here: the type refuses a boolean operand, and a
+  value stored as neither a number nor text, or a number against text, is
+  refused where it is written.
+- **The compiler decides any predicate that reads no field**, not only those
+  inside a connective: `$1 < $2` reaches SQL as two untyped parameters, which
+  SQLite and Postgres both answered wrongly for 9 < 10.
 - **Null is unknown**, as in SQL: `rank < 3` neither holds nor fails for a row
   whose `rank` is null.
 - **The compiler** puts the column first (flipping the operator when the body

@@ -71,6 +71,12 @@ export default [
       },
     ],
     tests,
+    // Since e4ef152c a placement that leaves a row where it stood keeps the
+    // list, so a change to a field the order could have chosen and did not is
+    // placed and kept: the same answer, at the cost of the placement. The
+    // narrower set is the cheaper path, not a different one.
+    survives:
+      'equivalent since e4ef152c: a field the order did not choose is placed where it stood, and the list kept',
   },
   {
     name: 'an orderBy may override the body',

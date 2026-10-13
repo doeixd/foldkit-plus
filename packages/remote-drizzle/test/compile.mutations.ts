@@ -29,23 +29,12 @@ export default [
     tests: ['packages/remote-drizzle/test/conformance.test.ts'],
   },
   {
-    name: 'searched text holding NUL is answered',
-    edits: [
-      {
-        file: '../src/compile.ts',
-        find: 'if (holdsNul(search) || holdsNul(value)) {',
-        replace: 'if (holdsNul(search)) {',
-      },
-    ],
-    tests: ['packages/remote-drizzle/test/conformance.test.ts'],
-  },
-  {
     name: 'a search holding NUL is answered',
     edits: [
       {
         file: '../src/compile.ts',
-        find: 'if (holdsNul(search) || holdsNul(value)) {',
-        replace: 'if (holdsNul(value)) {',
+        find: '      if (holdsNul(search)) {',
+        replace: '      if (false) {',
       },
     ],
     tests: ['packages/remote-drizzle/test/conformance.test.ts'],

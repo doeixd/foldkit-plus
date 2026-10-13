@@ -274,7 +274,25 @@ const comparison = (
   })
 }
 
+/**
+ * A predicate as SQL, decided first when it reads no field: such a predicate
+ * sent as parameters is not the question it was (`$1 < $2` compares untyped
+ * parameters, and matched nothing for 9 < 10), and deciding it here keeps the
+ * SQL to what the rows decide.
+ */
 const predicate = (
+  node: Predicate,
+  target: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): SQL =>
+  Option.match(decide(node, input, query), {
+    onSome: constant,
+    onNone: () => undecided(node, target, input, query),
+  })
+
+/** A predicate that reads a field, as SQL. */
+const undecided = (
   node: Predicate,
   target: CompileTarget,
   input: Readonly<Record<string, unknown>>,
@@ -282,20 +300,11 @@ const predicate = (
 ): SQL => {
   switch (node._tag) {
     case 'And':
-      return Option.match(decide(node, input, query), {
-        onSome: constant,
-        onNone: () => connective(node.operands, 'and', target, input, query),
-      })
+      return connective(node.operands, 'and', target, input, query)
     case 'Or':
-      return Option.match(decide(node, input, query), {
-        onSome: constant,
-        onNone: () => connective(node.operands, 'or', target, input, query),
-      })
+      return connective(node.operands, 'or', target, input, query)
     case 'Not':
-      return Option.match(decide(node, input, query), {
-        onSome: constant,
-        onNone: () => not(predicate(node.operand, target, input, query)),
-      })
+      return not(predicate(node.operand, target, input, query))
     case 'Compare':
       return comparison(node, target, input, query)
     case 'Eq': {
@@ -335,9 +344,10 @@ const predicate = (
       }
       // Postgres text cannot hold NUL and SQLite's `like` stops at it, so text
       // holding one means nothing portable; the reference interpreter refuses
-      // it too. A searched value that is an input or a literal is seen here; a
-      // NUL inside a stored column is not.
-      if (holdsNul(search) || holdsNul(value)) {
+      // it too. Only the search is checked: a searched value that is not a
+      // field reads none, so `predicate` decided it, and a NUL inside a stored
+      // column is not seen here.
+      if (holdsNul(search)) {
         throw new QueryCompileError(
           `query "${query}" searches text holding a NUL character, which SQL text cannot hold portably`,
         )
@@ -362,9 +372,10 @@ const predicate = (
           `query "${query}" asks whether a value is in something that is not a list`,
         )
       }
-      // An empty list matches nothing, said here: SQLite reads `in ()` as
-      // false, and Postgres refuses it.
-      if (among.length === 0) return sql`false`
+      // An empty list matches nothing, which SQLite and Postgres would say
+      // differently (`in ()`): over a field, Drizzle's `inArray` writes `false`
+      // itself, and over anything else this reads no field, so `predicate`
+      // decided it.
       const value = operand(node.value, target, input, query)
       if (holdsNul(value) || among.some(holdsNul)) {
         throw new QueryCompileError(
