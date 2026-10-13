@@ -501,11 +501,21 @@ Impact's guard fields are the one place the client package reads guard metadata.
 - **No client-side rule evaluation.** `may` is the server's answer, and a change the client cannot judge under the guards is fetched (§7a). Instant local hints over row guards (which are data on the client) are a later addition; gen2's "sound-allow / sound-deny / best-effort" is the vocabulary for that day.
 - **No roles as a built-in.** A role is whatever `User` says; `isAdmin` is one line of `implement`.
 - **One new operator**, `Expr.in`. `exists` waits for the data-query Phase 13, and `inherit` covers the `one`-relation case without it.
-- **No negation.** gen2 defers `not` for SQL placement until null semantics are settled; `isNull`/`isNotNull` cover absence.
+- **No negation of its own.** gen2 deferred `not` for SQL placement until null semantics were settled; `isNull`/`isNotNull` cover absence. `foldkit-entity` has since added `Expr.not`, `and` and `or` with SQL's three-valued meaning (2026-10-12), but no Guard test uses them in a rule yet.
 - **No second evaluator.** Row guards are `Expr`, run by the two evaluators the conformance suite keeps in agreement.
 - **No secrecy within a Sync document.** A document is one audience (§8c); per-row or per-member hiding inside a replicated log is refused at definition, not approximated.
 - **No transaction of its own.** A guarded write's check and its statement run in the driver's own transaction where the write is several statements; remote-drizzle's README says which form each driver takes.
 - **Authentication is the application's.** Sessions, cookies, tokens, accounts. The seam is `G.Principal`.
+- **Filtering by a hidden member, for the readers who may see it.** A query
+  body that filters or orders by a member with a Read rule is refused at
+  startup (`GuardServer.validate`, 2026-10-13): one body serves every
+  principal, and its answer would tell a reader what the member hides
+  (`cost < $max`, bisected). Letting some readers run it means the member
+  reads as null in the predicate wherever its rule does not hold for this
+  reader, in the evaluator and in the SQL compiler alike. Not built: no
+  application here needs it, and a value some readers filter by can be an
+  Entity of its own with a row Read rule, whose rows a reader who may not see
+  them never gets.
 
 ---
 
