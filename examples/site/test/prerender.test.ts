@@ -159,6 +159,16 @@ describe('the generated site', () => {
     expect(plan?.parentElement?.textContent).toContain('A resume plan for an application.')
   })
 
+  test('an export two entry points share has one page, under the entry point beside it', () => {
+    const at = (path: string) => links.get(path)?.hrefs ?? []
+    expect(links.has('/primitives/api/primitives-time/timer')).toBe(true)
+    expect(links.has('/primitives/api/primitives/timer')).toBe(false)
+    // The root's index still lists it, and leads there.
+    expect(at('/primitives/api/primitives')).toContain('/primitives/api/primitives-time/timer')
+    // With one page, the name links from prose: the subpath's guide is on the site.
+    expect(at('/primitives/guides/time')).toContain('/primitives/api/primitives-time/timer')
+  })
+
   test('every link on every page leads to a page the build wrote, or a file in the repository', () => {
     const broken: Array<string> = []
     for (const [path, at] of links)

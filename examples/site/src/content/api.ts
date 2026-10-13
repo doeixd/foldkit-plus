@@ -233,6 +233,34 @@ const memberIdsOf = (entry: ApiExport): ReadonlyArray<string> => {
   return entry.members.map(each => ids(each.name.replaceAll('.', '-')))
 }
 
+/**
+ * The entry point that documents each export. A declaration two entry points
+ * export (a root that re-exports its subpaths) gets one page, under the entry
+ * point whose folder holds it, so a name has one place to link to.
+ */
+interface Home {
+  readonly module: ApiModule
+  readonly entry: ApiExport
+}
+
+const homesOf = (source: ApiPackage) => {
+  const keyOf = (entry: ApiExport) =>
+    `${entry.source.file}:${entry.source.line}:${entry.kind}:${entry.name}`
+  const nearness = (module: ApiModule, entry: ApiExport) => {
+    const folder = module.file.slice(0, module.file.lastIndexOf('/') + 1)
+    return entry.source.file.startsWith(folder) ? folder.length : -1
+  }
+  const homes = new Map<string, Home>()
+  for (const module of source.modules)
+    for (const entry of module.exports) {
+      const held = homes.get(keyOf(entry))
+      if (held === undefined || nearness(module, entry) > nearness(held.module, entry))
+        homes.set(keyOf(entry), { module, entry })
+    }
+  // Each entry point's slugs are its own, so the page is named by the home's entry.
+  return (module: ApiModule, entry: ApiExport): Home => homes.get(keyOf(entry)) ?? { module, entry }
+}
+
 /** Whether an export is declared in the package that exports it, rather than re-exported. */
 const declaredIn = (source: ApiPackage, entry: ApiExport) =>
   entry.source.file.startsWith(`packages/${source.dir}/`)
@@ -242,8 +270,9 @@ export const apiTargets = (
   subsite: Subsite,
   packages: ReadonlyArray<ApiPackage>,
 ): ReadonlyArray<Target> =>
-  packages.flatMap(source =>
-    source.modules.flatMap(module => [
+  packages.flatMap(source => {
+    const homeOf = homesOf(source)
+    return source.modules.flatMap(module => [
       // A package's own name leads to its guides (`library.ts`); a subpath to its page here.
       ...(module.specifier === source.name
         ? []
@@ -257,6 +286,7 @@ export const apiTargets = (
             },
           ]),
       ...module.exports.flatMap(entry => {
+        if (homeOf(module, entry).module !== module) return []
         const path = exportPath(subsite, module, entry)
         const declared = declaredIn(source, entry)
         const ids = memberIdsOf(entry)
@@ -277,8 +307,8 @@ export const apiTargets = (
           })),
         ]
       }),
-    ]),
-  )
+    ])
+  })
 
 export interface ApiPagesOf {
   readonly subsite: Subsite
@@ -301,10 +331,14 @@ export const apiPages = ({
   linkOf,
   mentionsOf,
 }: ApiPagesOf): ReadonlyArray<ApiPage> =>
-  packages.flatMap(source =>
-    source.modules.flatMap(module => {
+  packages.flatMap(source => {
+    const homeOf = homesOf(source)
+    return source.modules.flatMap(module => {
       const base = modulePath(subsite, module)
-      const pathOf = (entry: ApiExport) => exportPath(subsite, module, entry)
+      const pathOf = (entry: ApiExport) => {
+        const home = homeOf(module, entry)
+        return exportPath(subsite, home.module, home.entry)
+      }
       const drawing = (file: string, path: string): Drawing => ({
         highlight,
         href: linksFrom(file),
@@ -328,34 +362,37 @@ export const apiPages = ({
       }
       return [
         modulePage,
-        ...module.exports.map((entry): ApiPage => {
+        ...module.exports.flatMap((entry): ReadonlyArray<ApiPage> => {
+          if (homeOf(module, entry).module !== module) return []
           const path = pathOf(entry)
           const memberIds = memberIdsOf(entry)
           const mentions = mentionsOf(path)
-          return {
-            path,
-            subsite,
-            group: source.name,
-            label: entry.name,
-            title: entry.name,
-            description: firstLine(entry.summary),
-            anchors: [
-              ...entry.members.map((each, index) => ({
-                depth: 3,
-                text: each.name,
-                id: memberIds[index] ?? '',
-              })),
-              ...(mentions.length === 0
-                ? []
-                : [{ depth: 2, text: 'In the guides', id: 'in-the-guides' }]),
-            ],
-            file: entry.source.file,
-            listed: false,
-            module: base,
-            crumb: `${subsite.title} / ${module.specifier}`,
-            body: exportBody(drawing(entry.source.file, path), entry, memberIds, mentions),
-          }
+          return [
+            {
+              path,
+              subsite,
+              group: source.name,
+              label: entry.name,
+              title: entry.name,
+              description: firstLine(entry.summary),
+              anchors: [
+                ...entry.members.map((each, index) => ({
+                  depth: 3,
+                  text: each.name,
+                  id: memberIds[index] ?? '',
+                })),
+                ...(mentions.length === 0
+                  ? []
+                  : [{ depth: 2, text: 'In the guides', id: 'in-the-guides' }]),
+              ],
+              file: entry.source.file,
+              listed: false,
+              module: base,
+              crumb: `${subsite.title} / ${module.specifier}`,
+              body: exportBody(drawing(entry.source.file, path), entry, memberIds, mentions),
+            },
+          ]
         }),
       ]
-    }),
-  )
+    })
+  })

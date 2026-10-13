@@ -83,14 +83,30 @@ export const subsites: ReadonlyArray<Subsite> = [
     },
     [doc('composition', 'Inside-out composition', 'mixins')],
   ),
-  family({
-    id: 'primitives',
-    title: 'Primitives',
-    tagline: 'Media queries, timers, sockets, undo history and more, as small Bundles.',
-    owner: 'the parent Model',
-    shelf: 'Foundations',
-    packages: ['primitives'],
-  }),
+  family(
+    {
+      id: 'primitives',
+      title: 'Primitives',
+      tagline: 'Media queries, timers, sockets, undo history and more, as small Bundles.',
+      owner: 'the parent Model',
+      shelf: 'Foundations',
+      packages: ['primitives'],
+    },
+    (
+      [
+        ['media', 'Media'],
+        ['net', 'Network'],
+        ['time', 'Time'],
+        ['state', 'State'],
+        ['motion', 'Motion'],
+        ['interaction', 'Interaction'],
+        ['device', 'Device'],
+        ['events', 'Events'],
+        ['observers', 'Observers'],
+        ['dom', 'DOM'],
+      ] as const
+    ).map(([id, label]) => ({ id, label, file: `packages/primitives/${id}/README.md` })),
+  ),
   family(
     {
       id: 'entity',

@@ -212,6 +212,22 @@ export default [
     tests,
   },
   {
+    name: 'a shared export documented under the first entry point to list it',
+    edits: [
+      {
+        file: '../src/content/api.ts',
+        find: 'nearness(module, entry) > nearness(held.module, entry)',
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "the primitives' subpath guides left off the site",
+    edits: [{ file: '../src/catalog.ts', find: "        ['time', 'Time'],\n", replace: '' }],
+    tests,
+  },
+  {
     name: 'a README without markers is written anyway',
     edits: [{ file: '../src/readme.ts', find: '  listIn(readme)\n', replace: '' }],
     tests,
