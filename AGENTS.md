@@ -1232,6 +1232,10 @@ of its own named a form field "fits the Catalog". Read words with
 - **A pipe hides the exit status of what it pipes.** `prettier --check $F | tail -1 &&
   git commit` committed a file prettier had just flagged, because `tail` succeeded.
   Redirect instead (`>/dev/null &&`) when a check gates the next command.
+  `;` gates nothing either: `pnpm -s mutate:check >/dev/null; echo $?; …;
+  git commit` printed `1` and committed, twice in one session (a re-anchor
+  and an ambiguous anchor each followed). Chain every check into the commit
+  with `&&`, or read the output before committing.
 - **A prepend that matches only the anchor line deletes it.** Matching the first
   line of a block (a changelog entry, a doc section) and replacing it with new
   text drops that line; the file stays valid and every check stays green, so
