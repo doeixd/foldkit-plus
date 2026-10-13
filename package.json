@@ -40,21 +40,21 @@
     "release": "pnpm build && pnpm -r --filter \"./packages/*\" publish --access public --no-git-checks"
   },
   "devDependencies": {
-    "@effect/language-service": "^0.87.2",
-    "@effect/platform-browser": "4.0.0",
-    "@effect/sql-pg": "4.0.0",
-    "@types/node": "^22.10.2",
-    "@vitest/browser-playwright": "5.0.1",
+    "@effect/language-service": "^0.87.4",
+    "@effect/platform-browser": "^4.0.4",
+    "@effect/sql-pg": "^4.0.4",
+    "@types/node": "^22.20.5",
+    "@vitest/browser-playwright": "5.0.4",
     "drizzle-orm": "1.0.0-rc.4",
-    "effect": "4.0.0",
+    "effect": "^4.0.4",
     "foldkit": "0.165.0",
-    "playwright": "^1.63.0",
-    "prettier": "^3.9.6",
-    "tsdown": "^0.23.0",
-    "tsx": "^4.23.13",
+    "playwright": "^1.64.0",
+    "prettier": "^3.9.10",
+    "tsdown": "^0.23.1",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3",
     "unrun": "^0.3.1",
     "vite": "^8.3.0",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }

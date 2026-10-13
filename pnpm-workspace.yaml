@@ -5,3 +5,18 @@ packages:
 
 # tsdown requires Node 22+ (Promise.withResolvers).
 useNodeVersion: 22.21.1
+
+# foldkit pins Effect exactly (a peer of effect@4.0.0, and its Vite plugin a
+# dependency on @effect/platform-node@4.0.0); any 4.x satisfies them here, and one
+# copy of each Effect package keeps their services and types shared.
+overrides:
+  '@effect/platform-browser': ^4.0.4
+  '@effect/platform-node': ^4.0.4
+  '@effect/platform-node-shared': ^4.0.4
+  '@effect/sql-sqlite-node': ^4.0.4
+
+peerDependencyRules:
+  allowedVersions:
+    effect: '4'
+    '@effect/platform-browser': '4'
+    '@effect/platform-node': '4'

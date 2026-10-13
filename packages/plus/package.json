@@ -571,10 +571,10 @@
     }
   },
   "devDependencies": {
-    "effect": "4.0.0",
+    "effect": "^4.0.4",
     "foldkit": "0.165.0",
-    "tsdown": "^0.23.0",
-    "tsx": "^4.23.13",
+    "tsdown": "^0.23.1",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3",
     "foldkit-agent-native": "workspace:*",
     "foldkit-cms-drizzle": "workspace:*",

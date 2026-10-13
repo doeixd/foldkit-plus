@@ -36,4 +36,15 @@ export default [
     ],
     tests: ['packages/durable/test/core.test.ts'],
   },
+  {
+    name: 'a file that cannot be opened escapes as an SqlError',
+    edits: [
+      {
+        file: '../src/node.ts',
+        find: "Effect.catchTag('SqlError', cause =>",
+        replace: "Effect.catchTag('Other' as 'SqlError', cause =>",
+      },
+    ],
+    tests: ['packages/durable/test/journal.test.ts'],
+  },
 ]

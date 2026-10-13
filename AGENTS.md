@@ -592,11 +592,14 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   first). `Schema.toEncoded` keeps inner checks but drops one made
   after a transformation: `NumberFromString.check(isGreaterThan(0))` accepted
   `'-1'`. Re-check against the whole Schema.
-- **A Mount's acquire that throws halfway fails silently and leaks.** `Measure`
-  attached a MutationObserver, then `new ResizeObserver` threw in jsdom; the
-  Mount's stream neither ended nor reported, and the observer it left called
-  `measure` later ("Cannot access 'sizes' before initialization"). Make every
-  observer before any observes, and test with the constructor stubbed away.
+- **A Mount's acquire that throws halfway leaks what it attached first.**
+  `Measure` attached a MutationObserver, then `new ResizeObserver` threw in
+  jsdom, and the observer it left called `measure` later ("Cannot access
+  'sizes' before initialization"). Make every observer before any observes, and
+  test with the constructor stubbed away. Through Effect 4.0.1 such a stream
+  neither ended nor reported; since then it fails, and a merge of Mounts
+  (`Stream.mergeAll`) ends every stream in it, so one Behavior's failure took the
+  canvas's clicks with it. The resolver's composed Mount fails each alone.
 - **Mount args are captured at insert, never refreshed.** A Mount that should
   follow the Model (focus the next OTP cell after a fill) ran once with the
   initial args and never again: `OnMount` binds `insert` and `destroy` only,
@@ -797,7 +800,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Effect 4, not 3**
 
-foldkit pins `effect@4.0.0`, the first stable release. Since 4.0.0 there is no
+The workspace runs `effect@^4.0.4`, one copy of each Effect package;
+foldkit's exact peer (`effect@4.0.0`) is relaxed in `pnpm-workspace.yaml`, and
+published packages peer on `^4.0.0`. `examples/livestore` alone stays on
+`4.0.0-rc.112`: `@livestore` 0.5.0-dev still imports `effect/unstable/*`, which
+4.0.0 removed. Since 4.0.0 there is no
 `effect/unstable/*`: import `effect/http`, `effect/persistence`, `effect/rpc`,
 `effect/sql` (and `effect/http-api` for the old `httpapi`). Since 4.0.0
 `Array`, `Chunk`, `Effect` and `Record` `partition` and `Option.partitionMap`
@@ -1227,6 +1234,13 @@ of its own named a form field "fits the Catalog". Read words with
   `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
   and a demo line that passed under `tsx` failed its test for no reason in the
   change. `npx vitest run examples/remote` from the root tests the source.
+- **Vitest 5 caches transformed modules on disk, keyed without the environment.**
+  `fsModuleCache` is on by default in 5.0.4 (5.0.1 ran without it), so a
+  plugin whose output depends on an environment variable (`pnpm mutate`'s
+  edits) is skipped on a cached module: the fixture's mutations all read "not
+  applied", and a mutated run was served an earlier run's transform without
+  the plugin seeing it. `scripts/mutate.mjs` passes `--fsModuleCache=false`;
+  any other env-driven transform must too.
 - **Read `Test Files`, not only `Tests`.** A file that fails to load, from a
   module-level `window` read in a node test or the machine running out of
   memory under a wide run ("22 failed" with every test passing), counts no

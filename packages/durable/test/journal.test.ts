@@ -125,6 +125,17 @@ const appendCommitted = <Operation>(result: AppendResult<Operation>): Committed<
   return result.committed
 }
 
+it('fails as a JournalError where the file cannot be opened', async () => {
+  const file = join(tmpdir(), `foldkit-missing-${process.pid}`, 'nested', 'journal.db')
+  const opened = await Effect.runPromise(
+    Effect.scoped(Effect.result(makeJournal<Operation, Snapshot, Principal>({ file, ...base }))),
+  )
+  expect(opened).toMatchObject({
+    _tag: 'Failure',
+    failure: { _tag: 'JournalError', message: `Could not open ${file}` },
+  })
+})
+
 describe('the stored snapshot', () => {
   /** Runs `body` against a journal file in a fresh directory, then removes it. */
   const inFile = async (body: (path: string) => Promise<void>) => {

@@ -217,7 +217,8 @@ describe('durable over D1', () => {
     expect([...snapshot].sort((a, b) => byNumber(a) - byNumber(b))).toEqual(
       Array.from({ length: writers }, (_, index) => note(index + 1)),
     )
-  }, 30_000)
+    // About 70s over miniflare 4, whose D1 answers each query about three times slower than 3's.
+  }, 120_000)
 
   it('compacts, floors, resets, and vacuums', async () => {
     const journal = await openJournal()

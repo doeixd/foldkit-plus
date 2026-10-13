@@ -36,6 +36,28 @@ version changed; `pnpm` skips versions already in the registry.
   when its input is null and to the predicate alone when it is given, with no
   parameter for the check.
 
+### Changed
+
+- **Effect 4.0.4.** The workspace builds and tests against `effect@4.0.4` and
+  its `@effect/*` packages at the same version. Published packages still peer on
+  `effect@^4.0.0`, and `foldkit-durable` now depends on
+  `@effect/sql-sqlite-node@^4.0.0` rather than exactly `4.0.0`, so an
+  application chooses its 4.x.
+- **`foldkit-mixins`: one Behavior's failing Mount no longer stops the others
+  on its element.** The resolver merges an element's Mounts into one, and from
+  Effect 4.0.2 a merge ends when any stream in it fails, so a `Measure` without
+  a `ResizeObserver` took the canvas's `Targets` with it. Each fails alone now,
+  reported as Foldkit reports a Mount (`[OnMount Name] unhandled failure`).
+
+### Fixed
+
+- **`foldkit-sync`: `foldkit-remote` is an optional peer again.** The manifest
+  declared `peerDependenciesMeta` twice, and the second, naming only
+  `foldkit-durable`, replaced the first.
+- **`foldkit-durable`: a database it cannot open fails as a `JournalError`.**
+  From `@effect/sql-sqlite-node` 4.0.1 opening the file can fail with a
+  `SqlError`, which escaped the journal's declared errors.
+
 ## 0.18.0
 
 `foldkit-site` 0.2.0, `foldkit-remote` 0.15.0, `foldkit-primitives` 0.9.0,
