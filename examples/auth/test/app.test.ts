@@ -243,6 +243,10 @@ describe('who may be shown a page', () => {
     ['another host', '//elsewhere.example/notes', []],
     ['another host, by backslash', '/\\elsewhere.example/notes', []],
     ['a full address', 'https://elsewhere.example/notes', []],
+    ['another host, behind a tab a parser drops', '/\t/elsewhere.example/notes', []],
+    ['another host, behind a line break', '/\n/elsewhere.example', []],
+    ['a path with its query', '/notes?sort=title', ['/notes?sort=title']],
+    ['a path here, as a parser reads it', '/no\ttes', ['/notes']],
   ])('goes on after a sign-in to %s only if it is a path here', (_, returnTo, to) => {
     const sent = { ...read, route: AppRoute.Home({ returnTo: Option.some(returnTo) }) }
     const replaced = commandsOf(update(sent, Message.SucceededSignIn()))

@@ -261,7 +261,6 @@ const SignOut = Command.define('SignOut', {
   ),
 })
 
-/** The address, replaced: Back then skips the page that sent the reader on. */
 /**
  * Lets go of whom the server last answered as, before `update` reads again:
  * a read sent with the old belief would be refused once more.
@@ -274,6 +273,7 @@ const ForgetBelief = Command.define('ForgetBelief', {
   }),
 })
 
+/** The address, replaced: Back then skips the page that sent the reader on. */
 const ReplaceUrl = Command.define('ReplaceUrl', {
   args: { url: Schema.String },
   messages: [Message.CompletedNavigation],
@@ -299,18 +299,28 @@ const changedHere = (model: Model): Update.Return<Model, Message, Services> => (
   commands: [announce()],
 })
 
+/** Stands for this page's origin, which `update` does not know: only whether a URL leaves it matters. */
+const HERE = 'http://here.invalid'
+
 /**
- * A path on this origin: `/` and then anything but a second `/` or a `\`,
- * which a URL parser reads as the start of another host. Anyone can write
- * `returnTo` into an address, and `replaceState` throws for another origin.
+ * `url` as a path on this origin, as a URL parser reads it, or none. Anyone
+ * can write `returnTo` into an address, and a parser drops tabs and line
+ * breaks and reads `//` or `\` as another host, so `/\t/evil.com` is
+ * `http://evil.com/`: only the parse can tell.
  */
-const isOwnPath = (url: string): boolean => /^\/(?![/\\])/.test(url)
+const ownPath = (url: string): Option.Option<string> => {
+  if (!url.startsWith('/') || !URL.canParse(url, HERE)) return Option.none()
+  const parsed = new URL(url, HERE)
+  return parsed.origin === HERE
+    ? Option.some(`${parsed.pathname}${parsed.search}${parsed.hash}`)
+    : Option.none()
+}
 
 /** Where a sign-in goes on to: the page that sent the visitor here, if any. */
 const returning = (route: AppRoute) =>
   AppRoute.match(route, {
     Home: ({ returnTo }) =>
-      Option.toArray(Option.map(Option.filter(returnTo, isOwnPath), url => ReplaceUrl({ url }))),
+      Option.toArray(Option.map(Option.flatMap(returnTo, ownPath), url => ReplaceUrl({ url }))),
     Notes: () => [],
     NotFound: () => [],
   })

@@ -22,6 +22,9 @@ afterAll(() => server.close())
 const open = (headers: Record<string, string>) =>
   new WebSocket(`${server.url.replace('http', 'ws')}/sync`, { headers })
 
+/** What the journal's exchange answers a connection `opens` refused. */
+const REFUSED = 'This connection may not open the document'
+
 const fromThePage = (cookie?: string) => ({
   origin: PAGE_ORIGIN,
   ...(cookie === undefined ? {} : { cookie }),
@@ -98,7 +101,19 @@ describe('the board socket, by who the cookie says', () => {
     expect(await statusOf(open(fromThePage()))).toBe(101)
     await expect(
       exchangeAs('visitor-tab', undefined, [BoardMessage.Pinned({ id: 'v1', text: 'Anyone?' })]),
-    ).rejects.toThrow()
+    ).rejects.toThrow(REFUSED)
+  })
+
+  it('answers an upgrade anywhere but the board by closing the connection', async () => {
+    const elsewhere = new WebSocket(`${server.url.replace('http', 'ws')}/remote`, {
+      headers: fromThePage(await signIn(server.url, 'ada')),
+    })
+    expect(
+      await new Promise(resolve => {
+        elsewhere.once('open', () => resolve('opened'))
+        elsewhere.once('error', () => resolve('closed'))
+      }),
+    ).toBe('closed')
   })
 
   it('refuses a cookie from a page elsewhere with a 401, opening nothing', async () => {

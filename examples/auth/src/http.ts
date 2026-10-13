@@ -111,14 +111,27 @@ export const startHttpServer = async (
   // The board's socket: asked whom it serves before it opens, as `documentHost` decides.
   const sockets = new WebSocketServer({ noServer: true })
   server.on('upgrade', (request: IncomingMessage, connection: Duplex, head: Buffer) => {
+    // Node takes its own error listener off an upgraded connection; a reset must not crash it.
+    connection.on('error', () => connection.destroy())
     if (new URL(request.url ?? '/', origin).pathname !== '/sync') return void connection.destroy()
     handlers
       .sync(new Request(`${origin}${request.url}`, { headers: headersOf(request) }))
       .then(answered =>
         Result.match(answered, {
           onFailure: response => refuseUpgrade(connection, response),
-          onSuccess: serve =>
-            sockets.handleUpgrade(request, connection, head, socket => serve(hostSocket(socket))),
+          onSuccess: ({ serve, abandon }) => {
+            // `ws` drops the callback for a client gone while the resolver ran,
+            // a bad handshake or a closing server: what the upgrade built goes.
+            if (connection.destroyed) return abandon()
+            let served = false
+            connection.once('close', () => {
+              if (!served) abandon()
+            })
+            sockets.handleUpgrade(request, connection, head, socket => {
+              served = true
+              serve(hostSocket(socket))
+            })
+          },
         }),
       )
       .catch((error: unknown) => {

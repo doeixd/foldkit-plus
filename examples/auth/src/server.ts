@@ -179,8 +179,9 @@ export const openServer = async (origin: string) => {
     journal: async () => journal,
     resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'browser' }),
     layer: () => shared,
-    // A sign-out in any tab ends the session the socket opened with: it closes within this.
-    revalidate: { every: SYNC_REVALIDATE, key: Policy.keyOf },
+    // A sign-out in any tab ends the session the socket opened with: it closes
+    // within this. No `key`: the cookie a socket opened with names one user for good.
+    revalidate: { every: SYNC_REVALIDATE },
     // The board is the signed-in readers': a visitor's socket reads and writes nothing.
     opens: principal => Effect.succeed(Option.isSome(principal)),
   })

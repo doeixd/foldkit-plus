@@ -297,8 +297,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: '/^\\/(?![/\\\\])/',
-        replace: '/^\\//',
+        find: 'return parsed.origin === HERE',
+        replace: 'return true',
       },
     ],
     tests: app,
@@ -412,7 +412,7 @@ export default [
     edits: [
       {
         file: '../src/server.ts',
-        find: '    revalidate: { every: SYNC_REVALIDATE, key: Policy.keyOf },\n',
+        find: '    revalidate: { every: SYNC_REVALIDATE },\n',
         replace: '',
       },
     ],
@@ -426,6 +426,28 @@ export default [
         find: 'onFailure: response => refuseUpgrade(connection, response),',
         replace:
           'onFailure: () => sockets.handleUpgrade(request, connection, head, socket => socket.close()),',
+      },
+    ],
+    tests: sync,
+  },
+  {
+    name: 'a sign-in goes on to whatever a path starts with',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: '? Option.some(`${parsed.pathname}${parsed.search}${parsed.hash}`)',
+        replace: '? Option.some(url)',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'any path upgrades to the board',
+    edits: [
+      {
+        file: '../src/http.ts',
+        find: "if (new URL(request.url ?? '/', origin).pathname !== '/sync') return void connection.destroy()",
+        replace: '',
       },
     ],
     tests: sync,
