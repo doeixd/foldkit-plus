@@ -1,0 +1,69 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "stripInternal": true,
+    "composite": true,
+    "noEmit": false,
+    "types": ["node", "vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "paths": {
+      "foldkit-auth": ["../../packages/auth/src/index.ts"],
+      "foldkit-auth/server": ["../../packages/auth/src/server.ts"],
+      "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-guard": ["../../packages/guard/src/index.ts"],
+      "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
+      "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
+      "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
+      "foldkit-guard/sync": ["../../packages/guard/src/sync.ts"],
+      "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
+      "foldkit-primitives": ["../../packages/primitives/src/index.ts"],
+      "foldkit-primitives/device": ["../../packages/primitives/src/device/index.ts"],
+      "foldkit-primitives/dom": ["../../packages/primitives/src/dom/index.ts"],
+      "foldkit-primitives/events": ["../../packages/primitives/src/events/index.ts"],
+      "foldkit-primitives/interaction": ["../../packages/primitives/src/interaction/index.ts"],
+      "foldkit-primitives/media": ["../../packages/primitives/src/media/index.ts"],
+      "foldkit-primitives/motion": ["../../packages/primitives/src/motion/index.ts"],
+      "foldkit-primitives/net": ["../../packages/primitives/src/net/index.ts"],
+      "foldkit-primitives/observers": ["../../packages/primitives/src/observers/index.ts"],
+      "foldkit-primitives/state": ["../../packages/primitives/src/state/index.ts"],
+      "foldkit-primitives/time": ["../../packages/primitives/src/time/index.ts"],
+      "foldkit-remote": ["../../packages/remote/src/index.ts"],
+      "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
+      "foldkit-remote-server/fetch": ["../../packages/remote-server/src/fetch.ts"],
+      "foldkit-remote-server/port": ["../../packages/remote-server/src/port.ts"],
+      "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
+      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+    }
+  },
+  "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
+  "references": [
+    {
+      "path": "../../packages/metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/guard/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/surface/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-server/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/auth/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/primitives/tsconfig.build.json"
+    }
+  ]
+}

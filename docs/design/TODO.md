@@ -217,7 +217,7 @@ questions still open.
 ## Authentication
 
 Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
-orders the slices; step 0 and slices 1–8 are built.
+orders the slices; step 0 and slices 1–9 are built.
 
 - [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
   `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
@@ -264,7 +264,10 @@ orders the slices; step 0 and slices 1–8 are built.
 - [ ] **The client's `x-foldkit-subject`.** A transport that learns whom the
   server answered as (an echoed header) and repeats it; needs `serveFetch` to
   report the principal's key. §6.4
-- [ ] **9. An example, with an e2e test.** §9
+- [x] **9. An example, with an e2e test:** `examples/auth`. §9
+- [ ] **The example's SSR and Sync socket.** A server render as the request's
+  principal, and a Sync document over `AuthServer.resolver({ requests:
+  'browser' })`. §9
 - [ ] **10. `Site.access`** and SSR's 303. §6.5
 
 ## CMS

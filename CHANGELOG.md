@@ -31,6 +31,13 @@ version changed; `pnpm` skips versions already in the registry.
   upgrade, kept while the socket is open for `revalidate`, and closed at once
   for a refused upgrade.
 
+- **`examples/auth`: Yielded Auth end to end.** Password sign-in and
+  sign-out through Yielded's own client and routes, a guarded notes list
+  (an admin reads every note, a member their own, a visitor none), `Me` for
+  "signed in as" and an admin line, and a change of principal carried to the
+  other tabs; unit, mutation and Chromium e2e tests, the e2e across two tabs
+  and a server restart.
+
 - **`foldkit-remote`: `RemoteData.refused(error)`,** the refusal a failure
   was (`Unauthenticated` or `Forbidden`, with the server's `reason`), typed,
   or none for any other failure: a `RemoteError`'s `_tag` is open, so a view

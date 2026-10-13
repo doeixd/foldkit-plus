@@ -1,0 +1,149 @@
+/**
+ * The example's own claims, each broken in turn: `pnpm mutate
+ * examples/auth/test/auth.mutations.ts`. What only a page shows (the
+ * broadcast heard, the drawn lines) is `e2e/auth.e2e.ts`'s.
+ */
+const server = ['examples/auth/test/server.test.ts']
+const app = ['examples/auth/test/app.test.ts']
+
+export default [
+  {
+    name: 'a member is taken for an admin',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: "Option.exists(principal, user => user.role === 'admin')",
+        replace: "Option.exists(principal, user => user.role === 'member')",
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'an admin reads only their own notes',
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: 'row: { Read: [G.isAuthor, G.isAdmin] }',
+        replace: 'row: { Read: [G.isAuthor] }',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'an author is matched by role, not id',
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: 'Expr.eq(NoteFields.fields.authorId, p.id)',
+        replace: 'Expr.eq(NoteFields.fields.authorId, p.role)',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'Me answers no interaction',
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: 'Guards.me(G, { interactions: { [OpenAdmin.key]: [G.isAdmin] } })',
+        replace: 'Guards.me(G, {})',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'every session is answered as the first account',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'onSome: account => Effect.succeed<User>(account.user)',
+        replace: 'onSome: () => Effect.succeed<User>(accounts[0].user)',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: "Yielded's routes are never reached",
+    edits: [
+      {
+        file: '../src/http.ts',
+        find: "path.startsWith('/auth/')",
+        replace: "path.startsWith('/nowhere/')",
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'only the last Set-Cookie of an answer is sent',
+    edits: [
+      {
+        file: '../src/http.ts',
+        find: "    'set-cookie': answered.headers.getSetCookie(),\n",
+        replace: '',
+      },
+    ],
+    tests: server,
+    survives:
+      'Password sign-in and sign-out each set one cookie; a multi-step method sets its flow cookie beside the session, which this example does not offer.',
+  },
+  {
+    name: 'a change of principal here keeps what was read',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: "model: Data.forget(modifyFields(model, { password: () => '', notice: () => Option.none() })),",
+        replace: "model: modifyFields(model, { password: () => '', notice: () => Option.none() }),",
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a change of principal here keeps the password',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: "{ password: () => '', notice: () => Option.none() }",
+        replace: '{ notice: () => Option.none() }',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a change of principal here tells no other tab',
+    edits: [{ file: '../src/app.ts', find: 'commands: [announce()],', replace: 'commands: [],' }],
+    tests: app,
+  },
+  {
+    name: "another tab's change is not heard",
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Received: () => ({ model: Data.forget(model) }),',
+        replace: 'Received: () => ({ model }),',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: "this tab's own post forgets again",
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Posted: () => ({ model }),',
+        replace: 'Posted: () => ({ model: Data.forget(model) }),',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'the password typed is not the one sent',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'SignIn({ email: model.email, password: model.password })',
+        replace: "SignIn({ email: model.email, password: '' })",
+      },
+    ],
+    tests: app,
+  },
+]

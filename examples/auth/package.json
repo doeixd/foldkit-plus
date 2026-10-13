@@ -1,0 +1,31 @@
+{
+  "name": "foldkit-example-auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/dev.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.4",
+    "@yielded/auth": "0.1.0-beta.38",
+    "@yielded/auth-persistence": "0.1.0-beta.38",
+    "foldkit-auth": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-guard": "workspace:*",
+    "foldkit-primitives": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-server": "workspace:*",
+    "foldkit-surface": "workspace:*"
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "4.0.4",
+    "effect": "4.0.4",
+    "foldkit": "0.165.0",
+    "jsdom": "26.1.0",
+    "playwright": "^1.63.0",
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  }
+}
