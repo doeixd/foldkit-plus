@@ -54,7 +54,7 @@ export default [
     edits: [
       {
         file,
-        find: 'return Effect.succeed(Response.json(body, { status }))',
+        find: 'return Effect.succeed({ response: Response.json(body, { status }), live: false })',
         replace: 'return Effect.die(body)',
       },
     ],
@@ -76,8 +76,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Effect.provide(config.layer(env))',
-        replace: 'Effect.provide(config.layer({} as Env))',
+        find: 'Layer.buildWithScope(config.layer(env), scope)',
+        replace: 'Layer.buildWithScope(config.layer({} as Env), scope)',
       },
     ],
     tests,

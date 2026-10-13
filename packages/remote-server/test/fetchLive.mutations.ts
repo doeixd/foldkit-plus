@@ -34,8 +34,8 @@ export default [
     edits: [
       {
         file,
-        find: '      if (isLiveOpen(body.value))\n        return yield* liveResponse(',
-        replace: '      if (false)\n        return yield* liveResponse(',
+        find: 'if (isLiveOpen(body.value)) {',
+        replace: 'if (false) {',
       },
     ],
     tests,
@@ -93,6 +93,44 @@ export default [
         file,
         find: "{ error: 'The live payload is not a requirement' }, { status: 400 }",
         replace: "{ error: 'The live payload is not a requirement' }, { status: 200 }",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the layer closes when the answer is built, before the stream serves',
+    edits: [
+      {
+        file,
+        find: 'Exit.isSuccess(exit) && exit.value.live ? Effect.void : Scope.close(scope, exit)',
+        replace: 'Scope.close(scope, exit)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a live stream never closes its layer',
+    edits: [{ file, find: '.pipe(Stream.ensuring(release))', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a defect mid-stream errors the body, unanswered',
+    edits: [
+      {
+        file,
+        find: ": Stream.succeed(errorFrame('Internal error')),",
+        replace: ': Stream.failCause(cause),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'any interval is taken',
+    edits: [
+      {
+        file,
+        find: "throw new Error('serveFetch: revalidate.every must be longer than zero')",
+        replace: '{}',
       },
     ],
     tests,

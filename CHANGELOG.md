@@ -103,10 +103,22 @@ version changed; `pnpm` skips versions already in the registry.
   throw used to be a 401 carrying its message. Wrap a plain value:
   `resolvePrincipal: request => Effect.succeed(actorOf(request))`.
 - **Built and tested on Effect 4.0.4.** The packages' peer stays
-  `effect: ^4.0.0`, except `foldkit-auth`'s `^4.0.4`, since Yielded needs it. Foldkit's own peer is exactly `4.0.0`, so an application
+  `effect: ^4.0.0`, except `foldkit-auth`'s `^4.0.4`, since Yielded needs
+  it. Foldkit's own peer is exactly `4.0.0`, so an application
   on 4.0.4 (which Yielded Auth's `^4.0.3` needs) allows it the way the root
   `package.json` does: `pnpm.peerDependencyRules.allowedVersions` for
   `foldkit>effect`, and an override of `foldkit>@effect/platform-browser`.
+
+### Fixed
+
+- **`serveFetch` keeps a live stream's layer open while it streams.** The
+  request's `layer` was closed as soon as the response was built, so a live
+  stream's re-reads, and its `revalidate` passes, ran on released resources:
+  a layer holding a connection pool failed every one. It now closes when the
+  answer is sent, or, for a live stream, when the stream ends or the client
+  leaves. A defect while a stream runs ends it with an `Internal error`
+  frame rather than a broken body, and `revalidate.every` must be longer
+  than zero.
 
 ## 0.18.0
 

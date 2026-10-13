@@ -688,6 +688,10 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   wire the two with `Layer.provide`, so they live and close together (the
   core `Journal.layer` now does); outside Effect, keep the layer in a
   `ManagedRuntime`. `Layer.buildWithScope` is the escape hatch, not the API.
+  A `Response` whose body streams outlives the Effect that built it: `serveFetch`
+  provided the request's layer that way, and every live re-read ran after the
+  layer closed, which only a layer with a finalizer shows. Build such a layer
+  into a `Scope` the stream closes (`Stream.ensuring`).
 - **Two runtimes in one document share its ids.** Two registry panes on one
   page each drew a grid with the id `products`, and the grid finds its cells
   by id, so one pane's keys would reach the other's. Give each device a page of

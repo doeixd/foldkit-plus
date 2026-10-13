@@ -5,7 +5,7 @@
  * payload no stream speaks is a 400; a version the protocol refuses ends the
  * stream with an `error` frame.
  */
-import { Effect, Fiber, Layer, Schema, Stream, type Duration } from 'effect'
+import { Context, Effect, Fiber, Layer, Schema, Stream, type Duration } from 'effect'
 import { Entity, Mutation, REMOTE_PROTOCOL_VERSION, Remote, RemoteClient } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
@@ -414,5 +414,114 @@ describe('serveFetch live, asking who it serves again', () => {
       values: { name: 'Anchor II' },
     })
     await reader.cancel()
+  })
+})
+
+describe("serveFetch, the request's layer", () => {
+  /** A session store that refuses once its layer is released, as a closed pool would. */
+  class Sessions extends Context.Service<Sessions, { readonly who: () => Effect.Effect<string> }>()(
+    'test/Sessions',
+  ) {}
+  const scoped = (log: string[], answer: () => Effect.Effect<string>) => {
+    let open = false
+    const layer = Layer.effect(
+      Sessions,
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          open = true
+          log.push('acquire')
+          return {
+            who: () => (open ? answer() : Effect.die(new Error('the session store is closed'))),
+          }
+        }),
+        () =>
+          Effect.sync(() => {
+            open = false
+            log.push('release')
+          }),
+      ),
+    )
+    let asked = 0
+    const hub = Effect.runSync(RemoteServer.liveHub([ItemSource]))
+    const served = serveFetch({
+      server: RemoteServer.make({ entities: [ItemSource] }),
+      resolvePrincipal: () =>
+        Effect.flatMap(Sessions, sessions => {
+          asked += 1
+          return sessions.who()
+        }),
+      layer: () => layer,
+      live: hub,
+      revalidate: { every: '20 millis' },
+    })
+    const post = (body: unknown) =>
+      served(
+        new Request('http://worker.test/remote', { method: 'POST', body: JSON.stringify(body) }),
+        undefined,
+      )
+    const liveBody = {
+      operation: 'live',
+      payload: {
+        version: REMOTE_PROTOCOL_VERSION,
+        requirements: [{ entity: 'Item', id: 'a', fields: ['name'] }],
+        after: 0,
+      },
+    }
+    return { post, liveBody, asked: () => asked }
+  }
+
+  it('closes the layer once an answer is sent', async () => {
+    const log: string[] = []
+    const { post } = scoped(log, () => Effect.succeed('admin'))
+    const response = await post({
+      operation: 'read',
+      payload: {
+        version: REMOTE_PROTOCOL_VERSION,
+        requests: [{ entity: 'Item', id: 'a', fields: ['name'] }],
+      },
+    })
+    expect(response.status).toBe(200)
+    expect(log).toEqual(['acquire', 'release'])
+  })
+
+  it('keeps it open while a live stream asks again, and closes it when the client leaves', async () => {
+    rows.set('a', { id: 'a', name: 'Anchor' })
+    const log: string[] = []
+    const { post, liveBody, asked } = scoped(log, () => Effect.succeed('admin'))
+    const response = await post(liveBody)
+    const reader = response.body!.getReader()
+    await readRawFrame(reader)
+    // The open, then three checks, each against a store still open.
+    await waitFor(() => asked() >= 4)
+    expect(log).toEqual(['acquire'])
+    await reader.cancel()
+    await waitFor(() => log.length === 2)
+    expect(log).toEqual(['acquire', 'release'])
+    const after = asked()
+    await new Promise(resolve => setTimeout(resolve, 60))
+    expect(asked()).toBe(after)
+  })
+
+  it('ends a stream whose check breaks with an error frame that says nothing of it', async () => {
+    rows.set('a', { id: 'a', name: 'Anchor' })
+    let calls = 0
+    const { post, liveBody } = scoped([], () =>
+      (calls += 1) === 1 ? Effect.succeed('admin') : Effect.die(new Error('secret internals')),
+    )
+    const response = await post(liveBody)
+    expect(await readAllFrames(response.body!.getReader())).toEqual([
+      `event: error\ndata: ${JSON.stringify({ message: 'Internal error' })}`,
+    ])
+  })
+
+  it('refuses an interval that is not longer than zero', () => {
+    expect(() =>
+      serveFetch({
+        server: RemoteServer.make({ entities: [ItemSource] }),
+        resolvePrincipal: () => Effect.succeed('admin'),
+        layer: () => Layer.empty,
+        revalidate: { every: '0 millis' },
+      }),
+    ).toThrow('revalidate.every must be longer than zero')
   })
 })
