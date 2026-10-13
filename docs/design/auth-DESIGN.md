@@ -144,6 +144,8 @@ interface PrincipalResolver<P, R> {
 
 `GuardSync.authorize` keeps `R = never`: it runs under the journal's lock with `Effect.runSync`, and a body that needs a service there is the wrong place for it (its README already says so).
 
+*As built (slice 3):* not `R` threaded through `Visible`, but `Policy.provide(context)`. A Source takes its binding erased (`AnyEntityBinding`), and one read runs the `visible` of every binding its relations reach, so an `R` per binding would have to be gathered across types already erased: only a cast could say the Source needs it, and nothing would check the cast. What a read rule's body needs splits in two. What changes per request (who is asking, their session's assurance) is the principal, which slice 6's resolver builds with every service it likes. What stays put (a membership lookup, a database) is provided once, at startup: `Policy.provide` gives back a Policy whose bodies need nothing more, which the read seams take, and `GuardServer.validate` counts a seam built from it as built from the Policy it came from (`origin.ts`). The write seams already took `Policy<User, R>`. `Guards.declare` now requires `unguarded` (§10, decision 4).
+
 ### 5.3 The client learns it was not authenticated
 
 `Remote.http` (and `httpWithLive`'s stream) maps a 401 to a typed `RemoteUnauthenticated` (`_tag: 'Unauthenticated'`, `reason?`) for every call kind, beside `RemoteForbidden`, so `RemoteData`'s `Failed` and `Data.mutation` carry it. Nothing in `foldkit-remote` acts on it; the application (or `foldkit-auth/client`, §6.4) decides what a lost session means.
@@ -299,7 +301,7 @@ Each slice stands alone, with its tests and a review before the next.
 0. **Effect ≥ 4.0.4.** A scoped `pnpm.overrides` (`effect@4.0.0` → `4.0.4`), the two Foldkit examples' `randomUUIDv4()`, the `mixins-builder` Mount behaviour settled, `pnpm check` green; a request upstream to widen Foldkit's peer. Nothing else starts before this.
 1. **One resolver** (§5.1): `Unauthenticated`, the Effect resolver in `serveFetch`, `defineDocumentHost` and agent-mcp, a Context key in `serveFetch`; the 401-with-any-message behaviour goes. *Built* for `serveFetch` and `defineDocumentHost`; agent-mcp moves to slice 6 (§5.1).
 2. **The client's 401** (§5.3): `RemoteUnauthenticated` on every call kind. *Built.*
-3. **`R` for reads** (§5.2): `Visible`, `MemoryReadable`, Sync's `opens`/`admit`; guard's read seams and `CmsServer.make` take `Policy<User, R>`.
+3. **`R` for reads** (§5.2): `Visible`, `MemoryReadable`, Sync's `opens`/`admit`; guard's read seams and `CmsServer.make` take `Policy<User, R>`. *Built* as `Policy.provide` (§5.2), with `unguarded` required.
 4. **Revalidation** (§5.5) for the live hub and the journal exchange.
 5. **SSR's per-request `provide`** (§5.4).
 6. **`foldkit-auth/server`**: the principal mapping, the Remote endpoint (route Layer and Web handler), the Origin/CSRF and subject checks, `socket` (with agent-mcp's `authenticate` taking an Effect), `ssr`. Tested against Yielded's in-memory Testing Layer, as the probe was.
