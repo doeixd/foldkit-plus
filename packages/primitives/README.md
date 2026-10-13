@@ -138,6 +138,36 @@ const copy = (model: NoteModel): Update.Return<NoteModel, NoteMessage> => ({
 })
 ```
 
+## Find one by the job
+
+| You want to | Reach for | In |
+| --- | --- | --- |
+| Follow the color scheme, reduced motion or any media query | `MediaQuery`, `PrefersDark`, `PrefersReducedMotion` | [media](./media/README.md) |
+| Change the layout at named widths | `Breakpoints` | [media](./media/README.md) |
+| Know whether the tab is visible, the window's size, or the user idle | `Visibility`, `WindowSize`, `Idle` | [events](./events/README.md) |
+| Answer keyboard shortcuts | `keyboardEvents` with `matchHotkey` | [events](./events/README.md) |
+| Count ticks, or run something on an interval | `Timer`, `Interval`, `ticks` | [time](./time/README.md) |
+| Wait until typing stops, or limit how often something runs | `debounce`, `Throttle` | [time](./time/README.md) |
+| Say "3 minutes ago" | `formatRelativeTime` | [time](./time/README.md) |
+| Page through a list | `Pagination`, `range` | [state](./state/README.md) |
+| Undo and redo | `history` | [state](./state/README.md) |
+| Draw only the visible rows of a long list | `Virtual` | [state](./state/README.md) |
+| Animate a value, or let an element leave before it is removed | `Tween`, `Spring`, `Presence` | [motion](./motion/README.md) |
+| Move with arrow keys through a toolbar, list, grid or tree | `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation` | [interaction](./interaction/README.md) |
+| Close a popup on Escape or an outside press | `DismissLayer`, `Overlay` | [interaction](./interaction/README.md) |
+| Press, long-press or drag | `Press`, `LongPress`, `Move`, `PointerDrag` | [interaction](./interaction/README.md) |
+| Edit text in place | `EditableText` | [interaction](./interaction/README.md) |
+| Tell a screen reader what changed | `LiveAnnounce` | [interaction](./interaction/README.md) |
+| Know whether the browser is online, or talk over a socket | `Online`, `websocket`, `sse` | [net](./net/README.md) |
+| Talk between tabs | `broadcastMessages`, `SharedHost` | [net](./net/README.md) |
+| Use the camera, the location or a permission | `mediaStream`, `Geolocation`, `permissions` | [device](./device/README.md) |
+| Track one element's size or visibility | `Resize`, `Intersection`, `Bounds` | [observers](./observers/README.md) |
+| Focus, mask or keep an element in view | `Autofocus`, `InputMask`, `KeepInView` | [dom](./dom/README.md) |
+| Copy, share, load a script or restore scroll | `copyText`, `share`, `loadScript`, `keepScroll` | [dom](./dom/README.md) |
+
+Working widgets built from the interaction primitives are listed under
+[In the examples](./interaction/README.md#in-the-examples).
+
 ## The map
 
 Each subpath is one concern and one import. Its README has the full

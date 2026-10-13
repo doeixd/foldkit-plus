@@ -11,7 +11,7 @@ test advances it with `TestClock.adjust` instead of waiting.
 | `Interval` | bundle | `{ running, lastAt }` | `Started`, `Stopped`, `Ticked { at }` | `{ intervalMs }` |
 | `ticks({ intervalMs, onTick })` | entry | | your Message | |
 | `debounce({ name, value })` | bundle factory | `{ latest, generation }` | `Changed { value }`; out: `Debounced { value }` | `{ delayMs }` + `onOut` |
-| `Throttle` | bundle | | `Attempted`; out: `Throttled { at }` | `{ intervalMs }` + `onOut` |
+| `Throttle` | bundle | `{ lastAt }` | `Attempted` (and its own `Evaluated { now }`); out: `Throttled { at }` | `{ intervalMs }` + `onOut` |
 | `formatRelativeTime(from, to, locale?)` | function | | | |
 
 ## Start with one: a timer

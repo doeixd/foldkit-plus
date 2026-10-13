@@ -499,6 +499,28 @@ space toggled, which is what makes a screen reader read it again.
 and hide them visually with a rule on `[data-foldkit-plus-live]`, never
 `display: none`.
 
+## In the examples
+
+Each of these composes the primitives above into a working widget. Read
+`app.ts` for the placements and `update`, and `view.ts` for the Behaviors on
+the slots.
+
+| Widget | Primitives |
+| --- | --- |
+| [Toolbar](../../../examples/widgets/src/toolbar) | `RovingTabindex` |
+| [One-time code field](../../../examples/widgets/src/otp-field) | `RovingTabindex`, a filled cell moving focus with a Command |
+| [Toggle group](../../../examples/widgets/src/toggle-group), [checkbox group](../../../examples/widgets/src/checkbox-group) | `Selection` |
+| [Command menu](../../../examples/widgets/src/command) | `ListNavigation`, `Selection`, `Placing` |
+| [Autocomplete](../../../examples/widgets/src/autocomplete) | `ListNavigation`, `Selection`, `DismissLayer`, `Overlay.nonModal`, `Placing` |
+| [Context menu](../../../examples/widgets/src/context-menu) | `ListNavigation`, `Selection`, `DismissLayer`, `Overlay.nonModal`, `Placing` |
+| [Menubar](../../../examples/widgets/src/menubar) | `RovingTabindex` across the bar, `ListNavigation` in each menu |
+| [Alert dialog](../../../examples/widgets/src/alert-dialog) | `DismissLayer`, `Overlay.modal` with outside press and Escape turned off |
+| [Drawer](../../../examples/drawer) | `DismissLayer`, `Overlay.modal` |
+| [File tree](../../../examples/tree) | `TreeNavigation`, `Selection` |
+
+The widgets run together at
+[foldkit-widgets-demo.pages.dev](https://foldkit-widgets-demo.pages.dev/).
+
 ## Failure
 
 A Behavior writes data, so a view that stops attaching it leaves nothing
