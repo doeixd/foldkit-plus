@@ -244,7 +244,9 @@ orders the slices; step 0 and slices 1–10 are built.
 - [x] **6c. SSR's posted-form Origin check:** `SSR.entry`'s `origins`,
   required by a plan with a server fallback. §5.4
 - [ ] **A posted form whose session ended** is a 500: `resources` cannot
-  fail. With `Site.access`'s 303 (slice 10). §6.5
+  fail. Decided: the host's, as `access`'s 303 is (resolve before calling
+  `renderPage`, as `examples/auth`'s `page.ts` does for a `GET`); no plan
+  there posts a form yet to show it. §6.5
 - [x] **A typed refusal:** `RemoteData.denied`. §5.3
 - [ ] **Stopping after a refusal that holds.** Sync's transport and a live
   stream reopen after a refusal, as Yielded's renewal makes a 4401 routine;
@@ -264,13 +266,15 @@ orders the slices; step 0 and slices 1–10 are built.
 - [x] **The client's `x-foldkit-subject`.** `serveFetch`'s `headers`,
   `AuthServer.answered` and `believing()`; wired in `examples/auth`. §6.4
 - [x] **9. An example, with an e2e test:** `examples/auth`. §9
-- [ ] **The example's SSR and Sync socket.** A server render as the request's
-  principal, and a Sync document over `AuthServer.resolver({ requests:
-  'browser' })`. §9
+- [x] **The example's SSR.** `examples/auth` renders each page from a read
+  made with the request's cookie. §9
+- [ ] **The example's Sync socket.** A Sync document over
+  `AuthServer.resolver({ requests: 'browser' })`, served on Node through
+  `documentHost`. §9
 - [x] **10. `Site.access`:** `access` on a node, `Site.accessOf`. §6.5
-- [ ] **`access` in the example.** Routes in `examples/auth` with a page
-  that sends a visitor to sign in, the client's replace and the host's 303,
-  with its SSR. §6.5, §9
+- [x] **`access` in the example.** `Notes` sends a visitor home with a
+  `returnTo`: the host's 303 before rendering, `update`'s replace after,
+  both asking one `accessOf`. §6.5, §9
 
 ## CMS
 

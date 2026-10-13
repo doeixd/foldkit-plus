@@ -1,10 +1,12 @@
 /**
  * The example's own claims, each broken in turn: `pnpm mutate
  * examples/auth/test/auth.mutations.ts`. What only a page shows (the
- * broadcast heard, the drawn lines) is `e2e/auth.e2e.ts`'s.
+ * broadcast heard, the drawn lines, a redirect followed) is
+ * `e2e/auth.e2e.ts`'s.
  */
 const server = ['examples/auth/test/server.test.ts']
 const app = ['examples/auth/test/app.test.ts']
+const page = ['examples/auth/test/page.test.ts']
 
 export default [
   {
@@ -222,5 +224,142 @@ export default [
       },
     ],
     tests: app,
+  },
+  {
+    name: 'a page never sends away a reader it refuses',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'guarded(model, routed(model, message))',
+        replace: 'routed(model, message)',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a refusal is sent again on every Message until the address changes',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Option.contains(deniedUrl(before), url)',
+        replace: 'Option.isNone(Option.some(url))',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a reader not yet read is taken for a visitor',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Initial: () => Option.none(),',
+        replace: 'Initial: () => Option.some(nobody),',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a reader whose Me failed is waited on for ever',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Failed: () => Option.some(nobody),',
+        replace: 'Failed: () => Option.none(),',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'the notes let anyone in',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'allow: reader => reader.signedIn,',
+        replace: 'allow: () => true,',
+      },
+    ],
+    tests: [...app, ...page],
+  },
+  {
+    name: 'a sign-in goes nowhere after',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: '...(changed.commands ?? []), ...returning(model.route)',
+        replace: '...(changed.commands ?? [])',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a sign-in goes on to another host',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: '/^\\/(?![/\\\\])/',
+        replace: '/^\\//',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'the host renders a page that refuses its reader',
+    edits: [
+      {
+        file: '../src/page.ts',
+        find: 'Access.match(accessOf(model), {',
+        replace: 'Access.match(Access.Allowed(), {',
+      },
+    ],
+    tests: page,
+  },
+  {
+    name: 'the host reads as no one',
+    edits: [
+      {
+        file: '../src/page.ts',
+        find: '      ...(cookie === null ? {} : { cookie }),\n',
+        replace: '',
+      },
+    ],
+    tests: page,
+  },
+  {
+    name: "the host's reads leave out Yielded's CSRF header",
+    edits: [{ file: '../src/page.ts', find: "      'x-effect-auth-csrf': '1',\n", replace: '' }],
+    tests: page,
+  },
+  {
+    name: 'the host reads for every method',
+    edits: [
+      {
+        file: '../src/page.ts',
+        find: "if (method !== 'GET' && method !== 'HEAD') return entryFor(initial).renderPage(request)",
+        replace: '',
+      },
+    ],
+    tests: page,
+  },
+  {
+    name: 'a session that ended fails the page',
+    edits: [
+      {
+        file: '../src/page.ts',
+        find: "    Effect.catchTag('Unauthenticated', () => Effect.succeed(unread)),\n",
+        replace: '',
+      },
+    ],
+    tests: page,
+  },
+  {
+    name: 'a page may be kept by a shared cache',
+    edits: [
+      {
+        file: '../src/page.ts',
+        find: "const pageHeaders = { 'cache-control': 'private, no-store', vary: 'cookie' }",
+        replace: "const pageHeaders = { 'cache-control': 'public' }",
+      },
+    ],
+    tests: page,
   },
 ]

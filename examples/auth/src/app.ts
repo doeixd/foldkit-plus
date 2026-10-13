@@ -1,34 +1,47 @@
 /**
- * The client: a sign-in form, who the server says this tab is (`Me`), and the
- * notes it may read. Yielded's client signs in and out; Remote reads; this
- * `update` is the one place a change of principal is handled, whichever tab
- * caused it.
+ * The client: where the page is (`AppSite`), who the server says this tab is
+ * (`Me`), the sign-in form, and the notes it may read. Yielded's client signs
+ * in and out; Remote reads; this `update` is the one place a change of
+ * principal is handled, whichever tab caused it, and the one place a page
+ * that refuses its reader sends them away.
  *
  * The session never lands in the Model. The cookie is Yielded's, and what
  * the page knows of who it is, is the `Me` row the server answered.
  */
 import * as Client from '@yielded/auth/Client'
-import { Effect, Match, Option, Redacted, Schema, Stream } from 'effect'
+import { Effect, Match, Option, Redacted, Schema, Stream, pipe } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
+import { UrlRequest, replaceUrl } from 'foldkit/navigation'
+import { defineRouteUnion, literal, mapTo, query, root } from 'foldkit/route'
 import { modifyFields } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
+import { Url } from 'foldkit/url'
 import { SUBJECT_CHANGED, believing } from 'foldkit-auth'
+import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { ME } from 'foldkit-guard'
 import { BroadcastMessage, broadcastMessages, postBroadcast } from 'foldkit-primitives/net'
 import { Remote, RemoteData, type RemoteClient, type RemoteError } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
+import { Access, Site } from 'foldkit-site'
+import { SSR } from 'foldkit-ssr/client'
+import { Projection, Surface } from 'foldkit-surface'
 import { AuthApi, Me, Note, Notes, served } from './domain.js'
 
 /**
  * Yielded's client, over `fetch` to this origin, which Vite proxies to the
  * server. A sign-in's cookie is set by the response, never read here.
  *
+ * The server renders pages with this module too and signs no one in, so it
+ * has no page origin to give: `''` is refused when the client's layer is
+ * built, which only the browser does.
+ *
  * @internal Its type names Yielded's unexported modules (TS2742), as `AuthApi`'s does.
  */
-export const AppClient = Client.make(AuthApi, { baseUrl: location.origin })
+export const AppClient = Client.make(AuthApi, {
+  baseUrl: typeof location === 'undefined' ? '' : location.origin,
+})
 
 /**
  * The `fetch` Remote's transport goes through: it repeats whom the server
@@ -47,11 +60,25 @@ export const PRINCIPAL_CHANNEL = 'foldkit-example-auth/principal'
  */
 export const TAB = crypto.randomUUID()
 
+export const AppRoute = defineRouteUnion({
+  /**
+   * Who you are, and the sign-in form. `returnTo` is the page that sent a
+   * visitor here, where a sign-in goes on to. It is `null` on the wire, as
+   * the route crosses from the server in the page.
+   */
+  Home: { returnTo: Schema.OptionFromNullOr(Schema.String) },
+  /** The notes this reader may read. */
+  Notes: {},
+  NotFound: { path: Schema.String },
+})
+export type AppRoute = typeof AppRoute.Type
+
 export const Model = Schema.Struct({
   email: Schema.String,
   password: Schema.String,
   /** What the last sign-in, sign-out or broadcast said went wrong, until the next try. */
   notice: Schema.Option(Schema.String),
+  route: AppRoute,
   remote: Remote.Model,
 })
 export type Model = typeof Model.Type
@@ -68,6 +95,9 @@ export const Message = defineMessageUnion({
   /** This tab's post, or another tab's, on `PRINCIPAL_CHANNEL`. */
   GotBroadcastMessage: { message: BroadcastMessage },
   GotRemoteMessage: { message: Remote.Message },
+  ClickedLink: { request: UrlRequest },
+  ChangedUrl: { url: Url },
+  CompletedNavigation: {},
 })
 export type Message = typeof Message.Type
 
@@ -84,8 +114,107 @@ export const initial: Model = {
   email: '',
   password: '',
   notice: Option.none(),
+  route: AppRoute.Home({ returnTo: Option.none() }),
   remote: Remote.initial,
 }
+
+const App = Surface.application({ Model, Message })
+export const Data = Remote.make({ model: App.model.remote, ...served })
+
+const MeRow = Entity.select(Me, { signedIn: true, key: true, may: true })
+const NoteRow = Entity.select(Note, { title: true, authorId: true })
+
+/** Who the page is signed in as, as the server answered. */
+export const Session = App.surface('Session', { model: () => ({ me: Data.get(MeRow, ME) }) })
+
+/** The notes the server lets this principal read. */
+export const NoteList = App.surface('NoteList', {
+  model: () => ({ notes: Data.query(Notes, {}, { select: NoteRow }) }),
+})
+
+/** What a page's `access` reads of its reader. */
+interface Reader {
+  readonly signedIn: boolean
+}
+
+const HomeNode = Site.route(
+  pipe(
+    root,
+    query(Schema.Struct({ returnTo: Schema.OptionFromOptional(Schema.String) })),
+    mapTo(AppRoute.Home),
+  ),
+  AppRoute.Home,
+  { title: () => 'Notes, by who is signed in' },
+)
+
+const NotesNode = Site.node(pipe(literal('notes'), mapTo(AppRoute.Notes)), AppRoute.Notes)
+  .title(() => 'Your notes')
+  .surface({ surface: NoteList, params: () => undefined })
+  // Presentation only: the server answers a visitor's read of the notes with none.
+  .access<Reader>({
+    allow: reader => reader.signedIn,
+    otherwise: requested => Site.target(HomeNode, { returnTo: Option.some(requested) }),
+  }).node
+
+export const AppSite = Site.make(HomeNode, NotesNode)
+export const routeOf = Site.parse(AppSite, AppRoute.NotFound)
+
+/** A link to the home page, as a visitor who was sent nowhere reaches it. */
+export const homeHref = Site.href(HomeNode, { returnTo: Option.none() })
+export const notesHref = Site.href(NotesNode, {})
+
+/**
+ * Every read the page may make: `Me` on every page, the notes on theirs.
+ * The subscriptions, the server's render and the handover read the same.
+ */
+export const actives = {
+  session: Surface.at(Session, undefined),
+  ...Site.sources(AppSite, App.owner, App.model.route),
+}
+
+const nobody: Reader = { signedIn: false }
+
+/**
+ * The reader, once `Me` is answered. A read the server refused (a session
+ * that ended) or could not answer shows no one signed in: the page says why,
+ * beside the sign-in form, rather than waiting on a read that is over.
+ */
+const readerOf = (model: Model): Option.Option<Reader> =>
+  RemoteData.match(Surface.read(Session, model).me, {
+    Initial: () => Option.none(),
+    Loading: () => Option.none(),
+    Ready: me => Option.some(me),
+    Refreshing: me => Option.some(me),
+    Failed: () => Option.some(nobody),
+    NotFound: () => Option.some(nobody),
+  })
+
+/**
+ * Whether the reader may be shown the page the Model is on. `update` and the
+ * host's 303 both ask this, so the browser and the server cannot disagree.
+ */
+export const accessOf = (model: Model): Access =>
+  AppRoute.matchOrElse(
+    model.route,
+    // No page is there to refuse anyone; the tree holds no node for it.
+    { NotFound: () => Access.Allowed() },
+    route => Site.accessOf(AppSite, route, readerOf(model)),
+  )
+
+/**
+ * What the page draws and how it is handed to the browser: the route crosses
+ * as it is, and Remote sends what `actives` read, so the browser asks for
+ * none of it again. The form and the notice start empty on both sides.
+ */
+export const plan = SSR.plan(
+  { owner: App.owner, Message, initial },
+  {
+    id: 'auth',
+    state: Projection.pick(App.model.route),
+    surfaces: Object.values(actives),
+    parts: [Remote.resume(Data)],
+  },
+)
 
 const SignIn = Command.define('SignIn', {
   // Redacted: a Command's args are its span's attributes and DevTools' record.
@@ -130,6 +259,13 @@ const SignOut = Command.define('SignOut', {
   ),
 })
 
+/** The address, replaced: Back then skips the page that sent the reader on. */
+const ReplaceUrl = Command.define('ReplaceUrl', {
+  args: { url: Schema.String },
+  messages: [Message.CompletedNavigation],
+  execute: ({ url }) => replaceUrl(url).pipe(Effect.as(Message.CompletedNavigation())),
+})
+
 /** Tells the other tabs, naming this one, which hears its own post too. */
 const announce = () =>
   Command.mapMessage(postBroadcast(PRINCIPAL_CHANNEL, TAB), message =>
@@ -149,16 +285,49 @@ const changedHere = (model: Model): Update.Return<Model, Message, Services> => (
   commands: [announce()],
 })
 
-// Annotated: `Data` is bound to `App`, which is built from `update`.
-export function update(model: Model, message: Message): Update.Return<Model, Message, Services> {
-  return Message.match(message, {
+/**
+ * A path on this origin: `/` and then anything but a second `/` or a `\`,
+ * which a URL parser reads as the start of another host. Anyone can write
+ * `returnTo` into an address, and `replaceState` throws for another origin.
+ */
+const isOwnPath = (url: string): boolean => /^\/(?![/\\])/.test(url)
+
+/** Where a sign-in goes on to: the page that sent the visitor here, if any. */
+const returning = (route: AppRoute) =>
+  AppRoute.match(route, {
+    Home: ({ returnTo }) =>
+      Option.toArray(Option.map(Option.filter(returnTo, isOwnPath), url => ReplaceUrl({ url }))),
+    Notes: () => [],
+    NotFound: () => [],
+  })
+
+const Routing = Site.routing<Model, Message, AppRoute>({
+  site: AppSite,
+  owner: App.owner,
+  route: {
+    dependency: App.model.route.dependency,
+    get: model => model.route,
+    set: (model, route) => modifyFields(model, { route: () => route }),
+  },
+  parse: routeOf,
+  tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
+  completed: Message.CompletedNavigation,
+})
+
+const assembly = Bundle.assemble<Model, Message, Services>()([Routing])
+
+const routed = assembly.update((model, message) =>
+  Message.match<Update.Return<Model, Message, Services>>(message, {
     ChangedEmail: ({ value }) => ({ model: modifyFields(model, { email: () => value }) }),
     ChangedPassword: ({ value }) => ({ model: modifyFields(model, { password: () => value }) }),
     SubmittedSignIn: () => ({
       model,
       commands: [SignIn({ email: model.email, password: Redacted.make(model.password) })],
     }),
-    SucceededSignIn: () => changedHere(model),
+    SucceededSignIn: () => {
+      const changed = changedHere(model)
+      return { ...changed, commands: [...(changed.commands ?? []), ...returning(model.route)] }
+    },
     FailedSignIn: ({ reason }) => ({ model: noticed(model, reason) }),
     ClickedSignOut: () => ({ model, commands: [SignOut()] }),
     SucceededSignOut: () => changedHere(model),
@@ -175,8 +344,48 @@ export function update(model: Model, message: Message): Update.Return<Model, Mes
       }),
     GotRemoteMessage: ({ message }) =>
       changedElsewhere(message) ? { model: Data.forget(model) } : foldData(model, message),
+    // Site.routing's: it claims the click and has set the route by now.
+    ClickedLink: () => ({ model }),
+    ChangedUrl: () => ({ model }),
+    CompletedNavigation: () => ({ model }),
+  }),
+)
+
+const deniedUrl = (model: Model): Option.Option<string> =>
+  Access.match(accessOf(model), {
+    Allowed: () => Option.none(),
+    Pending: () => Option.none(),
+    Denied: ({ url }) => Option.some(url),
   })
-}
+
+/**
+ * Sends the reader away once the page refuses them, on whichever Message
+ * made it so: a new route, or `Me` answered. Until the replaced address
+ * arrives, the Messages between are refused for the same page and send
+ * nothing more.
+ */
+const guarded = (
+  before: Model,
+  returned: Update.Return<Model, Message, Services>,
+): Update.Return<Model, Message, Services> =>
+  Option.match(deniedUrl(returned.model), {
+    onNone: () => returned,
+    onSome: url =>
+      Option.contains(deniedUrl(before), url)
+        ? returned
+        : { ...returned, commands: [...(returned.commands ?? []), ReplaceUrl({ url })] },
+  })
+
+export const update = (model: Model, message: Message): Update.Return<Model, Message, Services> =>
+  guarded(model, routed(model, message))
+
+/** The page at an address, before anything is read. */
+export const unreadAt = (url: Url): Model => modifyFields(initial, { route: () => routeOf(url) })
+
+/** Where a page starts without a server render; the server's reads `unreadAt` first. */
+export const init = (url: Url): Update.Return<Model, Message, Services> => ({
+  model: unreadAt(url),
+})
 
 const isSubjectChanged = (error: RemoteError): boolean =>
   Option.exists(RemoteData.denied(error), refusal =>
@@ -196,27 +405,10 @@ const changedElsewhere = Match.type<typeof Remote.Message.Type>().pipe(
   Match.orElse(() => false),
 )
 
-const App = Surface.application({ Model, Message, initial, update })
-export const Data = Remote.make({ model: App.model.remote, ...served })
 const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message }))
 
-const MeRow = Entity.select(Me, { key: true, may: true })
-const NoteRow = Entity.select(Note, { title: true, authorId: true })
-
-/** Who the page is signed in as, as the server answered. */
-export const Session = App.surface('Session', { model: () => ({ me: Data.get(MeRow, ME) }) })
-
-/** The notes the server lets this principal read. */
-export const NoteList = App.surface('NoteList', {
-  model: () => ({ notes: Data.query(Notes, {}, { select: NoteRow }) }),
-})
-
 export const subscriptions = Subscription.make<Model, Message, Services>()(() => ({
-  // Both are always drawn, so both are always read.
-  ...foldData.subscriptions({
-    session: Surface.at(Session, undefined),
-    notes: Surface.at(NoteList, undefined),
-  }),
+  ...foldData.subscriptions(actives),
   principal: Subscription.persistent(
     Stream.map(broadcastMessages(PRINCIPAL_CHANNEL), message =>
       Message.GotBroadcastMessage({ message }),

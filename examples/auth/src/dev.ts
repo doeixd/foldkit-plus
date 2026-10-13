@@ -1,7 +1,8 @@
 /**
  * `pnpm dev`: the server and Vite together. Vite proxies `/auth` and
- * `/remote` to the server. Sessions and notes are in memory, so a restart
- * signs everyone out.
+ * `/remote` to the server, and renders each page by reading from it as the
+ * request's cookie says (`vite.config.ts`). Sessions and notes are in
+ * memory, so a restart signs everyone out.
  */
 import { spawn } from 'node:child_process'
 import { DEV_ORIGIN, SERVER_PORT } from '../vite.config.js'

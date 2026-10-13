@@ -6,13 +6,16 @@
  * real server's handlers.
  */
 import { Effect, Option, Redacted } from 'effect'
+import { fromString } from 'foldkit/url'
 import { SUBJECT_CHANGED } from 'foldkit-auth'
+import { ME } from 'foldkit-guard'
 import { Surface } from 'foldkit-surface'
 import { BroadcastMessage } from 'foldkit-primitives/net'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
+  AppRoute,
   Data,
   Message,
   type Model,
@@ -20,19 +23,31 @@ import {
   PRINCIPAL_CHANNEL,
   Session,
   TAB,
+  accessOf,
+  actives,
   initial,
   update,
 } from '../src/app.js'
+import { type User } from '../src/domain.js'
 import { accounts, server } from '../src/server.js'
 
+const ada = accounts.find(account => account.subjectId === 'ada')!.user
+
+/** Remote answering as `principal`, through the real server's handlers. */
+const as = (principal: Option.Option<User>) =>
+  Remote.clientLayer(RemoteServer.handlers(server, principal))
+
 let read: Model
+let visitor: Model
 beforeAll(async () => {
-  const ada = accounts.find(account => account.subjectId === 'ada')!.user
   read = await Effect.runPromise(
     Data.satisfy(
       { ...initial, password: 'ada password' },
       { session: Surface.at(Session, undefined), notes: Surface.at(NoteList, undefined) },
-    ).pipe(Effect.provide(Remote.clientLayer(RemoteServer.handlers(server, Option.some(ada))))),
+    ).pipe(Effect.provide(as(Option.some(ada)))),
+  )
+  visitor = await Effect.runPromise(
+    Data.satisfy(initial, actives).pipe(Effect.provide(as(Option.none()))),
   )
 })
 
@@ -149,5 +164,84 @@ describe('a change of principal', () => {
     expect([email, Redacted.value(password)]).toEqual(['ada@example.invalid', 'ada password'])
     // What a span or DevTools records of the args shows no password.
     expect(JSON.stringify(signIn!.args)).not.toContain('ada password')
+  })
+})
+
+const urlOf = (path: string) => Option.getOrThrow(fromString(`http://127.0.0.1:5176${path}`))
+const goTo = (model: Model, path: string) => update(model, Message.ChangedUrl({ url: urlOf(path) }))
+
+/** `Me` read as `principal` for `model`'s page, as the Message that brings it. */
+const meArrives = (model: Model, principal: Option.Option<User>) =>
+  Effect.runPromise(
+    Data.preload(model, { session: actives.session }).effect.pipe(Effect.provide(as(principal))),
+  ).then(message => update(model, Message.GotRemoteMessage({ message })))
+
+const toHome = { name: 'ReplaceUrl', args: { url: '/?returnTo=%2Fnotes' } }
+
+describe('who may be shown a page', () => {
+  it('sends a visitor who opens the notes home, replacing the address', () => {
+    const returned = goTo(visitor, '/notes')
+    expect(returned.model.route).toEqual(AppRoute.Notes())
+    expect(commandsOf(returned)).toEqual([toHome])
+  })
+
+  it('lets a reader who is signed in open the notes', () => {
+    const returned = goTo(read, '/notes')
+    expect(accessOf(returned.model)._tag).toBe('Allowed')
+    expect(commandsOf(returned)).toEqual([])
+  })
+
+  it('waits for Me without navigating, then sends a visitor home once', async () => {
+    const pending = goTo(initial, '/notes')
+    expect(accessOf(pending.model)._tag).toBe('Pending')
+    expect(commandsOf(pending)).toEqual([])
+
+    const answered = await meArrives(pending.model, Option.none())
+    expect(commandsOf(answered)).toEqual([toHome])
+    // Another answer before the address is replaced sends nothing more.
+    expect(commandsOf(await meArrives(answered.model, Option.none()))).toEqual([])
+  })
+
+  it('sends a reader whose session ended home, as the page tells them why', () => {
+    const pending = goTo(initial, '/notes').model
+    const ended = update(
+      pending,
+      Message.GotRemoteMessage({
+        message: Remote.Message.ReadFailed({
+          requests: [{ entity: 'Me', id: ME, fields: ['signedIn', 'key', 'may'] }],
+          error: { _tag: 'Unauthenticated', message: 'Your session ended.' },
+        }),
+      }),
+    )
+    expect(meOf(ended.model)).toBe('Failed')
+    expect(commandsOf(ended)).toEqual([toHome])
+  })
+
+  it('stays when Me arrives as someone signed in', async () => {
+    const pending = goTo(initial, '/notes').model
+    expect(commandsOf(await meArrives(pending, Option.some(ada)))).toEqual([])
+  })
+
+  it.each([
+    ['shown', () => read, '/'],
+    ['being replaced', () => goTo(visitor, '/notes').model, '/notes'],
+  ])('treats the address already %s as nothing new', (_, modelOf, path) => {
+    const model = modelOf()
+    const returned = goTo(model, path)
+    expect(returned.model).toBe(model)
+    expect(commandsOf(returned)).toEqual([])
+  })
+
+  it.each([
+    ['the page that sent the reader', '/notes', ['/notes']],
+    ['another host', '//elsewhere.example/notes', []],
+    ['another host, by backslash', '/\\elsewhere.example/notes', []],
+    ['a full address', 'https://elsewhere.example/notes', []],
+  ])('goes on after a sign-in to %s only if it is a path here', (_, returnTo, to) => {
+    const sent = { ...read, route: AppRoute.Home({ returnTo: Option.some(returnTo) }) }
+    const replaced = commandsOf(update(sent, Message.SucceededSignIn()))
+      .filter(command => command.name === 'ReplaceUrl')
+      .map(command => (command.args as { url: string }).url)
+    expect(replaced).toEqual(to)
   })
 })

@@ -1,25 +1,32 @@
 /**
- * The browser entry: the application on Foldkit's runtime, with Remote over
- * HTTP and Yielded's client as its services. Both talk to this page's own
- * origin, which Vite proxies to the server, so the session cookie rides along.
+ * The browser entry: the server's page taken over by Foldkit's runtime, with
+ * Remote over HTTP and Yielded's client as its services. Both talk to this
+ * page's own origin, which Vite proxies to the server, so the session cookie
+ * rides along.
  */
 import { Layer } from 'effect'
-import * as Runtime from 'foldkit/runtime'
 import { Remote } from 'foldkit-remote'
-import { AppClient, Model, belief, initial, subscriptions, update } from './app.js'
+import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-ssr/client'
+import { AppClient, Message, Model, belief, init, plan, subscriptions, update } from './app.js'
 import { view } from './view.js'
 
-const container = document.getElementById('app')
-if (container === null) throw new Error('index.html has no #app')
+// Every page is rendered by the server, and its root is the application's own.
+const container = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
+if (container === null)
+  throw new Error('the page was not rendered by the server: start it with `pnpm dev`')
 
-Runtime.run(
-  Runtime.makeElement({
+SSR.hydrate(
+  {
     Model,
-    container,
-    init: () => ({ model: initial }),
+    init,
     update,
     view,
     subscriptions,
+    container,
+    routing: {
+      onUrlRequest: request => Message.ClickedLink({ request }),
+      onUrlChange: url => Message.ChangedUrl({ url }),
+    },
     resources: Layer.mergeAll(
       // A cookie authorizes these reads only beside Yielded's CSRF header.
       Remote.clientLayer(
@@ -31,5 +38,8 @@ Runtime.run(
       // Its only failure is a `baseUrl` that is not a URL, which `location.origin` is.
       AppClient.layerFetch.pipe(Layer.orDie),
     ),
-  }),
+    devTools: { Message },
+  },
+  plan,
+  { buildId: import.meta.env.FOLDKIT_BUILD_ID },
 )

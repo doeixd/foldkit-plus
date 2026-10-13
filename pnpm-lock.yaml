@@ -75,6 +75,9 @@ importers:
       foldkit-auth:
         specifier: workspace:*
         version: link:../../packages/auth
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../../packages/bundle
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
@@ -90,6 +93,12 @@ importers:
       foldkit-remote-server:
         specifier: workspace:*
         version: link:../../packages/remote-server
+      foldkit-site:
+        specifier: workspace:*
+        version: link:../../packages/site
+      foldkit-ssr:
+        specifier: workspace:*
+        version: link:../../packages/ssr
       foldkit-surface:
         specifier: workspace:*
         version: link:../../packages/surface
@@ -97,6 +106,9 @@ importers:
       '@effect/platform-browser':
         specifier: 4.0.4
         version: 4.0.4(effect@4.0.4)
+      '@foldkit/vite-plugin':
+        specifier: 0.26.0
+        version: 0.26.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
       effect:
         specifier: 4.0.4
         version: 4.0.4
@@ -113,8 +125,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
+        specifier: ^8.3.0
+        version: 8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)
 
   examples/bundle:
     dependencies:

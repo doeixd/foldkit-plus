@@ -2,8 +2,9 @@
 
 A Foldkit application where who is signed in decides what the server answers:
 a password sign-in through [Yielded Auth](https://github.com/yielded-dev/auth),
-a list of notes the guards narrow to the reader, and a sign-out in one tab that
-the other tabs follow without a reload.
+a list of notes the guards narrow to the reader, a notes page a visitor is sent
+away from, server-rendered as the request's reader, and a sign-out in one tab
+that the other tabs follow without a reload.
 
 ## Who owns what
 
@@ -14,6 +15,7 @@ the other tabs follow without a reload.
 | Who that principal is (`User`: `id`, `role`) | the application | `principalOf`, looked up from the session's subject |
 | Who may read a note, who may open the admin area | `foldkit-guard` | `G`, `Note`'s Read rule, `Me`'s `OpenAdmin` |
 | Who the page believes it is | the server, through Remote | the `Me` row, read like any other |
+| Which page a reader may be shown | `foldkit-site` | `NotesNode`'s `access`, asked by `accessOf` in `update` and in the host |
 | The sign-in form's draft, a line saying what failed | the application's Model | `email`, `password`, `notice` |
 
 The browser holds no session: the cookie is HttpOnly, and everything the page
@@ -35,6 +37,23 @@ Everything Remote holds was read as someone, so any change of principal
 forgets all of it. `update` does that in one place for both causes: this
 tab's own sign-in or sign-out, and another tab's broadcast.
 
+A page request is read the same way before it is drawn:
+
+```text
+GET /notes ─> page.ts: Data.satisfy over Remote.http to the auth server,
+                with the request's cookie, its origin and the CSRF header
+           ─> accessOf(model): Site.accessOf(AppSite, route, Me)
+                Denied({ url })  ─> 303 to /?returnTo=%2Fnotes, nothing rendered
+                Allowed, Pending ─> SSR renders the page from what was read
+browser    ─> SSR.hydrate starts from that Model; update asks accessOf after
+              every Message, and a Denied replaces the address (sign-out on /notes)
+```
+
+`access` is presentation, not authorization: a visitor sent to `/notes` by
+some other route still gets no notes, because the server's Read rule answers
+for them. `accessOf` is one function both sides ask, so the browser and the
+host cannot disagree on who may be shown a page.
+
 ## Run it
 
 ```bash
@@ -42,7 +61,8 @@ pnpm install
 pnpm --filter foldkit-example-auth dev
 ```
 
-Open <http://127.0.0.1:5176> and sign in as `ada@example.invalid` /
+Open <http://127.0.0.1:5176/notes>: as a visitor you land on the home page,
+and a sign-in goes on to the notes. Sign in as `ada@example.invalid` /
 `ada password` (an admin) or `grace@example.invalid` / `grace password` (a
 member). Open a second tab, sign out there, and the first drops to a visitor.
 
@@ -72,11 +92,20 @@ Read the files in this order.
    requests share one origin.
 4. [`src/app.ts`](src/app.ts). The Model, the Messages and `update`. `SignIn`
    and `SignOut` are Commands that run Yielded's client (`yield* AppClient`)
-   and answer with the application's Messages. `Session` reads `Me` and
-   `NoteList` the query, both always active. The `principal` Subscription
+   and answer with the application's Messages. `AppSite` holds two pages,
+   `Home` (with an optional `returnTo`) and `Notes`, whose `access` sends a
+   reader `Me` says is not signed in home; `accessOf` asks it, and `update`
+   replaces the address on `Denied`. `Session` reads `Me` on every page and
+   `NoteList` the query on the notes page. The `principal` Subscription
    turns another tab's post on `PRINCIPAL_CHANNEL` into a Message.
-5. [`src/view.ts`](src/view.ts) and [`src/client.ts`](src/client.ts). The page,
-   and the runtime with its two services: `Remote.http('/remote')`,
+5. [`src/page.ts`](src/page.ts) and [`src/entry.server.ts`](src/entry.server.ts).
+   The host: each page request is read as its cookie says, answered `303`
+   when `accessOf` refuses it, and otherwise rendered by `SSR.entry` from
+   that Model, so the decision and the page come from one read. A cookie the
+   server no longer holds reads nothing, and the browser reads again and
+   says why.
+6. [`src/view.ts`](src/view.ts) and [`src/client.ts`](src/client.ts). The page,
+   and `SSR.hydrate` with its two services: `Remote.http('/remote')`,
    sending Yielded's CSRF header through `belief.fetch`, and
    `AppClient.layerFetch`.
 
@@ -111,6 +140,8 @@ What some calls do, and do not:
 
 | What happens | What the page shows |
 | --- | --- |
+| A visitor asks for `/notes` | the host's `303` to `/?returnTo=%2Fnotes`; a sign-in goes on to the notes |
+| Signed out while on `/notes` | `update` replaces the address with the home page's |
 | A wrong password | the sign-in form, with "That email and password do not match." |
 | A sign-in or sign-out that fails otherwise (the network, the server) | "Could not sign in. Try again." (or sign out); after a failed sign-out the page asks `Me` again, as the server may have signed out |
 | Signed out in another tab | the broadcast: this tab forgets and reads `Me` again, as a visitor |
@@ -133,13 +164,19 @@ only for an `http:` origin.
   sign-in and sign-out routes: `Me` and the notes as a visitor, ada and grace,
   and a signed-out cookie refused.
 - `test/app.test.ts`: `update` on a change of principal, from a Model read as
-  ada through the server's handlers.
+  ada through the server's handlers, and the page `access` sends a reader
+  from.
+- `test/page.test.ts`: the host over the real server: a visitor's `303`, a
+  reader's notes rendered into the page, a session that ended left to the
+  browser.
 - `test/auth.mutations.ts`: `pnpm mutate examples/auth/test/auth.mutations.ts`
   breaks what `update` and the server decide in turn; what only a page shows
   is the e2e test's.
 - `e2e/auth.e2e.ts` (`pnpm e2e examples/auth`): two tabs of one Chromium,
-  sign-in, sign-out reaching the other tab, a member's notes, and the refusal
-  after a restart.
+  sign-in, sign-out reaching the other tab, a member's notes, the refusal
+  after a restart, the host's `303` and a sign-in returning to the notes, a
+  reader's notes in the page before any script runs, and a sign-out on
+  `/notes` replacing the address.
 
 ## Limits
 
@@ -147,6 +184,6 @@ only for an `http:` origin.
   seeded, lost on restart. A deployment uses its SQL persistence.
 - Remote's reads never renew the session: it ends an hour after its last
   renewal, however busy the page is. Yielded's `renewSession` is not wired.
-- Not yet here: a server render (SSR) signed in as the request's principal,
-  and a Sync socket opened with the session (`requests: 'browser'`). Both are
-  the next steps of auth-DESIGN §9, item 9.
+- The page server is Vite's dev server; there is no production host.
+- Not yet here: a Sync socket opened with the session (`requests: 'browser'`),
+  the next step of auth-DESIGN §9, item 9.
