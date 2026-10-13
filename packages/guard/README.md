@@ -422,6 +422,12 @@ It throws, naming each:
   it;
 - for a query listing such an Entity without the rule, and a query the server
   serves that the domain does not declare, whose Entity no one can name;
+- for a query whose body filters or orders by a member with a Read rule. A
+  row comes back without that member, but the query still answers for it: a
+  `cost < $max` halved twenty times reads the cost the row hid. This holds
+  whoever asks, since one body serves every principal. Where some readers
+  must filter by it, give the value an Entity of its own with a row Read
+  rule: a row a reader may not see is not in their list at all;
 - for a declared write of such an Entity that does not land through the
   `GuardServer.writer` built for it;
 - for a live Source of its own over such an Entity, whose stream nothing can

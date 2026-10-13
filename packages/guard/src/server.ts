@@ -6,7 +6,7 @@
  * brings the server along.
  */
 import { Effect, Match, Option, Schema } from 'effect'
-import type { AnyEntity } from 'foldkit-entity'
+import { Query, type AnyEntity, type AnyQuery } from 'foldkit-entity'
 import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
 import {
   RemoteServer,
@@ -549,10 +549,12 @@ export const GuardServer = {
    * query listing it apply its row's Read rules (`GuardDrizzle.visible`, or
    * `GuardServer.memory`), its Source applies its members' and relations'
    * (`GuardServer.filter`), and each declared write of it lands through
-   * `GuardServer.writer`, all built from `policy`. A hand-written Source over
-   * a guarded Entity would serve every row, and a bare writer would take every
-   * write; this throws instead, naming each. A handler (`RemoteServer.mutation`)
-   * writes what its code writes, which no check at startup can read.
+   * `GuardServer.writer`, all built from `policy`; and that no query's body
+   * filters or orders by a member with a Read rule, which would answer for the
+   * value it hides. A hand-written Source over a guarded Entity would serve
+   * every row, and a bare writer would take every write; this throws instead,
+   * naming each. A handler (`RemoteServer.mutation`) writes what its code
+   * writes, which no check at startup can read.
    *
    * ```ts
    * GuardServer.validate(Policy, { entities: [Todo, Project], domain: Data, server: Server })
@@ -564,7 +566,12 @@ export const GuardServer = {
       readonly entities: ReadonlyArray<AnyEntity>
       /** The Remote domain the server answers, for which Entity each query lists. */
       readonly domain: {
-        readonly registry: { readonly queries: ReadonlyMap<string, { readonly Result: unknown }> }
+        readonly registry: {
+          readonly queries: ReadonlyMap<
+            string,
+            { readonly Result: unknown; readonly body?: AnyQuery | undefined }
+          >
+        }
       }
       readonly server: ServerDefinition<any, any>
     },
@@ -611,6 +618,29 @@ export const GuardServer = {
                 : []
             },
           )
+          // A row the reader may see with a member it may not still answers a
+          // filter or an order on that member: `cost < $max`, halved twenty
+          // times, reads the cost the row came back without.
+          const bodyProblems = [...config.domain.registry.queries].flatMap(
+            ([queryName, { body }]) => {
+              if (body === undefined || body.entity.name !== name) return []
+              const { predicate, order } = Query.dependencies(body)
+              const hidden = (fields: typeof predicate) => [
+                ...new Set(
+                  fields.map(field => field.key).filter(key => readRuled(attachment, key)),
+                ),
+              ]
+              return [
+                ...hidden(predicate).map(
+                  member =>
+                    `query ${queryName} filters ${name} by ${member}, which has a Read rule`,
+                ),
+                ...hidden(order).map(
+                  member => `query ${queryName} orders ${name} by ${member}, which has a Read rule`,
+                ),
+              ]
+            },
+          )
           const writeProblems = [...config.server.mutations].flatMap(([mutation, source]) =>
             source.writes !== undefined &&
             source.writes.entity === name &&
@@ -650,6 +680,7 @@ export const GuardServer = {
           return [
             ...sourceProblems,
             ...queryProblems,
+            ...bodyProblems,
             ...writeProblems,
             ...sharedProblems,
             ...liveProblems,

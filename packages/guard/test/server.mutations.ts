@@ -315,4 +315,30 @@ export default [
     edits: [{ file, find: 'if (!byName.has(target))', replace: 'if (false)' }],
     tests,
   },
+  {
+    name: 'a body may filter by a hidden member',
+    edits: [{ file, find: '...hidden(predicate).map(', replace: '...hidden([]).map(' }],
+    tests,
+  },
+  {
+    name: 'a body may order by a hidden member',
+    edits: [{ file, find: '...hidden(order).map(', replace: '...hidden([]).map(' }],
+    tests,
+  },
+  {
+    name: 'every member a body reads is refused',
+    edits: [{ file, find: '.filter(key => readRuled(attachment, key))', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a body over another Entity is judged by this one',
+    edits: [
+      {
+        file,
+        find: 'if (body === undefined || body.entity.name !== name) return []',
+        replace: 'if (body === undefined) return []',
+      },
+    ],
+    tests,
+  },
 ]

@@ -528,6 +528,41 @@ describe('GuardServer.validate', () => {
     ).toThrow('query Extra is served, but the domain does not declare it')
   })
 
+  it('refuses a body that filters or orders by a member with a Read rule', () => {
+    // A row comes back without its notes, but `notes contains $text` still answers for them.
+    const ByNotes = Query.define('ByNotes', { text: Schema.String }, ({ input }) =>
+      Query.from(Todo).pipe(Query.where(Expr.contains(Todo.fields.notes, input.text))),
+    )
+    const ByEmail = Query.define('ByEmail', {}, () =>
+      Query.from(Todo).pipe(Query.orderBy(Order.asc(Todo.fields.email))),
+    )
+    const ByTitle = Query.define('ByTitle', { text: Schema.String }, ({ input }) =>
+      Query.from(Todo).pipe(
+        Query.where(Expr.contains(Todo.fields.title, input.text)),
+        Query.orderBy(Order.asc(Todo.fields.title)),
+      ),
+    )
+    // A title hidden on another Entity says nothing of a Todo's.
+    const Note = Entity.define(
+      'Note',
+      Schema.Struct({ id: Schema.String, title: Schema.String }),
+    ).pipe(Guards.attach(G, { members: { title: { Read: [G.isAdmin] } } }))
+    const validating =
+      (queries: ReadonlyArray<typeof ByNotes | typeof ByEmail | typeof ByTitle>) => () =>
+        GuardServer.validate(Policy, {
+          entities: [Todo, Project, Node, Note],
+          domain: Remote.define({
+            entities: [Todo, Project, Node, Tag, Note],
+            queries: [AllTodos, ...queries],
+          }),
+          server: backend(true),
+        })
+    expect(validating([ByTitle])).not.toThrow()
+    expect(validating([ByNotes, ByEmail])).toThrow(
+      'query ByNotes filters Todo by notes, which has a Read rule; query ByEmail orders Todo by email, which has a Read rule',
+    )
+  })
+
   it('refuses rules built from another Policy, or another set', () => {
     const Other = G.implement({ isAdmin: () => false })
     expect(() =>

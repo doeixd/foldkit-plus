@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-guard`: `GuardServer.validate` refuses a query body that filters
+  or orders by a member with a Read rule.** The row comes back without the
+  member, but which rows match, and in what order, still tells what it holds;
+  with comparisons a client could bisect it (`cost < $max`).
+
 - **`foldkit-entity`: `Expr.and`, `Expr.or` and `Expr.not`.** The connectives,
   with SQL's three-valued meaning: `or` takes true over unknown, `and` false,
   and `not` of an unknown stays unknown, so a null matches neither a
