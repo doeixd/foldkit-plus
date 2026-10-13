@@ -302,6 +302,17 @@ export default [
     tests,
   },
   {
+    name: 'a search finds a description only, not a UPC',
+    edits: [
+      {
+        file: '../src/operations.ts',
+        find: '          Expr.contains(fields.upc, input.search),\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the server does not filter by the search',
     edits: [
       {

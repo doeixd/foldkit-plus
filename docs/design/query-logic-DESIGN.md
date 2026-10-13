@@ -1,6 +1,8 @@
 # `and`, `or` and `not` in queries
 
-> Status 2026-10-12: proposed, not built. This document is the plan.
+> Status 2026-10-12: phases 1 to 4 built. The IR, the evaluator, the Drizzle
+> compiler and the registry's search; `Expr.whenGiven` added (below). Open:
+> phase 5 (Guard) and phase 6 (comparisons), each waiting for its reason.
 
 A query body can say "every one of these holds" today, and nothing else. This
 adds the other two connectives, `or` and `not`, and an `and` that can sit
@@ -20,7 +22,10 @@ Phase 13's members"). Two exist now:
   `description` *or* `upc` contains the text.
 - **An optional filter.** "Only this status, if one is chosen" has no spelling
   today except two query bodies. With `or` it is one:
-  `or(isNull($status), eq(status, $status))`.
+  `or(isNull($status), eq(status, $status))`, written
+  `Expr.whenGiven(input.status, status => Expr.eq(fields.status, status))`,
+  since `eq` refuses a nullable input against a field that is never null, and
+  inside the `or` the input is never null whenever the comparison decides.
 
 And Guard already built a boolean algebra of its own because `Expr` had none:
 `Condition` (`packages/guard/src/condition.ts`) holds row guards under
@@ -205,8 +210,7 @@ each test is shown to fail by a mutation spec.
    lands.
 4. **The adopters.** The registry's search becomes `description` or `upc`, with
    a test that finds a product by its UPC, which it could not before; one
-   optional filter written as
-   `or(isNull($x), eq(field, $x))` with a test of the compiled SQL in both
+   optional filter, `Expr.whenGiven`, with a test of the compiled SQL in both
    cases. Docs: the Entity README's operator table (and its "no `Expr.and`"
    paragraph), the skill's Entity and Remote references, data-query-DESIGN's
    "There is no `and` and no `or`" status, and the changelog.

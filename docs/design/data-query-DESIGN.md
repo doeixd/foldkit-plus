@@ -3398,10 +3398,11 @@ operation and nothing nested, and wrong the moment `isNotNull` had to sit
 inside `eq`. **Expect a third shape**, and treat the current split as
 provisional rather than settled.
 
-**There is no `and` and no `or`.** A `Query` holds a list of predicates and the
-list *is* the conjunction, which is why no `and` was ever needed — including by
-the worklist, which the plan expected to force one. `or` has no caller yet. It
-would be an ordinary node when one appears; the conjunction-as-list stays.
+**`and`, `or` and `not` are built** (2026-10-12,
+[query-logic-DESIGN.md](./query-logic-DESIGN.md)): the registry's search over a
+description or a UPC was the query that opened `or`. A `Query` still holds a
+list of predicates, and the list is still the conjunction; `and` is for one
+nested inside something else.
 
 ### What would open each of Phase 13's members
 

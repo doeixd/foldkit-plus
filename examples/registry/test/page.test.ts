@@ -1410,7 +1410,7 @@ test('a fill is one edit of the cells it writes, and one step to undo', async ()
   }
 })
 
-test('a search is the query’s input: the server filters every product, case folded', async () => {
+test('a search is the query’s input: the server filters every product by description or UPC, case folded', async () => {
   const { dispose, latest } = await mount(serve(), memoryStorage())
   const search = (text: string) => {
     const box = document.querySelector<HTMLInputElement>('#search')!
@@ -1430,6 +1430,9 @@ test('a search is the query’s input: the server filters every product, case fo
     expect(descriptions().every(text => text.includes('Dowel'))).toBe(true)
     // Read from the server's filter, not the page loaded: a page of matches.
     expect(loaded(latest())).toBe(100)
+    // A UPC is searched too: twelve digits no description holds, so one product.
+    search(seedOf(7).upc)
+    await vi.waitFor(() => expect(descriptions()).toEqual([seedOf(7).description]))
     search('')
     await vi.waitFor(() => expect(cell(productId(0), 'upc')?.textContent).toBe(seedOf(0).upc))
   } finally {

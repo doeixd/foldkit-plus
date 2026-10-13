@@ -16,16 +16,22 @@ const { fields } = Registry.Product
 
 /**
  * The body is the filter and the order, compiled by the server's Drizzle
- * binding: a search folds case, ASCII only, the same in SQLite and Postgres,
- * and `sort` picks the column, or none for the server's id order. The client
- * reads the same body, so it knows which edits can move a row.
+ * binding: a search finds the text in a description or a UPC, folding case,
+ * ASCII only, the same in SQLite and Postgres, and `sort` picks the column, or
+ * none for the server's id order. The client reads the same body, so it knows
+ * which edits can move a row.
  */
 export const ProductsQuery = Query.define(
   'Products',
   { sort: ProductSort.Schema, search: Schema.String },
   ({ input }) =>
     Query.from(Registry.Product).pipe(
-      Query.where(Expr.contains(fields.description, input.search)),
+      Query.where(
+        Expr.or(
+          Expr.contains(fields.description, input.search),
+          Expr.contains(fields.upc, input.search),
+        ),
+      ),
       Query.orderBy(
         Order.chosen(input.sort, {
           upc: fields.upc,
