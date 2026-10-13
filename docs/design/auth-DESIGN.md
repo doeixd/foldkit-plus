@@ -1,10 +1,10 @@
 # Authentication: Yielded Auth in Foldkit Plus
 
-**Status:** Proposed, 2026-10-13; step 0 built the same day (§3, §9), and §10's questions settled. Nothing in §5 onwards is built. §2 and §3 record what was measured on that date: an inventory of every principal seam, an Effect 4.0.4 run of the whole repository, and a probe that served a guarded Remote read under a Yielded session.
+**Status:** Partly built. Step 0, slices 1–5 and slice 6's resolver are built (§9, each with an *As built* note); the rest of slice 6 and slices 7–10 are not. §10's questions are settled. §2 and §3 record what was measured on that date: an inventory of every principal seam, an Effect 4.0.4 run of the whole repository, and a probe that served a guarded Remote read under a Yielded session.
 **Target:** a new package, `foldkit-auth`, over [Yielded Auth](https://github.com/yielded-dev/auth) (`@yielded/auth`, `0.1.0-beta.38`); small changes in `foldkit-remote-server`, `foldkit-remote`, `foldkit-remote-drizzle`, `foldkit-sync`, `foldkit-ssr`, `foldkit-agent-mcp`, `foldkit-site` and `foldkit-guard`.
 **Related:** [guard-DESIGN.md](./guard-DESIGN.md) (§6.5 `G.Principal`, §8a the `Me` Entity, §8b agents, §8c Sync), [router-DESIGN.md](./router-DESIGN.md) §25 (route guards are presentation), [server-DESIGN.md](./server-DESIGN.md) §19.5 (principal and CSRF middleware per host), [TODO.md](./TODO.md).
 
-Snippets in §5 to §8 are sketches of an API that does not exist yet. The only code here that ran is §3's probe.
+Snippets in §5 to §8 are sketches; where an *As built* note differs, the note is what exists.
 
 ---
 
@@ -219,7 +219,7 @@ For a socket, `Auth.socket` reads the session cookie (same origin) or an `Author
 
 Workers: per-request SQL and a per-request `Proofs.ProofRequestContext` (there is no socket peer for Yielded's proof rate limiter) are the application's, as Yielded documents; `Auth.fetch` takes the per-request Layer.
 
-*As built (slice 6, the resolver):* `AuthServer.resolver({ auth, http, principal })` in `foldkit-auth/server`, a `resolvePrincipal` for `serveFetch`; tested against Yielded's own sign-in route and Testing Layer. Three departures from the sketch. There is no `Auth.remote` or `Auth.fetch`: `serveFetch` is already the endpoint, and a wrapper that only passes `resolvePrincipal` through would be a second way to build it. It does not run Yielded's HTTP stack (`http.withRequest`, `beforeMutation`): it names the cookie from the same `http` options and verifies it with `auth.verifySession`, so a host's `layer` needs `AppAuth` and nothing of Yielded's HTTP. And the Origin and CSRF check applies to every Remote request, reads too, with a failure answered as a visitor rather than refused: a request that cannot show it came from the application is simply not authenticated by its cookie, which is what a cross-site page should get, while a client of the application's own that sends `x-foldkit-subject` is told why (`The request did not show it came from this application.`). Two session cookies are refused (`Sign in again.`) rather than one picked. `same`/`Policy.keyOf` need nothing here: `revalidate` is the host's, given the same resolver.
+*As built (slice 6, the resolver):* `AuthServer.resolver({ auth, http, principal })` in `foldkit-auth/server`, a `resolvePrincipal` for `serveFetch`; tested against Yielded's own sign-in route and Testing Layer. Three departures from the sketch. There is no `Auth.remote` or `Auth.fetch`: `serveFetch` is already the endpoint, and a wrapper that only passes `resolvePrincipal` through would be a second way to build it. It does not run Yielded's HTTP stack (`http.withRequest`, `beforeMutation`): it names the cookie from the same `http` options and verifies it with `auth.verifySession`, so a host's `layer` needs `AppAuth` and nothing of Yielded's HTTP. And the Origin and CSRF check applies to every Remote request, reads too, and a cookie on a request that fails it is refused (`The request did not show it came from this application.`), as rule 1 asks of any credential sent: a first cut answered it as a visitor, which a cross-site page cannot tell from a refusal anyway, but which let a client of the application's own that forgot the header read and tombstone as nobody. Two session cookies are refused (`Sign in again.`) rather than one picked. The resolver verifies and never renews, so Remote's traffic does not extend a session's idle timeout; the README says so. `http`'s origins are checked when the resolver is built, as `Http.make` checks them. `same`/`Policy.keyOf` need nothing here: `revalidate` is the host's, given the same resolver.
 
 ### 6.3 Why reuse Yielded's CSRF check
 
@@ -280,12 +280,12 @@ Yielded expresses "this action needs a recent second factor" as `requireAssuranc
 | Cause | Server | Client |
 | --- | --- | --- |
 | No session cookie | answered as the visitor | `Me.signedIn` false; guarded rows absent, as for any visitor |
-| A session cookie that no longer verifies (expired, revoked) | 401 `Unauthenticated` | `RemoteUnauthenticated`; `Session.lost` fires; nothing is tombstoned |
+| A session cookie that no longer verifies (expired, idle, revoked) | 401 `Unauthenticated` | `RemoteUnauthenticated`; `Session.lost` fires (slice 8); nothing is tombstoned |
 | `x-foldkit-subject` names another subject (sign-out or switch in another tab) | 401 `Unauthenticated`, `changed` | the same; `forget` and read `Me` again |
 | Session storage unavailable | 500, no detail | `Failed` with a generic error; retry is recovery |
-| A mutation without a trusted Origin or the CSRF header | Yielded's check refuses (`HookDenied`), answered 403 | `Failed` with `Forbidden` |
+| A request with a session cookie but without a trusted Origin and the CSRF header | 401 `Unauthenticated` (as built, §6.2: every call kind, not only mutations) | as a lost session |
 | A live stream's session revoked | the stream ends `Unauthenticated` within one `revalidate` interval | as a lost session |
-| A Sync socket's session revoked | closed with 4401 within one interval | the transport stops reconnecting as that principal and reports it |
+| A Sync socket's session revoked | closed with 4401 within one interval | planned (slice 8): today the transport ignores the close code and reconnects, each upgrade a 401 |
 | Wrong password, expired code | Yielded's typed failure (`PasswordRejected`, …) | the Command's failure Message |
 
 ---
@@ -333,4 +333,4 @@ Settled 2026-10-13 by the project's owner ("go with your leanings").
 
 Still open:
 
-6. **`revalidate`'s interval.** Sixty seconds bounds how long a revoked session keeps a live stream; a shorter interval costs one session read per connection per interval. As built there is no default: the host names `every`, and `foldkit-auth/server` (slice 6) picks one for the hosts it builds.
+6. **`revalidate`'s interval.** Sixty seconds bounds how long a revoked session keeps a live stream; a shorter interval costs one session read per connection per interval. As built there is no default: the host names `every`. `foldkit-auth/server` builds no host, so it picks none either.

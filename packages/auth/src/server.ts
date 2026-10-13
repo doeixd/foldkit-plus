@@ -47,17 +47,27 @@ const cookieValues = (header: string | null, name: string): ReadonlyArray<string
 
 const refuse = (reason: string) => new RemoteUnauthenticated({ message: reason, reason })
 
+/** Refuses a request whose `x-foldkit-subject` names someone other than `subject`. */
+const checkBelieved = (request: Request, subject: Option.Option<string>) => {
+  const believed = request.headers.get(SUBJECT_HEADER)
+  return believed === null || believed === subjectSaid(subject)
+    ? Effect.void
+    : refuse('Who is signed in changed.')
+}
+
+const asVisitor = (request: Request) =>
+  Effect.as(checkBelieved(request, Option.none()), Option.none())
+
 export const AuthServer = {
   /**
    * Who a request is, from its Yielded session cookie, for `serveFetch`'s
-   * `resolvePrincipal` and any host that answers a `Request`. No cookie is a
-   * visitor (`Option.none()`). A cookie is only read from a request that
-   * shows it came from the application, as Yielded's own mutations must
-   * (an `Origin` it trusts and its CSRF header): any other is answered as a
-   * visitor, so a page elsewhere borrows no one's session. A cookie that no
-   * longer verifies is refused, as is a request whose `x-foldkit-subject`
-   * names someone the server would not answer as. A session store that
-   * fails is a defect, never a visitor.
+   * `resolvePrincipal`. No cookie is a visitor (`Option.none()`). A cookie is
+   * used only from a request that shows it came from the application, as
+   * Yielded's own mutations must (an `Origin` it trusts and its CSRF header);
+   * from any other, it is refused, as is a cookie that no longer verifies, two
+   * of them, or an `x-foldkit-subject` naming someone else. A session store
+   * that fails is a defect, never a visitor. Throws when `http` names an
+   * origin that is not one.
    *
    * ```ts
    * serveFetch({
@@ -71,54 +81,48 @@ export const AuthServer = {
    * })
    * ```
    */
-  resolver:
-    <I, S extends VerifiedSession, User, R = never>(config: {
-      readonly auth: Context.Key<I, SessionVerifier<S>>
-      readonly http: HttpOptions
-      /** The application's principal for a verified session; it may refuse it. */
-      readonly principal: (session: S) => Effect.Effect<User, RemoteUnauthenticated, R>
-    }) =>
-    (request: Request): Effect.Effect<Option.Option<User>, RemoteUnauthenticated, I | R> => {
-      const name = sessionCookieName(config.http)
-      const trusted = new Set([config.http.origin, ...(config.http.trustedOrigins ?? [])])
-      const csrf = config.http.csrf ?? { header: 'x-effect-auth-csrf', value: '1' }
-      return Effect.gen(function* () {
+  resolver: <I, S extends VerifiedSession, User, R = never>(config: {
+    readonly auth: Context.Key<I, SessionVerifier<S>>
+    readonly http: HttpOptions
+    /** The application's principal for a verified session; it may refuse it. */
+    readonly principal: (session: S) => Effect.Effect<User, RemoteUnauthenticated, R>
+  }): ((request: Request) => Effect.Effect<Option.Option<User>, RemoteUnauthenticated, I | R>) => {
+    const name = sessionCookieName(config.http)
+    const trusted = new Set([config.http.origin, ...(config.http.trustedOrigins ?? [])])
+    for (const origin of trusted) {
+      // What Http.make refuses too: an Origin header is exactly `URL.origin`, so
+      // anything else (`null`, a trailing slash) trusts what no browser sends,
+      // or what a sandboxed page does.
+      if (!URL.canParse(origin) || new URL(origin).origin !== origin)
+        throw new Error(`AuthServer.resolver: ${JSON.stringify(origin)} is not an origin`)
+    }
+    const csrf = config.http.csrf ?? { header: 'x-effect-auth-csrf', value: '1' }
+    return request =>
+      Effect.gen(function* () {
         const credentials = cookieValues(request.headers.get('cookie'), name)
-        if (credentials.length > 1) return yield* refuse('Sign in again.')
-        const fromApplication =
-          trusted.has(request.headers.get('origin') ?? '') &&
-          request.headers.get(csrf.header) === csrf.value
-        const credential = fromApplication ? credentials[0] : undefined
-        const auth = yield* config.auth
-        const session =
-          credential === undefined
-            ? Option.none<S>()
-            : Option.some(
-                yield* auth.verifySession(Redacted.make(credential)).pipe(
-                  Effect.catchTag('SessionInvalid', () => refuse('Your session ended.')),
-                  // Anything else is the session store failing, not the caller.
-                  Effect.catchIf(
-                    (error): error is Exclude<typeof error, RemoteUnauthenticated> =>
-                      !(error instanceof RemoteUnauthenticated),
-                    Effect.die,
-                  ),
-                ),
-              )
-        const believed = request.headers.get(SUBJECT_HEADER)
+        if (credentials.length === 0) return yield* asVisitor(request)
+        // A cookie rides along with any request to the site; only one that
+        // shows it came from the application may use it, as Yielded's own
+        // mutations must. Refused rather than answered as a visitor, so a
+        // client that forgot the header learns it at once.
         if (
-          believed !== null &&
-          believed !== subjectSaid(Option.map(session, ({ subjectId }) => subjectId))
-        ) {
-          return yield* refuse(
-            credentials.length > 0 && !fromApplication
-              ? 'The request did not show it came from this application.'
-              : 'Who is signed in changed.',
-          )
-        }
-        return yield* Option.match(session, {
-          onNone: () => Effect.succeed(Option.none<User>()),
-          onSome: verified => Effect.map(config.principal(verified), Option.some),
-        })
+          !trusted.has(request.headers.get('origin') ?? '') ||
+          request.headers.get(csrf.header) !== csrf.value
+        )
+          return yield* refuse('The request did not show it came from this application.')
+        if (credentials.length > 1) return yield* refuse('Sign in again.')
+        const auth = yield* config.auth
+        const session = yield* auth.verifySession(Redacted.make(credentials[0]!)).pipe(
+          Effect.catchTag('SessionInvalid', () => refuse('Your session ended.')),
+          // Anything else is the session store failing, not the caller.
+          Effect.catchIf(
+            (error): error is Exclude<typeof error, RemoteUnauthenticated> =>
+              !(error instanceof RemoteUnauthenticated),
+            Effect.die,
+          ),
+        )
+        yield* checkBelieved(request, Option.some(session.subjectId))
+        return Option.some(yield* config.principal(session))
       })
-    },
+  },
 }

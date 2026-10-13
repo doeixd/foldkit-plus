@@ -238,6 +238,15 @@ orders the slices; step 0, slices 1–5 and slice 6's resolver are built.
 - [ ] **6b. The socket resolver** for `defineDocumentHost` (Origin only, as a
   browser `WebSocket` sends no header), and SSR's posted-form Origin check.
   §6.2, §5.4
+- [ ] **The client acts on a refusal.** A 4401 close makes Sync's transport
+  stop reconnecting (today every close code reconnects, each upgrade a 401); a
+  refused live stream stops restarting until `forget`; a typed predicate for
+  `Unauthenticated`, since a Model's `RemoteError` is `{ _tag: string }`.
+  With slice 8. §5.3, §7
+- [ ] **Left from §6.2's sketch, undecided:** a 415 for a body that is not
+  `application/json`; `Auth.ssr`, a render's principal; Presence's `peerId`
+  as the principal's key; §5.1's Context-key option for `serveFetch`. Each
+  waits for a consumer.
 - [ ] **7. `Me`.** §6.1
 - [ ] **8. `foldkit-auth/client`.** §6.4
 - [ ] **9. An example, with an e2e test.** §9

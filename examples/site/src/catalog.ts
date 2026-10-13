@@ -155,7 +155,8 @@ export const subsites: ReadonlyArray<Subsite> = [
   family({
     id: 'auth',
     title: 'Auth',
-    tagline: 'Who is signed in: a Yielded Auth session as the principal every host answers as.',
+    tagline:
+      'Who is signed in: a Yielded Auth session as the principal a Remote server answers as.',
     owner: 'Yielded Auth, through its session',
     shelf: 'Data',
     packages: ['auth'],

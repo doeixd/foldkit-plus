@@ -705,6 +705,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   console: construct the worker in a probe page and read its `error` event's
   `filename`. A package with a `worker` export is fixed by adding `worker` to
   `resolve.conditions`.
+- **A browser `WebSocket` sends no header of yours.** Its constructor takes
+  a URL and subprotocols only, so a CSRF header (`x-effect-auth-csrf`) that
+  every Remote POST carries never reaches a Sync upgrade; a resolver asking
+  for one answers every socket as a visitor. Check `Origin` alone there (the
+  browser always sends it on an upgrade), or a credential in a subprotocol.
 - **An adapter's library is a peer, not a dependency.** `foldkit-remote-drizzle`
   depended on `drizzle-orm`, so an application whose Drizzle resolved with
   other optional peers (it had `@effect/sql-sqlite-wasm`) got a second copy,
@@ -804,7 +809,8 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 foldkit pins `effect@4.0.0` exactly; this repository runs `4.0.4` (Yielded Auth's
 peer is `^4.0.3`) through `pnpm.peerDependencyRules` and `pnpm.overrides` in the root
-`package.json`, and keeps its packages' peer at `^4.0.0`.
+`package.json`, and keeps its packages' peer at `^4.0.0` (`foldkit-auth`,
+which peers Yielded, at `^4.0.4`).
 Within 4.0.x, `Crypto.randomUUIDv4` became a function: `yield*
 crypto.randomUUIDv4()`. Since 4.0.0 there is no
 `effect/unstable/*`: import `effect/http`, `effect/persistence`, `effect/rpc`,

@@ -1,7 +1,8 @@
 # foldkit-auth
 
 A [Yielded Auth](https://github.com/yielded-dev/auth) session read from a
-request and handed to a Foldkit Plus host as its principal. The design and
+request and handed to `serveFetch` as its principal (only `serveFetch` so far:
+Sync's socket cannot send the CSRF header it asks for). The design and
 its reasons are
 [auth-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/auth-DESIGN.md).
 
@@ -15,7 +16,9 @@ owns who a session is in its terms; `foldkit-guard` owns who may do what.
 ## Basic use
 
 ```ts
+import { Effect } from 'effect'
 import { AuthServer } from 'foldkit-auth/server'
+import { Remote } from 'foldkit-remote'
 import { serveFetch } from 'foldkit-remote-server/fetch'
 
 const http = { origin: 'https://app.example' } as const // the options given Http.make(AppAuth, http)
@@ -28,6 +31,11 @@ export const remote = serveFetch({
     principal: session => Effect.succeed({ id: session.subjectId }),
   }),
   layer: () => AppAuthLive, // AppAuth.layer, with its persistence
+})
+
+// the client: Origin comes with every POST; the CSRF header is yours to send
+const transport = Remote.httpWithLive('/remote', {
+  headers: () => ({ 'x-effect-auth-csrf': '1' }),
 })
 ```
 
@@ -44,7 +52,7 @@ export const remote = serveFetch({
 | Request | Answer |
 | --- | --- |
 | No session cookie | visitor |
-| A cookie without a trusted `Origin` and the CSRF header (`x-effect-auth-csrf: 1`) | visitor |
+| A cookie without a trusted `Origin` and the CSRF header (`x-effect-auth-csrf: 1`) | 401 `The request did not show it came from this application.` |
 | A cookie that no longer verifies | 401 `Your session ended.` |
 | Two session cookies | 401 `Sign in again.` |
 | `x-foldkit-subject` naming someone else | 401 `Who is signed in changed.` |
@@ -54,6 +62,13 @@ A 401 reaches the client as `RemoteUnauthenticated` (`_tag: 'Unauthenticated'`)
 on every Remote call kind.
 
 ## Gotchas
+
+- Remote's calls verify a session and never renew it: a session with an
+  `idleTimeout` ends that long after its last renewal. Renew through Yielded
+  (`renewSession`) while the reader is active.
+- An application needs Foldkit's exact `effect: 4.0.0` peer allowed
+  (`pnpm.peerDependencyRules.allowedVersions: { "foldkit>effect": "4.0.4" }`),
+  since Yielded needs 4.0.3 or later.
 
 - `x-foldkit-subject` (`SUBJECT_HEADER` from `foldkit-auth`, browser-safe) is
   `subjectSaid(Option.none())` (`visitor`) or

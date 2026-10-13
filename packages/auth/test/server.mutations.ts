@@ -19,18 +19,44 @@ export default [
   },
   {
     name: 'a cookie is read from any Origin',
-    edits: [{ file, find: "trusted.has(request.headers.get('origin') ?? '') &&", replace: '' }],
+    edits: [{ file, find: "!trusted.has(request.headers.get('origin') ?? '') ||", replace: '' }],
     tests,
   },
   {
     name: 'a cookie is read without the CSRF header',
     edits: [
-      { file, find: '&&\n          request.headers.get(csrf.header) === csrf.value', replace: '' },
+      { file, find: '||\n          request.headers.get(csrf.header) !== csrf.value', replace: '' },
     ],
     tests,
   },
   {
-    name: 'a session that no longer verifies is a visitor',
+    name: 'a cookie from a request that did not show its origin is a visitor',
+    edits: [
+      {
+        file,
+        find: "return yield* refuse('The request did not show it came from this application.')",
+        replace: 'return yield* asVisitor(request)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'only the application’s own origin is trusted',
+    edits: [{ file, find: '...(config.http.trustedOrigins ?? [])', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a CSRF header of its own is ignored',
+    edits: [{ file, find: 'config.http.csrf ??', replace: '' }],
+    tests,
+  },
+  {
+    name: 'any origin is trusted as written',
+    edits: [{ file, find: 'new URL(origin).origin !== origin', replace: 'false' }],
+    tests,
+  },
+  {
+    name: 'a session that no longer verifies is a defect',
     edits: [
       {
         file,
@@ -41,13 +67,26 @@ export default [
     tests,
   },
   {
-    name: 'what the client believes is not checked',
-    edits: [{ file, find: 'believed !== null &&', replace: 'false &&' }],
+    name: 'a session store that fails reads as a refusal',
+    edits: [{ file, find: 'Effect.die,', replace: "() => refuse('Your session ended.')," }],
     tests,
   },
   {
-    name: 'a refusal never says the origin was missing',
-    edits: [{ file, find: 'credentials.length > 0 && !fromApplication', replace: 'false' }],
+    name: 'what a signed-in client believes is not checked',
+    edits: [
+      { file, find: 'yield* checkBelieved(request, Option.some(session.subjectId))', replace: '' },
+    ],
+    tests,
+  },
+  {
+    name: 'what a visitor believes is not checked',
+    edits: [
+      {
+        file,
+        find: 'Effect.as(checkBelieved(request, Option.none()), Option.none())',
+        replace: 'Effect.succeed(Option.none())',
+      },
+    ],
     tests,
   },
   {
@@ -55,8 +94,8 @@ export default [
     edits: [
       {
         file,
-        find: 'onSome: verified => Effect.map(config.principal(verified), Option.some),',
-        replace: 'onSome: () => Effect.succeed(Option.none<User>()),',
+        find: 'return Option.some(yield* config.principal(session))',
+        replace: 'return Option.some(session.subjectId as never)',
       },
     ],
     tests,
@@ -64,11 +103,6 @@ export default [
   {
     name: 'the cookie is named without its prefix',
     edits: [{ file, find: "'__Host-' : '__Secure-'", replace: "'' : ''" }],
-    tests,
-  },
-  {
-    name: 'a session store that fails reads as a visitor',
-    edits: [{ file, find: 'Effect.die,', replace: '() => Effect.succeed(Option.none<S>()),' }],
     tests,
   },
   {

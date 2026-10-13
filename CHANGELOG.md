@@ -14,10 +14,11 @@ version changed; `pnpm` skips versions already in the registry.
   is a `resolvePrincipal` for `serveFetch`: it reads the session cookie Yielded
   set (named from the same `Http.make` options), verifies it with the
   application's `Auth` service, and builds the principal with the
-  application's `principal`. No cookie, or a request without a trusted
-  `Origin` and Yielded's CSRF header, is a visitor; a cookie that no longer
-  verifies, two session cookies, or an `x-foldkit-subject` header naming
-  someone else is a 401 `Unauthenticated`; `SUBJECT_HEADER` and `subjectSaid`,
+  application's `principal`. No cookie is a visitor; a cookie on a request
+  without a trusted `Origin` and Yielded's CSRF header, a cookie that no
+  longer verifies, two session cookies, or an `x-foldkit-subject` header
+  naming someone else is a 401 `Unauthenticated`; `http` naming something
+  that is not an origin throws at once; `SUBJECT_HEADER` and `subjectSaid`,
   from `foldkit-auth`, are what a client sends. Also re-exported as
   `foldkit-plus/auth` and `foldkit-plus/auth/server`, an optional peer.
 
@@ -34,7 +35,8 @@ version changed; `pnpm` skips versions already in the registry.
   closes the socket with 4401, and a principal `same` says changed ends the
   stream as a live error, or closes the socket with 1012, to be opened again
   as the new principal. A revoked session stops being served within one
-  interval.
+  interval; the clients do not yet tell these closes apart, so a replica
+  reconnects after a 4401 too, and is refused at the upgrade.
 
 - **`foldkit-guard`: `Policy.provide(context)`,** a Policy whose bodies have
   the services they need provided, for the read seams
@@ -101,7 +103,7 @@ version changed; `pnpm` skips versions already in the registry.
   throw used to be a 401 carrying its message. Wrap a plain value:
   `resolvePrincipal: request => Effect.succeed(actorOf(request))`.
 - **Built and tested on Effect 4.0.4.** The packages' peer stays
-  `effect: ^4.0.0`. Foldkit's own peer is exactly `4.0.0`, so an application
+  `effect: ^4.0.0`, except `foldkit-auth`'s `^4.0.4`, since Yielded needs it. Foldkit's own peer is exactly `4.0.0`, so an application
   on 4.0.4 (which Yielded Auth's `^4.0.3` needs) allows it the way the root
   `package.json` does: `pnpm.peerDependencyRules.allowedVersions` for
   `foldkit>effect`, and an override of `foldkit>@effect/platform-browser`.

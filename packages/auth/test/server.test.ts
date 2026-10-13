@@ -171,12 +171,21 @@ describe('AuthServer.resolver over a real Yielded session', () => {
     expect(await whoami(fromApplication)).toEqual({ status: 200, who: 'visitor' })
   })
 
+  it('answers a request with no cookie and no proof of origin as a visitor', async () => {
+    expect(await whoami({})).toEqual({ status: 200, who: 'visitor' })
+  })
+
   it.each([
     ['no Origin it trusts', { origin: 'https://elsewhere.test', 'x-effect-auth-csrf': '1' }],
+    ['no Origin', { 'x-effect-auth-csrf': '1' }],
     ['no CSRF header', { origin: 'https://app.test' }],
-  ])('answers a cookie from a request with %s as a visitor', async (_, headers) => {
+    ['the wrong CSRF value', { origin: 'https://app.test', 'x-effect-auth-csrf': '0' }],
+  ])('refuses a cookie from a request with %s', async (_, headers) => {
     const cookie = await signIn()
-    expect(await whoami({ ...headers, cookie })).toEqual({ status: 200, who: 'visitor' })
+    expect(await whoami({ ...headers, cookie })).toEqual({
+      status: 401,
+      reason: 'The request did not show it came from this application.',
+    })
   })
 
   it('refuses a cookie that no longer verifies', async () => {
@@ -210,14 +219,6 @@ describe('AuthServer.resolver over a real Yielded session', () => {
     ).toEqual({ status: 200, who: 'ada' })
   })
 
-  it('tells a client of its own whose request did not show its origin why', async () => {
-    const cookie = await signIn()
-    expect(await whoami({ cookie, [SUBJECT_HEADER]: subjectSaid(Option.some('ada')) })).toEqual({
-      status: 401,
-      reason: 'The request did not show it came from this application.',
-    })
-  })
-
   it('refuses two session cookies', async () => {
     const cookie = await signIn()
     expect(await whoami({ ...fromApplication, cookie: `${cookie}; ${cookie}` })).toEqual({
@@ -237,7 +238,12 @@ const verifier = (failure: Auth.SessionApiError) =>
         : Effect.fail(failure),
   })
 
-const resolve = (options: HttpOptions, cookie: string, failure: Auth.SessionApiError) =>
+const resolve = (
+  options: HttpOptions,
+  cookie: string,
+  failure: Auth.SessionApiError,
+  headers: Record<string, string> = fromApplication,
+) =>
   Effect.runPromiseExit(
     AuthServer.resolver({
       auth: Verifier,
@@ -245,7 +251,7 @@ const resolve = (options: HttpOptions, cookie: string, failure: Auth.SessionApiE
       principal: session => Effect.succeed(session.subjectId),
     })(
       new Request('https://app.test/remote', {
-        headers: { ...fromApplication, cookie },
+        headers: { ...headers, cookie },
       }),
     ).pipe(Effect.provide(verifier(failure))),
   )
@@ -270,4 +276,44 @@ describe('AuthServer.resolver', () => {
     const exit = await resolve(options, `${name}=good`, new Sessions.SessionInvalid())
     expect(exit).toEqual(Exit.succeed(Option.some('ada')))
   })
+  it.each([
+    [
+      'another origin it trusts',
+      { trustedOrigins: ['https://admin.test'] },
+      'https://admin.test',
+      'x-effect-auth-csrf',
+      '1',
+    ],
+    [
+      'a CSRF header of its own',
+      { csrf: { header: 'x-app', value: 'yes' } },
+      'https://app.test',
+      'x-app',
+      'yes',
+    ],
+  ] as const)(
+    'reads the cookie from a request with %s',
+    async (_, options, origin, header, value) => {
+      const exit = await resolve(
+        { ...http, ...options },
+        '__Host-effect-auth-session=good',
+        new Sessions.SessionInvalid(),
+        { origin, [header]: value },
+      )
+      expect(exit).toEqual(Exit.succeed(Option.some('ada')))
+    },
+  )
+
+  it.each([['null'], ['https://app.test/'], ['app.test']])(
+    'throws for %s, which is not an origin',
+    origin => {
+      expect(() =>
+        AuthServer.resolver({
+          auth: Verifier,
+          http: { origin },
+          principal: session => Effect.succeed(session.subjectId),
+        }),
+      ).toThrow('is not an origin')
+    },
+  )
 })
