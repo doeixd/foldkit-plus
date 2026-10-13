@@ -13,3 +13,11 @@
  * resulting `Agent.Definition`. `update` remains the single source of truth.
  */
 export * as Agent from './agent.js'
+export type {
+  AnyCapabilitiesByName,
+  AnyCapabilitiesByTag,
+  CapabilitiesByName,
+  CapabilitiesByTag,
+} from './expose.js'
+export type { DefinitionOf } from './make.js'
+export type { AnyCompletion } from './types.js'

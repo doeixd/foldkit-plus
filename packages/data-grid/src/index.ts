@@ -8,6 +8,7 @@ export {
   type ColumnEdit,
   type ColumnId,
   type ColumnSpec,
+  type EditableId,
 } from './columns.js'
 export { DataGrid, type DataGridOf } from './grid.js'
 export { GridFocus, type Direction, type KeyOptions } from './focus.js'

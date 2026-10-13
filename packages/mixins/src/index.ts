@@ -40,7 +40,11 @@ export type {
   NamedBehavior,
   SlotRequirements,
 } from './behavior.js'
-export type { Any as AnyCapability, Satisfies } from './capability.js'
+export type {
+  Any as AnyCapability,
+  Capability as CapabilityShape,
+  Satisfies,
+} from './capability.js'
 export type {
   Contribution,
   ContributionContext,
@@ -56,11 +60,19 @@ export type { EventToken } from './event.js'
 export type { AnyMixin, Mixin as MixinValue, MixinFor, StaticMixin } from './mixin.js'
 export type { RequirementToken } from './requirement.js'
 export type { ResolveOptions, SlotAttributes } from './resolver.js'
-export type { SlotProtection, UnnamedSlot } from './slot.js'
+export type {
+  AttributeName,
+  EventName,
+  HiddenOf,
+  RequirementName,
+  SlotProtection,
+  UnnamedSlot,
+} from './slot.js'
 export type {
   MessageSlotView,
   SlotBuilder,
   SlotBuilders,
+  SlotView as SlotViewShape,
   SlotViewRender,
   SlotViewTransform,
   SlotViewTransformFor,
@@ -74,6 +86,7 @@ export type {
   DeclaredSlots,
   NamedStyle,
   SlotPiece,
+  SlotRecipe,
   StyleOptions,
   StylePieces,
   StyleValues,

@@ -37,6 +37,7 @@ export {
   makeJournalLayer,
   type JournalDefinition,
 } from './node.js'
+export type { Journal as JournalShape } from './journal.js'
 export {
   journalMetrics,
   type AppendError,

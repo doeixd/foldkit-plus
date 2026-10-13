@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Public types a dependent's declarations need.** A library built on these
+  packages could not emit declarations under TypeScript 7 for a value whose
+  inferred type reaches a type it cannot name. The package indexes now export
+  them: `foldkit-mixins` `AttributeName`, `EventName`, `RequirementName`,
+  `HiddenOf` and `SlotRecipe`; `foldkit-bundle` `PlacedBy`, `CollectionBy`,
+  `WithoutResources` and `RuntimeResult`; `foldkit-agent` `CapabilitiesByName`,
+  `CapabilitiesByTag`, their `Any` forms, `DefinitionOf` and `AnyCompletion`;
+  `foldkit-data-grid` `EditableId`. An interface that shares its namespace's
+  name is exported as a shape: `CapabilityShape`, `SlotViewShape`,
+  `BundleShape`, `JournalShape`.
+
 - **`foldkit-guard`: `GuardServer.validate` refuses a query body that filters
   or orders by a member with a Read rule.** The row comes back without the
   member, but which rows match, and in what order, still tells what it holds;
