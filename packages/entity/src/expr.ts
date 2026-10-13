@@ -11,7 +11,7 @@
  * operation here is one a real query in this repository needs; the set grows
  * from queries, not from what a database could express.
  */
-import { Match, Option, Pipeable, Schema, SchemaAST } from 'effect'
+import { Array as Arr, Match, Option, Pipeable, Schema, SchemaAST } from 'effect'
 import { Collation } from './collation.js'
 import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 
@@ -64,7 +64,14 @@ export type AnyExpr = Expr<unknown>
  * then be confused, which a structural phantom would allow. A scalar-valued
  * operation, if one is ever needed, joins `Expr` instead.
  */
-export type Predicate = EqPredicate | NullPredicate | ContainsPredicate | InPredicate
+export type Predicate =
+  | EqPredicate
+  | NullPredicate
+  | ContainsPredicate
+  | InPredicate
+  | AndPredicate
+  | OrPredicate
+  | NotPredicate
 
 /** Two values are the same. */
 export interface EqPredicate {
@@ -105,6 +112,32 @@ export interface InPredicate {
   readonly _tag: 'In'
   readonly value: AnyExpr
   readonly among: AnyExpr
+}
+
+/**
+ * Every operand holds. `Query.where`'s list is already a conjunction; this is
+ * one inside something else, `or(and(a, b), c)`. Never empty, and never holding
+ * another `and`: `Expr.and` flattens one into its parent.
+ */
+export interface AndPredicate {
+  readonly _tag: 'And'
+  readonly operands: Arr.NonEmptyReadonlyArray<Predicate>
+}
+
+/** At least one operand holds. Never empty, and never holding another `or`. */
+export interface OrPredicate {
+  readonly _tag: 'Or'
+  readonly operands: Arr.NonEmptyReadonlyArray<Predicate>
+}
+
+/**
+ * The operand does not hold. As SQL's `not`, an unknown stays unknown, so a row
+ * whose operand is unknown (a null compared) is matched by neither the operand
+ * nor its `not`.
+ */
+export interface NotPredicate {
+  readonly _tag: 'Not'
+  readonly operand: Predicate
 }
 
 /**
@@ -183,7 +216,7 @@ const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): Field
     ),
   })
 
-const predicateTags = new Set(['Eq', 'Null', 'Contains', 'In'])
+const predicateTags = new Set(['Eq', 'Null', 'Contains', 'In', 'And', 'Or', 'Not'])
 
 /** Whether a value is a predicate, and so usable where a boolean is wanted. */
 export const isPredicate = (value: unknown): value is Predicate =>
@@ -220,7 +253,7 @@ const toExpr = <T>(value: Operand<T> | T, step: string): AnyExpr => {
  * runs, and a body needing one it does not is refused rather than answered
  * wrongly — see `Query.unsupported`.
  */
-export type Operation = 'eq' | 'isNull' | 'isNotNull' | 'contains' | 'in'
+export type Operation = 'eq' | 'isNull' | 'isNotNull' | 'contains' | 'in' | 'and' | 'or' | 'not'
 
 /** One field an expression reads: its Entity's name and key, and the identity that owns it. */
 export interface FieldDependency {
@@ -250,6 +283,50 @@ export interface QueryDependencies extends Dependencies {
   readonly predicate: ReadonlyArray<FieldDependency>
   readonly order: ReadonlyArray<FieldDependency>
 }
+
+/** A connective's operands, each checked to be a predicate, with one of the same kind flattened in. */
+const connected = (
+  step: 'and' | 'or',
+  kind: 'And' | 'Or',
+  given: ReadonlyArray<unknown>,
+): Arr.NonEmptyReadonlyArray<Predicate> => {
+  const operands = given.flatMap((operand): ReadonlyArray<Predicate> => {
+    if (!isPredicate(operand)) {
+      throw new Error(
+        `[foldkit-entity] Expr.${step}: every operand is a predicate; compare a value with Expr.eq first`,
+      )
+    }
+    // tag-check: open — `kind` is one of the two connective tags, chosen by the caller
+    return operand._tag === kind ? (operand as AndPredicate | OrPredicate).operands : [operand]
+  })
+  // Flattening copies a shared operand's list, so `or(x, x)` built thirty deep
+  // would be 2^30 operands before the budget ever counts them.
+  if (operands.length > maxQueryNodes) {
+    throw new Error(
+      `[foldkit-entity] Expr.${step}: more than ${maxQueryNodes} operands, the most a query's predicates may hold`,
+    )
+  }
+  if (!Arr.isReadonlyArrayNonEmpty(operands)) {
+    throw new Error(
+      `[foldkit-entity] Expr.${step}: no operands, which would match ${step === 'and' ? 'every row' : 'no row'}; check a list is non-empty before spreading it`,
+    )
+  }
+  return operands
+}
+
+/** `Expr.and` and `Expr.or`: one operand is that operand, and two or more are one node. */
+interface Connective<Node extends Predicate> {
+  <P extends Predicate>(only: P): P
+  (first: Predicate, second: Predicate, ...rest: ReadonlyArray<Predicate>): Node
+  (...operands: Arr.NonEmptyReadonlyArray<Predicate>): Predicate
+}
+
+const connective =
+  <Node extends AndPredicate | OrPredicate>(step: 'and' | 'or', kind: Node['_tag']) =>
+  (...given: ReadonlyArray<Predicate>): Predicate => {
+    const operands = connected(step, kind, given)
+    return operands.length === 1 ? operands[0] : node({ _tag: kind, operands } as Node)
+  }
 
 export const Expr = {
   /** A constant. Comparisons coerce a plain value, so this is rarely written. */
@@ -283,8 +360,8 @@ export const Expr = {
 
   /**
    * Whether a field holds no value. Its opposite is `isNotNull`; both are the
-   * one node, because a query asks which of the two it means and nothing here
-   * can negate a predicate.
+   * one node, since a query asks which of the two it means, and `is not null`
+   * has no unknown for a `not` to keep.
    */
   isNull: <L extends Operand<any>>(operand: L): NullPredicate =>
     node({ _tag: 'Null', operand: toExpr(operand, 'isNull'), present: false }),
@@ -307,8 +384,7 @@ export const Expr = {
    * **Over a column that can be null this is not the same as no filter.** A
    * null contains nothing, not even the empty string, so its rows drop out. A
    * nullable column that should match everything on an empty search says so:
-   * `Expr.or` does not exist yet, so for now such a column needs its own
-   * predicate or a native escape hatch.
+   * `Expr.or(Expr.isNull(field), Expr.contains(field, input.search))`.
    */
   contains: <L extends TextOperand>(value: L, search: string | Expr<string>): ContainsPredicate =>
     node({
@@ -339,6 +415,64 @@ export const Expr = {
       value: toExpr(value, 'in'),
       among: Array.isArray(among) ? literal(Object.freeze([...among])) : toExpr(among, 'in'),
     }),
+
+  /**
+   * Every operand holds, as one predicate to place inside another: `where`'s
+   * list is already a conjunction, so this is for `or(and(a, b), c)`.
+   * Unknown as SQL's `and` is: false wins over unknown, which wins over true.
+   * Needs an operand; a list built at run time is checked non-empty first
+   * (`Array.isReadonlyArrayNonEmpty`), since an empty `and` would match every row.
+   */
+  and: connective<AndPredicate>('and', 'And') as Connective<AndPredicate>,
+
+  /**
+   * At least one operand holds:
+   *
+   * ```ts
+   * Expr.or(Expr.contains(fields.description, input.search), Expr.contains(fields.upc, input.search))
+   * ```
+   *
+   * Unknown as SQL's `or` is: true wins over unknown, which wins over false.
+   * Needs an operand, since an empty `or` would match no row.
+   */
+  or: connective<OrPredicate>('or', 'Or') as Connective<OrPredicate>,
+
+  /**
+   * The operand does not hold. **A null is matched by neither side**:
+   * `not(eq(status, 'draft'))` leaves out a row whose `status` is null, since
+   * `null = 'draft'` is unknown and so is its `not`, as in SQL. "Everything
+   * but drafts" over a nullable column is
+   * `Expr.or(Expr.isNull(status), Expr.not(Expr.eq(status, 'draft')))`.
+   */
+  not: (operand: Predicate): NotPredicate => {
+    if (!isPredicate(operand)) {
+      throw new Error(
+        '[foldkit-entity] Expr.not: the operand is a predicate; compare a value with Expr.eq first',
+      )
+    }
+    return node({ _tag: 'Not', operand })
+  },
+
+  /**
+   * A filter that applies only when its input is given: `or(isNull($x), …)`,
+   * with the predicate built from the input as never null.
+   *
+   * ```ts
+   * // Every product, or those of the chosen status.
+   * Expr.whenGiven(input.status, status => Expr.eq(fields.status, status))
+   * ```
+   *
+   * An interpreter that runs per request, as the Drizzle compiler does, decides
+   * `isNull($x)` before writing SQL, so this compiles to no condition, or to the
+   * predicate alone.
+   */
+  whenGiven: <T>(
+    input: InputExpr<T>,
+    build: (given: InputExpr<NonNullable<T>>) => Predicate,
+  ): Predicate =>
+    // The predicate only decides a row when the input is not null: when it is,
+    // `isNull` is true and so is the `or`. That is what the narrowed type says.
+    Expr.or(Expr.isNull(input), build(input as unknown as InputExpr<NonNullable<T>>)),
 
   /** An expression as readable text; see `showExpr` for what it is and is not. */
   show: (node: Operandish): string => showExpr(node),
@@ -580,6 +714,18 @@ const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
       walk(expr.value, found)
       walk(expr.among, found)
       return
+    case 'And':
+      found.operations.add('and')
+      for (const operand of expr.operands) walk(operand, found)
+      return
+    case 'Or':
+      found.operations.add('or')
+      for (const operand of expr.operands) walk(operand, found)
+      return
+    case 'Not':
+      found.operations.add('not')
+      walk(expr.operand, found)
+      return
     case 'Term':
       walk(expr.expr, found)
       return
@@ -666,6 +812,13 @@ const fieldsIn = function* (
       yield* fieldsIn(expr.value, seen)
       yield* fieldsIn(expr.among, seen)
       return
+    case 'And':
+    case 'Or':
+      for (const operand of expr.operands) yield* fieldsIn(operand, seen)
+      return
+    case 'Not':
+      yield* fieldsIn(expr.operand, seen)
+      return
     case 'Term':
       yield* fieldsIn(expr.expr, seen)
       return
@@ -722,6 +875,11 @@ const childrenOf = (expr: AnyExpr | Predicate): ReadonlyArray<AnyExpr | Predicat
       return [expr.value, expr.search]
     case 'In':
       return [expr.value, expr.among]
+    case 'And':
+    case 'Or':
+      return expr.operands
+    case 'Not':
+      return [expr.operand]
   }
 }
 
@@ -947,8 +1105,21 @@ const showExpr = (node: AnyExpr | Predicate): string => {
       return `contains(${showOperand(node.value)}, ${showOperand(node.search)})`
     case 'In':
       return `${showOperand(node.value)} in ${showOperand(node.among)}`
+    case 'And':
+      return node.operands.map(showConnected).join(' and ')
+    case 'Or':
+      return node.operands.map(showConnected).join(' or ')
+    case 'Not':
+      return `not (${showExpr(node.operand)})`
   }
 }
+
+/** An operand of `and` or `or`: another connective is parenthesised, so its grouping shows. */
+const showConnected = (node: Predicate): string =>
+  Match.value(node).pipe(
+    Match.tags({ And: () => `(${showExpr(node)})`, Or: () => `(${showExpr(node)})` }),
+    Match.orElse(() => showExpr(node)),
+  )
 
 const showOperand = (node: Operandish): string =>
   isPredicate(node) ? `(${showExpr(node)})` : showExpr(node)

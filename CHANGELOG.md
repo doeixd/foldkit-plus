@@ -7,6 +7,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-entity`: `Expr.and`, `Expr.or` and `Expr.not`.** The connectives,
+  with SQL's three-valued meaning: `or` takes true over unknown, `and` false,
+  and `not` of an unknown stays unknown, so a null matches neither a
+  comparison nor its `not`. `and` and `or` need an operand and flatten one of
+  the same kind. `Expr.whenGiven(input, given => predicate)` is a filter that
+  applies only when a nullable input is given. `evaluate` runs them, and
+  `decided(predicate, input)` is a predicate's truth from the input alone,
+  when it reads no field. The conformance suite covers them.
+- **`foldkit-remote-drizzle`: `and`, `or` and `not` compiled,** and an operand
+  that reads no field decided per request, so `whenGiven`'s check of its
+  input reaches the database as no condition, or not at all.
+
 ## 0.18.0
 
 `foldkit-site` 0.2.0, `foldkit-remote` 0.15.0, `foldkit-primitives` 0.9.0,

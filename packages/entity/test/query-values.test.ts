@@ -62,6 +62,14 @@ describe('a shared expression node (#137)', () => {
     expect(() => Query.from(Item).pipe(Query.where(shared(leaf, 8)))).toThrow(
       new RegExp(`${maxQueryNodes} nodes`),
     )
+    // Counted through a connective too, which the tree is no smaller for.
+    const other = Expr.eq(Item.fields.text, 'b')
+    expect(() => Query.from(Item).pipe(Query.where(Expr.not(shared(leaf, 8))))).toThrow(
+      new RegExp(`${maxQueryNodes} nodes`),
+    )
+    expect(() => Query.from(Item).pipe(Query.where(Expr.or(shared(leaf, 8), other)))).toThrow(
+      new RegExp(`${maxQueryNodes} nodes`),
+    )
     // Thirty levels: thirty-one objects, and more nodes than evaluate could ever walk.
     expect(() => Query.from(Item).pipe(Query.where(shared(leaf, 30)))).toThrow(
       new RegExp(`${maxQueryNodes} nodes`),

@@ -476,3 +476,76 @@ describe('show renders a query for a person to read', () => {
     )
   })
 })
+
+describe('and, or and not', () => {
+  const titled = Expr.eq(Post.fields.title, 'hello')
+  const live = Expr.eq(Post.fields.published, true)
+  const draft = Expr.isNull(Post.fields.published)
+
+  it('flattens a connective of the same kind into its parent, and nothing else', () => {
+    const nested = Expr.and(Expr.and(titled, live), draft)
+    expect(nested).toEqual({ _tag: 'And', operands: [titled, live, draft] })
+    // An or under an and is a grouping, so it stays.
+    const grouped = Expr.and(Expr.or(titled, live), draft)
+    expect(grouped).toEqual({
+      _tag: 'And',
+      operands: [{ _tag: 'Or', operands: [titled, live] }, draft],
+    })
+  })
+
+  it('is one operand when given one, adding no node', () => {
+    expect(Expr.or(titled)).toBe(titled)
+    expect(Expr.and(live)).toBe(live)
+  })
+
+  it('refuses no operands, and an operand that is not a predicate', () => {
+    const none: ReadonlyArray<Predicate> = []
+    // @ts-expect-error a list that may be empty
+    expect(() => Expr.or(...none)).toThrow('Expr.or: no operands, which would match no row')
+    // @ts-expect-error a list that may be empty
+    expect(() => Expr.and(...none)).toThrow('Expr.and: no operands, which would match every row')
+    // @ts-expect-error a field is a value
+    expect(() => Expr.and(titled, Post.fields.published)).toThrow('every operand is a predicate')
+    // @ts-expect-error a field is a value
+    expect(() => Expr.not(Post.fields.published)).toThrow('the operand is a predicate')
+  })
+
+  it('refuses a flattened list longer than a query may hold, before building it twice over', () => {
+    let wide: Predicate = Expr.or(titled, live)
+    expect(() => {
+      // Twelve doublings is 8,192 operands: past the cap, and cheap to build without it.
+      for (let depth = 0; depth < 12; depth++) wide = Expr.or(wide, wide)
+    }).toThrow('more than 1000 operands')
+  })
+
+  it('reads every field under it, and names the operations it uses', () => {
+    expect(dependenciesOf(Expr.or(titled, Expr.not(Expr.and(live, draft))))).toEqual({
+      fields: [
+        { entity: 'Post', key: 'title', owner: Post.identity },
+        { entity: 'Post', key: 'published', owner: Post.identity },
+      ],
+      inputs: [],
+      operations: ['or', 'eq', 'not', 'and', 'isNull'],
+    })
+  })
+
+  it('is checked against the Entity the query is from, however deep', () => {
+    expect(() =>
+      Query.from(Post).pipe(
+        Query.where(Expr.or(titled, Expr.not(Expr.eq(Blog.Comment.fields.body, 'x')))),
+      ),
+    ).toThrow('reads Comment.body, but the query is from Post')
+  })
+
+  it('is shown grouped as written', () => {
+    expect(Expr.show(Expr.and(Expr.or(titled, live), Expr.not(draft)))).toBe(
+      '(Post.title = "hello" or Post.published = true) and not (Post.published is null)',
+    )
+  })
+
+  it('builds an optional filter as an or over whether its input is given', () => {
+    const chosen = Expr.input('title', Schema.NullOr(Schema.String))
+    const filter = Expr.whenGiven(chosen, title => Expr.eq(Post.fields.title, title))
+    expect(Expr.show(filter)).toBe('$title is null or Post.title = $title')
+  })
+})

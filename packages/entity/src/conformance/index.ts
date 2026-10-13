@@ -102,6 +102,8 @@ const tag = Expr.input('tag', Schema.String)
 const present = Expr.input('present', Schema.Boolean)
 const labels = Expr.input('labels', Schema.Array(Schema.String))
 const at = Expr.input('at', Timestamp)
+/** An optional filter's input: none chosen is null. */
+const maybeTag = Expr.input('maybeTag', Schema.NullOr(Schema.String))
 /** A list sorted by what its reader picked: `Order.chosen`'s input. */
 const sort = Expr.input(
   'sort',
@@ -317,6 +319,87 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     expected: ['a', 'b', 'c', 'd', 'e'],
   },
 
+  // ---- and, or, not: SQL's three values -----------------------------------
+  // `tag` is null on a and c, so a comparison of it is unknown there, and a
+  // row is kept only on true.
+  {
+    what: 'or holds where one operand does, true beating unknown',
+    body: from.pipe(
+      Query.where(Expr.or(Expr.eq(Subject.fields.tag, 'x'), Expr.eq(Subject.fields.rank, 2))),
+      byId,
+    ),
+    input: {},
+    expected: ['a', 'b', 'd'],
+  },
+  {
+    what: 'an and inside an or groups as written',
+    body: from.pipe(
+      Query.where(
+        Expr.or(
+          Expr.and(Expr.eq(Subject.fields.rank, 3), Expr.eq(Subject.fields.tag, 'x')),
+          Expr.eq(Subject.fields.label, 'Intro'),
+        ),
+      ),
+      byId,
+    ),
+    input: {},
+    expected: ['a', 'd'],
+  },
+  {
+    what: 'not of an unknown stays unknown, so a null matches neither side',
+    body: from.pipe(Query.where(Expr.not(Expr.eq(Subject.fields.tag, 'x'))), byId),
+    input: {},
+    expected: ['e'],
+  },
+  {
+    what: 'not of an and that is false, false beating unknown, holds',
+    body: from.pipe(
+      Query.where(
+        Expr.not(Expr.and(Expr.eq(Subject.fields.tag, 'x'), Expr.eq(Subject.fields.rank, 1))),
+      ),
+      byId,
+    ),
+    input: {},
+    expected: ['a', 'c', 'd', 'e'],
+  },
+  {
+    what: 'everything but one value, nulls included, is said with isNull',
+    body: from.pipe(
+      Query.where(
+        Expr.or(Expr.isNull(Subject.fields.tag), Expr.not(Expr.eq(Subject.fields.tag, 'x'))),
+      ),
+      byId,
+    ),
+    input: {},
+    expected: ['a', 'c', 'e'],
+  },
+  {
+    what: 'an optional filter with nothing chosen matches every row',
+    body: from.pipe(
+      Query.where(Expr.whenGiven(maybeTag, given => Expr.eq(Subject.fields.tag, given))),
+      byId,
+    ),
+    input: { maybeTag: null },
+    expected: ['a', 'b', 'c', 'd', 'e'],
+  },
+  {
+    what: 'an optional filter with a value chosen is that filter',
+    body: from.pipe(
+      Query.where(Expr.whenGiven(maybeTag, given => Expr.eq(Subject.fields.tag, given))),
+      byId,
+    ),
+    input: { maybeTag: 'x' },
+    expected: ['b', 'd'],
+  },
+  {
+    what: 'an operand decided by the input alone settles an or either way',
+    body: from.pipe(
+      Query.where(Expr.or(Expr.eq(present, true), Expr.eq(Subject.fields.rank, 1))),
+      byId,
+    ),
+    input: { present: false },
+    expected: ['b'],
+  },
   // ---- encoded values ------------------------------------------------------
   // The body's types say `Date`; a store's rows and a request's inputs are ISO
   // strings. An interpreter compares in the **encoded** space, and these are the

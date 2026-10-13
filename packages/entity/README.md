@@ -582,10 +582,32 @@ portable collation. A body with no order, text with none declared, or a locale
 is `NotPlaceable`, with the reason.
 `foldkit-crud`'s `Sort.make(['title', 'id']).Schema` is such a sort.
 
-The list of predicates **is** the conjunction — which is why no `Expr.and`
-exists. A query wanting three conditions writes three `where`s. An `and`
-operator is only needed for a conjunction nested inside something else, and no
-query here has one yet.
+The list of predicates **is** the conjunction: a query wanting three
+conditions writes three `where`s. `Expr.and` is for a conjunction inside
+something else, and `Expr.or` and `Expr.not` are the other two connectives:
+
+```ts
+// A search over two fields: the registry finds a product by description or UPC.
+Expr.or(
+  Expr.contains(Product.fields.description, input.search),
+  Expr.contains(Product.fields.upc, input.search),
+)
+
+// A filter that applies only when its input is given (`input.status` may be null).
+Expr.whenGiven(input.status, status => Expr.eq(Product.fields.status, status))
+```
+
+They mean what SQL's do, three-valued: a comparison of a null is unknown, a row
+is kept only when its predicate is true, `or` takes true over unknown and `and`
+takes false over it, and **`not` of an unknown is unknown**. So
+`Expr.not(Expr.eq(field, 'draft'))` leaves out a row whose `field` is null;
+"everything but drafts", nulls included, is
+`Expr.or(Expr.isNull(field), Expr.not(Expr.eq(field, 'draft')))`. `and` and
+`or` need an operand (an empty one would match every row, or none), a nested
+one of the same kind is flattened into its parent, and one operand is that
+operand. An interpreter that runs per request decides an operand that reads no
+field before it writes anything: `whenGiven`'s `isNull($status)` compiles to no
+condition, or leaves the predicate alone.
 
 A query reads one Entity, so a predicate or ordering term naming a different
 one is refused where it is piped: an interpreter would otherwise be asked for a
@@ -663,6 +685,9 @@ from queries, not from what a database could express.
 | `Expr.isNull(field)` / `Expr.isNotNull(field)` | Whether a value is absent; one node, with the answer absence gives flipped. |
 | `Expr.contains(field, search)` | Whether text contains text, over a text or nullable-text operand only. Containing the empty string is everything, but a null contains nothing. |
 | `Expr.in(field, among)` | Whether a value is one of a list (written out, or an input), each compared as `eq` compares; SQL's `in`, an empty list matching nothing. |
+| `Expr.and(a, b, …)` / `Expr.or(a, b, …)` | Every operand holds / at least one does, as SQL's three-valued `and` and `or`. At least one operand; a nested one of the same kind is flattened in. |
+| `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
+| `Expr.whenGiven(input, given => predicate)` | A filter applying only when a nullable input is given: `or(isNull(input), predicate)`, the predicate seeing the input as never null. |
 | `Expr.field(field)` | One field of one Entity, as a scalar. |
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |

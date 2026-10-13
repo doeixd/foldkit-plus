@@ -234,9 +234,14 @@ a predicate as a tree.
 
 `Expr.isNull` / `Expr.isNotNull` (one node, the answer to absence flipped),
 `Expr.contains` and `Expr.in(field, list | input)` (SQL's `in`; an empty list
-matches nothing) exist too. The operator set grows from real queries, not from
-what SQL can express — there is still no `and` (a `Query` holds a list of
-predicates, which *is* the conjunction) and no `or`.
+matches nothing) exist too, and the connectives `Expr.and`, `Expr.or` and
+`Expr.not`, three-valued as SQL's: `not` of an unknown (a null compared) stays
+unknown, so a null matches neither a comparison nor its `not`. A `Query`'s list
+of predicates is already the conjunction; `and` is for one inside an `or`.
+`Expr.whenGiven(input.status, status => Expr.eq(fields.status, status))` is a
+filter that applies only when a nullable input is given. The operator set grows
+from real queries, not from what SQL can express: there are no comparisons
+(`lt`, `gt`) yet.
 
 **Asking about an input without branching on it.** An input is a placeholder, so
 a query cannot pick a shape from a value. It does not need to:

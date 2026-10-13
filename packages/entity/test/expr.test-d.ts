@@ -11,8 +11,11 @@ import {
   Order,
   Query,
   dependenciesOf,
+  type AndPredicate,
   type EqPredicate,
   type InPredicate,
+  type NotPredicate,
+  type OrPredicate,
   type InputExpr,
   type Predicate,
 } from '../src/index.js'
@@ -151,3 +154,32 @@ Expr.in(Doc.fields.rank, Expr.input('titles', Schema.Array(Schema.String)))
 
 // @ts-expect-error one value is not a list
 Expr.in(Doc.fields.rank, 1)
+
+// and, or and not take predicates, and need at least one.
+const titled = Expr.eq(Post.fields.title, 'hello')
+const live = Expr.eq(Post.fields.published, true)
+expectTypeOf(Expr.or(titled, live)).toEqualTypeOf<OrPredicate>()
+expectTypeOf(Expr.and(titled, live)).toEqualTypeOf<AndPredicate>()
+expectTypeOf(Expr.not(titled)).toEqualTypeOf<NotPredicate>()
+// One operand is that operand, typed as itself.
+expectTypeOf(Expr.or(titled)).toEqualTypeOf<EqPredicate>()
+// A list known non-empty spreads in; its result is some predicate.
+declare const terms: readonly [Predicate, ...Array<Predicate>]
+expectTypeOf(Expr.or(...terms)).toEqualTypeOf<Predicate>()
+declare const maybeNone: ReadonlyArray<Predicate>
+// @ts-expect-error a list that may be empty would match no row
+Expr.or(...maybeNone)
+// @ts-expect-error an or of nothing
+Expr.or()
+// @ts-expect-error a field is a value, not a predicate: compare it with eq first
+Expr.and(titled, Post.fields.published)
+// @ts-expect-error not of a value is not a question
+Expr.not(Post.fields.published)
+
+// whenGiven hands the predicate its input as never null, which eq requires.
+const chosen = Expr.input('title', Schema.NullOr(Schema.String))
+expectTypeOf(
+  Expr.whenGiven(chosen, title => Expr.eq(Post.fields.title, title)),
+).toEqualTypeOf<Predicate>()
+// @ts-expect-error without it, a nullable input against a field that is never null
+Expr.eq(Post.fields.title, chosen)
