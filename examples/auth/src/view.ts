@@ -76,7 +76,10 @@ const notes = (model: Model, h: HtmlBuilder<Message>): Html =>
       ...RemoteData.render(Surface.read(NoteList, model).notes, {
         loading: () => [h.p([], ['Loading…'])],
         notFound: () => [h.p([], ['No list.'])],
-        failed: error => [h.p([h.Role('alert')], [failure(error)])],
+        // A refusal is announced once, by the session line above.
+        failed: error => [
+          h.p(Option.isSome(RemoteData.refused(error)) ? [] : [h.Role('alert')], [failure(error)]),
+        ],
         data: page =>
           page.items.length === 0
             ? [h.p([], ['No notes you may read.'])]

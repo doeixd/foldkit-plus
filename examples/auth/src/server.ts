@@ -123,7 +123,8 @@ export const openServer = async (origin: string) => {
   // Yielded's default cookie, `__Host-` and Secure, even over plain http:
   // Chromium counts 127.0.0.1 as secure and keeps it (the e2e test signs in so).
   const http = { origin } as const
-  const runtime = ManagedRuntime.make(store)
+  // Yielded's `Auth` built once, over the store: Remote's requests share it.
+  const runtime = ManagedRuntime.make(App.layer.pipe(Layer.provideMerge(store), Layer.orDie))
   const services = await runtime.context()
   const shared = Layer.succeedContext(services)
   const routes = HttpRouter.toWebHandler(
@@ -139,7 +140,7 @@ export const openServer = async (origin: string) => {
     server,
     resolvePrincipal: AuthServer.resolver(resolving),
     headers: AuthServer.answered(resolving),
-    layer: () => App.layer.pipe(Layer.provide(shared), Layer.orDie),
+    layer: () => shared,
   })
   return {
     auth: routes.handler,

@@ -179,6 +179,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-primitives`' broadcast doc no longer says a tab never hears
+  itself.** `postBroadcast` posts on a channel of its own, so the posting
+  tab's `broadcastMessages` hears it; name the sender in `data`.
+
 - **A Remote Message's error is a `RemoteError`.** `RemoteError.reason` is
   `string | undefined`, as the decoded `ReadFailed`/`QueryFailed` error is,
   so `RemoteData.refused(message.error)` type-checks under

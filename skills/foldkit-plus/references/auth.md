@@ -89,4 +89,5 @@ on every Remote call kind.
 ## See also
 
 - [foldkit-auth README](https://github.com/doeixd/foldkit-plus/blob/main/packages/auth/README.md)
+- [examples/auth](https://github.com/doeixd/foldkit-plus/tree/main/examples/auth): sign-in, `Me`, the cross-tab broadcast and the subject echo, end to end.
 - [guard.md](guard.md): deciding what the principal may do.

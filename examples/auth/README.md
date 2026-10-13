@@ -76,7 +76,7 @@ Read the files in this order.
    `NoteList` the query, both always active. The `principal` Subscription
    turns another tab's post on `PRINCIPAL_CHANNEL` into a Message.
 5. [`src/view.ts`](src/view.ts) and [`src/client.ts`](src/client.ts). The page,
-   and the runtime with its two services: `Remote.httpWithLive('/remote')`,
+   and the runtime with its two services: `Remote.http('/remote')`,
    sending Yielded's CSRF header through `belief.fetch`, and
    `AppClient.layerFetch`.
 
@@ -95,8 +95,14 @@ What some calls do, and do not:
   change is not refused once.
 - `Data.forget` performs no I/O: it drops what Remote holds and every active
   read starts again, `Me` included.
-- `postBroadcast` is a one-shot Command; by spec a tab never hears its own
-  post, so only the other tabs forget.
+- `postBroadcast` is a one-shot Command that opens a channel of its own, so
+  every channel of that name hears it, this tab's `principal` Subscription
+  included. The post carries the tab's id (`TAB`), and a tab ignores its own:
+  it already forgot when it changed.
+- The password is sent as a `Redacted` Command argument, since a Command's
+  args become its span's attributes and DevTools' record. The form's draft
+  still holds it in the Model until the sign-in succeeds, so DevTools' Model
+  history shows it.
 - `http = { origin }` is the page's origin: Yielded trusts a sign-in from it
   alone, and the resolver takes its cookie name, trusted origins and CSRF
   header from the same object.
@@ -106,6 +112,7 @@ What some calls do, and do not:
 | What happens | What the page shows |
 | --- | --- |
 | A wrong password | the sign-in form, with "That email and password do not match." |
+| A sign-in or sign-out that fails otherwise (the network, the server) | "Could not sign in. Try again." (or sign out); after a failed sign-out the page asks `Me` again, as the server may have signed out |
 | Signed out in another tab | the broadcast: this tab forgets and reads `Me` again, as a visitor |
 | A read that left before that broadcast arrived | refused (`SUBJECT_CHANGED`), never answered as the other account; this tab forgets and reads again |
 | A cookie the server no longer knows (a restart, an expired session) | the read fails as `Unauthenticated` (`RemoteData.refused`): "Your session ended. Sign in again." and the form |
@@ -128,7 +135,8 @@ only for an `http:` origin.
 - `test/app.test.ts`: `update` on a change of principal, from a Model read as
   ada through the server's handlers.
 - `test/auth.mutations.ts`: `pnpm mutate examples/auth/test/auth.mutations.ts`
-  breaks each claim above in turn.
+  breaks what `update` and the server decide in turn; what only a page shows
+  is the e2e test's.
 - `e2e/auth.e2e.ts` (`pnpm e2e examples/auth`): two tabs of one Chromium,
   sign-in, sign-out reaching the other tab, a member's notes, and the refusal
   after a restart.

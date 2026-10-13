@@ -8,7 +8,7 @@
  * the page knows of who it is, is the `Me` row the server answered.
  */
 import * as Client from '@yielded/auth/Client'
-import { Effect, Match, Option, Schema, Stream } from 'effect'
+import { Effect, Match, Option, Redacted, Schema, Stream } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
@@ -40,6 +40,13 @@ export const belief = believing()
 /** The channel every tab of this application hears a change of principal on. */
 export const PRINCIPAL_CHANNEL = 'foldkit-example-auth/principal'
 
+/**
+ * This tab, as its posts name it. A post opens a channel of its own, so this
+ * tab's `principal` Subscription hears it as any other tab does: the id
+ * tells its own change, which it has already handled, from another's.
+ */
+export const TAB = crypto.randomUUID()
+
 export const Model = Schema.Struct({
   email: Schema.String,
   password: Schema.String,
@@ -65,8 +72,8 @@ export const Message = defineMessageUnion({
 export type Message = typeof Message.Type
 
 /**
- * `AppClient` as a service. An interface, so a declaration names it rather
- * than expanding Yielded's types, which it cannot name.
+ * `AppClient` as a service, which `Services` names. Like `AuthApi`, it has
+ * no declaration that compiles (TS2742); nothing reads this example's.
  */
 export interface AuthClient extends Client.ClientService<'example/Auth', typeof AuthApi.actions> {}
 
@@ -81,12 +88,13 @@ export const initial: Model = {
 }
 
 const SignIn = Command.define('SignIn', {
-  args: { email: Schema.String, password: Schema.String },
+  // Redacted: a Command's args are its span's attributes and DevTools' record.
+  args: { email: Schema.String, password: Schema.Redacted(Schema.String) },
   messages: [Message.SucceededSignIn, Message.FailedSignIn],
   execute: ({ email, password }) =>
     Effect.gen(function* () {
       const { auth } = yield* AppClient
-      const completion = yield* auth.signIn({ email, password })
+      const completion = yield* auth.signIn({ email, password: Redacted.value(password) })
       return Match.valueTags(completion, {
         Authenticated: () => {
           // Before `update` forgets and reads again: the reads after are the new principal's.
@@ -101,7 +109,10 @@ const SignIn = Command.define('SignIn', {
       Effect.catchTag('PasswordRejected', () =>
         Effect.succeed(Message.FailedSignIn({ reason: 'That email and password do not match.' })),
       ),
-      Effect.catch(error => Effect.succeed(Message.FailedSignIn({ reason: error.message }))),
+      // Yielded's other failures carry no sentence of their own (an empty `message`).
+      Effect.catch(() =>
+        Effect.succeed(Message.FailedSignIn({ reason: 'Could not sign in. Try again.' })),
+      ),
     ),
 })
 
@@ -112,12 +123,16 @@ const SignOut = Command.define('SignOut', {
     yield* auth.signOut()
     belief.forget()
     return Message.SucceededSignOut()
-  }).pipe(Effect.catch(error => Effect.succeed(Message.FailedSignOut({ reason: error.message })))),
+  }).pipe(
+    Effect.catch(() =>
+      Effect.succeed(Message.FailedSignOut({ reason: 'Could not sign out. Try again.' })),
+    ),
+  ),
 })
 
-/** Tells the other tabs; by spec a tab does not hear its own post. */
+/** Tells the other tabs, naming this one, which hears its own post too. */
 const announce = () =>
-  Command.mapMessage(postBroadcast(PRINCIPAL_CHANNEL, 'changed'), message =>
+  Command.mapMessage(postBroadcast(PRINCIPAL_CHANNEL, TAB), message =>
     Message.GotBroadcastMessage({ message }),
   )
 
@@ -141,17 +156,18 @@ export function update(model: Model, message: Message): Update.Return<Model, Mes
     ChangedPassword: ({ value }) => ({ model: modifyFields(model, { password: () => value }) }),
     SubmittedSignIn: () => ({
       model,
-      commands: [SignIn({ email: model.email, password: model.password })],
+      commands: [SignIn({ email: model.email, password: Redacted.make(model.password) })],
     }),
     SucceededSignIn: () => changedHere(model),
     FailedSignIn: ({ reason }) => ({ model: noticed(model, reason) }),
     ClickedSignOut: () => ({ model, commands: [SignOut()] }),
     SucceededSignOut: () => changedHere(model),
-    FailedSignOut: ({ reason }) => ({ model: noticed(model, reason) }),
+    // The server may have signed out though its answer was lost: ask `Me` again.
+    FailedSignOut: ({ reason }) => ({ model: Data.forget(noticed(model, reason)) }),
     GotBroadcastMessage: ({ message }) =>
       BroadcastMessage.match(message, {
         // Another tab changed who this browser is: what this one typed stays.
-        Received: () => ({ model: Data.forget(model) }),
+        Received: ({ data }) => ({ model: data === TAB ? model : Data.forget(model) }),
         Posted: () => ({ model }),
         BroadcastFailed: ({ message }) => ({
           model: noticed(model, `Other tabs were not told: ${message}`),

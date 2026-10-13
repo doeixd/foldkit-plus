@@ -118,8 +118,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'Received: () => ({ model: Data.forget(model) }),',
-        replace: 'Received: () => ({ model }),',
+        find: 'model: data === TAB ? model : Data.forget(model)',
+        replace: 'model',
       },
     ],
     tests: app,
@@ -140,8 +140,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'SignIn({ email: model.email, password: model.password })',
-        replace: "SignIn({ email: model.email, password: '' })",
+        find: 'SignIn({ email: model.email, password: Redacted.make(model.password) })',
+        replace: 'SignIn({ email: model.email, password: Redacted.make(model.email) })',
       },
     ],
     tests: app,
@@ -175,6 +175,50 @@ export default [
         file: '../src/app.ts',
         find: 'Option.contains(refusal.reason, SUBJECT_CHANGED)',
         replace: 'Option.isSome(Option.some(refusal))',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: "this tab's own post makes it forget again",
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'model: data === TAB ? model : Data.forget(model)',
+        replace: 'model: Data.forget(model)',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a broadcast that failed says nothing',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'model: noticed(model, `Other tabs were not told: ${message}`),',
+        replace: 'model: message === undefined ? noticed(model, message) : model,',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a change of principal keeps the last notice',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: "password: () => '', notice: () => Option.none()",
+        replace: "password: () => ''",
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a failed sign-out keeps what was read',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'model: Data.forget(noticed(model, reason))',
+        replace: 'model: noticed(model, reason)',
       },
     ],
     tests: app,

@@ -162,7 +162,7 @@ Remote.httpWithLive('/remote', {
   Command, before `update` forgets what Remote holds, so the reads after
   it are not refused once first.
 
-`examples/auth` wires all of it.
+[`examples/auth`](../../examples/auth) wires all of it.
 
 ## Sync's socket
 

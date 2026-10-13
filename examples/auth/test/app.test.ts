@@ -5,7 +5,7 @@
  * drops it too, and tells no one. The Model starts as ada's, read through the
  * real server's handlers.
  */
-import { Effect, Option } from 'effect'
+import { Effect, Option, Redacted } from 'effect'
 import { SUBJECT_CHANGED } from 'foldkit-auth'
 import { Surface } from 'foldkit-surface'
 import { BroadcastMessage } from 'foldkit-primitives/net'
@@ -19,6 +19,7 @@ import {
   NoteList,
   PRINCIPAL_CHANNEL,
   Session,
+  TAB,
   initial,
   update,
 } from '../src/app.js'
@@ -55,24 +56,53 @@ describe('a change of principal', () => {
     expect([meOf(returned.model), notesOf(returned.model)]).toEqual(['Initial', 'Initial'])
     expect(returned.model.password).toBe('')
     expect(commandsOf(returned)).toEqual([
-      { name: 'Broadcast.post', args: { name: PRINCIPAL_CHANNEL, data: 'changed' } },
+      { name: 'Broadcast.post', args: { name: PRINCIPAL_CHANNEL, data: TAB } },
     ])
   })
 
   it("forgets what was read on another tab's post, and keeps what was typed", () => {
     const returned = update(
       read,
-      Message.GotBroadcastMessage({ message: BroadcastMessage.Received({ data: 'changed' }) }),
+      Message.GotBroadcastMessage({ message: BroadcastMessage.Received({ data: 'another tab' }) }),
     )
     expect([meOf(returned.model), notesOf(returned.model)]).toEqual(['Initial', 'Initial'])
     expect(returned.model.password).toBe('ada password')
     expect(commandsOf(returned)).toEqual([])
   })
 
-  it('changes nothing when its own post went out', () => {
-    expect(
-      update(read, Message.GotBroadcastMessage({ message: BroadcastMessage.Posted() })).model,
-    ).toBe(read)
+  it.each([
+    ['its own post went out', BroadcastMessage.Posted()],
+    [
+      'it hears its own post, a change it has already made',
+      BroadcastMessage.Received({ data: TAB }),
+    ],
+  ])('changes nothing when %s', (_, message) => {
+    expect(update(read, Message.GotBroadcastMessage({ message })).model).toBe(read)
+  })
+
+  it('says so when the other tabs could not be told, and keeps what was read', () => {
+    const { model } = update(
+      read,
+      Message.GotBroadcastMessage({
+        message: BroadcastMessage.BroadcastFailed({ message: 'No channel.' }),
+      }),
+    )
+    expect([meOf(model), notesOf(model)]).toEqual(['Ready', 'Ready'])
+    expect(model.notice).toEqual(Option.some('Other tabs were not told: No channel.'))
+  })
+
+  it.each([
+    ['a sign-in', Message.SucceededSignIn()],
+    ['a sign-out', Message.SucceededSignOut()],
+  ])('clears the last notice on %s', (_, message) => {
+    const noticed = update(read, Message.FailedSignIn({ reason: 'No.' })).model
+    expect(update(noticed, message).model.notice).toEqual(Option.none())
+  })
+
+  it('asks who it is again when a sign-out fails, as the server may have signed out', () => {
+    const { model } = update(read, Message.FailedSignOut({ reason: 'Could not sign out.' }))
+    expect(meOf(model)).toBe('Initial')
+    expect(model.notice).toEqual(Option.some('Could not sign out.'))
   })
 
   it('keeps what was read when a sign-in fails, and says why', () => {
@@ -113,8 +143,11 @@ describe('a change of principal', () => {
       Message.ChangedEmail({ value: 'ada@example.invalid' }),
       Message.ChangedPassword({ value: 'ada password' }),
     ].reduce((model, message) => update(model, message).model, initial)
-    expect(commandsOf(update(typed, Message.SubmittedSignIn()))).toEqual([
-      { name: 'SignIn', args: { email: 'ada@example.invalid', password: 'ada password' } },
-    ])
+    const [signIn] = commandsOf(update(typed, Message.SubmittedSignIn()))
+    expect(signIn?.name).toBe('SignIn')
+    const { email, password } = signIn!.args as { email: string; password: Redacted.Redacted }
+    expect([email, Redacted.value(password)]).toEqual(['ada@example.invalid', 'ada password'])
+    // What a span or DevTools records of the args shows no password.
+    expect(JSON.stringify(signIn!.args)).not.toContain('ada password')
   })
 })

@@ -59,7 +59,8 @@ export const startHttpServer = async (
       : (request: Request) => handlers.remote(request, undefined)
 
   const server: Server = createServer((request, response) => {
-    respond(answerOf(request.url ?? '/'), origin, request, response).catch(() => {
+    respond(answerOf(request.url ?? '/'), origin, request, response).catch((error: unknown) => {
+      console.error('examples/auth: a request failed', error)
       if (!response.headersSent) response.writeHead(500)
       response.end()
     })
@@ -72,7 +73,7 @@ export const startHttpServer = async (
     close: () =>
       new Promise<void>(resolve => {
         server.closeAllConnections()
-        server.close(() => void handlers.close().then(resolve))
+        server.close(() => void handlers.close().finally(resolve))
       }),
   }
 }

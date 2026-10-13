@@ -23,7 +23,7 @@ Runtime.run(
     resources: Layer.mergeAll(
       // A cookie authorizes these reads only beside Yielded's CSRF header.
       Remote.clientLayer(
-        Remote.httpWithLive('/remote', {
+        Remote.http('/remote', {
           headers: () => ({ 'x-effect-auth-csrf': '1' }),
           fetch: belief.fetch,
         }),

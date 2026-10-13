@@ -67,6 +67,16 @@ const admin = (page: Page) => page.locator('#admin').count()
 const titlesBy = (author: string) =>
   notes.filter(note => note.authorId === author).map(note => `${note.title} (${note.authorId})`)
 
+/** The Remote operations `page` asks for from now on, in order. */
+const operations = (page: Page): Array<string> => {
+  const asked: Array<string> = []
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/remote')
+      asked.push((JSON.parse(request.postData() ?? '{}') as { operation: string }).operation)
+  })
+  return asked
+}
+
 const signIn = async (page: Page, subjectId: 'ada' | 'grace') => {
   const account = accounts.find(each => each.subjectId === subjectId)!
   await page.getByLabel('Email').fill(account.email)
@@ -80,12 +90,17 @@ test('a sign-out in one tab reaches the other, and a member reads only their not
   await expect.poll(() => who(first), { timeout: 120_000 }).toBe('Visitor')
   await expect.poll(() => first.locator('#notes').textContent()).toBe('NotesNo notes you may read.')
 
+  // `Me` and the notes, read once each: the tab believed it was a visitor,
+  // and forgot that before reading as ada, so nothing is refused first.
+  const asked = operations(first)
   await signIn(first, 'ada')
   await expect.poll(() => who(first)).toBe('Signed in as ada')
   expect(await admin(first)).toBe(1)
   await expect
     .poll(() => listed(first))
     .toEqual(notes.map(note => `${note.title} (${note.authorId})`))
+  await first.waitForTimeout(500)
+  expect(asked).toEqual(['read', 'query'])
 
   // The second tab reads the cookie the first one's sign-in set.
   const second = await open(errors)
@@ -109,6 +124,16 @@ test('a sign-out in one tab reaches the other, and a member reads only their not
 })
 
 test('a session the server no longer holds is refused, and a wrong password is told apart', async () => {
+  // Signed in here, whatever the test before left: this one stands alone.
+  const before = await open([])
+  await expect.poll(() => who(before), { timeout: 120_000 }).not.toBe('Checking who you are…')
+  if ((await who(before))?.startsWith('Signed in as') === true) {
+    await before.getByRole('button', { name: 'Sign out' }).click()
+    await expect.poll(() => who(before)).toBe('Visitor')
+  }
+  await signIn(before, 'ada')
+  await expect.poll(() => who(before)).toBe('Signed in as ada')
+  await before.close()
   // A restart empties the in-memory store; the browser still holds the cookie.
   const { port } = new URL(server.url)
   await server.close()
@@ -123,7 +148,13 @@ test('a session the server no longer holds is refused, and a wrong password is t
   await expect
     .poll(() => page.locator('#notice').textContent())
     .toBe('That email and password do not match.')
+  // A sign-in reads `Me` and the notes once each: this tab hears its own
+  // broadcast, and neither forgets twice nor is refused for the change it made.
+  const asked = operations(page)
   await signIn(page, 'ada')
   await expect.poll(() => who(page)).toBe('Signed in as ada')
+  await expect.poll(() => listed(page)).toEqual(notes.map(n => `${n.title} (${n.authorId})`))
+  await page.waitForTimeout(500)
+  expect(asked).toEqual(['read', 'query'])
   expect(errors).toEqual([])
 })
