@@ -11,6 +11,7 @@
 import { Duration, Effect, Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
 import { Bundle, Link } from 'foldkit-bundle'
 import {
+  Entity,
   Words,
   type AnyEntity,
   type EntityInput,
@@ -722,6 +723,18 @@ const draftOf = (plan: Plan, given: unknown): Draft => {
 }
 
 const Core = {
+  /**
+   * The input of a form that writes no Entity of its own (a sign-up, a search,
+   * a login): `Entity.input` over an Entity defined from the same schema, so
+   * every key maps itself. `Form.make('Waitlist', Form.input(JoinWaitlist))`.
+   */
+  input: <Fields extends Schema.Struct.Fields>(schema: Schema.Struct<Fields>) => {
+    const entity = Entity.define('FormInput', schema)
+    // Every key names a field of the Entity, so there is no mapping; the
+    // generic `Fields` keeps TypeScript from seeing that the mapping is optional.
+    return Entity.input<typeof entity, Fields, {}>(entity, schema, undefined as never)
+  },
+
   /**
    * A form for one operation's input. A key mapped with `Relation.nested` holds
    * rows of a form of its own, built here from the nested input; every other key

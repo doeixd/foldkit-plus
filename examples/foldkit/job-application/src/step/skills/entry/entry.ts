@@ -3,7 +3,6 @@ import { Option, Schema } from 'effect'
 import { Update } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 
 import { ProficiencyLevel } from '../../../domain/index.js'
@@ -17,9 +16,7 @@ export const Skill = Schema.Struct({
 })
 export type Skill = typeof Skill.Type
 
-const SkillEntity = Entity.define('Skill', Skill)
-
-export const SkillForm = Form.make('Skill', Entity.input(SkillEntity, Skill), {
+export const SkillForm = Form.make('Skill', Form.input(Skill), {
   messages: { required: 'Skill name is required' },
 })
 

@@ -3,7 +3,6 @@ import { Option, Schema } from 'effect'
 import { Update } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 
 import * as Validation from '../../validation.js'
@@ -18,9 +17,7 @@ export const Degree = Schema.Struct({
 })
 export type Degree = typeof Degree.Type
 
-const DegreeEntity = Entity.define('Degree', Degree)
-
-export const DegreeForm = Form.make('Degree', Entity.input(DegreeEntity, Degree), {
+export const DegreeForm = Form.make('Degree', Form.input(Degree), {
   messages: { required: Validation.requiredMessage },
 })
 

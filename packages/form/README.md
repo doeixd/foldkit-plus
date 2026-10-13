@@ -83,7 +83,9 @@ const RenameForm = Page.children.rename
 ```
 
 - `Form.make` takes the name and an `Entity.input`. It resolves a control per
-  key and throws if it cannot. A view must also supply a renderer for each
+  key and throws if it cannot. A form that writes no Entity of its own (a
+  sign-up, a search, a login) takes `Form.input(schema)`, an input over an
+  Entity defined from that schema: `Form.make('Search', Form.input(SearchInput))`. A view must also supply a renderer for each
   control kind, including custom kinds.
 - `Rename.bundle` is an ordinary Bundle. `onOut` is required, so a submit is
   never dropped by omission.

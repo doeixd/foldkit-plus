@@ -756,10 +756,11 @@ its README the details.
   Done: the empty future is kept; `History.goTo` / `GoTo`. `foldkit-pixel-art`
 - [x] **Form: no "valid right now" query, no validate-all.** Done:
   `form.isValid`, `Message.ValidatedAll()`.
-- [ ] **Form: no Command definition for a check that tests can match** (still
+- [x] **Form: no Command definition for a check that tests can match** (still
   an inline `{ name: '<form>.check', args: { key } }`), and `Form.make`
-  requires an Entity for a plain form. `foldkit-form` The first half is done
-  (2026-10-13): `form.Check` is a definition, and the ports resolve it.
+  requires an Entity for a plain form. `foldkit-form` Done 2026-10-13:
+  `form.Check` is a definition the ports resolve, and `Form.input(schema)`
+  is a plain form's input.
 - [x] **Form: `engine.value` drops a filled but invalid optional key** that is
   not validated yet, instead of refusing, reached by `fill` then
   `engine.value` (a submit validates first; `isValid` is right). Fixed

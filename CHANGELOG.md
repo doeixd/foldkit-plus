@@ -13,6 +13,11 @@ version changed; `pnpm` skips versions already in the registry.
   definition (`Command.define('<form>.check', …)`) rather than an inline
   Command, so a test resolves it with `Command.resolve(form.Check, …)` instead
   of hand-building `{ name: '<form>.check', args: { key }, effect }`.
+- **`foldkit-form`: `Form.input(schema)`, a plain form's input.** A form that
+  writes no Entity (a sign-up, a search, a login) took `Entity.define` and
+  `Entity.input` over the same schema; `Form.make('Search', Form.input(Search))`
+  is that in one call. The ports of Foldkit's form, auth and job-application
+  examples use it.
 
 ### Changed
 

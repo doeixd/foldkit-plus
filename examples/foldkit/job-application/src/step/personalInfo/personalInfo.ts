@@ -4,7 +4,6 @@ import { Update } from 'foldkit'
 import { CalendarDate } from 'foldkit/calendar'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 
 import * as Validation from '../validation.js'
@@ -45,8 +44,6 @@ export const Applicant = Schema.Struct({
 })
 export type Applicant = typeof Applicant.Type
 
-const ApplicantEntity = Entity.define('Applicant', Applicant)
-
 const FAKE_API_DELAY_MS = 600
 
 const TAKEN_EMAILS = ['admin@foldkit.dev', 'test@example.com', 'demo@foldkit.dev']
@@ -62,21 +59,17 @@ const isEmailTaken = (email: string): Effect.Effect<boolean> =>
  * once the email's own rule passes; an answer for an email since edited is
  * dropped.
  */
-export const PersonalInfoForm = Form.make(
-  'PersonalInfo',
-  Entity.input(ApplicantEntity, Applicant),
-  {
-    messages: { required: Validation.requiredMessage },
-    checks: {
-      email: email =>
-        Effect.map(isEmailTaken(email), isTaken =>
-          isTaken ? 'This email is already in use' : undefined,
-        ),
-    },
-    // Upstream asks at once; its only wait is the fake API's.
-    debounce: 0,
+export const PersonalInfoForm = Form.make('PersonalInfo', Form.input(Applicant), {
+  messages: { required: Validation.requiredMessage },
+  checks: {
+    email: email =>
+      Effect.map(isEmailTaken(email), isTaken =>
+        isTaken ? 'This email is already in use' : undefined,
+      ),
   },
-)
+  // Upstream asks at once; its only wait is the fake API's.
+  debounce: 0,
+})
 
 // MODEL
 

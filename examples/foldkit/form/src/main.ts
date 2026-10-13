@@ -4,7 +4,6 @@ import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
-import { Entity } from 'foldkit-entity'
 import { Form, Input as FormInput, type Draft, type Submitted } from 'foldkit-form'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { FormView } from 'foldkit-mixins-form'
@@ -38,9 +37,6 @@ export const JoinWaitlist = Schema.Struct({
 })
 export type JoinWaitlist = typeof JoinWaitlist.Type
 
-/** A form reads its keys through an Entity; a signup is exactly what joining writes. */
-const Signup = Entity.define('Signup', JoinWaitlist)
-
 const EMAILS_ON_WAITLIST = ['test@example.com', 'demo@email.com', 'admin@test.com']
 
 const isEmailOnWaitlist = (email: string): Effect.Effect<boolean> =>
@@ -54,7 +50,7 @@ const isEmailOnWaitlist = (email: string): Effect.Effect<boolean> =>
  * and the submit. The check runs only once the email's own rule passes, and
  * an answer for an email since edited is dropped.
  */
-export const WaitlistForm = Form.make('Waitlist', Entity.input(Signup, JoinWaitlist), {
+export const WaitlistForm = Form.make('Waitlist', Form.input(JoinWaitlist), {
   inputs: { messageText: FormInput.multiline() },
   messages: { required: '{label} is required' },
   checks: {

@@ -50,6 +50,7 @@ const Post = Entity.define(
 const RenameInput = Schema.Struct({ id: Schema.String, title: Post.fields.title.schema })
 
 const Rename = Form.make('Rename', Entity.input(Post, RenameInput))
+// A form that writes no Entity: Form.make('Search', Form.input(SearchInput)).
 
 const Slot = Bundle.declare(Rename.bundle, 'rename')
 const Model = Schema.Struct({ ...Slot.fields, saved: Schema.Array(RenameInput) })
