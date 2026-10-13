@@ -609,4 +609,33 @@ describe('GuardServer.validate', () => {
     )
     expect(answered.entities.map(({ id }) => id)).toEqual(['t1', 't2'])
   })
+
+  it('keeps what an earlier provide gave, and its origin, through a second one', async () => {
+    class Admins extends Context.Service<Admins, ReadonlyArray<string>>()('server-test/Admins') {}
+    const Needing = G.implement({
+      isAdmin: principal =>
+        Effect.map(Admins, admins => Option.exists(principal, user => admins.includes(user.id))),
+    })
+    const Twice = Needing.provide(Context.make(Admins, ['zoe'])).provide(Context.empty())
+    const server = RemoteServer.memory({
+      domain: Data,
+      rows,
+      principal: Option.none<User>(),
+      ...GuardServer.memory(Twice, [Todo, Project, Node]),
+    }).server
+    expect(() =>
+      GuardServer.validate(Needing, { entities: [Todo, Project, Node], domain: Data, server }),
+    ).not.toThrow()
+    const zoe = Option.some<User>({ id: 'zoe', role: 'member', projectIds: [] })
+    // Each Effect the bodies run in, decided with the provided list.
+    expect(
+      await Effect.runPromise(Twice.decide(G.isAdmin, { principal: zoe, interaction: 'Read' })),
+    ).toBe(true)
+    expect(await Effect.runPromise(Twice.writable(Todo, zoe, 'Delete'))).toMatchObject({
+      condition: { _tag: 'Always' },
+    })
+    expect(
+      await Effect.runPromise(Twice.writeMembers(Todo, zoe, ['ownerId'], 'Update')),
+    ).toMatchObject([{ condition: { _tag: 'Always' } }])
+  })
 })

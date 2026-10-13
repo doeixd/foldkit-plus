@@ -220,7 +220,9 @@ export interface Policy<User, R = never> {
    * `GuardSync`) take a Policy that needs nothing more: a read rule runs inside
    * a read whose requirements are its Source's. Provide what stays put here,
    * once; carry what changes per request in the principal. A seam built from
-   * the result counts as built from this Policy.
+   * the result counts as built from this Policy: `validate` checks the rules,
+   * not the services given them. `GuardSync.authorize` runs bodies
+   * synchronously, so what it is given must answer without suspending.
    *
    * ```ts
    * const ReadPolicy = Policy.provide(Context.make(Memberships, memberships))
@@ -334,6 +336,12 @@ export const Guards = {
     },
   ): GuardSet<Name, Schema.Struct.Type<Fields>, S> => {
     type User = Schema.Struct.Type<Fields>
+    // The type requires it; a caller without types (or one that spelled it
+    // `'Allow'`) would otherwise get a set that denies, silently.
+    if (options.unguarded !== 'allow' && options.unguarded !== 'deny')
+      throw new Error(
+        `[foldkit-guard] ${name}: unguarded must be 'allow' or 'deny', not ${JSON.stringify(options.unguarded)}`,
+      )
     const placeholders = placeholdersOf<User>(principal.fields)
     const specs = build({
       principal: () => Object.freeze({ _tag: 'PrincipalSpec' }),

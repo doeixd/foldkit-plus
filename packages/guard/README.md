@@ -343,7 +343,8 @@ GuardDrizzle.visible(ReadPolicy, [Todo]) // a type error with `Checked`
 ```
 
 A seam built from `ReadPolicy` counts as built from `Checked`, so
-`GuardServer.validate(Checked, …)` accepts it. The write seams take the
+`GuardServer.validate(Checked, …)` accepts it: `validate` checks that a seam
+runs the declared rules, not which services they were given. The write seams take the
 Policy as it is and require its services where the write runs.
 
 ## Serving writes

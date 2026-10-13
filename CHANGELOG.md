@@ -93,7 +93,8 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-guard`: `Guards.declare` requires `unguarded`.** What a guarded
   Entity's surface with no rules decides is written down rather than
   defaulted to `'allow'`. Pass `unguarded: 'allow'` to keep what an omitted
-  one did; `'deny'` refuses such a surface.
+  one did; `'deny'` refuses such a surface. Anything else, an omission from
+  a caller without types included, throws at `declare`.
 
 - **`serveFetch` and `defineDocumentHost` resolve the principal with an
   Effect.** `resolvePrincipal: (request, env) => Effect<P,

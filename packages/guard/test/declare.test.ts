@@ -185,3 +185,18 @@ describe('implement', () => {
     expect(decided).toBe(true)
   })
 })
+
+describe('unguarded', () => {
+  it.each([[undefined], ['Allow']])(
+    'refuses %s, which a caller without types could pass',
+    given => {
+      expect(() =>
+        Guards.declare('Loose', User, () => ({}), {
+          key: user => user.id,
+          // @ts-expect-error what an untyped caller sends
+          unguarded: given,
+        }),
+      ).toThrow(/unguarded must be 'allow' or 'deny'/)
+    },
+  )
+})

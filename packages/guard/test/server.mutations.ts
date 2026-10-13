@@ -374,4 +374,59 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a Policy provided twice records the first as its origin',
+    edits: [
+      {
+        file: '../src/origin.ts',
+        find: 'origins.set(policy, originOf(from))',
+        replace: 'origins.set(policy, from)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a second provide drops what the first gave',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'provide: more => provided(next, more),',
+        replace: 'provide: more => provided(policy as never, more),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a provided Policy decides without what it was given',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'decide: (guard, request) => run(policy.decide(guard, request)),',
+        replace: 'decide: (guard, request) => policy.decide(guard, request) as never,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a provided Policy rules writes without what it was given',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'run(policy.writable(entity, principal, interaction)),',
+        replace: 'policy.writable(entity, principal, interaction) as never,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a provided Policy rules written members without what it was given',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'run(policy.writeMembers(entity, principal, members, interaction)),',
+        replace: 'policy.writeMembers(entity, principal, members, interaction) as never,',
+      },
+    ],
+    tests,
+  },
 ]

@@ -89,4 +89,15 @@ export default [
     ],
     tests: ['packages/guard/test/declare.test.ts'],
   },
+  {
+    name: 'unguarded is taken unchecked',
+    edits: [
+      {
+        file,
+        find: "if (options.unguarded !== 'allow' && options.unguarded !== 'deny')",
+        replace: 'if (false)',
+      },
+    ],
+    tests,
+  },
 ]
