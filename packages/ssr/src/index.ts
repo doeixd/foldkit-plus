@@ -1090,10 +1090,12 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly resources?: ((request: Request) => Layer.Layer<never, never, never>) | undefined
     /**
      * The origins a form may be posted from: a post whose `Origin` (which
-     * every browser sends on one) is not among them is a 403 that reads
-     * nothing, so a page elsewhere cannot post as someone signed in here. A
-     * form cannot carry a CSRF header; this is its check. Each must be an
-     * origin exactly as a browser sends it (`https://example.com`).
+     * every browser sends on one) is not among them is a 403 before its body
+     * is read, so a page elsewhere cannot post as someone signed in here. A
+     * form cannot carry a CSRF header; this is its check. `Origin: null` (a
+     * page served with `Referrer-Policy: no-referrer`) is taken when
+     * `Sec-Fetch-Site` says `same-origin`. Each must be an origin exactly as
+     * a browser sends it (`https://example.com`).
      */
     readonly origins?: ReadonlyArray<string> | undefined
     /**
@@ -1148,7 +1150,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     if (method !== 'GET' && method !== 'HEAD' && !posting) {
       return responded(new Response(null, { status: 405, headers: { allow } }))
     }
-    if (posting && origins !== undefined && !origins.has(request.headers.get('origin') ?? '')) {
+    if (posting && origins !== undefined && !postedFrom(request, origins)) {
       return responded(plainText(403, 'The form was not posted from this site.'))
     }
     const flagsOf = options.flags
@@ -1195,6 +1197,19 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       : Rendered(exit.value.rendered, { headers: extra })
   }
   return { renderPage: answer }
+}
+
+/**
+ * Whether a post came from one of `origins`: its `Origin`, or, when a browser
+ * withheld that (`Origin: null`, which a page served with `Referrer-Policy:
+ * no-referrer` sends on its own forms), its `Sec-Fetch-Site`, which no page or
+ * form can set. `foldkit-auth`'s resolver decides the same way.
+ */
+const postedFrom = (request: Request, origins: ReadonlySet<string>): boolean => {
+  const origin = request.headers.get('origin')
+  return origin !== null && origin !== 'null'
+    ? origins.has(origin)
+    : request.headers.get('sec-fetch-site') === 'same-origin'
 }
 
 const plainText = (status: number, body: string): Response =>

@@ -5,10 +5,11 @@
  * Remote server.
  */
 import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
-import { type Context, Effect, type Layer, type Option, Schema } from 'effect'
+import { Context, Effect, Layer, type Option, Schema } from 'effect'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { serveFetch } from 'foldkit-remote-server/fetch'
+import { SSR } from 'foldkit-ssr'
 import { defineDocumentHost, type DocumentHostConfig } from 'foldkit-sync/do'
 import { AuthServer } from 'foldkit-auth/server'
 
@@ -72,3 +73,26 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
   layer: () => AppAuthLive,
   revalidate: { every: '1 minute' },
 }) {}
+
+// ## SSR's posted forms
+
+// The page's config and plan, as foldkit-ssr's README builds them.
+declare const config: Parameters<typeof SSR.entry>[0]
+declare const plan: Parameters<typeof SSR.entry>[1]
+
+class Principal extends Context.Service<Principal, Option.Option<{ readonly id: string }>>()(
+  'app/Principal',
+) {}
+const whoPosted = AuthServer.resolver({
+  requests: 'browser',
+  auth: AppAuth,
+  http,
+  principal: session => Effect.succeed({ id: session.subjectId }),
+})
+
+export const entry = SSR.entry(config, plan, {
+  buildId: 'b1',
+  origins: [http.origin],
+  resources: request =>
+    Layer.effect(Principal, whoPosted(request)).pipe(Layer.provide(AppAuthLive), Layer.orDie),
+})

@@ -122,6 +122,12 @@ const signIn = async (): Promise<string> => {
   return session!.split(';')[0]!
 }
 
+/** ada's session cookie: one sign-in for every case, as Yielded rate-limits them. */
+let ada: string
+beforeAll(async () => {
+  ada = await signIn()
+})
+
 const served = serveFetch({
   server,
   resolvePrincipal: AuthServer.resolver({
@@ -162,7 +168,7 @@ const whoami = async (headers: Record<string, string>) => {
 
 describe('AuthServer.resolver over a real Yielded session', () => {
   it('answers the cookie Yielded set as the subject it names', async () => {
-    const cookie = await signIn()
+    const cookie = ada
     expect(cookie.startsWith('__Host-effect-auth-session=')).toBe(true)
     expect(await whoami({ ...fromApplication, cookie })).toEqual({ status: 200, who: 'ada' })
   })
@@ -178,10 +184,14 @@ describe('AuthServer.resolver over a real Yielded session', () => {
   it.each([
     ['no Origin it trusts', { origin: 'https://elsewhere.test', 'x-effect-auth-csrf': '1' }],
     ['no Origin', { 'x-effect-auth-csrf': '1' }],
+    [
+      'Origin: null from another site',
+      { origin: 'null', 'sec-fetch-site': 'cross-site', 'x-effect-auth-csrf': '1' },
+    ],
     ['no CSRF header', { origin: 'https://app.test' }],
     ['the wrong CSRF value', { origin: 'https://app.test', 'x-effect-auth-csrf': '0' }],
   ])('refuses a cookie from a request with %s', async (_, headers) => {
-    const cookie = await signIn()
+    const cookie = ada
     expect(await whoami({ ...headers, cookie })).toEqual({
       status: 401,
       reason: 'The request did not show it came from this application.',
@@ -189,7 +199,7 @@ describe('AuthServer.resolver over a real Yielded session', () => {
   })
 
   it('refuses a cookie that no longer verifies', async () => {
-    const cookie = `${(await signIn()).split('=')[0]}=not-a-session`
+    const cookie = `${ada.split('=')[0]}=not-a-session`
     expect(await whoami({ ...fromApplication, cookie })).toEqual({
       status: 401,
       reason: 'Your session ended.',
@@ -201,15 +211,28 @@ describe('AuthServer.resolver over a real Yielded session', () => {
     ['someone else, holding a session', true, subjectSaid(Option.some('grace'))],
     ['someone, holding none', false, subjectSaid(Option.some('ada'))],
   ])('refuses a client that believes it is %s', async (_, signedIn, believed) => {
-    const cookie = signedIn ? { cookie: await signIn() } : {}
+    const cookie = signedIn ? { cookie: ada } : {}
     expect(await whoami({ ...fromApplication, ...cookie, [SUBJECT_HEADER]: believed })).toEqual({
       status: 401,
       reason: 'Who is signed in changed.',
     })
   })
 
+  it('reads the cookie of a page that withholds its Origin, by Sec-Fetch-Site', async () => {
+    // A page served with Referrer-Policy: no-referrer posts Origin: null to its own site.
+    const cookie = ada
+    expect(
+      await whoami({
+        origin: 'null',
+        'sec-fetch-site': 'same-origin',
+        'x-effect-auth-csrf': '1',
+        cookie,
+      }),
+    ).toEqual({ status: 200, who: 'ada' })
+  })
+
   it('answers a client that believes rightly', async () => {
-    const cookie = await signIn()
+    const cookie = ada
     expect(
       await whoami({
         ...fromApplication,
@@ -220,7 +243,7 @@ describe('AuthServer.resolver over a real Yielded session', () => {
   })
 
   it('refuses two session cookies', async () => {
-    const cookie = await signIn()
+    const cookie = ada
     expect(await whoami({ ...fromApplication, cookie: `${cookie}; ${cookie}` })).toEqual({
       status: 401,
       reason: 'Sign in again.',

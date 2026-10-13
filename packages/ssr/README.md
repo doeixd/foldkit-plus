@@ -700,8 +700,11 @@ entry of your own.
 A form a cookie session authorizes is a cross-site request forgery target,
 and a form cannot carry a CSRF header. `SSR.entry`'s `origins` names the
 origins a form may be posted from; a post whose `Origin` (every browser sends
-one on a `POST`) is not among them is answered `403` before anything is read
-or built. `resources` requires `origins`, since its services act as whoever
+one on a `POST`) is not among them is answered `403` before its body is read
+or `flags` and `resources` run. A page served with `Referrer-Policy:
+no-referrer` posts `Origin: null` even to its own site; such a post is taken
+when its `Sec-Fetch-Site`, which no page or form can set, says
+`same-origin`. `resources` requires `origins`, since its services act as whoever
 posted: an entry with one and not the other throws when it is made. An entry
 of your own that calls `SSR.handle` checks `Origin` itself.
 

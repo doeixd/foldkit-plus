@@ -327,8 +327,8 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
 - Each upgrade resolves its own principal, an Effect that refuses the caller
   by failing with a `RemoteUnauthenticated` (`RemoteServer.unauthenticated()`
   makes one): a 401 carrying its message. Non-upgrades are 404s that open
-  nothing. A resolver that breaks, or a journal that never opened, is a 500
-  that says nothing of it.
+  nothing. A resolver that breaks, a `layer` that fails to build, or a
+  journal that never opened, is a 500 that says nothing of it.
 - A resolver that reads a service (a session store) takes it from
   `layer: env => Layer`, required exactly when the resolver needs one. It is
   built per upgrade and kept until the socket closes, so `revalidate` reads

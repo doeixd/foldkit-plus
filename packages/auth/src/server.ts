@@ -45,6 +45,20 @@ const cookieValues = (header: string | null, name: string): ReadonlyArray<string
     return at > 0 && pair.slice(0, at).trim() === name ? [pair.slice(at + 1).trim()] : []
   })
 
+/**
+ * Whether `request` came from one of `trusted`: its `Origin`, or, when a
+ * browser withheld that (`Origin: null`, which a page served with
+ * `Referrer-Policy: no-referrer` sends on its own same-origin posts), its
+ * `Sec-Fetch-Site`, which no page or form can set. `foldkit-ssr` checks a
+ * posted form's `Origin` the same way.
+ */
+const cameFrom = (request: Request, trusted: ReadonlySet<string>): boolean => {
+  const origin = request.headers.get('origin')
+  return origin !== null && origin !== 'null'
+    ? trusted.has(origin)
+    : request.headers.get('sec-fetch-site') === 'same-origin'
+}
+
 const refuse = (reason: string) => new RemoteUnauthenticated({ message: reason, reason })
 
 /** Refuses a request whose `x-foldkit-subject` names someone other than `subject`. */
@@ -95,7 +109,7 @@ const resolver = <I, S extends VerifiedSession, User, R = never>(
   }
   const csrf = config.http.csrf ?? { header: 'x-effect-auth-csrf', value: '1' }
   const vouched = (request: Request): boolean =>
-    trusted.has(request.headers.get('origin') ?? '') &&
+    cameFrom(request, trusted) &&
     (config.requests === 'browser' || request.headers.get(csrf.header) === csrf.value)
   return request =>
     Effect.gen(function* () {

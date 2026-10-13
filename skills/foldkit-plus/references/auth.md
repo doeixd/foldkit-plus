@@ -52,7 +52,7 @@ const transport = Remote.httpWithLive('/remote', {
 | Request | Answer |
 | --- | --- |
 | No session cookie | visitor |
-| A cookie without a trusted `Origin` and the CSRF header (`x-effect-auth-csrf: 1`) | 401 `The request did not show it came from this application.` |
+| A cookie without a trusted `Origin` (and, unless `requests: 'browser'`, the CSRF header `x-effect-auth-csrf: 1`) | 401 `The request did not show it came from this application.` |
 | A cookie that no longer verifies | 401 `Your session ended.` |
 | Two session cookies | 401 `Sign in again.` |
 | `x-foldkit-subject` naming someone else | 401 `Who is signed in changed.` |
@@ -74,10 +74,10 @@ on every Remote call kind.
   `subjectSaid(Option.none())` (`visitor`) or
   `subjectSaid(Option.some(id))`. A client that sends it is never answered as
   anyone else; one that sends none is answered as the session says.
-- Sync's upgrade: `resolvePrincipal: AuthServer.resolver({ ...config,
-  requests: 'browser' })` with
-  `layer: () => AppAuthLive`. A `WebSocket` sends no CSRF header, so a
-  trusted `Origin` alone vouches for its cookie.
+- Sync's upgrade and SSR's posted forms send no header of the page's: pass
+  `requests: 'browser'`, and a trusted `Origin` alone vouches for the
+  cookie. Sync takes the resolver with `layer: () => AppAuthLive`; SSR builds
+  a post's `resources` from it, behind `SSR.entry`'s `origins`.
 - Only cookie sessions so far. The `Me` Entity and the
   client's Commands are planned.
 

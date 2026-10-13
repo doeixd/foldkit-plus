@@ -25,7 +25,7 @@ version changed; `pnpm` skips versions already in the registry.
   from `foldkit-auth`, are what a client sends. Also re-exported as
   `foldkit-plus/auth` and `foldkit-plus/auth/server`, an optional peer.
 
-- **`defineDocumentHost` takes `layer: env => Layer` for its resolver.**
+- **`foldkit-sync`: `defineDocumentHost` takes `layer: env => Layer` for its resolver.**
   `resolvePrincipal` may need a service (a session store), which `layer`
   provides; it is required exactly when the resolver needs one, built per
   upgrade, kept while the socket is open for `revalidate`, and closed at once
@@ -36,7 +36,9 @@ version changed; `pnpm` skips versions already in the registry.
   once for the post and provided to the Commands its fallback runs beside the
   config's `resources`; where both provide a service, the post's is used, so
   a Command reads as who posted. `SSR.entry`'s `origins` names where a form
-  may be posted from: any other `Origin` is a 403 that reads nothing, and
+  may be posted from: any other `Origin` is a 403 before the body is read or
+  `flags` and `resources` run (`Origin: null` counts as the site's own when
+  `Sec-Fetch-Site` says `same-origin`), and
   `resources` without `origins` throws when the entry is made.
 
 - **`serveFetch` and `defineDocumentHost` take `revalidate: { every, key?
@@ -103,11 +105,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **`foldkit-agent-mcp`: `authenticate` is an Effect.** `authenticate:
   request => Effect<Principal, Unauthenticated>`, so it may ask a token store;
-  failing with `{ _tag: 'Unauthenticated', reason? }` (Remote's
-  `RemoteUnauthenticated` is one) is a 401 carrying `reason`, and a defect or
-  a throw is a 500 that says nothing, where it returned `Principal |
-  undefined`. Wrap a plain lookup: `request => Option.match(lookup(request),
-  { onNone: () => Effect.fail(refusal), onSome: Effect.succeed })`.
+  where it returned `Principal | undefined`. Failing with `{ _tag:
+  'Unauthenticated', reason? }` (Remote's `RemoteUnauthenticated` is one) is a
+  401 carrying `reason`; a defect or a throw is a 500 that says nothing. Wrap
+  a plain lookup: `request => Option.match(lookup(request), { onNone: () =>
+  Effect.fail({ _tag: 'Unauthenticated' } as const), onSome: Effect.succeed
+  })`.
 
 - **`foldkit-guard`: `Guards.declare` requires `unguarded`.** What a guarded
   Entity's surface with no rules decides is written down rather than

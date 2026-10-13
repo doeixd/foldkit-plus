@@ -139,9 +139,10 @@ describe('SSR.handle through handleRequest', () => {
   })
 
   it.each([
-    ['another origin', { origin: 'https://elsewhere.test' }],
-    ['no Origin', { origin: null }],
-  ])('refuses a form posted from %s, reading nothing', async (_, { origin }) => {
+    ['another origin', 'https://elsewhere.test', undefined],
+    ['no Origin', null, undefined],
+    ['Origin: null from another site', 'null', 'cross-site'],
+  ] as const)('refuses a form posted from %s, reading nothing', async (_, origin, site) => {
     const seen: Array<string> = []
     const guarded = SSR.entry(config, plan, {
       buildId: 'b',
@@ -151,10 +152,20 @@ describe('SSR.handle through handleRequest', () => {
     const request = post({ title: 'Milk', [FALLBACK_FIELD]: added })
     if (origin === null) request.headers.delete('origin')
     else request.headers.set('origin', origin)
+    if (site !== undefined) request.headers.set('sec-fetch-site', site)
     const response = await serve(request, guarded)
     expect(response.status).toBe(403)
     expect(await response.text()).toBe('The form was not posted from this site.')
     expect(seen).toEqual([])
+  })
+
+  it('takes a form from a page that withholds its Origin, by Sec-Fetch-Site', async () => {
+    // A page served with Referrer-Policy: no-referrer posts Origin: null to its own site.
+    const guarded = SSR.entry(config, plan, { buildId: 'b', origins: ['https://example.test'] })
+    const request = post({ title: 'Milk', [FALLBACK_FIELD]: added })
+    request.headers.set('origin', 'null')
+    request.headers.set('sec-fetch-site', 'same-origin')
+    expect((await serve(request, guarded)).status).toBe(200)
   })
 
   it('serves a page to any origin: only a post is checked', async () => {

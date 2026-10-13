@@ -19,7 +19,7 @@ export default [
   },
   {
     name: 'a cookie is read from any Origin',
-    edits: [{ file, find: "trusted.has(request.headers.get('origin') ?? '') &&", replace: '' }],
+    edits: [{ file, find: 'cameFrom(request, trusted) &&', replace: '' }],
     tests,
   },
   {
@@ -131,6 +131,22 @@ export default [
   {
     name: 'a browser request must send the CSRF header it cannot',
     edits: [{ file, find: "(config.requests === 'browser' || ", replace: '(' }],
+    tests,
+  },
+  {
+    name: 'Origin: null is looked up as an origin',
+    edits: [{ file, find: "origin !== null && origin !== 'null'", replace: 'origin !== null' }],
+    tests,
+  },
+  {
+    name: 'a withheld Origin is taken from anywhere but another site',
+    edits: [
+      {
+        file,
+        find: "request.headers.get('sec-fetch-site') === 'same-origin'",
+        replace: "request.headers.get('sec-fetch-site') !== 'cross-site'",
+      },
+    ],
     tests,
   },
 ]

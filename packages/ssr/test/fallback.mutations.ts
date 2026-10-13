@@ -82,7 +82,7 @@ export default [
     edits: [
       {
         file,
-        find: "if (posting && origins !== undefined && !origins.has(request.headers.get('origin') ?? '')) {",
+        find: 'if (posting && origins !== undefined && !postedFrom(request, origins)) {',
         replace: 'if (false) {',
       },
     ],
@@ -102,6 +102,22 @@ export default [
   {
     name: 'any origin is taken as written',
     edits: [{ file, find: 'new URL(origin).origin !== origin', replace: 'false' }],
+    tests,
+  },
+  {
+    name: 'Origin: null is looked up as an origin',
+    edits: [{ file, find: "origin !== null && origin !== 'null'", replace: 'origin !== null' }],
+    tests,
+  },
+  {
+    name: 'a withheld Origin is taken from anywhere but another site',
+    edits: [
+      {
+        file,
+        find: "request.headers.get('sec-fetch-site') === 'same-origin'",
+        replace: "request.headers.get('sec-fetch-site') !== 'cross-site'",
+      },
+    ],
     tests,
   },
 ]

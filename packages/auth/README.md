@@ -17,7 +17,6 @@ Yielded set, verifies it with the application's own `Auth` service, and
 gives back the application's principal, a visitor, or a refusal the client
 decodes.
 
-Agents do not use it yet (auth-DESIGN §9).
 
 ## What it owns, and what it does not
 
@@ -47,7 +46,8 @@ A request is one of three things: a visitor (`Option.none()`), someone
 decodes). A cookie rides along with any request to the site, so one is used
 only from a request that shows it came from the application, by the rule
 Yielded applies to its own mutations: an `Origin` it trusts and its CSRF
-header (`x-effect-auth-csrf: 1`). From any other request it is refused, never
+header (`x-effect-auth-csrf: 1`), or, for what a browser sends on the page's
+behalf, the `Origin` alone (below). From any other request it is refused, never
 quietly ignored: a page elsewhere borrows no one's session, and a client of
 the application's own that forgot the header learns so on its first call.
 
@@ -125,15 +125,18 @@ A refusal reaches the Model as a failure whose error has `_tag:
 A browser's `WebSocket` sends no header of the page's, so an upgrade cannot
 carry the CSRF header. `requests: 'browser'` says so: the resolver reads the
 cookie of an upgrade whose `Origin`, which every browser sends on one, is
-trusted, and asks for no header; the rest is unchanged. `defineDocumentHost` takes the `Auth`
-service from its `layer`, kept while the socket is open, so `revalidate`
-can ask the session store again and close a socket whose session ended
-(4401):
+trusted, and asks for no header; the rest is unchanged. `defineDocumentHost`
+takes the `Auth` service from its `layer`, kept while the socket is open, so
+`revalidate` can ask the session store again and close a socket whose
+session ended (4401):
 
 ```ts
+import { DurableObject } from 'cloudflare:workers'
+import { defineDocumentHost } from 'foldkit-sync/do'
+
 export class SyncHost extends defineDocumentHost(DurableObject, {
   sync, // Sync.make(…)
-  openJournal,
+  openJournal, // the document's journal, as foldkit-sync's README opens it
   resolvePrincipal: AuthServer.resolver({
     requests: 'browser',
     auth: AppAuth,
@@ -147,23 +150,49 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
 
 ## SSR's posted forms
 
-A form `foldkit-ssr` handles without scripts is a browser request too. Give
-`SSR.entry` the same origins (`origins: [http.origin, ...(http.trustedOrigins
-?? [])]`), which answers a post from anywhere else `403` before reading it,
-and build the post's `resources` from `AuthServer.resolver({ ..., requests:
-'browser' })(request)`. That Layer cannot fail, so a post whose session ended
-is a `500` for now, not a way back to sign-in (auth-DESIGN §6.5, slice 10).
+A form `foldkit-ssr` handles without scripts is a browser request too.
+`SSR.entry`'s `origins` answers a post from anywhere else `403` before its
+body is read; its `resources` give the post's Commands who posted, from a
+resolver built once with `requests: 'browser'`:
+
+```ts
+import { SSR } from 'foldkit-ssr'
+
+class Principal extends Context.Service<Principal, Option.Option<{ readonly id: string }>>()(
+  'app/Principal',
+) {}
+const whoPosted = AuthServer.resolver({
+  requests: 'browser',
+  auth: AppAuth,
+  http,
+  principal: session => Effect.succeed({ id: session.subjectId }),
+})
+
+export const entry = SSR.entry(config, plan, {
+  buildId: 'b1',
+  origins: [http.origin],
+  resources: request =>
+    Layer.effect(Principal, whoPosted(request)).pipe(Layer.provide(AppAuthLive), Layer.orDie),
+})
+```
+
+That Layer cannot fail, so a post whose session ended is a `500` for now,
+not a way back to sign-in (auth-DESIGN §6.5, slice 10).
 
 ## Refusals
 
 | Request | Answer |
 | --- | --- |
 | No session cookie | a visitor |
-| A cookie, from a request without a trusted `Origin` and the CSRF header | 401, `The request did not show it came from this application.` |
+| A cookie, from a request without a trusted `Origin` (and, for `'scripted'`, the CSRF header) | 401, `The request did not show it came from this application.` |
 | A cookie that no longer verifies (signed out, expired, idle, revoked) | 401, `Your session ended.` |
 | Two session cookies | 401, `Sign in again.` |
 | `x-foldkit-subject` naming someone other than the session | 401, `Who is signed in changed.` |
 | A session store that fails | a defect (500), never a visitor |
+
+A page served with `Referrer-Policy: no-referrer` sends `Origin: null` on its
+own posts; such a request counts as the application's when its
+`Sec-Fetch-Site`, which no page can set, says `same-origin`.
 
 **Remote's calls do not keep a session alive.** The resolver verifies with
 `verifySession`, which renews nothing. A stateful session with an
