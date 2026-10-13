@@ -62,7 +62,7 @@ const makeWebHandler = () => {
     authenticate: request => {
       const token = request.headers['authorization']
       return token === undefined
-        ? Effect.fail({ _tag: 'Unauthenticated', reason: 'No token' } as const)
+        ? Effect.fail(AgentMcp.unauthenticated('No token'))
         : Effect.succeed({ user: token.replace('Bearer ', '') })
     },
     allowedOrigins: ['https://app.example'],

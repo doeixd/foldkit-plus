@@ -63,6 +63,10 @@ export interface Unauthenticated {
   readonly reason?: string | undefined
 }
 
+/** Refuses a caller from `authenticate`: `Effect.fail(AgentMcp.unauthenticated('Token expired'))`. */
+export const unauthenticated = (reason?: string): Unauthenticated =>
+  reason === undefined ? { _tag: 'Unauthenticated' } : { _tag: 'Unauthenticated', reason }
+
 export interface HttpHandlerOptions<Model, Context_, Principal, ByName, ByTag> {
   /**
    * Binds a runtime for one authenticated caller.
@@ -77,8 +81,10 @@ export interface HttpHandlerOptions<Model, Context_, Principal, ByName, ByTag> {
   /**
    * Resolves the caller from the request: an Effect, so it may ask a token
    * store. Failing with `Unauthenticated` refuses it, a 401 carrying `reason`;
-   * a defect is a 500 that says nothing of it. It needs nothing: provide what
-   * it reads (a session store) from a context built once, not per request.
+   * a defect is a 500 that says nothing of it, logged. It needs nothing:
+   * provide what it reads (a session store) from a context built once, not
+   * per request. It runs in a fiber of its own, outside an `httpApp`
+   * request's, so a client that leaves does not interrupt it.
    *
    * The principal comes from here and nowhere else: a principal taken from
    * request params would let any caller claim any identity.
@@ -345,7 +351,11 @@ export const httpHandler = <Model, Context_, Principal, ByName, ByTag>(
       // Suspended, so an authenticate that throws is a 500 like one that dies.
       const authenticated = await Effect.runPromise(
         Effect.result(Effect.suspend(() => authenticate(request))),
-      ).catch(() => undefined)
+      ).catch((cause: unknown) => {
+        // The caller learns nothing of it; whoever runs the server must.
+        console.error('[foldkit-agent-mcp] authenticate broke:', cause)
+        return undefined
+      })
       if (authenticated === undefined) return json(500, { error: 'Internal error' })
       if (Result.isFailure(authenticated)) {
         const { reason } = authenticated.failure

@@ -68,7 +68,7 @@ const makeServer = (
     authenticate: (request: HttpRequest) => {
       const token = request.headers['authorization']
       return token === undefined
-        ? Effect.fail({ _tag: 'Unauthenticated', reason: 'No token' } as const)
+        ? Effect.fail(AgentMcp.unauthenticated('No token'))
         : Effect.succeed({ user: token.replace('Bearer ', '') })
     },
     allowedOrigins: ['https://app.example'],
@@ -246,12 +246,16 @@ describe('security', () => {
       },
     ],
   ])('answers an authenticate that %s with a 500 that says nothing of it', async (_, broken) => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const server = makeServer({ authenticate: broken })
     const response = await server.handle(post(initialize))
 
     expect(response.status).toBe(500)
     expect(response.body).toEqual({ error: 'Internal error' })
     expect(server.sessions()).toEqual([])
+    // The operator, not the caller, learns why.
+    expect(String(logged.mock.calls[0]?.[1])).toContain('the token store password')
+    logged.mockRestore()
   })
 
   it('asks a store that answers later', async () => {
@@ -333,7 +337,7 @@ describe('security', () => {
         authenticate: (request: HttpRequest) => {
           const token = request.headers['authorization']
           return token === undefined
-            ? Effect.fail({ _tag: 'Unauthenticated', reason: 'No token' } as const)
+            ? Effect.fail(AgentMcp.unauthenticated('No token'))
             : Effect.succeed({ user: token.replace('Bearer ', ''), issuedAt: issued++ })
         },
         principalId: principal => principal.user,

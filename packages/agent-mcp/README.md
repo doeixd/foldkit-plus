@@ -150,9 +150,10 @@ const response = await handler(request)
 Unlike stdio, HTTP is multi-session. `createAgent` runs for a session under the
 principal `authenticate` resolves, so different callers do not accidentally
 share a bound application runtime. `authenticate` is an Effect, so it may ask a
-token store: failing with `Unauthenticated` (`{ _tag: 'Unauthenticated',
-reason? }`, which Remote's `RemoteUnauthenticated` is) refuses the caller with a
-401 carrying `reason`, and a defect is a 500 that says nothing of it. It needs no
+token store: failing with `AgentMcp.unauthenticated(reason?)` (or Remote's
+`RemoteUnauthenticated`, which has the same shape) refuses the caller with a
+401 carrying `reason`, and a defect is a 500 that says nothing of it, logged
+on the server. It needs no
 service: provide what it reads from a context built once at startup, not per
 request.
 

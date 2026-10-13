@@ -37,7 +37,7 @@ AgentMcp.stdio({
 // authenticate refuses with Unauthenticated, which a 401 can say, and needs nothing.
 AgentMcp.httpHandler({
   createAgent,
-  authenticate: () => Effect.fail({ _tag: 'Unauthenticated', reason: 'expired' } as const),
+  authenticate: () => Effect.fail(AgentMcp.unauthenticated('expired')),
 })
 AgentMcp.httpHandler({
   createAgent,

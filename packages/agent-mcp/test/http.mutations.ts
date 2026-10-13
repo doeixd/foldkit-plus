@@ -51,4 +51,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a broken authenticate leaves no trace',
+    edits: [
+      {
+        file,
+        find: "console.error('[foldkit-agent-mcp] authenticate broke:', cause)",
+        replace: 'void cause',
+      },
+    ],
+    tests,
+  },
 ]
