@@ -276,6 +276,7 @@ one.
 | `Theme.define` / `Theme.ref(theme)` / `variables` | typed tokens; every token as a typed `var(--fk-group-name)` reference (`Theme.ref(theme).surface.base`), built once per theme; the tokens as inline custom properties |
 | `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
 | `Theme.root(theme, { omit?, colorScheme? })` / `Theme.scoped(theme, selector, overrides)` | from `foldkit-mixins/theme`: tokens as `:root` custom properties, or as overrides under a selector; unlayered global pieces for `Style.stylesheet` |
+| `Theme.schemeScript(key?)` / `Theme.chooseScheme(scheme, key?)` / `Theme.currentScheme()` | from `foldkit-mixins/theme`: a head script applying a kept `light` or `dark` before the first paint; a Command's Effect that applies and keeps a choice; the scheme applied now |
 | `Theme.tokens` / `Theme.oklch(knobs)` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, radius, motion, border, shadow and breakpoint scales; a whole palette derived from an accent and a few knobs (including the shadow color, denser in a dark scheme); the breakpoints as pixel widths for `foldkit-primitives/media` |
 | `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece), `in(name, piece)` (a piece's unlayered rules and global CSS inside that layer; what is already layered keeps its layer; a piece wholly in another layer is `style:relayered`) and `layer(name)` (the placement `Style.forSlots(S)(pieces, { layer })` takes, so a slot style is compiled in that layer). A name outside the order is a type error. `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
 | `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated. Once an order is declared, a rule outside it is `style:unlayered-rule`, since it would beat every layer; keyframes, font faces and `@property` pass |
@@ -389,9 +390,14 @@ under new class names that no view attaches.
 
 `omit` leaves out the tokens another theme already declared, so the scales go out once in
 `tokens` and the palette once in `theme`. Which theme is active is a Model fact: the view writes
-`data-theme` on the root, and `Theme.scoped` only says what the value means. A scheme the user
-picks works the same way with a `data-color-scheme` selector and a `color-scheme` override; a
-scheme the browser picks needs nothing, because the `light-dark()` values follow it. The palette
+`data-theme` on the root, and `Theme.scoped` only says what the value means. A scheme the browser
+picks needs nothing, because the `light-dark()` values follow it. A scheme the user picks is a
+`color-scheme` override on the root, which must be in place before the first paint or a reader
+who chose dark sees one light frame: `Theme.schemeScript(key?)` is the text of a head `<script>`
+that applies the one kept in `localStorage`, `Theme.chooseScheme(scheme, key?)` (`'light'`,
+`'dark'` or `'system'`) is a Command's Effect that applies and keeps a choice, and
+`Theme.currentScheme()` reads back what is applied, for the Model once the browser takes the page
+over (the docs site does it in its SSR plan's `boot`). The palette
 needs relative color syntax and `light-dark()` (Chrome 123, Firefox 128, Safari 17.5).
 
 `Style.responsive(Theme.tokens.breakpoint, { md: { … } })` and

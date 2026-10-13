@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins`: a reader's light or dark, before the first paint.**
+  `Theme.schemeScript(key?)` is a head script that applies the scheme kept in
+  `localStorage`; `Theme.chooseScheme(scheme, key?)` applies and keeps one
+  (`'system'` removes it); `Theme.currentScheme()` reads it back. The docs site
+  has an Auto/Light/Dark choice built on them.
+
 - **`foldkit-sync`: the browser asks before leaving while an edit is unsaved.**
   `Sync.mount` shows a durable edit before it is stored; a reload in between
   lost it. From the first such edit until the last is stored, `beforeunload`

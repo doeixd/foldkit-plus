@@ -416,7 +416,10 @@ export const stylesheet: string = Style.stylesheet(
   `Style.stagger({ stepMs })` need the item passed to `attrs`. `Style.forCapability(Slots)(cap,
   piece)` styles every slot whose capability satisfies `cap`.
 - Theme and layers: `Theme.lightDark(light, dark)` (CSS `light-dark()`, no Model field),
-  `Theme.compose(base, over)`. Layers are a value: `Layers.standard` (also
+  `Theme.compose(base, over)`. A reader's light or dark (`foldkit-mixins/theme`):
+  `Theme.schemeScript()` in a head `<script>` applies the kept one before the first paint,
+  `Theme.chooseScheme(scheme)` is a Command's Effect that applies and keeps it, and
+  `Theme.currentScheme()` reads it back for the Model. Layers are a value: `Layers.standard` (also
   `foldkit-mixins/layers`) is the order `reset, tokens, theme, defaults, components, layouts,
   variants, utilities, app`; `L.in(name, piece)` puts a piece's rules and global CSS in that layer
   (a misspelled name is a type error), `L.declare` is the `@layer …;` statement, and
