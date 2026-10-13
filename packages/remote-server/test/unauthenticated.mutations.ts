@@ -25,8 +25,20 @@ export default [
     edits: [
       {
         file: '../../remote/src/json.ts',
-        find: "if (response.status === 401 && !says('unauthenticated'))",
-        replace: 'if (false)',
+        find: "if (response.status === 401) return refusalOf(body, 'unauthenticated', status)",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a 401 whose body has the key is taken at its word',
+    edits: [
+      {
+        file: '../../remote/src/json.ts',
+        find: '() => ({ error: status, [kind]: {} })',
+        replace:
+          "() => (typeof body === 'object' && body !== null && kind in body ? (body as never) : { error: status, [kind]: {} })",
       },
     ],
     tests,

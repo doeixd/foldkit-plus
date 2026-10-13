@@ -126,6 +126,23 @@ describe('a 401 from in front of Remote', () => {
     },
   )
 
+  it.each([
+    ['an unauthenticated key of another shape', '{"unauthenticated":true}'],
+    ['a reason that is not text', '{"error":"x","unauthenticated":{"reason":7}}'],
+    ['HTML', '<h1>Sign in</h1>'],
+  ])('reads a body with %s as Unauthenticated too', async (_, body) => {
+    const failed = await failure(
+      calls.query(
+        clientFor(
+          'any',
+          async () => new Response(body, { status: 401, statusText: 'Unauthorized' }),
+        ),
+      ),
+    )
+    expect(failed).toMatchObject({ _tag: 'Unauthenticated', message: '401 Unauthorized' })
+    expect(failed).not.toHaveProperty('reason')
+  })
+
   it('which a 403 there is not, for a read', async () => {
     expect(
       await failure(calls.read(clientFor('any', answeringWith(403, 'Forbidden')))),

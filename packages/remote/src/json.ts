@@ -5,7 +5,7 @@
  * answer, so the same client speaks HTTP (`http`), a worker, or a server
  * running in the page. There is no live stream over it.
  */
-import { Effect, Schema, Stream } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import type { RemoteRpcClient } from './client.js'
 import {
   RemoteForbidden,
@@ -123,12 +123,37 @@ export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
 /** A body that did not parse, told apart from every value one can parse to, `null` included. */
 const notJson = Symbol('not JSON')
 
+const Reason = Schema.Struct({ reason: Schema.optional(Schema.String) })
+/** A refusal in Remote's own words, by the key it is given under. */
+const ownRefusal: Record<
+  'unauthenticated' | 'forbidden',
+  (body: unknown) => Option.Option<Partial<RemoteJsonAnswer>>
+> = {
+  unauthenticated: Schema.decodeUnknownOption(
+    Schema.Struct({ error: Schema.String, unauthenticated: Reason }),
+  ),
+  forbidden: Schema.decodeUnknownOption(Schema.Struct({ error: Schema.String, forbidden: Reason })),
+}
+
+/**
+ * A 401's or 403's answer, whatever its body: Remote's own refusal as it is,
+ * and anything else (`{ error }` from middleware, HTML, a shape of its own)
+ * as the status alone, so it never reaches a decoder that would call it a
+ * broken answer.
+ */
+const refusalOf = (
+  body: unknown,
+  kind: 'unauthenticated' | 'forbidden',
+  status: string,
+): Partial<RemoteJsonAnswer> =>
+  Option.getOrElse(ownRefusal[kind](body), () => ({ error: status, [kind]: {} }))
+
 /**
  * Remote's client over HTTP: each call a `POST` of the request to `url`, the
  * answer its JSON body whatever its status. A 401 is answered as
- * unauthenticated, for every call kind, and a 403 as forbidden, unless the
- * body says so itself, as the server's own does: one from middleware in front
- * of Remote may say only `{ error }`.
+ * unauthenticated, for every call kind, and a 403 as forbidden, whatever the
+ * body says: the server's own says why, and middleware in front of Remote
+ * may say anything.
  * `headers` is read per request, so a token that changes reaches the next
  * call. `fetch` defaults to the global one; pass it to route calls through
  * another implementation in tests.
@@ -149,11 +174,8 @@ export const http = (
     })
     const status = `${response.status} ${response.statusText}`
     const body: unknown = await response.json().catch(() => notJson)
-    const says = (key: string) =>
-      typeof body === 'object' && body !== null && Object.hasOwn(body, key)
-    if (response.status === 401 && !says('unauthenticated'))
-      return { error: status, unauthenticated: {} }
-    if (response.status === 403 && !says('forbidden')) return { error: status, forbidden: {} }
+    if (response.status === 401) return refusalOf(body, 'unauthenticated', status)
+    if (response.status === 403) return refusalOf(body, 'forbidden', status)
     if (body === notJson) throw new Error(status)
     return body
   })

@@ -120,6 +120,12 @@ version changed; `pnpm` skips versions already in the registry.
   frame rather than a broken body, and `revalidate.every` must be longer
   than zero.
 
+- **`Remote.http` reads every 401 as `Unauthenticated` and every 403 as
+  `Forbidden`.** A body with an `unauthenticated` or `forbidden` key in a
+  shape other than Remote's (`true`, a number for `reason`) was decoded as
+  an answer and failed as a broken one. Remote's own refusal is taken as it
+  is; anything else is the status, with no reason.
+
 ## 0.18.0
 
 `foldkit-site` 0.2.0, `foldkit-remote` 0.15.0, `foldkit-primitives` 0.9.0,
