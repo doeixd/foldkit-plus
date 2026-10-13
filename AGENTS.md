@@ -842,7 +842,13 @@ of its own named a form field "fits the Catalog". Read words with
   with `Schema.Option` fields failed to round-trip through a saved CMS draft
   ("Expected Option"). A Model that is stored or sent uses
   `Schema.OptionFromNullOr`: `Option` in code, `null` on the wire.
-- **TypeScript 6 includes no `@types` package by itself.** Its `types`
+- **TypeScript 7 ships no compiler API.** `import ts from 'typescript'` gets
+  only a version under 7, so what reads source through the API runs on 6:
+  `foldkit-react-codegen` and `examples/site` (its API extractor) keep
+  `typescript@6.0.3` as their own dev dependency, and `scripts/tags-check.mjs`
+  imports the root's `typescript-6` alias. Their packages' own `tsc -b` is 6;
+  the root's, which CI runs, is 7.
+- **Since TypeScript 6 no `@types` package is included by itself.** Its `types`
   defaults to none, so every `process`, `Buffer` and `node:` import failed
   until `tsconfig.base.json` named `"types": ["node"]`. A project that sets
   its own `types` (`vite/client`) must name `node` too.

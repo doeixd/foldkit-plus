@@ -44,9 +44,9 @@ void _badEvent
 const _missing: keyof typeof FieldSlots = 'missing'
 void _missing
 
-// @ts-expect-error unknown field on Slot.make.
 Slot.make({
   capability: Capability.Container,
+  // @ts-expect-error unknown field on Slot.make.
   notAField: true,
 })
 

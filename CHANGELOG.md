@@ -49,7 +49,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-- **TypeScript 6.** The workspace compiles with TypeScript 6.0.3, whose DOM
+- **TypeScript 7.** The workspace typechecks and builds with TypeScript 7.0.2,
+  the native compiler (a forced typecheck takes under a minute). Its DOM
   library declares the Navigation API, so `foldkit-primitives` no longer
   declares its own. `foldkit-react-codegen` peers on `typescript@>=5.7.2 <7`
   rather than exactly 5.9.3: it reads source through the compiler API, which
@@ -78,6 +79,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote` depends on `foldkit-metadata`,** which its declarations
+  name (`import("foldkit-metadata").MetadataKey`). Without the dependency the
+  declaration build copied metadata's types into remote's; TypeScript 7
+  refuses that, and the copy was a second set of the same types.
 - **`foldkit-sync`: `foldkit-remote` is an optional peer again.** The manifest
   declared `peerDependenciesMeta` twice, and the second, naming only
   `foldkit-durable`, replaced the first.

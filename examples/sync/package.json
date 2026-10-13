@@ -24,7 +24,7 @@
     "fake-indexeddb": "6.2.5",
     "foldkit-agent-mcp": "workspace:*",
     "jsdom": "30.1.2",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "vite": "8.3.4"
   }
 }

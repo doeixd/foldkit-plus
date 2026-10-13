@@ -53,6 +53,6 @@
     "foldkit-agent": "workspace:*",
     "foldkit-surface": "workspace:*",
     "tsdown": "^0.23.1",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   }
 }

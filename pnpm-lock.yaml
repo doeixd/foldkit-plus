@@ -31,7 +31,7 @@ importers:
         version: 5.0.4(playwright@1.64.0)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
       effect:
         specifier: ^4.0.4
         version: 4.0.4
@@ -46,13 +46,16 @@ importers:
         version: 3.9.10
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
+      typescript-6:
+        specifier: npm:typescript@6.0.3
+        version: typescript@6.0.3
       unrun:
         specifier: ^0.3.1
         version: 0.3.1
@@ -88,14 +91,14 @@ importers:
         specifier: 0.168.0
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/cloudflare:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
       effect:
         specifier: ^4.0.4
         version: 4.0.4
@@ -158,8 +161,8 @@ importers:
         specifier: 4.20260730.0
         version: 4.20260730.0
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -168,7 +171,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -270,8 +273,8 @@ importers:
         specifier: ^1.64.0
         version: 1.64.0
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -307,8 +310,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -335,8 +338,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -363,14 +366,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/entity:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -424,8 +427,8 @@ importers:
         specifier: ^1.64.0
         version: 1.64.0
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -467,8 +470,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -507,8 +510,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -538,8 +541,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -575,8 +578,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -612,8 +615,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -652,8 +655,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -692,8 +695,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -729,8 +732,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -757,8 +760,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -794,8 +797,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -825,8 +828,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -856,8 +859,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -893,8 +896,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: ^8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -939,8 +942,8 @@ importers:
         specifier: ^4.23.15
         version: 4.23.15
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: ^8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -976,8 +979,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1010,8 +1013,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1041,8 +1044,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1078,8 +1081,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1103,14 +1106,14 @@ importers:
         specifier: 0.168.0
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/kitchen-sink:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -1170,8 +1173,8 @@ importers:
         specifier: 0.168.0
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/livestore:
     dependencies:
@@ -1189,8 +1192,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/mixins:
     dependencies:
@@ -1214,8 +1217,8 @@ importers:
         specifier: 0.168.0
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/pages:
     dependencies:
@@ -1272,8 +1275,8 @@ importers:
         specifier: ^1.64.0
         version: 1.64.0
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1318,8 +1321,8 @@ importers:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/registry:
     dependencies:
@@ -1331,7 +1334,7 @@ importers:
         version: 0.1.2
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -1412,8 +1415,8 @@ importers:
         specifier: ^1.64.0
         version: 1.64.0
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1443,8 +1446,8 @@ importers:
         specifier: 0.168.0
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/site:
     dependencies:
@@ -1577,8 +1580,8 @@ importers:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1587,7 +1590,7 @@ importers:
     dependencies:
       '@tanstack/db':
         specifier: 0.13.0
-        version: 0.13.0(typescript@6.0.3)
+        version: 0.13.0(typescript@7.0.2)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
@@ -1611,8 +1614,8 @@ importers:
         specifier: 0.168.0
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/todo:
     dependencies:
@@ -1636,8 +1639,8 @@ importers:
         specifier: 0.168.0
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/todo-app:
     dependencies:
@@ -1715,8 +1718,8 @@ importers:
         specifier: ^1.64.0
         version: 1.64.0
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1743,8 +1746,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   examples/widgets:
     dependencies:
@@ -1768,8 +1771,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1791,10 +1794,10 @@ importers:
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/agent-a2a:
     devDependencies:
@@ -1812,10 +1815,10 @@ importers:
         version: link:../agent
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/agent-mcp:
     devDependencies:
@@ -1836,16 +1839,16 @@ importers:
         version: link:../surface
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/agent-native:
     devDependencies:
       '@agent-native/core':
         specifier: 0.207.1
-        version: 0.207.1(@amplitude/analytics-browser@2.45.8)(@anthropic-ai/tokenizer@0.0.4)(@builder.io/ai-utils@0.84.0)(@cloudflare/workers-types@5.20261013.1)(@electric-sql/pglite@0.5.9)(@opentelemetry/api@1.9.1)(@resvg/resvg-js@2.6.2)(@rrweb/record@2.1.0)(@sentry/browser@10.60.0)(@sentry/node@10.60.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1)))(@types/react@19.3.0)(@types/sql.js@1.4.11)(botframework-connector@4.23.3)(crossws@0.4.12(srvx@1.0.5))(jszip@3.10.2)(kysely@0.29.5)(mammoth@1.12.2)(ocache@0.3.0)(officeparser@7.8.0)(pg@8.23.0)(playwright@1.64.0)(prettier@3.9.10)(react-dom@19.3.0(react@19.3.0))(react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(sharp@0.35.4(@types/node@22.20.5))(sql.js@1.14.2)(ts-morph@28.0.0)(typescript@6.0.3)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)(xlsx@0.18.5)
+        version: 0.207.1(@amplitude/analytics-browser@2.45.8)(@anthropic-ai/tokenizer@0.0.4)(@builder.io/ai-utils@0.84.0)(@cloudflare/workers-types@5.20261013.1)(@electric-sql/pglite@0.5.9)(@opentelemetry/api@1.9.1)(@resvg/resvg-js@2.6.2)(@rrweb/record@2.1.0)(@sentry/browser@10.60.0)(@sentry/node@10.60.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1)))(@types/react@19.3.0)(@types/sql.js@1.4.11)(botframework-connector@4.23.3)(crossws@0.4.12(srvx@1.0.5))(jszip@3.10.2)(kysely@0.29.5)(mammoth@1.12.2)(ocache@0.3.0)(officeparser@7.8.0)(pg@8.23.0)(playwright@1.64.0)(prettier@3.9.10)(react-dom@19.3.0(react@19.3.0))(react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(sharp@0.35.4(@types/node@22.20.5))(sql.js@1.14.2)(ts-morph@28.0.0)(typescript@7.0.2)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)(xlsx@0.18.5)
       '@effect/platform-browser':
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
@@ -1860,10 +1863,10 @@ importers:
         version: link:../agent
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/agent-webmcp:
     devDependencies:
@@ -1881,10 +1884,10 @@ importers:
         version: link:../agent
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/builder:
     dependencies:
@@ -1924,10 +1927,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/bundle:
     devDependencies:
@@ -1948,10 +1951,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/bundle-surface:
     dependencies:
@@ -1979,10 +1982,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/cms:
     dependencies:
@@ -2028,10 +2031,10 @@ importers:
         version: link:../mixins-form
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/cms-drizzle:
     dependencies:
@@ -2059,7 +2062,7 @@ importers:
         version: 4.0.4(effect@4.0.4)
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
       effect:
         specifier: ^4.0.4
         version: 4.0.4
@@ -2077,10 +2080,10 @@ importers:
         version: link:../surface
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/composition:
     dependencies:
@@ -2135,10 +2138,10 @@ importers:
         version: 19.3.0(react@19.3.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/crud:
     dependencies:
@@ -2172,10 +2175,10 @@ importers:
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/data-grid:
     dependencies:
@@ -2200,10 +2203,10 @@ importers:
         version: link:../remote
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/durable:
     dependencies:
@@ -2231,10 +2234,10 @@ importers:
         version: 4.20260730.0
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/entity:
     dependencies:
@@ -2247,10 +2250,10 @@ importers:
         version: 4.0.4
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/form:
     dependencies:
@@ -2275,10 +2278,10 @@ importers:
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/guard:
     dependencies:
@@ -2291,7 +2294,7 @@ importers:
     devDependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
       effect:
         specifier: ^4.0.4
         version: 4.0.4
@@ -2318,19 +2321,19 @@ importers:
         version: link:../sync
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/metadata:
     devDependencies:
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/mirror:
     dependencies:
@@ -2355,10 +2358,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/mixins:
     dependencies:
@@ -2377,10 +2380,10 @@ importers:
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -2423,10 +2426,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/mixins-crud:
     dependencies:
@@ -2463,10 +2466,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/mixins-data-grid:
     dependencies:
@@ -2497,10 +2500,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/mixins-form:
     dependencies:
@@ -2534,10 +2537,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/mixins-richtext:
     dependencies:
@@ -2568,10 +2571,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/mixins-surface:
     devDependencies:
@@ -2598,10 +2601,10 @@ importers:
         version: link:../surface
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/mixins-ui:
     devDependencies:
@@ -2622,10 +2625,10 @@ importers:
         version: link:../mixins
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/plus:
     dependencies:
@@ -2764,13 +2767,13 @@ importers:
         version: link:../richtext-code-shiki
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/primitives:
     dependencies:
@@ -2798,10 +2801,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       ws:
         specifier: ^8.22.0
         version: 8.22.0
@@ -2834,10 +2837,10 @@ importers:
         version: 19.3.0(react@19.3.0)
       tsdown:
         specifier: 0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/react-codegen:
     devDependencies:
@@ -2880,6 +2883,9 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
+      foldkit-metadata:
+        specifier: workspace:*
+        version: link:../metadata
       foldkit-surface:
         specifier: workspace:*
         version: link:../surface
@@ -2898,10 +2904,10 @@ importers:
         version: link:../bundle
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/remote-drizzle:
     dependencies:
@@ -2920,7 +2926,7 @@ importers:
         version: 0.5.9
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
       effect:
         specifier: ^4.0.4
         version: 4.0.4
@@ -2929,10 +2935,10 @@ importers:
         version: 4.20260730.0
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/remote-server:
     dependencies:
@@ -2957,10 +2963,10 @@ importers:
         version: link:../surface
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/richtext:
     devDependencies:
@@ -2969,10 +2975,10 @@ importers:
         version: 4.0.4
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/richtext-code:
     dependencies:
@@ -2985,10 +2991,10 @@ importers:
         version: 4.0.4
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/richtext-code-shiki:
     dependencies:
@@ -3004,10 +3010,10 @@ importers:
         version: 4.5.0
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/richtext-dom:
     dependencies:
@@ -3035,10 +3041,10 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/richtext-markdown:
     dependencies:
@@ -3066,10 +3072,10 @@ importers:
         version: 4.0.4
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/site:
     dependencies:
@@ -3097,10 +3103,10 @@ importers:
         version: link:../remote
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/ssr:
     dependencies:
@@ -3143,10 +3149,10 @@ importers:
         version: 1.64.0
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -3168,10 +3174,10 @@ importers:
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
   packages/sync:
     dependencies:
@@ -3217,10 +3223,10 @@ importers:
         version: 4.20260730.0
       tsdown:
         specifier: ^0.23.1
-        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)(unrun@0.3.1)
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
       typescript:
-        specifier: 6.0.3
-        version: 6.0.3
+        specifier: 7.0.2
+        version: 7.0.2
 
 packages:
 
@@ -4977,6 +4983,126 @@ packages:
 
   '@types/zen-observable@0.8.3':
     resolution: {integrity: sha512-fbF6oTd4sGGy0xjHPKAt+eS2CrxJ3+6gQ3FGcBoIJR2TLAyCkCyI8JqZNy+FeON0AhVgNJoUumVoZQjBFUqHkw==}
+
+  '@typescript/typescript-aix-ppc64@7.0.2':
+    resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [ppc64]
+    os: [aix]
+
+  '@typescript/typescript-darwin-arm64@7.0.2':
+    resolution: {integrity: sha512-gowzar9MwS/aRWp6f3a4KUqzRjAZjOsmGNCM6LcTgXum+dBfgsBVMN+AgvOCCbguXyick6LJhpBszxMebJ8syA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@typescript/typescript-darwin-x64@7.0.2':
+    resolution: {integrity: sha512-SZ9xZInqApNlNGc9s0W1VSsktYSOe9cFqNOIqmN1Gs8SmkjKZYFt017G4VwPxASInODuAdbTW7sXiFUf893RgA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@typescript/typescript-freebsd-arm64@7.0.2':
+    resolution: {integrity: sha512-W5NH4y/J0plIIS5b2xvTEkU7JFxyqdMAOgf+Ilhl0vHQXKO5dZoxd+C/jEtq56c4F3wk71RB4BMRQ2XdI+bwYQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [freebsd]
+
+  '@typescript/typescript-freebsd-x64@7.0.2':
+    resolution: {integrity: sha512-UMGDx5sTpzNw3WiPebH7l90IWfJggEd+egHt/q6p7/Cm3zqoV7VxkGXt+3DxPIw8CcmvAB0j3sVVfbhX+M4Tpw==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@typescript/typescript-linux-arm64@7.0.2':
+    resolution: {integrity: sha512-Qh4eU4/y3yDjnfjjyPYihMj5/ODIlmt+Bzu17OI+fiSRDW57QmU5SiN63exPRNJPKUzcc1INa1NXdrJ+MqHjUQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@typescript/typescript-linux-arm@7.0.2':
+    resolution: {integrity: sha512-gffT3xPz9sR7j/YJExkyPntrI0P2EP9XbOyWzth2/Gs0RstK+90RBcO0ncXoXy/beYll1SXw846Nf2zdnEz0QQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm]
+    os: [linux]
+
+  '@typescript/typescript-linux-loong64@7.0.2':
+    resolution: {integrity: sha512-uEHck9i8hoAzXPiYRib1O7miOnz23SxIeVl6F4LXox+qov1K35jHcEW6VHKvZI+pyvl7fZEP4MCU5LYvIq1GuQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [loong64]
+    os: [linux]
+
+  '@typescript/typescript-linux-mips64el@7.0.2':
+    resolution: {integrity: sha512-R4KvAMnE43W5Qeqb0Ly56O3mWMWIAgsMyz36DCaycd5nbg/9kzm0liw3JocfRqyJY0KPmzFjbswozXyW0DnIYA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [mips64el]
+    os: [linux]
+
+  '@typescript/typescript-linux-ppc64@7.0.2':
+    resolution: {integrity: sha512-DORx5b3sd/4S7eayxm4FQv+A7CrkUIGRaHiwI8oiHTAI1fAPWhF4J0vAlkC8biAlHSVVwxMQ3tjZ2/DVbnQiiA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [ppc64]
+    os: [linux]
+
+  '@typescript/typescript-linux-riscv64@7.0.2':
+    resolution: {integrity: sha512-wf0jqEDOjrPRnKwYRyyJDRo11KMbvMFrU+q4zqKyChODBzvlkbhNQfKvLxQCcwTpdDaXSHZTVuh0JoCrKCUMHQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [riscv64]
+    os: [linux]
+
+  '@typescript/typescript-linux-s390x@7.0.2':
+    resolution: {integrity: sha512-IkwJc3L7yhytWd/ewjyxNDfOmswCm9GWMJT/ue/dU4aZNbwZeYAetq42VyLmsmSjvoX7z74X6ZaYCtzAr0EuGw==}
+    engines: {node: '>=16.20.0'}
+    cpu: [s390x]
+    os: [linux]
+
+  '@typescript/typescript-linux-x64@7.0.2':
+    resolution: {integrity: sha512-EYdf2cNg7rgCWJnxCdJ+F3V39O8ihb37eHAu1LK8oAFizgTQbPOK7zHHXbPt8rX24COqODXeI3sIf0fCXG7H/A==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [linux]
+
+  '@typescript/typescript-netbsd-arm64@7.0.2':
+    resolution: {integrity: sha512-+polYF4MF04aPpO5FTkHran9yUQDSXqy5GiSDKpsll5jy3l3+g9QLhpf39T+ePtefhXLOGrLl0QIjkQP6VnelA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [netbsd]
+
+  '@typescript/typescript-netbsd-x64@7.0.2':
+    resolution: {integrity: sha512-8YIT0EHM/3dq10ZOVF/A7pc/YSMtbcecct4rWtexrnSCHOPcpC2KTLXfTCR6vDpnSiY12heNb1GiN/wu+T/FyA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [netbsd]
+
+  '@typescript/typescript-openbsd-arm64@7.0.2':
+    resolution: {integrity: sha512-APT8+ClYnuYm1u9+kgGXoMj2VzWzcymwh2gNSQVySHfkRDGOTVkoWLjCmOQSaO+PoqQ57B0flRp9SA+7GnnkzQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [openbsd]
+
+  '@typescript/typescript-openbsd-x64@7.0.2':
+    resolution: {integrity: sha512-yX7s+Q0Dln0Dt9tEzZsAjXXR/+ytBM7AlglaqyeMPxQszJ1JhlJdZ6jLA+IzldHtflX81em7lDao1xXu+aRRkg==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [openbsd]
+
+  '@typescript/typescript-sunos-x64@7.0.2':
+    resolution: {integrity: sha512-dLJDGaLZ1D4HPQn62u1n8mBDkJREwMsAkCdkwd4Ieqw+x3TUyTsqY0YiBCtE6H6OzzgGk3iuZ3vFWRS+E8/d1g==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [sunos]
+
+  '@typescript/typescript-win32-arm64@7.0.2':
+    resolution: {integrity: sha512-Gyl1Vy6OsWesLzmq+EP0Fb7b4Nid5232AvcA2SFcdYreldpNtYFFofPjnt62y9hQy7VTaZp65ICJjuAQRaVcIQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@typescript/typescript-win32-x64@7.0.2':
+    resolution: {integrity: sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [win32]
 
   '@typespec/ts-http-runtime@0.3.9':
     resolution: {integrity: sha512-edSdeAqkdxBVzA1yL1LrLCml1YjyCVvPMtMqJpbF+6K609tHe8V6sQUzFQSGcYNhcuhOceZtjvN32+mpIth30A==}
@@ -7092,6 +7218,11 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  typescript@7.0.2:
+    resolution: {integrity: sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==}
+    engines: {node: '>=16.20.0'}
+    hasBin: true
+
   uhyphen@0.2.0:
     resolution: {integrity: sha512-qz3o9CHXmJJPGBdqzab7qAYuW8kQGKNEuoHFYrBwV6hWIMcpAmxDLXojcHfFr9US1Pe6zUswEIJIbLI610fuqA==}
 
@@ -7465,7 +7596,7 @@ snapshots:
     dependencies:
       '@ag-ui/core': 0.0.59
 
-  '@agent-native/core@0.207.1(@amplitude/analytics-browser@2.45.8)(@anthropic-ai/tokenizer@0.0.4)(@builder.io/ai-utils@0.84.0)(@cloudflare/workers-types@5.20261013.1)(@electric-sql/pglite@0.5.9)(@opentelemetry/api@1.9.1)(@resvg/resvg-js@2.6.2)(@rrweb/record@2.1.0)(@sentry/browser@10.60.0)(@sentry/node@10.60.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1)))(@types/react@19.3.0)(@types/sql.js@1.4.11)(botframework-connector@4.23.3)(crossws@0.4.12(srvx@1.0.5))(jszip@3.10.2)(kysely@0.29.5)(mammoth@1.12.2)(ocache@0.3.0)(officeparser@7.8.0)(pg@8.23.0)(playwright@1.64.0)(prettier@3.9.10)(react-dom@19.3.0(react@19.3.0))(react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(sharp@0.35.4(@types/node@22.20.5))(sql.js@1.14.2)(ts-morph@28.0.0)(typescript@6.0.3)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)(xlsx@0.18.5)':
+  '@agent-native/core@0.207.1(@amplitude/analytics-browser@2.45.8)(@anthropic-ai/tokenizer@0.0.4)(@builder.io/ai-utils@0.84.0)(@cloudflare/workers-types@5.20261013.1)(@electric-sql/pglite@0.5.9)(@opentelemetry/api@1.9.1)(@resvg/resvg-js@2.6.2)(@rrweb/record@2.1.0)(@sentry/browser@10.60.0)(@sentry/node@10.60.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1)))(@types/react@19.3.0)(@types/sql.js@1.4.11)(botframework-connector@4.23.3)(crossws@0.4.12(srvx@1.0.5))(jszip@3.10.2)(kysely@0.29.5)(mammoth@1.12.2)(ocache@0.3.0)(officeparser@7.8.0)(pg@8.23.0)(playwright@1.64.0)(prettier@3.9.10)(react-dom@19.3.0(react@19.3.0))(react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(sharp@0.35.4(@types/node@22.20.5))(sql.js@1.14.2)(ts-morph@28.0.0)(typescript@7.0.2)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)(xlsx@0.18.5)':
     dependencies:
       '@agent-native/agentkit': 0.207.1
       '@agent-native/recap-cli': 0.5.70(playwright@1.64.0)
@@ -7491,7 +7622,7 @@ snapshots:
       esbuild: 0.28.2
       fast-xml-parser: 5.11.1
       h3: 2.0.2(crossws@0.4.12(srvx@1.0.5))(ocache@0.3.0)
-      i18next: 26.3.1(typescript@6.0.3)
+      i18next: 26.3.1(typescript@7.0.2)
       idb-keyval: 6.3.0
       ink: 6.8.0(@types/react@19.3.0)(react@19.3.0)
       isbot: 5.2.2
@@ -7503,7 +7634,7 @@ snapshots:
       postgres: 3.4.9
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
-      react-i18next: 17.0.8(i18next@26.3.1(typescript@6.0.3))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@6.0.3)
+      react-i18next: 17.0.8(i18next@26.3.1(typescript@7.0.2))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)
       run: 2.0.1
       safe-regex2: 5.1.1
       turndown: 7.2.4
@@ -8878,18 +9009,18 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@tanstack/db-ivm@0.1.26(typescript@6.0.3)':
+  '@tanstack/db-ivm@0.1.26(typescript@7.0.2)':
     dependencies:
       fractional-indexing: 3.4.0
       sorted-btree: 1.8.1
-      typescript: 6.0.3
+      typescript: 7.0.2
 
-  '@tanstack/db@0.13.0(typescript@6.0.3)':
+  '@tanstack/db@0.13.0(typescript@7.0.2)':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      '@tanstack/db-ivm': 0.1.26(typescript@6.0.3)
+      '@tanstack/db-ivm': 0.1.26(typescript@7.0.2)
       '@tanstack/pacer-lite': 0.2.2
-      typescript: 6.0.3
+      typescript: 7.0.2
 
   '@tanstack/pacer-lite@0.2.2': {}
 
@@ -8988,6 +9119,66 @@ snapshots:
       '@types/node': 22.20.5
 
   '@types/zen-observable@0.8.3':
+    optional: true
+
+  '@typescript/typescript-aix-ppc64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-darwin-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-darwin-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-freebsd-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-freebsd-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-arm@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-loong64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-mips64el@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-ppc64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-riscv64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-s390x@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-netbsd-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-netbsd-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-openbsd-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-openbsd-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-sunos-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-win32-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
   '@typespec/ts-http-runtime@0.3.9':
@@ -9507,7 +9698,7 @@ snapshots:
       postgres: 3.4.9
       sql.js: 1.14.2
 
-  drizzle-orm@1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.1):
+  drizzle-orm@1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1):
     optionalDependencies:
       '@cloudflare/workers-types': 5.20261013.1
       '@effect/sql-d1': 4.0.4(effect@4.0.4)
@@ -9522,7 +9713,7 @@ snapshots:
       pg: 8.23.0
       postgres: 3.4.9
       sql.js: 1.14.2
-      valibot: 1.5.0(typescript@6.0.3)
+      valibot: 1.5.0(typescript@7.0.2)
       zod: 4.6.1
 
   dts-resolver@3.0.0: {}
@@ -9844,9 +10035,9 @@ snapshots:
 
   httpxy@0.5.5: {}
 
-  i18next@26.3.1(typescript@6.0.3):
+  i18next@26.3.1(typescript@7.0.2):
     optionalDependencies:
-      typescript: 6.0.3
+      typescript: 7.0.2
 
   idb-keyval@6.3.0: {}
 
@@ -10693,16 +10884,16 @@ snapshots:
       react: 19.3.0
       scheduler: 0.28.0
 
-  react-i18next@17.0.8(i18next@26.3.1(typescript@6.0.3))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@6.0.3):
+  react-i18next@17.0.8(i18next@26.3.1(typescript@7.0.2))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2):
     dependencies:
       '@babel/runtime': 7.29.7
       html-parse-stringify: 3.1.0
-      i18next: 26.3.1(typescript@6.0.3)
+      i18next: 26.3.1(typescript@7.0.2)
       react: 19.3.0
       use-sync-external-store: 1.7.0(react@19.3.0)
     optionalDependencies:
       react-dom: 19.3.0(react@19.3.0)
-      typescript: 6.0.3
+      typescript: 7.0.2
 
   react-reconciler@0.33.0(react@19.3.0):
     dependencies:
@@ -10784,6 +10975,20 @@ snapshots:
       yuku-parser: 0.19.0
     optionalDependencies:
       typescript: 6.0.3
+    transitivePeerDependencies:
+      - oxc-resolver
+
+  rolldown-plugin-dts@0.28.8(rolldown@1.2.13)(typescript@7.0.2):
+    dependencies:
+      dts-resolver: 3.0.0
+      get-tsconfig: 5.0.0-beta.6
+      obug: 3.0.0
+      rolldown: 1.2.13
+      yuku-ast: 0.19.0
+      yuku-codegen: 0.19.0
+      yuku-parser: 0.19.0
+    optionalDependencies:
+      typescript: 7.0.2
     transitivePeerDependencies:
       - oxc-resolver
 
@@ -11140,6 +11345,33 @@ snapshots:
       - oxc-resolver
       - vue-tsc
 
+  tsdown@0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1):
+    dependencies:
+      cac: 7.1.0
+      defu: 6.1.7
+      empathic: 2.1.0
+      hookable: 6.1.2
+      import-without-cache: 0.4.1
+      obug: 3.0.0
+      picomatch: 4.0.7
+      rolldown: 1.2.13
+      rolldown-plugin-dts: 0.28.8(rolldown@1.2.13)(typescript@7.0.2)
+      tinyexec: 1.3.1
+      tinyglobby: 0.2.17
+      tree-kill: 1.2.2
+      unconfig-core: 7.5.0
+      verkit: 0.5.0
+    optionalDependencies:
+      tsx: 4.23.15
+      typescript: 7.0.2
+      unrun: 0.3.1
+    transitivePeerDependencies:
+      - '@typescript/native-preview'
+      - '@volar/typescript'
+      - '@vue/language-core'
+      - oxc-resolver
+      - vue-tsc
+
   tslib@2.8.1:
     optional: true
 
@@ -11158,6 +11390,29 @@ snapshots:
       tagged-tag: 1.0.0
 
   typescript@6.0.3: {}
+
+  typescript@7.0.2:
+    optionalDependencies:
+      '@typescript/typescript-aix-ppc64': 7.0.2
+      '@typescript/typescript-darwin-arm64': 7.0.2
+      '@typescript/typescript-darwin-x64': 7.0.2
+      '@typescript/typescript-freebsd-arm64': 7.0.2
+      '@typescript/typescript-freebsd-x64': 7.0.2
+      '@typescript/typescript-linux-arm': 7.0.2
+      '@typescript/typescript-linux-arm64': 7.0.2
+      '@typescript/typescript-linux-loong64': 7.0.2
+      '@typescript/typescript-linux-mips64el': 7.0.2
+      '@typescript/typescript-linux-ppc64': 7.0.2
+      '@typescript/typescript-linux-riscv64': 7.0.2
+      '@typescript/typescript-linux-s390x': 7.0.2
+      '@typescript/typescript-linux-x64': 7.0.2
+      '@typescript/typescript-netbsd-arm64': 7.0.2
+      '@typescript/typescript-netbsd-x64': 7.0.2
+      '@typescript/typescript-openbsd-arm64': 7.0.2
+      '@typescript/typescript-openbsd-x64': 7.0.2
+      '@typescript/typescript-sunos-x64': 7.0.2
+      '@typescript/typescript-win32-arm64': 7.0.2
+      '@typescript/typescript-win32-x64': 7.0.2
 
   uhyphen@0.2.0: {}
 
@@ -11231,9 +11486,9 @@ snapshots:
   uuid@8.3.2:
     optional: true
 
-  valibot@1.5.0(typescript@6.0.3):
+  valibot@1.5.0(typescript@7.0.2):
     optionalDependencies:
-      typescript: 6.0.3
+      typescript: 7.0.2
     optional: true
 
   verkit@0.5.0: {}

@@ -24,7 +24,7 @@
     "@foldkit/vite-plugin": "0.27.1",
     "jsdom": "30.1.2",
     "tsx": "^4.23.15",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "vite": "^8.3.4"
   }
 }
