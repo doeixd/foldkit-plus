@@ -69,6 +69,8 @@ const host = (
       readonly every: Duration.Input
       readonly same?: (opened: string, now: string) => boolean
     }
+    /** Sockets that close as a worker's do: see `FakeWebSocket.linked`. */
+    readonly lingering?: boolean
   } = {},
 ) => {
   const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
@@ -87,7 +89,7 @@ const host = (
     settle: options.settle,
     revalidate: options.revalidate,
     pair: () => {
-      const pair = FakeWebSocket.linked()
+      const pair = FakeWebSocket.linked({ lingering: options.lingering ?? false })
       pairs.push(pair)
       return pair as unknown as readonly [WebSocket, AcceptingWebSocket]
     },
@@ -227,8 +229,19 @@ describe('defineDocumentHost', () => {
       500,
       { error: 'Internal error' },
     ],
+    [
+      'a resolver that throws as one that breaks',
+      'throws' as const,
+      500,
+      { error: 'Internal error' },
+    ],
   ])('answers %s, opening nothing', async (_, resolved, status, answer) => {
-    const { Host, opens } = host({ resolvePrincipal: () => resolved })
+    const { Host, opens } = host({
+      resolvePrincipal: () => {
+        if (resolved === 'throws') throw new Error('the session store password')
+        return resolved
+      },
+    })
     const served = new Host({}, undefined)
     const response = await served.fetch(
       new Request('http://host/sync', { headers: { Upgrade: 'websocket' } }),
@@ -298,6 +311,12 @@ describe('defineDocumentHost', () => {
 })
 
 describe('defineDocumentHost, asking who a socket serves again', () => {
+  it('refuses an interval that is not longer than zero', () => {
+    expect(() => host({ revalidate: { every: '0 millis' } })).toThrow(
+      'revalidate.every must be longer than zero',
+    )
+  })
+
   const revalidating = () => {
     const sessions = new Map<string, string>([['ada', 'ada']])
     let asked = 0
@@ -310,6 +329,7 @@ describe('defineDocumentHost, asking who a socket serves again', () => {
           : Effect.succeed(principal)
       },
       revalidate: { every: '10 millis', same: (opened, now) => opened === now },
+      lingering: true,
     })
     return { ...hosted, sessions, asked: () => asked }
   }
@@ -340,6 +360,23 @@ describe('defineDocumentHost, asking who a socket serves again', () => {
     const server = pairs[0]![1]
     await settled(() => server.closed !== undefined)
     expect(server.closed).toEqual(closed)
+  })
+
+  it('answers no exchange that arrives after it closed a socket', async () => {
+    const { Host, pairs, sessions } = revalidating()
+    const served = new Host({}, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    sessions.delete('ada')
+    await settled(() => pairs[0]![1].closed !== undefined)
+    let answered = false
+    client.addEventListener('message', () => {
+      answered = true
+    })
+    // In flight from the replica before it saw the close, as a worker's peer may be.
+    client.send(JSON.stringify({ id: 'late', cursor: 0, pending: [] }))
+    // An exchange that ran would have answered well within this.
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(answered).toBe(false)
   })
 
   it('serves on while the session answers as the same principal, and stops asking once closed', async () => {

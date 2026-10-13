@@ -175,4 +175,31 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a refused socket is closed while the journal still serves it',
+    edits: [{ file, find: '              stop()\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a resolver that throws escapes the upgrade',
+    edits: [
+      {
+        file,
+        find: 'Effect.suspend(() => config.resolvePrincipal(request, this.hostEnv))',
+        replace: 'config.resolvePrincipal(request, this.hostEnv)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'any interval is taken',
+    edits: [
+      {
+        file,
+        find: "throw new Error('defineDocumentHost: revalidate.every must be longer than zero')",
+        replace: '{}',
+      },
+    ],
+    tests,
+  },
 ]

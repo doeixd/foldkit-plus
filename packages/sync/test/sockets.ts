@@ -43,10 +43,20 @@ export const socketPair = (): { client: SocketLike; server: SocketLike } => {
 export class FakeWebSocket {
   private readonly listeners = new Map<string, Set<(event: { data?: unknown }) => void>>()
   private peer: FakeWebSocket | undefined
+  private lingering = false
 
-  static linked(): readonly [FakeWebSocket, FakeWebSocket] {
+  /**
+   * A linked pair. `lingering` models a worker's socket: closing one end
+   * tells the peer, but its own `close` event waits for the peer's reply,
+   * which never comes here, so frames the peer sends meanwhile still arrive.
+   */
+  static linked(
+    options: { readonly lingering?: boolean } = {},
+  ): readonly [FakeWebSocket, FakeWebSocket] {
     const first = new FakeWebSocket()
     const second = new FakeWebSocket()
+    first.lingering = options.lingering ?? false
+    second.lingering = options.lingering ?? false
     first.peer = second
     second.peer = first
     return [first, second]
@@ -85,7 +95,7 @@ export class FakeWebSocket {
       ...(reason === undefined ? {} : { reason }),
     }
     this.peer?.emit('close', this.closed)
-    this.emit('close', this.closed)
+    if (!this.lingering) this.emit('close', this.closed)
   }
 
   emit(

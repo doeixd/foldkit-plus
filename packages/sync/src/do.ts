@@ -24,7 +24,7 @@
  * .documentId)`); its in-memory cache and change stream are then exact
  * because nothing else writes.
  */
-import { Cause, Effect, Fiber, Option, Result, type Duration } from 'effect'
+import { Cause, Duration, Effect, Fiber, Option, Result } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Journal } from 'foldkit-durable/core'
 import { serveJournal } from './journal.js'
@@ -157,8 +157,13 @@ const defaultPair = (): readonly [client: WebSocket, server: AcceptingWebSocket]
 export const defineDocumentHost = <Message, Shared, Principal, Env>(
   Base: new (ctx: DocumentHostContext, env: Env) => object,
   config: DocumentHostConfig<Message, Shared, Principal, Env>,
-): new (ctx: DocumentHostContext, env: Env) => { fetch(request: Request): Promise<Response> } =>
-  class extends Base {
+): new (ctx: DocumentHostContext, env: Env) => { fetch(request: Request): Promise<Response> } => {
+  if (
+    config.revalidate !== undefined &&
+    !Duration.isGreaterThan(Duration.fromInputUnsafe(config.revalidate.every), Duration.zero)
+  )
+    throw new Error('defineDocumentHost: revalidate.every must be longer than zero')
+  return class extends Base {
     private readonly hostContext: DocumentHostContext
     private readonly hostEnv: Env
     private ready: Promise<Journal<Operation, Shared, Principal, Operation>> | undefined
@@ -173,7 +178,8 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
         return Response.json({ error: 'not found' }, { status: 404 })
       const resolved = await Effect.runPromise(
-        Effect.result(config.resolvePrincipal(request, this.hostEnv)),
+        // Suspended, so a resolver that throws is a 500 like one that dies.
+        Effect.result(Effect.suspend(() => config.resolvePrincipal(request, this.hostEnv))),
       ).catch(() => undefined)
       if (resolved === undefined) return Response.json({ error: 'Internal error' }, { status: 500 })
       if (Result.isFailure(resolved))
@@ -191,7 +197,7 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
       server.accept()
       const { admit } = config
       const socket = workerSocket(server)
-      serveJournal(socket, {
+      const stop = serveJournal(socket, {
         sync: config.sync,
         journal,
         principal,
@@ -212,6 +218,10 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
           Effect.forever,
           Effect.catchCause(cause =>
             Effect.sync(() => {
+              // Before closing: a worker's socket fires its own close only on
+              // the replica's reply, and frames in flight until then would
+              // still be appended as the principal just refused.
+              stop()
               const failure = Cause.findErrorOption(cause)
               Option.match(failure, {
                 // A defect: this side broke, and the replica learns that it did.
@@ -235,3 +245,4 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
       } as ResponseInit)
     }
   }
+}

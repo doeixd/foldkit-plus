@@ -126,6 +126,12 @@ version changed; `pnpm` skips versions already in the registry.
   an answer and failed as a broken one. Remote's own refusal is taken as it
   is; anything else is the status, with no reason.
 
+- **`defineDocumentHost` stops serving a socket before it closes it for
+  `revalidate`.** A worker's socket fires its own close only when the
+  replica answers, and exchanges in flight until then were still appended as
+  the principal just refused. A resolver that throws, rather than fails or
+  dies, is a 500 too, and `revalidate.every` must be longer than zero.
+
 ## 0.18.0
 
 `foldkit-site` 0.2.0, `foldkit-remote` 0.15.0, `foldkit-primitives` 0.9.0,
