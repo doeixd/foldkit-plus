@@ -210,7 +210,29 @@ questions still open.
 - [ ] **Routing's `Me` Entity.** One row per principal with route-level
   interactions, read with `Guards.may`; navigation and `Surface.when` derive
   from it. Belongs with the third routing cut. §8a,
-  [router-DESIGN.md](./router-DESIGN.md) §34.4
+  [router-DESIGN.md](./router-DESIGN.md) §34.4. Planned as
+  [auth-DESIGN.md](./auth-DESIGN.md) §6.1.
+
+## Authentication
+
+Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
+orders the slices; nothing is built.
+
+- [ ] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
+  `4.0.0`: a scoped override, `randomUUIDv4()` in two Foldkit examples, the
+  `mixins-builder` Mount behaviour, and a request upstream. §3
+- [ ] **1. One principal resolver.** An Effect with a typed `Unauthenticated`
+  in `serveFetch`, `defineDocumentHost` and agent-mcp's `authenticate`. §5.1
+- [ ] **2. `RemoteUnauthenticated`** for every Remote call kind. §5.3
+- [ ] **3. `R` where reads are decided:** `Visible`, `MemoryReadable`, Sync's
+  `opens`/`admit`, and guard's read seams. §5.2
+- [ ] **4. Revalidating live streams and Sync sockets.** §5.5
+- [ ] **5. SSR's per-request `provide`.** §5.4
+- [ ] **6. `foldkit-auth/server`.** §6.2–6.3
+- [ ] **7. `Me`.** §6.1
+- [ ] **8. `foldkit-auth/client`.** §6.4
+- [ ] **9. An example, with an e2e test.** §9
+- [ ] **10. `Site.access`** and SSR's 303. §6.5
 
 ## CMS
 
@@ -500,7 +522,8 @@ asked of a server graph. [server-DESIGN.md](./server-DESIGN.md) §19
   S7's `staticSite` plugin (paths, per-host layout, sitemap, robots) rather
   than reinventing static emission beside it.
 - [ ] **Principal and CSRF middleware** per host, for cookie-authenticated
-  mutations and SSR fallback posts. §19.5
+  mutations and SSR fallback posts. §19.5; planned as
+  [auth-DESIGN.md](./auth-DESIGN.md) §5.1 and §6.2–6.3.
 - [ ] **A content security policy** the document node emits: hashes for the
   inline envelope, JSON-LD and styles of a generated page, a nonce per request.
   §19.7
