@@ -32,29 +32,9 @@ const oklchPalette = Theme.oklch({
   surfaceSaturation: 0.004,
 })
 
-/**
- * A feedback color washed over the base surface, mixed in sRGB. `Theme.oklch`
- * mixes its `subtle` in oklch, where the surface's hue (the accent's) pulls a
- * green or a red toward indigo: its success banner came out blue.
- */
-const wash = (family: 'success' | 'error'): string => {
-  const colors = Theme.ref(oklchPalette)
-  return `color-mix(in srgb, ${colors.surface.base} 88%, ${colors[family].default})`
-}
-
-/**
- * A white base, so the cards stand out from the page's `surface.muted`, and the
- * feedback washes in their own hue.
- */
+/** A white base, so the cards stand out from the page's `surface.muted`. */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(
-    oklchPalette,
-    Theme.define({
-      knob: { 'base-l': '100%' },
-      success: { subtle: wash('success') },
-      error: { subtle: wash('error') },
-    }),
-  ),
+  palette: Theme.compose(oklchPalette, Theme.define({ knob: { 'base-l': '100%' } })),
   colorScheme: 'light',
 })
 

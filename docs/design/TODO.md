@@ -761,8 +761,10 @@ its README the details.
   to `foldkit-ssr/client`.
 - [x] **Mixins: no helper installs the stylesheet in the browser.** Done:
   `Style.install`, with `AppStyle.make` for the page sheet.
-- [ ] **Mixins: `Theme.oklch` tints success and error with the accent's hue,**
-  so under a blue accent they read blue. `foldkit-job-application`
+- [x] **Mixins: `Theme.oklch` tints success and error with the accent's hue,**
+  so under a blue accent they read blue. Fixed 2026-10-06 (tints mix in OKLab,
+  with a browser test of the computed hue); job-application's sRGB workaround is
+  gone. `foldkit-job-application`
 - [x] **Mixins: `Recipes.Dialog` did not undo `Defaults.reset`'s `margin: 0`.**
   Built: the recipe restores `margin: auto`, so a modal opens centered rather
   than in the top corner; removing it fails the recipe test.
