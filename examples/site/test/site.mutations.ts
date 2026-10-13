@@ -4,6 +4,7 @@
  * every one.
  */
 const tests = [
+  'examples/site/test/live.test.ts',
   'examples/site/test/demos.test.ts',
   'examples/site/test/guides.test.ts',
   'examples/site/test/prerender.test.ts',
@@ -230,6 +231,22 @@ export default [
   {
     name: "a Bundle's page draws only its full type",
     edits: [{ file: '../src/content/api.ts', find: 'bundleTable(ih, bundle),', replace: '' }],
+    tests,
+  },
+  {
+    name: 'the timer is declared but never placed',
+    edits: [
+      {
+        file: '../src/main.ts',
+        find: 'Parent.at(Ticks, { args: { intervalMs: 1000 } }),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the live primitives on every doc page',
+    edits: [{ file: '../src/view/doc.ts', find: 'model.path === LIVE_PATH', replace: 'true' }],
     tests,
   },
   {

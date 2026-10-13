@@ -24,7 +24,9 @@
     "@foldkit/ui": "0.165.0",
     "effect": "4.0.0",
     "foldkit": "0.165.0",
+    "foldkit-bundle": "workspace:*",
     "foldkit-mixins": "workspace:*",
+    "foldkit-primitives": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*"
   },

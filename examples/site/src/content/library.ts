@@ -241,7 +241,6 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     (ih: Ih): Region => [
       ih.header([], [ih.p([ih.Class('crumb')], [current.crumb]), ih.h1([], [current.title])]),
       ...current.body(ih),
-      pager(current, ih),
     ]
 
   const outline =
@@ -285,6 +284,7 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     },
     sidebar: path => sidebar(pageOf(path)),
     article: path => article(pageOf(path)),
+    pager: path => ih => [pager(pageOf(path), ih)],
     outline: path => outline(pageOf(path)),
     example,
   }

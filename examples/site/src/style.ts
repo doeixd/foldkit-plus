@@ -348,6 +348,37 @@ export const SiteStyle = slots(
       gap: t.space.xs,
     },
     setupLabel: { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
+    // Primitives running in the page, between an article and its pager.
+    live: {
+      ...codeBox,
+      marginBlockStart: t.space['2xl'],
+      padding: t.space.lg,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space.md,
+    },
+    liveRow: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space['2xs'],
+      paddingBlockStart: t.space.md,
+      borderBlockStart: rule,
+    },
+    liveValue: { ...mono, color: t.text.subtle, overflowWrap: 'anywhere' },
+    liveButton: Style.slot({ capability: Capability.Interactive }, [
+      {
+        marginInlineStart: t.space.xs,
+        padding: `0.125rem ${t.space.sm}`,
+        borderRadius: t.radius.sm,
+        border: rule,
+        background: t.surface.base,
+        color: t.text.overt,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { borderColor: t.text.muted }),
+      focus,
+    ]),
     section: {
       display: 'flex',
       flexDirection: 'column',

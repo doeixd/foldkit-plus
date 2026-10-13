@@ -6,6 +6,7 @@
  * exists.
  */
 import { Effect } from 'effect'
+import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
 import { generateStaticSite } from 'foldkit-ssr/vite'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -37,6 +38,7 @@ const READ = [
   '/ssr/api/ssr',
   '/ssr/api/ssr/ssr',
   '/primitives/api/primitives-time/throttle',
+  '/primitives',
 ]
 
 const hrefs = (root: ParentNode, selector = 'a') =>
@@ -189,6 +191,19 @@ describe('the generated site', () => {
     expect(throttle.querySelector('article details.full-type pre')?.textContent).toContain(
       'Bundle.Bundle<',
     )
+  })
+
+  test('the Primitives overview runs two primitives between its article and its pager', () => {
+    const overview = page('/primitives')
+    const parts = Array.from(overview.querySelector('article')?.children ?? [], part =>
+      part.tagName === 'SECTION' ? 'live' : (part.getAttribute(STATIC_ATTRIBUTE) ?? ''),
+    )
+    expect(parts).toEqual(['article', 'live', 'pager'])
+    const live = overview.querySelector('article > section')
+    expect(live?.textContent).toContain('model.dark = { matches: false }')
+    expect(live?.querySelector('button')?.textContent).toBe('Start')
+    // Only there: another page has its pager straight after its article.
+    expect(page('/remote/guides/live-data').querySelector('article > section')).toBeNull()
   })
 
   test('every link on every page leads to a page the build wrote, or a file in the repository', () => {

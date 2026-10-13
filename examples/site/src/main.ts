@@ -3,14 +3,18 @@
  * per package family, every page rendered at build time and taken over in the
  * browser. Links are ordinary links, so a page is a new document; the Model
  * holds what a page is called and the little the browser changes on it: the
- * menu on a phone and which example the home page shows.
+ * menu on a phone, which example the home page shows, and the two primitives
+ * the Primitives overview runs in the page.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import { Command, Subscription, type Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
+import { Bundle } from 'foldkit-bundle'
+import { PrefersDark } from 'foldkit-primitives/media'
+import { Timer } from 'foldkit-primitives/time'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
@@ -32,12 +36,18 @@ export type Page = typeof Page.Type
 export const Example = Schema.Literals(['view', 'agent', 'sync', 'mirror'])
 export type Example = typeof Example.Type
 
+/** The primitives the Primitives overview shows running: each a field of this Model. */
+const Dark = Bundle.declare(PrefersDark, 'dark')
+const Ticks = Bundle.declare(Timer, 'ticks')
+
 export const Model = Schema.Struct({
   path: Schema.String,
   page: Page,
   menuOpen: Schema.Boolean,
   example: Example,
   copied: Schema.Boolean,
+  ...Dark.fields,
+  ...Ticks.fields,
 })
 export type Model = typeof Model.Type
 
@@ -51,8 +61,17 @@ export const Message = defineMessageUnion({
   PressedCodeCopy: { index: Schema.Number },
   CopiedCode: {},
   FailedToCopy: {},
+  ...Dark.cases,
+  ...Ticks.cases,
 })
 export type Message = typeof Message.Type
+
+const Parent = Bundle.parent({ Model, Message })
+
+const placements = Parent.assemble(
+  Parent.at(Dark),
+  Parent.at(Ticks, { args: { intervalMs: 1000 } }),
+)
 
 // COMMAND
 
@@ -94,8 +113,11 @@ export const CopyCode = Command.define('CopyCode', {
 
 type UpdateReturn = Update.Return<Model, Message>
 
-export const update = (model: Model, message: Message) =>
-  Message.match<UpdateReturn>(message, {
+/** What a placement's wrapper never reaches: the placements take theirs. */
+type OwnMessage = Bundle.OwnMessage<Message, typeof placements.placements>
+
+const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
+  Match.valueTags(message, {
     ToggledMenu: () => ({ model: modifyFields(model, { menuOpen: open => !open }) }),
     ChoseExample: ({ example }) =>
       example === model.example
@@ -107,6 +129,8 @@ export const update = (model: Model, message: Message) =>
     CopiedCode: () => ({ model }),
     FailedToCopy: () => ({ model }),
   })
+
+export const update = placements.update(updateOwn)
 
 // SUBSCRIPTION
 
@@ -120,26 +144,28 @@ export const codeCopyOf = (event: MouseEvent): Option.Option<Message> => {
 }
 
 /** A code block's copy button, answered for the static region that drew it without a handler. */
-export const subscriptions = Subscription.make<Model, Message>()(() => ({
-  codeCopy: Subscription.persistent(
-    Subscription.fromEventFilterMap({
-      target: () => document,
-      type: 'click',
-      filterMapEvent: codeCopyOf,
-    }),
-  ),
-}))
+export const subscriptions = placements.subscriptions(
+  Subscription.make<Model, Message>()(() => ({
+    codeCopy: Subscription.persistent(
+      Subscription.fromEventFilterMap({
+        target: () => document,
+        type: 'click',
+        filterMapEvent: codeCopyOf,
+      }),
+    ),
+  })),
+)
 
 // INIT
 
 /** The Model a page starts from, before the server names it. */
-export const initial: Model = {
+export const initial: Model = placements.initial({
   path: '/',
   page: Page.Missing(),
   menuOpen: false,
   example: 'view',
   copied: false,
-}
+}).model
 
 /** The page at `path`, as the library knows it; the browser never runs this. */
 export const modelAt = (library: Library, path: string): Model =>
@@ -169,7 +195,13 @@ const planOf = (withMeta: boolean) =>
   SSR.plan(App, {
     id: 'site',
     state: Projection.pick(App.model.path, App.model.page),
-    local: [App.model.menuOpen, App.model.example, App.model.copied],
+    local: [
+      App.model.menuOpen,
+      App.model.example,
+      App.model.copied,
+      App.model.dark,
+      App.model.ticks,
+    ],
     ...(withMeta ? { meta: (model: Model) => ({ description: descriptionOf(model.page) }) } : {}),
   })
 

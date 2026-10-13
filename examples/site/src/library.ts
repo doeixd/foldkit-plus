@@ -25,6 +25,8 @@ export interface Library {
   readonly sidebar: (path: string) => Draw
   /** A doc page's article. */
   readonly article: (path: string) => Draw
+  /** The links to the pages before and after it, under its article. */
+  readonly pager: (path: string) => Draw
   /** A doc page's "On this page". */
   readonly outline: (path: string) => Draw
   /** A home page example's code, coloured. */
@@ -47,6 +49,7 @@ export const browserLibrary: Library = {
   },
   sidebar: () => unavailable('sidebar'),
   article: () => unavailable('article'),
+  pager: () => unavailable('pager'),
   outline: () => unavailable('outline'),
   example: () => unavailable('example'),
 }
