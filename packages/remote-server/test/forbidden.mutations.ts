@@ -38,8 +38,8 @@ export default [
     edits: [
       {
         file: json,
-        find: "if (response.status === 403 && !says('forbidden'))",
-        replace: 'if (false)',
+        find: "if (response.status === 403) return refusalOf(body, 'forbidden', status)",
+        replace: '',
       },
     ],
     tests,
@@ -49,8 +49,8 @@ export default [
     edits: [
       {
         file: json,
-        find: "if (response.status === 403 && !says('forbidden'))",
-        replace: "if (response.status === 403 && !says('error'))",
+        find: 'Schema.Struct({ error: Schema.String, forbidden: Reason })',
+        replace: 'Schema.Struct({ error: Schema.String, forbidden: Schema.optional(Reason) })',
       },
     ],
     tests,
