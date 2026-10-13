@@ -592,11 +592,16 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   first). `Schema.toEncoded` keeps inner checks but drops one made
   after a transformation: `NumberFromString.check(isGreaterThan(0))` accepted
   `'-1'`. Re-check against the whole Schema.
-- **A Mount's acquire that throws halfway fails silently and leaks.** `Measure`
-  attached a MutationObserver, then `new ResizeObserver` threw in jsdom; the
-  Mount's stream neither ended nor reported, and the observer it left called
-  `measure` later ("Cannot access 'sizes' before initialization"). Make every
-  observer before any observes, and test with the constructor stubbed away.
+- **A Mount's acquire that throws halfway leaks what it attached first.**
+  `Measure` attached a MutationObserver, then `new ResizeObserver` threw in
+  jsdom, and the observer it left called `measure` later ("Cannot access
+  'sizes' before initialization"). Make every observer before any observes,
+  and test with the constructor stubbed away. On Effect 4.0.0 a throw inside
+  `Stream.callback`'s registration hung the stream silently; since 4.0.4 it
+  ends it, and a `foldkit-mixins` slot merges its Behaviors into one Mount
+  whose failure ends them all: three Builder tests in jsdom had passed only
+  because `Measure`'s failure was swallowed. Give jsdom what the Mount makes
+  (`packages/mixins-builder/test/layout.ts`).
 - **Mount args are captured at insert, never refreshed.** A Mount that should
   follow the Model (focus the next OTP cell after a fill) ran once with the
   initial args and never again: `OnMount` binds `insert` and `destroy` only,
@@ -797,7 +802,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Effect 4, not 3**
 
-foldkit pins `effect@4.0.0`, the first stable release. Since 4.0.0 there is no
+foldkit pins `effect@4.0.0` exactly; this repository runs `4.0.4` (Yielded Auth's
+peer is `^4.0.3`) through `pnpm.peerDependencyRules` and `pnpm.overrides` in the root
+`package.json`, and keeps its packages' peer at `^4.0.0`.
+Within 4.0.x, `Crypto.randomUUIDv4` became a function: `yield*
+crypto.randomUUIDv4()`. Since 4.0.0 there is no
 `effect/unstable/*`: import `effect/http`, `effect/persistence`, `effect/rpc`,
 `effect/sql` (and `effect/http-api` for the old `httpapi`). Since 4.0.0
 `Array`, `Chunk`, `Effect` and `Record` `partition` and `Option.partitionMap`
@@ -1209,6 +1218,14 @@ of its own named a form field "fits the Catalog". Read words with
 - **Run the CI sequence before committing, not after.** `format:check`,
   `typecheck`, `test`, `demo`. A commit shipped that would have failed
   `format:check` because only the last three were run.
+- **A dependency's new peer set re-resolves its optional peers to the newest.**
+  Moving the `@effect/sql-*` packages to 4.0.4 changed drizzle-orm's peer set,
+  and pnpm resolved its optional `@cloudflare/workers-types` peer again: to
+  that day's release in most projects, the pinned one in two, so two drizzles
+  existed and `examples/cloudflare` failed to typecheck. That package publishes
+  daily; the root `pnpm.overrides` pins it to the version the repository names.
+  After a version move, count the copies (`grep -o 'name@[0-9.]*'
+  pnpm-lock.yaml | sort | uniq -c`) and regenerate from the old lockfile.
 - **A `package.json` change without `pnpm install` reds every job.** CI
   installs with `--frozen-lockfile`, so a new dependency without a
   regenerated lockfile fails all jobs in 30s. Regenerate in the same change

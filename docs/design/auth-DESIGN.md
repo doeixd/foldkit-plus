@@ -1,6 +1,6 @@
 # Authentication: Yielded Auth in Foldkit Plus
 
-**Status:** Proposed, 2026-10-13. Nothing in §5 onwards is built. §2 and §3 record what was measured on that date: an inventory of every principal seam, an Effect 4.0.4 run of the whole repository, and a probe that served a guarded Remote read under a Yielded session.
+**Status:** Proposed, 2026-10-13; step 0 built the same day (§3, §9), and §10's questions settled. Nothing in §5 onwards is built. §2 and §3 record what was measured on that date: an inventory of every principal seam, an Effect 4.0.4 run of the whole repository, and a probe that served a guarded Remote read under a Yielded session.
 **Target:** a new package, `foldkit-auth`, over [Yielded Auth](https://github.com/yielded-dev/auth) (`@yielded/auth`, `0.1.0-beta.38`); small changes in `foldkit-remote-server`, `foldkit-remote`, `foldkit-remote-drizzle`, `foldkit-sync`, `foldkit-ssr`, `foldkit-agent-mcp`, `foldkit-site` and `foldkit-guard`.
 **Related:** [guard-DESIGN.md](./guard-DESIGN.md) (§6.5 `G.Principal`, §8a the `Me` Entity, §8b agents, §8c Sync), [router-DESIGN.md](./router-DESIGN.md) §25 (route guards are presentation), [server-DESIGN.md](./server-DESIGN.md) §19.5 (principal and CSRF middleware per host), [TODO.md](./TODO.md).
 
@@ -92,10 +92,12 @@ Measured in a worktree with `pnpm.overrides: { effect: 4.0.4 }` (one copy of Eff
 - **Tests:** 8933 of 8938 pass; five fail and one file fails to load. Rerun alone, all of them pass on 4.0.0:
   - `examples/livestore`: the override reached LiveStore's own Effect release candidate, which has `effect/unstable/*` and 4.0.4 does not. An override scoped to `effect@4.0.0` leaves it alone.
   - `examples/foldkit/job-application` (2 tests): the `randomUUIDv4` change, at runtime.
-  - `packages/mixins-builder` (3 tests): the run logs "ResizeObserver is not defined" defects, the Mount `foldkit-primitives`' `Measure` acquires in jsdom. On 4.0.0 that Mount fails silently, as the trap list records; on 4.0.4 the drawings these tests read are missing. Not traced further: whether Foldkit's runtime or a test depended on the old behaviour is the first thing this step settles.
+  - `packages/mixins-builder` (3 tests): the run logs "ResizeObserver is not defined" defects, the Mount `foldkit-primitives`' `Measure` acquires in jsdom. On 4.0.0 that Mount fails silently, as the trap list records; on 4.0.4 the drawings these tests read are missing. *Settled in step 0:* a probe of both versions shows `Stream.callback` swallowing a throw in its registration on 4.0.0 (the stream hangs) and ending the stream with the defect on 4.0.4. `foldkit-mixins` merges a slot's Behaviors into one Mount, and a failing one fails the merge by design (mixins-DESIGN, "Stream merge"), so `Measure`'s failure now ends the canvas's selection and drag Behaviors too. `Measure` refuses to run without a `ResizeObserver`, also by design and tested; the three tests had passed only because 4.0.0 hid that. They now give jsdom a `ResizeObserver` and `document.fonts` (`packages/mixins-builder/test/layout.ts`).
 - **The probe** (a test in that worktree, not committed): Yielded's in-memory password sign-in issued a session; `auth.verifySession` turned its credential into `Option<User>`; one `RemoteServer.handlers(server, G.Principal)` set answered the owner with the row, a visitor and a forged credential with nothing. It type-checks under the repository's settings, and mapping every session to another user turns it red.
 
 So: **step 0 moves the repository to Effect ≥ 4.0.4** behind a scoped override, fixes the two examples, settles the Mount behaviour, and asks Foldkit to widen its peer to `^4.0.0`. An application using `foldkit-auth` needs the same override until Foldkit does; the package README says so in its install section.
+
+*Built (step 0):* every exact `effect` and `@effect/*` pin moved to `4.0.4`; the packages' peer stays `^4.0.0`, and `foldkit-durable`'s runtime dependency `@effect/sql-sqlite-node` stays `4.0.0` (its peer is `^4.0.0`), so a consumer is not narrowed. The root `package.json` allows Foldkit's exact peers (`peerDependencyRules.allowedVersions` for `foldkit>effect`, `@foldkit/ui>effect`, `@foldkit/vite-plugin>effect`) and overrides `foldkit>@effect/platform-browser`, which pnpm otherwise installs at Foldkit's exact `4.0.0` for every project that does not name it. The LiveStore example pins the `@effect/platform-*` packages it resolved before, since it runs on Effect's release candidate. The request to Foldkit is not sent: it is the maintainer's to make.
 
 ---
 
@@ -307,11 +309,16 @@ Docs land with each slice: the package README in the onboarding order, a `SKILL.
 
 ---
 
-## 10. Open questions
+## 10. Questions, settled
 
-1. **The name and the boundary.** `foldkit-auth` as Yielded's adapter, or `foldkit-yielded` to say so in the name? Leaning: `foldkit-auth`, since nothing else would take the name.
-2. **Effect and Foldkit.** Is moving the repository to an override of Foldkit's exact Effect peer acceptable until upstream widens it? Without it, Yielded cannot be adopted at all.
-3. **Yielded's maturity.** It is a single-maintainer beta (`0.1.0-beta.38`, npm's `latest` tag still points at `beta.1`). Pin exact versions, and keep the generic seams (§5) independent of it, so the cost of leaving is one adapter.
-4. **`unguarded`'s default** (guard-DESIGN §13 question 5). With real sessions, an open surface on a guarded Entity is reachable by anyone signed in. Leaning: make `unguarded` required in `Guards.declare`, a decision written down rather than a default flipped.
-5. **Which example.** todo-app already has three principal shapes and a hand-written socket server; converting it shows the most. A new, smaller `examples/auth` would teach better first. Leaning: a new example first, then todo-app.
+Settled 2026-10-13 by the project's owner ("go with your leanings").
+
+1. **The name and the boundary.** `foldkit-auth`, Yielded's adapter; nothing else would take the name.
+2. **Effect and Foldkit.** The repository overrides Foldkit's exact Effect peer until upstream widens it (step 0, §3).
+3. **Yielded's maturity.** A single-maintainer beta: `foldkit-auth` pins exact versions, and the generic seams (§5) stay independent of it, so leaving costs one adapter.
+4. **`unguarded`'s default** (guard-DESIGN §13 question 5). `Guards.declare` will require `unguarded`: a decision written down rather than a default flipped. It lands with slice 3, which changes guard's read seams anyway.
+5. **Which example.** A new, smaller `examples/auth` first (slice 9), then todo-app.
+
+Still open:
+
 6. **`revalidate`'s interval.** Sixty seconds bounds how long a revoked session keeps a live stream; a shorter interval costs one session read per connection per interval.

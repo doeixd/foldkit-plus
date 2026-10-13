@@ -216,16 +216,19 @@ questions still open.
 ## Authentication
 
 Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
-orders the slices; nothing is built.
+orders the slices; step 0 is built.
 
-- [ ] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
-  `4.0.0`: a scoped override, `randomUUIDv4()` in two Foldkit examples, the
-  `mixins-builder` Mount behaviour, and a request upstream. §3
+- [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
+  `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
+  Foldkit examples, the `mixins-builder` tests given a `ResizeObserver`. §3
+- [ ] **Ask Foldkit to widen its `effect` peer** to `^4.0.0`, so applications
+  need no override. The maintainer's to send. §3
 - [ ] **1. One principal resolver.** An Effect with a typed `Unauthenticated`
   in `serveFetch`, `defineDocumentHost` and agent-mcp's `authenticate`. §5.1
 - [ ] **2. `RemoteUnauthenticated`** for every Remote call kind. §5.3
 - [ ] **3. `R` where reads are decided:** `Visible`, `MemoryReadable`, Sync's
-  `opens`/`admit`, and guard's read seams. §5.2
+  `opens`/`admit`, and guard's read seams; `Guards.declare` requires
+  `unguarded`. §5.2, §10
 - [ ] **4. Revalidating live streams and Sync sockets.** §5.5
 - [ ] **5. SSR's per-request `provide`.** §5.4
 - [ ] **6. `foldkit-auth/server`.** §6.2–6.3
