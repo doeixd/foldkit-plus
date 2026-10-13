@@ -72,8 +72,8 @@ export default [
     edits: [
       {
         file: compile,
-        find: "connective(node.operands, node._tag === 'And' ? 'and' : 'or', target, input, query)",
-        replace: "connective(node.operands, 'and', target, input, query)",
+        find: "        onNone: () => connective(node.operands, 'or', target, input, query),",
+        replace: "        onNone: () => connective(node.operands, 'and', target, input, query),",
       },
     ],
     tests,

@@ -18,8 +18,9 @@ version changed; `pnpm` skips versions already in the registry.
   `decided(predicate, input)` is a predicate's truth from the input alone,
   when it reads no field. The conformance suite covers them.
 - **`foldkit-remote-drizzle`: `and`, `or` and `not` compiled,** and an operand
-  that reads no field decided per request, so `whenGiven`'s check of its
-  input reaches the database as no condition, or not at all.
+  that reads no field decided per request, so `whenGiven` compiles to `true`
+  when its input is null and to the predicate alone when it is given, with no
+  parameter for the check.
 
 ## 0.18.0
 

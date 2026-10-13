@@ -137,8 +137,9 @@ const truthComparison = (
 
 /**
  * A predicate that reads no field, decided with this request's input, so it
- * reaches the database as a constant or not at all: `isNull($status)` is known
- * now, and an `or` it is in is then all true or just its other operand.
+ * reaches the database as a constant, or is dropped from the `and` or `or`
+ * around it: `isNull($status)` is known now, and an `or` it is in is then
+ * `true` or just its other operand.
  */
 const decide = (
   node: Predicate,
@@ -198,11 +199,14 @@ const predicate = (
 ): SQL => {
   switch (node._tag) {
     case 'And':
+      return Option.match(decide(node, input, query), {
+        onSome: constant,
+        onNone: () => connective(node.operands, 'and', target, input, query),
+      })
     case 'Or':
       return Option.match(decide(node, input, query), {
         onSome: constant,
-        onNone: () =>
-          connective(node.operands, node._tag === 'And' ? 'and' : 'or', target, input, query),
+        onNone: () => connective(node.operands, 'or', target, input, query),
       })
     case 'Not':
       return Option.match(decide(node, input, query), {

@@ -296,8 +296,13 @@ const connected = (
         `[foldkit-entity] Expr.${step}: every operand is a predicate; compare a value with Expr.eq first`,
       )
     }
-    // tag-check: open — `kind` is one of the two connective tags, chosen by the caller
-    return operand._tag === kind ? (operand as AndPredicate | OrPredicate).operands : [operand]
+    return Match.value(operand).pipe(
+      Match.tags({
+        And: and => (kind === 'And' ? and.operands : [and]),
+        Or: or => (kind === 'Or' ? or.operands : [or]),
+      }),
+      Match.orElse(() => [operand]),
+    )
   })
   // Flattening copies a shared operand's list, so `or(x, x)` built thirty deep
   // would be 2^30 operands before the budget ever counts them.
@@ -463,8 +468,8 @@ export const Expr = {
    * ```
    *
    * An interpreter that runs per request, as the Drizzle compiler does, decides
-   * `isNull($x)` before writing SQL, so this compiles to no condition, or to the
-   * predicate alone.
+   * `isNull($x)` before writing SQL, so this compiles to `true`, which filters
+   * nothing, or to the predicate alone.
    */
   whenGiven: <T>(
     input: InputExpr<T>,
@@ -1051,8 +1056,14 @@ export const Query = {
   show: (self: AnyQuery): string =>
     [
       `FROM ${self.entity.name}`,
+      // Among several, an `or` is parenthesised: `WHERE a or b` over `AND c`
+      // would read as `a or (b and c)`.
       ...self.where.map(
-        (predicate, index) => `${index === 0 ? 'WHERE' : '  AND'} ${Expr.show(predicate)}`,
+        (predicate, index) =>
+          `${index === 0 ? 'WHERE' : '  AND'} ${Match.value(predicate).pipe(
+            Match.tag('Or', or => (self.where.length > 1 ? `(${Expr.show(or)})` : Expr.show(or))),
+            Match.orElse(each => Expr.show(each)),
+          )}`,
       ),
       ...(self.orderBy.length === 0
         ? []

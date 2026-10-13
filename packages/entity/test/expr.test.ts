@@ -485,6 +485,10 @@ describe('and, or and not', () => {
   it('flattens a connective of the same kind into its parent, and nothing else', () => {
     const nested = Expr.and(Expr.and(titled, live), draft)
     expect(nested).toEqual({ _tag: 'And', operands: [titled, live, draft] })
+    expect(Expr.or(titled, Expr.or(live, draft))).toEqual({
+      _tag: 'Or',
+      operands: [titled, live, draft],
+    })
     // An or under an and is a grouping, so it stays.
     const grouped = Expr.and(Expr.or(titled, live), draft)
     expect(grouped).toEqual({
@@ -535,6 +539,20 @@ describe('and, or and not', () => {
         Query.where(Expr.or(titled, Expr.not(Expr.eq(Blog.Comment.fields.body, 'x')))),
       ),
     ).toThrow('reads Comment.body, but the query is from Post')
+  })
+
+  it('is shown parenthesised among several wheres, so the clauses read as they conjoin', () => {
+    const query = Query.from(Post).pipe(Query.where(Expr.or(titled, live), draft))
+    expect(Query.show(query)).toBe(
+      [
+        'FROM Post',
+        'WHERE (Post.title = "hello" or Post.published = true)',
+        '  AND Post.published is null',
+      ].join('\n'),
+    )
+    expect(Query.show(Query.from(Post).pipe(Query.where(Expr.or(titled, live))))).toBe(
+      'FROM Post\nWHERE Post.title = "hello" or Post.published = true',
+    )
   })
 
   it('is shown grouped as written', () => {

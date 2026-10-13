@@ -606,8 +606,8 @@ takes false over it, and **`not` of an unknown is unknown**. So
 `or` need an operand (an empty one would match every row, or none), a nested
 one of the same kind is flattened into its parent, and one operand is that
 operand. An interpreter that runs per request decides an operand that reads no
-field before it writes anything: `whenGiven`'s `isNull($status)` compiles to no
-condition, or leaves the predicate alone.
+field before it writes anything: `whenGiven` compiles to `true`, which filters
+nothing, when its input is null, and to the predicate alone when it is given.
 
 A query reads one Entity, so a predicate or ordering term naming a different
 one is refused where it is piped: an interpreter would otherwise be asked for a

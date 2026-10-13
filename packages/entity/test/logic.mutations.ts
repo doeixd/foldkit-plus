@@ -13,12 +13,23 @@ const semantics = [
 
 export default [
   {
-    name: 'a connective of the same kind nests instead of flattening',
+    name: 'an or nested in an or is kept as a node',
     edits: [
       {
         file: expr,
-        find: 'return operand._tag === kind ? (operand as AndPredicate | OrPredicate).operands : [operand]',
-        replace: 'return [operand]',
+        find: "        Or: or => (kind === 'Or' ? or.operands : [or]),",
+        replace: '        Or: or => [or],',
+      },
+    ],
+    tests: ir,
+  },
+  {
+    name: 'an and nested in an and is kept as a node',
+    edits: [
+      {
+        file: expr,
+        find: "        And: and => (kind === 'And' ? and.operands : [and]),",
+        replace: '        And: and => [and],',
       },
     ],
     tests: ir,
@@ -83,6 +94,17 @@ export default [
     name: 'an or inside an and is shown ungrouped',
     edits: [
       { file: expr, find: 'Or: () => `(${showExpr(node)})`', replace: 'Or: () => showExpr(node)' },
+    ],
+    tests: ir,
+  },
+  {
+    name: 'an or among several wheres is shown ungrouped',
+    edits: [
+      {
+        file: expr,
+        find: 'self.where.length > 1 ? `(${Expr.show(or)})` : Expr.show(or)',
+        replace: 'Expr.show(or)',
+      },
     ],
     tests: ir,
   },
