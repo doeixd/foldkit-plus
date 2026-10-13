@@ -34,6 +34,7 @@ import {
 import { sequence } from './ids.js'
 import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync, TransportClient } from './sync.js'
+import { checkRevalidate } from './revalidate.js'
 import { serveSocket, type SocketLike } from './transport.js'
 
 export interface JournalExchangeOptions<Message, Shared, Principal> {
@@ -401,6 +402,17 @@ export interface HostSocket extends SocketLike {
   closeWith(code: number, reason: string): void
 }
 
+/**
+ * An upgrade `documentHost` accepted. Exactly one of the two must follow:
+ * `serve` once the runtime has opened the socket, or `abandon` when it never
+ * will (the client left, the runtime refused the handshake), which releases
+ * what the upgrade built.
+ */
+export interface Accepted {
+  readonly serve: (socket: HostSocket) => void
+  readonly abandon: () => void
+}
+
 /** What `documentHost` needs: one document, who may open it, and what they may do. */
 export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
   readonly sync: Sync<Message, Shared>
@@ -419,12 +431,6 @@ export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
   readonly resolvePrincipal: (
     request: Request,
   ) => Effect.Effect<Principal, RemoteUnauthenticated, RP>
-  /**
-   * What the resolver needs (a session store). Built per upgrade and kept
-   * until the socket closes, since `revalidate` asks again while it is
-   * open; an upgrade it refuses closes it at once.
-   */
-  readonly layer?: (() => Layer.Layer<RP>) | undefined
   /**
    * Asks `resolvePrincipal` again, of the upgrade request, every `every`
    * while the socket is open: a refusal closes it with 4401, and a principal
@@ -454,35 +460,34 @@ export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
     | undefined
 }
 
-/** Refuses a revalidation interval that would ask the session store without pause. */
-export const checkRevalidate = (
-  revalidate: { readonly every: Duration.Input } | undefined,
-  who: string,
-): void => {
-  if (
-    revalidate !== undefined &&
-    !Duration.isGreaterThan(Duration.fromInputUnsafe(revalidate.every), Duration.zero)
-  )
-    throw new Error(`${who}: revalidate.every must be longer than zero`)
-}
-
 /** What a revalidation that found another principal fails with. */
 const changed = Symbol('changed')
 
 const internalError = () => Response.json({ error: 'Internal error' }, { status: 500 })
 
 /**
+ * What the resolver needs (a session store), required exactly when it
+ * needs something. Built per upgrade and kept until the socket closes,
+ * since `revalidate` asks again while it is open; an upgrade it refuses
+ * closes it at once.
+ */
+export type DocumentHostOptionsLayer<RP> = [RP] extends [never]
+  ? { readonly layer?: undefined }
+  : { readonly layer: () => Layer.Layer<RP> }
+
+/**
  * One document's Sync host, for any runtime that upgrades a request to a
  * socket: a Durable Object (`foldkit-sync/do`), or Node's `ws`. Each
  * upgrade is answered before the socket opens: refused (`Result.fail`, a
  * 401 for a principal refused, a 500 for a resolver or journal that broke),
- * or accepted with the function that serves the socket once the runtime has
- * opened it, against the journal, as the principal it resolved, asking
- * again while it is open when `revalidate` says to.
+ * or accepted (`Accepted`): `serve` the socket once the runtime has opened
+ * it, against the journal, as the principal it resolved, asking again while
+ * it is open when `revalidate` says to; or `abandon` it when the runtime
+ * never will, which releases what the upgrade built.
  */
 export const documentHost = <Message, Shared, Principal, RP = never>(
-  options: DocumentHostOptions<Message, Shared, Principal, RP>,
-): ((request: Request) => Promise<Result.Result<(socket: HostSocket) => void, Response>>) => {
+  options: DocumentHostOptions<Message, Shared, Principal, RP> & DocumentHostOptionsLayer<RP>,
+): ((request: Request) => Promise<Result.Result<Accepted, Response>>) => {
   checkRevalidate(options.revalidate, 'documentHost')
   return async request => {
     // The upgrade's services live as long as its socket.
@@ -493,21 +498,24 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
       return Result.fail(response)
     }
     const { layer } = options
-    const services = await Effect.runPromise(
-      layer === undefined
-        ? // No layer is a resolver that needs nothing.
-          Effect.succeed(Context.empty() as Context.Context<RP>)
-        : Effect.suspend(() => Layer.buildWithScope(layer(), scope)),
-    ).catch(() => undefined)
-    if (services === undefined) return refuse(internalError())
     // Suspended, so the resolver is called each time this runs (a resolver
     // may decide when called, not when its Effect runs), and one that throws
     // is a 500 like one that dies.
-    const resolve = Effect.suspend(() => options.resolvePrincipal(request)).pipe(
-      Effect.provide(services),
-    )
-    const resolved = await Effect.runPromise(Effect.result(resolve)).catch(() => undefined)
-    if (resolved === undefined) return refuse(internalError())
+    const ask = Effect.suspend(() => options.resolvePrincipal(request))
+    // The layer and the first answer in one run: either breaking is a 500.
+    const opened = await Effect.runPromise(
+      Effect.gen(function* () {
+        const services: Context.Context<RP> =
+          layer === undefined
+            ? // No layer is a resolver that needs nothing (`DocumentHostLayer`).
+              (Context.empty() as Context.Context<RP>)
+            : yield* Layer.buildWithScope(layer(), scope)
+        const resolve = Effect.provide(ask, services)
+        return { resolve, resolved: yield* Effect.result(resolve) }
+      }),
+    ).catch(() => undefined)
+    if (opened === undefined) return refuse(internalError())
+    const { resolve, resolved } = opened
     if (Result.isFailure(resolved))
       return refuse(Response.json({ error: resolved.failure.message }, { status: 401 }))
     const principal = resolved.success
@@ -534,39 +542,49 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
       console.error('[foldkit-sync] answering an upgrade broke:', error)
       return refuse(internalError())
     }
-    return Result.succeed((socket: HostSocket) => {
-      const stop = serveJournal(socket, exchange)
-      const { revalidate } = options
-      if (revalidate !== undefined) {
-        const { every, key } = revalidate
-        const checking = Effect.sleep(every).pipe(
-          Effect.andThen(resolve),
-          Effect.flatMap(now =>
-            key === undefined || key(principal) === key(now) ? Effect.void : Effect.fail(changed),
-          ),
-          Effect.forever,
-          Effect.catchCause(cause =>
-            Effect.sync(() => {
-              // Before closing: a socket may fire its own close only on the
-              // replica's reply, and frames in flight until then would
-              // still be appended as the principal just refused.
-              stop()
-              Option.match(Cause.findErrorOption(cause), {
-                // A defect: this side broke, and the replica learns that it did.
-                onNone: () => socket.closeWith(1011, 'Internal error'),
-                onSome: error =>
-                  error === changed
-                    ? socket.closeWith(1012, 'Who is asking changed')
-                    : socket.closeWith(4401, error.message),
-              })
-              release()
-            }),
-          ),
-        )
-        const fiber = Effect.runFork(checking)
-        socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))
-      }
-      socket.onClose(release)
+    return Result.succeed({
+      abandon: release,
+      serve: socket => {
+        const stop = serveJournal(socket, exchange)
+        const { revalidate } = options
+        if (revalidate !== undefined) {
+          const { every, key } = revalidate
+          const checking = Effect.sleep(every).pipe(
+            Effect.andThen(resolve),
+            Effect.flatMap(now =>
+              key === undefined || key(principal) === key(now) ? Effect.void : Effect.fail(changed),
+            ),
+            Effect.forever,
+            Effect.catchCause(cause =>
+              Effect.sync(() => {
+                // Before closing: a socket may fire its own close only on the
+                // replica's reply, and frames in flight until then would
+                // still be appended as the principal just refused.
+                stop()
+                const [code, reason] = Option.match(Cause.findErrorOption(cause), {
+                  // A defect: this side broke, and the replica learns that it did.
+                  onNone: () => [1011, 'Internal error'] as const,
+                  onSome: error =>
+                    error === changed
+                      ? ([1012, 'Who is asking changed'] as const)
+                      : ([4401, error.message] as const),
+                })
+                try {
+                  socket.closeWith(code, reason)
+                } catch {
+                  // A reason the platform refuses (past 123 bytes): the code alone.
+                  socket.close()
+                } finally {
+                  release()
+                }
+              }),
+            ),
+          )
+          const fiber = Effect.runFork(checking)
+          socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))
+        }
+        socket.onClose(release)
+      },
     })
   }
 }

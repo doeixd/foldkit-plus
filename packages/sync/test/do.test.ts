@@ -571,10 +571,63 @@ describe('documentHost, for a runtime of its own', () => {
     expect(await response.json()).toEqual({ error: 'Sign in.' })
   })
 
+  it('releases what an accepted upgrade built once it is abandoned, a socket never opened', async () => {
+    class Store extends Context.Service<Store, { readonly who: string }>()('do-test/Store') {}
+    const log: Array<string> = []
+    const host = documentHost({
+      sync: Todos,
+      journal: async () => openJournal(),
+      resolvePrincipal: () => Effect.map(Store, ({ who }) => who),
+      layer: () =>
+        Layer.effect(
+          Store,
+          Effect.acquireRelease(
+            Effect.sync(() => {
+              log.push('acquire')
+              return { who: 'ada' }
+            }),
+            () => Effect.sync(() => void log.push('release')),
+          ),
+        ),
+    })
+    const answered = await host(asking('ada'))
+    const accepted = Result.match(answered, { onFailure: () => undefined, onSuccess: a => a })!
+    expect(log).toEqual(['acquire'])
+    accepted.abandon()
+    for (let waited = 0; log.length < 2; waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+    expect(log).toEqual(['acquire', 'release'])
+  })
+
+  it('closes with the code alone when the platform refuses the reason', async () => {
+    const sessions = new Map([['ada', 'ada']])
+    const answered = await answering(sessions)(asking('ada'))
+    const { serve } = Result.match(answered, { onFailure: () => undefined, onSuccess: a => a })!
+    const [, server] = FakeWebSocket.linked({ lingering: true })
+    let closedPlainly = false
+    serve({
+      ...workerSocket(server as unknown as WebSocket),
+      closeWith: () => {
+        throw new RangeError('The message must not be greater than 123 bytes')
+      },
+      close: () => {
+        closedPlainly = true
+      },
+    })
+    sessions.delete('ada')
+    for (let waited = 0; !closedPlainly; waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+    expect(closedPlainly).toBe(true)
+  })
+
   it('serves a socket it accepted, and closes it with its own code once refused', async () => {
     const sessions = new Map([['ada', 'ada']])
     const answered = await answering(sessions)(asking('ada'))
-    const serve = Result.match(answered, { onFailure: () => undefined, onSuccess: s => s })!
+    const { serve } = Result.match(answered, { onFailure: () => undefined, onSuccess: s => s })!
     const [client, server] = FakeWebSocket.linked({ lingering: true })
     const closed: Array<readonly [number, string]> = []
     serve({

@@ -27,7 +27,13 @@
 import { type Duration, type Effect, type Layer, Result } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Journal } from 'foldkit-durable/core'
-import { checkRevalidate, documentHost, type HostSocket } from './journal.js'
+import {
+  documentHost,
+  type Accepted,
+  type DocumentHostOptions,
+  type DocumentHostOptionsLayer,
+} from './journal.js'
+import { checkRevalidate } from './revalidate.js'
 import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync } from './sync.js'
 import { workerSocket } from './transport.js'
@@ -169,9 +175,7 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
 ): new (ctx: DocumentHostContext, env: Env) => { fetch(request: Request): Promise<Response> } => {
   checkRevalidate(config.revalidate, 'defineDocumentHost')
   return class extends Base {
-    private readonly host: (
-      request: Request,
-    ) => Promise<Result.Result<(socket: HostSocket) => void, Response>>
+    private readonly host: (request: Request) => Promise<Result.Result<Accepted, Response>>
 
     constructor(ctx: DocumentHostContext, env: Env) {
       super(ctx, env)
@@ -192,7 +196,9 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
         settle: settle === undefined ? undefined : journal => settle(env, journal),
         opens: config.opens,
         admit: config.admit,
-      })
+        // `DocumentHostLayer` already tied `layer` to `RP` on the config; the
+        // conditional cannot be resolved for an `RP` still generic here.
+      } as DocumentHostOptions<Message, Shared, Principal, RP> & DocumentHostOptionsLayer<RP>)
     }
 
     async fetch(request: Request): Promise<Response> {
@@ -210,17 +216,24 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
       const [client, server] = pair
       const answered = await this.host(request)
       if (Result.isFailure(answered)) return answered.failure
-      server.accept()
-      answered.success({
-        ...workerSocket(server),
-        closeWith: (code, reason) => closeWith(server, code, reason),
-      })
-      return new Response(null, {
-        status: 101,
-        // The worker runtime reads the client out of the upgrade response;
-        // the DOM's `ResponseInit` has no such member.
-        webSocket: client,
-      } as ResponseInit)
+      const { serve, abandon } = answered.success
+      try {
+        server.accept()
+        serve({
+          ...workerSocket(server),
+          closeWith: (code, reason) => closeWith(server, code, reason),
+        })
+        return new Response(null, {
+          status: 101,
+          // The worker runtime reads the client out of the upgrade response;
+          // the DOM's `ResponseInit` has no such member.
+          webSocket: client,
+        } as ResponseInit)
+      } catch (error) {
+        console.error('[foldkit-sync] serving an upgrade broke:', error)
+        abandon()
+        return Response.json({ error: 'Internal error' }, { status: 500 })
+      }
     }
   }
 }

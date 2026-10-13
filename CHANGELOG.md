@@ -12,9 +12,10 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-sync/journal`: `documentHost`, a document's Sync host for any
   runtime.** It answers an upgrade request before a socket opens: refused
   with the `Response` to send (401 for a refused principal, 500 for a
-  resolver, layer or journal that broke), or accepted with a function that
-  serves the opened socket, with `revalidate`, `opens`, `admit` and `settle`
-  as `defineDocumentHost` has them. `defineDocumentHost` is now built on it,
+  resolver, layer or journal that broke), or accepted with `serve` for the
+  opened socket and `abandon` for one that never opens, with `revalidate`,
+  `opens`, `admit` and `settle` as `defineDocumentHost` has them, and
+  `layer` required exactly when the resolver needs a service. `defineDocumentHost` is now built on it,
   and a runtime without `WebSocketPair` is a 500 that resolves no one.
 
 - **`foldkit-auth`: the client repeats whom it was answered as.**

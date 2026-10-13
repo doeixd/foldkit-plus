@@ -2,6 +2,7 @@
 import { Context, Effect, Layer } from 'effect'
 import { describe, it } from 'vitest'
 import { defineDocumentHost } from '../src/do.js'
+import { documentHost } from '../src/journal.js'
 import { openJournal, Todos } from './fixtures/todos.js'
 
 class Base {
@@ -42,5 +43,19 @@ describe('defineDocumentHost', () => {
       // @ts-expect-error the layer provides nothing of Sessions
       layer: () => Layer.empty,
     })
+  })
+})
+
+describe('documentHost', () => {
+  const hosted = { sync: Todos, journal: async () => openJournal() }
+
+  it('takes the layer a resolver needs, and none for one that needs nothing', () => {
+    documentHost({ ...hosted, resolvePrincipal: needing, layer: () => sessions })
+    documentHost({ ...hosted, resolvePrincipal: () => Effect.succeed('ada') })
+  })
+
+  it('refuses a resolver that needs a service, with no layer', () => {
+    // @ts-expect-error Sessions is provided by nothing
+    documentHost({ ...hosted, resolvePrincipal: needing })
   })
 })

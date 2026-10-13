@@ -37,8 +37,8 @@ export default [
     edits: [
       {
         file: host,
-        find: 'socket.closeWith(4401, error.message)',
-        replace: 'socket.closeWith(1000, error.message)',
+        find: '[4401, error.message] as const',
+        replace: '[1000, error.message] as const',
       },
     ],
     tests,
@@ -48,8 +48,8 @@ export default [
     edits: [
       {
         file: host,
-        find: "socket.closeWith(1012, 'Who is asking changed')",
-        replace: "socket.closeWith(4401, 'Who is asking changed')",
+        find: "[1012, 'Who is asking changed'] as const",
+        replace: "[4401, 'Who is asking changed'] as const",
       },
     ],
     tests,
@@ -104,13 +104,13 @@ export default [
     tests,
   },
   {
-    name: 'a resolver that breaks leaks its defect',
+    name: 'a resolver that breaks escapes the upgrade',
     edits: [
       {
         file: host,
-        find: 'Effect.runPromise(Effect.result(resolve)).catch(() => undefined)',
+        find: '    ).catch(() => undefined)\n    if (opened === undefined)',
         replace:
-          'Effect.runPromise(Effect.result(resolve)).catch((error: unknown) => Result.fail({ message: String(error) }))',
+          '    ).catch((error: unknown) => {\n      throw error\n    })\n    if (opened === undefined)',
       },
     ],
     tests,
@@ -175,8 +175,8 @@ export default [
     edits: [
       {
         file: host,
-        find: 'Effect.suspend(() => options.resolvePrincipal(request))',
-        replace: 'options.resolvePrincipal(request)',
+        find: 'const ask = Effect.suspend(() => options.resolvePrincipal(request))',
+        replace: 'const ask = options.resolvePrincipal(request)',
       },
     ],
     tests,
@@ -185,7 +185,7 @@ export default [
     name: 'any interval is taken',
     edits: [
       {
-        file: host,
+        file: '../src/revalidate.ts',
         find: 'throw new Error(`${who}: revalidate.every must be longer than zero`)',
         replace: '{}',
       },
@@ -197,8 +197,9 @@ export default [
     edits: [
       {
         file: host,
-        find: '.pipe(\n      Effect.provide(services),\n    )',
-        replace: ' as unknown as Effect.Effect<Principal, RemoteUnauthenticated>',
+        find: 'const resolve = Effect.provide(ask, services)',
+        replace:
+          'const resolve = ask as unknown as Effect.Effect<Principal, RemoteUnauthenticated>',
       },
     ],
     tests,
@@ -224,23 +225,10 @@ export default [
     edits: [
       {
         file: host,
-        find: '              })\n              release()\n',
-        replace: '              })\n',
+        find: '                } finally {\n                  release()\n                }',
+        replace: '                }',
       },
     ],
-    tests,
-  },
-  {
-    name: 'a layer that fails to build is served anyway',
-    edits: [
-      {
-        file: host,
-        find: '    if (services === undefined) return refuse(internalError())\n',
-        replace: '',
-      },
-    ],
-    survives:
-      'equivalent: undefined services make the resolver die, and that guard releases the layer and answers 500',
     tests,
   },
   {
@@ -263,6 +251,29 @@ export default [
         replace: '        throw error',
       },
     ],
+    tests,
+  },
+  {
+    name: 'an abandoned upgrade keeps what it built',
+    edits: [{ file: host, find: 'abandon: release,', replace: 'abandon: () => {},' }],
+    tests,
+  },
+  {
+    name: 'a refused reason leaves the socket open',
+    edits: [
+      {
+        file: host,
+        find: '                  socket.close()\n                } finally {',
+        replace: '                } finally {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a throw while serving keeps what the upgrade built',
+    edits: [{ file, find: '        abandon()\n', replace: '' }],
+    survives:
+      'only a throwing accept() or workerSocket reaches it, and the fake pair cannot throw there without a WebSocketPair of its own',
     tests,
   },
 ]

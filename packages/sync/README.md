@@ -346,9 +346,11 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   host without the class: `documentHost({ sync, journal, resolvePrincipal,
   layer?, revalidate?, opens?, admit?, settle? })` answers each upgrade
   request before a socket opens, refused with the `Response` to send, or
-  accepted with the function that serves the socket once the runtime has
-  opened it (a `HostSocket`: Sync's socket, plus `closeWith(code, reason)`).
-  `defineDocumentHost` is built on it.
+  accepted with `serve`, for the socket once the runtime has opened it (a
+  `HostSocket`: Sync's socket, plus `closeWith(code, reason)`), and
+  `abandon`, for when it never will (the client left, the handshake was
+  refused). One of the two must follow: until then the upgrade holds what
+  its `layer` built. `defineDocumentHost` is built on it.
 - A server socket is not a live stream: another request cannot wake the fiber
   of an open SSE response in a worker, not even from the same isolate. What
   crosses requests there is the store they share (D1 here), and the live side
