@@ -19,7 +19,11 @@ const post = (fields: Record<string, string>) => {
   const body = new URLSearchParams(fields)
   return new Request('https://example.test/todos?view=all', {
     method: 'POST',
-    headers: { ...html, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: {
+      ...html,
+      origin: 'https://example.test',
+      'content-type': 'application/x-www-form-urlencoded',
+    },
     body,
   })
 }
@@ -90,6 +94,7 @@ describe('SSR.handle through handleRequest', () => {
     // The request says how it counts; the config counts by ten.
     const scaled = SSR.entry(config, plan, {
       buildId: 'b',
+      origins: ['https://example.test'],
       resources: request =>
         Layer.succeed(Counter)({ count: of => of * Number(request.headers.get('x-scale')) }),
     })
@@ -114,6 +119,7 @@ describe('SSR.handle through handleRequest', () => {
     const seen: Array<string> = []
     const owning = SSR.entry(config, plan, {
       buildId: 'b',
+      origins: ['https://example.test'],
       resources: () =>
         Layer.effect(
           Counter,
@@ -130,6 +136,43 @@ describe('SSR.handle through handleRequest', () => {
     expect(response.status).toBe(status)
     expect(seen).toEqual(log)
     logged.mockRestore()
+  })
+
+  it.each([
+    ['another origin', { origin: 'https://elsewhere.test' }],
+    ['no Origin', { origin: null }],
+  ])('refuses a form posted from %s, reading nothing', async (_, { origin }) => {
+    const seen: Array<string> = []
+    const guarded = SSR.entry(config, plan, {
+      buildId: 'b',
+      origins: ['https://example.test'],
+      resources: () => Layer.effectDiscard(Effect.sync(() => void seen.push('built'))),
+    })
+    const request = post({ title: 'Milk', [FALLBACK_FIELD]: added })
+    if (origin === null) request.headers.delete('origin')
+    else request.headers.set('origin', origin)
+    const response = await serve(request, guarded)
+    expect(response.status).toBe(403)
+    expect(await response.text()).toBe('The form was not posted from this site.')
+    expect(seen).toEqual([])
+  })
+
+  it('serves a page to any origin: only a post is checked', async () => {
+    const guarded = SSR.entry(config, plan, { buildId: 'b', origins: ['https://example.test'] })
+    const response = await serve(
+      new Request('https://example.test/todos', {
+        headers: { ...html, origin: 'https://elsewhere.test' },
+      }),
+      guarded,
+    )
+    expect(response.status).toBe(200)
+  })
+
+  it.each([
+    ['resources without origins', { resources: () => Layer.empty }, 'name the origins'],
+    ['an origin that is not one', { origins: ['https://example.test/'] }, 'is not an origin'],
+  ])('refuses %s when the entry is made', (_, options, message) => {
+    expect(() => SSR.entry(config, plan, { buildId: 'b', ...options })).toThrow(message)
   })
 
   it('folds nothing for a Command that yields no Message, and still answers the page', async () => {

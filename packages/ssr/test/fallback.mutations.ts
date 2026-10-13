@@ -77,4 +77,31 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a form posted from anywhere is handled',
+    edits: [
+      {
+        file,
+        find: "if (posting && origins !== undefined && !origins.has(request.headers.get('origin') ?? '')) {",
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'resources are taken without origins',
+    edits: [
+      {
+        file,
+        find: 'if (options.resources !== undefined && options.origins === undefined) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'any origin is taken as written',
+    edits: [{ file, find: 'new URL(origin).origin !== origin', replace: 'false' }],
+    tests,
+  },
 ]

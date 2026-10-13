@@ -1084,9 +1084,18 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * also the config's, the request's is used. A render runs no Command, so
      * it reads the request through `flags`. The Layer may neither fail nor
      * need a service: one that refuses who is asking (a session that ended)
-     * decides before this, in the host, or dies here into a 500.
+     * decides before this, in the host, or dies here into a 500. Requires
+     * `origins`: these services act as whoever posted.
      */
     readonly resources?: ((request: Request) => Layer.Layer<never, never, never>) | undefined
+    /**
+     * The origins a form may be posted from: a post whose `Origin` (which
+     * every browser sends on one) is not among them is a 403 that reads
+     * nothing, so a page elsewhere cannot post as someone signed in here. A
+     * form cannot carry a CSRF header; this is its check. Each must be an
+     * origin exactly as a browser sends it (`https://example.com`).
+     */
+    readonly origins?: ReadonlyArray<string> | undefined
     /**
      * Markup for the first paint, carried as the rendered root's last child.
      * The host owns the template in dynamic serving, so this is where
@@ -1100,6 +1109,16 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       `foldkit-ssr: plan "${plan.id}" says what the page says of itself (meta), which is written into the template's head, and the template is the host's: serve it with SSR.generate, not SSR.entry`,
     )
   }
+  for (const origin of options.origins ?? []) {
+    if (!URL.canParse(origin) || new URL(origin).origin !== origin)
+      throw new Error(`foldkit-ssr: ${JSON.stringify(origin)} in origins is not an origin`)
+  }
+  if (options.resources !== undefined && options.origins === undefined) {
+    throw new Error(
+      'foldkit-ssr: a posted form runs with resources, which act as whoever posted; name the origins a form may be posted from (origins)',
+    )
+  }
+  const origins = options.origins === undefined ? undefined : new Set(options.origins)
   const allow = plan.fallback === 'server' ? 'GET, HEAD, POST, OPTIONS' : 'GET, HEAD, OPTIONS'
   // Deleted and appended rather than set, which would keep one `set-cookie` of several.
   const merge = (response: Response, extra: Headers): Response => {
@@ -1128,6 +1147,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       return responded(new Response(null, { status: 204, headers: { allow } }))
     if (method !== 'GET' && method !== 'HEAD' && !posting) {
       return responded(new Response(null, { status: 405, headers: { allow } }))
+    }
+    if (posting && origins !== undefined && !origins.has(request.headers.get('origin') ?? '')) {
+      return responded(plainText(403, 'The form was not posted from this site.'))
     }
     const flagsOf = options.flags
     const styled = options.styles === undefined ? {} : { styles: options.styles }

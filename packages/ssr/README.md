@@ -695,8 +695,15 @@ the page, so a Command that reschedules itself, a poll or a tick, is ordinary
 there; on the server a post that has not settled within 100 Messages and
 Commands is answered `500`, naming the last Command. `SSR.handle(request,
 config, plan, { buildId, flags?, resources? })` can also be called from an
-entry of your own. A form a cookie session authorizes is a cross-site request
-forgery target: check the post's `Origin` before handing it on.
+entry of your own.
+
+A form a cookie session authorizes is a cross-site request forgery target,
+and a form cannot carry a CSRF header. `SSR.entry`'s `origins` names the
+origins a form may be posted from; a post whose `Origin` (every browser sends
+one on a `POST`) is not among them is answered `403` before anything is read
+or built. `resources` requires `origins`, since its services act as whoever
+posted: an entry with one and not the other throws when it is made. An entry
+of your own that calls `SSR.handle` checks `Origin` itself.
 
 ## When a page is refused
 
