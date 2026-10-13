@@ -26,7 +26,7 @@ import {
 } from 'drizzle-orm'
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { Option } from 'effect'
-import { Query, isPredicate } from 'foldkit-entity'
+import { Query, QueryEvaluateError, decided, isPredicate } from 'foldkit-entity'
 import type {
   AnyExpr,
   AnyQuery,
@@ -35,6 +35,7 @@ import type {
   Operandish,
   Operation,
   Predicate,
+  PredicateTruth,
 } from 'foldkit-entity'
 import type { OrderTerm } from './cursor.js'
 
@@ -134,6 +135,61 @@ const truthComparison = (
   return not(predicate(asked, target, input, query))
 }
 
+/**
+ * A predicate that reads no field, decided with this request's input, so it
+ * reaches the database as a constant or not at all: `isNull($status)` is known
+ * now, and an `or` it is in is then all true or just its other operand.
+ */
+const decide = (
+  node: Predicate,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): Option.Option<PredicateTruth> => {
+  try {
+    return decided(node, input)
+  } catch (error) {
+    if (error instanceof QueryEvaluateError) {
+      throw new QueryCompileError(
+        `query "${query}": ${error.message.replace('[foldkit-entity] ', '')}`,
+      )
+    }
+    throw error
+  }
+}
+
+/** A decided truth as SQL: unknown is SQL's null, which `and`, `or` and `not` keep as SQL does. */
+const constant = (truth: PredicateTruth): SQL =>
+  truth === 'unknown' ? sql`null` : truth ? sql`true` : sql`false`
+
+/**
+ * An `and` or an `or`, its decided operands settled: in an `and`, false makes
+ * the whole false and true drops out, and the reverse in an `or`; an unknown
+ * stays, as null. Every operand is compiled before any decides the whole, so
+ * one that refuses its input refuses here as `evaluate` would.
+ */
+const connective = (
+  operands: ReadonlyArray<Predicate>,
+  joiner: 'and' | 'or',
+  target: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): SQL => {
+  const decisive = joiner === 'or'
+  const parts = operands.map(each =>
+    Option.match(decide(each, input, query), {
+      onNone: (): SQL | PredicateTruth => predicate(each, target, input, query),
+      onSome: (truth): SQL | PredicateTruth => truth,
+    }),
+  )
+  if (parts.includes(decisive)) return constant(decisive)
+  const kept = parts.flatMap((part): ReadonlyArray<SQL> =>
+    typeof part === 'boolean' ? [] : part === 'unknown' ? [sql`null`] : [part],
+  )
+  if (kept.length === 0) return constant(!decisive)
+  if (kept.length === 1) return kept[0]!
+  return sql`(${sql.join(kept, joiner === 'and' ? sql` and ` : sql` or `)})`
+}
+
 const predicate = (
   node: Predicate,
   target: CompileTarget,
@@ -141,6 +197,18 @@ const predicate = (
   query: string,
 ): SQL => {
   switch (node._tag) {
+    case 'And':
+    case 'Or':
+      return Option.match(decide(node, input, query), {
+        onSome: constant,
+        onNone: () =>
+          connective(node.operands, node._tag === 'And' ? 'and' : 'or', target, input, query),
+      })
+    case 'Not':
+      return Option.match(decide(node, input, query), {
+        onSome: constant,
+        onNone: () => not(predicate(node.operand, target, input, query)),
+      })
     case 'Eq': {
       // A predicate compared to a boolean is that predicate, or its negation.
       // The value is known here — this runs per request, with the input in
@@ -231,7 +299,16 @@ const predicate = (
  * which cases `predicate` happens to handle, so a body needing something else
  * is refused with a name instead of falling through.
  */
-export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'contains', 'in']
+export const supported: ReadonlyArray<Operation> = [
+  'eq',
+  'isNull',
+  'isNotNull',
+  'contains',
+  'in',
+  'and',
+  'or',
+  'not',
+]
 
 /**
  * Every field the body reads has a column here, and every operation it needs is

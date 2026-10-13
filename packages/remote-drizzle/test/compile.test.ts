@@ -422,6 +422,95 @@ describe('A body needing what this compiler does not run', () => {
   })
 
   it('declares what it runs rather than leaving it to which cases exist', () => {
-    expect([...supported].sort()).toEqual(['contains', 'eq', 'in', 'isNotNull', 'isNull'])
+    expect([...supported].sort()).toEqual([
+      'and',
+      'contains',
+      'eq',
+      'in',
+      'isNotNull',
+      'isNull',
+      'not',
+      'or',
+    ])
+  })
+})
+
+describe('And, or and not', () => {
+  /** The where one request compiles to, and the request's result. */
+  const compiled = async (source: AnySource, input: Record<string, unknown>) => {
+    const { database, calls } = fakeDatabase()
+    const result = await Effect.runPromise(
+      Effect.result(
+        source
+          .run({ input, window: { first: 5 }, principal: null })
+          .pipe(Effect.provideService(DrizzleDatabase, database)),
+      ),
+    )
+    return { result, where: calls.length === 0 ? undefined : rendered(calls[0]!.where) }
+  }
+  const OptionalSlug = Query.define(
+    'OptionalSlug',
+    { slug: Schema.NullOr(Schema.String) },
+    ({ input }) =>
+      Query.from(Post).pipe(
+        Query.where(Expr.whenGiven(input.slug, slug => Expr.eq(Post.fields.slug, slug))),
+        Query.orderBy(Order.asc(Post.fields.id)),
+      ),
+  )
+
+  it('compiles an optional filter to the predicate alone when its input is given', async () => {
+    expect(
+      (await compiled(query(OptionalSlug, { entity: PostBinding }), { slug: 'hello' })).where,
+    ).toEqual({
+      sql: '"posts"."slug" = $1',
+      params: ['hello'],
+    })
+  })
+
+  it('compiles an optional filter to no condition, and no parameter, when it is not', async () => {
+    expect(
+      (await compiled(query(OptionalSlug, { entity: PostBinding }), { slug: null })).where,
+    ).toEqual({
+      sql: 'true',
+      params: [],
+    })
+  })
+
+  it('compiles an or and a not to SQL’s own', async () => {
+    const Either = Query.define('Either', { slug: Schema.String }, ({ input }) =>
+      Query.from(Post).pipe(
+        Query.where(
+          Expr.or(Expr.eq(Post.fields.slug, input.slug), Expr.isNull(Post.fields.archivedAt)),
+          Expr.not(Expr.eq(Post.fields.slug, 'draft')),
+        ),
+        Query.orderBy(Order.asc(Post.fields.id)),
+      ),
+    )
+    // Drizzle wraps each fragment it embeds in parentheses: the same SQL, spelled safely.
+    expect(
+      (await compiled(query(Either, { entity: PostBinding }), { slug: 'hello' })).where,
+    ).toEqual({
+      sql: '((("posts"."slug" = $1 or ("posts"."archived_at" is null))) and (not ("posts"."slug" = $2)))',
+      params: ['hello', 'draft'],
+    })
+  })
+
+  it('refuses a NUL in an operand that a decided one would have made moot, as evaluate does', async () => {
+    const Moot = Query.define('Moot', { slug: Schema.NullOr(Schema.String) }, ({ input }) =>
+      Query.from(Post).pipe(
+        Query.where(
+          Expr.or(
+            Expr.isNull(input.slug),
+            Expr.contains(Post.fields.slug, `a${String.fromCharCode(0)}b`),
+          ),
+        ),
+        Query.orderBy(Order.asc(Post.fields.id)),
+      ),
+    )
+    const { result, where } = await compiled(query(Moot, { entity: PostBinding }), { slug: null })
+    expect(result._tag).toBe('Failure')
+    const failure = result._tag === 'Failure' ? result.failure : undefined
+    expect(failure?.message).toMatch(/NUL character/)
+    expect(where).toBeUndefined()
   })
 })
