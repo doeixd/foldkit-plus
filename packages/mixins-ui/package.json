@@ -21,7 +21,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/mixins-ui"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-ui#readme",
+  "homepage": "https://foldkit-plus.pages.dev/mixins/guides/mixins-ui",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

@@ -21,7 +21,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/cms"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/cms#readme",
+  "homepage": "https://foldkit-plus.pages.dev/cms",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

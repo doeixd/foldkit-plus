@@ -19,7 +19,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/react"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/react#readme",
+  "homepage": "https://foldkit-plus.pages.dev/react",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

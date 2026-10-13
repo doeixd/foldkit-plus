@@ -18,7 +18,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/builder"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/builder#readme",
+  "homepage": "https://foldkit-plus.pages.dev/composition/guides/builder",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

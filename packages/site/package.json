@@ -20,7 +20,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/site"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/site#readme",
+  "homepage": "https://foldkit-plus.pages.dev/site",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

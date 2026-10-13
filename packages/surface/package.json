@@ -21,7 +21,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/surface"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/surface#readme",
+  "homepage": "https://foldkit-plus.pages.dev/surface",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

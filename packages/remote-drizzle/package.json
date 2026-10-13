@@ -21,7 +21,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/remote-drizzle"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/remote-drizzle#readme",
+  "homepage": "https://foldkit-plus.pages.dev/remote/guides/remote-drizzle",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

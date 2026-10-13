@@ -21,7 +21,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/richtext"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/richtext#readme",
+  "homepage": "https://foldkit-plus.pages.dev/richtext",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

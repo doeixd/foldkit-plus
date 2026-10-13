@@ -18,7 +18,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/sync"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/sync#readme",
+  "homepage": "https://foldkit-plus.pages.dev/sync",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

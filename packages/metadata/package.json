@@ -18,7 +18,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/metadata"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/metadata#readme",
+  "homepage": "https://foldkit-plus.pages.dev/surface/guides/metadata",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

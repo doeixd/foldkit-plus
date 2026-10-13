@@ -17,7 +17,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/data-grid"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/data-grid#readme",
+  "homepage": "https://foldkit-plus.pages.dev/data-grid",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

@@ -21,7 +21,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/mixins-richtext"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-richtext#readme",
+  "homepage": "https://foldkit-plus.pages.dev/richtext/guides/mixins-richtext",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

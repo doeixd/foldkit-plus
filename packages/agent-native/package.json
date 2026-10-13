@@ -17,7 +17,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/agent-native"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-native#readme",
+  "homepage": "https://foldkit-plus.pages.dev/agent/guides/agent-native",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

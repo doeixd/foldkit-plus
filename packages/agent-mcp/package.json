@@ -17,7 +17,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/agent-mcp"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-mcp#readme",
+  "homepage": "https://foldkit-plus.pages.dev/agent/guides/agent-mcp",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

@@ -18,7 +18,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/guard"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/guard#readme",
+  "homepage": "https://foldkit-plus.pages.dev/guard",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

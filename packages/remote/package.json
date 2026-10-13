@@ -21,7 +21,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/remote"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/remote#readme",
+  "homepage": "https://foldkit-plus.pages.dev/remote",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

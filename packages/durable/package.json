@@ -18,7 +18,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/durable"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/durable#readme",
+  "homepage": "https://foldkit-plus.pages.dev/sync/guides/durable",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

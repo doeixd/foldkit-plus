@@ -19,7 +19,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/react-codegen"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/react-codegen#readme",
+  "homepage": "https://foldkit-plus.pages.dev/react/guides/react-codegen",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

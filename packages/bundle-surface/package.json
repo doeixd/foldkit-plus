@@ -19,7 +19,7 @@
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
     "directory": "packages/bundle-surface"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/bundle-surface#readme",
+  "homepage": "https://foldkit-plus.pages.dev/bundle/guides/bundle-surface",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },
