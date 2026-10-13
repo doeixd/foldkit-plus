@@ -129,6 +129,10 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
 ## Data, query and Remote
 
 - [ ] **Query Phase 13:** joins and aggregates.
+- [ ] **`and`, `or` and `not` in a query body,** through the evaluator, the
+  Drizzle compiler (settling field-free operands per request), Remote's
+  matching and the memory server; comparisons after, as their own design.
+  [query-logic-DESIGN.md](./query-logic-DESIGN.md)
   [data-query-DESIGN.md](./data-query-DESIGN.md) §32
 - [ ] **Local execution Phase 4:** position placement (only the decidable half
   is built). [local-execution-DESIGN.md](./local-execution-DESIGN.md) §13
