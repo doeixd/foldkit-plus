@@ -217,7 +217,7 @@ questions still open.
 ## Authentication
 
 Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
-orders the slices; step 0 and slices 1–7 are built.
+orders the slices; step 0 and slices 1–8 are built.
 
 - [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
   `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
@@ -245,14 +245,12 @@ orders the slices; step 0 and slices 1–7 are built.
   required by a plan with a server fallback. §5.4
 - [ ] **A posted form whose session ended** is a 500: `resources` cannot
   fail. With `Site.access`'s 303 (slice 10). §6.5
-- [ ] **The client acts on a refusal.** A 4401 close makes Sync's transport
-  stop reconnecting (today every close code reconnects, each upgrade a 401),
-  but only once a fresh upgrade is refused too: Yielded's renewal rotates the
-  credential, and `revalidate` re-checks the one the socket or stream opened
-  with, so a routine renewal ends it with 4401 while the session lives; a
-  refused live stream stops restarting until `forget`; a typed predicate for
-  `Unauthenticated`, since a Model's `RemoteError` is `{ _tag: string }`.
-  With slice 8. §5.3, §7
+- [x] **A typed refusal:** `RemoteData.refused`. §5.3
+- [ ] **Stopping after a refusal that holds.** Sync's transport and a live
+  stream reopen after a refusal, as Yielded's renewal makes a 4401 routine;
+  stopping needs to tell a refused fresh upgrade from a dropped one, which a
+  browser `WebSocket` does not expose. Today the application's `forget`, on a
+  read's `Unauthenticated`, stops a stream. §5.3, §7
 - [ ] **Left from §6.2's sketch, undecided:** a 415 for a body that is not
   `application/json`; `Auth.ssr`, a render's principal; Presence's `peerId`
   as the principal's key; §5.1's Context-key option for `serveFetch`. Each
@@ -260,7 +258,12 @@ orders the slices; step 0 and slices 1–7 are built.
 - [x] **7. `Me`:** in `foldkit-guard` (`Guards.me`, `GuardServer.me`,
   `Guards.anyone`, `Policy.key`); the resolver's `key` compares the subject
   header with it. §6.1
-- [ ] **8. `foldkit-auth/client`.** §6.4
+- [x] **8. The client:** `RemoteData.refused`; sign-in, sign-out, the
+  cross-tab channel and the persistence scope are application code over
+  Yielded's client, `Remote.forget` and `foldkit-primitives`. §6.4
+- [ ] **The client's `x-foldkit-subject`.** A transport that learns whom the
+  server answered as (an echoed header) and repeats it; needs `serveFetch` to
+  report the principal's key. §6.4
 - [ ] **9. An example, with an e2e test.** §9
 - [ ] **10. `Site.access`** and SSR's 303. §6.5
 
