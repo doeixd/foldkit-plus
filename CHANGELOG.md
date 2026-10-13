@@ -10,9 +10,10 @@ version changed; `pnpm` skips versions already in the registry.
 ### Fixed
 
 - **`foldkit-form`: a filled optional key not checked yet is refused, not left
-  out.** `engine.value` (and a submit) counted an optional key whose draft was
-  filled by `fill` but not yet validated as valid, and the value went out
-  without it. Such a draft must now pass its own check.
+  out.** `engine.value` counted an optional key whose draft was filled by
+  `fill` but not yet validated as valid, and gave the value without it. Such a
+  draft must now pass its own check. A submit was never affected: it validates
+  every unchecked key first.
 
 ## 0.19.0
 
