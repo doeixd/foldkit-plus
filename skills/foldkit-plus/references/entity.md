@@ -226,8 +226,9 @@ dependenciesOf(byTitle, ...newest)
 Immutable data, frozen as it is built: building one reads nothing, names no
 database, runs no query, and nothing can change it after `Query.where` checked it.
 An interpreter compiles it (`foldkit-remote-drizzle` to SQL, an in-memory
-evaluator to a row predicate). `Expr.eq` coerces a field or a plain value on
-either side; a field compared to the wrong type is an error where it is written.
+evaluator to a row predicate). `Expr.eq` takes the field on the left and the
+value on the right, typed from it (the comparisons take a field on either
+side); a field compared to the wrong type is an error where it is written.
 `Query.where` refuses, at compile time, a predicate over another Entity than the
 query's (its type names the Entities its fields belong to). It also refuses predicates that expand past `maxQueryNodes` (1,000) nodes,
 counting a shared node (`Expr.eq(n, n)`) on every path, since interpreters read
