@@ -881,6 +881,12 @@ of its own named a form field "fits the Catalog". Read words with
   intersection resolves to the last signature and widened every payload to
   `any`. A conditional inside a reverse mapped type is circular and quietly
   picks one branch, which let `input` without `toMessage` compile.
+- **`infer` reads an optional property's declared type, present or not.**
+  Typing `Wiring.shared?` as `ReadonlyArray<Claims>` made Remote's wiring,
+  which shares nothing, read as sharing every tag it claims: `infer` took the
+  declared element type, and `own` got every Remote Message back. A type-level
+  reading of "what this value holds" needs a property the value's own type
+  sets (a literal), not one an interface declares for all.
 - **A function-typed property makes a generic invariant.** `EntityDescriptor.ref:
   (id: Type<F['id']>) => …` made `F` invariant, so a concrete `EntityBinding` was
   not assignable to `EntityDescriptor<any, any>` and `Remote.make({ entities:

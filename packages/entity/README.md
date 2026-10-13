@@ -439,7 +439,8 @@ already one. What it will not do is compare a field to the wrong kind of value �
 `Expr.eq(Blog.Post.fields.title, 42)` is an error where it is written, rather
 than a row that never matches. The value's type comes from the left, so `eq` takes
 the field on the left; `Expr.eq('Hello', Blog.Post.fields.title)` is refused with
-that sentence. The comparisons (`lt`, `gte`, …) take a field on either side.
+that sentence. The comparisons (`lt`, `gte`, …) also take a field second,
+wrapped in `Expr.field(…)`.
 
 **An input is a placeholder, not a value.** A query's body is built once, so
 `Expr.input('title', …)` stands for whatever the query is given when it runs —

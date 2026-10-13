@@ -14,12 +14,16 @@ version changed; `pnpm` skips versions already in the registry.
   fields belong to (`Reads<Names>`, type-only), and `Query.where` refuses a
   query from another: `a predicate reads Comment, but the query is from Post`.
   `Order.asc`, `desc` and `chosen` do the same for `Query.orderBy`. The
-  run-time check stays for a predicate typed plainly as `Predicate`.
-
+  run-time check stays for a predicate typed plainly as `Predicate`. New
+  public types: `Reads`, `ReadsOf`, and `Invalid`, which declarations naming
+  these steps reach.
 - **`foldkit-form`: `form.Check`, the Command a key's check runs as.** A
   definition (`Command.define('<form>.check', …)`) rather than an inline
   Command, so a test resolves it with `Command.resolve(form.Check, …)` instead
-  of hand-building `{ name: '<form>.check', args: { key }, effect }`.
+  of hand-building `{ name: '<form>.check', args: { key }, effect }`. Its args
+  now carry the draft, the values and the subject too, so a test that matched
+  the old Command as an instance by `args: { key }` matches it no longer: match
+  `form.Check`, which compares by name.
 - **`foldkit-form`: `Form.input(schema)`, a plain form's input.** A form that
   writes no Entity (a sign-up, a search, a login) took `Entity.define` and
   `Entity.input` over the same schema; `Form.make('Search', Form.input(Search))`
@@ -35,7 +39,6 @@ version changed; `pnpm` skips versions already in the registry.
   `own` no longer needs `if (Remote.reduces(message))` to narrow them away, and
   one that matches exhaustively fails to compile when `Data.wiring` is removed
   from `assemble`. An `own` that handled Remote's tags itself now gets none.
-
 - **`foldkit-entity`: `Expr.eq` with a plain value on the left says to put the
   field there.** The right side is typed from the left, so `Expr.eq(3, field)`
   was refused with `'number' is not assignable to 'Operand<any>'`; it now

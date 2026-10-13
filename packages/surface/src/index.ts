@@ -1533,7 +1533,9 @@ export interface Wiring<Model, Message, R = never, Claims extends string = strin
   /**
    * Message tags `route` handles. Two integrations handling one tag is an error
    * unless it is `shared`. Typed as literals (`Claims`), the tags it does not
-   * share leave the parent's own update in `foldkit-bundle`'s assembly.
+   * share leave the parent's own update in `foldkit-bundle`'s assembly. A wiring
+   * with literal `Claims` that shares some gives `shared` a literal type too: a
+   * plain `string[]` there reads as sharing none.
    */
   readonly handles: ReadonlyArray<Claims>
   /** Tags several integrations may handle, each for its own values (Mirror's `MirrorRestored`, by name). */

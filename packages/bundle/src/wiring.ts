@@ -16,6 +16,8 @@ export interface Wiring<Model, Message, R = never, Claims extends string = strin
    * Message tags `route` handles. Two items handling one tag is an error unless
    * it is `shared`. Typed as literals (`Claims`), the tags it does not share
    * leave the parent's own update, so removing the wiring brings them back there.
+   * A wiring with literal `Claims` that shares some gives `shared` a literal
+   * type too: a plain `string[]` there reads as sharing none.
    */
   readonly handles: ReadonlyArray<Claims>
   /**
