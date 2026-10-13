@@ -2350,6 +2350,10 @@ No declared capability means no generated screen.
 
 # 50. What a future CMS package actually adds
 
+> **Since then (2026-10-13):** built as `foldkit-cms` and `foldkit-cms-drizzle`;
+> [cms-DESIGN.md](./cms-DESIGN.md) is the current design. The note below is as
+> it was written.
+>
 > **Status: not started, and waiting on scope, not on code.** Everything this
 > section calls "not CMS-specific" now exists: Entity, Selections, inputs, forms,
 > drawn forms, lists, details, deletes, `Display`, and drawn lists. What is left
@@ -2393,6 +2397,9 @@ are not CMS-specific and belong lower in the stack.
 ---
 
 # 51. First implementation milestone: do NOT build CMS yet
+
+> **Since then:** the milestone below was met, and the CMS was built on it as
+> `foldkit-cms` and `foldkit-cms-drizzle` (published; 0.7.0 and 0.6.3 at v0.19.0).
 
 The first implementation should prove the architecture through the foundational seam.
 

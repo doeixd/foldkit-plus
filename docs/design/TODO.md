@@ -117,15 +117,15 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   [richtext-DESIGN.md](./richtext-DESIGN.md) status
 - [ ] Renderers per kind, and metadata, for a Kit's content contract.
   [richtext-DESIGN.md](./richtext-DESIGN.md) "Not yet"
-- [ ] Release the six rich-text packages. They are public at 0.1.0 but not
-  published yet. [richtext-DESIGN.md](./richtext-DESIGN.md) status
+- [x] Release the six rich-text packages. Published; at v0.19.0 they are 0.2.0
+  to 0.4.0. [richtext-DESIGN.md](./richtext-DESIGN.md) status
 
 ## Page builder
 
 - [ ] **7c-2:** edit rich text on the canvas.
   [pagebuilder-DESIGN.md](./pagebuilder-DESIGN.md) §28
-- [ ] Publish `foldkit-composition`, `foldkit-builder` and
-  `foldkit-mixins-builder`. They are private at 0.0.0.
+- [x] Publish `foldkit-composition`, `foldkit-builder` and
+  `foldkit-mixins-builder`. Published since 2026-10-06; 0.3.0 in v0.19.0.
   [pagebuilder-DESIGN.md](./pagebuilder-DESIGN.md)
 
 ## Data, query and Remote
@@ -881,26 +881,27 @@ then the lifecycle and host-integration design work.
 
 ## Stale passages inside the design documents
 
-Each document now carries a dated status note, but these passages still
-describe an earlier state and would mislead someone reading the body:
+Each document now carries a dated status note, and these passages, which
+still described an earlier state, were corrected or annotated on 2026-10-13:
 
-- [ ] [REVISION_PLAN.md](./REVISION_PLAN.md) §1.1–1.2: the package versions,
+- [x] [REVISION_PLAN.md](./REVISION_PLAN.md) §1.1–1.2: the package versions,
   private packages and example list; §20's pre-Phase-1 open questions.
-- [ ] [agent-DESIGN.md](./agent-DESIGN.md): its package table (Surface
+- [x] [agent-DESIGN.md](./agent-DESIGN.md): its package table (Surface
   "proposed", `context` in the contract, `agent-native` "private").
-- [ ] [mixins-DESIGN.md](./mixins-DESIGN.md): "private `0.0.0`" and old peer
+- [x] [mixins-DESIGN.md](./mixins-DESIGN.md): "private `0.0.0`" and old peer
   versions. It calls SLOT_MIXIN_STYLE_BRAINSTORM "authoritative", and around its
   line 325 says the Phase 11 example "remains", though Phase 11 is done.
-- [ ] [remote-drizzle-DESIGN.md](./remote-drizzle-DESIGN.md): the "SQL window
+- [x] [remote-drizzle-DESIGN.md](./remote-drizzle-DESIGN.md): the "SQL window
   optimization — measured, deferred" section and sequence item 7. The window
   query is built.
-- [ ] [data-query-DESIGN.md](./data-query-DESIGN.md): the head's "Phases 9–13
+- [x] [data-query-DESIGN.md](./data-query-DESIGN.md): the head's "Phases 9–13
   deferred", and the claim that `foldkit-remote-server` exports the conformance
   suite (it is `foldkit-entity/conformance`).
-- [ ] [entity-DESIGN.md](./entity-DESIGN.md) §50–51: "CMS not started / do not
+- [x] [entity-DESIGN.md](./entity-DESIGN.md) §50–51: "CMS not started / do not
   build CMS yet".
-- [ ] [react-DESIGN.md](./react-DESIGN.md): the banner's "codegen not started".
-- [ ] [bundle-spike.md](./bundle-spike.md): "the workspace stays on 0.158.2" (it
+- [x] [react-DESIGN.md](./react-DESIGN.md): the banner's "codegen not started".
+- [x] [bundle-spike.md](./bundle-spike.md): "the workspace stays on 0.158.2" (it
   is on 0.163.0).
-- [ ] [richtext-REVIEW.md](./richtext-REVIEW.md): the disposition cites a commit
-  (`d442415`) that is not in the current history.
+- [x] [richtext-REVIEW.md](./richtext-REVIEW.md): the disposition cites a commit
+  (`d442415`) that is not in the current history. It is: `d4424159d`, "fix the
+  R15-R21 findings"; the citation was right.

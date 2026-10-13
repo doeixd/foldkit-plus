@@ -38,14 +38,14 @@ integration layer; it is not a shipped API.
 
 | Package | What it is |
 | --- | --- |
-| [`foldkit-agent`](../../packages/agent/README.md) | The protocol-neutral contract: `context`, `expose`, `define`, `resource`, introspection, and the bound `AgentRuntime`. |
+| [`foldkit-agent`](../../packages/agent/README.md) | The protocol-neutral contract: `expose`, `define`, `resource`, introspection, and the bound `AgentRuntime`. (`context` was removed in the Surface revision.) |
 | [`foldkit-agent-webmcp`](../../packages/agent-webmcp) | The browser adapter, projecting exposed Messages into `document.modelContext`. |
 | [`foldkit-agent-mcp`](../../packages/agent-mcp) | The external MCP adapter: a transport-free protocol handler, plus stdio and HTTP. |
 | [`foldkit-agent-a2a`](../../packages/agent-a2a) | The A2A adapter: an Agent Card and `message/send` as tasks. |
 | [`foldkit-durable`](../../packages/durable) | A durable, ordered operation log with snapshots, compaction, change streams, and a durable effect ledger. |
 | [`foldkit-sync`](../../packages/sync) | A local-first replica with an offline outbox, optimistic projection, presence, and a reconnecting transport. |
-| [`foldkit-agent-native`](../../packages/agent-native) | A private prototype adapting the contract to Agent Native, with integration tests against the real framework. |
-| `foldkit-surface` (proposed) | Shared application/projection primitives and a live runtime contract, with Foldkit bindings; no implementation yet. |
+| [`foldkit-agent-native`](../../packages/agent-native) | The adapter compiling the contract into Agent Native actions, published, with integration tests against the real framework. |
+| [`foldkit-surface`](../../packages/surface) | Shared application/projection primitives and a live runtime contract, with Foldkit bindings; published, the observation boundary every agent adapter reads through. |
 
 It is deliberately built on Foldkit's existing architecture rather than
 introducing a second application-action system.

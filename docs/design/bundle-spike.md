@@ -1,7 +1,7 @@
 # foldkit-bundle: Phase 0 verification notes
 
 Checked against the installed `foldkit@0.158.2` and `effect@4.0.0-rc.112`
-declarations and runtime source. The workspace stays on `0.158.2`: every API the
+declarations and runtime source. (The workspace has since moved on: Foldkit 0.168.0 as of 2026-10-13.) At the time it stayed on `0.158.2`: every API the
 design needs already exists there.
 
 | # | Question | Finding | Decision |
