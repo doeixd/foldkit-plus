@@ -7,14 +7,27 @@
 import { NodeHttpServer } from '@effect/platform-node'
 import { Auth, Http, Password, Sessions } from '@yielded/auth'
 import * as Testing from '@yielded/auth-persistence/Testing'
-import { Effect, Layer, ManagedRuntime, Option, Redacted } from 'effect'
+import { Effect, Exit, Layer, ManagedRuntime, Option, Redacted, Scope } from 'effect'
 import { HttpRouter } from 'effect/http'
 import { AuthServer } from 'foldkit-auth/server'
 import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { serveFetch } from 'foldkit-remote-server/fetch'
-import { AuthApi, Domain, G, Me, Note, Notes, type User } from './domain.js'
+import { ActorId, Journal, OpId } from 'foldkit-durable'
+import type { Operation, Sync } from 'foldkit-sync'
+import { documentHost } from 'foldkit-sync/journal'
+import {
+  AuthApi,
+  type BoardMessage,
+  Domain,
+  G,
+  Me,
+  Note,
+  Notes,
+  PinBoard,
+  type User,
+} from './domain.js'
 
 /** Who may sign in: the account Yielded checks, and the principal the guards read. */
 export const accounts = [
@@ -113,6 +126,12 @@ const principalOf = (session: { readonly subjectId: string }) =>
     },
   )
 
+/** What the board's journal keeps: the shared slice of its Model. */
+type BoardShared = typeof PinBoard extends Sync<BoardMessage, infer Shared> ? Shared : never
+
+/** How often a board socket asks again who it serves. */
+export const SYNC_REVALIDATE = '1 second'
+
 /**
  * Both servers over one store: Yielded's routes (`/auth/…`), which set and
  * clear the cookie, and Remote's endpoint (`/remote`), which reads it.
@@ -142,12 +161,37 @@ export const openServer = async (origin: string) => {
     headers: AuthServer.answered(resolving),
     layer: () => shared,
   })
+  // The board's journal: in memory, as the sessions are, and gone on restart.
+  const scope = Effect.runSync(Scope.make())
+  const journal = Effect.runSync(
+    Journal.make<Operation, BoardShared, Option.Option<User>>({
+      ...PinBoard.journalContract(),
+      file: ':memory:',
+      opId: operation => OpId.make(operation.opId),
+      actorId: principal =>
+        ActorId.make(Option.match(principal, { onNone: () => 'visitor', onSome: user => user.id })),
+    }).pipe(Effect.provideService(Scope.Scope, scope)),
+  )
+  // A browser's WebSocket sends no header of the page's: its Origin alone
+  // vouches for the cookie (`requests: 'browser'`).
+  const sync = documentHost({
+    sync: PinBoard,
+    journal: async () => journal,
+    resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'browser' }),
+    layer: () => shared,
+    // A sign-out in any tab ends the session the socket opened with: it closes within this.
+    revalidate: { every: SYNC_REVALIDATE, key: Policy.keyOf },
+    // The board is the signed-in readers': a visitor's socket reads and writes nothing.
+    opens: principal => Effect.succeed(Option.isSome(principal)),
+  })
   return {
     auth: routes.handler,
     remote,
+    sync,
     close: async () => {
       await routes.dispose()
       await runtime.dispose()
+      Effect.runSync(Scope.close(scope, Exit.void))
     },
   }
 }

@@ -78,6 +78,9 @@ importers:
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
+      foldkit-durable:
+        specifier: workspace:*
+        version: link:../../packages/durable
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
@@ -102,6 +105,12 @@ importers:
       foldkit-surface:
         specifier: workspace:*
         version: link:../../packages/surface
+      foldkit-sync:
+        specifier: workspace:*
+        version: link:../../packages/sync
+      ws:
+        specifier: ^8.18.0
+        version: 8.22.0
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.4
@@ -109,6 +118,9 @@ importers:
       '@foldkit/vite-plugin':
         specifier: 0.26.0
         version: 0.26.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+      '@types/ws':
+        specifier: ^8.5.12
+        version: 8.18.2
       effect:
         specifier: 4.0.4
         version: 4.0.4
@@ -11021,7 +11033,7 @@ snapshots:
 
   '@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112)':
     dependencies:
-      '@types/ws': 8.18.1
+      '@types/ws': 8.18.2
       effect: 4.0.0-rc.112
       ws: 8.22.0
     transitivePeerDependencies:
@@ -11030,7 +11042,7 @@ snapshots:
 
   '@effect/platform-node-shared@4.0.0(effect@4.0.4)':
     dependencies:
-      '@types/ws': 8.18.1
+      '@types/ws': 8.18.2
       effect: 4.0.4
       ws: 8.22.0
     transitivePeerDependencies:
@@ -11288,7 +11300,7 @@ snapshots:
       foldkit: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       magic-string: 1.4.2
       vite: 8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)
-      ws: 8.21.3
+      ws: 8.22.0
     transitivePeerDependencies:
       - bufferutil
       - redis

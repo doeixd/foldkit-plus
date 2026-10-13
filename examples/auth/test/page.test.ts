@@ -10,10 +10,10 @@ import { toResponse } from 'foldkit/experimental/server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { startHttpServer } from '../src/http.js'
 import { makeRenderPage } from '../src/page.js'
-import { accounts, notes } from '../src/server.js'
+import { notes } from '../src/server.js'
+import { PAGE_ORIGIN, signIn as signInAt } from './accounts.js'
 
-// The page's origin, which the auth server trusts. Nothing listens there.
-const origin = 'http://127.0.0.1:5176'
+const origin = PAGE_ORIGIN
 const template = await readFile(new URL('../index.html', import.meta.url), 'utf8')
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
@@ -24,19 +24,7 @@ beforeAll(async () => {
 })
 afterAll(() => server.close())
 
-/** Signs in through Yielded's route; the session cookie it set, as `name=value`. */
-const signIn = async (subjectId: 'ada' | 'grace'): Promise<string> => {
-  const { email, password } = accounts.find(account => account.subjectId === subjectId)!
-  const response = await fetch(`${server.url}/auth/signIn`, {
-    method: 'POST',
-    headers: { origin, 'x-effect-auth-csrf': '1', 'content-type': 'application/json' },
-    body: JSON.stringify({ payload: { email, password } }),
-  })
-  return response.headers
-    .getSetCookie()
-    .find(cookie => cookie.includes('-session='))!
-    .split(';')[0]!
-}
+const signIn = (subjectId: 'ada' | 'grace') => signInAt(server.url, subjectId)
 
 /** The page at `path` as the host would send it. */
 const answer = async (path: string, init: { cookie?: string; method?: string } = {}) =>

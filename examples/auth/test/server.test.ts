@@ -11,15 +11,17 @@ import { REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Me, OpenAdmin } from '../src/domain.js'
 import { startHttpServer } from '../src/http.js'
-import { accounts } from '../src/server.js'
+import { PAGE_ORIGIN, signIn as signInAt } from './accounts.js'
 
-// The page's origin: what the requests below say they come from. Nothing listens there.
-const origin = 'http://127.0.0.1:5176'
-const fromThePage = { origin, 'x-effect-auth-csrf': '1', 'content-type': 'application/json' }
+const fromThePage = {
+  origin: PAGE_ORIGIN,
+  'x-effect-auth-csrf': '1',
+  'content-type': 'application/json',
+}
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
 beforeAll(async () => {
-  server = await startHttpServer(0, origin)
+  server = await startHttpServer(0, PAGE_ORIGIN)
 })
 afterAll(() => server.close())
 
@@ -30,14 +32,7 @@ const post = (path: string, body: unknown, cookie?: string) =>
     body: JSON.stringify(body),
   })
 
-/** Signs in through Yielded's route; the session cookie it set, as `name=value`. */
-const signIn = async (subjectId: 'ada' | 'grace'): Promise<string> => {
-  const { email, password } = accounts.find(account => account.subjectId === subjectId)!
-  const response = await post('/auth/signIn', { payload: { email, password } })
-  expect(response.status).toBe(200)
-  const session = response.headers.getSetCookie().find(cookie => cookie.includes('-session='))
-  return session!.split(';')[0]!
-}
+const signIn = (subjectId: 'ada' | 'grace') => signInAt(server.url, subjectId)
 
 /** Remote's JSON answer, in the two shapes read here. */
 interface Answer {

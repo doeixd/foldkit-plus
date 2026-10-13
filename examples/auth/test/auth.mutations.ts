@@ -6,6 +6,7 @@
  */
 const server = ['examples/auth/test/server.test.ts']
 const app = ['examples/auth/test/app.test.ts']
+const sync = ['examples/auth/test/sync.test.ts']
 const page = ['examples/auth/test/page.test.ts']
 
 export default [
@@ -383,5 +384,50 @@ export default [
       },
     ],
     tests: app,
+  },
+  {
+    name: "the board's socket asks for the page's CSRF header, which a browser never sends",
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: "AuthServer.resolver({ ...resolving, requests: 'browser' })",
+        replace: 'AuthServer.resolver(resolving)',
+      },
+    ],
+    tests: sync,
+  },
+  {
+    name: 'a visitor may write to the board',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'opens: principal => Effect.succeed(Option.isSome(principal)),',
+        replace: 'opens: () => Effect.succeed(true),',
+      },
+    ],
+    tests: sync,
+  },
+  {
+    name: 'an open board socket serves the session it opened with for good',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: '    revalidate: { every: SYNC_REVALIDATE, key: Policy.keyOf },\n',
+        replace: '',
+      },
+    ],
+    tests: sync,
+  },
+  {
+    name: 'a refused upgrade opens the socket anyway',
+    edits: [
+      {
+        file: '../src/http.ts',
+        find: 'onFailure: response => refuseUpgrade(connection, response),',
+        replace:
+          'onFailure: () => sockets.handleUpgrade(request, connection, head, socket => socket.close()),',
+      },
+    ],
+    tests: sync,
   },
 ]

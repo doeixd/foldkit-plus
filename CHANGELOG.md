@@ -65,8 +65,10 @@ version changed; `pnpm` skips versions already in the registry.
   sign-out through Yielded's own client and routes, a guarded notes list
   (an admin reads every note, a member their own, a visitor none), `Me` for
   "signed in as" and an admin line, and a change of principal carried to the
-  other tabs; unit, mutation and Chromium e2e tests, the e2e across two tabs
-  and a server restart.
+  other tabs; a notes page `Site.access` sends a visitor away from, server
+  rendered as the request's reader; a Sync board whose socket is opened
+  with the session cookie, served on Node by `documentHost`; unit, mutation
+  and Chromium e2e tests, the e2e across two tabs and a server restart.
 
 - **`foldkit-remote`: `RemoteData.denied(error)`,** the denial a failure
   was, a `Denied` (`Unauthenticated` or `Forbidden`, with the server's

@@ -29,6 +29,8 @@ export const configFor = (options: {
     proxy: {
       '/auth': { target: options.authServer },
       '/remote': { target: options.authServer },
+      // The board's socket: an upgrade, opened with the page's cookie and Origin.
+      '/sync': { target: options.authServer, ws: true },
     },
   },
   plugins: [foldkit({ ssr: { serverEntry: '/src/entry.server.ts', origin: options.origin } })],

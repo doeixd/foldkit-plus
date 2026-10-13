@@ -87,7 +87,8 @@ Read the files in this order.
    Remote's `serveFetch` over one store, so the sign-in route and the resolver
    see the same sessions.
 3. [`src/http.ts`](src/http.ts). One Node server: `/auth/…` to Yielded,
-   everything else to `serveFetch` (which answers `/remote`). Vite proxies both
+   everything else to `serveFetch` (which answers `/remote`), and an upgrade
+   to `/sync` to the board's `documentHost`. Vite proxies all three
    ([`vite.config.ts`](vite.config.ts)), so the page, its cookie and its
    requests share one origin.
 4. [`src/app.ts`](src/app.ts). The Model, the Messages and `update`. `SignIn`
@@ -136,6 +137,34 @@ What some calls do, and do not:
   alone, and the resolver takes its cookie name, trusted origins and CSRF
   header from the same object.
 
+## The board's socket
+
+`PinBoard` (`domain.ts`) is a Sync document every signed-in reader shares: a
+replica pins lines offline, and the server orders them. Its socket is opened
+with the session cookie, as Remote's reads are, through the same resolver:
+
+```text
+upgrade /sync ─> documentHost: AuthServer.resolver({ requests: 'browser' })
+                   cookie from a foreign Origin, or ended ─> 401, no socket opens
+                   no cookie ─> a visitor, whom `opens` refuses every exchange
+                   a session ─> the socket opens, exchanging as that User
+open socket   ─> every SYNC_REVALIDATE the resolver asks again:
+                   the session ended (a sign-out in any tab) ─> closed with 4401
+```
+
+- A browser's `WebSocket` sends no header of the page's, so no CSRF header
+  can vouch for the cookie: its `Origin`, which every browser sends on an
+  upgrade and no page can forge, does (`requests: 'browser'`).
+- `documentHost` (`foldkit-sync/journal`) answers the upgrade request
+  before a socket opens; `http.ts` writes a refusal on the raw connection,
+  or hands an accepted one to `ws` and serves it.
+- Yielded's renewal rotates the credential, so a socket opened before a
+  renewal is closed with 4401 at the next revalidation though the session
+  lives; a replica reconnects with the new cookie.
+
+No page draws the board yet: `test/sync.test.ts` drives it with replicas
+over real sockets.
+
 ## When something fails
 
 | What happens | What the page shows |
@@ -166,6 +195,10 @@ only for an `http:` origin.
 - `test/app.test.ts`: `update` on a change of principal, from a Model read as
   ada through the server's handlers, and the page `access` sends a reader
   from.
+- `test/sync.test.ts`: the board's socket over real `ws` sockets: a
+  visitor's exchange refused, a foreign Origin and an ended session `401`
+  before any socket opens, one reader's pin ordered for another, and an
+  open socket closed with 4401 once its session ends.
 - `test/page.test.ts`: the host over the real server: a visitor's `303`, a
   reader's notes rendered into the page, a session that ended left to the
   browser.
@@ -185,5 +218,6 @@ only for an `http:` origin.
 - Remote's reads never renew the session: it ends an hour after its last
   renewal, however busy the page is. Yielded's `renewSession` is not wired.
 - The page server is Vite's dev server; there is no production host.
-- Not yet here: a Sync socket opened with the session (`requests: 'browser'`),
-  the next step of auth-DESIGN §9, item 9.
+- No page draws the board: its socket and host are tested with replicas, and
+  mounting Sync beside Remote and the Site's routing in this page is not
+  shown here (`examples/registry` mounts both).

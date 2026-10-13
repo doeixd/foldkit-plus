@@ -13,6 +13,7 @@
     "@yielded/auth-persistence": "0.1.0-beta.38",
     "foldkit-auth": "workspace:*",
     "foldkit-bundle": "workspace:*",
+    "foldkit-durable": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-guard": "workspace:*",
     "foldkit-primitives": "workspace:*",
@@ -20,11 +21,14 @@
     "foldkit-remote-server": "workspace:*",
     "foldkit-site": "workspace:*",
     "foldkit-ssr": "workspace:*",
-    "foldkit-surface": "workspace:*"
+    "foldkit-surface": "workspace:*",
+    "foldkit-sync": "workspace:*",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.4",
     "@foldkit/vite-plugin": "0.26.0",
+    "@types/ws": "^8.5.12",
     "effect": "4.0.4",
     "foldkit": "0.165.0",
     "jsdom": "26.1.0",

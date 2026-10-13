@@ -268,9 +268,9 @@ orders the slices; step 0 and slices 1–10 are built.
 - [x] **9. An example, with an e2e test:** `examples/auth`. §9
 - [x] **The example's SSR.** `examples/auth` renders each page from a read
   made with the request's cookie. §9
-- [ ] **The example's Sync socket.** A Sync document over
+- [x] **The example's Sync socket.** `PinBoard` over
   `AuthServer.resolver({ requests: 'browser' })`, served on Node through
-  `documentHost`. §9
+  `documentHost`, tested with replicas over real sockets; no page draws it. §9
 - [x] **10. `Site.access`:** `access` on a node, `Site.accessOf`. §6.5
 - [x] **`access` in the example.** `Notes` sends a visitor home with a
   `returnTo`: the host's 303 before rendering, `update`'s replace after,
