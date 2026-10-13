@@ -31,6 +31,11 @@ version changed; `pnpm` skips versions already in the registry.
   upgrade, kept while the socket is open for `revalidate`, and closed at once
   for a refused upgrade.
 
+- **`foldkit-remote`: `RemoteData.refused(error)`,** the refusal a failure
+  was (`Unauthenticated` or `Forbidden`, with the server's `reason`), typed,
+  or none for any other failure: a `RemoteError`'s `_tag` is open, so a view
+  had to compare strings to tell "sign in again" from "could not load".
+
 - **`foldkit-guard`: `Me`, the visitor as an Entity.** `Guards.me(G, {
   interactions })` declares one row, `me`, that everyone reads and no one
   writes: `signedIn`, `key` (the principal's declared `key`) and `may` for the

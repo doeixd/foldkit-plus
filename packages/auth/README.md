@@ -117,8 +117,8 @@ const transport = Remote.httpWithLive('/remote', {
 })
 ```
 
-A refusal reaches the Model as a failure whose error has `_tag:
-'Unauthenticated'` and the `reason` below.
+A refusal reaches the Model as a failure; `RemoteData.refused(error)` from
+`foldkit-remote` reads it as `Unauthenticated` with the `reason` below.
 
 ## Sync's socket
 

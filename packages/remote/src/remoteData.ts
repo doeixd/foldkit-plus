@@ -13,6 +13,19 @@ export interface RemoteError {
   readonly reason?: string
 }
 
+/**
+ * The server refused who is asking: their session ended or was never there
+ * (`Unauthenticated`, a 401), or they may not (`Forbidden`, a 403). `reason`
+ * is the server's sentence, when it gave one.
+ */
+export type Refused =
+  | { readonly _tag: 'Unauthenticated'; readonly reason: Option.Option<string> }
+  | { readonly _tag: 'Forbidden'; readonly reason: Option.Option<string> }
+
+/** The tags `refused` reads: a `RemoteError`'s `_tag` is open, for any failure a transport reports. */
+const refusals: ReadonlySet<string> = new Set<Refused['_tag']>(['Unauthenticated', 'Forbidden'])
+const isRefusal = (tag: string): tag is Refused['_tag'] => refusals.has(tag)
+
 export type RemoteData<A> =
   | { readonly _tag: 'Initial' }
   | { readonly _tag: 'Loading' }
@@ -171,6 +184,24 @@ export const RemoteData = {
           : cases.data(data.previous, { _tag: 'Stale', error: data.error })
     }
   },
+
+  /**
+   * The refusal a failure was, typed, or none for any other failure (a
+   * network error, a protocol mismatch): what to read before telling a reader
+   * to sign in again.
+   *
+   * ```ts
+   * Option.match(RemoteData.refused(error), {
+   *   onNone: () => 'Could not load',
+   *   onSome: Match.valueTags({ Unauthenticated: () => 'Sign in again', Forbidden: () => 'Not yours' }),
+   * })
+   * ```
+   */
+  refused: (error: RemoteError): Option.Option<Refused> =>
+    // tag-check: open — a RemoteError carries any transport failure's tag.
+    isRefusal(error._tag)
+      ? Option.some({ _tag: error._tag, reason: Option.fromUndefinedOr(error.reason) })
+      : Option.none(),
 
   map: <A, B>(data: RemoteData<A>, f: (value: A) => B): RemoteData<B> => {
     switch (data._tag) {

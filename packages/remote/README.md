@@ -363,8 +363,10 @@ const overHttp = Remote.clientLayer(
 `headers` is read for each request, so a token that changes reaches the next
 call. A 401 fails every call kind, a read, a query, a mutation or a live
 stream, with `_tag: 'Unauthenticated'` (and `reason` when the server gave
-one): the server could not tell who is asking. Remote treats it as any
-failure: a read or query is `Failed`, and a live stream restarts with its
+one): the server could not tell who is asking. `RemoteData.refused(error)`
+reads a failure as that or a 403 (`Forbidden`), typed, and as none for any
+other, so a view tells "sign in again" from "could not load" without
+comparing tags. Remote treats it as any failure: a read or query is `Failed`, and a live stream restarts with its
 backoff, refused again each time, until the application signs in again and
 calls `Remote.forget`. A 403 whose body does not
 say `forbidden` itself, as Remote's server's does, comes from middleware in
