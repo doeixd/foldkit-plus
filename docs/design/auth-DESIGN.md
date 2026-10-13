@@ -148,6 +148,8 @@ interface PrincipalResolver<P, R> {
 
 `Remote.http` (and `httpWithLive`'s stream) maps a 401 to a typed `RemoteUnauthenticated` (`_tag: 'Unauthenticated'`, `reason?`) for every call kind, beside `RemoteForbidden`, so `RemoteData`'s `Failed` and `Data.mutation` carry it. Nothing in `foldkit-remote` acts on it; the application (or `foldkit-auth/client`, §6.4) decides what a lost session means.
 
+*As built (slice 2):* `RemoteUnauthenticated` is in every RPC's declared errors (a stream's inside its success schema), so it crosses Effect RPC and a port as well as JSON. `Remote.http` reads a 401 as it whatever its body says; `answer` sends a handler's as the same 401 body `serveFetch` sends a resolver's (one helper, `refusal.ts`); `serveFetch` ends a live stream that fails with it with an `event: error` frame carrying `unauthenticated`, which `liveFetch` reads back. `Data.satisfy` and `prefetch` may fail with it. A live stream refused is a `ReadFailed` with the tag, and restarts with backoff like any break: stopping that is the application's (`forget`), and `foldkit-auth/client`'s (slice 8). Nothing produces a refusal mid-stream yet; slice 4's revalidation will, and its test lands there.
+
 ### 5.4 SSR renders as someone
 
 `SSR.entry` gains `provide?: (request: Request) => Layer.Layer<…>` (or an Effect-returning `context`), built per request and provided to the render's Commands and `Data.satisfy`, so a server render reads as the request's principal and ships the `Me` row and `may` answers with it. Response headers stay the existing `headers` option.
@@ -296,7 +298,7 @@ Each slice stands alone, with its tests and a review before the next.
 
 0. **Effect ≥ 4.0.4.** A scoped `pnpm.overrides` (`effect@4.0.0` → `4.0.4`), the two Foldkit examples' `randomUUIDv4()`, the `mixins-builder` Mount behaviour settled, `pnpm check` green; a request upstream to widen Foldkit's peer. Nothing else starts before this.
 1. **One resolver** (§5.1): `Unauthenticated`, the Effect resolver in `serveFetch`, `defineDocumentHost` and agent-mcp, a Context key in `serveFetch`; the 401-with-any-message behaviour goes. *Built* for `serveFetch` and `defineDocumentHost`; agent-mcp moves to slice 6 (§5.1).
-2. **The client's 401** (§5.3): `RemoteUnauthenticated` on every call kind.
+2. **The client's 401** (§5.3): `RemoteUnauthenticated` on every call kind. *Built.*
 3. **`R` for reads** (§5.2): `Visible`, `MemoryReadable`, Sync's `opens`/`admit`; guard's read seams and `CmsServer.make` take `Policy<User, R>`.
 4. **Revalidation** (§5.5) for the live hub and the journal exchange.
 5. **SSR's per-request `provide`** (§5.4).

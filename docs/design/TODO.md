@@ -216,7 +216,7 @@ questions still open.
 ## Authentication
 
 Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
-orders the slices; step 0 and slice 1 are built.
+orders the slices; step 0 and slices 1–2 are built.
 
 - [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
   `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
@@ -227,7 +227,7 @@ orders the slices; step 0 and slice 1 are built.
   `RemoteUnauthenticated` in `serveFetch` and `defineDocumentHost`. §5.1
 - [ ] **agent-mcp's `authenticate` as an Effect.** With slice 6's
   `Auth.socket`. §5.1
-- [ ] **2. `RemoteUnauthenticated`** for every Remote call kind. §5.3
+- [x] **2. `RemoteUnauthenticated`** for every Remote call kind. §5.3
 - [ ] **3. `R` where reads are decided:** `Visible`, `MemoryReadable`, Sync's
   `opens`/`admit`, and guard's read seams; `Guards.declare` requires
   `unguarded`. §5.2, §10
