@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Fixed
+
+- **`foldkit-form`: a filled optional key not checked yet is refused, not left
+  out.** `engine.value` (and a submit) counted an optional key whose draft was
+  filled by `fill` but not yet validated as valid, and the value went out
+  without it. Such a draft must now pass its own check.
+
 ## 0.19.0
 
 Every package with a Foldkit peer now asks for Foldkit 0.168, so each of them

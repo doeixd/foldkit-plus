@@ -748,9 +748,10 @@ its README the details.
 - [ ] **Form: no Command definition for a check that tests can match** (still
   an inline `{ name: '<form>.check', args: { key } }`), and `Form.make`
   requires an Entity for a plain form. `foldkit-form`
-- [ ] **Form: `engine.value` drops a filled but invalid optional key** that is
+- [x] **Form: `engine.value` drops a filled but invalid optional key** that is
   not validated yet, instead of refusing, reached by `fill` then
-  `engine.value` (a submit validates first; `isValid` is right).
+  `engine.value` (a submit validates first; `isValid` is right). Fixed
+  2026-10-13: a draft not checked yet must pass its own check.
 - [x] **Form: `Schema.optionalKey` is treated as required,** and `Blurred` on
   an empty optional key returns an equal copy of the Model. Fixed; an
   `Option`-typed key is also drawn now.

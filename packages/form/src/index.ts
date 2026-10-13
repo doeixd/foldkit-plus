@@ -1121,7 +1121,16 @@ const Core = {
     )
 
     const acceptable = (model: Model): boolean =>
-      keys.every(key => FieldValidation.isValid(plans[key].rules)(drafts(model)[key]))
+      keys.every(key => {
+        const field = drafts(model)[key]
+        // Foldkit counts an optional key not checked yet as valid, and `decoded`
+        // leaves out a draft that fails: a filled one would vanish from the
+        // value. One not checked yet must pass its own check.
+        return (
+          FieldValidation.isValid(plans[key].rules)(field) &&
+          (field._tag !== 'NotValidated' || Result.isSuccess(plans[key].check(field.value)))
+        )
+      })
     /** A check is running, in this form or in a row of it. */
     const isValidating = (model: Model): boolean =>
       keys.some(key => drafts(model)[key]._tag === 'Validating') ||
