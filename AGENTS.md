@@ -844,6 +844,10 @@ of its own named a form field "fits the Catalog". Read words with
   with `Schema.Option` fields failed to round-trip through a saved CMS draft
   ("Expected Option"). A Model that is stored or sent uses
   `Schema.OptionFromNullOr`: `Option` in code, `null` on the wire.
+- **TypeScript 6 includes no `@types` package by itself.** Its `types`
+  defaults to none, so every `process`, `Buffer` and `node:` import failed
+  until `tsconfig.base.json` named `"types": ["node"]`. A project that sets
+  its own `types` (`vite/client`) must name `node` too.
 - **`tsc -p` in a project with references reads the stale `.d.ts`.** It checks
   one project against whatever the referenced packages last emitted, so it
   passes code that the change it depends on broke. Use `tsc -b`.

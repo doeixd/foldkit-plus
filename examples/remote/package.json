@@ -17,6 +17,6 @@
     "@effect/platform-browser": "^4.0.4",
     "effect": "^4.0.4",
     "foldkit": "0.168.0",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   }
 }

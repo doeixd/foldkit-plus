@@ -61,6 +61,6 @@
     "foldkit": "0.168.0",
     "foldkit-bundle": "workspace:*",
     "tsdown": "^0.23.1",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   }
 }

@@ -19,12 +19,12 @@
   },
   "devDependencies": {
     "@effect/platform-browser": "^4.0.4",
-    "@types/jsdom": "21.1.7",
+    "@types/jsdom": "30.0.0",
     "@types/ws": "^8.18.2",
     "fake-indexeddb": "6.2.5",
     "foldkit-agent-mcp": "workspace:*",
     "jsdom": "30.1.2",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "vite": "8.3.4"
   }
 }

@@ -89,7 +89,8 @@ the server and storage four —
 `foldkit-sync` — `foldkit-guard`, and `foldkit-react-codegen` also peer-depends on
 `foldkit@^0.168.0`. `foldkit-react` additionally peer-depends on
 `react@^19.0.0` and `react-dom@^19.0.0`. `foldkit-react-codegen` is a build
-tool that reads source text: its only peer is `typescript@^5.7.2`, and it ships
+tool that reads source text with TypeScript's compiler API: its only peer is
+`typescript@>=5.7.2 <7` (TypeScript 7 has no such API), and it ships
 a `foldkit-react-codegen` bin.
 
 Peer edges between workspace packages, declared as `workspace:^` and rewritten on

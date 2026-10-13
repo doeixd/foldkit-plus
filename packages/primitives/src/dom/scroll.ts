@@ -31,16 +31,6 @@
  */
 import { Effect, Option, Stream } from 'effect'
 
-/** The part of the Navigation API used here: TypeScript's DOM library does not declare it yet. */
-interface Navigation extends EventTarget {
-  readonly currentEntry: { readonly key: string } | null
-}
-declare global {
-  interface Window {
-    readonly navigation?: Navigation
-  }
-}
-
 /** How `keepScroll` remembers and restores each history entry's offset. */
 export interface KeepScrollOptions {
   /** The `sessionStorage` key holding entry offsets. Default `'foldkit:scroll'`. */
@@ -76,7 +66,9 @@ const readSaved = (storageKey: string): Map<string, number> => {
 
 /** Starts keeping the scroll; the release undoes everything it installed. */
 const attach = (storageKey: string, kept: number, patience: number): (() => void) => {
-  const navigation = window.navigation
+  // TypeScript's DOM library declares it on every window; a browser without
+  // the Navigation API has none.
+  const navigation: Navigation | undefined = window.navigation
   if (navigation === undefined) return () => {}
   const restoration = window.history.scrollRestoration
   window.history.scrollRestoration = 'manual'

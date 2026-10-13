@@ -38,6 +38,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **TypeScript 6.** The workspace compiles with TypeScript 6.0.3, whose DOM
+  library declares the Navigation API, so `foldkit-primitives` no longer
+  declares its own. `foldkit-react-codegen` peers on `typescript@>=5.7.2 <7`
+  rather than exactly 5.9.3: it reads source through the compiler API, which
+  TypeScript 7 does not ship.
 - **Foldkit 0.168.** Each package with a Foldkit peer asks for `foldkit@^0.168.0` (and
   `foldkit-mixins-ui` on `@foldkit/ui@^0.168.0`), since they use what 0.166 and
   0.167 renamed: a lifted child is read as an `Option` (`read`, not

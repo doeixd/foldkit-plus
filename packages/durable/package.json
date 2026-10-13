@@ -64,6 +64,6 @@
     "esbuild": "0.28.2",
     "miniflare": "4.20260730.0",
     "tsdown": "^0.23.1",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   }
 }
