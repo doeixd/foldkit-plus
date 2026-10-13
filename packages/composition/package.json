@@ -1,6 +1,6 @@
 {
   "name": "foldkit-composition",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Composition for Foldkit Plus: a page as a stored Document of Blocks in Regions, checked against a Catalog, with no view and no runtime.",
   "keywords": [
     "foldkit",

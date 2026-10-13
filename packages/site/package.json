@@ -1,6 +1,6 @@
 {
   "name": "foldkit-site",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The deployed route topology of a Foldkit application: stable route nodes, their hierarchy, typed targets, and per-node metadata, compiled to the Foldkit Router, Surface, and Bundle primitives the runtime already runs.",
   "keywords": [
     "foldkit",

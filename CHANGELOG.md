@@ -7,6 +7,27 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.19.0
+
+Every package with a Foldkit peer now asks for Foldkit 0.168, so each of them
+takes a minor version, as do `foldkit-entity` 0.9.0 (`and`, `or`, `not` and
+comparisons), `foldkit-remote-drizzle` 0.12.0 (compiling them),
+`foldkit-guard` 0.2.0, `foldkit-durable` 0.9.0 and `foldkit-react-codegen`
+0.3.0 (TypeScript 6 as well as 5). Republished to re-pin: `foldkit-cms-drizzle`
+0.6.3 and `foldkit-remote-server` 0.13.3; `foldkit-richtext-markdown` 0.2.1
+widens a dependency. `foldkit-metadata`, `foldkit-richtext`,
+`foldkit-richtext-code` and `foldkit-richtext-code-shiki` are unchanged.
+
+Three changes can break code written for 0.18:
+
+- Foldkit 0.168 itself: an application moves with it, renaming what 0.166 and
+  0.167 renamed (`read` for `toChildModel`, `persistentEntry`, the `Dom`
+  stream helpers).
+- `GuardServer.validate` refuses at startup a query body that filters or orders
+  by a member with a Read rule.
+- A Behavior whose Mount fails no longer takes the element's other Behaviors
+  with it; it is reported and the rest go on.
+
 ### Added
 
 - **`foldkit-mixins`: a reader's light or dark, before the first paint.**
