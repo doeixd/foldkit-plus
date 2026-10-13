@@ -71,7 +71,7 @@ No package or example provides `G.Principal` outside a test. The examples: todo-
 ### 2.2 What is missing, by consequence
 
 1. **Nothing verifies a credential.** Every host would need its own parsing, and each example's comment says so.
-2. **Three resolver shapes** (`Promise`-returning function, synchronous function, Context key), none of which can require a service, so none can call `auth.getSession()`.
+2. **Three resolver shapes** (`Promise`-returning function, synchronous function, Context key). The two functions cannot require a service, so cannot call `auth.getSession()`; the Context key can carry any principal, but leaves resolving it to a host that no package or example provides.
 3. **A refusal and a breakage look alike.** `serveFetch` and `defineDocumentHost` answer any throw from `resolvePrincipal` as a 401 carrying its message: a database outage while reading a session would tell the caller "401: connection refused".
 4. **No `R` where guard decides reads.** `Visible`, `MemoryReadable`, Sync's `opens`/`admit`, and so `GuardDrizzle.visible`, `GuardServer.memory`, `GuardSync` and `CmsServer.make` all take a `Policy<User>` whose bodies need no service. guard-DESIGN §3.4 promised a body may name one in `R` (a membership service, the auth service for step-up); writes keep that promise (`GuardServer.writer` and `mutation` take `Policy<User, R>`), reads do not.
 5. **The client has no idea of "signed out".** `Remote.http` turns a 401 into a generic error for reads, queries, mutations and live alike; only `Forbidden` is typed. With cookies, a session that ends mid-use makes the next read a visitor's, the rows a visitor may not read come back absent, and the client tombstones them as `NotFound`.
