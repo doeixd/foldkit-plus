@@ -61,6 +61,6 @@ export const WindowSize = Bundle.make('WindowSize', {
   }),
   subscriptions: (): Subscription.Subscriptions<WindowSizeModel, WindowSizeMessage> =>
     Subscription.make<WindowSizeModel, WindowSizeMessage>()(() => ({
-      changes: Subscription.persistent(sizeStream()),
+      changes: Subscription.persistentEntry(sizeStream()),
     })),
 })

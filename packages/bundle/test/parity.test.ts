@@ -40,7 +40,7 @@ const byHand = {
     }
   },
   subscriptions: Subscription.lift(Counter.subscriptions!(args))({
-    toChildModel: (model: Model) => model.counter,
+    read: (model: Model) => Option.some(model.counter),
     toParentMessage: (message: CounterMessage): Message => GotCounter.make(message),
   }),
 }
@@ -89,7 +89,7 @@ const trace = (
 describe('parity with hand-wired lifts', () => {
   it('matches Models, Command Messages, and Subscription dependencies step by step', () => {
     const expected = trace(byHand.init, byHandUpdate, model =>
-      byHand.subscriptions.ticks!.modelToDependencies(model),
+      Option.getOrThrow(byHand.subscriptions.ticks!.modelToDependencies(model).maybeDependencies),
     )
     const actual = trace(assembly.init, placedUpdate, model =>
       Option.getOrThrow(

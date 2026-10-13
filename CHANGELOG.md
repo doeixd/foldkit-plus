@@ -38,6 +38,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Foldkit 0.168.** Each package with a Foldkit peer asks for `foldkit@^0.168.0` (and
+  `foldkit-mixins-ui` on `@foldkit/ui@^0.168.0`), since they use what 0.166 and
+  0.167 renamed: a lifted child is read as an `Option` (`read`, not
+  `toChildModel`), the entry factories end in `Entry`
+  (`Subscription.persistentEntry`, `Port.subscriptionEntry`), and the DOM
+  Stream helpers are `Dom`'s (`Dom.streamFromEventFilterMap`,
+  `Dom.streamFromKeyBindings`; `KeyBinding` and `KeySequence` come from
+  `foldkit/dom`). The examples build with Vite 8 and `@foldkit/vite-plugin`
+  0.27.
 - **Effect 4.0.4.** The workspace builds and tests against `effect@4.0.4` and
   its `@effect/*` packages at the same version. Published packages still peer on
   `effect@^4.0.0`, and `foldkit-durable` now depends on

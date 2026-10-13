@@ -21,9 +21,9 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@foldkit/ui": "0.165.0",
+    "@foldkit/ui": "0.168.0",
     "effect": "^4.0.4",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-primitives": "workspace:*",
@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@effect/platform-browser": "^4.0.4",
-    "@foldkit/vite-plugin": "0.26.0",
+    "@foldkit/vite-plugin": "0.27.1",
     "@types/mdast": "^4.0.4",
     "foldkit-agent": "workspace:*",
     "foldkit-entity": "workspace:*",
@@ -50,6 +50,6 @@
     "shiki": "4.5.0",
     "tsx": "^4.23.15",
     "typescript": "5.9.3",
-    "vite": "^8.3.0"
+    "vite": "^8.3.4"
   }
 }

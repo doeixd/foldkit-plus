@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "effect": "^4.0.4",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "foldkit-agent": "workspace:*",
     "foldkit-durable": "workspace:*",
     "foldkit-sync": "workspace:*",
@@ -25,6 +25,6 @@
     "foldkit-agent-mcp": "workspace:*",
     "jsdom": "30.1.2",
     "typescript": "5.9.3",
-    "vite": "5.4.21"
+    "vite": "8.3.4"
   }
 }

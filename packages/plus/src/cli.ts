@@ -24,6 +24,7 @@ const Manifest = Schema.Struct({
   dependencies: Schema.optional(Versions),
   devDependencies: Schema.optional(Versions),
   peerDependencies: Schema.optional(Versions),
+  setup: Schema.optional(Schema.Struct({ effect: Schema.String, foldkit: Schema.String })),
 })
 const readManifest = (path: string) =>
   Schema.decodeUnknownSync(Manifest)(JSON.parse(readFileSync(path, 'utf8')))
@@ -70,16 +71,12 @@ const managerIn = (folder: string): Manager => {
   )
 }
 
-/** The versions this release was built against: its own manifest, beside `dist` and `src` alike. */
+/** The versions this release installs, from its own manifest, beside `dist` and `src` alike. */
 const ownVersions = () => {
   const own = readManifest(fileURLToPath(new URL('../package.json', import.meta.url)))
-  const pinned = (name: string) => {
-    const version = own.devDependencies?.[name]
-    if (version === undefined) throw new Error(`foldkit-plus's manifest pins no ${name}`)
-    return version
-  }
   if (own.version === undefined) throw new Error("foldkit-plus's manifest has no version")
-  return { plus: own.version, effect: pinned('effect'), foldkit: pinned('foldkit') }
+  if (own.setup === undefined) throw new Error("foldkit-plus's manifest names no setup versions")
+  return { plus: own.version, ...own.setup }
 }
 
 const [command = 'setup'] = process.argv.slice(2)

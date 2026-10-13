@@ -99,7 +99,7 @@ export const bundle = Bundle.make('DismissLayer', {
   },
   subscriptions: () =>
     Subscription.make<Model, Message>()(() => ({
-      document: Subscription.persistent(documentEvents()),
+      document: Subscription.persistentEntry(documentEvents()),
     })),
 })
 

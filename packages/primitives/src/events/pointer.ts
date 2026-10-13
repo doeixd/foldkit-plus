@@ -14,7 +14,7 @@ export type PointerMessage = typeof PointerMessage.Type
 
 /**
  * Pointer moves on the window. Without a window the stream is empty instead
- * of throwing. Lift with `Subscription.persistent`, mapping into the
+ * of throwing. Lift with `Subscription.persistentEntry`, mapping into the
  * parent's Message.
  */
 export const pointerEvents = (): Stream.Stream<PointerMessage> => {

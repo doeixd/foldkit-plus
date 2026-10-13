@@ -29,11 +29,7 @@ import { CityCombobox, CityMultiCombobox } from './view/combobox.js'
 import { CharacterListbox, ItemListbox, ItemMultiListbox } from './view/listbox.js'
 import { PlanRadioGroup } from './view/radioGroup.js'
 import { DemoTabs } from './view/tabs.js'
-import {
-  ROW_COUNT as VIRTUAL_LIST_ROW_COUNT,
-  variableActivities,
-  variableRowHeightPx,
-} from './view/virtualList.js'
+import { ROW_COUNT as VIRTUAL_LIST_ROW_COUNT } from './view/virtualList.js'
 
 const reorderColumns = (
   columns: ReadonlyArray<DemoColumn>,
@@ -715,8 +711,7 @@ const foldVirtualListVariableDemo = Update.foldChild({
 
 const foldVirtualListVariableDemoScrollToIndex = Update.foldChild({
   ...virtualListVariableDemo,
-  update: (virtualList: VirtualList.Model, index: number) =>
-    VirtualList.scrollToIndexVariable(virtualList, variableActivities, variableRowHeightPx, index),
+  update: VirtualList.scrollToIndex,
 })
 
 export const uiUpdate = (model: UiModel, message: UiMessage) =>

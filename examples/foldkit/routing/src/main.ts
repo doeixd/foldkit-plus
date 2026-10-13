@@ -1,5 +1,5 @@
 import { Array, Effect, Match, Option, Schema } from 'effect'
-import { Command, type Runtime, Subscription, Update } from 'foldkit'
+import { Command, Dom, type Runtime, Subscription, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { UrlRequest, pushUrl } from 'foldkit/navigation'
@@ -166,8 +166,8 @@ export const shortcutBindings = Site.shortcuts(AppSite, target =>
 )
 
 const ownSubscriptions = Subscription.make<Model, Message>()(() => ({
-  keyBindings: Subscription.persistent(
-    Subscription.keyBindings<Message>({ bindings: shortcutBindings }),
+  keyBindings: Subscription.persistentEntry(
+    Dom.streamFromKeyBindings<Message>({ bindings: shortcutBindings }),
   ),
 }))
 

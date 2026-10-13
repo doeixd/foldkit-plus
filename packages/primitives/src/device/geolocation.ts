@@ -124,6 +124,6 @@ export const Geolocation = Bundle.make<
     }),
   subscriptions: (): Subscription.Subscriptions<GeolocationModel, GeolocationMessage> =>
     Subscription.make<GeolocationModel, GeolocationMessage>()(() => ({
-      watch: Subscription.persistent(watchStream()),
+      watch: Subscription.persistentEntry(watchStream()),
     })),
 })

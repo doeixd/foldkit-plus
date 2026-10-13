@@ -154,7 +154,7 @@ export const mediaDevices = <const Name extends string>(config: {
       }),
     subscriptions: (): Subscription.Subscriptions<MediaDevicesModel, MediaDevicesMessage> =>
       Subscription.make<MediaDevicesModel, MediaDevicesMessage>()(() => ({
-        changes: Subscription.persistent(changedStream()),
+        changes: Subscription.persistentEntry(changedStream()),
       })),
   })
 }

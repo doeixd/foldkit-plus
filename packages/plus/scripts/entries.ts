@@ -99,6 +99,8 @@ export const generatedFields = (
   packages: ReadonlyArray<Included>,
   devDependencies: Readonly<Record<string, string>>,
 ) => {
+  const foldkit = devDependencies['foldkit']
+  if (foldkit === undefined) throw new Error('packages/plus/package.json has no foldkit to test')
   const sorted = [...packages].sort((a, b) => a.name.localeCompare(b.name))
   const core = sorted.filter(each => !each.adapter)
   const adapters = sorted.filter(each => each.adapter)
@@ -121,7 +123,7 @@ export const generatedFields = (
     dependencies: Object.fromEntries(core.map(each => [each.name, 'workspace:*'])),
     peerDependencies: {
       effect: '^4.0.0',
-      foldkit: '^0.165.0',
+      foldkit: `^${foldkit}`,
       ...Object.fromEntries(adapters.map(each => [each.name, 'workspace:^'])),
     },
     peerDependenciesMeta: Object.fromEntries(adapters.map(each => [each.name, { optional: true }])),
@@ -132,6 +134,20 @@ export const generatedFields = (
       ...Object.fromEntries(adapters.map(each => [each.name, 'workspace:*'])),
     },
   }
+}
+
+/**
+ * What `npx foldkit-plus setup` installs, from the manifest of the Foldkit
+ * tested here: that Foldkit, and the Effect it asks for. Foldkit names one
+ * exactly, and npm refuses any other.
+ */
+export const setupOf = (foldkit: {
+  readonly version: string
+  readonly peerDependencies: Readonly<Record<string, string>>
+}) => {
+  const effect = foldkit.peerDependencies['effect']
+  if (effect === undefined) throw new Error('Foldkit names no Effect peer')
+  return { foldkit: foldkit.version, effect }
 }
 
 /** The projects `foldkit-plus`'s `tsconfig.json` references: one per package it re-exports. */

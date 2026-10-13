@@ -33,7 +33,7 @@ import {
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
-import type { KeyBinding, KeySequence } from 'foldkit/subscription'
+import type { KeyBinding, KeySequence } from 'foldkit/dom'
 import { UrlRequest } from 'foldkit/navigation'
 import { oneOf, parseUrlWithFallback, type Router } from 'foldkit/route'
 import type { Meta } from 'foldkit-ssr/client'
@@ -780,7 +780,7 @@ export const Site = {
    * `toMessage` makes of its node's landing:
    *
    * ```ts
-   * Subscription.keyBindings({
+   * Dom.streamFromKeyBindings({
    *   bindings: Site.shortcuts(AppSite, target => Message.PressedShortcut({ url: target.url })),
    * })
    * ```

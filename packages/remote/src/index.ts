@@ -5,7 +5,7 @@
  * live classification, optimistic layers) performs no I/O. The `Remote.*`
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
-import { Duration, Effect, Layer, Option, Result, Schema, Stream } from 'effect'
+import { Duration, Effect, Layer, Option, Record, Result, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import {
   Entity as DomainEntity,
@@ -2042,10 +2042,7 @@ export const Remote = {
         options?: SubscriptionsOptions,
       ) =>
         markAll(
-          Subscription.lift(brandEntries(domain.subscriptions(active, options)))({
-            toChildModel: (model: AppModel) => model,
-            toParentMessage,
-          }),
+          messagesAs(brandEntries(domain.subscriptions(active, options)), toParentMessage),
         ) as never,
     })
   },
@@ -2646,6 +2643,21 @@ export const Remote = {
 
 // A domain's Subscription entries are unbranded so an application can spread
 // them into its own `Subscription.make`; wiring hands them over as a branded record.
+/**
+ * Each entry with its Messages as the parent's and its dependencies as they
+ * were. The Model is the parent's already, and `Subscription.lift` would wrap
+ * every entry's dependencies in `maybeDependencies` (since Foldkit 0.166).
+ */
+const messagesAs = <AppModel, ParentMessage>(
+  entries: Subscription.Subscriptions<AppModel, RemoteMessage, RemoteClient>,
+  toParentMessage: (message: RemoteMessage) => ParentMessage,
+) =>
+  Record.map(entries, entry => ({
+    ...entry,
+    dependenciesToStream: (dependencies: unknown, read: () => unknown) =>
+      Stream.map(entry.dependenciesToStream(dependencies, read), toParentMessage),
+  }))
+
 const brandEntries = <AppModel>(
   entries: Readonly<Record<string, RemoteEntry<AppModel, any>>>,
 ): Subscription.Subscriptions<AppModel, RemoteMessage, RemoteClient> =>

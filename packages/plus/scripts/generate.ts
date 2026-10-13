@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import * as prettier from 'prettier'
 
-import { fileOf, generatedFields, included, references, writtenFiles } from './entries.js'
+import { fileOf, generatedFields, included, references, setupOf, writtenFiles } from './entries.js'
 
 const here = join(import.meta.dirname, '..')
 const root = join(here, '../..')
@@ -37,6 +37,9 @@ const read = (name: string): Record<string, unknown> =>
   JSON.parse(readFileSync(join(here, name), 'utf8'))
 
 const manifest = read('package.json')
+const setup = setupOf(
+  JSON.parse(readFileSync(join(here, 'node_modules/foldkit/package.json'), 'utf8')),
+)
 const devDependencies = manifest['devDependencies']
 if (typeof devDependencies !== 'object' || devDependencies === null)
   throw new Error('packages/plus/package.json has no devDependencies')
@@ -44,6 +47,7 @@ await write(
   join(here, 'package.json'),
   JSON.stringify({
     ...manifest,
+    setup,
     ...generatedFields(
       packages,
       Object.fromEntries(

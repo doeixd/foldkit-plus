@@ -15,7 +15,7 @@ export type ScrollMessage = typeof ScrollMessage.Type
 /**
  * Scrolls on the window, in the capture phase so container scrolls (which
  * do not bubble) report too. Without a window the stream is empty instead
- * of throwing. Lift with `Subscription.persistent`, mapping into the
+ * of throwing. Lift with `Subscription.persistentEntry`, mapping into the
  * parent's Message.
  */
 export const scrollEvents = (): Stream.Stream<ScrollMessage> => {

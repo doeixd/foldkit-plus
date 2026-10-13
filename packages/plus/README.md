@@ -69,8 +69,9 @@ once you add it with its library:
 
 ## Versions
 
-`effect` and `foldkit` are peers: this release targets Effect `4.0.0` and
-Foldkit `0.165`. Each release of `foldkit-plus` pins the release of every
+`effect` and `foldkit` are peers: this release targets Effect 4 (`^4.0.0`,
+tested on 4.0.4) and Foldkit `0.168`, and `setup` installs the Effect that
+Foldkit names (`4.0.0`). Each release of `foldkit-plus` pins the release of every
 package it brings, so the set is one tested combination; the
 [release matrix](https://github.com/doeixd/foldkit-plus/blob/main/docs/releases.md)
 lists them.

@@ -1,5 +1,5 @@
 import { Option, Stream } from 'effect'
-import * as Subscription from 'foldkit/subscription'
+import * as Dom from 'foldkit/dom'
 import { fromString, toString as urlToString, type Url } from 'foldkit/url'
 
 /**
@@ -7,7 +7,7 @@ import { fromString, toString as urlToString, type Url } from 'foldkit/url'
  * origin: where they may go next, for a `Data.preload` before they go. Each
  * link once while they stay on it, since crossing its text sends one event
  * per element inside it. Without a document the stream is empty. Lift with
- * `Subscription.persistent`, mapping each address to a Message.
+ * `Subscription.persistentEntry`, mapping each address to a Message.
  */
 export const pointedLinks = (): Stream.Stream<Url> => {
   if (typeof document === 'undefined') return Stream.empty
@@ -18,11 +18,11 @@ export const pointedLinks = (): Stream.Stream<Url> => {
       : Option.none()
   }
   return Stream.merge(
-    Subscription.fromEventFilterMap({
+    Dom.streamFromEventFilterMap({
       target: document,
       type: 'pointerover',
       filterMapEvent: linkOf,
     }),
-    Subscription.fromEventFilterMap({ target: document, type: 'focusin', filterMapEvent: linkOf }),
+    Dom.streamFromEventFilterMap({ target: document, type: 'focusin', filterMapEvent: linkOf }),
   ).pipe(Stream.changesWith((a, b) => urlToString(a) === urlToString(b)))
 }

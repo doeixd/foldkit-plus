@@ -97,14 +97,14 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-mixins": "workspace:^"
   },
   "devDependencies": {
     "@effect/platform-browser": "^4.0.4",
     "@types/ws": "^8.18.2",
     "effect": "^4.0.4",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "foldkit-mixins": "workspace:*",
     "jsdom": "30.1.2",
     "tsdown": "^0.23.1",

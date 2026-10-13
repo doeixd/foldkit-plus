@@ -204,7 +204,7 @@ const makeCounter = (container: HTMLElement, start: number) =>
       }
     },
     subscriptions: Subscription.make<CounterModel, CounterMessage>()(entry => ({
-      step: Port.subscription(counterPorts.inbound.stepChanged, step =>
+      step: Port.subscriptionEntry(counterPorts.inbound.stepChanged, step =>
         CounterMessage.ChangedStep({ step }),
       ),
       // Only runs while the runtime is alive, so its finalizer shows disposal.

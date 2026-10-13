@@ -41,7 +41,7 @@ const GameMessage = defineMessageUnion({ PressedKey: { key: Schema.String } })
 type GameMessage = typeof GameMessage.Type
 
 const subscriptions = Subscription.make<GameModel, GameMessage>()(() => ({
-  keys: Subscription.persistent(
+  keys: Subscription.persistentEntry(
     keyboardEvents({ preventDefault: press => press.key.startsWith('Arrow') }).pipe(
       Stream.filter(event => event._tag === 'Pressed'),
       Stream.map(({ key }) => GameMessage.PressedKey({ key })),

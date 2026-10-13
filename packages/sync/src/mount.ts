@@ -520,13 +520,13 @@ export const mount = <
     inbound: { message: Port.inbound(app.Message as unknown as Schema.Codec<Message, unknown>) },
   }
   const own = Subscription.make<Model, RuntimeMessage, Resources>()(() => ({
-    message: Port.subscription(ports.inbound.message, (message): RuntimeMessage => ({
+    message: Port.subscriptionEntry(ports.inbound.message, (message): RuntimeMessage => ({
       _tag: DISPATCHED,
       message,
     })),
     // The replica's status carries the cursor and rejections, which is exactly
     // when the shared slice held locally can differ from the replica's.
-    refresh: Subscription.persistent<RuntimeMessage, Resources>(
+    refresh: Subscription.persistentEntry<RuntimeMessage, Resources>(
       replica.statusChanges.pipe(
         // Every status, not only a changed cursor: a checkpoint at the same
         // cursor still replaces the committed state a waiter reads.

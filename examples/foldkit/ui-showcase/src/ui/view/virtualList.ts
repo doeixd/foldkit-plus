@@ -171,9 +171,9 @@ const TALL_ROW_HEIGHT_PX = 112
 const summaryFor = (index: number): Summary =>
   pipe(summaries, Array.get(index % summaries.length), Option.getOrThrow)
 
-export const variableActivities: ReadonlyArray<Activity> = sampleActivities
+const variableActivities: ReadonlyArray<Activity> = sampleActivities
 
-export const variableRowHeightPx = (activity: Activity): number =>
+const variableRowHeightPx = (activity: Activity): number =>
   activity.hasSummary ? TALL_ROW_HEIGHT_PX : SHORT_ROW_HEIGHT_PX
 
 type Slots = SlotBuilders<typeof VirtualListPageSlots, UiMessage>

@@ -198,7 +198,7 @@ export const permissions = <const Name extends string>(config: {
       Subscription.make<PermissionsModel, PermissionsMessage, WatchService>()(() => ({
         // No model gate: the queue outlives every state change, and release
         // ends the stream through teardown, not through dependencies.
-        changes: Subscription.persistent(
+        changes: Subscription.persistentEntry(
           Stream.unwrap(
             Effect.matchEffect(Watch.get, {
               // Released between placement and attach: end quietly.

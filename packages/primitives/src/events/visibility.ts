@@ -40,6 +40,6 @@ export const Visibility = Bundle.make('Visibility', {
     message.visible === model.visible ? { model } : { model: { visible: message.visible } },
   subscriptions: (): Subscription.Subscriptions<VisibilityModel, VisibilityMessage> =>
     Subscription.make<VisibilityModel, VisibilityMessage>()(() => ({
-      changes: Subscription.persistent(visibilityStream()),
+      changes: Subscription.persistentEntry(visibilityStream()),
     })),
 })

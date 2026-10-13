@@ -173,7 +173,7 @@ rule by hand.
 `Site.sectionOf`. `Site.landing(site, section)` is where the section's nav
 item points: the first node of the section that declares a landing, as a
 target. `Site.shortcuts(site, toMessage)` is the tree's shortcuts as key
-bindings for `Subscription.keyBindings`, each sending the Message
+bindings for `Dom.streamFromKeyBindings`, each sending the Message
 `toMessage` makes of its node's landing target; a shortcut with no landing,
 or one used twice, is refused. Annotate once; derive nav, titles, shortcuts,
 and breadcrumbs from it.

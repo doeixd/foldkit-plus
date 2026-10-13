@@ -88,7 +88,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-bundle": "workspace:^",
     "foldkit-form": "workspace:^"
   },
@@ -99,7 +99,7 @@
   },
   "devDependencies": {
     "effect": "^4.0.4",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",

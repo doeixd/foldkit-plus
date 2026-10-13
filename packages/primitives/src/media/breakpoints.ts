@@ -85,6 +85,6 @@ export const Breakpoints = Bundle.make('Breakpoints', {
     }),
   subscriptions: (): Subscription.Subscriptions<BreakpointsModel, BreakpointsMessage> =>
     Subscription.make<BreakpointsModel, BreakpointsMessage>()(() => ({
-      changes: Subscription.persistent(widthStream()),
+      changes: Subscription.persistentEntry(widthStream()),
     })),
 })

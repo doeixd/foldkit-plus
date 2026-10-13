@@ -87,7 +87,7 @@ peer-depends on `effect@^4.0.0`. Every package except `foldkit-richtext`,
 the server and storage four —
 `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-durable`, and
 `foldkit-sync` — `foldkit-guard`, and `foldkit-react-codegen` also peer-depends on
-`foldkit@^0.165.0`. `foldkit-react` additionally peer-depends on
+`foldkit@^0.168.0`. `foldkit-react` additionally peer-depends on
 `react@^19.0.0` and `react-dom@^19.0.0`. `foldkit-react-codegen` is a build
 tool that reads source text: its only peer is `typescript@^5.7.2`, and it ships
 a `foldkit-react-codegen` bin.
@@ -99,8 +99,8 @@ publish:
   `foldkit-agent`;
 - `foldkit-mixins-surface` → `foldkit-mixins`, `foldkit-surface`;
 - `foldkit-mixins-ui` → `foldkit-mixins`;
-- `foldkit-agent-native` additionally → `@agent-native/core@0.177.1`;
-- `foldkit-mixins-ui` additionally → `@foldkit/ui@^0.165.0`;
+- `foldkit-agent-native` additionally → `@agent-native/core@0.207.1`;
+- `foldkit-mixins-ui` additionally → `@foldkit/ui@^0.168.0`;
 - `foldkit-richtext-dom` → `foldkit-bundle`;
 - `foldkit-guard` → `foldkit-remote`, `foldkit-remote-server`,
   `foldkit-remote-drizzle` and `foldkit-sync`, and `drizzle-orm@1.0.0-rc.4`, each

@@ -13,7 +13,7 @@
   "dependencies": {
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "^4.0.4",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-crud": "workspace:*",
     "foldkit-durable": "workspace:*",
@@ -35,6 +35,6 @@
     "esbuild": "0.28.2",
     "miniflare": "4.20260730.0",
     "typescript": "5.9.3",
-    "vite": "5.4.21"
+    "vite": "8.3.4"
   }
 }

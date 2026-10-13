@@ -106,7 +106,7 @@ const rail = ({ model, library }: Input, slots: Slots, h: H): Html =>
           Missing: () => [],
         }),
         h.hr(slots.railRule.attrs()),
-        h.p(slots.railNote.attrs(), ['Open source, MIT', h.br([]), 'Foldkit 0.165 · Effect 4']),
+        h.p(slots.railNote.attrs(), ['Open source, MIT', h.br([]), 'Foldkit 0.168 · Effect 4']),
       ],
     ),
   ])

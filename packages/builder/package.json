@@ -44,7 +44,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "dependencies": {
     "foldkit-bundle": "workspace:*",
@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "effect": "^4.0.4",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
     "jsdom": "30.1.2",

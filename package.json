@@ -47,14 +47,14 @@
     "@vitest/browser-playwright": "5.0.4",
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "^4.0.4",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "playwright": "^1.64.0",
     "prettier": "^3.9.10",
     "tsdown": "^0.23.1",
     "tsx": "^4.23.15",
     "typescript": "5.9.3",
     "unrun": "^0.3.1",
-    "vite": "^8.3.0",
+    "vite": "^8.3.4",
     "vitest": "^5.0.4"
   }
 }

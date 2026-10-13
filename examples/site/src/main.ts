@@ -8,7 +8,7 @@
  * component pages: a variant, a preview's state, and `/create`'s knobs.
  */
 import { Effect, Match, Option, Schema } from 'effect'
-import { Command, Subscription, type Update } from 'foldkit'
+import { Command, Dom, Subscription, type Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
@@ -209,8 +209,8 @@ export const codeCopyOf = (event: MouseEvent): Option.Option<Message> => {
 /** A code block's copy button, answered for the static region that drew it without a handler. */
 export const subscriptions = placements.subscriptions(
   Subscription.make<Model, Message>()(() => ({
-    codeCopy: Subscription.persistent(
-      Subscription.fromEventFilterMap({
+    codeCopy: Subscription.persistentEntry(
+      Dom.streamFromEventFilterMap({
         target: () => document,
         type: 'click',
         filterMapEvent: codeCopyOf,

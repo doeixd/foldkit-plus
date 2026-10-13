@@ -633,6 +633,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **Foldkit fills head tags into the template; it adds none.** A view's
   `canonical` reached no generated page until the template had an empty
   `<link rel="canonical">` (and `og:url` a `<meta property="og:url">`) to fill.
+- **`Subscription.lift` wraps every entry's dependencies (Foldkit 0.166).** A
+  lifted entry's `modelToDependencies` returns `{ maybeDependencies: Option }`,
+  gated or not. Remote lifted its entries only to map their Messages, and an
+  `as never` on the result hid that each read's `{ requirements, queries }`
+  had moved; only the api-cache tests that read them failed. To map Messages
+  alone, map each entry's `dependenciesToStream` (Remote's `messagesAs`).
 - **A URL a Command writes comes back as a `UrlChanged`.** Foldkit's
   `pushUrl`/`replaceUrl` dispatch `foldkit:urlchange`, which the runtime
   answers with `onUrlChange`; `makeApplication` itself sends nothing for the

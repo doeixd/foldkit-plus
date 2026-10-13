@@ -240,37 +240,37 @@ const prefixed = <
   }
 
 const postsAddress = Subscription.lift(Posts.address)({
-  toChildModel: (model: Model) => model.posts,
+  read: (model: Model) => Option.some(model.posts),
   toParentMessage: (message: Posts.Message) => Message.GotPostsMessage({ message }),
   when: gate('posts'),
 })
 
 const postsRemote = Subscription.lift(remoteSubscriptions(Posts.Data.wiring(Posts.actives)))({
-  toChildModel: (model: Model) => model.posts,
+  read: (model: Model) => Option.some(model.posts),
   toParentMessage: (message: Posts.Message) => Message.GotPostsMessage({ message }),
   when: gate('posts'),
 })
 
 const postsEditor = Subscription.lift(Posts.EditorSlot.subscriptions)({
-  toChildModel: (model: Model) => model.posts,
+  read: (model: Model) => Option.some(model.posts),
   toParentMessage: (message: Posts.Message) => Message.GotPostsMessage({ message }),
   when: gate('posts'),
 })
 
 const pagesAddress = Subscription.lift(Pages.address)({
-  toChildModel: (model: Model) => model.pages,
+  read: (model: Model) => Option.some(model.pages),
   toParentMessage: (message: Pages.Message) => Message.GotPagesMessage({ message }),
   when: gate('pages'),
 })
 
 const pagesRemote = Subscription.lift(remoteSubscriptions(Pages.Data.wiring(Pages.actives)))({
-  toChildModel: (model: Model) => model.pages,
+  read: (model: Model) => Option.some(model.pages),
   toParentMessage: (message: Pages.Message) => Message.GotPagesMessage({ message }),
   when: gate('pages'),
 })
 
 const pagesEditor = Subscription.lift(Pages.EditorSlot.subscriptions)({
-  toChildModel: (model: Model) => model.pages,
+  read: (model: Model) => Option.some(model.pages),
   toParentMessage: (message: Pages.Message) => Message.GotPagesMessage({ message }),
   when: gate('pages'),
 })
@@ -278,9 +278,9 @@ const pagesEditor = Subscription.lift(Pages.EditorSlot.subscriptions)({
 export const subscriptions = {
   // The window's scroll across the studio's navigations, kept while it runs.
   ...Subscription.make<Model, Message>()(() => ({
-    scroll: Subscription.persistent(keepScroll()),
+    scroll: Subscription.persistentEntry(keepScroll()),
     // Where the reader may go next, read ahead (`PointedAtLink`).
-    pointing: Subscription.persistent(
+    pointing: Subscription.persistentEntry(
       Stream.map(pointedLinks(), url => Message.PointedAtLink({ url })),
     ),
   })),

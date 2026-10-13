@@ -1,6 +1,6 @@
 import { Effect, Match, Option, Schema, Stream } from 'effect'
 import type { KeyValueStore } from 'effect/persistence'
-import { Subscription } from 'foldkit'
+import { Dom, Subscription } from 'foldkit'
 
 import { Message } from './message.js'
 import { CanvasMirror } from './mirror.js'
@@ -38,8 +38,8 @@ const toToolMessage = (event: KeyboardEvent): Option.Option<Message> => {
 
 export const subscriptions = Subscription.make<Model, Message, KeyValueStore.KeyValueStore>()(
   entry => ({
-    undoRedoKeys: Subscription.persistent(
-      Subscription.fromEventFilterMapPreventDefault({
+    undoRedoKeys: Subscription.persistentEntry(
+      Dom.streamFromEventFilterMapPreventDefault({
         // Read when the Subscription starts, not on import, so the module
         // loads without a DOM (the story and view tests, a server).
         target: () => document,
@@ -48,8 +48,8 @@ export const subscriptions = Subscription.make<Model, Message, KeyValueStore.Key
       }),
     ),
 
-    toolKeys: Subscription.persistent(
-      Subscription.fromEventFilterMap({
+    toolKeys: Subscription.persistentEntry(
+      Dom.streamFromEventFilterMap({
         target: () => document,
         type: 'keydown',
         filterMapEvent: toToolMessage,

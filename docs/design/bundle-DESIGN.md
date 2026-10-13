@@ -35,7 +35,7 @@ transition goes through the parent's `update`. A placement is therefore an
 | Decision | Why |
 | --- | --- |
 | Compile to `foldChildStep`, `Subscription.lift`, `ManagedResource.lift`, `h.submodel` | No new effect category; Story and Scene resolve lifted Commands by their child definitions. A parity test compares a placement with the same child wired by hand. |
-| Gate Subscriptions on "child present and `when`" and read the child with `getOrThrow` | `Subscription.lift` evaluates `when` before `toChildModel` (verified in 0.158.2). |
+| Gate Subscriptions on `when` and read the child as an `Option` | Since 0.166 `Subscription.lift` takes `read: Parent => Option<Child>`, and a `None` stops every entry; the gate is skipped before `read`. |
 | `args` threaded to `update` as a third parameter | Behaviour can depend on configuration without storing it in the Model. |
 | `args` required when `init` takes them; `onOut` required when the bundle has an OutMessage | An OutMessage cannot be dropped by omission. |
 | A bundle's `init` returns `Update.Return`, never an OutMessage | Foldkit 0.161's `Update.foldChildInit` folds a child's init OutMessage; a placement has no equivalent because the type admits none. `assembly.init` stays hand-rolled rather than `foldChildInits`: it orders placements by depth so an outer init cannot overwrite a nested one, which a keyed record cannot express. |

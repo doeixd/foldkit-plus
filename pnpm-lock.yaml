@@ -28,7 +28,7 @@ importers:
         version: 22.20.5
       '@vitest/browser-playwright':
         specifier: 5.0.4
-        version: 5.0.4(playwright@1.64.0)(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)
+        version: 5.0.4(playwright@1.64.0)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)
       drizzle-orm:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261013.1)(@effect/sql-d1@4.0.4(effect@4.0.4))(@effect/sql-pg@4.0.4(effect@4.0.4))(@effect/sql-sqlite-node@4.0.4(effect@4.0.4))(@effect/sql-sqlite-wasm@4.0.4(@effect/wa-sqlite@0.1.2)(effect@4.0.4))(@electric-sql/pglite@0.5.9)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.4)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.14.2)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
@@ -36,8 +36,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       playwright:
         specifier: ^1.64.0
         version: 1.64.0
@@ -57,17 +57,17 @@ importers:
         specifier: ^0.3.1
         version: 0.3.1
       vite:
-        specifier: ^8.3.0
-        version: 8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        specifier: ^8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.0.4
-        version: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   examples/bundle:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -85,8 +85,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -100,8 +100,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -161,8 +161,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/cms:
     dependencies:
@@ -264,8 +264,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       playwright:
         specifier: ^1.64.0
         version: 1.64.0
@@ -273,8 +273,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/data-grid:
     dependencies:
@@ -282,8 +282,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -310,20 +310,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/design-system:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
@@ -338,8 +338,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/drawer:
     dependencies:
@@ -347,8 +347,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -415,8 +415,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       jsdom:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
@@ -427,20 +427,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/api-cache:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../../packages/entity
@@ -470,8 +470,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/auth:
     dependencies:
@@ -479,14 +479,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../../packages/entity
@@ -510,20 +510,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/counter:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -541,8 +541,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/form:
     dependencies:
@@ -550,8 +550,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../../packages/entity
@@ -578,8 +578,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/job-application:
     dependencies:
@@ -587,14 +587,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../../packages/entity
@@ -615,8 +615,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/kanban:
     dependencies:
@@ -624,14 +624,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../../packages/mirror
@@ -655,8 +655,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/pixel-art:
     dependencies:
@@ -664,14 +664,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../../packages/mirror
@@ -695,20 +695,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/query-sync:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../../packages/mirror
@@ -732,20 +732,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/route-transitions:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -760,20 +760,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/routing:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../../packages/bundle
@@ -797,20 +797,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/shopping-cart:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -828,20 +828,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/snake:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -859,20 +859,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/ssg:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -887,8 +887,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/vite-plugin':
-        specifier: 0.26.0
-        version: 0.26.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        specifier: 0.27.1
+        version: 0.27.1(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       jsdom:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
@@ -896,8 +896,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: ^8.3.0
-        version: 8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        specifier: ^8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/ssr:
     dependencies:
@@ -905,14 +905,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)(redis@6.2.1(@opentelemetry/api@1.9.1))
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -930,8 +930,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/vite-plugin':
-        specifier: 0.26.0
-        version: 0.26.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        specifier: 0.27.1
+        version: 0.27.1(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       jsdom:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
@@ -942,8 +942,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: ^8.3.0
-        version: 8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        specifier: ^8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/todo:
     dependencies:
@@ -951,14 +951,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../../packages/mirror
@@ -979,20 +979,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/ui-showcase:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../../packages/bundle
@@ -1013,20 +1013,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/weather:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -1044,20 +1044,20 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/websocket-chat:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../../packages/bundle
@@ -1081,8 +1081,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/form:
     dependencies:
@@ -1100,8 +1100,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1161,14 +1161,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1211,8 +1211,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1229,8 +1229,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-durable:
         specifier: workspace:*
         version: link:../../packages/durable
@@ -1275,8 +1275,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/react:
     dependencies:
@@ -1306,8 +1306,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       jsdom:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
@@ -1403,8 +1403,8 @@ importers:
         specifier: 6.2.5
         version: 6.2.5
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       jsdom:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
@@ -1415,8 +1415,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/remote:
     dependencies:
@@ -1440,8 +1440,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1449,14 +1449,14 @@ importers:
   examples/site:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -1477,8 +1477,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/vite-plugin':
-        specifier: 0.26.0
-        version: 0.26.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        specifier: 0.27.1
+        version: 0.27.1(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
@@ -1531,8 +1531,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: ^8.3.0
-        version: 8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        specifier: ^8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/sync:
     dependencies:
@@ -1540,8 +1540,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -1580,8 +1580,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/tanstack:
     dependencies:
@@ -1608,8 +1608,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1633,8 +1633,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1648,14 +1648,14 @@ importers:
         specifier: 0.1.2
         version: 0.1.2
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -1718,8 +1718,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/tree:
     dependencies:
@@ -1727,8 +1727,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -1752,8 +1752,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -1771,8 +1771,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/agent:
     dependencies:
@@ -1787,8 +1787,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
         version: 0.23.1(tsx@4.23.15)(typescript@5.9.3)(unrun@0.3.1)
@@ -1805,8 +1805,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -1826,8 +1826,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -1845,7 +1845,7 @@ importers:
     devDependencies:
       '@agent-native/core':
         specifier: 0.207.1
-        version: 0.207.1(@amplitude/analytics-browser@2.45.8)(@anthropic-ai/tokenizer@0.0.4)(@builder.io/ai-utils@0.84.0)(@cloudflare/workers-types@5.20261013.1)(@electric-sql/pglite@0.5.9)(@opentelemetry/api@1.9.1)(@resvg/resvg-js@2.6.2)(@rrweb/record@2.1.0)(@sentry/browser@10.60.0)(@sentry/node@10.60.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1)))(@types/react@19.3.0)(@types/sql.js@1.4.11)(botframework-connector@4.23.3)(crossws@0.4.12(srvx@1.0.5))(jszip@3.10.2)(kysely@0.29.5)(mammoth@1.12.2)(ocache@0.3.0)(officeparser@7.8.0)(pg@8.23.0)(playwright@1.64.0)(prettier@3.9.10)(react-dom@19.3.0(react@19.3.0))(react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(sharp@0.35.4(@types/node@22.20.5))(sql.js@1.14.2)(ts-morph@28.0.0)(typescript@5.9.3)(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)(xlsx@0.18.5)
+        version: 0.207.1(@amplitude/analytics-browser@2.45.8)(@anthropic-ai/tokenizer@0.0.4)(@builder.io/ai-utils@0.84.0)(@cloudflare/workers-types@5.20261013.1)(@electric-sql/pglite@0.5.9)(@opentelemetry/api@1.9.1)(@resvg/resvg-js@2.6.2)(@rrweb/record@2.1.0)(@sentry/browser@10.60.0)(@sentry/node@10.60.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1)))(@types/react@19.3.0)(@types/sql.js@1.4.11)(botframework-connector@4.23.3)(crossws@0.4.12(srvx@1.0.5))(jszip@3.10.2)(kysely@0.29.5)(mammoth@1.12.2)(ocache@0.3.0)(officeparser@7.8.0)(pg@8.23.0)(playwright@1.64.0)(prettier@3.9.10)(react-dom@19.3.0(react@19.3.0))(react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(sharp@0.35.4(@types/node@22.20.5))(sql.js@1.14.2)(ts-morph@28.0.0)(typescript@5.9.3)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)(xlsx@0.18.5)
       '@effect/platform-browser':
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
@@ -1853,8 +1853,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -1874,8 +1874,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -1911,8 +1911,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
@@ -1935,14 +1935,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       jsdom:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
@@ -1969,8 +1969,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../mirror
@@ -2018,8 +2018,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins-crud:
         specifier: workspace:*
         version: link:../mixins-crud
@@ -2064,8 +2064,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -2095,8 +2095,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -2168,8 +2168,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
         version: 0.23.1(tsx@4.23.15)(typescript@5.9.3)(unrun@0.3.1)
@@ -2187,8 +2187,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-crud:
         specifier: workspace:*
         version: link:../crud
@@ -2271,8 +2271,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
         version: 0.23.1(tsx@4.23.15)(typescript@5.9.3)(unrun@0.3.1)
@@ -2296,8 +2296,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -2345,8 +2345,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -2373,8 +2373,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
         version: 0.23.1(tsx@4.23.15)(typescript@5.9.3)(unrun@0.3.1)
@@ -2382,8 +2382,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/mixins-builder:
     dependencies:
@@ -2413,8 +2413,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -2450,8 +2450,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -2487,8 +2487,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -2521,8 +2521,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -2561,8 +2561,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       jsdom:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
@@ -2579,14 +2579,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
@@ -2609,14 +2609,14 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4(effect@4.0.4)
       '@foldkit/ui':
-        specifier: 0.165.0
-        version: 0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
+        specifier: 0.168.0
+        version: 0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))
       effect:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
@@ -2739,8 +2739,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-agent-native:
         specifier: workspace:*
         version: link:../agent-native
@@ -2788,8 +2788,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
@@ -2821,8 +2821,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       jsdom:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
@@ -2857,8 +2857,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       jsdom:
         specifier: 30.1.2
         version: 30.1.2(@noble/hashes@2.4.0)
@@ -2891,8 +2891,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -2950,8 +2950,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-surface:
         specifier: workspace:*
         version: link:../surface
@@ -3019,8 +3019,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -3087,8 +3087,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -3121,8 +3121,8 @@ importers:
         specifier: 0.28.2
         version: 0.28.2
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -3148,8 +3148,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.5)(lightningcss@1.33.0)
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/surface:
     dependencies:
@@ -3164,8 +3164,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       tsdown:
         specifier: ^0.23.1
         version: 0.23.1(tsx@4.23.15)(typescript@5.9.3)(unrun@0.3.1)
@@ -3195,8 +3195,8 @@ importers:
         specifier: 0.28.2
         version: 0.28.2
       foldkit:
-        specifier: 0.165.0
-        version: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -3779,34 +3779,16 @@ packages:
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
 
-  '@esbuild/aix-ppc64@0.21.5':
-    resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
-    engines: {node: '>=12'}
-    cpu: [ppc64]
-    os: [aix]
-
   '@esbuild/aix-ppc64@0.28.2':
     resolution: {integrity: sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ==}
     engines: {node: '>=18'}
     cpu: [ppc64]
     os: [aix]
 
-  '@esbuild/android-arm64@0.21.5':
-    resolution: {integrity: sha512-c0uX9VAUBQ7dTDCjq+wdyGLowMdtR/GoC2U5IYk/7D1H1JYC0qseD7+11iMP2mRLN9RcCMRcjC4YMclCzGwS/A==}
-    engines: {node: '>=12'}
-    cpu: [arm64]
-    os: [android]
-
   '@esbuild/android-arm64@0.28.2':
     resolution: {integrity: sha512-5YfKeeI8qWfBZIX+u2xZC3Zlb3Os/gLS2sbEKM+I4ZOcsWmHS2WLysCcQZDAFRslDUU5Oiq44gf6PYN1vGwG5A==}
     engines: {node: '>=18'}
     cpu: [arm64]
-    os: [android]
-
-  '@esbuild/android-arm@0.21.5':
-    resolution: {integrity: sha512-vCPvzSjpPHEi1siZdlvAlsPxXl7WbOVUBBAowWug4rJHb68Ox8KualB+1ocNvT5fjv6wpkX6o/iEpbDrf68zcg==}
-    engines: {node: '>=12'}
-    cpu: [arm]
     os: [android]
 
   '@esbuild/android-arm@0.28.2':
@@ -3815,34 +3797,16 @@ packages:
     cpu: [arm]
     os: [android]
 
-  '@esbuild/android-x64@0.21.5':
-    resolution: {integrity: sha512-D7aPRUUNHRBwHxzxRvp856rjUHRFW1SdQATKXH2hqA0kAZb1hKmi02OpYRacl0TxIGz/ZmXWlbZgjwWYaCakTA==}
-    engines: {node: '>=12'}
-    cpu: [x64]
-    os: [android]
-
   '@esbuild/android-x64@0.28.2':
     resolution: {integrity: sha512-O387ite7SzUyCcy3JQX4P4bLtEA7bLLkx+esve5JHnyYfNTxcVpXZo9jhdB0lTKN44gztELTdU7nS8Nr16Fs1Q==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [android]
 
-  '@esbuild/darwin-arm64@0.21.5':
-    resolution: {integrity: sha512-DwqXqZyuk5AiWWf3UfLiRDJ5EDd49zg6O9wclZ7kUMv2WRFr4HKjXp/5t8JZ11QbQfUS6/cRCKGwYhtNAY88kQ==}
-    engines: {node: '>=12'}
-    cpu: [arm64]
-    os: [darwin]
-
   '@esbuild/darwin-arm64@0.28.2':
     resolution: {integrity: sha512-n4KqkOQrraxHJcgjM1RvwbigfQKIKJVpM7xp+KsxiyUSrRdIXnt73VhrPAx0fV44hgfmIVKjxMN9J1t5jySVkw==}
     engines: {node: '>=18'}
     cpu: [arm64]
-    os: [darwin]
-
-  '@esbuild/darwin-x64@0.21.5':
-    resolution: {integrity: sha512-se/JjF8NlmKVG4kNIuyWMV/22ZaerB+qaSi5MdrXtd6R08kvs2qCN4C09miupktDitvh8jRFflwGFBQcxZRjbw==}
-    engines: {node: '>=12'}
-    cpu: [x64]
     os: [darwin]
 
   '@esbuild/darwin-x64@0.28.2':
@@ -3851,22 +3815,10 @@ packages:
     cpu: [x64]
     os: [darwin]
 
-  '@esbuild/freebsd-arm64@0.21.5':
-    resolution: {integrity: sha512-5JcRxxRDUJLX8JXp/wcBCy3pENnCgBR9bN6JsY4OmhfUtIHe3ZW0mawA7+RDAcMLrMIZaf03NlQiX9DGyB8h4g==}
-    engines: {node: '>=12'}
-    cpu: [arm64]
-    os: [freebsd]
-
   '@esbuild/freebsd-arm64@0.28.2':
     resolution: {integrity: sha512-n+I0BTSRIoy+d6RPKnEVwql5UwBJolytvY4mAOIEJorKlqgPII8ix6slVVrfZ5Tnj7glIZvloylbB/EJPMWEXw==}
     engines: {node: '>=18'}
     cpu: [arm64]
-    os: [freebsd]
-
-  '@esbuild/freebsd-x64@0.21.5':
-    resolution: {integrity: sha512-J95kNBj1zkbMXtHVH29bBriQygMXqoVQOQYA+ISs0/2l3T9/kj42ow2mpqerRBxDJnmkUDCaQT/dfNXWX/ZZCQ==}
-    engines: {node: '>=12'}
-    cpu: [x64]
     os: [freebsd]
 
   '@esbuild/freebsd-x64@0.28.2':
@@ -3875,22 +3827,10 @@ packages:
     cpu: [x64]
     os: [freebsd]
 
-  '@esbuild/linux-arm64@0.21.5':
-    resolution: {integrity: sha512-ibKvmyYzKsBeX8d8I7MH/TMfWDXBF3db4qM6sy+7re0YXya+K1cem3on9XgdT2EQGMu4hQyZhan7TeQ8XkGp4Q==}
-    engines: {node: '>=12'}
-    cpu: [arm64]
-    os: [linux]
-
   '@esbuild/linux-arm64@0.28.2':
     resolution: {integrity: sha512-pW4AC0P3it8c7do9MVM4p51FzHzdM/TZrerurgRcHJ2WTa1VQ1CIq18xncfpBJw4ojkiZZrKW2yIBWBP92j6Ug==}
     engines: {node: '>=18'}
     cpu: [arm64]
-    os: [linux]
-
-  '@esbuild/linux-arm@0.21.5':
-    resolution: {integrity: sha512-bPb5AHZtbeNGjCKVZ9UGqGwo8EUu4cLq68E95A53KlxAPRmUyYv2D6F0uUI65XisGOL1hBP5mTronbgo+0bFcA==}
-    engines: {node: '>=12'}
-    cpu: [arm]
     os: [linux]
 
   '@esbuild/linux-arm@0.28.2':
@@ -3899,22 +3839,10 @@ packages:
     cpu: [arm]
     os: [linux]
 
-  '@esbuild/linux-ia32@0.21.5':
-    resolution: {integrity: sha512-YvjXDqLRqPDl2dvRODYmmhz4rPeVKYvppfGYKSNGdyZkA01046pLWyRKKI3ax8fbJoK5QbxblURkwK/MWY18Tg==}
-    engines: {node: '>=12'}
-    cpu: [ia32]
-    os: [linux]
-
   '@esbuild/linux-ia32@0.28.2':
     resolution: {integrity: sha512-CYbnj78HsIeA+DhgUKgFCfvNsTHFhMMrinUrMZpDXJXKN8T3XViTZ/+wtHeVxEWY8ewSzTFN+nRmSwO2tZaLUQ==}
     engines: {node: '>=18'}
     cpu: [ia32]
-    os: [linux]
-
-  '@esbuild/linux-loong64@0.21.5':
-    resolution: {integrity: sha512-uHf1BmMG8qEvzdrzAqg2SIG/02+4/DHB6a9Kbya0XDvwDEKCoC8ZRWI5JJvNdUjtciBGFQ5PuBlpEOXQj+JQSg==}
-    engines: {node: '>=12'}
-    cpu: [loong64]
     os: [linux]
 
   '@esbuild/linux-loong64@0.28.2':
@@ -3923,22 +3851,10 @@ packages:
     cpu: [loong64]
     os: [linux]
 
-  '@esbuild/linux-mips64el@0.21.5':
-    resolution: {integrity: sha512-IajOmO+KJK23bj52dFSNCMsz1QP1DqM6cwLUv3W1QwyxkyIWecfafnI555fvSGqEKwjMXVLokcV5ygHW5b3Jbg==}
-    engines: {node: '>=12'}
-    cpu: [mips64el]
-    os: [linux]
-
   '@esbuild/linux-mips64el@0.28.2':
     resolution: {integrity: sha512-ZVykbDyk7519VwiNb9Lcj9m8XM6v5V9uKPvrEMkkEedVewf+0itkhahp4HDpgERXhwLRpWFypsGbG/J8s0QjJA==}
     engines: {node: '>=18'}
     cpu: [mips64el]
-    os: [linux]
-
-  '@esbuild/linux-ppc64@0.21.5':
-    resolution: {integrity: sha512-1hHV/Z4OEfMwpLO8rp7CvlhBDnjsC3CttJXIhBi+5Aj5r+MBvy4egg7wCbe//hSsT+RvDAG7s81tAvpL2XAE4w==}
-    engines: {node: '>=12'}
-    cpu: [ppc64]
     os: [linux]
 
   '@esbuild/linux-ppc64@0.28.2':
@@ -3947,34 +3863,16 @@ packages:
     cpu: [ppc64]
     os: [linux]
 
-  '@esbuild/linux-riscv64@0.21.5':
-    resolution: {integrity: sha512-2HdXDMd9GMgTGrPWnJzP2ALSokE/0O5HhTUvWIbD3YdjME8JwvSCnNGBnTThKGEB91OZhzrJ4qIIxk/SBmyDDA==}
-    engines: {node: '>=12'}
-    cpu: [riscv64]
-    os: [linux]
-
   '@esbuild/linux-riscv64@0.28.2':
     resolution: {integrity: sha512-GeXCej4IQtU1B+QlDV8W/RRvbzI3O/Stss+/bCXv4lZls5WGRtu2a+3JkA3i4qIUlMXpcHebWpF8AkJhATowuA==}
     engines: {node: '>=18'}
     cpu: [riscv64]
     os: [linux]
 
-  '@esbuild/linux-s390x@0.21.5':
-    resolution: {integrity: sha512-zus5sxzqBJD3eXxwvjN1yQkRepANgxE9lgOW2qLnmr8ikMTphkjgXu1HR01K4FJg8h1kEEDAqDcZQtbrRnB41A==}
-    engines: {node: '>=12'}
-    cpu: [s390x]
-    os: [linux]
-
   '@esbuild/linux-s390x@0.28.2':
     resolution: {integrity: sha512-3H1weTYZPxt/WOhByszQZybS9w5lKzUn1FDMsgEChbHWQwHYQQRfBxgCcZvPhjHfKyJjIievvMmEUawJrdY9Dg==}
     engines: {node: '>=18'}
     cpu: [s390x]
-    os: [linux]
-
-  '@esbuild/linux-x64@0.21.5':
-    resolution: {integrity: sha512-1rYdTpyv03iycF1+BhzrzQJCdOuAOtaqHTWJZCWvijKD2N5Xu0TtVC8/+1faWqcP9iBCWOmjmhoH94dH82BxPQ==}
-    engines: {node: '>=12'}
-    cpu: [x64]
     os: [linux]
 
   '@esbuild/linux-x64@0.28.2':
@@ -3989,12 +3887,6 @@ packages:
     cpu: [arm64]
     os: [netbsd]
 
-  '@esbuild/netbsd-x64@0.21.5':
-    resolution: {integrity: sha512-Woi2MXzXjMULccIwMnLciyZH4nCIMpWQAs049KEeMvOcNADVxo0UBIQPfSmxB3CWKedngg7sWZdLvLczpe0tLg==}
-    engines: {node: '>=12'}
-    cpu: [x64]
-    os: [netbsd]
-
   '@esbuild/netbsd-x64@0.28.2':
     resolution: {integrity: sha512-lqnzCV+mM0gIADaKihiCg6ifgfU2L3h5E33rNQBN1Y4MaVGnzryzmvvf7UHxprpQdE8hpqLolJ9Rl+SkIRDpyw==}
     engines: {node: '>=18'}
@@ -4005,12 +3897,6 @@ packages:
     resolution: {integrity: sha512-AL2qJILH7lNjrDmCQDvdxMfAUIv8KMNZOvrwAQ8i8//ntL9FflhOyMJ8OZSMBb8/AWXe3/5v5S20y3zCoZWKoQ==}
     engines: {node: '>=18'}
     cpu: [arm64]
-    os: [openbsd]
-
-  '@esbuild/openbsd-x64@0.21.5':
-    resolution: {integrity: sha512-HLNNw99xsvx12lFBUwoT8EVCsSvRNDVxNpjZ7bPn947b8gJPzeHWyNVhFsaerc0n3TsbOINvRP2byTZ5LKezow==}
-    engines: {node: '>=12'}
-    cpu: [x64]
     os: [openbsd]
 
   '@esbuild/openbsd-x64@0.28.2':
@@ -4025,23 +3911,11 @@ packages:
     cpu: [arm64]
     os: [openharmony]
 
-  '@esbuild/sunos-x64@0.21.5':
-    resolution: {integrity: sha512-6+gjmFpfy0BHU5Tpptkuh8+uw3mnrvgs+dSPQXQOv3ekbordwnzTVEb4qnIvQcYXq6gzkyTnoZ9dZG+D4garKg==}
-    engines: {node: '>=12'}
-    cpu: [x64]
-    os: [sunos]
-
   '@esbuild/sunos-x64@0.28.2':
     resolution: {integrity: sha512-GPMSkTOtMnv2U2F8gxe4Io6qmVs+YKyp832Etqqxr0hFngmXQ3rzwytelm3GIn7T4VviRUlf3sOgBOiTdvaf7g==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [sunos]
-
-  '@esbuild/win32-arm64@0.21.5':
-    resolution: {integrity: sha512-Z0gOTd75VvXqyq7nsl93zwahcTROgqvuAcYDUr+vOv8uHhNSKROyU961kgtCD1e95IqPKSQKH7tBTslnS3tA8A==}
-    engines: {node: '>=12'}
-    cpu: [arm64]
-    os: [win32]
 
   '@esbuild/win32-arm64@0.28.2':
     resolution: {integrity: sha512-PIhhEkE9uPBleRBrQEJpUn7MBnibZzbGzYWPmY3x+YoVg/95zbjB4CxPPOQ8l5tYYM4mMaCthF8/1DIfBQQyWQ==}
@@ -4049,22 +3923,10 @@ packages:
     cpu: [arm64]
     os: [win32]
 
-  '@esbuild/win32-ia32@0.21.5':
-    resolution: {integrity: sha512-SWXFF1CL2RVNMaVs+BBClwtfZSvDgtL//G/smwAc5oVK/UPu2Gu9tIaRgFmYFFKrmg3SyAjSrElf0TiJ1v8fYA==}
-    engines: {node: '>=12'}
-    cpu: [ia32]
-    os: [win32]
-
   '@esbuild/win32-ia32@0.28.2':
     resolution: {integrity: sha512-YmJbfTlvU7Sdn9BB+4PRES4oB6pxgS37MAONj+hBr/cpXS1aBPKXxNnDbu+QCWPj0o9dgyxeq79g6c5P8KeuYA==}
     engines: {node: '>=18'}
     cpu: [ia32]
-    os: [win32]
-
-  '@esbuild/win32-x64@0.21.5':
-    resolution: {integrity: sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw==}
-    engines: {node: '>=12'}
-    cpu: [x64]
     os: [win32]
 
   '@esbuild/win32-x64@0.28.2':
@@ -4091,19 +3953,19 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@foldkit/ui@0.165.0':
-    resolution: {integrity: sha512-EARUWr5qlDqnEprAZqQ5KsUoplcv8pWtELkHiUGa5cyxGqmWRiYiL8jOwghF+d1vzUS1xquV1s0oa7Cu2+4dzw==}
+  '@foldkit/ui@0.168.0':
+    resolution: {integrity: sha512-PZNtVorDO6O45txndwouI8fOFHYcdZ3OP9amJKIR9gWJ13+rx+HaDRHYVnBHNp7fom/7qPEWd25wAJCpQF5i6w==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       effect: 4.0.0
-      foldkit: '>=0.165.0'
+      foldkit: '>=0.167.0'
 
-  '@foldkit/vite-plugin@0.26.0':
-    resolution: {integrity: sha512-/ponCe7EZUv78EepsbACtH+FhjBD+O2C0OkjgvwP4t3K3Mribxo39QEyqbc1aWkahvBmKTsRIg6L9FMN6Eoinw==}
+  '@foldkit/vite-plugin@0.27.1':
+    resolution: {integrity: sha512-sQ8y2v7w21wTwm+NGxboGokbZULmH0kuAg2EV6JH+1rXDBATOCcXIToUmw9ZmaVR14/4SlZIygVnNCRRcDtfQQ==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       effect: 4.0.0
-      foldkit: '>=0.165.0'
+      foldkit: '>=0.167.0'
       vite: ^8.0.0
 
   '@img/colour@1.1.0':
@@ -4649,13 +4511,6 @@ packages:
     resolution: {integrity: sha512-QviPdJImDi/jMAvBfqaw+19BndMd/sizXVW3NnpMd3VJGz++QXkOHcP9kWR/smHG0hNjHeyuHFyrx/5lD0oNcQ==}
     engines: {node: '>= 10'}
 
-  '@napi-rs/lzma-linux-x64-gnu@1.5.1':
-    resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
-    engines: {node: ^22.20 || ^24.12 || >=25}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
   '@neondatabase/serverless@1.1.0':
     resolution: {integrity: sha512-r3ZZhRjEcfEdKIZnoB1RusNgvHuaBRqfCzV4Gi+5A9yUX0S4HTws/ASWqt13wL4y4I+0rqsWGdA2w7EQXHi3+Q==}
     engines: {node: '>=19.0.0'}
@@ -4945,144 +4800,6 @@ packages:
 
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
-
-  '@rollup/rollup-android-arm-eabi@4.63.1':
-    resolution: {integrity: sha512-UZ8sUxPTiHWYX9QNdJedb1kDZSpS1t/VPWBWGSgqHNi9w3Cu6IXvu2mzbhiTiPvtrqgTQJ+zqiAq2iPIPilpaQ==}
-    cpu: [arm]
-    os: [android]
-
-  '@rollup/rollup-android-arm64@4.63.1':
-    resolution: {integrity: sha512-cQ4nFQABN5cDvDpbvJ7bMStCpnaVxynZrRMfUJYgxcIk9Sh54FIO1vtfkg0B69REjER77ioZ/ov+eAApx/KmLQ==}
-    cpu: [arm64]
-    os: [android]
-
-  '@rollup/rollup-darwin-arm64@4.63.1':
-    resolution: {integrity: sha512-FQNqd1lRy/0QhDk3xeRIkSBiCpXCiDnZO3YLVdcDKN1UBiKToNftCzcXYNLshmPDUMlu2TdeS8tGcsU6f3YF1Q==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@rollup/rollup-darwin-x64@4.63.1':
-    resolution: {integrity: sha512-pvD16V939D3CloK0+qikpGaxiPrDUXTe7Y5cWOMkMSy7m1cawa8EGy/kXYi/G/cKAC4HDAbSnzCIk1WmsoOKXg==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@rollup/rollup-freebsd-arm64@4.63.1':
-    resolution: {integrity: sha512-pcFGeL2345VwdTnJhA6zLbew+YgWB0qBG2+dMtXjCicf6+rm6kO6cOoh5VnTe0ZMrMRgRyuHmCJxZWrIdzYuOw==}
-    cpu: [arm64]
-    os: [freebsd]
-
-  '@rollup/rollup-freebsd-x64@4.63.1':
-    resolution: {integrity: sha512-mRJlqSRulVzcKq/LKA6ICSIc3K/l4fzlVn/gePn2nXIHy8seRi5z/eeRE0d/XMBxcMldiXtQTSpRj0tkkC3g8Q==}
-    cpu: [x64]
-    os: [freebsd]
-
-  '@rollup/rollup-linux-arm-gnueabihf@4.63.1':
-    resolution: {integrity: sha512-YDUNvVM85TI3g/1OpnqKP1h4NeW/j64DfWMf+G3M809xNk1bJSnpFp4sh83NpmVE5DXnkh8ULor4LTVZKoYLHw==}
-    cpu: [arm]
-    os: [linux]
-    libc: [glibc]
-
-  '@rollup/rollup-linux-arm-musleabihf@4.63.1':
-    resolution: {integrity: sha512-7Mcn71p9ZuQFAj+h+dhQXy/yeLePRS2yKRnmW1DijA9thKO5qap0GNOIQK4yQ6iP3SU0Mrb/yWo8h8vgRba8lw==}
-    cpu: [arm]
-    os: [linux]
-    libc: [musl]
-
-  '@rollup/rollup-linux-arm64-gnu@4.63.1':
-    resolution: {integrity: sha512-4YiLQTX6U4CSl0L9cluep9A9W6UmTfqBDc2/CH6wlu54pl4E7Jn3cOD8oxzvBDEGk/JMKgJ47C8g+radF7mwvg==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [glibc]
-
-  '@rollup/rollup-linux-arm64-musl@4.63.1':
-    resolution: {integrity: sha512-2ra8F7w8OquwZN9z2/fKFnli69wa8PLwaVzRMIPGb13ByMJwC28Fbp8YcVGoUhlYMTt7j5j9bNgpysrN2UM+vw==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [musl]
-
-  '@rollup/rollup-linux-loong64-gnu@4.63.1':
-    resolution: {integrity: sha512-Sy20ncyhjmBP0Ml+UvQbimjlk6VFgjW5uNP+qqwHB00mTE8Bl2C1TuHTlRwK2YoXeZbee5lP2XevBWVkAQAtSQ==}
-    cpu: [loong64]
-    os: [linux]
-    libc: [glibc]
-
-  '@rollup/rollup-linux-loong64-musl@4.63.1':
-    resolution: {integrity: sha512-noITLp8oNjYliPnGWmLyelIHwULGqbHloQHGw1rtxbWhTuWooRpnZarZQJ1y9EUC4szuCusCc+HEpUtxpIwYvA==}
-    cpu: [loong64]
-    os: [linux]
-    libc: [musl]
-
-  '@rollup/rollup-linux-ppc64-gnu@4.63.1':
-    resolution: {integrity: sha512-hlxxXd+F1mWiAcaFR7Sv9ZQT6m6UfI8+Vy/kFJzztq2pDMU/0wZ9sish0iszNZvsQDo8Gc0i5yuFEOz5dDf6fA==}
-    cpu: [ppc64]
-    os: [linux]
-    libc: [glibc]
-
-  '@rollup/rollup-linux-ppc64-musl@4.63.1':
-    resolution: {integrity: sha512-EF7OpqQTQ/BvGqLzUi4rEHuagCV9MugAUXSHemwPW5vxZ75RR+jxO/2j95Ph2dalMpFHSVECjRoioHZgA9zOYA==}
-    cpu: [ppc64]
-    os: [linux]
-    libc: [musl]
-
-  '@rollup/rollup-linux-riscv64-gnu@4.63.1':
-    resolution: {integrity: sha512-wQO3JesW9PRkwlabQ27y7sPfVOOTLRG73I4F2UYHG5PXun3J9U3y+b7ezVKSYbsvSKGQ1k1cq8Qlun4C9kLt3w==}
-    cpu: [riscv64]
-    os: [linux]
-    libc: [glibc]
-
-  '@rollup/rollup-linux-riscv64-musl@4.63.1':
-    resolution: {integrity: sha512-ouAGwhO6wHRXdnOVCOsB0tRFkA7nhNB2Nwax6oECXN0YiN8EYUTBAOudADOB1PI+yDL61TeNx/u7MVCzksNbkQ==}
-    cpu: [riscv64]
-    os: [linux]
-    libc: [musl]
-
-  '@rollup/rollup-linux-s390x-gnu@4.63.1':
-    resolution: {integrity: sha512-q2R38Sn+1J8RxhfJ+T54wSWmyKXWec+9jgDfqO2AtArEqHO5R2aeayp5H5OYLr5UYDVGsVaZPEFUooMhYCdz5A==}
-    cpu: [s390x]
-    os: [linux]
-    libc: [glibc]
-
-  '@rollup/rollup-linux-x64-gnu@4.63.1':
-    resolution: {integrity: sha512-gfI5T24WLLuFfSKw7Go/zDXjAAV0fny0swTaDv+WjK7vqcw4cRhFfdsyKL1n+ukI+ooBxn3bVQnyrn06WpI50w==}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
-  '@rollup/rollup-linux-x64-musl@4.63.1':
-    resolution: {integrity: sha512-4h6XqthmB4Hspji84wvgk+ElodTsGj+dbZqHJHHtKxj4mYq0ANSEEPX9ys3moJueqsRjwpaJYH7874Itwnj2ow==}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
-
-  '@rollup/rollup-openbsd-x64@4.63.1':
-    resolution: {integrity: sha512-dlfCOa87o1VAYegLQ9EKilx2JCeRofiyPGhTCmqnuXZ6bMPiycO1rq1+sKoulAp7pGLIsTIw+1x5R+zgh5LhhA==}
-    cpu: [x64]
-    os: [openbsd]
-
-  '@rollup/rollup-openharmony-arm64@4.63.1':
-    resolution: {integrity: sha512-cjkLbOlfcm3QGhMM1J5zaZjsw1GggbN6rw9UTSSRrPrR1KkcXnN7Uq9rPw34xImQ9VOY9GN+6u2Zj80B9ptkcw==}
-    cpu: [arm64]
-    os: [openharmony]
-
-  '@rollup/rollup-win32-arm64-msvc@4.63.1':
-    resolution: {integrity: sha512-Li1KdUnWGE4N3e1F/B4RTB1ms+nG4WBgjByO46pkeBVX/2UBsY53xf5vK9WygVmnH3RwncIST7lkSdLSY6P9lg==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@rollup/rollup-win32-ia32-msvc@4.63.1':
-    resolution: {integrity: sha512-t4ZYOSoLTgwhuFMrmTMLx/+i1DQVK7HYqMc6kY46EApwi8X0nIVphzdNoThU3xt6n+N5urG1/gxBdCaKDLavfg==}
-    cpu: [ia32]
-    os: [win32]
-
-  '@rollup/rollup-win32-x64-gnu@4.63.1':
-    resolution: {integrity: sha512-RgroPfMmKlD1RzSDxvwgcPiy2HNQKoYV7OmwIXDsk73uKW5t6B/V8KIy27SMv/FNXFo/oSBtWc9J0X7t91ezZg==}
-    cpu: [x64]
-    os: [win32]
-
-  '@rollup/rollup-win32-x64-msvc@4.63.1':
-    resolution: {integrity: sha512-at8QVep6S3h5Y6gSbdGU06bRY5WJkf6WUduM9YtvYMbYhB1MOFfUgc6kehitQXzOtMSaT70q7f9ydPhpqu821w==}
-    cpu: [x64]
-    os: [win32]
 
   '@rrweb/record@2.1.0':
     resolution: {integrity: sha512-jnbpYQED6QdKn1MuEoqJyILkYhuWDhb3kzA/l1i+Di5sfP7apf3HvrlVIMoyZgATMlk2if65BUUrc5R+vabCjQ==}
@@ -6135,11 +5852,6 @@ packages:
   es-toolkit@1.52.0:
     resolution: {integrity: sha512-XTNEJQh1tY1ZJVcf6ayP/2n4ZPyaHlW2FWs7xvw5ddPuhUVjLD3olQVQS7kf58JbAB48iL0uL/jerTrjtV3lDA==}
 
-  esbuild@0.21.5:
-    resolution: {integrity: sha512-mg3OPMV4hXywwpoDxu3Qda5xCKQi+vCTZq8S9J/EpkhB2HzKXq4SNFZE3+NK93JYxc8VMSep+lOUSC/RVKaBqw==}
-    engines: {node: '>=12'}
-    hasBin: true
-
   esbuild@0.28.2:
     resolution: {integrity: sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==}
     engines: {node: '>=18'}
@@ -6228,8 +5940,8 @@ packages:
   flatted@3.4.4:
     resolution: {integrity: sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==}
 
-  foldkit@0.165.0:
-    resolution: {integrity: sha512-ue0DVJvRtb6PnF4SbW/qWJIEuseXxaPHEiQX1iiG1Nk2n5BUMD0KYjsm741HsboAJlJPojzSvyG9HXwzpVUQmw==}
+  foldkit@0.168.0:
+    resolution: {integrity: sha512-FyAY34MdmF1JwdKiPq12uKHBmLny3QxAJ6WdakbXCBh8KR1lQfvdKEygQ/XAlxb2ICSmpVaFga5RgDSnxZsFiw==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       '@effect/platform-browser': ^4.0.4
@@ -6804,6 +6516,11 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
+  nanoid@3.3.20:
+    resolution: {integrity: sha512-uKdg2G3GNCKQn9byYOpxbGqrT2fGO5KRt5J/8b3pok8rT6qxGWF6hxMyJiEYtAf+FVyYuD9hRaDqX5uPFYJ4ZQ==}
+    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
   nanoid@5.0.9:
     resolution: {integrity: sha512-Aooyr6MXU6HpvvWXKoVoXwKMs/KyVakWwg7xQfv5/S/RIgJMy0Ifa45H9qqYy7pTCszrHzP21Uk4PZq2HpEM8Q==}
     engines: {node: ^18 || >=20}
@@ -6977,6 +6694,10 @@ packages:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
 
+  postcss@8.5.30:
+    resolution: {integrity: sha512-zkd+e9S1AQHhmaBKye9zlFHWjOwVgqXl1q3ECYy8561K7qxR2cREf/STLskulBFd78k6AOFeA+ff1TtEzk9bAA==}
+    engines: {node: ^10 || ^12 || >=14}
+
   postgres-array@2.0.0:
     resolution: {integrity: sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA==}
     engines: {node: '>=4'}
@@ -7135,11 +6856,6 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  rollup@4.63.1:
-    resolution: {integrity: sha512-3Df9jsstwhccuEfmAMi9l8XUh/GOkVObmFTU7CCVBysEbcOZLl84jCtaAZMcPiMz2EGKsATzQcU+Xr3n/wU6cg==}
-    engines: {node: '>=18.0.0', npm: '>=8.0.0'}
-    hasBin: true
-
   rou3@0.9.2:
     resolution: {integrity: sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ==}
 
@@ -7248,6 +6964,10 @@ packages:
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
+    engines: {node: '>=0.10.0'}
+
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
   source-map@0.6.1:
@@ -7537,39 +7257,8 @@ packages:
   vfile@6.0.3:
     resolution: {integrity: sha512-KzIbH/9tXat2u30jf+smMwFCsno4wHVdNmzFyL+T/L3UGqqk6JKfVqOFOZEpZSHADH1k40ab6NUIXZq422ov3Q==}
 
-  vite@5.4.21:
-    resolution: {integrity: sha512-o5a9xKjbtuhY6Bi5S3+HvbRERmouabWbyUcpXXUA1u+GNUKoROi9byOJ8M0nHbHYHkYICiMlqxkg1KkYmm25Sw==}
-    engines: {node: ^18.0.0 || >=20.0.0}
-    hasBin: true
-    peerDependencies:
-      '@types/node': ^18.0.0 || >=20.0.0
-      less: '*'
-      lightningcss: ^1.21.0
-      sass: '*'
-      sass-embedded: '*'
-      stylus: '*'
-      sugarss: '*'
-      terser: ^5.4.0
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
-      less:
-        optional: true
-      lightningcss:
-        optional: true
-      sass:
-        optional: true
-      sass-embedded:
-        optional: true
-      stylus:
-        optional: true
-      sugarss:
-        optional: true
-      terser:
-        optional: true
-
-  vite@8.3.0:
-    resolution: {integrity: sha512-lhZBVvEHefgE+HQZC9O7EBJgCU/nVzFNl7vkS4RE0APtWLP02/8QVIkQtzBxPquh7lq5/78NHipTj7ODQ6XuyQ==}
+  vite@8.3.4:
+    resolution: {integrity: sha512-IftLE8phJhdNRIGNEV4JCCvfNScoZQVfcXaN8TQropWGJtOHcu+iAB9pHcuGvmEb/kddw0LBe/jS8ztdC6xdiQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -7609,6 +7298,14 @@ packages:
       tsx:
         optional: true
       yaml:
+        optional: true
+
+  vitefu@1.1.3:
+    resolution: {integrity: sha512-ub4okH7Z5KLjb6hDyjqrGXqWtWvoYdU3IGm/NorpgHncKoLTCfRIbvlhBm7r0YstIaQRYlp4yEbFqDcKSzXSSg==}
+    peerDependencies:
+      vite: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
+    peerDependenciesMeta:
+      vite:
         optional: true
 
   vitest@5.0.4:
@@ -7832,7 +7529,7 @@ snapshots:
     dependencies:
       '@ag-ui/core': 0.0.59
 
-  '@agent-native/core@0.207.1(@amplitude/analytics-browser@2.45.8)(@anthropic-ai/tokenizer@0.0.4)(@builder.io/ai-utils@0.84.0)(@cloudflare/workers-types@5.20261013.1)(@electric-sql/pglite@0.5.9)(@opentelemetry/api@1.9.1)(@resvg/resvg-js@2.6.2)(@rrweb/record@2.1.0)(@sentry/browser@10.60.0)(@sentry/node@10.60.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1)))(@types/react@19.3.0)(@types/sql.js@1.4.11)(botframework-connector@4.23.3)(crossws@0.4.12(srvx@1.0.5))(jszip@3.10.2)(kysely@0.29.5)(mammoth@1.12.2)(ocache@0.3.0)(officeparser@7.8.0)(pg@8.23.0)(playwright@1.64.0)(prettier@3.9.10)(react-dom@19.3.0(react@19.3.0))(react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(sharp@0.35.4(@types/node@22.20.5))(sql.js@1.14.2)(ts-morph@28.0.0)(typescript@5.9.3)(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)(xlsx@0.18.5)':
+  '@agent-native/core@0.207.1(@amplitude/analytics-browser@2.45.8)(@anthropic-ai/tokenizer@0.0.4)(@builder.io/ai-utils@0.84.0)(@cloudflare/workers-types@5.20261013.1)(@electric-sql/pglite@0.5.9)(@opentelemetry/api@1.9.1)(@resvg/resvg-js@2.6.2)(@rrweb/record@2.1.0)(@sentry/browser@10.60.0)(@sentry/node@10.60.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1)))(@types/react@19.3.0)(@types/sql.js@1.4.11)(botframework-connector@4.23.3)(crossws@0.4.12(srvx@1.0.5))(jszip@3.10.2)(kysely@0.29.5)(mammoth@1.12.2)(ocache@0.3.0)(officeparser@7.8.0)(pg@8.23.0)(playwright@1.64.0)(prettier@3.9.10)(react-dom@19.3.0(react@19.3.0))(react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(sharp@0.35.4(@types/node@22.20.5))(sql.js@1.14.2)(ts-morph@28.0.0)(typescript@5.9.3)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)(xlsx@0.18.5)':
     dependencies:
       '@agent-native/agentkit': 0.207.1
       '@agent-native/recap-cli': 0.5.70(playwright@1.64.0)
@@ -7898,7 +7595,7 @@ snapshots:
       react-router: 8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       sharp: 0.35.4(@types/node@22.20.5)
       ts-morph: 28.0.0
-      vite: 8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       xlsx: 0.18.5
     transitivePeerDependencies:
       - '@aws-sdk/client-rds-data'
@@ -8420,7 +8117,7 @@ snapshots:
   '@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.4)':
     dependencies:
       effect: 4.0.0-rc.112
-      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   '@effect/wa-sqlite@0.1.2': {}
 
@@ -8431,103 +8128,52 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@esbuild/aix-ppc64@0.21.5':
-    optional: true
-
   '@esbuild/aix-ppc64@0.28.2':
-    optional: true
-
-  '@esbuild/android-arm64@0.21.5':
     optional: true
 
   '@esbuild/android-arm64@0.28.2':
     optional: true
 
-  '@esbuild/android-arm@0.21.5':
-    optional: true
-
   '@esbuild/android-arm@0.28.2':
-    optional: true
-
-  '@esbuild/android-x64@0.21.5':
     optional: true
 
   '@esbuild/android-x64@0.28.2':
     optional: true
 
-  '@esbuild/darwin-arm64@0.21.5':
-    optional: true
-
   '@esbuild/darwin-arm64@0.28.2':
-    optional: true
-
-  '@esbuild/darwin-x64@0.21.5':
     optional: true
 
   '@esbuild/darwin-x64@0.28.2':
     optional: true
 
-  '@esbuild/freebsd-arm64@0.21.5':
-    optional: true
-
   '@esbuild/freebsd-arm64@0.28.2':
-    optional: true
-
-  '@esbuild/freebsd-x64@0.21.5':
     optional: true
 
   '@esbuild/freebsd-x64@0.28.2':
     optional: true
 
-  '@esbuild/linux-arm64@0.21.5':
-    optional: true
-
   '@esbuild/linux-arm64@0.28.2':
-    optional: true
-
-  '@esbuild/linux-arm@0.21.5':
     optional: true
 
   '@esbuild/linux-arm@0.28.2':
     optional: true
 
-  '@esbuild/linux-ia32@0.21.5':
-    optional: true
-
   '@esbuild/linux-ia32@0.28.2':
-    optional: true
-
-  '@esbuild/linux-loong64@0.21.5':
     optional: true
 
   '@esbuild/linux-loong64@0.28.2':
     optional: true
 
-  '@esbuild/linux-mips64el@0.21.5':
-    optional: true
-
   '@esbuild/linux-mips64el@0.28.2':
-    optional: true
-
-  '@esbuild/linux-ppc64@0.21.5':
     optional: true
 
   '@esbuild/linux-ppc64@0.28.2':
     optional: true
 
-  '@esbuild/linux-riscv64@0.21.5':
-    optional: true
-
   '@esbuild/linux-riscv64@0.28.2':
     optional: true
 
-  '@esbuild/linux-s390x@0.21.5':
-    optional: true
-
   '@esbuild/linux-s390x@0.28.2':
-    optional: true
-
-  '@esbuild/linux-x64@0.21.5':
     optional: true
 
   '@esbuild/linux-x64@0.28.2':
@@ -8536,16 +8182,10 @@ snapshots:
   '@esbuild/netbsd-arm64@0.28.2':
     optional: true
 
-  '@esbuild/netbsd-x64@0.21.5':
-    optional: true
-
   '@esbuild/netbsd-x64@0.28.2':
     optional: true
 
   '@esbuild/openbsd-arm64@0.28.2':
-    optional: true
-
-  '@esbuild/openbsd-x64@0.21.5':
     optional: true
 
   '@esbuild/openbsd-x64@0.28.2':
@@ -8554,25 +8194,13 @@ snapshots:
   '@esbuild/openharmony-arm64@0.28.2':
     optional: true
 
-  '@esbuild/sunos-x64@0.21.5':
-    optional: true
-
   '@esbuild/sunos-x64@0.28.2':
-    optional: true
-
-  '@esbuild/win32-arm64@0.21.5':
     optional: true
 
   '@esbuild/win32-arm64@0.28.2':
     optional: true
 
-  '@esbuild/win32-ia32@0.21.5':
-    optional: true
-
   '@esbuild/win32-ia32@0.28.2':
-    optional: true
-
-  '@esbuild/win32-x64@0.21.5':
     optional: true
 
   '@esbuild/win32-x64@0.28.2':
@@ -8593,20 +8221,21 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@foldkit/ui@0.165.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))':
+  '@foldkit/ui@0.168.0(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))':
     dependencies:
       '@floating-ui/dom': 1.8.0
       effect: 4.0.4
-      foldkit: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+      foldkit: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
 
-  '@foldkit/vite-plugin@0.26.0(effect@4.0.4)(foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
+  '@foldkit/vite-plugin@0.27.1(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@effect/platform-node': 4.0.4(effect@4.0.4)(redis@6.2.1(@opentelemetry/api@1.9.1))
       '@effect/platform-node-shared': 4.0.4(effect@4.0.4)
       effect: 4.0.4
-      foldkit: 0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+      foldkit: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       magic-string: 1.4.3
-      vite: 8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vitefu: 1.1.3(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       ws: 8.22.0
     transitivePeerDependencies:
       - bufferutil
@@ -9010,9 +8639,6 @@ snapshots:
       '@napi-rs/canvas-win32-x64-msvc': 1.0.9
     optional: true
 
-  '@napi-rs/lzma-linux-x64-gnu@1.5.1':
-    optional: true
-
   '@neondatabase/serverless@1.1.0': {}
 
   '@noble/ciphers@2.4.0': {}
@@ -9208,81 +8834,6 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.0.1': {}
-
-  '@rollup/rollup-android-arm-eabi@4.63.1':
-    optional: true
-
-  '@rollup/rollup-android-arm64@4.63.1':
-    optional: true
-
-  '@rollup/rollup-darwin-arm64@4.63.1':
-    optional: true
-
-  '@rollup/rollup-darwin-x64@4.63.1':
-    optional: true
-
-  '@rollup/rollup-freebsd-arm64@4.63.1':
-    optional: true
-
-  '@rollup/rollup-freebsd-x64@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-arm-gnueabihf@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-arm-musleabihf@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-arm64-gnu@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-arm64-musl@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-loong64-gnu@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-loong64-musl@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-ppc64-gnu@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-ppc64-musl@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-riscv64-gnu@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-riscv64-musl@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-s390x-gnu@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-x64-gnu@4.63.1':
-    optional: true
-
-  '@rollup/rollup-linux-x64-musl@4.63.1':
-    optional: true
-
-  '@rollup/rollup-openbsd-x64@4.63.1':
-    optional: true
-
-  '@rollup/rollup-openharmony-arm64@4.63.1':
-    optional: true
-
-  '@rollup/rollup-win32-arm64-msvc@4.63.1':
-    optional: true
-
-  '@rollup/rollup-win32-ia32-msvc@4.63.1':
-    optional: true
-
-  '@rollup/rollup-win32-x64-gnu@4.63.1':
-    optional: true
-
-  '@rollup/rollup-win32-x64-msvc@4.63.1':
-    optional: true
 
   '@rrweb/record@2.1.0':
     dependencies:
@@ -9553,30 +9104,30 @@ snapshots:
 
   '@ungap/structured-clone@1.4.0': {}
 
-  '@vitest/browser-playwright@5.0.4(playwright@1.64.0)(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)':
+  '@vitest/browser-playwright@5.0.4(playwright@1.64.0)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)':
     dependencies:
-      '@vitest/browser': 5.0.4(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)
-      '@vitest/mocker': 5.0.4(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@vitest/browser': 5.0.4(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)
+      '@vitest/mocker': 5.0.4(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       playwright: 1.64.0
       tinyrainbow: 3.2.0
-      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
     transitivePeerDependencies:
       - bufferutil
       - msw
       - utf-8-validate
       - vite
 
-  '@vitest/browser@5.0.4(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)':
+  '@vitest/browser@5.0.4(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)':
     dependencies:
       '@blazediff/core': 1.10.0
-      '@vitest/mocker': 5.0.4(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@vitest/mocker': 5.0.4(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@vitest/ui': 5.0.4(vitest@5.0.4)
       '@vitest/utils': 5.0.4
       magic-string: 1.4.3
       pngjs: 7.0.0
       sirv: 3.0.2
       tinyrainbow: 3.2.0
-      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       ws: 8.22.0
     transitivePeerDependencies:
       - bufferutil
@@ -9584,14 +9135,14 @@ snapshots:
       - utf-8-validate
       - vite
 
-  '@vitest/mocker@5.0.4(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
+  '@vitest/mocker@5.0.4(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.4
       estree-walker: 3.0.3
       magic-string: 1.4.3
     optionalDependencies:
-      vite: 8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   '@vitest/pretty-format@5.0.4':
     dependencies:
@@ -9607,7 +9158,7 @@ snapshots:
       pathe: 2.0.3
       sirv: 3.0.2
       tinyrainbow: 3.2.0
-      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   '@vitest/utils@5.0.4':
     dependencies:
@@ -9756,7 +9307,7 @@ snapshots:
       pg: 8.23.0
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
-      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
@@ -10152,32 +9703,6 @@ snapshots:
 
   es-toolkit@1.52.0: {}
 
-  esbuild@0.21.5:
-    optionalDependencies:
-      '@esbuild/aix-ppc64': 0.21.5
-      '@esbuild/android-arm': 0.21.5
-      '@esbuild/android-arm64': 0.21.5
-      '@esbuild/android-x64': 0.21.5
-      '@esbuild/darwin-arm64': 0.21.5
-      '@esbuild/darwin-x64': 0.21.5
-      '@esbuild/freebsd-arm64': 0.21.5
-      '@esbuild/freebsd-x64': 0.21.5
-      '@esbuild/linux-arm': 0.21.5
-      '@esbuild/linux-arm64': 0.21.5
-      '@esbuild/linux-ia32': 0.21.5
-      '@esbuild/linux-loong64': 0.21.5
-      '@esbuild/linux-mips64el': 0.21.5
-      '@esbuild/linux-ppc64': 0.21.5
-      '@esbuild/linux-riscv64': 0.21.5
-      '@esbuild/linux-s390x': 0.21.5
-      '@esbuild/linux-x64': 0.21.5
-      '@esbuild/netbsd-x64': 0.21.5
-      '@esbuild/openbsd-x64': 0.21.5
-      '@esbuild/sunos-x64': 0.21.5
-      '@esbuild/win32-arm64': 0.21.5
-      '@esbuild/win32-ia32': 0.21.5
-      '@esbuild/win32-x64': 0.21.5
-
   esbuild@0.28.2:
     optionalDependencies:
       '@esbuild/aix-ppc64': 0.28.2
@@ -10285,7 +9810,7 @@ snapshots:
 
   flatted@3.4.4: {}
 
-  foldkit@0.165.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4):
+  foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4):
     dependencies:
       '@effect/platform-browser': 4.0.4(effect@4.0.4)
       effect: 4.0.4
@@ -11093,7 +10618,10 @@ snapshots:
     optionalDependencies:
       msgpackr-extract: 3.0.4
 
-  nanoid@3.3.18: {}
+  nanoid@3.3.18:
+    optional: true
+
+  nanoid@3.3.20: {}
 
   nanoid@5.0.9: {}
 
@@ -11267,6 +10795,13 @@ snapshots:
       nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
+    optional: true
+
+  postcss@8.5.30:
+    dependencies:
+      nanoid: 3.3.20
+      picocolors: 1.1.1
+      source-map-js: 1.2.2
 
   postgres-array@2.0.0:
     optional: true
@@ -11423,38 +10958,6 @@ snapshots:
       '@rolldown/binding-openharmony-arm64': 1.2.13
       '@rolldown/binding-win32-arm64-msvc': 1.2.13
       '@rolldown/binding-win32-x64-msvc': 1.2.13
-
-  rollup@4.63.1:
-    dependencies:
-      '@types/estree': 1.0.9
-    optionalDependencies:
-      '@napi-rs/lzma-linux-x64-gnu': 1.5.1
-      '@rollup/rollup-android-arm-eabi': 4.63.1
-      '@rollup/rollup-android-arm64': 4.63.1
-      '@rollup/rollup-darwin-arm64': 4.63.1
-      '@rollup/rollup-darwin-x64': 4.63.1
-      '@rollup/rollup-freebsd-arm64': 4.63.1
-      '@rollup/rollup-freebsd-x64': 4.63.1
-      '@rollup/rollup-linux-arm-gnueabihf': 4.63.1
-      '@rollup/rollup-linux-arm-musleabihf': 4.63.1
-      '@rollup/rollup-linux-arm64-gnu': 4.63.1
-      '@rollup/rollup-linux-arm64-musl': 4.63.1
-      '@rollup/rollup-linux-loong64-gnu': 4.63.1
-      '@rollup/rollup-linux-loong64-musl': 4.63.1
-      '@rollup/rollup-linux-ppc64-gnu': 4.63.1
-      '@rollup/rollup-linux-ppc64-musl': 4.63.1
-      '@rollup/rollup-linux-riscv64-gnu': 4.63.1
-      '@rollup/rollup-linux-riscv64-musl': 4.63.1
-      '@rollup/rollup-linux-s390x-gnu': 4.63.1
-      '@rollup/rollup-linux-x64-gnu': 4.63.1
-      '@rollup/rollup-linux-x64-musl': 4.63.1
-      '@rollup/rollup-openbsd-x64': 4.63.1
-      '@rollup/rollup-openharmony-arm64': 4.63.1
-      '@rollup/rollup-win32-arm64-msvc': 4.63.1
-      '@rollup/rollup-win32-ia32-msvc': 4.63.1
-      '@rollup/rollup-win32-x64-gnu': 4.63.1
-      '@rollup/rollup-win32-x64-msvc': 4.63.1
-      fsevents: 2.3.3
 
   rou3@0.9.2: {}
 
@@ -11622,6 +11125,8 @@ snapshots:
   sorted-btree@1.8.1: {}
 
   source-map-js@1.2.1: {}
+
+  source-map-js@1.2.2: {}
 
   source-map@0.6.1:
     optional: true
@@ -11892,21 +11397,11 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
 
-  vite@5.4.21(@types/node@22.20.5)(lightningcss@1.33.0):
-    dependencies:
-      esbuild: 0.21.5
-      postcss: 8.5.28
-      rollup: 4.63.1
-    optionalDependencies:
-      '@types/node': 22.20.5
-      fsevents: 2.3.3
-      lightningcss: 1.33.0
-
-  vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1):
+  vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
-      postcss: 8.5.28
+      postcss: 8.5.30
       rolldown: 1.2.13
       tinyglobby: 0.2.17
     optionalDependencies:
@@ -11917,10 +11412,14 @@ snapshots:
       tsx: 4.23.15
       yaml: 2.9.1
 
-  vitest@5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)):
+  vitefu@1.1.3(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)):
+    optionalDependencies:
+      vite: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+
+  vitest@5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.4(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@vitest/mocker': 5.0.4(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -11931,12 +11430,12 @@ snapshots:
       tinybench: 6.2.2
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@types/node': 22.20.5
-      '@vitest/browser-playwright': 5.0.4(playwright@1.64.0)(vite@8.3.0(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)
+      '@vitest/browser-playwright': 5.0.4(playwright@1.64.0)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.4)
       '@vitest/ui': 5.0.4(vitest@5.0.4)
       jsdom: 30.1.2(@noble/hashes@2.4.0)
     transitivePeerDependencies:

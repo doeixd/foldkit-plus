@@ -281,7 +281,7 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   settles, entries keyed by the Navigation API. `foldkit-primitives`, or
   upstream in Foldkit's navigation. §33.5 Built 2026-09-29 as
   `keepScroll(options)` in `foldkit-primitives/dom` — a stream lifted with
-  `Subscription.persistent`, sending no Messages — adopted by the studio's
+  `Subscription.persistentEntry`, sending no Messages — adopted by the studio's
   and the site's subscriptions, with the three browser tests moved beside
   it, each killing its rule.
 - [ ] **A delayed busy reveal in `foldkit-mixins`:** `aria-busy` lines shown

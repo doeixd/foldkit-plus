@@ -25,7 +25,7 @@
  *    the stream attaches nothing and leaves the browser's own behaviour
  *    alone.
  *
- * Lift with `Subscription.persistent`; the stream sends no Messages. Only
+ * Lift with `Subscription.persistentEntry`; the stream sends no Messages. Only
  * the window scrolls: a nested container is the route graph's to know, when
  * `Site.transition` arrives.
  */
@@ -166,7 +166,7 @@ const attach = (storageKey: string, kept: number, patience: number): (() => void
  * Keeps the window's scroll across same-document navigations: a pushed entry
  * starts at the top, and Back, Forward or a reload return where that entry
  * was. Without a window the stream is empty instead of throwing. Lift with
- * `Subscription.persistent`; the stream sends no Messages.
+ * `Subscription.persistentEntry`; the stream sends no Messages.
  */
 export const keepScroll = (options: KeepScrollOptions = {}): Stream.Stream<never> => {
   if (typeof window === 'undefined') return Stream.empty

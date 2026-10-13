@@ -51,12 +51,12 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "devDependencies": {
     "@effect/platform-browser": "^4.0.4",
     "effect": "^4.0.4",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "foldkit-entity": "workspace:*",
     "foldkit-surface": "workspace:*",
     "jsdom": "30.1.2",

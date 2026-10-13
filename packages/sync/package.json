@@ -67,7 +67,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-durable": "workspace:*",
     "foldkit-remote": "workspace:*"
   },
@@ -85,7 +85,7 @@
     "@effect/sql-d1": "^4.0.4",
     "effect": "^4.0.4",
     "esbuild": "0.28.2",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "foldkit-agent": "workspace:*",
     "foldkit-durable": "workspace:*",
     "foldkit-entity": "workspace:*",

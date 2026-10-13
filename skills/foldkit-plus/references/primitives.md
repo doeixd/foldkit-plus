@@ -61,7 +61,7 @@ dropped. `Throttle` pairs leading-edge against that trailing edge.
 `loadScript`, `enterFullscreen`/`exitFullscreen`, and `postBroadcast` are
 Commands; `Resize()`, `Intersection()`, `Mutation()`, `Bounds()`, and
 `Autofocus()` attach with `h.OnMount` in the view; `keyboardEvents()` and
-friends lift with `Subscription.persistent`, and `matchHotkey` turns a press
+friends lift with `Subscription.persistentEntry`, and `matchHotkey` turns a press
 into a chord answer. Slices that must survive reload persist through
 `Mirror.kv`, not here — this package owns live facts only.
 

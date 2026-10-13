@@ -538,7 +538,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-agent-native": "workspace:^",
     "foldkit-cms-drizzle": "workspace:^",
     "foldkit-mixins-ui": "workspace:^",
@@ -572,7 +572,7 @@
   },
   "devDependencies": {
     "effect": "^4.0.4",
-    "foldkit": "0.165.0",
+    "foldkit": "0.168.0",
     "tsdown": "^0.23.1",
     "tsx": "^4.23.15",
     "typescript": "5.9.3",
@@ -583,5 +583,9 @@
     "foldkit-react-codegen": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-richtext-code-shiki": "workspace:*"
+  },
+  "setup": {
+    "foldkit": "0.168.0",
+    "effect": "4.0.0"
   }
 }

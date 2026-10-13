@@ -14,7 +14,7 @@ export type ActiveElementMessage = typeof ActiveElementMessage.Type
 
 /**
  * Focus changes on the document. Without a document the stream is empty
- * instead of throwing. Lift with `Subscription.persistent`, mapping into
+ * instead of throwing. Lift with `Subscription.persistentEntry`, mapping into
  * the parent's Message.
  */
 export const activeElementEvents = (): Stream.Stream<ActiveElementMessage> => {
