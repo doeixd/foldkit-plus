@@ -92,7 +92,7 @@ export const BadgeStyle = forSlots(BadgeSlots)(
 
 export const badges = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
-    [],
+    [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
     [
       Badge.view({ text: 'Live', tone: 'live', style }, h),
       Badge.view({ text: 'In review', tone: 'review', style }, h),
@@ -214,7 +214,10 @@ export const checkbox = <Message>(
       isChecked: checked,
       onToggle,
       toView: Checkbox.toView([style.mixin], { h }, resolved =>
-        h.div([], [h.button(resolved.checkbox, []), h.label(resolved.label, ['Accept the terms'])]),
+        h.div(
+          [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
+          [h.button(resolved.checkbox, []), h.label(resolved.label, ['Accept the terms'])],
+        ),
       ),
     },
     h,
@@ -236,25 +239,33 @@ export const toggle = <Message>(
       isChecked: on,
       onToggle,
       toView: Switch.toView([style.mixin], { h }, resolved =>
-        h.div([], [h.button(resolved.button, []), h.label(resolved.label, ['Airplane mode'])]),
+        h.div(
+          [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
+          [h.button(resolved.button, []), h.label(resolved.label, ['Airplane mode'])],
+        ),
       ),
     },
     h,
   )
 // #endregion
 
+/** A head and shoulders in `hue`, standing in for a photo. */
+const portrait = (hue: number): string =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="hsl(${hue} 45% 78%)"/><circle cx="20" cy="16" r="7" fill="hsl(${hue} 30% 45%)"/><ellipse cx="20" cy="39" rx="13" ry="11" fill="hsl(${hue} 30% 45%)"/></svg>`,
+  )}`
+
 // #region avatar
 export const AvatarStyle = forSlots(AvatarSlots)(Recipes.Avatar({}))
 
-/** A picture that does not load, so the avatar shows its initials. */
-const MISSING = 'data:,'
-
 export const avatars = (style: NamedStyle<typeof AvatarSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
-    [],
-    ['Ada Lovelace', 'Grace Hopper', 'Alan Turing'].map(name =>
-      Avatar.view({ name, src: MISSING, style }, h),
-    ),
+    [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
+    [
+      Avatar.view({ name: 'Ada Lovelace', src: portrait(210), style }, h),
+      Avatar.view({ name: 'Grace Hopper', src: portrait(20), style }, h),
+      Avatar.view({ name: 'Alan Turing', src: portrait(140), style }, h),
+    ],
   )
 // #endregion
 

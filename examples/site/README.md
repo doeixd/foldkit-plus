@@ -18,7 +18,7 @@ catalog.ts ─┬─ READMEs, docs/*.md ──▶ guides.ts (cut at ## headings,
                      │
                      ▼
             content/library.ts ──▶ static regions ──▶ HTML at build time
-main.ts: Model { path, page, menuOpen, example, copied } ──▶ the browser
+main.ts: Model { path, page, and what the browser changes } ──▶ the browser
 ```
 
 - **The catalog owns the map.** [`src/catalog.ts`](src/catalog.ts) names each
@@ -55,6 +55,31 @@ the two. A small script in `index.html` keeps the
 sidebar's scroll from page to page, or brings the current entry into view; it
 places the rail again whenever the application draws a new one.
 
+## Components and the theme creator
+
+`/components` is a gallery of the recipes `foldkit-mixins-ui` ships, a page per
+component, and `/create` a theme creator. Three files hold it:
+
+- [`src/gallery/theme.ts`](src/gallery/theme.ts): the knobs, the presets, and
+  the theme module `/create` hands out (`codeOf`; for the defaults it is
+  [`src/snippets/theme.ts`](src/snippets/theme.ts), which the typecheck
+  compiles and `test/theme.test.ts` compares).
+- [`src/snippets/components.ts`](src/snippets/components.ts): each component
+  drawn as an application draws it, one `// #region <slug>` each. A
+  component's page shows its region, coloured at build time, and its previews
+  call the function the region defines, so the code is what drew them.
+- [`src/gallery/showcases.ts`](src/gallery/showcases.ts): the list. A
+  showcase's variant axes are read from its recipe (`recipe.def.variants`),
+  and a value reaches the recipe only if the recipe has it.
+
+A preview declares the whole component theme on its own element, and `/create`
+sets its knobs inline there. A custom property resolves where it is declared:
+tokens on `:root` would reach the preview already resolved, and a knob set on
+it would change nothing. So the site's own look never moves, and every token
+in the preview re-derives from the knobs in the browser. The variant picked,
+the knobs and the previews' controls are browser-only Model fields
+(`local`), fresh on every page.
+
 ## One list of demos
 
 [`src/demos.ts`](src/demos.ts) holds every demo once. The site draws its rows
@@ -88,8 +113,8 @@ renamed heading or a moved file fails the test rather than a reader.
 - `src/catalog.ts`: the subsites, their packages and their documents.
 - `src/main.ts`: the Model, the Messages, `update`, the resume plan and the
   document's head.
-- `src/view/`: the frame and rail (`layout.ts`), the home page, the demos, and a
-  doc page's two regions.
+- `src/view/`: the frame and rail (`layout.ts`), the home page, the demos, the
+  component pages and the theme creator, and a doc page's two regions.
 - `src/content/`: the build-time half: Markdown cut into guide pages, drawn with
   the inert builder, code tokenized by `foldkit-richtext-code-shiki` into the
   `syntax-*` kinds and drawn by `foldkit-mixins-ui`'s `CodeBlock`, colored by

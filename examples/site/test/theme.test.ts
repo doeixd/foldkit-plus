@@ -12,6 +12,7 @@ import {
   declared,
   defaults,
   fit,
+  Knob,
   knobStyleOf,
   presets,
   ranges,
@@ -52,6 +53,7 @@ describe('the theme creator', () => {
     expect(style['--fk-knob-accent-h']).toBe('12')
     expect(style['--fk-knob-density']).toBe('0.8')
     expect(style['colorScheme']).toBe('dark')
+    expect(knobStyleOf(defaults, 'system')['colorScheme']).toBe('light dark')
     const custom = Object.keys(style).filter(name => name.startsWith('--'))
     expect(custom.filter(name => !(name in declared))).toEqual([])
     expect(custom.every(name => /^--fk-(knob|font)-/.test(name))).toBe(true)
@@ -65,6 +67,7 @@ describe('the theme creator', () => {
   it('has a slider for every numeric knob', () => {
     const numeric = Object.keys(defaults).filter(key => key !== 'font')
     expect(ranges.map(range => range.knob).sort()).toEqual(numeric.sort())
+    expect([...Knob.literals].sort()).toEqual(numeric.sort())
   })
 
   it('keeps a slider value in its range and on its step', () => {

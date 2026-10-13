@@ -12,7 +12,8 @@
 import { Schema } from 'effect'
 import { Theme, VAR_PREFIX } from 'foldkit-mixins/theme'
 
-export const Scheme = Schema.Literals(['light', 'dark'])
+/** `system` follows the reader's color scheme. */
+export const Scheme = Schema.Literals(['system', 'light', 'dark'])
 export type Scheme = typeof Scheme.Type
 
 export const Font = Schema.Literals(['system', 'geist', 'serif', 'mono'])
@@ -36,7 +37,19 @@ export const Knobs = Schema.Struct({
 })
 export type Knobs = typeof Knobs.Type
 
-export type Knob = Exclude<keyof Knobs, 'font'>
+/** The numeric knobs, each a slider. */
+export const Knob = Schema.Literals([
+  'hue',
+  'chroma',
+  'lightness',
+  'surfaceSaturation',
+  'surfaceContrast',
+  'radius',
+  'density',
+  'motion',
+  'shadow',
+])
+export type Knob = typeof Knob.Type
 
 /** A slider's range and step, and how its value reads. */
 export interface Range {
@@ -93,6 +106,9 @@ export const defaults: Knobs = {
   shadow: 100,
   font: 'geist',
 }
+
+export const sameKnobs = (left: Knobs, right: Knobs): boolean =>
+  Knob.literals.every(knob => left[knob] === right[knob]) && left.font === right.font
 
 export interface Preset {
   readonly name: string
@@ -193,7 +209,7 @@ const KNOB_GROUPS: ReadonlySet<string> = new Set(['knob', 'font'])
 /** The inline overrides that turn the default preview into `knobs`. */
 export const knobStyleOf = (knobs: Knobs, scheme: Scheme): Record<string, string> => ({
   ...declarationsOf(themeOf(knobs), KNOB_GROUPS),
-  colorScheme: scheme,
+  colorScheme: scheme === 'system' ? 'light dark' : scheme,
 })
 
 const indent = (text: string, by: string) =>

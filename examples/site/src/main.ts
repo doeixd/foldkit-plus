@@ -3,8 +3,9 @@
  * per package family, every page rendered at build time and taken over in the
  * browser. Links are ordinary links, so a page is a new document; the Model
  * holds what a page is called and the little the browser changes on it: the
- * menu on a phone, which example the home page shows, and the two primitives
- * the Primitives overview runs in the page.
+ * menu on a phone, which example the home page shows, the two primitives
+ * the Primitives overview runs in the page, and what a reader sets on the
+ * component pages: a variant, a preview's state, and `/create`'s knobs.
  */
 import { Effect, Match, Option, Schema } from 'effect'
 import { Command, Subscription, type Update } from 'foldkit'
@@ -19,6 +20,17 @@ import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { allSubsites } from './catalog.js'
+import { showcaseOf } from './gallery/showcases.js'
+import {
+  Font,
+  Knob,
+  Knobs,
+  Scheme,
+  defaults as defaultKnobs,
+  fit,
+  ranges,
+  sameKnobs,
+} from './gallery/theme.js'
 import { COPY_ATTRIBUTE, type Library } from './library.js'
 import { Body } from './view/layout.js'
 
@@ -28,6 +40,9 @@ import { Body } from './view/layout.js'
 export const Page = defineTaggedUnion({
   Home: {},
   Demos: {},
+  Components: {},
+  Component: { slug: Schema.String },
+  Create: {},
   Doc: { subsite: Schema.String, title: Schema.String, description: Schema.String },
   Missing: {},
 })
@@ -46,6 +61,14 @@ export const Model = Schema.Struct({
   menuOpen: Schema.Boolean,
   example: Example,
   copied: Schema.Boolean,
+  /** The variant picked on a component's page, by axis. */
+  selection: Schema.Record(Schema.String, Schema.String),
+  /** What the previews' own controls hold. */
+  checked: Schema.Boolean,
+  switched: Schema.Boolean,
+  previewPage: Schema.Number,
+  knobs: Knobs,
+  scheme: Scheme,
   ...Dark.fields,
   ...Ticks.fields,
 })
@@ -61,6 +84,14 @@ export const Message = defineMessageUnion({
   PressedCodeCopy: { index: Schema.Number },
   CopiedCode: {},
   FailedToCopy: {},
+  PickedVariant: { axis: Schema.String, value: Schema.String },
+  ToggledCheckbox: { checked: Schema.Boolean },
+  ToggledSwitch: { on: Schema.Boolean },
+  ChosePreviewPage: { page: Schema.Number },
+  ChosePreset: { knobs: Knobs },
+  MovedKnob: { knob: Knob, value: Schema.Number },
+  ChoseFont: { font: Font },
+  ChoseScheme: { scheme: Scheme },
   ...Dark.cases,
   ...Ticks.cases,
 })
@@ -116,6 +147,12 @@ type UpdateReturn = Update.Return<Model, Message>
 /** What a placement's wrapper never reaches: the placements take theirs. */
 type OwnMessage = Bundle.OwnMessage<Message, typeof placements.placements>
 
+/** `knobs` installed, unless they are the ones shown; the code copied before no longer matches them. */
+const withKnobs = (model: Model, knobs: Knobs): UpdateReturn =>
+  sameKnobs(model.knobs, knobs)
+    ? { model }
+    : { model: modifyFields(model, { knobs: () => knobs, copied: () => false }) }
+
 const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
   Match.valueTags(message, {
     ToggledMenu: () => ({ model: modifyFields(model, { menuOpen: open => !open }) }),
@@ -128,6 +165,32 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
     PressedCodeCopy: ({ index }) => ({ model, commands: [CopyCode({ index })] }),
     CopiedCode: () => ({ model }),
     FailedToCopy: () => ({ model }),
+    PickedVariant: ({ axis, value }) =>
+      Object.hasOwn(model.selection, axis) && model.selection[axis] === value
+        ? { model }
+        : { model: modifyFields(model, { selection: picked => ({ ...picked, [axis]: value }) }) },
+    ToggledCheckbox: ({ checked }) =>
+      checked === model.checked
+        ? { model }
+        : { model: modifyFields(model, { checked: () => checked }) },
+    ToggledSwitch: ({ on }) =>
+      on === model.switched ? { model } : { model: modifyFields(model, { switched: () => on }) },
+    ChosePreviewPage: ({ page }) =>
+      page === model.previewPage
+        ? { model }
+        : { model: modifyFields(model, { previewPage: () => page }) },
+    ChosePreset: ({ knobs }) => withKnobs(model, knobs),
+    MovedKnob: ({ knob, value }) => {
+      const range = ranges.find(each => each.knob === knob)
+      return range === undefined || !Number.isFinite(value)
+        ? { model }
+        : withKnobs(model, { ...model.knobs, [knob]: fit(range, value) })
+    },
+    ChoseFont: ({ font }) => withKnobs(model, { ...model.knobs, font }),
+    ChoseScheme: ({ scheme }) =>
+      scheme === model.scheme
+        ? { model }
+        : { model: modifyFields(model, { scheme: () => scheme }) },
   })
 
 export const update = placements.update(updateOwn)
@@ -165,6 +228,12 @@ export const initial: Model = placements.initial({
   menuOpen: false,
   example: 'view',
   copied: false,
+  selection: {},
+  checked: true,
+  switched: false,
+  previewPage: 4,
+  knobs: defaultKnobs,
+  scheme: 'system',
 }).model
 
 /** The page at `path`, as the library knows it; the browser never runs this. */
@@ -182,6 +251,15 @@ const descriptionOf = (page: Page): string =>
   Page.match(page, {
     Home: () => DESCRIPTION,
     Demos: () => 'Examples from the Foldkit Plus repository, built as static files.',
+    Components: () =>
+      'Components drawn by the recipes foldkit-mixins-ui ships: pick a variant, read the code, theme them all.',
+    Component: ({ slug }) =>
+      Option.match(showcaseOf(slug), {
+        onNone: () => DESCRIPTION,
+        onSome: showcase => `${showcase.title}: ${showcase.summary}`,
+      }),
+    Create: () =>
+      'Make a theme for foldkit-mixins: turn its knobs, see every component change, and copy the code.',
     Doc: ({ description }) => (description === '' ? DESCRIPTION : description),
     Missing: () => DESCRIPTION,
   })
@@ -199,6 +277,12 @@ const planOf = (withMeta: boolean) =>
       App.model.menuOpen,
       App.model.example,
       App.model.copied,
+      App.model.selection,
+      App.model.checked,
+      App.model.switched,
+      App.model.previewPage,
+      App.model.knobs,
+      App.model.scheme,
       App.model.dark,
       App.model.ticks,
     ],
@@ -219,6 +303,13 @@ const titleOf = (page: Page): string =>
   Page.match(page, {
     Home: () => 'Foldkit Plus: ready-made patterns for Foldkit',
     Demos: () => 'Demos · Foldkit Plus',
+    Components: () => 'Components · Foldkit Plus',
+    Component: ({ slug }) =>
+      Option.match(showcaseOf(slug), {
+        onNone: () => 'Components · Foldkit Plus',
+        onSome: showcase => `${showcase.title} · Components · Foldkit Plus`,
+      }),
+    Create: () => 'Create a theme · Foldkit Plus',
     Doc: ({ subsite, title }) => {
       const family = allSubsites.find(each => each.id === subsite)
       return family === undefined || family.title === title

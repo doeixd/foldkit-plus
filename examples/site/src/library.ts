@@ -13,6 +13,10 @@ import type { Example, Page } from './main.js'
  */
 export const COPY_ATTRIBUTE = 'data-copy-code'
 
+/** The component gallery and the theme creator; each component's page is under the gallery's. */
+export const COMPONENTS = '/components'
+export const CREATE = '/create'
+
 /** What a static region holds. */
 export type Region = ReadonlyArray<Html | string>
 
@@ -31,6 +35,8 @@ export interface Library {
   readonly outline: (path: string) => Draw
   /** A home page example's code, coloured. */
   readonly example: (example: Example | 'app' | 'remote') => Draw
+  /** A component's code, as `src/snippets/components.ts` draws it, coloured. */
+  readonly usage: (slug: string) => Draw
 }
 
 const unavailable =
@@ -52,4 +58,5 @@ export const browserLibrary: Library = {
   pager: () => unavailable('pager'),
   outline: () => unavailable('outline'),
   example: () => unavailable('example'),
+  usage: () => unavailable('usage'),
 }

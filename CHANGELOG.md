@@ -36,6 +36,14 @@ version changed; `pnpm` skips versions already in the registry.
   when its input is null and to the predicate alone when it is given, with no
   parameter for the check.
 
+### Fixed
+
+- **`foldkit-mixins`: `Theme.oklch`'s doc said a knob overridden on any
+  subtree re-derives the palette.** A custom property resolves where it is
+  declared, so tokens on `:root` reach a subtree already resolved; the knob
+  re-derives them only on the element that declares them (`:root`, a
+  `Theme.scoped` selector, or a subtree that declares the theme itself).
+
 ## 0.18.0
 
 `foldkit-site` 0.2.0, `foldkit-remote` 0.15.0, `foldkit-primitives` 0.9.0,
