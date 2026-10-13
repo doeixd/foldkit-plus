@@ -25,6 +25,7 @@ import { attached, readRowsRuled, readRuled, type Deny, type InteractionKey } fr
 import { Condition, type RowRule } from './condition.js'
 import type { Policy } from './index.js'
 import type { MayAnswer } from './may.js'
+import { ME, type MeEntity } from './me.js'
 import { memberRules, rowRules, writeRules } from './placed.js'
 
 const noMembers = (record: EntityRecord) => record
@@ -39,6 +40,44 @@ const refOf = (value: unknown): Option.Option<{ readonly entity: string; readonl
 }
 
 export const GuardServer = {
+  /**
+   * `Guards.me`'s Source: the one row, `me`, as the asker is, with `may`
+   * answered by `policy`. `signedIn` is whether the server answered as
+   * someone; `key` is their `key`. Any other id is no row.
+   *
+   * ```ts
+   * RemoteServer.make({ entities: [GuardServer.me(Me, Policy), …] })
+   * ```
+   */
+  me: <User, R>(
+    entity: MeEntity,
+    policy: Policy<User, R>,
+  ): EntitySource<Option.Option<User>, R> => ({
+    ...RemoteServer.entity<Option.Option<User>, R>(entity, {
+      read: ({ ids, principal }) =>
+        Effect.succeed(
+          ids
+            .filter(id => id === ME)
+            .map(id => ({
+              id,
+              values: {
+                signedIn: Option.isSome(principal),
+                // Encoded, as a Source answers: `null` for a visitor.
+                key: Option.match(principal, {
+                  onNone: () => null,
+                  onSome: policy.key,
+                }),
+              },
+            })),
+        ),
+      filter: GuardServer.filter(entity, policy),
+    }),
+    // Its Read rule as this Source applies it: only the asker's own row,
+    // which `Guards.me` lets anyone read. One per call: the registry is keyed
+    // by it, and another call is for another Policy.
+    visible: rowRules.add(Object.freeze({ reads: 'the asker’s own row' }), policy, [entity]),
+  }),
+
   /**
    * An `EntitySource.filter` for `entity`: each requested member with a Read
    * rule is decided per record, omitted or redacted where the rule refuses.

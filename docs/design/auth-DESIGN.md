@@ -1,6 +1,6 @@
 # Authentication: Yielded Auth in Foldkit Plus
 
-**Status:** Partly built. Step 0 and slices 1–6 are built (§9, each with an *As built* note); slices 7–10 are not. §10's questions are settled. §2 and §3 record what was measured on that date: an inventory of every principal seam, an Effect 4.0.4 run of the whole repository, and a probe that served a guarded Remote read under a Yielded session.
+**Status:** Partly built. Step 0 and slices 1–7 are built (§9, each with an *As built* note); slices 8–10 are not. §10's questions are settled. §2 and §3 record what was measured on that date: an inventory of every principal seam, an Effect 4.0.4 run of the whole repository, and a probe that served a guarded Remote read under a Yielded session.
 **Target:** a new package, `foldkit-auth`, over [Yielded Auth](https://github.com/yielded-dev/auth) (`@yielded/auth`, `0.1.0-beta.38`); small changes in `foldkit-remote-server`, `foldkit-remote`, `foldkit-remote-drizzle`, `foldkit-sync`, `foldkit-ssr`, `foldkit-agent-mcp`, `foldkit-site` and `foldkit-guard`.
 **Related:** [guard-DESIGN.md](./guard-DESIGN.md) (§6.5 `G.Principal`, §8a the `Me` Entity, §8b agents, §8c Sync), [router-DESIGN.md](./router-DESIGN.md) §25 (route guards are presentation), [server-DESIGN.md](./server-DESIGN.md) §19.5 (principal and CSRF middleware per host), [TODO.md](./TODO.md).
 
@@ -185,6 +185,8 @@ export const Me = FoldkitAuth.me(G, {
 - Its interactions are guard attachments with principal guards: `Me.may` answers "may open the admin area" from the bodies on the server, so the client still runs no rule (guard-DESIGN §7). This closes TODO.md's "Routing's `Me` Entity".
 - The principal Schema stays the guard set's. A `User` that guard rules read (`projectIds`, `role`) is not the session's claims: claims are snapshots taken at sign-in, and a rule over a stale membership is a hole. §6.2 builds the principal per request from the session's `subjectId`.
 
+*As built (slice 7):* in `foldkit-guard`, not `foldkit-auth`: `Me` needs guard and Remote, not Yielded, and guard-DESIGN §8a already placed it there, so an application on another authentication has it too. `Guards.me(G, { interactions })` is one row, `me`, with `signedIn`, `key` (the principal's declared `key`, now `Policy.key`; none for a visitor) and `may`; its Read is the new `Guards.anyone` and its writes nobody's, so it is readable under `unguarded: 'deny'` and the matrix says so. `GuardServer.me(Me, Policy)` serves it and registers as applying its Read rule (it serves only the asker's own row), so `validate` accepts it. No `claims` and no `assurance`: claims are a sign-in snapshot the principal already supersedes (above), and assurance waits for step-up (§6.7). The client sends `subjectSaid(me.key)` as `x-foldkit-subject`, so `AuthServer.resolver` takes `key: Policy.key` to compare the header with the principal's key, not the session's `subjectId`; without it, the subject id as before.
+
 ### 6.2 Server
 
 ```ts
@@ -315,7 +317,7 @@ Each slice stands alone, with its tests and a review before the next.
 4. **Revalidation** (§5.5) for the live hub and the journal exchange. *Built* on `serveFetch` and `defineDocumentHost` (§5.5).
 5. **SSR's per-request `provide`** (§5.4). *Built* as the fallback's per-post `resources` (§5.4).
 6. **`foldkit-auth/server`**: the principal mapping, the Remote endpoint (route Layer and Web handler), the Origin/CSRF and subject checks, `socket` (with agent-mcp's `authenticate` taking an Effect), `ssr`. Tested against Yielded's in-memory Testing Layer, as the probe was. *Built* (§6.2, §5.1, §5.4): one resolver with `requests: 'scripted' | 'browser'` for Remote, Sync's upgrade and SSR's posted forms; `defineDocumentHost`'s `layer`; `SSR.entry`'s `origins`; agent-mcp's Effect `authenticate`. No endpoint wrapper (§6.2's note); `Auth.ssr` not built, undecided (TODO.md); a Yielded bearer resolver for agents waits for `OAuthServer`.
-7. **`Me`** (§6.1): `FoldkitAuth.me`, its Source, `may` for named interactions. Closes the TODO item.
+7. **`Me`** (§6.1): `FoldkitAuth.me`, its Source, `may` for named interactions. Closes the TODO item. *Built* as `Guards.me` and `GuardServer.me` (§6.1).
 8. **`foldkit-auth/client`** (§6.4): Commands, `Session.http`, `Session.lost`, the cross-tab channel, persistence scope.
 9. **An example end to end:** password sign-in, a guarded list, sign-out in a second tab, SSR, a Sync socket; an e2e test in Chromium (`pnpm e2e`), since only a running page shows cookies, redirects and tabs.
 10. **`Site.access`** (§6.5) with SSR's 303.

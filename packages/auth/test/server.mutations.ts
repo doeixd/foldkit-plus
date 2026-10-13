@@ -149,4 +149,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a key is not what the client is compared by',
+    edits: [
+      {
+        file,
+        find: 'yield* checkBelieved(request, Option.some(key(user)))',
+        replace: 'yield* checkBelieved(request, Option.some(session.subjectId))',
+      },
+    ],
+    tests,
+  },
 ]

@@ -128,6 +128,12 @@ const Todo = TodoFields.pipe(
   `May.can(may, Archive.key)`, `May.canSet(may, Todo, 'ownerId')`,
   `May.canLink(may, Todo, 'project', 'Link')`, and `May.reason(may, 'Delete')`
   (an `explain`'s sentence for a refusal, else none). A hint, never the check.
+- `Me`, the visitor as an Entity: `const Me = Guards.me(G, { interactions: {
+  [OpenAdmin.key]: [G.isAdmin] } })` in shared code, `GuardServer.me(Me,
+  Policy)` among the Sources. One row, `me` (`ME`): `signedIn`, `key`
+  (`Policy.key` of the principal; none for a visitor), `may`. Its Read is
+  `Guards.anyone`, its writes nobody's. Read it as any row for nav links,
+  "who am I", and route-level `may`; `Remote.forget` on sign-out drops it.
 - Sync: `foldkit-guard/sync`. `GuardSync.document(ProductEdits, { readers: [G.isStaff] })`
   (refused at definition when an edit could reach a reader its rows hide it from);
   `authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }` under the

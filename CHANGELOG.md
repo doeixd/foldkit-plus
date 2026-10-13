@@ -31,6 +31,15 @@ version changed; `pnpm` skips versions already in the registry.
   upgrade, kept while the socket is open for `revalidate`, and closed at once
   for a refused upgrade.
 
+- **`foldkit-guard`: `Me`, the visitor as an Entity.** `Guards.me(G, {
+  interactions })` declares one row, `me`, that everyone reads and no one
+  writes: `signedIn`, `key` (the principal's declared `key`) and `may` for the
+  named interactions; `GuardServer.me(Me, Policy)` serves it, and counts for
+  `validate` as applying its rules. `Guards.anyone` is the rule everyone
+  passes, a visitor included, for a public surface under `unguarded:
+  'deny'`; `Policy.key` is `declare`'s `key`. `AuthServer.resolver` takes
+  `key: Policy.key` to compare `x-foldkit-subject` with it.
+
 - **`foldkit-ssr`: a posted form's own resources.** `SSR.entry` takes
   `resources: request => Layer` and `SSR.handle` `resources: Layer`, built
   once for the post and provided to the Commands its fallback runs beside the

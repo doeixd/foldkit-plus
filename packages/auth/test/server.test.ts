@@ -374,3 +374,40 @@ describe("AuthServer.resolver for requests: 'browser'", () => {
     )
   })
 })
+
+describe('AuthServer.resolver with a key', () => {
+  const believing = (believed: string) =>
+    Effect.runPromiseExit(
+      AuthServer.resolver({
+        auth: Verifier,
+        http,
+        principal: session => Effect.succeed({ id: session.subjectId }),
+        key: user => `user:${user.id}`,
+      })(
+        new Request('https://app.test/remote', {
+          headers: {
+            ...fromApplication,
+            cookie: '__Host-effect-auth-session=good',
+            [SUBJECT_HEADER]: believed,
+          },
+        }),
+      ).pipe(Effect.provide(verifier(new Sessions.SessionInvalid()))),
+    )
+
+  it('compares what the client believes with the principal by its key', async () => {
+    expect(await believing(subjectSaid(Option.some('user:ada')))).toEqual(
+      Exit.succeed(Option.some({ id: 'ada' })),
+    )
+  })
+
+  it('refuses the session subject where a key names the principal', async () => {
+    expect(await believing(subjectSaid(Option.some('ada')))).toEqual(
+      Exit.fail(
+        new RemoteUnauthenticated({
+          message: 'Who is signed in changed.',
+          reason: 'Who is signed in changed.',
+        }),
+      ),
+    )
+  })
+})

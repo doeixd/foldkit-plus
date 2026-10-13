@@ -217,3 +217,13 @@ GuardServer.memory(
 )
 const partly = Needing.provide(Context.make(Memberships, { admins: [] }))
 expectTypeOf(partly).toEqualTypeOf<Policy<typeof User.Type, Clockwork>>()
+
+// `Guards.me`: interactions keyed by an Interaction, ruled by this set's guards.
+const MeOfG = Guards.me(G, { interactions: { [Archive.key]: [G.isAdmin] } })
+expectTypeOf(MeOfG.name).toEqualTypeOf<'Me'>()
+// @ts-expect-error a guard of another set
+Guards.me(G, { interactions: { [Archive.key]: [Others.isGuest] } })
+// @ts-expect-error a plain string is not an interaction's key
+Guards.me(G, { interactions: { Archive: [G.isAdmin] } })
+// @ts-expect-error a row guard over another Entity
+Guards.me(G, { interactions: { [Archive.key]: [G.isOwner] } })

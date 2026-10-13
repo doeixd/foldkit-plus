@@ -17,6 +17,7 @@ import {
   type RowRule,
 } from './condition.js'
 import { May } from './may.js'
+import { me } from './me.js'
 import { providedFrom } from './origin.js'
 import {
   Expr,
@@ -199,6 +200,8 @@ export interface Policy<User, R = never> {
   ) => Effect.Effect<Option.Option<RowRule>, never, R>
   /** The principal's fields as row guards' inputs; a visitor has none. */
   readonly inputOf: (principal: Option.Option<User>) => Readonly<Record<string, unknown>>
+  /** Who the principal is, as `declare`'s `key` names them: the same person alike across requests. */
+  readonly key: (user: User) => string
   /**
    * Who is asking, as the rules see it: every field of the principal, encoded,
    * a visitor included. Two requests by one person with the same claims answer
@@ -280,6 +283,7 @@ const placeholdersOf = <User>(fields: Schema.Struct.Fields): Placeholders<User> 
 
 export { Condition, type MemberRead, type RowRule } from './condition.js'
 export { May, MaySchema, type MayAnswer } from './may.js'
+export { ME, type MeEntity } from './me.js'
 export {
   Interaction,
   type All,
@@ -304,6 +308,16 @@ export const Guards = {
    * `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)`.
    */
   may: May.member,
+  /**
+   * `Me`, the visitor as an Entity: one row, `me`, that everyone reads and no
+   * one writes, with `signedIn`, the principal's `key`, and `may` for the
+   * interactions named here. Serve it with `GuardServer.me`.
+   *
+   * ```ts
+   * export const Me = Guards.me(G, { interactions: { [OpenAdmin.key]: [G.isAdmin] } })
+   * ```
+   */
+  me,
   /**
    * One application's guards, under `name` (its principal's Context key, and
    * what the matrix prints). `principal` is a `Schema.Struct`: its fields are
@@ -464,6 +478,7 @@ export const Guards = {
           decidingFor(entity, principal, interaction).relation(entity, relation),
         inputOf: principal =>
           Option.match(principal, { onNone: () => ({}), onSome: user => inputOf(user) }),
+        key: options.key,
         // Prefixed, so no user's key is the visitor's. Not `declare`'s `key`
         // alone: a re-read shared under it would read a newer request as an
         // older one's claims.

@@ -88,6 +88,12 @@ export interface ResolverConfig<I, S extends VerifiedSession, User, R> {
    * page's; its `Origin`, which every browser sends on one, vouches alone.
    */
   readonly requests?: 'scripted' | 'browser' | undefined
+  /**
+   * Who the principal is, for the `x-foldkit-subject` check: the client
+   * says who it believes it is by this, as `foldkit-guard`'s `Me` shows it
+   * (`key: Policy.key`). Without it, the session's `subjectId`.
+   */
+  readonly key?: ((user: User) => string) | undefined
 }
 
 /** Who a request is: a visitor, someone, or refused. */
@@ -132,8 +138,14 @@ const resolver = <I, S extends VerifiedSession, User, R = never>(
           Effect.die,
         ),
       )
-      yield* checkBelieved(request, Option.some(session.subjectId))
-      return Option.some(yield* config.principal(session))
+      const { key } = config
+      if (key === undefined) {
+        yield* checkBelieved(request, Option.some(session.subjectId))
+        return Option.some(yield* config.principal(session))
+      }
+      const user = yield* config.principal(session)
+      yield* checkBelieved(request, Option.some(key(user)))
+      return Option.some(user)
     })
 }
 

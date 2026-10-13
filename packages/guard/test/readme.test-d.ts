@@ -241,6 +241,22 @@ May.can(row.may, Archive.key) // the row's rule for Archive
 May.canSet(row.may, Todo, 'ownerId') // the row's Update, and ownerId's own
 May.canLink(row.may, Todo, 'project', 'Link')
 
+// ## Who the client is: `Me`
+
+const OpenAdmin = Interaction.make('OpenAdmin')
+
+// Shared domain code, beside the other Entities.
+export const Me = Guards.me(G, {
+  interactions: { [OpenAdmin.key]: [G.isAdmin] },
+})
+
+// The server: one Source among the others.
+const MeSource = GuardServer.me(Me, Policy)
+
+declare const me: Selected<typeof MeRow>
+const MeRow = Entity.select(Me, { signedIn: true, key: true, may: true })
+May.can(me.may, OpenAdmin.key)
+
 // ## Sync
 
 // The reader's own: the document's Sync contract and journal, and what reads an

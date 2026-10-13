@@ -215,9 +215,10 @@ client believes it is: `subjectSaid(Option.none())` (`visitor`) or
 as anyone else refuses, so a sign-out or a switch of account in another tab,
 or an expiry, never fills the client's cache with someone else's answers. The
 header carries no secret. A client that sends none is answered as whoever the
-session says. Nothing yet tells a client its own subject id: the `Me` Entity
-that will is planned (auth-DESIGN §6.1), and until then an application sends
-the header only if it learned the id itself.
+session says. `foldkit-guard`'s `Me` tells a client who it is: send
+`subjectSaid(me.key)`, and give the resolver `key: Policy.key`, so it
+compares the header with the principal's key rather than the session's
+`subjectId`.
 
 ## Limits
 

@@ -207,16 +207,17 @@ questions still open.
 - [x] **11. Docs.** `packages/guard/README.md` (type-checked by
   `test/readme.test-d.ts`), the skill's row and `references/guard.md`,
   `CHANGELOG.md` per slice.
-- [ ] **Routing's `Me` Entity.** One row per principal with route-level
-  interactions, read with `Guards.may`; navigation and `Surface.when` derive
-  from it. Belongs with the third routing cut. §8a,
-  [router-DESIGN.md](./router-DESIGN.md) §34.4. Planned as
-  [auth-DESIGN.md](./auth-DESIGN.md) §6.1.
+- [x] **The `Me` Entity:** `Guards.me` and `GuardServer.me`, one row with
+  `signedIn`, `key` and `may` for named interactions. §8a,
+  [auth-DESIGN.md](./auth-DESIGN.md) §6.1 (slice 7)
+- [ ] **Navigation and `Surface.when` from `Me`.** Derive link visibility and
+  presentation from `Me.may`. Belongs with the third routing cut.
+  [router-DESIGN.md](./router-DESIGN.md) §34.4
 
 ## Authentication
 
 Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
-orders the slices; step 0 and slices 1–6 are built.
+orders the slices; step 0 and slices 1–7 are built.
 
 - [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
   `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
@@ -256,7 +257,9 @@ orders the slices; step 0 and slices 1–6 are built.
   `application/json`; `Auth.ssr`, a render's principal; Presence's `peerId`
   as the principal's key; §5.1's Context-key option for `serveFetch`. Each
   waits for a consumer.
-- [ ] **7. `Me`.** §6.1
+- [x] **7. `Me`:** in `foldkit-guard` (`Guards.me`, `GuardServer.me`,
+  `Guards.anyone`, `Policy.key`); the resolver's `key` compares the subject
+  header with it. §6.1
 - [ ] **8. `foldkit-auth/client`.** §6.4
 - [ ] **9. An example, with an e2e test.** §9
 - [ ] **10. `Site.access`** and SSR's 303. §6.5

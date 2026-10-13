@@ -219,7 +219,7 @@ const showRule = (rule: AnyRule): string =>
   Match.valueTags(rule, {
     PrincipalGuard: ({ name }) => name,
     RowGuard: ({ name }) => name,
-    All: ({ rules }) => `all(${rules.map(showRule).join(', ')})`,
+    All: ({ rules }) => (rules.length === 0 ? 'anyone' : `all(${rules.map(showRule).join(', ')})`),
     Inherit: ({ relation }) => `inherit(${relation})`,
   })
 
@@ -454,6 +454,12 @@ export const Attaching = {
   all: <const Rules extends ReadonlyArray<Exclude<AnyRule, Inherit<string>>>>(
     ...rules: Rules
   ): All<Rules[number]> => Object.freeze({ _tag: 'All', rules: Object.freeze([...rules]) }),
+
+  /**
+   * A rule everyone passes, a visitor included: a conjunction of nothing.
+   * For a surface that is public under a set whose `unguarded` is `'deny'`.
+   */
+  anyone: Object.freeze<All<never>>({ _tag: 'All', rules: Object.freeze([]) }),
 
   /** This row's Read is the Read of the row its `one` relation points at. */
   inherit: <const Relation extends string>(relation: Relation): Inherit<Relation> =>

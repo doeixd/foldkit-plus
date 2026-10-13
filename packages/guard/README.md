@@ -543,6 +543,38 @@ May.canLink(row.may, Todo, 'project', 'Link')
 - `foldkit-crud`'s editor locks the keys the reader may not set with
   `locks: May.locks(Todo)`, for `foldkit-mixins-form`'s `locked`.
 
+## Who the client is: `Me`
+
+"Show the Admin link", "show a sign-in page rather than a 404" and "who am
+I signed in as" are questions about the visitor, not about a row.
+`Guards.me` declares them as one Entity with one row, `me`: everyone reads
+their own and no one writes it. It holds `signedIn`, `key` (the principal's
+`key`, `Option.none()` for a visitor) and `may` for the interactions named
+here; `GuardServer.me` serves it, deciding `may` with the Policy.
+
+```ts
+const OpenAdmin = Interaction.make('OpenAdmin')
+
+// Shared domain code, beside the other Entities.
+export const Me = Guards.me(G, {
+  interactions: { [OpenAdmin.key]: [G.isAdmin] },
+})
+
+// The server: one Source among the others.
+const MeSource = GuardServer.me(Me, Policy)
+```
+
+- The client reads `Me` through Remote like any row (`Entity.select(Me,
+  { signedIn: true, key: true, may: true })`), so it is `Loading`, `Ready`
+  or stale as data is, survives SSR, and `Remote.forget` on sign-out drops
+  it. `May.can(me.may, OpenAdmin.key)` is the server's answer; no rule runs
+  on the client.
+- Its Read is `Guards.anyone`, whatever the set leaves `unguarded`, and its
+  writes are nobody's, as the matrix prints them. `Guards.anyone` serves any
+  surface that is public under a set that denies the rest.
+- `may` is read with the row, as any `may` is: a principal whose role
+  changes sees it when `Me` is read again.
+
 ## When a rule refuses
 
 | Cause | Server | Client |
