@@ -37,7 +37,7 @@ const openTodosJournal = async (db: D1Database) => {
 export class SyncHost extends defineDocumentHost(DurableObject, {
   sync: Todos,
   openJournal: (_ctx, env: Env) => openTodosJournal(env.DB),
-  resolvePrincipal: request => request.headers.get('x-actor') ?? 'anon',
+  resolvePrincipal: request => Effect.succeed(request.headers.get('x-actor') ?? 'anon'),
 }) {}
 
 export default {

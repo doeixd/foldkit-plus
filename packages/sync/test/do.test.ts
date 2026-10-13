@@ -7,6 +7,7 @@
  */
 import { ActorId, Journal, OpId } from 'foldkit-durable'
 import { Effect, Scope } from 'effect'
+import { RemoteUnauthenticated } from 'foldkit-remote'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sync, type Operation } from '../src/index.js'
 import { defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
@@ -61,7 +62,7 @@ const host = (
   options: {
     readonly admit?: (principal: string, operation: Operation) => boolean
     readonly opens?: (principal: string) => Effect.Effect<boolean>
-    readonly resolvePrincipal?: (request: Request) => string
+    readonly resolvePrincipal?: (request: Request) => Effect.Effect<string, RemoteUnauthenticated>
     readonly openJournal?: () => Promise<TestJournal>
     readonly settle?: (env: unknown, journal: unknown) => Effect.Effect<void, unknown>
   } = {},
@@ -75,7 +76,8 @@ const host = (
       return options.openJournal === undefined ? openJournal() : options.openJournal()
     },
     resolvePrincipal:
-      options.resolvePrincipal ?? (request => request.headers.get('x-actor') ?? 'anon'),
+      options.resolvePrincipal ??
+      (request => Effect.succeed(request.headers.get('x-actor') ?? 'anon')),
     admit: options.admit,
     opens: options.opens,
     settle: options.settle,
@@ -207,18 +209,27 @@ describe('defineDocumentHost', () => {
     expect(refused.reasons).toEqual([{ opId: pending[0]!.opId, reason: 'Refused by the server' }])
   })
 
-  it('answers a throwing principal resolution with a 401 carrying its message', async () => {
-    const { Host, opens } = host({
-      resolvePrincipal: () => {
-        throw new Error('bad token')
-      },
-    })
+  it.each([
+    [
+      'a refused principal with a 401 carrying its message',
+      Effect.fail(new RemoteUnauthenticated({ message: 'bad token', reason: 'bad token' })),
+      401,
+      { error: 'bad token' },
+    ],
+    [
+      'a resolver that breaks with a 500 that says nothing of it',
+      Effect.die(new Error('the session store password')),
+      500,
+      { error: 'Internal error' },
+    ],
+  ])('answers %s, opening nothing', async (_, resolved, status, answer) => {
+    const { Host, opens } = host({ resolvePrincipal: () => resolved })
     const served = new Host({}, undefined)
     const response = await served.fetch(
       new Request('http://host/sync', { headers: { Upgrade: 'websocket' } }),
     )
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'bad token' })
+    expect(response.status).toBe(status)
+    expect(await response.json()).toEqual(answer)
     expect(opens()).toBe(0)
   })
 

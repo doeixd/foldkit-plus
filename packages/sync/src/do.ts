@@ -14,7 +14,8 @@
  * export class SyncHost extends defineDocumentHost(DurableObject, {
  *   sync: Todos,
  *   openJournal: (_ctx, env) => openTodosJournal(env.DB),
- *   resolvePrincipal: request => ({ actorId: request.headers.get('x-actor') ?? 'anon' }),
+ *   resolvePrincipal: request =>
+ *     Effect.succeed({ actorId: request.headers.get('x-actor') ?? 'anon' }),
  * }) {}
  * ```
  *
@@ -23,7 +24,8 @@
  * .documentId)`); its in-memory cache and change stream are then exact
  * because nothing else writes.
  */
-import type { Effect } from 'effect'
+import { Effect, Result } from 'effect'
+import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Journal } from 'foldkit-durable/core'
 import { serveJournal } from './journal.js'
 import type { AuthorizeDecision } from './make.js'
@@ -50,8 +52,16 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env> {
     ctx: DocumentHostContext,
     env: Env,
   ) => Promise<Journal<Operation, Shared, Principal, Operation>>
-  /** Who is opening this socket, from the upgrade request. May throw: a 401. */
-  readonly resolvePrincipal: (request: Request, env: Env) => Principal | Promise<Principal>
+  /**
+   * Who is opening this socket, from the upgrade request. Fails with a
+   * `RemoteUnauthenticated` (`foldkit-remote`; `RemoteServer.unauthenticated()`
+   * makes one) to refuse it: a 401 carrying its message. A defect is a 500
+   * that says nothing of it.
+   */
+  readonly resolvePrincipal: (
+    request: Request,
+    env: Env,
+  ) => Effect.Effect<Principal, RemoteUnauthenticated>
   /**
    * Runs after each exchange's appends and before the reply is read: apply
    * what committed to another store, through `journal.recover`. Takes the
@@ -107,8 +117,9 @@ const defaultPair = (): readonly [client: WebSocket, server: AcceptingWebSocket]
 
 /**
  * Defines the Durable Object class serving one document's Sync exchange.
- * Non-upgrades are 404s that open nothing; a throwing principal resolution
- * is a 401; a journal that never opened is a 500 that says nothing of it.
+ * Non-upgrades are 404s that open nothing; a refused principal is a 401; a
+ * resolver that breaks, or a journal that never opened, a 500 that says
+ * nothing of it.
  */
 export const defineDocumentHost = <Message, Shared, Principal, Env>(
   Base: new (ctx: DocumentHostContext, env: Env) => object,
@@ -128,15 +139,13 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
     async fetch(request: Request): Promise<Response> {
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
         return Response.json({ error: 'not found' }, { status: 404 })
-      let principal: Principal
-      try {
-        principal = await config.resolvePrincipal(request, this.hostEnv)
-      } catch (error) {
-        return Response.json(
-          { error: error instanceof Error ? error.message : String(error) },
-          { status: 401 },
-        )
-      }
+      const resolved = await Effect.runPromise(
+        Effect.result(config.resolvePrincipal(request, this.hostEnv)),
+      ).catch(() => undefined)
+      if (resolved === undefined) return Response.json({ error: 'Internal error' }, { status: 500 })
+      if (Result.isFailure(resolved))
+        return Response.json({ error: resolved.failure.message }, { status: 401 })
+      const principal = resolved.success
       let journal: Journal<Operation, Shared, Principal, Operation>
       try {
         journal = await (this.ready ??= config.openJournal(this.hostContext, this.hostEnv))

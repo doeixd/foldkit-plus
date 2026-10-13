@@ -12,15 +12,9 @@ export default [
     edits: [
       {
         file,
-        find: `    if (isLiveOpen(body)) {
-      return liveResponse(
-        handlers,
-        body.payload,
-        config.layer(env),
-        config.liveHeartbeat ?? DEFAULT_HEARTBEAT,
-      )
-    }`,
-        replace: '    void body',
+        find: `      if (isLiveOpen(body.value))
+        return yield* liveResponse(handlers, body.value.payload, heartbeat)`,
+        replace: '      void liveResponse',
       },
     ],
     tests,

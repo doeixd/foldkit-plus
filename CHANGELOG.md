@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`: `RemoteUnauthenticated`** (`_tag: 'Unauthenticated'`,
+  with an optional `reason`), the refusal of a caller who could not be told,
+  beside `RemoteForbidden`; `RemoteJsonAnswer` carries it as
+  `unauthenticated: { reason? }`. `foldkit-remote-server`'s
+  `RemoteServer.unauthenticated(reason?)` makes one.
+
 - **`foldkit-guard`: `GuardServer.validate` refuses a query body that filters
   or orders by a member with a Read rule.** The row comes back without the
   member, but which rows match, and in what order, still tells what it holds;
@@ -38,6 +44,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`serveFetch` and `defineDocumentHost` resolve the principal with an
+  Effect.** `resolvePrincipal: (request, env) => Effect<P,
+  RemoteUnauthenticated, RP>`, where `serveFetch`'s `layer` provides `RP` too,
+  so a resolver can read a session store; the layer is built once per request.
+  A refusal is a 401 (`serveFetch`'s body `{ error, unauthenticated: { reason?
+  } }`); a resolver that throws or dies is a 500 that says nothing, where a
+  throw used to be a 401 carrying its message. Wrap a plain value:
+  `resolvePrincipal: request => Effect.succeed(actorOf(request))`.
 - **Built and tested on Effect 4.0.4.** The packages' peer stays
   `effect: ^4.0.0`. Foldkit's own peer is exactly `4.0.0`, so an application
   on 4.0.4 (which Yielded Auth's `^4.0.3` needs) allows it the way the root

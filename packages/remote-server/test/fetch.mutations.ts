@@ -34,8 +34,41 @@ export default [
     tests,
   },
   {
-    name: 'a failing principal resolution is a 500',
+    name: 'a refused principal is a 500',
     edits: [{ file, find: '{ status: 401 }', replace: '{ status: 500 }' }],
+    tests,
+  },
+  {
+    name: 'unauthenticated drops its reason',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: "message: reason ?? 'Unauthenticated',\n      ...(reason === undefined ? {} : { reason }),",
+        replace: "message: reason ?? 'Unauthenticated',",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refusal is not caught',
+    edits: [
+      {
+        file,
+        find: "Effect.catchTag('Unauthenticated', refusal => Effect.succeed(unauthenticated(refusal)))",
+        replace: 'Effect.tap(() => Effect.void)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a refusal's reason is dropped",
+    edits: [
+      {
+        file,
+        find: 'unauthenticated: refusal.reason === undefined ? {} : { reason: refusal.reason },',
+        replace: 'unauthenticated: {},',
+      },
+    ],
     tests,
   },
   {
@@ -65,8 +98,8 @@ export default [
     edits: [
       {
         file,
-        find: "// A failure of the layer, or a defect anywhere: this side broke, and the\n      // caller learns that it did, not what. `answer` already maps its own\n      // failures and defects to 400/500 answers above this.\n      return Response.json({ error: 'Internal error' }, { status: 500 })",
-        replace: "return Response.json({ error: 'leaked' }, { status: 500 })",
+        find: "// failures and defects to 400/500 answers.\n      return Response.json({ error: 'Internal error' }, { status: 500 })",
+        replace: "// failures and defects to 400/500 answers.\n      return Response.json({ error: 'leaked' }, { status: 500 })",
       },
     ],
     tests,

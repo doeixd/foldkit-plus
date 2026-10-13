@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file,
-        find: 'principal = await config.resolvePrincipal(request, this.hostEnv)',
-        replace: 'principal = undefined as Principal',
+        find: 'const principal = resolved.success',
+        replace: 'const principal = undefined as Principal',
       },
     ],
     tests,
@@ -35,6 +35,28 @@ export default [
         file,
         find: 'journal = await (this.ready ??= config.openJournal(this.hostContext, this.hostEnv))',
         replace: 'journal = await config.openJournal(this.hostContext, this.hostEnv)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refused principal is a 500',
+    edits: [
+      {
+        file,
+        find: 'return Response.json({ error: resolved.failure.message }, { status: 401 })',
+        replace: 'return Response.json({ error: resolved.failure.message }, { status: 500 })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a resolver that breaks leaks its defect',
+    edits: [
+      {
+        file,
+        find: ').catch(() => undefined)',
+        replace: ').catch((error: unknown) => Result.fail({ message: String(error) }))',
       },
     ],
     tests,

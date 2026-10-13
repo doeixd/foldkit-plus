@@ -11,18 +11,39 @@
  * binding, a session), and the Sources' requirements are provided per
  * request from the environment (a D1 binding, a connection string).
  */
-import { Deferred, Effect, Schedule, Schema, Stream, type Duration, type Layer } from 'effect'
-import { LiveRequirement, type RemoteRpcClient } from 'foldkit-remote'
+import {
+  Deferred,
+  Effect,
+  Option,
+  Schedule,
+  Schema,
+  Stream,
+  type Duration,
+  type Layer,
+} from 'effect'
+import {
+  LiveRequirement,
+  type RemoteJsonAnswer,
+  type RemoteRpcClient,
+  type RemoteUnauthenticated,
+} from 'foldkit-remote'
 import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
 
 /** What `serveFetch` needs of the host runtime, per request. */
-export interface FetchConfig<P, R, Env> {
+export interface FetchConfig<P, R, Env, RP = never> {
   /** The server definition, as `RemoteServer.make` built it. */
   readonly server: ServerDefinition<P, R>
-  /** Who this request is, from the request and the environment. May throw: a 401 carrying its message. */
-  readonly resolvePrincipal: (request: Request, env: Env) => P | Promise<P>
-  /** What the Sources need, from the environment. Kept cheap: built per request. */
-  readonly layer: (env: Env) => Layer.Layer<R>
+  /**
+   * Who this request is, from the request and the environment. Fails with
+   * `RemoteServer.unauthenticated(reason?)` to refuse the caller: a 401.
+   * What it needs (a session store, an auth service) comes from `layer`.
+   */
+  readonly resolvePrincipal: (
+    request: Request,
+    env: Env,
+  ) => Effect.Effect<P, RemoteUnauthenticated, RP>
+  /** What the Sources and the resolver need, from the environment. Kept cheap: built per request. */
+  readonly layer: (env: Env) => Layer.Layer<R | RP>
   /** The path answered; anything else is a 404. Default `/remote`. */
   readonly path?: string | undefined
   /** A hub whose `changed`/`deleted` signals reach the live streams this serves. */
@@ -97,100 +118,95 @@ const DEFAULT_HEARTBEAT: Duration.Input = '15 seconds'
 
 /**
  * Answers a live open with the stream as `text/event-stream`. A payload no
- * live stream speaks is a 400 that subscribes to nothing; anything this side
- * breaks building the stream is a 500 that says nothing of it. Once the
- * stream runs, its own failures are its terminal `event: error` frame.
+ * live stream speaks is a 400 that subscribes to nothing. Once the stream
+ * runs, its own failures are its terminal `event: error` frame.
  */
 const liveResponse = <R>(
   handlers: RemoteRpcClient<R>,
   payload: unknown,
-  layer: Layer.Layer<R>,
   heartbeat: Duration.Input,
-): Promise<Response> => {
-  let requirement: Schema.Schema.Type<typeof LiveRequirement>
-  try {
-    requirement = Schema.decodeUnknownSync(LiveRequirement)(payload)
-  } catch {
-    return Promise.resolve(
-      Response.json({ error: 'The live payload is not a requirement' }, { status: 400 }),
-    )
-  }
-  return Effect.runPromise(
-    Stream.toReadableStreamEffect(liveBytes(handlers, requirement, heartbeat)).pipe(
-      Effect.provide(layer),
-      Effect.map(
-        body =>
-          new Response(body, {
-            headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
-          }),
-      ),
-    ),
-  ).catch(() => Response.json({ error: 'Internal error' }, { status: 500 }))
-}
+): Effect.Effect<Response, never, R> =>
+  Schema.decodeUnknownEffect(LiveRequirement)(payload).pipe(
+    Effect.matchEffect({
+      onFailure: () =>
+        Effect.succeed(
+          Response.json({ error: 'The live payload is not a requirement' }, { status: 400 }),
+        ),
+      onSuccess: requirement =>
+        Effect.map(
+          Stream.toReadableStreamEffect(liveBytes(handlers, requirement, heartbeat)),
+          body =>
+            new Response(body, {
+              headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
+            }),
+        ),
+    }),
+  )
+
+/** A refusal of who is asking, as `answer` words a 403: a 401 the client reads. */
+const unauthenticated = (refusal: RemoteUnauthenticated): Response =>
+  Response.json(
+    {
+      error: refusal.message,
+      unauthenticated: refusal.reason === undefined ? {} : { reason: refusal.reason },
+    } satisfies RemoteJsonAnswer,
+    { status: 401 },
+  )
+
 /**
  * Answers Remote `POST`s with `Response`s: what a Worker's `fetch` hands to
- * the route. A `resolvePrincipal` that throws is a 401 carrying its message,
- * so throw only what the caller may read. A body that is not JSON, or not a
- * request, is a 400 that reaches no handler; a handler's failure a 500 with
- * its message; anything else this side breaks, layer provision included, a
- * 500 that says nothing of it. A live open is answered with the stream instead.
+ * the route. Each request is one Effect, with `layer` built once for it:
+ * `resolvePrincipal` first, which refuses with `RemoteServer.unauthenticated`
+ * (a 401, its `reason` the only words the caller reads); then the body. A
+ * body that is not JSON, or not a request, is a 400 that reaches no handler;
+ * a handler's failure a 500 with its message; anything else this side
+ * breaks, the resolver's defects and the layer included, a 500 that says
+ * nothing of it. A live open is answered with the stream instead.
  *
  * ```ts
  * export default {
  *   fetch: serveFetch({
  *     server,
- *     resolvePrincipal: request => ({ actorId: request.headers.get('x-actor') ?? 'anon' }),
+ *     resolvePrincipal: request =>
+ *       Effect.succeed({ actorId: request.headers.get('x-actor') ?? 'anon' }),
  *     layer: env => databaseLayer(drizzle(env.DB)),
  *   }),
  * }
  * ```
  */
-export const serveFetch = <P, R, Env>(
-  config: FetchConfig<P, R, Env>,
+export const serveFetch = <P, R, Env, RP = never>(
+  config: FetchConfig<P, R, Env, RP>,
 ): ((request: Request, env: Env) => Promise<Response>) => {
   const path = config.path ?? '/remote'
+  const heartbeat = config.liveHeartbeat ?? DEFAULT_HEARTBEAT
+  const respond = (request: Request, env: Env): Effect.Effect<Response, never, R | RP> =>
+    Effect.gen(function* () {
+      const principal = yield* config.resolvePrincipal(request, env)
+      const body = yield* Effect.option(Effect.tryPromise(() => request.json()))
+      if (Option.isNone(body)) {
+        return Response.json({ error: 'The body is not JSON' }, { status: 400 })
+      }
+      // Bound per request: the principal is the request's own, as everywhere else.
+      const handlers = RemoteServer.handlers(config.server, principal, {
+        live: config.live,
+        maxIdsPerEntity: config.maxIdsPerEntity,
+        maxDepth: config.maxDepth,
+      })
+      if (isLiveOpen(body.value))
+        return yield* liveResponse(handlers, body.value.payload, heartbeat)
+      const answered = yield* RemoteServer.answer(handlers, body.value)
+      return Response.json(answered.body, { status: answered.status })
+    }).pipe(Effect.catchTag('Unauthenticated', refusal => Effect.succeed(unauthenticated(refusal))))
   return async (request, env) => {
     if (request.method !== 'POST' || new URL(request.url).pathname !== path) {
       return Response.json({ error: 'not found' }, { status: 404 })
     }
-    let principal: P
     try {
-      principal = await config.resolvePrincipal(request, env)
-    } catch (error) {
-      return Response.json(
-        { error: error instanceof Error ? error.message : String(error) },
-        { status: 401 },
-      )
-    }
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return Response.json({ error: 'The body is not JSON' }, { status: 400 })
-    }
-    // Bound per request: the principal is the request's own, as everywhere else.
-    const handlers = RemoteServer.handlers(config.server, principal, {
-      live: config.live,
-      maxIdsPerEntity: config.maxIdsPerEntity,
-      maxDepth: config.maxDepth,
-    })
-    if (isLiveOpen(body)) {
-      return liveResponse(
-        handlers,
-        body.payload,
-        config.layer(env),
-        config.liveHeartbeat ?? DEFAULT_HEARTBEAT,
-      )
-    }
-    try {
-      const answered = await Effect.runPromise(
-        RemoteServer.answer(handlers, body).pipe(Effect.provide(config.layer(env))),
-      )
-      return Response.json(answered.body, { status: answered.status })
+      return await Effect.runPromise(respond(request, env).pipe(Effect.provide(config.layer(env))))
     } catch {
       // A failure of the layer, or a defect anywhere: this side broke, and the
       // caller learns that it did, not what. `answer` already maps its own
-      // failures and defects to 400/500 answers above this.
+      // failures and defects to 400/500 answers.
       return Response.json({ error: 'Internal error' }, { status: 500 })
     }
   }

@@ -1,5 +1,6 @@
-import { Context, Effect, Schema } from 'effect'
+import { Context, Effect, Layer, Schema } from 'effect'
 import { Entity, Mutation, Query } from 'foldkit-remote'
+import { serveFetch } from '../src/fetch.js'
 import { RemoteServer } from '../src/index.js'
 
 class Db extends Context.Service<Db, { readonly db: true }>()('test/Db') {}
@@ -78,3 +79,25 @@ type _provided = Assert<
 class Numbered extends Context.Service<Numbered, number>()('test/Numbered') {}
 // @ts-expect-error the key holds a number, the server answers as a string
 RemoteServer.handlers(RemoteServer.make({ entities: [userSource] }), Numbered)
+
+// serveFetch: the layer provides what the Sources need and what the resolver does.
+class Sessions extends Context.Service<Sessions, { readonly who: string }>()('test/Sessions') {}
+const resolving = () => Effect.map(Sessions, sessions => sessions.who)
+serveFetch({
+  server: RemoteServer.make({ entities: [userSource] }),
+  resolvePrincipal: resolving,
+  layer: () =>
+    Layer.mergeAll(Layer.succeed(Db, { db: true }), Layer.succeed(Sessions, { who: 'a' })),
+})
+serveFetch({
+  server: RemoteServer.make({ entities: [userSource] }),
+  resolvePrincipal: resolving,
+  // @ts-expect-error the layer leaves the resolver's Sessions out
+  layer: () => Layer.succeed(Db, { db: true }),
+})
+serveFetch({
+  server: RemoteServer.make({ entities: [userSource] }),
+  // @ts-expect-error a resolver refuses with RemoteUnauthenticated, nothing else
+  resolvePrincipal: () => Effect.fail(new Error('bad token')),
+  layer: () => Layer.succeed(Db, { db: true }),
+})

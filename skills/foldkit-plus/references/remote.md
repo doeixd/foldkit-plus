@@ -145,8 +145,9 @@ const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the
 // Over fetch (a Worker's fetch): serveFetch({ server, resolvePrincipal, layer,
 // liveHeartbeat }) from 'foldkit-remote-server/fetch' answers the POSTs
 // Remote.http sends, and a live open with a text/event-stream of changes
-// (Remote.httpWithLive); the principal and the Sources' requirements come per
-// request from env. Every stream heartbeats, so an idle one survives. A
+// (Remote.httpWithLive). resolvePrincipal is an Effect per request that may
+// need what layer(env) provides; failing with RemoteServer.unauthenticated(reason?)
+// answers 401 { error, unauthenticated: { reason? } }. Every stream heartbeats, so an idle one survives. A
 // worker cannot wake another request's stream, so a LiveHub fed from a second
 // request reaches nobody there: poll the durable store (D1) from inside the
 // subscriber's own request instead.

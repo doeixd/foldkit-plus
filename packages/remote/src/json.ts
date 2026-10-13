@@ -24,6 +24,8 @@ export const RemoteJsonAnswer = Schema.Union([
     refusal: Schema.optional(Schema.Unknown),
     /** Who is asking was refused, with the application's reason when it gave one. */
     forbidden: Schema.optional(Schema.Struct({ reason: Schema.optional(Schema.String) })),
+    /** Who is asking could not be told, with the reason when one was given; a 401. */
+    unauthenticated: Schema.optional(Schema.Struct({ reason: Schema.optional(Schema.String) })),
   }),
 ])
 export type RemoteJsonAnswer = typeof RemoteJsonAnswer.Type

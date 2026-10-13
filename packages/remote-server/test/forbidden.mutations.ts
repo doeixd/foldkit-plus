@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '...(reason === undefined ? {} : { reason }),',
-        replace: '',
+        find: "message: reason ?? 'Forbidden',\n      ...(reason === undefined ? {} : { reason }),",
+        replace: "message: reason ?? 'Forbidden',",
       },
     ],
     tests,

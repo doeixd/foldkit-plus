@@ -890,9 +890,10 @@ data.
 
 `serveFetch` from `foldkit-remote-server/fetch` is that route as a value: a
 `(request: Request, env: Env) => Promise<Response>` for a Worker's `fetch`,
-or any other runtime that speaks `Request`/`Response`. The principal is
-resolved per request, and the Sources' requirements are provided per request
-from the environment:
+or any other runtime that speaks `Request`/`Response`. Each request is one
+Effect: `layer` is built from the environment, then `resolvePrincipal` says
+who is asking, then the request is answered as them. The resolver may need
+what `layer` provides (a session store, an auth service):
 
 ```ts
 import { serveFetch } from 'foldkit-remote-server/fetch'
@@ -900,16 +901,24 @@ import { serveFetch } from 'foldkit-remote-server/fetch'
 export default {
   fetch: serveFetch({
     server,
-    resolvePrincipal: request => ({ actorId: request.headers.get('x-actor') ?? 'anon' }),
+    resolvePrincipal: request =>
+      Effect.succeed({ actorId: request.headers.get('x-actor') ?? 'anon' }),
     layer: env => databaseLayer(drizzle(env.DB)),
   }),
 }
 ```
 
 Only `POST`s to `path` (default `/remote`) are answered; anything else is a 404. A body that is not JSON, or not a request, is a 400 that reaches no
-handler; a handler's failure a 500 with its message. A principal resolution
-that throws is a 401 with its message; anything else this side breaks,
-including layer provision, a 500 that says nothing of it.
+handler; a handler's failure a 500 with its message.
+
+A resolver refuses the caller by failing with
+`RemoteServer.unauthenticated(reason?)`: a 401 whose body is
+`{ error, unauthenticated: { reason? } }`, as `answer`'s 403 carries
+`forbidden`, and whose `reason` is the only thing the caller learns. Anything
+else this side breaks, the resolver's defects and the layer included, is a
+500 that says nothing of it. A visitor is not a refusal: resolve one to the
+principal your Sources treat as nobody, and refuse only a credential that was
+sent and no longer holds.
 
 A body that opens live (`{ operation: 'live', payload }`) is answered with
 the stream as `text/event-stream`: one `data:` frame per `LiveChange`, then

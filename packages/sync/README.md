@@ -303,7 +303,7 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
   sync: TodoSync,
   // A D1 journal as the durable D1 guide opens one.
   openJournal: (_ctx, env) => openTodosJournal(env.DB),
-  resolvePrincipal: request => request.headers.get('x-actor') ?? 'anon',
+  resolvePrincipal: request => Effect.succeed(request.headers.get('x-actor') ?? 'anon'),
 }) {}
 ```
 
@@ -324,8 +324,11 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   `openJournal` runs once, on the first upgrade: over D1 (`d1: true`, see
   [the durable D1 guide](../durable/README.md#on-cloudflare-d1-d1-true)), or
   the object's SQLite storage through `ctx`.
-- Each upgrade resolves its own principal; non-upgrades are 404s that open
-  nothing. A journal that never opened is a 500 that says nothing of it.
+- Each upgrade resolves its own principal, an Effect that refuses the caller
+  by failing with a `RemoteUnauthenticated` (`RemoteServer.unauthenticated()`
+  makes one): a 401 carrying its message. Non-upgrades are 404s that open
+  nothing. A resolver that breaks, or a journal that never opened, is a 500
+  that says nothing of it.
 - `settle: (env, journal) => Effect` runs after each exchange's appends, before
   the reply is read, to apply what committed elsewhere — the Remote tables a
   reader then queries. `journal.recover` makes it crash-safe and idempotent;

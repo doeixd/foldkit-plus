@@ -19,6 +19,7 @@ import {
   Remote,
   RemoteClient,
   RemoteForbidden,
+  RemoteUnauthenticated,
   RemoteLiveError,
   RemoteMutationError,
   RemoteProtocolError,
@@ -1348,6 +1349,18 @@ export const RemoteServer = {
   forbid: (reason?: string): RemoteForbidden =>
     new RemoteForbidden({
       message: reason ?? 'Forbidden',
+      ...(reason === undefined ? {} : { reason }),
+    }),
+
+  /**
+   * A refusal of a caller who could not be told: a `serveFetch` or
+   * `defineDocumentHost` resolver fails with it (`RemoteServer.unauthenticated()`)
+   * when the credential it was sent no longer holds. It answers 401, with
+   * `reason`, when given, for the person who asked.
+   */
+  unauthenticated: (reason?: string): RemoteUnauthenticated =>
+    new RemoteUnauthenticated({
+      message: reason ?? 'Unauthenticated',
       ...(reason === undefined ? {} : { reason }),
     }),
 

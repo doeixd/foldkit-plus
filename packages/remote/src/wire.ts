@@ -37,6 +37,20 @@ export class RemoteForbidden extends Schema.TaggedError<RemoteForbidden>()('Forb
   reason: Schema.optional(Schema.String),
 }) {}
 
+/**
+ * The server could not tell who is asking: a credential was sent and no
+ * longer holds, or none was sent where one is needed. Asking again as the
+ * same caller is refused again; signing in again is the remedy. `reason` is
+ * words for the person who asked; without it the refusal says nothing of why.
+ */
+export class RemoteUnauthenticated extends Schema.TaggedError<RemoteUnauthenticated>()(
+  'Unauthenticated',
+  {
+    message: Schema.String,
+    reason: Schema.optional(Schema.String),
+  },
+) {}
+
 export class RemoteLiveError extends Schema.TaggedError<RemoteLiveError>()('RemoteLiveError', {
   message: Schema.String,
 }) {}

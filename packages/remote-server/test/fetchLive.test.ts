@@ -53,7 +53,8 @@ const fixture = (heartbeat?: Duration.Input) => {
   const server = RemoteServer.make({ entities: [ItemSource], mutations: [RenameItemSource] })
   const fetch = serveFetch({
     server,
-    resolvePrincipal: request => (request.headers.get('x-admin') === 'yes' ? 'admin' : 'guest'),
+    resolvePrincipal: request =>
+      Effect.succeed(request.headers.get('x-admin') === 'yes' ? 'admin' : 'guest'),
     layer: () => Layer.empty,
     live: hub,
     ...(heartbeat === undefined ? {} : { liveHeartbeat: heartbeat }),
@@ -202,7 +203,7 @@ describe('serveFetch live', () => {
     const server = RemoteServer.make({ entities: [ItemSource] })
     const served = serveFetch({
       server,
-      resolvePrincipal: () => 'admin',
+      resolvePrincipal: () => Effect.succeed('admin'),
       layer: () => Layer.empty,
     })
     const response = await served(
@@ -307,7 +308,7 @@ describe('serveFetch live', () => {
     const server = RemoteServer.make({ entities: [ItemSource] })
     const served = serveFetch({
       server,
-      resolvePrincipal: () => 'admin',
+      resolvePrincipal: () => Effect.succeed('admin'),
       layer: () => Layer.empty,
       // A heartbeat far shorter than the wait: a stream that cannot end
       // keeps pinging through this whole second.

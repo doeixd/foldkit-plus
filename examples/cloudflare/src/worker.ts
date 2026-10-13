@@ -9,6 +9,7 @@
  *   its polling live source re-reads. What crosses requests here is D1;
  *   no in-memory push could reach another request's stream.
  */
+import { Effect } from 'effect'
 import { DurableObject } from 'cloudflare:workers'
 import type { D1Database, DurableObjectNamespace } from '@cloudflare/workers-types'
 import { defineDocumentHost } from 'foldkit-sync/do'
@@ -38,14 +39,14 @@ const answerRemote = serveFetch({
   server,
   // A short heartbeat: an idle stream must keep moving to survive.
   liveHeartbeat: '1 second',
-  resolvePrincipal: actorOf,
+  resolvePrincipal: request => Effect.succeed(actorOf(request)),
   layer: (env: WorkerEnv) => databaseFrom(env.DB),
 })
 
 export class SyncHost extends defineDocumentHost(DurableObject, {
   sync: Todos,
   openJournal: (_ctx, env: WorkerEnv) => openTodosJournal(env.DB),
-  resolvePrincipal: actorOf,
+  resolvePrincipal: request => Effect.succeed(actorOf(request)),
   settle: (env: WorkerEnv, journal) => settleTodos(journal, env.DB),
 }) {}
 
