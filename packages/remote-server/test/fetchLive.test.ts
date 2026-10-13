@@ -358,7 +358,7 @@ describe('serveFetch live, asking who it serves again', () => {
       },
       layer: () => Layer.empty,
       live: hub,
-      revalidate: { every: '20 millis', same: (opened, now) => opened === now },
+      revalidate: { every: '20 millis', key: principal => principal },
     })
     const open = () =>
       served(

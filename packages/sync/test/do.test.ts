@@ -67,7 +67,7 @@ const host = (
     readonly settle?: (env: unknown, journal: unknown) => Effect.Effect<void, unknown>
     readonly revalidate?: {
       readonly every: Duration.Input
-      readonly same?: (opened: string, now: string) => boolean
+      readonly key?: (principal: string) => unknown
     }
     /** Sockets that close as a worker's do: see `FakeWebSocket.linked`. */
     readonly lingering?: boolean
@@ -328,7 +328,7 @@ describe('defineDocumentHost, asking who a socket serves again', () => {
           ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
           : Effect.succeed(principal)
       },
-      revalidate: { every: '10 millis', same: (opened, now) => opened === now },
+      revalidate: { every: '10 millis', key: principal => principal },
       lingering: true,
     })
     return { ...hosted, sessions, asked: () => asked }

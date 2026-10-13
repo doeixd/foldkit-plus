@@ -28,11 +28,12 @@ version changed; `pnpm` skips versions already in the registry.
   config's `resources`; where both provide a service, the post's is used, so
   a Command reads as who posted.
 
-- **`serveFetch` and `defineDocumentHost` take `revalidate: { every, same?
+- **`serveFetch` and `defineDocumentHost` take `revalidate: { every, key?
   }`.** While a live stream or a socket is open, the resolver is asked again,
   of the request it opened with: a refusal ends the stream with
   `Unauthenticated` (an `event: error` frame the client reads back as it) or
-  closes the socket with 4401, and a principal `same` says changed ends the
+  closes the socket with 4401, and a principal whose `key` (as `liveHub`'s,
+  `Policy.keyOf` with guards) changed ends the
   stream as a live error, or closes the socket with 1012, to be opened again
   as the new principal. A revoked session stops being served within one
   interval; the clients do not yet tell these closes apart, so a replica

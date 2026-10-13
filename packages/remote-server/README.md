@@ -927,13 +927,13 @@ else this side breaks, the resolver's defects and the layer included, is a
 principal your Sources treat as nobody, and refuse only a credential that was
 sent and no longer holds.
 
-`revalidate: { every, same? }` asks `resolvePrincipal` again, of the same
+`revalidate: { every, key? }` asks `resolvePrincipal` again, of the same
 request, every `every` while a live stream is open. A refusal ends the
-stream with `Unauthenticated`; a principal `same` says differs from the one it
-opened with ends it as a live error, which the client opens again after, as
-the new principal. Without it a stream serves the principal it opened with,
-a revoked session included, until it closes. With guards,
-`same: (opened, now) => Policy.keyOf(opened) === Policy.keyOf(now)`.
+stream with `Unauthenticated`; a principal whose `key` differs from the one
+it opened with ends it as a live error, which the client opens again after,
+as the new principal. `key` is who a principal is, as `liveHub`'s `key`:
+with guards, `key: Policy.keyOf`. Without `revalidate` a stream serves the
+principal it opened with, a revoked session included, until it closes.
 
 A body that opens live (`{ operation: 'live', payload }`) is answered with
 the stream as `text/event-stream`: one `data:` frame per `LiveChange`, then

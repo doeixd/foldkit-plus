@@ -329,10 +329,10 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   makes one): a 401 carrying its message. Non-upgrades are 404s that open
   nothing. A resolver that breaks, or a journal that never opened, is a 500
   that says nothing of it.
-- `revalidate: { every, same? }` asks the resolver again, of the upgrade
+- `revalidate: { every, key? }` asks the resolver again, of the upgrade
   request, while the socket is open: a refusal closes it with 4401, and a
-  principal `same` says changed with 1012, which the replica reconnects
-  after. Without it a socket serves its first principal until it closes.
+  principal whose `key` (`Policy.keyOf`) changed with 1012, which the
+  replica reconnects after. Without it a socket serves its first principal until it closes.
 - `settle: (env, journal) => Effect` runs after each exchange's appends, before
   the reply is read, to apply what committed elsewhere — the Remote tables a
   reader then queries. `journal.recover` makes it crash-safe and idempotent;

@@ -304,7 +304,7 @@ opened once on the first upgrade (D1 with `d1: true`, or object storage),
 non-upgrades are 404s, and the replica side is the socket transport it
 already speaks (`Sync.transport.socket({ url })`). `resolvePrincipal` is an
 Effect refusing with `RemoteUnauthenticated` (a 401); `revalidate: { every,
-same? }` asks it again while the socket is open, closing with 4401 on a
+key? }` asks it again while the socket is open, closing with 4401 on a
 refusal and 1012 on a changed principal. `settle: (env, journal) =>
 Effect` runs after each exchange's appends to apply what committed elsewhere
 (`journal.recover` makes it idempotent). `Sync.transport.workerSocket` wraps an

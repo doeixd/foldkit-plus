@@ -147,7 +147,7 @@ const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the
 // Remote.http sends, and a live open with a text/event-stream of changes
 // (Remote.httpWithLive). resolvePrincipal is an Effect per request that may
 // need what layer(env) provides; failing with RemoteServer.unauthenticated(reason?)
-// answers 401 { error, unauthenticated: { reason? } }. revalidate: { every, same? }
+// answers 401 { error, unauthenticated: { reason? } }. revalidate: { every, key? }
 // asks again while a live stream is open: a refusal ends it as Unauthenticated. Every stream heartbeats, so an idle one survives. A
 // worker cannot wake another request's stream, so a LiveHub fed from a second
 // request reaches nobody there: poll the durable store (D1) from inside the

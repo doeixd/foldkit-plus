@@ -13,7 +13,7 @@ export default [
   },
   {
     name: 'a socket serves a changed principal on',
-    edits: [{ file, find: 'same === undefined || same(principal, now)', replace: 'true' }],
+    edits: [{ file, find: 'key === undefined || key(principal) === key(now)', replace: 'true' }],
     tests,
   },
   {

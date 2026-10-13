@@ -23,7 +23,7 @@ export default [
     edits: [
       {
         file,
-        find: 'revalidate.same === undefined || revalidate.same(opened, now)',
+        find: 'revalidate.key === undefined || revalidate.key(opened) === revalidate.key(now)',
         replace: 'true',
       },
     ],

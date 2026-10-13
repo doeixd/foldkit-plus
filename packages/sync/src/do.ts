@@ -77,15 +77,16 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env> {
   /**
    * Asks `resolvePrincipal` again, of the upgrade request, every `every`
    * while the socket is open: a refusal closes it with 4401, and a principal
-   * `same` says is not the one it opened with closes it with 1012, which the
-   * replica reconnects after, as the new principal. Without it a socket
+   * whose `key` differs from the one it opened with (`Policy.keyOf`) closes
+   * it with 1012, which the replica reconnects after, as the new principal;
+   * without `key` only a refusal closes it. Without it a socket
    * serves the principal it opened with until it closes, a revoked session
    * included.
    */
   readonly revalidate?:
     | {
         readonly every: Duration.Input
-        readonly same?: ((opened: Principal, now: Principal) => boolean) | undefined
+        readonly key?: ((principal: Principal) => unknown) | undefined
       }
     | undefined
   /** Whether `principal` may open the document. See `journalExchange`'s `opens`. */
@@ -208,12 +209,12 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
           : { admit: (operation: Operation) => admit(principal, operation) }),
       })
       if (config.revalidate !== undefined) {
-        const { every, same } = config.revalidate
+        const { every, key } = config.revalidate
         const checking = Effect.sleep(every).pipe(
           // Called each time: a resolver may decide when called, not when its Effect runs.
           Effect.andThen(() => config.resolvePrincipal(request, this.hostEnv)),
           Effect.flatMap(now =>
-            same === undefined || same(principal, now) ? Effect.void : Effect.fail(changed),
+            key === undefined || key(principal) === key(now) ? Effect.void : Effect.fail(changed),
           ),
           Effect.forever,
           Effect.catchCause(cause =>

@@ -60,16 +60,18 @@ export interface FetchConfig<P, R, Env, RP = never> {
   /**
    * Asks `resolvePrincipal` again, of the same request, every `every` while a
    * live stream is open. A refusal ends the stream with `Unauthenticated`,
-   * which the client reads as a lost session; a principal `same` says is not
-   * the one the stream opened with ends it as a live error, which the client
-   * opens again after, as the new principal. Without it a stream serves the
-   * principal it opened with until it closes, a revoked session included.
+   * which the client reads as a lost session; a principal whose `key`
+   * differs from the one the stream opened with (`Policy.keyOf`, as
+   * `liveHub`'s `key`) ends it as a live error, which the client opens again
+   * after, as the new principal; without `key` only a refusal ends it.
+   * Without `revalidate` a stream serves the principal it opened with until
+   * it closes, a revoked session included.
    * `every` must be longer than zero: each pass asks the session store.
    */
   readonly revalidate?:
     | {
         readonly every: Duration.Input
-        readonly same?: ((opened: P, now: P) => boolean) | undefined
+        readonly key?: ((principal: P) => unknown) | undefined
       }
     | undefined
   /** A heartbeat comment every this often, keeping idle streams alive through proxies. Default 15 seconds. */
@@ -233,7 +235,7 @@ export const serveFetch = <P, R, Env, RP = never>(
     return Stream.fromSchedule(Schedule.spaced(revalidate.every)).pipe(
       Stream.mapEffect(() => config.resolvePrincipal(request, env)),
       Stream.mapEffect(now =>
-        revalidate.same === undefined || revalidate.same(opened, now)
+        revalidate.key === undefined || revalidate.key(opened) === revalidate.key(now)
           ? Effect.void
           : Effect.fail(
               new RemoteLiveError({ message: 'Who is asking changed: open the stream again' }),
