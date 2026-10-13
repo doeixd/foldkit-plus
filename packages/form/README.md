@@ -368,6 +368,9 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   ```
 - Each edit asks again after `debounce`, and an answer for a draft the key no
   longer holds is dropped.
+- The ask is the form's Command `PostForm.Check` (named `PostForm.check`), a
+  Command definition like any other, so a Scene or Story resolves it with
+  `Command.resolve(PostForm.Check, PostForm.Message.Checked({ key, draft, error }))`.
 - **A submit waits.** Submitted while a check runs, the form sets `submitPending`
   and sends the value when the last check passes, or nothing if one fails. An
   edit in between cancels the wait. A filled form (`fill` validates nothing) is

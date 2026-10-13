@@ -19,7 +19,7 @@ import {
   type SchemaWords,
 } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
-import { type Command, mapMessages } from 'foldkit/command'
+import { type Command, define as defineCommand, mapMessages } from 'foldkit/command'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -935,6 +935,33 @@ const Core = {
       (options.checks ?? {}) as never
     const debounce = options.debounce ?? '300 millis'
 
+    /**
+     * A key's check, after the debounce: a Command definition, so a test matches
+     * it as it would any other (`Command.resolve(form.Check, form.Message.Checked(…))`).
+     * Its args carry all the check reads, the values and the subject as the key
+     * was asked about.
+     */
+    const Check = defineCommand(`${name}.check`, {
+      args: {
+        key: KeySchema,
+        draft: DraftSchema,
+        values: Schema.Unknown,
+        subject: Schema.Record(Schema.String, Schema.String),
+      },
+      messages: [Message.Checked],
+      execute: ({ key, draft, values, subject }) =>
+        Effect.sleep(debounce).pipe(
+          Effect.andThen(
+            // Asked only for a key with a check, by `validateKey`.
+            checks[key as Key]!(Result.getOrUndefined(plans[key as Key].check(draft)), {
+              values: values as Partial<Value>,
+              subject,
+            }),
+          ),
+          Effect.map(error => Message.Checked({ key, draft, error: error ?? null })),
+        ),
+    })
+
     /** What currently decodes, by key: the context of a check, and the makings of the value. */
     const decoded = (model: Model): Partial<Value> =>
       Object.fromEntries(
@@ -1034,18 +1061,14 @@ const Core = {
         return { model: withField(model, key, state), commands: [] }
       }
       const asking = withField(model, key, FieldValidation.Validating({ value: draft }))
-      const value = Result.getOrUndefined(plans[key].check(draft))
       return {
         model: asking,
         commands: [
-          {
-            name: `${name}.check`,
-            args: { key },
-            effect: Effect.sleep(debounce).pipe(
-              Effect.andThen(check(value, { values: decoded(asking), subject: model.subject })),
-              Effect.map(error => Message.Checked({ key, draft, error: error ?? null })),
-            ),
-          } as Command<Message, never, R>,
+          Check({ key, draft, values: decoded(asking), subject: model.subject }) as Command<
+            Message,
+            never,
+            R
+          >,
         ],
       }
     }
@@ -1499,6 +1522,8 @@ const Core = {
       } as Pipeable.Pipeable),
       bundle,
       Message,
+      /** The Command a key's check runs as, for a test to resolve (`Command.resolve(form.Check, …)`). */
+      Check,
       /** The reading the form was made from, for `Entity.selectFor` and `Entity.valuesFor`. */
       input,
       /** Whether a completed transition changed authored content. See the note above. */

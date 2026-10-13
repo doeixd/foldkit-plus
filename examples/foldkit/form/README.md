@@ -82,7 +82,7 @@ becomes `joinWaitlist`.
 - **Messages.** The three `Updated*` Messages, `CompletedValidateEmail` and
   `ClickedFormSubmit` are the form's `Changed`, `Checked` and `Submitted`,
   carried by `GotFormMessage`; the check is the form's Command
-  `Waitlist.check`, not `ValidateEmail`.
+  `WaitlistForm.Check` (`Waitlist.check`), not `ValidateEmail`.
 - **Ids** are the input's keys, so the message box is `messageText`.
 - **The `◐` turns.** Upstream asks Tailwind to spin an inline span, which a
   transform leaves still.

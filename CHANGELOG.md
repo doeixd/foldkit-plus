@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-form`: `form.Check`, the Command a key's check runs as.** A
+  definition (`Command.define('<form>.check', …)`) rather than an inline
+  Command, so a test resolves it with `Command.resolve(form.Check, …)` instead
+  of hand-building `{ name: '<form>.check', args: { key }, effect }`.
+
 ### Changed
 
 - **`foldkit-bundle`: a wiring's own tags leave the parent's own update.**

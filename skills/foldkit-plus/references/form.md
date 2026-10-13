@@ -94,6 +94,8 @@ const RenameForm = Page.at(Slot, {
   requirements become the Bundle's — but a check that needs something must be added
   with the `Form.checks` step (`form.pipe(Form.checks({ slug: ask }))`), not in
   `Form.make`'s options, where `R` infers as `never` and the check is refused.
+  The ask is the Command `form.Check`; a test resolves it with
+  `Command.resolve(form.Check, form.Message.Checked({ key, draft, error }))`.
   `{ values }` is what else decodes; `{ subject }`
   is what the form edits but its values do not carry (a post's row id), set once with
   `Message.About({ subject: { id } })` and read with `form.subject(model)` — `{}` while

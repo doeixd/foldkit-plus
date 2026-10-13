@@ -88,7 +88,7 @@ npx vitest run examples/foldkit/job-application   # from the repository root
   `CompletedValidateEmailAsync` are the form's `Changed` and `Checked`, carried
   by each step's or entry's `GotFormMessage`; `emailValidationId` is gone, as
   the form drops an answer for an email since edited. The check is the form's
-  Command `PersonalInfo.check`, not `ValidateEmailAsync`.
+  Command `PersonalInfoForm.Check` (`PersonalInfo.check`), not `ValidateEmailAsync`.
 - **A submit asks about a well-formed email not checked yet** rather than
   taking it as valid, and the notice names Personal Info until the answer
   comes. Upstream's `revealFieldErrors` marks it valid without asking. The

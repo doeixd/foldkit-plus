@@ -1,5 +1,5 @@
 import { Menu, Tabs } from '@foldkit/ui'
-import { Array, Effect, Option } from 'effect'
+import { Array, Option } from 'effect'
 import { Calendar } from 'foldkit'
 import { type Field, Valid } from 'foldkit/fieldValidation'
 import { modifyFields } from 'foldkit/struct'
@@ -89,16 +89,8 @@ export const typedPersonalInfo = (
 
 type PersonalInfoFormMessage = typeof PersonalInfo.PersonalInfoForm.Message.Type
 
-/**
- * The form's email check, matched by name and args as Story and Scene match a
- * Command instance: `foldkit-form` builds the Command itself (`<form>.check`)
- * and exports no Definition to match it by. The effect is never run.
- */
-export const ValidateEmail: {
-  readonly name: string
-  readonly args: { readonly key: 'email' }
-  readonly effect: Effect.Effect<PersonalInfoFormMessage>
-} = { name: 'PersonalInfo.check', args: { key: 'email' }, effect: Effect.never }
+/** The form's email check: its Command definition, which Story and Scene match by name. */
+export const ValidateEmail = PersonalInfo.PersonalInfoForm.Check
 
 /**
  * The check's answer for `email`: in use, or free. Story and Scene wrap it for

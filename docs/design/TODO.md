@@ -758,7 +758,8 @@ its README the details.
   `form.isValid`, `Message.ValidatedAll()`.
 - [ ] **Form: no Command definition for a check that tests can match** (still
   an inline `{ name: '<form>.check', args: { key } }`), and `Form.make`
-  requires an Entity for a plain form. `foldkit-form`
+  requires an Entity for a plain form. `foldkit-form` The first half is done
+  (2026-10-13): `form.Check` is a definition, and the ports resolve it.
 - [x] **Form: `engine.value` drops a filled but invalid optional key** that is
   not validated yet, instead of refusing, reached by `fill` then
   `engine.value` (a submit validates first; `isValid` is right). Fixed

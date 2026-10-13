@@ -1,4 +1,4 @@
-import { Effect, Option } from 'effect'
+import { Option } from 'effect'
 import { FieldValidation } from 'foldkit'
 import { modifyFields } from 'foldkit/struct'
 
@@ -26,16 +26,8 @@ export const validModel: Model = withFields({
   email: FieldValidation.Valid({ value: 'alice@example.com' }),
 })
 
-/**
- * The form's waitlist check, matched by name and args as Story and Scene match
- * a Command instance: `foldkit-form` builds the Command itself (`<form>.check`)
- * and exports no Definition to match it by. The effect is never run.
- */
-export const CheckEmail: {
-  readonly name: string
-  readonly args: { readonly key: 'email' }
-  readonly effect: Effect.Effect<FormMessage>
-} = { name: 'Waitlist.check', args: { key: 'email' }, effect: Effect.never }
+/** The form's waitlist check: its Command definition, which Story and Scene match by name. */
+export const CheckEmail = WaitlistForm.Check
 
 /** The check's answer for `email`: taken, or free. The form wraps it for the page. */
 export const checked = (email: string, error: Option.Option<string>): FormMessage =>

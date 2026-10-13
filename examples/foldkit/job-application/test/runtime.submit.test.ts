@@ -36,4 +36,6 @@ test('submits a complete application', async () => {
   await vi.waitFor(() => expect(text()).toContain('Submitting...'))
   expect(text()).not.toContain('before submitting.')
   await vi.waitFor(() => expect(text()).toContain('Application Submitted!'), { timeout: 3000 })
-})
+  // Six steps through the real runtime take about 3s alone, past the default 5s
+  // under a full suite's load.
+}, 30_000)
