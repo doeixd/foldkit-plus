@@ -204,7 +204,7 @@ Auth.remote(server)              // HttpRouter route Layer: POST /remote and the
 Auth.fetch(server, layer)        // the same as a Web handler, for Workers and Vite (HttpRouter.toWebHandler)
 Auth.me                          // Me's Source, from the request's session and the Policy
 Auth.socket                      // a PrincipalResolver for Sync's upgrade and agent-mcp: cookie or bearer, verifySession
-Auth.ssr                         // SSR.entry's `provide`: AuthRequest and G.Principal for the render
+Auth.ssr                         // a render's principal, through SSR.entry's `flags` (§5.4: no `provide` reaches a render)
 ```
 
 Per Remote request, in order:
@@ -260,7 +260,7 @@ Site.access(Projects, {
 ```
 
 - It reads `Me` through a Surface, so it is pure, testable, and never a security boundary: the rows behind `/projects` are still guarded by the server.
-- SSR honours the same rule with a 303 to `otherwise` before rendering, which needs `SSR.entry`'s `provide` (§5.4) to read `Me` for the request.
+- SSR honours the same rule with a 303 to `otherwise` before rendering. As built (§5.4) a render runs no Command and nothing is provided to it, so the host resolves `Me` for the request in `flags`, or answers the 303 itself before calling `renderPage`; slice 10 decides which.
 - While `Me` is loading the route draws its loading state, not the sign-in page, so a slow read never flashes "Sign in" at a signed-in user.
 
 ### 6.6 Agents

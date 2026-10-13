@@ -48,4 +48,33 @@ export default [
     ],
     tests,
   },
+  {
+    name: "a post's resources are never closed",
+    edits: [
+      {
+        file,
+        find: 'yield* Layer.build(options.resources)',
+        replace: 'yield* Layer.buildWithScope(options.resources, Scope.makeUnsafe())',
+      },
+      {
+        file,
+        find: "import { Cause, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'",
+        replace:
+          "import { Cause, Context, Effect, Exit, Layer, Option, Result, Schema, Scope } from 'effect'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a post's resources are built before it is read",
+    edits: [
+      {
+        file,
+        find: "      if (plan.fallback !== 'server' || plan.Message === undefined) {",
+        replace:
+          "      if (options.resources !== undefined) yield* Layer.build(options.resources)\n      if (plan.fallback !== 'server' || plan.Message === undefined) {",
+      },
+    ],
+    tests,
+  },
 ]

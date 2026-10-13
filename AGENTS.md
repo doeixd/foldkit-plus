@@ -1000,6 +1000,11 @@ of its own named a form field "fits the Catalog". Read words with
 
 **Tests**
 
+- **A mutation that names what the file does not import is killed by a
+  `ReferenceError`.** `Layer.buildWithScope(…, Scope.makeUnsafe())` in a file
+  importing no `Scope` failed every test at once, and read as a kill. Add the
+  import as a second edit of the same mutation, and check which tests killed
+  it and why (`--only`).
 - **A mutation killed by a red test proves nothing.** A test added between
   two mutation runs was already failing, so the second run "killed" its
   mutation for free. Confirm the suite is green before each run; `pnpm

@@ -1082,7 +1082,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * A posted form's own services, from its request (who is asking, a
      * client bound to them), for the Commands the fallback runs; where one is
      * also the config's, the request's is used. A render runs no Command, so
-     * it reads the request through `flags`.
+     * it reads the request through `flags`. The Layer may neither fail nor
+     * need a service: one that refuses who is asking (a session that ended)
+     * decides before this, in the host, or dies here into a 500.
      */
     readonly resources?: ((request: Request) => Layer.Layer<never, never, never>) | undefined
     /**

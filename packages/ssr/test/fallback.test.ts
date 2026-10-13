@@ -100,6 +100,38 @@ describe('SSR.handle through handleRequest', () => {
     expect(await response.text()).toContain('<p id="noted">14</p>')
   })
 
+  it.each([
+    ['answered', { title: 'Milk', [FALLBACK_FIELD]: added }, 200, ['acquire', 'release']],
+    [
+      'whose Commands never settle',
+      { [FALLBACK_FIELD]: JSON.stringify(Message.Polled()) },
+      500,
+      ['acquire', 'release'],
+    ],
+    ['refused before it runs', { [FALLBACK_FIELD]: 'not json' }, 400, []],
+  ])("builds a post's resources for it alone: %s", async (_, fields, status, log) => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const seen: Array<string> = []
+    const owning = SSR.entry(config, plan, {
+      buildId: 'b',
+      resources: () =>
+        Layer.effect(
+          Counter,
+          Effect.acquireRelease(
+            Effect.sync(() => {
+              seen.push('acquire')
+              return { count: (of: number) => of * 2 }
+            }),
+            () => Effect.sync(() => void seen.push('release')),
+          ),
+        ),
+    })
+    const response = await serve(post(fields), owning)
+    expect(response.status).toBe(status)
+    expect(seen).toEqual(log)
+    logged.mockRestore()
+  })
+
   it('folds nothing for a Command that yields no Message, and still answers the page', async () => {
     const response = await serve(post({ [FALLBACK_FIELD]: JSON.stringify(Message.Pinged()) }))
     expect(response.status).toBe(200)
