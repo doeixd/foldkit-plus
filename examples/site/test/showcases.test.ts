@@ -51,7 +51,7 @@ describe('the showcases', () => {
     const [tone] = button.axes
     expect(valueOf(tone!, { tone: 'danger' })).toBe('danger')
     expect(valueOf(tone!, { tone: 'plaid' })).toBe('accent')
-    expect(valueOf(tone!, JSON.parse('{"__proto__": {"tone": "danger"}}'))).toBe('accent')
+    expect(valueOf(tone!, Object.create({ tone: 'danger' }))).toBe('accent')
   })
 
   it('draw another look for another value, and the same for an unknown one', () => {

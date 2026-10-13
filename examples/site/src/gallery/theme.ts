@@ -206,11 +206,21 @@ export const declared = declarationsOf(themeOf(defaults))
  */
 const KNOB_GROUPS: ReadonlySet<string> = new Set(['knob', 'font'])
 
+/** The last overrides made: every preview on a page asks for the same ones, render after render. */
+let last:
+  | { readonly knobs: Knobs; readonly scheme: Scheme; readonly style: Record<string, string> }
+  | undefined
+
 /** The inline overrides that turn the default preview into `knobs`. */
-export const knobStyleOf = (knobs: Knobs, scheme: Scheme): Record<string, string> => ({
-  ...declarationsOf(themeOf(knobs), KNOB_GROUPS),
-  colorScheme: scheme === 'system' ? 'light dark' : scheme,
-})
+export const knobStyleOf = (knobs: Knobs, scheme: Scheme): Record<string, string> => {
+  if (last !== undefined && last.knobs === knobs && last.scheme === scheme) return last.style
+  const style = {
+    ...declarationsOf(themeOf(knobs), KNOB_GROUPS),
+    colorScheme: scheme === 'system' ? 'light dark' : scheme,
+  }
+  last = { knobs, scheme, style }
+  return style
+}
 
 const indent = (text: string, by: string) =>
   text
