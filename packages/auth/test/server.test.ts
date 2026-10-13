@@ -482,6 +482,22 @@ describe('AuthServer.answered and believing, end to end', () => {
     })
   })
 
+  it('names a principal whose key no header could carry as it is', async () => {
+    const named = serveFetch({
+      server,
+      resolvePrincipal: AuthServer.resolver({ ...config, key: () => 'Ada Lovelace, 日本' }),
+      headers: AuthServer.answered({ key: () => 'Ada Lovelace, 日本' }),
+      layer: () => App.layer.pipe(Layer.provide(Layer.succeedContext(services)), Layer.orDie),
+    })
+    const tab = believing((input, init) => named(new Request(input, init), undefined))
+    expect(await read(tab, Option.some(ada))).toMatchObject({
+      status: 200,
+      said: 'subject:Ada%20Lovelace%2C%20%E6%97%A5%E6%9C%AC',
+    })
+    // And the next read, repeating it, is answered: the check reads it the same way.
+    expect((await read(tab, Option.some(ada))).status).toBe(200)
+  })
+
   it('believes no one after forget, for a change this client made', async () => {
     const tab = client()
     await read(tab, Option.none())
@@ -535,6 +551,37 @@ describe('believing', () => {
     await tab.fetch('https://app.test/remote')
     await tab.fetch('https://app.test/remote', { headers: { [SUBJECT_HEADER]: 'visitor' } })
     expect(sent).toEqual([null, 'visitor'])
+  })
+
+  it('believes no answer to a request sent before a forget or a 401', async () => {
+    const sent: Array<string | null> = []
+    const answers: Array<(response: Response) => void> = []
+    const tab = believing(
+      (_, init) =>
+        new Promise(resolve => {
+          sent.push(new Headers(init?.headers).get(SUBJECT_HEADER))
+          answers.push(resolve)
+        }),
+    )
+    const said = (who: string, status = 200) =>
+      new Response('{}', { status, headers: { [SUBJECT_HEADER]: who } })
+    // A visitor's read is in flight when this tab signs in and forgets.
+    const stale = tab.fetch('https://app.test/remote')
+    tab.forget()
+    const fresh = tab.fetch('https://app.test/remote')
+    answers[1]!(said('subject:ada'))
+    await fresh
+    answers[0]!(said('visitor'))
+    await stale
+    // So too after a 401: an answer to what was sent before it is stale.
+    const before = tab.fetch('https://app.test/remote')
+    const refused = tab.fetch('https://app.test/remote')
+    answers[3]!(said('subject:grace', 401))
+    await refused
+    answers[2]!(said('subject:ada'))
+    await before
+    void tab.fetch('https://app.test/remote')
+    expect(sent).toEqual([null, null, 'subject:ada', 'subject:ada', null])
   })
 
   it("keeps a Request's own headers", async () => {

@@ -144,7 +144,7 @@ What some calls do, and do not:
 | Signed out while on `/notes` | `update` replaces the address with the home page's |
 | A wrong password | the sign-in form, with "That email and password do not match." |
 | A sign-in or sign-out that fails otherwise (the network, the server) | "Could not sign in. Try again." (or sign out); after a failed sign-out the page asks `Me` again, as the server may have signed out |
-| Signed out in another tab | the broadcast: this tab forgets and reads `Me` again, as a visitor |
+| Signed out in another tab | the broadcast: this tab lets go of its belief (`ForgetBelief`), then forgets and reads `Me` again, as a visitor |
 | A read that left before that broadcast arrived | refused (`SUBJECT_CHANGED`), never answered as the other account; this tab forgets and reads again |
 | A cookie the server no longer knows (a restart, an expired session) | the read fails as `Unauthenticated` (`RemoteData.denied`): "Your session ended. Sign in again." and the form |
 | A browser without `BroadcastChannel` | the other tabs are not told until they read again; this tab says so |

@@ -166,8 +166,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'if (response.status === 401) believed = Option.none()',
-        replace: 'if (false) believed = Option.none()',
+        find: '      if (response.status === 401) {\n        believed = Option.none()',
+        replace: '      if (response.status === 401) {\n        void 0',
       },
     ],
     tests,
@@ -189,8 +189,9 @@ export default [
     edits: [
       {
         file: index,
-        find: 'else if (said !== null) believed = Option.some(said)',
-        replace: 'else believed = said === null ? Option.none() : Option.some(said)',
+        find: '} else if (said !== null && asked === epoch) believed = Option.some(said)',
+        replace:
+          '} else if (asked === epoch) believed = said === null ? Option.none() : Option.some(said)',
       },
     ],
     tests,
@@ -201,7 +202,7 @@ export default [
       {
         file: index,
         find: '    forget: () => {\n      believed = Option.none()',
-        replace: '    forget: () => {\n      void 0',
+        replace: '    forget: () => {\n      void believed',
       },
     ],
     tests,
@@ -231,6 +232,40 @@ export default [
   {
     name: 'a changed subject is refused for another reason',
     edits: [{ file, find: 'refuse(SUBJECT_CHANGED)', replace: "refuse('changed')" }],
+    tests,
+  },
+  {
+    name: 'an answer to a stale request is believed',
+    edits: [{ file: index, find: ' && asked === epoch', replace: '' }],
+    tests,
+  },
+  {
+    name: 'forget leaves the epoch where it was',
+    edits: [
+      {
+        file: index,
+        find: '      believed = Option.none()\n      epoch += 1\n    },',
+        replace: '      believed = Option.none()\n    },',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a 401 leaves the epoch where it was',
+    edits: [
+      {
+        file: index,
+        find: '        believed = Option.none()\n        epoch += 1\n      } else',
+        replace: '        believed = Option.none()\n      } else',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the subject is sent as it is',
+    edits: [
+      { file: index, find: '`subject:${encodeURIComponent(id)}`', replace: '`subject:${id}`' },
+    ],
     tests,
   },
 ]

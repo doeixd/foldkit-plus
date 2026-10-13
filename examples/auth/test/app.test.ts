@@ -75,14 +75,18 @@ describe('a change of principal', () => {
     ])
   })
 
-  it("forgets what was read on another tab's post, and keeps what was typed", () => {
-    const returned = update(
+  it("lets go of its belief on another tab's post, then forgets what was read", () => {
+    const heard = update(
       read,
       Message.GotBroadcastMessage({ message: BroadcastMessage.Received({ data: 'another tab' }) }),
     )
-    expect([meOf(returned.model), notesOf(returned.model)]).toEqual(['Initial', 'Initial'])
-    expect(returned.model.password).toBe('ada password')
-    expect(commandsOf(returned)).toEqual([])
+    // The belief first: a read sent with the old one would be refused once more.
+    expect(heard.model).toBe(read)
+    expect(commandsOf(heard).map(command => command.name)).toEqual(['ForgetBelief'])
+    const forgot = update(heard.model, Message.ForgotBelief())
+    expect([meOf(forgot.model), notesOf(forgot.model)]).toEqual(['Initial', 'Initial'])
+    expect(forgot.model.password).toBe('ada password')
+    expect(commandsOf(forgot)).toEqual([])
   })
 
   it.each([
@@ -92,7 +96,9 @@ describe('a change of principal', () => {
       BroadcastMessage.Received({ data: TAB }),
     ],
   ])('changes nothing when %s', (_, message) => {
-    expect(update(read, Message.GotBroadcastMessage({ message })).model).toBe(read)
+    const returned = update(read, Message.GotBroadcastMessage({ message }))
+    expect(returned.model).toBe(read)
+    expect(commandsOf(returned)).toEqual([])
   })
 
   it('says so when the other tabs could not be told, and keeps what was read', () => {

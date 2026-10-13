@@ -92,7 +92,38 @@ describe('Site.accessOf', () => {
       },
     })
     expect(() => Site.accessOf(Site.make(Looping), AppRoute.Admin(), member)).toThrow(
-      "Admin's access sends a refused reader back to /loop",
+      "Admin's access sends a refused reader to /loop, which it also covers",
+    )
+  })
+
+  it('refuses a rule whose target it covers at another address, which would grow for ever', () => {
+    // The sign-in page mounted under the rule it serves: each refusal returns
+    // to the last, so no two addresses agree.
+    const Guarded = Site.node(pipe(root, mapTo(AppRoute.Home)), AppRoute.Home).access<Me>({
+      allow: me => me.signedIn,
+      otherwise: toSignIn,
+    }).node
+    const Under = Site.make(Site.mount(Guarded, [SignIn]))
+    expect(() =>
+      Site.accessOf(Under, AppRoute.SignIn({ returnTo: Option.none() }), visitor),
+    ).toThrow("Home's access sends a refused reader to /sign-in?returnTo=%2Fsign-in")
+  })
+
+  it('decides root first: the outermost rule that refuses sends the reader', () => {
+    const Inner = Site.route(
+      pipe(literal('projects'), slash(string('projectId')), mapTo(AppRoute.Project)),
+      AppRoute.Project,
+      { access: { allow: (me: Me) => me.admin, otherwise: () => Site.target(Home, {}) } },
+    )
+    const Nested = Site.make(Home, SignIn, Site.mount(Projects, [Inner]))
+    expect(Site.accessOf(Nested, AppRoute.Project({ projectId: 'p1' }), visitor)).toEqual(
+      Access.Denied({ url: '/sign-in?returnTo=%2Fprojects%2Fp1' }),
+    )
+  })
+
+  it("waits for the reader under an ancestor's rule too", () => {
+    expect(Site.accessOf(AppSite, AppRoute.Project({ projectId: 'p1' }), Option.none())).toEqual(
+      Access.Pending(),
     )
   })
 })

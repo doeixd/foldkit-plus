@@ -194,8 +194,12 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
    * the nodes below it. Undeclared up the whole chain, a node is indexed.
    */
   readonly indexed?: boolean | undefined
-  /** Who may be shown this node and the nodes below it: see `Site.accessOf`. */
-  readonly access?: NodeAccess | undefined
+  /**
+   * Who may be shown this node and the nodes below it: see `Site.accessOf`.
+   * Held as `never` for its reader, so a rule given in the options must
+   * name the reader it reads (`allow: (me: Me) => …`).
+   */
+  readonly access?: NodeAccess<never> | undefined
 }
 
 /**
@@ -203,7 +207,7 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
  * authorization: the server guards what the page reads whatever this says.
  * `Who` is what the application knows of the reader (its `Me` row, say).
  */
-export interface NodeAccess<Who = any> {
+export interface NodeAccess<Who> {
   readonly allow: (who: Who) => boolean
   /** Where a reader `allow` refuses goes, given the address they asked for (a sign-in page returning to it). */
   readonly otherwise: (requested: string) => SiteTarget<any>
@@ -287,7 +291,7 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
   /** Whether search engines index this node and the nodes below it. */
   indexed(indexed: boolean): NodeBuilder<Route>
   /** Who may be shown this node and the nodes below it, and where anyone else goes. */
-  access<Who = any>(access: NodeAccess<Who>): NodeBuilder<Route>
+  access<Who>(access: NodeAccess<Who>): NodeBuilder<Route>
   /** The Surface this route activates. */
   surface<SRoot, SModel, SMessage, SParams>(config: {
     readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
@@ -466,7 +470,7 @@ export const Site = {
       readonly view?: NodeView | undefined
       readonly meta?: NodeMeta<Route> | undefined
       readonly indexed?: boolean | undefined
-      readonly access?: NodeAccess | undefined
+      readonly access?: NodeAccess<never> | undefined
       readonly surface?:
         | {
             readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
@@ -791,13 +795,15 @@ export const Site = {
       const { access } = node
       if (access === undefined) continue
       if (Option.isNone(who)) return Access.Pending()
-      if (access.allow(who.value)) continue
-      const requested = Site.hrefOf(site, route)
-      const { url } = access.otherwise(requested)
-      // Sending a reader to the page that refused them would loop for ever.
-      if (url === requested)
-        throw new Error(`foldkit-site: ${node.tag}'s access sends a refused reader back to ${url}`)
-      return Access.Denied({ url })
+      // The tree holds its rules' readers as `never`: `who` is the reader they read.
+      if ((access as NodeAccess<Who>).allow(who.value)) continue
+      const target = access.otherwise(Site.hrefOf(site, route))
+      // A target this same rule covers refuses the reader again, for ever.
+      if (Site.chainOf(site, target.route).includes(node))
+        throw new Error(
+          `foldkit-site: ${node.tag}'s access sends a refused reader to ${target.url}, which it also covers`,
+        )
+      return Access.Denied({ url: target.url })
     }
     return Access.Allowed()
   },

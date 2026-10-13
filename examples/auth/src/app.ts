@@ -98,6 +98,8 @@ export const Message = defineMessageUnion({
   ClickedLink: { request: UrlRequest },
   ChangedUrl: { url: Url },
   CompletedNavigation: {},
+  /** Another tab changed who this browser is, and this tab's `belief` has let go. */
+  ForgotBelief: {},
 })
 export type Message = typeof Message.Type
 
@@ -260,6 +262,18 @@ const SignOut = Command.define('SignOut', {
 })
 
 /** The address, replaced: Back then skips the page that sent the reader on. */
+/**
+ * Lets go of whom the server last answered as, before `update` reads again:
+ * a read sent with the old belief would be refused once more.
+ */
+const ForgetBelief = Command.define('ForgetBelief', {
+  messages: [Message.ForgotBelief],
+  execute: Effect.sync(() => {
+    belief.forget()
+    return Message.ForgotBelief()
+  }),
+})
+
 const ReplaceUrl = Command.define('ReplaceUrl', {
   args: { url: Schema.String },
   messages: [Message.CompletedNavigation],
@@ -336,7 +350,7 @@ const routed = assembly.update((model, message) =>
     GotBroadcastMessage: ({ message }) =>
       BroadcastMessage.match(message, {
         // Another tab changed who this browser is: what this one typed stays.
-        Received: ({ data }) => ({ model: data === TAB ? model : Data.forget(model) }),
+        Received: ({ data }) => (data === TAB ? { model } : { model, commands: [ForgetBelief()] }),
         Posted: () => ({ model }),
         BroadcastFailed: ({ message }) => ({
           model: noticed(model, `Other tabs were not told: ${message}`),
@@ -348,6 +362,8 @@ const routed = assembly.update((model, message) =>
     ClickedLink: () => ({ model }),
     ChangedUrl: () => ({ model }),
     CompletedNavigation: () => ({ model }),
+    // What this tab typed stays; what Remote read was the old principal's.
+    ForgotBelief: () => ({ model: Data.forget(model) }),
   }),
 )
 

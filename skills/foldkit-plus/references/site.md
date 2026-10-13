@@ -74,7 +74,9 @@ otherwise: requested => Site.target(SignIn, { returnTo: Option.some(requested) }
 on a node covers it and the nodes below it. `Site.accessOf(site, route, who:
 Option<Who>)` is `Access.Allowed`, `Pending` (who unknown: draw loading), or
 `Denied({ url })`: replace the URL in `update`, or answer a 303 on the
-server. Presentation only; the server guards the data.
+server. Presentation only; the server guards the data. A target the refusing
+rule also covers (a sign-in page mounted under it) throws; in a node's
+options, annotate the reader (`allow: (me: Me) => …`).
 
 **History.** `Site.historyOf(prev, next)`: another node, or an unknown
 location, is a step; within a node its `history` rule (default replace; a

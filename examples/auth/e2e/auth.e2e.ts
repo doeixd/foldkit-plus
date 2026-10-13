@@ -78,6 +78,16 @@ const operations = (page: Page): Array<string> => {
   return asked
 }
 
+/** The statuses of the Remote answers `page` gets from now on that refused it (401). */
+const refusals = (page: Page): Array<number> => {
+  const refused: Array<number> = []
+  page.on('response', response => {
+    if (new URL(response.url()).pathname === '/remote' && response.status() === 401)
+      refused.push(response.status())
+  })
+  return refused
+}
+
 const signIn = async (page: Page, subjectId: 'ada' | 'grace') => {
   const account = accounts.find(each => each.subjectId === subjectId)!
   await page.getByLabel('Email').fill(account.email)
@@ -157,13 +167,17 @@ test('a sign-out in one tab reaches the other, and a member reads only their not
   // The second tab reads the cookie the first one's sign-in set.
   const second = await open(errors)
   await expect.poll(() => who(second), { timeout: 60_000 }).toBe('Signed in as ada')
+  const refusedFirst = refusals(first)
   await second.getByRole('button', { name: 'Sign out' }).click()
   await expect.poll(() => who(second)).toBe('Visitor')
 
-  // The first tab hears it over the broadcast, with no reload, and leaves the notes.
+  // The first tab hears it over the broadcast, with no reload, and leaves the
+  // notes. It let go of its belief before reading again, so nothing it asked
+  // was refused for naming ada.
   await expect.poll(() => who(first)).toBe('Visitor')
   await expect.poll(() => pathOf(first)).toBe('/')
   expect(await admin(first)).toBe(0)
+  expect(refusedFirst).toEqual([])
 
   // Its sign-in goes back to the notes it was sent from.
   await signIn(first, 'grace')

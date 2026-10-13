@@ -358,7 +358,11 @@ for a loading state rather than a sign-in page flashed at someone signed in;
 sign-in page can return to it). Read it with `Access.match`. The view draws
 from it, `update` replaces the URL on `Denied` after a route change or when
 `Me` arrives, and a server answers `Denied` with a 303 before rendering. An
-`otherwise` that sends the reader back where they were throws.
+`otherwise` whose target the same rule covers throws, at any address: a
+sign-in page mounted under the rule it serves would otherwise send each
+refused reader to a longer `returnTo` for ever. A rule given in a node's
+options names the reader it reads (`allow: (me: Me) => …`); `accessOf`
+cannot check that its `who` is that reader, so pass the one the rules read.
 
 **Prefetch and SSR.** `Site.target` plus `Site.chainOf` say which Surfaces a
 destination will activate; `Site.sourcesFor(site, owner, place, target.route)`

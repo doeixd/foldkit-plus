@@ -149,7 +149,8 @@ Remote.httpWithLive('/remote', {
 
 - `AuthServer.answered` takes the resolver's own config, and needs its
   `key`, so the header names the principal as the check reads it:
-  `subjectSaid(Option.some(key(user)))`, or `visitor`.
+  `subjectSaid(Option.some(key(user)))`, or `visitor`. The key is
+  URI-encoded, as a header carries Latin-1 only.
 - `believing()` holds what the last answer said, beside the cookie it
   describes, never in the Model. Once the cookie means someone else, the
   next request is refused with `SUBJECT_CHANGED` instead of answered.
@@ -158,6 +159,12 @@ Remote.httpWithLive('/remote', {
   `SUBJECT_CHANGED` with `Remote.forget`, which asks them; a refusal for any
   other reason (`Your session ended.`) is shown, since asking again would
   be refused again.
+- Believing no one is a gap: after a 401 or `forget()`, the next request is
+  answered as whoever the cookie names. An application that keeps what
+  Remote holds through a 401 (a session that ended, its old rows still
+  shown) should forget them before another tab could sign in, or the next
+  read merges the new account's answers into them. An answer to a request
+  sent before the last 401 or `forget()` is never believed.
 - A sign-in or sign-out this tab makes calls `belief.forget()` in its
   Command, before `update` forgets what Remote holds, so the reads after
   it are not refused once first.

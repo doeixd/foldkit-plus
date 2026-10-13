@@ -23,8 +23,9 @@ version changed; `pnpm` skips versions already in the registry.
   `x-foldkit-subject`; `believing()` from `foldkit-auth` is a `fetch` for
   `Remote.http`/`httpWithLive` that repeats it, so once another tab switches
   account a read is refused with `SUBJECT_CHANGED` rather than answered as
-  the new account. Any 401 makes it believe no one; `forget()` is for this
-  tab's own sign-in and sign-out.
+  the new account. Any 401 makes it believe no one, and an answer to a
+  request sent before it (or before `forget()`, for this tab's own sign-in
+  and sign-out) is not believed. The subject is URI-encoded.
 
 - **`foldkit-remote-server`: `serveFetch` takes `headers: principal => …`,**
   added to every answer to that principal, a live stream's included.
@@ -56,7 +57,9 @@ version changed; `pnpm` skips versions already in the registry.
   `Site.accessOf(site, route, who)` answers `Access.Allowed`, `Pending`
   while `who` is unknown, or `Denied({ url })` with `otherwise`'s address for
   what was asked. Presentation for the client and a server's 303; the server
-  guards the data regardless.
+  guards the data regardless. An `otherwise` whose target the same rule
+  covers throws (a sign-in page mounted under it would loop with a growing
+  `returnTo`), and a rule in a node's options names its reader's type.
 
 - **`examples/auth`: Yielded Auth end to end.** Password sign-in and
   sign-out through Yielded's own client and routes, a guarded notes list

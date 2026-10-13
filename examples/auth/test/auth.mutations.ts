@@ -120,8 +120,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'model: data === TAB ? model : Data.forget(model)',
-        replace: 'model',
+        find: '{ model, commands: [ForgetBelief()] }',
+        replace: '{ model }',
       },
     ],
     tests: app,
@@ -186,8 +186,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'model: data === TAB ? model : Data.forget(model)',
-        replace: 'model: Data.forget(model)',
+        find: 'data === TAB ? { model } :',
+        replace: 'false ? { model } :',
       },
     ],
     tests: app,
@@ -361,5 +361,27 @@ export default [
       },
     ],
     tests: page,
+  },
+  {
+    name: 'another tab reads again before the belief is gone',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: '{ model, commands: [ForgetBelief()] }',
+        replace: '{ model: Data.forget(model), commands: [ForgetBelief()] }',
+      },
+    ],
+    tests: app,
+  },
+  {
+    name: 'a forgotten belief leaves what was read',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'ForgotBelief: () => ({ model: Data.forget(model) }),',
+        replace: 'ForgotBelief: () => ({ model }),',
+      },
+    ],
+    tests: app,
   },
 ]
