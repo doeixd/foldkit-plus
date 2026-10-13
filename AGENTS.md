@@ -649,6 +649,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   exchange only for what is not an operation at all. `foldkit-sync/journal`'s
   `journalExchange` and `serveJournal` keep this; prefer them to a new
   hand-written exchange.
+- **A durable edit shows before it is stored.** `Sync.mount` applies the
+  Message to the Model at once and persists it in a Command after, so the
+  registry's cell read "pending" while IndexedDB had nothing yet. Its e2e
+  reloaded the device on that mark and, on CI's slower runs, lost the edit
+  (`3.21` for `6.66`). Before reloading, wait for the replica's own status
+  (its `pending` count moves only once storage has the operation), not for
+  anything the Model draws.
 - **A replayed durable Message may write the shared slice and nothing else.**
   Sync replays it through `update` over the app's `initial` Model and refuses
   any other field it changes. Reconciling Remote's overlays at the end of

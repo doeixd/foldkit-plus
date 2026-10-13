@@ -142,6 +142,13 @@ test('the later of two edits wins, the device whose edit lost is told, and an of
   await expect
     .poll(() => cell(page, 'Device B', 'p000006', 'cents').getAttribute('data-mark'))
     .toBe('pending')
+  // The cell is marked as soon as the edit is made, and the edit is written to
+  // the device a moment later; the replica's own count says when it has been.
+  // Reloading in that moment lost the edit, which no person types fast enough
+  // to do, and CI sometimes did.
+  await expect
+    .poll(() => pane(page, 'Device B').locator('#exchange').textContent())
+    .toBe('Working offline: 1 edit kept on this device.')
   const frameB = page.frames().find(frame => frame.url().includes('pane=device-b'))!
   await frameB.goto(frameB.url())
   // The reloaded device starts its database and connection again, which the
