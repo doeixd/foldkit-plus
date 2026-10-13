@@ -338,3 +338,81 @@ describe('serveFetch live', () => {
     expect(frames).toEqual([])
   })
 })
+
+describe('serveFetch live, asking who it serves again', () => {
+  /** Sessions by token: a principal, or none for one revoked. */
+  const revalidating = () => {
+    rows.clear()
+    rows.set('a', { id: 'a', name: 'Anchor' })
+    const sessions = new Map<string, string>([['s1', 'admin']])
+    let asked = 0
+    const hub = Effect.runSync(RemoteServer.liveHub([ItemSource]))
+    const served = serveFetch({
+      server: RemoteServer.make({ entities: [ItemSource] }),
+      resolvePrincipal: request => {
+        asked += 1
+        const principal = sessions.get(request.headers.get('x-session') ?? '')
+        return principal === undefined
+          ? Effect.fail(RemoteServer.unauthenticated('Session revoked'))
+          : Effect.succeed(principal)
+      },
+      layer: () => Layer.empty,
+      live: hub,
+      revalidate: { every: '20 millis', same: (opened, now) => opened === now },
+    })
+    const open = () =>
+      served(
+        new Request('http://worker.test/remote', {
+          method: 'POST',
+          headers: { 'x-session': 's1' },
+          body: JSON.stringify({
+            operation: 'live',
+            payload: {
+              version: REMOTE_PROTOCOL_VERSION,
+              requirements: [{ entity: 'Item', id: 'a', fields: ['name'] }],
+              after: 0,
+            },
+          }),
+        }),
+        undefined,
+      )
+    return { sessions, hub, open, asked: () => asked }
+  }
+
+  it.each([
+    [
+      'ends a stream whose session was revoked as Unauthenticated',
+      (sessions: Map<string, string>) => sessions.delete('s1'),
+      { message: 'Session revoked', unauthenticated: { reason: 'Session revoked' } },
+    ],
+    [
+      'ends a stream whose session now names someone else, to be opened again',
+      (sessions: Map<string, string>) => sessions.set('s1', 'guest'),
+      { message: 'Who is asking changed: open the stream again' },
+    ],
+  ])('%s', async (_, change, data) => {
+    const { sessions, hub, open } = revalidating()
+    const response = await open()
+    await waitFor(() => Effect.runPromise(hub.size).then(size => size === 1))
+    change(sessions)
+    const frames = await readAllFrames(response.body!.getReader())
+    expect(frames).toEqual([`event: error\ndata: ${JSON.stringify(data)}`])
+    await waitFor(() => Effect.runPromise(hub.size).then(size => size === 0))
+  })
+
+  it('serves on while the session still answers as the same principal', async () => {
+    const { hub, open, asked } = revalidating()
+    const response = await open()
+    await waitFor(() => Effect.runPromise(hub.size).then(size => size === 1))
+    // The open, then three checks: each found the same principal.
+    await waitFor(() => asked() >= 4)
+    rows.set('a', { id: 'a', name: 'Anchor II' })
+    await Effect.runPromise(hub.changed({ entity: 'Item', id: 'a' }, ['name']))
+    const reader = response.body!.getReader()
+    expect(JSON.parse((await readFrame(reader)).slice('data: '.length))).toMatchObject({
+      _tag: 'EntityPatched',
+      values: { name: 'Anchor II' },
+    })
+    await reader.cancel()
+  })
+})

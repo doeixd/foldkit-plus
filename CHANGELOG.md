@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`serveFetch` and `defineDocumentHost` take `revalidate: { every, same?
+  }`.** While a live stream or a socket is open, the resolver is asked again,
+  of the request it opened with: a refusal ends the stream with
+  `Unauthenticated` (an `event: error` frame the client reads back as it) or
+  closes the socket with 4401, and a principal `same` says changed ends the
+  stream as a live error, or closes the socket with 1012, to be opened again
+  as the new principal. A revoked session stops being served within one
+  interval.
+
 - **`foldkit-guard`: `Policy.provide(context)`,** a Policy whose bodies have
   the services they need provided, for the read seams
   (`GuardDrizzle.visible`, `GuardServer.memory`, `GuardSync`), which take a

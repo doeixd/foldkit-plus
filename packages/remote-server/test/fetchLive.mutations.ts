@@ -8,13 +8,34 @@ const file = '../src/fetch.ts'
 
 export default [
   {
+    name: 'a live stream is never asked who it serves again',
+    edits: [
+      {
+        file,
+        find: 'if (revalidate === undefined) return Stream.empty',
+        replace: 'return Stream.empty',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a live stream serves a changed principal on',
+    edits: [
+      {
+        file,
+        find: 'revalidate.same === undefined || revalidate.same(opened, now)',
+        replace: 'true',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a live open is answered as a request',
     edits: [
       {
         file,
-        find: `      if (isLiveOpen(body.value))
-        return yield* liveResponse(handlers, body.value.payload, heartbeat)`,
-        replace: '      void liveResponse',
+        find: '      if (isLiveOpen(body.value))\n        return yield* liveResponse(',
+        replace: '      if (false)\n        return yield* liveResponse(',
       },
     ],
     tests,

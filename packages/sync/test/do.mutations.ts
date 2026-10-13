@@ -7,6 +7,49 @@ const file = '../src/do.ts'
 
 export default [
   {
+    name: 'a socket is never asked who it serves again',
+    edits: [{ file, find: 'if (config.revalidate !== undefined) {', replace: 'if (false) {' }],
+    tests,
+  },
+  {
+    name: 'a socket serves a changed principal on',
+    edits: [{ file, find: 'same === undefined || same(principal, now)', replace: 'true' }],
+    tests,
+  },
+  {
+    name: 'the resolver is asked once, and its first answer checked ever after',
+    edits: [
+      {
+        file,
+        find: 'Effect.andThen(() => config.resolvePrincipal(request, this.hostEnv))',
+        replace: 'Effect.andThen(config.resolvePrincipal(request, this.hostEnv))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the checks outlive the socket',
+    edits: [
+      {
+        file,
+        find: 'socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))',
+        replace: 'void fiber',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a revoked session closes as a normal close',
+    edits: [
+      {
+        file,
+        find: 'closeWith(server, 4401, error.message)',
+        replace: 'closeWith(server, 1000, error.message)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'upgrades are refused and anything else is served',
     edits: [
       {

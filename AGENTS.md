@@ -971,6 +971,13 @@ of its own named a form field "fits the Catalog". Read words with
   which ignores further breaks, and the late `GapCleared` then closed it:
   the stream stopped for good, and a test failed every run once it made the
   resubscribe fail. Sequence them (`Stream.concat`).
+- **An Effect handed to a loop is the one value, built once.**
+  `Effect.sleep(every).pipe(Effect.andThen(resolve(request)), Effect.forever)`
+  called `resolve` when the loop was built and re-ran that one Effect ever
+  after; a resolver answering `Effect.succeed(sessions.get(token))` had
+  decided already, so a revoked session was never seen. Pass a function
+  (`Effect.andThen(() => resolve(request))`) or `Effect.suspend` where each
+  pass must ask again, and test with a resolver that decides when called.
 - **Guard fire-and-forget work.** An un-awaited reconcile turned a failure into
   an unhandled rejection.
 - **`Effect.result` captures failures, not defects.** At an edge that must not

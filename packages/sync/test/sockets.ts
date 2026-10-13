@@ -76,12 +76,22 @@ export class FakeWebSocket {
     this.accepts += 1
   }
 
-  close(): void {
-    this.peer?.emit('close', {})
-    this.emit('close', {})
+  /** The code and reason this end was closed with, once it was. */
+  closed: { readonly code?: number; readonly reason?: string } | undefined
+
+  close(code?: number, reason?: string): void {
+    this.closed = {
+      ...(code === undefined ? {} : { code }),
+      ...(reason === undefined ? {} : { reason }),
+    }
+    this.peer?.emit('close', this.closed)
+    this.emit('close', this.closed)
   }
 
-  emit(type: string, event: { data?: unknown }): void {
+  emit(
+    type: string,
+    event: { readonly data?: unknown; readonly code?: number; readonly reason?: string },
+  ): void {
     for (const listener of [...(this.listeners.get(type) ?? [])]) listener(event)
   }
 }

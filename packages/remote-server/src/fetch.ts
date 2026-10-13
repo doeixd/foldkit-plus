@@ -23,6 +23,7 @@ import {
 } from 'effect'
 import {
   LiveRequirement,
+  RemoteLiveError,
   type RemoteJsonAnswer,
   type RemoteRpcClient,
   type RemoteUnauthenticated,
@@ -49,6 +50,20 @@ export interface FetchConfig<P, R, Env, RP = never> {
   readonly path?: string | undefined
   /** A hub whose `changed`/`deleted` signals reach the live streams this serves. */
   readonly live?: LiveHub<P, R> | undefined
+  /**
+   * Asks `resolvePrincipal` again, of the same request, every `every` while a
+   * live stream is open. A refusal ends the stream with `Unauthenticated`,
+   * which the client reads as a lost session; a principal `same` says is not
+   * the one the stream opened with ends it as a live error, which the client
+   * opens again after, as the new principal. Without it a stream serves the
+   * principal it opened with until it closes, a revoked session included.
+   */
+  readonly revalidate?:
+    | {
+        readonly every: Duration.Input
+        readonly same?: ((opened: P, now: P) => boolean) | undefined
+      }
+    | undefined
   /** A heartbeat comment every this often, keeping idle streams alive through proxies. Default 15 seconds. */
   readonly liveHeartbeat?: Duration.Input | undefined
   /** A read batch may not name more ids of one entity than this; default 1000. */
@@ -80,21 +95,29 @@ const errorFrame = (message: string, refusal: Partial<RemoteJsonAnswer> = {}): s
  * with nothing to serve still ends. A client that disconnects interrupts
  * the subscription, as closing the RPC stream would.
  */
-const liveBytes = <R>(
+const liveBytes = <R, RC>(
   handlers: RemoteRpcClient<R>,
   payload: Schema.Schema.Type<typeof LiveRequirement>,
   heartbeat: Duration.Input,
-): Stream.Stream<Uint8Array, never, R> =>
+  checked: Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RC>,
+): Stream.Stream<Uint8Array, never, R | RC> =>
   Stream.unwrap(
     Effect.gen(function* () {
       const ended = yield* Deferred.make<void>()
-      const events = handlers.FoldkitRemoteLive(payload).pipe(
+      // The checks fail the stream, or stop with it.
+      const events = Stream.merge(handlers.FoldkitRemoteLive(payload), checked, {
+        haltStrategy: 'left',
+      }).pipe(
         Stream.map(change => `data: ${JSON.stringify(change)}\n\n`),
         Stream.catchTags({
           RemoteLiveError: error => Stream.succeed(errorFrame(error.message)),
           RemoteProtocolError: error => Stream.succeed(errorFrame(error.message)),
           Unauthenticated: error =>
-            Stream.succeed(errorFrame(error.message, unauthenticatedAnswer(error).body)),
+            Stream.succeed(
+              errorFrame(error.message, {
+                unauthenticated: unauthenticatedAnswer(error).body.unauthenticated,
+              }),
+            ),
         }),
         Stream.ensuring(Deferred.succeed(ended, undefined)),
       )
@@ -127,11 +150,12 @@ const DEFAULT_HEARTBEAT: Duration.Input = '15 seconds'
  * live stream speaks is a 400 that subscribes to nothing. Once the stream
  * runs, its own failures are its terminal `event: error` frame.
  */
-const liveResponse = <R>(
+const liveResponse = <R, RC>(
   handlers: RemoteRpcClient<R>,
   payload: unknown,
   heartbeat: Duration.Input,
-): Effect.Effect<Response, never, R> =>
+  checked: Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RC>,
+): Effect.Effect<Response, never, R | RC> =>
   Schema.decodeUnknownEffect(LiveRequirement)(payload).pipe(
     Effect.matchEffect({
       onFailure: () =>
@@ -140,7 +164,7 @@ const liveResponse = <R>(
         ),
       onSuccess: requirement =>
         Effect.map(
-          Stream.toReadableStreamEffect(liveBytes(handlers, requirement, heartbeat)),
+          Stream.toReadableStreamEffect(liveBytes(handlers, requirement, heartbeat, checked)),
           body =>
             new Response(body, {
               headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
@@ -175,6 +199,26 @@ export const serveFetch = <P, R, Env, RP = never>(
 ): ((request: Request, env: Env) => Promise<Response>) => {
   const path = config.path ?? '/remote'
   const heartbeat = config.liveHeartbeat ?? DEFAULT_HEARTBEAT
+  /** The live stream's principal, asked again of its request while it runs. */
+  const revalidation = (
+    request: Request,
+    env: Env,
+    opened: P,
+  ): Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RP> => {
+    const { revalidate } = config
+    if (revalidate === undefined) return Stream.empty
+    return Stream.fromSchedule(Schedule.spaced(revalidate.every)).pipe(
+      Stream.mapEffect(() => config.resolvePrincipal(request, env)),
+      Stream.mapEffect(now =>
+        revalidate.same === undefined || revalidate.same(opened, now)
+          ? Effect.void
+          : Effect.fail(
+              new RemoteLiveError({ message: 'Who is asking changed: open the stream again' }),
+            ),
+      ),
+      Stream.drain,
+    )
+  }
   const respond = (request: Request, env: Env): Effect.Effect<Response, never, R | RP> =>
     Effect.gen(function* () {
       const principal = yield* config.resolvePrincipal(request, env)
@@ -189,7 +233,12 @@ export const serveFetch = <P, R, Env, RP = never>(
         maxDepth: config.maxDepth,
       })
       if (isLiveOpen(body.value))
-        return yield* liveResponse(handlers, body.value.payload, heartbeat)
+        return yield* liveResponse(
+          handlers,
+          body.value.payload,
+          heartbeat,
+          revalidation(request, env, principal),
+        )
       const answered = yield* RemoteServer.answer(handlers, body.value)
       return Response.json(answered.body, { status: answered.status })
     }).pipe(

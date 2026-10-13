@@ -6,7 +6,7 @@
  * open socket as notices.
  */
 import { ActorId, Journal, OpId } from 'foldkit-durable'
-import { Effect, Scope } from 'effect'
+import { Effect, Scope, type Duration } from 'effect'
 import { RemoteUnauthenticated } from 'foldkit-remote'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sync, type Operation } from '../src/index.js'
@@ -65,6 +65,10 @@ const host = (
     readonly resolvePrincipal?: (request: Request) => Effect.Effect<string, RemoteUnauthenticated>
     readonly openJournal?: () => Promise<TestJournal>
     readonly settle?: (env: unknown, journal: unknown) => Effect.Effect<void, unknown>
+    readonly revalidate?: {
+      readonly every: Duration.Input
+      readonly same?: (opened: string, now: string) => boolean
+    }
   } = {},
 ) => {
   const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
@@ -81,6 +85,7 @@ const host = (
     admit: options.admit,
     opens: options.opens,
     settle: options.settle,
+    revalidate: options.revalidate,
     pair: () => {
       const pair = FakeWebSocket.linked()
       pairs.push(pair)
@@ -289,5 +294,67 @@ describe('defineDocumentHost', () => {
     expect(seen).toEqual([env, env])
     expect(journals).toHaveLength(2)
     expect(journals[0]).toBe(journals[1])
+  })
+})
+
+describe('defineDocumentHost, asking who a socket serves again', () => {
+  const revalidating = () => {
+    const sessions = new Map<string, string>([['ada', 'ada']])
+    let asked = 0
+    const hosted = host({
+      resolvePrincipal: request => {
+        asked += 1
+        const principal = sessions.get(request.headers.get('x-actor') ?? '')
+        return principal === undefined
+          ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
+          : Effect.succeed(principal)
+      },
+      revalidate: { every: '10 millis', same: (opened, now) => opened === now },
+    })
+    return { ...hosted, sessions, asked: () => asked }
+  }
+
+  const settled = async (done: () => boolean): Promise<void> => {
+    for (let waited = 0; !done(); waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+  }
+
+  it.each([
+    [
+      'closes a socket whose session was revoked with 4401',
+      (sessions: Map<string, string>) => sessions.delete('ada'),
+      { code: 4401, reason: 'Session revoked' },
+    ],
+    [
+      'closes a socket whose session now names someone else with 1012',
+      (sessions: Map<string, string>) => sessions.set('ada', 'grace'),
+      { code: 1012, reason: 'Who is asking changed' },
+    ],
+  ])('%s', async (_, change, closed) => {
+    const { Host, pairs, sessions } = revalidating()
+    const served = new Host({}, undefined)
+    await upgrade(served.fetch.bind(served), pairs, 'ada')
+    change(sessions)
+    const server = pairs[0]![1]
+    await settled(() => server.closed !== undefined)
+    expect(server.closed).toEqual(closed)
+  })
+
+  it('serves on while the session answers as the same principal, and stops asking once closed', async () => {
+    const { Host, pairs, asked } = revalidating()
+    const served = new Host({}, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    // The upgrade, then three checks: each found the same principal.
+    await settled(() => asked() >= 4)
+    expect(pairs[0]![1].closed).toBeUndefined()
+    const reply = await roundTrip(client, { id: '1', cursor: 0, pending: [] })
+    expect(reply.error).toBeUndefined()
+    client.close()
+    const after = asked()
+    // Ten intervals: a check still running would have asked again in each.
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(asked()).toBe(after)
   })
 })

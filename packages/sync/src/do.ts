@@ -24,7 +24,7 @@
  * .documentId)`); its in-memory cache and change stream are then exact
  * because nothing else writes.
  */
-import { Effect, Result } from 'effect'
+import { Cause, Effect, Fiber, Option, Result, type Duration } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Journal } from 'foldkit-durable/core'
 import { serveJournal } from './journal.js'
@@ -74,6 +74,20 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env> {
         journal: Journal<Operation, Shared, Principal, Operation>,
       ) => Effect.Effect<void, unknown>)
     | undefined
+  /**
+   * Asks `resolvePrincipal` again, of the upgrade request, every `every`
+   * while the socket is open: a refusal closes it with 4401, and a principal
+   * `same` says is not the one it opened with closes it with 1012, which the
+   * replica reconnects after, as the new principal. Without it a socket
+   * serves the principal it opened with until it closes, a revoked session
+   * included.
+   */
+  readonly revalidate?:
+    | {
+        readonly every: Duration.Input
+        readonly same?: ((opened: Principal, now: Principal) => boolean) | undefined
+      }
+    | undefined
   /** Whether `principal` may open the document. See `journalExchange`'s `opens`. */
   readonly opens?: ((principal: Principal) => Effect.Effect<boolean>) | undefined
   /**
@@ -100,6 +114,25 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env> {
  */
 export interface AcceptingWebSocket extends WebSocket {
   accept(): void
+}
+
+/** What a revalidation that found another principal fails with. */
+const changed = Symbol('changed')
+
+/**
+ * Closes a socket with `code`, and `reason` when the platform takes it: a
+ * reason past 123 bytes, or a socket already gone, still closes or is closed.
+ */
+const closeWith = (socket: WebSocket, code: number, reason: string): void => {
+  try {
+    socket.close(code, reason)
+  } catch {
+    try {
+      socket.close(code)
+    } catch {
+      // Already closed.
+    }
+  }
 }
 
 const defaultPair = (): readonly [client: WebSocket, server: AcceptingWebSocket] => {
@@ -157,7 +190,8 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
       const [client, server] = (config.pair ?? defaultPair)()
       server.accept()
       const { admit } = config
-      serveJournal(workerSocket(server), {
+      const socket = workerSocket(server)
+      serveJournal(socket, {
         sync: config.sync,
         journal,
         principal,
@@ -167,6 +201,32 @@ export const defineDocumentHost = <Message, Shared, Principal, Env>(
           ? {}
           : { admit: (operation: Operation) => admit(principal, operation) }),
       })
+      if (config.revalidate !== undefined) {
+        const { every, same } = config.revalidate
+        const checking = Effect.sleep(every).pipe(
+          // Called each time: a resolver may decide when called, not when its Effect runs.
+          Effect.andThen(() => config.resolvePrincipal(request, this.hostEnv)),
+          Effect.flatMap(now =>
+            same === undefined || same(principal, now) ? Effect.void : Effect.fail(changed),
+          ),
+          Effect.forever,
+          Effect.catchCause(cause =>
+            Effect.sync(() => {
+              const failure = Cause.findErrorOption(cause)
+              Option.match(failure, {
+                // A defect: this side broke, and the replica learns that it did.
+                onNone: () => closeWith(server, 1011, 'Internal error'),
+                onSome: error =>
+                  error === changed
+                    ? closeWith(server, 1012, 'Who is asking changed')
+                    : closeWith(server, 4401, error.message),
+              })
+            }),
+          ),
+        )
+        const fiber = Effect.runFork(checking)
+        socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))
+      }
       return new Response(null, {
         status: 101,
         // The worker runtime reads the client out of the upgrade response;
