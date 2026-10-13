@@ -7,6 +7,22 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.20.0
+
+`foldkit-entity` 0.10.0, `foldkit-form` 0.6.0, `foldkit-bundle` 0.8.0,
+`foldkit-surface` 0.10.0 and `foldkit-remote` 0.17.0 for the changes below;
+every package that depends on one of them republishes with a patch to re-pin.
+`foldkit-metadata` and the three rich-text model packages are unchanged.
+
+Three changes can break code written for 0.19:
+
+- A predicate or ordering term over another Entity than the query's no longer
+  compiles.
+- An `own` update in an assembly with `Data.wiring` no longer receives Remote's
+  Messages, so arms that handled them are excess.
+- A test that matched a form's check as an instance by `args: { key }` matches
+  `form.Check` instead.
+
 ### Added
 
 - **`foldkit-entity`: a predicate over another Entity is a compile error.**

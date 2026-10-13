@@ -1,6 +1,6 @@
 {
   "name": "foldkit-plus",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Every Foldkit Plus package in one install, and `npx foldkit-plus setup`, which tells a coding agent how to start.",
   "keywords": [
     "foldkit",

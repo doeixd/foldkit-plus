@@ -1,6 +1,6 @@
 {
   "name": "foldkit-builder",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "The page builder's state for Foldkit Plus: a Bundle that edits a foldkit-composition Document by Operations, with selection and undo, as one form key's control.",
   "keywords": [
     "foldkit",
