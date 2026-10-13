@@ -11,7 +11,7 @@ import { Option } from 'effect'
 import * as prettier from 'prettier'
 import ts from 'typescript'
 
-import type { ApiExport, ApiMember, ApiModule, ApiPackage } from './model.js'
+import type { ApiBundle, ApiExport, ApiMember, ApiModule, ApiPackage } from './model.js'
 
 /** One subpath export of a package, read from its `foldkit-plus:source` condition. */
 export interface Entry {
@@ -557,6 +557,62 @@ const reader = (root: string, checker: ts.TypeChecker) => {
     ts.SyntaxKind.VariableDeclaration,
   ]
 
+  const text = (type: ts.Type, at: ts.Node): string => cap(checker.typeToString(type, at, flags))
+
+  const fieldsOf = (type: ts.Type, at: ts.Node, skip = ''): ApiBundle['model'] =>
+    type
+      .getProperties()
+      .filter(property => property.getName() !== skip)
+      .map(property => {
+        const optional = (property.flags & ts.SymbolFlags.Optional) !== 0
+        const type = text(checker.getTypeOfSymbolAtLocation(property, at), at)
+        return optional
+          ? { name: `${property.getName()}?`, type: type.replace(/ \| undefined$/, '') }
+          : { name: property.getName(), type }
+      })
+
+  const variantsOf = (type: ts.Type, at: ts.Node): ApiBundle['messages'] =>
+    (type.isUnion() ? type.types : [type]).map(variant => {
+      const tag = variant.getProperty('_tag')
+      const tagType = tag === undefined ? undefined : checker.getTypeOfSymbolAtLocation(tag, at)
+      return tagType !== undefined && tagType.isStringLiteral()
+        ? { name: tagType.value, fields: fieldsOf(variant, at, '_tag') }
+        : { name: text(variant, at), fields: [] }
+    })
+
+  /**
+   * A Bundle's parts, read from its `update`, which takes the Model, a
+   * Message and the args, and may return an OutMessage. A Bundle is told by
+   * its shape, so a structural copy reads the same.
+   */
+  const bundleOf = (symbol: ts.Symbol, at: ts.Node): Option.Option<ApiBundle> => {
+    const type = checker.getTypeOfSymbolAtLocation(symbol, at)
+    if (['name', 'Model', 'Message', 'init'].some(name => type.getProperty(name) === undefined))
+      return Option.none()
+    const update = type.getProperty('update')
+    const signature =
+      update === undefined
+        ? undefined
+        : checker.getTypeOfSymbolAtLocation(update, at).getCallSignatures()[0]
+    if (signature === undefined) return Option.none()
+    const [model, message, args] = signature
+      .getParameters()
+      .map(parameter => checker.getTypeOfSymbolAtLocation(parameter, at))
+    if (model === undefined || message === undefined) return Option.none()
+    const returned = checker.getReturnTypeOfSignature(signature).getProperty('outMessage')
+    const out =
+      returned === undefined
+        ? undefined
+        : checker.getNonNullableType(checker.getTypeOfSymbolAtLocation(returned, at))
+    const nothing = ts.TypeFlags.Void | ts.TypeFlags.Undefined | ts.TypeFlags.Never
+    return Option.some({
+      args: args === undefined || args.flags & nothing ? [] : fieldsOf(args, at),
+      model: fieldsOf(model, at),
+      messages: variantsOf(message, at),
+      out: out === undefined || out.flags & ts.TypeFlags.Never ? [] : variantsOf(out, at),
+    })
+  }
+
   /** One exported name; none for a symbol with no declaration to read. */
   const exportOf = (exported: ts.Symbol, depth: number): Option.Option<ApiExport> => {
     const name = exported.getName()
@@ -576,6 +632,7 @@ const reader = (root: string, checker: ts.TypeChecker) => {
         value !== undefined && types.length > 0
           ? Option.some(types.map(typeText).join('\n'))
           : Option.none<string>(),
+      bundle: Option.none<ApiBundle>(),
     }
     if (ts.isSourceFile(primary) || ts.isModuleDeclaration(primary)) {
       const members =
@@ -634,6 +691,7 @@ const reader = (root: string, checker: ts.TypeChecker) => {
       return Option.some({
         ...shared,
         kind: 'const',
+        bundle: bundleOf(symbol, primary),
         ...doc,
         signature: constText(name, primary, symbol, 'declaration'),
         members: [],

@@ -123,6 +123,33 @@ export class Widget {
 `,
   'src/star.ts': `/** Starred. */
 export const starred = true
+
+/** Shaped as foldkit-bundle's Bundle, which this fixture does not depend on. */
+interface Bundle<Args, Model, Message, Out> {
+  readonly name: string
+  readonly Model: unknown
+  readonly Message: unknown
+  readonly init: (args: Args) => { readonly model: Model }
+  readonly update: (
+    model: Model,
+    message: Message,
+    args: Args,
+  ) => { readonly model: Model; readonly outMessage?: Out }
+}
+type Tick = { readonly _tag: 'Ticked'; readonly at: number } | { readonly _tag: 'Stopped' }
+/** A counter. */
+export declare const Counter: Bundle<
+  { readonly step: number; readonly label?: string },
+  { readonly count: number },
+  Tick,
+  { readonly _tag: 'Done' }
+>
+/** An update, but not a Bundle. */
+export declare const Updater: {
+  readonly update: (model: number, message: string, args: void) => { readonly model: number }
+}
+/** One with no args and nothing for its parent. */
+export declare const Plain: Bundle<void, { readonly count: number }, Tick, never>
 /** Colors. */
 export enum Color {
   Red,
@@ -215,13 +242,16 @@ describe('extract', () => {
     expect(moduleNamed('index').exports.map(entry => entry.name)).toEqual([
       'add',
       'Color',
+      'Counter',
       'exposed',
       'limit',
       'Pair',
+      'Plain',
       'Remote',
       'Shape',
       'starred',
       'sum',
+      'Updater',
       'Upper',
       'upper',
       'Widget',
@@ -266,6 +296,34 @@ describe('extract', () => {
       kind: 'const',
       signature: 'const exposed: () => number',
     })
+  })
+
+  test('a Bundle: its args, Model, Messages and OutMessages, read from its update', () => {
+    const ticks = [
+      { name: 'Ticked', fields: [{ name: 'at', type: 'number' }] },
+      { name: 'Stopped', fields: [] },
+    ]
+    expect(exportNamed('Counter').bundle).toEqual(
+      Option.some({
+        args: [
+          { name: 'step', type: 'number' },
+          { name: 'label?', type: 'string' },
+        ],
+        model: [{ name: 'count', type: 'number' }],
+        messages: ticks,
+        out: [{ name: 'Done', fields: [] }],
+      }),
+    )
+    expect(exportNamed('Plain').bundle).toEqual(
+      Option.some({
+        args: [],
+        model: [{ name: 'count', type: 'number' }],
+        messages: ticks,
+        out: [],
+      }),
+    )
+    expect(exportNamed('limit').bundle).toEqual(Option.none())
+    expect(exportNamed('Updater').bundle).toEqual(Option.none())
   })
 
   test('a namespace object merges with its type, and its members read what they name', () => {

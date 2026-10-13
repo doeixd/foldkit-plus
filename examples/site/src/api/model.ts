@@ -40,6 +40,22 @@ export const ApiMember = Schema.Struct({
 })
 export type ApiMember = typeof ApiMember.Type
 
+const Field = Schema.Struct({ name: Schema.String, type: Schema.String })
+
+/** One variant of a Message union: its tag, or the whole type when it has none. */
+const Variant = Schema.Struct({ name: Schema.String, fields: Schema.Array(Field) })
+
+/** What placing a Bundle involves, read from its `update`. */
+export const ApiBundle = Schema.Struct({
+  /** Empty when the Bundle takes none. */
+  args: Schema.Array(Field),
+  model: Schema.Array(Field),
+  messages: Schema.Array(Variant),
+  /** What it hands its parent; empty when it hands nothing. */
+  out: Schema.Array(Variant),
+})
+export type ApiBundle = typeof ApiBundle.Type
+
 export const ApiExport = Schema.Struct({
   name: Schema.String,
   /** Unique within the module. */
@@ -50,6 +66,8 @@ export const ApiExport = Schema.Struct({
   signature: Schema.String,
   /** The type's declaration when a type shares this value's name. */
   typeSignature: Schema.OptionFromNullOr(Schema.String),
+  /** Its parts, when it is a Bundle. */
+  bundle: Schema.OptionFromNullOr(ApiBundle),
   tags: Schema.Array(Tag),
   params: Schema.Array(Param),
   members: Schema.Array(ApiMember),

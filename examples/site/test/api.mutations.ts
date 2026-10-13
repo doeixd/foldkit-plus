@@ -74,4 +74,16 @@ export default [
     'slug: base',
   ),
   one('a param summary keeps its dash', "summary: text.replace(/^-\\s*/, '')", 'summary: text'),
+  one('a Message variant lists its tag', "fieldsOf(variant, at, '_tag')", 'fieldsOf(variant, at)'),
+  one(
+    'an optional arg reads as required',
+    '(property.flags & ts.SymbolFlags.Optional) !== 0',
+    'false',
+  ),
+  one('a Bundle that hands nothing lists never', ' || out.flags & ts.TypeFlags.Never', ''),
+  one(
+    'any value with an update reads as a Bundle',
+    "['name', 'Model', 'Message', 'init'].some(",
+    '[].some(',
+  ),
 ]

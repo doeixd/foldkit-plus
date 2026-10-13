@@ -8,7 +8,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Option } from 'effect'
 
 import type { Subsite } from '../catalog.js'
-import type { ApiExport, ApiMember, ApiModule, ApiPackage } from '../api/model.js'
+import type { ApiBundle, ApiExport, ApiMember, ApiModule, ApiPackage } from '../api/model.js'
 import type { Region } from '../library.js'
 import { GITHUB, parse, slugger, summarize, type Anchor } from './guides.js'
 import { textOf } from './text.js'
@@ -136,6 +136,48 @@ const member = (ih: Ih, drawing: Drawing, owner: string, entry: ApiMember, id: s
     ],
   )
 
+const shapeOf = (fields: ApiBundle['model']): string =>
+  fields.length === 0
+    ? '{}'
+    : `{ ${fields.map(field => `${field.name}: ${field.type}`).join(', ')} }`
+
+const variantText = (variant: ApiBundle['messages'][number]): string =>
+  variant.fields.length === 0 ? variant.name : `${variant.name} ${shapeOf(variant.fields)}`
+
+/** What placing a Bundle involves: its args, the slice it keeps, what it handles and hands back. */
+const bundleTable = (ih: Ih, bundle: ApiBundle): Html => {
+  const row = (label: string, cells: ReadonlyArray<string>) =>
+    ih.tr(
+      [],
+      [
+        ih.th([ih.Attribute('scope', 'row')], [label]),
+        ih.td(
+          [],
+          cells.flatMap((cell, index) => [...(index === 0 ? [] : [', ']), ih.code([], [cell])]),
+        ),
+      ],
+    )
+  return ih.div(
+    [ih.Class('table index bundle')],
+    [
+      ih.table(
+        [],
+        [
+          ih.tbody(
+            [],
+            [
+              row('Args', bundle.args.length === 0 ? ['none'] : [shapeOf(bundle.args)]),
+              row('Model', [shapeOf(bundle.model)]),
+              row('Messages', bundle.messages.map(variantText)),
+              ...(bundle.out.length === 0 ? [] : [row('OutMessages', bundle.out.map(variantText))]),
+            ],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
 const exportBody =
   (
     drawing: Drawing,
@@ -145,7 +187,23 @@ const exportBody =
   ) =>
   (ih: Ih): Region => [
     ih.p([], [ih.span([ih.Class('kind')], [entry.kind]), ' · ', sourceLink(ih, entry.source)]),
-    codeBlock(ih, drawing.highlight, { code: entry.signature, lang: 'ts', copy: false }),
+    ...Option.match(entry.bundle, {
+      onNone: () => [
+        codeBlock(ih, drawing.highlight, { code: entry.signature, lang: 'ts', copy: false }),
+      ],
+      // A Bundle's type spells every parameter of `Bundle`; what placing it
+      // involves comes first, and the type is there for whoever needs it.
+      onSome: bundle => [
+        bundleTable(ih, bundle),
+        ih.details(
+          [ih.Class('full-type')],
+          [
+            ih.summary([], ['Its full type']),
+            codeBlock(ih, drawing.highlight, { code: entry.signature, lang: 'ts', copy: false }),
+          ],
+        ),
+      ],
+    }),
     ...Option.match(entry.typeSignature, {
       onNone: () => [],
       onSome: signature => [

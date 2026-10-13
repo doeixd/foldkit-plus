@@ -655,7 +655,12 @@ export const SiteStyle = slots(
       }),
       Style.nest('th', { fontWeight: t.weight.medium, color: t.text.overt }),
       // An entry point's index: the name never breaks, the summary takes the rest.
-      Style.nest('.index td:first-child', { whiteSpace: 'nowrap' }),
+      Style.nest('.index :is(th, td):first-child', { whiteSpace: 'nowrap' }),
+      Style.nest('.full-type > summary', {
+        ...mono,
+        cursor: 'pointer',
+        color: t.text.subtle,
+      }),
       // On a phone a table of prose is its rows, one under another: the first
       // cell heads each, and every other cell is shown under its column's name,
       // since its columns would each be a word wide.

@@ -36,6 +36,7 @@ const READ = [
   '/remote/guides/live-data',
   '/ssr/api/ssr',
   '/ssr/api/ssr/ssr',
+  '/primitives/api/primitives-time/throttle',
 ]
 
 const hrefs = (root: ParentNode, selector = 'a') =>
@@ -167,6 +168,23 @@ describe('the generated site', () => {
     expect(at('/primitives/api/primitives')).toContain('/primitives/api/primitives-time/timer')
     // With one page, the name links from prose: the subpath's guide is on the site.
     expect(at('/primitives/guides/time')).toContain('/primitives/api/primitives-time/timer')
+  })
+
+  test("a Bundle's page says what placing it involves before its full type", () => {
+    const throttle = page('/primitives/api/primitives-time/throttle')
+    const rows = Array.from(throttle.querySelectorAll('article .bundle tr'), row => [
+      row.querySelector('th')?.textContent,
+      row.querySelector('td')?.textContent,
+    ])
+    expect(rows).toEqual([
+      ['Args', '{ intervalMs: number }'],
+      ['Model', '{ lastAt: number | null }'],
+      ['Messages', 'Attempted, Evaluated { now: number }'],
+      ['OutMessages', 'Throttled { at: number }'],
+    ])
+    expect(throttle.querySelector('article details.full-type pre')?.textContent).toContain(
+      'Bundle.Bundle<',
+    )
   })
 
   test('every link on every page leads to a page the build wrote, or a file in the repository', () => {

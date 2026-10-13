@@ -228,6 +228,11 @@ export default [
     tests,
   },
   {
+    name: "a Bundle's page draws only its full type",
+    edits: [{ file: '../src/content/api.ts', find: 'bundleTable(ih, bundle),', replace: '' }],
+    tests,
+  },
+  {
     name: 'a README without markers is written anyway',
     edits: [{ file: '../src/readme.ts', find: '  listIn(readme)\n', replace: '' }],
     tests,
