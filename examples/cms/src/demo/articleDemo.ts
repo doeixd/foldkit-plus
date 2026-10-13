@@ -119,9 +119,6 @@ const EditorSlot = Parent.at(Slot, { onOut: ArticleEditor.onOut })
 const placements = Parent.assemble(EditorSlot, Data.wiring(actives))
 const update = ArticleEditor.after(
   placements.update((model, message) => {
-    // Remote's Messages go to its wiring, so they never reach here; the guard
-    // narrows to the demo's own tags, which the match below covers all of.
-    if (Remote.reduces(message)) return { model }
     return Match.valueTags(message, {
       OpenedEntry: ({ entry }) => EditorSlot.helpers.open(entry)(model),
       StartedArticle: ({ entry }) => EditorSlot.helpers.create(entry)(model),

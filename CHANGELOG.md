@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-bundle`: a wiring's own tags leave the parent's own update.**
+  `Wiring` takes a `Claims` parameter typing `handles`, and
+  `assembly.update(own)` hands `own` a Message without the tags a wiring claims
+  and does not share. Remote's wiring claims every `RemoteMessage` tag, so an
+  `own` no longer needs `if (Remote.reduces(message))` to narrow them away, and
+  one that matches exhaustively fails to compile when `Data.wiring` is removed
+  from `assemble`. An `own` that handled Remote's tags itself now gets none.
+
 - **`foldkit-entity`: `Expr.eq` with a plain value on the left says to put the
   field there.** The right side is typed from the left, so `Expr.eq(3, field)`
   was refused with `'number' is not assignable to 'Operand<any>'`; it now

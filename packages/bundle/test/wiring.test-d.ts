@@ -2,10 +2,11 @@
  * complete requires init from initial when a wiring runs something at startup,
  * and url from url(...) when a wiring reads the URL.
  */
-import { Schema } from 'effect'
+import { Match, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import type { Url } from 'foldkit/url'
+import { expectTypeOf } from 'vitest'
 import { Bundle, type Wiring } from '../src/index.js'
 
 const Model = Schema.Struct({ filter: Schema.String })
@@ -51,3 +52,29 @@ plainAssembly.complete({
   update: plainAssembly.update(),
   subscriptions: plainAssembly.subscriptions(),
 })
+
+// A wiring's claimed tags leave the parent's own update; a shared one stays.
+const Integrated = defineMessageUnion({
+  Fetched: { id: Schema.String },
+  UrlChanged: { href: Schema.String },
+  Pressed: {},
+})
+type Integrated = typeof Integrated.Type
+const Integration = Bundle.parent({ Model, Message: Integrated })
+declare const fetching: Wiring<Model, Integrated, never, 'Fetched'>
+declare const urlMirror: Wiring<Model, Integrated, never, 'UrlChanged'> & {
+  readonly shared: ReadonlyArray<'UrlChanged'>
+}
+type OwnTags = Bundle.OwnMessage<Integrated, readonly [typeof fetching, typeof urlMirror]>['_tag']
+expectTypeOf<OwnTags>().toEqualTypeOf<'UrlChanged' | 'Pressed'>()
+// So an own update that matches every tag it gets compiles while the wiring is
+// there, and stops compiling once it is gone: the removal is no longer silent.
+Integration.assemble(fetching).update((model, message) =>
+  Match.valueTags(message, { UrlChanged: () => ({ model }), Pressed: () => ({ model }) }),
+)
+Integration.assemble().update((model, message) =>
+  // @ts-expect-error: without the wiring, Fetched reaches own and is not matched
+  Match.valueTags(message, { UrlChanged: () => ({ model }), Pressed: () => ({ model }) }),
+)
+// An untyped wiring claims nothing in the type, so it changes nothing.
+expectTypeOf<Bundle.OwnMessage<Integrated, readonly [typeof plain]>>().toEqualTypeOf<Integrated>()

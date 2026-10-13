@@ -58,7 +58,13 @@ type ClaimedOf<P> =
     ? KnownTag<C>
     : P extends PlacedCollection<string, any, any, any, any, any, any, any, any, any, any, infer C>
       ? KnownTag<C>
-      : never
+      : P extends { readonly handles: ReadonlyArray<infer C extends string> }
+        ? // A shared tag still reaches the parent's own update, after the wirings.
+          Exclude<KnownTag<C>, SharedOf<P>>
+        : never
+type SharedOf<P> = P extends { readonly shared?: ReadonlyArray<infer S extends string> | undefined }
+  ? KnownTag<S>
+  : never
 type KnownTag<Tag extends string> = string extends Tag ? never : Tag
 
 /** The fields among `Fields` that hold an `Option`, which a placement may start as `None`. */

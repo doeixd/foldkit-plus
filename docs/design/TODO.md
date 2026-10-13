@@ -237,8 +237,11 @@ Each item says how it would attach; none is started.
 
 ## Wiring and Bundle
 
-- [ ] Make removing a wiring from `assemble` a type error. Today it compiles and
-  silently drops routing, init and Subscriptions.
+- [x] Make removing a wiring from `assemble` a type error. Today it compiles and
+  silently drops routing, init and Subscriptions. Done 2026-10-13 for a wiring
+  that claims tags (Remote's): its tags leave `own`'s Message, and come back
+  unmatched without it. A wiring of shared tags only (the mirrors) cannot be
+  caught this way.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Deviations
 - [ ] Decide whether Wiring lives in `foldkit-surface` or its own package.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions

@@ -211,7 +211,7 @@ const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 const placements = Parent.assemble(Data.wiring(sources), Routing)
 
 const update = placements.update((model, message) => {
-  if (Remote.reduces(message) || Routing.reduces(message)) return { model }
+  if (Routing.reduces(message)) return { model }
   return Match.valueTags(message, {
     ClickedLink: () => ({ model }),
     ChangedUrl: () => ({ model }),

@@ -416,7 +416,8 @@ export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, Retai
 export type RemoteWiring<AppModel> = Wiring<
   AppModel,
   RemoteMessage | RemoteMessageInput,
-  RemoteClient
+  RemoteClient,
+  keyof typeof remoteMessageCases
 >
 
 /** What `RemoteDomain.mutate` hands `update`: the Model with the request started, and the Command that settles it. */
@@ -3779,7 +3780,7 @@ const bindDomain = <
       key: `remote:${bound.contract.name}`,
       // Every domain claims the same tags with no per-domain discriminator, so
       // the assembly's claimant check keeps one assembly to one domain.
-      handles: Object.keys(remoteMessageCases),
+      handles: Record.keys(remoteMessageCases),
       route: (model, message) =>
         isRemoteMessage(message) ? Option.some({ model: reduce(model, message) }) : Option.none(),
       subscriptions: brandEntries(domain.subscriptions(active, options)),

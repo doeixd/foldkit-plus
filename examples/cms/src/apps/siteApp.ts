@@ -279,9 +279,9 @@ const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 export const placements = Parent.assemble(Data.wiring(actives), Routing)
 
 export const update = placements.update((model, message) => {
-  // Remote's Messages go to its wiring, so they never reach here; the guard
-  // narrows to the application's own tags, which the match below covers all of.
-  if (Remote.reduces(message) || Routing.reduces(message)) return { model }
+  // Remote's Messages never reach here: its wiring claims them. The guard
+  // narrows Routing's away, and the match below covers the application's own.
+  if (Routing.reduces(message)) return { model }
   return Match.valueTags(message, {
     // Site.routing's, which answered them.
     UrlChanged: () => ({ model }),
