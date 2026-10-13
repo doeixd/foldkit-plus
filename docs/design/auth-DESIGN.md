@@ -156,6 +156,8 @@ interface PrincipalResolver<P, R> {
 
 `SSR.entry` gains `provide?: (request: Request) => Layer.Layer<…>` (or an Effect-returning `context`), built per request and provided to the render's Commands and `Data.satisfy`, so a server render reads as the request's principal and ships the `Me` row and `may` answers with it. Response headers stay the existing `headers` option.
 
+*As built (slice 5):* narrower than this. A render runs `init` once and no Command (the plan's `boot` names those for the browser), so what it reads it reads through `flags(request)`, which is already per request and asynchronous: a host resolves the principal there and satisfies the Model with a client bound to it. What did run under a static Layer was the form fallback's Commands, so a cookie-authorized post would have mutated as nobody. `SSR.entry` takes `resources: request => Layer` (and `SSR.handle` `resources: Layer`), built once per post and provided closest to each Command, so where it and the config's `resources` both provide a service the post's wins. Checking the post's `Origin` is slice 6's.
+
 ### 5.5 Live streams re-check who they serve
 
 `liveHub` and `journalExchange` gain an optional `revalidate`: an Effect run on an interval (default sixty seconds, chosen per host) that answers the connection's principal again. A stream whose principal no longer resolves, or resolves to another key, ends with `Unauthenticated` (Remote live) or closes with 4401 (Sync). Yielded's lifecycle events cannot name a revoked session (§1), so a re-check is the mechanism its own docs recommend; a revocation is seen within one interval.
@@ -305,7 +307,7 @@ Each slice stands alone, with its tests and a review before the next.
 2. **The client's 401** (§5.3): `RemoteUnauthenticated` on every call kind. *Built.*
 3. **`R` for reads** (§5.2): `Visible`, `MemoryReadable`, Sync's `opens`/`admit`; guard's read seams and `CmsServer.make` take `Policy<User, R>`. *Built* as `Policy.provide` (§5.2), with `unguarded` required.
 4. **Revalidation** (§5.5) for the live hub and the journal exchange. *Built* on `serveFetch` and `defineDocumentHost` (§5.5).
-5. **SSR's per-request `provide`** (§5.4).
+5. **SSR's per-request `provide`** (§5.4). *Built* as the fallback's per-post `resources` (§5.4).
 6. **`foldkit-auth/server`**: the principal mapping, the Remote endpoint (route Layer and Web handler), the Origin/CSRF and subject checks, `socket` (with agent-mcp's `authenticate` taking an Effect), `ssr`. Tested against Yielded's in-memory Testing Layer, as the probe was.
 7. **`Me`** (§6.1): `FoldkitAuth.me`, its Source, `may` for named interactions. Closes the TODO item.
 8. **`foldkit-auth/client`** (§6.4): Commands, `Session.http`, `Session.lost`, the cross-tab channel, persistence scope.

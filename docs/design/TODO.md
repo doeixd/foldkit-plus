@@ -216,7 +216,7 @@ questions still open.
 ## Authentication
 
 Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
-orders the slices; step 0 and slices 1–4 are built.
+orders the slices; step 0 and slices 1–5 are built.
 
 - [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
   `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
@@ -232,7 +232,7 @@ orders the slices; step 0 and slices 1–4 are built.
   take; `Guards.declare` requires `unguarded`. §5.2, §10
 - [x] **4. Revalidating live streams and Sync sockets,** on `serveFetch` and
   `defineDocumentHost`. §5.5
-- [ ] **5. SSR's per-request `provide`.** §5.4
+- [x] **5. SSR's per-request resources,** for the fallback's Commands. §5.4
 - [ ] **6. `foldkit-auth/server`.** §6.2–6.3
 - [ ] **7. `Me`.** §6.1
 - [ ] **8. `foldkit-auth/client`.** §6.4
