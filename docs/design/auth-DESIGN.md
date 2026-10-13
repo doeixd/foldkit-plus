@@ -160,6 +160,8 @@ interface PrincipalResolver<P, R> {
 
 `liveHub` and `journalExchange` gain an optional `revalidate`: an Effect run on an interval (default sixty seconds, chosen per host) that answers the connection's principal again. A stream whose principal no longer resolves, or resolves to another key, ends with `Unauthenticated` (Remote live) or closes with 4401 (Sync). Yielded's lifecycle events cannot name a revoked session (§1), so a re-check is the mechanism its own docs recommend; a revocation is seen within one interval.
 
+*As built (slice 4):* on the two hosts that hold the request, not on `liveHub` and `journalExchange`, which never see one: `serveFetch` and `defineDocumentHost` take `revalidate: { every, same? }` and ask `resolvePrincipal` again, of the request the stream or socket opened with. A refusal ends a live stream with an `Unauthenticated` `event: error` frame (slice 2's client reads it back) or closes a socket with 4401; a principal `same` says changed ends the stream as a live error, or closes the socket with 1012, and the client opens it again as the new principal. There is no default interval: `every` is required where `revalidate` is given, and a host without it serves a stream's first principal until it closes. A host over Effect RPC, or one of its own, builds the same loop around its own transport (slice 6's `Auth.socket` will). Building it found that a loop built over `Effect.andThen(resolve(request))` asks once and re-checks that one answer: the resolver is called on each pass.
+
 ---
 
 ## 6. `foldkit-auth`
@@ -302,7 +304,7 @@ Each slice stands alone, with its tests and a review before the next.
 1. **One resolver** (§5.1): `Unauthenticated`, the Effect resolver in `serveFetch`, `defineDocumentHost` and agent-mcp, a Context key in `serveFetch`; the 401-with-any-message behaviour goes. *Built* for `serveFetch` and `defineDocumentHost`; agent-mcp moves to slice 6 (§5.1).
 2. **The client's 401** (§5.3): `RemoteUnauthenticated` on every call kind. *Built.*
 3. **`R` for reads** (§5.2): `Visible`, `MemoryReadable`, Sync's `opens`/`admit`; guard's read seams and `CmsServer.make` take `Policy<User, R>`. *Built* as `Policy.provide` (§5.2), with `unguarded` required.
-4. **Revalidation** (§5.5) for the live hub and the journal exchange.
+4. **Revalidation** (§5.5) for the live hub and the journal exchange. *Built* on `serveFetch` and `defineDocumentHost` (§5.5).
 5. **SSR's per-request `provide`** (§5.4).
 6. **`foldkit-auth/server`**: the principal mapping, the Remote endpoint (route Layer and Web handler), the Origin/CSRF and subject checks, `socket` (with agent-mcp's `authenticate` taking an Effect), `ssr`. Tested against Yielded's in-memory Testing Layer, as the probe was.
 7. **`Me`** (§6.1): `FoldkitAuth.me`, its Source, `may` for named interactions. Closes the TODO item.
@@ -327,4 +329,4 @@ Settled 2026-10-13 by the project's owner ("go with your leanings").
 
 Still open:
 
-6. **`revalidate`'s interval.** Sixty seconds bounds how long a revoked session keeps a live stream; a shorter interval costs one session read per connection per interval.
+6. **`revalidate`'s interval.** Sixty seconds bounds how long a revoked session keeps a live stream; a shorter interval costs one session read per connection per interval. As built there is no default: the host names `every`, and `foldkit-auth/server` (slice 6) picks one for the hosts it builds.
