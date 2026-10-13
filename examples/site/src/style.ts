@@ -6,10 +6,13 @@
  * article, a sidebar) is reached through its container's slot by element.
  */
 import { Capability, Style, type Piece } from 'foldkit-mixins'
+import { CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
 import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
+
+import { declared } from './gallery/theme.js'
 
 const { t, slots, stylesheet } = AppStyle.make({
   palette: Theme.compose(
@@ -32,6 +35,12 @@ const { t, slots, stylesheet } = AppStyle.make({
 })
 
 export { stylesheet }
+
+/** The site's code: the shipped recipe, colored from the theme's `syntax` group. */
+export const CodeStyle = Style.forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
+
+/** Below this width `/create` stacks its knobs over the preview. */
+const ONE_COLUMN = '(max-width: 72rem)'
 
 /** Below this width the rail becomes a bar over the page. */
 const NARROW = '(max-width: 56rem)'
@@ -293,13 +302,16 @@ export const SiteStyle = slots(
       textWrap: 'balance',
     },
     quiet: { color: t.site.faint },
-    lede: {
-      margin: '0',
-      fontSize: '1.125rem',
-      lineHeight: '1.6',
-      color: t.text.muted,
-      maxWidth: '38rem',
-    },
+    lede: [
+      {
+        margin: '0',
+        fontSize: '1.125rem',
+        lineHeight: '1.6',
+        color: t.text.muted,
+        maxWidth: '38rem',
+      },
+      Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
+    ],
     actions: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: t.space.sm },
     primary: Style.slot({ capability: Capability.Focusable }, [
       {
@@ -566,7 +578,10 @@ export const SiteStyle = slots(
     rowAbout: { display: 'flex', flexDirection: 'column', gap: '0.25rem' },
     rowTitle: { margin: '0', fontSize: '1rem', fontWeight: t.weight.medium, color: t.text.overt },
     titleLink: quiet('inherit'),
-    rowText: { margin: '0', color: t.text.muted, fontSize: '0.9375rem', maxWidth: '40rem' },
+    rowText: [
+      { margin: '0', color: t.text.muted, fontSize: '0.9375rem', maxWidth: '40rem' },
+      Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
+    ],
     packages: { ...mono, margin: '0', color: t.text.subtle },
     package: quiet(t.text.subtle),
     rowActions: { margin: '0', display: 'flex', gap: t.space.md, alignItems: 'center' },
@@ -789,6 +804,193 @@ export const SiteStyle = slots(
       Style.nest('.depth-3', { paddingInlineStart: t.space.sm }),
       Style.nest('p', { margin: `${t.space.md} 0 0`, color: t.text.subtle }),
       Style.media(NO_OUTLINE, { display: 'none' }),
+    ],
+
+    // COMPONENTS
+
+    // The component theme, declared on the preview itself: a knob `/create`
+    // sets inline here re-derives every token below it, which it would not
+    // if the tokens were inherited from `:root` already resolved.
+    preview: [
+      Style.self(declared),
+      {
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: t.space.md,
+        boxSizing: 'border-box',
+        minBlockSize: '14rem',
+        padding: t.space.xl,
+        border: rule,
+        borderRadius: t.radius.lg,
+        background: t.surface.base,
+        color: t.text.default,
+        fontFamily: t.font.body,
+      },
+      // A gallery card's: smaller, and nothing in it takes a click or focus.
+      Style.nest('&[data-size="thumb"]', {
+        minBlockSize: '11rem',
+        padding: t.space.lg,
+        overflow: 'hidden',
+      }),
+      // `/create`'s: every component at once, in columns.
+      Style.nest('&[data-size="canvas"]', {
+        display: 'block',
+        columns: '2 17rem',
+        columnGap: t.space.lg,
+        padding: t.space.lg,
+      }),
+    ],
+    gallery: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(16rem, 1fr))',
+      gap: t.space.lg,
+      listStyle: 'none',
+      margin: '0',
+      padding: '0',
+    },
+    galleryCard: {
+      position: 'relative',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space.xs,
+    },
+    // The card's one link, stretched over the whole card.
+    galleryLink: quiet(
+      t.text.overt,
+      { fontWeight: t.weight.medium, fontSize: '0.9375rem' },
+      Style.pseudo('::after', { content: '""', position: 'absolute', inset: '0' }),
+    ),
+    galleryText: { margin: '0', fontSize: '0.875rem', color: t.text.muted },
+    // A component's pickers, its preview and the selection they make, as one block.
+    stage: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space.md,
+      paddingBlockEnd: t.space['2xl'],
+    },
+    toolbar: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'flex-end',
+      gap: `${t.space.md} ${t.space.lg}`,
+    },
+    axis: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space['2xs'],
+      margin: '0',
+      padding: '0',
+      border: '0',
+      minWidth: '0',
+    },
+    axisName: { ...mono, padding: '0', color: t.text.subtle },
+    choices: {
+      display: 'inline-flex',
+      flexWrap: 'wrap',
+      gap: '2px',
+      padding: '2px',
+      border: rule,
+      borderRadius: t.radius.md,
+    },
+    choice: Style.slot({ capability: Capability.Interactive }, [
+      {
+        font: 'inherit',
+        fontSize: '0.8125rem',
+        padding: `0.25rem 0.625rem`,
+        border: '0',
+        borderRadius: t.radius.sm,
+        background: 'transparent',
+        color: t.text.muted,
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { color: t.text.overt }),
+      Style.nest('&[aria-pressed="true"]', {
+        background: t.surface.muted,
+        color: t.text.overt,
+        fontWeight: t.weight.medium,
+      }),
+      focus,
+    ]),
+    selection: { ...mono, margin: '0', color: t.text.muted, overflowWrap: 'anywhere' },
+    studio: [
+      {
+        display: 'grid',
+        gridTemplateColumns: 'minmax(15rem, 19rem) minmax(0, 1fr)',
+        alignItems: 'start',
+        gap: t.space.xl,
+      },
+      Style.media(ONE_COLUMN, { gridTemplateColumns: 'minmax(0, 1fr)' }),
+    ],
+    knobs: [
+      {
+        position: 'sticky',
+        top: t.space.lg,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.md,
+        padding: t.space.lg,
+        border: rule,
+        borderRadius: t.radius.lg,
+      },
+      Style.media(ONE_COLUMN, { position: 'static' }),
+    ],
+    knob: { display: 'flex', flexDirection: 'column', gap: t.space['2xs'] },
+    knobHead: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      gap: t.space.sm,
+      fontSize: '0.8125rem',
+      color: t.text.default,
+    },
+    knobValue: { ...mono, color: t.text.subtle },
+    slider: Style.slot({ capability: Capability.Interactive }, [
+      { width: '100%', margin: '0', accentColor: t.text.overt, cursor: 'pointer' },
+      focus,
+    ]),
+    presets: { display: 'flex', flexWrap: 'wrap', gap: t.space['2xs'] },
+    preset: Style.slot({ capability: Capability.Interactive }, [
+      {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: t.space['2xs'],
+        font: 'inherit',
+        fontSize: '0.8125rem',
+        padding: `0.25rem 0.5rem`,
+        border: rule,
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.default,
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { borderColor: t.text.muted }),
+      Style.nest('&[aria-pressed="true"]', { borderColor: t.text.overt, color: t.text.overt }),
+      focus,
+    ]),
+    swatch: {
+      display: 'inline-block',
+      inlineSize: '0.75rem',
+      blockSize: '0.75rem',
+      borderRadius: '999px',
+    },
+    // One component of `/create`'s preview, kept whole within a column.
+    tile: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space.sm,
+      breakInside: 'avoid',
+      marginBlockEnd: t.space.lg,
+    },
+    tileName: {
+      ...mono,
+      margin: '0',
+      color: t.text.muted,
+      textDecoration: 'none',
+    },
+    themeCode: [
+      { display: 'flex', flexDirection: 'column', gap: t.space.sm, minWidth: '0' },
+      Style.nest('pre', { overflowX: 'auto' }),
     ],
   },
   { name: 'SiteStyle' },

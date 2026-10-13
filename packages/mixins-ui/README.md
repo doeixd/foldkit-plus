@@ -26,6 +26,12 @@ foldkit-mixins
 This package adds **no component state and no renderer**. It is only a bridge
 between an existing `@foldkit/ui` render seam and the Mixins resolver.
 
+Every shipped recipe is on the website's
+[component pages](https://foldkit-plus.pages.dev/components), each with its
+variants to pick and the code that draws it, and
+[Create a theme](https://foldkit-plus.pages.dev/create) turns the theme's knobs
+over all of them at once.
+
 ## The mental model
 
 An `@foldkit/ui` component commonly hands its caller one or more attribute

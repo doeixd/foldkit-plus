@@ -8,9 +8,10 @@ import type { Heading, PhrasingContent, RootContent, TableCell } from 'mdast'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { Behavior, Style } from 'foldkit-mixins'
-import { CodeBlock, CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
+import { CodeBlock, CodeBlockSlots } from 'foldkit-mixins-ui'
 
 import { COPY_ATTRIBUTE } from '../library.js'
+import { CodeStyle } from '../style.js'
 import { textOf } from './text.js'
 import type { Highlight } from './highlight.js'
 
@@ -26,9 +27,6 @@ export interface Context {
 const unlinked = (context: Context): Context => ({ ...context, codeLink: () => Option.none() })
 
 type Ih = HtmlBuilder<never>
-
-/** The site's code: the shipped recipe, colored from the theme's `syntax` group. */
-const CodeStyle = Style.forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
 
 const CopyHook = Behavior.forSlots(CodeBlockSlots)<undefined, never>({
   copy: { attributes: ({ h }) => [h.Attribute(COPY_ATTRIBUTE, '')] },

@@ -57,6 +57,11 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-durable`: a database it cannot open fails as a `JournalError`.**
   From `@effect/sql-sqlite-node` 4.0.1 opening the file can fail with a
   `SqlError`, which escaped the journal's declared errors.
+- **`foldkit-mixins`: `Theme.oklch`'s doc said a knob overridden on any
+  subtree re-derives the palette.** A custom property resolves where it is
+  declared, so tokens on `:root` reach a subtree already resolved; the knob
+  re-derives them only on the element that declares them (`:root`, a
+  `Theme.scoped` selector, or a subtree that declares the theme itself).
 
 ## 0.18.0
 

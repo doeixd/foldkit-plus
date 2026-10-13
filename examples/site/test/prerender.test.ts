@@ -15,6 +15,8 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { allSubsites, subsites } from '../src/catalog.js'
 import { GITHUB } from '../src/content/guides.js'
 import { demos, onGitHub } from '../src/demos.js'
+import { showcases } from '../src/gallery/showcases.js'
+import { codeOf, defaults } from '../src/gallery/theme.js'
 import { site } from '../src/site.js'
 
 const repository = join(import.meta.dirname, '../../..')
@@ -39,6 +41,9 @@ const READ = [
   '/ssr/api/ssr/ssr',
   '/primitives/api/primitives-time/throttle',
   '/primitives',
+  '/components',
+  '/components/button',
+  '/create',
 ]
 
 const hrefs = (root: ParentNode, selector = 'a') =>
@@ -204,6 +209,49 @@ describe('the generated site', () => {
     expect(live?.querySelector('button')?.textContent).toBe('Start')
     // Only there: another page has its pager straight after its article.
     expect(page('/remote/guides/live-data').querySelector('article > section')).toBeNull()
+  })
+
+  test('the gallery has a card for each component, its preview shown but out of reach', () => {
+    const gallery = page('/components')
+    expect(hrefs(gallery, 'main > ul > li > a')).toEqual(
+      showcases.map(showcase => `/components/${showcase.slug}`),
+    )
+    const thumbs = Array.from(gallery.querySelectorAll('main > ul > li > [data-size="thumb"]'))
+    expect(thumbs).toHaveLength(showcases.length)
+    expect(thumbs.every(thumb => thumb.hasAttribute('inert'))).toBe(true)
+    expect(hrefs(gallery, 'nav[aria-label="Site"] [aria-current="page"]')).toEqual(['/components'])
+  })
+
+  test("a component's page offers its recipe's variants, previews it and shows its code", () => {
+    const button = page('/components/button')
+    expect(button.title).toBe('Button · Components · Foldkit Plus')
+    expect(hrefs(button, 'nav[aria-label="Components"] [aria-current="page"]')).toEqual([
+      '/components/button',
+    ])
+    const pressed = Array.from(button.querySelectorAll('main fieldset'), axis => [
+      axis.querySelector('legend')?.textContent,
+      axis.querySelector('[aria-pressed="true"]')?.textContent,
+    ])
+    expect(pressed).toEqual([
+      ['tone', 'accent'],
+      ['variant', 'solid'],
+      ['size', 'md'],
+      ['scheme', 'System'],
+    ])
+    expect(button.querySelector('[data-size="page"] button')?.textContent).toBe('Save changes')
+    const code = button.querySelector('main figure pre code')
+    expect(code?.textContent).toContain("Button.view({ label: 'Save changes', style }, h)")
+    expect(code?.querySelector('[data-kind="syntax-keyword"]')?.textContent).toBe('export')
+  })
+
+  test('the theme creator draws its knobs, a preview in them, and the code they make', () => {
+    const create = page('/create')
+    const hue = create.getElementById('knob-hue')
+    expect([hue?.getAttribute('min'), hue?.getAttribute('max')]).toEqual(['0', '360'])
+    expect(create.querySelector('label[for="knob-hue"]')?.textContent).toBe('Hue')
+    const canvas = create.querySelector('[data-size="canvas"]')
+    expect(canvas?.getAttribute('style')).toContain('--fk-knob-accent-h: 264')
+    expect(create.querySelector('main figure pre code')?.textContent).toBe(codeOf(defaults))
   })
 
   test('every link on every page leads to a page the build wrote, or a file in the repository', () => {
