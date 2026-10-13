@@ -56,7 +56,9 @@ version changed; `pnpm` skips versions already in the registry.
   its `@effect/*` packages at the same version. Published packages still peer on
   `effect@^4.0.0`, and `foldkit-durable` now depends on
   `@effect/sql-sqlite-node@^4.0.0` rather than exactly `4.0.0`, so an
-  application chooses its 4.x.
+  application chooses its 4.x. `examples/livestore` moves to
+  `@livestore/livestore` 0.5.0-dev.1, which peers on `effect@^4.0.3`, so the
+  workspace holds one Effect.
 - **`foldkit-mixins`: one Behavior's failing Mount no longer stops the others
   on its element.** The resolver merges an element's Mounts into one, and from
   Effect 4.0.2 a merge ends when any stream in it fails, so a `Measure` without

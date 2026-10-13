@@ -808,9 +808,7 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 The workspace runs `effect@^4.0.4`, one copy of each Effect package;
 foldkit's exact peer (`effect@4.0.0`) is relaxed in `pnpm-workspace.yaml`, and
-published packages peer on `^4.0.0`. `examples/livestore` alone stays on
-`4.0.0-rc.112`: `@livestore` 0.5.0-dev still imports `effect/unstable/*`, which
-4.0.0 removed. Since 4.0.0 there is no
+published packages peer on `^4.0.0`. Since 4.0.0 there is no
 `effect/unstable/*`: import `effect/http`, `effect/persistence`, `effect/rpc`,
 `effect/sql` (and `effect/http-api` for the old `httpapi`). Since 4.0.0
 `Array`, `Chunk`, `Effect` and `Record` `partition` and `Option.partitionMap`
