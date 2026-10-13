@@ -31,6 +31,7 @@ import {
   type SeedFor,
 } from 'foldkit-bundle'
 import * as Command from 'foldkit/command'
+import { defineTaggedUnion } from 'foldkit/schema'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
 import type { KeyBinding, KeySequence } from 'foldkit/subscription'
@@ -193,7 +194,33 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
    * the nodes below it. Undeclared up the whole chain, a node is indexed.
    */
   readonly indexed?: boolean | undefined
+  /** Who may be shown this node and the nodes below it: see `Site.accessOf`. */
+  readonly access?: NodeAccess | undefined
 }
+
+/**
+ * Who may be shown a node, and where anyone else is sent. Presentation, not
+ * authorization: the server guards what the page reads whatever this says.
+ * `Who` is what the application knows of the reader (its `Me` row, say).
+ */
+export interface NodeAccess<Who = any> {
+  readonly allow: (who: Who) => boolean
+  /** Where a reader `allow` refuses goes, given the address they asked for (a sign-in page returning to it). */
+  readonly otherwise: (requested: string) => SiteTarget<any>
+}
+
+/**
+ * Whether the reader may be shown a route: `Allowed`; `Pending` while the
+ * application does not know who they are yet, to draw a loading state rather
+ * than flash the sign-in page at someone signed in; `Denied` with the address
+ * to send them to.
+ */
+export const Access = defineTaggedUnion({
+  Allowed: {},
+  Pending: {},
+  Denied: { url: Schema.String },
+})
+export type Access = typeof Access.Type
 
 /** Carries the routes a mount or tree holds, in its type only: nothing sets it. */
 declare const routes: unique symbol
@@ -259,6 +286,8 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
   meta<Model = any>(meta: NodeMeta<Route, Model>): NodeBuilder<Route>
   /** Whether search engines index this node and the nodes below it. */
   indexed(indexed: boolean): NodeBuilder<Route>
+  /** Who may be shown this node and the nodes below it, and where anyone else goes. */
+  access<Who = any>(access: NodeAccess<Who>): NodeBuilder<Route>
   /** The Surface this route activates. */
   surface<SRoot, SModel, SMessage, SParams>(config: {
     readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
@@ -437,6 +466,7 @@ export const Site = {
       readonly view?: NodeView | undefined
       readonly meta?: NodeMeta<Route> | undefined
       readonly indexed?: boolean | undefined
+      readonly access?: NodeAccess | undefined
       readonly surface?:
         | {
             readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
@@ -455,6 +485,7 @@ export const Site = {
     if (options?.view !== undefined) built = built.view(options.view)
     if (options?.meta !== undefined) built = built.meta(options.meta)
     if (options?.indexed !== undefined) built = built.indexed(options.indexed)
+    if (options?.access !== undefined) built = built.access(options.access)
     if (options?.surface !== undefined)
       built = built.surface<SRoot, SModel, SMessage, SParams>(options.surface)
     return built.node
@@ -495,6 +526,7 @@ export const Site = {
       view: view => at(Object.freeze({ ...built, view })),
       meta: meta => at(Object.freeze({ ...built, meta })),
       indexed: indexed => at(Object.freeze({ ...built, indexed })),
+      access: access => at(Object.freeze({ ...built, access })),
       surface: config => at(Object.freeze({ ...built, bound: config as BoundSurface })),
     })
     return at(baseNode(router, routeCase))
@@ -730,6 +762,44 @@ export const Site = {
       if (indexed !== undefined) return indexed
     }
     return true
+  },
+
+  /**
+   * Whether the reader may be shown a route: every `access` up its chain,
+   * root first, must allow `who`, and the first that refuses sends them to
+   * its `otherwise`, given the route's address. `who` is `Option.none()`
+   * while the application does not know yet (its `Me` loading): `Pending`
+   * wherever a rule would need it. A route no rule covers is `Allowed`.
+   *
+   * ```ts
+   * Access.match(Site.accessOf(AppSite, model.route, me), {
+   *   Allowed: () => page,
+   *   Pending: () => loading,
+   *   Denied: ({ url }) => redirecting, // and `update` replaces the URL with `url`
+   * })
+   * ```
+   *
+   * A server answers `Denied` with a 303 to `url` before rendering. It is
+   * presentation: what the page reads is guarded on the server regardless.
+   */
+  accessOf: <Route extends { readonly _tag: string }, Who>(
+    site: SiteTree<Route>,
+    route: Route,
+    who: Option.Option<Who>,
+  ): Access => {
+    for (const node of Site.chainOf(site, route)) {
+      const { access } = node
+      if (access === undefined) continue
+      if (Option.isNone(who)) return Access.Pending()
+      if (access.allow(who.value)) continue
+      const requested = Site.hrefOf(site, route)
+      const { url } = access.otherwise(requested)
+      // Sending a reader to the page that refused them would loop for ever.
+      if (url === requested)
+        throw new Error(`foldkit-site: ${node.tag}'s access sends a refused reader back to ${url}`)
+      return Access.Denied({ url })
+    }
+    return Access.Allowed()
   },
 
   /**

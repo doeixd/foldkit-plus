@@ -217,7 +217,7 @@ questions still open.
 ## Authentication
 
 Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
-orders the slices; step 0 and slices 1–9 are built.
+orders the slices; step 0 and slices 1–10 are built.
 
 - [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
   `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
@@ -268,7 +268,10 @@ orders the slices; step 0 and slices 1–9 are built.
 - [ ] **The example's SSR and Sync socket.** A server render as the request's
   principal, and a Sync document over `AuthServer.resolver({ requests:
   'browser' })`. §9
-- [ ] **10. `Site.access`** and SSR's 303. §6.5
+- [x] **10. `Site.access`:** `access` on a node, `Site.accessOf`. §6.5
+- [ ] **`access` in the example.** Routes in `examples/auth` with a page
+  that sends a visitor to sign in, the client's replace and the host's 303,
+  with its SSR. §6.5, §9
 
 ## CMS
 

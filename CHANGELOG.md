@@ -31,6 +31,13 @@ version changed; `pnpm` skips versions already in the registry.
   upgrade, kept while the socket is open for `revalidate`, and closed at once
   for a refused upgrade.
 
+- **`foldkit-site`: `access`, who may be shown a page.** A node's `access:
+  { allow, otherwise }` covers it and the nodes below it;
+  `Site.accessOf(site, route, who)` answers `Access.Allowed`, `Pending`
+  while `who` is unknown, or `Denied({ url })` with `otherwise`'s address for
+  what was asked. Presentation for the client and a server's 303; the server
+  guards the data regardless.
+
 - **`examples/auth`: Yielded Auth end to end.** Password sign-in and
   sign-out through Yielded's own client and routes, a guarded notes list
   (an admin reads every note, a member their own, a visitor none), `Me` for

@@ -151,3 +151,19 @@ export const unfailing: Effect.Effect<ReadonlyArray<unknown>, never, never> = Si
   PathsSite,
   [Site.paths(People, Effect.fail('down' as const))],
 )
+
+// `access`: `allow` reads what the node names as the reader, `otherwise` builds a target.
+Site.node(homeRouter, AppRoute.Home).access<{ readonly signedIn: boolean }>({
+  allow: me => me.signedIn,
+  otherwise: () => Site.target(Home, {}),
+})
+Site.node(homeRouter, AppRoute.Home).access<{ readonly signedIn: boolean }>({
+  // @ts-expect-error: the reader has no such field
+  allow: me => me.admin,
+  otherwise: () => Site.target(Home, {}),
+})
+Site.node(homeRouter, AppRoute.Home).access({
+  allow: () => true,
+  // @ts-expect-error: a bare URL is not a target
+  otherwise: () => '/sign-in',
+})

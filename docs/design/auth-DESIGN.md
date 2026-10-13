@@ -1,6 +1,6 @@
 # Authentication: Yielded Auth in Foldkit Plus
 
-**Status:** Partly built. Step 0 and slices 1–9 are built (9 without SSR and Sync) (§9, each with an *As built* note); slice 10 is not. §10's questions are settled. §2 and §3 record what was measured on that date: an inventory of every principal seam, an Effect 4.0.4 run of the whole repository, and a probe that served a guarded Remote read under a Yielded session.
+**Status:** Built through slice 10 (9 without SSR and Sync) (§9, each with an *As built* note). Later items (§9 item 11) are on demand. §10's questions are settled. §2 and §3 record what was measured on that date: an inventory of every principal seam, an Effect 4.0.4 run of the whole repository, and a probe that served a guarded Remote read under a Yielded session.
 **Target:** a new package, `foldkit-auth`, over [Yielded Auth](https://github.com/yielded-dev/auth) (`@yielded/auth`, `0.1.0-beta.38`); small changes in `foldkit-remote-server`, `foldkit-remote`, `foldkit-remote-drizzle`, `foldkit-sync`, `foldkit-ssr`, `foldkit-agent-mcp`, `foldkit-site` and `foldkit-guard`.
 **Related:** [guard-DESIGN.md](./guard-DESIGN.md) (§6.5 `G.Principal`, §8a the `Me` Entity, §8b agents, §8c Sync), [router-DESIGN.md](./router-DESIGN.md) §25 (route guards are presentation), [server-DESIGN.md](./server-DESIGN.md) §19.5 (principal and CSRF middleware per host), [TODO.md](./TODO.md).
 
@@ -270,6 +270,7 @@ Site.access(Projects, {
 - SSR honours the same rule with a 303 to `otherwise` before rendering. As built (§5.4) a render runs no Command and nothing is provided to it, so the host resolves `Me` for the request in `flags`, or answers the 303 itself before calling `renderPage`; slice 10 decides which.
 - While `Me` is loading the route draws its loading state, not the sign-in page, so a slow read never flashes "Sign in" at a signed-in user.
 
+*As built (slice 10):* `access` is node metadata in `foldkit-site`, as `indexed` is, inherited by the nodes below: `{ allow: who => boolean, otherwise: requested => SiteTarget }`. `Site.accessOf(site, route, who: Option<Who>)` answers `Access.Allowed`, `Pending` (who unknown: `Me` loading) or `Denied({ url })`, root first; an `otherwise` that sends the reader back where they were throws. `Who` is the application's (its `Me` row), so the tree stays data with no Remote in it, and `from: MeSurface` in the sketch became the caller passing what it read. The server half is the host's, decided: a render cannot redirect, so the host resolves the request's `Me` (the resolver, `GuardServer.me`'s answer) and answers `Denied` with a 303 before calling `renderPage`. The client half is the application's `update` replacing the URL on `Denied`. Neither is wired in `examples/auth` yet, which has no routes.
 ### 6.6 Agents
 
 - agent-mcp's `authenticate` takes `Auth.socket`'s resolver (§5.1): an MCP client inside the application's origin sends the cookie; one outside it sends a bearer credential. `principalId` defaults to `G.key`. One runtime per principal is already the adapter's rule.
@@ -323,7 +324,7 @@ Each slice stands alone, with its tests and a review before the next.
 7. **`Me`** (§6.1): `FoldkitAuth.me`, its Source, `may` for named interactions. Closes the TODO item. *Built* as `Guards.me` and `GuardServer.me` (§6.1).
 8. **`foldkit-auth/client`** (§6.4): Commands, `Session.http`, `Session.lost`, the cross-tab channel, persistence scope. *Built* as `RemoteData.refused`; the rest is the application's code over existing pieces, shown in slice 9 (§6.4).
 9. **An example end to end:** password sign-in, a guarded list, sign-out in a second tab, SSR, a Sync socket; an e2e test in Chromium (`pnpm e2e`), since only a running page shows cookies, redirects and tabs. *Built* as `examples/auth`, without SSR and the Sync socket, which follow: password sign-in and sign-out through Yielded's client, a guarded list, `Me`, the cross-tab broadcast, and an e2e test across two tabs and a server restart. Yielded's default cookie (`__Host-`, Secure) is kept: Chromium counts `127.0.0.1` a secure origin.
-10. **`Site.access`** (§6.5) with SSR's 303.
+10. **`Site.access`** (§6.5) with SSR's 303. *Built* as `access` and `Site.accessOf`; the 303 is the host's (§6.5).
 11. **Later, on demand:** `Guards.reauthenticate` (§6.7); Yielded's `OAuthServer` for third-party MCP clients; passkeys and OAuth in the example.
 
 Docs land with each slice: the package README in the onboarding order, a `SKILL.md` row and a reference file, `CHANGELOG.md`.
