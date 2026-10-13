@@ -22,7 +22,7 @@ the application's, handed in through `G.Principal`.
 
 ## Basic use
 
-- `Guards.declare(name, PrincipalSchema, guard => ({ … }), { key })` takes the
+- `Guards.declare(name, PrincipalSchema, guard => ({ … }), { key, unguarded: 'deny' })` takes the
   principal as a `Schema.Struct`; its fields are what row guards read.
 - `G.implement(bodies)` must give a body to every principal guard and nothing
   else (a type error, and refused at runtime too).
@@ -78,6 +78,11 @@ const Todo = TodoFields.pipe(
 - `Policy.writable(Todo, principal, 'Update' | 'Create' | 'Delete' | Archive.key)`
   is `{ condition, deny }`; `Policy.writeMembers(..., 'Create' | 'Update')` and
   `Policy.linkable(Todo, principal, 'project', 'Link' | 'Unlink')` likewise.
+- A body may need a service (`Effect.map(Memberships, …)`). The read seams
+  (`GuardDrizzle.visible`, `GuardServer.memory`, `GuardSync`) take a Policy
+  needing nothing: `Policy.provide(context)` gives one, once at startup, and
+  a seam built from it counts as built from `Policy` for `validate`.
+  Per-request facts belong in the principal.
 - `foldkit-guard/server`: `...GuardServer.memory(Policy, [Todo, Project])`
   spread into `RemoteServer.memory` enforces row and member Reads, inherited
   Reads included; `GuardServer.filter(Todo, Policy)` is a Source's `filter`

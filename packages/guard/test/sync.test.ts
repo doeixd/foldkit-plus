@@ -41,7 +41,7 @@ const G = Guards.declare(
     isOwner: guard.row(ProductFields, p => Expr.eq(ProductFields.fields.ownerId, p.id)),
     isDowel: guard.row(ProductFields, () => Expr.eq(ProductFields.fields.name, 'Dowel')),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 const Product = ProductFields.pipe(

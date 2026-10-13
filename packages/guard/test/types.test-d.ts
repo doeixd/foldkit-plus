@@ -1,10 +1,17 @@
 /**
  * What a guard set's types accept and refuse, one defect per negative case.
  */
-import { Option, Schema } from 'effect'
+import { Context, Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Relation, type InputExpr } from 'foldkit-entity'
 import { expectTypeOf } from 'vitest'
-import { Guards, Interaction, type PrincipalGuard, type RowGuard } from '../src/index.js'
+import {
+  Guards,
+  Interaction,
+  type Policy,
+  type PrincipalGuard,
+  type RowGuard,
+} from '../src/index.js'
+import { GuardServer } from '../src/server.js'
 
 const User = Schema.Struct({ id: Schema.String, role: Schema.Literals(['admin', 'member']) })
 type User = typeof User.Type
@@ -25,7 +32,7 @@ const G = Guards.declare(
       return Expr.eq(TodoFields.fields.ownerId, p.id)
     }),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 expectTypeOf(G.isAdmin).toEqualTypeOf<PrincipalGuard<User, 'Todos'>>()
@@ -42,7 +49,7 @@ Guards.declare(
         : Expr.eq(TodoFields.fields.ownerId, p.id),
     ),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 Guards.declare(
@@ -52,13 +59,14 @@ Guards.declare(
     // @ts-expect-error a rank is a number, and the principal's id is text
     ranked: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.rank, p.id)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 const Policy = G.implement({ isAdmin: principal => Option.isSome(principal) })
 
 const Others = Guards.declare('Others', Visitor, guard => ({ isGuest: guard.principal() }), {
   key: visitor => visitor.session,
+  unguarded: 'allow',
 })
 
 // @ts-expect-error a guard of another principal
@@ -72,7 +80,7 @@ const N = Guards.declare(
   'Notes',
   User,
   guard => ({ isAuthor: guard.row(Note, p => Expr.eq(Note.fields.authorId, p.id)) }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 const Archive = Interaction.make('Archive')
 const { Todo: Related } = Entity.relate(
@@ -167,6 +175,7 @@ Related.pipe(
 
 const Twin = Guards.declare('Twin', User, guard => ({ isAdmin: guard.principal() }), {
   key: user => user.id,
+  unguarded: 'allow',
 })
 
 TodoFields.pipe(
@@ -175,3 +184,36 @@ TodoFields.pipe(
     always: [Twin.isAdmin],
   }),
 )
+
+Guards.declare(
+  'Undecided',
+  User,
+  guard => ({ isAdmin: guard.principal() }),
+  // @ts-expect-error what an unruled surface decides is written down, never defaulted
+  { key: user => user.id },
+)
+
+// A body may need a service; a read seam takes the Policy once it is provided.
+class Memberships extends Context.Service<
+  Memberships,
+  { readonly admins: ReadonlyArray<string> }
+>()('types/Memberships') {}
+class Clockwork extends Context.Service<Clockwork, { readonly now: number }>()('types/Clockwork') {}
+const Needing = Twin.implement({
+  isAdmin: principal =>
+    Effect.gen(function* () {
+      const { admins } = yield* Memberships
+      yield* Clockwork
+      return Option.exists(principal, user => admins.includes(user.id))
+    }),
+})
+// @ts-expect-error a read rule runs inside a read: its Policy needs nothing more
+GuardServer.memory(Needing, [])
+GuardServer.memory(
+  Needing.provide(
+    Context.make(Memberships, { admins: [] }).pipe(Context.add(Clockwork, { now: 0 })),
+  ),
+  [],
+)
+const partly = Needing.provide(Context.make(Memberships, { admins: [] }))
+expectTypeOf(partly).toEqualTypeOf<Policy<typeof User.Type, Clockwork>>()

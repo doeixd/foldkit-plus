@@ -17,6 +17,7 @@ import {
   type RowRule,
 } from './condition.js'
 import { May } from './may.js'
+import { providedFrom } from './origin.js'
 import {
   Expr,
   Query,
@@ -213,6 +214,44 @@ export interface Policy<User, R = never> {
    * seam that is handed the principal untyped.
    */
   readonly isPrincipal: (value: unknown) => value is Option.Option<User>
+  /**
+   * This Policy with services its bodies need provided, such as a membership
+   * lookup. The read seams (`GuardDrizzle.visible`, `GuardServer.memory`,
+   * `GuardSync`) take a Policy that needs nothing more: a read rule runs inside
+   * a read whose requirements are its Source's. Provide what stays put here,
+   * once; carry what changes per request in the principal. A seam built from
+   * the result counts as built from this Policy.
+   *
+   * ```ts
+   * const ReadPolicy = Policy.provide(Context.make(Memberships, memberships))
+   * ```
+   */
+  readonly provide: <Provided extends R>(
+    context: Context.Context<Provided>,
+  ) => Policy<User, Exclude<R, Provided>>
+}
+
+/** `policy` with `context` provided to every body it runs. */
+const provided = <User, R, Provided extends R>(
+  policy: Policy<User, R>,
+  context: Context.Context<Provided>,
+): Policy<User, Exclude<R, Provided>> => {
+  const run = <A>(effect: Effect.Effect<A, never, R>) => Effect.provide(effect, context)
+  const next: Policy<User, Exclude<R, Provided>> = {
+    ...policy,
+    decide: (guard, request) => run(policy.decide(guard, request)),
+    readable: (entity, principal) => run(policy.readable(entity, principal)),
+    readMembers: (entity, principal, members) =>
+      run(policy.readMembers(entity, principal, members)),
+    writable: (entity, principal, interaction) =>
+      run(policy.writable(entity, principal, interaction)),
+    writeMembers: (entity, principal, members, interaction) =>
+      run(policy.writeMembers(entity, principal, members, interaction)),
+    linkable: (entity, principal, relation, interaction) =>
+      run(policy.linkable(entity, principal, relation, interaction)),
+    provide: more => provided(next, more),
+  }
+  return providedFrom(next, policy)
 }
 
 /** The builders a guard set's declaration is given, typed by its principal. */
@@ -286,7 +325,12 @@ export const Guards = {
     build: (guard: Builders<Schema.Struct.Type<Fields>>) => S,
     options: {
       readonly key: (user: Schema.Struct.Type<Fields>) => string
-      readonly unguarded?: 'allow' | 'deny' | undefined
+      /**
+       * What a surface of a guarded Entity with no rules decides: `'deny'`
+       * refuses it, `'allow'` lets everyone. Required, so an open surface is
+       * a decision written down; `Guards.matrix` prints it `closed` or `open`.
+       */
+      readonly unguarded: 'allow' | 'deny'
     },
   ): GuardSet<Name, Schema.Struct.Type<Fields>, S> => {
     type User = Schema.Struct.Type<Fields>
@@ -394,7 +438,7 @@ export const Guards = {
           interaction,
         )
       }
-      return {
+      const policy: Policy<User, R> = {
         set: name,
         decide,
         readable: (entity, principal) =>
@@ -421,7 +465,9 @@ export const Guards = {
             onSome: user => `user:${JSON.stringify(asJson(user))}`,
           }),
         isPrincipal,
+        provide: context => provided(policy, context),
       }
+      return policy
     }
 
     return Object.freeze({
@@ -432,7 +478,7 @@ export const Guards = {
         `foldkit-guard/Principal/${name}`,
       ),
       key: options.key,
-      unguarded: options.unguarded ?? 'allow',
+      unguarded: options.unguarded,
       inputOf,
       implement,
     }) as unknown as GuardSet<Name, User, S>

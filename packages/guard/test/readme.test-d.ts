@@ -6,7 +6,7 @@
  * document's contract, journal and `changesOf`.
  */
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Option, Schema } from 'effect'
+import { Context, Effect, Option, Schema } from 'effect'
 import { Entity, Expr, type Selected } from 'foldkit-entity'
 import { Guards } from 'foldkit-guard'
 import type { CellChange } from 'foldkit-guard/sync'
@@ -42,7 +42,7 @@ const G = Guards.declare(
     isOwner: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
     inProject: guard.row(TodoFields, p => Expr.in(TodoFields.fields.projectId, p.projectIds)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'deny' },
 )
 
 // Server: the body of every principal guard, and nothing else.
@@ -145,6 +145,22 @@ import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { bind, source } from 'foldkit-remote-drizzle'
 
 const visible = GuardDrizzle.visible(Policy, [Todo])
+
+class Memberships extends Context.Service<
+  Memberships,
+  { readonly admins: ReadonlyArray<string> }
+>()('app/Memberships') {}
+
+const Checked = G.implement({
+  isAdmin: principal =>
+    Effect.map(Memberships, ({ admins }) =>
+      Option.exists(principal, user => admins.includes(user.id)),
+    ),
+})
+const ReadPolicy = Checked.provide(Context.make(Memberships, { admins: ['ada'] }))
+GuardDrizzle.visible(ReadPolicy, [Todo])
+// @ts-expect-error a type error with `Checked`
+GuardDrizzle.visible(Checked, [Todo])
 const Db = bind(
   { Todo, Project },
   {

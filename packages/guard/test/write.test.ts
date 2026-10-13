@@ -63,7 +63,7 @@ const G = Guards.declare(
     isOwner: guard.row(Related.Todo, p => Expr.eq(Related.Todo.fields.ownerId, p.id)),
     isUnclaimed: guard.row(Related.Todo, () => Expr.isNull(Related.Todo.fields.claimedBy)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 const Archive = Interaction.make('Archive')

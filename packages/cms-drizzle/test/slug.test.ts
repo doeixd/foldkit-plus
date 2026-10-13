@@ -70,7 +70,7 @@ const G = Guards.declare(
     isAuthor: guard.principal(),
     isPublished: guard.row(Article, () => Expr.isNotNull(Article.fields.publishedAt)),
   }),
-  { key: author => author.name },
+  { key: author => author.name, unguarded: 'allow' },
 )
 const Policy = G.implement({ isAuthor: Option.isSome })
 const GuardedArticle = Article.pipe(

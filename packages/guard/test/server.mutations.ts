@@ -7,6 +7,33 @@ const tests = ['packages/guard/test/server.test.ts']
 
 export default [
   {
+    name: 'a rule from a provided Policy is not its origin’s',
+    edits: [
+      {
+        file: '../src/placed.ts',
+        find: 'originOf(placed.policy) === originOf(policy) &&',
+        replace: 'placed.policy === policy &&',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a provided Policy records no origin',
+    edits: [{ file: '../src/origin.ts', find: 'origins.set(policy, originOf(from))', replace: '' }],
+    tests,
+  },
+  {
+    name: 'provide hands the bodies nothing',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'Effect.provide(effect, context)',
+        replace: 'Effect.provide(effect, Context.empty() as Context.Context<Provided>)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a redacted member is omitted instead',
     edits: [{ file, find: "member.deny._tag === 'Redact'", replace: 'false' }],
     tests,
@@ -73,7 +100,13 @@ export default [
   },
   {
     name: 'validate takes a rule built from another Policy',
-    edits: [{ file: '../src/placed.ts', find: 'placed.policy === policy &&', replace: '' }],
+    edits: [
+      {
+        file: '../src/placed.ts',
+        find: 'originOf(placed.policy) === originOf(policy) &&',
+        replace: '',
+      },
+    ],
     tests,
   },
   {

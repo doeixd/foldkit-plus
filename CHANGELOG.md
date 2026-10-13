@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-guard`: `Policy.provide(context)`,** a Policy whose bodies have
+  the services they need provided, for the read seams
+  (`GuardDrizzle.visible`, `GuardServer.memory`, `GuardSync`), which take a
+  Policy needing nothing more. A seam built from it counts as built from the
+  Policy it came from, for `GuardServer.validate`.
+
 - **`foldkit-remote`: `RemoteUnauthenticated`** (`_tag: 'Unauthenticated'`,
   with an optional `reason`), the refusal of a caller who could not be told,
   beside `RemoteForbidden`; `RemoteJsonAnswer` carries it as
@@ -53,6 +59,11 @@ version changed; `pnpm` skips versions already in the registry.
   parameter for the check.
 
 ### Changed
+
+- **`foldkit-guard`: `Guards.declare` requires `unguarded`.** What a guarded
+  Entity's surface with no rules decides is written down rather than
+  defaulted to `'allow'`. Pass `unguarded: 'allow'` to keep what an omitted
+  one did; `'deny'` refuses such a surface.
 
 - **`serveFetch` and `defineDocumentHost` resolve the principal with an
   Effect.** `resolvePrincipal: (request, env) => Effect<P,

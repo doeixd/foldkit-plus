@@ -117,7 +117,7 @@ const G = Guards.declare(
     isAuthor: guard.principal(),
     isPublished: guard.row(Post, () => Expr.isNotNull(Post.fields.publishedAt)),
   }),
-  { key: author => author.name },
+  { key: author => author.name, unguarded: 'allow' },
 )
 const Policy = G.implement({ isAuthor: Option.isSome })
 const GuardedPost = Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))

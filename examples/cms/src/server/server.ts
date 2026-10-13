@@ -64,7 +64,7 @@ export const G = Guards.declare(
     isPagePublished: guard.row(Page, () => Expr.isNotNull(Page.fields.publishedAt)),
     isArticlePublished: guard.row(Article, () => Expr.isNotNull(Article.fields.publishedAt)),
   }),
-  { key: author => author.name },
+  { key: author => author.name, unguarded: 'allow' },
 )
 export const Policy = G.implement({
   isAuthor: Option.isSome,

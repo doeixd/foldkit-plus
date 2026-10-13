@@ -97,7 +97,7 @@ const G = Guards.declare(
     isOwner: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
     inProject: guard.row(TodoFields, p => Expr.in(TodoFields.fields.projectId, p.projectIds)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'deny' },
 )
 
 // Server: the body of every principal guard, and nothing else.
@@ -204,8 +204,9 @@ Guards.matrix([Todo])
 - `Guards.guardFields(Todo, 'Read')` names the members a row interaction's
   guards read, so a change to one is known to change who may.
 - A surface with no guards on a guarded Entity falls to the set's
-  `unguarded` (`'allow'` by default); the matrix prints it `open`, or
-  `closed` under `unguarded: 'deny'`.
+  `unguarded`, which `declare` requires so the choice is written down:
+  `'deny'` refuses it (the matrix prints `closed`), `'allow'` lets everyone
+  (`open`).
 
 ## Deciding reads and writes
 
@@ -318,6 +319,32 @@ const TodoSource = source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })
   an `Option` of the set's schema is a defect, never read as a visitor.
 - `visible` is the row's Read. Member and relation Reads are the Source's
   `filter`, as `TodoSource` has it.
+
+A body may need a service, a membership lookup say, and name it in its
+Effect. The read seams (`GuardDrizzle.visible`, `GuardServer.memory`,
+`GuardSync`) take a Policy that needs nothing more, since a read rule runs
+inside a read whose requirements are the Source's. Provide the services once,
+at startup; what changes with each request belongs in the principal:
+
+```ts
+class Memberships extends Context.Service<
+  Memberships,
+  { readonly admins: ReadonlyArray<string> }
+>()('app/Memberships') {}
+
+const Checked = G.implement({
+  isAdmin: principal =>
+    Effect.map(Memberships, ({ admins }) =>
+      Option.exists(principal, user => admins.includes(user.id)),
+    ),
+})
+const ReadPolicy = Checked.provide(Context.make(Memberships, { admins: ['ada'] }))
+GuardDrizzle.visible(ReadPolicy, [Todo]) // a type error with `Checked`
+```
+
+A seam built from `ReadPolicy` counts as built from `Checked`, so
+`GuardServer.validate(Checked, …)` accepts it. The write seams take the
+Policy as it is and require its services where the write runs.
 
 ## Serving writes
 

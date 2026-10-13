@@ -30,7 +30,7 @@ const G = Guards.declare(
     isOwner: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
     inProject: guard.row(TodoFields, p => Expr.in(TodoFields.fields.projectId, p.projectIds)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 const Policy = G.implement({
@@ -110,6 +110,7 @@ describe('a principal’s key', () => {
     })
     const S = Guards.declare('Staff', Staff, guard => ({ isAdmin: guard.principal() }), {
       key: user => user.id,
+      unguarded: 'allow',
     })
     const Staffed = S.implement({ isAdmin: () => true })
     const key = (roles: ReadonlyArray<string>) =>
@@ -126,7 +127,7 @@ describe('a declaration', () => {
         'Wrong',
         User,
         guard => ({ isAuthor: guard.row(TodoFields, p => Expr.eq(Note.fields.authorId, p.id)) }),
-        { key: user => user.id },
+        { key: user => user.id, unguarded: 'allow' },
       ),
     ).toThrow(/Note\.authorId/)
   })
@@ -138,7 +139,7 @@ describe('a declaration', () => {
         User,
         // @ts-expect-error `implement` is the guard set's own
         guard => ({ implement: guard.principal() }),
-        { key: user => user.id },
+        { key: user => user.id, unguarded: 'allow' },
       ),
     ).toThrow(/"implement"/)
   })
@@ -168,6 +169,7 @@ describe('implement', () => {
   it('refuses a guard from another set', () => {
     const Other = Guards.declare('Other', User, guard => ({ isAdmin: guard.principal() }), {
       key: user => user.id,
+      unguarded: 'allow',
     })
     expect(() => decide(Other.isAdmin, Option.some(root))).toThrow(/belongs to Other/)
   })

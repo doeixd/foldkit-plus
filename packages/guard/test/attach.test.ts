@@ -38,7 +38,7 @@ const G = Guards.declare(
     isOwner: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
     inProject: guard.row(TodoFields, p => Expr.in(TodoFields.fields.projectId, p.projectIds)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 const Archive = Interaction.make('Archive')
@@ -159,7 +159,7 @@ describe('attach', () => {
       'Todos',
       User,
       guard => ({ owns: guard.row(Twin, p => Expr.eq(Twin.fields.ownerId, p.id)) }),
-      { key: user => user.id },
+      { key: user => user.id, unguarded: 'allow' },
     )
     expect(() =>
       TodoFields.pipe(Guards.attach(Other, { row: { Update: [Guards.all(Other.owns)] } })),
@@ -169,6 +169,7 @@ describe('attach', () => {
   it('refuses the guards of a second set on one Entity', () => {
     const Other = Guards.declare('Other', User, guard => ({ signedIn: guard.principal() }), {
       key: user => user.id,
+      unguarded: 'allow',
     })
     expect(() => Todo.pipe(Guards.attach(Other, { always: [Other.signedIn] }))).toThrow(
       /Todo carries the guards of Todos already/,
