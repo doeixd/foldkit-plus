@@ -39,10 +39,13 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-guard`: `Me`, the visitor as an Entity.** `Guards.me(G, {
   interactions })` declares one row, `me`, that everyone reads and no one
   writes: `signedIn`, `key` (the principal's declared `key`) and `may` for the
-  named interactions; `GuardServer.me(Me, Policy)` serves it, and counts for
-  `validate` as applying its rules. `Guards.anyone` is the rule everyone
-  passes, a visitor included, for a public surface under `unguarded:
-  'deny'`; `Policy.key` is `declare`'s `key`. `AuthServer.resolver` takes
+  named interactions; `GuardServer.me(Me, Policy)` serves it, counts for
+  `validate` as applying its rules, and refuses a Policy of another set when
+  it is made. `Guards.anyone` is the rule everyone passes, a visitor
+  included, for a public surface under `unguarded: 'deny'`: a surface naming
+  it restricts no one, for Sync documents and shared fields too, and
+  `Guards.all` now takes at least one rule. `Policy.key` is `declare`'s `key`
+  (`G.key`), for a seam holding the Policy. `AuthServer.resolver` takes
   `key: Policy.key` to compare `x-foldkit-subject` with it.
 
 - **`foldkit-ssr`: a posted form's own resources.** `SSR.entry` takes

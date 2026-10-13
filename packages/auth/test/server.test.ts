@@ -188,6 +188,14 @@ describe('AuthServer.resolver over a real Yielded session', () => {
       'Origin: null from another site',
       { origin: 'null', 'sec-fetch-site': 'cross-site', 'x-effect-auth-csrf': '1' },
     ],
+    [
+      'Origin: null from a sibling site',
+      { origin: 'null', 'sec-fetch-site': 'same-site', 'x-effect-auth-csrf': '1' },
+    ],
+    [
+      'no Origin, claiming its own site',
+      { 'sec-fetch-site': 'same-origin', 'x-effect-auth-csrf': '1' },
+    ],
     ['no CSRF header', { origin: 'https://app.test' }],
     ['the wrong CSRF value', { origin: 'https://app.test', 'x-effect-auth-csrf': '0' }],
   ])('refuses a cookie from a request with %s', async (_, headers) => {

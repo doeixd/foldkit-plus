@@ -52,31 +52,41 @@ export const GuardServer = {
   me: <User, R>(
     entity: MeEntity,
     policy: Policy<User, R>,
-  ): EntitySource<Option.Option<User>, R> => ({
-    ...RemoteServer.entity<Option.Option<User>, R>(entity, {
-      read: ({ ids, principal }) =>
-        Effect.succeed(
-          ids
-            .filter(id => id === ME)
-            .map(id => ({
-              id,
-              values: {
-                signedIn: Option.isSome(principal),
-                // Encoded, as a Source answers: `null` for a visitor.
-                key: Option.match(principal, {
-                  onNone: () => null,
-                  onSome: policy.key,
-                }),
-              },
-            })),
-        ),
-      filter: GuardServer.filter(entity, policy),
-    }),
-    // Its Read rule as this Source applies it: only the asker's own row,
-    // which `Guards.me` lets anyone read. One per call: the registry is keyed
-    // by it, and another call is for another Policy.
-    visible: rowRules.add(Object.freeze({ reads: 'the asker’s own row' }), policy, [entity]),
-  }),
+  ): EntitySource<Option.Option<User>, R> => {
+    // Otherwise every read would die deciding another set's guards.
+    Option.map(attached(entity), ({ set }) => {
+      if (set !== policy.set) {
+        throw new Error(
+          `[foldkit-guard] GuardServer.me: Me carries the guards of ${set}, not ${policy.set}`,
+        )
+      }
+    })
+    return {
+      ...RemoteServer.entity<Option.Option<User>, R>(entity, {
+        read: ({ ids, principal }) =>
+          Effect.succeed(
+            ids
+              .filter(id => id === ME)
+              .map(id => ({
+                id,
+                values: {
+                  signedIn: Option.isSome(principal),
+                  // Encoded, as a Source answers: `null` for a visitor.
+                  key: Option.match(principal, {
+                    onNone: () => null,
+                    onSome: policy.key,
+                  }),
+                },
+              })),
+          ),
+        filter: GuardServer.filter(entity, policy),
+      }),
+      // Its Read rule as this Source applies it: only the asker's own row,
+      // which `Guards.me` lets anyone read. One per call: the registry is keyed
+      // by it, and another call is for another Policy.
+      visible: rowRules.add(Object.freeze({ reads: 'the asker’s own row' }), policy, [entity]),
+    }
+  },
 
   /**
    * An `EntitySource.filter` for `entity`: each requested member with a Read

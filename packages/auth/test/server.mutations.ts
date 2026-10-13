@@ -134,12 +134,12 @@ export default [
     tests,
   },
   {
-    name: 'Origin: null is looked up as an origin',
-    edits: [{ file, find: "origin !== null && origin !== 'null'", replace: 'origin !== null' }],
+    name: 'a missing Origin is taken by Sec-Fetch-Site',
+    edits: [{ file, find: "origin === 'null'", replace: "origin === 'null' || origin === null" }],
     tests,
   },
   {
-    name: 'a withheld Origin is taken from anywhere but another site',
+    name: 'a sibling site counts as the site',
     edits: [
       {
         file,

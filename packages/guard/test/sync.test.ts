@@ -109,6 +109,19 @@ describe('GuardSync.document', () => {
     ).toThrow('its `always` rules read the row')
   })
 
+  it('takes rows anyone may read, with no readers, whatever the set denies', () => {
+    const Public = ProductFields.pipe(
+      Guards.attach(G, {
+        row: { Read: [Guards.anyone] },
+        members: { name: { Read: [Guards.anyone] } },
+        always: [Guards.anyone],
+      }),
+    )
+    expect(() =>
+      GuardSync.document({ entity: Public, members: ['name'] }, { readers: [] }),
+    ).not.toThrow()
+  })
+
   it('opens to its readers, and to no one else', () => {
     const opens = (principal: Option.Option<User>) =>
       Effect.runSync(GuardSync.opens(Policy, Edits, principal))

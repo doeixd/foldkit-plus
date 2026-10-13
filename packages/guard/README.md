@@ -566,12 +566,14 @@ const MeSource = GuardServer.me(Me, Policy)
 
 - The client reads `Me` through Remote like any row (`Entity.select(Me,
   { signedIn: true, key: true, may: true })`), so it is `Loading`, `Ready`
-  or stale as data is, survives SSR, and `Remote.forget` on sign-out drops
-  it. `May.can(me.may, OpenAdmin.key)` is the server's answer; no rule runs
+  or stale as data is, survives SSR, and `Remote.forget` on any change of
+  principal (a sign-in as much as a sign-out) drops it. `May.can(me.may, OpenAdmin.key)` is the server's answer; no rule runs
   on the client.
 - Its Read is `Guards.anyone`, whatever the set leaves `unguarded`, and its
   writes are nobody's, as the matrix prints them. `Guards.anyone` serves any
-  surface that is public under a set that denies the rest.
+  surface that is public under a set that denies the rest: a Read of it
+  restricts no one, so a Sync document over its rows needs no readers and
+  `validate` lets a Source share them.
 - `may` is read with the row, as any `may` is: a principal whose role
   changes sees it when `Me` is read again.
 

@@ -283,7 +283,9 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
           // the DOM's `ResponseInit` has no such member.
           webSocket: client,
         } as ResponseInit)
-      } catch {
+      } catch (error) {
+        // The replica learns nothing of it; whoever runs the host must.
+        console.error('[foldkit-sync] serving an upgrade broke:', error)
         release()
         return Response.json({ error: 'Internal error' }, { status: 500 })
       }

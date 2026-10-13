@@ -54,9 +54,9 @@ const cookieValues = (header: string | null, name: string): ReadonlyArray<string
  */
 const cameFrom = (request: Request, trusted: ReadonlySet<string>): boolean => {
   const origin = request.headers.get('origin')
-  return origin !== null && origin !== 'null'
-    ? trusted.has(origin)
-    : request.headers.get('sec-fetch-site') === 'same-origin'
+  return origin === 'null'
+    ? request.headers.get('sec-fetch-site') === 'same-origin'
+    : origin !== null && trusted.has(origin)
 }
 
 const refuse = (reason: string) => new RemoteUnauthenticated({ message: reason, reason })

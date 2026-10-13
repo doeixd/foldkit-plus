@@ -5,6 +5,7 @@
  * it does not name.
  */
 import { Effect, Option, Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
 import { REMOTE_PROTOCOL_VERSION, Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -41,11 +42,10 @@ const read = (principal: Option.Option<User>, id = ME) =>
     }),
   ).then(answer => answer.entities)
 
-/** The row as a client decodes it from the wire. */
-const decoded = (values: unknown) =>
-  Schema.decodeUnknownSync(
-    Schema.Struct({ signedIn: Me.fields.signedIn.schema, key: Me.fields.key.schema }),
-  )(values)
+/** The row as a client decodes it from the wire: through `Me`'s selection's own schema. */
+const decoded = Schema.decodeUnknownSync(
+  Entity.select(Me, { signedIn: true, key: true, may: true }).schema,
+)
 
 describe('Guards.me served by GuardServer.me', () => {
   it.each([
@@ -54,21 +54,38 @@ describe('Guards.me served by GuardServer.me', () => {
     ['a member', grace, { signedIn: true, key: Option.some('user:grace') }, false],
   ])('answers %s as themselves, and what they may open', async (_, principal, self, admin) => {
     const [row] = await read(principal)
-    const { may, ...values } = row!.values as { readonly may: unknown }
-    expect(decoded(values)).toEqual(self)
-    expect(May.can(may as never, OpenAdmin.key)).toBe(admin)
-    expect(May.reason(may as never, OpenAdmin.key)).toEqual(
+    const { may, ...values } = decoded(row!.values)
+    expect(values).toEqual(self)
+    expect(May.can(may, OpenAdmin.key)).toBe(admin)
+    expect(May.reason(may, OpenAdmin.key)).toEqual(
       admin ? Option.none() : Option.some('Only an admin may open this.'),
     )
     // No one writes their Me.
-    expect(May.can(may as never, 'Update')).toBe(false)
+    expect(May.can(may, 'Update')).toBe(false)
   })
 
   it('has no row but its own', async () => {
     expect(await read(ada, 'someone-else')).toEqual([])
   })
 
-  it('is read by anyone and written by no one, whatever the set leaves unguarded', () => {
+  it.each([
+    ['denies', Me],
+    [
+      'allows',
+      Guards.me(
+        Guards.declare('Open', User, () => ({}), { key: user => user.id, unguarded: 'allow' }),
+      ),
+    ],
+  ])('is read by anyone and written by no one where the set %s what it does not name', (_, me) => {
+    expect(Guards.matrix([me]).split('\n').slice(0, 4)).toEqual([
+      'Me.Read: anyone → not_found',
+      'Me.Create: nobody → forbidden',
+      'Me.Update: nobody → forbidden',
+      'Me.Delete: nobody → forbidden',
+    ])
+  })
+
+  it('names its interactions in the matrix', () => {
     expect(Guards.matrix([Me])).toEqual(
       [
         'Me.Read: anyone → not_found',
@@ -77,6 +94,16 @@ describe('Guards.me served by GuardServer.me', () => {
         'Me.Delete: nobody → forbidden',
         'Me.OpenAdmin: isAdmin → explain("Only an admin may open this.")',
       ].join('\n'),
+    )
+  })
+
+  it("refuses a Policy of another set than Me's guards", () => {
+    const H = Guards.declare('Other', User, guard => ({ isAdmin: guard.principal() }), {
+      key: user => user.id,
+      unguarded: 'deny',
+    })
+    expect(() => GuardServer.me(Me, H.implement({ isAdmin: () => true }))).toThrow(
+      'Me carries the guards of Site, not Other',
     )
   })
 

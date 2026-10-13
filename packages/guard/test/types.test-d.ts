@@ -227,3 +227,5 @@ Guards.me(G, { interactions: { [Archive.key]: [Others.isGuest] } })
 Guards.me(G, { interactions: { Archive: [G.isAdmin] } })
 // @ts-expect-error a row guard over another Entity
 Guards.me(G, { interactions: { [Archive.key]: [G.isOwner] } })
+// @ts-expect-error a conjunction of nothing is Guards.anyone, by name
+Guards.all()

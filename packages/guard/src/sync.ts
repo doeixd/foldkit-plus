@@ -18,7 +18,7 @@ import { Effect, Match, Option, Schema } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
 import type { EntitySource } from 'foldkit-remote-server'
 import type { AuthorizeDecision, Operation } from 'foldkit-sync'
-import { attached, surfaceOf, type Deny } from './attach.js'
+import { attached, isAnyone, restricts, surfaceOf, type Deny } from './attach.js'
 import { Condition } from './condition.js'
 import type { Policy, PrincipalGuard } from './index.js'
 
@@ -97,11 +97,11 @@ export const GuardSync = {
     }
     Option.map(attached(entity), attachment => {
       for (const member of members) {
-        if (Option.isSome(surfaceOf(attachment, { _tag: 'Member', member, interaction: 'Read' })))
+        if (restricts(surfaceOf(attachment, { _tag: 'Member', member, interaction: 'Read' })))
           fail(`${member} has a Read rule of its own, and every reader receives every edit`)
       }
       const read = surfaceOf(attachment, { _tag: 'Row', interaction: 'Read' })
-      if (Option.isSome(read)) {
+      if (Option.isSome(read) && restricts(read)) {
         if (options.readers.length === 0)
           fail('its rows have a Read rule, so the document names its readers')
         for (const reader of options.readers) {
@@ -114,7 +114,7 @@ export const GuardSync = {
           if (!named) fail(`${reader.name} is not in its rows' Read rule, so may not read them`)
         }
       }
-      if (attachment.always.some(rule => rule._tag !== 'PrincipalGuard'))
+      if (attachment.always.some(rule => rule._tag !== 'PrincipalGuard' && !isAnyone(rule)))
         fail('its `always` rules read the row, which no reader can be shown to pass')
     })
     return Object.freeze({ entity, members, readers: options.readers })

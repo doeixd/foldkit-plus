@@ -200,7 +200,11 @@ export interface Policy<User, R = never> {
   ) => Effect.Effect<Option.Option<RowRule>, never, R>
   /** The principal's fields as row guards' inputs; a visitor has none. */
   readonly inputOf: (principal: Option.Option<User>) => Readonly<Record<string, unknown>>
-  /** Who the principal is, as `declare`'s `key` names them: the same person alike across requests. */
+  /**
+   * Who the principal is: `declare`'s `key`, the same function as `G.key`,
+   * here for a server seam that holds the Policy and not the set. Not
+   * `keyOf`, which names a principal by every field, for sharing re-reads.
+   */
   readonly key: (user: User) => string
   /**
    * Who is asking, as the rules see it: every field of the principal, encoded,

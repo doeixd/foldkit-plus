@@ -286,8 +286,8 @@ export default [
     edits: [
       {
         file,
-        find: '      } catch {\n        release()\n        return Response.json',
-        replace: '      } catch (error) {\n        throw error\n        return Response.json',
+        find: "      } catch (error) {\n        // The replica learns nothing of it; whoever runs the host must.\n        console.error('[foldkit-sync] serving an upgrade broke:', error)\n        release()",
+        replace: '      } catch (error) {\n        throw error',
       },
     ],
     tests,

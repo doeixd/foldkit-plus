@@ -260,13 +260,21 @@ export const surfaceOf = (attachment: Attachment, target: Target): Option.Option
   })
 
 /** Whether who may read the rows depends on who is asking: a row Read rule, or `always`. */
+/** `Guards.anyone`: a conjunction of nothing, which every principal passes. */
+export const isAnyone = (rule: AnyRule): boolean => rule._tag === 'All' && rule.rules.length === 0
+
+/** Whether a surface's rules restrict who passes: not when one of them is `anyone`. */
+export const restricts = (surface: Option.Option<Surface>): boolean =>
+  Option.exists(surface, ({ rules }) => !rules.some(isAnyone))
+
 export const readRowsRuled = (attachment: Attachment): boolean =>
-  attachment.row['Read'] !== undefined || attachment.always.length > 0
+  restricts(surfaceOf(attachment, { _tag: 'Row', interaction: 'Read' })) ||
+  attachment.always.some(rule => !isAnyone(rule))
 
 /** Whether `member`, a field or a relation, has a Read rule of its own. */
 export const readRuled = (attachment: Attachment, member: string): boolean =>
-  Option.isSome(surfaceOf(attachment, { _tag: 'Member', member, interaction: 'Read' })) ||
-  Option.isSome(surfaceOf(attachment, { _tag: 'Relation', relation: member, interaction: 'Read' }))
+  restricts(surfaceOf(attachment, { _tag: 'Member', member, interaction: 'Read' })) ||
+  restricts(surfaceOf(attachment, { _tag: 'Relation', relation: member, interaction: 'Read' }))
 
 const key = Metadata.key<Attachment>('foldkit-guard/attachment', {
   merge: attachments => [mergeAttachments(attachments)],
@@ -451,7 +459,12 @@ export const Attaching = {
   attached,
 
   /** Every rule must allow, as one rule. Principal and row guards may mix. */
-  all: <const Rules extends ReadonlyArray<Exclude<AnyRule, Inherit<string>>>>(
+  all: <
+    const Rules extends readonly [
+      Exclude<AnyRule, Inherit<string>>,
+      ...ReadonlyArray<Exclude<AnyRule, Inherit<string>>>,
+    ],
+  >(
     ...rules: Rules
   ): All<Rules[number]> => Object.freeze({ _tag: 'All', rules: Object.freeze([...rules]) }),
 

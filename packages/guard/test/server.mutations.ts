@@ -293,8 +293,8 @@ export default [
     edits: [
       {
         file: '../src/attach.ts',
-        find: "attachment.row['Read'] !== undefined || attachment.always.length > 0",
-        replace: "attachment.row['Read'] !== undefined",
+        find: '||\n  attachment.always.some(rule => !isAnyone(rule))',
+        replace: '',
       },
     ],
     tests,
@@ -304,7 +304,7 @@ export default [
     edits: [
       {
         file: '../src/attach.ts',
-        find: "Option.isSome(surfaceOf(attachment, { _tag: 'Relation', relation: member, interaction: 'Read' }))",
+        find: "restricts(surfaceOf(attachment, { _tag: 'Relation', relation: member, interaction: 'Read' }))",
         replace: 'false',
       },
     ],

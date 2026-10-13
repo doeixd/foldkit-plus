@@ -1122,7 +1122,8 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       `foldkit-ssr: plan "${plan.id}" handles posted forms, which run as whoever posted; name the origins a form may be posted from (origins)`,
     )
   }
-  const origins = options.origins === undefined ? undefined : new Set(options.origins)
+  // Required above for every plan that takes a post, the only reader of it.
+  const origins = new Set(options.origins ?? [])
   const allow = plan.fallback === 'server' ? 'GET, HEAD, POST, OPTIONS' : 'GET, HEAD, OPTIONS'
   // Deleted and appended rather than set, which would keep one `set-cookie` of several.
   const merge = (response: Response, extra: Headers): Response => {
@@ -1152,7 +1153,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     if (method !== 'GET' && method !== 'HEAD' && !posting) {
       return responded(new Response(null, { status: 405, headers: { allow } }))
     }
-    if (posting && !postedFrom(request, origins ?? new Set())) {
+    if (posting && !postedFrom(request, origins)) {
       return responded(plainText(403, 'The form was not posted from this site.'))
     }
     const flagsOf = options.flags
@@ -1209,9 +1210,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
  */
 const postedFrom = (request: Request, origins: ReadonlySet<string>): boolean => {
   const origin = request.headers.get('origin')
-  return origin !== null && origin !== 'null'
-    ? origins.has(origin)
-    : request.headers.get('sec-fetch-site') === 'same-origin'
+  return origin === 'null'
+    ? request.headers.get('sec-fetch-site') === 'same-origin'
+    : origin !== null && origins.has(origin)
 }
 
 const plainText = (status: number, body: string): Response =>

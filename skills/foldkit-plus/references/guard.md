@@ -133,7 +133,8 @@ const Todo = TodoFields.pipe(
   Policy)` among the Sources. One row, `me` (`ME`): `signedIn`, `key`
   (`Policy.key` of the principal; none for a visitor), `may`. Its Read is
   `Guards.anyone`, its writes nobody's. Read it as any row for nav links,
-  "who am I", and route-level `may`; `Remote.forget` on sign-out drops it.
+  "who am I", and route-level `may`; `Remote.forget` on any change of principal
+  drops it.
 - Sync: `foldkit-guard/sync`. `GuardSync.document(ProductEdits, { readers: [G.isStaff] })`
   (refused at definition when an edit could reach a reader its rows hide it from);
   `authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }` under the

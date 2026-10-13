@@ -32,7 +32,7 @@ export default [
     edits: [
       {
         file,
-        find: "if (attachment.always.some(rule => rule._tag !== 'PrincipalGuard'))",
+        find: "if (attachment.always.some(rule => rule._tag !== 'PrincipalGuard' && !isAnyone(rule)))",
         replace: 'if (false)',
       },
     ],

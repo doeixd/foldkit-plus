@@ -481,6 +481,15 @@ describe('GuardServer.validate', () => {
     expect(sharing({ Todo: ['tag'] })).toThrow(
       "Todo's Source shares tag, but its rows have a Read rule; Todo's Source shares tag, which has a Read rule",
     )
+    // Anyone reads them: `anyone` tells no readers apart.
+    const Open = CardRelated.Card.pipe(
+      Guards.attach(G, {
+        row: { Read: [Guards.anyone] },
+        members: { secret: { Read: [Guards.anyone] } },
+        always: [Guards.anyone],
+      }),
+    )
+    expect(sharing({ Card: ['title', 'secret'] }, Open)).not.toThrow()
   })
 
   it('refuses rules built from an Entity before its guards were attached', () => {

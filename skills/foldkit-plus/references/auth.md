@@ -71,9 +71,10 @@ on every Remote call kind.
   since Yielded needs 4.0.3 or later.
 
 - `x-foldkit-subject` (`SUBJECT_HEADER` from `foldkit-auth`, browser-safe) is
-  `subjectSaid(Option.none())` (`visitor`) or
-  `subjectSaid(Option.some(id))`. A client that sends it is never answered as
-  anyone else; one that sends none is answered as the session says.
+  `subjectSaid(me.key)` from `foldkit-guard`'s `Me`, with `key: Policy.key`
+  on the resolver so it compares the principal's key (without `key`, the
+  session's `subjectId`). A client that sends it is never answered as anyone
+  else; one that sends none is answered as the session says.
 - Sync's upgrade and SSR's posted forms send no header of the page's: pass
   `requests: 'browser'`, and a trusted `Origin` alone vouches for the
   cookie. Sync takes the resolver with `layer: () => AppAuthLive`; SSR builds

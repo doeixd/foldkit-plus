@@ -145,6 +145,8 @@ describe('SSR.handle through handleRequest', () => {
     ['another origin', 'https://elsewhere.test', undefined],
     ['no Origin', null, undefined],
     ['Origin: null from another site', 'null', 'cross-site'],
+    ['Origin: null from a sibling site', 'null', 'same-site'],
+    ['no Origin, claiming its own site', null, 'same-origin'],
   ] as const)('refuses a form posted from %s, reading nothing', async (_, origin, site) => {
     const seen: Array<string> = []
     const guarded = SSR.entry(config, plan, {
