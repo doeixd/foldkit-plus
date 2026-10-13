@@ -5,7 +5,7 @@
  */
 import { Effect, Fiber } from 'effect'
 import { toString as urlToString } from 'foldkit/url'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { pointedLinks } from '../src/dom/index.js'
 import { takeMessages } from './support.js'
 
@@ -19,11 +19,28 @@ const link = (href: string): readonly [HTMLAnchorElement, HTMLSpanElement] => {
   return [anchor, text]
 }
 
-const settle = Effect.gen(function* () {
-  for (let i = 0; i < 100; i++) yield* Effect.yieldNow
-})
+/**
+ * Watches `document` for both listeners, and waits until they are there: an
+ * event sent before then reaches no one, and a fixed number of yields was too
+ * few on a busy machine. Call it before the stream starts.
+ */
+const listening = (): Effect.Effect<void> => {
+  const attached = new Set<string>()
+  const add = document.addEventListener.bind(document)
+  const both = new Promise<void>(resolve =>
+    vi
+      .spyOn(document, 'addEventListener')
+      .mockImplementation((...args: Parameters<Document['addEventListener']>) => {
+        add(...args)
+        attached.add(args[0])
+        if (attached.has('pointerover') && attached.has('focusin')) resolve()
+      }),
+  )
+  return Effect.promise(() => both)
+}
 
 afterEach(() => {
+  vi.restoreAllMocks()
   document.body.replaceChildren()
 })
 
@@ -33,8 +50,9 @@ it('reads each link pointed at or tabbed to, on this origin, once while the read
   const [post] = link('/site/blog/a-post')
   const pointed = await Effect.runPromise(
     Effect.gen(function* () {
+      const attached = listening()
       const fiber = yield* Effect.forkChild(takeMessages(pointedLinks(), 2))
-      yield* settle
+      yield* attached
       const over = (element: Element) =>
         element.dispatchEvent(new window.Event('pointerover', { bubbles: true }))
       over(blogText)
@@ -57,8 +75,9 @@ it('reads the link around what the pointer crosses, and nothing outside one', as
   const [, blogText] = link('/site/blog')
   const pointed = await Effect.runPromise(
     Effect.gen(function* () {
+      const attached = listening()
       const fiber = yield* Effect.forkChild(takeMessages(pointedLinks(), 1))
-      yield* settle
+      yield* attached
       plain.dispatchEvent(new window.Event('pointerover', { bubbles: true }))
       blogText.dispatchEvent(new window.Event('pointerover', { bubbles: true }))
       return yield* Fiber.join(fiber)

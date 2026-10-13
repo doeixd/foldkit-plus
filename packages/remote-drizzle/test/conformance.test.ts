@@ -149,6 +149,7 @@ const pgBinding = entity('Subject', pgRows)
 describe('foldkit-remote-drizzle conforms to the query semantics on Postgres', () => {
   // One database for every case: they only read.
   const pglite = new PGlite()
+  // Postgres compiled to WebAssembly takes seconds to start on a busy machine.
   beforeAll(async () => {
     await pglite.exec(create)
     for (const row of rows)
@@ -159,7 +160,7 @@ describe('foldkit-remote-drizzle conforms to the query semantics on Postgres', (
         row.tag,
         row.at,
       ])
-  })
+  }, 60_000)
   afterAll(() => pglite.close())
 
   it.each(named)('$name', async ({ c, i }) => {
@@ -180,6 +181,7 @@ describe('foldkit-remote-drizzle conforms to the query semantics on Postgres', (
 // so the compiler decides them without SQL: this is the one that folds a row.
 describe('foldkit-remote-drizzle folds a stored row as the evaluator does, on Postgres', () => {
   const pglite = new PGlite()
+  // Postgres compiled to WebAssembly takes seconds to start on a busy machine.
   beforeAll(async () => {
     await pglite.exec(create)
     await pglite.query('insert into conformance_rows values ($1, $2, $3, $4, $5)', [
@@ -189,7 +191,7 @@ describe('foldkit-remote-drizzle folds a stored row as the evaluator does, on Po
       null,
       '2026-01-01T00:00:00.000Z',
     ])
-  })
+  }, 60_000)
   afterAll(() => pglite.close())
 
   it.each([
