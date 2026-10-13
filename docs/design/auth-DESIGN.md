@@ -136,6 +136,8 @@ interface PrincipalResolver<P, R> {
 - `serveFetch`, `defineDocumentHost` and agent-mcp's `authenticate` take it instead of their current shapes; `serveFetch` and `defineDocumentHost` gain the `R` through their `layer`. The `Promise` forms go: the project is pre-1.0 and two ways to resolve a principal is one too many.
 - `serveFetch` provides the resolved principal under a Context key when given one, so one handler set serves every request, as `handlers` already allows.
 
+*As built (slice 1):* `serveFetch` and `defineDocumentHost` only. The error is `RemoteUnauthenticated` in `foldkit-remote`, beside `RemoteForbidden`, so the client can decode it (slice 2) and Sync, which already peers `foldkit-remote`, shares it; `RemoteServer.unauthenticated(reason?)` makes one. `serveFetch` answers it as `{ error, unauthenticated: { reason? } }`, the 401 twin of `answer`'s 403, and builds `layer` once per request, provided to the resolver too; `defineDocumentHost`'s resolver needs no service yet, and keeps its `{ error }` body, which a browser `WebSocket` cannot read anyway. Not built: agent-mcp's `authenticate`, whose core is Promise-based and owns its sessions, moves to slice 6 with `Auth.socket`; and the Context-key option, which nothing reads, waits for a consumer.
+
 ### 5.2 `R` where reads are decided
 
 `Visible` becomes `(principal: unknown, self) => SQL | undefined | Effect<SQL | undefined, RemoteServerError, R>`, with `R` carried by the binding and the Source it builds; `MemoryReadable`'s producer, `JournalExchangeOptions.opens` and `admit` gain an `R` the exchange's caller provides. Then `GuardDrizzle.visible`, `GuardServer.memory`, `GuardSync.opens`/`admit` and `CmsServer.make` take `Policy<User, R>`.
@@ -293,12 +295,12 @@ Yielded expresses "this action needs a recent second factor" as `requireAssuranc
 Each slice stands alone, with its tests and a review before the next.
 
 0. **Effect ≥ 4.0.4.** A scoped `pnpm.overrides` (`effect@4.0.0` → `4.0.4`), the two Foldkit examples' `randomUUIDv4()`, the `mixins-builder` Mount behaviour settled, `pnpm check` green; a request upstream to widen Foldkit's peer. Nothing else starts before this.
-1. **One resolver** (§5.1): `Unauthenticated`, the Effect resolver in `serveFetch`, `defineDocumentHost` and agent-mcp, a Context key in `serveFetch`; the 401-with-any-message behaviour goes.
+1. **One resolver** (§5.1): `Unauthenticated`, the Effect resolver in `serveFetch`, `defineDocumentHost` and agent-mcp, a Context key in `serveFetch`; the 401-with-any-message behaviour goes. *Built* for `serveFetch` and `defineDocumentHost`; agent-mcp moves to slice 6 (§5.1).
 2. **The client's 401** (§5.3): `RemoteUnauthenticated` on every call kind.
 3. **`R` for reads** (§5.2): `Visible`, `MemoryReadable`, Sync's `opens`/`admit`; guard's read seams and `CmsServer.make` take `Policy<User, R>`.
 4. **Revalidation** (§5.5) for the live hub and the journal exchange.
 5. **SSR's per-request `provide`** (§5.4).
-6. **`foldkit-auth/server`**: the principal mapping, the Remote endpoint (route Layer and Web handler), the Origin/CSRF and subject checks, `socket`, `ssr`. Tested against Yielded's in-memory Testing Layer, as the probe was.
+6. **`foldkit-auth/server`**: the principal mapping, the Remote endpoint (route Layer and Web handler), the Origin/CSRF and subject checks, `socket` (with agent-mcp's `authenticate` taking an Effect), `ssr`. Tested against Yielded's in-memory Testing Layer, as the probe was.
 7. **`Me`** (§6.1): `FoldkitAuth.me`, its Source, `may` for named interactions. Closes the TODO item.
 8. **`foldkit-auth/client`** (§6.4): Commands, `Session.http`, `Session.lost`, the cross-tab channel, persistence scope.
 9. **An example end to end:** password sign-in, a guarded list, sign-out in a second tab, SSR, a Sync socket; an e2e test in Chromium (`pnpm e2e`), since only a running page shows cookies, redirects and tabs.
