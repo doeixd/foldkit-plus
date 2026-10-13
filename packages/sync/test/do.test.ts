@@ -403,30 +403,53 @@ describe("defineDocumentHost, the resolver's layer", () => {
   >()('do-test/Sessions') {}
 
   /** A host whose resolver reads `Sessions`, from a layer that logs its life. */
-  const withSessions = (revoked: Set<string>) => {
+  /** What breaks after the layer is built, each a 500 that must release it. */
+  type Breaks = 'nothing' | 'resolver' | 'journal' | 'opens' | 'layer' | 'layer function'
+
+  const withSessions = (revoked: Set<string>, breaks: Breaks = 'nothing') => {
     const log: Array<string> = []
     const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
+    const sessions = Layer.effect(
+      Sessions,
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          log.push('acquire')
+          return {
+            who: (token: string) =>
+              revoked.has(token)
+                ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
+                : Effect.succeed(token),
+          }
+        }),
+        () => Effect.sync(() => void log.push('release')),
+      ),
+    )
     const Host = defineDocumentHost(FakeBase, {
       sync: Todos,
-      openJournal: async () => openJournal(),
+      openJournal: async () => {
+        if (breaks === 'journal') throw new Error('no storage')
+        return openJournal()
+      },
       resolvePrincipal: request =>
-        Effect.flatMap(Sessions, sessions => sessions.who(request.headers.get('x-actor') ?? '')),
-      layer: () =>
-        Layer.effect(
-          Sessions,
-          Effect.acquireRelease(
-            Effect.sync(() => {
-              log.push('acquire')
-              return {
-                who: (token: string) =>
-                  revoked.has(token)
-                    ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
-                    : Effect.succeed(token),
-              }
-            }),
-            () => Effect.sync(() => void log.push('release')),
-          ),
-        ),
+        breaks === 'resolver'
+          ? Effect.die(new Error('the session store password'))
+          : Effect.flatMap(Sessions, sessions =>
+              sessions.who(request.headers.get('x-actor') ?? ''),
+            ),
+      layer: () => {
+        if (breaks === 'layer function') throw new Error('no binding')
+        // Acquired, then a later part fails: what was acquired is released.
+        return breaks === 'layer'
+          ? Layer.merge(sessions, Layer.effectDiscard(Effect.die(new Error('no pool'))))
+          : sessions
+      },
+      ...(breaks === 'opens'
+        ? {
+            opens: () => {
+              throw new Error('the membership store')
+            },
+          }
+        : {}),
       revalidate: { every: '10 millis' },
       pair: () => {
         const pair = FakeWebSocket.linked({ lingering: true })
@@ -443,6 +466,25 @@ describe("defineDocumentHost, the resolver's layer", () => {
       await new Promise(resolve => setTimeout(resolve, 5))
     }
   }
+
+  it.each([
+    ['a layer that fails to build', 'layer', ['acquire', 'release']],
+    ['a layer function that throws', 'layer function', []],
+    ['a resolver that dies', 'resolver', ['acquire', 'release']],
+    ['a journal that never opens', 'journal', ['acquire', 'release']],
+    ['an opens that throws', 'opens', ['acquire', 'release']],
+  ] as const)('answers %s with a 500, releasing what it built', async (_, breaks, released) => {
+    const { Host, log } = withSessions(new Set(), breaks)
+    const served = new Host({}, undefined)
+    const response = await served.fetch(
+      new Request('http://host/sync', { headers: { Upgrade: 'websocket', 'x-actor': 'ada' } }),
+    )
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Internal error' })
+    await settledOn(() => log.length === released.length)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(log).toEqual(released)
+  })
 
   it('keeps it while the socket is open, and closes it with the socket', async () => {
     const { Host, pairs, log } = withSessions(new Set())

@@ -245,7 +245,10 @@ orders the slices; step 0 and slices 1–6 are built.
 - [ ] **A posted form whose session ended** is a 500: `resources` cannot
   fail. With `Site.access`'s 303 (slice 10). §6.5
 - [ ] **The client acts on a refusal.** A 4401 close makes Sync's transport
-  stop reconnecting (today every close code reconnects, each upgrade a 401); a
+  stop reconnecting (today every close code reconnects, each upgrade a 401),
+  but only once a fresh upgrade is refused too: Yielded's renewal rotates the
+  credential, and `revalidate` re-checks the one the socket or stream opened
+  with, so a routine renewal ends it with 4401 while the session lives; a
   refused live stream stops restarting until `forget`; a typed predicate for
   `Unauthenticated`, since a Model's `RemoteError` is `{ _tag: string }`.
   With slice 8. §5.3, §7

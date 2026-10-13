@@ -104,11 +104,11 @@ export default [
     edits: [
       {
         file,
-        find: `      const [client, server] = (config.pair ?? defaultPair)()
-      server.accept()
-      const { admit } = config`,
-        replace: `      const [client, server] = (config.pair ?? defaultPair)()
-      const { admit } = config`,
+        find: `        const [client, server] = (config.pair ?? defaultPair)()
+        server.accept()
+        const { admit } = config`,
+        replace: `        const [client, server] = (config.pair ?? defaultPair)()
+        const { admit } = config`,
       },
     ],
     tests,
@@ -225,7 +225,70 @@ export default [
   {
     name: 'a socket revalidation closed keeps its layer until the replica answers',
     edits: [
-      { file, find: '              })\n              release()\n', replace: '              })\n' },
+      {
+        file,
+        find: '                })\n                release()\n',
+        replace: '                })\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a layer that fails to build keeps what it acquired',
+    edits: [
+      {
+        file,
+        find: '      if (services === undefined) {\n        release()\n',
+        replace: '      if (services === undefined) {\n',
+      },
+    ],
+    survives:
+      'equivalent: undefined services make the resolver die, and that guard releases the layer and answers 500',
+    tests,
+  },
+  {
+    name: 'a layer that fails to build is served anyway',
+    edits: [
+      {
+        file,
+        find: '      if (services === undefined) {',
+        replace: '      if (false) {',
+      },
+    ],
+    survives:
+      'equivalent: undefined services make the resolver die, and that guard releases the layer and answers 500',
+    tests,
+  },
+  {
+    name: 'a resolver that dies keeps its layer',
+    edits: [
+      {
+        file,
+        find: '      if (resolved === undefined) {\n        release()\n',
+        replace: '      if (resolved === undefined) {\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a journal that never opened keeps the layer',
+    edits: [
+      {
+        file,
+        find: '        this.ready = undefined\n        release()\n',
+        replace: '        this.ready = undefined\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a throw after the resolver escapes the upgrade',
+    edits: [
+      {
+        file,
+        find: '      } catch {\n        release()\n        return Response.json',
+        replace: '      } catch (error) {\n        throw error\n        return Response.json',
+      },
     ],
     tests,
   },

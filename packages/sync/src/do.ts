@@ -229,57 +229,64 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
         release()
         return Response.json({ error: 'Internal error' }, { status: 500 })
       }
-      const [client, server] = (config.pair ?? defaultPair)()
-      server.accept()
-      const { admit } = config
-      const socket = workerSocket(server)
-      const stop = serveJournal(socket, {
-        sync: config.sync,
-        journal,
-        principal,
-        ...(config.settle === undefined ? {} : { settle: config.settle(this.hostEnv, journal) }),
-        ...(config.opens === undefined ? {} : { opens: config.opens(principal) }),
-        ...(admit === undefined
-          ? {}
-          : { admit: (operation: Operation) => admit(principal, operation) }),
-      })
-      if (config.revalidate !== undefined) {
-        const { every, key } = config.revalidate
-        const checking = Effect.sleep(every).pipe(
-          Effect.andThen(resolve),
-          Effect.flatMap(now =>
-            key === undefined || key(principal) === key(now) ? Effect.void : Effect.fail(changed),
-          ),
-          Effect.forever,
-          Effect.catchCause(cause =>
-            Effect.sync(() => {
-              // Before closing: a worker's socket fires its own close only on
-              // the replica's reply, and frames in flight until then would
-              // still be appended as the principal just refused.
-              stop()
-              const failure = Cause.findErrorOption(cause)
-              Option.match(failure, {
-                // A defect: this side broke, and the replica learns that it did.
-                onNone: () => closeWith(server, 1011, 'Internal error'),
-                onSome: error =>
-                  error === changed
-                    ? closeWith(server, 1012, 'Who is asking changed')
-                    : closeWith(server, 4401, error.message),
-              })
-              release()
-            }),
-          ),
-        )
-        const fiber = Effect.runFork(checking)
-        socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))
+      // Anything from here may throw (no WebSocketPair, an application's
+      // `opens` or `settle`): a 500, and the upgrade's services released.
+      try {
+        const [client, server] = (config.pair ?? defaultPair)()
+        server.accept()
+        const { admit } = config
+        const socket = workerSocket(server)
+        const stop = serveJournal(socket, {
+          sync: config.sync,
+          journal,
+          principal,
+          ...(config.settle === undefined ? {} : { settle: config.settle(this.hostEnv, journal) }),
+          ...(config.opens === undefined ? {} : { opens: config.opens(principal) }),
+          ...(admit === undefined
+            ? {}
+            : { admit: (operation: Operation) => admit(principal, operation) }),
+        })
+        if (config.revalidate !== undefined) {
+          const { every, key } = config.revalidate
+          const checking = Effect.sleep(every).pipe(
+            Effect.andThen(resolve),
+            Effect.flatMap(now =>
+              key === undefined || key(principal) === key(now) ? Effect.void : Effect.fail(changed),
+            ),
+            Effect.forever,
+            Effect.catchCause(cause =>
+              Effect.sync(() => {
+                // Before closing: a worker's socket fires its own close only on
+                // the replica's reply, and frames in flight until then would
+                // still be appended as the principal just refused.
+                stop()
+                const failure = Cause.findErrorOption(cause)
+                Option.match(failure, {
+                  // A defect: this side broke, and the replica learns that it did.
+                  onNone: () => closeWith(server, 1011, 'Internal error'),
+                  onSome: error =>
+                    error === changed
+                      ? closeWith(server, 1012, 'Who is asking changed')
+                      : closeWith(server, 4401, error.message),
+                })
+                release()
+              }),
+            ),
+          )
+          const fiber = Effect.runFork(checking)
+          socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))
+        }
+        socket.onClose(release)
+        return new Response(null, {
+          status: 101,
+          // The worker runtime reads the client out of the upgrade response;
+          // the DOM's `ResponseInit` has no such member.
+          webSocket: client,
+        } as ResponseInit)
+      } catch {
+        release()
+        return Response.json({ error: 'Internal error' }, { status: 500 })
       }
-      socket.onClose(release)
-      return new Response(null, {
-        status: 101,
-        // The worker runtime reads the client out of the upgrade response;
-        // the DOM's `ResponseInit` has no such member.
-        webSocket: client,
-      } as ResponseInit)
     }
   }
 }

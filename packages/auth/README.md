@@ -194,6 +194,13 @@ A page served with `Referrer-Policy: no-referrer` sends `Origin: null` on its
 own posts; such a request counts as the application's when its
 `Sec-Fetch-Site`, which no page can set, says `same-origin`.
 
+**A long-lived connection re-checks the cookie it opened with.** `revalidate`
+asks again of the request a live stream or socket opened with, and Yielded's
+renewal rotates the session's credential, so after the page renews, that
+stream or socket ends refused (`Your session ended.`, a 4401) though the
+session lives. The client opens it again with the new cookie; the first
+refusal of a fresh request is the one that means signed out.
+
 **Remote's calls do not keep a session alive.** The resolver verifies with
 `verifySession`, which renews nothing. A stateful session with an
 `idleTimeout` ends that long after its last renewal however busy Remote is,
