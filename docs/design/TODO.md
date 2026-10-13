@@ -216,7 +216,7 @@ questions still open.
 ## Authentication
 
 Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
-orders the slices; step 0, slices 1–5 and slice 6's two resolvers are built.
+orders the slices; step 0 and slices 1–6 are built.
 
 - [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
   `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
@@ -225,8 +225,10 @@ orders the slices; step 0, slices 1–5 and slice 6's two resolvers are built.
   need no override. The maintainer's to send. §3
 - [x] **1. One principal resolver.** An Effect refusing with
   `RemoteUnauthenticated` in `serveFetch` and `defineDocumentHost`. §5.1
-- [ ] **agent-mcp's `authenticate` as an Effect.** With slice 6's
-  `Auth.socket`. §5.1
+- [x] **agent-mcp's `authenticate` as an Effect,** refusing with
+  `Unauthenticated` (structurally Remote's), a 401 with its reason. §5.1
+- [ ] **A Yielded bearer resolver for agents.** MCP clients send a bearer
+  token, not a cookie; with Yielded's `OAuthServer` (§9, later, on demand).
 - [x] **2. `RemoteUnauthenticated`** for every Remote call kind. §5.3
 - [x] **3. Services for read rules:** `Policy.provide`, which the read seams
   take; `Guards.declare` requires `unguarded`. §5.2, §10

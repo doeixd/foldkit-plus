@@ -1,3 +1,4 @@
+import { Effect, Result } from 'effect'
 import type { Agent } from 'foldkit-agent'
 import { type Handler, PROTOCOL_VERSION, handler } from './handler.js'
 import { type Notification, code, failure, isIncoming, isRequest } from './jsonRpc.js'
@@ -52,6 +53,16 @@ export interface HttpResponse {
   readonly stream?: SseStream
 }
 
+/**
+ * Why `authenticate` refused a caller: answered as a 401 with `reason`. Remote's
+ * `RemoteUnauthenticated` (`RemoteServer.unauthenticated(reason)`) is one, so
+ * the resolver a Remote host uses can refuse here too.
+ */
+export interface Unauthenticated {
+  readonly _tag: 'Unauthenticated'
+  readonly reason?: string | undefined
+}
+
 export interface HttpHandlerOptions<Model, Context_, Principal, ByName, ByTag> {
   /**
    * Binds a runtime for one authenticated caller.
@@ -64,12 +75,16 @@ export interface HttpHandlerOptions<Model, Context_, Principal, ByName, ByTag> {
   }) => Agent.AgentRuntime<Model, Context_, Principal, ByName, ByTag>
 
   /**
-   * Resolves the caller from the request, returning `undefined` to refuse it.
+   * Resolves the caller from the request: an Effect, so it may ask a token
+   * store. Failing with `Unauthenticated` refuses it, a 401 carrying `reason`;
+   * a defect is a 500 that says nothing of it. It needs nothing: provide what
+   * it reads (a session store) from a context built once, not per request.
    *
    * The principal comes from here and nowhere else: a principal taken from
    * request params would let any caller claim any identity.
    */
-  readonly authenticate?: ((request: HttpRequest) => Principal | undefined) | undefined
+  readonly authenticate?:
+    ((request: HttpRequest) => Effect.Effect<Principal, Unauthenticated>) | undefined
 
   /**
    * A stable identity for a principal, used to bind a session to its creator.
@@ -324,9 +339,19 @@ export const httpHandler = <Model, Context_, Principal, ByName, ByTag>(
       return json(400, { error: 'Unsupported MCP-Protocol-Version' })
     }
 
-    const principal = options.authenticate?.(request)
-    if (options.authenticate !== undefined && principal === undefined) {
-      return json(401, { error: 'Unauthenticated' })
+    const { authenticate } = options
+    let principal: Principal | undefined
+    if (authenticate !== undefined) {
+      // Suspended, so an authenticate that throws is a 500 like one that dies.
+      const authenticated = await Effect.runPromise(
+        Effect.result(Effect.suspend(() => authenticate(request))),
+      ).catch(() => undefined)
+      if (authenticated === undefined) return json(500, { error: 'Internal error' })
+      if (Result.isFailure(authenticated)) {
+        const { reason } = authenticated.failure
+        return json(401, { error: 'Unauthenticated', ...(reason === undefined ? {} : { reason }) })
+      }
+      principal = authenticated.success
     }
     const owner = ownerOf(principal as Principal)
 

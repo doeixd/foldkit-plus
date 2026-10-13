@@ -101,6 +101,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-agent-mcp`: `authenticate` is an Effect.** `authenticate:
+  request => Effect<Principal, Unauthenticated>`, so it may ask a token store;
+  failing with `{ _tag: 'Unauthenticated', reason? }` (Remote's
+  `RemoteUnauthenticated` is one) is a 401 carrying `reason`, and a defect or
+  a throw is a 500 that says nothing, where it returned `Principal |
+  undefined`. Wrap a plain lookup: `request => Option.match(lookup(request),
+  { onNone: () => Effect.fail(refusal), onSome: Effect.succeed })`.
+
 - **`foldkit-guard`: `Guards.declare` requires `unguarded`.** What a guarded
   Entity's surface with no rules decides is written down rather than
   defaulted to `'allow'`. Pass `unguarded: 'allow'` to keep what an omitted

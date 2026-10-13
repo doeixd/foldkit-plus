@@ -3,11 +3,11 @@
  * documentation cannot drift from the API.
  */
 import { Agent } from 'foldkit-agent'
-import { Option, Schema } from 'effect'
+import { type Effect, Option, Schema } from 'effect'
 import * as HttpEffect from 'effect/http/HttpEffect'
 import { defineMessageUnion } from 'foldkit/message'
 import { AgentMcp } from '../src/index.js'
-import type { Notification } from '../src/index.js'
+import type { Notification, Unauthenticated } from '../src/index.js'
 
 const Message = defineMessageUnion({
   RequestedCreateTodo: { title: Schema.String },
@@ -57,7 +57,7 @@ await served.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
 
 // Over HTTP.
 declare const bindAgentFor: (principal: Principal) => typeof agentRuntime
-declare const verify: (header: string | undefined) => Principal | undefined
+declare const verify: (header: string | undefined) => Effect.Effect<Principal, Unauthenticated>
 declare const request: Request
 
 const handler = HttpEffect.toWebHandler(
