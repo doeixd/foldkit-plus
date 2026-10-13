@@ -8,7 +8,22 @@
  * never went. Here, refused operations are reported by id, and the replica
  * drops them.
  */
-import { Effect, Fiber, Match, Option, Schema, Stream } from 'effect'
+import {
+  Cause,
+  Context,
+  Duration,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Match,
+  Option,
+  Result,
+  Schema,
+  Scope,
+  Stream,
+} from 'effect'
+import type { RemoteUnauthenticated } from 'foldkit-remote'
 import {
   Cursor,
   DocumentId as JournalDocumentId,
@@ -378,4 +393,180 @@ export const editsJournal = <Shared, Principal, Change>(
     yield* journal.compact(key, Sequence.make(through))
   })
   return { settle, absorb }
+}
+
+/** A server socket a host serves on: Sync's socket, and a close with a code the replica reads. */
+export interface HostSocket extends SocketLike {
+  /** Closes with `code` and `reason`; one already closed stays so. */
+  closeWith(code: number, reason: string): void
+}
+
+/** What `documentHost` needs: one document, who may open it, and what they may do. */
+export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
+  readonly sync: Sync<Message, Shared>
+  /**
+   * The document's journal, asked on each upgrade a principal passed; keep
+   * it open between calls. A rejection answers the upgrade with a 500.
+   */
+  readonly journal: () => Promise<Journal<Operation, Shared, Principal, Operation>>
+  /**
+   * Who is opening the socket, from the upgrade request. Fails with a
+   * `RemoteUnauthenticated` (`RemoteServer.unauthenticated()`) to refuse it:
+   * a 401 carrying its message. A defect is a 500 that says nothing of it.
+   * A browser's `WebSocket` sends no header of the page's: `Origin` and the
+   * cookie are what it has.
+   */
+  readonly resolvePrincipal: (
+    request: Request,
+  ) => Effect.Effect<Principal, RemoteUnauthenticated, RP>
+  /**
+   * What the resolver needs (a session store). Built per upgrade and kept
+   * until the socket closes, since `revalidate` asks again while it is
+   * open; an upgrade it refuses closes it at once.
+   */
+  readonly layer?: (() => Layer.Layer<RP>) | undefined
+  /**
+   * Asks `resolvePrincipal` again, of the upgrade request, every `every`
+   * while the socket is open: a refusal closes it with 4401, and a principal
+   * whose `key` differs from the one it opened with (`Policy.keyOf`) closes
+   * it with 1012, which the replica reconnects after, as the new principal;
+   * without `key` only a refusal closes it. Without it a socket serves the
+   * principal it opened with until it closes, a revoked session included.
+   */
+  readonly revalidate?:
+    | {
+        readonly every: Duration.Input
+        readonly key?: ((principal: Principal) => unknown) | undefined
+      }
+    | undefined
+  /** After each exchange's appends, given the journal. See `journalExchange`'s `settle`. */
+  readonly settle?:
+    | ((journal: Journal<Operation, Shared, Principal, Operation>) => Effect.Effect<void, unknown>)
+    | undefined
+  /** Whether `principal` may open the document. See `journalExchange`'s `opens`. */
+  readonly opens?: ((principal: Principal) => Effect.Effect<boolean>) | undefined
+  /** Whether an operation from `principal` may be appended. See `journalExchange`'s `admit`. */
+  readonly admit?:
+    | ((
+        principal: Principal,
+        operation: Operation,
+      ) => AuthorizeDecision | Effect.Effect<AuthorizeDecision, unknown>)
+    | undefined
+}
+
+/** Refuses a revalidation interval that would ask the session store without pause. */
+export const checkRevalidate = (
+  revalidate: { readonly every: Duration.Input } | undefined,
+  who: string,
+): void => {
+  if (
+    revalidate !== undefined &&
+    !Duration.isGreaterThan(Duration.fromInputUnsafe(revalidate.every), Duration.zero)
+  )
+    throw new Error(`${who}: revalidate.every must be longer than zero`)
+}
+
+/** What a revalidation that found another principal fails with. */
+const changed = Symbol('changed')
+
+const internalError = () => Response.json({ error: 'Internal error' }, { status: 500 })
+
+/**
+ * One document's Sync host, for any runtime that upgrades a request to a
+ * socket: a Durable Object (`foldkit-sync/do`), or Node's `ws`. Each
+ * upgrade is answered before the socket opens: refused (`Result.fail`, a
+ * 401 for a principal refused, a 500 for a resolver or journal that broke),
+ * or accepted with the function that serves the socket once the runtime has
+ * opened it, against the journal, as the principal it resolved, asking
+ * again while it is open when `revalidate` says to.
+ */
+export const documentHost = <Message, Shared, Principal, RP = never>(
+  options: DocumentHostOptions<Message, Shared, Principal, RP>,
+): ((request: Request) => Promise<Result.Result<(socket: HostSocket) => void, Response>>) => {
+  checkRevalidate(options.revalidate, 'documentHost')
+  return async request => {
+    // The upgrade's services live as long as its socket.
+    const scope = Effect.runSync(Scope.make())
+    const release = (): void => void Effect.runFork(Scope.close(scope, Exit.void))
+    const refuse = (response: Response) => {
+      release()
+      return Result.fail(response)
+    }
+    const { layer } = options
+    const services = await Effect.runPromise(
+      layer === undefined
+        ? // No layer is a resolver that needs nothing.
+          Effect.succeed(Context.empty() as Context.Context<RP>)
+        : Effect.suspend(() => Layer.buildWithScope(layer(), scope)),
+    ).catch(() => undefined)
+    if (services === undefined) return refuse(internalError())
+    // Suspended, so the resolver is called each time this runs (a resolver
+    // may decide when called, not when its Effect runs), and one that throws
+    // is a 500 like one that dies.
+    const resolve = Effect.suspend(() => options.resolvePrincipal(request)).pipe(
+      Effect.provide(services),
+    )
+    const resolved = await Effect.runPromise(Effect.result(resolve)).catch(() => undefined)
+    if (resolved === undefined) return refuse(internalError())
+    if (Result.isFailure(resolved))
+      return refuse(Response.json({ error: resolved.failure.message }, { status: 401 }))
+    const principal = resolved.success
+    // A throw is a rejection like any other: a 500.
+    const journal = await Promise.resolve()
+      .then(options.journal)
+      .catch(() => undefined)
+    if (journal === undefined) return refuse(internalError())
+    // An application's `opens` or `settle` may throw: a 500, before any socket opens.
+    let exchange: JournalExchangeOptions<Message, Shared, Principal>
+    try {
+      const { admit, settle, opens } = options
+      exchange = {
+        sync: options.sync,
+        journal,
+        principal,
+        ...(settle === undefined ? {} : { settle: settle(journal) }),
+        ...(opens === undefined ? {} : { opens: opens(principal) }),
+        ...(admit === undefined
+          ? {}
+          : { admit: (operation: Operation) => admit(principal, operation) }),
+      }
+    } catch (error) {
+      console.error('[foldkit-sync] answering an upgrade broke:', error)
+      return refuse(internalError())
+    }
+    return Result.succeed((socket: HostSocket) => {
+      const stop = serveJournal(socket, exchange)
+      const { revalidate } = options
+      if (revalidate !== undefined) {
+        const { every, key } = revalidate
+        const checking = Effect.sleep(every).pipe(
+          Effect.andThen(resolve),
+          Effect.flatMap(now =>
+            key === undefined || key(principal) === key(now) ? Effect.void : Effect.fail(changed),
+          ),
+          Effect.forever,
+          Effect.catchCause(cause =>
+            Effect.sync(() => {
+              // Before closing: a socket may fire its own close only on the
+              // replica's reply, and frames in flight until then would
+              // still be appended as the principal just refused.
+              stop()
+              Option.match(Cause.findErrorOption(cause), {
+                // A defect: this side broke, and the replica learns that it did.
+                onNone: () => socket.closeWith(1011, 'Internal error'),
+                onSome: error =>
+                  error === changed
+                    ? socket.closeWith(1012, 'Who is asking changed')
+                    : socket.closeWith(4401, error.message),
+              })
+              release()
+            }),
+          ),
+        )
+        const fiber = Effect.runFork(checking)
+        socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))
+      }
+      socket.onClose(release)
+    })
+  }
 }

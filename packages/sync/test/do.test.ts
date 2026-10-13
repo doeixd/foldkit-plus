@@ -6,11 +6,13 @@
  * open socket as notices.
  */
 import { ActorId, Journal, OpId } from 'foldkit-durable'
-import { Context, Effect, Layer, Scope, type Duration } from 'effect'
+import { Context, Effect, Layer, Result, Scope, type Duration } from 'effect'
 import { RemoteUnauthenticated } from 'foldkit-remote'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sync, type Operation } from '../src/index.js'
 import { defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
+import { documentHost } from '../src/journal.js'
+import { workerSocket } from '../src/transport.js'
 import { Message, Todos, closeScopes, openJournal, openScope, pendingOf } from './fixtures/todos.js'
 import { FakeWebSocket } from './sockets.js'
 
@@ -153,6 +155,25 @@ describe('defineDocumentHost', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({ error: 'not found' })
     expect(opens()).toBe(0)
+  })
+
+  it('answers a runtime with no WebSocketPair with a 500, resolving no one', async () => {
+    let resolved = 0
+    const Host = defineDocumentHost(FakeBase, {
+      sync: Todos,
+      openJournal: async () => openJournal(),
+      resolvePrincipal: () => {
+        resolved += 1
+        return Effect.succeed('ada')
+      },
+    })
+    const served = new Host({}, undefined)
+    const response = await served.fetch(
+      new Request('http://host/sync', { headers: { Upgrade: 'websocket' } }),
+    )
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Internal error' })
+    expect(resolved).toBe(0)
   })
 
   it('exchanges against one journal shared by every socket', async () => {
@@ -523,5 +544,51 @@ describe("defineDocumentHost, the resolver's layer", () => {
     client.close()
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(log).toEqual(['acquire', 'release'])
+  })
+})
+
+describe('documentHost, for a runtime of its own', () => {
+  const answering = (sessions: Map<string, string>) =>
+    documentHost({
+      sync: Todos,
+      journal: async () => openJournal(),
+      resolvePrincipal: request => {
+        const principal = sessions.get(request.headers.get('x-actor') ?? '')
+        return principal === undefined
+          ? Effect.fail(new RemoteUnauthenticated({ message: 'Sign in.' }))
+          : Effect.succeed(principal)
+      },
+      revalidate: { every: '10 millis' },
+    })
+  const asking = (actor: string) =>
+    new Request('http://host/sync', { headers: { Upgrade: 'websocket', 'x-actor': actor } })
+
+  it('refuses before any socket opens, with the answer to send', async () => {
+    const answered = await answering(new Map())(asking('ada'))
+    expect(Result.isFailure(answered)).toBe(true)
+    const response = Result.match(answered, { onFailure: r => r, onSuccess: () => undefined })!
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: 'Sign in.' })
+  })
+
+  it('serves a socket it accepted, and closes it with its own code once refused', async () => {
+    const sessions = new Map([['ada', 'ada']])
+    const answered = await answering(sessions)(asking('ada'))
+    const serve = Result.match(answered, { onFailure: () => undefined, onSuccess: s => s })!
+    const [client, server] = FakeWebSocket.linked({ lingering: true })
+    const closed: Array<readonly [number, string]> = []
+    serve({
+      ...workerSocket(server as unknown as WebSocket),
+      closeWith: (code, reason) => closed.push([code, reason]),
+    })
+    const pending = await pendingOf('a', ['Milk'])
+    const sent = resultOf(await roundTrip(client, { id: '1', cursor: 0, pending }))
+    expect(sent.acknowledged).toHaveLength(1)
+    sessions.delete('ada')
+    for (let waited = 0; closed.length === 0; waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+    expect(closed).toEqual([[4401, 'Sign in.']])
   })
 })

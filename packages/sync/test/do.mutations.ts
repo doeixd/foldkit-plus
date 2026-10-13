@@ -1,26 +1,31 @@
 /**
  * The document host, each guard broken in turn: `pnpm mutate
  * packages/sync/test/do.mutations.ts` checks that a test fails for every one.
+ * `documentHost` (`journal.ts`) decides each upgrade; `defineDocumentHost`
+ * (`do.ts`) is its Durable Object.
  */
 const tests = ['packages/sync/test/do.test.ts']
+const host = '../src/journal.ts'
 const file = '../src/do.ts'
 
 export default [
   {
     name: 'a socket is never asked who it serves again',
-    edits: [{ file, find: 'if (config.revalidate !== undefined) {', replace: 'if (false) {' }],
+    edits: [{ file: host, find: 'if (revalidate !== undefined) {', replace: 'if (false) {' }],
     tests,
   },
   {
     name: 'a socket serves a changed principal on',
-    edits: [{ file, find: 'key === undefined || key(principal) === key(now)', replace: 'true' }],
+    edits: [
+      { file: host, find: 'key === undefined || key(principal) === key(now)', replace: 'true' },
+    ],
     tests,
   },
   {
     name: 'the checks outlive the socket',
     edits: [
       {
-        file,
+        file: host,
         find: 'socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))',
         replace: 'void fiber',
       },
@@ -31,9 +36,20 @@ export default [
     name: 'a revoked session closes as a normal close',
     edits: [
       {
-        file,
-        find: 'closeWith(server, 4401, error.message)',
-        replace: 'closeWith(server, 1000, error.message)',
+        file: host,
+        find: 'socket.closeWith(4401, error.message)',
+        replace: 'socket.closeWith(1000, error.message)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a changed principal closes as a revoked one',
+    edits: [
+      {
+        file: host,
+        find: "socket.closeWith(1012, 'Who is asking changed')",
+        replace: "socket.closeWith(4401, 'Who is asking changed')",
       },
     ],
     tests,
@@ -53,7 +69,7 @@ export default [
     name: 'every socket answers as no principal',
     edits: [
       {
-        file,
+        file: host,
         find: 'const principal = resolved.success',
         replace: 'const principal = undefined as Principal',
       },
@@ -65,19 +81,24 @@ export default [
     edits: [
       {
         file,
-        find: 'journal = await (this.ready ??= config.openJournal(this.hostContext, this.hostEnv))',
-        replace: 'journal = await config.openJournal(this.hostContext, this.hostEnv)',
+        find: '(ready ??= config.openJournal(ctx, env))',
+        replace: '(ready = config.openJournal(ctx, env))',
       },
     ],
+    tests,
+  },
+  {
+    name: 'a failed open provisions nothing to retry with',
+    edits: [{ file, find: '            ready = undefined\n', replace: '' }],
     tests,
   },
   {
     name: 'a refused principal is a 500',
     edits: [
       {
-        file,
-        find: 'return Response.json({ error: resolved.failure.message }, { status: 401 })',
-        replace: 'return Response.json({ error: resolved.failure.message }, { status: 500 })',
+        file: host,
+        find: '{ error: resolved.failure.message }, { status: 401 }',
+        replace: '{ error: resolved.failure.message }, { status: 500 }',
       },
     ],
     tests,
@@ -86,7 +107,7 @@ export default [
     name: 'a resolver that breaks leaks its defect',
     edits: [
       {
-        file,
+        file: host,
         find: 'Effect.runPromise(Effect.result(resolve)).catch(() => undefined)',
         replace:
           'Effect.runPromise(Effect.result(resolve)).catch((error: unknown) => Result.fail({ message: String(error) }))',
@@ -95,22 +116,8 @@ export default [
     tests,
   },
   {
-    name: 'a failed open provisions nothing to retry with',
-    edits: [{ file, find: 'this.ready = undefined', replace: 'void this.ready' }],
-    tests,
-  },
-  {
     name: 'the server end is never accepted',
-    edits: [
-      {
-        file,
-        find: `        const [client, server] = (config.pair ?? defaultPair)()
-        server.accept()
-        const { admit } = config`,
-        replace: `        const [client, server] = (config.pair ?? defaultPair)()
-        const { admit } = config`,
-      },
-    ],
+    edits: [{ file, find: '      server.accept()\n', replace: '' }],
     tests,
   },
   {
@@ -118,8 +125,8 @@ export default [
     edits: [
       {
         file,
-        find: '{ settle: config.settle(this.hostEnv, journal) }',
-        replace: '{ settle: config.settle({} as Env, undefined as never) }',
+        find: 'journal => settle(env, journal)',
+        replace: '() => settle({} as Env, undefined as never)',
       },
     ],
     tests,
@@ -128,19 +135,10 @@ export default [
     name: 'a failed open leaks its message',
     edits: [
       {
-        file,
-        find: `      } catch {
-        // A failed open provisions nothing: the next upgrade tries again.
-        this.ready = undefined
-        release()
-        return Response.json({ error: 'Internal error' }, { status: 500 })
-      }`,
-        replace: `      } catch (error) {
-        // A failed open provisions nothing: the next upgrade tries again.
-        this.ready = undefined
-        release()
-        return Response.json({ error: String(error) }, { status: 500 })
-      }`,
+        file: host,
+        find: '.catch(() => undefined)\n    if (journal === undefined) return refuse(internalError())',
+        replace:
+          '.catch((error: unknown) => String(error))\n    if (typeof journal === "string") return refuse(Response.json({ error: journal }, { status: 500 }))',
       },
     ],
     tests,
@@ -149,8 +147,8 @@ export default [
     name: 'the host lets anyone open the document',
     edits: [
       {
-        file,
-        find: '...(config.opens === undefined ? {} : { opens: config.opens(principal) }),',
+        file: host,
+        find: '...(opens === undefined ? {} : { opens: opens(principal) }),',
         replace: '',
       },
     ],
@@ -160,25 +158,25 @@ export default [
     name: 'the host admits every operation',
     edits: [
       {
-        file,
-        find: ': { admit: (operation: Operation) => admit(principal, operation) }),',
-        replace: ': {}),',
+        file: host,
+        find: ': { admit: (operation: Operation) => admit(principal, operation) }),\n      }',
+        replace: ': {}),\n      }',
       },
     ],
     tests,
   },
   {
     name: 'a refused socket is closed while the journal still serves it',
-    edits: [{ file, find: '              stop()\n', replace: '' }],
+    edits: [{ file: host, find: '              stop()\n', replace: '' }],
     tests,
   },
   {
     name: 'the resolver is called once: a throw escapes, and its first answer is checked ever after',
     edits: [
       {
-        file,
-        find: 'Effect.suspend(() => config.resolvePrincipal(request, this.hostEnv))',
-        replace: 'config.resolvePrincipal(request, this.hostEnv)',
+        file: host,
+        find: 'Effect.suspend(() => options.resolvePrincipal(request))',
+        replace: 'options.resolvePrincipal(request)',
       },
     ],
     tests,
@@ -187,8 +185,8 @@ export default [
     name: 'any interval is taken',
     edits: [
       {
-        file,
-        find: "throw new Error('defineDocumentHost: revalidate.every must be longer than zero')",
+        file: host,
+        find: 'throw new Error(`${who}: revalidate.every must be longer than zero`)',
         replace: '{}',
       },
     ],
@@ -198,8 +196,8 @@ export default [
     name: 'the resolver runs without its layer',
     edits: [
       {
-        file,
-        find: '.pipe(\n        Effect.provide(services),\n      )',
+        file: host,
+        find: '.pipe(\n      Effect.provide(services),\n    )',
         replace: ' as unknown as Effect.Effect<Principal, RemoteUnauthenticated>',
       },
     ],
@@ -209,50 +207,36 @@ export default [
     name: 'a refused upgrade keeps its layer',
     edits: [
       {
-        file,
-        find: '        release()\n        return Response.json({ error: resolved.failure.message }, { status: 401 })',
-        replace:
-          '        return Response.json({ error: resolved.failure.message }, { status: 401 })',
+        file: host,
+        find: '    const refuse = (response: Response) => {\n      release()\n',
+        replace: '    const refuse = (response: Response) => {\n',
       },
     ],
     tests,
   },
   {
     name: 'a socket that closes keeps its layer',
-    edits: [{ file, find: '      socket.onClose(release)\n', replace: '' }],
+    edits: [{ file: host, find: '      socket.onClose(release)\n', replace: '' }],
     tests,
   },
   {
     name: 'a socket revalidation closed keeps its layer until the replica answers',
     edits: [
       {
-        file,
-        find: '                })\n                release()\n',
-        replace: '                })\n',
+        file: host,
+        find: '              })\n              release()\n',
+        replace: '              })\n',
       },
     ],
-    tests,
-  },
-  {
-    name: 'a layer that fails to build keeps what it acquired',
-    edits: [
-      {
-        file,
-        find: '      if (services === undefined) {\n        release()\n',
-        replace: '      if (services === undefined) {\n',
-      },
-    ],
-    survives:
-      'equivalent: undefined services make the resolver die, and that guard releases the layer and answers 500',
     tests,
   },
   {
     name: 'a layer that fails to build is served anyway',
     edits: [
       {
-        file,
-        find: '      if (services === undefined) {',
-        replace: '      if (false) {',
+        file: host,
+        find: '    if (services === undefined) return refuse(internalError())\n',
+        replace: '',
       },
     ],
     survives:
@@ -260,34 +244,23 @@ export default [
     tests,
   },
   {
-    name: 'a resolver that dies keeps its layer',
+    name: 'an opens that throws escapes the upgrade',
     edits: [
       {
-        file,
-        find: '      if (resolved === undefined) {\n        release()\n',
-        replace: '      if (resolved === undefined) {\n',
+        file: host,
+        find: "      console.error('[foldkit-sync] answering an upgrade broke:', error)\n      return refuse(internalError())",
+        replace: '      throw error',
       },
     ],
     tests,
   },
   {
-    name: 'a journal that never opened keeps the layer',
+    name: 'a runtime without a socket pair throws',
     edits: [
       {
         file,
-        find: '        this.ready = undefined\n        release()\n',
-        replace: '        this.ready = undefined\n',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a throw after the resolver escapes the upgrade',
-    edits: [
-      {
-        file,
-        find: "      } catch (error) {\n        // The replica learns nothing of it; whoever runs the host must.\n        console.error('[foldkit-sync] serving an upgrade broke:', error)\n        release()",
-        replace: '      } catch (error) {\n        throw error',
+        find: "        console.error('[foldkit-sync] serving an upgrade broke:', error)\n        return Response.json({ error: 'Internal error' }, { status: 500 })",
+        replace: '        throw error',
       },
     ],
     tests,

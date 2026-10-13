@@ -24,10 +24,10 @@
  * .documentId)`); its in-memory cache and change stream are then exact
  * because nothing else writes.
  */
-import { Cause, Context, Duration, Effect, Exit, Fiber, Layer, Option, Result, Scope } from 'effect'
+import { type Duration, type Effect, type Layer, Result } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Journal } from 'foldkit-durable/core'
-import { serveJournal } from './journal.js'
+import { checkRevalidate, documentHost, type HostSocket } from './journal.js'
 import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync } from './sync.js'
 import { workerSocket } from './transport.js'
@@ -128,9 +128,6 @@ export interface AcceptingWebSocket extends WebSocket {
   accept(): void
 }
 
-/** What a revalidation that found another principal fails with. */
-const changed = Symbol('changed')
-
 /**
  * Closes a socket with `code`, and `reason` when the platform takes it: a
  * reason past 123 bytes, or a socket already gone, still closes or is closed.
@@ -170,125 +167,60 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
   Base: new (ctx: DocumentHostContext, env: Env) => object,
   config: DocumentHostConfig<Message, Shared, Principal, Env, RP> & DocumentHostLayer<Env, RP>,
 ): new (ctx: DocumentHostContext, env: Env) => { fetch(request: Request): Promise<Response> } => {
-  if (
-    config.revalidate !== undefined &&
-    !Duration.isGreaterThan(Duration.fromInputUnsafe(config.revalidate.every), Duration.zero)
-  )
-    throw new Error('defineDocumentHost: revalidate.every must be longer than zero')
+  checkRevalidate(config.revalidate, 'defineDocumentHost')
   return class extends Base {
-    private readonly hostContext: DocumentHostContext
-    private readonly hostEnv: Env
-    private ready: Promise<Journal<Operation, Shared, Principal, Operation>> | undefined
+    private readonly host: (
+      request: Request,
+    ) => Promise<Result.Result<(socket: HostSocket) => void, Response>>
 
     constructor(ctx: DocumentHostContext, env: Env) {
       super(ctx, env)
-      this.hostContext = ctx
-      this.hostEnv = env
+      let ready: Promise<Journal<Operation, Shared, Principal, Operation>> | undefined
+      const { layer, settle } = config
+      this.host = documentHost<Message, Shared, Principal, RP>({
+        sync: config.sync,
+        // Opened on the first upgrade a principal passes, so probes never
+        // provision storage; a failed open is tried again on the next.
+        journal: () =>
+          (ready ??= config.openJournal(ctx, env)).catch((error: unknown) => {
+            ready = undefined
+            throw error
+          }),
+        resolvePrincipal: request => config.resolvePrincipal(request, env),
+        layer: layer === undefined ? undefined : () => layer(env),
+        revalidate: config.revalidate,
+        settle: settle === undefined ? undefined : journal => settle(env, journal),
+        opens: config.opens,
+        admit: config.admit,
+      })
     }
 
     async fetch(request: Request): Promise<Response> {
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
         return Response.json({ error: 'not found' }, { status: 404 })
-      // The upgrade's services live as long as its socket: revalidation asks
-      // the resolver again while it is open.
-      const scope = Effect.runSync(Scope.make())
-      const release = (): void => void Effect.runFork(Scope.close(scope, Exit.void))
-      const { layer } = config
-      const services = await Effect.runPromise(
-        layer === undefined
-          ? // No layer is a resolver that needs nothing (`DocumentHostLayer`).
-            Effect.succeed(Context.empty() as Context.Context<RP>)
-          : Effect.suspend(() => Layer.buildWithScope(layer(this.hostEnv), scope)),
-      ).catch(() => undefined)
-      if (services === undefined) {
-        release()
-        return Response.json({ error: 'Internal error' }, { status: 500 })
-      }
-      // Suspended, so the resolver is called each time this runs (a resolver
-      // may decide when called, not when its Effect runs), and one that throws
-      // is a 500 like one that dies.
-      const resolve = Effect.suspend(() => config.resolvePrincipal(request, this.hostEnv)).pipe(
-        Effect.provide(services),
-      )
-      const resolved = await Effect.runPromise(Effect.result(resolve)).catch(() => undefined)
-      if (resolved === undefined) {
-        release()
-        return Response.json({ error: 'Internal error' }, { status: 500 })
-      }
-      if (Result.isFailure(resolved)) {
-        release()
-        return Response.json({ error: resolved.failure.message }, { status: 401 })
-      }
-      const principal = resolved.success
-      let journal: Journal<Operation, Shared, Principal, Operation>
+      // Made first: a runtime without WebSocketPair is a 500 that resolves no one.
+      let pair: readonly [client: WebSocket, server: AcceptingWebSocket]
       try {
-        journal = await (this.ready ??= config.openJournal(this.hostContext, this.hostEnv))
-      } catch {
-        // A failed open provisions nothing: the next upgrade tries again.
-        this.ready = undefined
-        release()
-        return Response.json({ error: 'Internal error' }, { status: 500 })
-      }
-      // Anything from here may throw (no WebSocketPair, an application's
-      // `opens` or `settle`): a 500, and the upgrade's services released.
-      try {
-        const [client, server] = (config.pair ?? defaultPair)()
-        server.accept()
-        const { admit } = config
-        const socket = workerSocket(server)
-        const stop = serveJournal(socket, {
-          sync: config.sync,
-          journal,
-          principal,
-          ...(config.settle === undefined ? {} : { settle: config.settle(this.hostEnv, journal) }),
-          ...(config.opens === undefined ? {} : { opens: config.opens(principal) }),
-          ...(admit === undefined
-            ? {}
-            : { admit: (operation: Operation) => admit(principal, operation) }),
-        })
-        if (config.revalidate !== undefined) {
-          const { every, key } = config.revalidate
-          const checking = Effect.sleep(every).pipe(
-            Effect.andThen(resolve),
-            Effect.flatMap(now =>
-              key === undefined || key(principal) === key(now) ? Effect.void : Effect.fail(changed),
-            ),
-            Effect.forever,
-            Effect.catchCause(cause =>
-              Effect.sync(() => {
-                // Before closing: a worker's socket fires its own close only on
-                // the replica's reply, and frames in flight until then would
-                // still be appended as the principal just refused.
-                stop()
-                const failure = Cause.findErrorOption(cause)
-                Option.match(failure, {
-                  // A defect: this side broke, and the replica learns that it did.
-                  onNone: () => closeWith(server, 1011, 'Internal error'),
-                  onSome: error =>
-                    error === changed
-                      ? closeWith(server, 1012, 'Who is asking changed')
-                      : closeWith(server, 4401, error.message),
-                })
-                release()
-              }),
-            ),
-          )
-          const fiber = Effect.runFork(checking)
-          socket.onClose(() => void Effect.runFork(Fiber.interrupt(fiber)))
-        }
-        socket.onClose(release)
-        return new Response(null, {
-          status: 101,
-          // The worker runtime reads the client out of the upgrade response;
-          // the DOM's `ResponseInit` has no such member.
-          webSocket: client,
-        } as ResponseInit)
+        pair = (config.pair ?? defaultPair)()
       } catch (error) {
         // The replica learns nothing of it; whoever runs the host must.
         console.error('[foldkit-sync] serving an upgrade broke:', error)
-        release()
         return Response.json({ error: 'Internal error' }, { status: 500 })
       }
+      const [client, server] = pair
+      const answered = await this.host(request)
+      if (Result.isFailure(answered)) return answered.failure
+      server.accept()
+      answered.success({
+        ...workerSocket(server),
+        closeWith: (code, reason) => closeWith(server, code, reason),
+      })
+      return new Response(null, {
+        status: 101,
+        // The worker runtime reads the client out of the upgrade response;
+        // the DOM's `ResponseInit` has no such member.
+        webSocket: client,
+      } as ResponseInit)
     }
   }
 }

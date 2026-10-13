@@ -309,7 +309,11 @@ key? }` asks it again while the socket is open, closing with 4401 on a
 refusal and 1012 on a changed principal. `settle: (env, journal) =>
 Effect` runs after each exchange's appends to apply what committed elsewhere
 (`journal.recover` makes it idempotent). `Sync.transport.workerSocket` wraps an
-accepted pair end anywhere else a platform hands one over.
+accepted pair end anywhere else a platform hands one over. Off Cloudflare,
+`documentHost({ sync, journal, resolvePrincipal, layer?, revalidate?, … })`
+(`foldkit-sync/journal`) answers each upgrade request (`Result`: the refusal's
+`Response`, or a function that serves the opened `HostSocket`), which a Node
+`ws` upgrade handler calls before `handleUpgrade`.
 
 **Live on a worker.** A worker request cannot wake another request's open SSE
 stream — a `Queue.offer`, a `Deferred`, even `enqueue` on the first's captured

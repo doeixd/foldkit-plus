@@ -342,6 +342,13 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   reader then queries. `journal.recover` makes it crash-safe and idempotent;
   `env` and the journal are handed over because the store they reach lives
   outside the exchange.
+- Off Cloudflare, `documentHost` from `foldkit-sync/journal` is the same
+  host without the class: `documentHost({ sync, journal, resolvePrincipal,
+  layer?, revalidate?, opens?, admit?, settle? })` answers each upgrade
+  request before a socket opens, refused with the `Response` to send, or
+  accepted with the function that serves the socket once the runtime has
+  opened it (a `HostSocket`: Sync's socket, plus `closeWith(code, reason)`).
+  `defineDocumentHost` is built on it.
 - A server socket is not a live stream: another request cannot wake the fiber
   of an open SSE response in a worker, not even from the same isolate. What
   crosses requests there is the store they share (D1 here), and the live side
