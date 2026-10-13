@@ -141,9 +141,12 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   [data-query-DESIGN.md](./data-query-DESIGN.md) §32
 - [ ] **Local execution Phase 4:** position placement (only the decidable half
   is built). [local-execution-DESIGN.md](./local-execution-DESIGN.md) §13
-- [ ] **Remote-drizzle against a live Postgres.** Revision Phase 14's acceptance
+- [x] **Remote-drizzle against a live Postgres.** Revision Phase 14's acceptance
   has not run; tests cover SQLite and the Pg compiler only. That decides open
-  question 7. [REVISION_PLAN.md](./REVISION_PLAN.md) §20
+  question 7. Done 2026-10-13 on PGlite (Postgres itself, as WebAssembly): the
+  query semantics, paging, writes, and now the batched relation graph and the
+  ranked nested pages (`test/nested.test.ts` runs each case on both). The
+  package shipped. [REVISION_PLAN.md](./REVISION_PLAN.md) §20
 - [ ] **Entity DX item 10:** a branded "put the field on the left" error for a
   reversed operand, plus documentation of operand orientation.
   [entity-DX-PLAN.md](./entity-DX-PLAN.md)

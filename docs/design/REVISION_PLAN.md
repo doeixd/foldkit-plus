@@ -2190,9 +2190,10 @@ installable; CI is green.
 
 > **Since then (2026-10-13):** `foldkit-remote-drizzle` shipped (open question
 > 7), and its query semantics and pagination run against Postgres itself
-> through PGlite (`test/conformance.test.ts`, `test/writer.test.ts`). Phase
-> 14's batched relations and nested per-parent pages are still tested on
-> SQLite alone. The rest of this section is as it was written.
+> through PGlite (`test/conformance.test.ts`, `test/writer.test.ts`), as do
+> Phase 14's batched relations and nested per-parent pages
+> (`test/nested.test.ts`, every case on SQLite and Postgres). The rest of this
+> section is as it was written.
 
 **Next step:** Phases 0-13 and 15 are executed; Phase 14
 (`foldkit-remote-drizzle`) is implemented but its Postgres acceptance is not run
