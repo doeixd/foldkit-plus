@@ -223,3 +223,10 @@ declare const somePredicate: Predicate
 Query.from(Post).pipe(Query.where(somePredicate))
 // One that reads no field at all is any query's.
 Query.from(Post).pipe(Query.where(Expr.isNull(Expr.input('given', Schema.NullOr(Schema.String)))))
+
+// An ordering term too: a field of another Entity is refused where it is piped.
+Query.from(Post).pipe(Query.orderBy(Order.asc(Post.fields.title)))
+Query.from(Post).pipe(
+  // @ts-expect-error a Doc field orders no Post
+  Query.orderBy(Order.desc(Doc.fields.rank)),
+)

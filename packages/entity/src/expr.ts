@@ -200,11 +200,15 @@ export type ReadsOf<X> =
  * Nothing when a query's predicates read its own Entity, none, or one unknown
  * to the type (checked at run time instead); else a failure naming both.
  */
-type OverEntity<Names extends string, Name extends string> = string extends Names
+type OverEntity<
+  Names extends string,
+  Name extends string,
+  What extends string,
+> = string extends Names
   ? unknown
   : [Names] extends [Name]
     ? unknown
-    : Invalid<`foldkit-entity: a predicate reads ${Exclude<Names, Name>}, but the query is from ${Name}`>
+    : Invalid<`foldkit-entity: ${What} reads ${Exclude<Names, Name>}, but the query is from ${Name}`>
 
 /** A plain value, which `Expr.eq` takes on the right only. */
 type PlainValue = string | number | boolean | bigint | null
@@ -791,10 +795,10 @@ export type Ordering = OrderTerm | ChosenOrder
 
 export const Order = {
   /** Smallest first; rows without a value last, unless `nulls` says first. */
-  asc: <E extends Operand<any>>(expr: E, options?: TermOptions): OrderTerm =>
+  asc: <E extends Operand<any>>(expr: E, options?: TermOptions): OrderTerm & Reads<ReadsOf<E>> =>
     term('asc', toExpr(expr as never, 'asc'), options),
   /** Largest first; rows without a value first, unless `nulls` says last. */
-  desc: <E extends Operand<any>>(expr: E, options?: TermOptions): OrderTerm =>
+  desc: <E extends Operand<any>>(expr: E, options?: TermOptions): OrderTerm & Reads<ReadsOf<E>> =>
     term('desc', toExpr(expr as never, 'desc'), options),
 
   /**
@@ -807,10 +811,10 @@ export const Order = {
    * Query.orderBy(Order.chosen(input.sort, { title: Post.fields.title }))
    * ```
    */
-  chosen: <By extends string>(
+  chosen: <By extends string, const Choices extends { readonly [K in By]: Operand<any> }>(
     sort: InputExpr<ChosenSort<By>>,
-    choices: { readonly [K in By]: Operand<any> },
-  ): ChosenOrder => {
+    choices: Choices,
+  ): ChosenOrder & Reads<ReadsOf<Choices[keyof Choices]>> => {
     const fields: Record<string, FieldExpr<unknown>> = Object.create(null)
     for (const [name, choice] of Object.entries<Operand<any>>(choices)) {
       const expr = toExpr(choice as never, 'chosen')
@@ -1193,7 +1197,9 @@ export const Query = {
    */
   where:
     <const P extends ReadonlyArray<Predicate>>(...predicates: P) =>
-    <E extends AnyEntity>(self: Query<E> & OverEntity<ReadsOf<P[number]>, E['name']>): Query<E> => {
+    <E extends AnyEntity>(
+      self: Query<E> & OverEntity<ReadsOf<P[number]>, E['name'], 'a predicate'>,
+    ): Query<E> => {
       if (predicates.length === 0) return self
       checkOwnership('where', 'a predicate', self.entity, predicates)
       const where = [...self.where, ...predicates]
@@ -1213,8 +1219,10 @@ export const Query = {
    * than silently winning.
    */
   orderBy:
-    (...terms: ReadonlyArray<Ordering>) =>
-    <E extends AnyEntity>(self: Query<E>): Query<E> => {
+    <const T extends ReadonlyArray<Ordering>>(...terms: T) =>
+    <E extends AnyEntity>(
+      self: Query<E> & OverEntity<ReadsOf<T[number]>, E['name'], 'an ordering term'>,
+    ): Query<E> => {
       if (terms.length === 0) return self
       checkOwnership('orderBy', 'a term', self.entity, terms)
       return query(self.entity, self.where, [...self.orderBy, ...terms])

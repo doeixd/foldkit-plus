@@ -214,7 +214,8 @@ or input). `Query.where`'s returned step refuses a query whose Entity is not
 among them, with `a predicate reads Comment, but the query is from Post`. A
 predicate typed plainly as `Predicate` reads as unknown and passes to the
 run-time check, which stays for that and for two Entities sharing a name.
-`orderBy` is not checked by type yet.
+`Order.asc`, `desc` and `chosen` carry the marker too, and `Query.orderBy`
+refuses an ordering term over another Entity the same way.
 
 ## 13. A body with no ordering fails at registration, not at compile time (declined)
 

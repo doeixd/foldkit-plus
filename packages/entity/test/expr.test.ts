@@ -136,6 +136,7 @@ describe('Order.chosen orders by the field the input names', () => {
   it('refuses a choice from another Entity than the query reads', () => {
     expect(() =>
       Query.from(Post).pipe(
+        // @ts-expect-error the type refuses it too: a choice is an ordering term's field
         Query.orderBy(Order.chosen(sort, { title: Blog.Author.fields.name, id: Post.fields.id })),
       ),
     ).toThrow(/reads Author\.name, but the query is from Post/)

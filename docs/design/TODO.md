@@ -156,7 +156,8 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
 - [x] **Entity DX item 12:** a predicate over the wrong Entity is a runtime error;
   an owner type parameter on `FieldExpr` would make it a type error. Done
   2026-10-13 another way: a type-only `Reads<Names>` on every predicate
-  constructor's result, checked by `Query.where`. `orderBy` is not checked yet.
+  constructor's result, checked by `Query.where`, and on ordering terms by
+  `Query.orderBy`.
   [entity-DX-PLAN.md](./entity-DX-PLAN.md)
 - [x] **Entity DX item 13:** a query body with no ordering fails when it is
   registered, through remote-drizzle's runtime throw; make it a compile-time

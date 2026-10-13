@@ -530,7 +530,8 @@ the same Entity. Composing performs no work — no table is named, no connection
 opened, nothing read. A fragment over another Entity is refused where it is
 piped: a predicate's type names the Entities its fields belong to, so
 `Query.from(Blog.Post).pipe(Query.where(Expr.eq(Blog.Comment.fields.body, 'x')))`
-reads `a predicate reads Comment, but the query is from Post`. The same check
+reads `a predicate reads Comment, but the query is from Post`, and an ordering
+term over another Entity is refused by `Query.orderBy` the same way. The same check
 runs again when the query is built, for what a type cannot see: a predicate
 typed plainly as `Predicate`, or two Entities that share a name.
 
