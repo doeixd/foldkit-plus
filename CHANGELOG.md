@@ -18,9 +18,10 @@ version changed; `pnpm` skips versions already in the registry.
   without a trusted `Origin` and Yielded's CSRF header, a cookie that no
   longer verifies, two session cookies, or an `x-foldkit-subject` header
   naming someone else is a 401 `Unauthenticated`; `http` naming something
-  that is not an origin throws at once. `AuthServer.socket` is the same for
-  `defineDocumentHost`'s upgrade, where a trusted `Origin` alone vouches for
-  the cookie, since a `WebSocket` sends no CSRF header; `SUBJECT_HEADER` and `subjectSaid`,
+  that is not an origin throws at once. With `requests: 'browser'` it serves
+  what a browser sends on the page's behalf, `defineDocumentHost`'s upgrade
+  or a posted form, where a trusted `Origin` alone vouches for the cookie,
+  since neither carries a CSRF header; `SUBJECT_HEADER` and `subjectSaid`,
   from `foldkit-auth`, are what a client sends. Also re-exported as
   `foldkit-plus/auth` and `foldkit-plus/auth/server`, an optional peer.
 
@@ -34,7 +35,9 @@ version changed; `pnpm` skips versions already in the registry.
   `resources: request => Layer` and `SSR.handle` `resources: Layer`, built
   once for the post and provided to the Commands its fallback runs beside the
   config's `resources`; where both provide a service, the post's is used, so
-  a Command reads as who posted.
+  a Command reads as who posted. `SSR.entry`'s `origins` names where a form
+  may be posted from: any other `Origin` is a 403 that reads nothing, and
+  `resources` without `origins` throws when the entry is made.
 
 - **`serveFetch` and `defineDocumentHost` take `revalidate: { every, key?
   }`.** While a live stream or a socket is open, the resolver is asked again,

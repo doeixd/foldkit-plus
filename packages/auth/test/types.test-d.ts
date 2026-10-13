@@ -72,11 +72,12 @@ type HostConfig = DocumentHostConfig<unknown, unknown, Option.Option<SocketUser>
 declare const host: Pick<HostConfig, 'sync' | 'openJournal'>
 declare const AppAuthLive: Layer.Layer<Context.Service.Identifier<typeof AppAuth>>
 
-describe('AuthServer.socket', () => {
+describe("AuthServer.resolver for requests: 'browser'", () => {
   class Base {
     constructor(_ctx: unknown, _env: unknown) {}
   }
-  const socket = AuthServer.socket({
+  const socket = AuthServer.resolver({
+    requests: 'browser',
     auth: AppAuth,
     http,
     principal: session => Effect.succeed<SocketUser>({ id: session.subjectId }),

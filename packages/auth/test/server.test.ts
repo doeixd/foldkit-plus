@@ -318,10 +318,11 @@ describe('AuthServer.resolver', () => {
   )
 })
 
-describe('AuthServer.socket', () => {
+describe("AuthServer.resolver for requests: 'browser'", () => {
   const upgrade = (headers: Record<string, string>) =>
     Effect.runPromiseExit(
-      AuthServer.socket({
+      AuthServer.resolver({
+        requests: 'browser',
         auth: Verifier,
         http,
         principal: session => Effect.succeed(session.subjectId),

@@ -27,7 +27,7 @@ export default [
     edits: [
       {
         file,
-        find: '(!asks.csrf || request.headers.get(csrf.header) === csrf.value)',
+        find: "(config.requests === 'browser' || request.headers.get(csrf.header) === csrf.value)",
         replace: 'true',
       },
     ],
@@ -129,8 +129,8 @@ export default [
     tests,
   },
   {
-    name: 'a socket must send the CSRF header no WebSocket can',
-    edits: [{ file, find: '(!asks.csrf || ', replace: '(' }],
+    name: 'a browser request must send the CSRF header it cannot',
+    edits: [{ file, find: "(config.requests === 'browser' || ", replace: '(' }],
     tests,
   },
 ]

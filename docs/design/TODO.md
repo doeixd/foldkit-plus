@@ -235,10 +235,13 @@ orders the slices; step 0, slices 1–5 and slice 6's two resolvers are built.
 - [x] **5. SSR's per-request resources,** for the fallback's Commands. §5.4
 - [x] **6a. `AuthServer.resolver`:** the session cookie, Origin and CSRF,
   the subject header, `principal`; for `serveFetch`. §6.2
-- [x] **6b. The socket resolver:** `AuthServer.socket`, Origin only, as a
+- [x] **6b. The socket resolver:** `requests: 'browser'`, Origin only, as a
   browser `WebSocket` sends no header; `defineDocumentHost` takes a `layer`
   for it, kept while the socket is open. §6.2
-- [ ] **6c. SSR's posted-form Origin check.** §5.4
+- [x] **6c. SSR's posted-form Origin check:** `SSR.entry`'s `origins`,
+  required with `resources`. §5.4
+- [ ] **A posted form whose session ended** is a 500: `resources` cannot
+  fail. With `Site.access`'s 303 (slice 10). §6.5
 - [ ] **The client acts on a refusal.** A 4401 close makes Sync's transport
   stop reconnecting (today every close code reconnects, each upgrade a 401); a
   refused live stream stops restarting until `forget`; a typed predicate for

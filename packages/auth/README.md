@@ -10,13 +10,14 @@ why.
 
 Yielded Auth signs people in and keeps their sessions. `serveFetch`, Remote's
 Web handler, and `defineDocumentHost`, Sync's Durable Object, each ask "who
-is this request?" through a `resolvePrincipal` Effect. `AuthServer.resolver`
-(for Remote) and `AuthServer.socket` (for Sync's upgrade) are that Effect for
-an application on Yielded: they read the session cookie Yielded set, verify
-it with the application's own `Auth` service, and give back the
-application's principal, a visitor, or a refusal the client decodes.
+is this request?" through a `resolvePrincipal` Effect, as SSR's posted forms
+do through their `resources`. `AuthServer.resolver` is
+that Effect for an application on Yielded: it reads the session cookie
+Yielded set, verifies it with the application's own `Auth` service, and
+gives back the application's principal, a visitor, or a refusal the client
+decodes.
 
-SSR's posted forms and agents do not use it yet (auth-DESIGN §9).
+Agents do not use it yet (auth-DESIGN §9).
 
 ## What it owns, and what it does not
 
@@ -122,9 +123,9 @@ A refusal reaches the Model as a failure whose error has `_tag:
 ## Sync's socket
 
 A browser's `WebSocket` sends no header of the page's, so an upgrade cannot
-carry the CSRF header. `AuthServer.socket` takes the same config and reads
-the cookie of an upgrade whose `Origin`, which every browser sends on one,
-is trusted; the rest is `resolver`'s. `defineDocumentHost` takes the `Auth`
+carry the CSRF header. `requests: 'browser'` says so: the resolver reads the
+cookie of an upgrade whose `Origin`, which every browser sends on one, is
+trusted, and asks for no header; the rest is unchanged. `defineDocumentHost` takes the `Auth`
 service from its `layer`, kept while the socket is open, so `revalidate`
 can ask the session store again and close a socket whose session ended
 (4401):
@@ -133,7 +134,8 @@ can ask the session store again and close a socket whose session ended
 export class SyncHost extends defineDocumentHost(DurableObject, {
   sync, // Sync.make(…)
   openJournal,
-  resolvePrincipal: AuthServer.socket({
+  resolvePrincipal: AuthServer.resolver({
+    requests: 'browser',
     auth: AppAuth,
     http,
     principal: session => Effect.succeed({ id: session.subjectId }),
@@ -142,6 +144,15 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
   revalidate: { every: '1 minute' },
 }) {}
 ```
+
+## SSR's posted forms
+
+A form `foldkit-ssr` handles without scripts is a browser request too. Give
+`SSR.entry` the same origins (`origins: [http.origin, ...(http.trustedOrigins
+?? [])]`), which answers a post from anywhere else `403` before reading it,
+and build the post's `resources` from `AuthServer.resolver({ ..., requests:
+'browser' })(request)`. That Layer cannot fail, so a post whose session ended
+is a `500` for now, not a way back to sign-in (auth-DESIGN §6.5, slice 10).
 
 ## Refusals
 
@@ -174,7 +185,7 @@ the header only if it learned the id itself.
 
 ## Limits
 
-- SSR's posted forms and agents are planned (auth-DESIGN §9). A Sync replica
+- Agents are planned (auth-DESIGN §9). A Sync replica
   reconnects after a 4401 today, refused at each upgrade, until the client
   learns to stop (slice 8).
 - Cookie sessions only; a bearer credential is not read.

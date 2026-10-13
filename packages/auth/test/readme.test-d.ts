@@ -63,7 +63,8 @@ declare const openJournal: HostConfig['openJournal']
 export class SyncHost extends defineDocumentHost(DurableObject, {
   sync, // Sync.make(…)
   openJournal,
-  resolvePrincipal: AuthServer.socket({
+  resolvePrincipal: AuthServer.resolver({
+    requests: 'browser',
     auth: AppAuth,
     http,
     principal: session => Effect.succeed({ id: session.subjectId }),
