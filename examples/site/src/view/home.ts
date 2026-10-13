@@ -13,8 +13,8 @@ import type { Library } from '../library.js'
 import { Message, type Example, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
 
-/** What the reader hands their coding agent: it prints the rest for their project. */
-const SETUP = 'npx foldkit-plus setup'
+/** What the reader hands their coding agent: the command prints the rest for their project. */
+const SETUP = 'Please run `npx foldkit-plus setup` and follow the instructions.'
 
 /** The page's sections, as the rail lists them. */
 const sections = [
@@ -67,8 +67,9 @@ const hero = (model: Model, slots: Slots, h: H): Html =>
       code(h, 'update'),
       ' already handles, so the application stays one state machine.',
     ]),
-    h.div(slots.actions.attrs(), [
-      h.a(slots.primary.attrs([h.Href('/learn')]), ['Get started']),
+    h.div(slots.actions.attrs(), [h.a(slots.primary.attrs([h.Href('/learn')]), ['Get started'])]),
+    h.div(slots.setup.attrs(), [
+      h.p(slots.setupLabel.attrs(), ['Give this to your coding agent:']),
       h.button(
         slots.install.attrs([
           h.Type('button'),
@@ -77,15 +78,6 @@ const hero = (model: Model, slots: Slots, h: H): Html =>
         ]),
         [SETUP, h.span(slots.installHint.attrs(), [model.copied ? 'Copied' : 'Copy'])],
       ),
-    ]),
-    h.p(slots.note.attrs(), [
-      'Tell your coding agent to run it in your project: it prints what to install, the agent skill, and which package does which job. Built on ',
-      h.a([h.Href('https://foldkit.dev')], ['Foldkit']),
-      ' and ',
-      h.a([h.Href('https://effect.website')], ['Effect']),
-      '. See it running in ',
-      h.a([h.Href('/demos')], ['the demos']),
-      '.',
     ]),
   ])
 

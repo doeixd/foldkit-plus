@@ -10,7 +10,8 @@ import { Option } from 'effect'
 import type { Subsite } from '../catalog.js'
 import type { ApiExport, ApiMember, ApiModule, ApiPackage } from '../api/model.js'
 import type { Region } from '../library.js'
-import { GITHUB, parse, slugger, summarize, textOf, type Anchor } from './guides.js'
+import { GITHUB, parse, slugger, summarize, type Anchor } from './guides.js'
+import { textOf } from './text.js'
 import type { Highlight } from './highlight.js'
 import type { Target } from './links.js'
 import { blocks, codeBlock } from './render.js'
@@ -189,8 +190,9 @@ const moduleBody =
         ? []
         : [
             ih.h2([ih.Id(kind)], [heading]),
+            // An index: a name and its summary, which stays a table on a phone.
             ih.div(
-              [ih.Class('table')],
+              [ih.Class('table index')],
               [
                 ih.table(
                   [],

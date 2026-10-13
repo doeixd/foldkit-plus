@@ -11,6 +11,7 @@ import { Behavior, Style } from 'foldkit-mixins'
 import { CodeBlock, CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
 
 import { COPY_ATTRIBUTE } from '../library.js'
+import { textOf } from './text.js'
 import type { Highlight } from './highlight.js'
 
 export interface Context {
@@ -102,9 +103,15 @@ const cell = (
   node: TableCell,
   header: boolean,
   align: string | null | undefined,
+  /** Its column's heading, which a phone shows above a body cell. */
+  label: string,
 ) =>
   (header ? ih.th : ih.td)(
-    align === null || align === undefined ? [] : [ih.Style({ textAlign: align })],
+    [
+      ih.Role(header ? 'columnheader' : 'cell'),
+      ...(align === null || align === undefined ? [] : [ih.Style({ textAlign: align })]),
+      ...(header || label === '' ? [] : [ih.DataAttribute('label', label)]),
+    ],
     phrasing(ih, context, node.children),
   )
 
@@ -162,34 +169,37 @@ export const block = (ih: Ih, context: Context, node: RootContent): Html | strin
       return ih.hr([])
     case 'table': {
       const [head, ...rows] = node.children
+      const labels = (head?.children ?? []).map(textOf)
+      // Roles stated, since a phone lays the rows out as blocks, and a table
+      // drawn so is no table to some screen readers.
       return ih.div(
         [ih.Class('table')],
         [
           ih.table(
-            [],
+            [ih.Role('table')],
             [
               ...(head === undefined
                 ? []
                 : [
                     ih.thead(
-                      [],
+                      [ih.Role('rowgroup')],
                       [
                         ih.tr(
-                          [],
+                          [ih.Role('row')],
                           head.children.map((each, at) =>
-                            cell(ih, context, each, true, node.align?.[at]),
+                            cell(ih, context, each, true, node.align?.[at], ''),
                           ),
                         ),
                       ],
                     ),
                   ]),
               ih.tbody(
-                [],
+                [ih.Role('rowgroup')],
                 rows.map(row =>
                   ih.tr(
-                    [],
+                    [ih.Role('row')],
                     row.children.map((each, at) =>
-                      cell(ih, context, each, false, node.align?.[at]),
+                      cell(ih, context, each, false, node.align?.[at], labels[at] ?? ''),
                     ),
                   ),
                 ),

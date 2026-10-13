@@ -12,6 +12,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, posix } from 'node:path'
 
 import type { Source, Subsite } from '../catalog.js'
+import { textOf } from './text.js'
 
 /** A heading the page's "On this page" list names. */
 export interface Anchor {
@@ -41,13 +42,6 @@ export const GITHUB = 'https://github.com/doeixd/foldkit-plus'
 
 /** Below this many characters of source, a section joins the page before it. */
 const SHORT_SECTION = 700
-
-/** The text of a node, as a reader sees it. */
-export const textOf = (node: RootContent | Root): string => {
-  if ('value' in node && typeof node.value === 'string') return node.value
-  if ('children' in node) return node.children.map(child => textOf(child)).join('')
-  return ''
-}
 
 /** GitHub's heading ids: lowercase, punctuation dropped, spaces as hyphens, repeats numbered. */
 export const slugger = () => {

@@ -37,6 +37,8 @@ export { stylesheet }
 const NARROW = '(max-width: 56rem)'
 /** Below this width a doc page drops its "On this page" column. */
 const NO_OUTLINE = '(max-width: 76rem)'
+/** A phone: one card across, and a table's rows stacked. */
+const PHONE = '(max-width: 36rem)'
 
 const focus = Style.pseudo(':focus-visible', {
   outline: `2px solid ${t.accent.default}`,
@@ -240,6 +242,9 @@ export const SiteStyle = slots(
         minWidth: '0',
         boxSizing: 'border-box',
         padding: `${t.space['2xl']} clamp(1rem, 4vw, 4rem) ${t.space['3xl']}`,
+        // The hero's dot grid reaches past the gutter a phone has; clip makes
+        // no scroll container, so the outline column stays sticky.
+        overflowX: 'clip',
       },
       Style.media(NARROW, { padding: `${t.space.xl} ${t.space.md} ${t.space['2xl']}` }),
     ],
@@ -323,16 +328,26 @@ export const SiteStyle = slots(
         color: t.text.default,
         fontFamily: t.font.mono,
         fontSize: '0.8125rem',
+        // A sentence, which wraps on a phone: from its start, not centred.
+        textAlign: 'start',
         cursor: 'pointer',
       },
       Style.pseudo(':hover', { borderColor: t.text.muted }),
       focus,
     ]),
-    installHint: { color: t.text.subtle, fontFamily: t.font.body, fontSize: '0.75rem' },
-    note: [
-      { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
-      Style.nest('a', { color: t.text.default, textUnderlineOffset: '3px' }),
-    ],
+    installHint: {
+      color: t.text.subtle,
+      fontFamily: t.font.body,
+      fontSize: '0.75rem',
+      flexShrink: '0',
+    },
+    setup: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+      gap: t.space.xs,
+    },
+    setupLabel: { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
     section: {
       display: 'flex',
       flexDirection: 'column',
@@ -375,7 +390,7 @@ export const SiteStyle = slots(
         '@media (max-width: 80rem)',
         Style.nest('> :last-child:nth-child(odd)', { gridColumn: '1 / -1' }),
       ),
-      Style.media('(max-width: 36rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+      Style.media(PHONE, { gridTemplateColumns: 'minmax(0, 1fr)' }),
     ],
     cell: {
       display: 'flex',
@@ -512,7 +527,7 @@ export const SiteStyle = slots(
         paddingBlock: t.space.md,
         borderBlockStart: rule,
       },
-      Style.media('(max-width: 36rem)', { gridTemplateColumns: '1fr' }),
+      Style.media(PHONE, { gridTemplateColumns: '1fr' }),
     ],
     rowAbout: { display: 'flex', flexDirection: 'column', gap: '0.25rem' },
     rowTitle: { margin: '0', fontSize: '1rem', fontWeight: t.weight.medium, color: t.text.overt },
@@ -637,7 +652,39 @@ export const SiteStyle = slots(
       }),
       Style.nest('th', { fontWeight: t.weight.medium, color: t.text.overt }),
       // An entry point's index: the name never breaks, the summary takes the rest.
-      Style.nest('td:first-child', { whiteSpace: 'nowrap' }),
+      Style.nest('.index td:first-child', { whiteSpace: 'nowrap' }),
+      // On a phone a table of prose is its rows, one under another: the first
+      // cell heads each, and every other cell is shown under its column's name,
+      // since its columns would each be a word wide.
+      Style.at(
+        `@media ${PHONE}`,
+        Style.compose(
+          Style.nest('.table:not(.index) :is(table, tbody, tr, td)', { display: 'block' }),
+          Style.nest('.table:not(.index) thead', {
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            overflow: 'hidden',
+            clipPath: 'inset(50%)',
+            whiteSpace: 'nowrap',
+          }),
+          Style.nest('.table:not(.index) tr', {
+            paddingBlock: t.space.sm,
+            borderBlockEnd: rule,
+          }),
+          Style.nest('.table:not(.index) td', { padding: '0.125rem 0', borderBlockEnd: '0' }),
+          Style.nest('.table:not(.index) td:first-child', {
+            fontWeight: t.weight.medium,
+            color: t.text.overt,
+          }),
+          Style.nest('.table:not(.index) td:not(:first-child)[data-label]::before', {
+            ...mono,
+            content: 'attr(data-label)',
+            display: 'block',
+            color: t.text.subtle,
+          }),
+        ),
+      ),
       Style.nest('blockquote', { color: t.text.muted }),
       Style.nest('strong', { color: t.text.overt, fontWeight: t.weight.semibold }),
       Style.nest('.pager', {

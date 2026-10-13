@@ -1,0 +1,7 @@
+# Cloudflare Pages: an address with a trailing slash is the page without it,
+# served in place, not redirected. The site wrote remote/index.html until
+# 2026-10-12, when Pages answered /remote with a permanent redirect to
+# /remote/; browsers keep that, and Pages now redirects /remote/ back to
+# /remote, so a reader who came before looped ("too many redirects").
+# Each page names its canonical address, the one without the slash.
+/*/ /:splat 200

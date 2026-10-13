@@ -8,7 +8,8 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import type { Subsite } from '../src/catalog.js'
-import { GITHUB, guidePages, slugger, textOf } from '../src/content/guides.js'
+import { GITHUB, guidePages, slugger } from '../src/content/guides.js'
+import { textOf } from '../src/content/text.js'
 
 const long = (words: string) => `${words} `.repeat(120).trim()
 
