@@ -103,6 +103,21 @@ describe('document host in a worker', () => {
     expect(rows.results?.[0]).toMatchObject({ sequence: 1 })
   }, 120_000)
 
+  it('closes a socket with 4401 once another request revoked its session', async () => {
+    const socket = await upgrade('mallory')
+    const closed = new Promise<{ code?: number; reason?: string }>(resolve =>
+      socket.addEventListener('close', event =>
+        resolve(event as { code?: number; reason?: string }),
+      ),
+    )
+    // Served while the session holds, across several checks.
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect((await roundTrip(socket, { id: '1', cursor: 0, pending: [] })).error).toBeUndefined()
+    const revoked = await mf.dispatchFetch('http://localhost/revoke?actor=mallory')
+    expect(revoked.status).toBe(204)
+    expect(await closed).toMatchObject({ code: 4401, reason: 'Session revoked' })
+  }, 120_000)
+
   it('answers a non-upgrade without opening anything', async () => {
     const response = await mf.dispatchFetch('http://localhost/sync')
     expect(response.status).toBe(404)
