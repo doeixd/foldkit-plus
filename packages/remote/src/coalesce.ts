@@ -23,17 +23,21 @@ import {
   type ReadBatch,
   type ReadBatchResult,
 } from './wire.js'
-import type { RemoteProtocolError, RemoteQueryError, RemoteReadError } from './wire.js'
+import type {
+  RemoteProtocolError,
+  RemoteQueryError,
+  RemoteReadError,
+  RemoteUnauthenticated,
+} from './wire.js'
 
 type Batch = Schema.Schema.Type<typeof ReadBatch>
 type BatchResult = Schema.Schema.Type<typeof ReadBatchResult>
-type ReadError = RemoteReadError | RemoteProtocolError
+type ReadError = RemoteReadError | RemoteProtocolError | RemoteUnauthenticated
+type QueryError = RemoteQueryError | RemoteUnauthenticated
 export type BatchRead = (batch: Batch) => Effect.Effect<BatchResult, ReadError>
 type QueryRequestValue = Schema.Schema.Type<typeof QueryRequest>
 type QueryResultValue = Schema.Schema.Type<typeof QueryResult>
-export type QueryRun = (
-  request: QueryRequestValue,
-) => Effect.Effect<QueryResultValue, RemoteQueryError>
+export type QueryRun = (request: QueryRequestValue) => Effect.Effect<QueryResultValue, QueryError>
 
 export interface CoalesceOptions {
   /**
@@ -88,7 +92,7 @@ const readsOf = (
 class QueryRead extends Request.Class<
   { readonly key: string; readonly request: QueryRequestValue },
   QueryResultValue,
-  RemoteQueryError
+  QueryError
 > {}
 
 /**
@@ -105,7 +109,7 @@ export const coalesceQueries = (
       Effect.gen(function* () {
         const distinct = new Map<string, QueryRequestValue>()
         for (const entry of entries) distinct.set(entry.request.key, entry.request.request)
-        const results = new Map<string, Exit.Exit<QueryResultValue, RemoteQueryError>>()
+        const results = new Map<string, Exit.Exit<QueryResultValue, QueryError>>()
         yield* Effect.forEach(
           distinct,
           ([key, request]) =>

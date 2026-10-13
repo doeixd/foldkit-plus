@@ -78,8 +78,38 @@ describe('liveFetch', () => {
   })
 
   it('fails with the answer error on a non-200', async () => {
-    const error = await failed(async () => Response.json({ error: 'denied' }, { status: 401 }))
-    expect(error.message).toBe('denied')
+    const error = await failed(async () => Response.json({ error: 'denied' }, { status: 403 }))
+    expect(error).toMatchObject({ _tag: 'RemoteLiveError', message: 'denied' })
+  })
+
+  it.each([
+    [
+      'a 401 that serveFetch answered',
+      async () =>
+        Response.json(
+          { error: 'Sign in again.', unauthenticated: { reason: 'Sign in again.' } },
+          { status: 401 },
+        ),
+      { _tag: 'Unauthenticated', message: 'Sign in again.', reason: 'Sign in again.' },
+    ],
+    [
+      'a 401 from in front of Remote',
+      async () => new Response('', { status: 401, statusText: 'Unauthorized' }),
+      { _tag: 'Unauthenticated', message: 'HTTP 401 Unauthorized' },
+    ],
+    [
+      'an error frame that says who could not be told',
+      serve([
+        'event: error\ndata: {"message":"Expired","unauthenticated":{"reason":"Expired"}}\n\n',
+      ]),
+      { _tag: 'Unauthenticated', message: 'Expired', reason: 'Expired' },
+    ],
+  ] as const)('fails with Unauthenticated on %s', async (_, fetch, expected) => {
+    const error = await failed(fetch)
+    expect(error).toMatchObject(expected)
+    expect('reason' in error ? error.reason : undefined).toBe(
+      'reason' in expected ? expected.reason : undefined,
+    )
   })
 
   it('fails with the status when the body is not JSON', async () => {

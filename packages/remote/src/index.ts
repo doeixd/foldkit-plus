@@ -154,6 +154,7 @@ import {
   RemoteQueryError,
   RemoteReadError,
   RemoteRpc,
+  RemoteUnauthenticated,
 } from './wire.js'
 import type { CoalesceOptions } from './coalesce.js'
 import {
@@ -651,7 +652,11 @@ export interface RemoteDomain<
     model: AppModel,
     projection: Projection<AppModel, Value>,
     options?: ObserveOptions,
-  ): Effect.Effect<AppModel, RemoteReadError | RemoteProtocolError | RemoteQueryError, RemoteClient>
+  ): Effect.Effect<
+    AppModel,
+    RemoteReadError | RemoteProtocolError | RemoteQueryError | RemoteUnauthenticated,
+    RemoteClient
+  >
   /**
    * The Model with everything the active Surfaces read, for a render that
    * fetches nothing (SSR, a prerender). Each pass prefetches every Surface
@@ -660,7 +665,9 @@ export interface RemoteDomain<
    * the same one, when it comes later in `active`). It stops at the first
    * pass that plans nothing, and fails with `RemoteUnsatisfied` when
    * `options.passes` run out first. Reads are cache-first: a field already
-   * held is not asked again.
+   * held is not asked again. A server that could not tell who is asking
+   * fails it with `RemoteUnauthenticated`, for the host to answer as it
+   * answers a lost session.
    */
   satisfy(
     model: AppModel,
@@ -668,7 +675,11 @@ export interface RemoteDomain<
     options?: SatisfyOptions,
   ): Effect.Effect<
     AppModel,
-    RemoteReadError | RemoteProtocolError | RemoteQueryError | RemoteUnsatisfied,
+    | RemoteReadError
+    | RemoteProtocolError
+    | RemoteQueryError
+    | RemoteUnauthenticated
+    | RemoteUnsatisfied,
     RemoteClient
   >
   /**
@@ -1860,7 +1871,7 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
         }),
       ),
       Stream.catchIf(
-        (_error): _error is RemoteLiveError | RemoteProtocolError => true,
+        (_error): _error is RemoteLiveError | RemoteProtocolError | RemoteUnauthenticated => true,
         error =>
           Stream.succeed(
             toMessage({

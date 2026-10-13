@@ -35,7 +35,7 @@ export default [
   },
   {
     name: 'a refused principal is a 500',
-    edits: [{ file, find: '{ status: 401 }', replace: '{ status: 500 }' }],
+    edits: [{ file: '../src/refusal.ts', find: 'status: 401,', replace: 'status: 500,' }],
     tests,
   },
   {
@@ -54,19 +54,8 @@ export default [
     edits: [
       {
         file,
-        find: "Effect.catchTag('Unauthenticated', refusal => Effect.succeed(unauthenticated(refusal)))",
-        replace: 'Effect.tap(() => Effect.void)',
-      },
-    ],
-    tests,
-  },
-  {
-    name: "a refusal's reason is dropped",
-    edits: [
-      {
-        file,
-        find: 'unauthenticated: refusal.reason === undefined ? {} : { reason: refusal.reason },',
-        replace: 'unauthenticated: {},',
+        find: 'return Effect.succeed(Response.json(body, { status }))',
+        replace: 'return Effect.die(body)',
       },
     ],
     tests,
@@ -99,7 +88,8 @@ export default [
       {
         file,
         find: "// failures and defects to 400/500 answers.\n      return Response.json({ error: 'Internal error' }, { status: 500 })",
-        replace: "// failures and defects to 400/500 answers.\n      return Response.json({ error: 'leaked' }, { status: 500 })",
+        replace:
+          "// failures and defects to 400/500 answers.\n      return Response.json({ error: 'leaked' }, { status: 500 })",
       },
     ],
     tests,

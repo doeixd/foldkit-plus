@@ -459,7 +459,10 @@ or any codec); a Source fails with `RemoteServer.refuse(mutation, value)`, and
 `RemoteServer.forbid(reason?)` refuses who is asking, for any mutation: a 403
 over JSON, and `Data.mutation` is `Failed` with `error._tag === 'Forbidden'` and
 `error.reason` when given. `Remote.http` reads a 403 that is not Remote's
-answer (middleware) as `Forbidden` too.
+answer (middleware) as `Forbidden` too. A 401 (`RemoteServer.unauthenticated`,
+or middleware) fails every call kind, reads and live streams included, with
+`_tag: 'Unauthenticated'` and `reason` when given: the session is gone, and
+nothing in Remote acts on it; the application signs in again and `forget`s.
 
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`

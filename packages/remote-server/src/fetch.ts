@@ -28,6 +28,7 @@ import {
   type RemoteUnauthenticated,
 } from 'foldkit-remote'
 import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
+import { unauthenticatedAnswer } from './refusal.js'
 
 /** What `serveFetch` needs of the host runtime, per request. */
 export interface FetchConfig<P, R, Env, RP = never> {
@@ -62,9 +63,12 @@ const LiveFetchRequest = Schema.Struct({
   payload: Schema.Unknown,
 })
 
-/** A terminal stream failure, so the client fails with its message instead of hanging. */
-const errorFrame = (message: string): string =>
-  `event: error\ndata: ${JSON.stringify({ message })}\n\n`
+/**
+ * A terminal stream failure, so the client fails with its message instead of
+ * hanging; a refusal of who is asking says so, as a 401's body does.
+ */
+const errorFrame = (message: string, refusal: Partial<RemoteJsonAnswer> = {}): string =>
+  `event: error\ndata: ${JSON.stringify({ message, ...refusal })}\n\n`
 
 /**
  * The live stream as SSE bytes: one `data:` frame per change, then a
@@ -89,6 +93,8 @@ const liveBytes = <R>(
         Stream.catchTags({
           RemoteLiveError: error => Stream.succeed(errorFrame(error.message)),
           RemoteProtocolError: error => Stream.succeed(errorFrame(error.message)),
+          Unauthenticated: error =>
+            Stream.succeed(errorFrame(error.message, unauthenticatedAnswer(error).body)),
         }),
         Stream.ensuring(Deferred.succeed(ended, undefined)),
       )
@@ -143,16 +149,6 @@ const liveResponse = <R>(
     }),
   )
 
-/** A refusal of who is asking, as `answer` words a 403: a 401 the client reads. */
-const unauthenticated = (refusal: RemoteUnauthenticated): Response =>
-  Response.json(
-    {
-      error: refusal.message,
-      unauthenticated: refusal.reason === undefined ? {} : { reason: refusal.reason },
-    } satisfies RemoteJsonAnswer,
-    { status: 401 },
-  )
-
 /**
  * Answers Remote `POST`s with `Response`s: what a Worker's `fetch` hands to
  * the route. Each request is one Effect, with `layer` built once for it:
@@ -196,7 +192,12 @@ export const serveFetch = <P, R, Env, RP = never>(
         return yield* liveResponse(handlers, body.value.payload, heartbeat)
       const answered = yield* RemoteServer.answer(handlers, body.value)
       return Response.json(answered.body, { status: answered.status })
-    }).pipe(Effect.catchTag('Unauthenticated', refusal => Effect.succeed(unauthenticated(refusal))))
+    }).pipe(
+      Effect.catchTag('Unauthenticated', refusal => {
+        const { status, body } = unauthenticatedAnswer(refusal)
+        return Effect.succeed(Response.json(body, { status }))
+      }),
+    )
   return async (request, env) => {
     if (request.method !== 'POST' || new URL(request.url).pathname !== path) {
       return Response.json({ error: 'not found' }, { status: 404 })

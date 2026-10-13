@@ -7,7 +7,13 @@
  */
 import { Effect, Schema, Stream } from 'effect'
 import type { RemoteRpcClient } from './client.js'
-import { RemoteForbidden, RemoteMutationError, RemoteQueryError, RemoteReadError } from './wire.js'
+import {
+  RemoteForbidden,
+  RemoteMutationError,
+  RemoteQueryError,
+  RemoteReadError,
+  RemoteUnauthenticated,
+} from './wire.js'
 
 /** A request: which of Remote's calls, and its payload as the RPC protocol encodes it. */
 export const RemoteJsonRequest = Schema.Struct({
@@ -65,20 +71,51 @@ const call = <A, E>(
     ),
   )
 
+/**
+ * An error answer as its call's failure: a refusal of who is asking, of
+ * every call kind alike, or the call's own error.
+ */
+const failure =
+  <E>(own: (answer: ErrorAnswer) => E) =>
+  (answer: ErrorAnswer): E | RemoteUnauthenticated =>
+    answer.unauthenticated === undefined
+      ? own(answer)
+      : new RemoteUnauthenticated({
+          message: answer.error,
+          ...(answer.unauthenticated.reason === undefined
+            ? {}
+            : { reason: answer.unauthenticated.reason }),
+        })
+
 /** Remote's client over `send`, for `Remote.clientLayer`. */
 export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
   FoldkitRemoteRead: payload =>
-    call(send, 'read', payload, ({ error }) => new RemoteReadError({ message: error })),
+    call(
+      send,
+      'read',
+      payload,
+      failure(({ error }) => new RemoteReadError({ message: error })),
+    ),
   FoldkitRemoteQuery: payload =>
-    call(send, 'query', payload, ({ error }) => new RemoteQueryError({ message: error })),
+    call(
+      send,
+      'query',
+      payload,
+      failure(({ error }) => new RemoteQueryError({ message: error })),
+    ),
   FoldkitRemoteMutate: payload =>
-    call(send, 'mutate', payload, ({ error, refusal, forbidden }) =>
-      forbidden === undefined
-        ? new RemoteMutationError({ message: error, refusal })
-        : new RemoteForbidden({
-            message: error,
-            ...(forbidden.reason === undefined ? {} : { reason: forbidden.reason }),
-          }),
+    call(
+      send,
+      'mutate',
+      payload,
+      failure(({ error, refusal, forbidden }) =>
+        forbidden === undefined
+          ? new RemoteMutationError({ message: error, refusal })
+          : new RemoteForbidden({
+              message: error,
+              ...(forbidden.reason === undefined ? {} : { reason: forbidden.reason }),
+            }),
+      ),
     ),
   FoldkitRemoteLive: () => Stream.empty,
 })
@@ -88,9 +125,10 @@ const notJson = Symbol('not JSON')
 
 /**
  * Remote's client over HTTP: each call a `POST` of the request to `url`, the
- * answer its JSON body whatever its status. A 403 is answered as forbidden
- * unless its body says so itself, as the server's own does: one from
- * middleware in front of Remote (a refused session) may say only `{ error }`.
+ * answer its JSON body whatever its status. A 401 is answered as
+ * unauthenticated, for every call kind, and a 403 as forbidden, unless the
+ * body says so itself, as the server's own does: one from middleware in front
+ * of Remote may say only `{ error }`.
  * `headers` is read per request, so a token that changes reaches the next
  * call. `fetch` defaults to the global one; pass it to route calls through
  * another implementation in tests.
@@ -111,9 +149,11 @@ export const http = (
     })
     const status = `${response.status} ${response.statusText}`
     const body: unknown = await response.json().catch(() => notJson)
-    const saysForbidden =
-      typeof body === 'object' && body !== null && Object.hasOwn(body, 'forbidden')
-    if (response.status === 403 && !saysForbidden) return { error: status, forbidden: {} }
+    const says = (key: string) =>
+      typeof body === 'object' && body !== null && Object.hasOwn(body, key)
+    if (response.status === 401 && !says('unauthenticated'))
+      return { error: status, unauthenticated: {} }
+    if (response.status === 403 && !says('forbidden')) return { error: status, forbidden: {} }
     if (body === notJson) throw new Error(status)
     return body
   })

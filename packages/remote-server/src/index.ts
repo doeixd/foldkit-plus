@@ -51,10 +51,12 @@ import {
   RELATION_ALIAS,
   aliasedField,
 } from 'foldkit-remote'
+import { unauthenticatedAnswer } from './refusal.js'
 
 /** What a call `RemoteServer.answer` makes can fail with, before the answer says so. */
 type AnswerError =
   | Schema.SchemaError
+  | RemoteUnauthenticated
   | RemoteReadError
   | RemoteQueryError
   | RemoteMutationError
@@ -1713,16 +1715,16 @@ export const RemoteServer = {
    * worker or a server in the page calls with the body it received, parsed.
    * The request and its payload are decoded by the protocol's own schemas
    * before a handler sees them, so an operation name is one of Remote's three
-   * and nothing else. A body that is not a request is a 400; a refusal of who
-   * is asking a 403; a handler's failure a 500 with its message; a defect a
-   * 500 that says nothing of it.
+   * and nothing else. A body that is not a request is a 400; a caller who
+   * could not be told a 401; a refusal of who is asking a 403; a handler's
+   * failure a 500 with its message; a defect a 500 that says nothing of it.
    * `Remote.json` and `Remote.http` are the other end.
    */
   answer: <R>(
     handlers: RemoteRpcClient<R>,
     body: unknown,
   ): Effect.Effect<
-    { readonly status: 200 | 400 | 403 | 422 | 500; readonly body: RemoteJsonAnswer },
+    { readonly status: 200 | 400 | 401 | 403 | 422 | 500; readonly body: RemoteJsonAnswer },
     never,
     R
   > => {
@@ -1748,6 +1750,7 @@ export const RemoteServer = {
       Effect.catchTag('SchemaError', error =>
         Effect.succeed({ status: 400 as const, body: { error: error.message } }),
       ),
+      Effect.catchTag('Unauthenticated', error => Effect.succeed(unauthenticatedAnswer(error))),
       Effect.catchTag('Forbidden', error =>
         Effect.succeed({
           status: 403 as const,

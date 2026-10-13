@@ -14,6 +14,16 @@ version changed; `pnpm` skips versions already in the registry.
   beside `RemoteForbidden`; `RemoteJsonAnswer` carries it as
   `unauthenticated: { reason? }`. `foldkit-remote-server`'s
   `RemoteServer.unauthenticated(reason?)` makes one.
+- **`foldkit-remote`: every call kind fails with `Unauthenticated` on a
+  401.** Reads, queries, mutations and live streams declare it in their RPC
+  errors and `RemoteClient`'s types; `Remote.http` and `liveFetch` read a 401,
+  Remote's own (with its `reason`) or one from middleware in front of it, as
+  it, and `Data.mutation`, `ReadFailed` and `QueryFailed` carry
+  `error._tag: 'Unauthenticated'`. `Data.satisfy` and `prefetch` can fail with
+  it, for a server render to answer as it answers a lost session.
+  `foldkit-remote-server`'s `answer` sends a handler's as a 401, and
+  `serveFetch` ends a live stream with it as an `event: error` frame the
+  client reads back.
 
 - **`foldkit-guard`: `GuardServer.validate` refuses a query body that filters
   or orders by a member with a Read rule.** The row comes back without the

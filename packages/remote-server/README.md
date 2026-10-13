@@ -878,6 +878,13 @@ const route = async (request: Request): Promise<Response> => {
 - **400** with `{ error }`: the body is not a request, names an operation
   Remote does not have, or its payload fails the protocol's schema. No
   handler ran.
+- **401** with `{ error, unauthenticated: { reason? } }`: a handler could not
+  tell who is asking (`RemoteServer.unauthenticated`). The client fails the
+  call, of whatever kind, with `_tag: 'Unauthenticated'`.
+- **403** with `{ error, forbidden: { reason? } }`: who is asking may not do
+  this (`RemoteServer.forbid`).
+- **422** with `{ error, refusal }`: the mutation refused what was asked, in
+  its own `Refusal`.
 - **500** with `{ error }`: the handler failed, and the message is its own;
   or something on this side broke, and the message is `Internal error`,
   nothing more.

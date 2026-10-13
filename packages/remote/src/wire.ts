@@ -223,19 +223,19 @@ export const LiveChange = Schema.Union([
 export const Read = Rpc.make('FoldkitRemoteRead', {
   payload: ReadBatch,
   success: ReadBatchResult,
-  error: Schema.Union([RemoteReadError, RemoteProtocolError]),
+  error: Schema.Union([RemoteReadError, RemoteProtocolError, RemoteUnauthenticated]),
 })
 
 export const Mutate = Rpc.make('FoldkitRemoteMutate', {
   payload: MutationRequest,
   success: MutationResult,
-  error: Schema.Union([RemoteMutationError, RemoteForbidden]),
+  error: Schema.Union([RemoteMutationError, RemoteForbidden, RemoteUnauthenticated]),
 })
 
 export const Live = Rpc.make('FoldkitRemoteLive', {
   payload: LiveRequirement,
   success: LiveChange,
-  error: Schema.Union([RemoteLiveError, RemoteProtocolError]),
+  error: Schema.Union([RemoteLiveError, RemoteProtocolError, RemoteUnauthenticated]),
   stream: true,
 })
 
@@ -283,7 +283,7 @@ export const QueryResult = Schema.Struct({
 export const QueryRpc = Rpc.make('FoldkitRemoteQuery', {
   payload: QueryRequest,
   success: QueryResult,
-  error: RemoteQueryError,
+  error: Schema.Union([RemoteQueryError, RemoteUnauthenticated]),
 })
 
 export const RemoteRpc = RpcGroup.make(Read, Mutate, QueryRpc, Live)

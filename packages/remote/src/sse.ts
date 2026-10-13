@@ -12,7 +12,7 @@
 import { Effect, Predicate, Schema, Stream } from 'effect'
 import type { RemoteRpcClient } from './client.js'
 import { http } from './json.js'
-import { LiveChange, RemoteLiveError, type LiveRequirement } from './wire.js'
+import { LiveChange, RemoteLiveError, RemoteUnauthenticated, type LiveRequirement } from './wire.js'
 
 /** What `httpWithLive` needs besides the URL. Mirrors `http`, plus the fetch itself. */
 export interface LiveFetchOptions {
@@ -83,15 +83,25 @@ async function* changes(
     if (frame.data.length === 0) continue
     const text = frame.data.join('\n')
     if (frame.event === 'error') {
-      const message = (JSON.parse(text) as { readonly message?: unknown }).message
-      throw new RemoteLiveError({ message: typeof message === 'string' ? message : text })
+      const said: unknown = JSON.parse(text)
+      const message =
+        Predicate.isObject(said) && typeof said.message === 'string' ? said.message : text
+      // A stream ended because who it serves could no longer be told says so.
+      if (Predicate.isObject(said) && Predicate.isObject(said.unauthenticated)) {
+        const reason = said.unauthenticated.reason
+        throw new RemoteUnauthenticated({
+          message,
+          ...(typeof reason === 'string' ? { reason } : {}),
+        })
+      }
+      throw new RemoteLiveError({ message })
     }
     yield decodeChange(JSON.parse(text))
   }
 }
 
-const liveError = (error: unknown): RemoteLiveError =>
-  error instanceof RemoteLiveError
+const liveError = (error: unknown): RemoteLiveError | RemoteUnauthenticated =>
+  error instanceof RemoteLiveError || error instanceof RemoteUnauthenticated
     ? error
     : new RemoteLiveError({ message: error instanceof Error ? error.message : String(error) })
 
@@ -126,6 +136,17 @@ export const liveFetch =
             Predicate.isObject(answered) && 'error' in answered
               ? String(answered.error)
               : `HTTP ${response.status} ${response.statusText}`
+          if (response.status === 401) {
+            // `serveFetch` says why under `unauthenticated`; middleware may say nothing.
+            const said =
+              Predicate.isObject(answered) && Predicate.isObject(answered.unauthenticated)
+                ? answered.unauthenticated.reason
+                : undefined
+            return yield* new RemoteUnauthenticated({
+              message,
+              ...(typeof said === 'string' ? { reason: said } : {}),
+            })
+          }
           return yield* new RemoteLiveError({ message })
         }
         if (response.body === null) {
