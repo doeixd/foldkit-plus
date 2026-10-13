@@ -19,7 +19,7 @@ const SETUP = 'Please run `npx foldkit-plus setup` and follow the instructions.'
 /** The page's sections, as the rail lists them. */
 const sections = [
   { id: 'idea', title: 'One state machine' },
-  { id: 'boundary', title: 'Draw a boundary' },
+  { id: 'boundary', title: 'Start with a Surface' },
   { id: 'connect', title: 'Then connect it' },
   { id: 'server', title: 'Server data' },
   { id: 'packages', title: 'Packages' },
@@ -59,13 +59,13 @@ const hero = (model: Model, slots: Slots, h: H): Html =>
   h.section(slots.hero.attrs(), [
     h.p(slots.eyebrow.attrs(), ['Packages for Foldkit · Effect 4 · MIT']),
     h.h1(slots.heroTitle.attrs(), [
-      'Your Foldkit app, extended to every boundary. ',
-      h.span(slots.quiet.attrs(), ['Without a second place to keep state.']),
+      'Ready-made patterns for Foldkit. ',
+      h.span(slots.quiet.attrs(), ['Less code to write, fewer tokens to spend.']),
     ]),
     h.p(slots.lede.attrs(), [
-      'Agents, servers, other devices, the URL and design systems each get a package. Every one of them reads the Model and sends the Messages ',
+      'Server data, offline sync, routing, forms, a CMS and AI agents, each a package you place instead of code you or your coding agent write by hand. None keeps state of its own: each reads your Model and sends Messages your ',
       code(h, 'update'),
-      ' already handles, so the application stays one state machine.',
+      ' already handles.',
     ]),
     h.div(slots.actions.attrs(), [h.a(slots.primary.attrs([h.Href('/learn')]), ['Get started'])]),
     h.div(slots.setup.attrs(), [
@@ -98,7 +98,7 @@ const rules: ReadonlyArray<{ readonly title: string; readonly text: ReadonlyArra
   },
   {
     title: 'Design systems',
-    text: ['Views are styled and extended from outside, without forking them.'],
+    text: ['A design system styles a view from outside, without forking it.'],
   },
 ]
 
@@ -115,7 +115,7 @@ const idea = (slots: Slots, h: H): Html =>
       h.strong([], ['Message']),
       ' union naming everything that can happen, and one pure ',
       code(h, 'update'),
-      ' that turns a Message into the next Model. That shape is easy to test and replay, and it is lost the moment an application grows a cache in a hook, a store in the URL, or a tool handler that does a transition again. Each package here keeps it:',
+      ' that turns a Message into the next Model. That makes it easy to test and replay, until state starts living somewhere else: a cache in a hook, a store in the URL, an agent tool that changes data its own way. Every package here keeps it in the Model:',
     ]),
     h.ul(
       slots.grid.attrs(),
@@ -138,13 +138,13 @@ const frame = (slots: Slots, h: H, about: ReadonlyArray<Html>, draw: Html): Html
   ])
 
 const boundary = (library: Library, slots: Slots, h: H): Html =>
-  section(slots, h, { id: 'boundary', title: 'Draw a boundary.' }, [
+  section(slots, h, { id: 'boundary', title: 'Start with a Surface.' }, [
     h.p(slots.sectionText.attrs(), [
       'Start from the application you have. ',
       code(h, 'Surface.application'),
-      ' adds nothing to it; ',
+      ' wraps it without changing it, and ',
       code(h, 'App.surface'),
-      ' names a boundary: what one feature may read, and the Messages it may send. Every other package consumes boundaries like this one.',
+      ' declares what one feature may read and which Messages it may send. The other packages all take a Surface like this one.',
     ]),
     frame(
       slots,
@@ -178,7 +178,7 @@ const examples: ReadonlyArray<{
     file: 'view.ts',
     title: 'Draw it through slots',
     text: [
-      'A view of the Surface reads only what it projects. Its slots are where a design system attaches, from outside, with ',
+      'A view of the Surface reads only what the Surface exposes. A design system styles its slots from outside, with ',
       '`Style.attach`',
       '.',
     ],
@@ -190,7 +190,7 @@ const examples: ReadonlyArray<{
     file: 'agent.ts',
     title: 'Hand it to an agent',
     text: [
-      'An agent sees the todos and may add or toggle one, as tools over MCP, WebMCP, A2A or Agent Native. Each call is a Message through ',
+      'An agent sees the todos and may add or toggle one, through tools over MCP, WebMCP, A2A or Agent Native. Each tool call is a Message through ',
       '`update`',
       '.',
     ],
@@ -202,9 +202,9 @@ const examples: ReadonlyArray<{
     file: 'sync.ts',
     title: 'Take it offline',
     text: [
-      'The todos replicate across tabs and devices. Adding and toggling are durable operations, kept while offline and replayed through the same ',
+      'The todos replicate across tabs and devices. Adding and toggling are kept while offline and replayed through the same ',
       '`update`',
-      ' everywhere.',
+      ' on every device.',
     ],
     subsite: 'sync',
   },
@@ -214,7 +214,7 @@ const examples: ReadonlyArray<{
     file: 'mirror.ts',
     title: 'Put it in the URL',
     text: [
-      'The filter is mirrored into the address, so a link restores it. The Model still owns it.',
+      'The filter is copied into the address, so a shared link restores it. The Model still owns it.',
     ],
     subsite: 'mirror',
   },
@@ -225,7 +225,7 @@ const connect = (model: Model, library: Library, slots: Slots, h: H): Html =>
     h.p(slots.sectionText.attrs(), [
       'The same ',
       code(h, 'App'),
-      ', extended four ways. None of them adds a reducer, a store or a cache the Model does not already hold.',
+      ', extended four ways. None adds a reducer, a store or a cache outside the Model.',
     ]),
     h.div(slots.frame.attrs(), [
       h.div(
@@ -269,9 +269,9 @@ const connect = (model: Model, library: Library, slots: Slots, h: H): Html =>
 const server = (library: Library, slots: Slots, h: H): Html =>
   section(slots, h, { id: 'server', title: 'Server data, in the Model.' }, [
     h.p(slots.sectionText.attrs(), [
-      'Facts a server owns are cached inside the Model, normalized by entity, and reduced by ',
+      "A server's data is cached in the Model, normalized by entity and changed only by ",
       code(h, 'update'),
-      '. A Surface says what it shows; Remote works out what to fetch, keeps it live, and tells the view what the Model knows right now.',
+      '. A Surface says what it shows; Remote fetches it, keeps it live, and tells the view whether it has loaded.',
     ]),
     frame(
       slots,
@@ -282,7 +282,7 @@ const server = (library: Library, slots: Slots, h: H): Html =>
         h.p(slots.cellText.attrs(), [
           'The domain is declared once with ',
           code(h, 'foldkit-entity'),
-          '. The same declaration binds to Drizzle tables on the server, and guards say who may read it.',
+          '. The same declaration maps to Drizzle tables on the server, and guards decide who may read it.',
         ]),
         h.p(slots.cellText.attrs(), [h.a([h.Href('/remote')], ['Read the guide →'])]),
       ],
@@ -309,7 +309,7 @@ const card = (subsite: Subsite, slots: Slots, h: H): Html =>
 const packages = (slots: Slots, h: H): Html =>
   section(slots, h, { id: 'packages', title: 'Packages.' }, [
     h.p(slots.sectionText.attrs(), [
-      'Pick a package by who owns the data. Each family has its guides, cut from its READMEs, and an API reference read from its source.',
+      'Choose by who owns the data. Each family has guides and an API reference.',
     ]),
     ...shelves.map(({ shelf, about }) =>
       h.div(slots.shelf.attrs(), [
@@ -357,7 +357,7 @@ export const demoRows = (slots: Slots, h: H): Html =>
 const demosSection = (slots: Slots, h: H): Html =>
   section(slots, h, { id: 'demos', title: 'Demos.' }, [
     h.p(slots.sectionText.attrs(), [
-      'Examples from the repository, built as static files. Those with a server run it in your browser, shared by every tab, so nothing you do leaves it.',
+      'Examples from this repository, built as static sites. Where one needs a server, it runs in your browser, so nothing you do leaves your machine.',
     ]),
     demoRows(slots, h),
   ])
@@ -373,9 +373,9 @@ const status = (slots: Slots, h: H): Html =>
       code(h, '0.165'),
       ' and Effect ',
       code(h, '4.0.0'),
-      '. Some are marked early or experimental on their pages; ',
+      '. Some are marked early or experimental; ',
       h.a([h.Href(onGitHub('docs/releases.md'))], ['the release matrix']),
-      ' lists each version.',
+      ' lists every version.',
     ]),
   ])
 

@@ -457,22 +457,25 @@ export const SiteStyle = slots(
       Style.nest('pre', { maxBlockSize: '32rem', overflow: 'auto' }),
     ],
     // The packages, shelf by shelf, a card each.
-    shelf: { display: 'flex', flexDirection: 'column', gap: t.space.sm },
-    shelfHead: {
+    // Each shelf opens with a rule across and a heading of its own, so the
+    // four read as parts of the list rather than as labels on their cards.
+    shelf: {
       display: 'flex',
-      flexWrap: 'wrap',
-      alignItems: 'baseline',
-      gap: `0 ${t.space.sm}`,
+      flexDirection: 'column',
+      gap: t.space.md,
+      marginBlockStart: t.space.xl,
+      paddingBlockStart: t.space.lg,
+      borderBlockStart: rule,
     },
+    shelfHead: { display: 'flex', flexDirection: 'column', gap: '0.25rem' },
     shelfTitle: {
-      ...mono,
       margin: '0',
-      textTransform: 'uppercase',
-      letterSpacing: '0.08em',
-      color: t.text.default,
-      fontWeight: t.weight.medium,
+      fontSize: '1.25rem',
+      letterSpacing: '-0.01em',
+      fontWeight: t.weight.semibold,
+      color: t.text.overt,
     },
-    shelfAbout: { margin: '0', fontSize: '0.875rem', color: t.text.subtle },
+    shelfAbout: { margin: '0', fontSize: '0.9375rem', color: t.text.muted },
     cards: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fill, minmax(14.5rem, 1fr))',

@@ -56,7 +56,7 @@ export const subsites: ReadonlyArray<Subsite> = [
     {
       id: 'surface',
       title: 'Surface',
-      tagline: 'What a feature may observe, and which Messages it may cause.',
+      tagline: 'What one feature may read, and which Messages it may send.',
       owner: 'the application',
       shelf: 'Foundations',
       packages: ['surface', 'metadata'],
@@ -66,7 +66,8 @@ export const subsites: ReadonlyArray<Subsite> = [
   family({
     id: 'bundle',
     title: 'Bundle',
-    tagline: 'A Submodel packaged once and placed many times, with every part wired.',
+    tagline:
+      'A Submodel packaged once and placed anywhere, its update, view and subscriptions wired.',
     owner: 'the parent Model',
     shelf: 'Foundations',
     packages: ['bundle', 'bundle-surface'],
@@ -75,7 +76,7 @@ export const subsites: ReadonlyArray<Subsite> = [
     {
       id: 'mixins',
       title: 'Mixins',
-      tagline: 'Typed slots a view exposes, styled and extended from outside.',
+      tagline: 'Typed slots a view exposes, styled from outside without forking it.',
       owner: 'the view contract',
       shelf: 'Foundations',
       packages: ['mixins', 'mixins-surface', 'mixins-ui'],
@@ -105,7 +106,7 @@ export const subsites: ReadonlyArray<Subsite> = [
     {
       id: 'remote',
       title: 'Remote',
-      tagline: 'Server-owned facts, normalized inside the Model: queries, mutations, live updates.',
+      tagline: 'Server data, normalized in the Model: queries, mutations and live updates.',
       owner: 'the server',
       shelf: 'Data',
       packages: ['remote', 'remote-server', 'remote-drizzle'],
@@ -116,7 +117,7 @@ export const subsites: ReadonlyArray<Subsite> = [
     {
       id: 'sync',
       title: 'Sync',
-      tagline: 'Edits that survive offline and converge across devices, through a durable log.',
+      tagline: 'Edits that work offline and agree across devices, through a durable log.',
       owner: 'the durable log',
       shelf: 'Data',
       packages: ['sync', 'durable'],
@@ -129,7 +130,8 @@ export const subsites: ReadonlyArray<Subsite> = [
   family({
     id: 'guard',
     title: 'Guard',
-    tagline: 'Who may do what, declared once and enforced on every seam.',
+    tagline:
+      'Who may read and change what, declared once and enforced on the server, in sync and for agents.',
     owner: 'the domain declaration',
     shelf: 'Data',
     packages: ['guard'],
@@ -156,7 +158,7 @@ export const subsites: ReadonlyArray<Subsite> = [
   family({
     id: 'crud',
     title: 'CRUD',
-    tagline: 'Edit, create and list screens joined from a form and a Remote operation.',
+    tagline: 'Create, edit and list screens, built from a form and a Remote operation.',
     owner: 'Remote and the form',
     shelf: 'Screens',
     packages: ['crud', 'mixins-crud'],
@@ -172,7 +174,7 @@ export const subsites: ReadonlyArray<Subsite> = [
   family({
     id: 'cms',
     title: 'CMS',
-    tagline: 'Drafts beside the row, revisions, a schedule, and what a visitor may see.',
+    tagline: 'Drafts, revisions, scheduled publishing, and what visitors may see.',
     owner: "the application's tables",
     shelf: 'Screens',
     packages: ['cms', 'cms-drizzle'],
@@ -180,7 +182,7 @@ export const subsites: ReadonlyArray<Subsite> = [
   family({
     id: 'composition',
     title: 'Composition',
-    tagline: 'A page as data, Blocks in Regions, and the builder that edits it.',
+    tagline: 'Pages as data, made of Blocks, and the builder that edits them.',
     owner: 'the Document, as a stored field',
     shelf: 'Screens',
     packages: ['composition', 'builder', 'mixins-builder'],
@@ -203,7 +205,7 @@ export const subsites: ReadonlyArray<Subsite> = [
   family({
     id: 'ssr',
     title: 'SSR',
-    tagline: 'Server rendering that hands the Model over instead of running init again.',
+    tagline: 'Server rendering that hands the browser the Model instead of running init again.',
     owner: 'the application, in a resume plan',
     shelf: 'Delivery',
     packages: ['ssr'],
@@ -212,7 +214,7 @@ export const subsites: ReadonlyArray<Subsite> = [
     {
       id: 'site',
       title: 'Site',
-      tagline: 'Route topology as data: nodes, typed targets, titles and sections.',
+      tagline: 'Routes as data: addresses, titles, head metadata, links and prefetch.',
       owner: 'the tree, as data',
       shelf: 'Delivery',
       packages: ['site'],
@@ -263,9 +265,9 @@ export const allSubsites: ReadonlyArray<Subsite> = [learn, ...subsites]
 export const shelves: ReadonlyArray<{ readonly shelf: Shelf; readonly about: string }> = [
   {
     shelf: 'Foundations',
-    about: 'Boundaries, placement and views: what every other package builds on.',
+    about: 'What every other package builds on: boundaries, placement and views.',
   },
-  { shelf: 'Data', about: 'Facts with an owner outside the page: a server, a log, the URL.' },
-  { shelf: 'Screens', about: 'Forms, tables, documents and editors, drawn through slots.' },
-  { shelf: 'Delivery', about: 'Getting the application to a server, a router, an agent or React.' },
+  { shelf: 'Data', about: 'Data owned outside the page: by a server, a log or the URL.' },
+  { shelf: 'Screens', about: 'Forms, tables, content and editors.' },
+  { shelf: 'Delivery', about: 'Server rendering, routing, AI agents and React.' },
 ]

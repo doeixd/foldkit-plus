@@ -150,7 +150,7 @@ export const modelAt = (library: Library, path: string): Model =>
 const App = Surface.application({ Model, Message, initial, update })
 
 const DESCRIPTION =
-  'Foldkit Plus extends a Foldkit application to agents, servers, other devices, the URL and design systems, without a second place to keep state.'
+  'Ready-made patterns for Foldkit: server data, offline sync, routing, forms, a CMS and AI agents, as packages that keep their state in your Model. Less code to write, fewer tokens to spend.'
 
 const descriptionOf = (page: Page): string =>
   Page.match(page, {
@@ -185,7 +185,7 @@ export const ORIGIN = 'https://foldkit-plus.pages.dev'
 
 const titleOf = (page: Page): string =>
   Page.match(page, {
-    Home: () => 'Foldkit Plus: one state machine, every boundary',
+    Home: () => 'Foldkit Plus: ready-made patterns for Foldkit',
     Demos: () => 'Demos · Foldkit Plus',
     Doc: ({ subsite, title }) => {
       const family = allSubsites.find(each => each.id === subsite)
