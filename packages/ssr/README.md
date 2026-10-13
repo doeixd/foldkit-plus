@@ -704,9 +704,10 @@ one on a `POST`) is not among them is answered `403` before its body is read
 or `flags` and `resources` run. A page served with `Referrer-Policy:
 no-referrer` posts `Origin: null` even to its own site; such a post is taken
 when its `Sec-Fetch-Site`, which no page or form can set, says
-`same-origin`. `resources` requires `origins`, since its services act as whoever
-posted: an entry with one and not the other throws when it is made. An entry
-of your own that calls `SSR.handle` checks `Origin` itself.
+`same-origin`. A plan with a server fallback requires `origins`, since a post
+runs `flags`, the config's `resources` and its own as whoever the cookie says
+posted: an entry made without them throws. An entry of your own that calls
+`SSR.handle` checks `Origin` itself.
 
 ## When a page is refused
 

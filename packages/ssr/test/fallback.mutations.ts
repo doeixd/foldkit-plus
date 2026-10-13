@@ -82,18 +82,18 @@ export default [
     edits: [
       {
         file,
-        find: 'if (posting && origins !== undefined && !postedFrom(request, origins)) {',
+        find: 'if (posting && !postedFrom(request, origins ?? new Set())) {',
         replace: 'if (false) {',
       },
     ],
     tests,
   },
   {
-    name: 'resources are taken without origins',
+    name: 'a plan that takes posted forms is made without origins',
     edits: [
       {
         file,
-        find: 'if (options.resources !== undefined && options.origins === undefined) {',
+        find: "if (plan.fallback === 'server' && options.origins === undefined) {",
         replace: 'if (false) {',
       },
     ],
@@ -116,6 +116,18 @@ export default [
         file,
         find: "request.headers.get('sec-fetch-site') === 'same-origin'",
         replace: "request.headers.get('sec-fetch-site') !== 'cross-site'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a post is read before its Origin is checked',
+    edits: [
+      {
+        file,
+        find: 'if (posting && !postedFrom(request, origins ?? new Set())) {',
+        replace:
+          'if (posting && (await request.clone().formData(), await request.text(), !postedFrom(request, origins ?? new Set()))) {',
       },
     ],
     tests,

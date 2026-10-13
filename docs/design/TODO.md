@@ -241,7 +241,7 @@ orders the slices; step 0 and slices 1–6 are built.
   browser `WebSocket` sends no header; `defineDocumentHost` takes a `layer`
   for it, kept while the socket is open. §6.2
 - [x] **6c. SSR's posted-form Origin check:** `SSR.entry`'s `origins`,
-  required with `resources`. §5.4
+  required by a plan with a server fallback. §5.4
 - [ ] **A posted form whose session ended** is a 500: `resources` cannot
   fail. With `Site.access`'s 303 (slice 10). §6.5
 - [ ] **The client acts on a refusal.** A 4401 close makes Sync's transport

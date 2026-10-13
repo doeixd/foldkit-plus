@@ -11,7 +11,9 @@ import { FALLBACK_FIELD, Resume, SSR } from 'foldkit-ssr'
 import { App, Counter, Message, config, plan, template, type Model } from './fallbackFixture.js'
 
 const html = { accept: 'text/html' }
-const entry = SSR.entry(config, plan, { buildId: 'b' })
+/** Where the fixture's forms are posted from. */
+const origins = ['https://example.test']
+const entry = SSR.entry(config, plan, { buildId: 'b', origins })
 const serve = (request: Request, used = entry) =>
   handleRequest(request, { renderPage: used.renderPage, template })
 
@@ -83,6 +85,7 @@ describe('SSR.handle through handleRequest', () => {
   it('carries `styles` on the page a post renders, as on a GET', async () => {
     const styled = SSR.entry(config, plan, {
       buildId: 'b',
+      origins,
       styles: () => '<style>ul{list-style:none}</style>',
     })
     const response = await serve(post({ title: 'Milk', [FALLBACK_FIELD]: added }), styled)
@@ -147,6 +150,7 @@ describe('SSR.handle through handleRequest', () => {
     const guarded = SSR.entry(config, plan, {
       buildId: 'b',
       origins: ['https://example.test'],
+      flags: () => void seen.push('flags'),
       resources: () => Layer.effectDiscard(Effect.sync(() => void seen.push('built'))),
     })
     const request = post({ title: 'Milk', [FALLBACK_FIELD]: added })
@@ -157,6 +161,7 @@ describe('SSR.handle through handleRequest', () => {
     expect(response.status).toBe(403)
     expect(await response.text()).toBe('The form was not posted from this site.')
     expect(seen).toEqual([])
+    expect(request.bodyUsed).toBe(false)
   })
 
   it('takes a form from a page that withholds its Origin, by Sec-Fetch-Site', async () => {
@@ -180,7 +185,7 @@ describe('SSR.handle through handleRequest', () => {
   })
 
   it.each([
-    ['resources without origins', { resources: () => Layer.empty }, 'name the origins'],
+    ['a plan that takes posted forms, without origins', {}, 'name the origins'],
     ['an origin that is not one', { origins: ['https://example.test/'] }, 'is not an origin'],
   ])('refuses %s when the entry is made', (_, options, message) => {
     expect(() => SSR.entry(config, plan, { buildId: 'b', ...options })).toThrow(message)
@@ -211,7 +216,7 @@ describe('SSR.handle through handleRequest', () => {
     }
     const response = await serve(
       post({ title: 'Milk', [FALLBACK_FIELD]: added }),
-      SSR.entry(recording, plan, { buildId: 'b' }),
+      SSR.entry(recording, plan, { buildId: 'b', origins }),
     )
     expect(response.status).toBe(200)
     expect(seen).toEqual(['Booted', 'Added', 'Noted'])

@@ -38,8 +38,9 @@ version changed; `pnpm` skips versions already in the registry.
   a Command reads as who posted. `SSR.entry`'s `origins` names where a form
   may be posted from: any other `Origin` is a 403 before the body is read or
   `flags` and `resources` run (`Origin: null` counts as the site's own when
-  `Sec-Fetch-Site` says `same-origin`), and
-  `resources` without `origins` throws when the entry is made.
+  `Sec-Fetch-Site` says `same-origin`), and a plan with a server fallback
+  made into an entry without `origins` throws, since a post runs `flags` and
+  every `resources` as whoever posted.
 
 - **`serveFetch` and `defineDocumentHost` take `revalidate: { every, key?
   }`.** While a live stream or a socket is open, the resolver is asked again,

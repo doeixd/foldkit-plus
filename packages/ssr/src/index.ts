@@ -1084,12 +1084,12 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * also the config's, the request's is used. A render runs no Command, so
      * it reads the request through `flags`. The Layer may neither fail nor
      * need a service: one that refuses who is asking (a session that ended)
-     * decides before this, in the host, or dies here into a 500. Requires
-     * `origins`: these services act as whoever posted.
+     * decides before this, in the host, or dies here into a 500.
      */
     readonly resources?: ((request: Request) => Layer.Layer<never, never, never>) | undefined
     /**
-     * The origins a form may be posted from: a post whose `Origin` (which
+     * The origins a form may be posted from, required by a plan with a server
+     * fallback: a post whose `Origin` (which
      * every browser sends on one) is not among them is a 403 before its body
      * is read, so a page elsewhere cannot post as someone signed in here. A
      * form cannot carry a CSRF header; this is its check. `Origin: null` (a
@@ -1115,9 +1115,11 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     if (!URL.canParse(origin) || new URL(origin).origin !== origin)
       throw new Error(`foldkit-ssr: ${JSON.stringify(origin)} in origins is not an origin`)
   }
-  if (options.resources !== undefined && options.origins === undefined) {
+  // A post runs `flags`, the config's resources and the post's own, any of
+  // which may act as whoever the cookie says posted.
+  if (plan.fallback === 'server' && options.origins === undefined) {
     throw new Error(
-      'foldkit-ssr: a posted form runs with resources, which act as whoever posted; name the origins a form may be posted from (origins)',
+      `foldkit-ssr: plan "${plan.id}" handles posted forms, which run as whoever posted; name the origins a form may be posted from (origins)`,
     )
   }
   const origins = options.origins === undefined ? undefined : new Set(options.origins)
@@ -1150,7 +1152,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     if (method !== 'GET' && method !== 'HEAD' && !posting) {
       return responded(new Response(null, { status: 405, headers: { allow } }))
     }
-    if (posting && origins !== undefined && !postedFrom(request, origins)) {
+    if (posting && !postedFrom(request, origins ?? new Set())) {
       return responded(plainText(403, 'The form was not posted from this site.'))
     }
     const flagsOf = options.flags
