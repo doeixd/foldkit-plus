@@ -3,12 +3,12 @@
  * the form, and a POST of it runs Foldkit's loop once on the server and
  * answers with the page that results.
  */
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
 import { handleRequest } from 'foldkit/experimental/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
 import { FALLBACK_FIELD, Resume, SSR } from 'foldkit-ssr'
-import { App, Message, config, plan, template, type Model } from './fallbackFixture.js'
+import { App, Counter, Message, config, plan, template, type Model } from './fallbackFixture.js'
 
 const html = { accept: 'text/html' }
 const entry = SSR.entry(config, plan, { buildId: 'b' })
@@ -84,6 +84,20 @@ describe('SSR.handle through handleRequest', () => {
     const response = await serve(post({ title: 'Milk', [FALLBACK_FIELD]: added }), styled)
     expect(response.status).toBe(200)
     expect(await response.text()).toContain('<style>ul{list-style:none}</style>')
+  })
+
+  it("runs the Commands under the request's own resources, over the config's", async () => {
+    // The request says how it counts; the config counts by ten.
+    const scaled = SSR.entry(config, plan, {
+      buildId: 'b',
+      resources: request =>
+        Layer.succeed(Counter)({ count: of => of * Number(request.headers.get('x-scale')) }),
+    })
+    const request = post({ title: 'Milk', [FALLBACK_FIELD]: added })
+    request.headers.set('x-scale', '7')
+    const response = await serve(request, scaled)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('<p id="noted">14</p>')
   })
 
   it('folds nothing for a Command that yields no Message, and still answers the page', async () => {

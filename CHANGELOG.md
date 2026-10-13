@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-ssr`: a posted form's own resources.** `SSR.entry` takes
+  `resources: request => Layer` and `SSR.handle` `resources: Layer`, built
+  once for the post and provided to the Commands its fallback runs beside the
+  config's `resources`; where both provide a service, the post's is used, so
+  a Command reads as who posted.
+
 - **`serveFetch` and `defineDocumentHost` take `revalidate: { every, same?
   }`.** While a live stream or a socket is open, the resolver is asked again,
   of the request it opened with: a refusal ends the stream with
