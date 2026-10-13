@@ -235,7 +235,10 @@ export const subsites: ReadonlyArray<Subsite> = [
       shelf: 'Delivery',
       packages: ['site'],
     },
-    [doc('building', 'Creating a site', 'site')],
+    [
+      doc('router', 'Site and the Router', 'site-and-router'),
+      doc('building', 'Creating a site', 'site'),
+    ],
   ),
   family(
     {
