@@ -25,6 +25,7 @@ import {
   type EditorView,
 } from 'foldkit-richtext-dom/editor-bundle'
 import { markdownInputRules } from 'foldkit-richtext-markdown'
+import { stepMatch } from 'foldkit-mixins-richtext'
 import { ClipboardMessage, copyText } from 'foldkit-primitives/dom'
 import { firstThread, initialDocument } from './document.js'
 import { Blocks, decorate, playgroundSlashEntries, rendering, vocabulary } from './vocabulary.js'
@@ -138,8 +139,8 @@ export const Message = defineMessageUnion({
   OpenedFind: {},
   FindQueried: { query: Schema.String },
   FindReplacementDrafted: { replacement: Schema.String },
-  /** The find bar went to the match at this index, which is selected. */
-  FoundMatch: { index: Schema.Number },
+  /** The find bar went to the next match (1) or the previous one (-1), which is selected. */
+  SteppedMatch: { step: Schema.Literals([1, -1]) },
   FindCaseToggled: {},
   ClosedFind: {},
   CompletedFocusFind: {},
@@ -728,7 +729,12 @@ const step = (model: Model, message: Message): Return =>
     FindReplacementDrafted: ({ replacement }) => ({
       model: withFind(model, find => ({ ...find, replacement })),
     }),
-    FoundMatch: ({ index }) => goToMatch(model, index),
+    SteppedMatch: ({ step }) =>
+      Option.match(model.find, {
+        onNone: () => ({ model }),
+        onSome: find =>
+          goToMatch(model, stepMatch(find.current, matchesOf(model, find).length, step)),
+      }),
     FindCaseToggled: () => ({
       model: withFind(model, find => ({ ...find, caseSensitive: !find.caseSensitive, current: 0 })),
     }),

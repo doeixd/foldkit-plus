@@ -14,7 +14,7 @@ import { findReplace, stepMatch } from '../src/index.js'
 const Message = defineMessageUnion({
   Queried: { query: Schema.String },
   Drafted: { replacement: Schema.String },
-  Moved: { index: Schema.Number },
+  Stepped: { step: Schema.Literals([1, -1]) },
   CaseToggled: {},
   Closed: {},
   Sent: { editor: Schema.String },
@@ -44,7 +44,14 @@ const update = (model: Model, message: Message): { readonly model: Model } => ({
   model: Message.match(message, {
     Queried: ({ query }) => ({ ...model, query }),
     Drafted: ({ replacement }) => ({ ...model, replacement }),
-    Moved: ({ index }) => ({ ...model, current: index }),
+    Stepped: ({ step }) => ({
+      ...model,
+      current: stepMatch(
+        model.current,
+        RichText.findMatches(document, model.query, model).length,
+        step,
+      ),
+    }),
     CaseToggled: () => ({ ...model, caseSensitive: !model.caseSensitive }),
     Closed: () => ({ ...model, closed: true }),
     Sent: ({ editor }) => ({ ...model, sent: editor }),
@@ -63,7 +70,7 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
           caseSensitive: model.caseSensitive,
           queried: query => Message.Queried({ query }),
           replacementDrafted: replacement => Message.Drafted({ replacement }),
-          moved: index => Message.Moved({ index }),
+          stepped: step => Message.Stepped({ step }),
           caseToggled: Message.CaseToggled(),
           closed: Message.Closed(),
           wrap: editor => Message.Sent({ editor: JSON.stringify(editor) }),

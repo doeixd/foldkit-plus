@@ -256,7 +256,8 @@ unless asked; across runs but never across blocks) and `searchDecorations(docume
 { caseSensitive, current })` draws them, the `current` one as `search-current`
 (`positionInBlock(block, offset)` is the offset-to-position read they share); the `Replace`
 command (`{ query, replacement, caseSensitive, at }`, the editor's `ReplacedText`) replaces
-one match or all as one undo step, and `foldkit-mixins-richtext`'s `findReplace` is the bar, `codeDecorations(document, tokenizers)`
+one match or all as one undo step, and `foldkit-mixins-richtext`'s `findReplace` is the bar
+(it sends `stepped(1 | -1)`, which `update` applies with `stepMatch` to the current match), `codeDecorations(document, tokenizers)`
 runs the `CodeTokenizer` registered in a `Map` for each `CodeBlock`'s `language` and returns
 its tokens as decorations (a token outside the text throws; `foldkit-richtext-code`'s
 `jsonTokenizer` is the first grammar, and never throws on half-typed JSON;

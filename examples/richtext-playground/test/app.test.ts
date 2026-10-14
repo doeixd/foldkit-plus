@@ -280,7 +280,7 @@ describe('find and replace', () => {
     const model = opened('the')
     const matches = RichText.findMatches(model.document, 'the')
     expect(matches.length).toBeGreaterThan(2)
-    const second = step(model, Message.FoundMatch({ index: 1 }))
+    const second = step(model, Message.SteppedMatch({ step: 1 }))
     expect(find(second)?.current).toBe(1)
     expect(second.editor.selection).toEqual({
       type: 'Range',
@@ -289,7 +289,8 @@ describe('find and replace', () => {
     })
     // Replacing them all leaves none, so the current one is the first again.
     const replaced = step(
-      step(second, Message.FoundMatch({ index: matches.length - 1 })),
+      // Back past the first match to the last.
+      step(second, Message.SteppedMatch({ step: -1 }), Message.SteppedMatch({ step: -1 })),
       edited(EditorMessage.ReplacedText({ query: 'the', replacement: 'a' })),
     )
     expect(RichText.findMatches(replaced.document, 'the')).toEqual([])

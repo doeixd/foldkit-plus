@@ -222,7 +222,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
             ...find,
             queried: query => Message.FindQueried({ query }),
             replacementDrafted: replacement => Message.FindReplacementDrafted({ replacement }),
-            moved: index => Message.FoundMatch({ index }),
+            stepped: step => Message.SteppedMatch({ step }),
             caseToggled: Message.FindCaseToggled(),
             closed: Message.ClosedFind(),
             wrap,

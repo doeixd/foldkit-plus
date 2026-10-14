@@ -294,7 +294,9 @@ and whether case counts are the caller's Model; the matches are `RichText.findMa
 document, and replacing is the editor's `ReplacedText`, an edit with its undo step.
 
 - Enter in the find field goes to the next match and Shift+Enter to the previous, wrapping at
-  either end (`stepMatch`); `moved(index)` is what the caller selects and keeps. Escape in either
+  either end. The bar sends `stepped(1)` or `stepped(-1)`, and the caller's `update` moves its
+  current match with `stepMatch(current, count, step)`: two keys can arrive before the bar is
+  drawn again, so the step is applied to the Model, not to the index the bar last showed. Escape in either
   field sends `closed`.
 - The count reads `2 of 5`, or `No matches`; Replace and Replace all are disabled without one.
 - To show the matches, overlay `RichText.searchDecorations(document, query, { current })` on the

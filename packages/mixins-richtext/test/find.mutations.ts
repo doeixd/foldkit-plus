@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file,
-        find: 'return Option.some(go(modifiers.shiftKey ? -1 : 1))',
-        replace: 'return Option.some(go(modifiers.shiftKey ? 1 : 1))',
+        find: 'return Option.some(input.stepped(modifiers.shiftKey ? -1 : 1))',
+        replace: 'return Option.some(input.stepped(1))',
       },
     ],
     tests,

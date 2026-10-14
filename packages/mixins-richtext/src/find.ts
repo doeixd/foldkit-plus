@@ -27,8 +27,11 @@ export interface FindReplaceInput<Message> {
   readonly caseSensitive: boolean
   readonly queried: (query: string) => Message
   readonly replacementDrafted: (replacement: string) => Message
-  /** Go to the match at this index: the caller selects it and keeps the index. */
-  readonly moved: (index: number) => Message
+  /**
+   * Go to the next match (1) or the previous one (-1). The caller moves its current match with
+   * `stepMatch` against its Model as it is then, since keys can come faster than the bar is drawn.
+   */
+  readonly stepped: (step: 1 | -1) => Message
   readonly caseToggled: Message
   readonly closed: Message
   /** An editor Message as this caller's, usually its `edited(...)` wrapper. */
@@ -55,7 +58,6 @@ export const findReplace = <Message>(): SlotView.SlotView<
   SlotView.forMessages<Message>().define(FindReplaceSlots, (input, slots, h): Html => {
     const count = RichText.findMatches(input.document, input.query, input).length
     const current = Math.min(input.current, Math.max(0, count - 1))
-    const go = (step: 1 | -1) => input.moved(stepMatch(current, count, step))
     const replaced = (at: number | undefined) =>
       input.wrap(
         EditorMessage.ReplacedText({
@@ -97,15 +99,15 @@ export const findReplace = <Message>(): SlotView.SlotView<
           h.OnKeyDownPreventDefault((key, modifiers) => {
             if (key === 'Escape') return Option.some(input.closed)
             if (key !== 'Enter' || count === 0) return Option.none()
-            return Option.some(go(modifiers.shiftKey ? -1 : 1))
+            return Option.some(input.stepped(modifiers.shiftKey ? -1 : 1))
           }),
         ]),
       ),
       h.span(slots.count.attrs([h.AriaLive('polite')]), [
         input.query === '' ? '' : count === 0 ? 'No matches' : `${current + 1} of ${count}`,
       ]),
-      button('previous', 'Previous', go(-1), { disabled: count === 0 }),
-      button('next', 'Next', go(1), { disabled: count === 0 }),
+      button('previous', 'Previous', input.stepped(-1), { disabled: count === 0 }),
+      button('next', 'Next', input.stepped(1), { disabled: count === 0 }),
       button('case', 'Match case', input.caseToggled, { pressed: input.caseSensitive }),
       h.input(
         slots.field.attrs([
