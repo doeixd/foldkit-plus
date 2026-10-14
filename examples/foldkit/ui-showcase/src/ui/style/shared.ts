@@ -96,10 +96,15 @@ export const floatingPanel: StyleValue = Style.self({
 export const fadeScale: StyleValue = Style.compose(
   Style.self({
     transitionProperty: 'opacity, scale, translate',
-    transitionDuration: '200ms',
+    transitionDuration: `${t.motion.moderate}, calc(${t.motion.moderate} * ${t.knob.travel}), calc(${t.motion.moderate} * ${t.knob.travel})`,
     transitionTimingFunction: t.motion.ease,
   }),
-  Style.pseudo('[data-closed]', { opacity: '0', scale: '0.95' }),
+  Style.pseudo('[data-closed]', {
+    opacity: '0',
+    scale: '0.95',
+    transitionDuration: `${t.motion['moderate-exit']}, calc(${t.motion['moderate-exit']} * ${t.knob.travel}), calc(${t.motion['moderate-exit']} * ${t.knob.travel})`,
+    transitionTimingFunction: t.motion['ease-exit'],
+  }),
 )
 
 /** The invisible layer behind an open panel that closes it on a click. */

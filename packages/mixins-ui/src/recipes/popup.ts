@@ -5,7 +5,7 @@
  * trigger and density. Internal to the recipes, not a published contract.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { component, disabled, hover, ref, variant } from './design.js'
+import { component, disabled, glide, hover, ref, variant } from './design.js'
 
 /** A line in the panel's own ink, so it reads on an inverted panel too. */
 const line = `color-mix(in oklab, ${ref.popup.ink} 14%, transparent)`
@@ -77,15 +77,6 @@ export const rows: StyleValue = component(
 const at = (name: 'hover' | 'chosen', part: 'x' | 'y' | 'w' | 'h') =>
   `var(--fk-popup-${name}-${part})`
 
-const glide = (moving: string) => {
-  const duration = `calc(${ref.motion.normal} * ${moving})`
-  return {
-    transitionProperty: 'translate, inline-size, block-size, opacity',
-    transitionDuration: `${duration}, ${duration}, ${duration}, ${ref.motion.fast}`,
-    transitionTimingFunction: `${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.ease}`,
-  }
-}
-
 const overlay = (name: 'hover' | 'chosen') => ({
   position: 'absolute',
   // Physical: the Mounts measure from the left, in either direction.
@@ -106,7 +97,7 @@ export const highlight: StyleValue = component(
     display: 'none',
     opacity: 'var(--fk-popup-hover-shown)',
     background: ref.popup.highlight,
-    ...glide('var(--fk-popup-hover-moving)'),
+    ...glide('fast', 'var(--fk-popup-hover-moving)'),
   }),
   Style.nest(lit, { display: 'block' }),
 )
@@ -117,7 +108,7 @@ export const indicator: StyleValue = component(
     ...overlay('chosen'),
     display: 'none',
     background: ref.accent.subtle,
-    ...glide('1'),
+    ...glide('moderate', '1'),
   }),
   Style.nest(lit, { display: 'var(--fk-popup-chosen-display, none)' }),
 )

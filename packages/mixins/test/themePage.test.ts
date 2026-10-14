@@ -57,20 +57,24 @@ describe('Theme.tokens', () => {
       density: '1',
       'radius-factor': '1',
       motion: '1',
+      travel: '1',
       'shadow-strength': '100%',
     })
     expect(Theme.tokens.space.md).toBe('calc(1rem * var(--fk-knob-density))')
     expect(Theme.tokens.radius.md).toBe('calc(6px * var(--fk-knob-radius-factor))')
     expect(Theme.tokens.radius.full).toBe('calc(9999px * min(var(--fk-knob-radius-factor), 1))')
-    expect(Theme.tokens.motion.fast).toBe('calc(150ms * var(--fk-knob-motion))')
-    expect(Theme.tokens.motion.normal).toBe('calc(250ms * var(--fk-knob-motion))')
+    expect(Theme.tokens.motion.fast).toBe('calc(80ms * var(--fk-knob-motion))')
+    expect(Theme.tokens.motion.moderate).toBe('calc(160ms * var(--fk-knob-motion))')
+    expect(Theme.tokens.motion.slow).toBe('calc(240ms * var(--fk-knob-motion))')
+    // Each exit a tier quicker than its entrance.
+    expect(Theme.tokens.motion['moderate-exit']).toBe('calc(120ms * var(--fk-knob-motion))')
     expect(Theme.tokens.motion.ease).toBe('ease-out')
   })
 
   it('a still theme zeroes every recipe transition through the knob', () => {
     const still = Theme.compose(Theme.tokens, { knob: { motion: '0' } })
     expect(still.knob.motion).toBe('0')
-    expect(still.motion.fast).toBe('calc(150ms * var(--fk-knob-motion))')
+    expect(still.motion.fast).toBe('calc(80ms * var(--fk-knob-motion))')
   })
 
   it('names the groups a design system shares', () => {

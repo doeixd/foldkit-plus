@@ -363,7 +363,7 @@ export const SwatchStyle = forSlots(RadioGroupSlots)(
         padding: '0',
         border: '0',
         background: 'var(--swatch-color)',
-        transition: `scale ${t.motion.fast}`,
+        transition: `scale calc(${t.motion.fast} * ${t.knob.travel})`,
       },
       Style.pseudo(`:not(${checked}):hover`, { scale: '1.05' }),
       Style.pseudo(checked, {

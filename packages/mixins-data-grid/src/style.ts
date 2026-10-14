@@ -274,7 +274,7 @@ export const GridStyle = Style.forSlots(GridSlots)(
         height: '0.4em',
         opacity: '0',
         transform: 'translateY(-0.15em) rotate(45deg)',
-        transition: `opacity ${ref.motion.fast} ${ref.motion.ease}, transform ${ref.motion.fast} ${ref.motion.ease}`,
+        transition: `opacity ${ref.motion.fast} ${ref.motion.ease}, transform calc(${ref.motion.fast} * ${ref.knob.travel}) ${ref.motion.ease}`,
         width: '0.4em',
       }),
       Style.nest('&:hover::after', { opacity: '0.35' }),

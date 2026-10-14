@@ -19,7 +19,7 @@ export const Spinner = Style.recipeFor(SpinnerSlots)({
         borderRadius: ref.radius.full,
         border: `${ref.border.thick} solid ${ref.outline.subtle}`,
         borderTopColor: ref.accent.default,
-        animation: `${spin.name} ${ref.motion.normal} linear infinite`,
+        animation: `${spin.name} ${ref.motion.slow} linear infinite`,
       }),
       spin.style,
       Style.media('(prefers-reduced-motion: reduce)', { animation: 'none' }),

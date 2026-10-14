@@ -766,10 +766,12 @@ keeps what the systems plan's "What we keep" lists.
 - [ ] **Separators in a styled menu.** Upstream draws them only through
   `ChildAttribute`s an application's builder cannot draw.
   [ui-parity-DESIGN.md](./ui-parity-DESIGN.md) step 1
-- [ ] **Systems 1, motion.** Tiers of 80, 160 and 240ms with exits a tier
-  quicker; a `travel` knob that reduced motion zeroes while fades stay;
-  exits through open-state durations; collapses on a `0fr`-`1fr` grid.
-  Breaking: `motion.normal`. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §1
+- [x] **Systems 1, motion.** Tiers of 80, 160 and 240ms with exits a tier
+  quicker, and a `travel` knob that reduced motion zeroes while fades stay.
+  No recipe animates a popup's entrance yet, so exits through `data-closed`
+  land with the popup craft (systems 8; the showcase's panels show the
+  shape), and the `0fr`-`1fr` collapse with Accordion (parity 4).
+  [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §1
 - [ ] **Systems 2, the size ladder.** A `step` knob and a `control` group
   (height, padding, gap, icon, radius) that rows and controls share, times
   `density`; `sm`/`md`/`lg` map onto it, and recipes drop `size` from their

@@ -2,8 +2,9 @@
  * The non-color scales a design system shares across themes. Space, radius,
  * and durations multiply by the `density`, `radius-factor`, and `motion`
  * knobs, so a compact, a rounder, or a stiller theme is one override
- * (`motion: '0'` stills every recipe transition; `prefers-reduced-motion`
- * still wins through the reset). `shadow` is drawn in `shadow.color`,
+ * (`motion: '0'` stills every recipe transition). `travel` multiplies only
+ * the durations of things that move or resize: the reset sets it to 0 under
+ * `prefers-reduced-motion`, so objects stop travelling and fades stay. `shadow` is drawn in `shadow.color`,
  * which a palette sets (`Theme.oklch` does, stronger in a dark scheme, where
  * a shadow mixed from the text would glow); alone it falls back to black.
  * Every layer is mixed toward transparent by the `shadow-strength` knob, so
@@ -24,7 +25,7 @@ const shadow = (...layers: ReadonlyArray<string>) =>
   layers.map(layer => `${layer} color-mix(in oklch, ${shade} ${strength}, transparent)`).join(', ')
 
 export const tokens = define({
-  knob: { density: '1', 'radius-factor': '1', motion: '1', 'shadow-strength': '100%' },
+  knob: { density: '1', 'radius-factor': '1', motion: '1', travel: '1', 'shadow-strength': '100%' },
   space: {
     '3xs': space(0.125),
     '2xs': space(0.25),
@@ -58,16 +59,29 @@ export const tokens = define({
   },
   leading: { tight: '1.2', snug: '1.375', normal: '1.5', relaxed: '1.6' },
   weight: { normal: '400', medium: '500', semibold: '600', bold: '700' },
+  // Three tiers, as Fluid Functionalism's springs: the bigger the thing that
+  // moves, the slower its tier. Hover, fades and focus rings are `fast`;
+  // popups, tabs and short travel `moderate`; dialogs and large surfaces
+  // `slow`. Each exit is a tween one tier quicker, so a dismissal reads as
+  // final rather than as the entrance replayed.
   motion: {
-    fast: duration(150),
-    normal: duration(250),
+    fast: duration(80),
+    moderate: duration(160),
+    slow: duration(240),
+    'fast-exit': duration(60),
+    'moderate-exit': duration(120),
+    'slow-exit': duration(160),
     ease: 'ease-out',
-    // An underdamped spring (damping ratio 0.72), sampled: it overshoots by 4%
-    // and rests exactly at the end, so a highlight or a panel lands with weight
-    // but never wobbles. A CSS easing, so it needs no JavaScript and still
-    // follows the motion knob through the duration it is paired with.
+    'ease-exit': 'ease-in',
+    // Springs sampled as CSS easings, so they need no JavaScript and follow
+    // the knobs through the duration they are paired with. `settle` is
+    // critically damped: it lands exactly, for `fast` and `moderate` travel.
+    settle:
+      'linear(0, 0.035, 0.116, 0.218, 0.325, 0.428, 0.522, 0.605, 0.677, 0.737, 0.788, 0.83, 0.864, 0.892, 0.914, 0.932, 0.947, 0.958, 0.967, 0.974, 0.98, 0.984, 0.988, 0.991, 1)',
+    // Damping ratio 0.88 (Fluid's bounce 0.12), for `slow`: a large surface
+    // arrives with a little weight and no visible wobble.
     spring:
-      'linear(0, 0.066, 0.215, 0.393, 0.566, 0.715, 0.833, 0.92, 0.978, 1.013, 1.032, 1.038, 1.037, 1.032, 1.026, 1.019, 1.013, 1.008, 1.004, 1.001, 1)',
+      'linear(0, 0.041, 0.136, 0.255, 0.379, 0.497, 0.603, 0.693, 0.768, 0.829, 0.876, 0.913, 0.941, 0.961, 0.976, 0.986, 0.993, 0.998, 1, 1.002, 1.003, 1.003, 1.003, 1.003, 1)',
   },
   border: { thin: '1px', thick: '2px', heavy: '3px' },
   // Raised a little to a lot: a pressed control, a lifted cell, a menu, a

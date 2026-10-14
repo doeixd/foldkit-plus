@@ -475,7 +475,10 @@ of a theme into a style; add or override a token instead.
 `shadow-strength` (and the palette's `accent-h`, `surface-contrast`, …) live
 in the `knob` group, and the scales derive from them: space multiplies by
 density, radius by radius-factor, durations by motion (`motion: '0'` stills
-every recipe transition). A still/compact/rounder theme is one override, via
+every recipe transition). A duration of something that moves or resizes also
+multiplies by `travel`, which the reset zeroes under reduced motion so fades
+stay: write it so, or a transform keeps sliding for a user who asked it not
+to. A still/compact/rounder theme is one override, via
 `Theme.scoped` (a selector the Model selects) or an inline variable — never a
 second set of sizes. There is no `knob` helper to look for.
 

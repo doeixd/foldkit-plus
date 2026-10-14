@@ -41,7 +41,7 @@ describe('Skeleton recipe', () => {
     expect(sheet).toMatch(/opacity:0?\.45/)
     expect(sheet).toContain('ease-in-out infinite')
     // The duration is the token reference; the knob math lives in Theme.tokens.
-    expect(sheet).toContain('var(--fk-motion-normal)')
+    expect(sheet).toContain('var(--fk-motion-slow)')
   })
 
   it('holds still under reduced motion, and rounds circles', () => {

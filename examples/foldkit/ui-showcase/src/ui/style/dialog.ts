@@ -50,10 +50,15 @@ const fade = (closed: Declarations): StyleValue =>
   Style.compose(
     Style.self({
       transitionProperty: 'opacity, scale',
-      transitionDuration: t.motion.fast,
+      transitionDuration: `${t.motion.slow}, calc(${t.motion.slow} * ${t.knob.travel})`,
       transitionTimingFunction: t.motion.ease,
     }),
-    Style.pseudo('[data-closed]', closed),
+    // Closing runs on the quicker exit tween: CSS takes the state entered's duration.
+    Style.pseudo('[data-closed]', {
+      ...closed,
+      transitionDuration: `${t.motion['slow-exit']}, calc(${t.motion['slow-exit']} * ${t.knob.travel})`,
+      transitionTimingFunction: t.motion['ease-exit'],
+    }),
   )
 
 const animated = centered.extend({

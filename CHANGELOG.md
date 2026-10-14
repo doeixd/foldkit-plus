@@ -66,9 +66,10 @@ version changed; `pnpm` skips versions already in the registry.
   accent's fill (`bold`), and the panel in the page's surface, the other
   scheme's (`inverted`), or either over a blur (`translucent`). The `popup`
   tokens carry it, and the menu, listbox and combobox recipes read them.
-- **`foldkit-mixins/theme`: `motion.spring`**, an easing token sampled from an
-  underdamped spring (4% overshoot, resting exactly at the end), for a CSS
-  transition that springs with no JavaScript.
+- **`foldkit-mixins/theme`: `motion.settle` and `motion.spring`**, easings
+  sampled from springs, for CSS transitions that spring with no JavaScript:
+  `settle` critically damped, landing exactly, and `spring` at a damping ratio
+  of 0.88 for large surfaces.
 - **`foldkit-mixins-ui`: `Card.group` and `Recipes.CardGroup`**, cards as one
   keyed list in one column or a grid, divided or apart, with one highlight that
   follows the pointer to the nearest card (`FluidHover`); a press in a gap
@@ -104,6 +105,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins/theme`: three motion tiers, and reduced motion keeps the
+  fades.** `motion.fast`, `moderate` and `slow` are 80, 160 and 240ms, each with
+  an exit a tier quicker (`fast-exit`, `moderate-exit`, `slow-exit`, eased by
+  `ease-exit`), after Fluid Functionalism's springs. A `travel` knob multiplies
+  the durations of what moves or resizes, and `Defaults.reset` sets it to 0
+  under `prefers-reduced-motion` instead of zeroing every transition, so a
+  highlight snaps to its row while its fade still plays. The recipes' gliding
+  overlays share one transition (hover on `fast`, a chosen marker on
+  `moderate`), and the switch's thumb travels on `moderate`. Breaking:
+  `motion.normal` is gone (read `moderate`, or `slow` for a loop's period), and
+  a transition of a transform written outside the recipes no longer snaps
+  under reduced motion unless it multiplies by `knob.travel`.
 - **`foldkit-mixins/theme`: the surface contrast knob reaches 2.5 times as
   far, and defaults to 26%.** At its top it moved a muted surface four points
   of lightness, which read as doing nothing; the default look is the one 65%

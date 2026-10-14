@@ -12,6 +12,7 @@ import {
   density,
   disabled,
   focusRing,
+  glide,
   ref,
   transition,
   unfilledHover,
@@ -28,16 +29,6 @@ const marked = `:where(:not([data-fluid-hover])) > &${selected}`
 const hovered = (part: 'x' | 'y' | 'w' | 'h' | 'shown' | 'moving') => `var(--fk-tabs-hover-${part})`
 const chosen = (part: 'x' | 'y' | 'w' | 'h' | 'display') =>
   part === 'display' ? 'var(--fk-tabs-chosen-display, none)' : `var(--fk-tabs-chosen-${part})`
-
-/** A travel that springs, scaled by `scale` so a highlight appearing lands where it is. */
-const travel = (scale: string) => {
-  const moving = `calc(${ref.motion.normal} * ${scale})`
-  return {
-    transitionProperty: 'translate, inline-size, block-size, opacity',
-    transitionDuration: `${moving}, ${moving}, ${moving}, ${ref.motion.fast}`,
-    transitionTimingFunction: `${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.ease}`,
-  }
-}
 
 const overlay = {
   position: 'absolute',
@@ -62,7 +53,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         ...overlay,
         display: 'none',
         zIndex: '-1',
-        ...travel('1'),
+        ...glide('moderate', '1'),
       }),
       Style.nest(fluid, { display: chosen('display') }),
     ),
@@ -77,7 +68,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         opacity: hovered('shown'),
         borderRadius: ref.radius.md,
         background: unfilledHover,
-        ...travel(hovered('moving')),
+        ...glide('fast', hovered('moving')),
       }),
       Style.nest(fluid, { display: 'block' }),
     ),

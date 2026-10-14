@@ -261,7 +261,9 @@ describe('CardGroup recipe', () => {
   })
 
   it("springs the highlight's place, scaled by whether it is moving", () => {
-    expect(css({})).toContain('calc(var(--fk-motion-normal) * var(--fk-card-hover-moving))')
-    expect(css({})).toContain('var(--fk-motion-spring)')
+    expect(css({})).toContain(
+      'calc(calc(var(--fk-motion-fast) * var(--fk-card-hover-moving)) * var(--fk-knob-travel))',
+    )
+    expect(css({})).toContain('var(--fk-motion-settle)')
   })
 })

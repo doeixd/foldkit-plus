@@ -21,7 +21,11 @@ export const reset: StyleValue = global(
     ':where(textarea){field-sizing:content;min-block-size:2lh}',
     ':where(:is(h1,h2,h3,h4,h5,h6)){text-wrap:balance}',
     ':where(p){text-wrap:pretty;overflow-wrap:break-word}',
-    `@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}}`,
+    // Reduced motion is fewer and gentler, not none: what moves snaps (the
+    // `travel` knob on every element, important so one that sets the knob
+    // itself, a scoped theme's or an inline one, cannot restore it), while a
+    // fade keeps its duration. Keyframes are a recipe's own and still stop.
+    `@media (prefers-reduced-motion:reduce){*,*::before,*::after{--fk-knob-travel:0!important;animation-duration:0.01ms!important;scroll-behavior:auto!important}}`,
   ].join(''),
 )
 

@@ -13,7 +13,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { CardGroupSlots, CardSlots } from '../card.js'
-import { component, focusRing, ref, transition, variant } from './design.js'
+import { component, focusRing, glide, ref, transition, variant } from './design.js'
 
 const pad = 'var(--_fk-card-pad)'
 const gap = 'var(--_fk-card-gap)'
@@ -286,11 +286,7 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
         borderRadius: ref.radius.md,
         background: ref.surface.subtle,
         pointerEvents: 'none',
-        transitionProperty: 'translate, inline-size, block-size, opacity',
-        // The place springs, scaled by `-moving` so a highlight appearing lands
-        // on its card; the fade does not.
-        transitionDuration: `calc(${ref.motion.normal} * var(--fk-card-hover-moving)), calc(${ref.motion.normal} * var(--fk-card-hover-moving)), calc(${ref.motion.normal} * var(--fk-card-hover-moving)), ${ref.motion.fast}`,
-        transitionTimingFunction: `${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.ease}`,
+        ...glide('fast', 'var(--fk-card-hover-moving)'),
       }),
     ),
   },

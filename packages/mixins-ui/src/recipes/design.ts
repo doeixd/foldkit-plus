@@ -63,6 +63,23 @@ export const transition = (properties: string): Declarations => ({
   transitionTimingFunction: ref.motion.ease,
 })
 
+/** A duration for something that moves or resizes: reduced motion snaps it, while fades keep theirs. */
+export const travelled = (duration: string) => `calc(${duration} * ${ref.knob.travel})`
+
+/**
+ * The transition of an overlay a Mount places (a highlight, a chosen marker):
+ * its place and size settle on `tier`, scaled by `moving` (a Mount's 0 or 1,
+ * so a highlight appearing lands where it is), and its fade runs on `fast`.
+ */
+export const glide = (tier: 'fast' | 'moderate', moving: string): Declarations => {
+  const duration = travelled(`calc(${ref.motion[tier]} * ${moving})`)
+  return {
+    transitionProperty: 'translate, inline-size, block-size, opacity',
+    transitionDuration: `${duration}, ${duration}, ${duration}, ${ref.motion.fast}`,
+    transitionTimingFunction: `${ref.motion.settle}, ${ref.motion.settle}, ${ref.motion.settle}, ${ref.motion.ease}`,
+  }
+}
+
 /**
  * A tone is four private custom properties that the variants read: the fill,
  * its hover, the text on it, and the ink where nothing is filled. Tone and

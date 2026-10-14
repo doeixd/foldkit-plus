@@ -35,7 +35,7 @@ describe('Spinner recipe', () => {
     expect(sheet).toContain('@keyframes')
     expect(sheet).toContain('rotate(360deg)')
     expect(sheet).toContain('linear infinite')
-    expect(sheet).toContain('var(--fk-motion-normal)')
+    expect(sheet).toContain('var(--fk-motion-slow)')
   })
 
   it('holds still under reduced motion, and sizes per selection', () => {

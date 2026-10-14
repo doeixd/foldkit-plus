@@ -359,6 +359,11 @@ panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `highlight-ink`):
 Each is a 0-or-1 knob (`popup-bold`, `popup-invert`) blended by `color-mix`, so an override
 switches it live. `Theme.tokens` is the
 non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
+Its `motion` group is three tiers, `fast`, `moderate` and `slow` (80, 160 and 240ms, for hover and
+fades, popups and tabs, dialogs), each with a quicker `-exit` for dismissals, all multiplied by the
+`motion` knob. A duration of something that moves or resizes also multiplies by `knob.travel`,
+which `Defaults.reset` sets to 0 under `prefers-reduced-motion`: the thing stops travelling, and its
+fade still plays.
 
 A theme reaches the page as pieces, and the page chooses the layers:
 

@@ -18,7 +18,7 @@ export const Skeleton = Style.recipeFor(SkeletonSlots)({
     bar: component(
       Style.self({
         background: ref.surface.muted,
-        animation: `${pulse.name} ${ref.motion.normal} ease-in-out infinite`,
+        animation: `${pulse.name} ${ref.motion.slow} ease-in-out infinite`,
       }),
       pulse.style,
       Style.media('(prefers-reduced-motion: reduce)', { animation: 'none' }),

@@ -15,6 +15,7 @@ import {
   tones,
   toneVar,
   transition,
+  travelled,
   variant,
 } from './design.js'
 
@@ -118,8 +119,8 @@ export const Switch = Style.recipeFor(SwitchSlots)({
         borderRadius: ref.radius.full,
         background: ref.surface.base,
         transitionProperty: 'translate',
-        transitionDuration: ref.motion.fast,
-        transitionTimingFunction: ref.motion.ease,
+        transitionDuration: travelled(ref.motion.moderate),
+        transitionTimingFunction: ref.motion.settle,
       }),
       Style.pseudo(checked, { background: toneVar('fill') }),
       Style.pseudo(`${checked}::before`, { translate: `calc(${edge} * 0.8) 0` }),
