@@ -46,4 +46,15 @@ export default [
     ],
     tests,
   },
+  ...['action', 'frequency', 'city'].map(field => ({
+    name: `the chosen ${field} is not kept`,
+    edits: [
+      {
+        file: widgets,
+        find: `model => ({ model: modifyFields(model, { ${field}: () => Option.some(value) }) }),`,
+        replace: 'model => ({ model }),',
+      },
+    ],
+    tests,
+  })),
 ]

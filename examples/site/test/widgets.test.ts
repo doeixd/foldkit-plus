@@ -3,7 +3,15 @@
  * own Model through the site's update, and what it reports becomes the
  * value the preview shows.
  */
-import { Dialog as UiDialog, RadioGroup as UiRadioGroup, Tabs as UiTabs } from '@foldkit/ui'
+import {
+  Combobox as UiCombobox,
+  Dialog as UiDialog,
+  Listbox as UiListbox,
+  Menu as UiMenu,
+  RadioGroup as UiRadioGroup,
+  Tabs as UiTabs,
+} from '@foldkit/ui'
+import { Option } from 'effect'
 import * as UiSlider from '@foldkit/ui/slider'
 import { describe, expect, it } from 'vitest'
 
@@ -54,5 +62,29 @@ describe('the previews with state', () => {
     ).model
     expect(closed.widgets.dialog.isOpen).toBe(false)
     expect(UiDialog.init({ id: 'x' }).isOpen).toBe(false)
+  })
+
+  it('keep the action, frequency and city that were chosen', () => {
+    const acted = send(
+      Widgets.Message.GotMenu({
+        message: UiMenu.Message.SelectedItem({ index: 0, item: 'Rename' }),
+      }),
+    )
+    expect(acted.widgets.action).toEqual(Option.some('Rename'))
+    const backedUp = send(
+      Widgets.Message.GotListbox({ message: UiListbox.Message.SelectedItem({ item: 'Weekly' }) }),
+    )
+    expect(initial.widgets.frequency).toEqual(Option.some('Daily'))
+    expect(backedUp.widgets.frequency).toEqual(Option.some('Weekly'))
+    const found = send(
+      Widgets.Message.GotCombobox({
+        message: UiCombobox.Message.SelectedItem({
+          item: 'Oslo',
+          displayText: 'Oslo',
+          wasSelected: false,
+        }),
+      }),
+    )
+    expect(found.widgets.city).toEqual(Option.some('Oslo'))
   })
 })

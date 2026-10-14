@@ -6,7 +6,10 @@
  */
 import { Option, Schema } from 'effect'
 import {
+  Combobox as UiCombobox,
   Dialog as UiDialog,
+  Listbox as UiListbox,
+  Menu as UiMenu,
   Popover as UiPopover,
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
@@ -36,6 +39,9 @@ import {
   CardSlots,
   Checkbox,
   CheckboxSlots,
+  Combobox,
+  ComboboxSlots,
+  ComboboxView,
   Dialog,
   DialogSlots,
   Empty,
@@ -46,6 +52,12 @@ import {
   ItemSlots,
   Kbd,
   KbdSlots,
+  Listbox,
+  ListboxSlots,
+  ListboxView,
+  Menu,
+  MenuSlots,
+  MenuView,
   Pagination,
   PaginationSlots,
   Popover,
@@ -772,4 +784,130 @@ export const tooltip = <Message>(
     },
     toParentMessage: toMessage,
   })
+// #endregion
+
+// #region menu
+export const MenuStyle = forSlots(MenuSlots)(Recipes.Menu({}))
+
+export const Action = Schema.Literals(['Rename', 'Duplicate', 'Move', 'Delete'])
+export type Action = typeof Action.Type
+// Annotated: the inferred type names a foldkit internal module.
+export const ActionMenu: ReturnType<typeof MenuView.create<Action>> = MenuView.create<Action>()
+
+/** The open menu is the component's; the action chosen is the Model's. */
+export interface MenuState {
+  readonly menu: UiMenu.Model
+  readonly action: Option.Option<Action>
+}
+
+export const menu = <Message>(
+  style: NamedStyle<typeof MenuSlots>,
+  state: MenuState,
+  toMessage: (message: UiMenu.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      h.submodel({
+        slotId: state.menu.id,
+        model: state.menu,
+        view: ActionMenu.view,
+        viewInputs: {
+          anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+          items: Action.literals,
+          itemToConfig: (action: Action) => ({ content: h.span([], [action]) }),
+          isItemDisabled: (action: Action) => action === 'Move',
+          buttonContent: h.span([], ['Page actions']),
+          toView: Menu.toView([style.mixin], { h }),
+        },
+        toParentMessage: toMessage,
+      }),
+      h.p(
+        [],
+        [
+          Option.match(state.action, {
+            onNone: () => 'Nothing chosen yet',
+            onSome: a => `Chose ${a}`,
+          }),
+        ],
+      ),
+    ],
+  )
+// #endregion
+
+// #region listbox
+export const ListboxStyle = forSlots(ListboxSlots)(Recipes.Listbox({}))
+
+export const Frequency = Schema.Literals(['Hourly', 'Daily', 'Weekly', 'Monthly'])
+export type Frequency = typeof Frequency.Type
+export const FrequencyBox: ReturnType<typeof ListboxView.create<Frequency>> =
+  ListboxView.create<Frequency>()
+
+/** The open list and its highlight are the component's; the choice is the Model's. */
+export interface ListboxState {
+  readonly listbox: UiListbox.Model
+  readonly frequency: Option.Option<Frequency>
+}
+
+export const listbox = <Message>(
+  style: NamedStyle<typeof ListboxSlots>,
+  state: ListboxState,
+  toMessage: (message: UiListbox.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.listbox.id,
+    model: state.listbox,
+    view: FrequencyBox.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      items: Frequency.literals,
+      maybeSelectedValue: state.frequency,
+      itemToConfig: (frequency: Frequency) => ({ content: h.span([], [frequency]) }),
+      buttonContent: h.span([], [Option.getOrElse(state.frequency, () => 'Back up…')]),
+      toView: Listbox.toView([style.mixin], { h }),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region combobox
+export const ComboboxStyle = forSlots(ComboboxSlots)(Recipes.Combobox({}))
+
+export const cities = ['Kyiv', 'Lagos', 'Lima', 'Oslo', 'Osaka', 'Quito', 'Seoul', 'Zurich']
+export const CityBox: ReturnType<typeof ComboboxView.create<string>> = ComboboxView.create<string>()
+
+/** What is typed and highlighted is the component's; the city is the Model's. */
+export interface ComboboxState {
+  readonly combobox: UiCombobox.Model
+  readonly city: Option.Option<string>
+}
+
+export const combobox = <Message>(
+  style: NamedStyle<typeof ComboboxSlots>,
+  state: ComboboxState,
+  toMessage: (message: UiCombobox.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const typed = state.combobox.inputValue.toLowerCase()
+  return h.submodel({
+    slotId: state.combobox.id,
+    model: state.combobox,
+    view: CityBox.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      items: cities.filter(city => city.toLowerCase().includes(typed)),
+      restingInputValue: Option.getOrElse(state.city, () => ''),
+      maybeSelectedValue: state.city,
+      itemToConfig: (city: string) => ({ content: h.span([], [city]) }),
+      itemToValue: (city: string) => city,
+      itemToDisplayText: (city: string) => city,
+      inputPlaceholder: 'Find a city',
+      buttonContent: h.span([], ['▾']),
+      toView: Combobox.toView([style.mixin], { h }),
+    },
+    toParentMessage: toMessage,
+  })
+}
 // #endregion

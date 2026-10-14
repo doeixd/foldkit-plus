@@ -9,7 +9,10 @@ import { Subscription, Update } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import { makeModifyFieldsFor, modifyFields } from 'foldkit/struct'
 import {
+  Combobox as UiCombobox,
   Dialog as UiDialog,
+  Listbox as UiListbox,
+  Menu as UiMenu,
   Popover as UiPopover,
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
@@ -17,7 +20,17 @@ import {
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 
-import { Billing, BillingGroup, Section, SectionTabs } from '../snippets/components.js'
+import {
+  Action,
+  ActionMenu,
+  Billing,
+  BillingGroup,
+  CityBox,
+  Frequency,
+  FrequencyBox,
+  Section,
+  SectionTabs,
+} from '../snippets/components.js'
 
 export const Model = Schema.Struct({
   tabs: UiTabs.Model,
@@ -29,6 +42,12 @@ export const Model = Schema.Struct({
   dialog: UiDialog.Model,
   popover: UiPopover.Model,
   tooltip: UiTooltip.Model,
+  menu: UiMenu.Model,
+  action: Schema.Option(Action),
+  listbox: UiListbox.Model,
+  frequency: Schema.Option(Frequency),
+  combobox: UiCombobox.Model,
+  city: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -41,6 +60,9 @@ export const Message = defineMessageUnion({
   ClosedDialog: {},
   GotPopover: { message: UiPopover.Message },
   GotTooltip: { message: UiTooltip.Message },
+  GotMenu: { message: UiMenu.Message },
+  GotListbox: { message: UiListbox.Message },
+  GotCombobox: { message: UiCombobox.Message },
 })
 export type Message = typeof Message.Type
 
@@ -54,6 +76,12 @@ export const initial: Model = {
   dialog: UiDialog.init({ id: 'preview-dialog' }),
   popover: UiPopover.init({ id: 'preview-popover' }),
   tooltip: UiTooltip.init({ id: 'preview-tooltip' }),
+  menu: UiMenu.init({ id: 'preview-menu' }),
+  action: Option.none(),
+  listbox: UiListbox.init({ id: 'preview-frequency' }),
+  frequency: Option.some('Daily'),
+  combobox: UiCombobox.init({ id: 'preview-city' }),
+  city: Option.none(),
 }
 
 type Step = Update.Step<Model, Message>
@@ -147,6 +175,40 @@ const foldTooltip = Update.foldChild({
   foldOutMessage: UiTooltip.OutMessage.match<Step>({ Shown: () => same, Hidden: () => same }),
 })
 
+/** The action chosen is the Model's; the menu has already closed. */
+const foldMenu = Update.foldChild({
+  ...own('menu', Message.GotMenu),
+  update: ActionMenu.update,
+  foldOutMessage: UiMenu.OutMessage.match<Step, UiMenu.OutMessage<Action>>({
+    Selected:
+      ({ value }) =>
+      model => ({ model: modifyFields(model, { action: () => Option.some(value) }) }),
+  }),
+})
+
+const foldListbox = Update.foldChild({
+  ...own('listbox', Message.GotListbox),
+  update: FrequencyBox.update,
+  foldOutMessage: UiListbox.OutMessage.match<Step, UiListbox.OutMessage<Frequency>>({
+    Selected:
+      ({ value }) =>
+      model => ({ model: modifyFields(model, { frequency: () => Option.some(value) }) }),
+  }),
+})
+
+const foldCombobox = Update.foldChild({
+  ...own('combobox', Message.GotCombobox),
+  update: CityBox.update,
+  foldOutMessage: UiCombobox.OutMessage.match<Step, UiCombobox.OutMessage<string>>({
+    Selected:
+      ({ value }) =>
+      model => ({ model: modifyFields(model, { city: () => Option.some(value) }) }),
+    ClearedSelection: () => model => ({
+      model: modifyFields(model, { city: () => Option.none() }),
+    }),
+  }),
+})
+
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match(message, {
     GotTabs: ({ message }) => foldTabs(model, message),
@@ -157,6 +219,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     ClosedDialog: () => closeDialog(model),
     GotPopover: ({ message }) => foldPopover(model, message),
     GotTooltip: ({ message }) => foldTooltip(model, message),
+    GotMenu: ({ message }) => foldMenu(model, message),
+    GotListbox: ({ message }) => foldListbox(model, message),
+    GotCombobox: ({ message }) => foldCombobox(model, message),
   })
 
 /** The slider's drag reaches it through the page's pointer, outside the slider. */
