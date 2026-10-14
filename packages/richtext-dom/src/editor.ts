@@ -15,7 +15,7 @@ import {
   attachmentIn,
   decorationsFor,
   mountInto,
-  placeholderFor,
+  placeholdersFor,
   releaseMount,
   renderingFor,
   vocabularyFor,
@@ -284,6 +284,8 @@ export interface EditorDrawing {
   readonly decorate?: Decorate | undefined
   /** What a blank document shows. */
   readonly placeholder?: string | undefined
+  /** What the empty paragraph the caret is in shows. */
+  readonly lineHint?: string | undefined
   /** The node vocabulary, which says where Tab means something (`RichText.takesTab`). */
   readonly nodes?: RichText.NodeRegistry | undefined
 }
@@ -313,6 +315,7 @@ export const attachEditor = (
       decorate: drawing.decorate,
       nodes: drawing.nodes,
       placeholder: drawing.placeholder,
+      lineHint: drawing.lineHint,
     },
     drawing.rendering,
   )
@@ -404,7 +407,7 @@ export const events = Mount.defineStream('RichTextDomEvents', {
           attachEditor(element, content, message => Queue.offerUnsafe(queue, message), {
             rendering: renderingFor(element.id),
             decorate: decorationsFor(element.id),
-            placeholder: placeholderFor(element.id),
+            ...placeholdersFor(element.id),
             nodes: vocabularyFor(element.id).nodes,
           }),
         ),

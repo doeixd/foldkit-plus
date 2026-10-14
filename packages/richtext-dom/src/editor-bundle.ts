@@ -33,7 +33,7 @@ import {
   placeDecorations,
   placeInputRules,
   placeOverlay,
-  placePlaceholder,
+  placePlaceholders,
   placeRendering,
   placeServerRendered,
   placeSlashEntries,
@@ -696,6 +696,11 @@ export interface EditorPlacement {
   /** What the editor shows while its document is blank (`RichText.isBlank`). Defaults to none. */
   readonly placeholder?: string | undefined
   /**
+   * What the empty paragraph the caret is in shows, such as "Type / for blocks", as
+   * `data-hint` on it. Defaults to none.
+   */
+  readonly lineHint?: string | undefined
+  /**
    * What its slash menu offers, which Enter resolves against: an application's own entries
    * (an image, a table, a callout) beside or instead of `slashEntries`. The application's menu
    * view draws the same list. Defaults to `slashEntries`.
@@ -720,7 +725,10 @@ export const placeEditor = (hostId: string, placement: EditorPlacement): void =>
   placeDecorations(hostId, placement.decorate ?? (() => []))
   // The overlay is set by Commands after placing, so a placement starts without the last one's.
   placeOverlay(hostId, [])
-  placePlaceholder(hostId, placement.placeholder)
+  placePlaceholders(hostId, {
+    placeholder: placement.placeholder,
+    lineHint: placement.lineHint,
+  })
   placeSlashEntries(hostId, placement.slashEntries)
   placeServerRendered(hostId, placement.serverRendered ?? (() => false))
 }

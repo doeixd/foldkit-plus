@@ -137,6 +137,10 @@ What each part does, and does not do:
   }
   ```
 
+- **`lineHint`**: what the empty paragraph a collapsed caret is in shows, such as "Type / for
+  blocks", put on it as `data-hint` and moved as the caret moves. A blank document's block shows
+  the placeholder instead. Draw it like the placeholder, under `:focus` so it shows only while
+  the editor is being written in: `[contenteditable]:focus [data-hint]::before`.
 - **`serverRendered`**: whether a render is the server's; see "On a server-rendered page".
 
 Each has a record at `foldkit-richtext-dom/host` (`placeRendering`/`renderingFor`,
@@ -498,7 +502,7 @@ Anything else in the host is replaced, so it ends with one subtree either way.
 `renderEditable(document, renderer?, decorations?)` is the same subtree as `Html`, which is
 what a server sends.
 
-`attachEditor(host, content, emit, { rendering?, decorate?, placeholder? })` attaches the
+`attachEditor(host, content, emit, { rendering?, decorate?, placeholder?, lineHint? })` attaches the
 translation to Messages to a host element; `events({ content })` wraps it as the Mount the
 editor's view uses; `patchEditor(hostId, state, changeSet)` is what the patch Command runs,
 reporting whether it patched. A missing host is an editor that went away while the transition

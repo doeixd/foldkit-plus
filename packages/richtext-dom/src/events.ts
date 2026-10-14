@@ -215,6 +215,12 @@ export interface AttachOptions {
   /** What a blank document shows (`RichText.isBlank`): "Write something…". */
   readonly placeholder?: string | undefined
   /**
+   * What the empty paragraph a collapsed caret is in shows, as `data-hint` on it, which a
+   * stylesheet draws as it draws the placeholder (usually only while the editor has the focus).
+   * A blank document's block shows the placeholder instead.
+   */
+  readonly lineHint?: string | undefined
+  /**
    * The node vocabulary, which says where Tab means something (`RichText.takesTab`): code and
    * table cells take it as `Indent` and `Outdent`; anywhere else it moves focus as it always does.
    */
@@ -302,6 +308,19 @@ const drawPlaceholder = (
   return target
 }
 
+/** The empty paragraph a collapsed caret is in, in a document that is not blank. */
+const emptyLineAt = (dom: EditorDom, selection: RichText.Selection | null): Element | undefined => {
+  if (selection?.type !== 'Range' || !samePosition(selection.anchor, selection.focus)) {
+    return undefined
+  }
+  if (RichText.isBlank(dom.content)) return undefined
+  const run = RichText.locateRun(dom.content, selection.focus.node)
+  const block = run === undefined ? undefined : RichText.blockAtPath(dom.content, run.path)
+  return block?.type === 'Paragraph' && block.children.every(each => each.text === '')
+    ? dom.elements.get(block.id)
+    : undefined
+}
+
 /**
  * Wires the owned subtree to an application. The adapter never decides what an
  * edit means: it translates events into commands, hands them to `onIntent`, and
@@ -312,14 +331,6 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   // Every replacement of the subtree goes through here: a repair or a patch can render the
   // blank block fresh, without the attribute the last one carried.
   let marked: Element | undefined
-  const redraw = (next: EditorDom): void => {
-    current = next
-    if (options.placeholder !== undefined) {
-      marked = drawPlaceholder(current, options.placeholder, marked)
-    }
-  }
-  redraw(dom)
-  let composing = false
   /**
    * The selection the application last committed, or the adapter last reported.
    * Restoring it fires `selectionchange`, so without this the adapter would
@@ -327,6 +338,24 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
    * Affinity is ignored: it is derived from the range, not carried by it.
    */
   let lastSelection: RichText.Selection | null = null
+  let hinted: Element | undefined
+  /** Moves `data-hint` to the empty line the caret is on, or takes it away. */
+  const hint = (): void => {
+    if (options.lineHint === undefined) return
+    const target = emptyLineAt(current, lastSelection)
+    if (hinted !== target) hinted?.removeAttribute('data-hint')
+    target?.setAttribute('data-hint', options.lineHint)
+    hinted = target
+  }
+  const redraw = (next: EditorDom): void => {
+    current = next
+    if (options.placeholder !== undefined) {
+      marked = drawPlaceholder(current, options.placeholder, marked)
+    }
+    hint()
+  }
+  redraw(dom)
+  let composing = false
   /**
    * Only a range that resolves inside the editor is news. A selection elsewhere on the page
    * (another editor, an input) leaves the editor's own where it was, and so does a live
@@ -339,6 +368,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     const selection = readSelection(current)
     if (selection === null || sameSelection(selection, lastSelection)) return
     lastSelection = selection
+    hint()
     options.onSelection?.(selection)
   }
   /**
@@ -360,8 +390,8 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   let deferred: { state: RichText.EditorState; changeSet: RichText.ChangeSet } | undefined
   const draw = (state: RichText.EditorState, changeSet: RichText.ChangeSet): void => {
     const owned = ownsSelection()
-    redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
     lastSelection = state.selection
+    redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
     if (owned) restoreSelection(current, state.selection)
   }
   const onEvent = (event: Event): void => {

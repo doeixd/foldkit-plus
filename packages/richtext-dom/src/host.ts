@@ -77,19 +77,26 @@ export const placeServerRendered = (hostId: string, serverRendered: () => boolea
 export const serverRenderedFor = (hostId: string): (() => boolean) =>
   serverRenders.get(hostId) ?? (() => false)
 
-const placeholders = new Map<string, string>()
-
-/**
- * Records what a placement's blank editor shows, by host id, beside the rest of how it
- * draws, so the mount reads all of it from the id it renders.
- */
-export const placePlaceholder = (hostId: string, placeholder: string | undefined): void => {
-  if (placeholder === undefined) placeholders.delete(hostId)
-  else placeholders.set(hostId, placeholder)
+/** What an editor shows where nothing is written yet. */
+export interface Placeholders {
+  /** On a blank document's lone block (`RichText.isBlank`). */
+  readonly placeholder?: string | undefined
+  /** On the empty paragraph the caret is in, such as "Type / for blocks". */
+  readonly lineHint?: string | undefined
 }
 
-/** The placeholder placed for a host id, or none. */
-export const placeholderFor = (hostId: string): string | undefined => placeholders.get(hostId)
+const placeholders = new Map<string, Placeholders>()
+
+/**
+ * Records what a placement's editor shows where nothing is written, by host id, beside the
+ * rest of how it draws, so the mount reads all of it from the id it renders.
+ */
+export const placePlaceholders = (hostId: string, placed: Placeholders): void => {
+  placeholders.set(hostId, placed)
+}
+
+/** The placeholders placed for a host id; none when nothing was placed. */
+export const placeholdersFor = (hostId: string): Placeholders => placeholders.get(hostId) ?? {}
 
 const slashCatalogues = new Map<string, ReadonlyArray<SlashEntry<EditorEvent>>>()
 

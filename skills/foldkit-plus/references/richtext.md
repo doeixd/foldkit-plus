@@ -219,9 +219,9 @@ browser event means "make this block a heading" — and `editor-bundle` exposes
 `moved(node, to)` for the wrap, convert, lift, and move commands, `inserted(block, to?)`,
 `deleted(node)` and `changedProps(node, props)` for the insert, delete and props commands, and `applied(mark)` and `cleared(name)` for
 `SetMark` and `ClearMark`, which a link editor sends. `foldkit-richtext-dom/editor-bundle` is the editor as a
-Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder, slashEntries })`
+Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder, lineHint, slashEntries })`
 (`slashEntries` is the catalogue Enter in a query resolves against, an application's own)
-(`placeholder` marks a blank document's block with `data-placeholder` for a stylesheet's
+(`lineHint` marks the empty paragraph the caret is in with `data-hint`; `placeholder` marks a blank document's block with `data-placeholder` for a stylesheet's
 `::before`, and the textbox root with `aria-placeholder`; `decorate` sees the document only,
 and `overlay(hostId, decorations)` is the Command for decorations from application state,
 such as other people's carets; `focus(hostId, selection)` focuses the editor with a selection,

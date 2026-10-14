@@ -30,7 +30,7 @@ import {
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { decorationsFor, placeholderFor, placeOverlay, renderingFor } from '../src/host.js'
+import { decorationsFor, placeholdersFor, placeOverlay, renderingFor } from '../src/host.js'
 import { Message } from '../src/editor.js'
 
 const id = RichText.NodeId.make
@@ -715,12 +715,18 @@ describe('decorations placed for the editor (§129)', () => {
   })
 })
 
-describe('a placeholder placed for the editor', () => {
-  it('records the placeholder, and forgets it when the id is placed again without one', () => {
-    editorAt('hinting-editor', { placeholder: 'Write something…' })
-    expect(placeholderFor('hinting-editor')).toBe('Write something…')
+describe('the placeholders placed for the editor', () => {
+  it('records them, and forgets them when the id is placed again without', () => {
+    editorAt('hinting-editor', { placeholder: 'Write something…', lineHint: 'Type /' })
+    expect(placeholdersFor('hinting-editor')).toEqual({
+      placeholder: 'Write something…',
+      lineHint: 'Type /',
+    })
     editorAt('hinting-editor')
-    expect(placeholderFor('hinting-editor')).toBeUndefined()
+    expect(placeholdersFor('hinting-editor')).toEqual({
+      placeholder: undefined,
+      lineHint: undefined,
+    })
   })
 })
 

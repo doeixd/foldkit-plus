@@ -20,6 +20,11 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext-dom`: a hint on the empty line.** `lineHint` ("Type /
+  for blocks") marks the empty paragraph the caret is in with `data-hint`, for
+  a stylesheet to draw as it draws the placeholder. **Changed:** the host
+  registry's `placePlaceholder`/`placeholderFor` are `placePlaceholders` and
+  `placeholdersFor`, holding both strings.
 - **A table of contents.** `foldkit-richtext`'s `outlineOf` lists a document's
   headings and `sectionAt` the section a selection is in;
   `foldkit-mixins-richtext`'s `tableOfContents` draws them; and

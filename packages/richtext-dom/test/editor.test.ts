@@ -10,7 +10,7 @@ import { positionToRange } from '../src/index.js'
 import {
   attachmentIn,
   placeDecorations,
-  placePlaceholder,
+  placePlaceholders,
   placeRendering,
   releaseMount,
 } from '../src/host.js'
@@ -283,7 +283,7 @@ describe('the mount reading a registry placed for its host id (§122)', () => {
   it('hints with the placement’s placeholder', async () => {
     const element = host()
     element.id = 'hinted-editor'
-    placePlaceholder('hinted-editor', 'Say something')
+    placePlaceholders('hinted-editor', { placeholder: 'Say something' })
     const { attachment, end } = await mounted(element)
     expect(attachment.current().root.getAttribute('aria-placeholder')).toBe('Say something')
     await end()

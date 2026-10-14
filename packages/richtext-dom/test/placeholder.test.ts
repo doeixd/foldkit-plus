@@ -129,3 +129,87 @@ describe('the placeholder an editor draws', () => {
     written.detach()
   })
 })
+
+describe('the hint on the empty line the caret is on', () => {
+  const heading = (block: string) => ({
+    type: 'Heading' as const,
+    id: block,
+    level: 2,
+    children: [{ type: 'Text' as const, id: `${block}-t`, text: '', marks: [] }],
+  })
+  // Text first, so the document is never blank, then two empty paragraphs and an empty heading.
+  const setup = () => {
+    const dom = mount(
+      document,
+      decode([paragraph('a', 'words'), paragraph('b', ''), paragraph('c', ''), heading('h')]),
+    )
+    document.body.append(dom.root)
+    const attachment = attach(dom, { onIntent: () => {}, lineHint: 'Type /' })
+    const moveTo = (selection: RichText.Selection) => {
+      restoreSelection(attachment.current(), selection)
+      document.dispatchEvent(new Event('selectionchange'))
+    }
+    const hinted = () =>
+      Array.from(attachment.current().root.querySelectorAll('[data-hint]')).map(element => [
+        element.getAttribute('data-block'),
+        element.getAttribute('data-hint'),
+      ])
+    return { attachment, moveTo, hinted }
+  }
+
+  it('follows the caret from one empty paragraph to the next, and leaves a line with text', () => {
+    const { attachment, moveTo, hinted } = setup()
+    moveTo(caret('b-t', 0))
+    expect(hinted()).toEqual([['b', 'Type /']])
+    moveTo(caret('c-t', 0))
+    expect(hinted()).toEqual([['c', 'Type /']])
+    moveTo(caret('a-t', 2))
+    expect(hinted()).toEqual([])
+    attachment.detach()
+  })
+
+  it('is on no heading, and on no line under a range', () => {
+    const { attachment, moveTo, hinted } = setup()
+    moveTo(caret('h-t', 0))
+    expect(hinted()).toEqual([])
+    moveTo({
+      type: 'Range',
+      anchor: { node: id('a-t'), offset: 0, affinity: 'after' },
+      focus: { node: id('b-t'), offset: 0, affinity: 'after' },
+    })
+    expect(hinted()).toEqual([])
+    attachment.detach()
+  })
+
+  it('gives way to the placeholder in a blank document', () => {
+    const dom = mount(document, decode([paragraph('p', '')]))
+    document.body.append(dom.root)
+    restoreSelection(dom, caret('p-t', 0))
+    const attachment = attach(dom, {
+      onIntent: () => {},
+      placeholder: 'Write something…',
+      lineHint: 'Type /',
+    })
+    document.dispatchEvent(new Event('selectionchange'))
+    const root = attachment.current().root
+    expect(root.querySelector('[data-placeholder]')?.getAttribute('data-block')).toBe('p')
+    expect(root.querySelector('[data-hint]')).toBeNull()
+    attachment.detach()
+  })
+
+  it('moves to the new line an edit puts the caret on', () => {
+    const { attachment, moveTo, hinted } = setup()
+    moveTo(caret('a-t', 5))
+    let n = 0
+    const split = RichText.run(
+      { document: attachment.current().content, selection: caret('a-t', 5) },
+      { type: 'SplitBlock' },
+      { mint: () => `new-${n++}` },
+    )
+    if (!split.ok) throw new Error(split.error)
+    attachment.sync(split.state, split.changeSet)
+    const line = RichText.blockAtPath(split.state.document, [1])
+    expect(hinted()).toEqual([[line?.id, 'Type /']])
+    attachment.detach()
+  })
+})
