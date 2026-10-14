@@ -394,7 +394,7 @@ adapter.
 | Tooltip | `trigger`, `panel` |
 | HoverIntent | `trigger`, `panel` (open and close delays with intent, for a hover card or a menu) |
 | Slider | `root`, `track`, `filledTrack`, `thumb`, `label`, `hiddenInput` |
-| Tabs | `tablist`, `tab`, `panel` |
+| Tabs | `tablist`, `tab`, `panel`, and this package's `indicator` and `highlight` (drawn first in the tablist, for `Tabs.fluid`) |
 | RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput` |
 | Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id |
 | Calendar | `root`, `header` (the heading's row, this package's own), `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
@@ -571,6 +571,21 @@ cell (`data-today`, `data-selected`, `data-focused`, `data-outside-month`,
 `data-disabled`). `size` is the cell, `sm` (28px) or `md` (36px, the
 default). It draws no card, so the same style serves a calendar on the page
 and one in a date picker's panel.
+
+Tabs glide when drawn with their `indicator` and `highlight` and given
+`Tabs.fluid` beside the style. `Tabs.fluid` measures the chosen tab on the
+tablist (`Measure`) and moves one highlight to the tab nearest the pointer
+(`FluidHover`), born at the chosen tab and returning to it:
+
+```ts
+Tabs.toView([TabsStyle.mixin, ...Tabs.fluid], { h }, ({ tablist, indicator, highlight, tabs }) =>
+  h.div(tablist, [h.div(indicator), h.div(highlight), ...tabs.map(tab => h.button(tab.tab, [tab.value]))]),
+)
+```
+
+The recipe draws the `line` variant's rule or the `pill` variant's pill on the
+indicator, which springs to a new choice, and dims the pill while another tab
+is hovered. A tablist drawn without the indicator marks its chosen tab itself.
 
 `Recipes.Tabs({ variant: 'pill' })`'s chosen tab is the accent's tint and ink,
 as a pressed Segmented option is. To look at every recipe in every variant and

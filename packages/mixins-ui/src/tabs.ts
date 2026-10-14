@@ -1,6 +1,7 @@
 import type { RenderInfo, TabInfo } from '@foldkit/ui/tabs'
-import { Attr, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
+import { FluidHover, Measure } from 'foldkit-primitives/dom'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
@@ -11,6 +12,10 @@ import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
  * Enabled tabs own `click` through the base `OnClick`; a Behavior adding its
  * own click handler is a conflict rather than a second silent owner. Disabled
  * tabs publish no click, so the contract still lists it as allowed.
+ *
+ * `indicator` and `highlight` have no upstream bundle: they are this
+ * package's, drawn first in the tablist, for the marker under the chosen tab
+ * and the hover that follows the pointer. `fluid` places both.
  */
 export const TabsSlots = Slots.define({
   tablist: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
@@ -20,6 +25,8 @@ export const TabsSlots = Slots.define({
     attributes: [Attr.Role, Attr.AriaSelected, Attr.Disabled, Attr.AriaDisabled],
   }),
   panel: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  indicator: Slot.make({ capability: Capability.Container }),
+  highlight: Slot.make({ capability: Capability.Container }),
 })
 
 export type ResolvedTab<Value extends string, Message> = Omit<TabInfo<Value>, 'tab' | 'panel'> & {
@@ -29,6 +36,10 @@ export type ResolvedTab<Value extends string, Message> = Omit<TabInfo<Value>, 't
 
 export interface ResolvedTabs<Value extends string, Message> {
   readonly tablist: SlotAttributes<Message>
+  /** The marker under the chosen tab; drawn, the tabs' recipe reads it in place of each tab's own. */
+  readonly indicator: SlotAttributes<Message>
+  /** The hover that follows the pointer between tabs. */
+  readonly highlight: SlotAttributes<Message>
   readonly tabs: ReadonlyArray<ResolvedTab<Value, Message>>
   readonly activeIndex: number
 }
@@ -42,6 +53,11 @@ export const resolve = <Value extends string, Input, Message>(
   const builders = buildersOf(TabsSlots, mixins, context)
   return {
     tablist: builders.tablist.attrs(render.tablist),
+    indicator: builders.indicator.attrs([
+      context.h.AriaHidden(true),
+      context.h.DataAttribute('tabs-indicator', ''),
+    ]),
+    highlight: builders.highlight.attrs([context.h.AriaHidden(true)]),
     tabs: render.tabs.map(item => ({
       ...item,
       tab: builders.tab.attrs(item.tab),
@@ -60,3 +76,40 @@ export const toView =
   ) =>
   (render: RenderInfo<Value>): Html =>
     draw(resolve(render, mixins, context))
+
+const chosen = '[aria-selected="true"]'
+
+/**
+ * What draws the `indicator` and `highlight` move: on the tablist, the chosen
+ * tab is measured (`--fk-tabs-chosen-x`, `-y`, `-w`, `-h`, `-display`) and
+ * one highlight follows the pointer to the nearest tab (`--fk-tabs-hover-*`),
+ * growing out of the chosen tab and returning to it. Pass them beside the
+ * style: `Tabs.toView([style.mixin, ...Tabs.fluid], { h }, draw)`.
+ */
+export const fluid = [
+  Behavior.forSlots(TabsSlots)<unknown, never>(
+    {
+      tablist: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => Measure({ targets: { 'tabs-chosen': chosen } }),
+      }),
+    },
+    { name: 'TabsChosen' },
+  ).mixin,
+  Behavior.forSlots(TabsSlots)<unknown, never>(
+    {
+      tablist: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () =>
+          FluidHover({
+            name: 'tabs-hover',
+            item: '[role="tab"]',
+            axis: 'xy',
+            gapClick: true,
+            from: chosen,
+          }),
+      }),
+    },
+    { name: 'TabsHover' },
+  ).mixin,
+] as const

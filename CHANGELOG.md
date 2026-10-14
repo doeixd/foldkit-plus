@@ -41,6 +41,10 @@ version changed; `pnpm` skips versions already in the registry.
   bundle holds; `Calendar.toView(mixins, { h })` draws every mode through the
   slots, and `Calendar.draw` is that drawing for a `toView` of your own.
   `DatePicker.toView`'s `draw` is optional the same way.
+- **`foldkit-mixins-ui`: tabs glide.** `TabsSlots` gains `indicator` and
+  `highlight`, and `Tabs.fluid` measures the chosen tab and moves one hover
+  to the tab nearest the pointer, born at the chosen tab; drawn, the recipe's
+  rule or pill springs to a new choice.
 - **`foldkit-mixins-ui`: `Item`'s `content` is optional**, for a row its
   title and description say all of, such as a notification.
 

@@ -54,8 +54,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/tabs.ts',
-        find: 'Style.pseudo(selected, { background: ref.accent.subtle, color: ref.accent.ink }),',
-        replace: 'Style.pseudo(selected, { background: ref.surface.base }),',
+        find: 'Style.nest(marked, { background: ref.accent.subtle }),',
+        replace: 'Style.nest(marked, { background: ref.surface.base }),',
       },
     ],
     tests,
