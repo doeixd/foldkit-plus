@@ -19,6 +19,31 @@ export type Scheme = typeof Scheme.Type
 export const Font = Schema.Literals(['system', 'geist', 'serif', 'mono'])
 export type Font = typeof Font.Type
 
+/** The neutrals' hue: the accent's, or one of shadcn's base colors. */
+export const Base = Schema.Literals([
+  'accent',
+  'neutral',
+  'stone',
+  'zinc',
+  'mauve',
+  'olive',
+  'mist',
+  'taupe',
+])
+export type Base = typeof Base.Type
+
+export const MenuAccent = Schema.Literals(['subtle', 'bold'])
+export const MenuColor = Schema.Literals([
+  'default',
+  'inverted',
+  'translucent',
+  'inverted-translucent',
+])
+/** How a transition moves: eased, or on the spring. Not at all is the motion knob at 0. */
+export const Easing = Schema.Literals(['ease', 'spring'])
+export const HeadingFont = Schema.Literals(['inherit', 'system', 'geist', 'serif', 'mono'])
+export const Direction = Schema.Literals(['ltr', 'rtl'])
+
 /** What `/create` adjusts; every field is one knob of the palette or the scales. */
 export const Knobs = Schema.Struct({
   hue: Schema.Number,
@@ -34,6 +59,13 @@ export const Knobs = Schema.Struct({
   /** As a percentage. */
   shadow: Schema.Number,
   font: Font,
+  base: Base,
+  menuAccent: MenuAccent,
+  menuColor: MenuColor,
+  easing: Easing,
+  headingFont: HeadingFont,
+  /** Not the theme's: the preview's, to show the components right to left. */
+  direction: Direction,
 })
 export type Knobs = typeof Knobs.Type
 
@@ -87,6 +119,23 @@ const fonts: Readonly<Record<Font, string>> = {
   mono: '"Geist Mono", ui-monospace, monospace',
 }
 
+/**
+ * shadcn's base colors as a neutral hue and the surfaces' chroma, read from
+ * its values (`apps/v4/registry/themes.ts`): the hue of each one's muted
+ * surface, and a chroma that tints our surfaces about as much.
+ */
+export const bases: Readonly<
+  Record<Exclude<Base, 'accent'>, { readonly h: number; readonly c: number }>
+> = {
+  neutral: { h: 0, c: 0 },
+  stone: { h: 75, c: 0.004 },
+  zinc: { h: 286, c: 0.004 },
+  mauve: { h: 325, c: 0.007 },
+  olive: { h: 106, c: 0.009 },
+  mist: { h: 205, c: 0.006 },
+  taupe: { h: 25, c: 0.006 },
+}
+
 export const fontLabels: Readonly<Record<Font, string>> = {
   system: 'System',
   geist: 'Geist',
@@ -105,10 +154,130 @@ export const defaults: Knobs = {
   motion: 1,
   shadow: 100,
   font: 'geist',
+  base: 'accent',
+  menuAccent: 'subtle',
+  menuColor: 'default',
+  easing: 'ease',
+  headingFont: 'inherit',
+  direction: 'ltr',
 }
 
+const choiceKnobs = [
+  'font',
+  'base',
+  'menuAccent',
+  'menuColor',
+  'easing',
+  'headingFont',
+  'direction',
+] as const
+
 export const sameKnobs = (left: Knobs, right: Knobs): boolean =>
-  Knob.literals.every(knob => left[knob] === right[knob]) && left.font === right.font
+  Knob.literals.every(knob => left[knob] === right[knob]) &&
+  choiceKnobs.every(knob => left[knob] === right[knob])
+
+/** A style, as shadcn's: the shape knobs it moves, the colors left as they are. */
+export interface Look {
+  readonly name: string
+  readonly description: string
+  readonly shape: Pick<
+    Knobs,
+    'radius' | 'density' | 'shadow' | 'surfaceContrast' | 'font' | 'headingFont'
+  >
+}
+
+export const looks: ReadonlyArray<Look> = [
+  {
+    name: 'Vega',
+    description: 'Clean, neutral, familiar',
+    shape: {
+      radius: 1,
+      density: 1,
+      shadow: 100,
+      surfaceContrast: 60,
+      font: 'geist',
+      headingFont: 'inherit',
+    },
+  },
+  {
+    name: 'Nova',
+    description: 'Less padding and margin',
+    shape: {
+      radius: 1,
+      density: 0.85,
+      shadow: 80,
+      surfaceContrast: 60,
+      font: 'geist',
+      headingFont: 'inherit',
+    },
+  },
+  {
+    name: 'Maia',
+    description: 'Rounded, with room',
+    shape: {
+      radius: 2.2,
+      density: 1.15,
+      shadow: 100,
+      surfaceContrast: 55,
+      font: 'system',
+      headingFont: 'inherit',
+    },
+  },
+  {
+    name: 'Lyra',
+    description: 'Boxy and sharp, for mono',
+    shape: {
+      radius: 0,
+      density: 0.95,
+      shadow: 0,
+      surfaceContrast: 70,
+      font: 'mono',
+      headingFont: 'inherit',
+    },
+  },
+  {
+    name: 'Mira',
+    description: 'For compact interfaces',
+    shape: {
+      radius: 0.8,
+      density: 0.8,
+      shadow: 60,
+      surfaceContrast: 60,
+      font: 'geist',
+      headingFont: 'inherit',
+    },
+  },
+  {
+    name: 'Luma',
+    description: 'Soft and luminous',
+    shape: {
+      radius: 1.8,
+      density: 1.05,
+      shadow: 50,
+      surfaceContrast: 35,
+      font: 'system',
+      headingFont: 'inherit',
+    },
+  },
+  {
+    name: 'Sera',
+    description: 'Editorial and typographic',
+    shape: {
+      radius: 0.5,
+      density: 1.05,
+      shadow: 40,
+      surfaceContrast: 50,
+      font: 'system',
+      headingFont: 'serif',
+    },
+  },
+]
+
+/** Whether `knobs` are in `look`'s shape. */
+export const inLook = (knobs: Knobs, look: Look): boolean =>
+  (Object.keys(look.shape) as ReadonlyArray<keyof Look['shape']>).every(
+    knob => knobs[knob] === look.shape[knob],
+  )
 
 export interface Preset {
   readonly name: string
@@ -167,8 +336,10 @@ export const paletteOf = (knobs: Knobs) =>
   Theme.compose(
     Theme.oklch({
       accent: { h: knobs.hue, c: knobs.chroma, l: percent(knobs.lightness) },
+      ...(knobs.base === 'accent' ? {} : { neutral: { h: bases[knobs.base].h } }),
       surfaceSaturation: knobs.surfaceSaturation,
       surfaceContrast: percent(knobs.surfaceContrast),
+      menu: { accent: knobs.menuAccent, color: knobs.menuColor },
     }),
     Theme.define({
       knob: {
@@ -177,9 +348,17 @@ export const paletteOf = (knobs: Knobs) =>
         motion: String(knobs.motion),
         'shadow-strength': percent(knobs.shadow),
       },
-      font: { body: fonts[knobs.font], heading: 'inherit' },
+      font: { body: fonts[knobs.font], heading: headingOf(knobs) },
+      motion: { ease: easeOf(knobs) },
     }),
   )
+
+const headingOf = (knobs: Knobs) =>
+  knobs.headingFont === 'inherit' ? 'inherit' : fonts[knobs.headingFont]
+
+/** On the spring, every recipe's eased transition springs: the token reads the shipped curve. */
+const easeOf = (knobs: Knobs) =>
+  knobs.easing === 'spring' ? `var(${VAR_PREFIX}-motion-spring)` : 'ease-out'
 
 /** The whole theme a preview declares: the shipped scales with the palette over them. */
 export const themeOf = (knobs: Knobs) => Theme.compose(Theme.tokens, paletteOf(knobs))
@@ -204,7 +383,7 @@ export const declared = declarationsOf(themeOf(defaults))
  * The groups `knobs` reach. Every other token is an expression over these, so
  * overriding them on the element that declares the rest re-derives the theme.
  */
-const KNOB_GROUPS: ReadonlySet<string> = new Set(['knob', 'font'])
+const KNOB_GROUPS: ReadonlySet<string> = new Set(['knob', 'font', 'motion'])
 
 /** The last overrides made: every preview on a page asks for the same ones, render after render. */
 let last:
@@ -234,7 +413,11 @@ export const codeOf = (knobs: Knobs): string => {
     'Theme.oklch({',
     `  accent: { h: ${knobs.hue}, c: ${knobs.chroma}, l: '${percent(knobs.lightness)}' },`,
     `  surfaceSaturation: ${knobs.surfaceSaturation},`,
+    ...(knobs.base === 'accent' ? [] : [`  neutral: { h: ${bases[knobs.base].h} },`]),
     `  surfaceContrast: '${percent(knobs.surfaceContrast)}',`,
+    ...(knobs.menuAccent === 'subtle' && knobs.menuColor === 'default'
+      ? []
+      : [`  menu: { accent: '${knobs.menuAccent}', color: '${knobs.menuColor}' },`]),
     '}),',
     'Theme.define({',
     '  knob: {',
@@ -243,7 +426,8 @@ export const codeOf = (knobs: Knobs): string => {
     `    motion: '${knobs.motion}',`,
     `    'shadow-strength': '${percent(knobs.shadow)}',`,
     '  },',
-    `  font: { body: '${fonts[knobs.font]}', heading: 'inherit' },`,
+    `  font: { body: '${fonts[knobs.font]}', heading: '${headingOf(knobs)}' },`,
+    ...(knobs.easing === 'spring' ? ["  motion: { ease: 'var(--fk-motion-spring)' },"] : []),
     '}),',
   ].join('\n')
   return [

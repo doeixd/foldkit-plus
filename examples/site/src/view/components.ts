@@ -49,6 +49,7 @@ export const preview = (
     slots.preview.attrs([
       h.DataAttribute('size', size),
       h.Style(knobStyleOf(model.knobs, model.scheme)),
+      h.Dir(model.knobs.direction),
       // A thumbnail only shows: the card's link takes the click, and nothing
       // in it is reached by Tab.
       ...(size === 'thumb' ? [h.Attribute('inert', '')] : []),

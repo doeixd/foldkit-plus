@@ -132,4 +132,59 @@ export default [
     ],
     tests: pages,
   },
+  {
+    name: 'a base color reaches no neutral',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: "...(knobs.base === 'accent' ? {} : { neutral: { h: bases[knobs.base].h } }),",
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the menu look is left out',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: '      menu: { accent: knobs.menuAccent, color: knobs.menuColor },',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the spring is never chosen',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: "knobs.easing === 'spring' ? `var(",
+        replace: 'false ? `var(',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'any knobs are in every style',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: '    knob => knobs[knob] === look.shape[knob],',
+        replace: '    () => true,',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a menu choice does not tell knobs apart',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: '  choiceKnobs.every(knob => left[knob] === right[knob])',
+        replace: '  left.font === right.font',
+      },
+    ],
+    tests: unit,
+  },
 ]

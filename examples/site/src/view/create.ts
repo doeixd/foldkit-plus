@@ -10,9 +10,18 @@ import { CodeBlock } from 'foldkit-mixins-ui'
 
 import { showcaseOf, type Selection } from '../gallery/showcases.js'
 import {
+  Base,
+  Direction,
+  Easing,
   Font,
+  HeadingFont,
+  MenuAccent,
+  MenuColor,
+  bases,
   codeOf,
   fontLabels,
+  inLook,
+  looks,
   presets,
   ranges,
   sameKnobs,
@@ -44,6 +53,9 @@ const tiles: ReadonlyArray<{ readonly slug: string; readonly selection: Selectio
   { slug: 'skeleton', selection: {} },
   { slug: 'empty', selection: {} },
   { slug: 'kbd', selection: {} },
+  { slug: 'tabs', selection: { variant: 'pill' } },
+  { slug: 'segmented', selection: {} },
+  { slug: 'menu', selection: {} },
 ]
 
 /** The accent a set of knobs makes, in a light scheme, for a preset's dot. */
@@ -70,6 +82,76 @@ const slider = (model: Model, range: Range, slots: Slots, h: H): Html => {
     ),
   ])
 }
+
+/** Labels for a choice's values, as words. */
+const words = <A extends string>(values: ReadonlyArray<A>, label: (value: A) => string = capital) =>
+  values.map(value => ({ value, label: label(value) }))
+const capital = (value: string) => value[0]!.toUpperCase() + value.slice(1).replaceAll('-', ' ')
+
+/** Knobs with one choice changed, as a whole set `ChosePreset` installs. */
+const choose = (model: Model, change: Partial<Knobs>) =>
+  Message.ChosePreset({ knobs: { ...model.knobs, ...change } })
+
+/** The density a size is: compact is Fluid's 28px step of the default 36px, about 0.8. */
+const sizes = { default: 1, compact: 0.8 } as const
+type Size = keyof typeof sizes
+
+const shape = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  h.fieldset(slots.axis.attrs(), [
+    h.legend(slots.axisName.attrs(), ['style']),
+    h.div(
+      slots.presets.attrs(),
+      looks.map(look =>
+        h.button(
+          slots.preset.attrs([
+            h.Type('button'),
+            h.AriaPressed(String(inLook(model.knobs, look))),
+            h.Title(look.description),
+            h.OnClick(choose(model, look.shape)),
+          ]),
+          [look.name],
+        ),
+      ),
+    ),
+  ]),
+  choices(slots, h, 'base color', words(Base.literals), model.knobs.base, base =>
+    choose(model, base === 'accent' ? { base } : { base, surfaceSaturation: bases[base].c }),
+  ),
+  choices(slots, h, 'menu accent', words(MenuAccent.literals), model.knobs.menuAccent, menuAccent =>
+    choose(model, { menuAccent }),
+  ),
+  choices(slots, h, 'menu color', words(MenuColor.literals), model.knobs.menuColor, menuColor =>
+    choose(model, { menuColor }),
+  ),
+  choices(
+    slots,
+    h,
+    'size',
+    words(['default', 'compact'] as const),
+    (Object.keys(sizes) as ReadonlyArray<Size>).find(size => sizes[size] === model.knobs.density) ??
+      'default',
+    size => choose(model, { density: sizes[size] }),
+  ),
+  choices(slots, h, 'motion', words(Easing.literals), model.knobs.easing, easing =>
+    choose(model, { easing, ...(model.knobs.motion === 0 ? { motion: 1 } : {}) }),
+  ),
+  choices(
+    slots,
+    h,
+    'heading font',
+    words(HeadingFont.literals, font => (font === 'inherit' ? 'Body' : fontLabels[font])),
+    model.knobs.headingFont,
+    headingFont => choose(model, { headingFont }),
+  ),
+  choices(
+    slots,
+    h,
+    'direction',
+    words(Direction.literals, direction => direction.toUpperCase()),
+    model.knobs.direction,
+    direction => choose(model, { direction }),
+  ),
+]
 
 const controls = (model: Model, slots: Slots, h: H): Html =>
   h.aside(slots.knobs.attrs([h.AriaLabel('Theme')]), [
@@ -108,6 +190,7 @@ const controls = (model: Model, slots: Slots, h: H): Html =>
       model.knobs.font,
       font => Message.ChoseFont({ font }),
     ),
+    ...shape(model, slots, h),
   ])
 
 const canvas = (model: Model, slots: Slots, h: H): Html => {

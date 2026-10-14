@@ -12,9 +12,12 @@ import {
   declared,
   defaults,
   fit,
+  inLook,
   Knob,
   knobStyleOf,
+  looks,
   presets,
+  sameKnobs,
   ranges,
   themeOf,
   type Knobs,
@@ -56,7 +59,7 @@ describe('the theme creator', () => {
     expect(knobStyleOf(defaults, 'system')['colorScheme']).toBe('light dark')
     const custom = Object.keys(style).filter(name => name.startsWith('--'))
     expect(custom.filter(name => !(name in declared))).toEqual([])
-    expect(custom.every(name => /^--fk-(knob|font)-/.test(name))).toBe(true)
+    expect(custom.every(name => /^--fk-(knob|font|motion)-/.test(name))).toBe(true)
   })
 
   it('declares on the preview the derived tokens its knobs feed', () => {
@@ -65,9 +68,49 @@ describe('the theme creator', () => {
   })
 
   it('has a slider for every numeric knob', () => {
-    const numeric = Object.keys(defaults).filter(key => key !== 'font')
+    const numeric = Object.entries(defaults)
+      .filter(([, value]) => typeof value === 'number')
+      .map(([key]) => key)
     expect(ranges.map(range => range.knob).sort()).toEqual(numeric.sort())
     expect([...Knob.literals].sort()).toEqual(numeric.sort())
+  })
+
+  it('writes a base color, a menu look and the spring into the code, and none by default', () => {
+    expect(codeOf(defaults)).not.toMatch(/neutral: {|menu: {|motion: { ease/)
+    const code = codeOf({
+      ...defaults,
+      base: 'stone',
+      menuAccent: 'bold',
+      menuColor: 'inverted',
+      easing: 'spring',
+      headingFont: 'serif',
+    })
+    expect(code).toContain('neutral: { h: 75 },')
+    expect(code).toContain("menu: { accent: 'bold', color: 'inverted' },")
+    expect(code).toContain("motion: { ease: 'var(--fk-motion-spring)' },")
+    expect(code).toContain("heading: 'ui-serif, Georgia")
+  })
+
+  it('draws a base color, a menu look and the spring through the preview', () => {
+    const style = knobStyleOf(
+      { ...defaults, base: 'olive', menuAccent: 'bold', easing: 'spring' },
+      'light',
+    )
+    expect(style['--fk-knob-neutral-h']).toBe('106')
+    expect(style['--fk-knob-popup-bold']).toBe('1')
+    expect(style['--fk-motion-ease']).toBe('var(--fk-motion-spring)')
+    // The accent's hue, by default, which follows the accent knob.
+    expect(knobStyleOf(defaults, 'light')['--fk-knob-neutral-h']).toBe('var(--fk-hue-accent)')
+  })
+
+  it('tells a style by its shape and knobs by every choice', () => {
+    const lyra = looks.find(look => look.name === 'Lyra')!
+    expect(inLook({ ...defaults, ...lyra.shape }, lyra)).toBe(true)
+    expect(inLook({ ...defaults, ...lyra.shape, radius: 1 }, lyra)).toBe(false)
+    // A style leaves the colors alone.
+    expect({ ...defaults, ...lyra.shape }.hue).toBe(defaults.hue)
+    expect(sameKnobs(defaults, { ...defaults, menuColor: 'translucent' })).toBe(false)
+    expect(sameKnobs(defaults, { ...defaults })).toBe(true)
   })
 
   it('keeps a slider value in its range and on its step', () => {
