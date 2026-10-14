@@ -9,6 +9,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { MenuSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
@@ -22,10 +23,18 @@ afterEach(() => {
 
 const view = (_: unknown, h: HtmlBuilder<never>) => {
   const slots = SlotView.buildersFor(MenuSlots, [style.mixin], { input: undefined, h })
-  return h.div(slots.items.attrs([h.Tabindex(0), h.AriaLabel('panel')]), [
-    h.div(slots.item.attrs([h.AriaLabel('resting')]), ['Rename']),
-    h.div(slots.item.attrs([h.AriaLabel('active'), h.DataAttribute('active', '')]), ['Move']),
-  ])
+  return h.div(
+    [],
+    [
+      h.div(slots.items.attrs([h.Tabindex(0), h.AriaLabel('panel')]), [
+        h.div(slots.item.attrs([h.AriaLabel('resting')]), ['Rename']),
+        h.div(slots.item.attrs([h.AriaLabel('active'), h.DataAttribute('active', '')]), ['Move']),
+      ]),
+      // Where the pointer is put, away from the rows: a pointer an earlier test
+      // left over a row would hover it.
+      h.div([h.AriaLabel('elsewhere'), h.Style({ height: '40px', marginBlockStart: '200px' })], []),
+    ],
+  )
 }
 
 test('the active row is marked, and the focused panel draws no ring', async () => {
@@ -49,6 +58,7 @@ test('the active row is marked, and the focused panel draws no ring', async () =
   )
   try {
     await vi.waitFor(() => expect(document.querySelector('[aria-label="panel"]')).toBeTruthy())
+    await userEvent.hover(document.querySelector<HTMLElement>('[aria-label="elsewhere"]')!)
     const fill = (label: string) =>
       getComputedStyle(document.querySelector(`[aria-label="${label}"]`)!).backgroundColor
     expect(fill('resting')).toBe('rgba(0, 0, 0, 0)')

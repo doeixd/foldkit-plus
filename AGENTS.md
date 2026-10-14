@@ -1152,6 +1152,11 @@ of its own named a form field "fits the Catalog". Read words with
   seen; the transition still had a frame to run, `Measure` measures every
   frame of one, and CI saw the margin early. Wait for `getAnimations()` to be
   empty before asserting what a later step alone causes.
+- **The browser tests share one real pointer.** A test that read a row's
+  resting fill as transparent failed in CI only: an earlier test file had left
+  the mouse where the row was drawn, so it was hovered. Before asserting
+  anything `:hover` changes, move the pointer somewhere known
+  (`userEvent.hover(document.body, { position: … })`).
 - **A negative assertion needs a settle, not a sleep.** Registry tests
   asserted "no edit" after a 30-50ms sleep, and one absorbed-edit test failed
   only under full-suite load, when the sleep ran out before the reinstall

@@ -143,6 +143,8 @@ test('a chosen card in a group keeps a fill of its own', async () => {
   try {
     await vi.waitFor(() => expect(byName('Card c')).toBeTruthy())
     const fill = (name: string) => getComputedStyle(byName(name).parentElement!).backgroundColor
+    // A pointer an earlier test left over a card would hover it.
+    await userEvent.hover(document.body, { position: { x: 600, y: 600 } })
     expect(fill('Card a')).toBe('rgba(0, 0, 0, 0)')
     expect(fill('Card c')).not.toBe('rgba(0, 0, 0, 0)')
   } finally {

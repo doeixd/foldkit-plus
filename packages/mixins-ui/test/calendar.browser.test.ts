@@ -9,6 +9,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Layers, SlotView, Style, type NamedStyle } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { CalendarSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
@@ -81,6 +82,8 @@ test('the chosen day fills, and a day outside the month is quieter', async () =>
   const handle = mount(Style.forSlots(CalendarSlots)(Recipes.Calendar({})))
   try {
     await vi.waitFor(() => expect(day('2')).toBeTruthy())
+    // A pointer an earlier test left over a day would hover it.
+    await userEvent.hover(document.body, { position: { x: 600, y: 600 } })
     expect(getComputedStyle(day('1')).backgroundColor).toBe('rgba(0, 0, 0, 0)')
     expect(getComputedStyle(day('2')).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
     expect(getComputedStyle(day('30')).color).not.toBe(getComputedStyle(day('1')).color)
