@@ -837,6 +837,31 @@ not found) and from every query, and a ref to it is dropped from a relation:
 a list leaves it out and a `one` ref reads `null`, as a database binding's
 `visible` hides it.
 
+An entity no row backs, answered from who is asking (`foldkit-guard`'s
+`Me`, say), is a Source of its own beside the rows, in `entities`. Leave it
+out of the rows' domain: a Source for an entity the domain declares is
+refused when the backend is made, as two Sources for one entity are.
+
+```ts
+const Whoami = Entity.make('Whoami', Schema.Struct({ id: Schema.String, admin: Schema.Boolean }))
+const WhoamiSource = RemoteServer.entity<Principal>(Whoami, {
+  read: ({ ids, principal }) =>
+    Effect.succeed(ids.map(id => ({ id, values: { admin: principal.isAdmin } }))),
+})
+
+// No principal: served through `serveFetch` or `handlers`, as each request's.
+const { server } = RemoteServer.memory({
+  domain: Data, // Project only; Whoami is the Source's
+  rows: { Project: [{ id: 'p1', name: 'Apollo', privateNotes: 'Internal' }] },
+  entities: [WhoamiSource],
+})
+const asVisitor = RemoteServer.handlers(server, { isAdmin: false })
+```
+
+`principal` is only who `layer` answers as. Without it (and a principal type
+that does not admit `undefined`), the backend has no `layer`, only its store
+and `server`, so nothing can read the rows as nobody.
+
 ## Over a MessagePort
 
 `servePort(handlers, port)` from `foldkit-remote-server/port` answers

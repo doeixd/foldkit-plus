@@ -90,6 +90,22 @@ const adminsOnly = RemoteServer.memory({
 })
 void adminsOnly
 
+// An entity no row backs, beside the rows; no principal, so no layer.
+const Whoami = Entity.make('Whoami', Schema.Struct({ id: Schema.String, admin: Schema.Boolean }))
+const WhoamiSource = RemoteServer.entity<Principal>(Whoami, {
+  read: ({ ids, principal }) =>
+    Effect.succeed(ids.map(id => ({ id, values: { admin: principal.isAdmin } }))),
+})
+
+// No principal: served through `serveFetch` or `handlers`, as each request's.
+const { server: beside } = RemoteServer.memory({
+  domain: Data, // Project only; Whoami is the Source's
+  rows: { Project: [{ id: 'p1', name: 'Apollo', privateNotes: 'Internal' }] },
+  entities: [WhoamiSource],
+})
+const asVisitor = RemoteServer.handlers(beside, { isAdmin: false })
+void asVisitor
+
 // Who is asking, read on each call: one handler set answers every request.
 class CurrentUser extends Context.Service<CurrentUser, Principal>()('app/CurrentUser') {}
 const answering = RemoteServer.handlers(Server, CurrentUser)

@@ -482,6 +482,53 @@ describe('RemoteServer.memory', () => {
     })
   })
 
+  describe('with sources beside its rows', () => {
+    // Users come from a source of their own, as `GuardServer.me` answers Me:
+    // the rows' domain leaves them out.
+    const projectsOnly = Remote.define({ entities: [Project], queries: [ByStatus] })
+    const askedAs: Array<string> = []
+    const Users = RemoteServer.entity<string>(User, {
+      read: ({ ids, principal }) => {
+        askedAs.push(principal)
+        return Effect.succeed(
+          ids.map(id => ({ id, values: { name: `Ada, asked by ${principal}` } })),
+        )
+      },
+    })
+
+    it('serves them beside the rows, as each request names its principal', async () => {
+      const served = RemoteServer.memory({
+        domain: projectsOnly,
+        rows: { Project: rows.Project },
+        entities: [Users],
+      })
+      const project = Data.get(summary, 'p1')
+      const model = await Effect.runPromise(
+        Data.prefetch(initial, project).pipe(
+          Effect.provide(Remote.clientLayer(RemoteServer.handlers(served.server, 'grace'))),
+        ),
+      )
+      expect(project.read(model)).toEqual({
+        _tag: 'Ready',
+        value: { name: 'Borealis', owner: { name: 'Ada, asked by grace' } },
+      })
+      expect(askedAs).toEqual(['grace'])
+    })
+
+    it.each([
+      [
+        'a source for an entity the rows serve',
+        [RemoteServer.entity<string>(Project, { read: () => Effect.succeed([]) })],
+        '"Project" is a declared entity, which the rows serve',
+      ],
+      ['two sources for one entity', [Users, Users], 'two sources in `entities` serve "User"'],
+    ])('refuses, when made, %s', (_, entities, message) => {
+      expect(() =>
+        RemoteServer.memory({ domain: projectsOnly, rows: { Project: rows.Project }, entities }),
+      ).toThrow(message)
+    })
+  })
+
   it('refuses, when made, a query it has no body to run', () => {
     const Bodiless = Query.make('Bodiless', { Input: {}, Result: Query.connection(Project) })
     const domain = Remote.define({ entities: [Project], queries: [Bodiless] })
