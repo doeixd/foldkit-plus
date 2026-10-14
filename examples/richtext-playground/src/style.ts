@@ -80,9 +80,10 @@ const field = Style.compose(
 const writing = Style.compose(
   Prose.style({ measure: '46rem' }),
   Style.self({ position: 'relative', fontSize: '1.0625rem', lineHeight: '1.75' }),
+  // The inline start leaves room for the block handle, inside the page rather than past it.
   Style.nest('[contenteditable="true"]', {
     minBlockSize: '24rem',
-    padding: `${t.space.xl} ${t.space['2xl']} ${t.space['2xl']}`,
+    padding: `${t.space.xl} ${t.space['2xl']} ${t.space['2xl']} 4rem`,
     outline: 'none',
     caretColor: t.accent.default,
   }),
@@ -211,6 +212,8 @@ const writing = Style.compose(
     lineHeight: '1.65',
     whiteSpace: 'pre-wrap',
   }),
+  // A break at the end of the code has no line of its own until something follows it.
+  Style.nest('pre::after', { content: '"\\200b"' }),
   Style.nest('[data-code-label]', {
     position: 'absolute',
     insetBlockStart: t.space['2xs'],
@@ -286,7 +289,7 @@ const writing = Style.compose(
   Style.at(
     '@media (max-width: 44rem)',
     Style.nest('[contenteditable="true"]', {
-      padding: `${t.space.lg} ${t.space.lg} ${t.space.xl}`,
+      padding: `${t.space.lg} ${t.space.lg} ${t.space.xl} 2rem`,
     }),
   ),
 )
@@ -373,14 +376,32 @@ export const Page = A.slots({
       overflow: 'auto',
     }),
   ),
+  // Fixed beside its block by `blockAnchor`, which writes `top` and `left`; the grip is centred
+  // on the block's first line, whose height depends on the kind of block.
   handle: Style.compose(
-    row('0'),
-    Style.self({ position: 'fixed', zIndex: '5', insetBlockStart: '-999px' }),
+    Style.self({
+      position: 'fixed',
+      zIndex: '5',
+      insetBlockStart: '-999px',
+      display: 'flex',
+      alignItems: 'center',
+      blockSize: 'calc(1.0625rem * 1.75)',
+    }),
+    Style.pseudo('[data-line="h1"]', { blockSize: 'calc(clamp(1.9rem, 3.2vw, 2.6rem) * 1.2)' }),
+    Style.pseudo('[data-line="h2"]', { blockSize: 'calc(1.6rem * 1.3)' }),
+    Style.pseudo('[data-line="h3"]', { blockSize: 'calc(1.25rem * 1.75)' }),
+    Style.pseudo('[data-line="Callout"]', { paddingBlockStart: t.space.md, blockSize: 'auto' }),
+    Style.pseudo('[data-line="CodeBlock"]', { paddingBlockStart: t.space.lg, blockSize: 'auto' }),
+    Style.pseudo('[data-line="Table"]', { paddingBlockStart: t.space.xs, blockSize: 'auto' }),
+    Style.pseudo('[data-line="Image"]', { blockSize: 'auto' }),
   ),
   grip: Style.compose(
     control,
     Style.self({
+      position: 'relative',
       minInlineSize: '1.5rem',
+      minBlockSize: '1.75rem',
+      padding: '0',
       color: t.text.muted,
       cursor: 'grab',
       touchAction: 'none',

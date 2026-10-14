@@ -216,6 +216,32 @@ describe('a block handle', () => {
   })
 })
 
+describe('Enter', () => {
+  const textIn = (block: RichText.Block) => textOf(block)
+
+  it('in a closed toggle’s title opens it, so the new line shows', () => {
+    const initial = start()
+    const index = kinds(initial).indexOf('Toggle')
+    const title = runAt(initial, index)
+    const after = step(
+      select(initial, caret(title, title.text.length)),
+      edited(EditorMessage.Entered()),
+    )
+    const toggle = top(after)[index]!
+    expect(toggle).toMatchObject({ kind: 'Toggle', props: { open: true } })
+    expect(toggle.type === 'Node' ? toggle.blocks?.length : 0).toBe(3)
+  })
+
+  it('in code breaks the line instead of making a second code block', () => {
+    const initial = start()
+    const index = kinds(initial).indexOf('CodeBlock')
+    const code = runAt(initial, index)
+    const after = step(select(initial, caret(code, 5)), edited(EditorMessage.Entered()))
+    expect(kinds(after)).toEqual(kinds(initial))
+    expect(textIn(top(after)[index]!)).toBe(`${code.text.slice(0, 5)}\n${code.text.slice(5)}`)
+  })
+})
+
 describe('menus', () => {
   it('one at a time, read as what is open', () => {
     const initial = start()

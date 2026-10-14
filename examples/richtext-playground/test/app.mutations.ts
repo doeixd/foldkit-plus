@@ -63,6 +63,17 @@ export default [
     tests,
   },
   {
+    name: 'Enter in a closed toggle leaves it closed',
+    edits: [
+      {
+        file,
+        find: "const toggle = message._tag === 'Entered' ? closedToggleTitled(model) : undefined",
+        replace: 'const toggle = undefined as RichText.NodeId | undefined',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a duplicate lands before its block',
     edits: [
       {

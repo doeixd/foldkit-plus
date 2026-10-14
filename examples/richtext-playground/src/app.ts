@@ -246,6 +246,20 @@ export const topLevelPlace = (model: Model): RichText.Beside => {
   return blank ? { before: top.id } : { after: top.id }
 }
 
+/** The closed toggle whose title the caret is in, if it is in one. */
+const closedToggleTitled = (model: Model): RichText.NodeId | undefined => {
+  const selection = model.editor.selection
+  if (selection?.type !== 'Range') return undefined
+  const start = RichText.rangeStart(model.document, selection)
+  const run = start === undefined ? undefined : RichText.locateRun(model.document, start.node)
+  if (run === undefined || run.path.length < 2 || run.path[run.path.length - 1] !== 0)
+    return undefined
+  const parent = RichText.blockAtPath(model.document, run.path.slice(0, -1))
+  return parent?.type === 'Node' && parent.kind === 'Toggle' && parent.props.open !== true
+    ? parent.id
+    : undefined
+}
+
 const caretAtStart = (block: RichText.Block): RichText.Selection | undefined => {
   let first: RichText.Text | undefined
   RichText.eachBlock([block], inner => {
@@ -356,7 +370,16 @@ const blockOf = (model: Model, node: RichText.NodeId) =>
 export const update = (model: Model, message: Message): Return =>
   Message.match<Return>(message, {
     GotEditor: ({ message }) => {
-      const result = edit(model, message)
+      // Enter in a closed toggle's title adds a line inside it, which a closed toggle hides;
+      // it opens first, in the same transition, so the new line is there to type on.
+      const toggle = message._tag === 'Entered' ? closedToggleTitled(model) : undefined
+      const result =
+        toggle === undefined
+          ? edit(model, message)
+          : edits(model, [
+              EditorMessage.ChangedProps({ node: toggle, props: { open: true } }),
+              message,
+            ])
       // A caret moved elsewhere ends a discussion being started, as clicking away does.
       return message._tag === 'Selected' &&
         model.composing &&

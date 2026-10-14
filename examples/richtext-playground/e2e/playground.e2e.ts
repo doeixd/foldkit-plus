@@ -32,8 +32,11 @@ afterAll(async () => {
   await vite?.close()
 })
 
-const open = async (errors: Array<string>): Promise<Page> => {
-  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+const open = async (
+  errors: Array<string>,
+  viewport = { width: 1400, height: 900 },
+): Promise<Page> => {
+  const page = await browser.newPage({ viewport })
   page.on('pageerror', error => errors.push(String(error)))
   await page.goto(origin)
   await page.waitForSelector('[contenteditable=true] h1', { timeout: 120_000 })
@@ -133,13 +136,64 @@ test('selected text starts a discussion anchored to it', async () => {
   expect(errors).toEqual([])
 })
 
-test('the handle beside the hovered block duplicates it', async () => {
+test('the handle sits inside the page beside the hovered block, and clicked, opens its menu', async () => {
   const errors: Array<string> = []
-  const page = await open(errors)
+  const page = await open(errors, { width: 1280, height: 720 })
   const quote = page.locator('[contenteditable=true] > blockquote')
   await quote.hover()
-  await page.getByRole('button', { name: 'Block menu' }).click()
+  const handle = page.getByRole('button', { name: 'Block handle' })
+  await handle.waitFor()
+  const [grip, block, surface] = await Promise.all([
+    handle.boundingBox(),
+    quote.boundingBox(),
+    page.getByRole('region', { name: 'Editor' }).boundingBox(),
+  ])
+  // Left of the block, inside the editor's card, and level with the block's first line.
+  expect(grip!.x + grip!.width).toBeLessThanOrEqual(block!.x)
+  expect(grip!.x).toBeGreaterThanOrEqual(surface!.x)
+  expect(Math.abs(grip!.y + grip!.height / 2 - (block!.y + 15))).toBeLessThan(10)
+
+  await handle.click()
   await page.getByRole('menuitem', { name: 'Duplicate' }).click()
   await expect.poll(() => page.locator('[contenteditable=true] > blockquote').count()).toBe(2)
+  expect(errors).toEqual([])
+})
+
+test('dragging the handle moves its block', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await page.locator('[contenteditable=true] > blockquote').hover()
+  const grip = (await page.getByRole('button', { name: 'Block handle' }).boundingBox())!
+  const heading = (await page.locator('[contenteditable=true] > h1').boundingBox())!
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  for (let step = 1; step <= 10; step++) {
+    const y = grip.y + ((heading.y + 4 - grip.y) * step) / 10
+    await page.mouse.move(grip.x + grip.width / 2, y)
+  }
+  await page.mouse.up()
+  await expect
+    .poll(() => page.locator('[contenteditable=true] > :first-child').evaluate(e => e.tagName))
+    .toBe('BLOCKQUOTE')
+  expect(errors).toEqual([])
+})
+
+test('Enter in code breaks the line, and on an empty last line leaves the block', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const code = page.locator('[contenteditable=true] > pre')
+  // The code's last line, `})`: End is the end of the line clicked, not of the code.
+  const box = (await code.boundingBox())!
+  await code.click({ position: { x: 40, y: box.height - 30 } })
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('next')
+  await expect.poll(() => page.locator('[contenteditable=true] > pre').count()).toBe(1)
+  await expect.poll(() => code.textContent()).toContain('})\nnext')
+  // A break at the end leaves an empty last line, and Enter there leaves the code.
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('after')
+  await expect.poll(() => code.evaluate(e => e.nextElementSibling?.textContent)).toBe('after')
   expect(errors).toEqual([])
 })

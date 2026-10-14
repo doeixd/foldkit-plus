@@ -494,45 +494,53 @@ const CaptionEditor = (model: Model, node: RichText.NodeId, slots: Slots, h: H):
   ])
 
 /**
- * The handle beside the hovered block: a grip that drags it wherever the vocabulary lets it go,
- * and a button for its menu. Keyed by the block, since its Mounts read their args once.
+ * Where a block's first line sits below its top, which is where the handle lines up: a heading's
+ * line is taller than a paragraph's, and a callout, a table or a code block pads its text.
+ */
+const lineOf = (block: RichText.Block | undefined): string => {
+  if (block === undefined) return 'text'
+  if (block.type === 'Heading') return `h${Math.min(block.level, 3)}`
+  return block.type === 'Node' &&
+    ['Callout', 'CodeBlock', 'Table', 'Image', 'ThematicBreak'].includes(block.kind)
+    ? block.kind
+    : 'text'
+}
+
+/**
+ * The handle beside the hovered block, one grip as the reference has it: dragged, it moves the
+ * block wherever the vocabulary lets it go; clicked, it opens the block's menu. A press that
+ * does not move drops nothing, so the click is all it does. Keyed by the block, since its
+ * Mounts read their args once.
  */
 const blockHandle = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Html => {
   const shown = Option.filter(openMenu(model).block, block => block.node === node)
   const open = Option.isSome(shown)
   return h.div(
-    slots.handle.attrs([h.Key(`handle-${node}`), h.OnMount(blockAnchor({ hostId, node, gap: 6 }))]),
+    slots.handle.attrs([
+      h.Key(`handle-${node}`),
+      h.DataAttribute('line', lineOf(RichText.locateBlock(model.document, node)?.block)),
+      h.OnMount(blockAnchor({ hostId, node, gap: 4 })),
+    ]),
     [
       h.button(
         slots.grip.attrs([
           h.Type('button'),
-          h.Title('Drag to move'),
-          h.AriaLabel('Drag to move'),
-          h.Tabindex(-1),
+          h.Title('Drag to move, or click for options'),
+          h.AriaLabel('Block handle'),
+          h.AriaExpanded(open),
           h.OnMount(Mount.mapMessage(blockDrag({ hostId, node }), wrap)),
+          h.OnClick(
+            open ? Message.ClosedMenu() : Message.OpenedMenu({ menu: Menu.Block({ node }) }),
+          ),
         ]),
         ['⠿'],
       ),
-      h.div(slots.anchor.attrs(), [
-        h.button(
-          slots.grip.attrs([
-            h.Type('button'),
-            h.Title('Block menu'),
-            h.AriaLabel('Block menu'),
-            h.AriaExpanded(open),
-            h.OnClick(
-              open ? Message.ClosedMenu() : Message.OpenedMenu({ menu: Menu.Block({ node }) }),
-            ),
-          ]),
-          ['⋯'],
-        ),
-        ...Option.match(shown, {
-          onNone: () => [],
-          onSome: ({ caption }) => [
-            caption ? CaptionEditor(model, node, slots, h) : BlockMenu(model, node, slots, h),
-          ],
-        }),
-      ]),
+      ...Option.match(shown, {
+        onNone: () => [],
+        onSome: ({ caption }) => [
+          caption ? CaptionEditor(model, node, slots, h) : BlockMenu(model, node, slots, h),
+        ],
+      }),
     ],
   )
 }
