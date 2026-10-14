@@ -616,7 +616,10 @@ The pressed option takes the accent's tint, flat: that rule lives on the
 group, in `variants`, so icon tiles take the group piece alone, and an icon
 button's own background, a variant too, does not hide it. `tray` is a muted tray or a plain row (which
 sets no `display`: the Builder owns its narrow tabs' visibility); `size` is
-text density:
+text density. Its `indicator` and `highlight` slots, drawn first in the group
+and given `Segmented.fluid`, slide the pressed option's pill to a new press
+and move a faint pill to the option the pointer is on; until it runs the
+pressed option fills itself:
 
 ```ts
 const SegmentedStyle = Style.forSlots(SegmentedSlots)(

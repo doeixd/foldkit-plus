@@ -10,8 +10,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/segmented.ts',
-        find: '    group: variant(\n      // One pressed rule',
-        replace: '    group: component(\n      // One pressed rule',
+        find: '    group: variant(\n      // A positioned box',
+        replace: '    group: component(\n      // A positioned box',
       },
     ],
     tests,

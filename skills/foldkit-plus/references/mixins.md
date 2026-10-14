@@ -321,7 +321,8 @@ them by layer order alone. `Recipes.Badge` differs: it is a function taking the 
 value-to-tone map (`Badge({ attribute: 'data-state', tones: { Published: 'success' } }).badge`),
 because one style serves badges in every state and every tone is present at once.
 `Recipes.InputGroup` (`group`, `affix`, `control`) draws a prefixed or suffixed field as one
-box; a `Segmented` pressed option is the accent's flat tint; an unfilled button's
+box; a `Segmented` pressed option is the accent's flat tint (`Segmented.fluid`, with its `indicator` and `highlight`
+slots drawn first in the group, slides it as a pill); an unfilled button's
 hover (outline, ghost, icon) is a tint of its own text, so it reads on a colored band. The
 body defaults color scrollbars with `outline.overt`. `Touch`
 (`target`, `targets`) and `Icons` (`glyph(size)`, `byAttribute(attribute, icons)`) are style

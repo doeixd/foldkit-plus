@@ -52,7 +52,8 @@ version changed; `pnpm` skips versions already in the registry.
   panel's rows, for the pointer and the keys alike, and a listbox's or
   combobox's chosen-row marker glides to a new choice. Their slots gain
   `rows`, `highlight` and (listbox, combobox) `indicator`, which the default
-  draw places.
+  draw places. `Segmented.fluid` does the same for a segmented control's
+  pressed pill, through its new `indicator` and `highlight` slots.
 - **`foldkit-mixins-ui`: `Item`'s `content` is optional**, for a row its
   title and description say all of, such as a notification.
 

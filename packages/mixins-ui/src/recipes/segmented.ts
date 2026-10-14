@@ -12,18 +12,61 @@ import { SegmentedSlots } from '../segmented.js'
 import { component, hover, ref, variant } from './design.js'
 
 const pressed = '[aria-pressed="true"]'
+const lit = ':where([data-fluid-hover]) > &'
+const at = (name: 'hover' | 'chosen', part: 'x' | 'y' | 'w' | 'h') =>
+  `var(--fk-segmented-${name}-${part})`
+
+const glide = (moving: string) => {
+  const duration = `calc(${ref.motion.normal} * ${moving})`
+  return {
+    transitionProperty: 'translate, inline-size, block-size, opacity',
+    transitionDuration: `${duration}, ${duration}, ${duration}, ${ref.motion.fast}`,
+    transitionTimingFunction: `${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.ease}`,
+  }
+}
+
+const overlay = (name: 'hover' | 'chosen') =>
+  Style.self({
+    position: 'absolute',
+    insetBlockStart: '0',
+    insetInlineStart: '0',
+    zIndex: '-1',
+    display: 'none',
+    inlineSize: at(name, 'w'),
+    blockSize: at(name, 'h'),
+    translate: `${at(name, 'x')} ${at(name, 'y')}`,
+    borderRadius: ref.radius.sm,
+    pointerEvents: 'none',
+  })
 
 export const Segmented = Style.recipeFor(SegmentedSlots)({
   base: {
     group: variant(
-      // One pressed rule for text and icon tiles alike.
+      // A positioned box for the indicator and highlight, under the options.
+      Style.self({ position: 'relative', isolation: 'isolate' }),
+      // One pressed rule for text and icon tiles alike; its fill is the
+      // indicator's once `Segmented.fluid` runs.
       Style.nest(`> ${pressed}`, {
-        background: ref.accent.subtle,
         boxShadow: 'none',
         color: ref.accent.ink,
         cursor: 'default',
         fontWeight: ref.weight.semibold,
       }),
+      Style.nest(`&:not([data-fluid-hover]) > ${pressed}`, { background: ref.accent.subtle }),
+    ),
+    indicator: component(
+      overlay('chosen'),
+      Style.self({ background: ref.accent.subtle, ...glide('1') }),
+      Style.nest(lit, { display: 'var(--fk-segmented-chosen-display, none)' }),
+    ),
+    highlight: component(
+      overlay('hover'),
+      Style.self({
+        background: ref.accent.subtle,
+        opacity: 'calc(0.4 * var(--fk-segmented-hover-shown))',
+        ...glide('var(--fk-segmented-hover-moving)'),
+      }),
+      Style.nest(lit, { display: 'block' }),
     ),
     option: component(
       Style.self({
