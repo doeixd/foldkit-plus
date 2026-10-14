@@ -13,6 +13,7 @@ import {
   BlockStyleSlots,
   CodeToolbarSlots,
   EditorStatusSlots,
+  FindReplaceSlots,
   LinkEditorSlots,
   SlashMenuSlots,
   TableToolbarSlots,
@@ -316,6 +317,11 @@ const writing = Style.compose(
   }),
   Style.nest('[data-footnote] > p', { margin: '0' }),
   Style.nest('[data-decoration~="search"]', { background: t.accent.subtle }),
+  Style.nest('[data-decoration~="search-current"]', {
+    background: t.accent.default,
+    color: t.surface.base,
+    borderRadius: '2px',
+  }),
   Style.media('(max-width: 44rem)', { fontSize: '1rem' }),
   // A phone's width goes to the text, not the margins.
   Style.at(
@@ -575,4 +581,25 @@ export const CodeToolbarStyle = A.forSlots(CodeToolbarSlots)({
     Style.self({ inlineSize: 'auto', paddingBlock: '2px', fontSize: t.size.xs, cursor: 'pointer' }),
   ),
   copy: Style.compose(control, Style.self({ fontSize: t.size.xs, minBlockSize: '1.75rem' })),
+})
+
+export const FindReplaceStyle = A.forSlots(FindReplaceSlots)({
+  root: Style.compose(
+    row(t.space['2xs']),
+    Style.self({
+      padding: `${t.space.xs} ${t.space.sm}`,
+      borderBlockEnd: `1px solid ${t.outline.subtle}`,
+    }),
+  ),
+  field: Style.compose(field, Style.self({ inlineSize: '12rem' })),
+  count: Style.self({
+    minInlineSize: '5.5rem',
+    color: t.text.muted,
+    fontSize: t.size.xs,
+    fontVariantNumeric: 'tabular-nums',
+  }),
+  button: Style.compose(
+    control,
+    Style.self({ fontSize: t.size.xs, minBlockSize: '1.75rem', whiteSpace: 'nowrap' }),
+  ),
 })

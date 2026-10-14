@@ -64,6 +64,16 @@ An image is read from a file into a `data:` URL ([canvas.ts](src/canvas.ts)), fr
 field, a paste or a drop, and shown at its own width up to 640 pixels. The standard URL policy
 refuses `data:` for links, so the rendering accepts it only as an image's source.
 
+## Find and replace
+
+Ctrl+F opens `findReplace` under the toolbar, on the selected text when there is some. The query,
+the replacement, the match it is on and whether case counts are the Model's (`Model.find`); the
+matches are `RichText.findMatches` of the document, and Replace sends the editor's own
+`ReplacedText`, so a replacement is one undo step. The matches are drawn as decorations through
+`overlay`, which names positions in the document shown, so after every transition that changes
+the document or the bar, `update` draws them again (`followFind`) and brings the current one into
+view. Going to a match selects it in the editor without taking the find field's focus.
+
 ## Tests
 
 `pnpm test` runs [test/app.test.ts](test/app.test.ts), which drives `update` as the page does;

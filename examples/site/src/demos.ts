@@ -115,6 +115,10 @@ export const richtextDemo: Demo = {
       title: 'Insert',
       text: 'Type / on an empty line for a table, a callout or a toggle, or paste or drop an image onto the page.',
     },
+    {
+      title: 'Find',
+      text: 'Press Ctrl+F to find in the document; Enter steps through the matches, and Replace all is one undo step.',
+    },
   ],
   readFirst: 'examples/richtext-playground/src/app.ts',
   packages: [

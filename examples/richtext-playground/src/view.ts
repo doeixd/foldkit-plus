@@ -12,6 +12,7 @@ import {
   blockStyles,
   codeToolbar,
   editorStatus,
+  findReplace,
   linkEditor,
   slashMenu,
   slashMenuView,
@@ -41,6 +42,7 @@ import { canvasEvents, imagePicker } from './canvas.js'
 import {
   BlockStyleStyle,
   CodeToolbarStyle,
+  FindReplaceStyle,
   LinkEditorStyle,
   Page,
   SlashMenuStyle,
@@ -64,6 +66,7 @@ const BlockStyles = blockStyles<Message>().pipe(Style.attach(BlockStyleStyle))
 const Status = editorStatus<Message>().pipe(Style.attach(StatusStyle))
 const TableTools = tableToolbar<Message>().pipe(Style.attach(TableToolbarStyle))
 const CodeTools = codeToolbar<Message>().pipe(Style.attach(CodeToolbarStyle))
+const FindBar = findReplace<Message>().pipe(Style.attach(FindReplaceStyle))
 const DemoGuide = demoGuide<Message>()
 
 /** The text before the caret, which says whether a slash menu is open and what it matches. */
@@ -206,7 +209,28 @@ export const PlaygroundView = SlotView.forMessages<Message>()
       button('💬', 'Comment on the selection', Message.StartedComment(), {
         disabled: !RichText.coversText(model.editor.selection),
       }),
+      button('🔍', 'Find and replace (Ctrl+F)', Message.OpenedFind(), {
+        pressed: Option.isSome(model.find),
+      }),
     ])
+    const findBar = Option.match(model.find, {
+      onNone: () => [],
+      onSome: find => [
+        FindBar(
+          {
+            document: model.document,
+            ...find,
+            queried: query => Message.FindQueried({ query }),
+            replacementDrafted: replacement => Message.FindReplacementDrafted({ replacement }),
+            moved: index => Message.FoundMatch({ index }),
+            caseToggled: Message.FindCaseToggled(),
+            closed: Message.ClosedFind(),
+            wrap,
+          },
+          h,
+        ),
+      ],
+    })
 
     // --- what floats over the editor ---
     const slash = slashMenu(slashEntries, textBefore(model), model.editor.menuIndex)
@@ -296,6 +320,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
       h.section(slots.surface.attrs([h.AriaLabel('Editor')]), [
         media,
         toolbar,
+        ...findBar,
         ...Option.match(model.notice, {
           onNone: () => [],
           onSome: notice => [
@@ -310,6 +335,8 @@ export const PlaygroundView = SlotView.forMessages<Message>()
             slots.canvas.attrs([
               h.OnMount(canvasEvents()),
               h.OnKeyDownPreventDefault((key, modifiers) => {
+                if (key === 'f' && (modifiers.ctrlKey || modifiers.metaKey) && !modifiers.altKey)
+                  return Option.some(Message.OpenedFind())
                 if (key === 'Escape' && Option.isSome(model.menu))
                   return Option.some(Message.ClosedMenu())
                 const index = slashMove(

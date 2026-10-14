@@ -8,8 +8,9 @@
  * text, so the anchor travels with the text through every edit and undo; the Model holds the
  * thread. Which thread is open is not stored either: it is the one the caret is in.
  */
-import { Match, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
+import * as Dom from 'foldkit/dom'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
@@ -19,6 +20,7 @@ import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import {
   Editor,
   EditorState,
+  overlay,
   placeEditor,
   type EditorView,
 } from 'foldkit-richtext-dom/editor-bundle'
@@ -68,6 +70,15 @@ export const Menu = defineTaggedUnion({
 })
 export type Menu = typeof Menu.Type
 
+/** The find bar, while it is open: what it looks for, what replaces it, and the match it is on. */
+export const Find = Schema.Struct({
+  query: Schema.String,
+  replacement: Schema.String,
+  current: Schema.Number,
+  caseSensitive: Schema.Boolean,
+})
+export type Find = typeof Find.Type
+
 export const Model = Schema.Struct({
   document: RichText.Document,
   editor: EditorState,
@@ -87,6 +98,7 @@ export const Model = Schema.Struct({
   notice: Schema.Option(Schema.String),
   /** What the last copy did, shown in the footer. */
   status: Schema.Option(Schema.String),
+  find: Schema.Option(Find),
 })
 export type Model = typeof Model.Type
 
@@ -122,6 +134,15 @@ export const Message = defineMessageUnion({
   ImageRefused: { reason: Schema.String },
   DismissedNotice: {},
   SlashMoved: { index: Schema.Number },
+  /** Ctrl+F: the find bar opens, on what is selected when that is short text. */
+  OpenedFind: {},
+  FindQueried: { query: Schema.String },
+  FindReplacementDrafted: { replacement: Schema.String },
+  /** The find bar went to the match at this index, which is selected. */
+  FoundMatch: { index: Schema.Number },
+  FindCaseToggled: {},
+  ClosedFind: {},
+  CompletedFocusFind: {},
   Reset: {},
 })
 export type Message = typeof Message.Type
@@ -158,6 +179,7 @@ export const init = (): Return => ({
     hovered: Option.none(),
     notice: Option.none(),
     status: Option.none(),
+    find: Option.none(),
   },
 })
 
@@ -385,9 +407,119 @@ const closed = (model: Model): Model =>
 const blockOf = (model: Model, node: RichText.NodeId) =>
   RichText.locateBlock(model.document, node)?.block
 
+// --- find ----------------------------------------------------------------------------------
+
+const found = new WeakMap<RichText.Document, Map<string, ReadonlyArray<RichText.SearchMatch>>>()
+
+/**
+ * The bar's matches, kept by the document's identity: every transition while the bar is open
+ * reads them, and most leave the document as it was.
+ */
+const matchesOf = (model: Model, find: Find): ReadonlyArray<RichText.SearchMatch> => {
+  const byQuery = found.get(model.document) ?? new Map()
+  found.set(model.document, byQuery)
+  const key = `${find.caseSensitive ? 'case' : 'any'}:${find.query}`
+  const kept = byQuery.get(key)
+  if (kept !== undefined) return kept
+  const matches = RichText.findMatches(model.document, find.query, find)
+  byQuery.set(key, matches)
+  return matches
+}
+
+const withFind = (model: Model, change: (find: Find) => Find): Model =>
+  Option.match(model.find, {
+    onNone: () => model,
+    onSome: find => modifyFields(model, { find: () => Option.some(change(find)) }),
+  })
+
+/** Where Ctrl+F starts: the selected text, when it is a short piece of one line. */
+const selectedQuery = (model: Model): string => {
+  if (!RichText.coversText(model.editor.selection)) return ''
+  const slice = RichText.sliceOf(model.document, model.editor.selection)
+  const text = slice === undefined ? '' : RichText.toText(slice.blocks)
+  return text.length <= 80 && !/[\r\n]/.test(text) ? text : ''
+}
+
+const FocusFind = Command.define('FocusFind', {
+  messages: [Message.CompletedFocusFind],
+  execute: Dom.focus('[data-find="query"]').pipe(
+    Effect.ignore,
+    Effect.as(Message.CompletedFocusFind()),
+  ),
+})
+
+/**
+ * The find bar's matches drawn over the editor, the current one brought into view; none once
+ * the bar is closed. An overlay names positions in the document shown, so it is drawn again
+ * whenever the document or the bar changes.
+ */
+const showMatches = (model: Model): Command.Command<Message> => {
+  const decorations = Option.match(model.find, {
+    onNone: () => [],
+    onSome: find => RichText.searchDecorations(model.document, find.query, find),
+  })
+  const drawn = overlay(hostId, decorations)
+  return Command.mapMessage(
+    {
+      ...drawn,
+      effect: Effect.tap(drawn.effect, () =>
+        Effect.sync(() =>
+          document
+            .getElementById(hostId)
+            ?.querySelector(`[data-decoration="${RichText.SEARCH_CURRENT_DECORATION}"]`)
+            ?.scrollIntoView({ block: 'nearest' }),
+        ),
+      ),
+    },
+    message => Message.GotEditor({ message }),
+  )
+}
+
+/**
+ * After every transition: the current match kept among the matches there are, and the matches
+ * drawn again when what they are read from changed.
+ */
+const followFind = (before: Model, result: Return): Return => {
+  const model = Option.match(result.model.find, {
+    onNone: () => result.model,
+    onSome: find => {
+      const last = Math.max(0, matchesOf(result.model, find).length - 1)
+      return find.current > last
+        ? withFind(result.model, () => ({ ...find, current: last }))
+        : result.model
+    },
+  })
+  const changed = model.find !== before.find || model.document !== before.document
+  const shown = Option.isSome(model.find) || Option.isSome(before.find)
+  return changed && shown
+    ? { model, commands: [...(result.commands ?? []), showMatches(model)] }
+    : { ...result, model }
+}
+
+/** A match made current and selected; the find field keeps the focus. */
+const goToMatch = (model: Model, index: number): Return =>
+  Option.match(model.find, {
+    onNone: () => ({ model }),
+    onSome: find => {
+      const match = matchesOf(model, find)[index]
+      const kept = withFind(model, () => ({ ...find, current: index }))
+      return match === undefined
+        ? { model: kept }
+        : edit(
+            kept,
+            EditorMessage.Selected({
+              selection: { type: 'Range', anchor: match.from, focus: match.to },
+            }),
+          )
+    },
+  })
+
 // --- update --------------------------------------------------------------------------------
 
 export const update = (model: Model, message: Message): Return =>
+  followFind(model, step(model, message))
+
+const step = (model: Model, message: Message): Return =>
   Message.match<Return>(message, {
     GotEditor: ({ message }) => {
       // Enter in a closed toggle's title adds a line inside it, which a closed toggle hides;
@@ -574,5 +706,33 @@ export const update = (model: Model, message: Message): Return =>
       index === model.editor.menuIndex
         ? { model }
         : { model: modifyFields(model, { editor: editor => ({ ...editor, menuIndex: index }) }) },
+    OpenedFind: () => {
+      const selected = selectedQuery(model)
+      const open = Option.getOrElse(model.find, (): Find => ({
+        query: '',
+        replacement: '',
+        current: 0,
+        caseSensitive: false,
+      }))
+      return {
+        model: modifyFields(closed(model), {
+          find: () =>
+            Option.some({ ...open, query: selected === '' ? open.query : selected, current: 0 }),
+        }),
+        commands: [FocusFind()],
+      }
+    },
+    FindQueried: ({ query }) => ({
+      model: withFind(model, find => ({ ...find, query, current: 0 })),
+    }),
+    FindReplacementDrafted: ({ replacement }) => ({
+      model: withFind(model, find => ({ ...find, replacement })),
+    }),
+    FoundMatch: ({ index }) => goToMatch(model, index),
+    FindCaseToggled: () => ({
+      model: withFind(model, find => ({ ...find, caseSensitive: !find.caseSensitive, current: 0 })),
+    }),
+    ClosedFind: () => ({ model: modifyFields(model, { find: () => Option.none() }) }),
+    CompletedFocusFind: () => ({ model }),
     Reset: () => init(),
   })

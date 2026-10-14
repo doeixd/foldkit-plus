@@ -254,6 +254,60 @@ describe('a code block', () => {
   })
 })
 
+describe('find and replace', () => {
+  const overlays = (result: { readonly commands?: ReadonlyArray<{ readonly name: string }> }) =>
+    (result.commands ?? []).filter(command => command.name === 'RichText.overlay').length
+  const find = (model: Model) => Option.getOrUndefined(model.find)
+  const opened = (query: string) =>
+    step(start(), Message.OpenedFind(), Message.FindQueried({ query }))
+
+  it('opens on the selected text, and again with only a caret keeps its query', () => {
+    const initial = start()
+    const run = runAt(initial, 0)
+    const chosen = step(select(initial, over(run, 0, 4)), Message.OpenedFind())
+    expect(find(chosen)?.query).toBe(run.text.slice(0, 4))
+    const again = step(
+      chosen,
+      Message.FindQueried({ query: 'the' }),
+      edited(EditorMessage.Selected({ selection: caret(run) })),
+      Message.OpenedFind(),
+    )
+    expect(find(again)?.query).toBe('the')
+    expect(find(step(again, Message.ClosedFind(), Message.OpenedFind()))?.query).toBe('')
+  })
+
+  it('goes to a match by selecting it, and keeps the current one among the matches', () => {
+    const model = opened('the')
+    const matches = RichText.findMatches(model.document, 'the')
+    expect(matches.length).toBeGreaterThan(2)
+    const second = step(model, Message.FoundMatch({ index: 1 }))
+    expect(find(second)?.current).toBe(1)
+    expect(second.editor.selection).toEqual({
+      type: 'Range',
+      anchor: matches[1]!.from,
+      focus: matches[1]!.to,
+    })
+    // Replacing them all leaves none, so the current one is the first again.
+    const replaced = step(
+      step(second, Message.FoundMatch({ index: matches.length - 1 })),
+      edited(EditorMessage.ReplacedText({ query: 'the', replacement: 'a' })),
+    )
+    expect(RichText.findMatches(replaced.document, 'the')).toEqual([])
+    expect(find(replaced)?.current).toBe(0)
+  })
+
+  it('draws the matches again when the document or the bar changes, and clears them on close', () => {
+    const model = opened('the')
+    expect(overlays(update(model, Message.FindQueried({ query: 'a' })))).toBe(1)
+    expect(overlays(update(model, edited(EditorMessage.Typed({ text: 'x' }))))).toBe(0)
+    const typing = select(model, caret(runAt(model, 0)))
+    expect(overlays(update(typing, edited(EditorMessage.Typed({ text: 'x' }))))).toBe(1)
+    expect(overlays(update(model, Message.ClosedFind()))).toBe(1)
+    const closed = step(typing, Message.ClosedFind())
+    expect(overlays(update(closed, edited(EditorMessage.Typed({ text: 'x' }))))).toBe(0)
+  })
+})
+
 describe('menus', () => {
   it('one at a time, read as what is open', () => {
     const initial = start()

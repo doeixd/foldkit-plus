@@ -106,4 +106,53 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'find opens empty over a selection',
+    edits: [
+      {
+        file,
+        find: "query: selected === '' ? open.query : selected",
+        replace: 'query: open.query',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the current match outlives the matches',
+    edits: [{ file, find: 'return find.current > last', replace: 'return false' }],
+    tests,
+  },
+  {
+    name: 'an edit leaves the matches where they were',
+    edits: [
+      {
+        file,
+        find: 'model.find !== before.find || model.document !== before.document',
+        replace: 'model.find !== before.find',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'closing the bar leaves its matches drawn',
+    edits: [
+      {
+        file,
+        find: 'Option.isSome(model.find) || Option.isSome(before.find)',
+        replace: 'Option.isSome(model.find)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a match is made current without being selected',
+    edits: [
+      {
+        file,
+        find: 'const match = matchesOf(model, find)[index]',
+        replace: 'const match = undefined',
+      },
+    ],
+    tests,
+  },
 ]
