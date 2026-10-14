@@ -29,6 +29,7 @@ import { blockAnchor, blockDrag, markActive, selectionAnchor } from 'foldkit-ric
 import {
   editorView,
   hostId,
+  ExportFormat,
   Menu,
   Message,
   codeBlockAt,
@@ -127,6 +128,31 @@ export const PlaygroundView = SlotView.forMessages<Message>()
       )
 
     // --- the toolbars ---
+    const exportMenu = h.div(slots.anchor.attrs(), [
+      button(
+        '⇩ Export',
+        'Copy the document as Markdown, HTML or JSON',
+        open.export ? Message.ClosedMenu() : Message.OpenedMenu({ menu: Menu.Export() }),
+        { pressed: open.export },
+      ),
+      ...(open.export
+        ? [
+            h.div(
+              slots.dropdown.attrs([h.Role('menu')]),
+              ExportFormat.literals.map(format =>
+                h.button(
+                  slots.menuItem.attrs([
+                    h.Type('button'),
+                    h.Role('menuitem'),
+                    h.OnClick(Message.Exported({ format })),
+                  ]),
+                  [`Copy as ${format}`],
+                ),
+              ),
+            ),
+          ]
+        : []),
+    ])
     const media = h.div(slots.bar.attrs([h.Role('toolbar'), h.AriaLabel('Add to your document')]), [
       h.span(slots.barLabel.attrs(), ['Add to your document']),
       h.label(slots.tool.attrs([h.Title('Upload an image')]), [
@@ -143,6 +169,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
       button('💡 Callout', 'Insert a callout', Message.Inserted({ block: Blocks.callout() })),
       button('▸ Toggle', 'Insert a toggle', Message.Inserted({ block: Blocks.toggle() })),
       button('― Divider', 'Insert a divider', Message.Inserted({ block: Blocks.divider() })),
+      exportMenu,
     ])
     const insertMenu = h.div(slots.anchor.attrs(), [
       button(

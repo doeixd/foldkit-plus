@@ -8,8 +8,10 @@ import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
+import { parse } from 'foldkit-richtext-markdown'
 import {
   codeBlockAt,
+  exported,
   Menu,
   Message,
   init,
@@ -249,7 +251,10 @@ describe('a code block', () => {
     const copied = update(initial, Message.CopiedCode({ node: code.id }))
     expect(copied.model).toBe(initial)
     expect(copied.commands?.map(command => command.args)).toEqual([{ text: textOf(code) }])
-    const said = step(initial, Message.GotClipboard({ message: ClipboardMessage.Copied() }))
+    const said = step(
+      initial,
+      Message.GotClipboard({ message: ClipboardMessage.Copied(), what: 'the code' }),
+    )
     expect(said.status).toEqual(Option.some('Copied the code.'))
   })
 })
@@ -306,6 +311,37 @@ describe('find and replace', () => {
     expect(overlays(update(model, Message.ClosedFind()))).toBe(1)
     const closed = step(typing, Message.ClosedFind())
     expect(overlays(update(closed, edited(EditorMessage.Typed({ text: 'x' }))))).toBe(0)
+  })
+})
+
+describe('export', () => {
+  it('reads back as the document: JSON exactly, Markdown with what it can hold', () => {
+    const document = start().document
+    const json = exported(document, 'JSON')
+    expect(RichText.decodeDocument(JSON.parse(json.text))).toEqual(document)
+    const markdown = exported(document, 'Markdown')
+    const headings = (doc: RichText.Document) => RichText.outlineOf(doc).map(entry => entry.text)
+    let n = 0
+    const back = parse(markdown.text, { mint: () => `m${n++}` }).document
+    expect(headings(back)).toEqual(headings(document))
+    // The seeded callout has no Markdown syntax, and the footer says so.
+    expect(markdown.what).toMatch(/without \d+ parts? it has no syntax for/)
+    const html = exported(document, 'HTML')
+    for (const text of headings(document)) expect(html.text).toContain(`>${text}</h`)
+  })
+
+  it('copies through the clipboard Command, closing the menu', () => {
+    const model = step(start(), Message.OpenedMenu({ menu: Menu.Export() }))
+    const result = update(model, Message.Exported({ format: 'JSON' }))
+    expect(openMenu(result.model).export).toBe(false)
+    expect(result.commands?.map(command => command.args)).toEqual([
+      { text: exported(model.document, 'JSON').text },
+    ])
+    const said = step(
+      result.model,
+      Message.GotClipboard({ message: ClipboardMessage.Copied(), what: 'the document as JSON' }),
+    )
+    expect(said.status).toEqual(Option.some('Copied the document as JSON.'))
   })
 })
 

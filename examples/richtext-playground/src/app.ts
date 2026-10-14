@@ -25,7 +25,7 @@ import {
   placeEditor,
   type EditorView,
 } from 'foldkit-richtext-dom/editor-bundle'
-import { markdownInputRules } from 'foldkit-richtext-markdown'
+import { markdownInputRules, print } from 'foldkit-richtext-markdown'
 import { stepMatch } from 'foldkit-mixins-richtext'
 import { ClipboardMessage, copyText } from 'foldkit-primitives/dom'
 import { firstThread, initialDocument } from './document.js'
@@ -65,6 +65,8 @@ export const Menu = defineTaggedUnion({
   Block: { node: RichText.NodeId },
   /** The toolbar's insert menu. */
   Insert: {},
+  /** The toolbar's export menu. */
+  Export: {},
   /** The link editor over the selection. */
   Link: {},
   /** An image's caption, being written. */
@@ -80,6 +82,10 @@ export const Find = Schema.Struct({
   caseSensitive: Schema.Boolean,
 })
 export type Find = typeof Find.Type
+
+/** What the document can be copied as. */
+export const ExportFormat = Schema.Literals(['Markdown', 'HTML', 'JSON'])
+export type ExportFormat = typeof ExportFormat.Type
 
 export const Model = Schema.Struct({
   document: RichText.Document,
@@ -132,7 +138,10 @@ export const Message = defineMessageUnion({
   ImageRead: { src: Schema.String, alt: Schema.String, width: Schema.Number },
   /** A code block's text, to the clipboard: its toolbar's Copy. */
   CopiedCode: { node: RichText.NodeId },
-  GotClipboard: { message: ClipboardMessage },
+  /** The whole document, to the clipboard: the export menu's choice. */
+  Exported: { format: ExportFormat },
+  /** What a copy did, with what it copied, for the footer. */
+  GotClipboard: { message: ClipboardMessage, what: Schema.String },
   ImageRefused: { reason: Schema.String },
   DismissedNotice: {},
   SlashMoved: { index: Schema.Number },
@@ -320,6 +329,38 @@ const caretAtStart = (block: RichText.Block): RichText.Selection | undefined => 
       }
 }
 
+// --- export ------------------------------------------------------------------------------
+
+/**
+ * The document as text in `format`, and what to call it once copied. Markdown has no syntax
+ * for some of what the playground holds (a callout, an image's caption), and says so.
+ */
+export const exported = (
+  document: RichText.Document,
+  format: ExportFormat,
+): { readonly text: string; readonly what: string } => {
+  switch (format) {
+    case 'Markdown': {
+      const { markdown, diagnostics } = print(document)
+      const lost = diagnostics.length
+      return {
+        text: markdown,
+        what:
+          lost === 0
+            ? 'the document as Markdown'
+            : `the document as Markdown, without ${lost} ${lost === 1 ? 'part' : 'parts'} it has no syntax for`,
+      }
+    }
+    case 'HTML':
+      return { text: RichText.toHtml(document.children, rendering), what: 'the document as HTML' }
+    case 'JSON':
+      return {
+        text: JSON.stringify(Schema.encodeSync(RichText.Document)(document), null, 2),
+        what: 'the document as JSON',
+      }
+  }
+}
+
 // --- the editor ----------------------------------------------------------------------------
 
 /** Every field of the editor's state; the check below fails to compile when one is missing. */
@@ -387,16 +428,18 @@ export const openMenu = (
   model: Model,
 ): {
   readonly insert: boolean
+  readonly export: boolean
   readonly link: boolean
   /** The block whose handle menu is open, and whether it shows the caption field. */
   readonly block: Option.Option<{ readonly node: RichText.NodeId; readonly caption: boolean }>
 } => {
-  const none = { insert: false, link: false, block: Option.none() }
+  const none = { insert: false, export: false, link: false, block: Option.none() }
   return Option.match(model.menu, {
     onNone: () => none,
     onSome: menu =>
       Menu.match(menu, {
         Insert: () => ({ ...none, insert: true }),
+        Export: () => ({ ...none, export: true }),
         Link: () => ({ ...none, link: true }),
         Block: ({ node }) => ({ ...none, block: Option.some({ node, caption: false }) }),
         Caption: ({ node }) => ({ ...none, block: Option.some({ node, caption: true }) }),
@@ -553,6 +596,7 @@ const step = (model: Model, message: Message): Return =>
       return Menu.match<Return>(menu, {
         Block: () => ({ model: opened }),
         Insert: () => ({ model: opened }),
+        Export: () => ({ model: opened }),
         Link: () => ({
           model: modifyFields(opened, {
             linkDraft: () => RichText.linkAt(model.document, model.editor.selection)?.href ?? '',
@@ -686,17 +730,26 @@ const step = (model: Model, message: Message): Return =>
             model,
             commands: [
               Command.mapMessage(copyText(RichText.toText([block])), message =>
-                Message.GotClipboard({ message }),
+                Message.GotClipboard({ message, what: 'the code' }),
               ),
             ],
           }
     },
-    GotClipboard: ({ message }) => ({
+    Exported: ({ format }) => {
+      const { text, what } = exported(model.document, format)
+      return {
+        model: closed(model),
+        commands: [
+          Command.mapMessage(copyText(text), message => Message.GotClipboard({ message, what })),
+        ],
+      }
+    },
+    GotClipboard: ({ message, what }) => ({
       model: modifyFields(model, {
         status: () =>
           Option.some(
             ClipboardMessage.match(message, {
-              Copied: () => 'Copied the code.',
+              Copied: () => `Copied ${what}.`,
               CopyFailed: ({ message: reason }) => `Could not copy: ${reason}`,
             }),
           ),

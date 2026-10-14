@@ -74,6 +74,16 @@ matches are `RichText.findMatches` of the document, and Replace sends the editor
 the document or the bar, `update` draws them again (`followFind`) and brings the current one into
 view. Going to a match selects it in the editor without taking the find field's focus.
 
+## Contents and export
+
+The sidebar's Contents is `tableOfContents` over the document's headings, the caret's section
+marked; choosing one sends `JumpedToHeading`, which puts the caret at the heading's start and
+gives the editor the focus there with `focus(hostId, selection)`. Export copies the whole document
+(`exported` in [app.ts](src/app.ts)): Markdown through `foldkit-richtext-markdown`'s `print`, which
+reports what it has no syntax for (a callout, an image's caption) so the footer can say so; HTML
+through `RichText.toHtml` with the page's rendering; JSON as the encoded `RichText.Document`,
+which decodes back to the same document.
+
 ## Tests
 
 `pnpm test` runs [test/app.test.ts](test/app.test.ts), which drives `update` as the page does;

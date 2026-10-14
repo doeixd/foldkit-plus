@@ -166,4 +166,32 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'Markdown says nothing of what it left out',
+    edits: [{ file, find: 'lost === 0', replace: 'true' }],
+    tests,
+  },
+  {
+    name: 'exporting leaves the menu open',
+    edits: [
+      {
+        file,
+        find: 'const { text, what } = exported(model.document, format)',
+        replace:
+          'const { text, what } = exported(model.document, format); const closed = (kept: Model) => kept',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the footer says the code whatever was copied',
+    edits: [
+      {
+        file,
+        find: 'Copied: () => `Copied ${what}.`',
+        replace: "Copied: () => 'Copied the code.'",
+      },
+    ],
+    tests,
+  },
 ]

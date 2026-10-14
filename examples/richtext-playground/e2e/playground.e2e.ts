@@ -352,3 +352,24 @@ test('the contents list the headings, and one chosen takes the caret to it', asy
   await expect.poll(() => last.getAttribute('aria-current')).toBe('location')
   expect(errors).toEqual([])
 })
+
+test('Export copies the document as Markdown to the clipboard', async () => {
+  const context = await browser.newContext({
+    viewport: { width: 1400, height: 900 },
+    permissions: ['clipboard-read', 'clipboard-write'],
+  })
+  try {
+    const page = await context.newPage()
+    await page.goto(origin)
+    await page.waitForSelector('[contenteditable=true] h1', { timeout: 120_000 })
+    await page.getByRole('button', { name: 'Copy the document as Markdown, HTML or JSON' }).click()
+    await page.getByRole('menuitem', { name: 'Copy as Markdown' }).click()
+    await expect
+      .poll(() => page.getByRole('status').textContent())
+      .toMatch(/^Copied the document as Markdown/)
+    const copied = await page.evaluate(() => navigator.clipboard.readText())
+    expect(copied).toMatch(/^# A little room to think\./)
+  } finally {
+    await context.close()
+  }
+})
