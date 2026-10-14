@@ -74,6 +74,8 @@ import {
   RadioGroupSlots,
   Recipes,
   Select,
+  Segmented,
+  SegmentedSlots,
   SelectSlots,
   Separator,
   SeparatorSlots,
@@ -1054,4 +1056,37 @@ export const toast = <Message>(
       }),
     ],
   )
+// #endregion
+
+// #region segmented
+export const SegmentedStyle = forSlots(SegmentedSlots)(Recipes.Segmented({}))
+
+export const Range = Schema.Literals(['day', 'week', 'month', 'year'])
+export type Range = typeof Range.Type
+
+export const segmented = <Message>(
+  style: NamedStyle<typeof SegmentedSlots>,
+  range: Range,
+  onRange: (range: Range) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const slots = SlotView.buildersFor(SegmentedSlots, [style.mixin, ...Segmented.fluid], {
+    input: undefined,
+    h,
+  })
+  return h.div(slots.group.attrs([h.Role('group'), h.AriaLabel('Range')]), [
+    h.div(slots.indicator.attrs([h.AriaHidden(true)])),
+    h.div(slots.highlight.attrs([h.AriaHidden(true)])),
+    ...Range.literals.map(each =>
+      h.button(
+        slots.option.attrs([
+          h.Type('button'),
+          h.AriaPressed(String(each === range)),
+          h.OnClick(onRange(each)),
+        ]),
+        [each[0]!.toUpperCase() + each.slice(1)],
+      ),
+    ),
+  ])
+}
 // #endregion

@@ -62,4 +62,15 @@ export default [
     edits: [{ file: widgets, find: "title: 'Draft saved'", replace: "title: 'Saved'" }],
     tests,
   },
+  {
+    name: 'a chosen range is not pressed',
+    edits: [
+      {
+        file: widgets,
+        find: '{ model: modifyFields(model, { range: () => range }) }',
+        replace: '{ model }',
+      },
+    ],
+    tests,
+  },
 ]

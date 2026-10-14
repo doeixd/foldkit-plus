@@ -31,6 +31,7 @@ import {
   Frequency,
   FrequencyBox,
   Notices,
+  Range,
   Section,
   SectionTabs,
 } from '../snippets/components.js'
@@ -56,6 +57,7 @@ export const Model = Schema.Struct({
   picker: UiDatePicker.Model,
   due: Schema.Option(Calendar.CalendarDate),
   notices: Notices.Model,
+  range: Range,
 })
 export type Model = typeof Model.Type
 
@@ -75,6 +77,7 @@ export const Message = defineMessageUnion({
   GotDatePicker: { message: UiDatePicker.Message },
   GotNotices: { message: Notices.Message },
   SavedDraft: {},
+  ChoseRange: { range: Range },
 })
 export type Message = typeof Message.Type
 
@@ -107,6 +110,7 @@ export const initial: Model = {
   }),
   due: Option.none(),
   notices: Notices.init({ id: 'preview-notices' }),
+  range: 'week',
 }
 
 type Step = Update.Step<Model, Message>
@@ -286,6 +290,8 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotCalendar: ({ message }) => foldCalendar(model, message),
     GotDatePicker: ({ message }) => foldDatePicker(model, message),
     GotNotices: ({ message }) => foldNotices(model, message),
+    ChoseRange: ({ range }) =>
+      range === model.range ? { model } : { model: modifyFields(model, { range: () => range }) },
     SavedDraft: () =>
       notify(model, {
         variant: 'Success',

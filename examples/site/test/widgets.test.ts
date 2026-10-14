@@ -111,4 +111,14 @@ describe('the previews with state', () => {
     const saved = send(Widgets.Message.SavedDraft())
     expect(saved.widgets.notices.entries.map(entry => entry.payload.title)).toEqual(['Draft saved'])
   })
+
+  it('press the range that was chosen, and stay put on the same one', () => {
+    const chosen = send(Widgets.Message.ChoseRange({ range: 'month' }))
+    expect(chosen.widgets.range).toBe('month')
+    const again = update(
+      chosen,
+      Message.GotWidget({ message: Widgets.Message.ChoseRange({ range: 'month' }) }),
+    )
+    expect(again.model.widgets).toBe(chosen.widgets)
+  })
 })

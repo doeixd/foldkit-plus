@@ -32,6 +32,7 @@ import {
   PopoverSlots,
   RadioGroupSlots,
   Recipes,
+  SegmentedSlots,
   SelectSlots,
   SeparatorSlots,
   SkeletonSlots,
@@ -417,6 +418,25 @@ export const showcases: ReadonlyArray<Showcase> = [
       contract: 'EmptySlots',
     },
     () => Snippet.empty(Snippet.EmptyStyle, inert),
+  ),
+  fromRecipe(
+    {
+      slug: 'segmented',
+      title: 'Segmented',
+      summary: 'A few options in a tray, one pressed, with a pill that slides to a new press.',
+      recipe: 'Segmented',
+      file: 'segmented',
+      contract: 'SegmentedSlots',
+    },
+    SegmentedSlots,
+    Recipes.Segmented,
+    (style, live) =>
+      Snippet.segmented(
+        style,
+        live.widgets.range,
+        range => live.onWidget(Widgets.Message.ChoseRange({ range })),
+        live.h,
+      ),
   ),
   fromRecipe(
     {
