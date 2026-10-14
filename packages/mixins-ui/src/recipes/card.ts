@@ -6,7 +6,7 @@
  * regions or lays them in a row (the image or media leading, the footer
  * trailing); `surface` is how it stands off the page, `plain` inside a group
  * that draws the frame; `padding` is the one size. A pressable card tints on
- * hover; a selected one keeps a fill and a heavier title.
+ * hover; a selected one keeps a fill, in each surface, and a heavier title.
  *
  * A group lays cards in `--fk-card-columns` columns, divided by hairlines or
  * apart, and draws the one highlight that follows the pointer between them.
@@ -36,7 +36,6 @@ export const Card = Style.recipeFor(CardSlots)({
         overflow: 'clip',
         ...transition('background-color, box-shadow, opacity'),
       }),
-      Style.nest(selected, { background: ref.surface.muted }),
       Style.nest('&[data-disabled="true"]', { opacity: '0.5' }),
     ),
     image: component(
@@ -219,13 +218,17 @@ export const Card = Style.recipeFor(CardSlots)({
             boxShadow: ref.shadow.xs,
           }),
           Style.nest(pressableHover, { boxShadow: ref.shadow.md }),
-          Style.nest(selected, { borderColor: ref.outline.default }),
+          Style.nest(selected, {
+            background: ref.surface.subtle,
+            borderColor: ref.outline.default,
+          }),
         ),
       },
       elevated: {
         root: variant(
           Style.self({ background: ref.surface.base, boxShadow: ref.shadow.md }),
           Style.nest(pressableHover, { boxShadow: ref.shadow.lg }),
+          Style.nest(selected, { background: ref.surface.subtle }),
         ),
       },
       filled: {
@@ -235,9 +238,13 @@ export const Card = Style.recipeFor(CardSlots)({
           Style.nest(selected, { background: ref.surface.default }),
         ),
       },
-      // A group's highlight is the hover, so a plain card draws none of its own.
+      // A group's highlight is the hover, so a plain card draws none of its own;
+      // chosen, it keeps a fill a shade past the highlight's.
       plain: {
-        root: variant(Style.self({ background: 'transparent', borderRadius: ref.radius.md })),
+        root: variant(
+          Style.self({ background: 'transparent', borderRadius: ref.radius.md }),
+          Style.nest(selected, { background: ref.surface.muted }),
+        ),
       },
     },
     padding: {

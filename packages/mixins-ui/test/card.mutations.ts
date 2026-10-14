@@ -192,4 +192,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a chosen plain card loses its fill',
+    edits: [
+      {
+        file: recipe,
+        find: '          Style.nest(selected, { background: ref.surface.muted }),\n',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
 ]

@@ -54,6 +54,7 @@ const view = (_: Model, h: HtmlBuilder<Message>) =>
           cards: ['a', 'b', 'c'].map(key => ({
             key,
             title: `Card ${key}`,
+            selected: key === 'c',
             press: { onClick: Message.Pressed({ key }) },
           })),
           label: 'Choices',
@@ -132,6 +133,18 @@ test('the dismiss button shows on hover and dismisses alone', async () => {
     await vi.waitFor(() => expect(getComputedStyle(dismiss).opacity).toBe('1'))
     await userEvent.click(dismiss)
     await vi.waitFor(() => expect(log()).toEqual(['Dismissed:solo']))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a chosen card in a group keeps a fill of its own', async () => {
+  const { handle } = mount()
+  try {
+    await vi.waitFor(() => expect(byName('Card c')).toBeTruthy())
+    const fill = (name: string) => getComputedStyle(byName(name).parentElement!).backgroundColor
+    expect(fill('Card a')).toBe('rgba(0, 0, 0, 0)')
+    expect(fill('Card c')).not.toBe('rgba(0, 0, 0, 0)')
   } finally {
     handle.dispose()
   }
