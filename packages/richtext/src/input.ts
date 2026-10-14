@@ -15,6 +15,12 @@ export interface InputMatch {
   /** How many characters of that text the rule consumed; the caller deletes them. */
   readonly remove: number
   readonly commands: Action
+  /**
+   * The marks the text typed next carries, when the rule decides it: `**bold**` ends its bold, so
+   * typing on is plain, though the bold run would otherwise continue. Absent, the editor's own
+   * rule applies.
+   */
+  readonly storedMarks?: ReadonlyArray<string> | undefined
 }
 
 /**
@@ -50,7 +56,17 @@ export interface InputContext {
  * A rule that claims to consume more than it was shown throws: those deletes would run past
  * the block's start and join it to the one before, which no rule means.
  */
-export const applyInputRules = (rules: ReadonlyArray<InputRule>, input: InputContext): Action => {
+export const applyInputRules = (rules: ReadonlyArray<InputRule>, input: InputContext): Action =>
+  resolveInputRules(rules, input).action
+
+/**
+ * `applyInputRules`, with the marks the matching rule says the next typed text carries, which an
+ * editor keeps as its stored marks.
+ */
+export const resolveInputRules = (
+  rules: ReadonlyArray<InputRule>,
+  input: InputContext,
+): { readonly action: Action; readonly storedMarks?: ReadonlyArray<string> | undefined } => {
   const typed = `${input.textBefore}${input.text}`
   for (const rule of rules) {
     const matched = rule.match(typed, input.within ?? [])
@@ -64,7 +80,10 @@ export const applyInputRules = (rules: ReadonlyArray<InputRule>, input: InputCon
       { length: matched.remove },
       (): Command => ({ type: 'DeleteBackward' }),
     )
-    return [input.insertion, ...consumed, ...matched.commands]
+    return {
+      action: [input.insertion, ...consumed, ...matched.commands],
+      storedMarks: matched.storedMarks,
+    }
   }
-  return [input.insertion]
+  return { action: [input.insertion] }
 }

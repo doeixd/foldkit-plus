@@ -20,6 +20,12 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext-markdown`: inline markers close as they are typed.**
+  `**bold**`, `*italic*`, `_italic_`, `` `code` `` and `~~struck~~` become
+  marked text when the closing marker is typed, and typing on is plain
+  (`markdownInlineRules`, part of `markdownInputRules`). An input rule can say
+  what the next text carries (`InputMatch.storedMarks`, read by
+  `resolveInputRules`), which the editor keeps.
 - **`foldkit-mixins-richtext`: `tableToolbar` and `codeToolbar`.** The table
   toolbar adds and deletes rows and columns around the caret's cell, switches
   the header row and deletes the table; the code toolbar picks a code block's

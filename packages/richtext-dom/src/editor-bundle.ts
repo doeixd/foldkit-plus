@@ -500,7 +500,7 @@ const transition = (
       // the editor carries none of any syntax's vocabulary itself.
       const ruled =
         queryRange === undefined && message._tag === 'Typed'
-          ? RichText.applyInputRules(inputRulesFor(model.hostId), {
+          ? RichText.resolveInputRules(inputRulesFor(model.hostId), {
               textBefore: textBeforeOf(model),
               text: message.text,
               insertion: command,
@@ -510,7 +510,7 @@ const transition = (
       const attempt = runAction(
         queryRange !== undefined
           ? [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command]
-          : (ruled ?? [command]),
+          : (ruled?.action ?? [command]),
       )
       // A rule the vocabulary refuses — a fence typed into bold text, say — leaves the marker
       // as the text it is, rather than refusing the keystroke along with it. The refused
@@ -534,8 +534,11 @@ const transition = (
           ...model,
           selection: result.state.selection,
           nextId,
-          // A caret move ends the format it was carrying.
-          storedMarks: message._tag === 'Selected' ? null : storedMarks,
+          // A caret move ends the format it was carrying; a rule that applied may set the next.
+          storedMarks:
+            message._tag === 'Selected'
+              ? null
+              : ((fallback ? undefined : ruled?.storedMarks) ?? storedMarks),
           history: contentChanged
             ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
             : model.history,

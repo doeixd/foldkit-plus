@@ -794,6 +794,23 @@ describe('an input rule placed for the editor (§124 §4)', () => {
         : undefined,
   }
 
+  it('takes the marks a rule says the next text carries, unless the rule is refused', () => {
+    // `!` ends the bold the caret would otherwise carry on.
+    const ending: RichText.InputRule = {
+      name: 'ending',
+      match: textBefore =>
+        textBefore.endsWith('!') ? { remove: 0, commands: [], storedMarks: [] } : undefined,
+    }
+    editorAt('rule-editor', { inputRules: [ending] })
+    const initial = start(caret('b', 2))
+    const placed: Model = {
+      ...initial,
+      editor: { ...initial.editor, hostId: 'rule-editor', storedMarks: ['Italic'] },
+    }
+    expect(step(placed, typed('!')).editor.storedMarks).toEqual([])
+    expect(step(placed, typed('?')).editor.storedMarks).toEqual(['Italic'])
+  })
+
   it('runs the rule as the marker is completed, in the same transition', () => {
     editorAt('rule-editor', { inputRules: [heading] })
     const initial = start(caret('a', 0))

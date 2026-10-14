@@ -127,7 +127,15 @@ item to it; and a fence with an optional language, such as
 `` ```ts `` then a space, converts it to a `CodeBlock` (`ConvertBlock`). `[ ] ` or `[x] ` at
 the start of a list item, which `- ` has made by then, makes the item a task where it stands,
 unticked or ticked (`RetypeContainer`), in a bulleted or an ordered list, with any list nested
-in it. Typed in a later paragraph of the item, the marker stays text, as Markdown reads it. An editor
+in it. Typed in a later paragraph of the item, the marker stays text, as Markdown reads it.
+
+The inline markers close as they are typed (`markdownInlineRules`, which `markdownInputRules`
+ends with): `**bold**`, `*italic*` and `_italic_`, `` `code` ``, and `~~struck~~` become marked
+text the moment the closing marker is typed, and what is typed next is plain again. The content
+is not empty, does not start or end with a space, and holds no delimiter character, and the
+opening marker stands at the block's start or after a space, an opening bracket or a quote, so
+`snake_case_name` and `2*3*4` stay text. Inside a `CodeBlock`, which forbids marks, the markers
+stay the text they are. An editor
 placement in `foldkit-richtext-dom` names the rules it applies, so this package holds no
 editor state and the editor holds no Markdown:
 

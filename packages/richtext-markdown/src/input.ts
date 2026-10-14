@@ -120,7 +120,58 @@ const taskRule: InputRule = {
   },
 }
 
-/** The block markers the standard vocabulary can carry out. */
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+const graphemeCount = (text: string): number => Array.from(graphemes.segment(text)).length
+
+/** What may stand before an opening delimiter: the block's start, a space, or an opening mark. */
+const OPENS_AFTER = /[\s([{"'“‘]/u
+
+/**
+ * An inline marker, closed as it is typed: `**bold**` becomes bold text the moment the second
+ * `**` is, and what is typed next is plain again. The content is not empty, neither starts nor
+ * ends with a space, and holds no delimiter character, and the opening stands at the block's
+ * start or after a space or an opening bracket or quote, so `snake_case_name` and `2*3*4` stay
+ * text. The marked text replaces the delimited run, so one undo restores what was typed.
+ */
+const inlineRule = (name: string, delimiter: string, mark: string): InputRule => ({
+  name,
+  match: textBefore => {
+    if (!textBefore.endsWith(delimiter)) return undefined
+    const closing = textBefore.length - delimiter.length
+    const opening = textBefore.lastIndexOf(delimiter, closing - delimiter.length - 1)
+    if (opening < 0) return undefined
+    const content = textBefore.slice(opening + delimiter.length, closing)
+    const before = textBefore[opening - 1]
+    if (
+      content.length === 0 ||
+      content.includes(delimiter[0]!) ||
+      content.trim() !== content ||
+      (before !== undefined && !OPENS_AFTER.test(before))
+    ) {
+      return undefined
+    }
+    return {
+      // Backward deletes remove a grapheme each, so the run is counted in graphemes.
+      remove: graphemeCount(textBefore.slice(opening)),
+      commands: [{ type: 'InsertText', text: content, marks: [mark] }],
+      storedMarks: [],
+    }
+  },
+})
+
+/**
+ * The inline markers: `**bold**`, `*italic*` and `_italic_`, `` `code` ``, and `~~struck~~`.
+ * Content never holds its delimiter's character, so `**a**` is never read as italic around `*a*`.
+ */
+export const markdownInlineRules: ReadonlyArray<InputRule> = [
+  inlineRule('bold', '**', 'Bold'),
+  inlineRule('strikethrough', '~~', 'Strikethrough'),
+  inlineRule('italic', '*', 'Italic'),
+  inlineRule('italic-underscore', '_', 'Italic'),
+  inlineRule('code', '`', 'Code'),
+]
+
+/** The block markers the standard vocabulary can carry out, then the inline ones. */
 export const markdownInputRules: ReadonlyArray<InputRule> = [
   ...HEADING_LEVELS.map(level => headingRule(level)),
   quoteRule,
@@ -128,4 +179,5 @@ export const markdownInputRules: ReadonlyArray<InputRule> = [
   orderedRule,
   fenceRule,
   taskRule,
+  ...markdownInlineRules,
 ]

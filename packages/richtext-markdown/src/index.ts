@@ -9,7 +9,7 @@
  * arrives when a custom syntax needs both directions at once.
  */
 export { MarkdownDiagnostic } from './diagnostic.js'
-export { markdownInputRules } from './input.js'
+export { markdownInlineRules, markdownInputRules } from './input.js'
 export { print, type PrintedMarkdown, type PrintOptions } from './print.js'
 export { BlockSpelling, MarkdownStyle } from './style.js'
 export { parse, type ParseOptions, type ParsedMarkdown } from './parse.js'

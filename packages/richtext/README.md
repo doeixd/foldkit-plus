@@ -141,7 +141,7 @@ interface InputRule {
   match: (
     textBefore: string,
     within: ReadonlyArray<string>,
-  ) => { remove: number; commands: Action } | undefined
+  ) => { remove: number; commands: Action; storedMarks?: ReadonlyArray<string> } | undefined
 }
 ```
 
@@ -158,6 +158,10 @@ claims to consume more than the text it was shown throws, because those deletes 
 past the block's start and join it to the one before. `textBefore` for a selection that is
 a range is read from `rangeStart(document, range)` — the end that comes first, whichever
 way the range was made — since that is where what is typed over it lands.
+`resolveInputRules` returns the same action with the matching rule's `storedMarks`: the marks
+the text typed next carries, which an editor keeps, so `**bold**` closed as typed ends its bold
+rather than letting the bold run continue. A delete removes a whole grapheme, so `remove` counts
+graphemes.
 
 `RetypeBlock` changes the type of the block the selection starts in — `Paragraph`, or
 a `Heading` at a level — and keeps that block's runs, so identities and the caret
