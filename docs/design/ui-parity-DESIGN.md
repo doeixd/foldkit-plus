@@ -87,8 +87,15 @@ sources (see "How each component is built").
    one Mount. The brief's skips (labels that only the chosen tab shows, weight
    without reflow, menu checkbox rows and submenus, a pause after a pick)
    stay recorded in it.
-3. **`/create` at shadcn's level.** Beside today's palette, radius, density,
-   motion, shadow and font knobs:
+3. **`/create` at shadcn's level.** *Done, as the brief below records:* a
+   `neutral-h` knob for base colors, the palette's `popup` tokens for the menu
+   accent and color, and `/create` choices for style, base color, menu
+   accent and color, size, motion, heading font and direction. Two adapt
+   rather than adopt: compact is a density step until a size knob steps the
+   type too, and a style moves knobs only, until recipes take presets.
+   Right to left found the gliding overlays anchored at the wrong edge. The
+   original list, beside today's palette, radius, density, motion, shadow and
+   font knobs:
    - a neutral hue and chroma apart from the accent's (shadcn's base colors);
    - menu accent `subtle` or `bold`, as a token the popup recipes read;
    - a control size, `default` or `compact`, as a `knob` the recipes' heights
