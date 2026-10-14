@@ -116,3 +116,5 @@ export {
   type SlashEntry,
   type SlashMenu,
 } from './slash.js'
+/** The table of contents, from the document's headings, and its slots. */
+export { TableOfContentsSlots, tableOfContents, type TableOfContentsInput } from './contents.js'

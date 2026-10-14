@@ -224,7 +224,8 @@ Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, 
 (`placeholder` marks a blank document's block with `data-placeholder` for a stylesheet's
 `::before`, and the textbox root with `aria-placeholder`; `decorate` sees the document only,
 and `overlay(hostId, decorations)` is the Command for decorations from application state,
-such as other people's carets),
+such as other people's carets; `focus(hostId, selection)` focuses the editor with a selection,
+scrolled into view, for a control outside it such as a table of contents),
 `application`/`update`, and the Messages a host dispatches (the host is a `<foldkit-richtext>`
 custom element; with `serverRendered: SSR.serving` the server sends the document's markup in it,
 and the browser's editor adopts it); every accepted edit returns
@@ -257,7 +258,9 @@ unless asked; across runs but never across blocks) and `searchDecorations(docume
 (`positionInBlock(block, offset)` is the offset-to-position read they share); the `Replace`
 command (`{ query, replacement, caseSensitive, at }`, the editor's `ReplacedText`) replaces
 one match or all as one undo step, and `foldkit-mixins-richtext`'s `findReplace` is the bar
-(it sends `stepped(1 | -1)`, which `update` applies with `stepMatch` to the current match), `codeDecorations(document, tokenizers)`
+(it sends `stepped(1 | -1)`, which `update` applies with `stepMatch` to the current match);
+`outlineOf(document)` lists the headings with text and `sectionAt(document, selection)` the
+one whose section holds the caret, which `foldkit-mixins-richtext`'s `tableOfContents` draws, `codeDecorations(document, tokenizers)`
 runs the `CodeTokenizer` registered in a `Map` for each `CodeBlock`'s `language` and returns
 its tokens as decorations (a token outside the text throws; `foldkit-richtext-code`'s
 `jsonTokenizer` is the first grammar, and never throws on half-typed JSON;

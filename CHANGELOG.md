@@ -20,6 +20,11 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **A table of contents.** `foldkit-richtext`'s `outlineOf` lists a document's
+  headings and `sectionAt` the section a selection is in;
+  `foldkit-mixins-richtext`'s `tableOfContents` draws them; and
+  `foldkit-richtext-dom`'s `focus(hostId, selection)` Command sends the reader
+  into the text with that selection, scrolled into view.
 - **Find and replace.** `foldkit-richtext`'s `findMatches` lists a query's
   matches (case not counting unless asked), `searchDecorations` takes a
   `current` match drawn as `search-current`, and `Replace` replaces one match or

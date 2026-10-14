@@ -209,3 +209,4 @@ export {
 export * as Replicated from './replicated.js'
 export { type TableAt, tableAt } from './table.js'
 export { INDENT } from './indent.js'
+export { type OutlineEntry, outlineOf, sectionAt } from './outline.js'

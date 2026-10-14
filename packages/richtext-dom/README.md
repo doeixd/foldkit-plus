@@ -112,6 +112,10 @@ What each part does, and does not do:
   the `overlay(hostId, decorations)` Command instead. It draws them after the placement's
   own and leaves the caret where it is. Its positions name the document shown, so set it
   again when that changes; placing the host id again starts it with none.
+  `focus(hostId, selection)` is the Command that sends the reader into the text from a control
+  outside it (a table of contents, a find bar closing on its match): the editor takes the focus
+  with that selection, scrolled to the middle of the window when it is out of view. The browser
+  reports the selection back as `Selected`.
 - **`slashEntries`**: what its slash menu offers, which Enter in a query resolves against: an
   application's own catalogue (an image, a table, a callout), beside or instead of the
   editor's `slashEntries`. The application's menu view draws the same list.

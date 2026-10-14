@@ -18,6 +18,7 @@ import type * as Update from 'foldkit/update'
 import {
   heldDocument,
   events,
+  focusEditor,
   Message,
   patchEditor,
   redecorateEditor,
@@ -396,6 +397,19 @@ export const overlay = (
       placeOverlay(hostId, decorations)
       redecorateEditor(hostId)
     }),
+    Message.Patched(),
+  ),
+})
+
+/**
+ * Focuses the editor at `hostId` with `selection` in the browser, brought into view: for a
+ * control outside the editor that sends the reader into the text, such as a table of contents.
+ * The browser reports the selection back as `Selected`, so the Model follows it either way.
+ */
+export const focus = (hostId: string, selection: RichText.Selection): Command.Command<Message> => ({
+  name: 'RichText.focus',
+  effect: Effect.as(
+    Effect.sync(() => focusEditor(hostId, selection)),
     Message.Patched(),
   ),
 })

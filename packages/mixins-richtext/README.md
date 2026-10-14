@@ -309,6 +309,19 @@ document, and replacing is the editor's `ReplacedText`, an edit with its undo st
 | `count` | Container | the count, `aria-live` |
 | `button` | Interactive | `data-find`: `previous`, `next`, `case`, `replace`, `replace-all`, `close` |
 
+## The table of contents
+
+`tableOfContents<Message>()` draws `RichText.outlineOf(document)` as a `nav` of buttons, the
+section the selection is in (`RichText.sectionAt`) marked `aria-current="location"`. Choosing an
+entry sends `chosen(node)`; going there is the caller's, usually the editor's `focus(hostId,
+selection)` Command with a caret at the heading's start. Nothing is drawn without headings.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the `nav`, labelled Contents |
+| `list` | Container | the `ul` |
+| `entry` | Interactive | a heading's button, its depth as `--fk-toc-level` (1 for the shallowest level used) |
+
 ## The command palette
 
 The slash menu's catalogue, searched from a field of its own instead of typed into the

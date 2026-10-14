@@ -251,6 +251,12 @@ export interface Attachment {
    */
   readonly redecorate: () => void
   /**
+   * Takes the focus with the caret or range at `selection`, scrolled into view when it is out
+   * of it: for a control outside the editor that sends the reader into the text, such as a table
+   * of contents or a find bar closing on its match.
+   */
+  readonly focus: (selection: RichText.Selection) => void
+  /**
    * The latest document synced: the one waiting on a composition, or else the one drawn. A
    * patch computed from here to the next state is what brings the subtree up to it.
    */
@@ -518,6 +524,17 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       const selection = readSelection(current)
       redraw(patchInto(current, current.content, unchanged, options.decorate?.(current.content)))
       if (selection !== null) restoreSelection(current, selection)
+    },
+    focus: selection => {
+      current.root.focus({ preventScroll: true })
+      restoreSelection(current, selection)
+      if (selection.type !== 'Range') return
+      const at = positionToRange(current, selection.focus)?.startContainer
+      const element = at instanceof Element ? at : at?.parentElement
+      const box = element?.getBoundingClientRect()
+      const view = current.root.ownerDocument.defaultView
+      if (box === undefined || view === null) return
+      if (box.top < 0 || box.bottom > view.innerHeight) element?.scrollIntoView({ block: 'center' })
     },
     sync: (state, changeSet) => {
       if (!composing) return draw(state, changeSet)

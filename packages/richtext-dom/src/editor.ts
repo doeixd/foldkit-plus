@@ -344,6 +344,17 @@ export const redecorateEditor = (hostId: string): boolean => {
 }
 
 /**
+ * Focuses the editor at `hostId` with `selection` in the browser (`Attachment.focus`); false
+ * when none is attached there.
+ */
+export const focusEditor = (hostId: string, selection: RichText.Selection): boolean => {
+  const host = document.getElementById(hostId)
+  const attachment = host === null ? undefined : attachmentIn(host)
+  attachment?.focus(selection)
+  return attachment !== undefined
+}
+
+/**
  * The latest document the editor at `hostId` holds (`Attachment.held`), or undefined when none
  * is attached there.
  */

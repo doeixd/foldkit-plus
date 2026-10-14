@@ -680,6 +680,12 @@ transaction, reading each match again where the replacements after it left the t
 offset)` is the read it shares with `textRangeBefore` — the position a block's own text offset
 addresses — and the one any producer of ranges needs.
 
+The outline is a read of the same kind. `outlineOf(document)` lists the headings that have text,
+in document order and inside containers too, as `{ node, level, text }`; `sectionAt(document,
+selection)` is the heading of the section the selection starts in, the last such heading at or
+before its block, and undefined before the first. A table of contents draws the one and marks the
+other.
+
 Code highlighting is the second producer. A `CodeBlock` holds its `language` and plain text,
 and a `CodeTokenizer` — a pure `(text) => ReadonlyArray<{ from, to, kind }>` over that text —
 says what is in it; `codeDecorations(document, tokenizers)` runs the tokenizer registered for
