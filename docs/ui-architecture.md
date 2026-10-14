@@ -2,9 +2,8 @@
 
 The vocabulary every Foldkit Plus UI layer shares, written down after the
 fact from what is built — not before it as a wish. If a new API does not
-fit these ten nouns, the API is wrong, not the list. (Design source:
-[ui-DESIGN.md](./design/ui-DESIGN.md) Phase 0; package sources of truth are
-the READMEs and the skill reference.)
+fit these ten nouns, the API is wrong, not the list. (The package
+sources of truth are the READMEs and the skill reference.)
 
 ```text
 Theme / Tokens / Knobs
@@ -137,5 +136,3 @@ not ad-hoc CSS.
 - [Mixins guide](./mixins.md) — Slot / Style / Behavior mental model.
 - [`foldkit-mixins-ui`](../packages/mixins-ui/README.md) — the adapters,
   the fork policy, and the supported-components table.
-- [UI design](./design/ui-DESIGN.md) — the full roadmap this contract
-  sequences (contract, then capabilities, then widgets).

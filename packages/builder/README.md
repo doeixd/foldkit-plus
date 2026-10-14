@@ -7,7 +7,7 @@ form key's control: the page is the key's value, so the form validates it,
 submits it, and a CMS autosaves it.
 
 > **Status:** experimental, `0.1.0`, on npm from the 0.16.0 release. The headless Builder and a plain
-> view, from the [page builder design](../../docs/design/pagebuilder-DESIGN.md).
+> view.
 > The drawn editor is [`foldkit-mixins-builder`](../mixins-builder/README.md).
 
 ## What it owns

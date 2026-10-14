@@ -12,7 +12,7 @@ your application         every piece of state the chrome shows, and where it is 
 foldkit-mixins-richtext  nothing: each view is a function of what it is given  (this package)
 ```
 
-The editor renders its host and nothing else (§29 of the Rich Text design); the chrome beside
+The editor renders its host and nothing else; the chrome beside
 it is the application's. `foldkit-richtext-dom/toolbar` ships plain versions of some of it,
 such as `marksToolbar`. This package draws the same chrome as slot views. It cannot wrap the
 plain ones, because a slot's contributions resolve at the element the view creates, so a slot
@@ -173,7 +173,7 @@ nothing, and it starts from what the menu highlights now rather than a remembere
 query that narrowed past the old one does not move from a position no one can see. The keys
 are the application's to handle, because only it knows the caret: ArrowUp/Down, Home/End, and
 Escape in `OnKeyDownPreventDefault` while a query is open, writing the index to
-`editor.menuIndex`. Enter is not: the editor's `update` resolves it against that index (§123).
+`editor.menuIndex`. Enter is not: the editor's `update` resolves it against that index.
 
 Each item carries `data-entry` (its id), `role="menuitem"`, `aria-current="true"` on the
 highlighted one, and its entry's Message on click. Outside a query the view draws an empty

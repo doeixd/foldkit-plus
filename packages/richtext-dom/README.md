@@ -98,16 +98,16 @@ What each part does, and does not do:
 
 `editorAt(hostId, placement)` takes, each optional:
 
-- **`rendering`**: how marks and node kinds become elements (§121); the default renders the
+- **`rendering`**: how marks and node kinds become elements; the default renders the
   core's own names. A mark renders *inside* its run element, so the run stays outermost and a
   selection still maps.
 - **`vocabulary`**: `{ marks, nodes }` registries. The editor refuses an edit a declaration
-  forbids, rather than only letting `validate` report it later (§125).
+  forbids, rather than only letting `validate` report it later.
 - **`inputRules`**: rules applied to what is typed, so a marker turns into a block change as it
-  is completed (§128), such as `foldkit-richtext-markdown`'s `markdownInputRules`. A rule the
+  is completed, such as `foldkit-richtext-markdown`'s `markdownInputRules`. A rule the
   vocabulary refuses does not cost the keystroke: the text is inserted on its own.
 - **`decorate`**: `document => DecorationSet`, drawn over the document on the mount and every
-  patch (§129), code highlighting for one. It sees the document only. A highlight derived
+  patch, code highlighting for one. It sees the document only. A highlight derived
   from application state, such as a search query or other people's carets, goes through
   the `overlay(hostId, decorations)` Command instead. It draws them after the placement's
   own and leaves the caret where it is. Its positions name the document shown, so set it
@@ -197,7 +197,7 @@ submitted, and reported by `authoredChanged` like any other.
 
 ## Chrome around the editor
 
-The editor renders its host and nothing else (§29). A toolbar, a menu, a handle: each is the
+The editor renders its host and nothing else. A toolbar, a menu, a handle: each is the
 application's chrome, drawn beside the host from the Model, sending the editor's Messages.
 This package ships the plain versions below; `foldkit-mixins-richtext` draws the same chrome
 as slot views an application restyles.
@@ -268,7 +268,7 @@ by the block (`h.Key(node)`) when the block it stands for can change.
 ### The slash menu
 
 The editor owns the slash menu's vocabulary, because an entry is one of its own Messages and
-the Bundle resolves Enter by handling the chosen entry as that Message (§123):
+the Bundle resolves Enter by handling the chosen entry as that Message:
 
 ```ts
 import { slashEntries, slashMenu, slashQuery } from 'foldkit-richtext-dom/editor'
@@ -288,7 +288,7 @@ slashMenu(slashEntries, 'see /head', 0)?.highlighted?.label // 'Heading 1'
 - **`EditorState.menuIndex`** is the one thing a menu owns. The application moves it (with
   `slashMove` from `foldkit-mixins-richtext`), and on `Entered` the Bundle treats the
   highlighted entry as the Message a click would send. Choosing an entry also removes the
-  query typed for it, as one action (§124 §5): one transition and one undo step.
+  query typed for it, as one action: one transition and one undo step.
 
 `matchingEntries` filters, and it, `slashQuery`, and `slashMenu` work over any entries carrying
 a `message`, so an application's own catalogue reuses them.
@@ -306,14 +306,14 @@ renderDocument(document, renderer) // a declared Link as a real <a href>
 renderDocument(document, renderer, decorations) // a decoration overlaid on the runs it covers
 ```
 
-It takes the same `rendering(...)` registry as the HTML serializer and the editor (§121), so a
+It takes the same `rendering(...)` registry as the HTML serializer and the editor, so a
 declared mark or kind becomes the same element everywhere, custom elements included. Without
 one, blocks become `p`/`h1`–`h6`, marks nest as `strong`/`em`/`code` in the serializer's order,
 an undeclared mark rides on a `span` with `data-marks`, and an unknown block renders as an
 inert `div data-unknown="Type"` placeholder. A tag Foldkit cannot build is reported, never
 swapped for another element.
 
-A decoration set (§64, §126) is projected with `RichText.decorationsIn`: each covered piece of
+A decoration set is projected with `RichText.decorationsIn`: each covered piece of
 a run becomes a `span[data-decoration=<kind>]` with the run's marks inside it, which is also how
 the editor draws one, so one stylesheet serves both. Each string field of the decoration's
 `data` whose name is lowercase letters, digits, and hyphens is drawn as
@@ -429,7 +429,7 @@ that transition committed.
   `decorations` is the next render's whole set, so a run whose share of it changed is redrawn,
   and a patch without one clears what was drawn. An element that is no longer what its block
   renders as (a heading re-leveled to `h3`, say) is re-rendered rather than kept.
-- **`repair(dom, content)`** is recovery, not domain state (§31): it drops what the subtree
+- **`repair(dom, content)`** is recovery, not domain state: it drops what the subtree
   holds that the document does not, re-renders blocks whose rendering drifted, and returns the
   same `EditorDom` when nothing was wrong. Call it after a cancelled IME.
 - **`positionToRange` and `rangeToPosition`** translate between a semantic `Position` and a DOM
@@ -440,7 +440,7 @@ that transition committed.
 
 A Foldkit view owns the host element; the interpreter owns what goes inside it. `mountInto`
 renders into the host and records the attachment there, so a patch Command that has only the
-element can find it (§118):
+element can find it:
 
 ```ts
 import { attachmentIn, mountInto, releaseMount } from 'foldkit-richtext-dom/host'

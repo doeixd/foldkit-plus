@@ -6,9 +6,8 @@ activates — as data that compiles down to the primitives the runtime already
 runs. This guide builds a site end to end: nodes, navigation, data fetching
 without waterfalls, prefetching, server rendering, and SEO.
 
-The package README is the onboarding reference; the
-[router design](./design/router-DESIGN.md) (see its Status section first)
-is the reasoning. This guide is the path between them.
+The package README is the onboarding reference; this guide is the path
+from it to a working application.
 
 ## The one rule
 
@@ -307,7 +306,7 @@ Three facts compose into it:
 The remaining round trip is the mutation-then-refetch: a mutation patches
 entities, but a query whose membership changed (archiving out of an active
 list) refetches in a second request. Single-flight — answering the affected
-requirements in the mutation's response — is designed (§31.10) but
+requirements in the mutation's response — is designed but
 explicitly last: it starts with a request-count benchmark, then the wire.
 
 ## Intents that wait for their owner
@@ -390,7 +389,7 @@ The other side, from its docs ([preloading](https://tanstack.com/router/latest/d
 | Guards | `beforeLoad` redirects; server functions enforce | Route access would be presentation policy only (unbuilt); authority stays at `RemoteServer`/audience — the split is explicit, not layered |
 | Head/SEO | Per-route `head()` meta; SSR + streaming; prerender crawls links | Titles and head metadata (`Site.metaOf`) from the tree; SSR/static HTML + sitemap |
 | Mutations + refresh | Router invalidation reruns loaders | Entity/connection patches apply directly; membership-changing queries refetch (single-flight designed, last) |
-| Server boundary | Server functions alongside routes | Separate by design: documents → SSR, semantic data → `RemoteServer`, HTTP → Effect HttpApi — the Site never becomes an HTTP router (§26) |
+| Server boundary | Server functions alongside routes | Separate by design: documents → SSR, semantic data → `RemoteServer`, HTTP → Effect HttpApi — the Site never becomes an HTTP router |
 
 The deepest difference is not a feature list. TanStack owns the runtime:
 its router schedules, caches, preloads, and renders. Foldkit Plus refuses
@@ -424,8 +423,6 @@ proven demand, never as framework.
   the Router, and how it works.
 - [Site, Remote and SSR together](./site-remote-ssr.md) — one application
   built with all three, every snippet compiled and run.
-- [Router design, Status section](./design/router-DESIGN.md) — what is built,
-  what was refused, and the open questions.
 - [Routing example](../examples/foldkit/routing) — the third cut on Site
   placements and routing, the only app consumer so far.
 - [Server-derived state](./remote.md) — Remote's ownership and policies.

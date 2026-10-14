@@ -3,8 +3,6 @@
 Who is signed in, for a Foldkit Plus server: a [Yielded Auth](https://github.com/yielded-dev/auth)
 session read from the request and handed to Remote's `serveFetch` and Sync's
 document host as their principal.
-[`auth-DESIGN.md`](../../docs/design/auth-DESIGN.md) explains the design and
-why.
 
 ## What it is
 
@@ -228,7 +226,8 @@ export const entry = SSR.entry(config, plan, {
 ```
 
 That Layer cannot fail, so a post whose session ended is a `500` for now,
-not a way back to sign-in (auth-DESIGN §6.5, slice 10).
+not a way back to sign-in. Resolve the session in the host before calling
+`renderPage`, as `Site.access`'s 303 does, to answer it with a redirect.
 
 ## Refusals
 
@@ -268,9 +267,9 @@ that writes the header itself; `AuthServer.answered` needs `key`.
 
 ## Limits
 
-- Agents are planned (auth-DESIGN §9). A Sync replica
-  reconnects after a 4401 today, refused at each upgrade, until the client
-  learns to stop (slice 8).
+- MCP agents send a bearer credential, which no resolver here reads yet. A
+  Sync replica reconnects after a 4401, refused at each upgrade, since a
+  browser's `WebSocket` does not say why an upgrade failed.
 - Cookie sessions only; a bearer credential is not read.
 - A session cookie with a `domain` trusts every subdomain, as Yielded
   documents: one that sets its own cookie of the same name makes every

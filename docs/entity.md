@@ -73,6 +73,3 @@ A Remote application with two entities and no forms is simpler with Remote's own
 `Entity.make` and `Entity.ref`, which still work and can share a domain with
 Entities declared here. Reach for `foldkit-entity` when the same domain is about
 to be written down a second time.
-
-The design, and the order it was built in, is in
-[entity-DESIGN.md](./design/entity-DESIGN.md).

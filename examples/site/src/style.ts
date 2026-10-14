@@ -697,13 +697,14 @@ export const SiteStyle = slots(
         textDecorationColor: t.outline.default,
       }),
       Style.nest('a:hover', { textDecorationColor: t.text.overt }),
+      // A tint, no border, and little padding: a name in a sentence sits close
+      // to the punctuation around it, `(Me)` reading as one thing.
       Style.nest(':not(pre) > code', {
         fontFamily: t.font.mono,
         fontSize: '0.85em',
-        padding: '0.1em 0.3em',
+        padding: '0.0625em 0.25em',
         borderRadius: t.radius.sm,
         background: t.surface.muted,
-        border: rule,
       }),
       // Code that names something the site explains: the span keeps its look,
       // with the link's underline under it.
@@ -721,11 +722,17 @@ export const SiteStyle = slots(
       Style.nest('table', { minWidth: '100%' }),
       Style.nest(':is(th, td)', {
         textAlign: 'start',
-        padding: `0.5rem 0.75rem`,
+        padding: `0.625rem 0.75rem`,
         borderBlockEnd: rule,
         verticalAlign: 'top',
+        lineHeight: '1.5',
       }),
       Style.nest('th', { fontWeight: t.weight.medium, color: t.text.overt }),
+      // Each row's first cell names what the rest answer.
+      Style.nest('td:first-child', { color: t.text.overt }),
+      // Prose lets code break anywhere, which in a cell shrinks a column to a
+      // letter and splits a name mid-word; the table scrolls instead.
+      Style.nest(':is(th, td) code', { overflowWrap: 'normal', whiteSpace: 'nowrap' }),
       // An entry point's index: the name never breaks, the summary takes the rest.
       Style.nest('.index :is(th, td):first-child', { whiteSpace: 'nowrap' }),
       Style.nest('.full-type > summary', {

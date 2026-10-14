@@ -570,8 +570,7 @@ README documents its API.
 The [0.7 release post](./docs/blog/0.7.0.md) introduces Entity, Form, and Crud.
 The [documentation map](./docs/README.md) gives the full reading order, package
 references, design notes, and historical material. The
-[release matrix](./docs/releases.md) tracks published versions; the
-[revision plan](./docs/design/REVISION_PLAN.md) records ongoing design work.
+[release matrix](./docs/releases.md) tracks published versions.
 
 ## Status
 

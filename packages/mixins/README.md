@@ -104,8 +104,7 @@ projection, and `foldkit-mixins-ui` adapts `@foldkit/ui` components.
 
 The design-system pieces are subpaths, so an application that only attaches classes pays for
 none of them: `foldkit-mixins/layers`, `/theme`, `/layout`, `/defaults`, `/prose`, `/utilities`
-and `/app` (see
-[styleImprovements-DESIGN.md](../../docs/design/styleImprovements-DESIGN.md)).
+and `/app`.
 
 ## Quick start
 
@@ -877,9 +876,6 @@ boundary.
 The API is still settling (`0.2.x`). This package replaces none of Foldkit's state or effect
 machinery — Commands, Subscriptions, Mounts, ManagedResources, Models or Submodels. Its job is
 narrower: make view customization explicit, typed and composable.
-
-The [design note](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md)
-records the substrate probes and implementation decisions.
 
 ## See also
 

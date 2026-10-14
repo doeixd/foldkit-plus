@@ -653,5 +653,3 @@ transitions.
 - Adapter READMEs: [WebMCP](../packages/agent-webmcp),
   [MCP](../packages/agent-mcp), [A2A](../packages/agent-a2a), and
   [Agent Native](../packages/agent-native).
-- [`docs/design/agent-DESIGN.md`](./design/agent-DESIGN.md) — design rationale
-  and rejected alternatives.

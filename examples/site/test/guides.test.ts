@@ -5,9 +5,10 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-import type { Subsite } from '../src/catalog.js'
+import { allSubsites, type Subsite } from '../src/catalog.js'
 import { GITHUB, guidePages, slugger } from '../src/content/guides.js'
 import { textOf } from '../src/content/text.js'
 
@@ -120,4 +121,22 @@ describe('guidePages', () => {
       '/alpha/guides/beta',
     ])
   })
+})
+
+describe('the published guides', () => {
+  // Design notes and plans are the repository's working papers, not documentation.
+  const working = /docs\/design\/|-DESIGN\b|DESIGN\.md|-PLAN\b|PLAN\.md|REVISION_PLAN|§\d/
+
+  it('name no design note or plan, in their words or their links', () => {
+    const repository = fileURLToPath(new URL('../../..', import.meta.url))
+    const mentions = guidePages(repository, allSubsites).pages.flatMap(page => {
+      const said = JSON.stringify(page.nodes)
+      const match = working.exec(said)
+      return match === null
+        ? []
+        : [`${page.path}: …${said.slice(match.index - 40, match.index + 40)}…`]
+    })
+    expect(mentions).toEqual([])
+    // It builds every published page from the repository: seconds, under a full run's load.
+  }, 30_000)
 })

@@ -875,7 +875,7 @@ The scope is sugar over these, which remain for code that composes by hand:
   [`test/runtime.test.ts`](test/runtime.test.ts) does.
 - **Collections restart item streams together.** Keeping other items' streams
   running while one is added needs a dependency-change signal from Foldkit's
-  runtime; see the [design note](../../docs/design/bundle-DESIGN.md).
+  runtime.
 - **Collections cannot hold resources**, for the tag reason above.
 
 ## See also
@@ -887,5 +887,3 @@ The scope is sugar over these, which remain for code that composes by hand:
 - [Wiring](../../docs/wiring.md): Remote, Mirror, Sync, and Agent join the
   same assembly through wiring, so routing, startup, Subscriptions, and the
   Module derive from one list.
-- [Design note](../../docs/design/bundle-DESIGN.md) and
-  [DX plan](../../docs/design/bundle-DX-PLAN.md).
