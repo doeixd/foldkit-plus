@@ -14,6 +14,27 @@ version changed; `pnpm` skips versions already in the registry.
   the `x`, `y` or `xy` axis, skipping disabled items and following keyboard
   focus. It writes the item's place as custom properties and sends no Message;
   with `gapClick`, a click in a gap presses the highlighted item.
+- **`foldkit-mixins/theme`: `motion.spring`**, an easing token sampled from an
+  underdamped spring (4% overshoot, resting exactly at the end), for a CSS
+  transition that springs with no JavaScript.
+- **`foldkit-mixins-ui`: `Card.group` and `Recipes.CardGroup`**, cards as one
+  keyed list in one column or a grid, divided or apart, with one highlight that
+  follows the pointer to the nearest card (`FluidHover`); a press in a gap
+  presses the highlighted card.
+
+### Changed
+
+- **`foldkit-mixins-ui`: `Card` is pressable, selectable and dismissible.**
+  `press` (`{ onClick }` or `{ href, external? }`) stretches one button or link
+  over the card, named by `label` or the title; `selected`, `disabled`,
+  `dismiss`, an `image` and a `media` tile are new, `content` is optional, and
+  the view takes the application's Message. Breaking: `action` sits at the end
+  of the header rather than the footer, so a card that put its button in
+  `action` puts it in `footer`. The recipe adds `orientation` (`stacked`,
+  `inline`) and `surface` (`outlined`, `elevated`, `filled`, `plain`) axes and a
+  `compact` padding, and its padding is one private `--_fk-card-pad`.
+- **`foldkit-mixins-ui` peers on `foldkit-primitives`**, for `Card.group`'s
+  highlight.
 
 ## 0.21.0
 

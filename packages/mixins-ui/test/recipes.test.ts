@@ -24,6 +24,7 @@ import {
   AvatarSlots,
   TypographySlots,
   ScrollAreaSlots,
+  CardGroupSlots,
   CardSlots,
   AlertSlots,
   AspectRatioSlots,
@@ -66,6 +67,9 @@ const defined = new Set([
   ),
   // Set by a container drawn in its own color, not by a theme.
   'ink',
+  // Written on the element by the card group's view and its FluidHover, not by a theme.
+  'card-columns',
+  ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `card-hover-${part}`),
 ])
 
 /** Every selection of a recipe: the defaults, then each value of each axis. */
@@ -189,6 +193,9 @@ const compiled = {
   ),
   Card: selections(Recipes.Card.def.variants).map(
     selection => Style.forSlots(CardSlots)(Recipes.Card(selection)).css,
+  ),
+  CardGroup: selections(Recipes.CardGroup.def.variants).map(
+    selection => Style.forSlots(CardGroupSlots)(Recipes.CardGroup(selection)).css,
   ),
   Input: selections(Recipes.Input.def.variants).map(
     selection => Style.forSlots(InputSlots)(Recipes.Input(selection)).css,

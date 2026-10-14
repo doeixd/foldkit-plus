@@ -57,7 +57,17 @@ export const tokens = define({
   },
   leading: { tight: '1.2', snug: '1.375', normal: '1.5', relaxed: '1.6' },
   weight: { normal: '400', medium: '500', semibold: '600', bold: '700' },
-  motion: { fast: duration(150), normal: duration(250), ease: 'ease-out' },
+  motion: {
+    fast: duration(150),
+    normal: duration(250),
+    ease: 'ease-out',
+    // An underdamped spring (damping ratio 0.72), sampled: it overshoots by 4%
+    // and rests exactly at the end, so a highlight or a panel lands with weight
+    // but never wobbles. A CSS easing, so it needs no JavaScript and still
+    // follows the motion knob through the duration it is paired with.
+    spring:
+      'linear(0, 0.066, 0.215, 0.393, 0.566, 0.715, 0.833, 0.92, 0.978, 1.013, 1.032, 1.038, 1.037, 1.032, 1.026, 1.019, 1.013, 1.008, 1.004, 1.001, 1)',
+  },
   border: { thin: '1px', thick: '2px', heavy: '3px' },
   // Raised a little to a lot: a pressed control, a lifted cell, a menu, a
   // dialog. Each step is a tight contact layer plus a wide ambient one, so
