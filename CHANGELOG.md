@@ -7,6 +7,28 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.21.0
+
+Authentication through Yielded Auth. `foldkit-auth` 0.1.0 is new;
+`foldkit-remote` 0.18.0, `foldkit-remote-server` 0.14.0, `foldkit-sync`
+0.12.0, `foldkit-guard` 0.3.0, `foldkit-agent-mcp` 0.7.0, `foldkit-ssr` 0.7.0,
+`foldkit-site` 0.4.0 and `foldkit-plus` 0.3.0 for the changes below, and
+`foldkit-primitives` 0.10.2 for a corrected doc comment; every package that
+pins one of them republishes with a patch to re-pin.
+
+Five changes can break code written for 0.20:
+
+- `serveFetch`'s and `defineDocumentHost`'s `resolvePrincipal` returns an
+  Effect, refusing with `RemoteUnauthenticated`; a resolver that throws is a
+  500, where it was a 401 carrying its message.
+- `foldkit-agent-mcp`'s `authenticate` returns an Effect refusing with
+  `AgentMcp.unauthenticated()`, where it returned the principal or `undefined`.
+- `Guards.declare` requires `unguarded: 'allow' | 'deny'`.
+- `SSR.entry` throws for a plan with a server fallback and no `origins`.
+- `Remote.http` reads every 401 as `Unauthenticated` and every 403 as
+  `Forbidden`, whatever the body says, so a view that compared other tags for
+  them sees these instead.
+
 ### Added
 
 - **`foldkit-sync/journal`: `documentHost`, a document's Sync host for any
