@@ -155,6 +155,10 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **Draw over a marked element:** the `Measure({ targets: { selected: selector } })` Mount writes
   `--fk-selected-x/-y/-w/-h/-display` on its element, relative to its scroll box; place an overlay
   absolutely from them. No Message, nothing in the Model.
+- **One highlight that follows the pointer across items:** the `FluidHover({ name, item, axis, gapClick })`
+  Mount writes `--fk-<name>-x/-y/-w/-h/-shown/-moving` for the item nearest the pointer (gaps included;
+  `axis` `y` list, `x` strip, `xy` grid), skipping disabled items, following `:focus-visible`, ignoring touch.
+  `gapClick` presses the highlighted item's `data-fluid-press` descendant. No Message.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
   `MoveEnded { completed }` with pointer capture; `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
 - **Focus ring for keyboard users only:** place `InputModality` (`events`; `{ modality }` from window keydown and pointerdown)

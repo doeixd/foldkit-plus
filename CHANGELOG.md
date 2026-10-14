@@ -7,6 +7,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-primitives/dom`: `FluidHover`**, a Mount that moves one highlight
+  across a container's items: the item nearest the pointer, gaps included, on
+  the `x`, `y` or `xy` axis, skipping disabled items and following keyboard
+  focus. It writes the item's place as custom properties and sends no Message;
+  with `gapClick`, a click in a gap presses the highlighted item.
+
 ## 0.21.0
 
 Authentication through Yielded Auth. `foldkit-auth` 0.1.0 is new;

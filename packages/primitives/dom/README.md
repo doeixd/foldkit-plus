@@ -16,6 +16,7 @@ wraps.
 | `InputMask({ pattern })` | Mount | `Input { value, raw }` | `#`, `A`, `*` placeholders |
 | `KeepInView({ selector })` | Mount | nothing | |
 | `Measure({ targets })` | Mount | nothing; writes custom properties | |
+| `FluidHover({ name, item, axis, gapClick })` | Mount | nothing; writes custom properties | `axis`: `x`, `y`, `xy` |
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
@@ -121,6 +122,22 @@ most once a frame, when the element scrolls, when it or a target changes size,
 when the window resizes, when an image or a font inside loads, and on each
 frame of a transition or animation inside. Anything else that moves a target
 without resizing it (a stylesheet added) is seen at the next of these.
+
+**`FluidHover({ name: 'hover', item: '[data-item]', axis: 'y', gapClick: true })`**
+moves one highlight across a container's items: the item nearest the pointer is
+the one highlighted, so in a gap between two items the pointer still points at
+one, and the highlight moves from item to item rather than blinking off between
+them. `axis` says how nearness is read: `y` for a list (the row level with the
+pointer wins), `x` for a strip, `xy` for a grid. A disabled item
+(`aria-disabled="true"`, `data-disabled`, `:disabled`) is never highlighted, an
+item reached by the keyboard (`:focus-visible`) is, and a touch highlights
+nothing. It writes `--fk-hover-x`, `-y`, `-w`, `-h` (pixels, relative to the
+scroll box like `Measure`'s), `--fk-hover-shown` (`1` or `0`) and
+`--fk-hover-moving` (`0` for the frame the highlight appears in, so a
+movement's duration scaled by it puts the highlight on its item rather than
+sliding it in); `fluidHovered('hover')` names them. With `gapClick`, a click in
+a gap presses the highlighted item: its descendant marked `data-fluid-press`
+(`FLUID_PRESS_ATTRIBUTE`), or the item. Like `Measure`, it sends no Message.
 
 **`InputMask({ pattern })`** masks a field against `#` (digit), `A`
 (letter), and `*` (either) placeholders with literal separators, rewrites the
