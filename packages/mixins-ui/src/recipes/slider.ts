@@ -5,6 +5,7 @@
  * needs no input condition.
  */
 import { Style } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { SliderSlots } from '../slider.js'
 import {
   component,
@@ -73,7 +74,7 @@ export const Slider = Style.recipeFor(SliderSlots)({
       Style.self({
         margin: '0',
         color: ref.text.overt,
-        fontSize: ref.size.sm,
+        ...role('body'),
         fontWeight: ref.weight.medium,
       }),
     ),

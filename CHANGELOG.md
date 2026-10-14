@@ -140,6 +140,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins/theme`, `foldkit-mixins-ui`: six type roles.** A `type`
+  token group and `Theme.role(name)`: `display`, `title`, `subtitle`, `body`,
+  `caption` and `micro`, each a size and a whole-pixel leading that step with
+  the size ladder, after Fluid Functionalism's (body at 14px on 20). The
+  recipes set text by role (controls `body`, badges and tooltips `caption`,
+  keycaps `micro`, dialog titles `title`), labels in fixed-height controls
+  are trimmed to their capitals, a field's text is 16px on a coarse pointer
+  so iOS does not zoom into it, and Typography takes the roles as levels.
+  Breaking: `control.text` is gone (read `Theme.role('body')`), and dialog,
+  empty-state and card titles are smaller.
 - **`foldkit-mixins/theme`, `foldkit-mixins-ui`: one size ladder.** After
   Fluid Functionalism's: a `control` token group holds the two ends (36px and
   28px controls, with their padding, gap, icon and text), a `step` knob
@@ -152,8 +162,7 @@ version changed; `pnpm` skips versions already in the registry.
   element (`sm` compact, `md` default, `lg` a half step up at 40px), and no
   recipe defaults it any more, so an unset size follows the region. The
   popups' `size` sets it on their `wrapper`, Tabs' on the `tablist`.
-  Segmented's sizes are `md`, `sm` and `xs` (24px), and control text is 14px,
-  13px compact.
+  Segmented's sizes are `md`, `sm` and `xs` (24px).
 - **`foldkit-mixins/theme`: three motion tiers, and reduced motion keeps the
   fades.** `motion.fast`, `moderate` and `slow` are 80, 160 and 240ms, each with
   an exit a tier quicker (`fast-exit`, `moderate-exit`, `slow-exit`, eased by

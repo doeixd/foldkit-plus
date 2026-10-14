@@ -6,7 +6,7 @@
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { CalendarSlots } from '../calendar.js'
-import { ladder } from 'foldkit-mixins/theme'
+import { ladder, role } from 'foldkit-mixins/theme'
 import { component, focusRing, hover, ref, steps } from './design.js'
 
 // Read on each cell, so a cell steps with the calendar's size or the region's.
@@ -24,7 +24,7 @@ const quiet: StyleValue = component(
     background: 'transparent',
     color: ref.text.muted,
     font: 'inherit',
-    fontSize: ref.size.sm,
+    ...role('body'),
     cursor: 'pointer',
   }),
   hover({ background: ref.surface.muted, color: ref.text.overt }),
@@ -44,7 +44,7 @@ const choice = (shape: 'round' | 'wide'): StyleValue =>
       background: 'transparent',
       color: ref.text.default,
       font: 'inherit',
-      fontSize: ref.size.sm,
+      ...role('body'),
       fontVariantNumeric: 'tabular-nums',
       cursor: 'pointer',
     }),
@@ -84,7 +84,7 @@ export const Calendar = Style.recipeFor(CalendarSlots)({
         gap: ref.space.xs,
         justifySelf: 'stretch',
         color: ref.text.overt,
-        fontSize: ref.size.sm,
+        ...role('body'),
         fontWeight: ref.weight.semibold,
       }),
     ),
@@ -115,7 +115,7 @@ export const Calendar = Style.recipeFor(CalendarSlots)({
     ),
     headerRow: week,
     columnHeader: component(
-      Style.self({ color: ref.text.muted, fontSize: ref.size.xs, textAlign: 'center' }),
+      Style.self({ color: ref.text.muted, ...role('caption'), textAlign: 'center' }),
     ),
     weekRow: week,
     dayCell: centered,

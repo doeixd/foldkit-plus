@@ -4,6 +4,7 @@
  * scale from the box like the Checkbox recipe's mark.
  */
 import { Style } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { RadioGroupSlots } from '../radioGroup.js'
 import {
   component,
@@ -18,11 +19,9 @@ import {
 
 const checked = '[aria-checked="true"]'
 
-const label = component(
-  Style.self({ color: ref.text.default, fontSize: ref.size.md, cursor: 'pointer' }),
-)
+const label = component(Style.self({ color: ref.text.default, ...role('body'), cursor: 'pointer' }))
 
-const description = component(Style.self({ color: ref.text.muted, fontSize: ref.size.sm }))
+const description = component(Style.self({ color: ref.text.muted, ...role('body') }))
 
 /** The control's edge length; the dot scales from it. */
 const box = (length: string) => variant(Style.self({ '--_fk-toggle-size': length }))

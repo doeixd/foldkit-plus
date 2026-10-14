@@ -451,7 +451,7 @@ A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
 | `Skeleton` | `{ label? }`. `role="status"`. Stack one bar per line. | `shape`: `bar` (default), `circle`. Slot `bar`. |
 | `Spinner` | `{ label? }`. `role="status"`. | `size`: `sm`, `md` (default). Slot `wheel`. |
 | `Table` | `{ columns: { header, value, numeric? }[], rows, caption? }`. Sorting and selection stay with `foldkit-data-grid`. | No axis. Slots `root`, `caption`, `head`, `headerRow`, `headerCell`, `body`, `row`, `cell`. |
-| `Typography` | `{ level, text }`. The level chooses the element (`h1`–`h4`, `lead`, `body`, `small`, `muted`, `quote`, `code`). | `level`, same set. Defaults to `body`. Slot `text`. |
+| `Typography` | `{ level, text }`. The level chooses the element (`h1`–`h4`, `lead`, `body`, `small`, `muted`, `quote`, `code`, and the interface roles `display`, `title`, `subtitle`, `caption`, `micro` as paragraphs). | `level`, same set; a role is its size and leading on the size ladder. Defaults to `body`. Slot `text`. |
 
 ## Recipes
 
@@ -509,6 +509,12 @@ What a recipe assumes and does:
   recipe's `size` (`sm` compact, `md` default, `lg` a half step up at 40px)
   sets the step on its own element and beats the region; unset, which is the
   default, follows it.
+- **Text comes in roles.** `Theme.role(name)` is a size and its leading,
+  stepping with the ladder: `display`, `title`, `subtitle`, `body` (a
+  control's text, 14px on 20), `caption` (badges, tooltips, a table's
+  headings) and `micro` (keycaps). Labels in fixed-height controls are trimmed
+  to their capitals (`text-box`), and a field's text is 16px on a coarse
+  pointer, so iOS Safari does not zoom the page into it.
 - **State comes from the component's own attributes.** Checked, selected, and
   disabled looks read `aria-checked`, `aria-selected`, and `aria-disabled`,
   which `@foldkit/ui` already writes; no `whenInput` is needed.

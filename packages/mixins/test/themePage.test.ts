@@ -89,6 +89,7 @@ describe('Theme.tokens', () => {
       'weight',
       'motion',
       'control',
+      'type',
       'border',
       'shadow',
       'breakpoint',

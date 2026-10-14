@@ -3,6 +3,7 @@
  * Nothing here varies; the recipe is the look, chosen once.
  */
 import { Style } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { KbdSlots } from '../kbd.js'
 import { component, ref } from './design.js'
 
@@ -17,9 +18,8 @@ export const Kbd = Style.recipeFor(KbdSlots)({
         borderRadius: ref.radius.sm,
         background: ref.surface.muted,
         fontFamily: ref.font.mono,
-        fontSize: ref.size.xs,
+        ...role('micro'),
         fontVariantNumeric: 'tabular-nums',
-        lineHeight: ref.leading.snug,
         color: ref.text.default,
         whiteSpace: 'nowrap',
       }),

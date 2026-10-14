@@ -4,7 +4,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { SelectSlots } from '../select.js'
-import { ladder } from 'foldkit-mixins/theme'
+import { ladder, role } from 'foldkit-mixins/theme'
 import {
   component,
   disabled,
@@ -12,6 +12,7 @@ import {
   onLadder,
   ref,
   steps,
+  touchText,
   transition,
   variant,
 } from './design.js'
@@ -30,7 +31,6 @@ export const Select = Style.recipeFor(SelectSlots)({
         background: ref.surface.base,
         color: ref.text.default,
         font: 'inherit',
-        lineHeight: ref.leading.normal,
         appearance: 'none',
         ...transition('border-color, background-color'),
       }),
@@ -40,13 +40,14 @@ export const Select = Style.recipeFor(SelectSlots)({
       Style.states({ true: { borderColor: ref.error.outline } }, 'aria-invalid'),
       focusRing,
       disabled,
+      touchText,
     ),
     label: component(
       Style.self({
         display: 'block',
         marginBlockEnd: ref.space['2xs'],
         color: ref.text.overt,
-        fontSize: ref.size.sm,
+        ...role('body'),
         fontWeight: ref.weight.medium,
       }),
     ),
@@ -54,7 +55,7 @@ export const Select = Style.recipeFor(SelectSlots)({
       Style.self({
         marginBlockStart: ref.space['2xs'],
         color: ref.text.muted,
-        fontSize: ref.size.sm,
+        ...role('body'),
       }),
     ),
   },

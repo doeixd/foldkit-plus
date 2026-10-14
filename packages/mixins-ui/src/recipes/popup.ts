@@ -5,6 +5,7 @@
  * trigger and density. Internal to the recipes, not a published contract.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { component, disabled, glide, ref, rowOnLadder } from './design.js'
 
 /** A line in the panel's own ink, so it reads on an inverted panel too. */
@@ -55,7 +56,6 @@ export const item: StyleValue = component(
     background: 'transparent',
     color: 'inherit',
     font: 'inherit',
-    fontSize: ref.size.sm,
     textAlign: 'start',
     cursor: 'pointer',
   }),
@@ -121,7 +121,7 @@ export const heading: StyleValue = component(
     paddingInline: ref.space.sm,
     // The panel's ink, quieter: the page's muted text would not read on an inverted panel.
     color: `color-mix(in oklab, ${ref.popup.ink} 62%, transparent)`,
-    fontSize: ref.size.xs,
+    ...role('caption'),
     fontWeight: ref.weight.semibold,
     textTransform: 'uppercase',
   }),

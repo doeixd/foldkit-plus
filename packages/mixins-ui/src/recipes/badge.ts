@@ -7,6 +7,7 @@
  * the map leaves out keep the base.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { component, ref, variant } from './design.js'
 
 /** The palette families a badge value can take; unmapped values keep the base. */
@@ -41,7 +42,7 @@ export const Badge = (options: BadgeOptions): { readonly badge: StyleValue } => 
       // Its words never wrap, so it never shrinks below them: squeezed in a
       // row, a badge's text ran into the next one.
       flexShrink: '0',
-      fontSize: ref.size.xs,
+      ...role('caption'),
       fontWeight: ref.weight.semibold,
       gap: '0.35rem',
       padding: '0.15rem 0.6rem',

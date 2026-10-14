@@ -138,3 +138,23 @@ test('a size a recipe chooses beats the region, and lg is a half step up', async
     handle.dispose()
   }
 })
+
+const text = (region: string, part: string) => {
+  const style = getComputedStyle(
+    document.querySelector(`[data-region="${region}"] [data-part="${part}"]`)!,
+  )
+  return [style.fontSize, style.lineHeight]
+}
+
+test('the text steps with the controls: 14 on 20 by default, 13 on 18 compact', async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(document.querySelector('[data-part="row"]')).not.toBeNull())
+    for (const part of ['button', 'input', 'row']) {
+      expect(text('default', part)).toEqual(['14px', '20px'])
+      expect(text('compact', part)).toEqual(['13px', '18px'])
+    }
+  } finally {
+    handle.dispose()
+  }
+})

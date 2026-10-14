@@ -21,7 +21,6 @@ export const DatePicker = Style.recipeFor(DatePickerSlots)({
         background: ref.surface.base,
         color: ref.text.default,
         font: 'inherit',
-        lineHeight: ref.leading.normal,
         cursor: 'pointer',
         ...transition('border-color, background-color'),
       }),

@@ -4,6 +4,7 @@
  * shared. Tones read the family's `subtle` fill and `ink`, like Badge.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { AlertSlots, type AlertTone } from '../alert.js'
 import { component, ref, variant } from './design.js'
 
@@ -29,12 +30,12 @@ export const Alert = Style.recipeFor(AlertSlots)({
     title: component(
       Style.self({
         margin: '0',
-        fontSize: ref.size.sm,
+        ...role('body'),
         fontWeight: ref.weight.semibold,
       }),
     ),
     description: component(
-      Style.self({ margin: '0', marginBlockStart: ref.space['3xs'], fontSize: ref.size.sm }),
+      Style.self({ margin: '0', marginBlockStart: ref.space['3xs'], ...role('body') }),
     ),
   },
   variants: {

@@ -3,6 +3,7 @@
  * surface. `size` is the panel's maximum width.
  */
 import { Style } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { DialogSlots } from '../dialog.js'
 import { component, focusRing, ref, variant, hover } from './design.js'
 
@@ -55,9 +56,8 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         margin: '0',
         color: ref.text.overt,
         fontFamily: ref.font.heading,
-        fontSize: ref.size.xl,
+        ...role('title'),
         fontWeight: ref.weight.semibold,
-        lineHeight: ref.leading.tight,
       }),
     ),
     description: component(Style.self({ margin: '0', color: ref.text.muted })),

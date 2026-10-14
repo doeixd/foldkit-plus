@@ -5,7 +5,7 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { InputSlots } from '../input.js'
 import { TextareaSlots } from '../textarea.js'
-import { ladder } from 'foldkit-mixins/theme'
+import { ladder, role } from 'foldkit-mixins/theme'
 import {
   component,
   disabled,
@@ -14,6 +14,7 @@ import {
   onLadder,
   ref,
   steps,
+  touchText,
   transition,
   variant,
 } from './design.js'
@@ -27,7 +28,6 @@ const control = component(
     background: ref.surface.base,
     color: ref.text.default,
     font: 'inherit',
-    lineHeight: ref.leading.normal,
     ...onLadder,
     ...transition('border-color, background-color'),
   }),
@@ -36,6 +36,7 @@ const control = component(
   Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
   focusRing,
   disabled,
+  touchText,
 )
 
 const label = component(
@@ -43,7 +44,7 @@ const label = component(
     display: 'block',
     marginBlockEnd: ref.space['2xs'],
     color: ref.text.overt,
-    fontSize: ref.size.sm,
+    ...role('body'),
     fontWeight: ref.weight.medium,
   }),
 )
@@ -52,7 +53,7 @@ const description = component(
   Style.self({
     marginBlockStart: ref.space['2xs'],
     color: ref.text.muted,
-    fontSize: ref.size.sm,
+    ...role('body'),
   }),
 )
 

@@ -5,6 +5,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { Utilities as U } from 'foldkit-mixins/utilities'
+import { role } from 'foldkit-mixins/theme'
 import { ItemSlots } from '../item.js'
 import { component, ref, variant } from './design.js'
 
@@ -45,7 +46,7 @@ export const Item = Style.recipeFor(ItemSlots)({
     description: component(
       U.truncate,
       Style.self({
-        fontSize: ref.size.sm,
+        ...role('body'),
         color: ref.text.muted,
       }),
     ),

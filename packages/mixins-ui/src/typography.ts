@@ -13,9 +13,27 @@ export const TypographySlots = Slots.define({
   text: Slot.make({ capability: Capability.Container }),
 })
 
-/** One voice of the type scale, and the element it speaks through. */
+/**
+ * One voice of the type scale, and the element it speaks through. The
+ * interface roles (`display` to `micro`) are paragraphs; a role that names a
+ * section is a heading's look, so give it `h2` and that role's style.
+ */
 export type TypographyLevel =
-  'h1' | 'h2' | 'h3' | 'h4' | 'lead' | 'body' | 'small' | 'muted' | 'quote' | 'code'
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'h4'
+  | 'lead'
+  | 'body'
+  | 'small'
+  | 'muted'
+  | 'quote'
+  | 'code'
+  | 'display'
+  | 'title'
+  | 'subtitle'
+  | 'caption'
+  | 'micro'
 
 /**
  * One voice of the type scale in one call: its level, its words, a style

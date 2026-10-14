@@ -17,6 +17,7 @@ import {
   ref,
   steps,
   transition,
+  trimmed,
   unfilledHover,
   variant,
 } from './design.js'
@@ -77,6 +78,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
       Style.self({
         position: 'relative',
         ...onLadder,
+        ...trimmed,
         border: '0',
         background: 'transparent',
         color: ref.text.muted,

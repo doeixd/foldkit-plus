@@ -1,9 +1,13 @@
 /**
  * Set type: headings stepping down the scale, body copy at the base size,
- * and quieter voices for asides. The recipe sets each level outright; it
- * does not inherit a prose container, so one voice reads the same anywhere.
+ * and quieter voices for asides, for reading; and the interface's roles
+ * (`display`, `title`, `subtitle`, `caption`, `micro`), each a size and a
+ * leading that step with the size ladder. The recipe sets each level
+ * outright; it does not inherit a prose container, so one voice reads the
+ * same anywhere.
  */
 import { Style } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { TypographySlots } from '../typography.js'
 import { component, ref, variant } from './design.js'
 
@@ -61,6 +65,13 @@ export const Typography = Style.recipeFor(TypographySlots)({
           }),
         ),
       },
+      display: { text: variant(Style.self({ ...role('display'), fontWeight: ref.weight.bold })) },
+      title: { text: variant(Style.self({ ...role('title'), fontWeight: ref.weight.semibold })) },
+      subtitle: {
+        text: variant(Style.self({ ...role('subtitle'), fontWeight: ref.weight.semibold })),
+      },
+      caption: { text: variant(Style.self({ ...role('caption'), color: ref.text.muted })) },
+      micro: { text: variant(Style.self(role('micro'))) },
       code: {
         text: variant(
           Style.self({

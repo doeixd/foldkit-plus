@@ -109,8 +109,37 @@ export const tokens = define({
     'inset-compact': '0.125rem',
     icon: '1rem',
     'icon-compact': '0.875rem',
-    text: '0.875rem',
-    'text-compact': '0.8125rem',
+  },
+  // Six roles, each a size and a whole-pixel leading at both steps of the
+  // ladder, after Fluid Functionalism's (body one notch up, at shadcn's 14px):
+  // a caption in a menu and one in a table share a rhythm, and a compact
+  // region reads as a smaller sibling of the same hierarchy. Pick by purpose:
+  // `micro` is for keycaps, counters and tiny badges only. Read through `role`.
+  type: {
+    'display-size': '1.75rem',
+    'display-size-compact': '1.5rem',
+    'display-leading': '2.125rem',
+    'display-leading-compact': '1.875rem',
+    'title-size': '1rem',
+    'title-size-compact': '0.9375rem',
+    'title-leading': '1.375rem',
+    'title-leading-compact': '1.25rem',
+    'subtitle-size': '0.9375rem',
+    'subtitle-size-compact': '0.875rem',
+    'subtitle-leading': '1.375rem',
+    'subtitle-leading-compact': '1.25rem',
+    'body-size': '0.875rem',
+    'body-size-compact': '0.8125rem',
+    'body-leading': '1.25rem',
+    'body-leading-compact': '1.125rem',
+    'caption-size': '0.75rem',
+    'caption-size-compact': '0.6875rem',
+    'caption-leading': '1rem',
+    'caption-leading-compact': '0.875rem',
+    'micro-size': '0.6875rem',
+    'micro-size-compact': '0.625rem',
+    'micro-leading': '0.875rem',
+    'micro-leading-compact': '0.75rem',
   },
   border: { thin: '1px', thick: '2px', heavy: '3px' },
   // Raised a little to a lot: a pressed control, a lifted cell, a menu, a
@@ -148,9 +177,27 @@ export type Rung = Exclude<keyof Tokens['control'], `${string}-compact`>
  * it opens included. A step of `-0.5` is shadcn's large size, 40px.
  */
 export const ladder = (name: Rung): string => {
-  const at = `var(--fk-control-${name})`
-  const stepped = `calc(${at} + (var(--fk-control-${name}-compact) - ${at}) * var(--fk-knob-step))`
-  return name === 'icon' || name === 'text' ? stepped : `calc(${stepped} * var(--fk-knob-density))`
+  const stepped = blend('control', name)
+  return name === 'icon' ? stepped : `calc(${stepped} * var(--fk-knob-density))`
+}
+
+/** A role of the type scale. */
+export type Role = 'display' | 'title' | 'subtitle' | 'body' | 'caption' | 'micro'
+
+/**
+ * Text in `role`: its size and leading on the size ladder, read on the
+ * element like `ladder`, so a compact region's text steps down with its
+ * controls.
+ */
+export const role = (name: Role): { readonly fontSize: string; readonly lineHeight: string } => ({
+  fontSize: blend('type', `${name}-size`),
+  lineHeight: blend('type', `${name}-leading`),
+})
+
+/** A token's default end blended toward its `-compact` one by the `step` knob. */
+const blend = (group: string, name: string) => {
+  const at = `var(--fk-${group}-${name})`
+  return `calc(${at} + (var(--fk-${group}-${name}-compact) - ${at}) * var(--fk-knob-step))`
 }
 
 // A plain `min-width`, of the window or of a named container.

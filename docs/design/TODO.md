@@ -778,10 +778,15 @@ keeps what the systems plan's "What we keep" lists.
   defaults so regions take effect (breaking); `/create`'s size writes `step`.
   This is the control-size knob UI Phase 4 left unbuilt.
   [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §2
-- [ ] **Systems 3, type roles.** Six roles, each a size and a leading on the
-  ladder; `weight` axes for optical size; `Type.steady` for weight without
-  reflow; `text-box` trim on fixed-height labels; 16px fields on coarse
-  pointers; prose spaced above only. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §3
+- [x] **Systems 3, type roles.** Six roles on the ladder, recipes by role,
+  `text-box` trim on fixed-height labels, 16px fields on coarse pointers;
+  Prose already spaces only above. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §3
+- [ ] **Systems 3b, weight without reflow.** `weight` axes for optical size and
+  a steady-weight piece over a `data-label` the application writes, since
+  tab and option labels are its Html, not text the adapters hold.
+- [ ] **Chat's streamed text unwrapped.** The reset gives every `p`
+  `text-wrap: pretty`, which re-wraps earlier lines as words arrive; parity 7's
+  message slot sets `text-wrap: wrap`.
 - [ ] **Systems 4, state tints and concentric radii.** A `state` group (hover,
   selected, pressed, tint) of the ink; `Theme.nested`; `Surface.imageEdge`.
   [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §4

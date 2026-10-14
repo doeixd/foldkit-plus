@@ -12,6 +12,7 @@
  * apart, and draws the one highlight that follows the pointer between them.
  */
 import { Style } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { CardGroupSlots, CardSlots } from '../card.js'
 import { component, focusRing, glide, ref, transition, variant } from './design.js'
 
@@ -79,9 +80,8 @@ export const Card = Style.recipeFor(CardSlots)({
       Style.self({
         gridColumn: '1',
         margin: '0',
-        fontSize: ref.size.md,
+        ...role('subtitle'),
         fontWeight: ref.weight.medium,
-        lineHeight: ref.leading.snug,
         color: ref.text.overt,
         ...transition('font-weight'),
       }),
@@ -91,8 +91,7 @@ export const Card = Style.recipeFor(CardSlots)({
       Style.self({
         gridColumn: '1',
         margin: '0',
-        fontSize: ref.size.sm,
-        lineHeight: ref.leading.normal,
+        ...role('body'),
         color: ref.text.muted,
       }),
     ),
@@ -148,7 +147,7 @@ export const Card = Style.recipeFor(CardSlots)({
         borderRadius: ref.radius.full,
         background: 'transparent',
         color: ref.text.muted,
-        fontSize: ref.size.xs,
+        ...role('caption'),
         cursor: 'pointer',
         ...transition('opacity, background-color, color'),
       }),

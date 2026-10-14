@@ -19,6 +19,7 @@ import {
   tones,
   toneVar,
   transition,
+  trimmed,
   unfilledHover,
   variant,
 } from './design.js'
@@ -38,11 +39,11 @@ export const Button = Style.recipeFor(ButtonSlots)({
         alignItems: 'center',
         justifyContent: 'center',
         ...onLadder,
+        ...trimmed,
         border: `${ref.border.thin} solid transparent`,
         borderRadius: ref.radius.md,
         font: 'inherit',
         fontWeight: ref.weight.medium,
-        lineHeight: ref.leading.tight,
         // A link drawn as a button (`Anchor`) is not underlined like one in running text.
         textDecoration: 'none',
         cursor: 'pointer',

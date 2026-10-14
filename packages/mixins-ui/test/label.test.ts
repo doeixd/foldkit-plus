@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
 import { Inert } from 'foldkit-mixins/testing'
 import { LabelSlots, view } from '../src/label.js'
 import { Recipes } from '../src/index.js'
@@ -34,9 +35,9 @@ describe('Label view', () => {
 })
 
 describe('Label recipe', () => {
-  it('sets a semibold small label over its control', () => {
+  it('sets a semibold label in the body role over its control', () => {
     const sheet = Style.forSlots(LabelSlots)(Recipes.Label({})).css
     expect(sheet).toContain('font-weight:var(--fk-weight-semibold)')
-    expect(sheet).toContain('font-size:var(--fk-size-sm)')
+    expect(sheet).toContain(`font-size:${Theme.role('body').fontSize}`)
   })
 })

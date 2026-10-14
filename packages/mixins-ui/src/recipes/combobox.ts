@@ -15,6 +15,7 @@ import {
   onLadder,
   ref,
   steps,
+  touchText,
   transition,
 } from './design.js'
 import {
@@ -55,11 +56,11 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
         background: 'transparent',
         color: ref.text.default,
         font: 'inherit',
-        lineHeight: ref.leading.normal,
       }),
       Style.pseudo(':focus-visible', { outline: 'none' }),
       Style.pseudo('::placeholder', { color: ref.text.muted }),
       disabled,
+      touchText,
     ),
     toggleButton: component(
       Style.self({

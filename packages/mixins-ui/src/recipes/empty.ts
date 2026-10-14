@@ -4,6 +4,7 @@
  * is the look, chosen once.
  */
 import { Style } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { EmptySlots } from '../empty.js'
 import { component, ref } from './design.js'
 
@@ -33,7 +34,7 @@ export const Empty = Style.recipeFor(EmptySlots)({
     title: component(
       Style.self({
         margin: '0',
-        fontSize: ref.size.lg,
+        ...role('title'),
         fontWeight: ref.weight.semibold,
         color: ref.text.overt,
       }),
@@ -42,7 +43,7 @@ export const Empty = Style.recipeFor(EmptySlots)({
       Style.self({
         margin: '0',
         maxWidth: '24rem',
-        fontSize: ref.size.sm,
+        ...role('body'),
         color: ref.text.muted,
       }),
     ),

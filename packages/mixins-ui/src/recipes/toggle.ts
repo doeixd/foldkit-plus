@@ -5,6 +5,7 @@
  * switch thumb are pseudo-elements, so the view renders an empty control.
  */
 import { Style } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { CheckboxSlots } from '../checkbox.js'
 import { SwitchSlots } from '../switch.js'
 import {
@@ -21,11 +22,9 @@ import {
 
 const checked = '[aria-checked="true"]'
 
-const label = component(
-  Style.self({ color: ref.text.default, fontSize: ref.size.md, cursor: 'pointer' }),
-)
+const label = component(Style.self({ color: ref.text.default, ...role('body'), cursor: 'pointer' }))
 
-const description = component(Style.self({ color: ref.text.muted, fontSize: ref.size.sm }))
+const description = component(Style.self({ color: ref.text.muted, ...role('body') }))
 
 /** The control's edge length; the check mark and the thumb scale from it. */
 const box = (length: string) => variant(Style.self({ '--_fk-toggle-size': length }))

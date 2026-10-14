@@ -3,6 +3,7 @@
  * on any ground, so no tone axis. No axes.
  */
 import { Style } from 'foldkit-mixins'
+import { role } from 'foldkit-mixins/theme'
 import { TooltipSlots } from '../tooltip.js'
 import { component, disabled, ref } from './design.js'
 
@@ -15,7 +16,7 @@ export const Tooltip = Style.recipeFor(TooltipSlots)({
         background: 'transparent',
         color: ref.text.default,
         font: 'inherit',
-        fontSize: ref.size.sm,
+        ...role('body'),
         fontWeight: ref.weight.medium,
         textDecoration: 'underline dotted',
         textUnderlineOffset: '3px',
@@ -34,7 +35,7 @@ export const Tooltip = Style.recipeFor(TooltipSlots)({
         borderRadius: ref.radius.md,
         background: ref.text.overt,
         color: ref.surface.base,
-        fontSize: ref.size.xs,
+        ...role('caption'),
       }),
     ),
   },

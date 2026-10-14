@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: tokens,
-        find: '(var(--fk-control-${name}-compact) - ${at}) * var(--fk-knob-step))',
-        replace: '(var(--fk-control-${name}-compact) - ${at}) * 0)',
+        find: '(var(--fk-${group}-${name}-compact) - ${at}) * var(--fk-knob-step))',
+        replace: '(var(--fk-${group}-${name}-compact) - ${at}) * 0)',
       },
     ],
     tests,

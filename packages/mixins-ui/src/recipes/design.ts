@@ -33,8 +33,25 @@ export const onLadder: Declarations = {
   paddingBlock: '0',
   paddingInline: Theme.ladder('pad'),
   gap: Theme.ladder('gap'),
-  fontSize: Theme.ladder('text'),
+  ...Theme.role('body'),
 }
+
+/**
+ * Letterforms centered in a box the ladder sizes: the line box trimmed to the
+ * capital height and the baseline, so a label in a fixed-height control sits
+ * optically centered. A browser without `text-box` draws the same box, since
+ * the height is the ladder's, not the text's.
+ */
+export const trimmed: Declarations = { textBox: 'trim-both cap alphabetic' }
+
+/**
+ * A field's text at 16px or more on a coarse pointer, where iOS Safari zooms
+ * the page into any smaller focused field. Size only: the role's leading and
+ * the field's height stay, and a fine pointer keeps the role.
+ */
+export const touchText: StyleValue = Style.media('(pointer: coarse)', {
+  fontSize: `max(1rem, ${Theme.role('body').fontSize})`,
+})
 
 /** A row of a list on the ladder: a control's height, so it lines up with the trigger that opened it. */
 export const rowOnLadder: Declarations = { ...onLadder, paddingInline: Theme.ladder('row-pad') }
