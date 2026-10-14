@@ -1,5 +1,5 @@
 /**
- * The dialog and slider recipes' layout, broken in turn:
+ * The dialog, slider and popup recipes' layout and state, broken in turn:
  * `pnpm mutate packages/mixins-ui/test/layout.mutations.ts`.
  */
 export default [
@@ -24,5 +24,27 @@ export default [
       },
     ],
     tests: ['packages/mixins-ui/test/slider.browser.test.ts'],
+  },
+  {
+    name: 'the active popup row looks like any other',
+    edits: [
+      {
+        file: '../src/recipes/popup.ts',
+        find: "  Style.nest('&[data-active]', { background: ref.surface.muted }),\n",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/popup.browser.test.ts'],
+  },
+  {
+    name: 'the focused popup panel draws a ring',
+    edits: [
+      {
+        file: '../src/recipes/popup.ts',
+        find: "  Style.pseudo(':focus-visible', { outline: 'none' }),\n",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/popup.browser.test.ts'],
   },
 ]

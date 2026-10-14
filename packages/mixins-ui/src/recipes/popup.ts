@@ -19,6 +19,9 @@ export const panel: StyleValue = component(
     boxShadow: ref.shadow.lg,
     zIndex: '20',
   }),
+  // The panel holds focus while the keys move the active row, which shows
+  // where they are; a ring around the whole panel says nothing more.
+  Style.pseudo(':focus-visible', { outline: 'none' }),
 )
 
 /** The click-away behind an open panel. */
@@ -42,6 +45,8 @@ export const item: StyleValue = component(
     cursor: 'pointer',
   }),
   hover({ background: ref.surface.muted }),
+  // The row the keys or the pointer are on: upstream marks it `data-active`.
+  Style.nest('&[data-active]', { background: ref.surface.muted }),
   disabled,
 )
 

@@ -73,6 +73,10 @@ version changed; `pnpm` skips versions already in the registry.
   draws the open dialog over the whole viewport, so the panel sat at its top.
 - **`foldkit-mixins-ui`: `Recipes.Slider` keeps a track wide enough to drag**
   (12rem at least) in a row or a centered box, where it shrank to its label.
+- **`foldkit-mixins-ui`: a menu, listbox or combobox marks the row the keys
+  are on.** The shared popup row styled only `:hover`, so moving by the keys
+  showed nothing; it now reads upstream's `data-active`, and the focused panel
+  draws no browser ring around itself.
 
 ## 0.21.0
 
