@@ -831,7 +831,7 @@ export const menu = <Message>(
           itemToConfig: (action: Action) => ({ content: h.span([], [action]) }),
           isItemDisabled: (action: Action) => action === 'Move',
           buttonContent: h.span([], ['Page actions']),
-          toView: Menu.toView([style.mixin], { h }),
+          toView: Menu.toView([style.mixin, ...Menu.fluid], { h }),
         },
         toParentMessage: toMessage,
       }),
@@ -878,7 +878,7 @@ export const listbox = <Message>(
       maybeSelectedValue: state.frequency,
       itemToConfig: (frequency: Frequency) => ({ content: h.span([], [frequency]) }),
       buttonContent: h.span([], [Option.getOrElse(state.frequency, () => 'Back up…')]),
-      toView: Listbox.toView([style.mixin], { h }),
+      toView: Listbox.toView([style.mixin, ...Listbox.fluid], { h }),
     },
     toParentMessage: toMessage,
   })
@@ -917,7 +917,7 @@ export const combobox = <Message>(
       itemToDisplayText: (city: string) => city,
       inputPlaceholder: 'Find a city',
       buttonContent: h.span([], ['▾']),
-      toView: Combobox.toView([style.mixin], { h }),
+      toView: Combobox.toView([style.mixin, ...Combobox.fluid], { h }),
     },
     toParentMessage: toMessage,
   })
