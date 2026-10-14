@@ -88,6 +88,10 @@ const writing = Style.compose(
     caretColor: t.accent.default,
   }),
   Style.nest('[contenteditable="true"] > * + *', { marginBlockStart: t.space.sm }),
+  // A block with no text has no line of its own, so a new empty line would be invisible.
+  Style.nest(':is(p, h1, h2, h3, h4, h5, h6, aside, pre)', { minBlockSize: '1lh' }),
+  // The block a handle is dragging, dimmed until it is dropped (`foldkit-richtext-dom`'s drag).
+  Style.nest('[data-richtext-dragging]', { opacity: '0.4' }),
   Style.nest('h1', {
     fontSize: 'clamp(1.9rem, 3.2vw, 2.6rem)',
     lineHeight: '1.2',
@@ -295,12 +299,18 @@ const writing = Style.compose(
 )
 
 export const Page = A.slots({
-  page: Style.self({
-    boxSizing: 'border-box',
-    maxInlineSize: '82rem',
-    margin: '0 auto',
-    padding: `${t.space.lg} ${t.space.md} ${t.space['2xl']}`,
-  }),
+  page: Style.compose(
+    // Where a dragged block would land: a line the drag puts on the page, outside every view.
+    Style.global(
+      `@layer app { [data-richtext-drop] { block-size: 3px; margin-block-start: -1px; border-radius: 2px; background: ${t.accent.default}; pointer-events: none; z-index: 20; } }`,
+    ),
+    Style.self({
+      boxSizing: 'border-box',
+      maxInlineSize: '82rem',
+      margin: '0 auto',
+      padding: `${t.space.lg} ${t.space.md} ${t.space['2xl']}`,
+    }),
+  ),
   header: Style.compose(
     row(t.space.md),
     Style.self({ justifyContent: 'space-between', marginBlockEnd: t.space.md }),

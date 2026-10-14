@@ -159,9 +159,10 @@ test('the handle sits inside the page beside the hovered block, and clicked, ope
   expect(errors).toEqual([])
 })
 
-test('dragging the handle moves its block', async () => {
+test('dragging the handle shows where the block will land, and moves it there', async () => {
   const errors: Array<string> = []
-  const page = await open(errors)
+  // Tall enough to show both blocks, so the drag stays clear of the edges, which scroll.
+  const page = await open(errors, { width: 1400, height: 1800 })
   await page.locator('[contenteditable=true] > blockquote').hover()
   const grip = (await page.getByRole('button', { name: 'Block handle' }).boundingBox())!
   const heading = (await page.locator('[contenteditable=true] > h1').boundingBox())!
@@ -171,10 +172,40 @@ test('dragging the handle moves its block', async () => {
     const y = grip.y + ((heading.y + 4 - grip.y) * step) / 10
     await page.mouse.move(grip.x + grip.width / 2, y)
   }
+  // While held: a line where it would land, and the block itself dimmed.
+  const line = (await page.locator('[data-richtext-drop]').boundingBox())!
+  expect(line.height).toBeGreaterThan(0)
+  expect(Math.abs(line.y - heading.y)).toBeLessThan(4)
+  expect(
+    await page.locator('[data-richtext-dragging]').evaluate(e => getComputedStyle(e).opacity),
+  ).toBe('0.4')
   await page.mouse.up()
   await expect
     .poll(() => page.locator('[contenteditable=true] > :first-child').evaluate(e => e.tagName))
     .toBe('BLOCKQUOTE')
+  expect(await page.locator('[data-richtext-drop], [data-richtext-dragging]').count()).toBe(0)
+  expect(errors).toEqual([])
+})
+
+test('Enter makes a new line you can see, however fast it is pressed', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await page.click('[contenteditable=true] > h1')
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  const lines = page.locator('[contenteditable=true] > h1 + p, [contenteditable=true] > h1 + p + p')
+  await expect.poll(() => lines.count()).toBe(2)
+  for (const height of await lines.evaluateAll(all =>
+    all.map(line => line.getBoundingClientRect().height),
+  ))
+    expect(height).toBeGreaterThan(20)
+  await page.keyboard.type('typed')
+  await expect
+    .poll(() =>
+      page.locator('[contenteditable=true] > h1 + p + p').evaluate(line => line.textContent),
+    )
+    .toBe('typed')
   expect(errors).toEqual([])
 })
 

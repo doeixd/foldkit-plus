@@ -89,6 +89,8 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   GotEditor: { message: EditorMessage },
+  /** An edit chosen from the block menu, which closes as the edit is made. */
+  MenuEdit: { message: EditorMessage },
   HoveredBlock: { node: RichText.NodeId },
   OpenedMenu: { menu: Menu },
   ClosedMenu: {},
@@ -387,6 +389,7 @@ export const update = (model: Model, message: Message): Return =>
         ? { ...result, model: modifyFields(result.model, { composing: () => false }) }
         : result
     },
+    MenuEdit: ({ message }) => edit(closed(model), message),
     HoveredBlock: ({ node }) =>
       Option.getOrUndefined(model.hovered) === node
         ? { model }

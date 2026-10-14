@@ -58,6 +58,8 @@
       .danger { color: var(--faint); margin-left: auto; }
       .danger:hover { background: var(--danger-well); color: var(--danger); }
       foldkit-richtext [contenteditable] { outline: 0; min-height: 40vh; line-height: 1.6; }
+      /* A block with no text has no line of its own: a new empty line would not show. */
+      foldkit-richtext [contenteditable] :is(p, h1, h2, h3, h4, h5, h6, pre) { min-height: 1lh; }
       [data-task] { list-style: none; display: flex; gap: 8px; align-items: baseline; }
       [data-task] > p { margin: 0.25em 0; }
       [data-task]::before { content: '☐'; }

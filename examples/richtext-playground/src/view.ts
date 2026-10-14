@@ -455,7 +455,9 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
       : [
           item(
             'Move up',
-            wrap(EditorMessage.MovedBlock({ node, to: { before: siblings.previous.id } })),
+            Message.MenuEdit({
+              message: EditorMessage.MovedBlock({ node, to: { before: siblings.previous.id } }),
+            }),
           ),
         ]),
     ...(siblings.next === undefined
@@ -463,11 +465,13 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
       : [
           item(
             'Move down',
-            wrap(EditorMessage.MovedBlock({ node, to: { after: siblings.next.id } })),
+            Message.MenuEdit({
+              message: EditorMessage.MovedBlock({ node, to: { after: siblings.next.id } }),
+            }),
           ),
         ]),
     item('Duplicate', Message.DuplicatedBlock({ node })),
-    item('Delete', wrap(EditorMessage.DeletedBlock({ node }))),
+    item('Delete', Message.MenuEdit({ message: EditorMessage.DeletedBlock({ node }) })),
   ])
 }
 
