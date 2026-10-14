@@ -24,6 +24,11 @@ const live: Live<string> = {
   onSwitch: () => 'switched',
   page: 1,
   onPage: () => 'paged',
+  chosen: 'team',
+  onChoose: key => `chose ${key}`,
+  dismissed: false,
+  onDismiss: 'dismissed',
+  onRestore: 'restored',
   h: SlotView.inertBuilder<string>(),
 }
 
