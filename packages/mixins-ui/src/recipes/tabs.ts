@@ -41,8 +41,9 @@ const travel = (scale: string) => {
 
 const overlay = {
   position: 'absolute',
-  insetBlockStart: '0',
-  insetInlineStart: '0',
+  // Physical: the Mounts measure from the left, in either direction.
+  top: '0',
+  left: '0',
   pointerEvents: 'none',
 } as const
 

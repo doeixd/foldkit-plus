@@ -276,8 +276,9 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
     highlight: component(
       Style.self({
         position: 'absolute',
-        insetBlockStart: '0',
-        insetInlineStart: '0',
+        // Physical: the Mounts measure from the left, in either direction.
+        top: '0',
+        left: '0',
         inlineSize: 'var(--fk-card-hover-w)',
         blockSize: 'var(--fk-card-hover-h)',
         translate: 'var(--fk-card-hover-x) var(--fk-card-hover-y)',

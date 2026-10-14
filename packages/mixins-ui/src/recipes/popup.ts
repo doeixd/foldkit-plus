@@ -88,8 +88,9 @@ const glide = (moving: string) => {
 
 const overlay = (name: 'hover' | 'chosen') => ({
   position: 'absolute',
-  insetBlockStart: '0',
-  insetInlineStart: '0',
+  // Physical: the Mounts measure from the left, in either direction.
+  top: '0',
+  left: '0',
   zIndex: '-1',
   inlineSize: at(name, 'w'),
   blockSize: at(name, 'h'),

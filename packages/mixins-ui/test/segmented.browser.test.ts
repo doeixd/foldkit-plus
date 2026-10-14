@@ -23,7 +23,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (fluid: boolean) => {
+const mount = (fluid: boolean, direction: 'ltr' | 'rtl' = 'ltr') => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -32,6 +32,7 @@ const mount = (fluid: boolean) => {
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'segmented-browser'
+  document.body.dir = direction
   document.body.appendChild(container)
   const view = (_: unknown, h: HtmlBuilder<never>) => {
     const slots = SlotView.buildersFor(
@@ -93,5 +94,15 @@ test('without it the pressed option fills itself and the pill shows nothing', as
     expect(getComputedStyle(part(1)).display).toBe('none')
   } finally {
     handle.dispose()
+  }
+})
+
+test('right to left, the pill still sits under the pressed option', async () => {
+  const handle = mount(true, 'rtl')
+  try {
+    await vi.waitFor(() => expect(spans(part(0), option('Week'))).toBe(true))
+  } finally {
+    handle.dispose()
+    document.body.dir = ''
   }
 })

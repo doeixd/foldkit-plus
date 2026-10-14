@@ -56,4 +56,9 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the overlays anchor at the inline start, off their item right to left',
+    edits: [{ file: recipe, find: "left: '0',", replace: "insetInlineStart: '0'," }],
+    tests,
+  },
 ]

@@ -26,7 +26,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (fluid: boolean) => {
+const mount = (fluid: boolean, direction: 'ltr' | 'rtl' = 'ltr') => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -35,6 +35,7 @@ const mount = (fluid: boolean) => {
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'tabs-browser'
+  document.body.dir = direction
   document.body.appendChild(container)
   const view = (model: Model, h: HtmlBuilder<UiTabs.Message>) =>
     Project.view(
@@ -124,5 +125,15 @@ test('without Tabs.fluid the chosen tab marks itself and the indicator shows not
     expect(getComputedStyle(part(1)).display).toBe('none')
   } finally {
     handle.dispose()
+  }
+})
+
+test('right to left, the indicator still sits under the chosen tab', async () => {
+  const handle = mount(true, 'rtl')
+  try {
+    await vi.waitFor(() => expect(spans(part(0), tab('overview'))).toBe(true))
+  } finally {
+    handle.dispose()
+    document.body.dir = ''
   }
 })
