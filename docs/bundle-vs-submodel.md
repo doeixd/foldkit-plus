@@ -32,8 +32,8 @@ APIs, so there is nothing new for the runtime, DevTools, replay or Scene tests
 to understand.
 
 What a Bundle changes is the failure mode. By hand, forgetting one of the five
-is silent: a Subscription that never runs, a resource never acquired, a
-wrapper the parent never routes. Placing the same child twice repeats all five,
+is silent: a Subscription that never runs, a resource never acquired, a view
+never drawn. Placing the same child twice repeats all five,
 with a different field and wrapper each time.
 
 ## One child, placed twice
