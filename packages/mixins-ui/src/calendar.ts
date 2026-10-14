@@ -10,7 +10,8 @@ import type {
   YearsModeAttributes,
 } from '@foldkit/ui/calendar'
 import { Attr, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
-import type { Html } from 'foldkit/html'
+import { Match } from 'effect'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
@@ -19,10 +20,13 @@ import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
  * (`columnHeaders[]`, `weeks[].attributes`, the day/month/year cells and their
  * buttons) are each resolved with `SlotView.buildersFor`, so a contribution to
  * a cell slot applies to every cell while each cell's base keeps its own event
- * ownership (a disabled day omits `OnClick`).
+ * ownership (a disabled day omits `OnClick`). `header`, the row of the
+ * heading and its paging buttons, has no upstream bundle: it is this package's,
+ * so the default drawing puts no markup outside a slot.
  */
 export const CalendarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
+  header: Slot.make({ capability: Capability.Container }),
   previousMonthButton: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
@@ -99,6 +103,7 @@ export type ResolvedYearCell<Message> = Omit<YearCell, 'cellAttributes' | 'butto
 export interface ResolvedDays<Message> {
   readonly _tag: 'Days'
   readonly root: SlotAttributes<Message>
+  readonly header: SlotAttributes<Message>
   readonly previousMonthButton: SlotAttributes<Message>
   readonly nextMonthButton: SlotAttributes<Message>
   readonly headingButton: SlotAttributes<Message>
@@ -111,6 +116,7 @@ export interface ResolvedDays<Message> {
 export interface ResolvedMonths<Message> {
   readonly _tag: 'Months'
   readonly root: SlotAttributes<Message>
+  readonly header: SlotAttributes<Message>
   readonly headingButton: SlotAttributes<Message>
   readonly heading: MonthsModeAttributes['heading']
   readonly grid: SlotAttributes<Message>
@@ -119,6 +125,7 @@ export interface ResolvedMonths<Message> {
 export interface ResolvedYears<Message> {
   readonly _tag: 'Years'
   readonly root: SlotAttributes<Message>
+  readonly header: SlotAttributes<Message>
   readonly previousPageButton: SlotAttributes<Message>
   readonly nextPageButton: SlotAttributes<Message>
   readonly heading: YearsModeAttributes['heading']
@@ -136,12 +143,14 @@ export const resolve = <Input, Message>(
 ): ResolvedCalendar<Message> => {
   const builders = buildersOf(CalendarSlots, mixins, context)
   const root = builders.root.attrs(render.root)
+  const header = builders.header.attrs()
   const grid = builders.grid.attrs(render.grid)
   switch (render._tag) {
     case 'Days':
       return {
         _tag: 'Days',
         root,
+        header,
         grid,
         heading: render.heading,
         previousMonthButton: builders.previousMonthButton.attrs(render.previousMonthButton),
@@ -166,6 +175,7 @@ export const resolve = <Input, Message>(
       return {
         _tag: 'Months',
         root,
+        header,
         grid,
         heading: render.heading,
         headingButton: builders.headingButton.attrs(render.headingButton),
@@ -179,6 +189,7 @@ export const resolve = <Input, Message>(
       return {
         _tag: 'Years',
         root,
+        header,
         grid,
         heading: render.heading,
         previousPageButton: builders.previousPageButton.attrs(render.previousPageButton),
@@ -192,15 +203,67 @@ export const resolve = <Input, Message>(
   }
 }
 
+/** The month grid in every mode, as upstream lays it out, with a header row of its own. */
+export const draw = <Message>(calendar: ResolvedCalendar<Message>, h: HtmlBuilder<Message>): Html =>
+  Match.valueTags(calendar, {
+    Days: days =>
+      h.div(days.root, [
+        h.div(days.header, [
+          h.button(days.previousMonthButton, ['‹']),
+          h.button(days.headingButton, [days.heading.text]),
+          h.button(days.nextMonthButton, ['›']),
+        ]),
+        h.div(days.grid, [
+          h.div(
+            days.headerRow,
+            days.columnHeaders.map(column => h.div(column.attributes, [column.name])),
+          ),
+          ...days.weeks.map(week =>
+            h.div(
+              week.attributes,
+              week.cells.map(cell =>
+                h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.label])]),
+              ),
+            ),
+          ),
+        ]),
+      ]),
+    Months: months =>
+      h.div(months.root, [
+        h.div(months.header, [h.button(months.headingButton, [months.heading.text])]),
+        h.div(
+          months.grid,
+          months.cells.map(cell =>
+            h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.shortLabel])]),
+          ),
+        ),
+      ]),
+    Years: years =>
+      h.div(years.root, [
+        h.div(years.header, [
+          h.button(years.previousPageButton, ['‹']),
+          years.heading.text,
+          h.button(years.nextPageButton, ['›']),
+        ]),
+        h.div(
+          years.grid,
+          years.cells.map(cell =>
+            h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.label])]),
+          ),
+        ),
+      ]),
+  })
+
 /**
- * The calendar's `toView`: `draw` receives its bundles with `mixins` applied.
- * A Mixin that reads the mode needs `resolve`, whose `input` can be `_tag`.
+ * The calendar's `toView`: `draw` receives its bundles with `mixins` applied;
+ * without one, they are drawn by `draw` above. A Mixin that reads the mode
+ * needs `resolve`, whose `input` can be `_tag`.
  */
 export const toView =
   <Message>(
     mixins: MixinList<Message>,
     context: ResolveContext<unknown, Message>,
-    draw: (resolved: ResolvedCalendar<Message>) => Html,
+    render: (resolved: ResolvedCalendar<Message>) => Html = resolved => draw(resolved, context.h),
   ) =>
   (attributes: CalendarAttributes): Html =>
-    draw(resolve(attributes, mixins, context))
+    render(resolve(attributes, mixins, context))

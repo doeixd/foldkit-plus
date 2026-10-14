@@ -7,7 +7,7 @@
  * drafts, toggles, a click counter); every control draws through a shipped
  * recipe, so the page is the documentation.
  */
-import { Match, Option, Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Calendar as FoldkitCalendar, File, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { childAttributes } from 'foldkit/html'
@@ -25,7 +25,6 @@ import {
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
-import type { CalendarAttributes } from '@foldkit/ui/calendar'
 import type { EntryHandlers } from '@foldkit/ui/toast'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiDisclosure from '@foldkit/ui/disclosure'
@@ -1058,65 +1057,6 @@ const ComboboxDemo = (
     toParentMessage: message => Message.Combobox({ message }),
   })
 
-/** The month grid any calendar draws through, here in the picker's panel. */
-const drawCalendarGrid = (
-  attributes: CalendarAttributes,
-  chrome: SlotBuilders<typeof DateChromeSlots, Message>,
-  h: HtmlBuilder<Message>,
-): Html => {
-  const calendar = Calendar.resolve(attributes, [CalendarStyle.mixin], { input: undefined, h })
-  return Match.value(calendar).pipe(
-    Match.tagsExhaustive({
-      Days: days =>
-        h.div(days.root, [
-          h.div(chrome.header.attrs(), [
-            h.button(days.previousMonthButton, ['‹']),
-            h.button(days.headingButton, [days.heading.text]),
-            h.button(days.nextMonthButton, ['›']),
-          ]),
-          h.div(days.grid, [
-            h.div(days.headerRow, [
-              ...days.columnHeaders.map(header => h.div(header.attributes, [header.name])),
-            ]),
-            ...days.weeks.map(week =>
-              h.div(week.attributes, [
-                ...week.cells.map(cell =>
-                  h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.label])]),
-                ),
-              ]),
-            ),
-          ]),
-        ]),
-      Months: months =>
-        h.div(months.root, [
-          h.div(chrome.monthHeader.attrs(), [
-            h.button(months.headingButton, [months.heading.text]),
-          ]),
-          h.div(
-            months.grid,
-            months.cells.map(cell =>
-              h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.shortLabel])]),
-            ),
-          ),
-        ]),
-      Years: years =>
-        h.div(years.root, [
-          h.div(chrome.header.attrs(), [
-            h.button(years.previousPageButton, ['«']),
-            h.span([], [years.heading.text]),
-            h.button(years.nextPageButton, ['»']),
-          ]),
-          h.div(
-            years.grid,
-            years.cells.map(cell =>
-              h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.label])]),
-            ),
-          ),
-        ]),
-    }),
-  )
-}
-
 /**
  * A due-date picker: the shell rides attribute bundles (the adapter resolves
  * in the child's own universe), while the month grid inside draws through
@@ -1148,7 +1088,7 @@ const DatePickerDemo = (
       triggerAttributes: childAttributes(chrome.trigger.attrs()),
       panelAttributes: childAttributes(chrome.panel.attrs()),
       backdropAttributes: childAttributes(chrome.backdrop.attrs()),
-      toCalendarView: attributes => drawCalendarGrid(attributes, chrome, h),
+      toCalendarView: Calendar.toView([CalendarStyle.mixin], { h }),
     },
     toParentMessage: message => Message.DatePicker({ message }),
   })

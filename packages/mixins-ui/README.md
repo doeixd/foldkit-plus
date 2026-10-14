@@ -397,7 +397,7 @@ adapter.
 | Tabs | `tablist`, `tab`, `panel` |
 | RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput` |
 | Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id |
-| Calendar | `root`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
+| Calendar | `root`, `header` (the heading's row, this package's own), `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
 | Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `MenuView` fork; see below) |
 | FileDrop | `root`, `input` |
 | Toast | `container`, `entry` (over the `ToastView` fork; the dismiss control stays inside the consumer's `entryToView`) |
@@ -651,8 +651,8 @@ source (attributed in its module) with the missing `toView` added, as
 described above; state, Messages, update, Commands, and Mounts stay
 upstream in every case. If upstream gains seams, the forks go away.
 
-`Menu`, `Listbox` and `Combobox` draw upstream's markup from the styled
-bundles when `toView` is given no `draw`: `Menu.toView([MenuStyle.mixin], { h })`
+`Menu`, `Listbox`, `Combobox` and `Calendar` draw the standard markup from the
+styled bundles when `toView` is given no `draw`: `Menu.toView([MenuStyle.mixin], { h })`
 is a whole styled menu. Pass a `draw` to arrange the parts yourself.
 
 `DatePicker`'s bundles mix the popover's pre-bound groups with the date

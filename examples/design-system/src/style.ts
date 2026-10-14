@@ -455,8 +455,6 @@ export const DateChromeSlots = Slots.define({
   trigger: Slot.make({ capability: Capability.Container }),
   panel: Slot.make({ capability: Capability.Container }),
   backdrop: Slot.make({ capability: Capability.Container }),
-  header: Slot.make({ capability: Capability.Container }),
-  monthHeader: Slot.make({ capability: Capability.Container }),
 })
 
 export const DateChromeStyle = app.slots(
@@ -480,14 +478,6 @@ export const DateChromeStyle = app.slots(
     ],
     panel: [...popupPanel, { minInlineSize: '18rem' }],
     backdrop: [{ position: 'fixed', inset: '0' }],
-    header: [
-      L.in('layouts', Layout.cluster({ justify: 'space-between', align: 'center' })),
-      { marginBlockEnd: t.space['2xs'] },
-    ],
-    monthHeader: [
-      L.in('layouts', Layout.cluster({ justify: 'center', align: 'center' })),
-      { marginBlockEnd: t.space['2xs'] },
-    ],
   },
   { name: 'DateChromeStyle' },
 )

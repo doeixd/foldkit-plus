@@ -34,6 +34,10 @@ version changed; `pnpm` skips versions already in the registry.
   drawn from the styled bundles, so a styled menu is
   `Menu.toView([MenuStyle.mixin], { h })` instead of forty lines of panel and
   option groups. The forks' default views share the same drawing.
+- **`foldkit-mixins-ui`: `Calendar` draws itself too.** `CalendarSlots` gains
+  `header`, the row of the heading and its paging buttons, which no upstream
+  bundle holds; `Calendar.toView(mixins, { h })` draws every mode through the
+  slots, and `Calendar.draw` is that drawing for a `toView` of your own.
 
 ### Changed
 

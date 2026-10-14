@@ -72,13 +72,31 @@ const week = component(
 export const Calendar = Style.recipeFor(CalendarSlots)({
   base: {
     root: component(Style.self({ display: 'grid', gap: ref.space.xs, justifyItems: 'center' })),
+    // The paging buttons at the ends, the heading between them; alone, as
+    // when picking a month, the heading sits in the middle.
+    header: component(
+      Style.self({
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: ref.space.xs,
+        justifySelf: 'stretch',
+        color: ref.text.overt,
+        fontSize: ref.size.sm,
+        fontWeight: ref.weight.semibold,
+      }),
+    ),
     previousMonthButton: quiet,
     nextMonthButton: quiet,
     previousPageButton: quiet,
     nextPageButton: quiet,
     headingButton: component(
       quiet,
-      Style.self({ color: ref.text.overt, fontWeight: ref.weight.semibold }),
+      Style.self({
+        marginInline: 'auto',
+        color: ref.text.overt,
+        fontWeight: ref.weight.semibold,
+      }),
     ),
     // Months and years fill a three-column grid; the day grid stacks its
     // weeks, and only it carries `aria-rowcount`.

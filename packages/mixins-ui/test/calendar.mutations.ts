@@ -3,7 +3,9 @@
  * `pnpm mutate packages/mixins-ui/test/calendar.mutations.ts`.
  */
 const browser = ['packages/mixins-ui/test/calendar.browser.test.ts']
+const unit = ['packages/mixins-ui/test/calendar.test.ts']
 const recipe = '../src/recipes/calendar.ts'
+const adapter = '../src/calendar.ts'
 
 export default [
   {
@@ -38,5 +40,38 @@ export default [
       },
     ],
     tests: browser,
+  },
+  {
+    name: 'the header is drawn outside its slot',
+    edits: [
+      {
+        file: adapter,
+        find: '  const header = builders.header.attrs()',
+        replace: '  const header = builders.root.attrs()',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the months show no months',
+    edits: [
+      {
+        file: adapter,
+        find: 'h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.shortLabel])]),',
+        replace: 'h.div(cell.cellAttributes, []),',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the days draw no weeks',
+    edits: [
+      {
+        file: adapter,
+        find: '          ...days.weeks.map(week =>',
+        replace: '          ...[].map(week =>',
+      },
+    ],
+    tests: unit,
   },
 ]
