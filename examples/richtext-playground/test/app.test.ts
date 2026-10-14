@@ -7,7 +7,9 @@ import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
+import { ClipboardMessage } from 'foldkit-primitives/dom'
 import {
+  codeBlockAt,
   Menu,
   Message,
   init,
@@ -193,16 +195,6 @@ describe('a block handle', () => {
     expect(top(after)[paragraphIndex(model)]).toMatchObject({ type: 'Heading', level: 2, id: node })
   })
 
-  it('adds a row as wide as the table', () => {
-    const model = start()
-    const table = top(model)[kinds(model).indexOf('Table')]!
-    const after = step(model, Message.AddedRow({ table: table.id }))
-    const rows = (block: RichText.Block) => (block.type === 'Node' ? (block.blocks ?? []) : [])
-    const grown = rows(top(after)[kinds(model).indexOf('Table')]!)
-    expect(grown).toHaveLength(rows(table).length + 1)
-    expect(rows(grown.at(-1)!)).toHaveLength(2)
-  })
-
   it('saves an image’s caption as typed', () => {
     const model = start()
     const image = top(model)[kinds(model).indexOf('Image')]!.id
@@ -239,6 +231,26 @@ describe('Enter', () => {
     const after = step(select(initial, caret(code, 5)), edited(EditorMessage.Entered()))
     expect(kinds(after)).toEqual(kinds(initial))
     expect(textIn(top(after)[index]!)).toBe(`${code.text.slice(0, 5)}\n${code.text.slice(5)}`)
+  })
+})
+
+describe('a code block', () => {
+  it('has its toolbar while the caret is in it, and not elsewhere', () => {
+    const initial = start()
+    const index = kinds(initial).indexOf('CodeBlock')
+    const inCode = select(initial, caret(runAt(initial, index), 3))
+    expect(codeBlockAt(inCode)).toEqual(Option.some(top(initial)[index]!.id))
+    expect(codeBlockAt(select(initial, caret(runAt(initial, 0), 1)))).toEqual(Option.none())
+  })
+
+  it('copies its text through the clipboard Command, and says what happened', () => {
+    const initial = start()
+    const code = top(initial)[kinds(initial).indexOf('CodeBlock')]!
+    const copied = update(initial, Message.CopiedCode({ node: code.id }))
+    expect(copied.model).toBe(initial)
+    expect(copied.commands?.map(command => command.args)).toEqual([{ text: textOf(code) }])
+    const said = step(initial, Message.GotClipboard({ message: ClipboardMessage.Copied() }))
+    expect(said.status).toEqual(Option.some('Copied the code.'))
   })
 })
 

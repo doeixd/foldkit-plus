@@ -50,6 +50,16 @@ either: it is the one the caret is in (`threadAt`).
 - code highlighting through `foldkit-richtext-code-shiki`, as decorations: the colors are
   never in the document.
 
+## Tables and code
+
+While the caret is in a table, `foldkit-mixins-richtext`'s `tableToolbar` is drawn above it
+(`blockAnchor({ side: 'above' })`): rows above and below, columns left and right, delete either,
+switch the header row, or delete the table, each one undo step from `foldkit-richtext`'s table
+commands. Tab and Shift+Tab move from cell to cell, and Tab in the last cell adds a row. In a code
+block, `codeToolbar` picks the language and copies the code (`copyText` from `foldkit-primitives`);
+Tab and Shift+Tab indent and outdent, and Enter keeps the line's indentation. Anywhere else Tab
+moves focus, as it does on any page.
+
 An image is read from a file into a `data:` URL ([canvas.ts](src/canvas.ts)), from the file
 field, a paste or a drop, and shown at its own width up to 640 pixels. The standard URL policy
 refuses `data:` for links, so the rendering accepts it only as an image's source.

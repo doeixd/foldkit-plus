@@ -1545,6 +1545,9 @@ importers:
       foldkit-mixins-richtext:
         specifier: workspace:*
         version: link:../../packages/mixins-richtext
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
       foldkit-richtext:
         specifier: workspace:*
         version: link:../../packages/richtext

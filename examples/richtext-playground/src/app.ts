@@ -23,6 +23,7 @@ import {
   type EditorView,
 } from 'foldkit-richtext-dom/editor-bundle'
 import { markdownInputRules } from 'foldkit-richtext-markdown'
+import { ClipboardMessage, copyText } from 'foldkit-primitives/dom'
 import { firstThread, initialDocument } from './document.js'
 import { Blocks, decorate, playgroundSlashEntries, rendering, vocabulary } from './vocabulary.js'
 
@@ -84,6 +85,8 @@ export const Model = Schema.Struct({
   hovered: Schema.Option(RichText.NodeId),
   /** Why the last file was not added. */
   notice: Schema.Option(Schema.String),
+  /** What the last copy did, shown in the footer. */
+  status: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -99,7 +102,6 @@ export const Message = defineMessageUnion({
   /** A handle's Turn into, for a container: the block, wrapped. */
   WrappedBlock: { node: RichText.NodeId, containers: Schema.Array(RichText.Container) },
   DuplicatedBlock: { node: RichText.NodeId },
-  AddedRow: { table: RichText.NodeId },
   LinkDrafted: { href: Schema.String },
   CaptionDrafted: { caption: Schema.String },
   CaptionSaved: { node: RichText.NodeId },
@@ -114,6 +116,9 @@ export const Message = defineMessageUnion({
   /** A block from the toolbar, put beside the caret's top-level block. */
   Inserted: { block: RichText.Block },
   ImageRead: { src: Schema.String, alt: Schema.String, width: Schema.Number },
+  /** A code block's text, to the clipboard: its toolbar's Copy. */
+  CopiedCode: { node: RichText.NodeId },
+  GotClipboard: { message: ClipboardMessage },
   ImageRefused: { reason: Schema.String },
   DismissedNotice: {},
   SlashMoved: { index: Schema.Number },
@@ -152,6 +157,7 @@ export const init = (): Return => ({
     captionDraft: '',
     hovered: Option.none(),
     notice: Option.none(),
+    status: Option.none(),
   },
 })
 
@@ -246,6 +252,18 @@ export const topLevelPlace = (model: Model): RichText.Beside => {
   if (top === undefined) return { after: last.id }
   const blank = top.type === 'Paragraph' && top.children.every(child => child.text === '')
   return blank ? { before: top.id } : { after: top.id }
+}
+
+/** The code block the caret is in, whose toolbar is drawn above it. */
+export const codeBlockAt = (model: Model): Option.Option<RichText.NodeId> => {
+  const selection = model.editor.selection
+  if (selection?.type !== 'Range') return Option.none()
+  const start = RichText.rangeStart(model.document, selection)
+  const run = start === undefined ? undefined : RichText.locateRun(model.document, start.node)
+  const block = run === undefined ? undefined : RichText.blockAtPath(model.document, run.path)
+  return block?.type === 'Node' && block.kind === 'CodeBlock'
+    ? Option.some(block.id)
+    : Option.none()
 }
 
 /** The closed toggle whose title the caret is in, if it is in one. */
@@ -442,21 +460,6 @@ export const update = (model: Model, message: Message): Return =>
         ? { model: closed(model) }
         : edit(closed(model), EditorMessage.InsertedBlock({ block, to: { after: node } }))
     },
-    AddedRow: ({ table }) => {
-      const block = blockOf(model, table)
-      const rows = block?.type === 'Node' ? (block.blocks ?? []) : []
-      const last = rows[rows.length - 1]
-      const width = Math.max(
-        1,
-        ...rows.map(row => (row.type === 'Node' ? (row.blocks?.length ?? 0) : 0)),
-      )
-      return last === undefined
-        ? { model }
-        : edit(
-            model,
-            EditorMessage.InsertedBlock({ block: Blocks.row(width), to: { after: last.id } }),
-          )
-    },
     LinkDrafted: ({ href }) => ({ model: modifyFields(model, { linkDraft: () => href }) }),
     CaptionDrafted: ({ caption }) => ({
       model: modifyFields(model, { captionDraft: () => caption }),
@@ -539,6 +542,30 @@ export const update = (model: Model, message: Message): Return =>
           to: topLevelPlace(model),
         }),
       ),
+    CopiedCode: ({ node }) => {
+      const block = blockOf(model, node)
+      return block === undefined
+        ? { model }
+        : {
+            model,
+            commands: [
+              Command.mapMessage(copyText(RichText.toText([block])), message =>
+                Message.GotClipboard({ message }),
+              ),
+            ],
+          }
+    },
+    GotClipboard: ({ message }) => ({
+      model: modifyFields(model, {
+        status: () =>
+          Option.some(
+            ClipboardMessage.match(message, {
+              Copied: () => 'Copied the code.',
+              CopyFailed: ({ message: reason }) => `Could not copy: ${reason}`,
+            }),
+          ),
+      }),
+    }),
     ImageRefused: ({ reason }) => ({
       model: modifyFields(model, { notice: () => Option.some(reason) }),
     }),

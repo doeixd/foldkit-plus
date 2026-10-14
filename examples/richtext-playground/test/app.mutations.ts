@@ -85,11 +85,6 @@ export default [
     tests,
   },
   {
-    name: 'a new row has one cell',
-    edits: [{ file, find: 'block: Blocks.row(width)', replace: 'block: Blocks.row(1)' }],
-    tests,
-  },
-  {
     name: 'a caption is saved untrimmed',
     edits: [
       {

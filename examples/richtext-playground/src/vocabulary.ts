@@ -12,6 +12,7 @@ import {
   type EditorEvent,
 } from 'foldkit-richtext-dom/editor'
 import type { SlashEntry } from 'foldkit-richtext-dom/editor'
+import type { CodeLanguage } from 'foldkit-mixins-richtext'
 import { createHighlighterCoreSync } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 import css from 'shiki/langs/css.mjs'
@@ -101,12 +102,12 @@ export const imageSource = (value: unknown): string | undefined =>
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
 
-/** What the code block's label says, from its `language` prop. */
-export const LANGUAGES: ReadonlyArray<readonly [id: string, label: string]> = [
-  ['typescript', 'TypeScript'],
-  ['json', 'JSON'],
-  ['css', 'CSS'],
-  ['', 'Plain text'],
+/** The languages a code block may name, as its toolbar offers them and its label shows them. */
+export const LANGUAGES: ReadonlyArray<CodeLanguage> = [
+  { id: 'typescript', label: 'TypeScript' },
+  { id: 'json', label: 'JSON' },
+  { id: 'css', label: 'CSS' },
+  { id: '', label: 'Plain text' },
 ]
 
 export const rendering = RichText.renderingOver(RichText.standardRendering, {
@@ -148,7 +149,7 @@ export const rendering = RichText.renderingOver(RichText.standardRendering, {
           {
             tag: 'span',
             attributes: { 'data-code-label': '' },
-            text: LANGUAGES.find(([id]) => id === language)?.[1] ?? language,
+            text: LANGUAGES.find(each => each.id === language)?.label ?? language,
           },
         ],
       }
@@ -261,8 +262,6 @@ export const Blocks = {
     children: [],
     blocks: [row(['', '', ''], true), row(['', '', '']), row(['', '', ''])],
   }),
-  /** A row as wide as the table's widest, to add under it. */
-  row: (cells: number): RichText.Block => row(Array.from({ length: cells }, () => '')),
   callout: (): RichText.Block => ({
     type: 'Node',
     kind: 'Callout',

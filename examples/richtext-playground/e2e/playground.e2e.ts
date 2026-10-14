@@ -259,3 +259,50 @@ test('empty lines can be reached with the arrow keys, and a new callout has a li
   expect(icon!.y + icon!.height).toBeLessThan(box!.y + box!.height)
   expect(errors).toEqual([])
 })
+
+test('a table has its toolbar, and Tab moves from cell to cell, adding a row at the end', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const cells = () =>
+    page
+      .locator('[contenteditable=true] > table tr')
+      .evaluateAll(rows => rows.map(row => row.children.length))
+  await page.click('[contenteditable=true] > table tr:last-child td:last-child')
+  await page.getByRole('toolbar', { name: 'Table' }).waitFor()
+  await page.click('[data-table="column-right"]')
+  await expect.poll(cells).toEqual([3, 3, 3])
+  await page.click('[data-table="delete-column"]')
+  await expect.poll(cells).toEqual([2, 2, 2])
+  await page.click('[contenteditable=true] > table tr:last-child td:last-child')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('next row')
+  await expect.poll(cells).toEqual([2, 2, 2, 2])
+  await expect
+    .poll(() =>
+      page.locator('[contenteditable=true] > table tr:last-child td').first().textContent(),
+    )
+    .toBe('next row')
+  // Outside a table and code, Tab is not the editor's.
+  await page.click('[contenteditable=true] > h1')
+  await page.keyboard.press('Tab')
+  expect(
+    await page.evaluate(() => document.activeElement?.getAttribute('contenteditable')),
+  ).not.toBe('true')
+  expect(errors).toEqual([])
+})
+
+test('a code block has its toolbar: its language, and Tab indents', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const code = page.locator('[contenteditable=true] > pre')
+  await code.locator('[data-run]').click()
+  const toolbar = page.getByRole('toolbar', { name: 'Code' })
+  await toolbar.waitFor()
+  await toolbar.getByRole('combobox', { name: 'Language' }).selectOption('json')
+  await expect.poll(() => code.getAttribute('data-language')).toBe('json')
+  await code.locator('[data-run]').click()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Tab')
+  await expect.poll(() => code.locator('[data-run]').textContent()).toMatch(/^ {2}\S/)
+  expect(errors).toEqual([])
+})

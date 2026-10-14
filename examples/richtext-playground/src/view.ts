@@ -10,11 +10,13 @@ import * as Mount from 'foldkit/mount'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
   blockStyles,
+  codeToolbar,
   editorStatus,
   linkEditor,
   slashMenu,
   slashMenuView,
   slashMove,
+  tableToolbar,
 } from 'foldkit-mixins-richtext'
 import { richtextDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
@@ -27,6 +29,7 @@ import {
   hostId,
   Menu,
   Message,
+  codeBlockAt,
   openMenu,
   openThreads,
   quoteOf,
@@ -35,7 +38,15 @@ import {
   type Thread,
 } from './app.js'
 import { canvasEvents, imagePicker } from './canvas.js'
-import { BlockStyleStyle, LinkEditorStyle, Page, SlashMenuStyle, StatusStyle } from './style.js'
+import {
+  BlockStyleStyle,
+  CodeToolbarStyle,
+  LinkEditorStyle,
+  Page,
+  SlashMenuStyle,
+  StatusStyle,
+  TableToolbarStyle,
+} from './style.js'
 import { Blocks, IMAGE_TYPES, LANGUAGES, playgroundSlashEntries } from './vocabulary.js'
 
 type H = HtmlBuilder<Message>
@@ -51,6 +62,8 @@ const SlashMenu = slashMenuView<Message>().pipe(Style.attach(SlashMenuStyle))
 const LinkEditor = linkEditor<Message>().pipe(Style.attach(LinkEditorStyle))
 const BlockStyles = blockStyles<Message>().pipe(Style.attach(BlockStyleStyle))
 const Status = editorStatus<Message>().pipe(Style.attach(StatusStyle))
+const TableTools = tableToolbar<Message>().pipe(Style.attach(TableToolbarStyle))
+const CodeTools = codeToolbar<Message>().pipe(Style.attach(CodeToolbarStyle))
 const DemoGuide = demoGuide<Message>()
 
 /** The text before the caret, which says whether a slash menu is open and what it matches. */
@@ -321,6 +334,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
                 }),
               ]),
               ...handle,
+              ...blockTools(model, slots, h),
               ...floating,
               ...slashPopup,
             ],
@@ -329,6 +343,10 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         ]),
         h.footer(slots.footer.attrs(), [
           Status({ document: model.document }, h),
+          ...Option.match(model.status, {
+            onNone: () => [],
+            onSome: status => [h.span(slots.status.attrs([h.Role('status')]), [status])],
+          }),
           h.span([], ['Edits and discussions stay in this page; Reset starts over.']),
         ]),
       ]),
@@ -336,6 +354,50 @@ export const PlaygroundView = SlotView.forMessages<Message>()
     ])
   })
   .pipe(Style.attach(Page.style))
+
+// --- block toolbars ------------------------------------------------------------------------------
+
+/**
+ * The toolbar of the block the caret is in, above it: a table's rows and columns, or a code
+ * block's language and Copy. Keyed by the block, since the anchor reads its args once.
+ */
+const blockTools = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
+  const above = (node: RichText.NodeId, tools: Html) =>
+    h.div(
+      slots.blockTools.attrs([
+        h.Key(`tools-${node}`),
+        h.OnMount(blockAnchor({ hostId, node, gap: 6, side: 'above' })),
+      ]),
+      [tools],
+    )
+  const table = RichText.tableAt(model.document, model.editor.selection)
+  if (table !== undefined) {
+    return [
+      above(
+        table.table.id,
+        TableTools({ document: model.document, selection: model.editor.selection, wrap }, h),
+      ),
+    ]
+  }
+  return Option.match(codeBlockAt(model), {
+    onNone: () => [],
+    onSome: node => [
+      above(
+        node,
+        CodeTools(
+          {
+            document: model.document,
+            node,
+            languages: LANGUAGES,
+            wrap,
+            copied: Message.CopiedCode({ node }),
+          },
+          h,
+        ),
+      ),
+    ],
+  })
+}
 
 // --- the block handle ------------------------------------------------------------------------
 
@@ -413,13 +475,6 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
           ]),
           item('Edit caption…', Message.OpenedMenu({ menu: Menu.Caption({ node }) })),
         ]
-      case 'CodeBlock':
-        return [
-          heading('Language'),
-          ...LANGUAGES.map(([id, label]) =>
-            item(`${(props.language ?? '') === id ? '✓ ' : ''}${label}`, set({ language: id })),
-          ),
-        ]
       case 'Callout':
         return [
           heading('Icon'),
@@ -437,8 +492,6 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
             ),
           ),
         ]
-      case 'Table':
-        return [item('Add a row', Message.AddedRow({ table: node }))]
       case 'Toggle':
         return [
           item(props.open === true ? 'Collapse' : 'Expand', set({ open: props.open !== true })),

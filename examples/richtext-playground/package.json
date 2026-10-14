@@ -14,6 +14,7 @@
     "foldkit-example-site": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-richtext": "workspace:*",
+    "foldkit-primitives": "workspace:*",
     "foldkit-richtext": "workspace:*",
     "foldkit-richtext-code-shiki": "workspace:*",
     "foldkit-richtext-dom": "workspace:*",

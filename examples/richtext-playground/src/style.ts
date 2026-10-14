@@ -11,9 +11,11 @@ import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
 import {
   BlockStyleSlots,
+  CodeToolbarSlots,
   EditorStatusSlots,
   LinkEditorSlots,
   SlashMenuSlots,
+  TableToolbarSlots,
 } from 'foldkit-mixins-richtext'
 
 export const A = AppStyle.make({
@@ -199,18 +201,39 @@ const writing = Style.compose(
   Style.nest('[data-toggle] > p:first-of-type', { fontWeight: t.weight.semibold }),
   Style.nest('[data-toggle="closed"] > [data-block] ~ [data-block]', { display: 'none' }),
   Style.nest('[data-toggle] > [data-block] ~ [data-block]', { marginBlockStart: t.space.xs }),
-  Style.nest('table', { inlineSize: '100%', borderCollapse: 'collapse', fontSize: t.size.sm }),
+  // Columns share the width evenly, and a long word wraps inside its cell instead of widening it.
+  Style.nest('table', {
+    inlineSize: '100%',
+    tableLayout: 'fixed',
+    borderCollapse: 'separate',
+    borderSpacing: '0',
+    border: `1px solid ${t.outline.default}`,
+    borderRadius: t.radius.lg,
+    overflow: 'hidden',
+    fontSize: t.size.sm,
+  }),
   Style.nest('td', {
-    border: `1px solid ${t.outline.subtle}`,
+    borderInlineEnd: `1px solid ${t.outline.subtle}`,
+    borderBlockEnd: `1px solid ${t.outline.subtle}`,
     padding: `${t.space.xs} ${t.space.sm}`,
     verticalAlign: 'top',
+    overflowWrap: 'anywhere',
   }),
-  // An empty cell holds an empty paragraph, which has no height of its own.
+  Style.nest('td:last-child', { borderInlineEnd: '0' }),
+  Style.nest('tr:last-child > td', { borderBlockEnd: '0' }),
   Style.nest('td > p', { margin: '0', minBlockSize: '1.6em' }),
-  Style.nest('tr[data-header] td', { background: t.surface.muted, fontWeight: t.weight.semibold }),
+  Style.nest('td > p + p', { marginBlockStart: t.space['2xs'] }),
+  Style.nest('tr[data-header] td', {
+    background: t.surface.muted,
+    fontWeight: t.weight.semibold,
+    color: t.text.default,
+  }),
+  Style.nest('tr:not([data-header]):hover td', {
+    background: `color-mix(in oklch, ${t.surface.muted} 45%, transparent)`,
+  }),
   Style.nest('pre', {
     position: 'relative',
-    padding: `${t.space.lg} ${t.space.md} ${t.space.md}`,
+    padding: `calc(${t.space.lg} + ${t.space.xs}) ${t.space.md} ${t.space.md}`,
     border: `1px solid ${t.outline.subtle}`,
     borderRadius: t.radius.xl,
     background: t.surface.subtle,
@@ -218,16 +241,18 @@ const writing = Style.compose(
     fontSize: '0.84rem',
     lineHeight: '1.65',
     whiteSpace: 'pre-wrap',
+    tabSize: '2',
   }),
   // A break at the end of the code has no line of its own until something follows it.
   Style.nest('pre::after', { content: '"\\200b"' }),
   Style.nest('[data-code-label]', {
     position: 'absolute',
-    insetBlockStart: t.space['2xs'],
-    insetInlineEnd: t.space.sm,
+    insetBlockStart: t.space.xs,
+    insetInlineStart: t.space.md,
     color: t.text.muted,
     fontFamily: t.font.body,
     fontSize: t.size.xs,
+    letterSpacing: '0.02em',
     userSelect: 'none',
   }),
   ...(
@@ -381,6 +406,12 @@ export const Page = A.slots({
     row('0'),
     Style.self({ position: 'fixed', insetBlockStart: '-999px' }),
   ),
+  // A block's toolbar, which `blockAnchor` fixes above the block the caret is in.
+  blockTools: Style.compose(
+    popup,
+    Style.self({ position: 'fixed', insetBlockStart: '-999px', zIndex: '6' }),
+  ),
+  status: Style.self({ color: t.text.default }),
   slash: Style.compose(
     popup,
     Style.self({
@@ -523,4 +554,25 @@ export const BlockStyleStyle = A.forSlots(BlockStyleSlots)({
 export const StatusStyle = A.forSlots(EditorStatusSlots)({
   counts: Style.self({ margin: '0' }),
   problems: Style.self({ margin: '0', padding: '0', listStyle: 'none' }),
+})
+
+export const TableToolbarStyle = A.forSlots(TableToolbarSlots)({
+  toolbar: row('0'),
+  button: Style.compose(
+    control,
+    Style.self({ fontSize: t.size.xs, minBlockSize: '1.75rem', whiteSpace: 'nowrap' }),
+    Style.pseudo('[data-table^="delete"]:hover:not(:disabled)', {
+      color: t.error.ink,
+      background: t.error.subtle,
+    }),
+  ),
+})
+
+export const CodeToolbarStyle = A.forSlots(CodeToolbarSlots)({
+  root: row(t.space['2xs']),
+  language: Style.compose(
+    field,
+    Style.self({ inlineSize: 'auto', paddingBlock: '2px', fontSize: t.size.xs, cursor: 'pointer' }),
+  ),
+  copy: Style.compose(control, Style.self({ fontSize: t.size.xs, minBlockSize: '1.75rem' })),
 })
