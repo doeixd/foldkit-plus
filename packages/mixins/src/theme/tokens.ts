@@ -42,7 +42,8 @@ export const tokens = define({
     md: radius(6),
     lg: radius(8),
     xl: radius(12),
-    full: '9999px',
+    // A pill, which squares off only where the knob is 0, as a boxy theme's are.
+    full: 'calc(9999px * min(var(--fk-knob-radius-factor), 1))',
   },
   font: { body: 'system-ui, sans-serif', heading: 'inherit', mono: 'ui-monospace, monospace' },
   size: {

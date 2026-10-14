@@ -91,9 +91,22 @@ const contrastFactor = v('knob', 'contrast-factor')
 
 type Step = readonly [lightness: number, chroma: number]
 
+/**
+ * How far a step's target lies past the offset it names: at the default
+ * contrast (26%) a step sits where its offset says, and the whole knob spans
+ * 2.5 times that, so its range is one a reader sees. At a reach of 1 the knob
+ * at its top moved the muted surface four points of lightness.
+ */
+const REACH = 2.5
+const reach = ([lightness, chroma]: Step): Step => [
+  Number((lightness * REACH).toFixed(4)),
+  Number((1 + (chroma - 1) * REACH).toFixed(4)),
+]
+
 /** A surface step: the base mixed toward a target by `surface-contrast`. */
-const surfaceStep = (light: Step, dark: Step) => {
+const surfaceStep = (lightStep: Step, darkStep: Step) => {
   const amount = v('knob', 'surface-contrast')
+  const [light, dark] = [reach(lightStep), reach(darkStep)]
   const target = ld(scale(base, light[0], light[1]), scale(base, dark[0], dark[1]))
   return `color-mix(in oklch, ${base} calc(100% - ${amount}), ${target} ${amount})`
 }
@@ -161,7 +174,7 @@ export const oklch = (knobs: OklchKnobs) => {
       'tertiary-shift': String(knobs.tertiaryHueShift ?? -90),
       'surface-c': String(surfaceSaturation),
       'surface-c-dark': num(surfaceSaturation * (4 / 3)),
-      'surface-contrast': knobs.surfaceContrast ?? '65%',
+      'surface-contrast': knobs.surfaceContrast ?? '26%',
       'contrast-factor': String(knobs.contrastFactor ?? 1),
       'base-l': '97.5%',
       'base-l-dark': '22%',

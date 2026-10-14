@@ -64,7 +64,7 @@ const palette = Theme.compose(
   Theme.oklch({
     accent: { h: 222, c: 0.09, l: '52%', dark: { l: '70%', c: 0.1 } },
     surfaceSaturation: 0.003,
-    surfaceContrast: '60%',
+    surfaceContrast: '24%',
   }),
   Theme.define({ knob: { 'radius-factor': '1.4' } }),
 )

@@ -139,7 +139,7 @@ export const BadgeStyle = forSlots(BadgeSlots)(
 
 export const badges = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
-    [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
+    [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
     [
       Badge.view({ text: 'Live', tone: 'live', style }, h),
       Badge.view({ text: 'In review', tone: 'review', style }, h),

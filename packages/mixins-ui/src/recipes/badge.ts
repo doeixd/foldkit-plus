@@ -34,9 +34,13 @@ export const Badge = (options: BadgeOptions): { readonly badge: StyleValue } => 
     Style.self({
       alignItems: 'center',
       background: ref.surface.muted,
-      borderRadius: ref.radius.full,
+      // A pill at the default radius, rounder or squarer with the radius knob.
+      borderRadius: ref.radius.xl,
       color: ref.text.muted,
       display: 'inline-flex',
+      // Its words never wrap, so it never shrinks below them: squeezed in a
+      // row, a badge's text ran into the next one.
+      flexShrink: '0',
       fontSize: ref.size.xs,
       fontWeight: ref.weight.semibold,
       gap: '0.35rem',

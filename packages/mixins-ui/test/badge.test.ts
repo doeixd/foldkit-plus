@@ -42,6 +42,6 @@ describe('Badge recipe', () => {
     const sheet = Style.forSlots(BadgeSlots)(Recipes.Badge({ attribute: 'data-tone', tones })).css
     expect(sheet).toContain('[data-tone="success"]')
     expect(sheet).toContain('background:var(--fk-success-subtle)')
-    expect(sheet).toContain('border-radius:var(--fk-radius-full)')
+    expect(sheet).toContain('border-radius:var(--fk-radius-xl)')
   })
 })

@@ -62,7 +62,7 @@ const palette = Theme.compose(
     accent: { h: 222, c: 0.09, l: '52%', dark: { l: '70%', c: 0.1 } },
     // Zinc-like neutrals: barely any chroma in the surfaces.
     surfaceSaturation: 0.003,
-    surfaceContrast: '60%',
+    surfaceContrast: '24%',
   }),
   // shadcn's corners: cards at 0.625rem, controls near 0.5rem.
   Theme.define({ knob: { 'radius-factor': '1.4' } }),

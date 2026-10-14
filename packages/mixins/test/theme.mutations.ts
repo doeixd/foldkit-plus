@@ -201,4 +201,11 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
+  {
+    name: 'the surface contrast knob reaches only as far as its steps name',
+    edits: [
+      { file: '../src/theme/oklch.ts', find: 'const REACH = 2.5', replace: 'const REACH = 1' },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
 ]

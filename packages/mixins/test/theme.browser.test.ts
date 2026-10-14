@@ -256,3 +256,18 @@ describe('a menu panel', () => {
     expect(getComputedStyle(swatch).backdropFilter).toBe('blur(12px)')
   })
 })
+
+test('the surface contrast knob spans steps a reader sees', () => {
+  install('light')
+  const at = (contrast: string) => {
+    document.documentElement.style.setProperty('--fk-knob-surface-contrast', contrast)
+    return lightnessOf(computed('surface-base')) - lightnessOf(computed('surface-muted'))
+  }
+  try {
+    expect(at('0%')).toBeCloseTo(0, 3)
+    // At its top a muted surface sits ten points below the base, where it sat four.
+    expect(at('100%')).toBeGreaterThan(0.08)
+  } finally {
+    document.documentElement.style.removeProperty('--fk-knob-surface-contrast')
+  }
+})

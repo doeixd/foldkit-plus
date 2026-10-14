@@ -61,7 +61,7 @@ describe('Theme.tokens', () => {
     })
     expect(Theme.tokens.space.md).toBe('calc(1rem * var(--fk-knob-density))')
     expect(Theme.tokens.radius.md).toBe('calc(6px * var(--fk-knob-radius-factor))')
-    expect(Theme.tokens.radius.full).toBe('9999px')
+    expect(Theme.tokens.radius.full).toBe('calc(9999px * min(var(--fk-knob-radius-factor), 1))')
     expect(Theme.tokens.motion.fast).toBe('calc(150ms * var(--fk-knob-motion))')
     expect(Theme.tokens.motion.normal).toBe('calc(250ms * var(--fk-knob-motion))')
     expect(Theme.tokens.motion.ease).toBe('ease-out')
@@ -193,7 +193,7 @@ describe('Theme.oklch', () => {
     expect(brand.knob['accent-l']).toBe('60%')
     expect(brand.knob['accent-l-dark']).toBe('70%')
     expect(brand.knob['accent-c-dark']).toBe('0.18')
-    expect(brand.knob['surface-contrast']).toBe('65%')
+    expect(brand.knob['surface-contrast']).toBe('26%')
     expect(brand.knob['success-h']).toBe('145')
   })
 
@@ -235,7 +235,7 @@ describe('Theme.oklch', () => {
 
   it('derives surfaces by mixing the base toward a target by surface-contrast', () => {
     expect(brand.surface.default).toBe(
-      'color-mix(in oklch, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.055) calc(c * 1.25) h), oklch(from var(--fk-surface-base) calc(l + 0.045) calc(c * 1.1) h)) var(--fk-knob-surface-contrast))',
+      'color-mix(in oklch, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.1375) calc(c * 1.625) h), oklch(from var(--fk-surface-base) calc(l + 0.1125) calc(c * 1.25) h)) var(--fk-knob-surface-contrast))',
     )
   })
 

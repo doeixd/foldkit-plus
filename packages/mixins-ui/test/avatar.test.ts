@@ -42,7 +42,7 @@ describe('Avatar recipe', () => {
 
   it('clips a covering picture into the disc', () => {
     const sheet = css({})
-    expect(sheet).toContain('border-radius:var(--fk-radius-full)')
+    expect(sheet).toContain('border-radius:calc(50% * min(var(--fk-knob-radius-factor), 1))')
     expect(sheet).toContain('object-fit:cover')
   })
 

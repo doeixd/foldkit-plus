@@ -6,7 +6,7 @@ export const { t, slots, forSlots, stylesheet } = AppStyle.make({
     Theme.oklch({
       accent: { h: 264, c: 0.17, l: '52%' },
       surfaceSaturation: 0.006,
-      surfaceContrast: '60%',
+      surfaceContrast: '24%',
     }),
     Theme.define({
       knob: {

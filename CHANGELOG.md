@@ -89,6 +89,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins/theme`: the surface contrast knob reaches 2.5 times as
+  far, and defaults to 26%.** At its top it moved a muted surface four points
+  of lightness, which read as doing nothing; the default look is the one 65%
+  drew. Breaking: a theme that sets `surfaceContrast` divides it by 2.5 to keep
+  its look (`'60%'` is `'24%'`).
+- **`foldkit-mixins/theme`: `radius.full` squares off where `radius-factor` is
+  0**, as a boxy theme's pills should; at any other factor it is a pill.
+  `Recipes.Badge` rounds by `radius.xl`, so the radius knob reaches it, and
+  `Recipes.Avatar` is a disc at the default factor, rounder squares below it.
 - **`foldkit-remote-server`: `RemoteServer.memory`'s `principal` is optional
   for every principal type.** It is only who `layer` answers as: without it,
   and with a principal type that does not admit `undefined`, the backend is a
@@ -121,6 +130,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: a badge squeezed in a row keeps its words inside it.**
+  The page reset floors every element's `min-width` at 0, so a badge in a
+  narrow row shrank under its unwrapped text, which ran into the next one.
 - **`foldkit-mixins-ui`: `Recipes.Dialog` centers the open panel.** `@foldkit/ui`
   draws the open dialog over the whole viewport, so the panel sat at its top.
 - **`foldkit-mixins-ui`: `Recipes.Slider` keeps a track wide enough to drag**

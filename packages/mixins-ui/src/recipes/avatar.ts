@@ -14,7 +14,8 @@ export const Avatar = Style.recipeFor(AvatarSlots)({
         position: 'relative',
         flex: 'none',
         overflow: 'clip',
-        borderRadius: ref.radius.full,
+        // A disc at the default radius, a rounded square below it, square at 0.
+        borderRadius: `calc(50% * min(${ref.knob['radius-factor']}, 1))`,
         background: ref.surface.muted,
       }),
     ),
