@@ -109,7 +109,9 @@ interface Pointed extends Event {
  * the capture phase, so a handler that stops a release does not hide it. The line is an element
  * of its own, `[data-richtext-drop]`, fixed at the edge the block would land on, for a
  * stylesheet to draw; once the pointer moves, the block being dragged carries
- * `data-richtext-dragging` until the drag ends, so a stylesheet can show which one it is. The
+ * `data-richtext-dragging` until the drag ends, so a stylesheet can show which one it is, and
+ * the page's root element carries `data-richtext-drag`, for a `grabbing` cursor everywhere the
+ * pointer goes rather than the text's caret. The
  * handle takes `touch-action: none` while attached, or a touch would
  * pan the page and cancel the drag.
  */
@@ -180,6 +182,7 @@ export const dragBlock = (
     if (((pointed.buttons ?? 1) & 1) === 0) return end(false)
     if (!marked) {
       moving?.setAttribute('data-richtext-dragging', '')
+      owner.documentElement.setAttribute('data-richtext-drag', '')
       marked = true
     }
     place(pointed.clientY ?? lastY)
@@ -209,6 +212,7 @@ export const dragBlock = (
     line?.remove()
     line = undefined
     moving?.removeAttribute('data-richtext-dragging')
+    owner.documentElement.removeAttribute('data-richtext-drag')
     moving = undefined
     marked = false
     for (const [type, listener] of onPage) owner.removeEventListener(type, listener, true)

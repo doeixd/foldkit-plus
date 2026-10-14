@@ -24,6 +24,17 @@ export default [
     tests,
   },
   {
+    name: 'the page stays marked after the drag',
+    edits: [
+      {
+        file,
+        find: "    owner.documentElement.removeAttribute('data-richtext-drag')\n",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a drag never scrolls the page',
     edits: [
       {

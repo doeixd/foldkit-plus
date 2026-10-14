@@ -301,8 +301,10 @@ const writing = Style.compose(
 export const Page = A.slots({
   page: Style.compose(
     // Where a dragged block would land: a line the drag puts on the page, outside every view.
+    // While a drag is under way the page is marked, and the cursor is a closed hand everywhere,
+    // over text too; `!important` because the text's caret cursor is a closer rule.
     Style.global(
-      `@layer app { [data-richtext-drop] { block-size: 3px; margin-block-start: -1px; border-radius: 2px; background: ${t.accent.default}; pointer-events: none; z-index: 20; } }`,
+      `@layer app { [data-richtext-drop] { block-size: 3px; margin-block-start: -1px; border-radius: 2px; background: ${t.accent.default}; pointer-events: none; z-index: 20; } [data-richtext-drag], [data-richtext-drag] * { cursor: grabbing !important; } }`,
     ),
     Style.self({
       boxSizing: 'border-box',
@@ -416,6 +418,7 @@ export const Page = A.slots({
       cursor: 'grab',
       touchAction: 'none',
     }),
+    Style.pseudo(':active', { cursor: 'grabbing' }),
   ),
   sidebar: Style.compose(
     Style.self({

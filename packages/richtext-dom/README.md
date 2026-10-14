@@ -264,7 +264,8 @@ but not to the top level:
 - A line, `[data-richtext-drop]`, is fixed at that edge, outside the editable subtree, for a
   stylesheet to draw: it has no size or color of its own, so a page that styles nothing shows
   no feedback at all. Once the pointer moves, the dragged block carries
-  `data-richtext-dragging` until the drag ends. The place is read again on a scroll and on
+  `data-richtext-dragging` until the drag ends, and the page's root element
+  `data-richtext-drag`, for a `grabbing` cursor wherever the pointer goes. The place is read again on a scroll and on
   release, where the blocks are then, and release sends `MovedBlock` there.
 - Held within 48 pixels of the window's top or bottom, the pointer scrolls the page a frame at
   a time, faster the nearer the edge (`edgeScroll`), so a block can be dragged past what the

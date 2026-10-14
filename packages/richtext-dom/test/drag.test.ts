@@ -144,13 +144,15 @@ describe('dragging a block by its handle', () => {
       Array.from(document.querySelectorAll('[data-richtext-dragging]')).map(element =>
         element.getAttribute('data-block'),
       )
+    // The page is marked too, for a `grabbing` cursor wherever the pointer goes.
+    const page = () => document.documentElement.hasAttribute('data-richtext-drag')
     handle().dispatchEvent(at('pointerdown'))
     // A press alone, a click, marks nothing.
-    expect(dragged()).toEqual([])
+    expect([dragged(), page()]).toEqual([[], false])
     document.dispatchEvent(at('pointermove', { clientY: 75 }))
-    expect(dragged()).toEqual(['a'])
+    expect([dragged(), page()]).toEqual([['a'], true])
     document.dispatchEvent(at('pointerup', { clientY: 75 }))
-    expect(dragged()).toEqual([])
+    expect([dragged(), page()]).toEqual([[], false])
   })
 
   it('scrolls the page while held near an edge, and stops when the drag ends', () => {
