@@ -48,6 +48,15 @@ describe('Tab in code', () => {
     expect(run('ab', range(1, 1), { type: 'Indent' })).toEqual({ text: 'a  b', at: [3, 3] })
   })
 
+  it('moves a caret that leans before its offset, as a browser reports a line’s start', () => {
+    const leaning: RichText.Selection = {
+      type: 'Range',
+      anchor: { node: id('t'), offset: 0, affinity: 'before' },
+      focus: { node: id('t'), offset: 0, affinity: 'before' },
+    }
+    expect(run('ab', leaning, { type: 'Indent' })).toEqual({ text: '  ab', at: [2, 2] })
+  })
+
   it('over a range, indents the start of every line it covers', () => {
     // Lines `one`, `two`, `three`; the range runs from inside `one` to inside `two`.
     expect(run('one\ntwo\nthree', range(1, 5), { type: 'Indent' }).text).toBe('  one\n  two\nthree')

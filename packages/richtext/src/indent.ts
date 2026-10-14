@@ -62,9 +62,18 @@ export const indent = (state: EditorState, block: Block): TransactionResult => {
   const at = (offset: number) => positionInBlock(block, offset)
   if (ends.from === ends.to) {
     const caret = at(ends.from)
-    return caret === undefined
-      ? { ok: false, error: 'InvalidSelection' }
-      : apply(state, [Edit.insertText(caret, INDENT)])
+    if (caret === undefined) return { ok: false, error: 'InvalidSelection' }
+    // The caret goes after the indentation whichever side of the offset it leaned: a caret the
+    // browser reports at a line's start leans `before`, and would stay in front of it.
+    const after = {
+      node: caret.node,
+      offset: caret.offset + INDENT.length,
+      affinity: 'after' as const,
+    }
+    return apply(state, [
+      Edit.insertText(caret, INDENT),
+      Edit.setSelection({ type: 'Range', anchor: after, focus: after }),
+    ])
   }
   const operations: Array<Operation> = []
   for (const start of linesCovered(text, ends.from, ends.to)) {

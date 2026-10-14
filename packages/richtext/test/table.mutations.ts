@@ -86,6 +86,17 @@ export default [
     tests,
   },
   {
+    name: 'an indented caret stays where it leaned',
+    edits: [
+      {
+        file: indent,
+        find: "      Edit.setSelection({ type: 'Range', anchor: after, focus: after }),\n",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a range indents only its first line',
     edits: [
       {

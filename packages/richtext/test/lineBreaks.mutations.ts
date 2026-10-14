@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file,
-        find: "definition?.kind === 'node' && definition.lineBreaks === true",
+        find: "holder !== undefined && definition?.kind === 'node' && definition.lineBreaks === true",
         replace: 'false',
       },
     ],
