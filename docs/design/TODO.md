@@ -751,6 +751,66 @@ both.
   conditions as data, element handles, and a React Native host through codegen.
   None is built, and nothing blocks it. [platform-DESIGN.md](./platform-DESIGN.md)
 
+## UI parity and the shared systems
+
+[ui-parity-DESIGN.md](./ui-parity-DESIGN.md) orders the components;
+[ui-systems-DESIGN.md](./ui-systems-DESIGN.md) is its step 3b, the systems
+they stand on, from Fluid Functionalism's craft reference. Systems steps 1-4
+come before parity step 4, so the islands are built on the ladder. Every step
+keeps what the systems plan's "What we keep" lists.
+
+- [x] **Parity 1-3:** gallery pages, fluid hover in lists and tabs, `/create`
+  at shadcn's level. [ui-parity-DESIGN.md](./ui-parity-DESIGN.md)
+- [ ] **FileDrop's page.** `File.File`'s decoding services are `unknown`, which
+  `Bundle.parent` refuses. [ui-parity-DESIGN.md](./ui-parity-DESIGN.md) step 1
+- [ ] **Separators in a styled menu.** Upstream draws them only through
+  `ChildAttribute`s an application's builder cannot draw.
+  [ui-parity-DESIGN.md](./ui-parity-DESIGN.md) step 1
+- [ ] **Systems 1, motion.** Tiers of 80, 160 and 240ms with exits a tier
+  quicker; a `travel` knob that reduced motion zeroes while fades stay;
+  exits through open-state durations; collapses on a `0fr`-`1fr` grid.
+  Breaking: `motion.normal`. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §1
+- [ ] **Systems 2, the size ladder.** A `step` knob and a `control` group
+  (height, padding, gap, icon, radius) that rows and controls share, times
+  `density`; `sm`/`md`/`lg` map onto it, and recipes drop `size` from their
+  defaults so regions take effect (breaking); `/create`'s size writes `step`.
+  This is the control-size knob UI Phase 4 left unbuilt.
+  [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §2
+- [ ] **Systems 3, type roles.** Six roles, each a size and a leading on the
+  ladder; `weight` axes for optical size; `Type.steady` for weight without
+  reflow; `text-box` trim on fixed-height labels; 16px fields on coarse
+  pointers; prose spaced above only. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §3
+- [ ] **Systems 4, state tints and concentric radii.** A `state` group (hover,
+  selected, pressed, tint) of the ink; `Theme.nested`; `Surface.imageEdge`.
+  [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §4
+- [ ] **Systems 5, the surface ladder.** Probe CSS `inherit()` first; eight
+  levels from `surface.base`, keeping its chroma; nesting by depth rules;
+  popups raise 2 with their shadow pinned, dialogs 4; menu looks keep their
+  `popup` surface. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §4
+- [ ] **Systems 6, scroll edges and bars.** `Scroll.fade` and `Scroll.divider`
+  in CSS alone, then a `ScrollBars` overlay Mount, native on touch.
+  [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §5
+- [ ] **Systems 7, fluid hover's remaining rules.** `gapClick.maxDistance`, no
+  zero rects (three-frame retry), tabs' chosen marker dimming, and Table rows
+  as a consumer. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §6
+- [ ] **Systems 8, component craft.** Button press and timing, icon stroke,
+  merged selection runs in CSS, Checkbox, Radio, Switch, popup, Tooltip,
+  Dialog and Badge values, each folded into that component's next brief.
+  [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
+- [ ] **Parity 4, the islands into the package.** Accordion, Toggle and Toggle
+  Group, Input OTP, Number Input, Alert Dialog, Context Menu, Hover Card,
+  Menubar, Navigation Menu, Command, Sidebar, Resizable and Checkbox Group.
+- [ ] **Parity 5, upstream wrappers.** Progress, Circular Progress, nav and the
+  virtual list.
+- [ ] **Parity 6, the missing everyday pieces.** Drawer and Sheet, Nested Menu,
+  Tags Input, Rating, Password Input, Steps, Carousel, Banner, Input Copy, a
+  date range, a range slider, Tree View and Color Picker.
+- [ ] **Parity 7, chat.** Message, Message Scroller, Thinking Indicator,
+  Thinking Steps and a Questionnaire.
+- [ ] **Parity 8, Zag's long tail.** Angle Slider, Cascade Select, Image
+  Cropper, Signature Pad, QR Code, Tour, Floating Panel, Marquee, a Timer
+  view and Chart.
+
 ## React
 
 - [ ] A `Resource` → Suspense bridge (`useResource`). `readAsyncData` covers
