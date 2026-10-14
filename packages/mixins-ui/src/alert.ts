@@ -22,7 +22,7 @@ export type AlertTone = 'info' | 'success' | 'warning' | 'error'
  * An alert in one call: what happened, what it means, an optional icon,
  * and how urgently it speaks. No upstream component stands behind it.
  */
-export interface AlertView {
+export interface AlertView<Message = never> {
   readonly title: string
   readonly description?: string | undefined
   readonly icon?: Html | undefined
@@ -30,10 +30,13 @@ export interface AlertView {
   /** A style of `AlertSlots`, for the alert's look. */
   readonly style?: NamedStyle<typeof AlertSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: AlertView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: AlertView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     AlertSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

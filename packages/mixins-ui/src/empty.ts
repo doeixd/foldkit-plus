@@ -20,7 +20,7 @@ export const EmptySlots = Slots.define({
  * earns, a style for its slots, and mixins beside the style. No upstream
  * component stands behind it.
  */
-export interface EmptyView {
+export interface EmptyView<Message = never> {
   readonly title: string
   readonly description?: string | undefined
   readonly icon?: Html | undefined
@@ -28,10 +28,13 @@ export interface EmptyView {
   /** A style of `EmptySlots`, for the empty state's look. */
   readonly style?: NamedStyle<typeof EmptySlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: EmptyView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: EmptyView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     EmptySlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

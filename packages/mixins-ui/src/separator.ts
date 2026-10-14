@@ -16,15 +16,18 @@ export const SeparatorSlots = Slots.define({
  * layout runs that way. A separator between menu items is decorative and
  * stays out of the tab order on its own.
  */
-export interface SeparatorView {
+export interface SeparatorView<Message = never> {
   readonly orientation?: 'horizontal' | 'vertical' | undefined
   /** A style of `SeparatorSlots`, for the rule's look. */
   readonly style?: NamedStyle<typeof SeparatorSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: SeparatorView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: SeparatorView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     SeparatorSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

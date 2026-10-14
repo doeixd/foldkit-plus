@@ -31,17 +31,20 @@ export interface TableColumn<Row> {
  * optional caption, a style for its slots, and mixins beside the style. No
  * upstream component stands behind it.
  */
-export interface TableView<Row> {
+export interface TableView<Row, Message = never> {
   readonly columns: ReadonlyArray<TableColumn<Row>>
   readonly rows: ReadonlyArray<Row>
   readonly caption?: string | undefined
   /** A style of `TableSlots`, for the table's look. */
   readonly style?: NamedStyle<typeof TableSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = <Row>(options: TableView<Row>, h: HtmlBuilder<never>): Html => {
+export const view = <Row, Message = never>(
+  options: TableView<Row, Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     TableSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

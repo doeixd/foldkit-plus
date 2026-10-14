@@ -35,6 +35,13 @@ version changed; `pnpm` skips versions already in the registry.
   `compact` padding, and its padding is one private `--_fk-card-pad`.
 - **`foldkit-mixins-ui` peers on `foldkit-primitives`**, for `Card.group`'s
   highlight.
+- **`foldkit-mixins-ui`'s stateless views take the application's builder.**
+  `Alert`, `AspectRatio`, `Avatar`, `Badge`, `Breadcrumb`, `ButtonGroup`,
+  `Empty`, `Icon`, `Item`, `Kbd`, `Label`, `ScrollArea`, `Separator`,
+  `Skeleton`, `Spinner`, `Table` and `Typography` are generic in the Message,
+  where they took `HtmlBuilder<never>`, so what they hold can send one: an empty
+  state's button, a badge in a pressable card. A call with no Message is
+  unchanged.
 
 ## 0.21.0
 

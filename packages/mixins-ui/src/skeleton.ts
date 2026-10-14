@@ -15,16 +15,19 @@ export const SkeletonSlots = Slots.define({
  * One shimmering bar in one call: what it stands in for, a style for its
  * slot, and mixins beside the style. No upstream component stands behind it.
  */
-export interface SkeletonView {
+export interface SkeletonView<Message = never> {
   /** What the bar stands in for, announced politely. */
   readonly label?: string | undefined
   /** A style of `SkeletonSlots`, for the bar's look. */
   readonly style?: NamedStyle<typeof SkeletonSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: SkeletonView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: SkeletonView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     SkeletonSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

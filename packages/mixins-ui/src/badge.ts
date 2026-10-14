@@ -16,17 +16,20 @@ export const BadgeSlots = Slots.define({
  * its slot, and mixins beside the style. No upstream component stands
  * behind it.
  */
-export interface BadgeView {
+export interface BadgeView<Message = never> {
   readonly text: string
   /** The tone value the recipe maps, such as 'success'. Omit it for the base. */
   readonly tone?: string | undefined
   /** A style of `BadgeSlots`, for the pill's look. */
   readonly style?: NamedStyle<typeof BadgeSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: BadgeView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: BadgeView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     BadgeSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

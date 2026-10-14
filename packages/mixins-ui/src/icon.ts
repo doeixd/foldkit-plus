@@ -16,17 +16,20 @@ export const IconSlots = Slots.define({
  * An icon in one call: the drawing it holds, the name it has when it means
  * something, a style for its slot, and mixins beside the style.
  */
-export interface IconView {
+export interface IconView<Message = never> {
   readonly content: Html
   /** Announced as an image. Omitted, the icon is decorative. */
   readonly label?: string | undefined
   /** A style of `IconSlots`, for the glyph's look. */
   readonly style?: NamedStyle<typeof IconSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: IconView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: IconView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     IconSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

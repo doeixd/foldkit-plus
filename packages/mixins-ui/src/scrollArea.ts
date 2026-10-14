@@ -17,15 +17,18 @@ export const ScrollAreaSlots = Slots.define({
  * and mixins beside the style (including the height that makes it scroll).
  * No upstream component stands behind it.
  */
-export interface ScrollAreaView {
+export interface ScrollAreaView<Message = never> {
   readonly content: Html
   /** A style of `ScrollAreaSlots`, for the area's look. */
   readonly style?: NamedStyle<typeof ScrollAreaSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: ScrollAreaView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: ScrollAreaView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     ScrollAreaSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

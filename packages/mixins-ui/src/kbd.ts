@@ -14,15 +14,15 @@ export const KbdSlots = Slots.define({
  * A key in one call: the key it names, a style for its slot, and mixins
  * beside the style. No upstream component stands behind it.
  */
-export interface KbdView {
+export interface KbdView<Message = never> {
   readonly key: string
   /** A style of `KbdSlots`, for the key's look. */
   readonly style?: NamedStyle<typeof KbdSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: KbdView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(options: KbdView<Message>, h: HtmlBuilder<Message>): Html => {
   const builders = SlotView.buildersFor(
     KbdSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
