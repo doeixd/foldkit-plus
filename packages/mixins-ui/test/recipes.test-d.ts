@@ -52,6 +52,11 @@ Recipes.RadioGroup({ tone: 'brand' })
 Recipes.Slider({ tone: 'neutral', size: 'md' })
 Recipes.Toast({})
 Recipes.FileDrop({})
+Recipes.Calendar({ size: 'sm' })
+
+// @ts-expect-error a size the calendar recipe does not offer.
+Recipes.Calendar({ size: 'lg' })
+
 Recipes.DatePicker({ size: 'sm' })
 
 // @ts-expect-error a size the date picker recipe does not offer.

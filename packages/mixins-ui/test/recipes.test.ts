@@ -24,6 +24,7 @@ import {
   AvatarSlots,
   TypographySlots,
   ScrollAreaSlots,
+  CalendarSlots,
   CardGroupSlots,
   CardSlots,
   AlertSlots,
@@ -115,6 +116,7 @@ const allPieces = [
   ...selections(Recipes.AspectRatio.def.variants).map(selection => Recipes.AspectRatio(selection)),
   ...selections(Recipes.Icon.def.variants).map(selection => Recipes.Icon(selection)),
   ...selections(Recipes.Alert.def.variants).map(selection => Recipes.Alert(selection)),
+  ...selections(Recipes.Calendar.def.variants).map(selection => Recipes.Calendar(selection)),
   ...selections(Recipes.Card.def.variants).map(selection => Recipes.Card(selection)),
   ...selections(Recipes.Input.def.variants).map(selection => Recipes.Input(selection)),
   ...selections(Recipes.Textarea.def.variants).map(selection => Recipes.Textarea(selection)),
@@ -241,6 +243,9 @@ const compiled = {
   ),
   FileDrop: selections(Recipes.FileDrop.def.variants).map(
     selection => Style.forSlots(FileDropSlots)(Recipes.FileDrop(selection)).css,
+  ),
+  Calendar: selections(Recipes.Calendar.def.variants).map(
+    selection => Style.forSlots(CalendarSlots)(Recipes.Calendar(selection)).css,
   ),
   DatePicker: selections(Recipes.DatePicker.def.variants).map(
     selection => Style.forSlots(DatePickerSlots)(Recipes.DatePicker(selection)).css,

@@ -565,6 +565,13 @@ const AddressStyle = Style.forSlots(FieldSlots)({
 `control` is in `variants`, so it wins over a `components` look on the same
 slot; over a look of your own in a later layer, say the same in that layer.
 
+`Recipes.Calendar` styles `CalendarSlots` in every mode: days in seven
+columns, months and years in three, each button reading its state off the
+cell (`data-today`, `data-selected`, `data-focused`, `data-outside-month`,
+`data-disabled`). `size` is the cell, `sm` (28px) or `md` (36px, the
+default). It draws no card, so the same style serves a calendar on the page
+and one in a date picker's panel.
+
 `Recipes.Tabs({ variant: 'pill' })`'s chosen tab is the accent's tint and ink,
 as a pressed Segmented option is. To look at every recipe in every variant and
 state at once, in both schemes, write the specimen page:

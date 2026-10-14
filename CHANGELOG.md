@@ -21,6 +21,9 @@ version changed; `pnpm` skips versions already in the registry.
   keyed list in one column or a grid, divided or apart, with one highlight that
   follows the pointer to the nearest card (`FluidHover`); a press in a gap
   presses the highlighted card.
+- **`foldkit-mixins-ui`: `Recipes.Calendar`**, the month grid in every mode,
+  sized `sm` or `md` on the size ladder, for a calendar alone or in a date
+  picker's panel. The design-system example uses it in place of its own.
 
 ### Changed
 
