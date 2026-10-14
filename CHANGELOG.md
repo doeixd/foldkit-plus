@@ -20,6 +20,12 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext`: tables as a grid, and Tab.** `InsertRow`, `InsertColumn`,
+  `DeleteRow` and `DeleteColumn` edit the table around the caret's cell, each as
+  one undo step (`tableAt` reads where the caret is). `Indent` and `Outdent` are
+  Tab and Shift+Tab: indentation in code (and Enter keeps a line's), the next or
+  previous cell in a table, a new row after the last. `takesTab` says where Tab
+  means something.
 - **`foldkit-richtext-dom`: an empty line can be reached.** It holds a
   `<br data-richtext-filler>`, where the caret stands, so it has a line's height
   and the arrow keys and a click land on it; before, a new line made with Enter

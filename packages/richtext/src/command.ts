@@ -1,4 +1,4 @@
-import { Equal, Schema } from 'effect'
+import { Equal, Match, Schema } from 'effect'
 import {
   NodeId,
   blockAtPath,
@@ -28,6 +28,16 @@ import {
   type MarkRegistry,
 } from './marks.js'
 import { blockKind, standsWithin, type NodeRegistry } from './kit.js'
+import { indent, indentationAt, offsetIn, outdent } from './indent.js'
+import {
+  deleteColumn,
+  deleteRow,
+  insertColumn,
+  insertRow,
+  moveToCell,
+  tableAt,
+  type TableEdit,
+} from './table.js'
 import {
   Edit,
   apply,
@@ -124,6 +134,25 @@ export type Command =
    * document left with no block gets an empty paragraph, so there is somewhere to type.
    */
   | { readonly type: 'DeleteBlock'; readonly node: NodeId }
+  /**
+   * A row above or below the caret's table cell, as wide as the table's widest row, with the caret
+   * moved into it. The table is the standard vocabulary's (`Table`, `TableRow`, `TableCell`).
+   */
+  | { readonly type: 'InsertRow'; readonly where: 'before' | 'after' }
+  /** A cell beside the caret's in every row, before or after it: a column. */
+  | { readonly type: 'InsertColumn'; readonly where: 'before' | 'after' }
+  /** The caret's row, deleted; the last one deletes the table. */
+  | { readonly type: 'DeleteRow' }
+  /** The caret's column, deleted from every row that has it; the last one deletes the table. */
+  | { readonly type: 'DeleteColumn' }
+  /**
+   * Tab. In a kind declared `lineBreaks` (code), a level of indentation at the caret, or at the
+   * start of every line a range covers; in a table cell, the caret to the next cell, adding a row
+   * after the last. Refused anywhere else (`InvalidSelection`), so Tab can move focus there.
+   */
+  | { readonly type: 'Indent' }
+  /** Shift+Tab: a level of indentation off each line in code; the previous cell in a table. */
+  | { readonly type: 'Outdent' }
 
 /** Where `MoveBlock` puts a block: before or after a sibling, named by identity. */
 export const Beside = Schema.Union([
@@ -1007,6 +1036,37 @@ export const run = (
     }
     return apply(state, [Edit.setProps(command.node, command.props)])
   }
+  if (
+    command.type === 'InsertRow' ||
+    command.type === 'InsertColumn' ||
+    command.type === 'DeleteRow' ||
+    command.type === 'DeleteColumn'
+  ) {
+    const at = tableAt(state.document, state.selection)
+    if (at === undefined) return failure('InvalidSelection')
+    const edited: TableEdit = Match.value(command).pipe(
+      Match.discriminatorsExhaustive('type')({
+        InsertRow: ({ where }) => insertRow(state, at, where, ids.mint),
+        InsertColumn: ({ where }) => insertColumn(state, at, where, ids.mint),
+        DeleteRow: () => deleteRow(state, at),
+        DeleteColumn: () => deleteColumn(state, at),
+      }),
+    )
+    // The last row or column takes the table with it, as a handle's Delete would.
+    return 'deleteTable' in edited
+      ? run(state, { type: 'DeleteBlock', node: edited.deleteTable }, ids, options)
+      : edited
+  }
+  if (command.type === 'Indent' || command.type === 'Outdent') {
+    // Code inside a table cell indents: the innermost meaning of Tab wins.
+    const code = linesHolder(state, options.nodes)
+    if (code !== undefined) {
+      return command.type === 'Indent' ? indent(state, code) : outdent(state, code)
+    }
+    const at = tableAt(state.document, state.selection)
+    if (at === undefined) return failure('InvalidSelection')
+    return moveToCell(state, at, command.type === 'Indent' ? 'next' : 'previous', ids.mint)
+  }
   if (command.type === 'InsertBlock') {
     const to = command.to ?? besideCaret(state)
     if (to === undefined) return failure('InvalidSelection')
@@ -1315,7 +1375,16 @@ export const run = (
             ids,
             options,
           )
-        : run(state, { type: 'InsertText', text: '\n' }, ids, options)
+        : run(
+            state,
+            // The new line starts as indented as the one it broke.
+            {
+              type: 'InsertText',
+              text: `\n${indentationAt(textOfBlock(holder), offsetIn(holder, caret) ?? 0)}`,
+            },
+            ids,
+            options,
+          )
     }
     const item = itemAround(state.document, at.path, options.nodes)
     if (item !== undefined) {
@@ -1506,6 +1575,31 @@ const besideCaret = (state: EditorState): Beside | undefined => {
   const empty = block.children.every(child => child.text === '')
   return empty ? { before: block.id } : { after: block.id }
 }
+
+const textOfBlock = (block: Block): string => block.children.map(run => run.text).join('')
+
+/** The block the selection starts in when its kind keeps line breaks, as code does. */
+const linesHolder = (state: EditorState, nodes: NodeRegistry | undefined): Block | undefined => {
+  if (state.selection?.type !== 'Range') return undefined
+  const start = ordered(state.document, state.selection)?.start
+  const run = start === undefined ? undefined : locateRun(state.document, start.node)
+  const block = run === undefined ? undefined : blockAtPath(state.document, run.path)
+  if (block?.type !== 'Node') return undefined
+  const definition = nodes?.definitionFor(block.kind)
+  return definition?.kind === 'node' && definition.lineBreaks === true ? block : undefined
+}
+
+/**
+ * Whether Tab means something where the selection is: in code, or in a table cell. An editor
+ * takes Tab only there, so anywhere else it still moves focus out of the editor.
+ */
+export const takesTab = (
+  document: Document,
+  selection: Selection | null,
+  nodes?: NodeRegistry,
+): boolean =>
+  linesHolder({ document, selection }, nodes) !== undefined ||
+  tableAt(document, selection) !== undefined
 
 /** The first run anywhere in these blocks, nested ones included, in document order. */
 const firstRunIn = (blocks: ReadonlyArray<Block>): Run | undefined => {

@@ -73,6 +73,7 @@ export {
   blocksAt,
   moveTargets,
   coversText,
+  takesTab,
   run,
   runAction,
   unionChangeSet,
@@ -192,3 +193,5 @@ export {
   type TransactionResult,
 } from './transaction.js'
 export * as Replicated from './replicated.js'
+export { type TableAt, tableAt } from './table.js'
+export { INDENT } from './indent.js'

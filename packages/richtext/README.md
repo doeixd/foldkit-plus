@@ -238,6 +238,21 @@ container it leaves empty goes with it, as a move's does. A caret inside it move
 the text after it, or the end of the text before; a document it would empty gets an empty
 paragraph, so there is always somewhere to type.
 
+A table is edited as a grid from the cell the caret is in (`tableAt(document, selection)` reads
+which: the table, its rows, the row and the column). `InsertRow` and `InsertColumn` (`{ where:
+'before' | 'after' }`) add a row as wide as the widest, or a cell beside the caret's in every row,
+at the end of a row too short for that column; `DeleteRow` and `DeleteColumn` remove them, a row a
+column empties with it, and the last row or column takes the table. The caret goes to the new
+cell, or to its neighbour. Each is one transaction, so one undo step, and each is refused outside
+a table (`InvalidSelection`).
+
+`Indent` and `Outdent` are Tab and Shift+Tab. In a kind declared `lineBreaks` (code) they add or
+remove a level of indentation (`INDENT`, two spaces): at the caret, or at the start of every line
+a range covers; Enter there starts the new line as indented as the one it broke. In a table cell
+they move the caret to the next or previous cell, and Tab in the last cell adds a row. Code inside
+a cell indents. Anywhere else they are refused, and `takesTab(document, selection, nodes)` says so
+beforehand, which is how an editor leaves Tab to move focus there.
+
 `DeleteBackward` at the start of a container's first block used to do nothing, having no
 sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a
 `> ` or `- ` typed at a block's start. Without a vocabulary, in a table cell, and forwards, the
