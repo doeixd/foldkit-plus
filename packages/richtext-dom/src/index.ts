@@ -7,6 +7,7 @@
  */
 import * as RichText from 'foldkit-richtext'
 import { decorationAttributes, decorationSpans, piecesOf, type Spans } from './decorations.js'
+import { FILLER_ATTRIBUTE, needsFiller } from './filler.js'
 
 export interface EditorDom {
   /** The owned subtree root. Everything inside belongs to this interpreter. */
@@ -77,6 +78,19 @@ const renderAdornment = (owner: Document, adornment: RichText.Adornment): HTMLEl
 
 const isAdornment = (node: Node): boolean =>
   node instanceof Element && node.hasAttribute(RichText.ADORNMENT_ATTRIBUTE)
+
+const fillerIn = (element: Element): Element | undefined =>
+  Array.from(element.children).find(child => child.hasAttribute(FILLER_ATTRIBUTE))
+
+/** Gives an empty line its `<br>` after its runs, and takes it from a line with text. */
+const fill = (owner: Document, element: HTMLElement, block: RichText.Block): void => {
+  const filler = fillerIn(element)
+  if (!needsFiller(block)) return filler?.remove()
+  if (filler !== undefined) return
+  const br = owner.createElement('br')
+  br.setAttribute(FILLER_ATTRIBUTE, '')
+  element.append(br)
+}
 
 /** The text an element shows apart from its adornments, which is the text its runs hold. */
 const contentText = (node: Node): string =>
@@ -159,6 +173,7 @@ const renderBlock = (
     element.append(runElement)
     elements.set(run.id, runElement)
   }
+  fill(owner, element, block)
   // A node that accepts nested blocks renders them inside it, so a list keeps
   // its items and each nested block stays addressable by identity.
   if (block.type === 'Node' && block.blocks !== undefined) {
@@ -341,8 +356,11 @@ export const patch = (
     // A run belongs where the document says it does inside its block.
     const next = block.children[located.index + 1]
     const nextElement = next === undefined ? undefined : elements.get(next.id)
+    const filler = fillerIn(parent)
     if (nextElement !== undefined) nextElement.before(fresh)
+    else if (filler !== undefined) filler.before(fresh)
     else parent.append(fresh)
+    fill(root.ownerDocument, parent, block)
   }
   return { root, elements, content, rendering: dom.rendering, decorations }
 }
@@ -462,6 +480,14 @@ export const positionToRange = (dom: EditorDom, position: RichText.Position): Ra
   if (texts.length === 0) {
     if (position.offset > 0) return undefined
     range.setStart(element, 0)
+    range.collapse(true)
+    return range
+  }
+  // On an empty line the caret goes before the line's `<br>`, where a browser draws it; in the
+  // empty text node it would be drawn nowhere.
+  const filler = element.parentElement === null ? undefined : fillerIn(element.parentElement)
+  if (filler !== undefined && position.offset === 0 && texts.every(text => text.length === 0)) {
+    range.setStartBefore(filler)
     range.collapse(true)
     return range
   }

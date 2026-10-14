@@ -20,6 +20,11 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext-dom`: an empty line can be reached.** It holds a
+  `<br data-richtext-filler>`, where the caret stands, so it has a line's height
+  and the arrow keys and a click land on it; before, a new line made with Enter
+  had no height and the caret could not get to it. A caret restored onto an
+  element, not only into text, is put back.
 - **`foldkit-richtext-dom`: a drag shows itself and scrolls the page.** The
   dragged block carries `data-richtext-dragging` once the pointer moves (and the
   page's root `data-richtext-drag`, for a `grabbing` cursor), and a

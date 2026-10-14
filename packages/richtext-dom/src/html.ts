@@ -8,6 +8,7 @@
  * `script`/`style`/`iframe` content is dropped along with its element.
  */
 import * as RichText from 'foldkit-richtext'
+import { FILLER_ATTRIBUTE } from './filler.js'
 
 export interface HtmlDiagnostic {
   readonly code: 'Dropped' | 'Unwrapped' | 'Undeclared' | 'UnsafeAttribute'
@@ -457,8 +458,9 @@ export const parseHtml = (html: string, options: ParseOptions): ParsedHtml => {
   const diagnostics: Array<HtmlDiagnostic> = []
   // A block's adornments are drawn from its props, never content: a task's checkbox would
   // otherwise come back as text, and an image's caption as a paragraph.
+  // So is an empty line's `<br>`, which would otherwise read as a line break.
   for (const adornment of Array.from(
-    owner.body.querySelectorAll(`[${RichText.ADORNMENT_ATTRIBUTE}]`),
+    owner.body.querySelectorAll(`[${RichText.ADORNMENT_ATTRIBUTE}], [${FILLER_ATTRIBUTE}]`),
   ))
     adornment.remove()
   const blocks = blocksFrom(owner.body, options.mint, diagnostics, options.kit)

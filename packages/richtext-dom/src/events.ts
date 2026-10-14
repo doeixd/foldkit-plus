@@ -145,13 +145,16 @@ export const readSelection = (dom: EditorDom): RichText.Selection | null => {
   return { type: 'Range', anchor, focus }
 }
 
-const textFor = (
+/**
+ * Where a position is in the DOM: a text node and an offset into it, or, on an empty line, the
+ * line's element and the index of its `<br>`, where a browser draws a caret.
+ */
+const endpointFor = (
   dom: EditorDom,
   position: RichText.Position,
-): { node: Text; offset: number } | undefined => {
+): { node: Node; offset: number } | undefined => {
   const range = positionToRange(dom, position)
-  const container = range?.startContainer
-  return container instanceof Text ? { node: container, offset: range!.startOffset } : undefined
+  return range === undefined ? undefined : { node: range.startContainer, offset: range.startOffset }
 }
 
 /**
@@ -165,8 +168,8 @@ export const restoreSelection = (dom: EditorDom, selection: RichText.Selection |
   if (window === null || window === undefined || live === null || live === undefined) return
   live.removeAllRanges()
   if (selection === null || selection.type === 'Node') return
-  const anchor = textFor(dom, selection.anchor)
-  const focus = textFor(dom, selection.focus)
+  const anchor = endpointFor(dom, selection.anchor)
+  const focus = endpointFor(dom, selection.focus)
   if (anchor === undefined || focus === undefined) return
   if (typeof live.setBaseAndExtent === 'function') {
     live.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset)

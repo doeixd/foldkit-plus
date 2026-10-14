@@ -13,6 +13,7 @@ import { define } from 'foldkit/customElement'
 import { inertHtml as h, type Html } from 'foldkit/html'
 import * as RichText from 'foldkit-richtext'
 import { decorationAttributes, decorationSpans, piecesOf, type Spans } from './decorations.js'
+import { FILLER_ATTRIBUTE, needsFiller } from './filler.js'
 
 /** A rendered child is either an element or literal text. */
 type Child = Html | string
@@ -214,10 +215,12 @@ const editableBlock = (renderer: RichText.Rendering, block: RichText.Block, span
     h.DataAttribute('block', block.id),
   ]
   const adornment = renderAdornment(element, true)
+  // An empty line's `<br>`, as `mount` draws it, so this markup is still adopted.
+  const filler = needsFiller(block) ? [h.br([h.Attribute(FILLER_ATTRIBUTE, '')])] : []
   return elementFor(element.tag)(
     attributes,
     element.inner === undefined
-      ? [...adornment, ...runs, ...nested]
+      ? [...adornment, ...runs, ...filler, ...nested]
       : [...adornment, ...runs, elementFor(element.inner)([], nested)],
   )
 }

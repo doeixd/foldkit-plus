@@ -115,9 +115,10 @@ What each part does, and does not do:
 - **`slashEntries`**: what its slash menu offers, which Enter in a query resolves against: an
   application's own catalogue (an image, a table, a callout), beside or instead of the
   editor's `slashEntries`. The application's menu view draws the same list.
-- An empty block has no line of its own, since its run is an empty text node: a new line made
-  with Enter would not show. Give the text blocks a line, `:is(p, h1, h2, h3, pre) { min-height:
-  1lh }`, in the stylesheet around the editor.
+- An empty line holds a `<br data-richtext-filler>` after its run. A browser can neither draw a
+  caret in an empty text node nor move one there with the arrow keys, so without it a new line
+  made with Enter had no height and could not be reached. The caret on an empty line stands
+  before it; it holds no text or position, server markup draws it too, and an import drops it.
 - **`placeholder`**: what a blank document shows (`RichText.isBlank`). It is put on the block as
   `data-placeholder`, and the root, a `role="textbox"`, carries it as `aria-placeholder`.
   Drawing it is the stylesheet's, so the text never enters the content:
