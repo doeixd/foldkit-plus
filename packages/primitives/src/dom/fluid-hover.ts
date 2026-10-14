@@ -71,9 +71,10 @@ const isDisabled = (item: Element) =>
  * `follows` names the item the highlight sits on while the pointer is not
  * moving it: a menu marks the row its keys reach (`[data-active]`), and the
  * highlight goes there whenever that mark moves, so the keys and the pointer
- * light the same one. `from` names the item a fresh highlight grows out of
- * and returns to as it fades, as a tab's hover leaves and rejoins the chosen
- * tab; without it, a highlight appears and fades where it is.
+ * light the same one. `from` names the item a fresh highlight grows out of,
+ * as a tab's hover leaves the chosen tab. A highlight always fades where it
+ * is: once the pointer leaves, nothing should move. It stays only for an item
+ * the keyboard reached (`:focus-visible`), not one a click focused.
  */
 export const FluidHover = Mount.defineStream('FluidHover', {
   messages: [Schema.Never],
@@ -86,7 +87,7 @@ export const FluidHover = Mount.defineStream('FluidHover', {
     gapClick: Schema.Boolean,
     /** The selector of the item the highlight sits on while the pointer is not moving it. */
     follows: Schema.optional(Schema.String),
-    /** The selector of the item a fresh highlight grows out of and returns to. */
+    /** The selector of the item a fresh highlight grows out of. */
     from: Schema.optional(Schema.String),
   },
   execute: ({ element, name, item: selector, axis, gapClick, follows, from }) =>
@@ -134,11 +135,13 @@ export const FluidHover = Mount.defineStream('FluidHover', {
               requestAnimationFrame(() => container.style.setProperty(property.moving, '1'))
             }
           }
-          const hide = () => {
-            // Back to where it grew from, or, without one, kept on `active` so it
-            // fades where it was rather than at the origin.
-            place(origin())
-            container.style.setProperty(property.shown, '0')
+          const hide = () => container.style.setProperty(property.shown, '0')
+          /** Whether the keyboard has an item focused, which the highlight then stays on. */
+          const keyed = () => {
+            const focused = document.activeElement
+            return (
+              focused !== null && container.contains(focused) && focused.matches(':focus-visible')
+            )
           }
           const nearest = (x: number, y: number) => {
             let best: Element | null = null
@@ -169,7 +172,7 @@ export const FluidHover = Mount.defineStream('FluidHover', {
           }
           const leave = () => {
             pointer = null
-            if (!container.contains(document.activeElement)) hide()
+            if (!keyed()) hide()
           }
           const focus = (event: FocusEvent) => {
             if (!(event.target instanceof Element) || !event.target.matches(':focus-visible')) {
@@ -200,7 +203,7 @@ export const FluidHover = Mount.defineStream('FluidHover', {
             if (next === followed) return
             followed = next
             if (next !== null && !isDisabled(next)) show(next)
-            else if (pointer === null && !container.contains(document.activeElement)) hide()
+            else if (pointer === null && !keyed()) hide()
           }
 
           // Where there is no layout (jsdom has no ResizeObserver) nothing moves to

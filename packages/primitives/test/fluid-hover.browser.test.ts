@@ -168,6 +168,25 @@ it('appears without moving, then moves, and hides when the pointer leaves', asyn
   }
 })
 
+it('hides when the pointer leaves after a click focused an item, but not a key', async () => {
+  const hover = await mount()
+  try {
+    const button = hover.items[1]!.querySelector('button')!
+    await userEvent.click(button)
+    hover.point(50, 90)
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(1))
+    hover.container.dispatchEvent(new PointerEvent('pointerleave'))
+    expect(hover.read('shown')).toBe('0')
+    // Tab moves the focus by key, so the highlight stays on the item it reached.
+    await userEvent.keyboard('{Tab}')
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(2))
+    hover.container.dispatchEvent(new PointerEvent('pointerleave'))
+    expect(hover.read('shown')).toBe('1')
+  } finally {
+    await hover.stop()
+  }
+})
+
 it('follows no touch', async () => {
   const hover = await mount()
   try {
@@ -223,7 +242,7 @@ it('sits on the item its mark moves to while the pointer is away, and fades when
   }
 })
 
-it('grows out of the chosen item and returns to it as it fades', async () => {
+it('grows out of the chosen item, and fades where it is', async () => {
   const hover = await mount({ from: '[data-chosen]', chosen: 0 })
   try {
     const chosen = `${hover.items[0]!.offsetTop}px`
@@ -239,7 +258,7 @@ it('grows out of the chosen item and returns to it as it fades', async () => {
     // Drawn on the chosen item first, then moved out to the one pointed at.
     expect(places).toEqual([chosen, `${hover.items[2]!.offsetTop}px`])
     hover.container.dispatchEvent(new PointerEvent('pointerleave'))
-    expect(hover.read('y')).toBe(chosen)
+    expect(hover.read('y')).toBe(`${hover.items[2]!.offsetTop}px`)
     expect(hover.read('shown')).toBe('0')
   } finally {
     await hover.stop()

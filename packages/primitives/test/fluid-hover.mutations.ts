@@ -49,7 +49,7 @@ export default [
     edits: [
       {
         file,
-        find: '            if (!container.contains(document.activeElement)) hide()',
+        find: '            if (!keyed()) hide()',
         replace: '',
       },
     ],
@@ -98,7 +98,7 @@ export default [
     edits: [
       {
         file,
-        find: 'else if (pointer === null && !container.contains(document.activeElement)) hide()',
+        find: 'else if (pointer === null && !keyed()) hide()',
         replace: '',
       },
     ],
@@ -116,13 +116,31 @@ export default [
     tests,
   },
   {
-    name: 'a fading highlight stays where it was',
-    edits: [{ file, find: '            place(origin())\n', replace: '' }],
+    name: 'a fading highlight returns to where it grew from',
+    edits: [
+      {
+        file,
+        find: "const hide = () => container.style.setProperty(property.shown, '0')",
+        replace:
+          "const hide = () => (place(origin()), container.style.setProperty(property.shown, '0'))",
+      },
+    ],
     tests,
   },
   {
     name: 'the container is not marked while the highlight runs',
     edits: [{ file, find: 'container.setAttribute(FLUID_HOVER_ATTRIBUTE, name)', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a click’s focus keeps the highlight after the pointer leaves',
+    edits: [
+      {
+        file,
+        find: "focused !== null && container.contains(focused) && focused.matches(':focus-visible')",
+        replace: 'focused !== null && container.contains(focused)',
+      },
+    ],
     tests,
   },
 ]
