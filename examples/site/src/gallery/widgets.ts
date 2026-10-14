@@ -4,12 +4,14 @@
  * focus, a drag or an open popup and this Model owns the choice. The site
  * holds one of these and folds `Message` into it.
  */
-import { Option, Schema } from 'effect'
-import { Subscription, Update } from 'foldkit'
+import { Effect, Option, Schema } from 'effect'
+import { Calendar, Subscription, Update } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import { makeModifyFieldsFor, modifyFields } from 'foldkit/struct'
 import {
+  Calendar as UiCalendar,
   Combobox as UiCombobox,
+  DatePicker as UiDatePicker,
   Dialog as UiDialog,
   Listbox as UiListbox,
   Menu as UiMenu,
@@ -28,6 +30,7 @@ import {
   CityBox,
   Frequency,
   FrequencyBox,
+  Notices,
   Section,
   SectionTabs,
 } from '../snippets/components.js'
@@ -48,6 +51,11 @@ export const Model = Schema.Struct({
   frequency: Schema.Option(Frequency),
   combobox: UiCombobox.Model,
   city: Schema.Option(Schema.String),
+  calendar: UiCalendar.Model,
+  date: Schema.Option(Calendar.CalendarDate),
+  picker: UiDatePicker.Model,
+  due: Schema.Option(Calendar.CalendarDate),
+  notices: Notices.Model,
 })
 export type Model = typeof Model.Type
 
@@ -63,8 +71,15 @@ export const Message = defineMessageUnion({
   GotMenu: { message: UiMenu.Message },
   GotListbox: { message: UiListbox.Message },
   GotCombobox: { message: UiCombobox.Message },
+  GotCalendar: { message: UiCalendar.Message },
+  GotDatePicker: { message: UiDatePicker.Message },
+  GotNotices: { message: Notices.Message },
+  SavedDraft: {},
 })
 export type Message = typeof Message.Type
+
+// The day the page was loaded; a picker that shows another opens on the wrong month.
+const today = Effect.runSync(Calendar.today.local)
 
 export const initial: Model = {
   tabs: UiTabs.init({ id: 'preview-tabs' }),
@@ -82,6 +97,16 @@ export const initial: Model = {
   frequency: Option.some('Daily'),
   combobox: UiCombobox.init({ id: 'preview-city' }),
   city: Option.none(),
+  calendar: UiCalendar.init({ id: 'preview-calendar', today }),
+  date: Option.none(),
+  picker: UiDatePicker.init({
+    id: 'preview-due',
+    today,
+    minDate: Calendar.subtractYears(today, 5),
+    maxDate: Calendar.addYears(today, 5),
+  }),
+  due: Option.none(),
+  notices: Notices.init({ id: 'preview-notices' }),
 }
 
 type Step = Update.Step<Model, Message>
@@ -209,6 +234,42 @@ const foldCombobox = Update.foldChild({
   }),
 })
 
+const foldCalendar = Update.foldChild({
+  ...own('calendar', Message.GotCalendar),
+  update: UiCalendar.update,
+  foldOutMessage: UiCalendar.OutMessage.match<Step>({
+    SelectedDate:
+      ({ date }) =>
+      model => ({ model: modifyFields(model, { date: () => Option.some(date) }) }),
+    ChangedViewMonth: () => same,
+  }),
+})
+
+const foldDatePicker = Update.foldChild({
+  ...own('picker', Message.GotDatePicker),
+  update: UiDatePicker.update,
+  foldOutMessage: UiDatePicker.OutMessage.match<Step>({
+    SelectedDate:
+      ({ date }) =>
+      model => ({ model: modifyFields(model, { due: () => Option.some(date) }) }),
+    ClearedDate: () => model => ({ model: modifyFields(model, { due: () => Option.none() }) }),
+    ChangedViewMonth: () => same,
+  }),
+})
+
+const noticesField = own('notices', Message.GotNotices)
+const noticesOut = Notices.OutMessage.match<Step>({ DismissedToast: () => same })
+const foldNotices = Update.foldChild({
+  ...noticesField,
+  update: Notices.update,
+  foldOutMessage: noticesOut,
+})
+const notify = Update.foldChild({
+  ...noticesField,
+  update: Notices.show,
+  foldOutMessage: noticesOut,
+})
+
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match(message, {
     GotTabs: ({ message }) => foldTabs(model, message),
@@ -222,13 +283,30 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotListbox: ({ message }) => foldListbox(model, message),
     GotCombobox: ({ message }) => foldCombobox(model, message),
+    GotCalendar: ({ message }) => foldCalendar(model, message),
+    GotDatePicker: ({ message }) => foldDatePicker(model, message),
+    GotNotices: ({ message }) => foldNotices(model, message),
+    SavedDraft: () =>
+      notify(model, {
+        variant: 'Success',
+        payload: { title: 'Draft saved', text: 'Every edit since noon is safe.' },
+      }),
   })
 
-/** The slider's drag reaches it through the page's pointer, outside the slider. */
-export const subscriptions = Subscription.lift({
-  previewSliderPointer: UiSlider.subscriptions.dragPointer,
-  previewSliderEscape: UiSlider.subscriptions.dragEscape,
-})<Model, Message>({
-  read: model => Option.some(model.slider),
-  toParentMessage: message => Message.GotSlider({ message }),
-})
+/**
+ * The slider's drag reaches it through the page's pointer, outside the
+ * slider, and each toast's timer dismisses it.
+ */
+export const subscriptions = Subscription.aggregate(
+  Subscription.lift({
+    previewSliderPointer: UiSlider.subscriptions.dragPointer,
+    previewSliderEscape: UiSlider.subscriptions.dragEscape,
+  })<Model, Message>({
+    read: model => Option.some(model.slider),
+    toParentMessage: message => Message.GotSlider({ message }),
+  }),
+  Subscription.lift(Notices.subscriptions)<Model, Message>({
+    read: model => Option.some(model.notices),
+    toParentMessage: message => Message.GotNotices({ message }),
+  }),
+)

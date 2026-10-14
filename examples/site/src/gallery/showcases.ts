@@ -15,10 +15,12 @@ import {
   BreadcrumbSlots,
   ButtonGroupSlots,
   ButtonSlots,
+  CalendarSlots,
   CardGroupSlots,
   CardSlots,
   CheckboxSlots,
   ComboboxSlots,
+  DatePickerSlots,
   DialogSlots,
   EmptySlots,
   InputSlots,
@@ -586,6 +588,64 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets,
         message => live.onWidget(Widgets.Message.GotCombobox({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'calendar',
+      title: 'Calendar',
+      summary: 'A month of days to pick from, with its months and years a press away.',
+      recipe: 'Calendar',
+      file: 'calendar',
+      contract: 'CalendarSlots',
+    },
+    CalendarSlots,
+    Recipes.Calendar,
+    (style, live) =>
+      Snippet.calendar(
+        style,
+        live.widgets,
+        message => live.onWidget(Widgets.Message.GotCalendar({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'date-picker',
+      title: 'Date picker',
+      summary: 'A date behind a button, picked from a calendar that opens under it.',
+      recipe: 'DatePicker',
+      file: 'datePicker',
+      contract: 'DatePickerSlots',
+    },
+    DatePickerSlots,
+    Recipes.DatePicker,
+    (style, live) =>
+      Snippet.datePicker(
+        style,
+        live.widgets,
+        message => live.onWidget(Widgets.Message.GotDatePicker({ message })),
+        live.h,
+      ),
+  ),
+  fixed(
+    {
+      slug: 'toast',
+      title: 'Toast',
+      summary: 'A notice in the corner that goes by itself, or when dismissed.',
+      recipe: 'Toast',
+      file: 'toast',
+      contract: 'ToastSlots',
+    },
+    live =>
+      Snippet.toast(
+        Snippet.ToastStyle,
+        live.widgets.notices,
+        {
+          onNotify: live.onWidget(Widgets.Message.SavedDraft()),
+          toMessage: message => live.onWidget(Widgets.Message.GotNotices({ message })),
+        },
         live.h,
       ),
   ),

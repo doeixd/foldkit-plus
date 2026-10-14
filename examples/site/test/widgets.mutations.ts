@@ -46,15 +46,20 @@ export default [
     ],
     tests,
   },
-  ...['action', 'frequency', 'city'].map(field => ({
+  ...['action', 'frequency', 'city', 'date', 'due'].map(field => ({
     name: `the chosen ${field} is not kept`,
     edits: [
       {
         file: widgets,
-        find: `model => ({ model: modifyFields(model, { ${field}: () => Option.some(value) }) }),`,
+        find: `model => ({ model: modifyFields(model, { ${field}: () => Option.some(${field === 'date' || field === 'due' ? 'date' : 'value'}) }) }),`,
         replace: 'model => ({ model }),',
       },
     ],
     tests,
   })),
+  {
+    name: 'saving the draft says something else',
+    edits: [{ file: widgets, find: "title: 'Draft saved'", replace: "title: 'Saved'" }],
+    tests,
+  },
 ]

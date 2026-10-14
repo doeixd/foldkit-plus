@@ -4,7 +4,9 @@
  * value the preview shows.
  */
 import {
+  Calendar as UiCalendar,
   Combobox as UiCombobox,
+  DatePicker as UiDatePicker,
   Dialog as UiDialog,
   Listbox as UiListbox,
   Menu as UiMenu,
@@ -86,5 +88,27 @@ describe('the previews with state', () => {
       }),
     )
     expect(found.widgets.city).toEqual(Option.some('Oslo'))
+  })
+
+  it('keep the day picked on the calendar, and in the date picker', () => {
+    const day = { year: 2026, month: 10, day: 20 }
+    const picked = send(
+      Widgets.Message.GotCalendar({ message: UiCalendar.Message.ClickedDay({ date: day }) }),
+    )
+    expect(picked.widgets.date).toEqual(Option.some(day))
+    const due = send(
+      Widgets.Message.GotDatePicker({
+        message: UiDatePicker.Message.GotCalendarMessage({
+          message: UiCalendar.Message.ClickedDay({ date: day }),
+        }),
+      }),
+    )
+    expect(due.widgets.due).toEqual(Option.some(day))
+  })
+
+  it('show a notice when the draft is saved', () => {
+    expect(initial.widgets.notices.entries).toHaveLength(0)
+    const saved = send(Widgets.Message.SavedDraft())
+    expect(saved.widgets.notices.entries.map(entry => entry.payload.title)).toEqual(['Draft saved'])
   })
 })

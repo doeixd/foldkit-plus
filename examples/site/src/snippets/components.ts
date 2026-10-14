@@ -5,8 +5,11 @@
  * reader selected, so the code on the page is the code that drew it.
  */
 import { Option, Schema } from 'effect'
+import { Calendar as FoldkitCalendar } from 'foldkit'
 import {
+  Calendar as UiCalendar,
   Combobox as UiCombobox,
+  DatePicker as UiDatePicker,
   Dialog as UiDialog,
   Listbox as UiListbox,
   Menu as UiMenu,
@@ -20,7 +23,7 @@ import * as UiSlider from '@foldkit/ui/slider'
 import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import type { NamedStyle } from 'foldkit-mixins'
+import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import {
   Alert,
   AlertSlots,
@@ -34,6 +37,8 @@ import {
   ButtonGroup,
   ButtonGroupSlots,
   ButtonSlots,
+  Calendar,
+  CalendarSlots,
   Card,
   CardGroupSlots,
   CardSlots,
@@ -42,6 +47,9 @@ import {
   Combobox,
   ComboboxSlots,
   ComboboxView,
+  DatePicker,
+  DatePickerSlots,
+  DatePickerView,
   Dialog,
   DialogSlots,
   Empty,
@@ -83,6 +91,9 @@ import {
   TabsSlots,
   Textarea,
   TextareaSlots,
+  Toast,
+  ToastSlots,
+  ToastView,
   Tooltip,
   TooltipSlots,
 } from 'foldkit-mixins-ui'
@@ -910,4 +921,136 @@ export const combobox = <Message>(
     toParentMessage: toMessage,
   })
 }
+// #endregion
+
+// #region calendar
+export const CalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({}))
+
+/** The month shown and the focused day are the component's; the date is the Model's. */
+export interface CalendarState {
+  readonly calendar: UiCalendar.Model
+  readonly date: Option.Option<FoldkitCalendar.CalendarDate>
+}
+
+export const calendar = <Message>(
+  style: NamedStyle<typeof CalendarSlots>,
+  state: CalendarState,
+  toMessage: (message: UiCalendar.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.calendar.id,
+    model: state.calendar,
+    view: UiCalendar.view,
+    viewInputs: {
+      maybeSelectedDate: state.date,
+      toView: Calendar.toView([style.mixin], { h }),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region date-picker
+export const DatePickerStyle = forSlots(DatePickerSlots)(Recipes.DatePicker({}))
+const PanelCalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({ size: 'sm' }))
+
+/** The open panel and its month are the component's; the date is the Model's. */
+export interface DatePickerState {
+  readonly picker: UiDatePicker.Model
+  readonly due: Option.Option<FoldkitCalendar.CalendarDate>
+}
+
+const dayOf = (date: FoldkitCalendar.CalendarDate): string =>
+  `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`
+
+export const datePicker = <Message>(
+  style: NamedStyle<typeof DatePickerSlots>,
+  state: DatePickerState,
+  toMessage: (message: UiDatePicker.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.picker.id,
+    model: state.picker,
+    view: DatePickerView.view,
+    viewInputs: {
+      // Locked: paging the months resizes the panel, which must not flip sides as it does.
+      anchor: {
+        placement: 'bottom-start',
+        gap: 4,
+        padding: 8,
+        isPlacementLocked: true,
+        portal: false,
+      },
+      maybeSelectedDate: state.due,
+      triggerContent: due =>
+        h.span([], [Option.match(due, { onNone: () => 'Pick a due date', onSome: dayOf })]),
+      toCalendarView: Calendar.toView([PanelCalendarStyle.mixin], { h }),
+      toView: DatePicker.toView([style.mixin]),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region toast
+export const ToastStyle = forSlots(ToastSlots)(Recipes.Toast({}))
+const NoticeStyle = forSlots(ItemSlots)(Recipes.Item({}))
+const DismissStyle = forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
+)
+
+export const Notice = Schema.Struct({ title: Schema.String, text: Schema.String })
+// Annotated: the inferred type names a foldkit internal module.
+export const Notices: ReturnType<typeof ToastView.make<typeof Notice.Type, typeof Notice.Encoded>> =
+  ToastView.make(Notice)
+
+/** The stack and each entry's timer are the component's; what was said is the Message's. */
+export interface ToastMessages<Message> {
+  readonly onNotify: Message
+  readonly toMessage: (message: typeof Notices.Message.Type) => Message
+}
+
+export const toast = <Message>(
+  style: NamedStyle<typeof ToastSlots>,
+  model: typeof Notices.Model.Type,
+  messages: ToastMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      Button.view({ label: 'Save draft', onClick: messages.onNotify, style: ButtonStyle }, h),
+      h.submodel({
+        slotId: model.id,
+        model,
+        view: Notices.view,
+        viewInputs: {
+          position: 'BottomRight',
+          entryToView: (entry, handlers) =>
+            Item.view(
+              {
+                title: entry.payload.title,
+                description: entry.payload.text,
+                actions: h.button(
+                  SlotView.buildersFor(ButtonSlots, [DismissStyle.mixin], {
+                    input: undefined,
+                    h,
+                  }).button.attrs([...handlers.dismiss, h.Type('button'), h.AriaLabel('Dismiss')]),
+                  ['✕'],
+                ),
+                style: NoticeStyle,
+              },
+              h,
+            ),
+          toView: Toast.toView([style.mixin], { h }, ({ container, entries }) =>
+            h.div(
+              container,
+              entries.map(entry => h.keyed('div')(entry.id, entry.attributes, [entry.content])),
+            ),
+          ),
+        },
+        toParentMessage: messages.toMessage,
+      }),
+    ],
+  )
 // #endregion
