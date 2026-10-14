@@ -77,4 +77,15 @@ export default [
     edits: [{ file, find: "  container.addEventListener('focusin', focus)", replace: '' }],
     tests,
   },
+  {
+    name: 'jsdom fails the Mount',
+    edits: [
+      {
+        file,
+        find: "typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(soon)",
+        replace: 'new ResizeObserver(soon)',
+      },
+    ],
+    tests: ['packages/primitives/test/fluid-hover.test.ts'],
+  },
 ]

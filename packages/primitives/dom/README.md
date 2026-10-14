@@ -138,6 +138,7 @@ movement's duration scaled by it puts the highlight on its item rather than
 sliding it in); `fluidHovered('hover')` names them. With `gapClick`, a click in
 a gap presses the highlighted item: its descendant marked `data-fluid-press`
 (`FLUID_PRESS_ATTRIBUTE`), or the item. Like `Measure`, it sends no Message.
+Where there is no layout (jsdom), it starts and highlights nothing.
 
 **`InputMask({ pattern })`** masks a field against `#` (digit), `A`
 (letter), and `*` (either) placeholders with literal separators, rewrites the

@@ -161,10 +161,10 @@ export const FluidHover = Mount.defineStream('FluidHover', {
             if (active !== null) requestAnimationFrame(place)
           }
 
-          // Made before anything listens: where it is missing (jsdom), the Mount
-          // fails with nothing attached.
-          const sizes = new ResizeObserver(soon)
-          sizes.observe(container)
+          // Where there is no layout (jsdom has no ResizeObserver) nothing moves to
+          // follow, and a view drawn there is no worse for the highlight's absence.
+          const sizes = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(soon)
+          sizes?.observe(container)
           container.addEventListener('pointermove', move, { passive: true })
           container.addEventListener('pointerleave', leave)
           container.addEventListener('focusin', focus)
@@ -175,7 +175,7 @@ export const FluidHover = Mount.defineStream('FluidHover', {
           container.style.setProperty(property.shown, '0')
           return () => {
             if (frame !== undefined) cancelAnimationFrame(frame)
-            sizes.disconnect()
+            sizes?.disconnect()
             container.removeEventListener('pointermove', move)
             container.removeEventListener('pointerleave', leave)
             container.removeEventListener('focusin', focus)
