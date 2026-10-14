@@ -63,15 +63,18 @@ export const subsites: ReadonlyArray<Subsite> = [
     },
     [doc('versus-bundle', 'Surface and Bundle', 'surface-vs-bundles')],
   ),
-  family({
-    id: 'bundle',
-    title: 'Bundle',
-    tagline:
-      'A Submodel packaged once and placed anywhere, its update, view and subscriptions wired.',
-    owner: 'the parent Model',
-    shelf: 'Foundations',
-    packages: ['bundle', 'bundle-surface'],
-  }),
+  family(
+    {
+      id: 'bundle',
+      title: 'Bundle',
+      tagline:
+        'A Submodel packaged once and placed anywhere, its update, view and subscriptions wired.',
+      owner: 'the parent Model',
+      shelf: 'Foundations',
+      packages: ['bundle', 'bundle-surface'],
+    },
+    [doc('versus-submodel', 'Bundle and Submodel', 'bundle-vs-submodel')],
+  ),
   family(
     {
       id: 'mixins',

@@ -884,6 +884,8 @@ The scope is sugar over these, which remain for code that composes by hand:
   and the scope from a Surface application.
 - [`examples/bundle`](../../examples/bundle): a settings page built from
   placements, with its transcript pinned.
+- [Bundle versus Submodel](../../docs/bundle-vs-submodel.md): one child wired
+  by hand and as a Bundle, side by side.
 - [Wiring](../../docs/wiring.md): Remote, Mirror, Sync, and Agent join the
   same assembly through wiring, so routing, startup, Subscriptions, and the
   Module derive from one list.

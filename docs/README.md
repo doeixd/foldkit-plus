@@ -70,6 +70,7 @@ Link and Placement to Connection and Segment, are in the
 | Package a Submodel once and place it several times or per key, with its Subscriptions, resources, and view wired | [`foldkit-bundle` README](../packages/bundle) | `foldkit-bundle`, `foldkit-bundle-surface` |
 | Join several integrations and placements through one checked list instead of hand-wiring each | [Wiring](./wiring.md) | `foldkit-bundle`, `foldkit-bundle-surface`, `foldkit-surface` |
 | Serve several screens from one route topology, with navigation, data preparation, and rendering derived from it | [Site guide](./site.md) | `foldkit-site` (+ `foldkit-surface`, `foldkit-remote`, `foldkit-ssr` as composed) |
+| Decide between a hand-wired Submodel and a Bundle, and see what a placement replaces | [Bundle versus Submodel](./bundle-vs-submodel.md) | `foldkit-bundle` |
 | Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
 | Tell who is asking from what they may do, and wire the two | [Auth and Guard](./auth-and-guard.md) | `foldkit-auth`, `foldkit-guard` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
