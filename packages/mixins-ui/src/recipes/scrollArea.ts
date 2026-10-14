@@ -4,6 +4,7 @@
  * axes may scroll; the height that makes it scroll stays the caller's.
  */
 import { Style } from 'foldkit-mixins'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { ScrollAreaSlots } from '../scrollArea.js'
 import { component, focusRing, ref, variant } from './design.js'
 
@@ -25,11 +26,18 @@ export const ScrollArea = Style.recipeFor(ScrollAreaSlots)({
   },
   variants: {
     orientation: {
+      // Content dissolves toward an edge with more to scroll.
       vertical: {
-        viewport: variant(Style.self({ overflowBlock: 'auto', overflowInline: 'hidden' })),
+        viewport: variant(
+          Style.self({ overflowBlock: 'auto', overflowInline: 'hidden' }),
+          Utilities.scrollFade('block'),
+        ),
       },
       horizontal: {
-        viewport: variant(Style.self({ overflowBlock: 'hidden', overflowInline: 'auto' })),
+        viewport: variant(
+          Style.self({ overflowBlock: 'hidden', overflowInline: 'auto' }),
+          Utilities.scrollFade('inline'),
+        ),
       },
       both: {
         viewport: variant(Style.self({ overflow: 'auto' })),

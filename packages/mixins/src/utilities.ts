@@ -10,7 +10,7 @@
  * a plain declaration beside it wins per property. Compose them like any piece:
  * `[U.flex, U.gap('sm'), { color: t.text.muted }]`.
  */
-import { self, type StyleValue } from './styleValue.js'
+import { compose, global, keyframes, self, supports, type StyleValue } from './styleValue.js'
 import { ref, VAR_PREFIX } from './theme/core.js'
 import type { OklchTheme } from './theme/oklch.js'
 import { tokens, type Tokens } from './theme/tokens.js'
@@ -27,6 +27,35 @@ type Palette = Omit<OklchTheme, 'knob' | 'hue'>
 export type ColorName = {
   readonly [G in keyof Palette & string]: `${G}.${keyof Palette[G] & string}`
 }[keyof Palette & string]
+
+/** The fade's two ends, registered so a timeline can animate them: 1 is solid, 0 faded. */
+const fadeEnds = global(
+  '@property --_fk-fade-start{syntax:"<number>";inherits:false;initial-value:1}' +
+    '@property --_fk-fade-end{syntax:"<number>";inherits:false;initial-value:1}',
+)
+const revealStart = keyframes({
+  from: { '--_fk-fade-start': '1' },
+  to: { '--_fk-fade-start': '0' },
+})
+const revealEnd = keyframes({ from: { '--_fk-fade-end': '0' }, to: { '--_fk-fade-end': '1' } })
+
+const fade = (axis: 'block' | 'inline'): StyleValue => {
+  const size = t.space['2xl']
+  const mask = `linear-gradient(${axis === 'block' ? 'to bottom' : 'to right'}, rgb(0 0 0 / var(--_fk-fade-start)) 0, #000 ${size}, #000 calc(100% - ${size}), rgb(0 0 0 / var(--_fk-fade-end)) 100%)`
+  return compose(
+    fadeEnds,
+    revealStart.style,
+    revealEnd.style,
+    supports('(animation-timeline: scroll())', {
+      maskImage: mask,
+      animation: `${revealStart.name} both linear, ${revealEnd.name} both linear`,
+      animationTimeline: `scroll(self ${axis}), scroll(self ${axis})`,
+      animationRangeStart: `0, calc(100% - ${size})`,
+      animationRangeEnd: `${size}, 100%`,
+    }),
+  )
+}
+const fades = { block: fade('block'), inline: fade('inline') } as const
 
 const space = (step: Margin): string => (step === '0' || step === 'auto' ? step : t.space[step])
 
@@ -109,4 +138,13 @@ export const Utilities = {
   }),
   pointer: self({ cursor: 'pointer' }),
   selectNone: self({ userSelect: 'none' }),
+  /**
+   * A scroller's content dissolving toward an edge with more to scroll, as
+   * shadcn's `scroll-fade`: a mask whose two ends a scroll timeline moves, so
+   * the true start and end stay crisp until something is past them. A browser
+   * without scroll timelines (Firefox) gets no fade, since a still one would
+   * sit on an edge with nothing beyond it. The gradient is physical, so in a
+   * right-to-left page `inline` fades the left edge first.
+   */
+  scrollFade: (axis: 'block' | 'inline' = 'block'): StyleValue => fades[axis],
 } as const

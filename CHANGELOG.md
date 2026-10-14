@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins/utilities`: `scrollFade(axis)`**, after shadcn's and Fluid
+  Functionalism's `scroll-fade`: a scroller's content dissolves toward an edge
+  with more to scroll, its true start and end crisp until something is past
+  them, by a mask a scroll timeline moves; no JavaScript, and no fade where
+  scroll timelines are missing. ScrollArea and the popups' lists use it.
 - **`foldkit-primitives/dom`: `FluidHover`'s `gapReach`,** the farthest a
   click in a gap may land from the highlighted item and still press it;
   `Card.group` uses 16px, after Fluid Functionalism's card grid. An item with

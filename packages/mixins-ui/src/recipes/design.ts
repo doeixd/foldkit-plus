@@ -6,6 +6,7 @@
  */
 import { Layers, Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities } from 'foldkit-mixins/utilities'
 
 /**
  * `var(--fk-group-name)` for every token the shipped scales and palette
@@ -89,6 +90,7 @@ export const focusWithin: StyleValue = Style.pseudo(':focus-within', {
 /** One capped scroll region for popup lists, in the `components` layer. */
 export const listScroll: StyleValue = component(
   Style.self({ maxBlockSize: '16rem', overflowY: 'auto' }),
+  Utilities.scrollFade('block'),
 )
 
 export const disabled: StyleValue = Style.pseudo(':is([aria-disabled="true"], :disabled)', {

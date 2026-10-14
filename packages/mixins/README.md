@@ -552,7 +552,9 @@ step is a type error and the value still follows the `density` knob and theme ov
 (`size`), `font` (`weight`), `leading`, `rounded` (`radius`), `color` and `bg` (a `Theme.oklch`
 color as `'group.name'`), `items` and `justify` (`'between'` is `space-between`), and the
 constants `flex`, `column`, `grid`, `block`, `hidden`, `wFull`, `textCenter`, `uppercase`,
-`truncate`, `pointer` and `selectNone`. Each is a `Style.self` rule, unlayered, so it takes the
+`truncate`, `pointer` and `selectNone`, and `scrollFade(axis)`, a scroller's content dissolving
+toward an edge with more to scroll (a scroll-driven mask: the true ends stay crisp until something
+is past them, and a browser without scroll timelines gets no fade). Each is a `Style.self` rule, unlayered, so it takes the
 layer of the style it is composed into, and a plain declaration after it wins per property. A
 value off the scale is a plain declaration (`{ fontSize: '3.75rem' }`); a color outside
 `Theme.oklch`'s groups is read through `t`.

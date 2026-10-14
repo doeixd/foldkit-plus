@@ -796,9 +796,12 @@ keeps what the systems plan's "What we keep" lists.
   levels from `surface.base`, keeping its chroma; nesting by depth rules;
   popups raise 2 with their shadow pinned, dialogs 4; menu looks keep their
   `popup` surface. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §4
-- [ ] **Systems 6, scroll edges and bars.** `Scroll.fade` and `Scroll.divider`
-  in CSS alone, then a `ScrollBars` overlay Mount, native on touch.
-  [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §5
+- [x] **Systems 6a, scroll edges.** `Utilities.scrollFade(axis)`, in ScrollArea and
+  the popups' lists. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §5
+- [ ] **Systems 6b, the scroll divider and an overlay bar.** A hairline at a
+  scroll edge on the parent's pseudo-elements (it needs `timeline-scope`), and
+  a `ScrollBars` Mount drawing a thumb that rests 4px and widens to 6px, native
+  on touch; until then the bars are the browser's, styled.
 - [x] **Systems 7, fluid hover's remaining rules.** `gapReach` (Card.group at
   16px), no zero rects (a three-frame retry); the tabs' chosen marker already
   dims while another tab is hovered. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §6

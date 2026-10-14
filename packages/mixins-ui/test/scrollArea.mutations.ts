@@ -33,9 +33,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/scrollArea.ts',
-        find: "viewport: variant(Style.self({ overflowBlock: 'auto', overflowInline: 'hidden' })),",
-        replace:
-          "viewport: variant(Style.self({ overflowBlock: 'auto', overflowInline: 'auto' })),",
+        find: "Style.self({ overflowBlock: 'auto', overflowInline: 'hidden' }),",
+        replace: "Style.self({ overflowBlock: 'auto', overflowInline: 'auto' }),",
       },
     ],
     tests,
