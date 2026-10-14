@@ -373,3 +373,16 @@ test('Export copies the document as Markdown to the clipboard', async () => {
     await context.close()
   }
 })
+
+test('a new empty line hints at the slash menu, until something is typed on it', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await page.click('[contenteditable=true] h1 + p')
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  const hinted = page.locator('[contenteditable=true] [data-hint]')
+  await expect.poll(() => hinted.getAttribute('data-hint')).toBe('Type / for blocks')
+  await page.keyboard.type('x')
+  await expect.poll(() => hinted.count()).toBe(0)
+  expect(errors).toEqual([])
+})

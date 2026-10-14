@@ -39,6 +39,7 @@ placeEditor(hostId, {
   inputRules: markdownInputRules,
   decorate,
   placeholder: 'Type / for blocks, or start writing…',
+  lineHint: 'Type / for blocks',
   slashEntries: playgroundSlashEntries,
 })
 

@@ -117,6 +117,13 @@ const writing = Style.compose(
     pointerEvents: 'none',
     position: 'absolute',
   }),
+  // The empty line the caret is on, only while the editor is being written in.
+  Style.nest('[contenteditable]:focus [data-hint]::before', {
+    content: 'attr(data-hint)',
+    color: t.text.subtle,
+    pointerEvents: 'none',
+    position: 'absolute',
+  }),
   Style.nest('a', { color: t.text.link, textUnderlineOffset: '3px' }),
   Style.nest('mark', {
     background: t.warning.subtle,
