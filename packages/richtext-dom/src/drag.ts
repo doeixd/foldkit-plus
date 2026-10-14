@@ -76,6 +76,24 @@ const placesOf = (
   return into
 }
 
+/** How near the window's top or bottom a dragging pointer scrolls the page, in pixels. */
+const SCROLL_EDGE = 48
+/** How far a frame scrolls with the pointer at the very edge; less the further in it is. */
+const SCROLL_STEP = 18
+
+/**
+ * How far a drag scrolls the page this frame for a pointer at `y` in a window `height` tall:
+ * up near the top, down near the bottom, faster the nearer the edge, and not at all between.
+ */
+export const edgeScroll = (y: number, height: number): number => {
+  const nearTop = SCROLL_EDGE - y
+  const nearBottom = y - (height - SCROLL_EDGE)
+  if (nearTop > 0) return -Math.ceil((Math.min(nearTop, SCROLL_EDGE) / SCROLL_EDGE) * SCROLL_STEP)
+  if (nearBottom > 0)
+    return Math.ceil((Math.min(nearBottom, SCROLL_EDGE) / SCROLL_EDGE) * SCROLL_STEP)
+  return 0
+}
+
 interface Pointed extends Event {
   readonly clientY?: number
   readonly buttons?: number
@@ -90,7 +108,9 @@ interface Pointed extends Event {
  * pointer ends it without a drop. The page is listened to only while a press is under way, in
  * the capture phase, so a handler that stops a release does not hide it. The line is an element
  * of its own, `[data-richtext-drop]`, fixed at the edge the block would land on, for a
- * stylesheet to draw. The handle takes `touch-action: none` while attached, or a touch would
+ * stylesheet to draw; once the pointer moves, the block being dragged carries
+ * `data-richtext-dragging` until the drag ends, so a stylesheet can show which one it is. The
+ * handle takes `touch-action: none` while attached, or a touch would
  * pan the page and cancel the drag.
  */
 export const dragBlock = (
@@ -104,6 +124,9 @@ export const dragBlock = (
   let pressed = false
   let target: RichText.Beside | undefined
   let line: HTMLElement | undefined
+  /** The dragged block's element, marked once the pointer moves: a press alone marks nothing. */
+  let moving: HTMLElement | undefined
+  let marked = false
   // Where the pointer last was, for a scroll that moves the blocks under a still pointer.
   let lastY = 0
   const { style } = handle as Element & ElementCSSInlineStyle
@@ -155,9 +178,29 @@ export const dragBlock = (
     if (!ours(pointed)) return
     // A move with the button up is a release this page never heard: over a frame, say.
     if (((pointed.buttons ?? 1) & 1) === 0) return end(false)
+    if (!marked) {
+      moving?.setAttribute('data-richtext-dragging', '')
+      marked = true
+    }
     place(pointed.clientY ?? lastY)
+    scrollSoon()
+  }
+  // A block can be dragged past what the window shows: held near an edge, the pointer scrolls
+  // the page a frame at a time, and the scroll listener re-places the line.
+  const view = owner.defaultView
+  let frame: number | undefined
+  const scrollSoon = () => {
+    if (frame !== undefined || view === null || edgeScroll(lastY, view.innerHeight) === 0) return
+    frame = view.requestAnimationFrame(() => {
+      frame = undefined
+      if (!marked) return
+      view.scrollBy(0, edgeScroll(lastY, view.innerHeight))
+      scrollSoon()
+    })
   }
   const end = (drop: boolean): void => {
+    if (frame !== undefined) view?.cancelAnimationFrame(frame)
+    frame = undefined
     const chosen = target
     pressed = false
     pointer = undefined
@@ -165,6 +208,9 @@ export const dragBlock = (
     targets = []
     line?.remove()
     line = undefined
+    moving?.removeAttribute('data-richtext-dragging')
+    moving = undefined
+    marked = false
     for (const [type, listener] of onPage) owner.removeEventListener(type, listener, true)
     if (drop && chosen !== undefined) dropped(chosen)
   }
@@ -204,6 +250,7 @@ export const dragBlock = (
     const host = owner.getElementById(hostId)
     const dom = host === null ? undefined : attachmentIn(host)?.current()
     if (dom !== undefined) {
+      moving = dom.elements.get(node)
       const places = placesOf(dom.content.children)
       targets = RichText.moveTargets(dom.content, node, vocabularyFor(hostId).nodes).flatMap(id => {
         const place = places.get(id)

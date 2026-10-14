@@ -115,6 +115,9 @@ What each part does, and does not do:
 - **`slashEntries`**: what its slash menu offers, which Enter in a query resolves against: an
   application's own catalogue (an image, a table, a callout), beside or instead of the
   editor's `slashEntries`. The application's menu view draws the same list.
+- An empty block has no line of its own, since its run is an empty text node: a new line made
+  with Enter would not show. Give the text blocks a line, `:is(p, h1, h2, h3, pre) { min-height:
+  1lh }`, in the stylesheet around the editor.
 - **`placeholder`**: what a blank document shows (`RichText.isBlank`). It is put on the block as
   `data-placeholder`, and the root, a `role="textbox"`, carries it as `aria-placeholder`.
   Drawing it is the stylesheet's, so the text never enters the content:
@@ -259,8 +262,13 @@ but not to the top level:
   bottom. Where a container's edge meets its first or last block's, the block's is picked while
   the pointer is inside it, and the container's once the pointer is past it.
 - A line, `[data-richtext-drop]`, is fixed at that edge, outside the editable subtree, for a
-  stylesheet to draw. The place is read again on a scroll and on release, where the blocks are
-  then, and release sends `MovedBlock` there.
+  stylesheet to draw: it has no size or color of its own, so a page that styles nothing shows
+  no feedback at all. Once the pointer moves, the dragged block carries
+  `data-richtext-dragging` until the drag ends. The place is read again on a scroll and on
+  release, where the blocks are then, and release sends `MovedBlock` there.
+- Held within 48 pixels of the window's top or bottom, the pointer scrolls the page a frame at
+  a time, faster the nearer the edge (`edgeScroll`), so a block can be dragged past what the
+  window shows.
 - Escape, a cancelled pointer, a move with the button up (a release the page never heard, over
   a frame say), or a place where the block already is ends it with nothing sent.
 - Only the pointer that pressed steers or ends it. The page is listened to only during a drag,

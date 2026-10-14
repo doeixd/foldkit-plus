@@ -20,6 +20,10 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext-dom`: a drag shows itself and scrolls the page.** The
+  dragged block carries `data-richtext-dragging` once the pointer moves, and a
+  pointer held near the window's top or bottom scrolls the page, so a block can
+  be dragged past what the window shows.
 - **`foldkit-richtext`: `node(…, { lineBreaks: true })`**, a kind whose text
   keeps line breaks: Enter inserts a newline instead of splitting the block,
   and Enter on an empty last line leaves it for a paragraph after. The

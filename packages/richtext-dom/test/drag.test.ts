@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as RichText from 'foldkit-richtext'
-import { dragBlock, dropBeside, type Placed } from '../src/drag.js'
+import { dragBlock, dropBeside, edgeScroll, type Placed } from '../src/drag.js'
 import { mountInto, placeVocabulary, releaseMount } from '../src/host.js'
 
 const id = RichText.NodeId.make
@@ -61,6 +61,19 @@ describe('where a pointer drops a block', () => {
   it('treats an edge in another container as a move, whatever its index', () => {
     // j2 is at index 1, right after where i1 sits in its own list; in `m`, it is a move.
     expect(dropBeside(lists, id('i1'), 110)).toEqual({ before: id('j2') })
+  })
+})
+
+describe('how far a drag scrolls the page', () => {
+  it.each([
+    ['between the edges', 400, 0],
+    ['at the top', 0, -18],
+    ['halfway into the top band', 24, -9],
+    ['just inside the bottom band', 800 - 47, 1],
+    ['at the bottom', 800, 18],
+    ['past the bottom', 900, 18],
+  ])('%s', (_, y, step) => {
+    expect(edgeScroll(y, 800)).toBe(step)
   })
 })
 
@@ -124,6 +137,40 @@ describe('dragging a block by its handle', () => {
     document.dispatchEvent(at('pointerup', { clientY: 55 }))
     expect(dropped).toEqual([{ before: id('c') }])
     expect(line()).toBeNull()
+  })
+
+  it('marks the dragged block once the pointer moves, and unmarks it when the drag ends', () => {
+    const dragged = () =>
+      Array.from(document.querySelectorAll('[data-richtext-dragging]')).map(element =>
+        element.getAttribute('data-block'),
+      )
+    handle().dispatchEvent(at('pointerdown'))
+    // A press alone, a click, marks nothing.
+    expect(dragged()).toEqual([])
+    document.dispatchEvent(at('pointermove', { clientY: 75 }))
+    expect(dragged()).toEqual(['a'])
+    document.dispatchEvent(at('pointerup', { clientY: 75 }))
+    expect(dragged()).toEqual([])
+  })
+
+  it('scrolls the page while held near an edge, and stops when the drag ends', () => {
+    const frames: Array<FrameRequestCallback> = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => frames.push(callback))
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => frames.splice(0))
+    const scrolled = vi.spyOn(window, 'scrollBy').mockImplementation(() => {})
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
+    handle().dispatchEvent(at('pointerdown'))
+    document.dispatchEvent(at('pointermove', { clientY: 400 }))
+    expect(frames).toHaveLength(0)
+    document.dispatchEvent(at('pointermove', { clientY: 0 }))
+    frames.shift()!(0)
+    frames.shift()!(0)
+    expect(scrolled.mock.calls).toEqual([
+      [0, -18],
+      [0, -18],
+    ])
+    document.dispatchEvent(at('pointerup', { clientY: 0 }))
+    expect(frames).toHaveLength(0)
   })
 
   it('shows no line, and drops nothing, where the block already is', () => {
