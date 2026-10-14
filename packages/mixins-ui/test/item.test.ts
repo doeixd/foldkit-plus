@@ -49,6 +49,11 @@ describe('Item view', () => {
     const row = view({ content: h.span([], ['bare']) }, h)
     expect(Inert.text(row)).toBe('bare')
   })
+
+  it('needs no content when the title and description say it all', () => {
+    const row = view({ title: 'Saved', description: 'Your draft is safe.' }, h)
+    expect(Inert.text(row)).toBe('SavedYour draft is safe.')
+  })
 })
 
 describe('Item recipe', () => {

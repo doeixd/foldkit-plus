@@ -39,6 +39,8 @@ version changed; `pnpm` skips versions already in the registry.
   bundle holds; `Calendar.toView(mixins, { h })` draws every mode through the
   slots, and `Calendar.draw` is that drawing for a `toView` of your own.
   `DatePicker.toView`'s `draw` is optional the same way.
+- **`foldkit-mixins-ui`: `Item`'s `content` is optional**, for a row its
+  title and description say all of, such as a notification.
 
 ### Changed
 

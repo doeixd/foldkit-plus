@@ -28,4 +28,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a row with no content draws a stand-in',
+    edits: [
+      {
+        file: '../src/item.ts',
+        find: '...(options.content === undefined ? [] : [options.content]),',
+        replace: "options.content ?? h.span([], ['nothing']),",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/item.test.ts'],
+  },
 ]

@@ -18,12 +18,12 @@ export const ItemSlots = Slots.define({
 })
 
 /**
- * A row in one call: the content it always has, the regions it earns, a
- * style for its slots, and mixins beside the style. No upstream component
- * stands behind it.
+ * A row in one call: the regions it earns, a style for its slots, and mixins
+ * beside the style. `content` follows the title and description in the
+ * content region. No upstream component stands behind it.
  */
 export interface ItemView<Message = never> {
-  readonly content: Html
+  readonly content?: Html | undefined
   readonly media?: Html | undefined
   readonly title?: string | undefined
   readonly description?: string | undefined
@@ -50,7 +50,7 @@ export const view = <Message = never>(
       ...(options.description === undefined
         ? []
         : [h.div(builders.description.attrs(), [options.description])]),
-      options.content,
+      ...(options.content === undefined ? [] : [options.content]),
     ]),
     ...(options.actions === undefined ? [] : [h.div(builders.actions.attrs(), [options.actions])]),
   ])
