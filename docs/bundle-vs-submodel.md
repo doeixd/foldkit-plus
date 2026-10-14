@@ -1,40 +1,78 @@
 # Bundle versus Submodel: the same child, wired once
 
-A Bundle is not a different kind of child from a Foldkit Submodel. It is a
-Submodel whose parts are collected into one value, so that placing it, once or
-many times, is one declaration instead of hand wiring in every parent:
+A Submodel is how Foldkit nests one state machine inside another. The parent
+holds the child's Model in a field, wraps the child's Messages in one of its
+own variants, and forwards them in its `update`. That is the right design, and
+a Bundle keeps every part of it. The cost is in the wiring. **The parent wires
+the child by hand, in up to five places, and it has to know what the child
+contains to do it**: whether it has Subscriptions and what they are called,
+whether it holds a resource, and whether its `init` returns Commands.
+
+That knowledge is copied into every parent, and nothing checks it. A Bundle
+moves it back into the child:
 
 ```text
-Submodel = a child machine, wired into its parent by hand at each place it lives
-Bundle   = the same child machine, packaged once, wired by a placement
+Submodel = the child's parts, wired into each parent by hand
+Bundle   = the child's parts in one value; a placement wires them for the parent
 ```
 
 Ownership does not change. In both, **the parent Model owns the child's
-state**: it is a field of the parent Model, the child's Messages travel as a
-variant of the parent Message (`GotDarkMessage`), and every transition goes
-through the parent's `update`. A Bundle adds no store, no reducer and no
-runtime. What moves is where the wiring is written.
+state**, the child's Messages travel as a variant of the parent Message, and
+every transition goes through the parent's `update`. A Bundle adds no store,
+no reducer and no runtime. A placement compiles to the same Foldkit calls you
+would write by hand.
 
-## The five places a Submodel is wired
+## Why package a child
 
-A child with every kind of part touches its parent in five places:
+### The child can change without breaking its parents
 
-| Place | By hand, with Foldkit | A placement uses |
+A hand-wired parent encodes what the child is today. Suppose the media-query
+child below gains a Managed Resource. Every parent now needs a
+`ManagedResource.lift`, and a parent that does not get one still compiles: the
+resource is never acquired, and nothing says so. Suppose it gains a second
+Subscription. A parent that lifted its entries by name, as the example below
+has to, never runs the new one.
+
+A placement lifts whatever the child has. A new Subscription arrives through
+`placements.subscriptions()` with no edit to any parent. A new resource arrives
+through `placements.runtime`; in a config checked by `placements.complete`, a
+parent with no `managedResources` becomes a type error that names the
+property. The child's author changes the child, and its users hear about it
+from the compiler instead of from a bug report.
+
+### A missing piece is a type error, not a quiet bug
+
+Wired by hand, each of these compiles and fails only at runtime, if anyone
+notices. With a Bundle, each is either impossible or reported:
+
+| Mistake | By hand | Through `placements.complete` |
 | --- | --- | --- |
-| update | `Update.foldChild`, plus a route from the wrapper variant to it | `Update.foldChildStep` |
-| init | the child's `init`, its Model written in, its Commands mapped | `Update.foldChildInit` |
-| Subscriptions | `Subscription.lift` | `Subscription.lift` |
-| Managed Resources | `ManagedResource.lift` | `ManagedResource.lift` |
-| view | `h.submodel` | `h.submodel` |
+| A Subscription not lifted | never runs | type error at `subscriptions` |
+| A Managed Resource not lifted | never acquired | type error at `managedResources` |
+| A wrapper with no route in `update`, behind a catch-all branch | its Messages are dropped | no route to write: `placements.update` routes every wrapper |
+| Two placements on one wrapper or one resource tag | Messages misrouted, or one resource replacing the other | startup error naming both |
 
-The right column is the same lifts. A placement compiles to Foldkit's own
-APIs, so there is nothing new for the runtime, DevTools, replay or Scene tests
-to understand.
+### A second placement is one line, not a second copy
 
-What a Bundle changes is the failure mode. By hand, forgetting one of the five
-is silent: a Subscription that never runs, a resource never acquired, a view
-never drawn. Placing the same child twice repeats all five,
-with a different field and wrapper each time.
+In the example below, the second placement (`narrow`) costs about fifteen
+lines by hand: a field, a wrapper, its init and Command mapping, a fold, a
+route in `update`, a Subscription lift and a renamed key. Each repeats the
+field name, and the usual way to write them is to copy the first placement
+and rename. Miss one rename, say `read: model => Option.some(model.dark)` in
+the `narrow` fold, and it compiles, because both fields hold the same type;
+the narrow child is then updated from the dark child's state.
+
+With a Bundle the second placement is one `Bundle.withChild('narrow', …)`
+line. The field name is written once, and the Model field, the wrapper, the
+fold, the lifts and the Subscription keys (`MediaQuery@narrow/changes`) are
+all derived from it. `Bundle.withEach` does the same for a record of children,
+one per key.
+
+### Configuration and outputs cannot be left out
+
+A child's configuration (`args`) is a Schema, and every placement must supply
+it when `init` takes it. A child with an OutMessage must be placed with an
+`onOut`, so its outputs cannot be dropped by forgetting to handle them.
 
 ## One child, placed twice
 
@@ -190,9 +228,7 @@ fields `dark`, `narrow` and `helpOpen`, and the Message with `GotDarkMessage`,
 `GotNarrowMessage` and `ClickedHelp`. The parent's own `update` sees only
 `ClickedHelp`; the assembly routes each wrapper to its placement.
 
-## What stays the same, and what changes
-
-The same:
+## What it does not change
 
 - **State and transitions.** `model.dark` is an ordinary field, and a
   `GotDarkMessage` goes through the parent's `update` like any other Message.
@@ -201,21 +237,12 @@ The same:
   same Models, Command Messages and Subscription dependencies at every step
   ([`test/parity.test.ts`](../packages/bundle/test/parity.test.ts)).
 - **Tooling.** DevTools, replay and Scene tests see a placement as the
-  Submodel it compiles to.
-
-What changes:
-
-- **Completeness is checked.** `placements.complete` makes a forgotten
-  Subscription lift, an unwired resource, or an `update` that does not accept
-  the whole parent Message a type error at the property that is wrong. Two
-  placements sharing a wrapper or a resource tag fail at startup, naming both.
-- **Keys are prefixed.** Each placement's Subscriptions are keyed by placement
-  (`MediaQuery@dark/changes`), so two placements never collide.
-- **Configuration is typed once.** `args` is a Schema, required at every
-  placement when `init` takes it; an OutMessage requires an `onOut`, so it
-  cannot be dropped by omission.
-- **The parent is derived.** The parent's Model and Message come from the
-  placements, so a field and its wrapper cannot disagree.
+  Submodel it compiles to: `Update.foldChildStep` for update,
+  `Update.foldChildInit` for init, `Subscription.lift`, `ManagedResource.lift`
+  and `h.submodel`.
+- **What it costs.** One more package and one more concept. For a child used
+  once, with nothing to forget, the hand wiring is short and plain, and
+  that is fine (below).
 
 ## When to use which
 
