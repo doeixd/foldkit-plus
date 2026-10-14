@@ -27,6 +27,11 @@ export const liveOf = (model: Model, h: H): Live<Message> => ({
   onSwitch: on => Message.ToggledSwitch({ on }),
   page: model.previewPage,
   onPage: page => Message.ChosePreviewPage({ page }),
+  chosen: model.chosenCard,
+  onChoose: key => Message.ChoseCard({ key }),
+  dismissed: model.cardDismissed,
+  onDismiss: Message.DismissedCard(),
+  onRestore: Message.RestoredCard(),
   h,
 })
 

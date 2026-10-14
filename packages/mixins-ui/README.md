@@ -94,10 +94,10 @@ composition](../../docs/mixins.md) first.
 ## Install
 
 ```bash
-pnpm add foldkit-mixins foldkit-mixins-ui @foldkit/ui
+pnpm add foldkit-mixins foldkit-mixins-ui foldkit-primitives @foldkit/ui
 ```
 
-`foldkit`, `effect`, `foldkit-mixins`, and `@foldkit/ui` are peer dependencies.
+`foldkit`, `effect`, `foldkit-mixins`, `foldkit-primitives` and `@foldkit/ui` are peer dependencies.
 
 ## Sixty seconds: style a Button without copying it
 
@@ -437,7 +437,8 @@ A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
 | `Badge` | `{ text, tone? }` writes `data-tone`. | `Recipes.Badge({ attribute, tones })` maps that attribute; values outside the map keep the base. Slot `badge`. |
 | `Breadcrumb` | `{ steps: { label, href?, current? }[] }`. `current` is text with `aria-current="page"`; the others are links. | No axis. Slots `root`, `list`, `item`, `link`, `current`. |
 | `ButtonGroup` | `{ label, items }`. `role="group"`. The buttons stay the caller's. `Segmented` is the control that selects. | No axis. Slot `root`. |
-| `Card` | `{ content, title?, description?, footer?, action? }`. | `padding`: `comfortable` (default), `roomy`, `flush`. Slots `root`, `header`, `title`, `description`, `content`, `footer`, `action`. |
+| `Card` | `{ title?, description?, content?, image?, media?, action?, footer?, press?, label?, selected?, disabled?, dismiss? }`. `press` is `{ onClick }` or `{ href, external? }`: one button or link stretched over the card, named by `label` or the title (a pressable card with neither throws); `action`, `footer` and the dismiss button stay pressable above it. `selected` is `aria-pressed` on the button, `aria-current` on the link. `dismiss: { onDismiss, label?, always? }` is revealed on hover and focus unless `always`, and always on a touch screen. The root carries `data-selected`, `data-disabled`, `data-pressable`, `data-dismissible` (the header then keeps clear of the button). | `orientation`: `stacked` (default), `inline` (image or media leading, footer trailing). `surface`: `outlined` (default), `elevated`, `filled`, `plain`. `padding`: `compact`, `comfortable` (default), `roomy`, `flush`. Slots `root`, `image`, `media`, `header`, `title`, `description`, `action`, `content`, `footer`, `overlay`, `dismiss`. |
+| `Card.group` | `{ cards: (CardView & { key })[], columns?, fluidHover?, label?, cardStyle? }`. A keyed list of cards in `columns` (default 1); each item carries `data-row` and `data-column`. With `fluidHover` (default) one highlight follows the pointer to the nearest card through `FluidHover` from `foldkit-primitives/dom`, reading both directions when there is more than one column, and a press in a gap presses the highlighted card. `cardStyle` styles every card that names no style of its own. | `Recipes.CardGroup`: `layout`: `divided` (default, hairlines between rows and columns), `separated`. `border`: `none` (default), `outlined`. Use cards of `surface: 'plain'` inside. Slots `root`, `list`, `item`, `highlight`. |
 | `CodeBlock` | `{ code, tokens?, language?, title?, lineNumbers?, copy? }`. `tokens` are `{ from, to, kind }`, as `foldkit-richtext-code` and `foldkit-richtext-code-shiki` tokenizers return them; each is drawn with `data-kind`, and a token out of order or outside the code throws. The block's text is the code exactly. `copy: { onCopy?, copied? }`: `onCopy` gets the code, so run `copyText` from `foldkit-primitives`; without it the button has no handler, for a page whose script copies. `CodeBlock.linesOf` is the cut. | No axis. Colors each kind from the theme's `syntax` group; `data-line-numbers` numbers lines, `data-copied` marks a copy done. Slots `root`, `header`, `title`, `copy`, `body`, `code`, `line`, `token`. |
 | `Empty` | `{ title, description?, icon?, action? }`. | No axis. Slots `root`, `icon`, `title`, `description`, `action`. |
 | `Icon` | `{ content, label? }`. A `label` is `role="img"`; without one the glyph is `aria-hidden`. | `size`: `sm`, `md` (default), `lg`. Slot `glyph`. |

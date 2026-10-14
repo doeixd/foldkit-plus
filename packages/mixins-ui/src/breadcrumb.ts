@@ -27,15 +27,18 @@ export interface BreadcrumbStep {
  * style for its slots, and mixins beside the style. No upstream component
  * stands behind it.
  */
-export interface BreadcrumbView {
+export interface BreadcrumbView<Message = never> {
   readonly steps: ReadonlyArray<BreadcrumbStep>
   /** A style of `BreadcrumbSlots`, for the trail's look. */
   readonly style?: NamedStyle<typeof BreadcrumbSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: BreadcrumbView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: BreadcrumbView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     BreadcrumbSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

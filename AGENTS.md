@@ -527,6 +527,13 @@ layer of whatever they are composed into, and a plain declaration beside them
 wins per property. That is what makes them composable — do not wrap them in
 `component`/`variant` at their definition.
 
+**A state rule in a base loses to a variant that sets the same property.**
+The Card's selected fill sat in the `components` layer, and every `surface`
+variant sets `background` in `variants`, so a chosen card showed no fill;
+the unit tests read the CSS text, which held the rule. Put a state's
+declaration beside each variant that sets its property, and check it with
+computed style in a browser test.
+
 **`Defaults.reset` zeroes margins.** Any dialog/panel relying on the user
 agent's `margin: auto` centering must restore it (`margin: 'auto'`), or it
 lands in the top corner.

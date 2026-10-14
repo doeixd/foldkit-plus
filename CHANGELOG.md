@@ -7,6 +7,42 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-primitives/dom`: `FluidHover`**, a Mount that moves one highlight
+  across a container's items: the item nearest the pointer, gaps included, on
+  the `x`, `y` or `xy` axis, skipping disabled items and following keyboard
+  focus. It writes the item's place as custom properties and sends no Message;
+  with `gapClick`, a click in a gap presses the highlighted item.
+- **`foldkit-mixins/theme`: `motion.spring`**, an easing token sampled from an
+  underdamped spring (4% overshoot, resting exactly at the end), for a CSS
+  transition that springs with no JavaScript.
+- **`foldkit-mixins-ui`: `Card.group` and `Recipes.CardGroup`**, cards as one
+  keyed list in one column or a grid, divided or apart, with one highlight that
+  follows the pointer to the nearest card (`FluidHover`); a press in a gap
+  presses the highlighted card.
+
+### Changed
+
+- **`foldkit-mixins-ui`: `Card` is pressable, selectable and dismissible.**
+  `press` (`{ onClick }` or `{ href, external? }`) stretches one button or link
+  over the card, named by `label` or the title; `selected`, `disabled`,
+  `dismiss`, an `image` and a `media` tile are new, `content` is optional, and
+  the view takes the application's Message. Breaking: `action` sits at the end
+  of the header rather than the footer, so a card that put its button in
+  `action` puts it in `footer`. The recipe adds `orientation` (`stacked`,
+  `inline`) and `surface` (`outlined`, `elevated`, `filled`, `plain`) axes and a
+  `compact` padding, and its padding is one private `--_fk-card-pad`.
+- **`foldkit-mixins-ui` peers on `foldkit-primitives`**, for `Card.group`'s
+  highlight.
+- **`foldkit-mixins-ui`'s stateless views take the application's builder.**
+  `Alert`, `AspectRatio`, `Avatar`, `Badge`, `Breadcrumb`, `ButtonGroup`,
+  `Empty`, `Icon`, `Item`, `Kbd`, `Label`, `ScrollArea`, `Separator`,
+  `Skeleton`, `Spinner`, `Table` and `Typography` are generic in the Message,
+  where they took `HtmlBuilder<never>`, so what they hold can send one: an empty
+  state's button, a badge in a pressable card. A call with no Message is
+  unchanged.
+
 ## 0.21.0
 
 Authentication through Yielded Auth. `foldkit-auth` 0.1.0 is new;

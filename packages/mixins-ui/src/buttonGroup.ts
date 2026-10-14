@@ -17,17 +17,20 @@ export const ButtonGroupSlots = Slots.define({
  * A button group in one call: its name, its buttons, a style for its slot,
  * and mixins beside the style. No upstream component stands behind it.
  */
-export interface ButtonGroupView {
+export interface ButtonGroupView<Message = never> {
   /** What the group is for, read as its accessible name. */
   readonly label: string
   readonly items: ReadonlyArray<Html>
   /** A style of `ButtonGroupSlots`, for the group's look. */
   readonly style?: NamedStyle<typeof ButtonGroupSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: ButtonGroupView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: ButtonGroupView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     ButtonGroupSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

@@ -14,15 +14,18 @@ export const AspectRatioSlots = Slots.define({
  * A frame in one call: the content it crops to the ratio, a style for its
  * slot, and mixins beside the style.
  */
-export interface AspectRatioView {
+export interface AspectRatioView<Message = never> {
   readonly content?: Html | undefined
   /** A style of `AspectRatioSlots`, for the frame's look. */
   readonly style?: NamedStyle<typeof AspectRatioSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: AspectRatioView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: AspectRatioView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     AspectRatioSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

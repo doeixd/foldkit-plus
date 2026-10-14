@@ -23,6 +23,7 @@ import {
   ButtonGroupSlots,
   ButtonSlots,
   Card,
+  CardGroupSlots,
   CardSlots,
   Checkbox,
   CheckboxSlots,
@@ -120,14 +121,83 @@ export const alert = (style: NamedStyle<typeof AlertSlots>, h: HtmlBuilder<never
 // #region card
 export const CardStyle = forSlots(CardSlots)(Recipes.Card({}))
 
-export const card = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
-  Card.view(
+/** A sparkle in the text's color, for the card's media tile. */
+const sparkle = <Message>(h: HtmlBuilder<Message>): Html =>
+  h.svg(
+    [h.ViewBox('0 0 16 16'), h.Attribute('fill', 'currentColor'), h.AriaHidden(true)],
+    [h.path([h.Attribute('d', 'M8 0l2 6 6 2-6 2-2 6-2-6-6-2 6-2z')], [])],
+  )
+
+/** Whether the card was dismissed, and the Messages that dismiss it and bring it back. */
+export interface Dismissal<Message> {
+  readonly dismissed: boolean
+  readonly onDismiss: Message
+  readonly onRestore: Message
+}
+
+export const card = <Message>(
+  style: NamedStyle<typeof CardSlots>,
+  dismissal: Dismissal<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  dismissal.dismissed
+    ? Button.view(
+        { label: 'Bring the card back', onClick: dismissal.onRestore, style: ButtonStyle },
+        h,
+      )
+    : Card.view(
+        {
+          media: sparkle(h),
+          title: 'Invite your team',
+          description: 'Everyone you invite can edit every page.',
+          action: Badge.view({ text: 'New', tone: 'live', style: BadgeStyle }, h),
+          content: h.p([], ['Three seats left on the Starter plan.']),
+          footer: Button.view({ label: 'Send invites', style: ButtonStyle }, h),
+          dismiss: { onDismiss: dismissal.onDismiss },
+          style,
+        },
+        h,
+      )
+// #endregion
+
+// #region card-group
+export const CardGroupStyle = forSlots(CardGroupSlots)(Recipes.CardGroup({}))
+export const PlanStyle = forSlots(CardSlots)(
+  Recipes.Card({ surface: 'plain', orientation: 'inline' }),
+)
+
+const plans = [
+  { key: 'starter', title: 'Starter', description: 'One editor and three pages.', price: 'Free' },
+  { key: 'team', title: 'Team', description: 'Ten editors and every page.', price: '$12' },
+  { key: 'business', title: 'Business', description: 'Sign-on and audit logs.', price: '$40' },
+  { key: 'enterprise', title: 'Enterprise', description: 'Talk to us first.', price: 'Soon' },
+] as const
+
+/** The plan chosen, by key, and the Message that chooses another. */
+export interface Choice<Message> {
+  readonly chosen: string
+  readonly onChoose: (key: string) => Message
+}
+
+export const cardGroup = <Message>(
+  style: NamedStyle<typeof CardGroupSlots>,
+  choice: Choice<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Card.group(
     {
-      title: 'Invite your team',
-      description: 'Everyone you invite can edit every page.',
-      content: h.p([], ['Three seats left on the Starter plan.']),
-      footer: Button.view({ label: 'Send invites', style: ButtonStyle }, h),
+      label: 'Plans',
+      cards: plans.map(plan => ({
+        key: plan.key,
+        title: plan.title,
+        description: plan.description,
+        footer: h.span([], [plan.price]),
+        selected: plan.key === choice.chosen,
+        disabled: plan.key === 'enterprise',
+        press: { onClick: choice.onChoose(plan.key) },
+      })),
       style,
+      cardStyle: PlanStyle,
     },
     h,
   )

@@ -22,7 +22,7 @@ export const ItemSlots = Slots.define({
  * style for its slots, and mixins beside the style. No upstream component
  * stands behind it.
  */
-export interface ItemView {
+export interface ItemView<Message = never> {
   readonly content: Html
   readonly media?: Html | undefined
   readonly title?: string | undefined
@@ -31,10 +31,13 @@ export interface ItemView {
   /** A style of `ItemSlots`, for the row's look. */
   readonly style?: NamedStyle<typeof ItemSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: ItemView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: ItemView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     ItemSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

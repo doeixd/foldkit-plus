@@ -71,6 +71,9 @@ export const Model = Schema.Struct({
   checked: Schema.Boolean,
   switched: Schema.Boolean,
   previewPage: Schema.Number,
+  /** The card chosen in the card group's preview, by key. */
+  chosenCard: Schema.String,
+  cardDismissed: Schema.Boolean,
   knobs: Knobs,
   scheme: Scheme,
   pageScheme: PageScheme,
@@ -93,6 +96,9 @@ export const Message = defineMessageUnion({
   ToggledCheckbox: { checked: Schema.Boolean },
   ToggledSwitch: { on: Schema.Boolean },
   ChosePreviewPage: { page: Schema.Number },
+  ChoseCard: { key: Schema.String },
+  DismissedCard: {},
+  RestoredCard: {},
   ChosePreset: { knobs: Knobs },
   MovedKnob: { knob: Knob, value: Schema.Number },
   ChoseFont: { font: Font },
@@ -200,6 +206,18 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       page === model.previewPage
         ? { model }
         : { model: modifyFields(model, { previewPage: () => page }) },
+    ChoseCard: ({ key }) =>
+      key === model.chosenCard
+        ? { model }
+        : { model: modifyFields(model, { chosenCard: () => key }) },
+    DismissedCard: () =>
+      model.cardDismissed
+        ? { model }
+        : { model: modifyFields(model, { cardDismissed: () => true }) },
+    RestoredCard: () =>
+      model.cardDismissed
+        ? { model: modifyFields(model, { cardDismissed: () => false }) }
+        : { model },
     ChosePreset: ({ knobs }) => withKnobs(model, knobs),
     MovedKnob: ({ knob, value }) => {
       const range = ranges.find(each => each.knob === knob)
@@ -265,6 +283,8 @@ export const initial: Model = placements.initial({
   checked: true,
   switched: false,
   previewPage: 4,
+  chosenCard: 'team',
+  cardDismissed: false,
   knobs: defaultKnobs,
   scheme: 'system',
   pageScheme: 'system',
@@ -315,6 +335,8 @@ const planOf = (withMeta: boolean) =>
       App.model.checked,
       App.model.switched,
       App.model.previewPage,
+      App.model.chosenCard,
+      App.model.cardDismissed,
       App.model.knobs,
       App.model.scheme,
       App.model.pageScheme,

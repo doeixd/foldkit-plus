@@ -15,17 +15,20 @@ export const LabelSlots = Slots.define({
  * A label in one call: the control it names, its words, a style for its
  * slot, and mixins beside the style. No upstream component stands behind it.
  */
-export interface LabelView {
+export interface LabelView<Message = never> {
   /** The id of the control this labels. */
   readonly for: string
   readonly text: string
   /** A style of `LabelSlots`, for the label's look. */
   readonly style?: NamedStyle<typeof LabelSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
-export const view = (options: LabelView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: LabelView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     LabelSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],

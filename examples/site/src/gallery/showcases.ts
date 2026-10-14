@@ -15,6 +15,7 @@ import {
   BreadcrumbSlots,
   ButtonGroupSlots,
   ButtonSlots,
+  CardGroupSlots,
   CardSlots,
   CheckboxSlots,
   EmptySlots,
@@ -53,6 +54,11 @@ export interface Live<Message> {
   readonly onSwitch: (on: boolean) => Message
   readonly page: number
   readonly onPage: (page: number) => Message
+  readonly chosen: string
+  readonly onChoose: (key: string) => Message
+  readonly dismissed: boolean
+  readonly onDismiss: Message
+  readonly onRestore: Message
   readonly h: HtmlBuilder<Message>
 }
 
@@ -185,14 +191,33 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'card',
       title: 'Card',
-      summary: 'A surface with a title, content and actions.',
+      summary: 'A surface with media, a title, content and actions, pressable and dismissible.',
       recipe: 'Card',
       file: 'card',
       contract: 'CardSlots',
     },
     CardSlots,
     Recipes.Card,
-    style => Snippet.card(style, inert),
+    (style, live) =>
+      Snippet.card(
+        style,
+        { dismissed: live.dismissed, onDismiss: live.onDismiss, onRestore: live.onRestore },
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'card-group',
+      title: 'Card group',
+      summary: 'Cards as one choice, with a highlight that follows the pointer between them.',
+      recipe: 'CardGroup',
+      file: 'card',
+      contract: 'CardGroupSlots',
+    },
+    CardGroupSlots,
+    Recipes.CardGroup,
+    (style, live) =>
+      Snippet.cardGroup(style, { chosen: live.chosen, onChoose: live.onChoose }, live.h),
   ),
   fromRecipe(
     {

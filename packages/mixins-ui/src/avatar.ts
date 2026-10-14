@@ -19,14 +19,14 @@ export const AvatarSlots = Slots.define({
  * for its slots, and mixins beside the style. No upstream component stands
  * behind it.
  */
-export interface AvatarView {
+export interface AvatarView<Message = never> {
   /** Who the picture shows, read when it does not load. */
   readonly name: string
   readonly src: string
   /** A style of `AvatarSlots`, for the avatar's look. */
   readonly style?: NamedStyle<typeof AvatarSlots> | undefined
   /** Mixins beside the style. */
-  readonly mixins?: MixinList<never> | undefined
+  readonly mixins?: MixinList<Message> | undefined
 }
 
 const initialsOf = (name: string): string =>
@@ -38,7 +38,10 @@ const initialsOf = (name: string): string =>
     .join('')
     .toLocaleUpperCase()
 
-export const view = (options: AvatarView, h: HtmlBuilder<never>): Html => {
+export const view = <Message = never>(
+  options: AvatarView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const builders = SlotView.buildersFor(
     AvatarSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
