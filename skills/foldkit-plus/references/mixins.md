@@ -301,10 +301,12 @@ state staying upstream.
 The same call goes in a Submodel's `viewInputs` (`toView: RadioGroup.toView(mixins, { h },
 ({ group, options }) => …)`), with `Value` and `Message` inferred. `input` is optional: only what an
 input-driven Mixin reads. `X.resolve(attributes, mixins, { h, input })` stays for bundles already in
-hand, such as a Calendar whose Mixins read `attributes._tag`. Result types: `ResolvedButton<M>`,
+hand, such as a Calendar whose Mixins read `attributes._tag`. `DatePicker.toView(mixins, (resolved, h) => …)`
+takes no builder: its bundles speak the date picker's own Message, so it hands `draw` the date picker's
+builder. Result types: `ResolvedButton<M>`,
 `ResolvedRadioGroup<V, M>`, and so on.
 
-`Recipes.Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | CodeBlock | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
+`Recipes.Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | CodeBlock | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the

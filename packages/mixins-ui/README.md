@@ -565,6 +565,13 @@ const AddressStyle = Style.forSlots(FieldSlots)({
 `control` is in `variants`, so it wins over a `components` look on the same
 slot; over a look of your own in a later layer, say the same in that layer.
 
+`Recipes.Calendar` styles `CalendarSlots` in every mode: days in seven
+columns, months and years in three, each button reading its state off the
+cell (`data-today`, `data-selected`, `data-focused`, `data-outside-month`,
+`data-disabled`). `size` is the cell, `sm` (28px) or `md` (36px, the
+default). It draws no card, so the same style serves a calendar on the page
+and one in a date picker's panel.
+
 `Recipes.Tabs({ variant: 'pill' })`'s chosen tab is the accent's tint and ink,
 as a pressed Segmented option is. To look at every recipe in every variant and
 state at once, in both schemes, write the specimen page:
@@ -643,6 +650,12 @@ not of Slot resolution. Each is transcribed from the pinned `@foldkit/ui`
 source (attributed in its module) with the missing `toView` added, as
 described above; state, Messages, update, Commands, and Mounts stay
 upstream in every case. If upstream gains seams, the forks go away.
+
+`DatePicker`'s bundles mix the popover's pre-bound groups with the date
+picker's own attributes, so they speak only the date picker's Message. Its
+`toView` therefore takes no builder of the application's:
+`DatePicker.toView(mixins, (resolved, h) => …)` hands `draw` the date
+picker's builder.
 
 `Menu` is the exception that proves the seam rule: its state machine stays
 upstream, but its markup assembly is transcribed into `MenuView` (from the

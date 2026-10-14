@@ -13,6 +13,7 @@ import {
   ButtonSlots,
   CheckboxSlots,
   ComboboxSlots,
+  CalendarSlots,
   DatePickerSlots,
   DialogSlots,
   FileDropSlots,
@@ -283,6 +284,22 @@ const pickers = section(
   ),
 )
 
+const calendar = classesOf(CalendarSlots, Recipes.Calendar({}))
+const day = (label: string, state: string) =>
+  `<span class="${calendar['dayCell']}" ${state}><button class="${calendar['dayButton']}">${label}</button></span>`
+const calendars = section(
+  'Recipes.Calendar',
+  `<div class="${calendar['root']}"><button class="${calendar['headingButton']}">October 2026</button><div class="${calendar['grid']}" aria-rowcount="1"><div class="${calendar['weekRow']}">${[
+    day('28', 'data-outside-month'),
+    day('29', 'data-outside-month'),
+    day('30', 'data-outside-month'),
+    day('1', ''),
+    day('2', 'data-today'),
+    day('3', 'data-selected'),
+    day('4', 'data-disabled'),
+  ].join('')}</div></div></div>`,
+)
+
 const popover = classesOf(PopoverSlots, Recipes.Popover({}))
 const popovers = section(
   'Recipes.Popover',
@@ -317,6 +334,6 @@ const page = `<!doctype html><html><head><meta charset="utf-8"><title>Specimen</
 .spec-inline{display:inline-flex;gap:0.4rem;align-items:center}
 .spec-label{font-size:0.75rem;color:var(--fk-text-muted);min-inline-size:3.5rem}
 .spec-swatch{inline-size:2.5rem;block-size:2rem;border-radius:6px;border:1px solid var(--fk-outline-subtle)}
-</style></head><body><main class="spec">${[palette, plain, buttons, fields, selects, toggles, choices, tabs, popups, badges, dialogs, pickers, popovers, tooltips, toasts, drops].join('')}</main></body></html>`
+</style></head><body><main class="spec">${[palette, plain, buttons, fields, selects, toggles, choices, tabs, popups, badges, dialogs, calendars, pickers, popovers, tooltips, toasts, drops].join('')}</main></body></html>`
 writeFileSync(out, page)
 console.log(`wrote ${out} (${page.length} bytes)`)

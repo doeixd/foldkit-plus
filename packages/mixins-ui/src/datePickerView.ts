@@ -41,9 +41,13 @@ export type DatePickerRenderInfo = Readonly<{
   isVisible: boolean
 }>
 
-/** Upstream view inputs plus the seam. Omit `toView` for upstream markup. */
+/**
+ * Upstream view inputs plus the seam. Omit `toView` for upstream markup. It
+ * is handed the date picker's own builder, since its bundles speak the date
+ * picker's Message.
+ */
 export type DatePickerViewInputs = UpstreamViewInputs &
-  Readonly<{ toView?: (render: DatePickerRenderInfo) => Html }>
+  Readonly<{ toView?: (render: DatePickerRenderInfo, h: HtmlBuilder<Message>) => Html }>
 
 const encodeIsoDate = Schema.encodeSync(Calendar.CalendarDateFromIsoString)
 
@@ -161,7 +165,7 @@ export const view = defineView<Model, Message, DatePickerViewInputs>(
         calendar: calendarVNode,
         isVisible,
       }
-      return (viewInputs.toView ?? defaultToView(h))(render)
+      return (viewInputs.toView ?? defaultToView)(render, h)
     }
 
     const popoverVNode = h.submodel({
@@ -197,18 +201,13 @@ export const view = defineView<Model, Message, DatePickerViewInputs>(
 )
 
 /** Upstream's popover assembly from the computed bundles: the default `toView`. */
-export const defaultToView =
-  (h: HtmlBuilder<Message>) =>
-  (render: DatePickerRenderInfo): Html =>
-    h.div(
-      [],
-      [
-        h.button([...render.trigger], [render.triggerContent]),
-        ...(render.isVisible
-          ? [
-              h.div([...(render.backdrop ?? [])]),
-              h.div([...(render.panel ?? [])], [render.calendar]),
-            ]
-          : []),
-      ],
-    )
+export const defaultToView = (render: DatePickerRenderInfo, h: HtmlBuilder<Message>): Html =>
+  h.div(
+    [],
+    [
+      h.button([...render.trigger], [render.triggerContent]),
+      ...(render.isVisible
+        ? [h.div([...(render.backdrop ?? [])]), h.div([...(render.panel ?? [])], [render.calendar])]
+        : []),
+    ],
+  )

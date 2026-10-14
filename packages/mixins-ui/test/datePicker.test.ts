@@ -149,9 +149,7 @@ describe('DatePicker adapter', () => {
             model,
             {
               ...inputsOf(h),
-              toView: DatePickerAdapter.toView([PickerStyle.mixin], { h }, resolved =>
-                drawDefault(resolved, h),
-              ),
+              toView: DatePickerAdapter.toView([PickerStyle.mixin], drawDefault),
             },
             h,
           ),

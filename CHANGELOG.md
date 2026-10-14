@@ -26,6 +26,9 @@ version changed; `pnpm` skips versions already in the registry.
   keyed list in one column or a grid, divided or apart, with one highlight that
   follows the pointer to the nearest card (`FluidHover`); a press in a gap
   presses the highlighted card.
+- **`foldkit-mixins-ui`: `Recipes.Calendar`**, the month grid in every mode,
+  sized `sm` or `md` on the size ladder, for a calendar alone or in a date
+  picker's panel. The design-system example uses it in place of its own.
 
 ### Changed
 
@@ -45,6 +48,10 @@ version changed; `pnpm` skips versions already in the registry.
   `action` puts it in `footer`. The recipe adds `orientation` (`stacked`,
   `inline`) and `surface` (`outlined`, `elevated`, `filled`, `plain`) axes and a
   `compact` padding, and its padding is one private `--_fk-card-pad`.
+- **`foldkit-mixins-ui`: `DatePicker.toView(mixins, draw)` hands `draw` the
+  date picker's builder.** Breaking: it took a context with a builder, which an
+  application had no way to give for the date picker's own Message;
+  `DatePickerView`'s `toView` input is called with that builder too.
 - **`foldkit-mixins-ui` peers on `foldkit-primitives`**, for `Card.group`'s
   highlight.
 - **`foldkit-mixins-ui`'s stateless views take the application's builder.**
