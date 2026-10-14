@@ -196,7 +196,10 @@ export const replaceChangeSet = (
   }
 }
 
-type CommandMessage = Exclude<Message, { readonly _tag: 'Undone' | 'Redone' | 'Patched' }>
+type CommandMessage = Exclude<
+  Message,
+  { readonly _tag: 'Undone' | 'Redone' | 'Patched' | 'ActivatedAdornment' }
+>
 
 const toCommand = (message: CommandMessage): RichText.Command => {
   switch (message._tag) {
@@ -230,6 +233,18 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'DeleteBlock', node: message.node }
     case 'ChangedProps':
       return { type: 'SetProps', node: message.node, props: message.props }
+    case 'InsertedRow':
+      return { type: 'InsertRow', where: message.where }
+    case 'InsertedColumn':
+      return { type: 'InsertColumn', where: message.where }
+    case 'DeletedRow':
+      return { type: 'DeleteRow' }
+    case 'DeletedColumn':
+      return { type: 'DeleteColumn' }
+    case 'Indented':
+      return { type: 'Indent' }
+    case 'Outdented':
+      return { type: 'Outdent' }
     case 'Selected':
       return { type: 'SetSelection', selection: message.selection }
     case 'Pasted':
@@ -433,6 +448,8 @@ const transition = (
     Match.tags({
       // The patch Command's own completion: the render already happened.
       Patched: () => ({ model }),
+      // A click asking the application for something, not an edit: nothing changes here.
+      ActivatedAdornment: () => ({ model }),
       Undone: undone => travel(model, state, undone),
       Redone: redone => travel(model, state, redone),
     }),

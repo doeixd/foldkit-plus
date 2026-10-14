@@ -72,6 +72,24 @@ const rangeBox = (range: Range): Box => {
   return element === null ? box : element.getBoundingClientRect()
 }
 
+/**
+ * Where a block's toolbar goes: `gap` above the block's top, aligned with its left edge, or just
+ * inside its top when there is no room above (a block at the top of the window).
+ */
+export const placeAbove = (
+  target: Box,
+  floating: Pick<Box, 'width' | 'height'>,
+  viewport: Pick<Box, 'width'>,
+  gap: number,
+): { readonly top: number; readonly left: number; readonly placement: 'top' | 'inside' } => {
+  const above = target.top - gap - floating.height
+  return {
+    top: above >= 0 ? above : Math.max(0, target.top + gap),
+    left: Math.max(0, Math.min(target.left, viewport.width - floating.width)),
+    placement: above >= 0 ? 'top' : 'inside',
+  }
+}
+
 /** Where a handle goes: level with the block's top, `gap` to its left, never past the left edge. */
 export const placeBeside = (
   target: Box,
@@ -153,6 +171,7 @@ export const anchorToBlock = (
   hostId: string,
   node: RichText.NodeId,
   gap: number,
+  side: 'left' | 'above' = 'left',
 ) => {
   const owner = element.ownerDocument
   const view = owner.defaultView
@@ -178,7 +197,14 @@ export const anchorToBlock = (
     if (host === null) return
     const block = attachmentIn(host)?.current().elements.get(node)
     if (block === undefined) return
-    write(element, placeBeside(block.getBoundingClientRect(), element.getBoundingClientRect(), gap))
+    const box = block.getBoundingClientRect()
+    const floating = element.getBoundingClientRect()
+    write(
+      element,
+      side === 'above'
+        ? placeAbove(box, floating, { width: view.innerWidth }, gap)
+        : placeBeside(box, floating, gap),
+    )
   }
   place()
   const release = onLayout(view, place)
@@ -218,12 +244,14 @@ export const blockAnchor = Mount.defineStream('RichTextBlockAnchor', {
     node: RichText.NodeId,
     /** Pixels between the handle and the block. */
     gap: Schema.Number,
+    /** Beside the block's left edge (a handle), or above it (a block's toolbar). Default left. */
+    side: Schema.optionalKey(Schema.Literals(['left', 'above'])),
   },
   messages: [Schema.Never],
-  execute: ({ element, hostId, node, gap }) =>
+  execute: ({ element, hostId, node, gap, side }) =>
     Stream.callback<never>(() =>
       Effect.acquireRelease(
-        Effect.sync(() => anchorToBlock(element as Styled, hostId, node, gap)),
+        Effect.sync(() => anchorToBlock(element as Styled, hostId, node, gap, side ?? 'left')),
         release => Effect.sync(release),
       ),
     ),

@@ -108,6 +108,7 @@ export {
   sameElementRendering,
   ADORNMENT_ATTRIBUTE,
   TOGGLES_ATTRIBUTE,
+  ACTION_ATTRIBUTE,
 } from './rendering.js'
 export {
   type Decoration,

@@ -20,6 +20,13 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext-dom`: Tab, table Messages, adornment actions, a toolbar's
+  place.** Tab and Shift+Tab send `Indented` and `Outdented` where
+  `RichText.takesTab` says they mean something, and move focus elsewhere;
+  `InsertedRow`, `InsertedColumn`, `DeletedRow` and `DeletedColumn` carry the
+  table commands. An adornment with an `action` is reported as
+  `ActivatedAdornment`, which edits nothing. `blockAnchor({ side: 'above' })`
+  places a block's toolbar.
 - **`foldkit-richtext`: tables as a grid, and Tab.** `InsertRow`, `InsertColumn`,
   `DeleteRow` and `DeleteColumn` edit the table around the caret's cell, each as
   one undo step (`tableAt` reads where the caret is). `Indent` and `Outdent` are

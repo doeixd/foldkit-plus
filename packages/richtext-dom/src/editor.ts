@@ -18,6 +18,7 @@ import {
   placeholderFor,
   releaseMount,
   renderingFor,
+  vocabularyFor,
 } from './host.js'
 import type { Decorate } from './events.js'
 
@@ -47,6 +48,23 @@ export const Message = defineMessageUnion({
   InsertedBlock: { block: RichText.Block, to: Schema.optionalKey(RichText.Beside) },
   /** A block and what it holds, deleted: a block handle's Delete. */
   DeletedBlock: { node: RichText.NodeId },
+  /** A row above or below the caret's table cell. */
+  InsertedRow: { where: Schema.Literals(['before', 'after']) },
+  /** A column before or after the caret's table cell. */
+  InsertedColumn: { where: Schema.Literals(['before', 'after']) },
+  /** The caret's table row, deleted. */
+  DeletedRow: {},
+  /** The caret's table column, deleted. */
+  DeletedColumn: {},
+  /** Tab: indentation in code, the next cell in a table. */
+  Indented: {},
+  /** Shift+Tab: less indentation in code, the previous cell in a table. */
+  Outdented: {},
+  /**
+   * An adornment with an `action` was clicked: a code block's Copy, say. Not an edit, so the
+   * editor changes nothing; it is the application's to act on.
+   */
+  ActivatedAdornment: { node: RichText.NodeId, action: Schema.String },
   /** Props of a node block, set: a task's checkbox, a toggle's arrow, an image's caption. */
   ChangedProps: { node: RichText.NodeId, props: Schema.JsonObject },
   Selected: { selection: Schema.NullOr(RichText.Selection) },
@@ -92,6 +110,10 @@ export const toMessage = (command: RichText.Command): EditorEvent | undefined =>
       return Message.Pasted({ slice: command.slice })
     case 'SetProps':
       return Message.ChangedProps({ node: command.node, props: command.props })
+    case 'Indent':
+      return Message.Indented()
+    case 'Outdent':
+      return Message.Outdented()
     default:
       return undefined
   }
@@ -252,6 +274,8 @@ export interface EditorDrawing {
   readonly decorate?: Decorate | undefined
   /** What a blank document shows. */
   readonly placeholder?: string | undefined
+  /** The node vocabulary, which says where Tab means something (`RichText.takesTab`). */
+  readonly nodes?: RichText.NodeRegistry | undefined
 }
 
 /**
@@ -275,7 +299,9 @@ export const attachEditor = (
       },
       onHistory: direction => emit(direction === 'undo' ? Message.Undone() : Message.Redone()),
       onSelection: selection => emit(Message.Selected({ selection })),
+      onAction: (node, action) => emit(Message.ActivatedAdornment({ node, action })),
       decorate: drawing.decorate,
+      nodes: drawing.nodes,
       placeholder: drawing.placeholder,
     },
     drawing.rendering,
@@ -337,6 +363,13 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Message.InsertedBlock,
     Message.DeletedBlock,
     Message.ChangedProps,
+    Message.InsertedRow,
+    Message.InsertedColumn,
+    Message.DeletedRow,
+    Message.DeletedColumn,
+    Message.Indented,
+    Message.Outdented,
+    Message.ActivatedAdornment,
     Message.Selected,
     Message.Pasted,
     Message.Undone,
@@ -350,6 +383,7 @@ export const events = Mount.defineStream('RichTextDomEvents', {
             rendering: renderingFor(element.id),
             decorate: decorationsFor(element.id),
             placeholder: placeholderFor(element.id),
+            nodes: vocabularyFor(element.id).nodes,
           }),
         ),
         () => Effect.sync(() => releaseMount(element)),

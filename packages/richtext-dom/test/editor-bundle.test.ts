@@ -12,6 +12,7 @@ import {
   cleared,
   converted,
   deleted,
+  edited,
   editorAt,
   inserted,
   lifted,
@@ -499,6 +500,61 @@ describe('the block Messages an application sends', () => {
     expect(after.document.children.map(block => block.id)).toEqual(['q'])
     expect(after.editor.selection).toEqual(caret('b', 0))
     expect(step(after, undone()).document.children.map(block => block.id)).toEqual(['p', 'q'])
+  })
+
+  it('edits a table around the caret’s cell, and Tab moves to the next cell', () => {
+    const cell = (name: string) => ({
+      type: 'Node',
+      kind: 'TableCell',
+      id: `c${name}`,
+      props: {},
+      children: [],
+      blocks: [
+        {
+          type: 'Paragraph',
+          id: `p${name}`,
+          children: [{ type: 'Text', id: name, text: name, marks: [] }],
+        },
+      ],
+    })
+    const grid = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Table',
+          id: 't',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'TableRow',
+              id: 'r',
+              props: {},
+              children: [],
+              blocks: [cell('a'), cell('b')],
+            },
+          ],
+        },
+      ],
+    })
+    const initial = application.initial({ document: grid }).model
+    const model: Model = { ...initial, editor: { ...initial.editor, selection: caret('a', 0) } }
+    const rows = (next: Model) => {
+      const table = next.document.children[0]
+      return table?.type === 'Node' ? (table.blocks ?? []).length : 0
+    }
+    expect(rows(step(model, edited(Message.InsertedRow({ where: 'after' }))))).toBe(2)
+    const tabbed = step(model, edited(Message.Indented()))
+    expect(tabbed.editor.selection).toEqual(caret('b', 0))
+  })
+
+  it('reports an adornment’s action and changes nothing', () => {
+    const model = start(caret('a', 1))
+    expect(step(model, edited(Message.ActivatedAdornment({ node: id('p'), action: 'copy' })))).toBe(
+      model,
+    )
   })
 
   it('sets a node block’s props, as a checkbox does', () => {

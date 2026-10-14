@@ -781,7 +781,8 @@ HTML parser inserts one around bare rows, and markup sent from a server has to p
 that was rendered. An entry's `adornments` are elements drawn inside the block before its content
 that are not content: a task's checkbox, a figure's picture and caption, a callout's icon. They
 carry `data-adornment`, hold no position, and an HTML import drops them; one with `toggles: 'open'`
-flips that boolean prop when clicked, through the editor's `ChangedProps`:
+flips that boolean prop when clicked, through the editor's `ChangedProps`, and one with an `action`
+(`'copy'`) is reported to the application with its block, for something that is not an edit:
 
 ```ts
 RichText.renderingOver(RichText.standardRendering, {

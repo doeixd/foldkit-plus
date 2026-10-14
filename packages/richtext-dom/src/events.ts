@@ -214,6 +214,13 @@ export interface AttachOptions {
   readonly decorate?: Decorate | undefined
   /** What a blank document shows (`RichText.isBlank`): "Write something…". */
   readonly placeholder?: string | undefined
+  /**
+   * The node vocabulary, which says where Tab means something (`RichText.takesTab`): code and
+   * table cells take it as `Indent` and `Outdent`; anywhere else it moves focus as it always does.
+   */
+  readonly nodes?: RichText.NodeRegistry | undefined
+  /** Called with a block and an adornment's `action` when that adornment is clicked. */
+  readonly onAction?: ((node: RichText.NodeId, action: string) => void) | undefined
 }
 
 /** What is drawn over a document, derived from it on every render (§129). */
@@ -352,6 +359,17 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     if (owned) restoreSelection(current, state.selection)
   }
   const onEvent = (event: Event): void => {
+    // Tab is taken only where it means something, so it still leaves the editor elsewhere.
+    if (event.type === 'keydown' && !composing) {
+      const key = event as KeyboardEvent
+      if (key.key === 'Tab' && !key.altKey && !key.ctrlKey && !key.metaKey) {
+        if (!RichText.takesTab(current.content, readSelection(current), options.nodes)) return
+        event.preventDefault()
+        reportSelection()
+        options.onIntent({ type: key.shiftKey ? 'Outdent' : 'Indent' })
+        return
+      }
+    }
     const intent = intentFor(event, composing, options.keymap)
     if (intent === undefined) return
     if (intent.preventDefault) event.preventDefault()
@@ -447,6 +465,21 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   const onClick = (event: MouseEvent): void => {
     const origin = event.target
     if (!(origin instanceof Element)) return
+    const acting = origin.closest(`[${RichText.ACTION_ATTRIBUTE}]`)
+    const actedOn = acting?.closest('[data-block]')?.getAttribute('data-block')
+    if (
+      acting !== null &&
+      actedOn !== null &&
+      actedOn !== undefined &&
+      current.root.contains(acting)
+    ) {
+      event.preventDefault()
+      options.onAction?.(
+        RichText.NodeId.make(actedOn),
+        acting.getAttribute(RichText.ACTION_ATTRIBUTE)!,
+      )
+      return
+    }
     const adornment = origin.closest(`[${RichText.TOGGLES_ATTRIBUTE}]`)
     if (adornment === null || !current.root.contains(adornment)) return
     const prop = adornment.getAttribute(RichText.TOGGLES_ATTRIBUTE)!

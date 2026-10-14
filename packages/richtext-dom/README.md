@@ -251,7 +251,9 @@ caret in an empty run is read from the element it is in.
 ### The block handle: anchor and drag
 
 `blockAnchor({ hostId, node, gap })` places an element `gap` pixels left of block `node`, level
-with its top edge and never past the window's left edge. It places it again when the editor's
+with its top edge and never past the window's left edge; with `side: 'above'` it goes `gap`
+pixels above the block, at its left edge, or just inside its top when there is no room above,
+which is where a block's toolbar (a table's, a code block's) goes. It places it again when the editor's
 subtree changes (a patch can move a block without the page scrolling), on scroll, and on
 resize, and it finds a host drawn after it, or drawn again in the same parent.
 
@@ -369,7 +371,8 @@ cases (each built as `Message.Typed({ text })` and so on, not exported one by on
 ```text
 Typed, Backspace, DeletedForward, Entered, ToggledMark, AppliedMark, ClearedMark,
 RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, MovedBlock, InsertedBlock,
-DeletedBlock, ChangedProps, Selected, Pasted, Undone, Redone, Patched
+DeletedBlock, ChangedProps, InsertedRow, InsertedColumn, DeletedRow, DeletedColumn, Indented,
+Outdented, ActivatedAdornment, Selected, Pasted, Undone, Redone, Patched
 ```
 
 The adapter reports what the browser did as commands, a caret, and history chords, and
@@ -385,6 +388,13 @@ dropping a detail: an insertion carrying marks, or a mark value with props, come
   `DeleteBlock`: an insert menu's image or table, a handle's Duplicate and Delete;
 - `ChangedProps` (`{ node, props }`) for `SetProps`. The adapter sends it too, for a click on a
   block's adornment that toggles a prop (a task's checkbox, from `ElementRendering.adornments`);
+- `InsertedRow` and `InsertedColumn` (`{ where }`), `DeletedRow` and `DeletedColumn` for the
+  table commands, which act on the caret's cell: what a table toolbar sends;
+- `Indented` and `Outdented` for `Indent` and `Outdent`. The adapter sends them for Tab and
+  Shift+Tab, but only where `RichText.takesTab` says Tab means something (code, a table cell,
+  under the placement's vocabulary); anywhere else Tab is left to move focus;
+- `ActivatedAdornment` (`{ node, action }`): an adornment with an `action` was clicked, a code
+  block's Copy, say. It is no edit, and the editor changes nothing; the application acts on it;
 - `AppliedMark` (`{ mark }`, a name or a `{ name, props }` value) and `ClearedMark` (`{ mark }`)
   for `SetMark` and `ClearMark`: what a link editor sends, which at a caret changes or removes
   the whole link the caret is in.
