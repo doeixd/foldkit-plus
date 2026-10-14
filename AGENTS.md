@@ -607,6 +607,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   neither ended nor reported; since then it fails, and a merge of Mounts
   (`Stream.mergeAll`) ends every stream in it, so one Behavior's failure took the
   canvas's clicks with it. The resolver's composed Mount fails each alone.
+- **An element holds one Mount.** Foldkit's `OnMount` replaces the vnode's
+  `insert` hook, so a second one on an element silently drops the first. The
+  mixins resolver composes the Mounts that Mixins contribute, but not one
+  inside an upstream bundle: a `FluidHover` given to a listbox's `items` slot
+  disabled upstream's anchor there, and the panel stayed `visibility: hidden`
+  with no error. Give a Mount of your own an element of your own (the popups'
+  `rows` slot), and check a slot's upstream bundle for an `OnMount` first.
 - **Mount args are captured at insert, never refreshed.** A Mount that should
   follow the Model (focus the next OTP cell after a fill) ran once with the
   initial args and never again: `OnMount` binds `insert` and `destroy` only,

@@ -6,7 +6,18 @@
 import { Style } from 'foldkit-mixins'
 import { ListboxSlots } from '../listbox.js'
 import { component, disabled, focusRing, listScroll, ref, transition } from './design.js'
-import { backdrop, density, heading, item, panel, separator } from './popup.js'
+import {
+  backdrop,
+  density,
+  heading,
+  highlight,
+  indicator,
+  item,
+  panel,
+  rows,
+  separator,
+  unlit,
+} from './popup.js'
 
 export const Listbox = Style.recipeFor(ListboxSlots)({
   base: {
@@ -38,14 +49,15 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
     scroll: listScroll,
     item: component(
       item,
-      // The chosen row reads DOM state, so it goes through `states`.
-      Style.states(
-        { true: { background: ref.accent.subtle, color: ref.accent.ink } },
-        'aria-selected',
-      ),
+      // The chosen row reads DOM state; its fill is the indicator's once that glides.
+      Style.states({ true: { color: ref.accent.ink } }, 'aria-selected'),
+      Style.nest(`${unlit}[aria-selected="true"]`, { background: ref.accent.subtle }),
     ),
     heading,
     separator,
+    rows,
+    highlight,
+    indicator,
   },
   variants: {
     size: {

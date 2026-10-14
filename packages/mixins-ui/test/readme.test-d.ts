@@ -5,6 +5,7 @@ import type { CalendarAttributes } from '@foldkit/ui/calendar'
 import * as UiButton from '@foldkit/ui/button'
 import * as UiInput from '@foldkit/ui/input'
 import type { RenderInfo } from '@foldkit/ui/tabs'
+import type { MenuRenderInfo } from '../src/index.js'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Style } from 'foldkit-mixins'
@@ -15,6 +16,8 @@ import {
   CalendarSlots,
   Input,
   InputSlots,
+  Menu,
+  MenuSlots,
   Recipes,
   Tabs,
   TabsSlots,
@@ -66,3 +69,8 @@ export const glidingTabs = (h: HtmlBuilder<Message>): ((render: RenderInfo) => H
       ...tabs.map(tab => h.button(tab.tab, [tab.value])),
     ]),
   )
+
+const MenuStyle = Style.forSlots(MenuSlots)(Recipes.Menu({}))
+
+export const glidingMenu = (h: HtmlBuilder<Message>): ((render: MenuRenderInfo) => Html) =>
+  Menu.toView([MenuStyle.mixin, ...Menu.fluid], { h })

@@ -27,6 +27,10 @@ export const panel: StyleValue = component(
 /** The click-away behind an open panel. */
 export const backdrop: StyleValue = component(Style.self({ position: 'fixed', inset: '0' }))
 
+/** A row outside any panel a fluid highlight runs in. */
+export const unlit = '&:not([data-fluid-hover] *)'
+const lit = ':where([data-fluid-hover]) > &'
+
 /** One row of the panel. */
 export const item: StyleValue = component(
   Style.self({
@@ -44,10 +48,66 @@ export const item: StyleValue = component(
     textAlign: 'start',
     cursor: 'pointer',
   }),
-  hover({ background: ref.surface.muted }),
-  // The row the keys or the pointer are on: upstream marks it `data-active`.
-  Style.nest('&[data-active]', { background: ref.surface.muted }),
+  // The row the keys or the pointer are on (upstream marks it `data-active`),
+  // until a fluid highlight runs in the panel and lights it instead.
+  Style.nest(`${unlit}:hover:not([aria-disabled="true"], :disabled)`, {
+    background: ref.surface.muted,
+  }),
+  Style.nest(`${unlit}[data-active]`, { background: ref.surface.muted }),
   disabled,
+)
+
+/** The rows' box: a positioned one for the highlight and indicator, under the rows. */
+export const rows: StyleValue = component(
+  Style.self({ position: 'relative', isolation: 'isolate' }),
+)
+
+/** A position under a panel's `fluid`: the custom properties its Mounts write. */
+const at = (name: 'hover' | 'chosen', part: 'x' | 'y' | 'w' | 'h') =>
+  `var(--fk-popup-${name}-${part})`
+
+const glide = (moving: string) => {
+  const duration = `calc(${ref.motion.normal} * ${moving})`
+  return {
+    transitionProperty: 'translate, inline-size, block-size, opacity',
+    transitionDuration: `${duration}, ${duration}, ${duration}, ${ref.motion.fast}`,
+    transitionTimingFunction: `${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.ease}`,
+  }
+}
+
+const overlay = (name: 'hover' | 'chosen') => ({
+  position: 'absolute',
+  insetBlockStart: '0',
+  insetInlineStart: '0',
+  zIndex: '-1',
+  inlineSize: at(name, 'w'),
+  blockSize: at(name, 'h'),
+  translate: `${at(name, 'x')} ${at(name, 'y')}`,
+  borderRadius: ref.radius.md,
+  pointerEvents: 'none',
+})
+
+/** The one hover of a panel under `fluid`, which the keys move too. */
+export const highlight: StyleValue = component(
+  Style.self({
+    ...overlay('hover'),
+    display: 'none',
+    opacity: 'var(--fk-popup-hover-shown)',
+    background: ref.surface.muted,
+    ...glide('var(--fk-popup-hover-moving)'),
+  }),
+  Style.nest(lit, { display: 'block' }),
+)
+
+/** The chosen row's marker under `fluid`, which glides to a new choice. */
+export const indicator: StyleValue = component(
+  Style.self({
+    ...overlay('chosen'),
+    display: 'none',
+    background: ref.accent.subtle,
+    ...glide('1'),
+  }),
+  Style.nest(lit, { display: 'var(--fk-popup-chosen-display, none)' }),
 )
 
 /** A group heading inside the panel. */

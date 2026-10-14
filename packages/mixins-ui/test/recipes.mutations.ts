@@ -42,8 +42,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/listbox.ts',
-        find: '        { true: { background: ref.accent.subtle, color: ref.accent.ink } },',
-        replace: '        { true: { background: ref.surface.muted, color: ref.text.default } },',
+        find: 'Style.nest(`${unlit}[aria-selected="true"]`, { background: ref.accent.subtle }),',
+        replace: 'Style.nest(`${unlit}[aria-selected="true"]`, { background: ref.surface.muted }),',
       },
     ],
     tests,
@@ -53,8 +53,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/combobox.ts',
-        find: '        { true: { background: ref.accent.subtle, color: ref.accent.ink } },',
-        replace: '        { true: { background: ref.surface.muted, color: ref.text.default } },',
+        find: 'Style.nest(`${unlit}[aria-selected="true"]`, { background: ref.accent.subtle }),',
+        replace: 'Style.nest(`${unlit}[aria-selected="true"]`, { background: ref.surface.muted }),',
       },
     ],
     tests,

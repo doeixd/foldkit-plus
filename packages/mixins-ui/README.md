@@ -398,11 +398,11 @@ adapter.
 | RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput` |
 | Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id |
 | Calendar | `root`, `header` (the heading's row, this package's own), `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
-| Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `MenuView` fork; see below) |
+| Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight` (over the `MenuView` fork; see below) |
 | FileDrop | `root`, `input` |
 | Toast | `container`, `entry` (over the `ToastView` fork; the dismiss control stays inside the consumer's `entryToView`) |
-| Listbox | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `ListboxView` fork; single and multi share one transcription) |
-| Combobox | `wrapper`, `inputWrapper`, `input`, `toggleButton`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `ComboboxView` fork; single and multi share one transcription) |
+| Listbox | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator` (over the `ListboxView` fork; single and multi share one transcription) |
+| Combobox | `wrapper`, `inputWrapper`, `input`, `toggleButton`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator` (over the `ComboboxView` fork; single and multi share one transcription) |
 | DatePicker | `trigger`, `panel`, `backdrop` (over the `DatePickerView` fork, which keeps upstream's Popover+Calendar composition and seams only the popover assembly) |
 
 ## Stateless vocabulary
@@ -590,6 +590,20 @@ and highlight show nothing and the chosen tab marks itself: the recipe reads
 the `data-fluid-hover` attribute FluidHover sets while it runs. (`Tabs.fluid`
 is opt-in because a Scene test resolves every Mount with a Message, and these
 send none.)
+
+Menus, listboxes and comboboxes take the same opt-in: `Menu.fluid`,
+`Listbox.fluid` and `Combobox.fluid`, beside the style in `toView`. The open
+panel's rows sit in a `rows` box of this package's (the panel carries
+upstream's anchor, and an element holds one Mount), with a `highlight` first
+in it that follows the pointer, and the keys, which mark a row `data-active`;
+a listbox or combobox adds an `indicator` that glides to the chosen row. The
+default draw places all three, and the rows drop their own hover and chosen
+fill while the highlight runs. A press in a gap presses the lit row, except in
+a combobox, whose field keeps focus.
+
+```ts
+Menu.toView([MenuStyle.mixin, ...Menu.fluid], { h })
+```
 
 `Recipes.Tabs({ variant: 'pill' })`'s chosen tab is the accent's tint and ink,
 as a pressed Segmented option is. To look at every recipe in every variant and

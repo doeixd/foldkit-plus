@@ -27,6 +27,10 @@ interface PopupPanel<Message> {
   readonly items: Part<Message> | undefined
   readonly scroll: SlotAttributes<Message> | undefined
   readonly groups: ReadonlyArray<PopupGroup<Message>>
+  /** The adapters' own; a fork's upstream markup has none of these. */
+  readonly rows?: SlotAttributes<Message> | undefined
+  readonly highlight?: SlotAttributes<Message> | undefined
+  readonly indicator?: SlotAttributes<Message> | undefined
 }
 
 const drawGroup = <Message>(group: PopupGroup<Message>, h: HtmlBuilder<Message>) => {
@@ -46,7 +50,22 @@ const drawGroup = <Message>(group: PopupGroup<Message>, h: HtmlBuilder<Message>)
 
 /** The click-away and the panel, present only while open. */
 const drawPanel = <Message>(panel: PopupPanel<Message>, h: HtmlBuilder<Message>): Array<Html> => {
-  const groups = panel.groups.flatMap(group => drawGroup(group, h))
+  const drawn = panel.groups.flatMap(group => drawGroup(group, h))
+  // The rows' own box, which the adapters' Mounts measure from, the overlays first in it.
+  const groups =
+    panel.rows === undefined
+      ? drawn
+      : [
+          h.div(panel.rows, [
+            ...(panel.indicator === undefined
+              ? []
+              : [h.keyed('div')('indicator', panel.indicator)]),
+            ...(panel.highlight === undefined
+              ? []
+              : [h.keyed('div')('highlight', panel.highlight)]),
+            ...drawn,
+          ]),
+        ]
   return [
     ...(panel.backdrop === undefined
       ? []

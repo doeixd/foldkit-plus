@@ -74,6 +74,9 @@ const defined = new Set([
   // Written on the tablist by `Tabs.fluid`'s Measure and FluidHover.
   ...['x', 'y', 'w', 'h', 'display'].map(part => `tabs-chosen-${part}`),
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `tabs-hover-${part}`),
+  // Written on an open popup's panel by its `fluid`.
+  ...['x', 'y', 'w', 'h', 'display'].map(part => `popup-chosen-${part}`),
+  ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `popup-hover-${part}`),
 ])
 
 /** Every selection of a recipe: the defaults, then each value of each axis. */

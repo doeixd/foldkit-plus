@@ -47,6 +47,12 @@ version changed; `pnpm` skips versions already in the registry.
   rule or pill springs to a new choice. Until it runs, each tab marks itself.
   `FluidHover` sets `data-fluid-hover` on its container while it runs, which
   a recipe reads to draw a highlight in place of each item's own hover.
+- **`foldkit-mixins-ui`: menus, listboxes and comboboxes glide.** `Menu.fluid`,
+  `Listbox.fluid` and `Combobox.fluid` move one highlight over the open
+  panel's rows, for the pointer and the keys alike, and a listbox's or
+  combobox's chosen-row marker glides to a new choice. Their slots gain
+  `rows`, `highlight` and (listbox, combobox) `indicator`, which the default
+  draw places.
 - **`foldkit-mixins-ui`: `Item`'s `content` is optional**, for a row its
   title and description say all of, such as a notification.
 
