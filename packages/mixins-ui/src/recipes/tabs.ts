@@ -143,6 +143,13 @@ export const Tabs = Style.recipeFor(TabsSlots)({
             opacity: `calc(1 - 0.15 * ${hovered('shown')})`,
           }),
         ),
+        // The hover is the chosen pill, faint, as if it were trying the tab on.
+        highlight: variant(
+          Style.self({
+            background: ref.accent.subtle,
+            opacity: `calc(0.4 * ${hovered('shown')})`,
+          }),
+        ),
       },
     },
     size: {

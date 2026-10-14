@@ -553,16 +553,17 @@ export const tabs = <Message>(
       selectedValue: state.section,
       ariaLabel: 'Project',
       toView: Tabs.toView<Section, Message>(
-        [style.mixin],
+        [style.mixin, ...Tabs.fluid],
         { h },
-        ({ tablist, tabs, activeIndex }) =>
+        ({ tablist, indicator, highlight, tabs, activeIndex }) =>
           h.div(
             [],
             [
-              h.div(
-                tablist,
-                tabs.map(tab => h.button(tab.tab, [sections[tab.value].label])),
-              ),
+              h.div(tablist, [
+                h.div(indicator),
+                h.div(highlight),
+                ...tabs.map(tab => h.button(tab.tab, [sections[tab.value].label])),
+              ]),
               ...tabs
                 .filter(tab => tab.index === activeIndex)
                 .map(tab => h.div(tab.panel, [h.p([], [sections[tab.value].text])])),
