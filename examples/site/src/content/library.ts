@@ -11,7 +11,8 @@ import { Option } from 'effect'
 
 import { compilerOptionsOf, extract, packageSource } from '../api/extract.js'
 import { allSubsites, type Subsite } from '../catalog.js'
-import type { Draw, Library, Region } from '../library.js'
+import { showcaseOf, showcases } from '../gallery/showcases.js'
+import { COMPONENTS, CREATE, type Draw, type Library, type Region } from '../library.js'
 import { Page, type Example } from '../main.js'
 import type { RootContent } from 'mdast'
 
@@ -95,6 +96,29 @@ const SNIPPETS: Readonly<Record<Example | 'app' | 'remote', string>> = {
   sync: 'sync.ts',
   mirror: 'mirror.ts',
   remote: 'remote.ts',
+}
+
+/**
+ * The code between `// #region <name>` and `// #endregion` in `source`, by
+ * name. A region left open, or a name used twice, fails the build.
+ */
+export const regionsOf = (source: string): ReadonlyMap<string, string> => {
+  const regions = new Map<string, string>()
+  let open: { readonly name: string; readonly lines: Array<string> } | undefined
+  for (const line of source.split('\n')) {
+    const start = /^\/\/ #region (\S+)$/.exec(line)
+    if (start !== null) {
+      if (open !== undefined) throw new Error(`region ${start[1]} opens inside ${open.name}`)
+      if (regions.has(start[1]!)) throw new Error(`two regions are named ${start[1]}`)
+      open = { name: start[1]!, lines: [] }
+    } else if (line === '// #endregion') {
+      if (open === undefined) throw new Error('a region ends that never opened')
+      regions.set(open.name, open.lines.join('\n').trim())
+      open = undefined
+    } else open?.lines.push(line)
+  }
+  if (open !== undefined) throw new Error(`region ${open.name} never ends`)
+  return regions
 }
 
 export interface ServerLibrary extends Library {
@@ -271,12 +295,30 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     return ih => [codeBlock(ih, highlight, { code: source.trimEnd(), lang: 'ts', copy: true })]
   }
 
+  const usages = regionsOf(
+    readFileSync(join(repository, 'examples/site/src/snippets/components.ts'), 'utf8'),
+  )
+  const componentPaths = showcases.map(showcase => `${COMPONENTS}/${showcase.slug}`)
+  const usage = (slug: string): Draw => {
+    const code = usages.get(slug)
+    if (code === undefined) throw new Error(`src/snippets/components.ts has no region ${slug}`)
+    return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
+  }
+  // Every showcase's code is read now, so a missing region fails the build, not one page.
+  for (const showcase of showcases) usage(showcase.slug)
+
   return {
-    paths: [HOME, DEMOS, ...byPath.keys()],
+    paths: [HOME, DEMOS, COMPONENTS, ...componentPaths, CREATE, ...byPath.keys()],
     pageAt: path => {
       const normal = normalize(path)
       if (normal === HOME) return Page.Home()
       if (normal === DEMOS) return Page.Demos()
+      if (normal === COMPONENTS) return Page.Components()
+      if (normal === CREATE) return Page.Create()
+      if (normal.startsWith(`${COMPONENTS}/`)) {
+        const slug = normal.slice(COMPONENTS.length + 1)
+        return Option.isSome(showcaseOf(slug)) ? Page.Component({ slug }) : Page.Missing()
+      }
       const page = byPath.get(normal)
       return page === undefined
         ? Page.Missing()
@@ -287,5 +329,6 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     pager: path => ih => [pager(pageOf(path), ih)],
     outline: path => outline(pageOf(path)),
     example,
+    usage,
   }
 }

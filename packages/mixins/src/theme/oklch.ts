@@ -1,8 +1,10 @@
 /**
  * A whole palette from a few knobs, as css-tags derives it: every value
  * except the knobs is a CSS expression over other tokens, so overriding a
- * knob anywhere (a scoped theme, a subtree, an inline style) re-derives the
- * rest in the browser. Where light and dark schemes need different numbers
+ * knob on the element that declares the tokens (`:root`, or a scoped theme's
+ * selector) re-derives the rest in the browser. A custom property resolves
+ * where it is declared, so a knob overridden on a subtree below `:root`
+ * changes nothing: declare the theme on that subtree too. Where light and dark schemes need different numbers
  * the value is a `light-dark()` pair, so one theme serves both and a user's
  * choice is a `color-scheme` override.
  */

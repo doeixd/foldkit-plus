@@ -1,6 +1,6 @@
 {
   "name": "foldkit-guard",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "description": "Who may do what, declared once on a Foldkit Plus domain: principal guards implemented on the server, row guards as query expressions.",
   "keywords": [
     "foldkit",
@@ -90,15 +90,15 @@
   },
   "devDependencies": {
     "drizzle-orm": "1.0.0-rc.4",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-agent": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
     "foldkit-surface": "workspace:*",
     "foldkit-sync": "workspace:*",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

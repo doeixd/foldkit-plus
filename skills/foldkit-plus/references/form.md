@@ -50,6 +50,7 @@ const Post = Entity.define(
 const RenameInput = Schema.Struct({ id: Schema.String, title: Post.fields.title.schema })
 
 const Rename = Form.make('Rename', Entity.input(Post, RenameInput))
+// A form that writes no Entity: Form.make('Search', Form.input(SearchInput)).
 
 const Slot = Bundle.declare(Rename.bundle, 'rename')
 const Model = Schema.Struct({ ...Slot.fields, saved: Schema.Array(RenameInput) })
@@ -94,6 +95,8 @@ const RenameForm = Page.at(Slot, {
   requirements become the Bundle's — but a check that needs something must be added
   with the `Form.checks` step (`form.pipe(Form.checks({ slug: ask }))`), not in
   `Form.make`'s options, where `R` infers as `never` and the check is refused.
+  The ask is the Command `form.Check`; a test resolves it with
+  `Command.resolve(form.Check, form.Message.Checked({ key, draft, error }))`.
   `{ values }` is what else decodes; `{ subject }`
   is what the form edits but its values do not carry (a post's row id), set once with
   `Message.About({ subject: { id } })` and read with `form.subject(model)` — `{}` while

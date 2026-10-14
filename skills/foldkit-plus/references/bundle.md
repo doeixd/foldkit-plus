@@ -48,7 +48,7 @@ const MediaQuery = Bundle.make('MediaQuery', {
   update: (_model, message) => ({ model: { matches: message.matches } }),
   subscriptions: ({ query }) =>
     Subscription.make<MediaQueryModel, MediaQueryMessage>()(() => ({
-      changes: Subscription.persistent(
+      changes: Subscription.persistentEntry(
         Stream.map(matchMediaChanges(query), matches => MediaQueryMessage.Changed({ matches })),
       ),
     })),
@@ -120,6 +120,9 @@ package:
 - `Data.wiring({ board: BoardSurface })` routes Remote's Messages into
   `Data.reduce`, brings the active Surfaces' Subscriptions and the contract,
   and requires `RemoteClient`. One assembly holds at most one Remote domain.
+  It claims Remote's tags in its type, so `assembly.update(own)` never hands
+  them to `own`: no `Remote.reduces` guard there, and an exhaustive `own`
+  stops compiling if the wiring is removed.
 - `Filters.wiring('UrlChanged')` routes the URL Message and reads the URL at
   startup; `Prefs.wiring()` routes its own `MirrorRestored` and restores at
   startup. `MirrorRestored` is shared, so two key-value mirrors assemble side

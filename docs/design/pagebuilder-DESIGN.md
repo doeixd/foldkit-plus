@@ -1,6 +1,6 @@
 # Composition and the Page Builder
 
-> **Implementation status, checked 2026-09-27:** Phases 0–10 are built in the private `foldkit-composition`, `foldkit-builder` and `foldkit-mixins-builder`, except 7c-2 (rich text edited on the canvas). See the
+> **Implementation status, checked 2026-09-27:** Phases 0–10 are built in `foldkit-composition`, `foldkit-builder` and `foldkit-mixins-builder` (published since 2026-10-06, at 0.3.0 in v0.19.0), except 7c-2 (rich text edited on the canvas). See the
 > [design index](./README.md#where-each-design-stands).
 
 **Status:** Proposed. Revised 2026-09-25 against the tree at 0.11.0: it now

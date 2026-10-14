@@ -1527,11 +1527,17 @@ export interface Contract {
  * `update`, initial state, runtime config, and Module from a list of them.
  * `R` is the services its Commands and Subscriptions need.
  */
-export interface Wiring<Model, Message, R = never> {
+export interface Wiring<Model, Message, R = never, Claims extends string = string> {
   /** Names the integration in errors and the Module: `remote:Board`, `mirror:filters`. */
   readonly key: string
-  /** Message tags `route` handles. Two integrations handling one tag is an error unless it is `shared`. */
-  readonly handles: readonly string[]
+  /**
+   * Message tags `route` handles. Two integrations handling one tag is an error
+   * unless it is `shared`. Typed as literals (`Claims`), the tags it does not
+   * share leave the parent's own update in `foldkit-bundle`'s assembly. A wiring
+   * with literal `Claims` that shares some gives `shared` a literal type too: a
+   * plain `string[]` there reads as sharing none.
+   */
+  readonly handles: ReadonlyArray<Claims>
   /** Tags several integrations may handle, each for its own values (Mirror's `MirrorRestored`, by name). */
   readonly shared?: readonly string[] | undefined
   /**

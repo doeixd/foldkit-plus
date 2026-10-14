@@ -37,10 +37,10 @@ const _runnable = Surface.application({
 // @ts-expect-error `missing` is not a Model field
 App.model.missing
 
-// @ts-expect-error the initial Model must match the Model schema
 Surface.application({
   Model,
   Message,
+  // @ts-expect-error the initial Model must match the Model schema
   initial: { count: 'zero' },
   update: (model: { readonly count: number }) => ({ model }),
 })

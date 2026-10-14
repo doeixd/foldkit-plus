@@ -310,6 +310,12 @@ What the build taught the proposal:
   itself still compiles and silently drops its routing, init, and Subscriptions.
   The parity tests pin what each wiring contributes; a removal is caught by
   behaviour (the pinned transcripts), not by construction.
+  **Since 2026-10-13, mostly closed:** `Wiring`'s `Claims` parameter types
+  `handles` as literals, and `OwnMessage` leaves out the tags a wiring claims
+  without sharing them. Remote's wiring claims every `RemoteMessage` tag, so the
+  CMS's own updates no longer guard them away, and deleting `Data.wiring` from
+  `assemble` fails at their `Match.valueTags`. A wiring of shared tags only (the
+  mirrors) is still caught by behaviour alone.
 
 ## Open questions
 

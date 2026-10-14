@@ -265,6 +265,15 @@ export const mount = <
 
   // Durable edits whose submit has not settled, in dispatch order.
   const edits: Array<LocalEdit<Message>> = []
+  // An edit shows before it is stored, so a reload while one waits would lose
+  // what the reader saw: the browser asks first, from the first such edit
+  // until the last is stored.
+  const holdUnload = (event: Event): void => event.preventDefault()
+  const unloadGuarded = (guarded: boolean): void => {
+    if (typeof window === 'undefined') return
+    if (guarded) window.addEventListener('beforeunload', holdUnload)
+    else window.removeEventListener('beforeunload', holdUnload)
+  }
   // Settles when the latest edit's submit does; the next submit waits for it.
   let tail: Promise<void> = Promise.resolve()
 
@@ -452,6 +461,7 @@ export const mount = <
     persistsOwed++
     const edit: LocalEdit<Message> = { message, started: undefined }
     edits.push(edit)
+    if (edits.length === 1) unloadGuarded(true)
     const previous = tail
     let settle!: () => void
     const done = new Promise<void>(resolve => {
@@ -461,6 +471,7 @@ export const mount = <
     const release = (): void => {
       const index = edits.indexOf(edit)
       if (index !== -1) edits.splice(index, 1)
+      if (edits.length === 0) unloadGuarded(false)
       inFlight.delete(done)
       settle()
     }
@@ -520,13 +531,13 @@ export const mount = <
     inbound: { message: Port.inbound(app.Message as unknown as Schema.Codec<Message, unknown>) },
   }
   const own = Subscription.make<Model, RuntimeMessage, Resources>()(() => ({
-    message: Port.subscription(ports.inbound.message, (message): RuntimeMessage => ({
+    message: Port.subscriptionEntry(ports.inbound.message, (message): RuntimeMessage => ({
       _tag: DISPATCHED,
       message,
     })),
     // The replica's status carries the cursor and rejections, which is exactly
     // when the shared slice held locally can differ from the replica's.
-    refresh: Subscription.persistent<RuntimeMessage, Resources>(
+    refresh: Subscription.persistentEntry<RuntimeMessage, Resources>(
       replica.statusChanges.pipe(
         // Every status, not only a changed cursor: a checkpoint at the same
         // cursor still replaces the committed state a waiter reads.

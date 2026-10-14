@@ -4,7 +4,6 @@ import { Update } from 'foldkit'
 import { CalendarDate } from 'foldkit/calendar'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 
 import * as Validation from '../../validation.js'
@@ -18,9 +17,7 @@ export const Position = Schema.Struct({
 })
 export type Position = typeof Position.Type
 
-const PositionEntity = Entity.define('Position', Position)
-
-export const PositionForm = Form.make('Position', Entity.input(PositionEntity, Position), {
+export const PositionForm = Form.make('Position', Form.input(Position), {
   messages: { required: Validation.requiredMessage },
 })
 

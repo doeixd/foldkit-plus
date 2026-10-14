@@ -1,6 +1,6 @@
 {
   "name": "foldkit-entity",
-  "version": "0.8.1",
+  "version": "0.10.0",
   "description": "Domain structure for Foldkit Plus: an Entity's fields, relations, and derived members as typed values, and Selections of them.",
   "keywords": [
     "foldkit",
@@ -53,8 +53,8 @@
     "effect": "^4.0.0"
   },
   "devDependencies": {
-    "effect": "4.0.4",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "effect": "^4.0.4",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

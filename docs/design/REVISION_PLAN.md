@@ -24,6 +24,12 @@ Self-contained orientation. Verify anything here before relying on it; things mo
 
 ### 1.1 What the repo is
 
+> **Since then (2026-10-13):** §1.1 and §1.2 describe the repository when this
+> plan began. Every package now publishes (none is private), at the versions
+> [releases.md](../releases.md) lists (v0.19.0 is the last tag), and
+> `examples/` holds 42 applications, Foldkit's own ports included; the [examples index](../../examples/README.md)
+> names them.
+
 `doeixd/foldkit-plus` — a pnpm workspace of Foldkit/Effect packages plus examples.
 
 ```text
@@ -2181,6 +2187,13 @@ installable; CI is green.
 ---
 
 ## 20. Immediate next step and open questions
+
+> **Since then (2026-10-13):** `foldkit-remote-drizzle` shipped (open question
+> 7), and its query semantics and pagination run against Postgres itself
+> through PGlite (`test/conformance.test.ts`, `test/writer.test.ts`), as do
+> Phase 14's batched relations and nested per-parent pages
+> (`test/nested.test.ts`, every case on SQLite and Postgres). The rest of this
+> section is as it was written.
 
 **Next step:** Phases 0-13 and 15 are executed; Phase 14
 (`foldkit-remote-drizzle`) is implemented but its Postgres acceptance is not run

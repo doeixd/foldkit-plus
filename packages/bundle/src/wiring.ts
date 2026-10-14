@@ -9,11 +9,17 @@ import type * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import type { Url } from 'foldkit/url'
 
-export interface Wiring<Model, Message, R = never> {
+export interface Wiring<Model, Message, R = never, Claims extends string = string> {
   /** Names the integration in errors and the Module: `remote:Board`, `mirror:filters`. */
   readonly key: string
-  /** Message tags `route` handles. Two items handling one tag is an error unless it is `shared`. */
-  readonly handles: readonly string[]
+  /**
+   * Message tags `route` handles. Two items handling one tag is an error unless
+   * it is `shared`. Typed as literals (`Claims`), the tags it does not share
+   * leave the parent's own update, so removing the wiring brings them back there.
+   * A wiring with literal `Claims` that shares some gives `shared` a literal
+   * type too: a plain `string[]` there reads as sharing none.
+   */
+  readonly handles: ReadonlyArray<Claims>
   /**
    * Tags this integration observes rather than claims: every wiring that shares
    * one folds it, in list order, and the parent's own update sees it after them.

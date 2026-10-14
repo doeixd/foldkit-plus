@@ -46,7 +46,7 @@ section's nav address as its node's params; `Site.landing(site, section)` is
 the first declaring node as a target. `shortcut` is a Foldkit
 `KeySequence` (`'/'`, `['G', 'H']`) going to the node's landing;
 `Site.shortcuts(site, target => Message.Pressed({ url: target.url }))` is
-every one as `Subscription.keyBindings` bindings (no landing, or keys used
+every one as `Dom.streamFromKeyBindings` bindings (no landing, or keys used
 twice, throws). Annotate once; derive nav, titles, shortcuts, and
 breadcrumbs from it.
 

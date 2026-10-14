@@ -188,9 +188,6 @@ const placed = placements.update((model, message) => {
     const flushed = PostEditor.flush(model)
     return { model: next(flushed.model).model, commands: flushed.commands ?? [] }
   }
-  // Remote's Messages go to its wiring, so they never reach here; the guard
-  // narrows to the application's own tags, which the match below covers all of.
-  if (Remote.reduces(message)) return { model }
   return Match.valueTags(message, {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPost: () => ({ model, commands: [newPost] }),

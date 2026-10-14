@@ -9,7 +9,14 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { fileOf, generatedFields, included, references, writtenFiles } from '../scripts/entries.js'
+import {
+  fileOf,
+  generatedFields,
+  included,
+  references,
+  setupOf,
+  writtenFiles,
+} from '../scripts/entries.js'
 import { adapters, jobs } from '../src/setup.js'
 
 const here = join(import.meta.dirname, '..')
@@ -41,6 +48,10 @@ describe('foldkit-plus, against the workspace', () => {
       'devDependencies',
     ] as const)
       expect(manifest[field], field).toEqual(expected[field])
+  })
+
+  it('installs the Foldkit tested here, with the Effect it asks for', () => {
+    expect(json('package.json').setup).toEqual(setupOf(json('node_modules/foldkit/package.json')))
   })
 
   it('references each from both tsconfigs', () => {

@@ -10,8 +10,9 @@ and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki 
 mark toolbar, the block style picker, the slash menu, link editing, the placeholder, the
 status line, the command palette, the floating toolbar's anchor, and the block handle with its
 drag (§119, §123, §132, §133, §134, §141, §142, §143, §144, §148, §149), with their views in
-`foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
-and none is released yet. Milestone 7's source session, its view, and split mode are built
+`foldkit-mixins-richtext`. The six richtext packages are published to npm (as of v0.19.0, 2026-10-13:
+`foldkit-richtext` 0.3.0, `foldkit-richtext-dom` 0.4.0, `foldkit-mixins-richtext` 0.3.0,
+`foldkit-richtext-code` and `-code-shiki` 0.2.0, `foldkit-richtext-markdown` 0.2.1). Milestone 7's source session, its view, and split mode are built
 (§136, §137), with the writer's spellings per construct and per block (§138, §146) and the
 caret carried across a mode switch (§147).
 Milestone 8's form control and its CMS example are built (§139, §140).
@@ -4073,9 +4074,8 @@ is not completion of Phase 1.
 
 Remaining: mark overlap rules, metadata keys, and collaboration (including
 collaborative undo), alongside
-the parallel feasibility tracks below. The current implementation is
-private/unpublished and APIs may change as those proofs establish the final
-contracts.
+the parallel feasibility tracks below. The implementation is published
+but early, and APIs may change as those proofs establish the final contracts.
 
 Implement only:
 

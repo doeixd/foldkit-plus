@@ -7045,7 +7045,7 @@ can add what only topology knows: which container scrolls, such as a nested
 layout's panel rather than the window.
 
 > Built 2026-09-29 as `keepScroll(options)` in `foldkit-primitives/dom`: a
-> stream lifted with `Subscription.persistent`, window only, with the three
+> stream lifted with `Subscription.persistentEntry`, window only, with the three
 > browser tests moved beside it (each kills its rule). The CMS example
 > adopts it in its studio and site subscriptions.
 

@@ -1,6 +1,6 @@
 {
   "name": "foldkit-agent",
-  "version": "0.7.0",
+  "version": "0.8.1",
   "description": "A thin, Schema-first agent layer for Foldkit. Project a Foldkit Model and Message union into a protocol-neutral agent contract.",
   "keywords": [
     "foldkit",
@@ -48,13 +48,13 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "@effect/platform-browser": "^4.0.4",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

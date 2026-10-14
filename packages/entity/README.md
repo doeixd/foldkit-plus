@@ -437,7 +437,10 @@ A comparison coerces what it is given, so the common forms read as they mean: a
 field becomes a reference, a plain value becomes a literal, and an `Expr` is
 already one. What it will not do is compare a field to the wrong kind of value —
 `Expr.eq(Blog.Post.fields.title, 42)` is an error where it is written, rather
-than a row that never matches.
+than a row that never matches. The value's type comes from the left, so `eq` takes
+the field on the left; `Expr.eq('Hello', Blog.Post.fields.title)` is refused with
+that sentence. The comparisons (`lt`, `gte`, …) also take a field second,
+wrapped in `Expr.field(…)`.
 
 **An input is a placeholder, not a value.** A query's body is built once, so
 `Expr.input('title', …)` stands for whatever the query is given when it runs —
@@ -525,7 +528,13 @@ const oneOf = Query.from(Blog.Post).pipe(published, Query.where(byTitle))
 
 `published` and `newest` are fragments: written once, piped into any query over
 the same Entity. Composing performs no work — no table is named, no connection
-opened, nothing read.
+opened, nothing read. A fragment over another Entity is refused where it is
+piped: a predicate's type names the Entities its fields belong to, so
+`Query.from(Blog.Post).pipe(Query.where(Expr.eq(Blog.Comment.fields.body, 'x')))`
+reads `a predicate reads Comment, but the query is from Post`, and an ordering
+term over another Entity is refused by `Query.orderBy` the same way. The same check
+runs again when the query is built, for what a type cannot see: a predicate
+typed plainly as `Predicate`, or two Entities that share a name.
 
 **Two `where`s conjoin and two `orderBy`s append.** Neither replaces what came
 before, so piping a fragment can only ever narrow a query, never silently undo
@@ -702,7 +711,7 @@ from queries, not from what a database could express.
 | `Selected<typeof selection>` | Type: the value a Selection reads (its `schema`'s `Type`). |
 | `Words.of(schema)` | A schema's `title` and `description`, each an `Option`, including a title given before a check. |
 | `Entity.is(value)` | Whether a value is an Entity descriptor. |
-| `Expr.eq(left, right)` | Two values are the same; a field or a plain value on either side is coerced, and a predicate may stand where a boolean is wanted. |
+| `Expr.eq(left, right)` | Two values are the same: a field (or an expression) on the left, and the value on the right, which is typed from it; a predicate may stand where a boolean is wanted. A plain value on the left is a compile error that says so. |
 | `Expr.isNull(field)` / `Expr.isNotNull(field)` | Whether a value is absent; one node, with the answer absence gives flipped. |
 | `Expr.contains(field, search)` | Whether text contains text, over a text or nullable-text operand only. Containing the empty string is everything, but a null contains nothing. |
 | `Expr.in(field, among)` | Whether a value is one of a list (written out, or an input), each compared as `eq` compares; SQL's `in`, an empty list matching nothing. |

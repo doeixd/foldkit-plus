@@ -122,6 +122,7 @@ version changed; `pnpm` skips versions already in the registry.
   beside `RemoteForbidden`; `RemoteJsonAnswer` carries it as
   `unauthenticated: { reason? }`. `foldkit-remote-server`'s
   `RemoteServer.unauthenticated(reason?)` makes one.
+
 - **`foldkit-remote`: every call kind fails with `Unauthenticated` on a
   401.** Reads, queries, mutations and live streams declare it in their RPC
   errors and `RemoteClient`'s types; `Remote.http` and `liveFetch` read a 401,
@@ -132,33 +133,6 @@ version changed; `pnpm` skips versions already in the registry.
   `foldkit-remote-server`'s `answer` sends a handler's as a 401, and
   `serveFetch` ends a live stream with it as an `event: error` frame the
   client reads back.
-
-- **`foldkit-guard`: `GuardServer.validate` refuses a query body that filters
-  or orders by a member with a Read rule.** The row comes back without the
-  member, but which rows match, and in what order, still tells what it holds;
-  with comparisons a client could bisect it (`cost < $max`).
-
-- **`foldkit-entity`: `Expr.and`, `Expr.or` and `Expr.not`.** The connectives,
-  with SQL's three-valued meaning: `or` takes true over unknown, `and` false,
-  and `not` of an unknown stays unknown, so a null matches neither a
-  comparison nor its `not`. `and` and `or` need an operand and flatten one of
-  the same kind. `Expr.whenGiven(input, given => predicate)` is a filter that
-  applies only when a nullable input is given. `evaluate` runs them, and
-  `decided(predicate, input)` is a predicate's truth from the input alone,
-  when it reads no field. The conformance suite covers them.
-- **`foldkit-entity`: comparisons, `Expr.lt`, `lte`, `gt` and `gte`.** Numbers
-  compare as numbers; text only under `Collation.binary` or `asciiFold`
-  (declared on the field or passed) and against a field, refused where it is
-  written otherwise, since backends order text by different defaults. A value
-  compares in its encoded form, so a date stored as an ISO string is text. The
-  evaluator compares as `orderBy` does, and the conformance suite covers them.
-- **`foldkit-remote-drizzle`: comparisons compiled,** the column first however
-  the body wrote it, and text under its collation as keyset paging applies one
-  (`collate "C"` on Postgres, `collate binary` or `nocase` on SQLite).
-- **`foldkit-remote-drizzle`: `and`, `or` and `not` compiled,** and an operand
-  that reads no field decided per request, so `whenGiven` compiles to `true`
-  when its input is null and to the predicate alone when it is given, with no
-  parameter for the check.
 
 ### Changed
 
@@ -185,12 +159,6 @@ version changed; `pnpm` skips versions already in the registry.
   } }`); a resolver that throws or dies is a 500 that says nothing, where a
   throw used to be a 401 carrying its message. Wrap a plain value:
   `resolvePrincipal: request => Effect.succeed(actorOf(request))`.
-- **Built and tested on Effect 4.0.4.** The packages' peer stays
-  `effect: ^4.0.0`, except `foldkit-auth`'s `^4.0.4`, since Yielded needs
-  it. Foldkit's own peer is exactly `4.0.0`, so an application
-  on 4.0.4 (which Yielded Auth's `^4.0.3` needs) allows it the way the root
-  `package.json` does: `pnpm.peerDependencyRules.allowedVersions` for
-  `foldkit>effect`, and an override of `foldkit>@effect/platform-browser`.
 
 ### Fixed
 
@@ -223,6 +191,187 @@ version changed; `pnpm` skips versions already in the registry.
   replica answers, and exchanges in flight until then were still appended as
   the principal just refused. A resolver that throws, rather than fails or
   dies, is a 500 too, and `revalidate.every` must be longer than zero.
+
+## 0.20.0
+
+`foldkit-entity` 0.10.0, `foldkit-form` 0.6.0, `foldkit-bundle` 0.8.0,
+`foldkit-surface` 0.10.0 and `foldkit-remote` 0.17.0 for the changes below;
+every package that depends on one of them republishes with a patch to re-pin.
+`foldkit-metadata` and the three rich-text model packages are unchanged.
+
+Three changes can break code written for 0.19:
+
+- A predicate or ordering term over another Entity than the query's no longer
+  compiles.
+- An `own` update in an assembly with `Data.wiring` no longer receives Remote's
+  Messages, so arms that handled them are excess.
+- A test that matched a form's check as an instance by `args: { key }` matches
+  `form.Check` instead.
+
+### Added
+
+- **`foldkit-entity`: a predicate over another Entity is a compile error.**
+  Each `Expr` constructor's result carries the names of the Entities its
+  fields belong to (`Reads<Names>`, type-only), and `Query.where` refuses a
+  query from another: `a predicate reads Comment, but the query is from Post`.
+  `Order.asc`, `desc` and `chosen` do the same for `Query.orderBy`. The
+  run-time check stays for a predicate typed plainly as `Predicate`. New
+  public types: `Reads`, `ReadsOf`, and `Invalid`, which declarations naming
+  these steps reach.
+- **`foldkit-form`: `form.Check`, the Command a key's check runs as.** A
+  definition (`Command.define('<form>.check', …)`) rather than an inline
+  Command, so a test resolves it with `Command.resolve(form.Check, …)` instead
+  of hand-building `{ name: '<form>.check', args: { key }, effect }`. Its args
+  now carry the draft, the values and the subject too, so a test that matched
+  the old Command as an instance by `args: { key }` matches it no longer: match
+  `form.Check`, which compares by name.
+- **`foldkit-form`: `Form.input(schema)`, a plain form's input.** A form that
+  writes no Entity (a sign-up, a search, a login) took `Entity.define` and
+  `Entity.input` over the same schema; `Form.make('Search', Form.input(Search))`
+  is that in one call. The ports of Foldkit's form, auth and job-application
+  examples use it.
+
+### Changed
+
+- **`foldkit-bundle`: a wiring's own tags leave the parent's own update.**
+  `Wiring` takes a `Claims` parameter typing `handles`, and
+  `assembly.update(own)` hands `own` a Message without the tags a wiring claims
+  and does not share. Remote's wiring claims every `RemoteMessage` tag, so an
+  `own` no longer needs `if (Remote.reduces(message))` to narrow them away, and
+  one that matches exhaustively fails to compile when `Data.wiring` is removed
+  from `assemble`. An `own` that handled Remote's tags itself now gets none.
+- **`foldkit-entity`: `Expr.eq` with a plain value on the left says to put the
+  field there.** The right side is typed from the left, so `Expr.eq(3, field)`
+  was refused with `'number' is not assignable to 'Operand<any>'`; it now
+  reads `Expr.eq takes the field on the left and the value on the right`.
+
+### Fixed
+
+- **`foldkit-form`: a filled optional key not checked yet is refused, not left
+  out.** `engine.value` counted an optional key whose draft was filled by
+  `fill` but not yet validated as valid, and gave the value without it. Such a
+  draft must now pass its own check. A submit was never affected: it validates
+  every unchecked key first.
+
+## 0.19.0
+
+Every package with a Foldkit peer now asks for Foldkit 0.168, so each of them
+takes a minor version, as do `foldkit-entity` 0.9.0 (`and`, `or`, `not` and
+comparisons), `foldkit-remote-drizzle` 0.12.0 (compiling them),
+`foldkit-guard` 0.2.0, `foldkit-durable` 0.9.0 and `foldkit-react-codegen`
+0.3.0 (TypeScript 6 as well as 5). Republished to re-pin: `foldkit-cms-drizzle`
+0.6.3 and `foldkit-remote-server` 0.13.3; `foldkit-richtext-markdown` 0.2.1
+widens a dependency. `foldkit-metadata`, `foldkit-richtext`,
+`foldkit-richtext-code` and `foldkit-richtext-code-shiki` are unchanged.
+
+Three changes can break code written for 0.18:
+
+- Foldkit 0.168 itself: an application moves with it, renaming what 0.166 and
+  0.167 renamed (`read` for `toChildModel`, `persistentEntry`, the `Dom`
+  stream helpers).
+- `GuardServer.validate` refuses at startup a query body that filters or orders
+  by a member with a Read rule.
+- A Behavior whose Mount fails no longer takes the element's other Behaviors
+  with it; it is reported and the rest go on.
+
+### Added
+
+- **`foldkit-mixins`: a reader's light or dark, before the first paint.**
+  `Theme.schemeScript(key?)` is a head script that applies the scheme kept in
+  `localStorage`; `Theme.chooseScheme(scheme, key?)` applies and keeps one
+  (`'system'` removes it); `Theme.currentScheme()` reads it back. The docs site
+  has an Auto/Light/Dark choice built on them.
+
+- **`foldkit-sync`: the browser asks before leaving while an edit is unsaved.**
+  `Sync.mount` shows a durable edit before it is stored; a reload in between
+  lost it. From the first such edit until the last is stored, `beforeunload`
+  asks the reader first.
+
+- **Public types a dependent's declarations need.** A library built on these
+  packages could not emit declarations under TypeScript 7 for a value whose
+  inferred type reaches a type it cannot name. The package indexes now export
+  them: `foldkit-mixins` `AttributeName`, `EventName`, `RequirementName`,
+  `HiddenOf` and `SlotRecipe`; `foldkit-bundle` `PlacedBy`, `CollectionBy`,
+  `WithoutResources` and `RuntimeResult`; `foldkit-agent` `CapabilitiesByName`,
+  `CapabilitiesByTag`, their `Any` forms, `DefinitionOf` and `AnyCompletion`;
+  `foldkit-data-grid` `EditableId`. An interface that shares its namespace's
+  name is exported as a shape: `CapabilityShape`, `SlotViewShape`,
+  `BundleShape`, `JournalShape`.
+
+- **`foldkit-guard`: `GuardServer.validate` refuses a query body that filters
+  or orders by a member with a Read rule.** The row comes back without the
+  member, but which rows match, and in what order, still tells what it holds;
+  with comparisons a client could bisect it (`cost < $max`).
+
+- **`foldkit-entity`: `Expr.and`, `Expr.or` and `Expr.not`.** The connectives,
+  with SQL's three-valued meaning: `or` takes true over unknown, `and` false,
+  and `not` of an unknown stays unknown, so a null matches neither a
+  comparison nor its `not`. `and` and `or` need an operand and flatten one of
+  the same kind. `Expr.whenGiven(input, given => predicate)` is a filter that
+  applies only when a nullable input is given. `evaluate` runs them, and
+  `decided(predicate, input)` is a predicate's truth from the input alone,
+  when it reads no field. The conformance suite covers them.
+- **`foldkit-entity`: comparisons, `Expr.lt`, `lte`, `gt` and `gte`.** Numbers
+  compare as numbers; text only under `Collation.binary` or `asciiFold`
+  (declared on the field or passed) and against a field, refused where it is
+  written otherwise, since backends order text by different defaults. A value
+  compares in its encoded form, so a date stored as an ISO string is text. The
+  evaluator compares as `orderBy` does, and the conformance suite covers them.
+- **`foldkit-remote-drizzle`: comparisons compiled,** the column first however
+  the body wrote it, and text under its collation as keyset paging applies one
+  (`collate "C"` on Postgres, `collate binary` or `nocase` on SQLite).
+- **`foldkit-remote-drizzle`: `and`, `or` and `not` compiled,** and an operand
+  that reads no field decided per request, so `whenGiven` compiles to `true`
+  when its input is null and to the predicate alone when it is given, with no
+  parameter for the check.
+
+### Changed
+
+- **TypeScript 7.** The workspace typechecks and builds with TypeScript 7.0.2,
+  the native compiler (a forced typecheck takes under a minute). Its DOM
+  library declares the Navigation API, so `foldkit-primitives` no longer
+  declares its own. `foldkit-react-codegen` peers on `typescript@>=5.7.2 <7`
+  rather than exactly 5.9.3: it reads source through the compiler API, which
+  TypeScript 7 does not ship.
+- **Foldkit 0.168.** Each package with a Foldkit peer asks for `foldkit@^0.168.0` (and
+  `foldkit-mixins-ui` on `@foldkit/ui@^0.168.0`), since they use what 0.166 and
+  0.167 renamed: a lifted child is read as an `Option` (`read`, not
+  `toChildModel`), the entry factories end in `Entry`
+  (`Subscription.persistentEntry`, `Port.subscriptionEntry`), and the DOM
+  Stream helpers are `Dom`'s (`Dom.streamFromEventFilterMap`,
+  `Dom.streamFromKeyBindings`; `KeyBinding` and `KeySequence` come from
+  `foldkit/dom`). The examples build with Vite 8 and `@foldkit/vite-plugin`
+  0.27.
+- **Effect 4.0.4.** The workspace builds and tests against `effect@4.0.4` and
+  its `@effect/*` packages at the same version. Published packages still peer on
+  `effect@^4.0.0`, and `foldkit-durable` now depends on
+  `@effect/sql-sqlite-node@^4.0.0` rather than exactly `4.0.0`, so an
+  application chooses its 4.x. `examples/livestore` moves to
+  `@livestore/livestore` 0.5.0-dev.1, which peers on `effect@^4.0.3`, so the
+  workspace holds one Effect.
+- **`foldkit-mixins`: one Behavior's failing Mount no longer stops the others
+  on its element.** The resolver merges an element's Mounts into one, and from
+  Effect 4.0.2 a merge ends when any stream in it fails, so a `Measure` without
+  a `ResizeObserver` took the canvas's `Targets` with it. Each fails alone now,
+  reported as Foldkit reports a Mount (`[OnMount Name] unhandled failure`).
+
+### Fixed
+
+- **`foldkit-remote` depends on `foldkit-metadata`,** which its declarations
+  name (`import("foldkit-metadata").MetadataKey`). Without the dependency the
+  declaration build copied metadata's types into remote's; TypeScript 7
+  refuses that, and the copy was a second set of the same types.
+- **`foldkit-sync`: `foldkit-remote` is an optional peer again.** The manifest
+  declared `peerDependenciesMeta` twice, and the second, naming only
+  `foldkit-durable`, replaced the first.
+- **`foldkit-durable`: a database it cannot open fails as a `JournalError`.**
+  From `@effect/sql-sqlite-node` 4.0.1 opening the file can fail with a
+  `SqlError`, which escaped the journal's declared errors.
+- **`foldkit-mixins`: `Theme.oklch`'s doc said a knob overridden on any
+  subtree re-derives the palette.** A custom property resolves where it is
+  declared, so tokens on `:root` reach a subtree already resolved; the knob
+  re-derives them only on the element that declares them (`:root`, a
+  `Theme.scoped` selector, or a subtree that declares the theme itself).
 
 ## 0.18.0
 

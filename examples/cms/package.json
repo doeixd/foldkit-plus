@@ -39,15 +39,15 @@
     "foldkit-site": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
-    "sql.js": "1.13.0"
+    "sql.js": "1.14.2"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
+    "@effect/platform-browser": "^4.0.4",
     "@types/sql.js": "1.4.11",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
-    "playwright": "^1.63.0",
-    "typescript": "5.9.3",
-    "vite": "5.4.21"
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
+    "playwright": "^1.64.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
   }
 }

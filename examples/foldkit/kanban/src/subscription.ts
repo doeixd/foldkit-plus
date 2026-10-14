@@ -1,4 +1,5 @@
 import * as DragAndDrop from '@foldkit/ui/dragAndDrop'
+import { Option } from 'effect'
 import type { KeyValueStore } from 'effect/persistence'
 import { Subscription } from 'foldkit'
 
@@ -12,7 +13,7 @@ const dragAndDropSubscriptions = Subscription.lift({
   dragKeyboard: DragAndDrop.subscriptions.documentKeyboard,
   autoScroll: DragAndDrop.subscriptions.autoScroll,
 })<Model, Message>({
-  toChildModel: model => model.dragAndDrop,
+  read: model => Option.some(model.dragAndDrop),
   toParentMessage: message => Message.GotDragAndDropMessage({ message }),
 })
 

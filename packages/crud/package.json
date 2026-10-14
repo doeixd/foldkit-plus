@@ -1,6 +1,6 @@
 {
   "name": "foldkit-crud",
-  "version": "0.7.2",
+  "version": "0.8.1",
   "description": "Create, read, update and delete screens for Foldkit Plus, assembled from a form, a Remote operation, and the Entity they share. Each capability is declared, never implied.",
   "keywords": [
     "foldkit",
@@ -53,13 +53,13 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "@effect/platform-browser": "^4.0.4",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

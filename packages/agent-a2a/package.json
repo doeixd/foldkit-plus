@@ -1,6 +1,6 @@
 {
   "name": "foldkit-agent-a2a",
-  "version": "0.5.2",
+  "version": "0.6.1",
   "description": "A2A adapter for foldkit-agent. Serves a Foldkit agent contract as an A2A agent.",
   "keywords": [
     "foldkit",
@@ -43,14 +43,14 @@
   "peerDependencies": {
     "foldkit-agent": "workspace:^",
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "@effect/platform-browser": "^4.0.4",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-agent": "workspace:*",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

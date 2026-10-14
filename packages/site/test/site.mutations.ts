@@ -9,10 +9,37 @@ const tests = [
   'packages/site/test/placement.test.ts',
   'packages/site/test/prefetch.test.ts',
   'packages/site/test/ssr.test.ts',
+  'packages/site/test/together.test.ts',
 ]
+/** The guide's whole application, alone: it must catch a break in what it composes. */
+const together = ['packages/site/test/together.test.ts']
 const file = '../src/index.ts'
 
 export default [
+  {
+    name: "the guide's application activates no page's reads",
+    edits: [
+      {
+        file,
+        find: '    for (const node of Site.nodesOf(site)) {\n      const entry = sourceOf(node, owner, place)',
+        replace:
+          '    for (const node of [] as Array<SiteNode<any>>) {\n      const entry = sourceOf(node, owner, place)',
+      },
+    ],
+    tests: together,
+  },
+  {
+    name: "the guide's application navigates to an address no node holds",
+    edits: [
+      {
+        file,
+        find: 'onNone: () => ({ model, commands: [Load({ href: Url.toString(url) })] }),',
+        replace:
+          "onNone: () => ({ model, commands: [Navigate({ url: Url.toString(url), history: 'push' })] }),",
+      },
+    ],
+    tests: together,
+  },
   {
     name: 'targets lose their route value',
     edits: [

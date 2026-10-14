@@ -20,18 +20,19 @@ import {
   type OrPredicate,
   type InputExpr,
   type Predicate,
+  type Reads,
 } from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
 const { Post } = Blog
 
 // A field against a literal of its own type.
-expectTypeOf(Expr.eq(Post.fields.title, 'hello')).toEqualTypeOf<EqPredicate>()
-expectTypeOf(Expr.eq(Post.fields.published, true)).toEqualTypeOf<EqPredicate>()
+expectTypeOf(Expr.eq(Post.fields.title, 'hello')).toEqualTypeOf<EqPredicate & Reads<'Post'>>()
+expectTypeOf(Expr.eq(Post.fields.published, true)).toEqualTypeOf<EqPredicate & Reads<'Post'>>()
 
 // A field against an input of its own type.
 const slug: InputExpr<string> = Expr.input('slug', Schema.String)
-expectTypeOf(Expr.eq(Post.fields.title, slug)).toEqualTypeOf<EqPredicate>()
+expectTypeOf(Expr.eq(Post.fields.title, slug)).toEqualTypeOf<EqPredicate & Reads<'Post'>>()
 
 // A field carries its own value type out of the Entity's schema.
 expectTypeOf(Expr.field(Post.fields.published).schema).toEqualTypeOf<
@@ -40,6 +41,13 @@ expectTypeOf(Expr.field(Post.fields.published).schema).toEqualTypeOf<
 
 // @ts-expect-error a title is a string, not a number
 Expr.eq(Post.fields.title, 42)
+
+// A plain value on the left: the right side is typed from the left, and the
+// error names the order rather than calling 3 a bad operand.
+// @ts-expect-error the field goes on the left
+Expr.eq(3, Post.fields.title)
+// @ts-expect-error a value on the left is refused against another value too
+Expr.eq('a', 'a')
 
 // @ts-expect-error a published flag is a boolean, not a string
 Expr.eq(Post.fields.published, 'yes')
@@ -143,10 +151,10 @@ Order.chosen(sortBy, { title: Post.fields.title })
 // `in` takes a list of what the value holds
 // ---------------------------------------------------------------------------
 
-expectTypeOf(Expr.in(Doc.fields.rank, [1, 2])).toEqualTypeOf<InPredicate>()
+expectTypeOf(Expr.in(Doc.fields.rank, [1, 2])).toEqualTypeOf<InPredicate & Reads<'Doc'>>()
 expectTypeOf(
   Expr.in(Doc.fields.title, Expr.input('titles', Schema.Array(Schema.String))),
-).toEqualTypeOf<InPredicate>()
+).toEqualTypeOf<InPredicate & Reads<'Doc'>>()
 
 // @ts-expect-error a rank is a number, so its list holds numbers
 Expr.in(Doc.fields.rank, ['1'])
@@ -160,11 +168,11 @@ Expr.in(Doc.fields.rank, 1)
 // and, or and not take predicates, and need at least one.
 const titled = Expr.eq(Post.fields.title, 'hello')
 const live = Expr.eq(Post.fields.published, true)
-expectTypeOf(Expr.or(titled, live)).toEqualTypeOf<OrPredicate>()
-expectTypeOf(Expr.and(titled, live)).toEqualTypeOf<AndPredicate>()
-expectTypeOf(Expr.not(titled)).toEqualTypeOf<NotPredicate>()
+expectTypeOf(Expr.or(titled, live)).toEqualTypeOf<OrPredicate & Reads<'Post'>>()
+expectTypeOf(Expr.and(titled, live)).toEqualTypeOf<AndPredicate & Reads<'Post'>>()
+expectTypeOf(Expr.not(titled)).toEqualTypeOf<NotPredicate & Reads<'Post'>>()
 // One operand is that operand, typed as itself.
-expectTypeOf(Expr.or(titled)).toEqualTypeOf<EqPredicate>()
+expectTypeOf(Expr.or(titled)).toEqualTypeOf<EqPredicate & Reads<'Post'>>()
 // A list known non-empty spreads in; its result is some predicate.
 declare const terms: readonly [Predicate, ...Array<Predicate>]
 expectTypeOf(Expr.or(...terms)).toEqualTypeOf<Predicate>()
@@ -180,19 +188,45 @@ Expr.not(Post.fields.published)
 
 // whenGiven hands the predicate its input as never null, which eq requires.
 const chosen = Expr.input('title', Schema.NullOr(Schema.String))
-expectTypeOf(
-  Expr.whenGiven(chosen, title => Expr.eq(Post.fields.title, title)),
-).toEqualTypeOf<Predicate>()
+expectTypeOf(Expr.whenGiven(chosen, title => Expr.eq(Post.fields.title, title))).toEqualTypeOf<
+  Predicate & Reads<'Post'>
+>()
 // @ts-expect-error without it, a nullable input against a field that is never null
 Expr.eq(Post.fields.title, chosen)
 
 // A comparison orders numbers, text and dates, typed like eq on its other side.
-expectTypeOf(
-  Expr.lt(Post.fields.title, 'm', { collation: Collation.binary }),
-).toEqualTypeOf<ComparePredicate>()
+expectTypeOf(Expr.lt(Post.fields.title, 'm', { collation: Collation.binary })).toEqualTypeOf<
+  ComparePredicate & Reads<'Post'>
+>()
 // @ts-expect-error a boolean does not order
 Expr.lt(Post.fields.published, true)
 // @ts-expect-error the other side is of the field's type
 Expr.lt(Post.fields.title, 3)
 // @ts-expect-error a predicate is an answer, not a value to order
 Expr.lt(Expr.eq(Post.fields.title, 'x'), 'y')
+
+// ---------------------------------------------------------------------------
+// A predicate names the Entities it reads, so `where` refuses another's
+// ---------------------------------------------------------------------------
+
+Query.from(Post).pipe(Query.where(Expr.eq(Post.fields.title, 'x')))
+Query.from(Post).pipe(
+  // @ts-expect-error a Doc field in a query from Post
+  Query.where(Expr.eq(Doc.fields.title, 'x')),
+)
+Query.from(Post).pipe(
+  // @ts-expect-error however deep it sits
+  Query.where(Expr.or(Expr.eq(Post.fields.title, 'x'), Expr.not(Expr.eq(Doc.fields.rank, 1)))),
+)
+// A predicate typed plainly reads as unknown, and is left to the run-time check.
+declare const somePredicate: Predicate
+Query.from(Post).pipe(Query.where(somePredicate))
+// One that reads no field at all is any query's.
+Query.from(Post).pipe(Query.where(Expr.isNull(Expr.input('given', Schema.NullOr(Schema.String)))))
+
+// An ordering term too: a field of another Entity is refused where it is piped.
+Query.from(Post).pipe(Query.orderBy(Order.asc(Post.fields.title)))
+Query.from(Post).pipe(
+  // @ts-expect-error a Doc field orders no Post
+  Query.orderBy(Order.desc(Doc.fields.rank)),
+)

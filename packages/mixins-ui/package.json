@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-ui",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Published slot contracts and mixin adapters for @foldkit/ui, built on foldkit-mixins.",
   "keywords": [
     "foldkit",
@@ -44,18 +44,18 @@
     "typecheck": "tsc -b"
   },
   "peerDependencies": {
-    "@foldkit/ui": "^0.165.0",
+    "@foldkit/ui": "^0.168.0",
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-mixins": "workspace:^"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "@foldkit/ui": "0.165.0",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "@effect/platform-browser": "^4.0.4",
+    "@foldkit/ui": "0.168.0",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-mixins": "workspace:*",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

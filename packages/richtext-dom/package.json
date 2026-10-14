@@ -1,6 +1,6 @@
 {
   "name": "foldkit-richtext-dom",
-  "version": "0.3.1",
+  "version": "0.4.1",
   "description": "The DOM interpreter for a foldkit-richtext editable subtree.",
   "keywords": [
     "foldkit",
@@ -88,7 +88,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-bundle": "workspace:^",
     "foldkit-form": "workspace:^"
   },
@@ -98,13 +98,13 @@
     }
   },
   "devDependencies": {
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
-    "jsdom": "26.1.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "jsdom": "30.1.2",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

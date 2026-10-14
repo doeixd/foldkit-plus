@@ -281,7 +281,7 @@ or `false`, a non-null value adds `IS NULL` on the nulls-last side, and equality
 uses `IS NULL` rather than comparing to NULL. Both `query` and relations share
 the kernel.
 
-### SQL window optimization — measured, deferred
+### SQL window optimization — measured, then built
 
 `packages/remote-drizzle/bench/nested.bench.ts` (`pnpm vitest bench --run
 packages/remote-drizzle`) on an in-process SQLite DB, 50 parents x 20 children:
@@ -330,8 +330,9 @@ dialects in one client is a bug factory.
 6. **D4** — counts landed (`b7d7f39`); generalize beyond counts only if an app
    needs it.
 7. **SQL window optimization** - measured (`bench/nested.bench.ts`): nested
-   pagination is ~7.7x the batched read, ~19 ms for 50x5. Deferred; the
-   subquery/window contract extension is not justified by that.
+   pagination was ~7.7x the batched read, ~19 ms for 50x5, and was deferred
+   then. It is built since: nested pages rank every parent's children in one
+   `row_number()` statement.
 
 ## Decision summary
 

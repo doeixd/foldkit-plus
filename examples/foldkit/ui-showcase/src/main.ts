@@ -522,6 +522,6 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
 // SUBSCRIPTION
 
 export const subscriptions = Subscription.lift(UiSubscriptions.subscriptions)<Model, Message>({
-  toChildModel: model => model.uiModel,
+  read: model => Option.some(model.uiModel),
   toParentMessage: ui.toParentMessage,
 })

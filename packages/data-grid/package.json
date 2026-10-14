@@ -1,6 +1,6 @@
 {
   "name": "foldkit-data-grid",
-  "version": "0.1.4",
+  "version": "0.2.1",
   "description": "A Foldkit-native data grid: the grid owns interaction state and geometry, the application owns the records.",
   "keywords": [
     "foldkit",
@@ -51,7 +51,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-crud": "workspace:*",
     "foldkit-remote": "workspace:*"
   },
@@ -64,12 +64,12 @@
     }
   },
   "devDependencies": {
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-crud": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-remote": "workspace:*",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

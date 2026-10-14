@@ -798,6 +798,41 @@ describe('Sync.mount', () => {
     expect(outcome).toBe('disposed')
   })
 
+  it('asks before the page unloads while an edit it shows is not stored yet', async () => {
+    const base = memoryStorage()
+    // Each save waits for its own release, so the test can stand between two.
+    const releases: Array<() => void> = []
+    const app = await open({
+      ...base,
+      save: (state, revision) =>
+        revision === null
+          ? base.save(state, revision)
+          : Effect.promise(() => new Promise<void>(resolve => releases.push(resolve))).pipe(
+              Effect.andThen(base.save(state, revision)),
+            ),
+    })
+    const unloading = () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    expect(unloading()).toBe(false)
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    app.dispatch(Message.CreatedTodo({ id: 'b', title: 'Eggs' }))
+    await vi.waitFor(() => expect(text()).toContain('Eggs'))
+    expect(unloading()).toBe(true)
+    await vi.waitFor(() => expect(releases).toHaveLength(1))
+    releases[0]!()
+    // The first is stored; the second, still waiting, holds the page.
+    await vi.waitFor(() => expect(releases).toHaveLength(2))
+    expect(pending(replica)).toHaveLength(1)
+    expect(unloading()).toBe(true)
+    releases[1]!()
+    await app.settled()
+    expect(pending(replica)).toHaveLength(2)
+    expect(unloading()).toBe(false)
+  })
+
   it('waits for an in-flight persist before disposing', async () => {
     const base = memoryStorage()
     let release!: () => void

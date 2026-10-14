@@ -2162,3 +2162,6 @@ Remote does **not** own:
   prefetch, refresh, query, render, mutation, retention, and decode failure.
 - [`examples/kitchen-sink`](../../examples/kitchen-sink) — the same architecture
   using the real server packages.
+- [Site, Remote and SSR together](../../docs/site-remote-ssr.md) — routes that
+  activate reads, rendered on the server with their data and taken over without
+  fetching again.

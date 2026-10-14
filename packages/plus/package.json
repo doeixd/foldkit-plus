@@ -1,6 +1,6 @@
 {
   "name": "foldkit-plus",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Every Foldkit Plus package in one install, and `npx foldkit-plus setup`, which tells a coding agent how to start.",
   "keywords": [
     "foldkit",
@@ -548,7 +548,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-agent-native": "workspace:^",
     "foldkit-auth": "workspace:^",
     "foldkit-cms-drizzle": "workspace:^",
@@ -585,11 +585,11 @@
     }
   },
   "devDependencies": {
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
-    "tsdown": "^0.23.0",
-    "tsx": "^4.23.13",
-    "typescript": "5.9.3",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
+    "tsdown": "^0.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "7.0.2",
     "foldkit-agent-native": "workspace:*",
     "foldkit-auth": "workspace:*",
     "foldkit-cms-drizzle": "workspace:*",
@@ -598,5 +598,9 @@
     "foldkit-react-codegen": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-richtext-code-shiki": "workspace:*"
+  },
+  "setup": {
+    "foldkit": "0.168.0",
+    "effect": "4.0.0"
   }
 }

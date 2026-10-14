@@ -49,6 +49,23 @@ describe('An optional key', () => {
     expect(value !== undefined && 'phone' in value).toBe(false)
   })
 
+  it('filled but not yet checked is refused by engine.value, not left out of it', () => {
+    const named = typed([['name', 'Ada']])
+    const filled = ContactForm.fill(named, { phone: 'call me' }).model
+    expect(filled.fields.phone._tag).toBe('NotValidated')
+    expect(ContactForm.engine.value(filled)).toBeUndefined()
+    const checked = step(filled, Message.ValidatedAll()).model
+    expect(checked.fields.phone._tag).toBe('Invalid')
+    expect(ContactForm.engine.value(checked)).toBeUndefined()
+    // Filled with what passes, it is in the value before anything checks it.
+    const good = ContactForm.fill(named, { phone: '123' }).model
+    expect(ContactForm.engine.value(good)).toEqual({
+      name: 'Ada',
+      phone: '123',
+      nickname: Option.none(),
+    })
+  })
+
   it('entered is checked by its schema, and submitted when it passes', () => {
     const wrong = typed([
       ['name', 'Ada'],

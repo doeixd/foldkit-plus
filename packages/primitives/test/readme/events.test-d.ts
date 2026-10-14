@@ -24,7 +24,7 @@ const EditorMessage = defineMessageUnion({ SaveRequested: {} })
 type EditorMessage = typeof EditorMessage.Type
 
 const subscriptions = Subscription.make<EditorModel, EditorMessage>()(() => ({
-  keys: Subscription.persistent(
+  keys: Subscription.persistentEntry(
     keyboardEvents({ preventDefault: press => matchHotkey('ctrl+s', press) }).pipe(
       Stream.filter(event => event._tag === 'Pressed' && matchHotkey('ctrl+s', event)),
       Stream.map(() => EditorMessage.SaveRequested()),

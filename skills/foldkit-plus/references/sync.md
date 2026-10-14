@@ -158,7 +158,8 @@ await mounted.dispose()                                        // waits for in-f
 ```
 
 - A durable Message runs through `update` **immediately**, and a Command then
-  persists it. A refused or failed persist reverts the edit and calls
+  persists it. While a shown edit is not stored yet, the browser asks before the
+  page unloads. A refused or failed persist reverts the edit and calls
   `onPersistenceFailure`. Outside `update`, the shared slice is reinstalled only
   when an exchange commits, acknowledges, or rejects something, and when a
   failed persist reverts.

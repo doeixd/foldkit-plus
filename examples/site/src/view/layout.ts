@@ -3,14 +3,18 @@
  * page holds, and the page beside it. On a phone the rail is a bar whose menu
  * opens what it holds.
  */
+import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { SSR } from 'foldkit-ssr/client'
 
 import { onGitHub } from '../demos.js'
+import { showcaseOf } from '../gallery/showcases.js'
 import type { Library } from '../library.js'
 import { Message, Page, type Model } from '../main.js'
 import { SiteStyle } from '../style.js'
+import { componentPage, componentsContents, componentsPage } from './components.js'
+import { createPage } from './create.js'
 import { demosPage } from './demos.js'
 import { docPage } from './doc.js'
 import { homeContents, homePage } from './home.js'
@@ -27,12 +31,15 @@ export interface Input {
 }
 
 /** Which of the rail's places the page belongs to. */
-type Place = 'home' | 'learn' | 'packages' | 'demos' | 'none'
+type Place = 'home' | 'learn' | 'packages' | 'components' | 'demos' | 'none'
 
 const placeOf = (page: Page): Place =>
   Page.match<Place>(page, {
     Home: () => 'home',
     Demos: () => 'demos',
+    Components: () => 'components',
+    Component: () => 'components',
+    Create: () => 'components',
     Doc: ({ subsite }) => (subsite === 'learn' ? 'learn' : 'packages'),
     Missing: () => 'none',
   })
@@ -45,8 +52,31 @@ const places: ReadonlyArray<{
   { place: 'home', label: 'Home', href: '/' },
   { place: 'learn', label: 'Learn', href: '/learn' },
   { place: 'packages', label: 'Packages', href: '/#packages' },
+  { place: 'components', label: 'Components', href: '/components' },
   { place: 'demos', label: 'Demos', href: '/demos' },
 ]
+
+const schemes: ReadonlyArray<{ readonly scheme: Model['pageScheme']; readonly label: string }> = [
+  { scheme: 'system', label: 'Auto' },
+  { scheme: 'light', label: 'Light' },
+  { scheme: 'dark', label: 'Dark' },
+]
+
+/** The page's light or dark, each a button pressed while chosen. */
+const schemeChoice = (model: Model, slots: Slots, h: H): Html =>
+  h.div(
+    slots.schemeChoice.attrs([h.Role('group'), h.AriaLabel('Color scheme')]),
+    schemes.map(({ scheme, label }) =>
+      h.button(
+        [
+          h.Type('button'),
+          h.AriaPressed(String(scheme === model.pageScheme)),
+          h.OnClick(Message.ChosePageScheme({ scheme })),
+        ],
+        [label],
+      ),
+    ),
+  )
 
 const rail = ({ model, library }: Input, slots: Slots, h: H): Html =>
   h.aside(slots.rail.attrs([h.Id(RAIL)]), [
@@ -87,6 +117,9 @@ const rail = ({ model, library }: Input, slots: Slots, h: H): Html =>
               'Servers run in your browser.',
             ]),
           ],
+          Components: () => componentsContents(model.path, slots, h),
+          Component: () => componentsContents(model.path, slots, h),
+          Create: () => componentsContents(model.path, slots, h),
           Doc: () => [
             h.nav(slots.sidebar.attrs([h.AriaLabel('Documentation')]), [
               SSR.static('sidebar', library.sidebar(model.path)),
@@ -95,7 +128,8 @@ const rail = ({ model, library }: Input, slots: Slots, h: H): Html =>
           Missing: () => [],
         }),
         h.hr(slots.railRule.attrs()),
-        h.p(slots.railNote.attrs(), ['Open source, MIT', h.br([]), 'Foldkit 0.165 · Effect 4']),
+        schemeChoice(model, slots, h),
+        h.p(slots.railNote.attrs(), ['Open source, MIT', h.br([]), 'Foldkit 0.168 · Effect 4']),
       ],
     ),
   ])
@@ -141,6 +175,13 @@ export const Body = SlotView.forMessages<Message>()
         ...Page.match(input.model.page, {
           Home: () => homePage(input.model, input.library, slots, h),
           Demos: () => demosPage(slots, h),
+          Components: () => componentsPage(input.model, slots, h),
+          Component: ({ slug }) =>
+            Option.match(showcaseOf(slug), {
+              onNone: () => missing(input.model, slots, h),
+              onSome: showcase => componentPage(input.model, showcase, input.library, slots, h),
+            }),
+          Create: () => createPage(input.model, slots, h),
           Doc: () => docPage(input.model, input.library, slots, h),
           Missing: () => missing(input.model, slots, h),
         }),

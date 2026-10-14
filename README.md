@@ -471,7 +471,7 @@ package does which job. By hand, `foldkit-plus` brings every package at once,
 each under a subpath named for it (`foldkit-plus/remote-server`):
 
 ```bash
-pnpm add effect@4.0.0 foldkit@0.165.0 @effect/platform-browser@4.0.0 foldkit-plus
+pnpm add effect@4.0.0 foldkit@0.168.0 @effect/platform-browser@4.0.0 foldkit-plus
 ```
 
 Or install the pieces for the boundary you are adding; the packages are designed
@@ -530,9 +530,10 @@ Other agent adapters are `foldkit-agent-mcp`, `foldkit-agent-a2a`, and
 `foldkit-agent-native`; `foldkit-mixins-ui` adapts compatible `@foldkit/ui`
 components.
 
-`foldkit` and `effect` are peer dependencies. Foldkit `0.165.0` peer-depends on
-`effect@4.0.0` and `@effect/platform-browser@4.0.0`, the first stable release
-of Effect 4, so these packages target it. `foldkit-durable`'s Node entry
+`foldkit` and `effect` are peer dependencies. These packages ask for
+`effect@^4.0.0` and are tested on 4.0.4; Foldkit `0.168.0` itself asks for
+exactly `effect@4.0.0` and `@effect/platform-browser@4.0.0`, so an application
+on it installs those. `foldkit-durable`'s Node entry
 requires Node 22 for `node:sqlite`; `foldkit-durable/core` runs on any SQLite
 client, a browser's included. `drizzle-orm` is a peer of the Drizzle
 packages, so the application's copy is the one they use. The [release matrix](./docs/releases.md)

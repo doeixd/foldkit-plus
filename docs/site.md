@@ -420,6 +420,10 @@ proven demand, never as framework.
 ## Where to read next
 
 - [`foldkit-site` README](../packages/site/README.md) — API reference.
+- [Site and Foldkit's Router](./site-and-router.md) — what the Site adds to
+  the Router, and how it works.
+- [Site, Remote and SSR together](./site-remote-ssr.md) — one application
+  built with all three, every snippet compiled and run.
 - [Router design, Status section](./design/router-DESIGN.md) — what is built,
   what was refused, and the open questions.
 - [Routing example](../examples/foldkit/routing) — the third cut on Site

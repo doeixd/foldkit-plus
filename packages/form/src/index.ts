@@ -11,6 +11,7 @@
 import { Duration, Effect, Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
 import { Bundle, Link } from 'foldkit-bundle'
 import {
+  Entity,
   Words,
   type AnyEntity,
   type EntityInput,
@@ -19,7 +20,7 @@ import {
   type SchemaWords,
 } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
-import { type Command, mapMessages } from 'foldkit/command'
+import { type Command, define as defineCommand, mapMessages } from 'foldkit/command'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -723,6 +724,18 @@ const draftOf = (plan: Plan, given: unknown): Draft => {
 
 const Core = {
   /**
+   * The input of a form that writes no Entity of its own (a sign-up, a search,
+   * a login): `Entity.input` over an Entity defined from the same schema, so
+   * every key maps itself. `Form.make('Waitlist', Form.input(JoinWaitlist))`.
+   */
+  input: <Fields extends Schema.Struct.Fields>(schema: Schema.Struct<Fields>) => {
+    const entity = Entity.define('FormInput', schema)
+    // Every key names a field of the Entity, so there is no mapping; the
+    // generic `Fields` keeps TypeScript from seeing that the mapping is optional.
+    return Entity.input<typeof entity, Fields, {}>(entity, schema, undefined as never)
+  },
+
+  /**
    * A form for one operation's input. A key mapped with `Relation.nested` holds
    * rows of a form of its own, built here from the nested input; every other key
    * holds a draft. `options` names what the input cannot say: a control, the
@@ -935,6 +948,33 @@ const Core = {
       (options.checks ?? {}) as never
     const debounce = options.debounce ?? '300 millis'
 
+    /**
+     * A key's check, after the debounce: a Command definition, so a test matches
+     * it as it would any other (`Command.resolve(form.Check, form.Message.Checked(…))`).
+     * Its args carry all the check reads, the values and the subject as the key
+     * was asked about.
+     */
+    const Check = defineCommand(`${name}.check`, {
+      args: {
+        key: KeySchema,
+        draft: DraftSchema,
+        values: Schema.Unknown,
+        subject: Schema.Record(Schema.String, Schema.String),
+      },
+      messages: [Message.Checked],
+      execute: ({ key, draft, values, subject }) =>
+        Effect.sleep(debounce).pipe(
+          Effect.andThen(
+            // Asked only for a key with a check, by `validateKey`.
+            checks[key as Key]!(Result.getOrUndefined(plans[key as Key].check(draft)), {
+              values: values as Partial<Value>,
+              subject,
+            }),
+          ),
+          Effect.map(error => Message.Checked({ key, draft, error: error ?? null })),
+        ),
+    })
+
     /** What currently decodes, by key: the context of a check, and the makings of the value. */
     const decoded = (model: Model): Partial<Value> =>
       Object.fromEntries(
@@ -1034,18 +1074,14 @@ const Core = {
         return { model: withField(model, key, state), commands: [] }
       }
       const asking = withField(model, key, FieldValidation.Validating({ value: draft }))
-      const value = Result.getOrUndefined(plans[key].check(draft))
       return {
         model: asking,
         commands: [
-          {
-            name: `${name}.check`,
-            args: { key },
-            effect: Effect.sleep(debounce).pipe(
-              Effect.andThen(check(value, { values: decoded(asking), subject: model.subject })),
-              Effect.map(error => Message.Checked({ key, draft, error: error ?? null })),
-            ),
-          } as Command<Message, never, R>,
+          Check({ key, draft, values: decoded(asking), subject: model.subject }) as Command<
+            Message,
+            never,
+            R
+          >,
         ],
       }
     }
@@ -1121,7 +1157,16 @@ const Core = {
     )
 
     const acceptable = (model: Model): boolean =>
-      keys.every(key => FieldValidation.isValid(plans[key].rules)(drafts(model)[key]))
+      keys.every(key => {
+        const field = drafts(model)[key]
+        // Foldkit counts an optional key not checked yet as valid, and `decoded`
+        // leaves out a draft that fails: a filled one would vanish from the
+        // value. One not checked yet must pass its own check.
+        return (
+          FieldValidation.isValid(plans[key].rules)(field) &&
+          (field._tag !== 'NotValidated' || Result.isSuccess(plans[key].check(field.value)))
+        )
+      })
     /** A check is running, in this form or in a row of it. */
     const isValidating = (model: Model): boolean =>
       keys.some(key => drafts(model)[key]._tag === 'Validating') ||
@@ -1490,6 +1535,8 @@ const Core = {
       } as Pipeable.Pipeable),
       bundle,
       Message,
+      /** The Command a key's check runs as, for a test to resolve (`Command.resolve(form.Check, …)`). */
+      Check,
       /** The reading the form was made from, for `Entity.selectFor` and `Entity.valuesFor`. */
       input,
       /** Whether a completed transition changed authored content. See the note above. */

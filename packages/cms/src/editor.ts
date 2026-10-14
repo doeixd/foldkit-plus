@@ -497,9 +497,9 @@ export const makeEditor =
         form.bundle.subscriptions === undefined
           ? {}
           : Subscription.lift(form.bundle.subscriptions(undefined))({
-              toChildModel: (model: Model) => model.form,
+              read: (model: Model) =>
+                model.mode === 'closed' ? Option.none() : Option.some(model.form),
               toParentMessage: (message: FormMessage): Message => message,
-              when: (model: Model) => model.mode !== 'closed',
             }),
       resources: () =>
         (form.bundle.resources === undefined
@@ -507,7 +507,7 @@ export const makeEditor =
           : ManagedResource.lift(
               form.bundle.resources(undefined) as Readonly<Record<string, never>>,
             )({
-              toChildModel: (model: Model) =>
+              read: (model: Model) =>
                 model.mode === 'closed' ? Option.none() : Option.some(model.form),
               toParentMessage: message => message as Message,
             })) as [keyof Resources] extends [never] ? {} : Readonly<Record<string, never>>,

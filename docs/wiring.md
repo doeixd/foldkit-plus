@@ -19,9 +19,9 @@ The interface, declared in `foldkit-surface` and repeated structurally in
 `foldkit-bundle` (so the bundle core does not depend on Surface):
 
 ```ts
-interface Wiring<Model, Message, R = never> {
+interface Wiring<Model, Message, R = never, Claims extends string = string> {
   readonly key: string                                            // remote:Board
-  readonly handles: readonly string[]                             // Message tags route folds
+  readonly handles: ReadonlyArray<Claims>                         // Message tags route folds
   readonly shared?: readonly string[] | undefined                 // tags several wirings may handle
   route?(model: Model, message: Message): Option<Update.Return<Model, Message, R>>
   readonly init?: Update.Step<Model, Message, R> | undefined      // runs once at startup
@@ -109,11 +109,15 @@ Whether you need it depends on the size of the list:
   silently dropped step costs a debugging session and the assembly turns it
   into a named error.
 
-One honest limit: `complete()` checks that derivations come from the assembly,
-not that any particular wiring is present. Deleting a wiring line still
-compiles; the loss shows up in behavior (nothing routed, restored, or
-subscribed), which is what pinned transcripts and Message-level tests catch.
-The design note records this as a deviation, not a feature.
+Deleting a wiring line is caught where the wiring claims tags of its own. A
+wiring whose `handles` are typed as literals (Remote's are every `RemoteMessage`
+tag) takes those tags out of the Message `assembly.update(own)` hands `own`; an
+`own` that matches every tag it gets (`Match.valueTags`, a Message union's
+`match`) then fails to compile once the wiring is gone, since the tags come back
+unmatched. Two cases stay quiet: a wiring whose tags are all `shared` (a URL
+mirror's, a key-value mirror's `MirrorRestored`), since `own` sees those anyway,
+and an `own` written as a `switch` with no exhaustiveness check. There the loss
+shows up in behavior, which pinned transcripts and Message-level tests catch.
 
 ## Sixty seconds: two mirrors, one list
 

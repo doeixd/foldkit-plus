@@ -4,7 +4,7 @@
 > [design index](./README.md#where-each-design-stands).
 
 > **Status: runtime bridge implemented as
-> [`foldkit-react`](../../packages/react/README.md); codegen not started.**
+> [`foldkit-react`](../../packages/react/README.md); codegen's view mode is built too, as `foldkit-react-codegen`.**
 > Sections 1–19 are built (package name `foldkit-react`, not `@foldkit/react`),
 > with these deviations: the host binding uses Foldkit's public
 > `CustomElement.define` (property `input`, not `__foldkitReact`); sources are

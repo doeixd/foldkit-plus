@@ -12,7 +12,10 @@ what does each place show. Foldkit's Router already answers the URL half with
 bidirectional parsers. `foldkit-site` answers the structural half: a tree of
 stable route nodes over those parsers, with one annotated place for the
 metadata (titles, sections, history intent) that applications otherwise
-recompute in four parallel tables.
+recompute in four parallel tables. [Site and Foldkit's Router](../../docs/site-and-router.md)
+draws the line between the two and shows how the Site works, and
+[Site, Remote and SSR together](../../docs/site-remote-ssr.md) builds a routed
+application with its data rendered on the server.
 
 ## When it owns the problem
 
@@ -170,7 +173,7 @@ rule by hand.
 `Site.sectionOf`. `Site.landing(site, section)` is where the section's nav
 item points: the first node of the section that declares a landing, as a
 target. `Site.shortcuts(site, toMessage)` is the tree's shortcuts as key
-bindings for `Subscription.keyBindings`, each sending the Message
+bindings for `Dom.streamFromKeyBindings`, each sending the Message
 `toMessage` makes of its node's landing target; a shortcut with no landing,
 or one used twice, is refused. Annotate once; derive nav, titles, shortcuts,
 and breadcrumbs from it.

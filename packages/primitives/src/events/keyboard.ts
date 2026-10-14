@@ -23,7 +23,7 @@ export type KeyboardMessage = typeof KeyboardMessage.Type
 
 /**
  * Key presses and releases on the window. Without a window the stream is
- * empty instead of throwing. Lift with `Subscription.persistent`, mapping
+ * empty instead of throwing. Lift with `Subscription.persistentEntry`, mapping
  * into the parent's Message.
  */
 export const keyboardEvents = (

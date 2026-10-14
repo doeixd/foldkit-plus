@@ -19,7 +19,8 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
+// The compiler API, which TypeScript 7 no longer ships: 6 is installed beside it.
+import ts from 'typescript-6'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const findings = []

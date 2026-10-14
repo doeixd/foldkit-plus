@@ -3,7 +3,6 @@ import { Command, FieldValidation, Submodel, Update } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { Entity } from 'foldkit-entity'
 import { Form, type Submitted } from 'foldkit-form'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { FormView } from 'foldkit-mixins-form'
@@ -32,11 +31,8 @@ export const Credentials = Schema.Struct({
 })
 export type Credentials = typeof Credentials.Type
 
-/** A form reads its keys through an Entity; credentials are exactly what signing in takes. */
-const CredentialsEntity = Entity.define('Credentials', Credentials)
-
 /** Each draft, its validation state, and the decoded credentials once both keys are valid. */
-export const LoginForm = Form.make('Login', Entity.input(CredentialsEntity, Credentials), {
+export const LoginForm = Form.make('Login', Form.input(Credentials), {
   messages: { required: '{label} is required' },
 })
 

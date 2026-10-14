@@ -388,8 +388,7 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
       ? prefixKeys(
           key,
           Subscription.lift(bundle.subscriptions(args))({
-            // The gate runs before `toChildModel`, so the child is present whenever it is read.
-            toChildModel: parent => Option.getOrThrow(link.read(parent)),
+            read: link.read,
             toParentMessage: link.toParentMessage,
             when: isOpen,
           }),
@@ -401,7 +400,7 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
       ? prefixKeys(
           key,
           ManagedResource.lift(bundle.resources(args))({
-            toChildModel: parent => (isOpen(parent) ? link.read(parent) : Option.none()),
+            read: parent => (isOpen(parent) ? link.read(parent) : Option.none()),
             toParentMessage: link.toParentMessage,
           }),
         )

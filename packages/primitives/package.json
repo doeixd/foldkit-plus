@@ -1,6 +1,6 @@
 {
   "name": "foldkit-primitives",
-  "version": "0.9.0",
+  "version": "0.10.1",
   "description": "Ready-made primitives for the Elm architecture, packaged with foldkit-bundle: media queries, presence, timers, pagination, history, sockets, observers, clipboard, and interaction Bundles with their Behaviors.",
   "keywords": [
     "foldkit",
@@ -97,19 +97,19 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-mixins": "workspace:^"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "@types/ws": "^8.5.12",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "@effect/platform-browser": "^4.0.4",
+    "@types/ws": "^8.18.2",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-mixins": "workspace:*",
-    "jsdom": "26.1.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3",
-    "ws": "^8.18.0"
+    "jsdom": "30.1.2",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2",
+    "ws": "^8.22.0"
   },
   "peerDependenciesMeta": {
     "foldkit-mixins": {

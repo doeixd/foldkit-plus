@@ -1,6 +1,6 @@
 {
   "name": "foldkit-form",
-  "version": "0.4.3",
+  "version": "0.6.0",
   "description": "Forms for Foldkit: a Bundle over core field validation, built from an operation's input and the Entity it writes.",
   "keywords": [
     "foldkit",
@@ -49,13 +49,13 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "@effect/platform-browser": "^4.0.4",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

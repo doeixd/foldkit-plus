@@ -64,7 +64,9 @@ const makeCounter = (container: HTMLElement, props: { readonly initialCount: num
       }
     },
     subscriptions: Subscription.make<Model, Message>()(entry => ({
-      step: Port.subscription(ports.inbound.stepChanged, step => Message.ChangedStep({ step })),
+      step: Port.subscriptionEntry(ports.inbound.stepChanged, step =>
+        Message.ChangedStep({ step }),
+      ),
       alive: entry(
         { on: Schema.Boolean },
         {

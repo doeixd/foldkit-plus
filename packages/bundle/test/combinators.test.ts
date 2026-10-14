@@ -57,7 +57,7 @@ describe('bundle combinators', () => {
       Bundle.withHelpers({ reset: (model: ToggleModel) => ({ model: { ...model, on: false } }) }),
       Bundle.withSubscriptions(() =>
         Subscription.make<ToggleModel, ToggleMessage>()(() => ({
-          ticks: Subscription.persistent(Stream.make(ToggleMessage.Tick())),
+          ticks: Subscription.persistentEntry(Stream.make(ToggleMessage.Tick())),
         })),
       ),
     )

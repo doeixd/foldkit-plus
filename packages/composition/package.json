@@ -1,6 +1,6 @@
 {
   "name": "foldkit-composition",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "Composition for Foldkit Plus: a page as a stored Document of Blocks in Regions, checked against a Catalog, with no view and no runtime.",
   "keywords": [
     "foldkit",
@@ -69,7 +69,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-mixins": "workspace:^",
     "foldkit-remote": "workspace:^",
     "foldkit-richtext": "workspace:^",
@@ -79,8 +79,8 @@
     "foldkit-metadata": "workspace:*"
   },
   "devDependencies": {
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-mixins": "workspace:*",
@@ -91,11 +91,11 @@
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
     "@types/react": "^19.3.0",
-    "jsdom": "26.1.0",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "jsdom": "30.1.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   },
   "peerDependenciesMeta": {
     "foldkit": {

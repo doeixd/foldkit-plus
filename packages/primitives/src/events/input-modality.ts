@@ -49,6 +49,6 @@ export const InputModality = Bundle.make('InputModality', {
     model.modality === message.modality ? { model } : { model: { modality: message.modality } },
   subscriptions: (): Subscription.Subscriptions<InputModalityModel, InputModalityMessage> =>
     Subscription.make<InputModalityModel, InputModalityMessage>()(() => ({
-      changes: Subscription.persistent(modalityStream()),
+      changes: Subscription.persistentEntry(modalityStream()),
     })),
 })

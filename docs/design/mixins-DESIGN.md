@@ -8,16 +8,16 @@ slot contract; Style and Behavior attach to those slots without forking the
 view. Application state stays in Model/Submodel. This package does not grow
 a second runtime.
 
-Authoritative product plan: `docs/design/SLOT_MIXIN_STYLE_BRAINSTORM.md`. This file
-records substrate probes and the decisions they force. Where they conflict,
-this file wins for implementation.
+The product plan began as `docs/design/SLOT_MIXIN_STYLE_BRAINSTORM.md`; this file
+records substrate probes and the decisions they force, and where the two
+conflict this file wins. The package README is the current API.
 
 **Thesis:** whenever Foldkit already has a lawful primitive, compile onto it.
 
 ## Package
 
-`foldkit-mixins`, private `0.0.0`. Peers: `effect@^4.0.0-rc.112`,
-`foldkit@^0.158.2`. No dependency on Surface, Remote, Agent, or `@foldkit/ui`.
+`foldkit-mixins`, published (0.11.0 at v0.19.0, 2026-10-13). Peers:
+`effect@^4.0.0`, `foldkit@^0.168.0`. No dependency on Surface, Remote, Agent, or `@foldkit/ui`.
 
 Adapters (`foldkit-mixins-ui`, `foldkit-mixins-surface`) come after the core
 resolver works.
@@ -326,8 +326,8 @@ override even when a later attachment would otherwise win.
   component composes inside a SurfaceView — the Surface's Message subset flows
   into the component config and a Mixin resolves around its bundle, proven with a
   test-only edge to `foldkit-mixins-ui`. `examples/mixins` is a worked
-  Surface + Mixins trace (asserted line by line). A remote-backed example
-  (Phase 11) remains.
+  Surface + Mixins trace (asserted line by line). The remote-backed example
+  (Phase 11) is built.
 
 ### Advanced Style compiler (Phase 12)
 

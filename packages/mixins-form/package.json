@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-form",
-  "version": "0.5.2",
+  "version": "0.6.1",
   "description": "A foldkit-form form drawn through foldkit-mixins slots: styleable, extensible, and accessible by contract.",
   "keywords": [
     "foldkit",
@@ -54,7 +54,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0",
+    "foldkit": "^0.168.0",
     "foldkit-mixins-ui": "workspace:*"
   },
   "peerDependenciesMeta": {
@@ -63,13 +63,13 @@
     }
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "@effect/platform-browser": "^4.0.4",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-entity": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
-    "jsdom": "26.1.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "jsdom": "30.1.2",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

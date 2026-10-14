@@ -289,7 +289,16 @@ const composeMounts = <Message>(
     },
     f: (element, viewStateChanges) =>
       Stream.mergeAll(
-        mounts.map(mount => mount.f(element, viewStateChanges)),
+        mounts.map(mount =>
+          // A merge ends every stream in it when one fails, so each fails alone,
+          // reported as Foldkit reports a Mount of its own, and the rest go on.
+          mount.f(element, viewStateChanges).pipe(
+            Stream.catchCause(cause => {
+              console.error(`[OnMount ${mount.name}] unhandled failure`, cause)
+              return Stream.empty
+            }),
+          ),
+        ),
         { concurrency: 'unbounded' },
       ),
   })

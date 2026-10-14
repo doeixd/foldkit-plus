@@ -130,7 +130,7 @@ input. `applyMask(value, pattern)` is the pure rule.
 
 ## `keepScroll`: the window's scroll across navigations
 
-An entry, lifted with `Subscription.persistent`, that sends no Messages: it
+An entry, lifted with `Subscription.persistentEntry`, that sends no Messages: it
 keeps the window's scroll across same-document navigations, so a pushed entry
 starts at the top and Back, Forward, or a reload return where that entry was.
 Without a window the stream is empty. The CMS example lifts it beside its
@@ -141,7 +141,7 @@ other subscriptions.
 A stream of the address of each link the reader points at or tabs to, on the
 page's own origin, once while they stay on it (crossing the text inside a
 link is one link). Without a document it is empty. Map each address to a
-Message and lift it with `Subscription.persistent`; the Message's branch in
+Message and lift it with `Subscription.persistentEntry`; the Message's branch in
 `update` is where a `Data.preload` reads the page there ahead. The CMS site
 and studio do (`examples/cms/src/content/siteConfig.ts`,
 `examples/cms/src/apps/studioApp.ts`).

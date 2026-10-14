@@ -595,13 +595,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **A Mount's acquire that throws halfway leaks what it attached first.**
   `Measure` attached a MutationObserver, then `new ResizeObserver` threw in
   jsdom, and the observer it left called `measure` later ("Cannot access
-  'sizes' before initialization"). Make every observer before any observes,
-  and test with the constructor stubbed away. On Effect 4.0.0 a throw inside
-  `Stream.callback`'s registration hung the stream silently; since 4.0.4 it
-  ends it, and a `foldkit-mixins` slot merges its Behaviors into one Mount
-  whose failure ends them all: three Builder tests in jsdom had passed only
-  because `Measure`'s failure was swallowed. Give jsdom what the Mount makes
-  (`packages/mixins-builder/test/layout.ts`).
+  'sizes' before initialization"). Make every observer before any observes, and
+  test with the constructor stubbed away. Through Effect 4.0.1 such a stream
+  neither ended nor reported; since then it fails, and a merge of Mounts
+  (`Stream.mergeAll`) ends every stream in it, so one Behavior's failure took the
+  canvas's clicks with it. The resolver's composed Mount fails each alone.
 - **Mount args are captured at insert, never refreshed.** A Mount that should
   follow the Model (focus the next OTP cell after a fill) ran once with the
   initial args and never again: `OnMount` binds `insert` and `destroy` only,
@@ -635,6 +633,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **Foldkit fills head tags into the template; it adds none.** A view's
   `canonical` reached no generated page until the template had an empty
   `<link rel="canonical">` (and `og:url` a `<meta property="og:url">`) to fill.
+- **`Subscription.lift` wraps every entry's dependencies (Foldkit 0.166).** A
+  lifted entry's `modelToDependencies` returns `{ maybeDependencies: Option }`,
+  gated or not. Remote lifted its entries only to map their Messages, and an
+  `as never` on the result hid that each read's `{ requirements, queries }`
+  had moved; only the api-cache tests that read them failed. To map Messages
+  alone, map each entry's `dependenciesToStream` (Remote's `messagesAs`).
 - **A URL a Command writes comes back as a `UrlChanged`.** Foldkit's
   `pushUrl`/`replaceUrl` dispatch `foldkit:urlchange`, which the runtime
   answers with `onUrlChange`; `makeApplication` itself sends nothing for the
@@ -811,11 +815,10 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Effect 4, not 3**
 
-foldkit pins `effect@4.0.0` exactly; this repository runs `4.0.4` (Yielded Auth's
-peer is `^4.0.3`) through `pnpm.peerDependencyRules` and `pnpm.overrides` in the root
-`package.json`, and keeps its packages' peer at `^4.0.0` (`foldkit-auth`,
-which peers Yielded, at `^4.0.4`).
-Within 4.0.x, `Crypto.randomUUIDv4` became a function: `yield*
+The workspace runs `effect@^4.0.4`, one copy of each Effect package;
+foldkit's exact peer (`effect@4.0.0`) is relaxed in `pnpm-workspace.yaml`, and
+published packages peer on `^4.0.0` (`foldkit-auth`, which peers Yielded Auth,
+on `^4.0.4`). Within 4.0.x, `Crypto.randomUUIDv4` became a function: `yield*
 crypto.randomUUIDv4()`. Since 4.0.0 there is no
 `effect/unstable/*`: import `effect/http`, `effect/persistence`, `effect/rpc`,
 `effect/sql` (and `effect/http-api` for the old `httpapi`). Since 4.0.0
@@ -850,6 +853,25 @@ of its own named a form field "fits the Catalog". Read words with
   with `Schema.Option` fields failed to round-trip through a saved CMS draft
   ("Expected Option"). A Model that is stored or sent uses
   `Schema.OptionFromNullOr`: `Option` in code, `null` on the wire.
+- **TypeScript 7 ships no compiler API.** `import ts from 'typescript'` gets
+  only a version under 7, so what reads source through the API runs on 6:
+  `foldkit-react-codegen` and `examples/site` (its API extractor) keep
+  `typescript@6.0.3` as their own dev dependency, and `scripts/tags-check.mjs`
+  imports the root's `typescript-6` alias. Their packages' own `tsc -b` is 6;
+  the root's, which CI runs, is 7.
+- **Effect's diagnostics under TypeScript 7 are `@effect/tsgo`, not run in CI.**
+  `@effect/language-service` is a TypeScript plugin, which 7 does not load;
+  its tsconfig entry still serves an editor on a JavaScript TypeScript. Its
+  successor patches the native compiler to report inside `tsc`, or runs alone:
+  `npx @effect/tsgo diagnostics --project <tsconfig> --severity error,warning`.
+  Run over every project on 2026-10-13, its errors were all in tests (unrun
+  Effects in type tests, `return yield*` style), and its warnings mostly
+  `unstableApiUsage` for `effect/rpc` and `effect/persistence`, which are used
+  on purpose. Run it after a large Effect change.
+- **Since TypeScript 6 no `@types` package is included by itself.** Its `types`
+  defaults to none, so every `process`, `Buffer` and `node:` import failed
+  until `tsconfig.base.json` named `"types": ["node"]`. A project that sets
+  its own `types` (`vite/client`) must name `node` too.
 - **`tsc -p` in a project with references reads the stale `.d.ts`.** It checks
   one project against whatever the referenced packages last emitted, so it
   passes code that the change it depends on broke. Use `tsc -b`.
@@ -870,6 +892,12 @@ of its own named a form field "fits the Catalog". Read words with
   intersection resolves to the last signature and widened every payload to
   `any`. A conditional inside a reverse mapped type is circular and quietly
   picks one branch, which let `input` without `toMessage` compile.
+- **`infer` reads an optional property's declared type, present or not.**
+  Typing `Wiring.shared?` as `ReadonlyArray<Claims>` made Remote's wiring,
+  which shares nothing, read as sharing every tag it claims: `infer` took the
+  declared element type, and `own` got every Remote Message back. A type-level
+  reading of "what this value holds" needs a property the value's own type
+  sets (a literal), not one an interface declares for all.
 - **A function-typed property makes a generic invariant.** `EntityDescriptor.ref:
   (id: Type<F['id']>) => …` made `F` invariant, so a concrete `EntityBinding` was
   not assignable to `EntityDescriptor<any, any>` and `Remote.make({ entities:
@@ -1270,6 +1298,13 @@ of its own named a form field "fits the Catalog". Read words with
   `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
   and a demo line that passed under `tsx` failed its test for no reason in the
   change. `npx vitest run examples/remote` from the root tests the source.
+- **Vitest 5 caches transformed modules on disk, keyed without the environment.**
+  `fsModuleCache` is on by default in 5.0.4 (5.0.1 ran without it), so a
+  plugin whose output depends on an environment variable (`pnpm mutate`'s
+  edits) is skipped on a cached module: the fixture's mutations all read "not
+  applied", and a mutated run was served an earlier run's transform without
+  the plugin seeing it. `scripts/mutate.mjs` passes `--fsModuleCache=false`;
+  any other env-driven transform must too.
 - **Read `Test Files`, not only `Tests`.** A file that fails to load, from a
   module-level `window` read in a node test or the machine running out of
   memory under a wide run ("22 failed" with every test passing), counts no

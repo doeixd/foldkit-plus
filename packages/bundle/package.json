@@ -1,6 +1,6 @@
 {
   "name": "foldkit-bundle",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "description": "Package a Foldkit Submodel once (Model, Message, update, subscriptions, resources, view) and place it anywhere in a parent with one Link.",
   "keywords": [
     "foldkit",
@@ -42,15 +42,15 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "@foldkit/ui": "0.165.0",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
-    "jsdom": "26.1.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "@effect/platform-browser": "^4.0.4",
+    "@foldkit/ui": "0.168.0",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
+    "jsdom": "30.1.2",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

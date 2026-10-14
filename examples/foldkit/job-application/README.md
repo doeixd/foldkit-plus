@@ -88,7 +88,7 @@ npx vitest run examples/foldkit/job-application   # from the repository root
   `CompletedValidateEmailAsync` are the form's `Changed` and `Checked`, carried
   by each step's or entry's `GotFormMessage`; `emailValidationId` is gone, as
   the form drops an answer for an email since edited. The check is the form's
-  Command `PersonalInfo.check`, not `ValidateEmailAsync`.
+  Command `PersonalInfoForm.Check` (`PersonalInfo.check`), not `ValidateEmailAsync`.
 - **A submit asks about a well-formed email not checked yet** rather than
   taking it as valid, and the notice names Personal Info until the answer
   comes. Upstream's `revealFieldErrors` marks it valid without asking. The
@@ -109,9 +109,6 @@ npx vitest run examples/foldkit/job-application   # from the repository root
   label attributes on an empty `<input>`, which leaves the radio unnamed.
 - **The pronoun and graduation-year lists share one look**, an accent wash on
   the active option and a check on the chosen one; upstream's differ slightly.
-- **The success and failure tones.** `Theme.oklch` mixes a tone's `subtle`
-  in oklch with a surface that carries the accent's hue, which turned the
-  success banner blue; `style.ts` mixes those two in sRGB.
 - The look is approximated with a `Theme.oklch` indigo palette, not Tailwind.
   Textareas keep their `rows` (the reset sizes them to their content), and the
   file inputs are hidden from the drop zone, since the `sr-only` class

@@ -73,4 +73,42 @@ export default [
     ],
     tests: ['packages/sync/test/mount.test.ts'],
   },
+  {
+    name: 'a page unloads freely while an edit waits to be stored',
+    edits: [
+      {
+        file: '../src/mount.ts',
+        find: '    if (edits.length === 1) unloadGuarded(true)\n',
+        replace: '',
+      },
+    ],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'the page stays held after every edit is stored',
+    edits: [
+      {
+        file: '../src/mount.ts',
+        find: '      if (edits.length === 0) unloadGuarded(false)',
+        replace: '',
+      },
+    ],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'the page is let go once the first edit is stored',
+    edits: [
+      {
+        file: '../src/mount.ts',
+        find: '      if (edits.length === 0) unloadGuarded(false)',
+        replace: '      unloadGuarded(false)',
+      },
+    ],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'leaving is not stopped, only listened to',
+    edits: [{ file: '../src/mount.ts', find: 'event.preventDefault()', replace: 'void event' }],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
 ]

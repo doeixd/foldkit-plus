@@ -1,6 +1,6 @@
 {
   "name": "foldkit-bundle-surface",
-  "version": "0.3.2",
+  "version": "0.4.1",
   "description": "foldkit-bundle placements as foldkit-surface Module contracts: each placement owns its Model path, validated with every other owner.",
   "keywords": [
     "foldkit",
@@ -46,15 +46,15 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "@effect/platform-browser": "^4.0.4",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-mirror": "workspace:*",
-    "jsdom": "26.1.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "jsdom": "30.1.2",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

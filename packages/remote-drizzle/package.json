@@ -1,6 +1,6 @@
 {
   "name": "foldkit-remote-drizzle",
-  "version": "0.11.2",
+  "version": "0.12.1",
   "description": "Provisional compiler from Remote Entity/Selection/Query to Drizzle's typed query graph.",
   "keywords": [
     "foldkit",
@@ -53,12 +53,12 @@
     "effect": "^4.0.0"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite": "0.5.9",
     "drizzle-orm": "1.0.0-rc.4",
-    "effect": "4.0.4",
+    "effect": "^4.0.4",
     "foldkit-remote-server": "workspace:*",
-    "miniflare": "3.20250718.3",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "miniflare": "4.20260730.0",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

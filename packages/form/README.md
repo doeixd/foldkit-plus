@@ -83,7 +83,9 @@ const RenameForm = Page.children.rename
 ```
 
 - `Form.make` takes the name and an `Entity.input`. It resolves a control per
-  key and throws if it cannot. A view must also supply a renderer for each
+  key and throws if it cannot. A form that writes no Entity of its own (a
+  sign-up, a search, a login) takes `Form.input(schema)`, an input over an
+  Entity defined from that schema: `Form.make('Search', Form.input(SearchInput))`. A view must also supply a renderer for each
   control kind, including custom kinds.
 - `Rename.bundle` is an ordinary Bundle. `onOut` is required, so a submit is
   never dropped by omission.
@@ -368,6 +370,9 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   ```
 - Each edit asks again after `debounce`, and an answer for a draft the key no
   longer holds is dropped.
+- The ask is the form's Command `PostForm.Check` (named `PostForm.check`), a
+  Command definition like any other, so a Scene or Story resolves it with
+  `Command.resolve(PostForm.Check, PostForm.Message.Checked({ key, draft, error }))`.
 - **A submit waits.** Submitted while a check runs, the form sets `submitPending`
   and sends the value when the last check passes, or nothing if one fails. An
   edit in between cancels the wait. A filled form (`fill` validates nothing) is

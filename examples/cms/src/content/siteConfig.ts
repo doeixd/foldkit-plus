@@ -31,9 +31,9 @@ export const siteConfig = <Container extends HTMLElement | null>(options: {
     },
     subscriptions: Subscription.make<Site.Model, Site.Message>()(() => ({
       // The window's scroll across the site's navigations, kept while it runs.
-      scroll: Subscription.persistent(keepScroll()),
+      scroll: Subscription.persistentEntry(keepScroll()),
       // Where the reader may go next, read ahead (`PointedAtLink`).
-      pointing: Subscription.persistent(
+      pointing: Subscription.persistentEntry(
         Stream.map(pointedLinks(), url => Site.Message.PointedAtLink({ url })),
       ),
     })),

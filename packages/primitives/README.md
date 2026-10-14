@@ -106,7 +106,7 @@ import * as Subscription from 'foldkit/subscription'
 import { keyboardEvents } from 'foldkit-primitives/events'
 
 const subscriptions = Subscription.make<GameModel, GameMessage>()(() => ({
-  keys: Subscription.persistent(
+  keys: Subscription.persistentEntry(
     keyboardEvents({ preventDefault: press => press.key.startsWith('Arrow') }).pipe(
       Stream.filter(event => event._tag === 'Pressed'),
       Stream.map(({ key }) => GameMessage.PressedKey({ key })),

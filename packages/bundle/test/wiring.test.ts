@@ -51,7 +51,7 @@ const filters: Wiring<Model, Message> & {
   }),
   onUrl: (model, url) => ({ ...model, filter: filterFrom(Url.toString(url)) }),
   subscriptions: Subscription.make<Model, Message>()(() => ({
-    'mirror:filters.write': Subscription.persistent(Stream.empty),
+    'mirror:filters.write': Subscription.persistentEntry(Stream.empty),
   })),
 }
 

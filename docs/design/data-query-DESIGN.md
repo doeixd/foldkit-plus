@@ -3,8 +3,8 @@
 > **Implementation status, checked 2026-09-27:** Phases 0–10 and 12 are built (9 and 10 as `examples/tanstack` and `examples/livestore`), 11 was declined, and 13 is open. The conformance suite now ships as `foldkit-entity/conformance`. See the
 > [design index](./README.md#where-each-design-stands).
 
-**Status:** partly built. §32's Phases 0–8 and 12 shipped; Phases 9–13 are
-deferred on conditions that do not exist yet. The reasoning below is unchanged except
+**Status:** partly built. §32's Phases 0–10 and 12 shipped (9 and 10 as
+`examples/tanstack` and `examples/livestore`), 11 was declined, and 13 is open. The reasoning below is unchanged except
 where a `>` note says building it found otherwise, and those notes win.  
 **Date:** September 2026  
 **Target:** doeixd/foldkit-plus  
@@ -3070,8 +3070,8 @@ This specifically tests the QueryRef vs ReadContract distinction.
 > **What was built instead of starting them: the conformance suite** they all
 > depend on. §18 names portable-kernel conformance as what the reference
 > interpreter is for, and until now each interpreter had its own tests that
-> happened to agree. `foldkit-remote-server` exports one shared set of
-> cases, run against both — over rows in memory, and compiled to SQL against a
+> happened to agree. One shared set of cases (first exported from
+> `foldkit-remote-server`, now from `foldkit-entity/conformance`) runs against both — over rows in memory, and compiled to SQL against a
 > real SQLite.
 >
 > Its cases are chosen to make interpreters *disagree*: mixed case, nulls on

@@ -230,7 +230,7 @@ export const subscriptions = Subscription.make<Model, Message>()(() => ({
     onTick: () => Message.TickedClock(),
   }),
 
-  keyboard: Subscription.persistent(
+  keyboard: Subscription.persistentEntry(
     keyboardEvents({ preventDefault: press => SCROLL_KEYS.has(press.key) }).pipe(
       Stream.filter((message): message is Pressed => message._tag === 'Pressed'),
       Stream.map(({ key }) => Message.PressedKey({ key })),

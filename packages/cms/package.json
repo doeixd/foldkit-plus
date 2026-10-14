@@ -1,6 +1,6 @@
 {
   "name": "foldkit-cms",
-  "version": "0.6.2",
+  "version": "0.7.1",
   "description": "What a CMS adds to a Foldkit Plus domain: audience, time, and address. A draft is an unsent form kept beside the content row; state is derived, never stored. Entry history and transitions ship as view helpers.",
   "keywords": [
     "foldkit",
@@ -54,15 +54,15 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "@effect/platform-browser": "^4.0.4",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-mixins-crud": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

@@ -435,7 +435,7 @@ const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message
 
 export const subscriptions = Subscription.make<Model, Message, Services>()(() => ({
   ...foldData.subscriptions(actives),
-  principal: Subscription.persistent(
+  principal: Subscription.persistentEntry(
     Stream.map(broadcastMessages(PRINCIPAL_CHANNEL), message =>
       Message.GotBroadcastMessage({ message }),
     ),

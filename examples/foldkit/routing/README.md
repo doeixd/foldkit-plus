@@ -39,7 +39,7 @@ pnpm --filter foldkit-example-foldkit-routing dev
 | --- | --- | --- |
 | Parsing and printing URLs, the route union, the 404 fallback | plain Foldkit (`foldkit/route`) | `src/route.ts` |
 | Route nodes, titles, sections, landings, shortcuts, history intent, and the click/change lifecycle | `foldkit-site` (`Site.route`/`make`/`placement`/`routing`) | `src/main.ts` |
-| Links, back and forward, the key bindings (`Site.shortcuts` over the annotated nodes) | plain Foldkit (`routing`, `Subscription.keyBindings`) | `src/main.ts`, `src/entry.ts` |
+| Links, back and forward, the key bindings (`Site.shortcuts` over the annotated nodes) | plain Foldkit (`routing`, `Dom.streamFromKeyBindings`) | `src/main.ts`, `src/entry.ts` |
 | The People page: search input, history, results | a `foldkit-bundle` Bundle placed once through the Site, with `args` derived from the starting route | `src/page/people.ts`, `src/main.ts` |
 | The file tree | a constant | `src/fileTree.ts` |
 | The page title per route | the Site's annotated titles, read with `Site.titleOf` | `src/main.ts`, `routeTitle` |

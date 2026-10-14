@@ -8,7 +8,15 @@ export type {
   Wrapper,
 } from './link.js'
 export * as Bundle from './bundle.js'
-export type { Helper, PlacementConfig, ResourceEntries, SeedFor } from './bundle.js'
+export type {
+  Bundle as BundleShape,
+  Helper,
+  PlacementConfig,
+  ResourceEntries,
+  SeedFor,
+} from './bundle.js'
+export type { CollectionBy, PlacedBy, WithoutResources } from './parent.js'
+export type { RuntimeResult } from './assembly.js'
 export type { Declared, DeclaredEach } from './declare.js'
 export { isPlaced, isArgsFactory, UnresolvedArgsError, follow } from './placed.js'
 export type {

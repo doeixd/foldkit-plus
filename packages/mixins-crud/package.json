@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-crud",
-  "version": "0.6.6",
+  "version": "0.7.1",
   "description": "foldkit-crud lists and details drawn through foldkit-mixins slots: an accessible table and description list, styleable and extensible by contract.",
   "keywords": [
     "foldkit",
@@ -51,16 +51,16 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.168.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.4",
-    "effect": "4.0.4",
-    "foldkit": "0.165.0",
+    "@effect/platform-browser": "^4.0.4",
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
     "foldkit-entity": "workspace:*",
     "foldkit-surface": "workspace:*",
-    "jsdom": "26.1.0",
-    "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "jsdom": "30.1.2",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
   }
 }

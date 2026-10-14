@@ -12,7 +12,7 @@ import { Effect, Schema, Stream } from 'effect'
 import { Entity, Relation, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer, type LiveHub } from 'foldkit-remote-server'
-import { afterAll, afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { applyEdits, bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
 
 const Project = Entity.define(
@@ -168,6 +168,9 @@ describe('A write that expects a revision, on Postgres', () => {
   })
   const PgDb = bind({ Project }, { Project: { table: pgProjects } })
   const pglite = new PGlite()
+  // Postgres compiled to WebAssembly takes seconds to start on a busy machine:
+  // charged here, not to the first test's five.
+  beforeAll(() => pglite.waitReady, 60_000)
   const PgCreate = Mutation.write(
     'CreateProject',
     Write.insert(

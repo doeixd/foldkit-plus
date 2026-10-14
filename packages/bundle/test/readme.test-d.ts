@@ -27,7 +27,7 @@ export const MediaQuery = Bundle.make('MediaQuery', {
   update: (_model, message) => ({ model: { matches: message.matches } }),
   subscriptions: ({ query }) =>
     Subscription.make<MediaQueryModel, MediaQueryMessage>()(() => ({
-      changes: Subscription.persistent(
+      changes: Subscription.persistentEntry(
         Stream.map(matchMediaChanges(query), matches => MediaQueryMessage.Changed({ matches })),
       ),
     })),

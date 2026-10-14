@@ -79,8 +79,10 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   module through a server so the config names a file; `foundations` in
   `foldkit-mixins` compiles the sheet module into the head. The CMS example
   builds through both and deletes its script and local plugin.
-- [ ] **S8. A chosen theme before the first paint:** `local` in the plan, and a
-  head script from `foldkit-mixins`' `Theme` that sets it from storage.
+- [x] **S8. A chosen theme before the first paint:** `local` in the plan, and a
+  head script from `foldkit-mixins`' `Theme` that sets it from storage. Built
+  2026-10-13: `Theme.schemeScript`, `chooseScheme` and `currentScheme`; the
+  docs site's Auto/Light/Dark choice is `local`, read back in its plan's `boot`.
 - [ ] **S9. Localized pages:** the locale in the route, `lang` from the Model,
   `hreflang` alternates in the head and sitemap, words and formats by explicit
   locale.
@@ -115,15 +117,15 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   [richtext-DESIGN.md](./richtext-DESIGN.md) status
 - [ ] Renderers per kind, and metadata, for a Kit's content contract.
   [richtext-DESIGN.md](./richtext-DESIGN.md) "Not yet"
-- [ ] Release the six rich-text packages. They are public at 0.1.0 but not
-  published yet. [richtext-DESIGN.md](./richtext-DESIGN.md) status
+- [x] Release the six rich-text packages. Published; at v0.19.0 they are 0.2.0
+  to 0.4.0. [richtext-DESIGN.md](./richtext-DESIGN.md) status
 
 ## Page builder
 
 - [ ] **7c-2:** edit rich text on the canvas.
   [pagebuilder-DESIGN.md](./pagebuilder-DESIGN.md) §28
-- [ ] Publish `foldkit-composition`, `foldkit-builder` and
-  `foldkit-mixins-builder`. They are private at 0.0.0.
+- [x] Publish `foldkit-composition`, `foldkit-builder` and
+  `foldkit-mixins-builder`. Published since 2026-10-06; 0.3.0 in v0.19.0.
   [pagebuilder-DESIGN.md](./pagebuilder-DESIGN.md)
 
 ## Data, query and Remote
@@ -139,18 +141,29 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   [data-query-DESIGN.md](./data-query-DESIGN.md) §32
 - [ ] **Local execution Phase 4:** position placement (only the decidable half
   is built). [local-execution-DESIGN.md](./local-execution-DESIGN.md) §13
-- [ ] **Remote-drizzle against a live Postgres.** Revision Phase 14's acceptance
+- [x] **Remote-drizzle against a live Postgres.** Revision Phase 14's acceptance
   has not run; tests cover SQLite and the Pg compiler only. That decides open
-  question 7. [REVISION_PLAN.md](./REVISION_PLAN.md) §20
-- [ ] **Entity DX item 10:** a branded "put the field on the left" error for a
-  reversed operand, plus documentation of operand orientation.
+  question 7. Done 2026-10-13 on PGlite (Postgres itself, as WebAssembly): the
+  query semantics, paging, writes, and now the batched relation graph and the
+  ranked nested pages (`test/nested.test.ts` runs each case on both). The
+  package shipped. [REVISION_PLAN.md](./REVISION_PLAN.md) §20
+- [x] **Entity DX item 10:** a branded "put the field on the left" error for a
+  reversed operand, plus documentation of operand orientation. Done
+  2026-10-13: a plain value on the left types the right side as an `Invalid`
+  naming the order. The plan's workaround, `Expr.literal`, is not public, and
+  would not type a field on the right either.
   [entity-DX-PLAN.md](./entity-DX-PLAN.md)
-- [ ] **Entity DX item 12:** a predicate over the wrong Entity is a runtime error;
-  an owner type parameter on `FieldExpr` would make it a type error.
+- [x] **Entity DX item 12:** a predicate over the wrong Entity is a runtime error;
+  an owner type parameter on `FieldExpr` would make it a type error. Done
+  2026-10-13 another way: a type-only `Reads<Names>` on every predicate
+  constructor's result, checked by `Query.where`, and on ordering terms by
+  `Query.orderBy`.
   [entity-DX-PLAN.md](./entity-DX-PLAN.md)
-- [ ] **Entity DX item 13:** a query body with no ordering fails when it is
+- [x] **Entity DX item 13:** a query body with no ordering fails when it is
   registered, through remote-drizzle's runtime throw; make it a compile-time
-  error. [entity-DX-PLAN.md](./entity-DX-PLAN.md)
+  error. Declined 2026-10-13, as the plan itself weighs it: an `Ordered` type
+  parameter through `from`, `where` and `orderBy` costs more inference noise
+  than a refusal at boot, which already names the query. [entity-DX-PLAN.md](./entity-DX-PLAN.md)
 - [ ] **Entity §54:** Remote integration beyond its first slice
   (`Entity.from`/`Selection.from`). [entity-DESIGN.md](./entity-DESIGN.md) §54
 - [x] **Query native findings** ([query-native-FINDINGS.md](./query-native-FINDINGS.md),
@@ -291,8 +304,11 @@ Each item says how it would attach; none is started.
 
 ## Wiring and Bundle
 
-- [ ] Make removing a wiring from `assemble` a type error. Today it compiles and
-  silently drops routing, init and Subscriptions.
+- [x] Make removing a wiring from `assemble` a type error. Today it compiles and
+  silently drops routing, init and Subscriptions. Done 2026-10-13 for a wiring
+  that claims tags (Remote's): its tags leave `own`'s Message, and come back
+  unmatched without it. A wiring of shared tags only (the mirrors) cannot be
+  caught this way.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Deviations
 - [ ] Decide whether Wiring lives in `foldkit-surface` or its own package.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
@@ -345,7 +361,7 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   settles, entries keyed by the Navigation API. `foldkit-primitives`, or
   upstream in Foldkit's navigation. §33.5 Built 2026-09-29 as
   `keepScroll(options)` in `foldkit-primitives/dom` — a stream lifted with
-  `Subscription.persistent`, sending no Messages — adopted by the studio's
+  `Subscription.persistentEntry`, sending no Messages — adopted by the studio's
   and the site's subscriptions, with the three browser tests moved beside
   it, each killing its rule.
 - [ ] **A delayed busy reveal in `foldkit-mixins`:** `aria-busy` lines shown
@@ -445,8 +461,8 @@ and server/SSR sequences.
   shape into server/local-execution designs. The SSG half is built: S1
   browser entry (client boundary + import walk), S5 takeover decision
   (`when`/`otherwise`/`fresh`), S6 determinism check, S7 build step
-  (`staticSite` plugin + `foundations`, example script deleted). S8/S9 wait
-  for a theme choice and a second language; §19.5–19.8 wait for a real
+  (`staticSite` plugin + `foundations`, example script deleted), and S8. S9
+  waits for a second language; §19.5–19.8 wait for a real
   deployment (see Server).
 - [x] **3. `mixins-ui` gaps:** `Badge`, `Loading`/`Empty`/`Failure`,
   Button variants, icon machinery, touch targets; `historyCard`/`moreCard`
@@ -808,12 +824,15 @@ its README the details.
   Done: the empty future is kept; `History.goTo` / `GoTo`. `foldkit-pixel-art`
 - [x] **Form: no "valid right now" query, no validate-all.** Done:
   `form.isValid`, `Message.ValidatedAll()`.
-- [ ] **Form: no Command definition for a check that tests can match** (still
+- [x] **Form: no Command definition for a check that tests can match** (still
   an inline `{ name: '<form>.check', args: { key } }`), and `Form.make`
-  requires an Entity for a plain form. `foldkit-form`
-- [ ] **Form: `engine.value` drops a filled but invalid optional key** that is
+  requires an Entity for a plain form. `foldkit-form` Done 2026-10-13:
+  `form.Check` is a definition the ports resolve, and `Form.input(schema)`
+  is a plain form's input.
+- [x] **Form: `engine.value` drops a filled but invalid optional key** that is
   not validated yet, instead of refusing, reached by `fill` then
-  `engine.value` (a submit validates first; `isValid` is right).
+  `engine.value` (a submit validates first; `isValid` is right). Fixed
+  2026-10-13: a draft not checked yet must pass its own check.
 - [x] **Form: `Schema.optionalKey` is treated as required,** and `Blurred` on
   an empty optional key returns an equal copy of the Model. Fixed; an
   `Option`-typed key is also drawn now.
@@ -824,8 +843,10 @@ its README the details.
   to `foldkit-ssr/client`.
 - [x] **Mixins: no helper installs the stylesheet in the browser.** Done:
   `Style.install`, with `AppStyle.make` for the page sheet.
-- [ ] **Mixins: `Theme.oklch` tints success and error with the accent's hue,**
-  so under a blue accent they read blue. `foldkit-job-application`
+- [x] **Mixins: `Theme.oklch` tints success and error with the accent's hue,**
+  so under a blue accent they read blue. Fixed 2026-10-06 (tints mix in OKLab,
+  with a browser test of the computed hue); job-application's sRGB workaround is
+  gone. `foldkit-job-application`
 - [x] **Mixins: `Recipes.Dialog` did not undo `Defaults.reset`'s `margin: 0`.**
   Built: the recipe restores `margin: auto`, so a modal opens centered rather
   than in the top corner; removing it fails the recipe test.
@@ -944,26 +965,27 @@ then the lifecycle and host-integration design work.
 
 ## Stale passages inside the design documents
 
-Each document now carries a dated status note, but these passages still
-describe an earlier state and would mislead someone reading the body:
+Each document now carries a dated status note, and these passages, which
+still described an earlier state, were corrected or annotated on 2026-10-13:
 
-- [ ] [REVISION_PLAN.md](./REVISION_PLAN.md) §1.1–1.2: the package versions,
+- [x] [REVISION_PLAN.md](./REVISION_PLAN.md) §1.1–1.2: the package versions,
   private packages and example list; §20's pre-Phase-1 open questions.
-- [ ] [agent-DESIGN.md](./agent-DESIGN.md): its package table (Surface
+- [x] [agent-DESIGN.md](./agent-DESIGN.md): its package table (Surface
   "proposed", `context` in the contract, `agent-native` "private").
-- [ ] [mixins-DESIGN.md](./mixins-DESIGN.md): "private `0.0.0`" and old peer
+- [x] [mixins-DESIGN.md](./mixins-DESIGN.md): "private `0.0.0`" and old peer
   versions. It calls SLOT_MIXIN_STYLE_BRAINSTORM "authoritative", and around its
   line 325 says the Phase 11 example "remains", though Phase 11 is done.
-- [ ] [remote-drizzle-DESIGN.md](./remote-drizzle-DESIGN.md): the "SQL window
+- [x] [remote-drizzle-DESIGN.md](./remote-drizzle-DESIGN.md): the "SQL window
   optimization — measured, deferred" section and sequence item 7. The window
   query is built.
-- [ ] [data-query-DESIGN.md](./data-query-DESIGN.md): the head's "Phases 9–13
+- [x] [data-query-DESIGN.md](./data-query-DESIGN.md): the head's "Phases 9–13
   deferred", and the claim that `foldkit-remote-server` exports the conformance
   suite (it is `foldkit-entity/conformance`).
-- [ ] [entity-DESIGN.md](./entity-DESIGN.md) §50–51: "CMS not started / do not
+- [x] [entity-DESIGN.md](./entity-DESIGN.md) §50–51: "CMS not started / do not
   build CMS yet".
-- [ ] [react-DESIGN.md](./react-DESIGN.md): the banner's "codegen not started".
-- [ ] [bundle-spike.md](./bundle-spike.md): "the workspace stays on 0.158.2" (it
+- [x] [react-DESIGN.md](./react-DESIGN.md): the banner's "codegen not started".
+- [x] [bundle-spike.md](./bundle-spike.md): "the workspace stays on 0.158.2" (it
   is on 0.163.0).
-- [ ] [richtext-REVIEW.md](./richtext-REVIEW.md): the disposition cites a commit
-  (`d442415`) that is not in the current history.
+- [x] [richtext-REVIEW.md](./richtext-REVIEW.md): the disposition cites a commit
+  (`d442415`) that is not in the current history. It is: `d4424159d`, "fix the
+  R15-R21 findings"; the citation was right.
