@@ -152,15 +152,18 @@ export const subsites: ReadonlyArray<Subsite> = [
     shelf: 'Data',
     packages: ['guard'],
   }),
-  family({
-    id: 'auth',
-    title: 'Auth',
-    tagline:
-      'Who is signed in: a Yielded Auth session as the principal a Remote server answers as.',
-    owner: 'Yielded Auth, through its session',
-    shelf: 'Data',
-    packages: ['auth'],
-  }),
+  family(
+    {
+      id: 'auth',
+      title: 'Auth',
+      tagline:
+        'Who is signed in: a Yielded Auth session as the principal a Remote server answers as.',
+      owner: 'Yielded Auth, through its session',
+      shelf: 'Data',
+      packages: ['auth'],
+    },
+    [doc('versus-guard', 'Auth and Guard', 'auth-and-guard')],
+  ),
   family(
     {
       id: 'mirror',
