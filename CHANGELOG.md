@@ -20,6 +20,10 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-mixins-richtext`: `tableToolbar` and `codeToolbar`.** The table
+  toolbar adds and deletes rows and columns around the caret's cell, switches
+  the header row and deletes the table; the code toolbar picks a code block's
+  language and sends the caller's Copy Message. Both draw through slots.
 - **`foldkit-richtext-dom`: Tab, table Messages, adornment actions, a toolbar's
   place.** Tab and Shift+Tab send `Indented` and `Outdented` where
   `RichText.takesTab` says they mean something, and move focus elsewhere;

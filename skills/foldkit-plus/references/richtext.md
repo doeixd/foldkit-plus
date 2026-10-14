@@ -191,7 +191,11 @@ beside it is split mode: `{ session, document, rendering? }`, the draft rendered
 the document it would become. `editorStatus<Message>()` is the status line: `{ document,
 diagnostics? }` in, `EditorStatusSlots` (`root`, `counts`, `problems`, `problem`) out; the counts
 are `RichText.count(document)` (`{ words, characters }`), the problems whatever the caller passes,
-usually `RichText.validate` against its Kit. `blockHandle<Message>()` is the block handle:
+usually `RichText.validate` against its Kit. `tableToolbar<Message>()` (`{ document, selection,
+wrap }`, `TableToolbarSlots`) edits the table around the caret's cell (rows, columns, header,
+delete), disabled outside one; `codeToolbar<Message>()` (`{ document, node, languages, wrap,
+copied }`, `CodeToolbarSlots`) sets a code block's language and sends the caller's Copy; draw
+either above its block with `blockAnchor({ …, side: 'above' })`. `blockHandle<Message>()` is the block handle:
 `{ document, hostId, node, wrap }` in, `BlockHandleSlots` (`root`, `grip`, `up`, `down`) out; the
 grip drags the block wherever `RichText.moveTargets` allows (`blockDrag` from
 `foldkit-richtext-dom/toolbar`, keyed by the block), up sends

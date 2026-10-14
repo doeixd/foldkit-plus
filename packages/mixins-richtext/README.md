@@ -228,6 +228,65 @@ outermost === undefined
 | `up` | Interactive | `data-handle="up"` |
 | `down` | Interactive | `data-handle="down"` |
 
+## The table and code toolbars
+
+Toolbars for a block, drawn above it in an element `blockAnchor({ side: 'above' })` places. The
+table toolbar edits the table around the caret's cell; the code toolbar picks a code block's
+language and copies it.
+
+```ts
+import * as RichText from 'foldkit-richtext'
+import { blockAnchor } from 'foldkit-richtext-dom/toolbar'
+import { codeToolbar, tableToolbar } from 'foldkit-mixins-richtext'
+
+const table = RichText.tableAt(model.document, model.editor.selection)
+
+table === undefined
+  ? h.empty
+  : h.div(
+      [
+        h.Key(table.table.id),
+        h.OnMount(blockAnchor({ hostId: 'body', node: table.table.id, gap: 6, side: 'above' })),
+      ],
+      [
+        tableToolbar<Message>()(
+          { document: model.document, selection: model.editor.selection, wrap: edited },
+          h,
+        ),
+      ],
+    )
+
+codeToolbar<Message>()(
+  {
+    document: model.document,
+    node: code.id,
+    languages: [{ id: 'typescript', label: 'TypeScript' }, { id: '', label: 'Plain text' }],
+    wrap: edited,
+    copied: Message.CopiedCode({ node: code.id }),
+  },
+  h,
+)
+```
+
+- **The table toolbar** sends the editor's `InsertedRow` and `InsertedColumn` (`before`,
+  `after`), `DeletedRow`, `DeletedColumn`, `DeletedBlock` for the whole table, and `ChangedProps`
+  on the first row's `header`, which its button shows pressed. Every button is disabled outside a
+  table (`RichText.tableAt` finds none), so it can be drawn always or only there. The editor
+  takes Tab and Shift+Tab in a cell to move between cells, and Tab in the last adds a row.
+- **The code toolbar** shows the block's `language` in a picker and sets it with
+  `ChangedProps`, so it is saved and undone with the text; a language the list does not name is
+  offered as itself. Copy sends the caller's Message, since the clipboard is a Command: copy
+  `RichText.toText([block])`.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `TableToolbarSlots.root` | Container | the wrapper |
+| `TableToolbarSlots.toolbar` | Collection | `role="toolbar"` |
+| `TableToolbarSlots.button` | Interactive | one per change, `data-table` (`row-above`, …) |
+| `CodeToolbarSlots.root` | Container | `role="toolbar"` |
+| `CodeToolbarSlots.language` | Interactive | the `select` |
+| `CodeToolbarSlots.copy` | Interactive | `data-code="copy"` |
+
 ## The command palette
 
 The slash menu's catalogue, searched from a field of its own instead of typed into the

@@ -69,6 +69,12 @@ export const markToolbar = <Message>(): SlotView.SlotView<
 /** The block style picker's view and its slots (§134). */
 export { BlockStyleSlots, blockStyles, type BlockStyleInput } from './style.js'
 
+/** The table toolbar's view and its slots: rows and columns around the caret's cell. */
+export { TableToolbarSlots, tableToolbar, type TableToolbarInput } from './table.js'
+
+/** The code block toolbar's view and its slots: its language and Copy. */
+export { CodeToolbarSlots, codeToolbar, type CodeLanguage, type CodeToolbarInput } from './code.js'
+
 /** The block handle's view and its slots (§144). */
 export { BlockHandleSlots, blockHandle, type BlockHandleInput } from './handle.js'
 
