@@ -8,7 +8,12 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity } from 'foldkit-entity'
-import { REMOTE_PROTOCOL_VERSION, Mutation, Remote } from 'foldkit-remote'
+import {
+  REMOTE_PROTOCOL_VERSION,
+  Mutation,
+  Remote,
+  type RemoteUnauthenticated,
+} from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
@@ -51,9 +56,8 @@ const readA = {
 
 const fetch = serveFetch({
   server: backend.server,
-  resolvePrincipal: (request): Principal => ({
-    isAdmin: request.headers.get('x-admin') === 'yes',
-  }),
+  resolvePrincipal: request =>
+    Effect.succeed<Principal>({ isAdmin: request.headers.get('x-admin') === 'yes' }),
   layer: (_env: { readonly note?: string }) => Layer.empty as Layer.Layer<never>,
 })
 
@@ -143,29 +147,50 @@ describe('serveFetch', () => {
     expect(await unknown.json()).toHaveProperty('error')
   })
 
-  it('answers a failing principal resolution with a 401 carrying its message', async () => {
-    const guarded = serveFetch({
-      server: backend.server,
-      resolvePrincipal: (): Principal => {
-        throw new Error('bad token')
-      },
-      layer: () => Layer.empty as Layer.Layer<never>,
+  describe('a principal the resolver refuses or breaks on', () => {
+    const resolvedBy = (
+      resolvePrincipal: () => Effect.Effect<Principal, RemoteUnauthenticated>,
+    ): Promise<Response> =>
+      serveFetch({
+        server: backend.server,
+        resolvePrincipal,
+        layer: () => Layer.empty as Layer.Layer<never>,
+      })(
+        new Request('http://worker.test/remote', {
+          method: 'POST',
+          body: JSON.stringify({ operation: 'read', payload: readA }),
+        }),
+        {},
+      )
+
+    it.each([
+      [
+        'with its reason',
+        RemoteServer.unauthenticated('Your session ended.'),
+        { error: 'Your session ended.', unauthenticated: { reason: 'Your session ended.' } },
+      ],
+      [
+        'saying nothing of why',
+        RemoteServer.unauthenticated(),
+        { error: 'Unauthenticated', unauthenticated: {} },
+      ],
+    ])('answers a refusal %s with a 401', async (_, refusal, answer) => {
+      const response = await resolvedBy(() => Effect.fail(refusal))
+      expect(response.status).toBe(401)
+      expect(await response.json()).toEqual(answer)
     })
-    const response = await guarded(
-      new Request('http://worker.test/remote', {
-        method: 'POST',
-        body: JSON.stringify({ operation: 'read', payload: readA }),
-      }),
-      {},
-    )
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'bad token' })
+
+    it('answers a resolver that breaks with a 500 that says nothing of it', async () => {
+      const response = await resolvedBy(() => Effect.die(new Error('the session store password')))
+      expect(response.status).toBe(500)
+      expect(await response.json()).toEqual({ error: 'Internal error' })
+    })
   })
 
   it('answers a broken layer with a 500 that says nothing of it', async () => {
     const broken = serveFetch({
       server: backend.server,
-      resolvePrincipal: () => ({ isAdmin: true }),
+      resolvePrincipal: () => Effect.succeed({ isAdmin: true }),
       layer: () => Layer.effectDiscard(Effect.die(new Error('the D1 password'))) as never,
     })
     const response = await broken(
@@ -179,7 +204,7 @@ describe('serveFetch', () => {
     expect(await response.json()).toEqual({ error: 'Internal error' })
   })
 
-  it('provides the environment to the Sources through the layer', async () => {
+  it('provides the environment to the Sources and the resolver through the layer', async () => {
     class Greeting extends Context.Service<Greeting, { readonly hello: string }>()(
       'fetch-test/Greeting',
     ) {}
@@ -195,7 +220,13 @@ describe('serveFetch', () => {
     const server = RemoteServer.make({ entities: [Who] })
     const served = serveFetch({
       server,
-      resolvePrincipal: () => null,
+      // The resolver needs the layer too: a refusal here would be a 401, not a read.
+      resolvePrincipal: () =>
+        Effect.flatMap(Greeting, greeting =>
+          greeting.hello === 'from D1'
+            ? Effect.succeed(null)
+            : Effect.fail(RemoteServer.unauthenticated()),
+        ),
       layer: (env: { readonly hello: string }) => Layer.succeed(Greeting, { hello: env.hello }),
     })
     const response = await served(
@@ -218,5 +249,53 @@ describe('serveFetch', () => {
         settled: [],
       },
     })
+  })
+})
+
+describe('serveFetch, headers for whom it answered', () => {
+  const said = serveFetch({
+    server: backend.server,
+    resolvePrincipal: request =>
+      request.headers.get('x-admin') === 'refused'
+        ? Effect.fail(RemoteServer.unauthenticated('No.'))
+        : Effect.succeed<Principal>({ isAdmin: request.headers.get('x-admin') === 'yes' }),
+    layer: () => Layer.empty,
+    headers: principal => ({ 'x-answered-as': principal.isAdmin ? 'admin' : 'guest' }),
+  })
+  const send = (body: string, admin: string) =>
+    said(
+      new Request('http://worker.test/remote', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-admin': admin },
+        body,
+      }),
+      {},
+    )
+
+  it.each([
+    ['an answer', JSON.stringify({ operation: 'read', payload: readA }), 200],
+    ['a body that is not JSON', '{', 400],
+    ['a live open', JSON.stringify({ operation: 'live', payload: { bogus: true } }), 400],
+    [
+      'a live stream',
+      JSON.stringify({
+        operation: 'live',
+        payload: { version: REMOTE_PROTOCOL_VERSION, requirements: [], after: 0 },
+      }),
+      200,
+    ],
+  ])('names the principal on %s', async (_, body, status) => {
+    const admin = await send(body, 'yes')
+    const guest = await send(body, 'no')
+    expect([admin.status, guest.status]).toEqual([status, status])
+    expect(admin.headers.get('x-answered-as')).toBe('admin')
+    expect(guest.headers.get('x-answered-as')).toBe('guest')
+    await Promise.all([admin.body?.cancel(), guest.body?.cancel()])
+  })
+
+  it('names nobody on a refusal, which answered no one', async () => {
+    const refused = await send(JSON.stringify({ operation: 'read', payload: readA }), 'refused')
+    expect(refused.status).toBe(401)
+    expect(refused.headers.has('x-answered-as')).toBe(false)
   })
 })

@@ -1,5 +1,6 @@
 /** `RemoteData`: the state of a value the store may not hold yet. */
 import { Option, Schema } from 'effect'
+import { defineTaggedUnion } from 'foldkit/schema'
 
 export interface RemoteError {
   readonly _tag: string
@@ -9,9 +10,29 @@ export interface RemoteError {
    * decoded, by its mutation, with `Data.refusal`.
    */
   readonly refusal?: unknown
-  /** Why the server refused who is asking (`_tag: 'Forbidden'`), when it said. */
-  readonly reason?: string
+  /**
+   * Why the server refused who is asking (`_tag: 'Unauthenticated'` or
+   * `'Forbidden'`), when it said. Read it with `RemoteData.denied`.
+   */
+  readonly reason?: string | undefined
 }
+
+/**
+ * The server would not answer who is asking: their session ended or was
+ * never there (`Unauthenticated`, a 401), or they may not (`Forbidden`, a
+ * 403). `reason` is the server's sentence, when it gave one. Not a mutation's
+ * declared `refusal`, which the server answered and `Data.refusal` reads.
+ */
+export const Denied = defineTaggedUnion({
+  Unauthenticated: { reason: Schema.Option(Schema.String) },
+  Forbidden: { reason: Schema.Option(Schema.String) },
+})
+export type Denied = typeof Denied.Type
+
+/** The tags `denied` reads: a `RemoteError`'s `_tag` is open, for any failure a transport reports. */
+const denials: ReadonlySet<string> = new Set<Denied['_tag']>(['Unauthenticated', 'Forbidden'])
+const isDenial = (tag: string): tag is Denied['_tag'] => denials.has(tag)
+const deny = { Unauthenticated: Denied.Unauthenticated, Forbidden: Denied.Forbidden }
 
 export type RemoteData<A> =
   | { readonly _tag: 'Initial' }
@@ -171,6 +192,24 @@ export const RemoteData = {
           : cases.data(data.previous, { _tag: 'Stale', error: data.error })
     }
   },
+
+  /**
+   * The denial a failure was, typed, or none for any other failure (a
+   * network error, a protocol mismatch): what to read before telling a reader
+   * to sign in again.
+   *
+   * ```ts
+   * Option.match(RemoteData.denied(error), {
+   *   onNone: () => 'Could not load',
+   *   onSome: Denied.match({ Unauthenticated: () => 'Sign in again', Forbidden: () => 'Not yours' }),
+   * })
+   * ```
+   */
+  denied: (error: RemoteError): Option.Option<Denied> =>
+    // tag-check: open — a RemoteError carries any transport failure's tag.
+    isDenial(error._tag)
+      ? Option.some(deny[error._tag]({ reason: Option.fromUndefinedOr(error.reason) }))
+      : Option.none(),
 
   map: <A, B>(data: RemoteData<A>, f: (value: A) => B): RemoteData<B> => {
     switch (data._tag) {

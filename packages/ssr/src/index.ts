@@ -13,7 +13,7 @@
  * handover. This module is the server's side and the browser's
  * (`foldkit-ssr/client`) together.
  */
-import { Cause, Effect, Exit, Option, Result, Schema } from 'effect'
+import { Cause, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'
 import {
   FOLDKIT_FLAGS_ATTRIBUTE,
   Rendered,
@@ -1079,6 +1079,26 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly flags?: ((request: Request) => unknown | PromiseLike<unknown>) | undefined
     readonly headers?: ((request: Request) => HeadersInit) | undefined
     /**
+     * A posted form's own services, from its request (who is asking, a
+     * client bound to them), for the Commands the fallback runs; where one is
+     * also the config's, the request's is used. A render runs no Command, so
+     * it reads the request through `flags`. The Layer may neither fail nor
+     * need a service: one that refuses who is asking (a session that ended)
+     * decides before this, in the host, or dies here into a 500.
+     */
+    readonly resources?: ((request: Request) => Layer.Layer<never, never, never>) | undefined
+    /**
+     * The origins a form may be posted from, required by a plan with a server
+     * fallback: a post whose `Origin` (which
+     * every browser sends on one) is not among them is a 403 before its body
+     * is read, so a page elsewhere cannot post as someone signed in here. A
+     * form cannot carry a CSRF header; this is its check. `Origin: null` (a
+     * page served with `Referrer-Policy: no-referrer`) is taken when
+     * `Sec-Fetch-Site` says `same-origin`. Each must be an origin exactly as
+     * a browser sends it (`https://example.com`).
+     */
+    readonly origins?: ReadonlyArray<string> | undefined
+    /**
      * Markup for the first paint, carried as the rendered root's last child.
      * The host owns the template in dynamic serving, so this is where
      * per-page styles go; anything a head owns stays with `SSR.generate`.
@@ -1091,6 +1111,19 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       `foldkit-ssr: plan "${plan.id}" says what the page says of itself (meta), which is written into the template's head, and the template is the host's: serve it with SSR.generate, not SSR.entry`,
     )
   }
+  for (const origin of options.origins ?? []) {
+    if (!URL.canParse(origin) || new URL(origin).origin !== origin)
+      throw new Error(`foldkit-ssr: ${JSON.stringify(origin)} in origins is not an origin`)
+  }
+  // A post runs `flags`, the config's resources and the post's own, any of
+  // which may act as whoever the cookie says posted.
+  if (plan.fallback === 'server' && options.origins === undefined) {
+    throw new Error(
+      `foldkit-ssr: plan "${plan.id}" handles posted forms, which run as whoever posted; name the origins a form may be posted from (origins)`,
+    )
+  }
+  // Required above for every plan that takes a post, the only reader of it.
+  const origins = new Set(options.origins ?? [])
   const allow = plan.fallback === 'server' ? 'GET, HEAD, POST, OPTIONS' : 'GET, HEAD, OPTIONS'
   // Deleted and appended rather than set, which would keep one `set-cookie` of several.
   const merge = (response: Response, extra: Headers): Response => {
@@ -1120,6 +1153,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     if (method !== 'GET' && method !== 'HEAD' && !posting) {
       return responded(new Response(null, { status: 405, headers: { allow } }))
     }
+    if (posting && !postedFrom(request, origins)) {
+      return responded(plainText(403, 'The form was not posted from this site.'))
+    }
     const flagsOf = options.flags
     const styled = options.styles === undefined ? {} : { styles: options.styles }
     // `Effect.result` would miss a defect, such as a view that throws, and a
@@ -1135,6 +1171,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
             buildId: options.buildId,
             ...flagged,
             ...styled,
+            ...(options.resources === undefined ? {} : { resources: options.resources(request) }),
           })
         }
         return yield* render(config, plan, {
@@ -1163,6 +1200,19 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       : Rendered(exit.value.rendered, { headers: extra })
   }
   return { renderPage: answer }
+}
+
+/**
+ * Whether a post came from one of `origins`: its `Origin`, or, when a browser
+ * withheld that (`Origin: null`, which a page served with `Referrer-Policy:
+ * no-referrer` sends on its own forms), its `Sec-Fetch-Site`, which no page or
+ * form can set. `foldkit-auth`'s resolver decides the same way.
+ */
+const postedFrom = (request: Request, origins: ReadonlySet<string>): boolean => {
+  const origin = request.headers.get('origin')
+  return origin === 'null'
+    ? request.headers.get('sec-fetch-site') === 'same-origin'
+    : origin !== null && origins.has(origin)
 }
 
 const plainText = (status: number, body: string): Response =>
@@ -1216,6 +1266,7 @@ const MAX_STEPS = 100
  */
 const fold = <Model>(
   config: ResumableConfig<Model>,
+  post: Context.Context<never>,
   model: Model,
   messages: ReadonlyArray<unknown>,
   commands: ReadonlyArray<unknown>,
@@ -1251,14 +1302,12 @@ const fold = <Model>(
       }
       // A Command that fails would crash Foldkit's runtime; here it is a defect
       // the entry answers with 500, since the config declares its requirements.
+      // The post's own services first, so one it shares with the config's is its own.
+      const own = Effect.provide(command.effect, post)
       const provided: Effect.Effect<unknown, unknown, never> =
         config.resources === undefined
-          ? (command.effect as Effect.Effect<unknown, unknown, never>)
-          : (Effect.provide(command.effect, config.resources) as Effect.Effect<
-              unknown,
-              unknown,
-              never
-            >)
+          ? (own as Effect.Effect<unknown, unknown, never>)
+          : (Effect.provide(own, config.resources) as Effect.Effect<unknown, unknown, never>)
       last = command.name
       const result = yield* Effect.orDie(provided)
       // A Command fired and forgotten yields no Message, and folds nothing in.
@@ -1301,76 +1350,88 @@ const handle = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly buildId: string
     readonly flags?: unknown
     readonly styles?: Head | undefined
+    /**
+     * This post's own services, beside the config's `resources`: who is
+     * asking, a client bound to them. Built once for the post; where both
+     * provide a service, the post's is the one its Commands get.
+     */
+    readonly resources?: Layer.Layer<never, never, never> | undefined
   },
 ): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe | FallbackRefused> =>
-  Effect.gen(function* () {
-    if (plan.fallback !== 'server' || plan.Message === undefined) {
-      return yield* refuseFallback('NoFallback', `plan "${plan.id}" has no server fallback`)
-    }
-    const form = yield* Effect.tryPromise({
-      try: () => request.formData(),
-      catch: () => new FallbackRefused({ reason: 'Unreadable', message: 'the body is not a form' }),
-    })
-    const posted = form.get(FALLBACK_FIELD)
-    if (typeof posted !== 'string') {
-      return yield* refuseFallback('Missing', `the form carries no ${FALLBACK_FIELD} field`)
-    }
-    let raw: unknown
-    try {
-      raw = JSON.parse(posted)
-    } catch {
-      return yield* refuseFallback('Unreadable', `${FALLBACK_FIELD} is not JSON`)
-    }
-    const decode = Schema.decodeUnknownResult(plan.Message as Schema.Codec<unknown, unknown>)
-    const invalid = (failure: { readonly message: string }) =>
-      refuseFallback('Invalid', `the posted Message does not decode: ${failure.message}`)
-    // The posted Message is decoded before anything reads it.
-    const written = decode(raw)
-    if (Result.isFailure(written)) return yield* invalid(written.failure)
-    // A form inside a placement posts the parent's Message; the fields it
-    // names sit `depth` wrappers down.
-    const postedDepth = form.get(FALLBACK_DEPTH_FIELD) ?? '0'
-    if (typeof postedDepth !== 'string' || !/^\d{1,2}$/.test(postedDepth)) {
-      return yield* refuseFallback('Unreadable', `${FALLBACK_DEPTH_FIELD} is not a depth`)
-    }
-    const override = (value: unknown, down: number): unknown => {
-      if (typeof value !== 'object' || value === null) return value
-      const copy: Record<string, unknown> = { ...value }
-      if (down > 0) {
-        copy.message = override(copy.message, down - 1)
+  // The post's resources live as long as the post.
+  Effect.scoped(
+    Effect.gen(function* () {
+      if (plan.fallback !== 'server' || plan.Message === undefined) {
+        return yield* refuseFallback('NoFallback', `plan "${plan.id}" has no server fallback`)
+      }
+      const form = yield* Effect.tryPromise({
+        try: () => request.formData(),
+        catch: () =>
+          new FallbackRefused({ reason: 'Unreadable', message: 'the body is not a form' }),
+      })
+      const posted = form.get(FALLBACK_FIELD)
+      if (typeof posted !== 'string') {
+        return yield* refuseFallback('Missing', `the form carries no ${FALLBACK_FIELD} field`)
+      }
+      let raw: unknown
+      try {
+        raw = JSON.parse(posted)
+      } catch {
+        return yield* refuseFallback('Unreadable', `${FALLBACK_FIELD} is not JSON`)
+      }
+      const decode = Schema.decodeUnknownResult(plan.Message as Schema.Codec<unknown, unknown>)
+      const invalid = (failure: { readonly message: string }) =>
+        refuseFallback('Invalid', `the posted Message does not decode: ${failure.message}`)
+      // The posted Message is decoded before anything reads it.
+      const written = decode(raw)
+      if (Result.isFailure(written)) return yield* invalid(written.failure)
+      // A form inside a placement posts the parent's Message; the fields it
+      // names sit `depth` wrappers down.
+      const postedDepth = form.get(FALLBACK_DEPTH_FIELD) ?? '0'
+      if (typeof postedDepth !== 'string' || !/^\d{1,2}$/.test(postedDepth)) {
+        return yield* refuseFallback('Unreadable', `${FALLBACK_DEPTH_FIELD} is not a depth`)
+      }
+      const override = (value: unknown, down: number): unknown => {
+        if (typeof value !== 'object' || value === null) return value
+        const copy: Record<string, unknown> = { ...value }
+        if (down > 0) {
+          copy.message = override(copy.message, down - 1)
+          return copy
+        }
+        form.forEach((field, name) => {
+          if (name !== FALLBACK_FIELD && Object.hasOwn(copy, name) && typeof field === 'string') {
+            copy[name] = field
+          }
+        })
         return copy
       }
-      form.forEach((field, name) => {
-        if (name !== FALLBACK_FIELD && Object.hasOwn(copy, name) && typeof field === 'string') {
-          copy[name] = field
-        }
+      // The fields typed into the form, set into the Message and decoded again.
+      const decoded = decode(override(raw, Number(postedDepth)))
+      if (Result.isFailure(decoded)) return yield* invalid(decoded.failure)
+      const message = decoded.success
+      const started = yield* startOf(config, { url: request.url, ...options })
+      const allowed = allowedTags(plan, started.model)
+      if (!allowed.has(tagOf(message))) {
+        return yield* refuseFallback(
+          'Unlisted',
+          `the posted ${tagOf(message)} is not one an active Surface lists in its messages`,
+        )
+      }
+      // As the browser got here: `init` on the server, then the plan's `boot`
+      // at hydration, and only then the user's Message. `init`'s own Commands
+      // never run in the browser, so they do not run here.
+      const boot = (plan.boot?.(started.model) as ReadonlyArray<unknown> | undefined) ?? []
+      const post =
+        options.resources === undefined ? Context.empty() : yield* Layer.build(options.resources)
+      const booted = yield* fold(config, post, started.model, [], boot)
+      const model = yield* fold(config, post, booted, [message], [])
+      return yield* render(startingFrom(config, { model }) as ResumableConfig<Model>, plan, {
+        buildId: options.buildId,
+        url: request.url,
+        ...(options.styles === undefined ? {} : { styles: options.styles }),
       })
-      return copy
-    }
-    // The fields typed into the form, set into the Message and decoded again.
-    const decoded = decode(override(raw, Number(postedDepth)))
-    if (Result.isFailure(decoded)) return yield* invalid(decoded.failure)
-    const message = decoded.success
-    const started = yield* startOf(config, { url: request.url, ...options })
-    const allowed = allowedTags(plan, started.model)
-    if (!allowed.has(tagOf(message))) {
-      return yield* refuseFallback(
-        'Unlisted',
-        `the posted ${tagOf(message)} is not one an active Surface lists in its messages`,
-      )
-    }
-    // As the browser got here: `init` on the server, then the plan's `boot`
-    // at hydration, and only then the user's Message. `init`'s own Commands
-    // never run in the browser, so they do not run here.
-    const boot = (plan.boot?.(started.model) as ReadonlyArray<unknown> | undefined) ?? []
-    const booted = yield* fold(config, started.model, [], boot)
-    const model = yield* fold(config, booted, [message], [])
-    return yield* render(startingFrom(config, { model }) as ResumableConfig<Model>, plan, {
-      buildId: options.buildId,
-      url: request.url,
-      ...(options.styles === undefined ? {} : { styles: options.styles }),
-    })
-  })
+    }),
+  )
 
 export const SSR = {
   plan,

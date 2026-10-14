@@ -6,10 +6,13 @@
  * open socket as notices.
  */
 import { ActorId, Journal, OpId } from 'foldkit-durable'
-import { Effect, Scope } from 'effect'
+import { Context, Effect, Layer, Result, Scope, type Duration } from 'effect'
+import { RemoteUnauthenticated } from 'foldkit-remote'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sync, type Operation } from '../src/index.js'
 import { defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
+import { documentHost } from '../src/journal.js'
+import { workerSocket } from '../src/transport.js'
 import { Message, Todos, closeScopes, openJournal, openScope, pendingOf } from './fixtures/todos.js'
 import { FakeWebSocket } from './sockets.js'
 
@@ -61,9 +64,15 @@ const host = (
   options: {
     readonly admit?: (principal: string, operation: Operation) => boolean
     readonly opens?: (principal: string) => Effect.Effect<boolean>
-    readonly resolvePrincipal?: (request: Request) => string
+    readonly resolvePrincipal?: (request: Request) => Effect.Effect<string, RemoteUnauthenticated>
     readonly openJournal?: () => Promise<TestJournal>
     readonly settle?: (env: unknown, journal: unknown) => Effect.Effect<void, unknown>
+    readonly revalidate?: {
+      readonly every: Duration.Input
+      readonly key?: (principal: string) => unknown
+    }
+    /** Sockets that close as a worker's do: see `FakeWebSocket.linked`. */
+    readonly lingering?: boolean
   } = {},
 ) => {
   const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
@@ -75,12 +84,14 @@ const host = (
       return options.openJournal === undefined ? openJournal() : options.openJournal()
     },
     resolvePrincipal:
-      options.resolvePrincipal ?? (request => request.headers.get('x-actor') ?? 'anon'),
+      options.resolvePrincipal ??
+      (request => Effect.succeed(request.headers.get('x-actor') ?? 'anon')),
     admit: options.admit,
     opens: options.opens,
     settle: options.settle,
+    revalidate: options.revalidate,
     pair: () => {
-      const pair = FakeWebSocket.linked()
+      const pair = FakeWebSocket.linked({ lingering: options.lingering ?? false })
       pairs.push(pair)
       return pair as unknown as readonly [WebSocket, AcceptingWebSocket]
     },
@@ -146,6 +157,25 @@ describe('defineDocumentHost', () => {
     expect(opens()).toBe(0)
   })
 
+  it('answers a runtime with no WebSocketPair with a 500, resolving no one', async () => {
+    let resolved = 0
+    const Host = defineDocumentHost(FakeBase, {
+      sync: Todos,
+      openJournal: async () => openJournal(),
+      resolvePrincipal: () => {
+        resolved += 1
+        return Effect.succeed('ada')
+      },
+    })
+    const served = new Host({}, undefined)
+    const response = await served.fetch(
+      new Request('http://host/sync', { headers: { Upgrade: 'websocket' } }),
+    )
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Internal error' })
+    expect(resolved).toBe(0)
+  })
+
   it('exchanges against one journal shared by every socket', async () => {
     const { Host, pairs, opens } = host()
     const served = new Host({}, undefined)
@@ -207,18 +237,38 @@ describe('defineDocumentHost', () => {
     expect(refused.reasons).toEqual([{ opId: pending[0]!.opId, reason: 'Refused by the server' }])
   })
 
-  it('answers a throwing principal resolution with a 401 carrying its message', async () => {
+  it.each([
+    [
+      'a refused principal with a 401 carrying its message',
+      Effect.fail(new RemoteUnauthenticated({ message: 'bad token', reason: 'bad token' })),
+      401,
+      { error: 'bad token' },
+    ],
+    [
+      'a resolver that breaks with a 500 that says nothing of it',
+      Effect.die(new Error('the session store password')),
+      500,
+      { error: 'Internal error' },
+    ],
+    [
+      'a resolver that throws as one that breaks',
+      'throws' as const,
+      500,
+      { error: 'Internal error' },
+    ],
+  ])('answers %s, opening nothing', async (_, resolved, status, answer) => {
     const { Host, opens } = host({
       resolvePrincipal: () => {
-        throw new Error('bad token')
+        if (resolved === 'throws') throw new Error('the session store password')
+        return resolved
       },
     })
     const served = new Host({}, undefined)
     const response = await served.fetch(
       new Request('http://host/sync', { headers: { Upgrade: 'websocket' } }),
     )
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'bad token' })
+    expect(response.status).toBe(status)
+    expect(await response.json()).toEqual(answer)
     expect(opens()).toBe(0)
   })
 
@@ -278,5 +328,320 @@ describe('defineDocumentHost', () => {
     expect(seen).toEqual([env, env])
     expect(journals).toHaveLength(2)
     expect(journals[0]).toBe(journals[1])
+  })
+})
+
+describe('defineDocumentHost, asking who a socket serves again', () => {
+  it('refuses an interval that is not longer than zero', () => {
+    expect(() => host({ revalidate: { every: '0 millis' } })).toThrow(
+      'revalidate.every must be longer than zero',
+    )
+  })
+
+  const revalidating = () => {
+    const sessions = new Map<string, string>([['ada', 'ada']])
+    let asked = 0
+    const hosted = host({
+      resolvePrincipal: request => {
+        asked += 1
+        const principal = sessions.get(request.headers.get('x-actor') ?? '')
+        return principal === undefined
+          ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
+          : Effect.succeed(principal)
+      },
+      revalidate: { every: '10 millis', key: principal => principal },
+      lingering: true,
+    })
+    return { ...hosted, sessions, asked: () => asked }
+  }
+
+  const settled = async (done: () => boolean): Promise<void> => {
+    for (let waited = 0; !done(); waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+  }
+
+  it.each([
+    [
+      'closes a socket whose session was revoked with 4401',
+      (sessions: Map<string, string>) => sessions.delete('ada'),
+      { code: 4401, reason: 'Session revoked' },
+    ],
+    [
+      'closes a socket whose session now names someone else with 1012',
+      (sessions: Map<string, string>) => sessions.set('ada', 'grace'),
+      { code: 1012, reason: 'Who is asking changed' },
+    ],
+  ])('%s', async (_, change, closed) => {
+    const { Host, pairs, sessions } = revalidating()
+    const served = new Host({}, undefined)
+    await upgrade(served.fetch.bind(served), pairs, 'ada')
+    change(sessions)
+    const server = pairs[0]![1]
+    await settled(() => server.closed !== undefined)
+    expect(server.closed).toEqual(closed)
+  })
+
+  it('answers no exchange that arrives after it closed a socket', async () => {
+    const { Host, pairs, sessions } = revalidating()
+    const served = new Host({}, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    sessions.delete('ada')
+    await settled(() => pairs[0]![1].closed !== undefined)
+    let answered = false
+    client.addEventListener('message', () => {
+      answered = true
+    })
+    // In flight from the replica before it saw the close, as a worker's peer may be.
+    client.send(JSON.stringify({ id: 'late', cursor: 0, pending: [] }))
+    // An exchange that ran would have answered well within this.
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(answered).toBe(false)
+  })
+
+  it('serves on while the session answers as the same principal, and stops asking once closed', async () => {
+    const { Host, pairs, asked } = revalidating()
+    const served = new Host({}, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    // The upgrade, then three checks: each found the same principal.
+    await settled(() => asked() >= 4)
+    expect(pairs[0]![1].closed).toBeUndefined()
+    const reply = await roundTrip(client, { id: '1', cursor: 0, pending: [] })
+    expect(reply.error).toBeUndefined()
+    client.close()
+    const after = asked()
+    // Ten intervals: a check still running would have asked again in each.
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(asked()).toBe(after)
+  })
+})
+
+describe("defineDocumentHost, the resolver's layer", () => {
+  class Sessions extends Context.Service<
+    Sessions,
+    { readonly who: (token: string) => Effect.Effect<string, RemoteUnauthenticated> }
+  >()('do-test/Sessions') {}
+
+  /** A host whose resolver reads `Sessions`, from a layer that logs its life. */
+  /** What breaks after the layer is built, each a 500 that must release it. */
+  type Breaks = 'nothing' | 'resolver' | 'journal' | 'opens' | 'layer' | 'layer function'
+
+  const withSessions = (revoked: Set<string>, breaks: Breaks = 'nothing') => {
+    const log: Array<string> = []
+    const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
+    const sessions = Layer.effect(
+      Sessions,
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          log.push('acquire')
+          return {
+            who: (token: string) =>
+              revoked.has(token)
+                ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
+                : Effect.succeed(token),
+          }
+        }),
+        () => Effect.sync(() => void log.push('release')),
+      ),
+    )
+    const Host = defineDocumentHost(FakeBase, {
+      sync: Todos,
+      openJournal: async () => {
+        if (breaks === 'journal') throw new Error('no storage')
+        return openJournal()
+      },
+      resolvePrincipal: request =>
+        breaks === 'resolver'
+          ? Effect.die(new Error('the session store password'))
+          : Effect.flatMap(Sessions, sessions =>
+              sessions.who(request.headers.get('x-actor') ?? ''),
+            ),
+      layer: () => {
+        if (breaks === 'layer function') throw new Error('no binding')
+        // Acquired, then a later part fails: what was acquired is released.
+        return breaks === 'layer'
+          ? Layer.merge(sessions, Layer.effectDiscard(Effect.die(new Error('no pool'))))
+          : sessions
+      },
+      ...(breaks === 'opens'
+        ? {
+            opens: () => {
+              throw new Error('the membership store')
+            },
+          }
+        : {}),
+      revalidate: { every: '10 millis' },
+      pair: () => {
+        const pair = FakeWebSocket.linked({ lingering: true })
+        pairs.push(pair)
+        return pair as unknown as readonly [WebSocket, AcceptingWebSocket]
+      },
+    })
+    return { Host, pairs, log }
+  }
+
+  const settledOn = async (done: () => boolean): Promise<void> => {
+    for (let waited = 0; !done(); waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+  }
+
+  it.each([
+    ['a layer that fails to build', 'layer', ['acquire', 'release']],
+    ['a layer function that throws', 'layer function', []],
+    ['a resolver that dies', 'resolver', ['acquire', 'release']],
+    ['a journal that never opens', 'journal', ['acquire', 'release']],
+    ['an opens that throws', 'opens', ['acquire', 'release']],
+  ] as const)('answers %s with a 500, releasing what it built', async (_, breaks, released) => {
+    const { Host, log } = withSessions(new Set(), breaks)
+    const served = new Host({}, undefined)
+    const response = await served.fetch(
+      new Request('http://host/sync', { headers: { Upgrade: 'websocket', 'x-actor': 'ada' } }),
+    )
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Internal error' })
+    await settledOn(() => log.length === released.length)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(log).toEqual(released)
+  })
+
+  it('keeps it while the socket is open, and closes it with the socket', async () => {
+    const { Host, pairs, log } = withSessions(new Set())
+    const served = new Host({}, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    expect(resultOf(await roundTrip(client, { id: '1', cursor: 0, pending: [] })).rejected).toEqual(
+      [],
+    )
+    expect(log).toEqual(['acquire'])
+    client.close()
+    await settledOn(() => log.length === 2)
+    expect(log).toEqual(['acquire', 'release'])
+  })
+
+  it('closes it at once for an upgrade it refuses', async () => {
+    const { Host, log } = withSessions(new Set(['mallory']))
+    const served = new Host({}, undefined)
+    const response = await served.fetch(
+      new Request('http://host/sync', { headers: { Upgrade: 'websocket', 'x-actor': 'mallory' } }),
+    )
+    expect(response.status).toBe(401)
+    await settledOn(() => log.length === 2)
+    expect(log).toEqual(['acquire', 'release'])
+  })
+
+  it('asks it again while open, and closes it once with a revoked socket', async () => {
+    const revoked = new Set<string>()
+    const { Host, pairs, log } = withSessions(revoked)
+    const served = new Host({}, undefined)
+    const { client } = await upgrade(served.fetch.bind(served), pairs, 'ada')
+    revoked.add('ada')
+    await settledOn(() => pairs[0]![1].closed !== undefined)
+    expect(pairs[0]![1].closed).toEqual({ code: 4401, reason: 'Session revoked' })
+    await settledOn(() => log.length === 2)
+    // The replica answers the close; nothing is released twice.
+    client.close()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(log).toEqual(['acquire', 'release'])
+  })
+})
+
+describe('documentHost, for a runtime of its own', () => {
+  const answering = (sessions: Map<string, string>) =>
+    documentHost({
+      sync: Todos,
+      journal: async () => openJournal(),
+      resolvePrincipal: request => {
+        const principal = sessions.get(request.headers.get('x-actor') ?? '')
+        return principal === undefined
+          ? Effect.fail(new RemoteUnauthenticated({ message: 'Sign in.' }))
+          : Effect.succeed(principal)
+      },
+      revalidate: { every: '10 millis' },
+    })
+  const asking = (actor: string) =>
+    new Request('http://host/sync', { headers: { Upgrade: 'websocket', 'x-actor': actor } })
+
+  it('refuses before any socket opens, with the answer to send', async () => {
+    const answered = await answering(new Map())(asking('ada'))
+    expect(Result.isFailure(answered)).toBe(true)
+    const response = Result.match(answered, { onFailure: r => r, onSuccess: () => undefined })!
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: 'Sign in.' })
+  })
+
+  it('releases what an accepted upgrade built once it is abandoned, a socket never opened', async () => {
+    class Store extends Context.Service<Store, { readonly who: string }>()('do-test/Store') {}
+    const log: Array<string> = []
+    const host = documentHost({
+      sync: Todos,
+      journal: async () => openJournal(),
+      resolvePrincipal: () => Effect.map(Store, ({ who }) => who),
+      layer: () =>
+        Layer.effect(
+          Store,
+          Effect.acquireRelease(
+            Effect.sync(() => {
+              log.push('acquire')
+              return { who: 'ada' }
+            }),
+            () => Effect.sync(() => void log.push('release')),
+          ),
+        ),
+    })
+    const answered = await host(asking('ada'))
+    const accepted = Result.match(answered, { onFailure: () => undefined, onSuccess: a => a })!
+    expect(log).toEqual(['acquire'])
+    accepted.abandon()
+    for (let waited = 0; log.length < 2; waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+    expect(log).toEqual(['acquire', 'release'])
+  })
+
+  it('closes with the code alone when the platform refuses the reason', async () => {
+    const sessions = new Map([['ada', 'ada']])
+    const answered = await answering(sessions)(asking('ada'))
+    const { serve } = Result.match(answered, { onFailure: () => undefined, onSuccess: a => a })!
+    const [, server] = FakeWebSocket.linked({ lingering: true })
+    let closedPlainly = false
+    serve({
+      ...workerSocket(server as unknown as WebSocket),
+      closeWith: () => {
+        throw new RangeError('The message must not be greater than 123 bytes')
+      },
+      close: () => {
+        closedPlainly = true
+      },
+    })
+    sessions.delete('ada')
+    for (let waited = 0; !closedPlainly; waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+    expect(closedPlainly).toBe(true)
+  })
+
+  it('serves a socket it accepted, and closes it with its own code once refused', async () => {
+    const sessions = new Map([['ada', 'ada']])
+    const answered = await answering(sessions)(asking('ada'))
+    const { serve } = Result.match(answered, { onFailure: () => undefined, onSuccess: s => s })!
+    const [client, server] = FakeWebSocket.linked({ lingering: true })
+    const closed: Array<readonly [number, string]> = []
+    serve({
+      ...workerSocket(server as unknown as WebSocket),
+      closeWith: (code, reason) => closed.push([code, reason]),
+    })
+    const pending = await pendingOf('a', ['Milk'])
+    const sent = resultOf(await roundTrip(client, { id: '1', cursor: 0, pending }))
+    expect(sent.acknowledged).toHaveLength(1)
+    sessions.delete('ada')
+    for (let waited = 0; closed.length === 0; waited += 5) {
+      if (waited > 2000) throw new Error('timed out')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+    expect(closed).toEqual([[4401, 'Sign in.']])
   })
 })

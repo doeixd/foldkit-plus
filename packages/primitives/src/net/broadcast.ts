@@ -2,8 +2,10 @@
  * Cross-tab messaging as an entry plus a Command — not a bundle, because the
  * channel owns no state: the parent maps `Received` into its own Message and
  * stores whatever it keeps. One assembly may open the same name twice (two
- * listeners); share the entry instead. By spec a post never echoes to its
- * own channel, so a tab never hears itself.
+ * listeners); share the entry instead. By spec a post reaches every channel
+ * of its name but the one it was posted on, and `postBroadcast` posts on a
+ * channel of its own: a tab's `broadcastMessages` hears that tab's posts.
+ * Name the sender in `data` to tell them apart.
  */
 import { Effect, Queue, Schema, Stream } from 'effect'
 import type { Command } from 'foldkit/command'

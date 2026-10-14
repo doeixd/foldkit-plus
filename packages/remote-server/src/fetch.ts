@@ -11,22 +11,76 @@
  * binding, a session), and the Sources' requirements are provided per
  * request from the environment (a D1 binding, a connection string).
  */
-import { Deferred, Effect, Schedule, Schema, Stream, type Duration, type Layer } from 'effect'
-import { LiveRequirement, type RemoteRpcClient } from 'foldkit-remote'
+import {
+  Cause,
+  Deferred,
+  Duration,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Schedule,
+  Schema,
+  Scope,
+  Stream,
+} from 'effect'
+import {
+  LiveRequirement,
+  RemoteLiveError,
+  type RemoteJsonAnswer,
+  type RemoteRpcClient,
+  type RemoteUnauthenticated,
+} from 'foldkit-remote'
 import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
+import { unauthenticatedAnswer } from './refusal.js'
 
 /** What `serveFetch` needs of the host runtime, per request. */
-export interface FetchConfig<P, R, Env> {
+export interface FetchConfig<P, R, Env, RP = never> {
   /** The server definition, as `RemoteServer.make` built it. */
   readonly server: ServerDefinition<P, R>
-  /** Who this request is, from the request and the environment. May throw. */
-  readonly resolvePrincipal: (request: Request, env: Env) => P | Promise<P>
-  /** What the Sources need, from the environment. Kept cheap: built per request. */
-  readonly layer: (env: Env) => Layer.Layer<R>
+  /**
+   * Who this request is, from the request and the environment. Fails with
+   * `RemoteServer.unauthenticated(reason?)` to refuse the caller: a 401.
+   * What it needs (a session store, an auth service) comes from `layer`.
+   */
+  readonly resolvePrincipal: (
+    request: Request,
+    env: Env,
+  ) => Effect.Effect<P, RemoteUnauthenticated, RP>
+  /**
+   * What the Sources and the resolver need, from the environment. Built per
+   * request, so kept cheap, and closed when the answer is sent, or, for a
+   * live stream, when the stream ends.
+   */
+  readonly layer: (env: Env) => Layer.Layer<R | RP>
   /** The path answered; anything else is a 404. Default `/remote`. */
   readonly path?: string | undefined
+  /**
+   * Headers every answer to `principal` carries, a live stream's included;
+   * a refusal has no principal and carries none. Whom the request was
+   * answered as, say, for a client to repeat (`foldkit-auth`'s
+   * `AuthServer.answered`).
+   */
+  readonly headers?: ((principal: P) => Readonly<Record<string, string>>) | undefined
   /** A hub whose `changed`/`deleted` signals reach the live streams this serves. */
   readonly live?: LiveHub<P, R> | undefined
+  /**
+   * Asks `resolvePrincipal` again, of the same request, every `every` while a
+   * live stream is open. A refusal ends the stream with `Unauthenticated`,
+   * which the client reads as a lost session; a principal whose `key`
+   * differs from the one the stream opened with (`Policy.keyOf`, as
+   * `liveHub`'s `key`) ends it as a live error, which the client opens again
+   * after, as the new principal; without `key` only a refusal ends it.
+   * Without `revalidate` a stream serves the principal it opened with until
+   * it closes, a revoked session included.
+   * `every` must be longer than zero: each pass asks the session store.
+   */
+  readonly revalidate?:
+    | {
+        readonly every: Duration.Input
+        readonly key?: ((principal: P) => unknown) | undefined
+      }
+    | undefined
   /** A heartbeat comment every this often, keeping idle streams alive through proxies. Default 15 seconds. */
   readonly liveHeartbeat?: Duration.Input | undefined
   /** A read batch may not name more ids of one entity than this; default 1000. */
@@ -41,9 +95,12 @@ const LiveFetchRequest = Schema.Struct({
   payload: Schema.Unknown,
 })
 
-/** A terminal stream failure, so the client fails with its message instead of hanging. */
-const errorFrame = (message: string): string =>
-  `event: error\ndata: ${JSON.stringify({ message })}\n\n`
+/**
+ * A terminal stream failure, so the client fails with its message instead of
+ * hanging; a refusal of who is asking says so, as a 401's body does.
+ */
+const errorFrame = (message: string, refusal: Partial<RemoteJsonAnswer> = {}): string =>
+  `event: error\ndata: ${JSON.stringify({ message, ...refusal })}\n\n`
 
 /**
  * The live stream as SSE bytes: one `data:` frame per change, then a
@@ -55,20 +112,37 @@ const errorFrame = (message: string): string =>
  * with nothing to serve still ends. A client that disconnects interrupts
  * the subscription, as closing the RPC stream would.
  */
-const liveBytes = <R>(
+const liveBytes = <R, RC>(
   handlers: RemoteRpcClient<R>,
   payload: Schema.Schema.Type<typeof LiveRequirement>,
   heartbeat: Duration.Input,
-): Stream.Stream<Uint8Array, never, R> =>
+  checked: Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RC>,
+): Stream.Stream<Uint8Array, never, R | RC> =>
   Stream.unwrap(
     Effect.gen(function* () {
       const ended = yield* Deferred.make<void>()
-      const events = handlers.FoldkitRemoteLive(payload).pipe(
+      // The checks fail the stream, or stop with it.
+      const events = Stream.merge(handlers.FoldkitRemoteLive(payload), checked, {
+        haltStrategy: 'left',
+      }).pipe(
         Stream.map(change => `data: ${JSON.stringify(change)}\n\n`),
         Stream.catchTags({
           RemoteLiveError: error => Stream.succeed(errorFrame(error.message)),
           RemoteProtocolError: error => Stream.succeed(errorFrame(error.message)),
+          Unauthenticated: error =>
+            Stream.succeed(
+              errorFrame(error.message, {
+                unauthenticated: unauthenticatedAnswer(error).body.unauthenticated,
+              }),
+            ),
         }),
+        // A defect says nothing of itself, as a 500 does; an interruption is
+        // the client leaving, with no one to tell.
+        Stream.catchCause(cause =>
+          Cause.hasInterruptsOnly(cause)
+            ? Stream.failCause(cause)
+            : Stream.succeed(errorFrame('Internal error')),
+        ),
         Stream.ensuring(Deferred.succeed(ended, undefined)),
       )
       const beats = Stream.concat(
@@ -97,99 +171,163 @@ const DEFAULT_HEARTBEAT: Duration.Input = '15 seconds'
 
 /**
  * Answers a live open with the stream as `text/event-stream`. A payload no
- * live stream speaks is a 400 that subscribes to nothing; anything this side
- * breaks building the stream is a 500 that says nothing of it. Once the
- * stream runs, its own failures are its terminal `event: error` frame.
+ * live stream speaks is a 400 that subscribes to nothing. Once the stream
+ * runs, its own failures are its terminal `event: error` frame.
  */
-const liveResponse = <R>(
+const liveResponse = <R, RC>(
   handlers: RemoteRpcClient<R>,
   payload: unknown,
-  layer: Layer.Layer<R>,
   heartbeat: Duration.Input,
-): Promise<Response> => {
-  let requirement: Schema.Schema.Type<typeof LiveRequirement>
-  try {
-    requirement = Schema.decodeUnknownSync(LiveRequirement)(payload)
-  } catch {
-    return Promise.resolve(
-      Response.json({ error: 'The live payload is not a requirement' }, { status: 400 }),
-    )
-  }
-  return Effect.runPromise(
-    Stream.toReadableStreamEffect(liveBytes(handlers, requirement, heartbeat)).pipe(
-      Effect.provide(layer),
-      Effect.map(
-        body =>
-          new Response(body, {
-            headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
-          }),
-      ),
-    ),
-  ).catch(() => Response.json({ error: 'Internal error' }, { status: 500 }))
-}
+  checked: Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RC>,
+  release: Effect.Effect<void>,
+  headers: Readonly<Record<string, string>>,
+): Effect.Effect<Response, never, R | RC> =>
+  Schema.decodeUnknownEffect(LiveRequirement)(payload).pipe(
+    Effect.matchEffect({
+      onFailure: () =>
+        Effect.succeed(
+          Response.json(
+            { error: 'The live payload is not a requirement' },
+            { status: 400, headers },
+          ),
+        ),
+      onSuccess: requirement =>
+        Effect.map(
+          Stream.toReadableStreamEffect(
+            liveBytes(handlers, requirement, heartbeat, checked).pipe(Stream.ensuring(release)),
+          ),
+          body =>
+            new Response(body, {
+              headers: {
+                ...headers,
+                'content-type': 'text/event-stream',
+                'cache-control': 'no-cache',
+              },
+            }),
+        ),
+    }),
+  )
+
 /**
  * Answers Remote `POST`s with `Response`s: what a Worker's `fetch` hands to
- * the route. A body that is not JSON, or not a request, is a 400 that reaches
- * no handler; a handler's failure a 500 with its message; anything this side
- * breaks, including principal resolution and layer provision, a 500 that says
+ * the route. Each request is one Effect, with `layer` built once for it:
+ * `resolvePrincipal` first, which refuses with `RemoteServer.unauthenticated`
+ * (a 401, its `reason` the only words the caller reads); then the body. A
+ * body that is not JSON, or not a request, is a 400 that reaches no handler;
+ * a handler's failure a 500 with its message; anything else this side
+ * breaks, the resolver's defects and the layer included, a 500 that says
  * nothing of it. A live open is answered with the stream instead.
  *
  * ```ts
  * export default {
  *   fetch: serveFetch({
  *     server,
- *     resolvePrincipal: request => ({ actorId: request.headers.get('x-actor') ?? 'anon' }),
+ *     resolvePrincipal: request =>
+ *       Effect.succeed({ actorId: request.headers.get('x-actor') ?? 'anon' }),
  *     layer: env => databaseLayer(drizzle(env.DB)),
  *   }),
  * }
  * ```
  */
-export const serveFetch = <P, R, Env>(
-  config: FetchConfig<P, R, Env>,
+export const serveFetch = <P, R, Env, RP = never>(
+  config: FetchConfig<P, R, Env, RP>,
 ): ((request: Request, env: Env) => Promise<Response>) => {
   const path = config.path ?? '/remote'
+  const heartbeat = config.liveHeartbeat ?? DEFAULT_HEARTBEAT
+  if (
+    config.revalidate !== undefined &&
+    !Duration.isGreaterThan(Duration.fromInputUnsafe(config.revalidate.every), Duration.zero)
+  )
+    throw new Error('serveFetch: revalidate.every must be longer than zero')
+  /** The live stream's principal, asked again of its request while it runs. */
+  const revalidation = (
+    request: Request,
+    env: Env,
+    opened: P,
+  ): Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RP> => {
+    const { revalidate } = config
+    if (revalidate === undefined) return Stream.empty
+    return Stream.fromSchedule(Schedule.spaced(revalidate.every)).pipe(
+      Stream.mapEffect(() => config.resolvePrincipal(request, env)),
+      Stream.mapEffect(now =>
+        revalidate.key === undefined || revalidate.key(opened) === revalidate.key(now)
+          ? Effect.void
+          : Effect.fail(
+              new RemoteLiveError({ message: 'Who is asking changed: open the stream again' }),
+            ),
+      ),
+      Stream.drain,
+    )
+  }
+  /** `live` is whether the response streams, and so owns `scope` until it ends. */
+  const respond = (
+    request: Request,
+    env: Env,
+    scope: Scope.Closeable,
+  ): Effect.Effect<{ readonly response: Response; readonly live: boolean }, never, R | RP> =>
+    Effect.gen(function* () {
+      const principal = yield* config.resolvePrincipal(request, env)
+      const headers = config.headers?.(principal) ?? {}
+      const body = yield* Effect.option(Effect.tryPromise(() => request.json()))
+      if (Option.isNone(body)) {
+        return {
+          response: Response.json({ error: 'The body is not JSON' }, { status: 400, headers }),
+          live: false,
+        }
+      }
+      // Bound per request: the principal is the request's own, as everywhere else.
+      const handlers = RemoteServer.handlers(config.server, principal, {
+        live: config.live,
+        maxIdsPerEntity: config.maxIdsPerEntity,
+        maxDepth: config.maxDepth,
+      })
+      if (isLiveOpen(body.value)) {
+        const response = yield* liveResponse(
+          handlers,
+          body.value.payload,
+          heartbeat,
+          revalidation(request, env, principal),
+          Scope.close(scope, Exit.void),
+          headers,
+        )
+        // A 400 for a payload no stream speaks has no stream to close it.
+        return { response, live: response.status === 200 }
+      }
+      const answered = yield* RemoteServer.answer(handlers, body.value)
+      return {
+        response: Response.json(answered.body, { status: answered.status, headers }),
+        live: false,
+      }
+    }).pipe(
+      Effect.catchTag('Unauthenticated', refusal => {
+        const { status, body } = unauthenticatedAnswer(refusal)
+        return Effect.succeed({ response: Response.json(body, { status }), live: false })
+      }),
+    )
   return async (request, env) => {
     if (request.method !== 'POST' || new URL(request.url).pathname !== path) {
       return Response.json({ error: 'not found' }, { status: 404 })
     }
-    let principal: P
     try {
-      principal = await config.resolvePrincipal(request, env)
-    } catch (error) {
-      return Response.json(
-        { error: error instanceof Error ? error.message : String(error) },
-        { status: 401 },
+      return await Effect.runPromise(
+        Effect.gen(function* () {
+          // Not Effect.provide(layer), which closes it when `respond` returns,
+          // before a live stream has served a frame: the stream's re-reads and
+          // revalidation would run on released resources.
+          const scope = yield* Scope.make()
+          const answered = yield* Layer.buildWithScope(config.layer(env), scope).pipe(
+            Effect.flatMap(context => Effect.provide(respond(request, env, scope), context)),
+            Effect.onExit(exit =>
+              Exit.isSuccess(exit) && exit.value.live ? Effect.void : Scope.close(scope, exit),
+            ),
+          )
+          return answered.response
+        }),
       )
-    }
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return Response.json({ error: 'The body is not JSON' }, { status: 400 })
-    }
-    // Bound per request: the principal is the request's own, as everywhere else.
-    const handlers = RemoteServer.handlers(config.server, principal, {
-      live: config.live,
-      maxIdsPerEntity: config.maxIdsPerEntity,
-      maxDepth: config.maxDepth,
-    })
-    if (isLiveOpen(body)) {
-      return liveResponse(
-        handlers,
-        body.payload,
-        config.layer(env),
-        config.liveHeartbeat ?? DEFAULT_HEARTBEAT,
-      )
-    }
-    try {
-      const answered = await Effect.runPromise(
-        RemoteServer.answer(handlers, body).pipe(Effect.provide(config.layer(env))),
-      )
-      return Response.json(answered.body, { status: answered.status })
     } catch {
       // A failure of the layer, or a defect anywhere: this side broke, and the
       // caller learns that it did, not what. `answer` already maps its own
-      // failures and defects to 400/500 answers above this.
+      // failures and defects to 400/500 answers.
       return Response.json({ error: 'Internal error' }, { status: 500 })
     }
   }

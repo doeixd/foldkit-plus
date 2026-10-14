@@ -7,6 +7,213 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.21.0
+
+Authentication through Yielded Auth. `foldkit-auth` 0.1.0 is new;
+`foldkit-remote` 0.18.0, `foldkit-remote-server` 0.14.0, `foldkit-sync`
+0.12.0, `foldkit-guard` 0.3.0, `foldkit-agent-mcp` 0.7.0, `foldkit-ssr` 0.7.0,
+`foldkit-site` 0.4.0 and `foldkit-plus` 0.3.0 for the changes below, and
+`foldkit-primitives` 0.10.2 for a corrected doc comment; every package that
+pins one of them republishes with a patch to re-pin.
+
+Five changes can break code written for 0.20:
+
+- `serveFetch`'s and `defineDocumentHost`'s `resolvePrincipal` returns an
+  Effect, refusing with `RemoteUnauthenticated`; a resolver that throws is a
+  500, where it was a 401 carrying its message.
+- `foldkit-agent-mcp`'s `authenticate` returns an Effect refusing with
+  `AgentMcp.unauthenticated()`, where it returned the principal or `undefined`.
+- `Guards.declare` requires `unguarded: 'allow' | 'deny'`.
+- `SSR.entry` throws for a plan with a server fallback and no `origins`.
+- `Remote.http` reads every 401 as `Unauthenticated` and every 403 as
+  `Forbidden`, whatever the body says, so a view that compared other tags for
+  them sees these instead.
+
+### Added
+
+- **`foldkit-sync/journal`: `documentHost`, a document's Sync host for any
+  runtime.** It answers an upgrade request before a socket opens: refused
+  with the `Response` to send (401 for a refused principal, 500 for a
+  resolver, layer or journal that broke), or accepted with `serve` for the
+  opened socket and `abandon` for one that never opens, with `revalidate`,
+  `opens`, `admit` and `settle` as `defineDocumentHost` has them, and
+  `layer` required exactly when the resolver needs a service. `defineDocumentHost` is now built on it,
+  and a runtime without `WebSocketPair` is a 500 that resolves no one.
+
+- **`foldkit-auth`: the client repeats whom it was answered as.**
+  `AuthServer.answered(config)` (the resolver's config, with its `key`) is
+  `serveFetch`'s `headers`, naming each answer's principal in
+  `x-foldkit-subject`; `believing()` from `foldkit-auth` is a `fetch` for
+  `Remote.http`/`httpWithLive` that repeats it, so once another tab switches
+  account a read is refused with `SUBJECT_CHANGED` rather than answered as
+  the new account. Any 401 makes it believe no one, and an answer to a
+  request sent before it (or before `forget()`, for this tab's own sign-in
+  and sign-out) is not believed. The subject is URI-encoded.
+
+- **`foldkit-remote-server`: `serveFetch` takes `headers: principal => …`,**
+  added to every answer to that principal, a live stream's included.
+
+- **`foldkit-auth` (early, 0.1.0): a Yielded Auth session as the principal.**
+  `AuthServer.resolver({ auth, http, principal })` from `foldkit-auth/server`
+  is a `resolvePrincipal` for `serveFetch`: it reads the session cookie Yielded
+  set (named from the same `Http.make` options), verifies it with the
+  application's `Auth` service, and builds the principal with the
+  application's `principal`. No cookie is a visitor; a cookie on a request
+  without a trusted `Origin` and Yielded's CSRF header, a cookie that no
+  longer verifies, two session cookies, or an `x-foldkit-subject` header
+  naming someone else is a 401 `Unauthenticated`; `http` naming something
+  that is not an origin throws at once. With `requests: 'browser'` it serves
+  what a browser sends on the page's behalf, `defineDocumentHost`'s upgrade
+  or a posted form, where a trusted `Origin` alone vouches for the cookie,
+  since neither carries a CSRF header; `SUBJECT_HEADER` and `subjectSaid`,
+  from `foldkit-auth`, are what a client sends. Also re-exported as
+  `foldkit-plus/auth` and `foldkit-plus/auth/server`, an optional peer.
+
+- **`foldkit-sync`: `defineDocumentHost` takes `layer: env => Layer` for its resolver.**
+  `resolvePrincipal` may need a service (a session store), which `layer`
+  provides; it is required exactly when the resolver needs one, built per
+  upgrade, kept while the socket is open for `revalidate`, and closed at once
+  for a refused upgrade.
+
+- **`foldkit-site`: `access`, who may be shown a page.** A node's `access:
+  { allow, otherwise }` covers it and the nodes below it;
+  `Site.accessOf(site, route, who)` answers `Access.Allowed`, `Pending`
+  while `who` is unknown, or `Denied({ url })` with `otherwise`'s address for
+  what was asked. Presentation for the client and a server's 303; the server
+  guards the data regardless. An `otherwise` whose target the same rule
+  covers throws (a sign-in page mounted under it would loop with a growing
+  `returnTo`), and a rule in a node's options names its reader's type.
+
+- **`examples/auth`: Yielded Auth end to end.** Password sign-in and
+  sign-out through Yielded's own client and routes, a guarded notes list
+  (an admin reads every note, a member their own, a visitor none), `Me` for
+  "signed in as" and an admin line, and a change of principal carried to the
+  other tabs; a notes page `Site.access` sends a visitor away from, server
+  rendered as the request's reader; a Sync board whose socket is opened
+  with the session cookie, served on Node by `documentHost`; unit, mutation
+  and Chromium e2e tests, the e2e across two tabs and a server restart.
+
+- **`foldkit-remote`: `RemoteData.denied(error)`,** the denial a failure
+  was, a `Denied` (`Unauthenticated` or `Forbidden`, with the server's
+  `reason`; not a mutation's `refusal`), typed,
+  or none for any other failure: a `RemoteError`'s `_tag` is open, so a view
+  had to compare strings to tell "sign in again" from "could not load".
+
+- **`foldkit-guard`: `Me`, the visitor as an Entity.** `Guards.me(G, {
+  interactions })` declares one row, `me`, that everyone reads and no one
+  writes: `signedIn`, `key` (the principal's declared `key`) and `may` for the
+  named interactions; `GuardServer.me(Me, Policy)` serves it, counts for
+  `validate` as applying its rules, and refuses a Policy of another set when
+  it is made. `Guards.anyone` is the rule everyone passes, a visitor
+  included, for a public surface under `unguarded: 'deny'`: a surface naming
+  it restricts no one, for Sync documents and shared fields too, and
+  `Guards.all` now takes at least one rule. `Policy.key` is `declare`'s `key`
+  (`G.key`), for a seam holding the Policy. `AuthServer.resolver` takes
+  `key: Policy.key` to compare `x-foldkit-subject` with it.
+
+- **`foldkit-ssr`: a posted form's own resources.** `SSR.entry` takes
+  `resources: request => Layer` and `SSR.handle` `resources: Layer`, built
+  once for the post and provided to the Commands its fallback runs beside the
+  config's `resources`; where both provide a service, the post's is used, so
+  a Command reads as who posted. `SSR.entry`'s `origins` names where a form
+  may be posted from: any other `Origin` is a 403 before the body is read or
+  `flags` and `resources` run (`Origin: null` counts as the site's own when
+  `Sec-Fetch-Site` says `same-origin`), and a plan with a server fallback
+  made into an entry without `origins` throws, since a post runs `flags` and
+  every `resources` as whoever posted.
+
+- **`serveFetch` and `defineDocumentHost` take `revalidate: { every, key?
+  }`.** While a live stream or a socket is open, the resolver is asked again,
+  of the request it opened with: a refusal ends the stream with
+  `Unauthenticated` (an `event: error` frame the client reads back as it) or
+  closes the socket with 4401, and a principal whose `key` (as `liveHub`'s,
+  `Policy.keyOf` with guards) changed ends the
+  stream as a live error, or closes the socket with 1012, to be opened again
+  as the new principal. A revoked session stops being served within one
+  interval; the clients do not yet tell these closes apart, so a replica
+  reconnects after a 4401 too, and is refused at the upgrade.
+
+- **`foldkit-guard`: `Policy.provide(context)`,** a Policy whose bodies have
+  the services they need provided, for the read seams
+  (`GuardDrizzle.visible`, `GuardServer.memory`, `GuardSync`), which take a
+  Policy needing nothing more. A seam built from it counts as built from the
+  Policy it came from, for `GuardServer.validate`.
+
+- **`foldkit-remote`: `RemoteUnauthenticated`** (`_tag: 'Unauthenticated'`,
+  with an optional `reason`), the refusal of a caller who could not be told,
+  beside `RemoteForbidden`; `RemoteJsonAnswer` carries it as
+  `unauthenticated: { reason? }`. `foldkit-remote-server`'s
+  `RemoteServer.unauthenticated(reason?)` makes one.
+
+- **`foldkit-remote`: every call kind fails with `Unauthenticated` on a
+  401.** Reads, queries, mutations and live streams declare it in their RPC
+  errors and `RemoteClient`'s types; `Remote.http` and `liveFetch` read a 401,
+  Remote's own (with its `reason`) or one from middleware in front of it, as
+  it, and `Data.mutation`, `ReadFailed` and `QueryFailed` carry
+  `error._tag: 'Unauthenticated'`. `Data.satisfy` and `prefetch` can fail with
+  it, for a server render to answer as it answers a lost session.
+  `foldkit-remote-server`'s `answer` sends a handler's as a 401, and
+  `serveFetch` ends a live stream with it as an `event: error` frame the
+  client reads back.
+
+### Changed
+
+- **`foldkit-agent-mcp`: `authenticate` is an Effect.** `authenticate:
+  request => Effect<Principal, Unauthenticated>`, so it may ask a token store;
+  where it returned `Principal | undefined`. Failing with
+  `AgentMcp.unauthenticated(reason?)` (or Remote's `RemoteUnauthenticated`,
+  of the same shape) is a 401 carrying `reason`; a defect or a throw is a 500
+  that says nothing to the caller and is logged. Wrap
+  a plain lookup: `request => Option.match(lookup(request), { onNone: () =>
+  Effect.fail(AgentMcp.unauthenticated()), onSome: Effect.succeed })`.
+
+- **`foldkit-guard`: `Guards.declare` requires `unguarded`.** What a guarded
+  Entity's surface with no rules decides is written down rather than
+  defaulted to `'allow'`. Pass `unguarded: 'allow'` to keep what an omitted
+  one did; `'deny'` refuses such a surface. Anything else, an omission from
+  a caller without types included, throws at `declare`.
+
+- **`serveFetch` and `defineDocumentHost` resolve the principal with an
+  Effect.** `resolvePrincipal: (request, env) => Effect<P,
+  RemoteUnauthenticated, RP>`, where `serveFetch`'s `layer` provides `RP` too,
+  so a resolver can read a session store; the layer is built once per request.
+  A refusal is a 401 (`serveFetch`'s body `{ error, unauthenticated: { reason?
+  } }`); a resolver that throws or dies is a 500 that says nothing, where a
+  throw used to be a 401 carrying its message. Wrap a plain value:
+  `resolvePrincipal: request => Effect.succeed(actorOf(request))`.
+
+### Fixed
+
+- **`foldkit-primitives`' broadcast doc no longer says a tab never hears
+  itself.** `postBroadcast` posts on a channel of its own, so the posting
+  tab's `broadcastMessages` hears it; name the sender in `data`.
+
+- **A Remote Message's error is a `RemoteError`.** `RemoteError.reason` is
+  `string | undefined`, as the decoded `ReadFailed`/`QueryFailed` error is,
+  so `RemoteData.denied(message.error)` type-checks under
+  `exactOptionalPropertyTypes`.
+
+- **`serveFetch` keeps a live stream's layer open while it streams.** The
+  request's `layer` was closed as soon as the response was built, so a live
+  stream's re-reads, and its `revalidate` passes, ran on released resources:
+  a layer holding a connection pool failed every one. It now closes when the
+  answer is sent, or, for a live stream, when the stream ends or the client
+  leaves. A defect while a stream runs ends it with an `Internal error`
+  frame rather than a broken body, and `revalidate.every` must be longer
+  than zero.
+
+- **`Remote.http` reads every 401 as `Unauthenticated` and every 403 as
+  `Forbidden`.** A body with an `unauthenticated` or `forbidden` key in a
+  shape other than Remote's (`true`, a number for `reason`) was decoded as
+  an answer and failed as a broken one. Remote's own refusal is taken as it
+  is; anything else is the status, with no reason.
+
+- **`defineDocumentHost` stops serving a socket before it closes it for
+  `revalidate`.** A worker's socket fires its own close only when the
+  replica answers, and exchanges in flight until then were still appended as
+  the principal just refused. A resolver that throws, rather than fails or
+  dies, is a 500 too, and `revalidate.every` must be longer than zero.
+
 ## 0.20.0
 
 `foldkit-entity` 0.10.0, `foldkit-form` 0.6.0, `foldkit-bundle` 0.8.0,

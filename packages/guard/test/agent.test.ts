@@ -16,6 +16,7 @@ import { Guards, Interaction, MaySchema, type MayAnswer } from '../src/index.js'
 const User = Schema.Struct({ id: Schema.String })
 const G = Guards.declare('Todos', User, guard => ({ isAdmin: guard.principal() }), {
   key: user => user.id,
+  unguarded: 'allow',
 })
 const Archive = Interaction.make('Archive')
 

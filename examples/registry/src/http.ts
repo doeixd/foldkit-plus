@@ -79,7 +79,7 @@ export const startHttpServer = async (
   // stream of events, which the table's writes reach through the hub.
   const answer = serveFetch({
     server: backend.server,
-    resolvePrincipal: () => null,
+    resolvePrincipal: () => Effect.succeed(null),
     layer: () => backend.layer,
     live: backend.live,
   })

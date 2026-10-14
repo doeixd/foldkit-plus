@@ -7,6 +7,33 @@ const tests = ['packages/guard/test/server.test.ts']
 
 export default [
   {
+    name: 'a rule from a provided Policy is not its origin’s',
+    edits: [
+      {
+        file: '../src/placed.ts',
+        find: 'originOf(placed.policy) === originOf(policy) &&',
+        replace: 'placed.policy === policy &&',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a provided Policy records no origin',
+    edits: [{ file: '../src/origin.ts', find: 'origins.set(policy, originOf(from))', replace: '' }],
+    tests,
+  },
+  {
+    name: 'provide hands the bodies nothing',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'Effect.provide(effect, context)',
+        replace: 'Effect.provide(effect, Context.empty() as Context.Context<Provided>)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a redacted member is omitted instead',
     edits: [{ file, find: "member.deny._tag === 'Redact'", replace: 'false' }],
     tests,
@@ -73,7 +100,13 @@ export default [
   },
   {
     name: 'validate takes a rule built from another Policy',
-    edits: [{ file: '../src/placed.ts', find: 'placed.policy === policy &&', replace: '' }],
+    edits: [
+      {
+        file: '../src/placed.ts',
+        find: 'originOf(placed.policy) === originOf(policy) &&',
+        replace: '',
+      },
+    ],
     tests,
   },
   {
@@ -260,8 +293,8 @@ export default [
     edits: [
       {
         file: '../src/attach.ts',
-        find: "attachment.row['Read'] !== undefined || attachment.always.length > 0",
-        replace: "attachment.row['Read'] !== undefined",
+        find: '||\n  attachment.always.some(rule => !isAnyone(rule))',
+        replace: '',
       },
     ],
     tests,
@@ -271,7 +304,7 @@ export default [
     edits: [
       {
         file: '../src/attach.ts',
-        find: "Option.isSome(surfaceOf(attachment, { _tag: 'Relation', relation: member, interaction: 'Read' }))",
+        find: "restricts(surfaceOf(attachment, { _tag: 'Relation', relation: member, interaction: 'Read' }))",
         replace: 'false',
       },
     ],
@@ -337,6 +370,61 @@ export default [
         file,
         find: 'if (body === undefined || body.entity.name !== name) return []',
         replace: 'if (body === undefined) return []',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a Policy provided twice records the first as its origin',
+    edits: [
+      {
+        file: '../src/origin.ts',
+        find: 'origins.set(policy, originOf(from))',
+        replace: 'origins.set(policy, from)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a second provide drops what the first gave',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'provide: more => provided(next, more),',
+        replace: 'provide: more => provided(policy as never, more),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a provided Policy decides without what it was given',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'decide: (guard, request) => run(policy.decide(guard, request)),',
+        replace: 'decide: (guard, request) => policy.decide(guard, request) as never,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a provided Policy rules writes without what it was given',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'run(policy.writable(entity, principal, interaction)),',
+        replace: 'policy.writable(entity, principal, interaction) as never,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a provided Policy rules written members without what it was given',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'run(policy.writeMembers(entity, principal, members, interaction)),',
+        replace: 'policy.writeMembers(entity, principal, members, interaction) as never,',
       },
     ],
     tests,

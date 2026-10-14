@@ -67,7 +67,7 @@ const G = Guards.declare(
     isSenior: guard.principal(),
     isPublished: guard.row(Post, () => Expr.isNotNull(Post.fields.publishedAt)),
   }),
-  { key: author => author.name },
+  { key: author => author.name, unguarded: 'allow' },
 )
 const Policy = G.implement({
   // A reviewer is an author for reading the work, and for nothing else.

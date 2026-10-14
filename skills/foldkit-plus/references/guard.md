@@ -22,7 +22,7 @@ the application's, handed in through `G.Principal`.
 
 ## Basic use
 
-- `Guards.declare(name, PrincipalSchema, guard => ({ … }), { key })` takes the
+- `Guards.declare(name, PrincipalSchema, guard => ({ … }), { key, unguarded: 'deny' })` takes the
   principal as a `Schema.Struct`; its fields are what row guards read.
 - `G.implement(bodies)` must give a body to every principal guard and nothing
   else (a type error, and refused at runtime too).
@@ -78,6 +78,11 @@ const Todo = TodoFields.pipe(
 - `Policy.writable(Todo, principal, 'Update' | 'Create' | 'Delete' | Archive.key)`
   is `{ condition, deny }`; `Policy.writeMembers(..., 'Create' | 'Update')` and
   `Policy.linkable(Todo, principal, 'project', 'Link' | 'Unlink')` likewise.
+- A body may need a service (`Effect.map(Memberships, …)`). The read seams
+  (`GuardDrizzle.visible`, `GuardServer.memory`, `GuardSync`) take a Policy
+  needing nothing: `Policy.provide(context)` gives one, once at startup, and
+  a seam built from it counts as built from `Policy` for `validate`.
+  Per-request facts belong in the principal.
 - `foldkit-guard/server`: `...GuardServer.memory(Policy, [Todo, Project])`
   spread into `RemoteServer.memory` enforces row and member Reads, inherited
   Reads included; `GuardServer.filter(Todo, Policy)` is a Source's `filter`
@@ -123,6 +128,13 @@ const Todo = TodoFields.pipe(
   `May.can(may, Archive.key)`, `May.canSet(may, Todo, 'ownerId')`,
   `May.canLink(may, Todo, 'project', 'Link')`, and `May.reason(may, 'Delete')`
   (an `explain`'s sentence for a refusal, else none). A hint, never the check.
+- `Me`, the visitor as an Entity: `const Me = Guards.me(G, { interactions: {
+  [OpenAdmin.key]: [G.isAdmin] } })` in shared code, `GuardServer.me(Me,
+  Policy)` among the Sources. One row, `me` (`ME`): `signedIn`, `key`
+  (`Policy.key` of the principal; none for a visitor), `may`. Its Read is
+  `Guards.anyone`, its writes nobody's. Read it as any row for nav links,
+  "who am I", and route-level `may`; `Remote.forget` on any change of principal
+  drops it.
 - Sync: `foldkit-guard/sync`. `GuardSync.document(ProductEdits, { readers: [G.isStaff] })`
   (refused at definition when an edit could reach a reader its rows hide it from);
   `authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }` under the

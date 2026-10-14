@@ -91,7 +91,7 @@ without re-parsing anything.
 **Nodes.** `Site.route(router, case, options?)` declares one location. Options
 are `title` (a function of the route value), `section`, `landing` (the
 section's nav address as this node's params), `shortcut` (the keys that go to
-its landing, as Foldkit's key bindings name them: `'/'`, `['G', 'H']`), `history`, and `surface` (below). The node is frozen; keep the
+its landing, as Foldkit's key bindings name them: `'/'`, `['G', 'H']`), `history`, `access` (who may be shown it: see Common workflows), and `surface` (below). The node is frozen; keep the
 exported value and use it for targets and hrefs. To annotate in steps, or to
 share an annotation bundle across nodes, build incrementally instead — the
 options are sugar over this builder:
@@ -340,6 +340,32 @@ section by comparing tags.
 step — or hand both branches to `Site.routing` (with `pages` for the routed
 placements) and keep only the guard in `update`. What each route *does* with
 the change beyond informing its page is still the application's `update`.
+
+**Who may be shown a page.** A route carries no authorization: the server
+guards what a page reads, whatever the route says. What a route may decide is
+presentation, sending a visitor to sign in rather than drawing an empty
+page. `access` on a node says who may be shown it and the nodes below it,
+from what the application knows of the reader (its `Me` row), and where
+anyone else goes (from `access.test.ts`):
+
+```ts
+const Projects = Site.node(pipe(literal('projects'), mapTo(AppRoute.Projects)), AppRoute.Projects)
+  .access<Me>({ allow: me => me.signedIn, otherwise: toSignIn })
+  .node
+```
+
+`Site.accessOf(site, route, who)` decides it, root first: `Allowed`;
+`Pending` while `who` is `Option.none()` (the reader's `Me` still loading),
+for a loading state rather than a sign-in page flashed at someone signed in;
+`Denied` with the URL to go to (`otherwise` gets the address asked for, so a
+sign-in page can return to it). Read it with `Access.match`. The view draws
+from it, `update` replaces the URL on `Denied` after a route change or when
+`Me` arrives, and a server answers `Denied` with a 303 before rendering. An
+`otherwise` whose target the same rule covers throws, at any address: a
+sign-in page mounted under the rule it serves would otherwise send each
+refused reader to a longer `returnTo` for ever. A rule given in a node's
+options names the reader it reads (`allow: (me: Me) => …`); `accessOf`
+cannot check that its `who` is that reader, so pass the one the rules read.
 
 **Prefetch and SSR.** `Site.target` plus `Site.chainOf` say which Surfaces a
 destination will activate; `Site.sourcesFor(site, owner, place, target.route)`

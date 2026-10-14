@@ -3,15 +3,17 @@
  * the form, and a POST of it runs Foldkit's loop once on the server and
  * answers with the page that results.
  */
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
 import { handleRequest } from 'foldkit/experimental/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
 import { FALLBACK_FIELD, Resume, SSR } from 'foldkit-ssr'
-import { App, Message, config, plan, template, type Model } from './fallbackFixture.js'
+import { App, Counter, Message, config, plan, template, type Model } from './fallbackFixture.js'
 
 const html = { accept: 'text/html' }
-const entry = SSR.entry(config, plan, { buildId: 'b' })
+/** Where the fixture's forms are posted from. */
+const origins = ['https://example.test']
+const entry = SSR.entry(config, plan, { buildId: 'b', origins })
 const serve = (request: Request, used = entry) =>
   handleRequest(request, { renderPage: used.renderPage, template })
 
@@ -19,7 +21,11 @@ const post = (fields: Record<string, string>) => {
   const body = new URLSearchParams(fields)
   return new Request('https://example.test/todos?view=all', {
     method: 'POST',
-    headers: { ...html, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: {
+      ...html,
+      origin: 'https://example.test',
+      'content-type': 'application/x-www-form-urlencoded',
+    },
     body,
   })
 }
@@ -79,11 +85,112 @@ describe('SSR.handle through handleRequest', () => {
   it('carries `styles` on the page a post renders, as on a GET', async () => {
     const styled = SSR.entry(config, plan, {
       buildId: 'b',
+      origins,
       styles: () => '<style>ul{list-style:none}</style>',
     })
     const response = await serve(post({ title: 'Milk', [FALLBACK_FIELD]: added }), styled)
     expect(response.status).toBe(200)
     expect(await response.text()).toContain('<style>ul{list-style:none}</style>')
+  })
+
+  it("runs the Commands under the request's own resources, over the config's", async () => {
+    // The request says how it counts; the config counts by ten.
+    const scaled = SSR.entry(config, plan, {
+      buildId: 'b',
+      origins: ['https://example.test'],
+      resources: request =>
+        Layer.succeed(Counter)({ count: of => of * Number(request.headers.get('x-scale')) }),
+    })
+    const request = post({ title: 'Milk', [FALLBACK_FIELD]: added })
+    request.headers.set('x-scale', '7')
+    const response = await serve(request, scaled)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('<p id="noted">14</p>')
+  })
+
+  it.each([
+    ['answered', { title: 'Milk', [FALLBACK_FIELD]: added }, 200, ['acquire', 'release']],
+    [
+      'whose Commands never settle',
+      { [FALLBACK_FIELD]: JSON.stringify(Message.Polled()) },
+      500,
+      ['acquire', 'release'],
+    ],
+    ['refused before it runs', { [FALLBACK_FIELD]: 'not json' }, 400, []],
+  ])("builds a post's resources for it alone: %s", async (_, fields, status, log) => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const seen: Array<string> = []
+    const owning = SSR.entry(config, plan, {
+      buildId: 'b',
+      origins: ['https://example.test'],
+      resources: () =>
+        Layer.effect(
+          Counter,
+          Effect.acquireRelease(
+            Effect.sync(() => {
+              seen.push('acquire')
+              return { count: (of: number) => of * 2 }
+            }),
+            () => Effect.sync(() => void seen.push('release')),
+          ),
+        ),
+    })
+    const response = await serve(post(fields), owning)
+    expect(response.status).toBe(status)
+    expect(seen).toEqual(log)
+    logged.mockRestore()
+  })
+
+  it.each([
+    ['another origin', 'https://elsewhere.test', undefined],
+    ['no Origin', null, undefined],
+    ['Origin: null from another site', 'null', 'cross-site'],
+    ['Origin: null from a sibling site', 'null', 'same-site'],
+    ['no Origin, claiming its own site', null, 'same-origin'],
+  ] as const)('refuses a form posted from %s, reading nothing', async (_, origin, site) => {
+    const seen: Array<string> = []
+    const guarded = SSR.entry(config, plan, {
+      buildId: 'b',
+      origins: ['https://example.test'],
+      flags: () => void seen.push('flags'),
+      resources: () => Layer.effectDiscard(Effect.sync(() => void seen.push('built'))),
+    })
+    const request = post({ title: 'Milk', [FALLBACK_FIELD]: added })
+    if (origin === null) request.headers.delete('origin')
+    else request.headers.set('origin', origin)
+    if (site !== undefined) request.headers.set('sec-fetch-site', site)
+    const response = await serve(request, guarded)
+    expect(response.status).toBe(403)
+    expect(await response.text()).toBe('The form was not posted from this site.')
+    expect(seen).toEqual([])
+    expect(request.bodyUsed).toBe(false)
+  })
+
+  it('takes a form from a page that withholds its Origin, by Sec-Fetch-Site', async () => {
+    // A page served with Referrer-Policy: no-referrer posts Origin: null to its own site.
+    const guarded = SSR.entry(config, plan, { buildId: 'b', origins: ['https://example.test'] })
+    const request = post({ title: 'Milk', [FALLBACK_FIELD]: added })
+    request.headers.set('origin', 'null')
+    request.headers.set('sec-fetch-site', 'same-origin')
+    expect((await serve(request, guarded)).status).toBe(200)
+  })
+
+  it('serves a page to any origin: only a post is checked', async () => {
+    const guarded = SSR.entry(config, plan, { buildId: 'b', origins: ['https://example.test'] })
+    const response = await serve(
+      new Request('https://example.test/todos', {
+        headers: { ...html, origin: 'https://elsewhere.test' },
+      }),
+      guarded,
+    )
+    expect(response.status).toBe(200)
+  })
+
+  it.each([
+    ['a plan that takes posted forms, without origins', {}, 'name the origins'],
+    ['an origin that is not one', { origins: ['https://example.test/'] }, 'is not an origin'],
+  ])('refuses %s when the entry is made', (_, options, message) => {
+    expect(() => SSR.entry(config, plan, { buildId: 'b', ...options })).toThrow(message)
   })
 
   it('folds nothing for a Command that yields no Message, and still answers the page', async () => {
@@ -111,7 +218,7 @@ describe('SSR.handle through handleRequest', () => {
     }
     const response = await serve(
       post({ title: 'Milk', [FALLBACK_FIELD]: added }),
-      SSR.entry(recording, plan, { buildId: 'b' }),
+      SSR.entry(recording, plan, { buildId: 'b', origins }),
     )
     expect(response.status).toBe(200)
     expect(seen).toEqual(['Booted', 'Added', 'Noted'])

@@ -683,14 +683,31 @@ POST ──▶ decode the Message ──▶ set the posted fields into it (the t
 ```
 
 The Message must be one the page's active Surfaces list. Commands run under the
-config's `resources` Layer, as Foldkit's runtime would provide them. A post the
+config's `resources` Layer, as Foldkit's runtime would provide them, and under
+the post's own, which `SSR.entry`'s `resources: request => Layer` builds once
+for it: who is asking, a client bound to them. Where both provide a service,
+the post's is the one its Commands get, so a client bound to the request
+replaces one bound to nobody. A render runs no Command; it reads the request
+through `flags`. A post the
 server cannot use is answered `400` with the reason (`FallbackRefused`); a
 Command that fails is answered `500`. The browser's loop runs for the life of
 the page, so a Command that reschedules itself, a poll or a tick, is ordinary
 there; on the server a post that has not settled within 100 Messages and
 Commands is answered `500`, naming the last Command. `SSR.handle(request,
-config, plan, { buildId, flags? })` can also be called from an entry of your
-own.
+config, plan, { buildId, flags?, resources? })` can also be called from an
+entry of your own.
+
+A form a cookie session authorizes is a cross-site request forgery target,
+and a form cannot carry a CSRF header. `SSR.entry`'s `origins` names the
+origins a form may be posted from; a post whose `Origin` (every browser sends
+one on a `POST`) is not among them is answered `403` before its body is read
+or `flags` and `resources` run. A page served with `Referrer-Policy:
+no-referrer` posts `Origin: null` even to its own site; such a post is taken
+when its `Sec-Fetch-Site`, which no page or form can set, says
+`same-origin`. A plan with a server fallback requires `origins`, since a post
+runs `flags`, the config's `resources` and its own as whoever the cookie says
+posted: an entry made without them throws. An entry of your own that calls
+`SSR.handle` checks `Origin` itself.
 
 ## When a page is refused
 

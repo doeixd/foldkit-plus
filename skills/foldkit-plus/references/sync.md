@@ -303,10 +303,19 @@ openJournal, resolvePrincipal, settle })` (`foldkit-sync/do`) defines the
 single-writer class: each accepted socket exchanges against one journal,
 opened once on the first upgrade (D1 with `d1: true`, or object storage),
 non-upgrades are 404s, and the replica side is the socket transport it
-already speaks (`Sync.transport.socket({ url })`). `settle: (env, journal) =>
+already speaks (`Sync.transport.socket({ url })`). `resolvePrincipal` is an
+Effect refusing with `RemoteUnauthenticated` (a 401), whose services come
+from `layer: env => Layer` (kept while the socket is open); `revalidate: { every,
+key? }` asks it again while the socket is open, closing with 4401 on a
+refusal and 1012 on a changed principal. `settle: (env, journal) =>
 Effect` runs after each exchange's appends to apply what committed elsewhere
 (`journal.recover` makes it idempotent). `Sync.transport.workerSocket` wraps an
-accepted pair end anywhere else a platform hands one over.
+accepted pair end anywhere else a platform hands one over. Off Cloudflare,
+`documentHost({ sync, journal, resolvePrincipal, layer?, revalidate?, … })`
+(`foldkit-sync/journal`) answers each upgrade request (`Result`: the refusal's
+`Response`, or `{ serve, abandon }`: serve the opened `HostSocket`, or abandon
+an upgrade whose socket never opens, which releases its layer), which a Node
+`ws` upgrade handler calls before `handleUpgrade`.
 
 **Live on a worker.** A worker request cannot wake another request's open SSE
 stream — a `Queue.offer`, a `Deferred`, even `enqueue` on the first's captured

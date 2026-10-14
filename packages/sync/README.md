@@ -303,7 +303,7 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
   sync: TodoSync,
   // A D1 journal as the durable D1 guide opens one.
   openJournal: (_ctx, env) => openTodosJournal(env.DB),
-  resolvePrincipal: request => request.headers.get('x-actor') ?? 'anon',
+  resolvePrincipal: request => Effect.succeed(request.headers.get('x-actor') ?? 'anon'),
 }) {}
 ```
 
@@ -324,13 +324,33 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   `openJournal` runs once, on the first upgrade: over D1 (`d1: true`, see
   [the durable D1 guide](../durable/README.md#on-cloudflare-d1-d1-true)), or
   the object's SQLite storage through `ctx`.
-- Each upgrade resolves its own principal; non-upgrades are 404s that open
-  nothing. A journal that never opened is a 500 that says nothing of it.
+- Each upgrade resolves its own principal, an Effect that refuses the caller
+  by failing with a `RemoteUnauthenticated` (`RemoteServer.unauthenticated()`
+  makes one): a 401 carrying its message. Non-upgrades are 404s that open
+  nothing. A resolver that breaks, a `layer` that fails to build, or a
+  journal that never opened, is a 500 that says nothing of it.
+- A resolver that reads a service (a session store) takes it from
+  `layer: env => Layer`, required exactly when the resolver needs one. It is
+  built per upgrade and kept until the socket closes, so `revalidate` reads
+  an open store; a refused upgrade closes it at once.
+- `revalidate: { every, key? }` asks the resolver again, of the upgrade
+  request, while the socket is open: a refusal closes it with 4401, and a
+  principal whose `key` (`Policy.keyOf`) changed with 1012, which the
+  replica reconnects after. Without it a socket serves its first principal until it closes.
 - `settle: (env, journal) => Effect` runs after each exchange's appends, before
   the reply is read, to apply what committed elsewhere — the Remote tables a
   reader then queries. `journal.recover` makes it crash-safe and idempotent;
   `env` and the journal are handed over because the store they reach lives
   outside the exchange.
+- Off Cloudflare, `documentHost` from `foldkit-sync/journal` is the same
+  host without the class: `documentHost({ sync, journal, resolvePrincipal,
+  layer?, revalidate?, opens?, admit?, settle? })` answers each upgrade
+  request before a socket opens, refused with the `Response` to send, or
+  accepted with `serve`, for the socket once the runtime has opened it (a
+  `HostSocket`: Sync's socket, plus `closeWith(code, reason)`), and
+  `abandon`, for when it never will (the client left, the handshake was
+  refused). One of the two must follow: until then the upgrade holds what
+  its `layer` built. `defineDocumentHost` is built on it.
 - A server socket is not a live stream: another request cannot wake the fiber
   of an open SSE response in a worker, not even from the same isolate. What
   crosses requests there is the store they share (D1 here), and the live side

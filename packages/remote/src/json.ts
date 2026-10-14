@@ -5,9 +5,15 @@
  * answer, so the same client speaks HTTP (`http`), a worker, or a server
  * running in the page. There is no live stream over it.
  */
-import { Effect, Schema, Stream } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import type { RemoteRpcClient } from './client.js'
-import { RemoteForbidden, RemoteMutationError, RemoteQueryError, RemoteReadError } from './wire.js'
+import {
+  RemoteForbidden,
+  RemoteMutationError,
+  RemoteQueryError,
+  RemoteReadError,
+  RemoteUnauthenticated,
+} from './wire.js'
 
 /** A request: which of Remote's calls, and its payload as the RPC protocol encodes it. */
 export const RemoteJsonRequest = Schema.Struct({
@@ -24,6 +30,8 @@ export const RemoteJsonAnswer = Schema.Union([
     refusal: Schema.optional(Schema.Unknown),
     /** Who is asking was refused, with the application's reason when it gave one. */
     forbidden: Schema.optional(Schema.Struct({ reason: Schema.optional(Schema.String) })),
+    /** Who is asking could not be told, with the reason when one was given; a 401. */
+    unauthenticated: Schema.optional(Schema.Struct({ reason: Schema.optional(Schema.String) })),
   }),
 ])
 export type RemoteJsonAnswer = typeof RemoteJsonAnswer.Type
@@ -63,20 +71,51 @@ const call = <A, E>(
     ),
   )
 
+/**
+ * An error answer as its call's failure: a refusal of who is asking, of
+ * every call kind alike, or the call's own error.
+ */
+const failure =
+  <E>(own: (answer: ErrorAnswer) => E) =>
+  (answer: ErrorAnswer): E | RemoteUnauthenticated =>
+    answer.unauthenticated === undefined
+      ? own(answer)
+      : new RemoteUnauthenticated({
+          message: answer.error,
+          ...(answer.unauthenticated.reason === undefined
+            ? {}
+            : { reason: answer.unauthenticated.reason }),
+        })
+
 /** Remote's client over `send`, for `Remote.clientLayer`. */
 export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
   FoldkitRemoteRead: payload =>
-    call(send, 'read', payload, ({ error }) => new RemoteReadError({ message: error })),
+    call(
+      send,
+      'read',
+      payload,
+      failure(({ error }) => new RemoteReadError({ message: error })),
+    ),
   FoldkitRemoteQuery: payload =>
-    call(send, 'query', payload, ({ error }) => new RemoteQueryError({ message: error })),
+    call(
+      send,
+      'query',
+      payload,
+      failure(({ error }) => new RemoteQueryError({ message: error })),
+    ),
   FoldkitRemoteMutate: payload =>
-    call(send, 'mutate', payload, ({ error, refusal, forbidden }) =>
-      forbidden === undefined
-        ? new RemoteMutationError({ message: error, refusal })
-        : new RemoteForbidden({
-            message: error,
-            ...(forbidden.reason === undefined ? {} : { reason: forbidden.reason }),
-          }),
+    call(
+      send,
+      'mutate',
+      payload,
+      failure(({ error, refusal, forbidden }) =>
+        forbidden === undefined
+          ? new RemoteMutationError({ message: error, refusal })
+          : new RemoteForbidden({
+              message: error,
+              ...(forbidden.reason === undefined ? {} : { reason: forbidden.reason }),
+            }),
+      ),
     ),
   FoldkitRemoteLive: () => Stream.empty,
 })
@@ -84,11 +123,37 @@ export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
 /** A body that did not parse, told apart from every value one can parse to, `null` included. */
 const notJson = Symbol('not JSON')
 
+const Reason = Schema.Struct({ reason: Schema.optional(Schema.String) })
+/** A refusal in Remote's own words, by the key it is given under. */
+const ownRefusal: Record<
+  'unauthenticated' | 'forbidden',
+  (body: unknown) => Option.Option<Partial<RemoteJsonAnswer>>
+> = {
+  unauthenticated: Schema.decodeUnknownOption(
+    Schema.Struct({ error: Schema.String, unauthenticated: Reason }),
+  ),
+  forbidden: Schema.decodeUnknownOption(Schema.Struct({ error: Schema.String, forbidden: Reason })),
+}
+
+/**
+ * A 401's or 403's answer, whatever its body: Remote's own refusal as it is,
+ * and anything else (`{ error }` from middleware, HTML, a shape of its own)
+ * as the status alone, so it never reaches a decoder that would call it a
+ * broken answer.
+ */
+const refusalOf = (
+  body: unknown,
+  kind: 'unauthenticated' | 'forbidden',
+  status: string,
+): Partial<RemoteJsonAnswer> =>
+  Option.getOrElse(ownRefusal[kind](body), () => ({ error: status, [kind]: {} }))
+
 /**
  * Remote's client over HTTP: each call a `POST` of the request to `url`, the
- * answer its JSON body whatever its status. A 403 is answered as forbidden
- * unless its body says so itself, as the server's own does: one from
- * middleware in front of Remote (a refused session) may say only `{ error }`.
+ * answer its JSON body whatever its status. A 401 is answered as
+ * unauthenticated, for every call kind, and a 403 as forbidden, whatever the
+ * body says: the server's own says why, and middleware in front of Remote
+ * may say anything.
  * `headers` is read per request, so a token that changes reaches the next
  * call. `fetch` defaults to the global one; pass it to route calls through
  * another implementation in tests.
@@ -109,9 +174,8 @@ export const http = (
     })
     const status = `${response.status} ${response.statusText}`
     const body: unknown = await response.json().catch(() => notJson)
-    const saysForbidden =
-      typeof body === 'object' && body !== null && Object.hasOwn(body, 'forbidden')
-    if (response.status === 403 && !saysForbidden) return { error: status, forbidden: {} }
+    if (response.status === 401) return refusalOf(body, 'unauthenticated', status)
+    if (response.status === 403) return refusalOf(body, 'forbidden', status)
     if (body === notJson) throw new Error(status)
     return body
   })

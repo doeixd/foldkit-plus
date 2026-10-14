@@ -16,7 +16,7 @@ export const G = Guards.declare(
   'Registry',
   Editor,
   guard => ({ isEditor: guard.principal(), isPricer: guard.principal() }),
-  { key: editor => editor.actorId },
+  { key: editor => editor.actorId, unguarded: 'allow' },
 )
 
 export const Policy = G.implement({ isEditor: Option.isSome, isPricer: Option.isSome })

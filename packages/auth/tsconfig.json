@@ -1,0 +1,51 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "paths": {
+      "foldkit-auth": ["./src/index.ts"],
+      "foldkit-auth/server": ["./src/server.ts"],
+      "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
+      "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-remote-server": ["../remote-server/src/index.ts"],
+      "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
+      "foldkit-remote-server/port": ["../remote-server/src/port.ts"],
+      "foldkit-remote/port": ["../remote/src/port.ts"],
+      "foldkit-ssr": ["../ssr/src/index.ts"],
+      "foldkit-ssr/client": ["../ssr/src/client.ts"],
+      "foldkit-ssr/vite": ["../ssr/src/vite.ts"],
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-sync": ["../sync/src/index.ts"],
+      "foldkit-sync/do": ["../sync/src/do.ts"],
+      "foldkit-sync/entity": ["../sync/src/entity.ts"],
+      "foldkit-sync/journal": ["../sync/src/journal.ts"],
+      "foldkit-sync/remote": ["../sync/src/remote.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "references": [
+    {
+      "path": "../remote/tsconfig.build.json"
+    },
+    {
+      "path": "../remote-server/tsconfig.build.json"
+    },
+    {
+      "path": "../surface/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../sync/tsconfig.build.json"
+    },
+    {
+      "path": "../ssr/tsconfig.build.json"
+    }
+  ]
+}

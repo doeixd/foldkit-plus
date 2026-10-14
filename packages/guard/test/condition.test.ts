@@ -42,7 +42,7 @@ const G = Guards.declare(
     isOwner: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
     inProject: guard.row(TodoFields, p => Expr.in(TodoFields.fields.projectId, p.projectIds)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 const Todo = TodoFields.pipe(
@@ -141,7 +141,7 @@ describe('Policy.readable', () => {
       'Open',
       User,
       guard => ({ isShared: guard.row(TodoFields, () => Expr.eq(TodoFields.fields.email, 'g@x')) }),
-      { key: user => user.id },
+      { key: user => user.id, unguarded: 'allow' },
     )
     const Shared = TodoFields.pipe(Guards.attach(Open, { row: { Read: [Open.isShared] } }))
     const Opened = Open.implement({})
@@ -175,6 +175,7 @@ describe('Policy.readable', () => {
   it('refuses an Entity carrying another set’s guards', () => {
     const Other = Guards.declare('Other', User, guard => ({ signedIn: guard.principal() }), {
       key: user => user.id,
+      unguarded: 'allow',
     })
     const Elsewhere = Project.pipe(Guards.attach(Other, { always: [Other.signedIn] }))
     expect(() => readable(Elsewhere, Option.some(ada))).toThrow(
@@ -194,7 +195,7 @@ describe('Condition.unsetting', () => {
         mentions: guard.row(TodoFields, () => Expr.contains(TodoFields.fields.notes, 'x')),
         owned: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
       }),
-      { key: user => user.id },
+      { key: user => user.id, unguarded: 'allow' },
     )
     const unset = new Set(['notes'])
     // Every followed row is readable here, so only `unset` can refuse one.

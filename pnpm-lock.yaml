@@ -66,6 +66,85 @@ importers:
         specifier: ^5.0.4
         version: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/browser-playwright@5.0.4)(@vitest/ui@5.0.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
+  examples/auth:
+    dependencies:
+      '@effect/platform-node':
+        specifier: ^4.0.4
+        version: 4.0.4(effect@4.0.4)(redis@6.2.1(@opentelemetry/api@1.9.1))
+      '@yielded/auth':
+        specifier: 0.1.0-beta.38
+        version: 0.1.0-beta.38(effect@4.0.4)
+      '@yielded/auth-persistence':
+        specifier: 0.1.0-beta.38
+        version: 0.1.0-beta.38(effect@4.0.4)
+      foldkit-auth:
+        specifier: workspace:*
+        version: link:../../packages/auth
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../../packages/bundle
+      foldkit-durable:
+        specifier: workspace:*
+        version: link:../../packages/durable
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../../packages/entity
+      foldkit-guard:
+        specifier: workspace:*
+        version: link:../../packages/guard
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../../packages/remote
+      foldkit-remote-server:
+        specifier: workspace:*
+        version: link:../../packages/remote-server
+      foldkit-site:
+        specifier: workspace:*
+        version: link:../../packages/site
+      foldkit-ssr:
+        specifier: workspace:*
+        version: link:../../packages/ssr
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../../packages/surface
+      foldkit-sync:
+        specifier: workspace:*
+        version: link:../../packages/sync
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
+    devDependencies:
+      '@effect/platform-browser':
+        specifier: ^4.0.4
+        version: 4.0.4(effect@4.0.4)
+      '@foldkit/vite-plugin':
+        specifier: 0.27.1
+        version: 0.27.1(effect@4.0.4)(foldkit@0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
+      effect:
+        specifier: ^4.0.4
+        version: 4.0.4
+      foldkit:
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+      jsdom:
+        specifier: 30.1.2
+        version: 30.1.2(@noble/hashes@2.4.0)
+      playwright:
+        specifier: ^1.64.0
+        version: 1.64.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+
   examples/bundle:
     dependencies:
       '@foldkit/ui':
@@ -1889,6 +1968,45 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/auth:
+    devDependencies:
+      '@effect/platform-node':
+        specifier: ^4.0.4
+        version: 4.0.4(effect@4.0.4)(redis@6.2.1(@opentelemetry/api@1.9.1))
+      '@yielded/auth':
+        specifier: 0.1.0-beta.38
+        version: 0.1.0-beta.38(effect@4.0.4)
+      '@yielded/auth-persistence':
+        specifier: 0.1.0-beta.38
+        version: 0.1.0-beta.38(effect@4.0.4)
+      effect:
+        specifier: ^4.0.4
+        version: 4.0.4
+      foldkit:
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../remote
+      foldkit-remote-server:
+        specifier: workspace:*
+        version: link:../remote-server
+      foldkit-ssr:
+        specifier: workspace:*
+        version: link:../ssr
+      foldkit-sync:
+        specifier: workspace:*
+        version: link:../sync
+      tsdown:
+        specifier: ^0.23.1
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/builder:
     dependencies:
       foldkit-bundle:
@@ -2747,6 +2865,9 @@ importers:
       foldkit-agent-native:
         specifier: workspace:*
         version: link:../agent-native
+      foldkit-auth:
+        specifier: workspace:*
+        version: link:../auth
       foldkit-cms-drizzle:
         specifier: workspace:*
         version: link:../cms-drizzle
@@ -5158,6 +5279,31 @@ packages:
   '@xstate/fsm@1.6.5':
     resolution: {integrity: sha512-b5o1I6aLNeYlU/3CPlj/Z91ybk1gUsKT+5NAJI+2W4UjvS5KLG28K9v5UvNoFVjHV8PajVZ00RH3vnjyQO7ZAw==}
 
+  '@yielded/auth-persistence@0.1.0-beta.38':
+    resolution: {integrity: sha512-RUIr7idrupFaLfDYZUyrjfZxCNxTJLulFCW82R01CPTlGpcfc2gquh7X0+XS40RVydiz2btATipUszwjh3JN7Q==}
+    peerDependencies:
+      effect: ^4.0.3
+
+  '@yielded/auth@0.1.0-beta.38':
+    resolution: {integrity: sha512-0SIaHejXG2bz7W6mrV/zpZP4Nd+Q4ZvLwwOnMu59T4RmNa0MCfq1rlDXErXOpTJGZfM/c0by4lVreQ2lTvkGbA==}
+    peerDependencies:
+      effect: ^4.0.3
+
+  '@yielded/crypto@0.1.0-beta.38':
+    resolution: {integrity: sha512-kycPGD3Fx8rsR1ykbUFTpm+FIxVdnxUM11A4LjHZM7oxYXBKNSpeipdMtZT74VTRAKvNk/Y9CskCc/p8TlhryQ==}
+    peerDependencies:
+      effect: ^4.0.3
+
+  '@yielded/jose@0.1.0-beta.38':
+    resolution: {integrity: sha512-AXSuwMI7Z85fdSOMwv3mpUN2mK0S+fGkgyjuEO5KBXnQbShiLGkr0a0TPn3dBnzTOcv9JafSXL4iUZcofH5MnA==}
+    peerDependencies:
+      effect: ^4.0.3
+
+  '@yielded/oauth@0.1.0-beta.38':
+    resolution: {integrity: sha512-0f5JtRKSdYQ2qGhvxh4tgdCf/7kXHpMnbNQM1CZYXxQ+iSQeg6uTvVXcYHgUnng2AXPbrLSwA/zvdDLfwAsrgw==}
+    peerDependencies:
+      effect: ^4.0.3
+
   '@yuku-core/binding-android-arm64@0.19.0':
     resolution: {integrity: sha512-wdL2XmTiZixAOaHk9Z0JJZ8u9Qm8d333Zjpc6gaxXFX+UR5BlsfxZ7a2+2Rm71pamppsPYGUGFq2oVLbh6DISw==}
     cpu: [arm64]
@@ -7020,10 +7166,6 @@ packages:
 
   sorted-btree@1.8.1:
     resolution: {integrity: sha512-395+XIP+wqNn3USkFSrNz7G3Ss/MXlZEqesxvzCRFwL14h6e8LukDHdLBePn5pwbm5OQ9vGu8mDyz2lLDIqamQ==}
-
-  source-map-js@1.2.1:
-    resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
-    engines: {node: '>=0.10.0'}
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
@@ -9263,6 +9405,33 @@ snapshots:
   '@xstate/fsm@1.6.5':
     optional: true
 
+  '@yielded/auth-persistence@0.1.0-beta.38(effect@4.0.4)':
+    dependencies:
+      '@yielded/auth': 0.1.0-beta.38(effect@4.0.4)
+      '@yielded/crypto': 0.1.0-beta.38(effect@4.0.4)
+      effect: 4.0.4
+
+  '@yielded/auth@0.1.0-beta.38(effect@4.0.4)':
+    dependencies:
+      '@yielded/crypto': 0.1.0-beta.38(effect@4.0.4)
+      '@yielded/jose': 0.1.0-beta.38(effect@4.0.4)
+      '@yielded/oauth': 0.1.0-beta.38(effect@4.0.4)
+      effect: 4.0.4
+
+  '@yielded/crypto@0.1.0-beta.38(effect@4.0.4)':
+    dependencies:
+      effect: 4.0.4
+
+  '@yielded/jose@0.1.0-beta.38(effect@4.0.4)':
+    dependencies:
+      '@yielded/crypto': 0.1.0-beta.38(effect@4.0.4)
+      effect: 4.0.4
+
+  '@yielded/oauth@0.1.0-beta.38(effect@4.0.4)':
+    dependencies:
+      '@yielded/jose': 0.1.0-beta.38(effect@4.0.4)
+      effect: 4.0.4
+
   '@yuku-core/binding-android-arm64@0.19.0':
     optional: true
 
@@ -9589,7 +9758,7 @@ snapshots:
   css-tree@3.2.1:
     dependencies:
       mdn-data: 2.27.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   css-what@8.0.0: {}
 
@@ -11177,8 +11346,6 @@ snapshots:
       is-fullwidth-code-point: 5.1.0
 
   sorted-btree@1.8.1: {}
-
-  source-map-js@1.2.1: {}
 
   source-map-js@1.2.2: {}
 

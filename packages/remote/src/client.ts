@@ -19,6 +19,7 @@ import {
   type ConnectionChangeSchema,
   RemoteLiveError,
   RemoteForbidden,
+  RemoteUnauthenticated,
   RemoteMutationError,
   RemoteProtocolError,
   RemoteQueryError,
@@ -38,21 +39,24 @@ export class RemoteClient extends Context.Service<
       batch: Schema.Schema.Type<typeof ReadBatch>,
     ) => Effect.Effect<
       Schema.Schema.Type<typeof ReadBatchResult>,
-      RemoteReadError | RemoteProtocolError
+      RemoteReadError | RemoteProtocolError | RemoteUnauthenticated
     >
     readonly query: (
       request: Schema.Schema.Type<typeof QueryRequest>,
-    ) => Effect.Effect<Schema.Schema.Type<typeof QueryResult>, RemoteQueryError>
+    ) => Effect.Effect<
+      Schema.Schema.Type<typeof QueryResult>,
+      RemoteQueryError | RemoteUnauthenticated
+    >
     readonly mutate: (
       request: Schema.Schema.Type<typeof MutationRequest>,
     ) => Effect.Effect<
       Schema.Schema.Type<typeof MutationResult>,
-      RemoteMutationError | RemoteForbidden
+      RemoteMutationError | RemoteForbidden | RemoteUnauthenticated
     >
     readonly live: (request: {
       readonly requirements: ReadonlyArray<Requirement>
       readonly after: LiveCursor
-    }) => Stream.Stream<LiveEvent, RemoteLiveError | RemoteProtocolError>
+    }) => Stream.Stream<LiveEvent, RemoteLiveError | RemoteProtocolError | RemoteUnauthenticated>
   }
 >()('foldkit-remote/RemoteClient') {}
 
@@ -71,24 +75,28 @@ export interface RemoteRpcClient<R = never, TransportError = never> {
     payload: Schema.Schema.Type<typeof ReadBatch>,
   ) => Effect.Effect<
     Schema.Schema.Type<typeof ReadBatchResult>,
-    RemoteReadError | RemoteProtocolError | TransportError,
+    RemoteReadError | RemoteProtocolError | RemoteUnauthenticated | TransportError,
     R
   >
   readonly FoldkitRemoteQuery: (
     payload: Schema.Schema.Type<typeof QueryRequest>,
-  ) => Effect.Effect<Schema.Schema.Type<typeof QueryResult>, RemoteQueryError | TransportError, R>
+  ) => Effect.Effect<
+    Schema.Schema.Type<typeof QueryResult>,
+    RemoteQueryError | RemoteUnauthenticated | TransportError,
+    R
+  >
   readonly FoldkitRemoteMutate: (
     payload: Schema.Schema.Type<typeof MutationRequest>,
   ) => Effect.Effect<
     Schema.Schema.Type<typeof MutationResult>,
-    RemoteMutationError | RemoteForbidden | TransportError,
+    RemoteMutationError | RemoteForbidden | RemoteUnauthenticated | TransportError,
     R
   >
   readonly FoldkitRemoteLive: (
     payload: Schema.Schema.Type<typeof LiveRequirement>,
   ) => Stream.Stream<
     Schema.Schema.Type<typeof LiveChange>,
-    RemoteLiveError | RemoteProtocolError | TransportError,
+    RemoteLiveError | RemoteProtocolError | RemoteUnauthenticated | TransportError,
     R
   >
 }

@@ -10,12 +10,15 @@ import { Bundle } from 'foldkit-bundle'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Message as BuilderMessage, Model as BuilderModel } from 'foldkit-builder'
 import { Composition, NodeId } from 'foldkit-composition'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { Frames } from 'foldkit-mixins/testing'
 import { PageBuilder, PageView } from './fixture.js'
+import { observeLayout } from './layout.js'
+
+beforeEach(observeLayout)
 
 afterEach(() => {
   vi.unstubAllGlobals()

@@ -1,6 +1,6 @@
 import { Agent } from 'foldkit-agent'
 import { AgentMcp } from 'foldkit-agent-mcp'
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import * as HttpEffect from 'effect/http/HttpEffect'
 import { defineMessageUnion } from 'foldkit/message'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -61,7 +61,9 @@ const makeWebHandler = () => {
       }),
     authenticate: request => {
       const token = request.headers['authorization']
-      return token === undefined ? undefined : { user: token.replace('Bearer ', '') }
+      return token === undefined
+        ? Effect.fail(AgentMcp.unauthenticated('No token'))
+        : Effect.succeed({ user: token.replace('Bearer ', '') })
     },
     allowedOrigins: ['https://app.example'],
   })

@@ -70,7 +70,7 @@ const G = Guards.declare(
     isAuthor: guard.principal(),
     isPublished: guard.row(Article, () => Expr.isNotNull(Article.fields.publishedAt)),
   }),
-  { key: author => author.name },
+  { key: author => author.name, unguarded: 'allow' },
 )
 const Policy = G.implement({ isAuthor: Option.isSome })
 const GuardedArticle = Article.pipe(
@@ -149,7 +149,11 @@ const open = () => {
         Effect.runPromise(
           handlers
             .FoldkitRemoteMutate({ requestId: `r${++requests}`, mutation, input })
-            .pipe(Effect.catchTag('Forbidden', Effect.die), Effect.flip, Effect.provide(layer)),
+            .pipe(
+              Effect.catchTags({ Forbidden: Effect.die, Unauthenticated: Effect.die }),
+              Effect.flip,
+              Effect.provide(layer),
+            ),
         ),
       bySlug: (slug: string) =>
         Effect.runPromise(

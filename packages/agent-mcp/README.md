@@ -148,8 +148,14 @@ const response = await handler(request)
 ```
 
 Unlike stdio, HTTP is multi-session. `createAgent` runs for a session under the
-principal returned by `authenticate`, so different callers do not accidentally
-share a bound application runtime.
+principal `authenticate` resolves, so different callers do not accidentally
+share a bound application runtime. `authenticate` is an Effect, so it may ask a
+token store: failing with `AgentMcp.unauthenticated(reason?)` (or Remote's
+`RemoteUnauthenticated`, which has the same shape) refuses the caller with a
+401 carrying `reason`, and a defect is a 500 that says nothing of it, logged
+on the server. It needs no
+service: provide what it reads from a context built once at startup, not per
+request.
 
 Underneath, `httpHandler` exposes the same session/security machinery against a
 transport-neutral request shape. Use it when integrating with a server stack

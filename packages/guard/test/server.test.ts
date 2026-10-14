@@ -3,7 +3,7 @@
  * A guarded domain served from memory through the real handlers: one Todo
  * read as its owner, a member of its project, an admin and a visitor.
  */
-import { Effect, Fiber, Option, Schema, Stream } from 'effect'
+import { Context, Effect, Fiber, Option, Schema, Stream } from 'effect'
 import { RpcTest } from 'effect/rpc'
 import { Entity, Expr, Order, Relation } from 'foldkit-entity'
 import { Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteRpc, type Requirement } from 'foldkit-remote'
@@ -60,7 +60,7 @@ const G = Guards.declare(
     isMember: guard.row(ProjectFields, p => Expr.in(ProjectFields.fields.id, p.projectIds)),
     isOwner: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 const Project = ProjectFields.pipe(Guards.attach(G, { row: { Read: [G.isMember, G.isAdmin] } }))
@@ -481,6 +481,15 @@ describe('GuardServer.validate', () => {
     expect(sharing({ Todo: ['tag'] })).toThrow(
       "Todo's Source shares tag, but its rows have a Read rule; Todo's Source shares tag, which has a Read rule",
     )
+    // Anyone reads them: `anyone` tells no readers apart.
+    const Open = CardRelated.Card.pipe(
+      Guards.attach(G, {
+        row: { Read: [Guards.anyone] },
+        members: { secret: { Read: [Guards.anyone] } },
+        always: [Guards.anyone],
+      }),
+    )
+    expect(sharing({ Card: ['title', 'secret'] }, Open)).not.toThrow()
   })
 
   it('refuses rules built from an Entity before its guards were attached', () => {
@@ -570,6 +579,7 @@ describe('GuardServer.validate', () => {
     ).toThrow("Project's Source does not apply its Read rules")
     const H = Guards.declare('Others', User, guard => ({ isAdmin: guard.principal() }), {
       key: user => user.id,
+      unguarded: 'allow',
     })
     expect(() =>
       GuardServer.validate(H.implement({ isAdmin: () => true }), {
@@ -578,5 +588,63 @@ describe('GuardServer.validate', () => {
         server: backend(true),
       }),
     ).toThrow('Project carries the guards of Todos, not Others')
+  })
+
+  it('applies a provided Policy, and counts what it builds as its origin’s', async () => {
+    class Admins extends Context.Service<Admins, ReadonlyArray<string>>()('server-test/Admins') {}
+    const Needing = G.implement({
+      isAdmin: principal =>
+        Effect.map(Admins, admins => Option.exists(principal, user => admins.includes(user.id))),
+    })
+    const server = RemoteServer.memory({
+      domain: Data,
+      rows,
+      principal: Option.none<User>(),
+      ...GuardServer.memory(Needing.provide(Context.make(Admins, ['zoe'])), [Todo, Project, Node]),
+    }).server
+    expect(() =>
+      GuardServer.validate(Needing, { entities: [Todo, Project, Node], domain: Data, server }),
+    ).not.toThrow()
+    expect(() => GuardServer.validate(Policy, { entities: [Todo], domain: Data, server })).toThrow(
+      "Todo's Source does not apply its Read rules",
+    )
+    // zoe owns nothing and is in no project: only the provided list makes her an admin.
+    const zoe = Option.some<User>({ id: 'zoe', role: 'member', projectIds: [] })
+    const answered = await Effect.runPromise(
+      RemoteServer.handlers(server, zoe).FoldkitRemoteRead({
+        version: REMOTE_PROTOCOL_VERSION,
+        requests: ['t1', 't2'].map(id => ({ entity: 'Todo', id, fields: ['title'] })),
+      }),
+    )
+    expect(answered.entities.map(({ id }) => id)).toEqual(['t1', 't2'])
+  })
+
+  it('keeps what an earlier provide gave, and its origin, through a second one', async () => {
+    class Admins extends Context.Service<Admins, ReadonlyArray<string>>()('server-test/Admins') {}
+    const Needing = G.implement({
+      isAdmin: principal =>
+        Effect.map(Admins, admins => Option.exists(principal, user => admins.includes(user.id))),
+    })
+    const Twice = Needing.provide(Context.make(Admins, ['zoe'])).provide(Context.empty())
+    const server = RemoteServer.memory({
+      domain: Data,
+      rows,
+      principal: Option.none<User>(),
+      ...GuardServer.memory(Twice, [Todo, Project, Node]),
+    }).server
+    expect(() =>
+      GuardServer.validate(Needing, { entities: [Todo, Project, Node], domain: Data, server }),
+    ).not.toThrow()
+    const zoe = Option.some<User>({ id: 'zoe', role: 'member', projectIds: [] })
+    // Each Effect the bodies run in, decided with the provided list.
+    expect(
+      await Effect.runPromise(Twice.decide(G.isAdmin, { principal: zoe, interaction: 'Read' })),
+    ).toBe(true)
+    expect(await Effect.runPromise(Twice.writable(Todo, zoe, 'Delete'))).toMatchObject({
+      condition: { _tag: 'Always' },
+    })
+    expect(
+      await Effect.runPromise(Twice.writeMembers(Todo, zoe, ['ownerId'], 'Update')),
+    ).toMatchObject([{ condition: { _tag: 'Always' } }])
   })
 })

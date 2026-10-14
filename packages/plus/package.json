@@ -1,6 +1,6 @@
 {
   "name": "foldkit-plus",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Every Foldkit Plus package in one install, and `npx foldkit-plus setup`, which tells a coding agent how to start.",
   "keywords": [
     "foldkit",
@@ -57,6 +57,16 @@
       "foldkit-plus:source": "./src/agent-webmcp.ts",
       "types": "./dist/agent-webmcp.d.mts",
       "import": "./dist/agent-webmcp.mjs"
+    },
+    "./auth": {
+      "foldkit-plus:source": "./src/auth.ts",
+      "types": "./dist/auth.d.mts",
+      "import": "./dist/auth.mjs"
+    },
+    "./auth/server": {
+      "foldkit-plus:source": "./src/auth/server.ts",
+      "types": "./dist/auth/server.d.mts",
+      "import": "./dist/auth/server.mjs"
     },
     "./builder": {
       "foldkit-plus:source": "./src/builder.ts",
@@ -540,6 +550,7 @@
     "effect": "^4.0.0",
     "foldkit": "^0.168.0",
     "foldkit-agent-native": "workspace:^",
+    "foldkit-auth": "workspace:^",
     "foldkit-cms-drizzle": "workspace:^",
     "foldkit-mixins-ui": "workspace:^",
     "foldkit-react": "workspace:^",
@@ -549,6 +560,9 @@
   },
   "peerDependenciesMeta": {
     "foldkit-agent-native": {
+      "optional": true
+    },
+    "foldkit-auth": {
       "optional": true
     },
     "foldkit-cms-drizzle": {
@@ -577,6 +591,7 @@
     "tsx": "^4.23.15",
     "typescript": "7.0.2",
     "foldkit-agent-native": "workspace:*",
+    "foldkit-auth": "workspace:*",
     "foldkit-cms-drizzle": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
     "foldkit-react": "workspace:*",

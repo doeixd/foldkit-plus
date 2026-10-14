@@ -73,6 +73,11 @@ export const jobs: ReadonlyArray<{
   },
   { job: 'Who may do what, enforced on every seam', imports: ['guard'], guide: 'guard' },
   {
+    job: 'Who is signed in: a Yielded Auth session as the principal',
+    imports: ['auth'],
+    guide: 'auth',
+  },
+  {
     job: 'A slice of the Model kept in the URL or in storage',
     imports: ['mirror'],
     guide: 'mirror',
@@ -141,6 +146,11 @@ export const adapters: ReadonlyArray<{
     name: 'foldkit-agent-native',
     libraries: ['@agent-native/core'],
     when: 'agents through Agent Native',
+  },
+  {
+    name: 'foldkit-auth',
+    libraries: ['@yielded/auth'],
+    when: 'sign-in and sessions with Yielded Auth',
   },
   { name: 'foldkit-cms-drizzle', libraries: ['drizzle-orm'], when: "the CMS's server on Drizzle" },
   {

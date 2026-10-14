@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '...(reason === undefined ? {} : { reason }),',
-        replace: '',
+        find: "message: reason ?? 'Forbidden',\n      ...(reason === undefined ? {} : { reason }),",
+        replace: "message: reason ?? 'Forbidden',",
       },
     ],
     tests,
@@ -38,8 +38,8 @@ export default [
     edits: [
       {
         file: json,
-        find: 'if (response.status === 403 && !saysForbidden)',
-        replace: 'if (false)',
+        find: "if (response.status === 403) return refusalOf(body, 'forbidden', status)",
+        replace: '',
       },
     ],
     tests,
@@ -49,8 +49,8 @@ export default [
     edits: [
       {
         file: json,
-        find: "typeof body === 'object' && body !== null && Object.hasOwn(body, 'forbidden')",
-        replace: "typeof body === 'object' && body !== null && Object.hasOwn(body, 'error')",
+        find: 'Schema.Struct({ error: Schema.String, forbidden: Reason })',
+        replace: 'Schema.Struct({ error: Schema.String, forbidden: Schema.optional(Reason) })',
       },
     ],
     tests,
@@ -60,8 +60,8 @@ export default [
     edits: [
       {
         file: '../../remote/src/wire.ts',
-        find: 'error: Schema.Union([RemoteMutationError, RemoteForbidden]),',
-        replace: 'error: RemoteMutationError,',
+        find: 'error: Schema.Union([RemoteMutationError, RemoteForbidden, RemoteUnauthenticated]),',
+        replace: 'error: Schema.Union([RemoteMutationError, RemoteUnauthenticated]),',
       },
     ],
     tests,

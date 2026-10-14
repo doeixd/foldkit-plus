@@ -8,6 +8,7 @@ import type { D1Database, DurableObjectNamespace } from '@cloudflare/workers-typ
 import { DurableObject } from 'cloudflare:workers'
 import { Context, Effect, Layer, Scope } from 'effect'
 import { actorId, Journal, opId } from 'foldkit-durable/core'
+import { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Operation, Sync } from 'foldkit-sync'
 import { defineDocumentHost } from 'foldkit-sync/do'
 import { Message, Todos } from './todos-contract.js'
@@ -34,16 +35,37 @@ const openTodosJournal = async (db: D1Database) => {
   return Context.get(context, TodosJournal.tag)
 }
 
+/**
+ * Actors whose session a later request revoked: the object's own memory, so
+ * a socket's revalidation, timed by the upgrade request, reads what another
+ * request wrote.
+ */
+const revoked = new Set<string>()
+
 export class SyncHost extends defineDocumentHost(DurableObject, {
   sync: Todos,
   openJournal: (_ctx, env: Env) => openTodosJournal(env.DB),
-  resolvePrincipal: request => request.headers.get('x-actor') ?? 'anon',
-}) {}
+  resolvePrincipal: request => {
+    const actor = request.headers.get('x-actor') ?? 'anon'
+    return revoked.has(actor)
+      ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
+      : Effect.succeed(actor)
+  },
+  revalidate: { every: '50 millis' },
+}) {
+  override async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    if (url.pathname !== '/revoke') return super.fetch(request)
+    revoked.add(url.searchParams.get('actor') ?? '')
+    return new Response(null, { status: 204 })
+  }
+}
 
 export default {
   fetch: async (request: Request, env: Env): Promise<Response> => {
     const url = new URL(request.url)
-    if (url.pathname !== '/sync') return Response.json({ error: 'not found' }, { status: 404 })
+    if (url.pathname !== '/sync' && url.pathname !== '/revoke')
+      return Response.json({ error: 'not found' }, { status: 404 })
     const stub = env.SYNC_HOST.get(env.SYNC_HOST.idFromName('todos'))
     // Two fetch universes meet here: the DOM request this handler receives
     // and the worker runtime's stub. The wire shape is identical; only the

@@ -166,8 +166,9 @@ export default [
     edits: [
       {
         file,
-        find: '    for (const node of Site.chainOf(site, route)) {',
-        replace: '    for (const node of Site.nodesOf(site)) {',
+        find: '    for (const node of Site.chainOf(site, route)) {\n      const entry = sourceOf(node, owner, place)',
+        replace:
+          '    for (const node of Site.nodesOf(site)) {\n      const entry = sourceOf(node, owner, place)',
       },
     ],
     tests,

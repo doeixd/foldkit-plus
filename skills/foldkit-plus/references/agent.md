@@ -210,7 +210,7 @@ import { AgentMcp } from 'foldkit-agent-mcp'
 import * as HttpEffect from 'effect/http/HttpEffect'
 AgentMcp.stdio({ agent: agentRuntime }) // stdout carries the protocol, so log to stderr
 const handler = HttpEffect.toWebHandler(AgentMcp.httpApp({
-  authenticate: request => verify(request.headers['authorization']), // the only source of principal
+  authenticate: request => verify(request.headers['authorization']), // an Effect; the only source of principal
   createAgent: ({ principal }) => bindAgentFor(principal),            // one runtime per session
   allowedOrigins: ['https://app.example'],
 }))

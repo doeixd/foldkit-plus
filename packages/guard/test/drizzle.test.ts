@@ -67,7 +67,7 @@ const G = Guards.declare(
     isMember: guard.row(Related.Project, p => Expr.in(Related.Project.fields.id, p.projectIds)),
     isOwner: guard.row(Related.Todo, p => Expr.eq(Related.Todo.fields.ownerId, p.id)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 const Project = Related.Project.pipe(Guards.attach(G, { row: { Read: [G.isMember, G.isAdmin] } }))

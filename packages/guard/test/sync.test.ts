@@ -41,7 +41,7 @@ const G = Guards.declare(
     isOwner: guard.row(ProductFields, p => Expr.eq(ProductFields.fields.ownerId, p.id)),
     isDowel: guard.row(ProductFields, () => Expr.eq(ProductFields.fields.name, 'Dowel')),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 
 const Product = ProductFields.pipe(
@@ -107,6 +107,19 @@ describe('GuardSync.document', () => {
     expect(() =>
       GuardSync.document({ entity: Watched, members: ['name'] }, { readers: [G.isStaff] }),
     ).toThrow('its `always` rules read the row')
+  })
+
+  it('takes rows anyone may read, with no readers, whatever the set denies', () => {
+    const Public = ProductFields.pipe(
+      Guards.attach(G, {
+        row: { Read: [Guards.anyone] },
+        members: { name: { Read: [Guards.anyone] } },
+        always: [Guards.anyone],
+      }),
+    )
+    expect(() =>
+      GuardSync.document({ entity: Public, members: ['name'] }, { readers: [] }),
+    ).not.toThrow()
   })
 
   it('opens to its readers, and to no one else', () => {

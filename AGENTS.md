@@ -692,6 +692,10 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   wire the two with `Layer.provide`, so they live and close together (the
   core `Journal.layer` now does); outside Effect, keep the layer in a
   `ManagedRuntime`. `Layer.buildWithScope` is the escape hatch, not the API.
+  A `Response` whose body streams outlives the Effect that built it: `serveFetch`
+  provided the request's layer that way, and every live re-read ran after the
+  layer closed, which only a layer with a finalizer shows. Build such a layer
+  into a `Scope` the stream closes (`Stream.ensuring`).
 - **Two runtimes in one document share its ids.** Two registry panes on one
   page each drew a grid with the id `products`, and the grid finds its cells
   by id, so one pane's keys would reach the other's. Give each device a page of
@@ -709,6 +713,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   console: construct the worker in a probe page and read its `error` event's
   `filename`. A package with a `worker` export is fixed by adding `worker` to
   `resolve.conditions`.
+- **A browser `WebSocket` sends no header of yours.** Its constructor takes
+  a URL and subprotocols only, so a CSRF header (`x-effect-auth-csrf`) that
+  every Remote POST carries never reaches a Sync upgrade; a resolver asking
+  for one answers every socket as a visitor. Check `Origin` alone there (the
+  browser always sends it on an upgrade), or a credential in a subprotocol.
 - **An adapter's library is a peer, not a dependency.** `foldkit-remote-drizzle`
   depended on `drizzle-orm`, so an application whose Drizzle resolved with
   other optional peers (it had `@effect/sql-sqlite-wasm`) got a second copy,
@@ -808,7 +817,9 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 The workspace runs `effect@^4.0.4`, one copy of each Effect package;
 foldkit's exact peer (`effect@4.0.0`) is relaxed in `pnpm-workspace.yaml`, and
-published packages peer on `^4.0.0`. Since 4.0.0 there is no
+published packages peer on `^4.0.0` (`foldkit-auth`, which peers Yielded Auth,
+on `^4.0.4`). Within 4.0.x, `Crypto.randomUUIDv4` became a function: `yield*
+crypto.randomUUIDv4()`. Since 4.0.0 there is no
 `effect/unstable/*`: import `effect/http`, `effect/persistence`, `effect/rpc`,
 `effect/sql` (and `effect/http-api` for the old `httpapi`). Since 4.0.0
 `Array`, `Chunk`, `Effect` and `Record` `partition` and `Option.partitionMap`
@@ -998,6 +1009,13 @@ of its own named a form field "fits the Catalog". Read words with
   which ignores further breaks, and the late `GapCleared` then closed it:
   the stream stopped for good, and a test failed every run once it made the
   resubscribe fail. Sequence them (`Stream.concat`).
+- **An Effect handed to a loop is the one value, built once.**
+  `Effect.sleep(every).pipe(Effect.andThen(resolve(request)), Effect.forever)`
+  called `resolve` when the loop was built and re-ran that one Effect ever
+  after; a resolver answering `Effect.succeed(sessions.get(token))` had
+  decided already, so a revoked session was never seen. Pass a function
+  (`Effect.andThen(() => resolve(request))`) or `Effect.suspend` where each
+  pass must ask again, and test with a resolver that decides when called.
 - **Guard fire-and-forget work.** An un-awaited reconcile turned a failure into
   an unhandled rejection.
 - **`Effect.result` captures failures, not defects.** At an edge that must not
@@ -1010,6 +1028,11 @@ of its own named a form field "fits the Catalog". Read words with
 
 **Tests**
 
+- **A mutation that names what the file does not import is killed by a
+  `ReferenceError`.** `Layer.buildWithScope(…, Scope.makeUnsafe())` in a file
+  importing no `Scope` failed every test at once, and read as a kill. Add the
+  import as a second edit of the same mutation, and check which tests killed
+  it and why (`--only`).
 - **A mutation killed by a red test proves nothing.** A test added between
   two mutation runs was already failing, so the second run "killed" its
   mutation for free. Confirm the suite is green before each run; `pnpm
@@ -1237,6 +1260,10 @@ of its own named a form field "fits the Catalog". Read words with
 - **A pipe hides the exit status of what it pipes.** `prettier --check $F | tail -1 &&
   git commit` committed a file prettier had just flagged, because `tail` succeeded.
   Redirect instead (`>/dev/null &&`) when a check gates the next command.
+  `;` gates nothing either: `pnpm -s mutate:check >/dev/null; echo $?; …;
+  git commit` printed `1` and committed, twice in one session (a re-anchor
+  and an ambiguous anchor each followed). Chain every check into the commit
+  with `&&`, or read the output before committing.
 - **A prepend that matches only the anchor line deletes it.** Matching the first
   line of a block (a changelog entry, a doc section) and replacing it with new
   text drops that line; the file stays valid and every check stays green, so
@@ -1245,6 +1272,14 @@ of its own named a form field "fits the Catalog". Read words with
 - **Run the CI sequence before committing, not after.** `format:check`,
   `typecheck`, `test`, `demo`. A commit shipped that would have failed
   `format:check` because only the last three were run.
+- **A dependency's new peer set re-resolves its optional peers to the newest.**
+  Moving the `@effect/sql-*` packages to 4.0.4 changed drizzle-orm's peer set,
+  and pnpm resolved its optional `@cloudflare/workers-types` peer again: to
+  that day's release in most projects, the pinned one in two, so two drizzles
+  existed and `examples/cloudflare` failed to typecheck. That package publishes
+  daily; the root `pnpm.overrides` pins it to the version the repository names.
+  After a version move, count the copies (`grep -o 'name@[0-9.]*'
+  pnpm-lock.yaml | sort | uniq -c`) and regenerate from the old lockfile.
 - **A `package.json` change without `pnpm install` reds every job.** CI
   installs with `--frozen-lockfile`, so a new dependency without a
   regenerated lockfile fails all jobs in 30s. Regenerate in the same change

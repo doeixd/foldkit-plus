@@ -17,6 +17,8 @@ import {
   type RowRule,
 } from './condition.js'
 import { May } from './may.js'
+import { me } from './me.js'
+import { providedFrom } from './origin.js'
 import {
   Expr,
   Query,
@@ -199,6 +201,12 @@ export interface Policy<User, R = never> {
   /** The principal's fields as row guards' inputs; a visitor has none. */
   readonly inputOf: (principal: Option.Option<User>) => Readonly<Record<string, unknown>>
   /**
+   * Who the principal is: `declare`'s `key`, the same function as `G.key`,
+   * here for a server seam that holds the Policy and not the set. Not
+   * `keyOf`, which names a principal by every field, for sharing re-reads.
+   */
+  readonly key: (user: User) => string
+  /**
    * Who is asking, as the rules see it: every field of the principal, encoded,
    * a visitor included. Two requests by one person with the same claims answer
    * alike, so a live hub shares their re-reads; a changed claim is not shared.
@@ -213,6 +221,46 @@ export interface Policy<User, R = never> {
    * seam that is handed the principal untyped.
    */
   readonly isPrincipal: (value: unknown) => value is Option.Option<User>
+  /**
+   * This Policy with services its bodies need provided, such as a membership
+   * lookup. The read seams (`GuardDrizzle.visible`, `GuardServer.memory`,
+   * `GuardSync`) take a Policy that needs nothing more: a read rule runs inside
+   * a read whose requirements are its Source's. Provide what stays put here,
+   * once; carry what changes per request in the principal. A seam built from
+   * the result counts as built from this Policy: `validate` checks the rules,
+   * not the services given them. `GuardSync.authorize` runs bodies
+   * synchronously, so what it is given must answer without suspending.
+   *
+   * ```ts
+   * const ReadPolicy = Policy.provide(Context.make(Memberships, memberships))
+   * ```
+   */
+  readonly provide: <Provided extends R>(
+    context: Context.Context<Provided>,
+  ) => Policy<User, Exclude<R, Provided>>
+}
+
+/** `policy` with `context` provided to every body it runs. */
+const provided = <User, R, Provided extends R>(
+  policy: Policy<User, R>,
+  context: Context.Context<Provided>,
+): Policy<User, Exclude<R, Provided>> => {
+  const run = <A>(effect: Effect.Effect<A, never, R>) => Effect.provide(effect, context)
+  const next: Policy<User, Exclude<R, Provided>> = {
+    ...policy,
+    decide: (guard, request) => run(policy.decide(guard, request)),
+    readable: (entity, principal) => run(policy.readable(entity, principal)),
+    readMembers: (entity, principal, members) =>
+      run(policy.readMembers(entity, principal, members)),
+    writable: (entity, principal, interaction) =>
+      run(policy.writable(entity, principal, interaction)),
+    writeMembers: (entity, principal, members, interaction) =>
+      run(policy.writeMembers(entity, principal, members, interaction)),
+    linkable: (entity, principal, relation, interaction) =>
+      run(policy.linkable(entity, principal, relation, interaction)),
+    provide: more => provided(next, more),
+  }
+  return providedFrom(next, policy)
 }
 
 /** The builders a guard set's declaration is given, typed by its principal. */
@@ -239,6 +287,7 @@ const placeholdersOf = <User>(fields: Schema.Struct.Fields): Placeholders<User> 
 
 export { Condition, type MemberRead, type RowRule } from './condition.js'
 export { May, MaySchema, type MayAnswer } from './may.js'
+export { ME, type MeEntity } from './me.js'
 export {
   Interaction,
   type All,
@@ -264,6 +313,16 @@ export const Guards = {
    */
   may: May.member,
   /**
+   * `Me`, the visitor as an Entity: one row, `me`, that everyone reads and no
+   * one writes, with `signedIn`, the principal's `key`, and `may` for the
+   * interactions named here. Serve it with `GuardServer.me`.
+   *
+   * ```ts
+   * export const Me = Guards.me(G, { interactions: { [OpenAdmin.key]: [G.isAdmin] } })
+   * ```
+   */
+  me,
+  /**
    * One application's guards, under `name` (its principal's Context key, and
    * what the matrix prints). `principal` is a `Schema.Struct`: its fields are
    * what a row guard reads, and its codec encodes a principal's values as
@@ -286,10 +345,21 @@ export const Guards = {
     build: (guard: Builders<Schema.Struct.Type<Fields>>) => S,
     options: {
       readonly key: (user: Schema.Struct.Type<Fields>) => string
-      readonly unguarded?: 'allow' | 'deny' | undefined
+      /**
+       * What a surface of a guarded Entity with no rules decides: `'deny'`
+       * refuses it, `'allow'` lets everyone. Required, so an open surface is
+       * a decision written down; `Guards.matrix` prints it `closed` or `open`.
+       */
+      readonly unguarded: 'allow' | 'deny'
     },
   ): GuardSet<Name, Schema.Struct.Type<Fields>, S> => {
     type User = Schema.Struct.Type<Fields>
+    // The type requires it; a caller without types (or one that spelled it
+    // `'Allow'`) would otherwise get a set that denies, silently.
+    if (options.unguarded !== 'allow' && options.unguarded !== 'deny')
+      throw new Error(
+        `[foldkit-guard] ${name}: unguarded must be 'allow' or 'deny', not ${JSON.stringify(options.unguarded)}`,
+      )
     const placeholders = placeholdersOf<User>(principal.fields)
     const specs = build({
       principal: () => Object.freeze({ _tag: 'PrincipalSpec' }),
@@ -394,7 +464,7 @@ export const Guards = {
           interaction,
         )
       }
-      return {
+      const policy: Policy<User, R> = {
         set: name,
         decide,
         readable: (entity, principal) =>
@@ -412,6 +482,7 @@ export const Guards = {
           decidingFor(entity, principal, interaction).relation(entity, relation),
         inputOf: principal =>
           Option.match(principal, { onNone: () => ({}), onSome: user => inputOf(user) }),
+        key: options.key,
         // Prefixed, so no user's key is the visitor's. Not `declare`'s `key`
         // alone: a re-read shared under it would read a newer request as an
         // older one's claims.
@@ -421,7 +492,9 @@ export const Guards = {
             onSome: user => `user:${JSON.stringify(asJson(user))}`,
           }),
         isPrincipal,
+        provide: context => provided(policy, context),
       }
+      return policy
     }
 
     return Object.freeze({
@@ -432,7 +505,7 @@ export const Guards = {
         `foldkit-guard/Principal/${name}`,
       ),
       key: options.key,
-      unguarded: options.unguarded ?? 'allow',
+      unguarded: options.unguarded,
       inputOf,
       implement,
     }) as unknown as GuardSet<Name, User, S>

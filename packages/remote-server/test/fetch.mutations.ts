@@ -27,15 +27,37 @@ export default [
     edits: [
       {
         file,
-        find: "{ error: 'The body is not JSON' }, { status: 400 }",
-        replace: "{ error: 'The body is not JSON' }, { status: 200 }",
+        find: "{ error: 'The body is not JSON' }, { status: 400, headers }",
+        replace: "{ error: 'The body is not JSON' }, { status: 200, headers }",
       },
     ],
     tests,
   },
   {
-    name: 'a failing principal resolution is a 500',
-    edits: [{ file, find: '{ status: 401 }', replace: '{ status: 500 }' }],
+    name: 'a refused principal is a 500',
+    edits: [{ file: '../src/refusal.ts', find: 'status: 401,', replace: 'status: 500,' }],
+    tests,
+  },
+  {
+    name: 'unauthenticated drops its reason',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: "message: reason ?? 'Unauthenticated',\n      ...(reason === undefined ? {} : { reason }),",
+        replace: "message: reason ?? 'Unauthenticated',",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refusal is not caught',
+    edits: [
+      {
+        file,
+        find: 'return Effect.succeed({ response: Response.json(body, { status }), live: false })',
+        replace: 'return Effect.die(body)',
+      },
+    ],
     tests,
   },
   {
@@ -54,8 +76,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Effect.provide(config.layer(env))',
-        replace: 'Effect.provide(config.layer({} as Env))',
+        find: 'Layer.buildWithScope(config.layer(env), scope)',
+        replace: 'Layer.buildWithScope(config.layer({} as Env), scope)',
       },
     ],
     tests,
@@ -65,10 +87,49 @@ export default [
     edits: [
       {
         file,
-        find: "// A failure of the layer, or a defect anywhere: this side broke, and the\n      // caller learns that it did, not what. `answer` already maps its own\n      // failures and defects to 400/500 answers above this.\n      return Response.json({ error: 'Internal error' }, { status: 500 })",
-        replace: "return Response.json({ error: 'leaked' }, { status: 500 })",
+        find: "// failures and defects to 400/500 answers.\n      return Response.json({ error: 'Internal error' }, { status: 500 })",
+        replace:
+          "// failures and defects to 400/500 answers.\n      return Response.json({ error: 'leaked' }, { status: 500 })",
       },
     ],
+    tests,
+  },
+  {
+    name: 'an answer names nobody',
+    edits: [
+      {
+        file,
+        find: 'Response.json(answered.body, { status: answered.status, headers })',
+        replace: 'Response.json(answered.body, { status: answered.status })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a body that is not JSON names nobody',
+    edits: [
+      {
+        file,
+        find: "{ error: 'The body is not JSON' }, { status: 400, headers }",
+        replace: "{ error: 'The body is not JSON' }, { status: 400 }",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a live open names nobody',
+    edits: [
+      {
+        file,
+        find: '{ status: 400, headers },\n          ),',
+        replace: '{ status: 400 },\n          ),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a live stream names nobody',
+    edits: [{ file, find: '                ...headers,\n', replace: '' }],
     tests,
   },
 ]

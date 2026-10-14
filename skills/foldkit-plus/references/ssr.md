@@ -188,6 +188,11 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   Commands do not settle within 100 steps (a Command that reschedules itself,
   a poll, cannot run on the server); a Command yielding no Message folds
   nothing in.
+- `SSR.entry`'s `resources: request => Layer` gives a post's Commands its own
+  services (who posted: `AuthServer.resolver({ …, requests: 'browser' })`
+  from `foldkit-auth`). A plan with a server fallback requires `origins`: a
+  post whose `Origin` is not among them is `403`, since a form cannot carry a
+  CSRF header.
 - The route check compares path and query with the URL the server rendered.
   A page from `SSR.generate(config, plan, { buildId, template, origin, paths })`
   records its path alone, since a static host ignores the query: it resumes at

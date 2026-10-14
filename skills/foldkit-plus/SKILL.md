@@ -1,9 +1,9 @@
 ---
 name: foldkit-plus
-description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-site, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react, foldkit-bundle, foldkit-primitives, foldkit-entity, foldkit-guard, foldkit-form, foldkit-crud, foldkit-cms, foldkit-data-grid), which one owns which kind of state and basic use of each. Use when writing or reviewing a Foldkit app that uses a foldkit-* package, choosing a package for server data, offline sync, URL or storage state, route topology, AI agent tools, view styling, React interop, reusable Submodels, domain entities, authorization, forms, admin screens, a data grid, or a CMS, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Site.target, Agent.expose, Mixins, Bundle, Entity.select, Guards.declare, Form.make, Crud.editor, DataGrid.make, or Cms.content.
+description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-site, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react, foldkit-bundle, foldkit-primitives, foldkit-entity, foldkit-guard, foldkit-auth, foldkit-form, foldkit-crud, foldkit-cms, foldkit-data-grid), which one owns which kind of state and basic use of each. Use when writing or reviewing a Foldkit app that uses a foldkit-* package, choosing a package for server data, offline sync, URL or storage state, route topology, AI agent tools, view styling, React interop, reusable Submodels, domain entities, authorization, Yielded Auth sessions, forms, admin screens, a data grid, or a CMS, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Site.target, Agent.expose, Mixins, Bundle, Entity.select, Guards.declare, Form.make, Crud.editor, DataGrid.make, or Cms.content.
 license: MIT
 metadata:
-  version: '0.20.0'
+  version: '0.21.0'
   repository: https://github.com/doeixd/foldkit-plus
 ---
 
@@ -42,6 +42,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | Typed facts a package attaches to another package's declaration (package authors only) | the key's package | `foldkit-metadata` (re-exported by `foldkit-surface`) | [surface.md](references/surface.md) |
 | A domain entity's fields, relations, and derived members, declared once, and typed selections of them (Remote registers and reads them as they are; `remote-drizzle` binds them to tables) | the domain declaration | `foldkit-entity` | [entity.md](references/entity.md) |
 | Who may do what: guards declared once on the domain, principal guards' bodies on the server, row guards as `Expr`, enforced on reads, writes, Sync edits and agents | the domain declaration; bodies on the server | `foldkit-guard` (`/server`, `/drizzle`, `/sync`, `/agent` for each seam) | [guard.md](references/guard.md) |
+| Who is signed in: a Yielded Auth session as the principal a Remote or Sync host answers as, a visitor, or a 401 | Yielded Auth's session; the principal is the application's | `foldkit-auth` (+ `/server`; early, 0.1.0) | [auth.md](references/auth.md) |
 | A form: drafts, validation, and a decoded value handed to the parent | the parent Model | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [form.md](references/form.md) |
 | An edit or create screen (load, fill a form, save, report status), or a list over a query | Remote and the form; the editor only joins them | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [crud.md](references/crud.md) |
 | An interactive data grid: which cells exist, keyboard moves and ranges over rows the application supplies | the grid owns geometry and interaction; the application owns the rows | `foldkit-data-grid` (+ `foldkit-mixins-data-grid` to draw it; experimental, 0.1.0) | [data-grid.md](references/data-grid.md) |
@@ -75,6 +76,7 @@ foldkit-mixins (standalone) ─ foldkit-mixins-surface (with Surface), foldkit-m
 foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface), foldkit-primitives, foldkit-form
 foldkit-entity (standalone) ─ read by foldkit-remote, foldkit-remote-drizzle, foldkit-form
 foldkit-guard ─ over foldkit-entity: guards as data, decided on the server; its subpaths enforce them in remote-server, -drizzle, sync and agent
+foldkit-auth ─ a Yielded Auth session as the principal remote-server's and sync's hosts resolve; guard decides on it
 foldkit-crud ─ joins foldkit-form, foldkit-remote, foldkit-entity
 foldkit-cms ─ over foldkit-entity, foldkit-form, foldkit-crud, foldkit-remote: drafts beside the row, derived lifecycle
   └─ foldkit-cms-drizzle ─ over foldkit-remote-drizzle, -server: the audience boundary, drafts, publish in a transaction

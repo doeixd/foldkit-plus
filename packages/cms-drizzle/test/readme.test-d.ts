@@ -63,7 +63,7 @@ const G = Guards.declare(
     isEditor: guard.principal(),
     isPublished: guard.row(Blog.Post, () => Expr.isNotNull(Blog.Post.fields.publishedAt)),
   }),
-  { key: user => user.id },
+  { key: user => user.id, unguarded: 'allow' },
 )
 const Policy = G.implement({
   isAuthor: principal => Option.exists(principal, user => user.role !== 'reader'),

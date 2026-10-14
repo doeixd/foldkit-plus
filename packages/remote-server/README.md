@@ -878,6 +878,13 @@ const route = async (request: Request): Promise<Response> => {
 - **400** with `{ error }`: the body is not a request, names an operation
   Remote does not have, or its payload fails the protocol's schema. No
   handler ran.
+- **401** with `{ error, unauthenticated: { reason? } }`: a handler could not
+  tell who is asking (`RemoteServer.unauthenticated`). The client fails the
+  call, of whatever kind, with `_tag: 'Unauthenticated'`.
+- **403** with `{ error, forbidden: { reason? } }`: who is asking may not do
+  this (`RemoteServer.forbid`).
+- **422** with `{ error, refusal }`: the mutation refused what was asked, in
+  its own `Refusal`.
 - **500** with `{ error }`: the handler failed, and the message is its own;
   or something on this side broke, and the message is `Internal error`,
   nothing more.
@@ -890,9 +897,10 @@ data.
 
 `serveFetch` from `foldkit-remote-server/fetch` is that route as a value: a
 `(request: Request, env: Env) => Promise<Response>` for a Worker's `fetch`,
-or any other runtime that speaks `Request`/`Response`. The principal is
-resolved per request, and the Sources' requirements are provided per request
-from the environment:
+or any other runtime that speaks `Request`/`Response`. Each request is one
+Effect: `layer` is built from the environment, then `resolvePrincipal` says
+who is asking, then the request is answered as them. The resolver may need
+what `layer` provides (a session store, an auth service):
 
 ```ts
 import { serveFetch } from 'foldkit-remote-server/fetch'
@@ -900,16 +908,37 @@ import { serveFetch } from 'foldkit-remote-server/fetch'
 export default {
   fetch: serveFetch({
     server,
-    resolvePrincipal: request => ({ actorId: request.headers.get('x-actor') ?? 'anon' }),
+    resolvePrincipal: request =>
+      Effect.succeed({ actorId: request.headers.get('x-actor') ?? 'anon' }),
     layer: env => databaseLayer(drizzle(env.DB)),
   }),
 }
 ```
 
 Only `POST`s to `path` (default `/remote`) are answered; anything else is a 404. A body that is not JSON, or not a request, is a 400 that reaches no
-handler; a handler's failure a 500 with its message. A principal resolution
-that throws is a 401 with its message; anything else this side breaks,
-including layer provision, a 500 that says nothing of it.
+handler; a handler's failure a 500 with its message.
+
+A resolver refuses the caller by failing with
+`RemoteServer.unauthenticated(reason?)`: a 401 whose body is
+`{ error, unauthenticated: { reason? } }`, as `answer`'s 403 carries
+`forbidden`, and whose `reason` is the only thing the caller learns. Anything
+else this side breaks, the resolver's defects and the layer included, is a
+500 that says nothing of it. A visitor is not a refusal: resolve one to the
+principal your Sources treat as nobody, and refuse only a credential that was
+sent and no longer holds.
+
+`headers: principal => ({ … })` adds headers to every answer to that
+principal, a live stream's included; a refusal answered no one and carries
+none. `foldkit-auth`'s `AuthServer.answered` uses it to say whom each answer
+was for.
+
+`revalidate: { every, key? }` asks `resolvePrincipal` again, of the same
+request, every `every` while a live stream is open. A refusal ends the
+stream with `Unauthenticated`; a principal whose `key` differs from the one
+it opened with ends it as a live error, which the client opens again after,
+as the new principal. `key` is who a principal is, as `liveHub`'s `key`:
+with guards, `key: Policy.keyOf`. Without `revalidate` a stream serves the
+principal it opened with, a revoked session included, until it closes.
 
 A body that opens live (`{ operation: 'live', payload }`) is answered with
 the stream as `text/event-stream`: one `data:` frame per `LiveChange`, then

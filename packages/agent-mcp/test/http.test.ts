@@ -1,6 +1,6 @@
 import { Agent } from 'foldkit-agent'
 import { AgentMcp, type HttpRequest, type HttpResponse, type SseEvent } from 'foldkit-agent-mcp'
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -67,7 +67,9 @@ const makeServer = (
     },
     authenticate: (request: HttpRequest) => {
       const token = request.headers['authorization']
-      return token === undefined ? undefined : { user: token.replace('Bearer ', '') }
+      return token === undefined
+        ? Effect.fail(AgentMcp.unauthenticated('No token'))
+        : Effect.succeed({ user: token.replace('Bearer ', '') })
     },
     allowedOrigins: ['https://app.example'],
     ...overrides,
@@ -226,12 +228,44 @@ describe('security', () => {
     expect(response.status).toBe(403)
   })
 
-  it('refuses an unauthenticated caller', async () => {
+  it('refuses an unauthenticated caller, saying why', async () => {
     const server = makeServer()
     const response = await server.handle(post(initialize, { authorization: undefined }))
 
     expect(response.status).toBe(401)
+    expect(response.body).toEqual({ error: 'Unauthenticated', reason: 'No token' })
     expect(server.sessions()).toEqual([])
+  })
+
+  it.each([
+    ['dies', () => Effect.die(new Error('the token store password'))],
+    [
+      'throws',
+      () => {
+        throw new Error('the token store password')
+      },
+    ],
+  ])('answers an authenticate that %s with a 500 that says nothing of it', async (_, broken) => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const server = makeServer({ authenticate: broken })
+    const response = await server.handle(post(initialize))
+
+    expect(response.status).toBe(500)
+    expect(response.body).toEqual({ error: 'Internal error' })
+    expect(server.sessions()).toEqual([])
+    // The operator, not the caller, learns why.
+    expect(String(logged.mock.calls[0]?.[1])).toContain('the token store password')
+    logged.mockRestore()
+  })
+
+  it('asks a store that answers later', async () => {
+    const server = makeServer({
+      authenticate: () => Effect.as(Effect.sleep('5 millis'), { user: 'alice' }),
+    })
+    const response = await server.handle(post(initialize))
+
+    expect(response.status).toBe(200)
+    expect(server.sessions()).toHaveLength(1)
   })
 
   it('binds each session to the caller the transport authenticated', async () => {
@@ -303,8 +337,8 @@ describe('security', () => {
         authenticate: (request: HttpRequest) => {
           const token = request.headers['authorization']
           return token === undefined
-            ? undefined
-            : { user: token.replace('Bearer ', ''), issuedAt: issued++ }
+            ? Effect.fail(AgentMcp.unauthenticated('No token'))
+            : Effect.succeed({ user: token.replace('Bearer ', ''), issuedAt: issued++ })
         },
         principalId: principal => principal.user,
       })

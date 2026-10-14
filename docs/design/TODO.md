@@ -220,10 +220,74 @@ questions still open.
 - [x] **11. Docs.** `packages/guard/README.md` (type-checked by
   `test/readme.test-d.ts`), the skill's row and `references/guard.md`,
   `CHANGELOG.md` per slice.
-- [ ] **Routing's `Me` Entity.** One row per principal with route-level
-  interactions, read with `Guards.may`; navigation and `Surface.when` derive
-  from it. Belongs with the third routing cut. §8a,
+- [x] **The `Me` Entity:** `Guards.me` and `GuardServer.me`, one row with
+  `signedIn`, `key` and `may` for named interactions. §8a,
+  [auth-DESIGN.md](./auth-DESIGN.md) §6.1 (slice 7)
+- [ ] **Navigation and `Surface.when` from `Me`.** Derive link visibility and
+  presentation from `Me.may`. Belongs with the third routing cut.
   [router-DESIGN.md](./router-DESIGN.md) §34.4
+
+## Authentication
+
+Who is asking, through Yielded Auth. [auth-DESIGN.md](./auth-DESIGN.md) §9
+orders the slices; step 0 and slices 1–10 are built.
+
+- [x] **0. Effect ≥ 4.0.4.** Yielded's peer is `^4.0.3`, Foldkit's exactly
+  `4.0.0`: Foldkit's peers allowed and one override, `randomUUIDv4()` in two
+  Foldkit examples, the `mixins-builder` tests given a `ResizeObserver`. §3
+- [ ] **Ask Foldkit to widen its `effect` peer** to `^4.0.0`, so applications
+  need no override. The maintainer's to send. §3
+- [x] **1. One principal resolver.** An Effect refusing with
+  `RemoteUnauthenticated` in `serveFetch` and `defineDocumentHost`. §5.1
+- [x] **agent-mcp's `authenticate` as an Effect,** refusing with
+  `Unauthenticated` (structurally Remote's), a 401 with its reason. §5.1
+- [ ] **A Yielded bearer resolver for agents.** MCP clients send a bearer
+  token, not a cookie; with Yielded's `OAuthServer` (§9, later, on demand).
+- [x] **2. `RemoteUnauthenticated`** for every Remote call kind. §5.3
+- [x] **3. Services for read rules:** `Policy.provide`, which the read seams
+  take; `Guards.declare` requires `unguarded`. §5.2, §10
+- [x] **4. Revalidating live streams and Sync sockets,** on `serveFetch` and
+  `defineDocumentHost`. §5.5
+- [x] **5. SSR's per-request resources,** for the fallback's Commands. §5.4
+- [x] **6a. `AuthServer.resolver`:** the session cookie, Origin and CSRF,
+  the subject header, `principal`; for `serveFetch`. §6.2
+- [x] **6b. The socket resolver:** `requests: 'browser'`, Origin only, as a
+  browser `WebSocket` sends no header; `defineDocumentHost` takes a `layer`
+  for it, kept while the socket is open. §6.2
+- [x] **6c. SSR's posted-form Origin check:** `SSR.entry`'s `origins`,
+  required by a plan with a server fallback. §5.4
+- [ ] **A posted form whose session ended** is a 500: `resources` cannot
+  fail. Decided: the host's, as `access`'s 303 is (resolve before calling
+  `renderPage`, as `examples/auth`'s `page.ts` does for a `GET`); no plan
+  there posts a form yet to show it. §6.5
+- [x] **A typed refusal:** `RemoteData.denied`. §5.3
+- [ ] **Stopping after a refusal that holds.** Sync's transport and a live
+  stream reopen after a refusal, as Yielded's renewal makes a 4401 routine;
+  stopping needs to tell a refused fresh upgrade from a dropped one, which a
+  browser `WebSocket` does not expose. Today the application's `forget`, on a
+  read's `Unauthenticated`, stops a stream. §5.3, §7
+- [ ] **Left from §6.2's sketch, undecided:** a 415 for a body that is not
+  `application/json`; `Auth.ssr`, a render's principal; Presence's `peerId`
+  as the principal's key; §5.1's Context-key option for `serveFetch`. Each
+  waits for a consumer.
+- [x] **7. `Me`:** in `foldkit-guard` (`Guards.me`, `GuardServer.me`,
+  `Guards.anyone`, `Policy.key`); the resolver's `key` compares the subject
+  header with it. §6.1
+- [x] **8. The client:** `RemoteData.denied`; sign-in, sign-out, the
+  cross-tab channel and the persistence scope are application code over
+  Yielded's client, `Remote.forget` and `foldkit-primitives`. §6.4
+- [x] **The client's `x-foldkit-subject`.** `serveFetch`'s `headers`,
+  `AuthServer.answered` and `believing()`; wired in `examples/auth`. §6.4
+- [x] **9. An example, with an e2e test:** `examples/auth`. §9
+- [x] **The example's SSR.** `examples/auth` renders each page from a read
+  made with the request's cookie. §9
+- [x] **The example's Sync socket.** `PinBoard` over
+  `AuthServer.resolver({ requests: 'browser' })`, served on Node through
+  `documentHost`, tested with replicas over real sockets; no page draws it. §9
+- [x] **10. `Site.access`:** `access` on a node, `Site.accessOf`. §6.5
+- [x] **`access` in the example.** `Notes` sends a visitor home with a
+  `returnTo`: the host's 303 before rendering, `update`'s replace after,
+  both asking one `accessOf`. §6.5, §9
 
 ## CMS
 
@@ -516,7 +580,8 @@ asked of a server graph. [server-DESIGN.md](./server-DESIGN.md) §19
   S7's `staticSite` plugin (paths, per-host layout, sitemap, robots) rather
   than reinventing static emission beside it.
 - [ ] **Principal and CSRF middleware** per host, for cookie-authenticated
-  mutations and SSR fallback posts. §19.5
+  mutations and SSR fallback posts. §19.5; planned as
+  [auth-DESIGN.md](./auth-DESIGN.md) §5.1 and §6.2–6.3.
 - [ ] **A content security policy** the document node emits: hashes for the
   inline envelope, JSON-LD and styles of a generated page, a nonce per request.
   §19.7

@@ -7,6 +7,7 @@ import { Option } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
 import { attached, type Attachment } from './attach.js'
 import type { Policy } from './index.js'
+import { originOf } from './origin.js'
 
 interface Placed {
   readonly policy: Policy<any, any>
@@ -35,7 +36,7 @@ const record = (registry: WeakMap<object, Placed>) => ({
     const placed = registry.get(built)
     return (
       placed !== undefined &&
-      placed.policy === policy &&
+      originOf(placed.policy) === originOf(policy) &&
       placed.entities.has(entity.name) &&
       placed.entities.get(entity.name) === guardsOf(entity)
     )
