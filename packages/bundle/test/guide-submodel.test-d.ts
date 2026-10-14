@@ -6,136 +6,152 @@ import { Option, Schema, Stream } from 'effect'
 import * as Command from 'foldkit/command'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import { Bundle } from '../src/index.js'
 
-declare const matchMediaChanges: (query: string) => Stream.Stream<boolean>
+// --- The child: one Submodel ---
 
-// --- By hand: a Submodel placed twice ---
+const TimerModel = Schema.Struct({ seconds: Schema.Number, running: Schema.Boolean })
+type TimerModel = typeof TimerModel.Type
+const TimerMessage = defineMessageUnion({ ClickedToggle: {}, Ticked: {} })
+type TimerMessage = typeof TimerMessage.Type
+
+const init = (): Update.Return<TimerModel, TimerMessage> => ({
+  model: { seconds: 0, running: false },
+})
+
+const update = (model: TimerModel, message: TimerMessage) =>
+  TimerMessage.match<Update.Return<TimerModel, TimerMessage>>(message, {
+    ClickedToggle: () => ({ model: { ...model, running: !model.running } }),
+    Ticked: () => ({ model: { ...model, seconds: model.seconds + 1 } }),
+  })
+
+const subscriptions = Subscription.make<TimerModel, TimerMessage>()(entry => ({
+  ticks: entry(
+    { running: Schema.Boolean },
+    {
+      modelToDependencies: model => ({ running: model.running }),
+      dependenciesToStream: ({ running }) =>
+        running ? Stream.map(Stream.tick('1 second'), () => TimerMessage.Ticked()) : Stream.empty,
+    },
+  ),
+}))
+
+const view = Submodel.defineView<TimerModel, TimerMessage>((model, h) =>
+  h.button(
+    [h.OnClick(TimerMessage.ClickedToggle())],
+    [`${model.seconds}s ${model.running ? 'Pause' : 'Start'}`],
+  ),
+)
+
+// --- By hand: the Submodel placed twice ---
 
 {
-  const MediaQueryModel = Schema.Struct({ matches: Schema.Boolean })
-  type MediaQueryModel = typeof MediaQueryModel.Type
-  const MediaQueryMessage = defineMessageUnion({ Changed: { matches: Schema.Boolean } })
-  type MediaQueryMessage = typeof MediaQueryMessage.Type
-
-  const initMediaQuery = (): Update.Return<MediaQueryModel, MediaQueryMessage> => ({
-    model: { matches: false },
-  })
-  const updateMediaQuery = (
-    _model: MediaQueryModel,
-    message: MediaQueryMessage,
-  ): Update.Return<MediaQueryModel, MediaQueryMessage> => ({ model: { matches: message.matches } })
-  const mediaQuerySubscriptions = (query: string) =>
-    Subscription.make<MediaQueryModel, MediaQueryMessage>()(() => ({
-      changes: Subscription.persistentEntry(
-        Stream.map(matchMediaChanges(query), matches => MediaQueryMessage.Changed({ matches })),
-      ),
-    }))
-
-  const Model = Schema.Struct({
-    dark: MediaQueryModel,
-    narrow: MediaQueryModel,
-    helpOpen: Schema.Boolean,
-  })
+  const Model = Schema.Struct({ work: TimerModel, rest: TimerModel })
   type Model = typeof Model.Type
   const Message = defineMessageUnion({
-    GotDarkMessage: { message: MediaQueryMessage },
-    GotNarrowMessage: { message: MediaQueryMessage },
-    ClickedHelp: {},
+    GotWorkMessage: { message: TimerMessage },
+    GotRestMessage: { message: TimerMessage },
   })
   type Message = typeof Message.Type
 
   // 1. init: each child's Model, and its Commands lifted
-  const init = (): Update.Return<Model, Message> => {
-    const dark = initMediaQuery()
-    const narrow = initMediaQuery()
+  const parentInit = (): Update.Return<Model, Message> => {
+    const work = init()
+    const rest = init()
     return {
-      model: { dark: dark.model, narrow: narrow.model, helpOpen: false },
+      model: { work: work.model, rest: rest.model },
       commands: [
-        ...Command.mapMessages(dark.commands, message => Message.GotDarkMessage({ message })),
-        ...Command.mapMessages(narrow.commands, message => Message.GotNarrowMessage({ message })),
+        ...Command.mapMessages(work.commands, message => Message.GotWorkMessage({ message })),
+        ...Command.mapMessages(rest.commands, message => Message.GotRestMessage({ message })),
       ],
     }
   }
 
   // 2. update: one fold per placement, and a route to each
-  const foldDark = Update.foldChild({
-    update: updateMediaQuery,
-    read: (model: Model) => Option.some(model.dark),
-    write: (model: Model, dark: MediaQueryModel) => ({ ...model, dark }),
-    toParentMessage: (message: MediaQueryMessage): Message => Message.GotDarkMessage({ message }),
+  const foldWork = Update.foldChild({
+    update,
+    read: (model: Model) => Option.some(model.work),
+    write: (model: Model, work: TimerModel) => ({ ...model, work }),
+    toParentMessage: (message: TimerMessage): Message => Message.GotWorkMessage({ message }),
   })
-  const foldNarrow = Update.foldChild({
-    update: updateMediaQuery,
-    read: (model: Model) => Option.some(model.narrow),
-    write: (model: Model, narrow: MediaQueryModel) => ({ ...model, narrow }),
-    toParentMessage: (message: MediaQueryMessage): Message => Message.GotNarrowMessage({ message }),
+  const foldRest = Update.foldChild({
+    update,
+    read: (model: Model) => Option.some(model.rest),
+    write: (model: Model, rest: TimerModel) => ({ ...model, rest }),
+    toParentMessage: (message: TimerMessage): Message => Message.GotRestMessage({ message }),
   })
-  const update = (model: Model, message: Message) =>
+  const parentUpdate = (model: Model, message: Message) =>
     Message.match<Update.Return<Model, Message>>(message, {
-      GotDarkMessage: ({ message }) => foldDark(model, message),
-      GotNarrowMessage: ({ message }) => foldNarrow(model, message),
-      ClickedHelp: () => ({ model: { ...model, helpOpen: !model.helpOpen } }),
+      GotWorkMessage: ({ message }) => foldWork(model, message),
+      GotRestMessage: ({ message }) => foldRest(model, message),
     })
 
   // 3. subscriptions: one lift per placement, renamed so the keys do not collide
-  const dark = Subscription.lift(mediaQuerySubscriptions('(prefers-color-scheme: dark)'))({
-    read: (model: Model) => Option.some(model.dark),
-    toParentMessage: (message: MediaQueryMessage): Message => Message.GotDarkMessage({ message }),
+  const work = Subscription.lift(subscriptions)({
+    read: (model: Model) => Option.some(model.work),
+    toParentMessage: (message: TimerMessage): Message => Message.GotWorkMessage({ message }),
   })
-  const narrow = Subscription.lift(mediaQuerySubscriptions('(max-width: 40rem)'))({
-    read: (model: Model) => Option.some(model.narrow),
-    toParentMessage: (message: MediaQueryMessage): Message => Message.GotNarrowMessage({ message }),
+  const rest = Subscription.lift(subscriptions)({
+    read: (model: Model) => Option.some(model.rest),
+    toParentMessage: (message: TimerMessage): Message => Message.GotRestMessage({ message }),
   })
-  const subscriptions = { darkChanges: dark.changes, narrowChanges: narrow.changes }
+  const parentSubscriptions = { workTicks: work.ticks, restTicks: rest.ticks }
 
-  void init
-  void update
-  void subscriptions
+  // 4. view: one h.submodel per placement
+  const parentView = (model: Model, h: HtmlBuilder<Message>) =>
+    h.div(
+      [],
+      [
+        h.submodel({
+          slotId: 'work',
+          model: model.work,
+          view,
+          toParentMessage: message => Message.GotWorkMessage({ message }),
+        }),
+        h.submodel({
+          slotId: 'rest',
+          model: model.rest,
+          view,
+          toParentMessage: message => Message.GotRestMessage({ message }),
+        }),
+      ],
+    )
+
+  void parentInit
+  void parentUpdate
+  void parentSubscriptions
+  void parentView
 }
 
 // --- With a Bundle ---
 
 {
-  const MediaQueryModel = Schema.Struct({ matches: Schema.Boolean })
-  type MediaQueryModel = typeof MediaQueryModel.Type
-  const MediaQueryMessage = defineMessageUnion({ Changed: { matches: Schema.Boolean } })
-  type MediaQueryMessage = typeof MediaQueryMessage.Type
-
-  const MediaQuery = Bundle.make('MediaQuery', {
-    Model: MediaQueryModel,
-    Message: MediaQueryMessage,
-    args: Schema.Struct({ query: Schema.String }),
-    init: () => ({ model: { matches: false } }),
-    update: (_model, message) => ({ model: { matches: message.matches } }),
-    subscriptions: ({ query }) =>
-      Subscription.make<MediaQueryModel, MediaQueryMessage>()(() => ({
-        changes: Subscription.persistentEntry(
-          Stream.map(matchMediaChanges(query), matches => MediaQueryMessage.Changed({ matches })),
-        ),
-      })),
+  const Timer = Bundle.make('Timer', {
+    Model: TimerModel,
+    Message: TimerMessage,
+    init,
+    update,
+    subscriptions: () => subscriptions,
+    view,
   })
 
-  const Page = Bundle.compose({ helpOpen: Schema.Boolean }).pipe(
-    Bundle.withMessages({ ClickedHelp: {} }),
-    Bundle.withChild('dark', MediaQuery, { args: { query: '(prefers-color-scheme: dark)' } }),
-    Bundle.withChild('narrow', MediaQuery, { args: { query: '(max-width: 40rem)' } }),
+  const Page = Bundle.compose({}).pipe(
+    Bundle.withChild('work', Timer),
+    Bundle.withChild('rest', Timer),
   )
   type Model = typeof Page.Model.Type
   type Message = typeof Page.Message.Type
-  const { placements } = Page
+  const { children, placements } = Page
 
   const config = placements.complete({
-    init: () => placements.initial({ helpOpen: false }),
-    update: placements.update(model => ({ model: { ...model, helpOpen: !model.helpOpen } })),
+    init: () => placements.initial({}),
+    update: placements.update(),
     subscriptions: placements.subscriptions(),
     view: (model: Model, h: HtmlBuilder<Message>) =>
-      h.button(
-        [h.OnClick(Page.Message.ClickedHelp())],
-        [model.dark.matches ? 'Help (dark)' : 'Help'],
-      ),
+      h.div([], [children.work.view(model, h), children.rest.view(model, h)]),
   })
 
   void config

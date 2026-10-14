@@ -26,7 +26,7 @@ would write by hand.
 
 ### The child can change without breaking its parents
 
-A hand-wired parent encodes what the child is today. Suppose the media-query
+A hand-wired parent encodes what the child is today. Suppose the timer
 child below gains a Managed Resource. Every parent now needs a
 `ManagedResource.lift`, and a parent that does not get one still compiles: the
 resource is never acquired, and nothing says so. Suppose it gains a second
@@ -54,17 +54,17 @@ notices. With a Bundle, each is either impossible or reported:
 
 ### A second placement is one line, not a second copy
 
-In the example below, the second placement (`narrow`) costs about fifteen
+In the example below, the second placement (`rest`) costs about twenty
 lines by hand: a field, a wrapper, its init and Command mapping, a fold, a
-route in `update`, a Subscription lift and a renamed key. Each repeats the
+route in `update`, a Subscription lift, a renamed key and an `h.submodel`. Each repeats the
 field name, and the usual way to write them is to copy the first placement
-and rename. Miss one rename, say `read: model => Option.some(model.dark)` in
-the `narrow` fold, and it compiles, because both fields hold the same type;
-the narrow child is then updated from the dark child's state.
+and rename. Miss one rename, say `read: model => Option.some(model.work)` in
+the `rest` fold, and it compiles, because both fields hold the same type;
+the rest timer is then updated from the work timer's state.
 
-With a Bundle the second placement is one `Bundle.withChild('narrow', …)`
+With a Bundle the second placement is one `Bundle.withChild('rest', Timer)`
 line. The field name is written once, and the Model field, the wrapper, the
-fold, the lifts and the Subscription keys (`MediaQuery@narrow/changes`) are
+fold, the lifts and the Subscription keys (`Timer@rest/ticks`) are
 all derived from it. `Bundle.withEach` does the same for a record of children,
 one per key.
 
@@ -76,162 +76,192 @@ it when `init` takes it. A child with an OutMessage must be placed with an
 
 ## One child, placed twice
 
-A media-query child, placed for dark mode and for a narrow screen.
-`matchMediaChanges` stands for your own `Stream<boolean>` over `matchMedia`.
+A timer: a button that starts and pauses it, and a Subscription that ticks
+once a second while it runs. A page places it twice, for work and for rest.
 
-### By hand
+### The child: an ordinary Submodel
 
-The child is plain Foldkit: a Model, a Message, `init`, `update` and
-Subscriptions.
+This is a plain Foldkit Submodel, with nothing from `foldkit-bundle` in it: a
+Model, a Message, `init`, `update`, Subscriptions, and a view made
+with `Submodel.defineView` so a parent can embed it with `h.submodel`.
 
 ```ts
 import { Option, Schema, Stream } from 'effect'
 import * as Command from 'foldkit/command'
+import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 
-const MediaQueryModel = Schema.Struct({ matches: Schema.Boolean })
-type MediaQueryModel = typeof MediaQueryModel.Type
-const MediaQueryMessage = defineMessageUnion({ Changed: { matches: Schema.Boolean } })
-type MediaQueryMessage = typeof MediaQueryMessage.Type
+const TimerModel = Schema.Struct({ seconds: Schema.Number, running: Schema.Boolean })
+type TimerModel = typeof TimerModel.Type
+const TimerMessage = defineMessageUnion({ ClickedToggle: {}, Ticked: {} })
+type TimerMessage = typeof TimerMessage.Type
 
-const initMediaQuery = (): Update.Return<MediaQueryModel, MediaQueryMessage> => ({
-  model: { matches: false },
+const init = (): Update.Return<TimerModel, TimerMessage> => ({
+  model: { seconds: 0, running: false },
 })
-const updateMediaQuery = (
-  _model: MediaQueryModel,
-  message: MediaQueryMessage,
-): Update.Return<MediaQueryModel, MediaQueryMessage> => ({ model: { matches: message.matches } })
-const mediaQuerySubscriptions = (query: string) =>
-  Subscription.make<MediaQueryModel, MediaQueryMessage>()(() => ({
-    changes: Subscription.persistentEntry(
-      Stream.map(matchMediaChanges(query), matches => MediaQueryMessage.Changed({ matches })),
-    ),
-  }))
+
+const update = (model: TimerModel, message: TimerMessage) =>
+  TimerMessage.match<Update.Return<TimerModel, TimerMessage>>(message, {
+    ClickedToggle: () => ({ model: { ...model, running: !model.running } }),
+    Ticked: () => ({ model: { ...model, seconds: model.seconds + 1 } }),
+  })
+
+const subscriptions = Subscription.make<TimerModel, TimerMessage>()(entry => ({
+  ticks: entry(
+    { running: Schema.Boolean },
+    {
+      modelToDependencies: model => ({ running: model.running }),
+      dependenciesToStream: ({ running }) =>
+        running ? Stream.map(Stream.tick('1 second'), () => TimerMessage.Ticked()) : Stream.empty,
+    },
+  ),
+}))
+
+const view = Submodel.defineView<TimerModel, TimerMessage>((model, h) =>
+  h.button(
+    [h.OnClick(TimerMessage.ClickedToggle())],
+    [`${model.seconds}s ${model.running ? 'Pause' : 'Start'}`],
+  ),
+)
 ```
 
-The parent declares a field and a wrapper per placement, then wires each one
-three times:
+Both versions below use this child unchanged. Only the parent differs.
+
+### Placed by hand
+
+The parent declares a field and a wrapper Message for each placement, then
+wires each one in four places:
 
 ```ts
-const Model = Schema.Struct({
-  dark: MediaQueryModel,
-  narrow: MediaQueryModel,
-  helpOpen: Schema.Boolean,
-})
+const Model = Schema.Struct({ work: TimerModel, rest: TimerModel })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({
-  GotDarkMessage: { message: MediaQueryMessage },
-  GotNarrowMessage: { message: MediaQueryMessage },
-  ClickedHelp: {},
+  GotWorkMessage: { message: TimerMessage },
+  GotRestMessage: { message: TimerMessage },
 })
 type Message = typeof Message.Type
 
 // 1. init: each child's Model, and its Commands lifted
-const init = (): Update.Return<Model, Message> => {
-  const dark = initMediaQuery()
-  const narrow = initMediaQuery()
+const parentInit = (): Update.Return<Model, Message> => {
+  const work = init()
+  const rest = init()
   return {
-    model: { dark: dark.model, narrow: narrow.model, helpOpen: false },
+    model: { work: work.model, rest: rest.model },
     commands: [
-      ...Command.mapMessages(dark.commands, message => Message.GotDarkMessage({ message })),
-      ...Command.mapMessages(narrow.commands, message => Message.GotNarrowMessage({ message })),
+      ...Command.mapMessages(work.commands, message => Message.GotWorkMessage({ message })),
+      ...Command.mapMessages(rest.commands, message => Message.GotRestMessage({ message })),
     ],
   }
 }
 
 // 2. update: one fold per placement, and a route to each
-const foldDark = Update.foldChild({
-  update: updateMediaQuery,
-  read: (model: Model) => Option.some(model.dark),
-  write: (model: Model, dark: MediaQueryModel) => ({ ...model, dark }),
-  toParentMessage: (message: MediaQueryMessage): Message => Message.GotDarkMessage({ message }),
+const foldWork = Update.foldChild({
+  update,
+  read: (model: Model) => Option.some(model.work),
+  write: (model: Model, work: TimerModel) => ({ ...model, work }),
+  toParentMessage: (message: TimerMessage): Message => Message.GotWorkMessage({ message }),
 })
-const foldNarrow = Update.foldChild({
-  update: updateMediaQuery,
-  read: (model: Model) => Option.some(model.narrow),
-  write: (model: Model, narrow: MediaQueryModel) => ({ ...model, narrow }),
-  toParentMessage: (message: MediaQueryMessage): Message => Message.GotNarrowMessage({ message }),
+const foldRest = Update.foldChild({
+  update,
+  read: (model: Model) => Option.some(model.rest),
+  write: (model: Model, rest: TimerModel) => ({ ...model, rest }),
+  toParentMessage: (message: TimerMessage): Message => Message.GotRestMessage({ message }),
 })
-const update = (model: Model, message: Message) =>
+const parentUpdate = (model: Model, message: Message) =>
   Message.match<Update.Return<Model, Message>>(message, {
-    GotDarkMessage: ({ message }) => foldDark(model, message),
-    GotNarrowMessage: ({ message }) => foldNarrow(model, message),
-    ClickedHelp: () => ({ model: { ...model, helpOpen: !model.helpOpen } }),
+    GotWorkMessage: ({ message }) => foldWork(model, message),
+    GotRestMessage: ({ message }) => foldRest(model, message),
   })
 
 // 3. subscriptions: one lift per placement, renamed so the keys do not collide
-const dark = Subscription.lift(mediaQuerySubscriptions('(prefers-color-scheme: dark)'))({
-  read: (model: Model) => Option.some(model.dark),
-  toParentMessage: (message: MediaQueryMessage): Message => Message.GotDarkMessage({ message }),
+const work = Subscription.lift(subscriptions)({
+  read: (model: Model) => Option.some(model.work),
+  toParentMessage: (message: TimerMessage): Message => Message.GotWorkMessage({ message }),
 })
-const narrow = Subscription.lift(mediaQuerySubscriptions('(max-width: 40rem)'))({
-  read: (model: Model) => Option.some(model.narrow),
-  toParentMessage: (message: MediaQueryMessage): Message => Message.GotNarrowMessage({ message }),
+const rest = Subscription.lift(subscriptions)({
+  read: (model: Model) => Option.some(model.rest),
+  toParentMessage: (message: TimerMessage): Message => Message.GotRestMessage({ message }),
 })
-const subscriptions = { darkChanges: dark.changes, narrowChanges: narrow.changes }
+const parentSubscriptions = { workTicks: work.ticks, restTicks: rest.ticks }
+
+// 4. view: one h.submodel per placement
+const parentView = (model: Model, h: HtmlBuilder<Message>) =>
+  h.div(
+    [],
+    [
+      h.submodel({
+        slotId: 'work',
+        model: model.work,
+        view,
+        toParentMessage: message => Message.GotWorkMessage({ message }),
+      }),
+      h.submodel({
+        slotId: 'rest',
+        model: model.rest,
+        view,
+        toParentMessage: message => Message.GotRestMessage({ message }),
+      }),
+    ],
+  )
 ```
 
-Every line is correct, and nothing checks that it is complete. Drop the
-`narrow` lift and the page compiles and never learns the screen is narrow.
-Both lifts produce a key `changes`, so they have to be renamed before they
-can share one record.
+Every line is correct, and nothing checks that it is complete. Leave out the
+`rest` lift and the page still compiles; the rest timer's button toggles, but
+the timer never counts. Both lifts produce a key `ticks`, so they have to be
+renamed before they can share one record.
 
-### With a Bundle
+### Placed as a Bundle
 
-The child's parts go into one value, with its configuration (`query`) as a
-Schema:
+`Bundle.make` collects the same child's parts into one value:
 
 ```ts
-import type { HtmlBuilder } from 'foldkit/html'
 import { Bundle } from 'foldkit-bundle'
 
-const MediaQuery = Bundle.make('MediaQuery', {
-  Model: MediaQueryModel,
-  Message: MediaQueryMessage,
-  args: Schema.Struct({ query: Schema.String }),
-  init: () => ({ model: { matches: false } }),
-  update: (_model, message) => ({ model: { matches: message.matches } }),
-  subscriptions: ({ query }) =>
-    Subscription.make<MediaQueryModel, MediaQueryMessage>()(() => ({
-      changes: Subscription.persistentEntry(
-        Stream.map(matchMediaChanges(query), matches => MediaQueryMessage.Changed({ matches })),
-      ),
-    })),
+const Timer = Bundle.make('Timer', {
+  Model: TimerModel,
+  Message: TimerMessage,
+  init,
+  update,
+  subscriptions: () => subscriptions,
+  view,
 })
 ```
 
 The parent places it twice and wires the assembly once:
 
 ```ts
-const Page = Bundle.compose({ helpOpen: Schema.Boolean }).pipe(
-  Bundle.withMessages({ ClickedHelp: {} }),
-  Bundle.withChild('dark', MediaQuery, { args: { query: '(prefers-color-scheme: dark)' } }),
-  Bundle.withChild('narrow', MediaQuery, { args: { query: '(max-width: 40rem)' } }),
+const Page = Bundle.compose({}).pipe(
+  Bundle.withChild('work', Timer),
+  Bundle.withChild('rest', Timer),
 )
 type Model = typeof Page.Model.Type
 type Message = typeof Page.Message.Type
-const { placements } = Page
+const { children, placements } = Page
 
 const config = placements.complete({
-  init: () => placements.initial({ helpOpen: false }),
-  update: placements.update(model => ({ model: { ...model, helpOpen: !model.helpOpen } })),
+  init: () => placements.initial({}),
+  update: placements.update(),
   subscriptions: placements.subscriptions(),
   view: (model: Model, h: HtmlBuilder<Message>) =>
-    h.button([h.OnClick(Page.Message.ClickedHelp())], [model.dark.matches ? 'Help (dark)' : 'Help']),
+    h.div([], [children.work.view(model, h), children.rest.view(model, h)]),
 })
 ```
 
 `Bundle.compose` derives the same parent the hand-wired version declared: the
-fields `dark`, `narrow` and `helpOpen`, and the Message with `GotDarkMessage`,
-`GotNarrowMessage` and `ClickedHelp`. The parent's own `update` sees only
-`ClickedHelp`; the assembly routes each wrapper to its placement.
+fields `work` and `rest`, and the Message with `GotWorkMessage` and
+`GotRestMessage`. Each placement is still the Submodel above:
+`children.work.view` draws it with `h.submodel`, `placements.update` folds it
+with Foldkit's fold, and `placements.subscriptions` lifts its `ticks` under
+the key `Timer@work/ticks`. The difference is that you did not write any of
+it, so none of it can be left out.
 
 ## What it does not change
 
-- **State and transitions.** `model.dark` is an ordinary field, and a
-  `GotDarkMessage` goes through the parent's `update` like any other Message.
+- **State and transitions.** `model.work` is an ordinary field, and a
+  `GotWorkMessage` goes through the parent's `update` like any other Message.
   The package's parity test runs one Message script through a placement and
   through the same child wired by hand with Foldkit's lifts, and requires the
   same Models, Command Messages and Subscription dependencies at every step
