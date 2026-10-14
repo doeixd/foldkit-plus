@@ -33,7 +33,9 @@ const edge = 'var(--_fk-slider-size)'
 
 export const Slider = Style.recipeFor(SliderSlots)({
   base: {
-    root: component(Style.self({ display: 'grid', gap: ref.space['2xs'] })),
+    // A track wide enough to drag, where a row or a centered box would
+    // shrink it to its label.
+    root: component(Style.self({ display: 'grid', gap: ref.space['2xs'], minInlineSize: '12rem' })),
     track: component(
       Style.self({
         position: 'relative',

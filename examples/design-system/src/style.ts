@@ -659,22 +659,9 @@ export const StatusStyle = app.slots(
   { name: 'StatusStyle' },
 )
 
-export const DialogPreviewStyle = app.forSlots(DialogSlots)(
-  Recipes.Dialog.extend({
-    // The dialog element is a full-viewport fixed layer, so the panel sits
-    // at its top: grid centers it on both axes. Scoped to `[open]` — an
-    // unconditional display would override the user agent's
-    // `dialog:not([open]) { display: none }` and leave a closed dialog
-    // intercepting every pointer event. The fixed backdrop does not take
-    // part in grid layout, so only the panel moves.
-    base: {
-      dialog: Style.nest('&[open]', { display: 'grid', placeItems: 'center' }),
-    },
-  })({ size: 'sm' }),
-  {
-    name: 'DialogPreviewStyle',
-  },
-)
+export const DialogPreviewStyle = app.forSlots(DialogSlots)(Recipes.Dialog({ size: 'sm' }), {
+  name: 'DialogPreviewStyle',
+})
 
 export const DialogActionsSlots = Slots.define({
   actions: Slot.make({ capability: Capability.Container }),

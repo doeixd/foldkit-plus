@@ -23,6 +23,11 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         maxBlockSize: '100%',
       }),
       Style.pseudo('::backdrop', { background: 'transparent' }),
+      // `@foldkit/ui` draws the open dialog over the whole viewport, so
+      // `margin: auto` centers nothing and the panel sits at the top: the
+      // grid centers it. Only while open, or `display` would beat the user
+      // agent's `dialog:not([open]) { display: none }`.
+      Style.nest('&[open]', { display: 'grid', placeItems: 'center' }),
     ),
     backdrop: component(
       Style.self({

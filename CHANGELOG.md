@@ -62,6 +62,13 @@ version changed; `pnpm` skips versions already in the registry.
   state's button, a badge in a pressable card. A call with no Message is
   unchanged.
 
+### Fixed
+
+- **`foldkit-mixins-ui`: `Recipes.Dialog` centers the open panel.** `@foldkit/ui`
+  draws the open dialog over the whole viewport, so the panel sat at its top.
+- **`foldkit-mixins-ui`: `Recipes.Slider` keeps a track wide enough to drag**
+  (12rem at least) in a row or a centered box, where it shrank to its label.
+
 ## 0.21.0
 
 Authentication through Yielded Auth. `foldkit-auth` 0.1.0 is new;
