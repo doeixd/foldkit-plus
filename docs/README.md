@@ -71,6 +71,7 @@ Link and Placement to Connection and Segment, are in the
 | Join several integrations and placements through one checked list instead of hand-wiring each | [Wiring](./wiring.md) | `foldkit-bundle`, `foldkit-bundle-surface`, `foldkit-surface` |
 | Serve several screens from one route topology, with navigation, data preparation, and rendering derived from it | [Site guide](./site.md) | `foldkit-site` (+ `foldkit-surface`, `foldkit-remote`, `foldkit-ssr` as composed) |
 | Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
+| Tell who is asking from what they may do, and wire the two | [Auth and Guard](./auth-and-guard.md) | `foldkit-auth`, `foldkit-guard` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Build on the shared UI vocabulary (anatomy, capability, recipe, theme) before adding widgets | [UI architecture](./ui-architecture.md) | `foldkit-mixins`, `foldkit-mixins-ui` |
 | Understand the long-term path from one Foldkit state machine to Web, native iOS, native Android, and desktop without requiring a JavaScript runtime on mobile | [Native cross-platform Foldkit](./native-cross-platform.md) | `foldkit-surface`, `foldkit-mixins`, platform adapters, reffect |
@@ -104,6 +105,7 @@ The onboarding guide and API reference for each package is its README under [`pa
 ```text
 Foundation       foldkit-surface + foldkit-metadata
 Domain           foldkit-entity (declaration and selection; Remote and remote-drizzle read it)
+Authentication   foldkit-auth (a Yielded Auth session as the principal; /server)
 Authorization    foldkit-guard (rules declared once; /server, /drizzle, /sync, /agent enforce them)
 Forms            foldkit-form (headless; on foldkit-bundle and foldkit-entity) + mixins-form (draws it)
 Screens          foldkit-crud (an editor, a list, a detail and a remover, joined from a form, Remote operations, and their Entity) + mixins-crud (draws lists and details)
