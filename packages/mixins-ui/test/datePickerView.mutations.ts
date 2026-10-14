@@ -46,8 +46,8 @@ export default [
     edits: [
       {
         file: '../src/datePickerView.ts',
-        find: 'h.div([...(render.panel ?? [])], [render.calendar]),',
-        replace: 'h.div([...(render.panel ?? [])], []),',
+        find: 'h.div([...(render.panel ?? [])], [render.calendar])]',
+        replace: 'h.div([...(render.panel ?? [])], [])]',
       },
     ],
     tests,
