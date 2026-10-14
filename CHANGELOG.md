@@ -145,6 +145,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins/theme`, `foldkit-mixins-ui`: states as tints, and
+  concentric corners.** `Theme.oklch` gains a `state` group, what a state lays
+  over the surface under it as a mix of the element's own text color
+  (`hover`, the see-through `tint` and `tint-hover`, and `edge`, a hairline
+  inside an image), with its amounts as knobs; and `Theme.nested(outer,
+  inset, border?)` gives the radius of a surface inset in another. The menu,
+  popover, pagination and calendar hovers read `state.hover` instead of the
+  muted surface, which vanished on a page of that surface; the neutral button
+  is see-through; avatar and card images carry the edge; and a popup's rows,
+  a segmented option and a pill tab round concentrically inside their
+  container. Breaking: a popup's panel has the `xl` radius.
 - **`foldkit-mixins/theme`, `foldkit-mixins-ui`: six type roles.** A `type`
   token group and `Theme.role(name)`: `display`, `title`, `subtitle`, `body`,
   `caption` and `micro`, each a size and a whole-pixel leading that step with

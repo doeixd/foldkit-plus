@@ -357,7 +357,12 @@ panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `highlight-ink`):
 'bold' }` lights the row in the accent's fill, and `menu: { color }` draws the panel `inverted`
 (the other scheme's surface and text) or `translucent` over a blur, as shadcn's menu options do.
 Each is a 0-or-1 knob (`popup-bold`, `popup-invert`) blended by `color-mix`, so an override
-switches it live. `Theme.tokens` is the
+switches it live. The `state` group is what a state lays over the surface under it, a mix of the
+element's own text color (`hover`; `tint` and `tint-hover`, a see-through fill; `edge`, a hairline
+inside an image), so it reads at any elevation and on any band; its amounts are knobs
+(`state-hover`, `state-tint`, `state-tint-dark`, `image-edge`). `Theme.nested(outer, inset,
+border?)` is the radius of a surface inset in another, so their corners are concentric.
+`Theme.tokens` is the
 non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
 Its `motion` group is three tiers, `fast`, `moderate` and `slow` (80, 160 and 240ms, for hover and
 fades, popups and tabs, dialogs), each with a quicker `-exit` for dismissals, all multiplied by the

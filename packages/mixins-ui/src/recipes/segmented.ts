@@ -9,7 +9,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { SegmentedSlots } from '../segmented.js'
-import { ladder } from 'foldkit-mixins/theme'
+import { ladder, nested } from 'foldkit-mixins/theme'
 import { component, glide, hover, onLadder, ref, steps, trimmed, variant } from './design.js'
 
 const pressed = '[aria-pressed="true"]'
@@ -69,7 +69,8 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
         minBlockSize: `calc(${ladder('height')} - 2 * var(--_fk-segmented-inset, 0px))`,
         background: 'transparent',
         border: '0',
-        borderRadius: ref.radius.sm,
+        // Concentric with the tray's corner, inside its inset.
+        borderRadius: nested(ref.radius.md, 'var(--_fk-segmented-inset, 0px)'),
         color: ref.text.muted,
         cursor: 'pointer',
         font: 'inherit',

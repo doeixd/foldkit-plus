@@ -13,6 +13,7 @@ import {
   onLadder,
   ref,
   steps,
+  unfilledHover,
 } from './design.js'
 import { backdrop, heading, highlight, item, panel, rows, separator } from './popup.js'
 
@@ -32,7 +33,7 @@ export const Menu = Style.recipeFor(MenuSlots)({
         fontWeight: ref.weight.medium,
         cursor: 'pointer',
       }),
-      hover({ background: ref.surface.muted }),
+      hover({ background: unfilledHover }),
       focusRing,
       // The contract lets the trigger disable, like the items it opens.
       disabled,

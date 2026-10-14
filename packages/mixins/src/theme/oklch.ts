@@ -188,6 +188,11 @@ export const oklch = (knobs: OklchKnobs) => {
       'popup-invert': knobs.menu?.color?.startsWith('inverted') === true ? '1' : '0',
       'popup-alpha': knobs.menu?.color?.endsWith('translucent') === true ? '0.8' : '1',
       'popup-blur': knobs.menu?.color?.endsWith('translucent') === true ? '12px' : '0px',
+      // How much of the text a state lays over its surface.
+      'state-hover': '12%',
+      'state-tint': '8%',
+      'state-tint-dark': '25%',
+      'image-edge': '10%',
     },
     hue: {
       accent: v('knob', 'accent-h'),
@@ -250,6 +255,25 @@ export const oklch = (knobs: OklchKnobs) => {
         `oklch(25% calc(${surfaceC} * 2) ${neutral} / 0.14)`,
         `oklch(5% calc(${surfaceCDark} * 2) ${neutral} / 0.6)`,
       ),
+    },
+    // What a state lays over the surface under it, after Fluid Functionalism's
+    // overlays: a mix of the element's own text color, which a custom property
+    // resolves on the element that reads it, so a hover reads at any
+    // elevation, on a tinted band, and on an inverted panel alike. `tint` is
+    // a see-through fill, which takes on whatever it sits on (lighter when
+    // hovered, as Fluid's: the press is what darkens). `edge` is a hairline
+    // inside an image, so a pale edge keeps its shape.
+    state: {
+      hover: `color-mix(in oklab, currentColor ${v('knob', 'state-hover')}, transparent)`,
+      tint: ld(
+        `color-mix(in oklab, currentColor ${v('knob', 'state-tint')}, transparent)`,
+        `color-mix(in oklab, currentColor ${v('knob', 'state-tint-dark')}, transparent)`,
+      ),
+      'tint-hover': ld(
+        `color-mix(in oklab, currentColor calc(${v('knob', 'state-tint')} * 0.8), transparent)`,
+        `color-mix(in oklab, currentColor calc(${v('knob', 'state-tint-dark')} * 0.8), transparent)`,
+      ),
+      edge: `color-mix(in oklab, ${v('text', 'overt')} ${v('knob', 'image-edge')}, transparent)`,
     },
     // A menu's panel and its lit row, which the popup recipes read.
     popup: {

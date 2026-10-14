@@ -787,8 +787,10 @@ keeps what the systems plan's "What we keep" lists.
 - [ ] **Chat's streamed text unwrapped.** The reset gives every `p`
   `text-wrap: pretty`, which re-wraps earlier lines as words arrive; parity 7's
   message slot sets `text-wrap: wrap`.
-- [ ] **Systems 4, state tints and concentric radii.** A `state` group (hover,
-  selected, pressed, tint) of the ink; `Theme.nested`; `Surface.imageEdge`.
+- [x] **Systems 4, state tints and concentric radii.** A `state` group (hover,
+  tint, tint-hover, edge) of the element's own text color, `Theme.nested`, and
+  an image edge. `selected` and `pressed` wait for a recipe that reads them
+  (the Card's selected fill sits beside its `surface` variants).
   [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §4
 - [ ] **Systems 5, the surface ladder.** Probe CSS `inherit()` first; eight
   levels from `surface.base`, keeping its chroma; nesting by depth rules;

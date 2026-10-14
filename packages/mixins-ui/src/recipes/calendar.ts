@@ -7,7 +7,7 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { CalendarSlots } from '../calendar.js'
 import { ladder, role } from 'foldkit-mixins/theme'
-import { component, focusRing, hover, ref, steps } from './design.js'
+import { component, focusRing, hover, ref, steps, unfilledHover } from './design.js'
 
 // Read on each cell, so a cell steps with the calendar's size or the region's.
 const cell = ladder('height')
@@ -27,7 +27,7 @@ const quiet: StyleValue = component(
     ...role('body'),
     cursor: 'pointer',
   }),
-  hover({ background: ref.surface.muted, color: ref.text.overt }),
+  hover({ background: unfilledHover, color: ref.text.overt }),
   focusRing,
   Style.pseudo(':disabled', { opacity: '0.4', cursor: 'not-allowed' }),
 )
@@ -48,7 +48,7 @@ const choice = (shape: 'round' | 'wide'): StyleValue =>
       fontVariantNumeric: 'tabular-nums',
       cursor: 'pointer',
     }),
-    hover({ background: ref.surface.muted }),
+    hover({ background: unfilledHover }),
     Style.nest('[data-today] > &', { boxShadow: `inset 0 0 0 1px ${ref.outline.overt}` }),
     Style.nest('[data-outside-month] > &', { color: ref.text.muted }),
     Style.nest('[data-selected] > &, [data-selected] > &:hover', {

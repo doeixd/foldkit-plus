@@ -380,7 +380,7 @@ describe('Recipes', () => {
         Recipes.Button({ tone: 'neutral', variant, size: null }),
       ).css
       expect(css).toMatch(
-        /:hover:not\(\[aria-disabled="true"\], :disabled\)\{[^}]*background:color-mix\(in oklab, currentColor 12%, transparent\)/,
+        /:hover:not\(\[aria-disabled="true"\], :disabled\)\{[^}]*background:var\(--fk-state-hover\)/,
       )
     },
   )
@@ -459,14 +459,14 @@ describe('Recipes', () => {
       Style.forSlots(MenuSlots)(Recipes.Menu(selection)).css
 
     it('opens a bordered panel over later content', () => {
-      expect(css({})).toContain('border-radius:var(--fk-radius-lg)')
+      expect(css({})).toContain('border-radius:var(--fk-radius-xl)')
       expect(css({})).toContain('box-shadow:var(--fk-shadow-lg)')
       expect(css({})).toContain('z-index:20')
     })
 
     it('densities rows without changing the panel', () => {
       expect(css({ size: 'sm' })).not.toBe(css({ size: 'md' }))
-      expect(css({ size: 'md' })).toContain('border-radius:var(--fk-radius-lg)')
+      expect(css({ size: 'md' })).toContain('border-radius:var(--fk-radius-xl)')
     })
 
     it('dims a disabled trigger like its rows', () => {

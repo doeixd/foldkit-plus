@@ -26,7 +26,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/design.ts',
-        find: "export const unfilledHover = 'color-mix(in oklab, currentColor 12%, transparent)'",
+        find: 'export const unfilledHover = ref.state.hover',
         replace: 'export const unfilledHover = ref.surface.muted',
       },
     ],
@@ -202,8 +202,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/menu.ts',
-        find: '      hover({ background: ref.surface.muted }),\n      focusRing,\n      // The contract lets the trigger disable, like the items it opens.\n      disabled,',
-        replace: '      hover({ background: ref.surface.muted }),\n      focusRing,',
+        find: '      hover({ background: unfilledHover }),\n      focusRing,\n      // The contract lets the trigger disable, like the items it opens.\n      disabled,',
+        replace: '      hover({ background: unfilledHover }),\n      focusRing,',
       },
     ],
     tests,

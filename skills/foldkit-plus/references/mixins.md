@@ -449,7 +449,7 @@ export const stylesheet: string = Style.stylesheet(
   palette (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,
   `error`, `info`; each family has a fill `default` with `hover`/`active`, a tint `subtle`, a line `outline`,
   `on-fill` for text on it, and `ink` for colored text on the base surface: colored text is `ink`, never `default`; and `syntax`, code colors named as tokenizers name kinds, `syntax-keyword` reading `--fk-syntax-keyword`); only `knob` holds literals, so overriding `knob.accent-h` under a
-  `Theme.scoped` selector recolors everything; `neutral: { h }` gives the neutrals a hue apart from the accent's (a base color), and `menu: { accent: 'bold', color: 'inverted' | 'translucent' | … }` sets the `popup` tokens menus, listboxes and comboboxes draw in. Emit `Theme.root(theme, { omit: Theme.tokens })`
+  `Theme.scoped` selector recolors everything; `neutral: { h }` gives the neutrals a hue apart from the accent's (a base color), and `menu: { accent: 'bold', color: 'inverted' | 'translucent' | … }` sets the `popup` tokens menus, listboxes and comboboxes draw in; `state` (`hover`, `tint`, `tint-hover`, `edge`) is a mix of the element's own text color, so a hover reads on any surface, and `Theme.nested(outer, inset, border?)` gives a concentric inner radius. Emit `Theme.root(theme, { omit: Theme.tokens })`
   after `Theme.root(Theme.tokens)` to avoid duplicates. The active theme is a Model field written
   as `data-theme` on the root. `Theme.breakpointWidths(Theme.tokens)` feeds the `Breakpoints`
   bundle (`theme:unparseable-breakpoint` for a non-`min-width` query).

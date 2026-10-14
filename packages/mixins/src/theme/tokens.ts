@@ -181,6 +181,15 @@ export const ladder = (name: Rung): string => {
   return name === 'icon' ? stepped : `calc(${stepped} * var(--fk-knob-density))`
 }
 
+/**
+ * The radius of a rounded surface inset in another, so their corners are
+ * concentric: the outer radius less the inset between them and the outer
+ * surface's border, never below zero. Past a large radius, or with uneven
+ * gaps, the two read as independent and may be tuned by eye.
+ */
+export const nested = (outer: string, inset: string, border = '0px'): string =>
+  `max(0px, calc(${outer} - ${inset} - ${border}))`
+
 /** A role of the type scale. */
 export type Role = 'display' | 'title' | 'subtitle' | 'body' | 'caption' | 'micro'
 

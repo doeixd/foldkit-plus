@@ -5,7 +5,16 @@
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { PopoverSlots } from '../popover.js'
-import { component, disabled, focusRing, hover, ref, transition, variant } from './design.js'
+import {
+  component,
+  disabled,
+  focusRing,
+  hover,
+  ref,
+  transition,
+  unfilledHover,
+  variant,
+} from './design.js'
 
 const width = (max: string) => variant(Style.self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
 
@@ -28,7 +37,7 @@ export const Popover = Style.recipeFor(PopoverSlots)({
         cursor: 'pointer',
         ...transition('background-color, border-color, color'),
       }),
-      hover({ background: ref.surface.muted }),
+      hover({ background: unfilledHover }),
       focusRing,
       disabled,
     ),

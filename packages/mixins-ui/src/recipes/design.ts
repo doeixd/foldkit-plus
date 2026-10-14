@@ -147,10 +147,17 @@ const tone = (value: Tone): StyleValue =>
   )
 
 /**
- * The ground under an unfilled control on hover: its own text color, faint.
- * A solid wash was near-white under the white text a colored band sets.
+ * The ground under an unfilled control on hover: the palette's `state.hover`,
+ * its own text color, faint. A solid wash was near-white under the white text
+ * a colored band sets, and a surface step vanished on a page of that step.
  */
-export const unfilledHover = 'color-mix(in oklab, currentColor 12%, transparent)'
+export const unfilledHover = ref.state.hover
+
+/** A 1px hairline inside an image's edge, so a pale picture keeps its shape without a border changing its box. */
+export const imageEdge: Declarations = {
+  outline: `${ref.border.thin} solid ${ref.state.edge}`,
+  outlineOffset: `calc(-1 * ${ref.border.thin})`,
+}
 
 export const toneVar = (name: 'fill' | 'fill-hover' | 'on-fill' | 'ink' | 'line'): string =>
   `var(--_fk-tone-${name})`
@@ -165,9 +172,11 @@ export const tones = {
   }),
   // A quiet grey that still reads as a control: the neutral surface step was
   // barely off the page, and as an outline's line it all but vanished.
+  // See-through, as Fluid's secondary: it takes on the surface or tinted
+  // band it sits on and never seams against it.
   neutral: tone({
-    fill: ref.outline.subtle,
-    fillHover: ref.outline.default,
+    fill: ref.state.tint,
+    fillHover: ref.state['tint-hover'],
     onFill: ref.text.overt,
     ink: ref.text.default,
     line: ref.outline.default,

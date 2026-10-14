@@ -14,7 +14,7 @@
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { CardGroupSlots, CardSlots } from '../card.js'
-import { component, focusRing, glide, ref, transition, variant } from './design.js'
+import { component, focusRing, glide, imageEdge, ref, transition, variant } from './design.js'
 
 const pad = 'var(--_fk-card-pad)'
 const gap = 'var(--_fk-card-gap)'
@@ -46,6 +46,7 @@ export const Card = Style.recipeFor(CardSlots)({
         inlineSize: '100%',
         blockSize: '100%',
         objectFit: 'cover',
+        ...imageEdge,
       }),
     ),
     media: component(

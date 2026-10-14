@@ -5,7 +5,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { PaginationSlots } from '../pagination.js'
-import { component, disabled, focusRing, hover, ref } from './design.js'
+import { component, disabled, focusRing, hover, ref, unfilledHover } from './design.js'
 
 const stop = component(
   Style.self({
@@ -22,7 +22,7 @@ const stop = component(
     font: 'inherit',
     cursor: 'pointer',
   }),
-  hover({ background: ref.surface.muted }),
+  hover({ background: unfilledHover }),
   focusRing,
   disabled,
 )

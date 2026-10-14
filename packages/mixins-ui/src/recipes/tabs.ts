@@ -6,6 +6,7 @@
  * follows the pointer; until `Tabs.fluid` runs, the chosen tab marks itself.
  */
 import { Style } from 'foldkit-mixins'
+import { nested } from 'foldkit-mixins/theme'
 import { TabsSlots } from '../tabs.js'
 import {
   component,
@@ -127,7 +128,8 @@ export const Tabs = Style.recipeFor(TabsSlots)({
           }),
         ),
         tab: variant(
-          Style.self({ borderRadius: ref.radius.md }),
+          // Concentric with the tray's corner, inside its padding.
+          Style.self({ borderRadius: nested(ref.radius.lg, ref.space['3xs']) }),
           // The accent's tint and ink, as a pressed Segmented option: the base
           // surface on the tray barely differed from it in a dark scheme.
           Style.pseudo(selected, { color: ref.accent.ink }),

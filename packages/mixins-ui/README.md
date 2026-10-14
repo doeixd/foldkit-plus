@@ -515,6 +515,12 @@ What a recipe assumes and does:
   headings) and `micro` (keycaps). Labels in fixed-height controls are trimmed
   to their capitals (`text-box`), and a field's text is 16px on a coarse
   pointer, so iOS Safari does not zoom the page into it.
+- **A state is a tint, not a surface.** A hover lays the palette's
+  `state.hover`, a mix of the control's own text color, over whatever is under
+  it, so it reads on a muted page, a colored band or an inverted panel; the
+  neutral button is see-through (`state.tint`), and images carry a hairline
+  inside their edge (`state.edge`). A popup's rows round concentrically inside
+  its panel (`Theme.nested`), as a segmented option does inside its tray.
 - **State comes from the component's own attributes.** Checked, selected, and
   disabled looks read `aria-checked`, `aria-selected`, and `aria-disabled`,
   which `@foldkit/ui` already writes; no `whenInput` is needed.

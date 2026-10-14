@@ -5,7 +5,7 @@
  * trigger and density. Internal to the recipes, not a published contract.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { role } from 'foldkit-mixins/theme'
+import { nested, role } from 'foldkit-mixins/theme'
 import { component, disabled, glide, ref, rowOnLadder } from './design.js'
 
 /** A line in the panel's own ink, so it reads on an inverted panel too. */
@@ -21,7 +21,7 @@ export const panel: StyleValue = component(
     minInlineSize: '14rem',
     padding: ref.space['2xs'],
     border: `${ref.border.thin} solid ${line}`,
-    borderRadius: ref.radius.lg,
+    borderRadius: ref.radius.xl,
     background: ref.popup.surface,
     color: ref.popup.ink,
     backdropFilter: `blur(${ref.popup.blur})`,
@@ -52,7 +52,8 @@ export const item: StyleValue = component(
     boxSizing: 'border-box',
     ...rowOnLadder,
     border: '0',
-    borderRadius: ref.radius.md,
+    // Concentric with the panel's corner, inside its padding and border.
+    borderRadius: nested(ref.radius.xl, ref.space['2xs'], ref.border.thin),
     background: 'transparent',
     color: 'inherit',
     font: 'inherit',

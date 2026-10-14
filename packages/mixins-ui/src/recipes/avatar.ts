@@ -5,7 +5,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { AvatarSlots } from '../avatar.js'
-import { component, ref, variant } from './design.js'
+import { component, imageEdge, ref, variant } from './design.js'
 
 export const Avatar = Style.recipeFor(AvatarSlots)({
   base: {
@@ -37,6 +37,7 @@ export const Avatar = Style.recipeFor(AvatarSlots)({
         inlineSize: '100%',
         blockSize: '100%',
         objectFit: 'cover',
+        ...imageEdge,
       }),
     ),
   },
