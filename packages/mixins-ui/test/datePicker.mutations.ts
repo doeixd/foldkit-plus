@@ -40,4 +40,15 @@ export default [
     ],
     tests: gate,
   },
+  {
+    name: 'a date picker given no draw draws nothing',
+    edits: [
+      {
+        file: '../src/datePicker.ts',
+        find: '=> Html = defaultToView,',
+        replace: '=> Html = (_, h) => h.div([], []),',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/datePicker.test.ts'],
+  },
 ]

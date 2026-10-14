@@ -160,6 +160,28 @@ describe('DatePicker adapter', () => {
     )
   })
 
+  it("draws upstream's markup with the style applied when given no draw", () => {
+    const PickerStyle = Style.forSlots(DatePickerSlots)({
+      trigger: Style.class('picker-trigger'),
+      panel: Style.class('picker-panel'),
+    })
+    Scene.scene<Model, Message, UpstreamDatePicker.OutMessage>(
+      {
+        update: UpstreamDatePicker.update,
+        view: (model, h) =>
+          DatePickerView.view(
+            model,
+            { ...inputsOf(h), toView: DatePickerAdapter.toView([PickerStyle.mixin]) },
+            h,
+          ),
+      },
+      Scene.given(openModel),
+      anchored(),
+      Scene.expect(Scene.selector('button.picker-trigger')).toExist(),
+      Scene.expect(Scene.selector('.picker-panel')).toExist(),
+    )
+  })
+
   it('refuses a Behavior that takes over the trigger click', () => {
     const Steal = Behavior.forSlots(DatePickerSlots)<undefined, Message>({
       trigger: Behavior.slot({

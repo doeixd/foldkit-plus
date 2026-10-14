@@ -38,6 +38,7 @@ version changed; `pnpm` skips versions already in the registry.
   `header`, the row of the heading and its paging buttons, which no upstream
   bundle holds; `Calendar.toView(mixins, { h })` draws every mode through the
   slots, and `Calendar.draw` is that drawing for a `toView` of your own.
+  `DatePicker.toView`'s `draw` is optional the same way.
 
 ### Changed
 

@@ -2,7 +2,7 @@ import { Attr, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldk
 import type { Message } from '@foldkit/ui/datePicker'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
-import type { DatePickerRenderInfo } from './datePickerView.js'
+import { defaultToView, type DatePickerRenderInfo } from './datePickerView.js'
 
 /**
  * DatePicker is a small composed Submodel: a `trigger` button plus a
@@ -56,14 +56,14 @@ export const resolve = <Input>(
 
 /**
  * The date picker's `toView`: `draw` receives its bundles with `mixins`
- * applied, and the date picker's builder to draw them with. Unlike the other
- * adapters' it takes no builder of the application's, which could not draw
- * these bundles.
+ * applied, and the date picker's builder to draw them with; without one,
+ * they are drawn as upstream draws them. Unlike the other adapters' it takes
+ * no builder of the application's, which could not draw these bundles.
  */
 export const toView =
   (
     mixins: MixinList<Message>,
-    draw: (resolved: ResolvedDatePicker, h: HtmlBuilder<Message>) => Html,
+    draw: (resolved: ResolvedDatePicker, h: HtmlBuilder<Message>) => Html = defaultToView,
   ) =>
   (render: DatePickerRenderInfo, h: HtmlBuilder<Message>): Html =>
     draw(resolve(render, mixins, { input: undefined, h }), h)

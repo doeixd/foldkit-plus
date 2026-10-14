@@ -659,7 +659,7 @@ is a whole styled menu. Pass a `draw` to arrange the parts yourself.
 picker's own attributes, so they speak only the date picker's Message. Its
 `toView` therefore takes no builder of the application's:
 `DatePicker.toView(mixins, (resolved, h) => …)` hands `draw` the date
-picker's builder.
+picker's builder, and without a `draw` draws upstream's markup.
 
 `Menu` is the exception that proves the seam rule: its state machine stays
 upstream, but its markup assembly is transcribed into `MenuView` (from the
