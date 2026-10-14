@@ -168,9 +168,12 @@ test('dragging the handle shows where the block will land, and moves it there', 
   const heading = (await page.locator('[contenteditable=true] > h1').boundingBox())!
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
   await page.mouse.down()
-  for (let step = 1; step <= 10; step++) {
-    const y = grip.y + ((heading.y + 4 - grip.y) * step) / 10
-    await page.mouse.move(grip.x + grip.width / 2, y)
+  // Into the text, as a hand moves, with time for the page to draw between moves: the pointer
+  // crosses other blocks, which must not take the handle, and the drag with it, away.
+  for (let step = 1; step <= 20; step++) {
+    const y = grip.y + ((heading.y + 4 - grip.y) * step) / 20
+    await page.mouse.move(grip.x + grip.width / 2 + 15 * step, y)
+    await page.waitForTimeout(30)
   }
   // While held: a line where it would land, and the block itself dimmed.
   const line = (await page.locator('[data-richtext-drop]').boundingBox())!

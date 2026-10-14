@@ -83,6 +83,9 @@ export const canvasEvents = Mount.defineStream('PlaygroundCanvas', {
           const found = (message: CanvasMessage) => Queue.offerUnsafe(queue, message)
           let last: string | undefined
           const onMove = (event: PointerEvent) => {
+            // While a button is held the hovered block stays: a handle being dragged would
+            // otherwise be swapped for the block under the pointer, and its drag ended with it.
+            if (event.buttons !== 0) return
             // The outermost block under the pointer: the one whose parent is the editable root.
             let block =
               event.target instanceof Element ? event.target.closest('[data-block]') : null
