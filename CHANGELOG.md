@@ -98,7 +98,8 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-mixins-ui`: a menu, listbox or combobox marks the row the keys
   are on.** The shared popup row styled only `:hover`, so moving by the keys
   showed nothing; it now reads upstream's `data-active`, and the focused panel
-  draws no browser ring around itself.
+  draws no browser ring around itself. A row's hover is a tint of its text, which
+  reads in a dark scheme, where the muted surface was all but the panel's own.
 
 ## 0.21.0
 

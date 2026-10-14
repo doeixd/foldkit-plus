@@ -27,6 +27,12 @@ export const panel: StyleValue = component(
 /** The click-away behind an open panel. */
 export const backdrop: StyleValue = component(Style.self({ position: 'fixed', inset: '0' }))
 
+/**
+ * A row's hover: a tint of the text, so it reads on the panel in either
+ * scheme, where the muted surface sat too close to a dark panel's own.
+ */
+const hovered = 'color-mix(in oklab, currentColor 8%, transparent)'
+
 /** A row outside any panel a fluid highlight runs in. */
 export const unlit = '&:not([data-fluid-hover] *)'
 const lit = ':where([data-fluid-hover]) > &'
@@ -50,10 +56,8 @@ export const item: StyleValue = component(
   }),
   // The row the keys or the pointer are on (upstream marks it `data-active`),
   // until a fluid highlight runs in the panel and lights it instead.
-  Style.nest(`${unlit}:hover:not([aria-disabled="true"], :disabled)`, {
-    background: ref.surface.muted,
-  }),
-  Style.nest(`${unlit}[data-active]`, { background: ref.surface.muted }),
+  Style.nest(`${unlit}:hover:not([aria-disabled="true"], :disabled)`, { background: hovered }),
+  Style.nest(`${unlit}[data-active]`, { background: hovered }),
   disabled,
 )
 
@@ -93,7 +97,7 @@ export const highlight: StyleValue = component(
     ...overlay('hover'),
     display: 'none',
     opacity: 'var(--fk-popup-hover-shown)',
-    background: ref.surface.muted,
+    background: hovered,
     ...glide('var(--fk-popup-hover-moving)'),
   }),
   Style.nest(lit, { display: 'block' }),

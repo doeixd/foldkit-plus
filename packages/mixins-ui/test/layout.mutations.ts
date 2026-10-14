@@ -30,7 +30,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/popup.ts',
-        find: '  Style.nest(`${unlit}[data-active]`, { background: ref.surface.muted }),\n',
+        find: '  Style.nest(`${unlit}[data-active]`, { background: hovered }),\n',
         replace: '',
       },
     ],
