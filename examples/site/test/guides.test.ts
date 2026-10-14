@@ -137,5 +137,6 @@ describe('the published guides', () => {
         : [`${page.path}: …${said.slice(match.index - 40, match.index + 40)}…`]
     })
     expect(mentions).toEqual([])
-  })
+    // It builds every published page from the repository: seconds, under a full run's load.
+  }, 30_000)
 })
