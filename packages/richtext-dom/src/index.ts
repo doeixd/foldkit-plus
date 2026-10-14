@@ -40,16 +40,6 @@ const blockRendering = (
     attributes: {},
   }
 
-const sameRendering = (left: RichText.ElementRendering, right: RichText.ElementRendering) => {
-  const names = Object.keys(left.attributes)
-  return (
-    left.tag === right.tag &&
-    left.inner === right.inner &&
-    names.length === Object.keys(right.attributes).length &&
-    names.every(name => left.attributes[name] === right.attributes[name])
-  )
-}
-
 /**
  * Whether a block draws the same element as before. Preserved content is drawn from its
  * type, not from a renderer entry, so a block that became preserved, or preserved content
@@ -63,7 +53,10 @@ const drawsSame = (
   previous.type === block.type &&
   (previous.type !== 'Unknown' ||
     (block.type === 'Unknown' && previous.originalType === block.originalType)) &&
-  sameRendering(blockRendering(rendering, previous), blockRendering(rendering, block))
+  RichText.sameElementRendering(
+    blockRendering(rendering, previous),
+    blockRendering(rendering, block),
+  )
 
 /** The element a renderer entry names, with its attributes; children come later. */
 const renderElement = (owner: Document, entry: RichText.ElementRendering): HTMLElement => {
@@ -71,6 +64,27 @@ const renderElement = (owner: Document, entry: RichText.ElementRendering): HTMLE
   for (const [name, value] of Object.entries(entry.attributes)) element.setAttribute(name, value)
   return element
 }
+
+/** An adornment: drawn, never edited, and outside every position. */
+const renderAdornment = (owner: Document, adornment: RichText.Adornment): HTMLElement => {
+  const element = owner.createElement(adornment.tag)
+  for (const [name, value] of RichText.adornmentAttributes(adornment))
+    element.setAttribute(name, value)
+  element.setAttribute('contenteditable', 'false')
+  if (adornment.text !== undefined && adornment.text !== '') element.textContent = adornment.text
+  return element
+}
+
+const isAdornment = (node: Node): boolean =>
+  node instanceof Element && node.hasAttribute(RichText.ADORNMENT_ATTRIBUTE)
+
+/** The text an element shows apart from its adornments, which is the text its runs hold. */
+const contentText = (node: Node): string =>
+  node instanceof Text
+    ? node.data
+    : isAdornment(node)
+      ? ''
+      : Array.from(node.childNodes).map(contentText).join('')
 
 /**
  * A run is one element carrying `data-run`, whatever the renderer wraps its text
@@ -128,6 +142,8 @@ const renderBlock = (
   const entry = blockRendering(rendering, block)
   const element = renderElement(owner, entry)
   element.setAttribute('data-block', block.id)
+  for (const adornment of block.type === 'Unknown' ? [] : (entry.adornments ?? []))
+    element.append(renderAdornment(owner, adornment))
   if (block.type === 'Unknown') {
     // Preserved content is shown as a diagnostic placeholder, never executed.
     element.setAttribute('data-unknown', block.originalType)
@@ -463,6 +479,7 @@ export const positionToRange = (dom: EditorDom, position: RichText.Position): Ra
 
 const firstText = (node: Node): Text | undefined => {
   if (node instanceof Text) return node
+  if (isAdornment(node)) return undefined
   for (const child of Array.from(node.childNodes)) {
     const found = firstText(child)
     if (found !== undefined) return found
@@ -472,6 +489,7 @@ const firstText = (node: Node): Text | undefined => {
 
 const lastText = (node: Node): Text | undefined => {
   if (node instanceof Text) return node
+  if (isAdornment(node)) return undefined
   for (const child of Array.from(node.childNodes).reverse()) {
     const found = lastText(child)
     if (found !== undefined) return found
@@ -492,12 +510,17 @@ const textBoundary = (
   if (node instanceof Text) return { text: node, offset }
   // A browser reports no offset past the last child; clamp one that does.
   offset = Math.min(offset, node.childNodes.length)
-  const after = node.childNodes[offset]
-  const following = after === undefined ? undefined : firstText(after)
-  if (following !== undefined) return { text: following, offset: 0 }
-  const before = node.childNodes[offset - 1]
-  const preceding = before === undefined ? undefined : lastText(before)
-  return preceding === undefined ? undefined : { text: preceding, offset: preceding.length }
+  // An adornment holds no text a position can name, so a caret beside one is read as
+  // standing at the text past it. The nearest sibling with text decides, so the walk stops there.
+  for (let at = offset; at < node.childNodes.length; at++) {
+    const following = firstText(node.childNodes[at]!)
+    if (following !== undefined) return { text: following, offset: 0 }
+  }
+  for (let at = offset - 1; at >= 0; at--) {
+    const preceding = lastText(node.childNodes[at]!)
+    if (preceding !== undefined) return { text: preceding, offset: preceding.length }
+  }
+  return undefined
 }
 
 /**
@@ -551,7 +574,7 @@ export const toText = (dom: EditorDom): string => {
         walk(element)
         continue
       }
-      const line = (element.textContent ?? '').trim()
+      const line = contentText(element).trim()
       if (line.length > 0) lines.push(line)
     }
   }
@@ -618,7 +641,7 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
       const shapeMatches =
         element !== undefined &&
         element.tagName.toLowerCase() === blockRendering(dom.rendering, block).tag &&
-        element.textContent === renderedText(block) &&
+        contentText(element) === renderedText(block) &&
         marksMatch &&
         sameIds(childIds(element, 'data-run'), runs) &&
         sameIds(

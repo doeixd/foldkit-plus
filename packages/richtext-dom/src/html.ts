@@ -455,6 +455,12 @@ const linesOf = (element: Element, diagnostics: Array<HtmlDiagnostic>): Lines =>
 export const parseHtml = (html: string, options: ParseOptions): ParsedHtml => {
   const owner = new DOMParser().parseFromString(html, 'text/html')
   const diagnostics: Array<HtmlDiagnostic> = []
+  // A block's adornments are drawn from its props, never content: a task's checkbox would
+  // otherwise come back as text, and an image's caption as a paragraph.
+  for (const adornment of Array.from(
+    owner.body.querySelectorAll(`[${RichText.ADORNMENT_ATTRIBUTE}]`),
+  ))
+    adornment.remove()
   const blocks = blocksFrom(owner.body, options.mint, diagnostics, options.kit)
   return { blocks, diagnostics }
 }

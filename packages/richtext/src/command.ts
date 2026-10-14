@@ -105,6 +105,21 @@ export type Command =
    * own item. Given a vocabulary, props that decode as the kind's must still decode after.
    */
   | { readonly type: 'SetProps'; readonly node: NodeId; readonly props: Schema.JsonObject }
+  /**
+   * Inserts a block, and everything it holds, before or after another block, under fresh
+   * identities from `mint`: an image chosen from a file, a table from a menu, a copy of a block
+   * for its handle's Duplicate. The caret goes to the start of its first text, when it has any.
+   * Without `to` it goes beside the caret's block: before it when that block is empty, so a
+   * slash command typed on a blank line puts its block there and the line stays to type on,
+   * and after it otherwise.
+   */
+  | { readonly type: 'InsertBlock'; readonly block: Block; readonly to?: Beside | undefined }
+  /**
+   * Deletes a block and everything it holds, with any container that would be left empty by it,
+   * as a block handle's Delete does. A caret inside it moves to the nearest text that stays; a
+   * document left with no block gets an empty paragraph, so there is somewhere to type.
+   */
+  | { readonly type: 'DeleteBlock'; readonly node: NodeId }
 
 /** Where `MoveBlock` puts a block: before or after a sibling, named by identity. */
 export const Beside = Schema.Union([
@@ -988,6 +1003,89 @@ export const run = (
     }
     return apply(state, [Edit.setProps(command.node, command.props)])
   }
+  if (command.type === 'InsertBlock') {
+    const to = command.to ?? besideCaret(state)
+    if (to === undefined) return failure('InvalidSelection')
+    const beside = locateBlock(state.document, 'before' in to ? to.before : to.after)
+    if (beside === undefined) return failure('InvalidInput')
+    const containerPath = beside.path.slice(0, -1)
+    const holder =
+      containerPath.length === 0 ? undefined : blockAtPath(state.document, containerPath)
+    const kind = blockKind(command.block)
+    if (
+      (holder !== undefined && !acceptsChild(state.document, containerPath, kind, options.nodes)) ||
+      !standsWithin(
+        options.nodes?.definitionFor(kind),
+        holder === undefined ? undefined : blockKind(holder),
+      )
+    ) {
+      return failure('UnexpectedChild')
+    }
+    const [inserted] = withFreshIds({ version: 1, blocks: [command.block] }, ids.mint).blocks
+    const at = beside.path[beside.path.length - 1]! + ('after' in to ? 1 : 0)
+    const first = firstRunIn([inserted!])
+    return apply(state, [
+      Edit.insertBlock(inserted!, at, holder?.id),
+      ...(first === undefined
+        ? []
+        : [Edit.setSelection(caretAt({ node: first.id, offset: 0, affinity: 'after' }))]),
+    ])
+  }
+  if (command.type === 'DeleteBlock') {
+    const deleting = locateBlock(state.document, command.node)
+    if (deleting === undefined) return failure('InvalidInput')
+    // Never a path, so no container counts as holding where the block goes.
+    const target = emptiedBy(state.document, deleting.path.slice(0, -1), [-1]) ?? command.node
+    const gone = locateBlock(state.document, target)!
+    const inside = (path: BlockPath) => gone.path.every((index, depth) => path[depth] === index)
+    const runs: Array<{ readonly run: Run; readonly inside: boolean }> = []
+    eachBlock(state.document.children, (block, path) => {
+      for (const run of block.children) runs.push({ run, inside: inside(path) })
+    })
+    const selection = state.selection
+    const holds =
+      selection !== null &&
+      (selection.type === 'Node'
+        ? locateBlock(state.document, selection.node) !== undefined &&
+          inside(locateBlock(state.document, selection.node)!.path)
+        : [selection.anchor, selection.focus].some(end =>
+            runs.some(entry => entry.inside && entry.run.id === end.node),
+          ))
+    const firstGone = runs.findIndex(entry => entry.inside)
+    const following = runs.slice(Math.max(firstGone, 0)).find(entry => !entry.inside)
+    const preceding = runs
+      .slice(0, Math.max(firstGone, 0))
+      .reverse()
+      .find(entry => !entry.inside)
+    const landing =
+      following !== undefined
+        ? { node: following.run.id, offset: 0, affinity: 'after' as const }
+        : preceding !== undefined
+          ? {
+              node: preceding.run.id,
+              offset: preceding.run.text.length,
+              affinity: 'after' as const,
+            }
+          : undefined
+    const emptiesDocument = gone.path.length === 1 && state.document.children.length === 1
+    if (emptiesDocument) {
+      const textId = NodeId.make(ids.mint())
+      const paragraph: Block = {
+        type: 'Paragraph',
+        id: NodeId.make(ids.mint()),
+        children: [{ type: 'Text', id: textId, text: '', marks: [] }],
+      }
+      return apply(state, [
+        Edit.insertBlock(paragraph, 1),
+        Edit.deleteBlock(target),
+        Edit.setSelection(caretAt({ node: textId, offset: 0, affinity: 'after' })),
+      ])
+    }
+    return apply(state, [
+      Edit.deleteBlock(target),
+      ...(holds ? [Edit.setSelection(landing === undefined ? null : caretAt(landing))] : []),
+    ])
+  }
   if (command.type === 'MoveBlock') {
     const moving = locateBlock(state.document, command.node)
     const beside = locateBlock(
@@ -1349,6 +1447,28 @@ const landingAfter = (
   return followingRun === undefined
     ? undefined
     : { node: followingRun.id, offset: 0, affinity: 'after' }
+}
+
+/** Where an `InsertBlock` without a place goes: beside the caret's block, before it when empty. */
+const besideCaret = (state: EditorState): Beside | undefined => {
+  if (state.selection?.type !== 'Range') return undefined
+  const run = locateRun(
+    state.document,
+    ordered(state.document, state.selection)?.start.node ?? state.selection.anchor.node,
+  )
+  const block = run === undefined ? undefined : blockAtPath(state.document, run.path)
+  if (block === undefined) return undefined
+  const empty = block.children.every(child => child.text === '')
+  return empty ? { before: block.id } : { after: block.id }
+}
+
+/** The first run anywhere in these blocks, nested ones included, in document order. */
+const firstRunIn = (blocks: ReadonlyArray<Block>): Run | undefined => {
+  let found: Run | undefined
+  eachBlock(blocks, block => {
+    found ??= block.children[0]
+  })
+  return found
 }
 
 /** An ordered list of commands that commit as one action (§124 §5). */

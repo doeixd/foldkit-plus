@@ -438,6 +438,28 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     reportSelection()
     options.onIntent({ type: 'Paste', slice })
   }
+  // A click on an adornment that toggles a prop (a task's checkbox, a toggle's arrow) flips it in
+  // the document; the browser's own change to a checkbox is refused, since the patch that
+  // follows draws what the document says.
+  const onClick = (event: MouseEvent): void => {
+    const origin = event.target
+    if (!(origin instanceof Element)) return
+    const adornment = origin.closest(`[${RichText.TOGGLES_ATTRIBUTE}]`)
+    if (adornment === null || !current.root.contains(adornment)) return
+    const prop = adornment.getAttribute(RichText.TOGGLES_ATTRIBUTE)!
+    const id = adornment.closest('[data-block]')?.getAttribute('data-block')
+    const block =
+      id === null || id === undefined
+        ? undefined
+        : RichText.locateBlock(current.content, RichText.NodeId.make(id))?.block
+    if (block?.type !== 'Node') return
+    event.preventDefault()
+    options.onIntent({
+      type: 'SetProps',
+      node: block.id,
+      props: { [prop]: block.props[prop] !== true },
+    })
+  }
   const target = dom.root
   // The caret belongs to the document, not the subtree: a click elsewhere on the
   // page, or an arrow key, moves it without an event the root would see.
@@ -450,6 +472,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   target.addEventListener('copy', onCopy)
   target.addEventListener('cut', onCut)
   target.addEventListener('paste', onPaste)
+  target.addEventListener('click', onClick)
   return {
     current: () => current,
     held: () => deferred?.state.document ?? current.content,
@@ -479,6 +502,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       target.removeEventListener('copy', onCopy)
       target.removeEventListener('cut', onCut)
       target.removeEventListener('paste', onPaste)
+      target.removeEventListener('click', onClick)
     },
   }
 }

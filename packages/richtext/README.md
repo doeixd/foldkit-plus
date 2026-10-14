@@ -114,8 +114,8 @@ RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, 
 
 `InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`, `SetMark`,
 `ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
-`WrapBlock`, `ConvertBlock`, `RetypeContainer`, `LiftBlock`) read the current selection; `MoveBlock` and `SetProps` name their
-blocks instead. Each resolves to transactions applied as one step, usually one (Enter over
+`WrapBlock`, `ConvertBlock`, `RetypeContainer`, `LiftBlock`) read the current selection; `MoveBlock`,
+`SetProps`, `InsertBlock` and `DeleteBlock` name their blocks instead. Each resolves to transactions applied as one step, usually one (Enter over
 a range in a list item is two: the delete, then the split); the returned `ChangeSet` and
 `positionMap` describe the effect, and `transactions` holds what was applied, in order, an
 empty one for a command that changed nothing. Nothing mints
@@ -224,6 +224,19 @@ may move beside, in document order, which is what a drag offers.
 vocabulary, props that decode as the kind declares them must still decode after, or the
 command is refused with `InvalidInput`, as it is for a block that is not a node. Props that
 already fail (a key an older version wrote, which cannot be deleted) can still be changed.
+
+`InsertBlock` puts a block, with everything it holds, beside another:
+`{ type: 'InsertBlock', block, to: { after: other } }`. Its identities are minted afresh, so
+the same block value can be inserted twice (a handle's Duplicate sends the block it stands for).
+Without `to` it goes beside the caret's block: before it when that block is empty, so a slash
+command typed on a blank line leaves the line below to type on, and after it otherwise. The
+caret moves to the start of its first text, when it has any. With a vocabulary, the container
+has to hold the kind and the kind has to stand there, as for a move (`UnexpectedChild`).
+
+`DeleteBlock` deletes a block and everything it holds: `{ type: 'DeleteBlock', node }`. A
+container it leaves empty goes with it, as a move's does. A caret inside it moves to the start of
+the text after it, or the end of the text before; a document it would empty gets an empty
+paragraph, so there is always somewhere to type.
 
 `DeleteBackward` at the start of a container's first block used to do nothing, having no
 sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a
@@ -749,7 +762,31 @@ its element — a `List` an `ol` or `ul`, an `Image` an `img` with its `src`, a 
 application adds its own kinds beside the standard ones. A `TableRow` that is the header
 renders `data-header`, and a `Table`'s rows go in a `tbody` (the entry's `inner`), because an
 HTML parser inserts one around bare rows, and markup sent from a server has to parse to the tree
-that was rendered. A link's `href` and an image's `src` pass `safeUrl` again as they are
+that was rendered. An entry's `adornments` are elements drawn inside the block before its content
+that are not content: a task's checkbox, a figure's picture and caption, a callout's icon. They
+carry `data-adornment`, hold no position, and an HTML import drops them; one with `toggles: 'open'`
+flips that boolean prop when clicked, through the editor's `ChangedProps`:
+
+```ts
+RichText.renderingOver(RichText.standardRendering, {
+  nodes: {
+    TaskItem: block => ({
+      tag: 'li',
+      attributes: {},
+      adornments: [
+        {
+          tag: 'input',
+          attributes: { type: 'checkbox', ...(block.props.checked === true ? { checked: '' } : {}) },
+          toggles: 'checked',
+        },
+      ],
+    }),
+  },
+})
+```
+ A standard `Image` also carries an optional `caption`, a `width` in CSS
+pixels, and an `align` (`start`, `center`, `end`); the standard rendering draws the `img`
+alone, and a rendering that draws a figure reads the rest. A link's `href` and an image's `src` pass `safeUrl` again as they are
 rendered, and one it refuses is left out, so a `javascript:` URL that reached the document
 by decoding, sync, or `SetMark` rather than import is drawn inert.
 

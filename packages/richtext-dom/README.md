@@ -112,6 +112,9 @@ What each part does, and does not do:
   the `overlay(hostId, decorations)` Command instead. It draws them after the placement's
   own and leaves the caret where it is. Its positions name the document shown, so set it
   again when that changes; placing the host id again starts it with none.
+- **`slashEntries`**: what its slash menu offers, which Enter in a query resolves against: an
+  application's own catalogue (an image, a table, a callout), beside or instead of the
+  editor's `slashEntries`. The application's menu view draws the same list.
 - **`placeholder`**: what a blank document shows (`RichText.isBlank`). It is put on the block as
   `data-placeholder`, and the root, a `role="textbox"`, carries it as `aria-placeholder`.
   Drawing it is the stylesheet's, so the text never enters the content:
@@ -353,8 +356,8 @@ cases (each built as `Message.Typed({ text })` and so on, not exported one by on
 
 ```text
 Typed, Backspace, DeletedForward, Entered, ToggledMark, AppliedMark, ClearedMark,
-RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, MovedBlock, Selected, Pasted, Undone,
-Redone, Patched
+RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, MovedBlock, InsertedBlock,
+DeletedBlock, ChangedProps, Selected, Pasted, Undone, Redone, Patched
 ```
 
 The adapter reports what the browser did as commands, a caret, and history chords, and
@@ -366,6 +369,10 @@ dropping a detail: an insertion carrying marks, or a mark value with props, come
   `LiftedBlock` for the core's block commands;
 - `MovedBlock` (`{ node, to }`, `to` a `RichText.Beside`), which a block handle sends and which
   needs no selection;
+- `InsertedBlock` (`{ block, to? }`) and `DeletedBlock` (`{ node }`) for `InsertBlock` and
+  `DeleteBlock`: an insert menu's image or table, a handle's Duplicate and Delete;
+- `ChangedProps` (`{ node, props }`) for `SetProps`. The adapter sends it too, for a click on a
+  block's adornment that toggles a prop (a task's checkbox, from `ElementRendering.adornments`);
 - `AppliedMark` (`{ mark }`, a name or a `{ name, props }` value) and `ClearedMark` (`{ mark }`)
   for `SetMark` and `ClearMark`: what a link editor sends, which at a caret changes or removes
   the whole link the caret is in.

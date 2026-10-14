@@ -91,6 +91,7 @@ export {
 } from './history.js'
 export { type BlockList, toHtml, toText, documentToHtml, documentToText } from './html.js'
 export {
+  type Adornment,
   type ElementRendering,
   type Rendering,
   type RenderingEntry,
@@ -100,6 +101,10 @@ export {
   runRendering,
   nodeRendering,
   renderingOver,
+  adornmentAttributes,
+  sameElementRendering,
+  ADORNMENT_ATTRIBUTE,
+  TOGGLES_ATTRIBUTE,
 } from './rendering.js'
 export {
   type Decoration,

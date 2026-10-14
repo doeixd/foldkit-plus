@@ -8,9 +8,12 @@ import {
   application,
   Editor,
   applied,
+  changedProps,
   cleared,
   converted,
+  deleted,
   editorAt,
+  inserted,
   lifted,
   moved,
   patched,
@@ -473,6 +476,49 @@ describe('the block Messages an application sends', () => {
     expect(after.document.children.map(block => block.id)).toEqual(['q', 'p'])
   })
 
+  it('inserts a block beside the caret’s, or where it names, as one undoable step', () => {
+    const rule = {
+      type: 'Node',
+      kind: 'ThematicBreak',
+      id: id('x'),
+      props: {},
+      children: [],
+    } as const
+    const atCaret = step(start(caret('a', 1)), inserted(rule))
+    expect(
+      atCaret.document.children.map(block => (block.type === 'Node' ? block.kind : block.id)),
+    ).toEqual(['p', 'ThematicBreak', 'q'])
+    const named = step(start(null), inserted(rule, { before: id('p') }))
+    expect(named.document.children[0]).toMatchObject({ kind: 'ThematicBreak' })
+    const back = step(atCaret, undone())
+    expect(back.document.children.map(block => block.id)).toEqual(['p', 'q'])
+  })
+
+  it('deletes a block it names, as one undoable step', () => {
+    const after = step(start(caret('a', 1)), deleted(id('p')))
+    expect(after.document.children.map(block => block.id)).toEqual(['q'])
+    expect(after.editor.selection).toEqual(caret('b', 0))
+    expect(step(after, undone()).document.children.map(block => block.id)).toEqual(['p', 'q'])
+  })
+
+  it('sets a node block’s props, as a checkbox does', () => {
+    const tasks = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'TaskItem',
+          id: 't',
+          props: { checked: false },
+          children: [{ type: 'Text', id: 'r', text: 'x', marks: [] }],
+        },
+      ],
+    } as never)
+    const model = application.initial({ document: tasks }).model
+    const after = step(model, changedProps(id('t'), { checked: true }))
+    expect(after.document.children[0]).toMatchObject({ props: { checked: true } })
+  })
+
   it('converts the caret’s block to a kind that holds text', () => {
     // `q`'s run is bold and no vocabulary is placed, so the marks are carried over.
     const code = step(start(caret('b', 1)), converted({ kind: 'CodeBlock' }))
@@ -619,6 +665,66 @@ describe('a placeholder placed for the editor', () => {
     expect(placeholderFor('hinting-editor')).toBe('Write something…')
     editorAt('hinting-editor')
     expect(placeholderFor('hinting-editor')).toBeUndefined()
+  })
+})
+
+describe('slash entries placed for the editor', () => {
+  it('are what Enter in a query resolves against', () => {
+    editorAt('slashing-editor', {
+      slashEntries: [
+        {
+          id: 'divider',
+          label: 'Divider',
+          keywords: ['hr'],
+          message: Message.InsertedBlock({
+            block: { type: 'Node', kind: 'ThematicBreak', id: id('d'), props: {}, children: [] },
+          }),
+        },
+      ],
+    })
+    const asked = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: '/hr', marks: [] }],
+        },
+      ],
+    })
+    const initial = application.initial({ document: asked }).model
+    const placed: Model = {
+      ...initial,
+      editor: { ...initial.editor, hostId: 'slashing-editor', selection: caret('a', 3) },
+    }
+    const after = step(placed, pressed('Entered'))
+    // The query is gone, and the blank line it leaves stays below the divider to type on.
+    expect(
+      after.document.children.map(block => (block.type === 'Node' ? block.kind : block.id)),
+    ).toEqual(['ThematicBreak', 'p'])
+  })
+
+  it('default to the editor’s own when a placement names none', () => {
+    editorAt('slashing-editor')
+    const asked = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: '/h2', marks: [] }],
+        },
+      ],
+    })
+    const initial = application.initial({ document: asked }).model
+    const placed: Model = {
+      ...initial,
+      editor: { ...initial.editor, hostId: 'slashing-editor', selection: caret('a', 3) },
+    }
+    expect(step(placed, pressed('Entered')).document.children[0]).toMatchObject({
+      type: 'Heading',
+      level: 2,
+    })
   })
 })
 

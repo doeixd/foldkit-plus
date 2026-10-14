@@ -55,3 +55,23 @@ const NodeKit = RichText.kit({
   marks: [RichText.Bold],
 })
 RichText.validate(document, NodeKit)
+
+// A rendering entry's adornments: a task's checkbox that flips `checked` when clicked.
+export const adornedTasks = RichText.renderingOver(RichText.standardRendering, {
+  nodes: {
+    TaskItem: block => ({
+      tag: 'li',
+      attributes: {},
+      adornments: [
+        {
+          tag: 'input',
+          attributes: {
+            type: 'checkbox',
+            ...(block.props.checked === true ? { checked: '' } : {}),
+          },
+          toggles: 'checked',
+        },
+      ],
+    }),
+  },
+})

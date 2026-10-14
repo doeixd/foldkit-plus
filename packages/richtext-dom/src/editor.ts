@@ -40,6 +40,12 @@ export const Message = defineMessageUnion({
   LiftedBlock: {},
   /** A block moved before or after a sibling in its container: a block handle's up and down. */
   MovedBlock: { node: RichText.NodeId, to: RichText.Beside },
+  /** A block put beside another, under fresh identities: an insert menu's choice, a Duplicate. */
+  InsertedBlock: { block: RichText.Block, to: Schema.optionalKey(RichText.Beside) },
+  /** A block and what it holds, deleted: a block handle's Delete. */
+  DeletedBlock: { node: RichText.NodeId },
+  /** Props of a node block, set: a task's checkbox, a toggle's arrow, an image's caption. */
+  ChangedProps: { node: RichText.NodeId, props: Schema.JsonObject },
   Selected: { selection: Schema.NullOr(RichText.Selection) },
   Pasted: { slice: RichText.Slice },
   Undone: {},
@@ -81,6 +87,8 @@ export const toMessage = (command: RichText.Command): EditorEvent | undefined =>
         : undefined
     case 'Paste':
       return Message.Pasted({ slice: command.slice })
+    case 'SetProps':
+      return Message.ChangedProps({ node: command.node, props: command.props })
     default:
       return undefined
   }
@@ -323,6 +331,9 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Message.ConvertedBlock,
     Message.LiftedBlock,
     Message.MovedBlock,
+    Message.InsertedBlock,
+    Message.DeletedBlock,
+    Message.ChangedProps,
     Message.Selected,
     Message.Pasted,
     Message.Undone,

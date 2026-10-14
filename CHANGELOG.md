@@ -9,6 +9,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-richtext`: `InsertBlock` and `DeleteBlock`.** `InsertBlock` puts a
+  block beside another under fresh identities (without a place, beside the
+  caret's block); `DeleteBlock` deletes one with any container it empties and
+  moves a caret inside it to the nearest text that stays. The editor sends them
+  as `InsertedBlock` and `DeletedBlock`, and `SetProps` as `ChangedProps`.
+- **`foldkit-richtext`: a rendering entry's `adornments`**, elements drawn
+  before a block's content that are not content (a checkbox, a figure's picture
+  and caption, an icon). They hold no position and an HTML import drops them; a
+  click on one with `toggles` flips that boolean prop through the document.
+- **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
+  `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext-dom`: `editorAt(hostId, { slashEntries })`**, the slash
+  catalogue Enter in a query resolves against, so an application's own entries
+  (an image, a table) choose as the editor's do.
+
 - **`foldkit-remote-server`: `RemoteServer.memory` takes `entities`,** Sources
   for entities no row backs (`foldkit-guard`'s `GuardServer.me`), served
   beside the rows. One naming an entity the rows' domain declares, or a second

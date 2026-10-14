@@ -7,6 +7,7 @@
 import * as RichText from 'foldkit-richtext'
 import { adopt, mount } from './index.js'
 import { attach, type AttachOptions, type Attachment, type Decorate } from './events.js'
+import type { EditorEvent, SlashEntry } from './editor.js'
 
 const attachments = new WeakMap<Element, Attachment>()
 const renderings = new Map<string, RichText.Rendering>()
@@ -89,6 +90,25 @@ export const placePlaceholder = (hostId: string, placeholder: string | undefined
 
 /** The placeholder placed for a host id, or none. */
 export const placeholderFor = (hostId: string): string | undefined => placeholders.get(hostId)
+
+const slashCatalogues = new Map<string, ReadonlyArray<SlashEntry<EditorEvent>>>()
+
+/**
+ * Records what a placement's slash menu offers, by host id, so the `update` that resolves Enter
+ * reads the same entries the application's menu draws. Absent, it offers `slashEntries`.
+ */
+export const placeSlashEntries = (
+  hostId: string,
+  entries: ReadonlyArray<SlashEntry<EditorEvent>> | undefined,
+): void => {
+  if (entries === undefined) slashCatalogues.delete(hostId)
+  else slashCatalogues.set(hostId, entries)
+}
+
+/** The entries placed for a host id, or undefined when it offers the editor's own. */
+export const slashEntriesFor = (
+  hostId: string,
+): ReadonlyArray<SlashEntry<EditorEvent>> | undefined => slashCatalogues.get(hostId)
 
 const ruleSets = new Map<string, ReadonlyArray<RichText.InputRule>>()
 

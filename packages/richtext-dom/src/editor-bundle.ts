@@ -23,6 +23,8 @@ import {
   redecorateEditor,
   slashEntries,
   slashMenu,
+  type EditorEvent,
+  type SlashEntry,
 } from './editor.js'
 import {
   decorationsFor,
@@ -33,9 +35,11 @@ import {
   placePlaceholder,
   placeRendering,
   placeServerRendered,
+  placeSlashEntries,
   placeVocabulary,
   renderingFor,
   serverRenderedFor,
+  slashEntriesFor,
   type Vocabulary,
   vocabularyFor,
 } from './host.js'
@@ -220,6 +224,12 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'LiftBlock' }
     case 'MovedBlock':
       return { type: 'MoveBlock', node: message.node, to: message.to }
+    case 'InsertedBlock':
+      return { type: 'InsertBlock', block: message.block, to: message.to }
+    case 'DeletedBlock':
+      return { type: 'DeleteBlock', node: message.node }
+    case 'ChangedProps':
+      return { type: 'SetProps', node: message.node, props: message.props }
     case 'Selected':
       return { type: 'SetSelection', selection: message.selection }
     case 'Pasted':
@@ -411,7 +421,11 @@ const transition = (
   // mark entry update the caret's stored marks through the path a toggle already uses.
   const menu =
     incoming._tag === 'Entered'
-      ? slashMenu(slashEntries, textBeforeOf(model), model.menuIndex)
+      ? slashMenu(
+          slashEntriesFor(model.hostId) ?? slashEntries,
+          textBeforeOf(model),
+          model.menuIndex,
+        )
       : undefined
   const message = menu?.highlighted?.message ?? incoming
   return Match.value(message).pipe(
@@ -640,6 +654,12 @@ export interface EditorPlacement {
   /** What the editor shows while its document is blank (`RichText.isBlank`). Defaults to none. */
   readonly placeholder?: string | undefined
   /**
+   * What its slash menu offers, which Enter resolves against: an application's own entries
+   * (an image, a table, a callout) beside or instead of `slashEntries`. The application's menu
+   * view draws the same list. Defaults to `slashEntries`.
+   */
+  readonly slashEntries?: ReadonlyArray<SlashEntry<EditorEvent>> | undefined
+  /**
    * Whether this render is the server's (§145), such as `foldkit-ssr`'s `SSR.serving`. While it
    * is, the host carries the document's markup, which the browser's editor adopts instead of
    * drawing again. Defaults to never, so the host is empty until the editor mounts.
@@ -659,6 +679,7 @@ export const placeEditor = (hostId: string, placement: EditorPlacement): void =>
   // The overlay is set by Commands after placing, so a placement starts without the last one's.
   placeOverlay(hostId, [])
   placePlaceholder(hostId, placement.placeholder)
+  placeSlashEntries(hostId, placement.slashEntries)
   placeServerRendered(hostId, placement.serverRendered ?? (() => false))
 }
 
@@ -710,6 +731,12 @@ export const converted = (to: RichText.Container): ParentMessage =>
 export const lifted = (): ParentMessage => edited(Message.LiftedBlock())
 export const moved = (node: RichText.NodeId, to: RichText.Beside): ParentMessage =>
   edited(Message.MovedBlock({ node, to }))
+export const inserted = (block: RichText.Block, to?: RichText.Beside): ParentMessage =>
+  edited(Message.InsertedBlock(to === undefined ? { block } : { block, to }))
+export const deleted = (node: RichText.NodeId): ParentMessage =>
+  edited(Message.DeletedBlock({ node }))
+export const changedProps = (node: RichText.NodeId, props: Schema.JsonObject): ParentMessage =>
+  edited(Message.ChangedProps({ node, props }))
 export const selected = (selection: RichText.Selection | null): ParentMessage =>
   edited(Message.Selected({ selection }))
 export const undone = (): ParentMessage => edited(Message.Undone())

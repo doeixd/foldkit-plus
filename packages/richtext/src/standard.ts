@@ -97,7 +97,16 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
   }),
   atom('ThematicBreak'),
   atom('Image', {
-    Props: Schema.Struct({ src: Schema.String, alt: Schema.optional(Schema.String) }),
+    // What a figure needs beside its source: a caption under it, the width it is shown at in
+    // CSS pixels, and which way it sits. The standard rendering draws the `img` alone; a
+    // rendering that draws a figure reads the rest (`examples/richtext-playground`).
+    Props: Schema.Struct({
+      src: Schema.String,
+      alt: Schema.optional(Schema.String),
+      caption: Schema.optional(Schema.String),
+      width: Schema.optional(Schema.Number.check(Schema.isGreaterThan(0))),
+      align: Schema.optional(Schema.Literals(['start', 'center', 'end'])),
+    }),
   }),
   node('Table', { children: blocksOf('TableRow') }),
   node('TableRow', {

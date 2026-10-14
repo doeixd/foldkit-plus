@@ -1,5 +1,6 @@
 import type { Block, Document, Text } from './document.js'
 import {
+  adornmentAttributes,
   noRendering,
   nodeRendering,
   runRendering,
@@ -100,11 +101,19 @@ const renderBlock = (block: Block, renderer: Rendering): string => {
     tag: blockTag(block),
     attributes: block.type === 'Node' ? { 'data-node': block.kind } : {},
   }
+  const adornment = (element.adornments ?? [])
+    .map(piece =>
+      renderElement(
+        { tag: piece.tag, attributes: Object.fromEntries(adornmentAttributes(piece)) },
+        escapeText(piece.text ?? ''),
+      ),
+    )
+    .join('')
   return renderElement(
     element,
     element.inner === undefined
-      ? `${runs}${nested}`
-      : `${runs}${renderElement({ tag: element.inner, attributes: {} }, nested)}`,
+      ? `${adornment}${runs}${nested}`
+      : `${adornment}${runs}${renderElement({ tag: element.inner, attributes: {} }, nested)}`,
   )
 }
 

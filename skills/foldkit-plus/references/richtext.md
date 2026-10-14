@@ -84,7 +84,10 @@ and marks a document uses to mean what Markdown and HTML also mean (`Quote`, `Li
 `TableCell`; `Bold`, `Italic`, `Code`, `Strikethrough`, `Link`) — spread into an
 application's Kit. `Code` is the inline-code mark, so there is no `InlineCode`, and
 `HardBreak` is absent until inline atoms exist. `RichText.standardRendering` gives each
-kind its element (a `List` an `ol`/`ul`, an `Image` an `img` with its `src`), and
+kind its element (a `List` an `ol`/`ul`, an `Image` an `img` with its `src`; an `Image` also
+carries optional `caption`, `width` and `align`), an entry's `adornments` are non-content
+elements drawn before a block's content (a checkbox, a figure's picture; `toggles: 'checked'`
+makes a click flip that prop), and
 `renderingOver(base, extra)` builds a registry over another, so an application adds its own
 kinds beside the standard ones.
 
@@ -208,9 +211,11 @@ host element's `OnMount`, and `patchEditor`, the work a patch Command runs again
 element that host names. `RetypedBlock` is a Message an application sends itself — no
 browser event means "make this block a heading" — and `editor-bundle` exposes
 `retyped(block)` for it, as it exposes `wrapped(containers)`, `converted(to)`, `lifted()`, and
-`moved(node, to)` for the wrap, convert, lift, and move commands, and `applied(mark)` and `cleared(name)` for
+`moved(node, to)` for the wrap, convert, lift, and move commands, `inserted(block, to?)`,
+`deleted(node)` and `changedProps(node, props)` for the insert, delete and props commands, and `applied(mark)` and `cleared(name)` for
 `SetMark` and `ClearMark`, which a link editor sends. `foldkit-richtext-dom/editor-bundle` is the editor as a
-Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder })`
+Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder, slashEntries })`
+(`slashEntries` is the catalogue Enter in a query resolves against, an application's own)
 (`placeholder` marks a blank document's block with `data-placeholder` for a stylesheet's
 `::before`, and the textbox root with `aria-placeholder`; `decorate` sees the document only,
 and `overlay(hostId, decorations)` is the Command for decorations from application state,
@@ -292,7 +297,9 @@ kind, the kind must stand there (`node(..., { within: ['List'] })`, reported by 
 kind, and a container it empties is deleted;
 `moveTargets(document, node, nodes?)` lists where it may go. `SetProps { node, props }` sets
 the named props of a node block by identity and keeps the rest (a task item's `checked`); with a
-vocabulary, props that decode as the kind's must still decode after. `LiftBlock` is the inverse of a wrap, and
+vocabulary, props that decode as the kind's must still decode after. `InsertBlock { block, to? }`
+inserts a block under fresh ids beside another (without `to`, beside the caret's block: before
+it when empty), and `DeleteBlock { node }` deletes one with any container it empties. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
 of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` retypes
 it to a paragraph; Enter in a list item starts a new item

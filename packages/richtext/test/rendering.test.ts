@@ -168,3 +168,46 @@ describe('building a registry over another', () => {
     expect(RichText.documentToHtml(calloutDoc(), extended)).toBe('<aside tone="info">x</aside>')
   })
 })
+
+describe('adornments', () => {
+  const task = RichText.rendering({
+    nodes: {
+      Task: block => ({
+        tag: 'div',
+        attributes: {},
+        adornments: [
+          {
+            tag: 'input',
+            attributes: {
+              type: 'checkbox',
+              ...(block.props.checked === true ? { checked: '' } : {}),
+            },
+            toggles: 'checked',
+          },
+          { tag: 'span', attributes: { 'data-adornment': 'spoofed' }, text: '<done?>' },
+        ],
+      }),
+    },
+  })
+
+  it('is written before the content, marked, escaped, and naming what it toggles', () => {
+    expect(
+      RichText.documentToHtml(decode([node('Task', { checked: true }, [text('a', 'x')])]), task),
+    ).toBe(
+      '<div><input type="checkbox" checked="" data-adornment="" data-toggles="checked">' +
+        '<span data-adornment="">&lt;done?&gt;</span>x</div>',
+    )
+  })
+
+  it('is not text', () => {
+    const document = decode([node('Task', { checked: true }, [text('a', 'x')])])
+    expect(RichText.documentToText(document)).toBe('x')
+  })
+
+  it('is part of what decides whether a block draws the same', () => {
+    const drawn = (checked: boolean) =>
+      RichText.nodeRendering(task, decode([node('Task', { checked }, [])]).children[0] as never)!
+    expect(RichText.sameElementRendering(drawn(true), drawn(true))).toBe(true)
+    expect(RichText.sameElementRendering(drawn(true), drawn(false))).toBe(false)
+  })
+})
