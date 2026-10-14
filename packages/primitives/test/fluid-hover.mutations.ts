@@ -88,4 +88,36 @@ export default [
     ],
     tests: ['packages/primitives/test/fluid-hover.test.ts'],
   },
+  {
+    name: 'the highlight ignores the mark',
+    edits: [{ file, find: 'if (follows === undefined) return', replace: 'if (true) return' }],
+    tests,
+  },
+  {
+    name: 'the highlight stays when the mark goes',
+    edits: [
+      {
+        file,
+        find: 'else if (pointer === null && !container.contains(document.activeElement)) hide()',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a fresh highlight grows from nowhere',
+    edits: [
+      {
+        file,
+        find: 'const grows = appearing ? origin() : null',
+        replace: 'const grows = null as Element | null',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a fading highlight stays where it was',
+    edits: [{ file, find: '            place(origin())\n', replace: '' }],
+    tests,
+  },
 ]

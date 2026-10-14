@@ -60,6 +60,13 @@ const isDisabled = (item: Element) =>
  * `fluidHovered`); a view draws the highlight as an absolutely placed child
  * that reads them. With `gapClick`, a click in a gap presses the highlighted
  * item: its descendant marked `data-fluid-press`, or the item itself.
+ *
+ * `follows` names the item the highlight sits on while the pointer is not
+ * moving it: a menu marks the row its keys reach (`[data-active]`), and the
+ * highlight goes there whenever that mark moves, so the keys and the pointer
+ * light the same one. `from` names the item a fresh highlight grows out of
+ * and returns to as it fades, as a tab's hover leaves and rejoins the chosen
+ * tab; without it, a highlight appears and fades where it is.
  */
 export const FluidHover = Mount.defineStream('FluidHover', {
   messages: [Schema.Never],
@@ -70,21 +77,27 @@ export const FluidHover = Mount.defineStream('FluidHover', {
     item: Schema.String,
     axis: Axis,
     gapClick: Schema.Boolean,
+    /** The selector of the item the highlight sits on while the pointer is not moving it. */
+    follows: Schema.optional(Schema.String),
+    /** The selector of the item a fresh highlight grows out of and returns to. */
+    from: Schema.optional(Schema.String),
   },
-  execute: ({ element, name, item: selector, axis, gapClick }) =>
+  execute: ({ element, name, item: selector, axis, gapClick, follows, from }) =>
     Stream.callback<never>(() =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const container = element as HTMLElement
           const property = fluidHovered(name)
           let active: Element | null = null
+          let followed: Element | null = null
           let pointer: { readonly x: number; readonly y: number } | null = null
           let frame: number | undefined
 
-          const place = () => {
-            if (active === null) return
+          const origin = () => (from === undefined ? null : container.querySelector(from))
+          const place = (at: Element | null = active) => {
+            if (at === null) return
             const box = container.getBoundingClientRect()
-            const rect = active.getBoundingClientRect()
+            const rect = at.getBoundingClientRect()
             const x = rect.left - box.left - container.clientLeft + container.scrollLeft
             const y = rect.top - box.top - container.clientTop + container.scrollTop
             container.style.setProperty(property.x, `${x}px`)
@@ -95,16 +108,29 @@ export const FluidHover = Mount.defineStream('FluidHover', {
           const show = (next: Element) => {
             const appearing = container.style.getPropertyValue(property.shown) !== '1'
             active = next
+            const grows = appearing ? origin() : null
             if (appearing) container.style.setProperty(property.moving, '0')
-            place()
-            container.style.setProperty(property.shown, '1')
+            if (grows === null) {
+              place()
+              container.style.setProperty(property.shown, '1')
+            } else {
+              // Drawn first where it grows from, then moved: it travels out of that item.
+              place(grows)
+              requestAnimationFrame(() => {
+                if (active !== next) return
+                place()
+                container.style.setProperty(property.shown, '1')
+              })
+            }
             if (appearing) {
               // The frame after: by then the jump to the item has been drawn without moving.
               requestAnimationFrame(() => container.style.setProperty(property.moving, '1'))
             }
           }
           const hide = () => {
-            // `active` is kept, so the highlight fades where it was rather than at the origin.
+            // Back to where it grew from, or, without one, kept on `active` so it
+            // fades where it was rather than at the origin.
+            place(origin())
             container.style.setProperty(property.shown, '0')
           }
           const nearest = (x: number, y: number) => {
@@ -158,13 +184,24 @@ export const FluidHover = Mount.defineStream('FluidHover', {
             if (press instanceof HTMLElement) press.click()
           }
           const soon = () => {
-            if (active !== null) requestAnimationFrame(place)
+            if (active !== null) requestAnimationFrame(() => place())
+          }
+          /** The marked item moved: the highlight goes with it, or fades if it is gone. */
+          const marked = () => {
+            if (follows === undefined) return
+            const next = container.querySelector(follows)
+            if (next === followed) return
+            followed = next
+            if (next !== null && !isDisabled(next)) show(next)
+            else if (pointer === null && !container.contains(document.activeElement)) hide()
           }
 
           // Where there is no layout (jsdom has no ResizeObserver) nothing moves to
           // follow, and a view drawn there is no worse for the highlight's absence.
           const sizes = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(soon)
+          const marks = follows === undefined ? undefined : new MutationObserver(marked)
           sizes?.observe(container)
+          marks?.observe(container, { subtree: true, childList: true, attributes: true })
           container.addEventListener('pointermove', move, { passive: true })
           container.addEventListener('pointerleave', leave)
           container.addEventListener('focusin', focus)
@@ -173,9 +210,11 @@ export const FluidHover = Mount.defineStream('FluidHover', {
           container.addEventListener('scroll', soon, { passive: true })
           window.addEventListener('resize', soon)
           container.style.setProperty(property.shown, '0')
+          marked()
           return () => {
             if (frame !== undefined) cancelAnimationFrame(frame)
             sizes?.disconnect()
+            marks?.disconnect()
             container.removeEventListener('pointermove', move)
             container.removeEventListener('pointerleave', leave)
             container.removeEventListener('focusin', focus)

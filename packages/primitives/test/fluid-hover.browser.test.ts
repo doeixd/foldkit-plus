@@ -19,7 +19,15 @@ const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
  * holding a button marked as what a press in a gap reaches.
  */
 const mount = async (
-  options: { columns?: number; axis?: FluidAxis; disabled?: number; narrow?: number } = {},
+  options: {
+    columns?: number
+    axis?: FluidAxis
+    disabled?: number
+    narrow?: number
+    follows?: string
+    from?: string
+    chosen?: number
+  } = {},
 ) => {
   const columns = options.columns ?? 1
   const container = document.createElement('div')
@@ -31,6 +39,7 @@ const mount = async (
     item.style.height = '40px'
     if (index === options.narrow) item.style.width = '30px'
     if (index === options.disabled) item.setAttribute('aria-disabled', 'true')
+    if (index === options.chosen) item.setAttribute('data-chosen', '')
     const button = document.createElement('button')
     button.textContent = `Item ${index}`
     button.setAttribute('data-fluid-press', '')
@@ -46,6 +55,8 @@ const mount = async (
         item: '[data-item]',
         axis: options.axis ?? 'y',
         gapClick: true,
+        ...(options.follows === undefined ? {} : { follows: options.follows }),
+        ...(options.from === undefined ? {} : { from: options.from }),
       }).f(container, liveViewStateChanges),
     ),
   )
@@ -191,6 +202,44 @@ it('follows the keyboard to the item holding focus', async () => {
     await userEvent.tab()
     await userEvent.tab()
     await vi.waitFor(() => expect(hover.highlighted()).toBe(1))
+  } finally {
+    await hover.stop()
+  }
+})
+
+it('sits on the item its mark moves to while the pointer is away, and fades when the mark goes', async () => {
+  const hover = await mount({ follows: '[data-active]' })
+  try {
+    hover.items[2]!.setAttribute('data-active', '')
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(2))
+    hover.items[2]!.removeAttribute('data-active')
+    hover.items[3]!.setAttribute('data-active', '')
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(3))
+    hover.items[3]!.removeAttribute('data-active')
+    await vi.waitFor(() => expect(hover.read('shown')).toBe('0'))
+  } finally {
+    await hover.stop()
+  }
+})
+
+it('grows out of the chosen item and returns to it as it fades', async () => {
+  const hover = await mount({ from: '[data-chosen]', chosen: 0 })
+  try {
+    const chosen = `${hover.items[0]!.offsetTop}px`
+    const places: Array<string> = []
+    const record = new MutationObserver(() => {
+      const y = hover.read('y')
+      if (places.at(-1) !== y) places.push(y)
+    })
+    record.observe(hover.container, { attributes: true, attributeFilter: ['style'] })
+    hover.point(50, 150)
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(2))
+    record.disconnect()
+    // Drawn on the chosen item first, then moved out to the one pointed at.
+    expect(places).toEqual([chosen, `${hover.items[2]!.offsetTop}px`])
+    hover.container.dispatchEvent(new PointerEvent('pointerleave'))
+    expect(hover.read('y')).toBe(chosen)
+    expect(hover.read('shown')).toBe('0')
   } finally {
     await hover.stop()
   }

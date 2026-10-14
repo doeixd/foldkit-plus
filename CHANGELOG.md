@@ -18,7 +18,9 @@ version changed; `pnpm` skips versions already in the registry.
   across a container's items: the item nearest the pointer, gaps included, on
   the `x`, `y` or `xy` axis, skipping disabled items and following keyboard
   focus. It writes the item's place as custom properties and sends no Message;
-  with `gapClick`, a click in a gap presses the highlighted item.
+  with `gapClick`, a click in a gap presses the highlighted item. `follows`
+  lights the item a menu's keys marked, and `from` names the item a fresh
+  highlight grows out of and returns to.
 - **`foldkit-mixins/theme`: `motion.spring`**, an easing token sampled from an
   underdamped spring (4% overshoot, resting exactly at the end), for a CSS
   transition that springs with no JavaScript.

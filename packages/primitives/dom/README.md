@@ -16,7 +16,7 @@ wraps.
 | `InputMask({ pattern })` | Mount | `Input { value, raw }` | `#`, `A`, `*` placeholders |
 | `KeepInView({ selector })` | Mount | nothing | |
 | `Measure({ targets })` | Mount | nothing; writes custom properties | |
-| `FluidHover({ name, item, axis, gapClick })` | Mount | nothing; writes custom properties | `axis`: `x`, `y`, `xy` |
+| `FluidHover({ name, item, axis, gapClick, follows?, from? })` | Mount | nothing; writes custom properties | `axis`: `x`, `y`, `xy` |
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
@@ -138,6 +138,15 @@ movement's duration scaled by it puts the highlight on its item rather than
 sliding it in); `fluidHovered('hover')` names them. With `gapClick`, a click in
 a gap presses the highlighted item: its descendant marked `data-fluid-press`
 (`FLUID_PRESS_ATTRIBUTE`), or the item. Like `Measure`, it sends no Message.
+
+`follows` names the item the highlight sits on while the pointer is not
+moving it: a menu marks the row its keys reach with `data-active`, so
+`follows: '[data-active]'` lights that row whenever the mark moves, and the
+highlight fades once no item is marked and neither the pointer nor focus is
+inside. `from` names the item a fresh highlight grows out of and returns to as
+it fades: `from: '[aria-selected="true"]'` makes a tab's hover leave the chosen
+tab and rejoin it. A marker on the chosen item itself is `Measure`'s job, on
+the same element.
 Where there is no layout (jsdom), it starts and highlights nothing.
 
 **`InputMask({ pattern })`** masks a field against `#` (digit), `A`

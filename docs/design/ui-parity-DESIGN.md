@@ -229,6 +229,43 @@ briefs that follow come before their code.
 | a group with one highlight that follows | Fluid | `Card.group`, primitive `FluidHover` | adopt |
 | group columns, divided or separated, border | Fluid | `columns` option; `CardGroup` axes | adopt |
 
+### Fluid hover in lists and tabs (step 2)
+
+Read from Fluid Functionalism's craft notes (`skills/fluid-functionalism/references/craft.md`
+in its repository: Fluid Hover, Tabs, TabsSubtle, Dropdown, Select, Combobox),
+Zag's tabs and menu machines, and shadcn's Tabs.
+
+What the five share, and so what `FluidHover` itself must gain:
+
+| Option | Seen in | Home | Decision |
+|---|---|---|---|
+| one highlight per list, nearest item, gaps included | Fluid | `FluidHover` (exists) | adopt |
+| no per-row `:hover` background beside a gliding highlight | Fluid | each recipe, when the highlight is drawn | adopt |
+| the keys move the highlight, and no ring is drawn in a menu | Fluid Dropdown | `FluidHover` `follows`: the item the highlight sits on while the pointer is out (`[data-active]` upstream) | adopt |
+| a chosen marker apart from the hover, gliding to a new choice | Fluid Tabs, Select, Combobox; Zag's tab indicator | `FluidHover` `chosen`: a second set of custom properties for the chosen item | adopt |
+| the hover is born at the chosen item and returns to it on leave | Fluid Tabs, Dropdown (`from`) | `FluidHover`, when `chosen` is given | adopt |
+| the chosen marker dims while another item is hovered | Fluid Tabs (0.85) | recipe, reading `--fk-<name>-shown` | adopt |
+| three spring tiers, the bigger the slower | Fluid Motion | `motion.spring` exists; the tiers are step 3's motion knob | adapt: one spring now |
+| reduced motion keeps the fade and drops the travel | Fluid | recipes, under `--fk-knob-motion` 0 | adopt |
+| a highlight lit only on click targets; disabled rows skipped | Fluid | `FluidHover` (exists) | adopt |
+| gap click presses the lit item | Fluid | `FluidHover` `gapClick` (exists) | adopt for menus, listbox and tabs; not for a combobox, whose field keeps focus |
+
+Per component:
+
+| Option | Seen in | Home | Decision |
+|---|---|---|---|
+| Tabs: a sliding indicator under the chosen tab | Fluid, Zag, shadcn `line` | `TabsSlots` `indicator`, recipe | adopt |
+| Tabs: a hover pill, `pill` variant | Fluid | `TabsSlots` `highlight`, recipe | adopt |
+| Tabs: `orientation` vertical | Zag, shadcn | upstream view input; recipe axis | adopt; the highlight reads `y` |
+| Tabs: manual activation, loop, deselectable | Zag | upstream `@foldkit/ui/tabs` | as upstream offers |
+| Tabs: only the chosen tab shows its label (`activeLabel`) | Fluid TabsSubtle | view | skip for now: needs measured widths; recorded for step 6 |
+| Tabs: label weight without reflow | Fluid | recipe (ghost text) | skip for now: needs the label in a slot |
+| Menu: checkbox and radio rows, submenus, a search field | Fluid, Zag | upstream menu has none | skip: step 6's Nested Menu |
+| Listbox: the chosen row's marker glides | Fluid Select | `chosen` | adopt |
+| Listbox: a 300ms pause after a pick before closing | Fluid Select | upstream's close | skip: upstream closes at once; recorded |
+| Combobox: first row lit on open, keys loop through the field | Fluid, APG | upstream combobox | as upstream does |
+| Segmented: one pressed option, a sliding pill | Fluid Tabs (segmented) | `SegmentedSlots` `indicator`, `chosen` on `[aria-pressed="true"]` | adopt |
+
 ## What makes the rest cheap
 
 - Stateless components are 30 to 60 lines over `Slots.define` and
