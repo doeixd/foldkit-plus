@@ -160,7 +160,7 @@ describe('Theme.oklch', () => {
       match[2] ?? '',
     ])
 
-  it('has the fourteen groups', () => {
+  it('has the fifteen groups', () => {
     expect(Object.keys(brand)).toEqual([
       'knob',
       'hue',
@@ -171,6 +171,7 @@ describe('Theme.oklch', () => {
       'secondary',
       'tertiary',
       'shadow',
+      'popup',
       'success',
       'warning',
       'error',

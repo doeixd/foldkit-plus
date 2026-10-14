@@ -591,7 +591,9 @@ the `data-fluid-hover` attribute FluidHover sets while it runs. (`Tabs.fluid`
 is opt-in because a Scene test resolves every Mount with a Message, and these
 send none.)
 
-Menus, listboxes and comboboxes take the same opt-in: `Menu.fluid`,
+Menus, listboxes and comboboxes draw their panels in the palette's `popup`
+tokens, so a theme's `menu: { accent, color }` (a bold accent row, an
+inverted or translucent panel) restyles all three. They take the same opt-in: `Menu.fluid`,
 `Listbox.fluid` and `Combobox.fluid`, beside the style in `toView`. The open
 panel's rows sit in a `rows` box of this package's (the panel carries
 upstream's anchor, and an element holds one Mount), with a `highlight` first

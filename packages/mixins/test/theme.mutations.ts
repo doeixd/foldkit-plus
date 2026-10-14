@@ -179,4 +179,26 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
+  {
+    name: 'a 0-or-1 knob blends the wrong way',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "`color-mix(in oklab, ${a} calc(${v('knob', name)} * 100%), ${b})`",
+        replace: "`color-mix(in oklab, ${b} calc(${v('knob', name)} * 100%), ${a})`",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'a translucent panel is opaque',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "'popup-alpha': knobs.menu?.color?.endsWith('translucent') === true ? '0.8' : '1',",
+        replace: "'popup-alpha': '1',",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
 ]

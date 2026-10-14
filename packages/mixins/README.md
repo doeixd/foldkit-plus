@@ -352,7 +352,12 @@ the kinds a tokenizer names (`syntax-keyword` is `--fk-syntax-keyword`, as
 `foldkit-richtext-code` and its Shiki adapter name them): `keyword`, `function` and `type` in
 the accent, secondary and tertiary hues, `string`, `number` and `property` in the success,
 warning and info hues, all at one lightness per scheme and the `syntaxChroma` knob's chroma, and
-`operator`, `punctuation` and `comment` in the text's own grey. `Theme.tokens` is the
+`operator`, `punctuation` and `comment` in the text's own grey. The `popup` group is a menu's
+panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `highlight-ink`): `menu: { accent:
+'bold' }` lights the row in the accent's fill, and `menu: { color }` draws the panel `inverted`
+(the other scheme's surface and text) or `translucent` over a blur, as shadcn's menu options do.
+Each is a 0-or-1 knob (`popup-bold`, `popup-invert`) blended by `color-mix`, so an override
+switches it live. `Theme.tokens` is the
 non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
 
 A theme reaches the page as pieces, and the page chooses the layers:

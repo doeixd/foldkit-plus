@@ -30,7 +30,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/popup.ts',
-        find: '  Style.nest(`${unlit}[data-active]`, { background: hovered }),\n',
+        find: '  Style.nest(`${unlit}[data-active]`, lighted),\n',
         replace: '',
       },
     ],
@@ -43,6 +43,40 @@ export default [
         file: '../src/recipes/popup.ts',
         find: "  Style.pseudo(':focus-visible', { outline: 'none' }),\n",
         replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/popup.browser.test.ts'],
+  },
+  {
+    name: 'the panel ignores its theme',
+    edits: [
+      {
+        file: '../src/recipes/popup.ts',
+        find: '    background: ref.popup.surface,',
+        replace: '    background: ref.surface.base,',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/popup.browser.test.ts'],
+  },
+  {
+    name: 'a row keeps the page text on an inverted panel',
+    edits: [
+      {
+        file: '../src/recipes/popup.ts',
+        find: "    color: 'inherit',",
+        replace: '    color: ref.text.default,',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/popup.browser.test.ts'],
+  },
+  {
+    name: 'a lit row ignores a bold menu accent',
+    edits: [
+      {
+        file: '../src/recipes/popup.ts',
+        find: "const lighted = { background: ref.popup.highlight, color: ref.popup['highlight-ink'] }",
+        replace:
+          "const lighted = { background: 'color-mix(in oklab, currentColor 8%, transparent)' }",
       },
     ],
     tests: ['packages/mixins-ui/test/popup.browser.test.ts'],

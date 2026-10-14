@@ -25,6 +25,11 @@ version changed; `pnpm` skips versions already in the registry.
   neutrals (surfaces, text, outlines, the shadow) apart from the accent's, as
   shadcn's base colors are; without it they take the accent's and follow its
   knob, as before. The hue is the `neutral-h` knob.
+- **`foldkit-mixins/theme`: a menu's look, `Theme.oklch({ menu: { accent, color } })`**,
+  as shadcn's menu options: the lit row in a tint of the text or the
+  accent's fill (`bold`), and the panel in the page's surface, the other
+  scheme's (`inverted`), or either over a blur (`translucent`). The `popup`
+  tokens carry it, and the menu, listbox and combobox recipes read them.
 - **`foldkit-mixins/theme`: `motion.spring`**, an easing token sampled from an
   underdamped spring (4% overshoot, resting exactly at the end), for a CSS
   transition that springs with no JavaScript.

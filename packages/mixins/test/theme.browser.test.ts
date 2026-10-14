@@ -3,7 +3,7 @@
  * `subtle` keeps the tone's hue over a tinted base. Mixed in OKLCH, a mix
  * mostly of a blue-grey base took the base's hue, so a success tint was blue.
  */
-import { afterEach, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vitest'
 import { Layers, Style } from '../src/index.js'
 import { Theme } from '../src/theme.js'
 
@@ -192,4 +192,67 @@ test('the neutrals take a hue of their own, or the accent’s and follow it', ()
   // No neutral hue: the accent's, and a moved accent knob moves it.
   sheet(Theme.oklch({ accent, surfaceSaturation: 0.02 }), '--fk-knob-accent-h:150;')
   expect(distance(hueOf(computed('surface-base')), 150)).toBeLessThan(10)
+})
+
+describe('a menu panel', () => {
+  const install = (menu: Parameters<typeof Theme.oklch>[0]['menu']) => {
+    const style = document.createElement('style')
+    style.dataset['test'] = ''
+    style.textContent = Style.stylesheet(
+      L.declare,
+      L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
+      L.in(
+        'theme',
+        Theme.root(
+          Theme.oklch({
+            accent: { h: 265, c: 0.16, l: '52%' },
+            ...(menu === undefined ? {} : { menu }),
+          }),
+          {
+            omit: Theme.tokens,
+            colorScheme: 'light',
+          },
+        ),
+      ),
+    )
+    document.head.append(style)
+  }
+  const alphaOf = (color: string) => {
+    const alpha = /\/\s*([\d.]+)\s*\)$/.exec(color)
+    return alpha === null ? 1 : Number(alpha[1])
+  }
+
+  /** The same color, however the browser writes it (OKLab from a mix, OKLCH from a token). */
+  const same = (a: string, b: string) =>
+    Math.abs(lightnessOf(a) - lightnessOf(b)) < 0.005 &&
+    Math.abs(chromaOf(a) - chromaOf(b)) < 0.005 &&
+    (chromaOf(b) < 0.02 || distance(hueOf(a), hueOf(b)) < 2)
+
+  test('is the page’s surface and text, its lit row a faint tint, by default', () => {
+    install(undefined)
+    expect(same(computed('popup-surface'), computed('surface-base'))).toBe(true)
+    expect(same(computed('popup-ink'), computed('text-default'))).toBe(true)
+    expect(alphaOf(computed('popup-highlight'))).toBeLessThan(0.2)
+  })
+
+  test('lights its row in the accent when bold', () => {
+    install({ accent: 'bold' })
+    expect(same(computed('popup-highlight'), computed('accent-default'))).toBe(true)
+    expect(same(computed('popup-highlight-ink'), computed('accent-on-fill'))).toBe(true)
+  })
+
+  test('takes the other scheme’s surface and text when inverted', () => {
+    install({ color: 'inverted' })
+    expect(lightnessOf(computed('popup-surface'))).toBeLessThan(0.4)
+    expect(lightnessOf(computed('popup-ink'))).toBeGreaterThan(0.8)
+  })
+
+  test('shows the page through a blur when translucent', () => {
+    install({ color: 'translucent' })
+    expect(alphaOf(computed('popup-surface'))).toBeCloseTo(0.8, 2)
+    const swatch = document.createElement('div')
+    swatch.style.backdropFilter = 'blur(var(--fk-popup-blur))'
+    document.body.append(swatch)
+    expect(getComputedStyle(swatch).backdropFilter).toBe('blur(12px)')
+  })
 })

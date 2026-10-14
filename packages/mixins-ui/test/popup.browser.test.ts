@@ -12,7 +12,8 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { MenuSlots, Recipes } from '../src/index.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const accent = { h: 265, c: 0.16, l: '52%' } as const
+const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent }))
 const style = Style.forSlots(MenuSlots)(Recipes.Menu({}))
 const Model = Schema.Struct({})
 
@@ -37,11 +38,11 @@ const view = (_: unknown, h: HtmlBuilder<never>) => {
   )
 }
 
-test('the active row is marked, and the focused panel draws no ring', async () => {
+const mount = async (palette: typeof theme) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
-    Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme))) +
+    Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(palette))) +
     style.css
   document.head.append(sheet)
   const container = document.createElement('div')
@@ -56,11 +57,20 @@ test('the active row is marked, and the focused panel draws no ring', async () =
       view,
     }),
   )
+  await vi.waitFor(() => expect(document.querySelector('[aria-label="panel"]')).toBeTruthy())
+  await userEvent.hover(document.querySelector<HTMLElement>('[aria-label="elsewhere"]')!)
+  return handle
+}
+
+const computed = (label: string) =>
+  getComputedStyle(document.querySelector(`[aria-label="${label}"]`)!)
+const fill = (label: string) => computed(label).backgroundColor
+/** The lightness of a computed OKLab or OKLCH color, 0 to 1. */
+const lightness = (color: string) => Number(/^okl(?:ab|ch)\(\s*([\d.]+)/.exec(color)![1])
+
+test('the active row is marked, and the focused panel draws no ring', async () => {
+  const handle = await mount(theme)
   try {
-    await vi.waitFor(() => expect(document.querySelector('[aria-label="panel"]')).toBeTruthy())
-    await userEvent.hover(document.querySelector<HTMLElement>('[aria-label="elsewhere"]')!)
-    const fill = (label: string) =>
-      getComputedStyle(document.querySelector(`[aria-label="${label}"]`)!).backgroundColor
     expect(fill('resting')).toBe('rgba(0, 0, 0, 0)')
     expect(fill('active')).not.toBe('rgba(0, 0, 0, 0)')
     const panel = document.querySelector<HTMLElement>('[aria-label="panel"]')!
@@ -68,6 +78,24 @@ test('the active row is marked, and the focused panel draws no ring', async () =
     panel.focus({ focusVisible: true })
     expect(panel.matches(':focus-visible')).toBe(true)
     expect(getComputedStyle(panel).outlineStyle).toBe('none')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a bold menu accent fills the active row with the accent, and an inverted panel is dark', async () => {
+  const handle = await mount(
+    Theme.compose(
+      Theme.tokens,
+      Theme.oklch({ accent, menu: { accent: 'bold', color: 'inverted' } }),
+    ),
+  )
+  try {
+    // The accent at 52% lightness, its text near white, on a panel of the dark scheme's base.
+    expect(lightness(fill('active'))).toBeCloseTo(0.52, 2)
+    expect(lightness(computed('active').color)).toBeGreaterThan(0.9)
+    expect(lightness(fill('panel'))).toBeLessThan(0.4)
+    expect(lightness(computed('resting').color)).toBeGreaterThan(0.8)
   } finally {
     handle.dispose()
   }

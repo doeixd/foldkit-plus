@@ -7,15 +7,23 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { component, disabled, hover, ref, variant } from './design.js'
 
-/** The floating panel: a bordered card over later content, under the nav. */
+/** A line in the panel's own ink, so it reads on an inverted panel too. */
+const line = `color-mix(in oklab, ${ref.popup.ink} 14%, transparent)`
+
+/**
+ * The floating panel: a bordered card over later content, under the nav, in
+ * the palette's `popup` look (a theme's menu accent and color).
+ */
 export const panel: StyleValue = component(
   Style.self({
     marginBlockStart: ref.space['2xs'],
     minInlineSize: '14rem',
     padding: ref.space['2xs'],
-    border: `${ref.border.thin} solid ${ref.outline.subtle}`,
+    border: `${ref.border.thin} solid ${line}`,
     borderRadius: ref.radius.lg,
-    background: ref.surface.base,
+    background: ref.popup.surface,
+    color: ref.popup.ink,
+    backdropFilter: `blur(${ref.popup.blur})`,
     boxShadow: ref.shadow.lg,
     zIndex: '20',
   }),
@@ -27,11 +35,8 @@ export const panel: StyleValue = component(
 /** The click-away behind an open panel. */
 export const backdrop: StyleValue = component(Style.self({ position: 'fixed', inset: '0' }))
 
-/**
- * A row's hover: a tint of the text, so it reads on the panel in either
- * scheme, where the muted surface sat too close to a dark panel's own.
- */
-const hovered = 'color-mix(in oklab, currentColor 8%, transparent)'
+/** A lit row: the theme's tint of the panel's ink, or its accent fill when the menu accent is bold. */
+const lighted = { background: ref.popup.highlight, color: ref.popup['highlight-ink'] }
 
 /** A row outside any panel a fluid highlight runs in. */
 export const unlit = '&:not([data-fluid-hover] *)'
@@ -48,7 +53,7 @@ export const item: StyleValue = component(
     border: '0',
     borderRadius: ref.radius.md,
     background: 'transparent',
-    color: ref.text.default,
+    color: 'inherit',
     font: 'inherit',
     fontSize: ref.size.sm,
     textAlign: 'start',
@@ -56,8 +61,10 @@ export const item: StyleValue = component(
   }),
   // The row the keys or the pointer are on (upstream marks it `data-active`),
   // until a fluid highlight runs in the panel and lights it instead.
-  Style.nest(`${unlit}:hover:not([aria-disabled="true"], :disabled)`, { background: hovered }),
-  Style.nest(`${unlit}[data-active]`, { background: hovered }),
+  Style.nest(`${unlit}:hover:not([aria-disabled="true"], :disabled)`, lighted),
+  Style.nest(`${unlit}[data-active]`, lighted),
+  // Under a fluid highlight the highlight is the fill; the row keeps its ink.
+  Style.nest(`:where([data-fluid-hover]) &[data-active]`, { color: ref.popup['highlight-ink'] }),
   disabled,
 )
 
@@ -97,7 +104,7 @@ export const highlight: StyleValue = component(
     ...overlay('hover'),
     display: 'none',
     opacity: 'var(--fk-popup-hover-shown)',
-    background: hovered,
+    background: ref.popup.highlight,
     ...glide('var(--fk-popup-hover-moving)'),
   }),
   Style.nest(lit, { display: 'block' }),
@@ -120,7 +127,8 @@ export const heading: StyleValue = component(
     margin: '0',
     paddingBlock: ref.space['2xs'],
     paddingInline: ref.space.sm,
-    color: ref.text.muted,
+    // The panel's ink, quieter: the page's muted text would not read on an inverted panel.
+    color: `color-mix(in oklab, ${ref.popup.ink} 62%, transparent)`,
     fontSize: ref.size.xs,
     fontWeight: ref.weight.semibold,
     textTransform: 'uppercase',
@@ -131,7 +139,7 @@ export const heading: StyleValue = component(
 export const separator: StyleValue = component(
   Style.self({
     marginBlock: ref.space['2xs'],
-    borderBlockStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
+    borderBlockStart: `${ref.border.thin} solid ${line}`,
   }),
 )
 

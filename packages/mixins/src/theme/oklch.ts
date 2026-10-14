@@ -37,6 +37,17 @@ export interface OklchKnobs {
   readonly contrastFactor?: number
   /** Chroma of the code colors (`syntax-*`), 0–0.4; default `0.14`. */
   readonly syntaxChroma?: number
+  /**
+   * How menus, listboxes and comboboxes draw their panels, as shadcn's menu
+   * options: the row the keys or pointer are on in a tint of the text
+   * (`subtle`, the default) or the accent's fill (`bold`); the panel in the
+   * page's surface (`default`), the opposite scheme's (`inverted`), or either
+   * see-through over a blur (`translucent`, `inverted-translucent`).
+   */
+  readonly menu?: {
+    readonly accent?: 'subtle' | 'bold'
+    readonly color?: 'default' | 'inverted' | 'translucent' | 'inverted-translucent'
+  }
   /** Hues of the feedback families. */
   readonly feedback?: {
     readonly success?: number
@@ -86,6 +97,10 @@ const surfaceStep = (light: Step, dark: Step) => {
   const target = ld(scale(base, light[0], light[1]), scale(base, dark[0], dark[1]))
   return `color-mix(in oklch, ${base} calc(100% - ${amount}), ${target} ${amount})`
 }
+
+/** `a` where the 0-or-1 knob `name` is 1, `b` where it is 0. */
+const share = (a: string, name: string, b: string) =>
+  `color-mix(in oklab, ${a} calc(${v('knob', name)} * 100%), ${b})`
 
 /** A text color: fixed lightness, chroma scaled by surface saturation and the contrast factor. */
 const text = (light: Step, dark: Step) =>
@@ -155,6 +170,11 @@ export const oklch = (knobs: OklchKnobs) => {
       'error-h': String(knobs.feedback?.error ?? 25),
       'info-h': String(knobs.feedback?.info ?? 245),
       'syntax-c': num(knobs.syntaxChroma ?? 0.14),
+      // 0 or 1, each blending one look into the other, so a knob override switches it.
+      'popup-bold': knobs.menu?.accent === 'bold' ? '1' : '0',
+      'popup-invert': knobs.menu?.color?.startsWith('inverted') === true ? '1' : '0',
+      'popup-alpha': knobs.menu?.color?.endsWith('translucent') === true ? '0.8' : '1',
+      'popup-blur': knobs.menu?.color?.endsWith('translucent') === true ? '12px' : '0px',
     },
     hue: {
       accent: v('knob', 'accent-h'),
@@ -217,6 +237,26 @@ export const oklch = (knobs: OklchKnobs) => {
         `oklch(25% calc(${surfaceC} * 2) ${neutral} / 0.14)`,
         `oklch(5% calc(${surfaceCDark} * 2) ${neutral} / 0.6)`,
       ),
+    },
+    // A menu's panel and its lit row, which the popup recipes read.
+    popup: {
+      surface: `color-mix(in oklab, ${share(
+        ld(
+          `oklch(${v('knob', 'base-l-dark')} calc(${surfaceCDark} * 0.9) ${neutral})`,
+          `oklch(${v('knob', 'base-l')} calc(${surfaceC} * 0.9) ${neutral})`,
+        ),
+        'popup-invert',
+        base,
+      )} calc(${v('knob', 'popup-alpha')} * 100%), transparent)`,
+      // The text of the opposite scheme: light on an inverted panel in a light one.
+      ink: share(text([88, 0.8], [20, 2]), 'popup-invert', v('text', 'default')),
+      highlight: share(
+        v('accent', 'default'),
+        'popup-bold',
+        `color-mix(in oklab, ${v('popup', 'ink')} 8%, transparent)`,
+      ),
+      'highlight-ink': share(v('accent', 'on-fill'), 'popup-bold', v('popup', 'ink')),
+      blur: v('knob', 'popup-blur'),
     },
     success: feedback('success', 55, 0.15, 64),
     warning: feedback('warning', 70, 0.15, 76),
