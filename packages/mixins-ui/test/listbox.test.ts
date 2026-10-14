@@ -175,6 +175,34 @@ describe('Listbox adapter', () => {
     )
   })
 
+  it("draws upstream's markup with the style applied when given no draw", () => {
+    const Styled = Style.forSlots(ListboxSlots)({
+      button: Style.class('styled-trigger'),
+      item: Style.class('styled-item'),
+    })
+    Scene.scene<Model, Message, UpstreamListbox.OutMessage<Fruit>>(
+      {
+        update: upstream.update,
+        view: (model, h) =>
+          fork.view(
+            model,
+            {
+              items: [...fruits],
+              itemToConfig: item => ({ content: h.span([], [item]) }),
+              buttonContent: h.span([], ['open']),
+              maybeSelectedValue: Option.some<Fruit>('banana'),
+              toView: ListboxAdapter.toView([Styled.mixin], { h }),
+            },
+            h,
+          ),
+      },
+      Scene.given(openModel),
+      anchored(),
+      Scene.expect(Scene.selector('button.styled-trigger')).toExist(),
+      Scene.expect(Scene.selector('.styled-item')).toExist(),
+    )
+  })
+
   it('refuses a Behavior that takes over the item click', () => {
     const Steal = Behavior.forSlots(ListboxSlots)<undefined, Message>({
       item: Behavior.slot({

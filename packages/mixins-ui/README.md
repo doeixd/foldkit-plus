@@ -651,6 +651,10 @@ source (attributed in its module) with the missing `toView` added, as
 described above; state, Messages, update, Commands, and Mounts stay
 upstream in every case. If upstream gains seams, the forks go away.
 
+`Menu`, `Listbox` and `Combobox` draw upstream's markup from the styled
+bundles when `toView` is given no `draw`: `Menu.toView([MenuStyle.mixin], { h })`
+is a whole styled menu. Pass a `draw` to arrange the parts yourself.
+
 `DatePicker`'s bundles mix the popover's pre-bound groups with the date
 picker's own attributes, so they speak only the date picker's Message. Its
 `toView` therefore takes no builder of the application's:

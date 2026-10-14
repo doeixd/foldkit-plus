@@ -7,6 +7,7 @@ import type {
   MenuItemRender,
   MenuRenderInfo,
 } from './menuView.js'
+import { drawMenu } from './popupView.js'
 
 /**
  * Menu is a nested Submodel: one `button`/`backdrop`/`items` group plus an
@@ -135,12 +136,15 @@ export const resolve = <Input, Message>(
   }
 }
 
-/** The menu's `toView`: `draw` receives its bundles with `mixins` applied. */
+/**
+ * The menu's `toView`: `draw` receives its bundles with `mixins` applied.
+ * Without one, it draws upstream's markup from them.
+ */
 export const toView =
   <Message>(
     mixins: MixinList<Message>,
     context: ResolveContext<unknown, Message>,
-    draw: (resolved: ResolvedMenu<Message>) => Html,
+    draw: (resolved: ResolvedMenu<Message>) => Html = resolved => drawMenu(resolved, context.h),
   ) =>
   (render: MenuRenderInfo): Html =>
     draw(resolve(render, mixins, context))

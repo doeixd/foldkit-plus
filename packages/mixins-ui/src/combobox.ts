@@ -7,6 +7,7 @@ import type {
   ComboboxItemRender,
   ComboboxRenderInfo,
 } from './comboboxView.js'
+import { drawCombobox } from './popupView.js'
 
 /**
  * Combobox is a nested Submodel: an `input`/`inputWrapper` pair with an
@@ -159,12 +160,16 @@ export const resolve = <Input, Message>(
   }
 }
 
-/** The combobox's `toView`: `draw` receives its bundles with `mixins` applied. */
+/**
+ * The combobox's `toView`: `draw` receives its bundles with `mixins` applied.
+ * Without one, it draws upstream's markup from them.
+ */
 export const toView =
   <Message>(
     mixins: MixinList<Message>,
     context: ResolveContext<unknown, Message>,
-    draw: (resolved: ResolvedCombobox<Message>) => Html,
+    draw: (resolved: ResolvedCombobox<Message>) => Html = resolved =>
+      drawCombobox(resolved, context.h),
   ) =>
   (render: ComboboxRenderInfo): Html =>
     draw(resolve(render, mixins, context))

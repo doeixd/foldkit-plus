@@ -29,6 +29,11 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-mixins-ui`: `Recipes.Calendar`**, the month grid in every mode,
   sized `sm` or `md` on the size ladder, for a calendar alone or in a date
   picker's panel. The design-system example uses it in place of its own.
+- **`foldkit-mixins-ui`: `Menu`, `Listbox` and `Combobox` draw themselves.**
+  Their `toView` takes `draw` optionally; without it, upstream's markup is
+  drawn from the styled bundles, so a styled menu is
+  `Menu.toView([MenuStyle.mixin], { h })` instead of forty lines of panel and
+  option groups. The forks' default views share the same drawing.
 
 ### Changed
 

@@ -27,6 +27,7 @@ import {
   resolveTypeaheadMatch,
   whenOption as when,
 } from './menuUtils.js'
+import { drawMenu } from './popupView.js'
 
 export type MenuItemRender = Readonly<{
   key: string
@@ -496,54 +497,8 @@ const computeRender = <Item extends string>(
 /** Upstream's markup from the computed bundles: the default `toView`. */
 export const defaultToView =
   (h: HtmlBuilder<Message>) =>
-  (render: MenuRenderInfo): Html => {
-    const drawItem = (item: MenuItemRender): Html =>
-      h.keyed('div')(item.key, [...item.attributes], [item.content])
-    const drawGroup = (group: MenuGroupRender): ReadonlyArray<Html> => {
-      const drawn = group.items.map(drawItem)
-      if (group.group === undefined) return drawn
-      const headed: ReadonlyArray<Html> =
-        group.heading === undefined
-          ? []
-          : [
-              h.keyed('div')(
-                group.heading.id,
-                [...group.heading.attributes],
-                [group.heading.content],
-              ),
-            ]
-      const grouped = h.keyed('div')(
-        group.group.key,
-        [...group.group.attributes],
-        [...headed, ...drawn],
-      )
-      return [
-        ...(group.separator === undefined
-          ? []
-          : [h.keyed('div')(group.separator.key, [...group.separator.attributes])]),
-        grouped,
-      ]
-    }
-    const grouped = render.groups.flatMap(drawGroup)
-    return h.div(
-      [...render.wrapper],
-      [
-        h.keyed('button')(`${render.id}-button`, [...render.button], [render.buttonContent]),
-        ...(render.backdrop === undefined
-          ? []
-          : [h.keyed('div')(render.backdrop.key, [...render.backdrop.attributes])]),
-        ...(render.items === undefined
-          ? []
-          : [
-              h.keyed('div')(
-                render.items.key,
-                [...render.items.attributes],
-                render.scroll === undefined ? grouped : [h.div([...render.scroll], grouped)],
-              ),
-            ]),
-      ],
-    )
-  }
+  (render: MenuRenderInfo): Html =>
+    drawMenu(render, h)
 
 const menuViewImpl = defineView<Model, Message, MenuViewInputs<string>>((model, viewInputs, h) => {
   const render = computeRender(model, viewInputs, h)

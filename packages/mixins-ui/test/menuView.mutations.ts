@@ -45,9 +45,9 @@ export default [
     name: 'the backdrop never draws',
     edits: [
       {
-        file: '../src/menuView.ts',
-        find: '...(render.backdrop === undefined\n          ? []\n          : [h.keyed',
-        replace: '...([]\n          ? []\n          : [h.keyed',
+        file: '../src/popupView.ts',
+        find: '...(panel.backdrop === undefined\n      ? []\n      : [h.keyed',
+        replace: '...([]\n      ? []\n      : [h.keyed',
       },
     ],
     tests,

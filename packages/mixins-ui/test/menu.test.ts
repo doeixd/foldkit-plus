@@ -179,6 +179,33 @@ describe('Menu adapter', () => {
     )
   })
 
+  it("draws upstream's markup with the style applied when given no draw", () => {
+    const Styled = Style.forSlots(MenuSlots)({
+      button: Style.class('styled-trigger'),
+      item: Style.class('styled-item'),
+    })
+    Scene.scene<UpstreamMenu.Model, Message, UpstreamMenu.OutMessage<Fruit>>(
+      {
+        update: upstream.update,
+        view: (model, h) =>
+          fork.view(
+            model,
+            {
+              items: [...fruits],
+              itemToConfig: item => ({ content: h.span([], [item]) }),
+              buttonContent: h.span([], ['open']),
+              toView: MenuAdapter.toView([Styled.mixin], { h }),
+            },
+            h,
+          ),
+      },
+      Scene.given(openModel),
+      anchored(),
+      Scene.expect(Scene.selector('button.styled-trigger')).toExist(),
+      Scene.expect(Scene.selector('.styled-item')).toExist(),
+    )
+  })
+
   it('refuses a Behavior that takes over the item click', () => {
     const Steal = Behavior.forSlots(MenuSlots)<undefined, Message>({
       item: Behavior.slot({

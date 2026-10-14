@@ -301,7 +301,8 @@ state staying upstream.
 The same call goes in a Submodel's `viewInputs` (`toView: RadioGroup.toView(mixins, { h },
 ({ group, options }) => …)`), with `Value` and `Message` inferred. `input` is optional: only what an
 input-driven Mixin reads. `X.resolve(attributes, mixins, { h, input })` stays for bundles already in
-hand, such as a Calendar whose Mixins read `attributes._tag`. `DatePicker.toView(mixins, (resolved, h) => …)`
+hand, such as a Calendar whose Mixins read `attributes._tag`. `Menu`, `Listbox` and `Combobox`'s `toView` take `draw` optionally; without it they draw upstream's
+markup from the styled bundles (`Menu.toView([MenuStyle.mixin], { h })`). `DatePicker.toView(mixins, (resolved, h) => …)`
 takes no builder: its bundles speak the date picker's own Message, so it hands `draw` the date picker's
 builder. Result types: `ResolvedButton<M>`,
 `ResolvedRadioGroup<V, M>`, and so on.

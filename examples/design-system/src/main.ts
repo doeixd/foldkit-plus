@@ -34,7 +34,7 @@ import * as UiSelect from '@foldkit/ui/select'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import { SlotView, Style, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
+import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
   Alert,
   Anchor,
@@ -80,11 +80,6 @@ import {
   Toast,
   ToastView,
   Tooltip,
-} from 'foldkit-mixins-ui'
-import type {
-  ResolvedComboboxGroup,
-  ResolvedListboxGroup,
-  ResolvedMenuGroup,
 } from 'foldkit-mixins-ui'
 import {
   AlertSuccessStyle,
@@ -890,64 +885,6 @@ const formatFileSize = (bytes: number): string =>
       ? `${(bytes / 1024).toFixed(1)} KB`
       : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 
-/** The option-group wire shape menu, listbox, and combobox share. */
-type OptionGroups = ReadonlyArray<
-  ResolvedMenuGroup<Message> | ResolvedListboxGroup<Message> | ResolvedComboboxGroup<Message>
->
-
-/**
- * One option group's rows: its items, or the headed group with its separator.
- * Menu, listbox, and combobox publish the same wire shape (keyed bundles with
- * content, headings by id), so one draw serves all three panels.
- */
-const drawOptionGroups = (groups: OptionGroups, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
-  groups.flatMap(group => {
-    const drawn = group.items.map(item => h.keyed('div')(item.key, item.attributes, [item.content]))
-    if (group.group === undefined) return drawn
-    const headed =
-      group.heading === undefined
-        ? []
-        : [h.keyed('div')(group.heading.id, group.heading.attributes, [group.heading.content])]
-    return [
-      ...(group.separator === undefined
-        ? []
-        : [h.keyed('div')(group.separator.key, group.separator.attributes)]),
-      h.keyed('div')(group.group.key, group.group.attributes, [...headed, ...drawn]),
-    ]
-  })
-
-/**
- * A popup panel's floating parts: the click-away behind it and the items card
- * with its rows, scrolled when the panel says so. Menu, listbox, and combobox
- * publish the same parts; only their triggers differ.
- */
-const drawPopupParts = (
-  panel: {
-    readonly backdrop:
-      { readonly key: string; readonly attributes: SlotAttributes<Message> } | undefined
-    readonly items:
-      { readonly key: string; readonly attributes: SlotAttributes<Message> } | undefined
-    readonly scroll: SlotAttributes<Message> | undefined
-    readonly groups: OptionGroups
-  },
-  h: HtmlBuilder<Message>,
-): ReadonlyArray<Html> => [
-  ...(panel.backdrop === undefined
-    ? []
-    : [h.keyed('div')(panel.backdrop.key, panel.backdrop.attributes)]),
-  ...(panel.items === undefined
-    ? []
-    : [
-        h.keyed('div')(
-          panel.items.key,
-          panel.items.attributes,
-          panel.scroll === undefined
-            ? drawOptionGroups(panel.groups, h)
-            : [h.div(panel.scroll, drawOptionGroups(panel.groups, h))],
-        ),
-      ]),
-]
-
 const contacts: ReadonlyArray<{ readonly value: Contact; readonly label: string }> = [
   { value: 'email', label: 'Email' },
   { value: 'phone', label: 'Phone' },
@@ -1070,12 +1007,7 @@ const MenuDemo = (model: Pick<Model, 'menu' | 'menuChoice'>, h: HtmlBuilder<Mess
       itemGroupKey,
       groupToHeading: (groupKey: string) =>
         groupKey === 'Manage' ? { content: h.span([], ['Manage']) } : undefined,
-      toView: Menu.toView([MenuStyle.mixin], { h }, resolved =>
-        h.div(resolved.wrapper, [
-          h.keyed('button')(`${resolved.id}-button`, resolved.button, [resolved.buttonContent]),
-          ...drawPopupParts(resolved, h),
-        ]),
-      ),
+      toView: Menu.toView([MenuStyle.mixin], { h }),
     },
     toParentMessage: message => Message.Menu({ message }),
   })
@@ -1096,13 +1028,7 @@ const ListboxDemo = (
       maybeSelectedValue: model.maybeFrequency,
       itemToConfig: (frequency: Frequency) => ({ content: h.span([], [frequency]) }),
       buttonContent: h.span([], [label]),
-      toView: Listbox.toView([ListboxStyle.mixin], { h }, resolved =>
-        h.div(resolved.wrapper, [
-          h.keyed('button')(`${resolved.id}-button`, resolved.button, [resolved.buttonContent]),
-          ...drawPopupParts(resolved, h),
-          ...resolved.hiddenInputs,
-        ]),
-      ),
+      toView: Listbox.toView([ListboxStyle.mixin], { h }),
     },
     toParentMessage: message => Message.Listbox({ message }),
   })
@@ -1126,22 +1052,8 @@ const ComboboxDemo = (
       itemToDisplayText: (city: string) => city,
       buttonContent: h.span([], ['▾']),
       maybeSelectedValue: model.maybeCity,
-      toView: Combobox.toView([ComboBoxStyle.mixin], { h }, resolved =>
-        h.div(resolved.wrapper, [
-          h.div(resolved.inputWrapper, [
-            h.input([...resolved.input, h.Placeholder('Search cities…')]),
-            ...(resolved.toggleButton === undefined
-              ? []
-              : [
-                  h.keyed('button')(resolved.toggleButton.key, resolved.toggleButton.attributes, [
-                    resolved.toggleButton.content,
-                  ]),
-                ]),
-          ]),
-          ...drawPopupParts(resolved, h),
-          ...resolved.hiddenInputs,
-        ]),
-      ),
+      inputPlaceholder: 'Search cities…',
+      toView: Combobox.toView([ComboBoxStyle.mixin], { h }),
     },
     toParentMessage: message => Message.Combobox({ message }),
   })

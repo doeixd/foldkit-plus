@@ -199,6 +199,31 @@ describe('Combobox adapter', () => {
     )
   })
 
+  it("draws upstream's markup with the style applied when given no draw", () => {
+    const Styled = Style.forSlots(ComboboxSlots)({
+      input: Style.class('styled-trigger'),
+      item: Style.class('styled-item'),
+    })
+    Scene.scene<Model, Message, UpstreamCombobox.OutMessage<Fruit>>(
+      {
+        update: upstream.update,
+        view: (model, h) =>
+          fork.view(
+            model,
+            {
+              ...inputsOf(h),
+              toView: ComboboxAdapter.toView([Styled.mixin], { h }),
+            },
+            h,
+          ),
+      },
+      Scene.given(openModel),
+      anchored(),
+      Scene.expect(Scene.selector('input.styled-trigger')).toExist(),
+      Scene.expect(Scene.selector('.styled-item')).toExist(),
+    )
+  })
+
   it('refuses a Behavior that takes over the item click', () => {
     const Steal = Behavior.forSlots(ComboboxSlots)<undefined, Message>({
       item: Behavior.slot({

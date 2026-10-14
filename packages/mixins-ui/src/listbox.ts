@@ -7,6 +7,7 @@ import type {
   ListboxItemRender,
   ListboxRenderInfo,
 } from './listboxView.js'
+import { drawListbox } from './popupView.js'
 
 /**
  * Listbox is a nested Submodel: one `button`/`backdrop`/`items` group plus
@@ -139,12 +140,16 @@ export const resolve = <Input, Message>(
   }
 }
 
-/** The listbox's `toView`: `draw` receives its bundles with `mixins` applied. */
+/**
+ * The listbox's `toView`: `draw` receives its bundles with `mixins` applied.
+ * Without one, it draws upstream's markup from them.
+ */
 export const toView =
   <Message>(
     mixins: MixinList<Message>,
     context: ResolveContext<unknown, Message>,
-    draw: (resolved: ResolvedListbox<Message>) => Html,
+    draw: (resolved: ResolvedListbox<Message>) => Html = resolved =>
+      drawListbox(resolved, context.h),
   ) =>
   (render: ListboxRenderInfo): Html =>
     draw(resolve(render, mixins, context))
