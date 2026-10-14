@@ -70,6 +70,11 @@ export const Card = Style.recipeFor(CardSlots)({
         rowGap: ref.space['3xs'],
         alignItems: 'start',
       }),
+      // Clear of the dismiss button in the corner, action included.
+      Style.nest(':where([data-dismissible="true"]) > &', {
+        // The button's width and inset, less the card's own padding, and a hair.
+        paddingInlineEnd: `calc(1.5rem - ${pad} / 2 + ${ref.space['2xs']})`,
+      }),
     ),
     title: component(
       Style.self({

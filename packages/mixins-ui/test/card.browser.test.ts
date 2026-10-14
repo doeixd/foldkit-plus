@@ -123,6 +123,10 @@ test('the dismiss button shows on hover and dismisses alone', async () => {
   try {
     await vi.waitFor(() => expect(byName('Dismiss Solo')).toBeTruthy())
     const dismiss = byName('Dismiss Solo')
+    // The header keeps its action clear of the button in the corner.
+    expect(byName('Edit').getBoundingClientRect().right).toBeLessThanOrEqual(
+      dismiss.getBoundingClientRect().left,
+    )
     expect(getComputedStyle(dismiss).opacity).toBe('0')
     await userEvent.hover(byName('Solo'))
     await vi.waitFor(() => expect(getComputedStyle(dismiss).opacity).toBe('1'))

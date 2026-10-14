@@ -181,4 +181,15 @@ export default [
     ],
     tests: unit,
   },
+  {
+    name: 'the action runs under the dismiss button',
+    edits: [
+      {
+        file: recipe,
+        find: 'Style.nest(\':where([data-dismissible="true"]) > &\', {',
+        replace: 'Style.nest(\':where([data-dismissible="never"]) > &\', {',
+      },
+    ],
+    tests: browser,
+  },
 ]

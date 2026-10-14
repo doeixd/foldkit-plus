@@ -12,7 +12,7 @@ import type { MixinList } from './resolve.js'
  * over the whole card, named by the title, so the card is one tab stop and
  * one announcement. The action, the footer and the dismiss button sit above
  * it and stay pressable on their own. The root carries `data-selected`,
- * `data-disabled` and `data-pressable` for a style to read.
+ * `data-disabled`, `data-pressable` and `data-dismissible` for a style to read.
  */
 export const CardSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -129,6 +129,7 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
       h.DataAttribute('selected', flag(options.selected)),
       h.DataAttribute('disabled', flag(disabled)),
       h.DataAttribute('pressable', flag(press !== undefined)),
+      h.DataAttribute('dismissible', flag(dismiss !== undefined)),
       ...(disabled ? [h.AriaDisabled(true)] : []),
     ]),
     [
