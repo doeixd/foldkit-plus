@@ -231,3 +231,31 @@ test('Enter in code breaks the line, and on an empty last line leaves the block'
   await expect.poll(() => code.evaluate(e => e.nextElementSibling?.textContent)).toBe('after')
   expect(errors).toEqual([])
 })
+
+test('empty lines can be reached with the arrow keys, and a new callout has a line', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await page.click('[contenteditable=true] > p')
+  await page.keyboard.press('End')
+  for (let count = 0; count < 3; count++) await page.keyboard.press('Enter')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.type('up')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.type('down')
+  const texts = () =>
+    page
+      .locator('[contenteditable=true] > p')
+      .evaluateAll(lines => lines.slice(1, 4).map(line => line.textContent))
+  await expect.poll(texts).toEqual(['', 'up', 'down'])
+
+  await page.getByRole('button', { name: 'Insert a callout' }).click()
+  const callout = page.locator('[contenteditable=true] > aside').first()
+  const [box, icon] = await Promise.all([
+    callout.boundingBox(),
+    callout.locator('[data-callout-icon]').boundingBox(),
+  ])
+  expect(box!.height).toBeGreaterThan(40)
+  expect(icon!.y).toBeGreaterThan(box!.y)
+  expect(icon!.y + icon!.height).toBeLessThan(box!.y + box!.height)
+  expect(errors).toEqual([])
+})

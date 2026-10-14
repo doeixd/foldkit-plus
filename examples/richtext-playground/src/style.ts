@@ -88,8 +88,10 @@ const writing = Style.compose(
     caretColor: t.accent.default,
   }),
   Style.nest('[contenteditable="true"] > * + *', { marginBlockStart: t.space.sm }),
-  // A block with no text has no line of its own, so a new empty line would be invisible.
-  Style.nest(':is(p, h1, h2, h3, h4, h5, h6, aside, pre)', { minBlockSize: '1lh' }),
+  // An empty line is drawn with a `<br>` (foldkit-richtext-dom's filler), so it has a line of its
+  // own; this keeps a heading or paragraph from collapsing if a browser drops it. Not a callout:
+  // with its padding inside its size, a line's height would be all padding.
+  Style.nest(':is(p, h1, h2, h3, h4, h5, h6)', { minBlockSize: '1lh' }),
   // The block a handle is dragging, dimmed until it is dropped (`foldkit-richtext-dom`'s drag).
   Style.nest('[data-richtext-dragging]', { opacity: '0.4' }),
   Style.nest('h1', {
@@ -173,6 +175,7 @@ const writing = Style.compose(
   }),
   Style.nest('[data-callout-icon]', {
     position: 'absolute',
+    insetBlockStart: t.space.md,
     insetInlineStart: t.space.lg,
     userSelect: 'none',
   }),
