@@ -58,6 +58,16 @@ export const Message = defineMessageUnion({
   DeletedColumn: {},
   /** Tab: indentation in code, the next cell in a table. */
   Indented: {},
+  /**
+   * Find and replace: the match at index `at` of `query`, or every match when `at` is absent,
+   * becomes `replacement`, as one undo step.
+   */
+  ReplacedText: {
+    query: Schema.String,
+    replacement: Schema.String,
+    caseSensitive: Schema.optionalKey(Schema.Boolean),
+    at: Schema.optionalKey(Schema.Number),
+  },
   /** Shift+Tab: less indentation in code, the previous cell in a table. */
   Outdented: {},
   /**
@@ -369,6 +379,7 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Message.DeletedColumn,
     Message.Indented,
     Message.Outdented,
+    Message.ReplacedText,
     Message.ActivatedAdornment,
     Message.Selected,
     Message.Pasted,

@@ -243,6 +243,14 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'DeleteColumn' }
     case 'Indented':
       return { type: 'Indent' }
+    case 'ReplacedText':
+      return {
+        type: 'Replace',
+        query: message.query,
+        replacement: message.replacement,
+        caseSensitive: message.caseSensitive,
+        at: message.at,
+      }
     case 'Outdented':
       return { type: 'Outdent' }
     case 'Selected':

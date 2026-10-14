@@ -20,6 +20,12 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **Find and replace.** `foldkit-richtext`'s `findMatches` lists a query's
+  matches (case not counting unless asked), `searchDecorations` takes a
+  `current` match drawn as `search-current`, and `Replace` replaces one match or
+  every one as a single undo step; the editor sends it as `ReplacedText`, and
+  `foldkit-mixins-richtext`'s `findReplace` is the bar. **Changed:** search
+  ignores case by default; pass `caseSensitive: true` for the old exact match.
 - **`foldkit-richtext-markdown`: inline markers close as they are typed.**
   `**bold**`, `*italic*`, `_italic_`, `` `code` `` and `~~struck~~` become
   marked text when the closing marker is typed, and typing on is plain

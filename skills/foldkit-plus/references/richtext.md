@@ -251,9 +251,12 @@ Decorations (§64, §126) are derived, ephemeral presentation over a document ra
 search match, a lint warning, a syntax token — and never document content:
 `Decoration` / `DecorationSet` are plain data, `decorationsIn(document, set)` projects a
 set onto runs (cut at each run's edge, unresolvable endpoints skipped, text order),
-`searchDecorations(document, query)` produces them for every occurrence of a query (one
-decoration per occurrence, across runs but never across blocks; `positionInBlock(block,
-offset)` is the offset-to-position read it shares), `codeDecorations(document, tokenizers)`
+`findMatches(document, query, { caseSensitive })` lists a query's occurrences (case ignored
+unless asked; across runs but never across blocks) and `searchDecorations(document, query,
+{ caseSensitive, current })` draws them, the `current` one as `search-current`
+(`positionInBlock(block, offset)` is the offset-to-position read they share); the `Replace`
+command (`{ query, replacement, caseSensitive, at }`, the editor's `ReplacedText`) replaces
+one match or all as one undo step, and `foldkit-mixins-richtext`'s `findReplace` is the bar, `codeDecorations(document, tokenizers)`
 runs the `CodeTokenizer` registered in a `Map` for each `CodeBlock`'s `language` and returns
 its tokens as decorations (a token outside the text throws; `foldkit-richtext-code`'s
 `jsonTokenizer` is the first grammar, and never throws on half-typed JSON;

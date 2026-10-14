@@ -124,7 +124,14 @@ export {
   decorationsIn,
   runPieces,
 } from './decoration.js'
-export { SEARCH_DECORATION, searchDecorations } from './search.js'
+export {
+  SEARCH_DECORATION,
+  SEARCH_CURRENT_DECORATION,
+  type SearchMatch,
+  type SearchOptions,
+  findMatches,
+  searchDecorations,
+} from './search.js'
 export { type CodeToken, type CodeTokenizer, codeDecorations } from './code.js'
 export { safeUrl } from './url.js'
 export {

@@ -69,6 +69,9 @@ export const markToolbar = <Message>(): SlotView.SlotView<
 /** The block style picker's view and its slots (§134). */
 export { BlockStyleSlots, blockStyles, type BlockStyleInput } from './style.js'
 
+/** The find and replace bar's view and its slots. */
+export { FindReplaceSlots, findReplace, stepMatch, type FindReplaceInput } from './find.js'
+
 /** The table toolbar's view and its slots: rows and columns around the caret's cell. */
 export { TableToolbarSlots, tableToolbar, type TableToolbarInput } from './table.js'
 

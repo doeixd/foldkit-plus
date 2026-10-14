@@ -4,6 +4,7 @@ import {
   blockAtPath,
   compareRunPlaces,
   eachBlock,
+  positionInBlock,
   locateBlock,
   locateRun,
   pathKey,
@@ -29,6 +30,7 @@ import {
 } from './marks.js'
 import { blockKind, standsWithin, type NodeRegistry } from './kit.js'
 import { indent, indentationAt, offsetIn, outdent } from './indent.js'
+import { findMatches, type SearchMatch } from './search.js'
 import {
   deleteColumn,
   deleteRow,
@@ -153,6 +155,18 @@ export type Command =
   | { readonly type: 'Indent' }
   /** Shift+Tab: a level of indentation off each line in code; the previous cell in a table. */
   | { readonly type: 'Outdent' }
+  /**
+   * Find and replace: the match at index `at` of `query` (in document order, as `findMatches`
+   * lists them), or every match when `at` is absent, becomes `replacement`, as one transaction.
+   * Case does not count unless `caseSensitive`. The caret ends after the earliest replacement.
+   */
+  | {
+      readonly type: 'Replace'
+      readonly query: string
+      readonly replacement: string
+      readonly caseSensitive?: boolean | undefined
+      readonly at?: number | undefined
+    }
 
 /** Where `MoveBlock` puts a block: before or after a sibling, named by identity. */
 export const Beside = Schema.Union([
@@ -1076,6 +1090,11 @@ export const run = (
     if (at === undefined) return failure('InvalidSelection')
     return moveToCell(state, at, command.type === 'Indent' ? 'next' : 'previous', ids.mint)
   }
+  if (command.type === 'Replace') {
+    const matches = findMatches(state.document, command.query, command)
+    const chosen = command.at === undefined ? matches : matches.slice(command.at, command.at + 1)
+    return replaceMatches(state, chosen, command.replacement, ids, options)
+  }
   if (command.type === 'InsertBlock') {
     const to = command.to ?? besideCaret(state)
     if (to === undefined) return failure('InvalidSelection')
@@ -1696,6 +1715,47 @@ const liftItem = (
         options,
       )
     : run(state, { type: 'LiftBlock' }, ids, options)
+}
+
+/**
+ * Replaces matches, last first, each read again from its block's offset in the state the one
+ * after it left: a replacement later in a block leaves an earlier match's offset alone, though
+ * the runs it touched may have merged or split, so positions found before it would not do.
+ */
+const replaceMatches = (
+  state: EditorState,
+  matches: ReadonlyArray<SearchMatch>,
+  replacement: string,
+  ids: CommandIds,
+  options: RunOptions,
+): TransactionResult => {
+  let done = apply(state, [])
+  for (const match of [...matches].reverse()) {
+    if (!done.ok) return done
+    const block = locateBlock(done.state.document, match.block)?.block
+    const from = block === undefined ? undefined : positionInBlock(block, match.at)
+    const to = block === undefined ? undefined : positionInBlock(block, match.at + match.length)
+    if (from === undefined || to === undefined) return failure('MissingText')
+    const step = runAction(
+      done.state,
+      [
+        { type: 'SetSelection', selection: { type: 'Range', anchor: from, focus: to } },
+        // Over a range, an insertion replaces it, so an empty replacement deletes the match.
+        { type: 'InsertText', text: replacement },
+      ],
+      ids,
+      options,
+    )
+    if (!step.ok) return step
+    done = {
+      ok: true,
+      state: step.state,
+      changeSet: unionChangeSet(done.changeSet, step.changeSet),
+      positionMap: [...done.positionMap, ...step.positionMap],
+      transactions: [...done.transactions, ...step.transactions],
+    }
+  }
+  return done
 }
 
 /** The first run anywhere in these blocks, nested ones included, in document order. */

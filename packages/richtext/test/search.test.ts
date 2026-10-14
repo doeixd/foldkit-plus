@@ -81,8 +81,20 @@ describe('finding a document’s text as decorations', () => {
     expect(spans('cdab')).toEqual([])
   })
 
-  it('is exact, so a different case is a different query', () => {
-    expect(spans('AB')).toEqual([])
+  it('ignores case by default, and keeps it when asked', () => {
+    expect(spans('AB')).toEqual(spans('ab'))
+    expect(spans('ab')).not.toEqual([])
+    expect(
+      RichText.searchDecorations(document(), 'AB', { caseSensitive: true }).map(each => each.kind),
+    ).toEqual([])
+  })
+
+  it('marks the current match apart from the rest', () => {
+    const kinds = RichText.searchDecorations(document(), 'ab', { current: 0 }).map(
+      each => each.kind,
+    )
+    expect(kinds[0]).toBe('search-current')
+    expect(kinds.slice(1).every(kind => kind === 'search')).toBe(true)
   })
 })
 

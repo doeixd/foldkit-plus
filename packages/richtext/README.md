@@ -669,10 +669,14 @@ shares — a decoration crossing runs is cut at each run's edge, an endpoint tha
 resolve skips the decoration, a backwards range is honoured, and one run's spans come back
 in text order.
 
-A producer comes with it. `searchDecorations(document, query)` returns every occurrence of a
-query as a decoration of kind `search` (`SEARCH_DECORATION`), changing nothing: one
-decoration per occurrence, a match across two runs kept whole, and no match across two blocks,
-because what a document has between blocks is structure rather than text. `positionInBlock(block,
+A producer comes with it. `findMatches(document, query, { caseSensitive })` lists every
+occurrence (its block, its offset there, and its ends as positions), case not counting unless
+asked: a match across two runs kept whole, and no match across two blocks, because what a
+document has between blocks is structure rather than text. `searchDecorations(document, query,
+{ caseSensitive, current })` draws them as decorations of kind `search` (`SEARCH_DECORATION`),
+the one at index `current` as `search-current`, changing nothing. `Replace` (`{ query,
+replacement, caseSensitive, at }`) replaces the match at `at`, or every match without it, as one
+transaction, reading each match again where the replacements after it left the text. `positionInBlock(block,
 offset)` is the read it shares with `textRangeBefore` — the position a block's own text offset
 addresses — and the one any producer of ranges needs.
 

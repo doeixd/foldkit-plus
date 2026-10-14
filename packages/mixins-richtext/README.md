@@ -287,6 +287,26 @@ codeToolbar<Message>()(
 | `CodeToolbarSlots.language` | Interactive | the `select` |
 | `CodeToolbarSlots.copy` | Interactive | `data-code="copy"` |
 
+## Find and replace
+
+`findReplace<Message>()` is the find bar. The query, the replacement, which match is current
+and whether case counts are the caller's Model; the matches are `RichText.findMatches` of the
+document, and replacing is the editor's `ReplacedText`, an edit with its undo step.
+
+- Enter in the find field goes to the next match and Shift+Enter to the previous, wrapping at
+  either end (`stepMatch`); `moved(index)` is what the caller selects and keeps. Escape in either
+  field sends `closed`.
+- The count reads `2 of 5`, or `No matches`; Replace and Replace all are disabled without one.
+- To show the matches, overlay `RichText.searchDecorations(document, query, { current })` on the
+  editor (`overlay(hostId, decorations)`), and set it again when the document changes.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | `role="search"` |
+| `field` | TextInput | the find and replacement fields, `data-find="query"` and `"replacement"` |
+| `count` | Container | the count, `aria-live` |
+| `button` | Interactive | `data-find`: `previous`, `next`, `case`, `replace`, `replace-all`, `close` |
+
 ## The command palette
 
 The slash menu's catalogue, searched from a field of its own instead of typed into the

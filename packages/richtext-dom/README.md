@@ -393,6 +393,8 @@ dropping a detail: an insertion carrying marks, or a mark value with props, come
 - `Indented` and `Outdented` for `Indent` and `Outdent`. The adapter sends them for Tab and
   Shift+Tab, but only where `RichText.takesTab` says Tab means something (code, a table cell,
   under the placement's vocabulary); anywhere else Tab is left to move focus;
+- `ReplacedText` (`{ query, replacement, caseSensitive?, at? }`) for `Replace`: one match, or
+  every match, as one undo step, which a find bar sends;
 - `ActivatedAdornment` (`{ node, action }`): an adornment with an `action` was clicked, a code
   block's Copy, say. It is no edit, and the editor changes nothing; the application acts on it;
 - `AppliedMark` (`{ mark }`, a name or a `{ name, props }` value) and `ClearedMark` (`{ mark }`)
