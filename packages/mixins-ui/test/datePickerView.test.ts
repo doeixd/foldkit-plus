@@ -153,9 +153,9 @@ describe('forked date picker seam', () => {
             current,
             {
               ...inputsOf(h),
-              toView: render => {
+              toView: (render, h) => {
                 seen = render
-                return defaultToView(h)(render)
+                return defaultToView(render, h)
               },
             },
             h,

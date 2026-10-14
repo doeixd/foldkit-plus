@@ -651,6 +651,12 @@ source (attributed in its module) with the missing `toView` added, as
 described above; state, Messages, update, Commands, and Mounts stay
 upstream in every case. If upstream gains seams, the forks go away.
 
+`DatePicker`'s bundles mix the popover's pre-bound groups with the date
+picker's own attributes, so they speak only the date picker's Message. Its
+`toView` therefore takes no builder of the application's:
+`DatePicker.toView(mixins, (resolved, h) => …)` hands `draw` the date
+picker's builder.
+
 `Menu` is the exception that proves the seam rule: its state machine stays
 upstream, but its markup assembly is transcribed into `MenuView` (from the
 pinned `@foldkit/ui` source, attributed there) with the missing `toView`
