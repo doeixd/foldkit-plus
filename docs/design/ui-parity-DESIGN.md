@@ -27,10 +27,11 @@ tests that can fail, and a page in the gallery (`examples/site`).
 
 Of the shadcn names, 37 exist, 19 exist only in part, and 8 are missing.
 Most of the partial ones are islands in `examples/widgets`: built from the
-Behaviors, but not in a package and not in the gallery. The gallery shows 21
-components; Dialog, Menu, Combobox, Listbox, Tabs, Popover, Tooltip, Toast,
-DatePicker, RadioGroup, Slider and FileDrop have recipes and appear only in
-`examples/design-system`.
+Behaviors, but not in a package and not in the gallery. The gallery shows 33
+components (step 1 below). Of the twelve components with recipes that
+appeared only in `examples/design-system`, FileDrop alone has no page;
+AspectRatio, CodeBlock, Icon, InputGroup, Label, ScrollArea, Segmented and
+Typography have recipes and no page either.
 
 Done in this pass:
 
@@ -49,9 +50,31 @@ Each step is a set of commits that leaves the gallery showing what it added.
 Each component in it starts with a brief of its options, researched from the
 sources (see "How each component is built").
 
-1. **Show what exists.** Gallery pages for the twelve components that have
-   recipes and no page. No new API; it finds the rough edges the way the card's
-   page found the lost selected fill.
+1. **Show what exists.** *Done but for FileDrop.* Gallery pages for Tabs,
+   Radio group, Slider, Dialog, Popover, Tooltip, Menu, Listbox, Combobox,
+   Calendar, Date picker and Toast, their state in one gallery module
+   (`examples/site/src/gallery/widgets.ts`). The pages found, and the package
+   now fixes:
+   - no Calendar recipe, so three examples styled the grid by hand;
+   - the open Dialog's panel at the top of the viewport;
+   - a Slider shrinking to its label's width;
+   - no visible row while the keys move through a menu, listbox or combobox;
+   - forty to sixty lines of drawing that every menu, listbox, combobox and
+     calendar repeated (their `toView` now draws without a `draw`);
+   - `DatePicker.toView` asking for a builder no application holds;
+   - `Item` requiring `content` beside a title and description.
+
+   Still open:
+   - **FileDrop.** foldkit types `File.File` as `Schema<File>`, whose decoding
+     services are `unknown`, so a Message carrying a file cannot be a Bundle
+     parent's Message, and the site's Model is one. Either foldkit declares
+     the schema with `never` services, or `Bundle.parent` accepts any services
+     (it only holds the Schemas, but its internals pass them on as `never`).
+   - **Separators in a styled menu.** Upstream draws the rule between groups
+     only when given a class or attributes for it, and the attributes are
+     `ChildAttribute`s that the application's builder cannot draw, so a menu
+     drawn through `Menu.toView` has none. Step 2 rebuilds the popups' items
+     anyway; it should draw the separator whenever groups have one.
 2. **Fluid hover everywhere it belongs.** A `highlight` slot and `FluidHover` in
    Menu, Listbox, Combobox, Tabs (the sliding indicator) and Segmented, so
    moving across their items moves one highlight.
