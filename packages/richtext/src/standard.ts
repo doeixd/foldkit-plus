@@ -94,6 +94,7 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
     Props: Schema.Struct({ language: Schema.optional(Schema.String) }),
     children: textContent,
     marks: 'none',
+    lineBreaks: true,
   }),
   atom('ThematicBreak'),
   atom('Image', {

@@ -794,7 +794,9 @@ by decoding, sync, or `SetMark` rather than import is drawn inert.
 A kind can state rules stricter than its content mode. `blocksOf(...kinds)` accepts only
 those block kinds, `marks: 'none'` forbids marks on the kind's own runs, `isolating: true`
 makes the kind a boundary a lift never crosses, as a table cell is, `splitProps` names
-props an item split off one of this kind starts with (typed from the kind's `Props`), and `within` names the kinds it may stand
+props an item split off one of this kind starts with (typed from the kind's `Props`), `lineBreaks:
+true` makes Enter a newline in the kind's text rather than a split (Enter on an empty last line
+leaves it for a paragraph after; the standard `CodeBlock` declares it), and `within` names the kinds it may stand
 in, so a `ListItem` stands only in a `List` and never at the top level:
 
 ```ts

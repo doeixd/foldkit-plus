@@ -20,6 +20,11 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext`: `node(…, { lineBreaks: true })`**, a kind whose text
+  keeps line breaks: Enter inserts a newline instead of splitting the block,
+  and Enter on an empty last line leaves it for a paragraph after. The
+  standard `CodeBlock` declares it, so Enter in code no longer makes a second
+  code block.
 - **`foldkit-richtext`: `ClearMark` takes a mark value**, clearing only the
   runs carrying exactly it, so one discussion's highlight goes without
   another's inside it; the editor's `ClearedMark` carries either. `eachBlock`

@@ -1282,6 +1282,41 @@ export const run = (
     if (at === undefined) return failure('MissingText')
     const deletions = span === undefined ? [] : deleteRange(state.document, span.start, span.end)
     if (deletions === undefined) return failure('InvalidParent')
+    const holder = blockAtPath(state.document, at.path)
+    const definition =
+      holder?.type === 'Node' ? options.nodes?.definitionFor(holder.kind) : undefined
+    if (holder !== undefined && definition?.kind === 'node' && definition.lineBreaks === true) {
+      const last = holder.children[holder.children.length - 1]
+      const onEmptyLastLine =
+        span === undefined &&
+        last?.id === at.id &&
+        caret.offset === at.text.length &&
+        holder.children
+          .map(run => run.text)
+          .join('')
+          .endsWith('\n')
+      // Enter on an empty last line leaves the block, so one at the end of a document can be
+      // left at all; anywhere else it is a line break in the text.
+      return onEmptyLastLine
+        ? runAction(
+            state,
+            [
+              { type: 'DeleteBackward' },
+              {
+                type: 'InsertBlock',
+                block: {
+                  type: 'Paragraph',
+                  id: NodeId.make('paragraph'),
+                  children: [{ type: 'Text', id: NodeId.make('text'), text: '', marks: [] }],
+                },
+                to: { after: holder.id },
+              },
+            ],
+            ids,
+            options,
+          )
+        : run(state, { type: 'InsertText', text: '\n' }, ids, options)
+    }
     const item = itemAround(state.document, at.path, options.nodes)
     if (item !== undefined) {
       // Over a range inside an item, Enter deletes the range and then splits the item, as it
