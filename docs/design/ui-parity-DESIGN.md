@@ -46,6 +46,8 @@ Done in this pass:
 ## The order of work
 
 Each step is a set of commits that leaves the gallery showing what it added.
+Each component in it starts with a brief of its options, researched from the
+sources (see "How each component is built").
 
 1. **Show what exists.** Gallery pages for the twelve components that have
    recipes and no page. No new API; it finds the rough edges the way the card's
@@ -83,6 +85,126 @@ Each step is a set of commits that leaves the gallery showing what it added.
 
 Icon libraries wait for a decision about bundling icon sets: `Icon` takes any
 Html and `Icons.glyph` any `url()`, so an application can use any set today.
+
+## How each component is built
+
+Every component in the steps above follows the same four moves, in order. The
+brief comes first, before any code: the card reached Fluid's level because its
+options were read off Fluid's card and shadcn's before the view was written,
+not added after a screenshot showed what was missing.
+
+### 1. Research the options
+
+Read what each source offers for the component and write it down as a brief.
+
+- **shadcn/ui.** The component's docs page, and the props of the Radix or Base
+  UI part it wraps, since most of shadcn's options come from there. Then
+  `/create`: which of its knobs (style, base color, radius, menu color and
+  accent, RTL) change this component, and how.
+- **Zag.js.** The machine's props (its context), the `api` its `connect`
+  returns (what a view can read and do), its anatomy (the named parts), and
+  the events it handles. Zag is the most complete list of states and edge
+  cases: controlled and uncontrolled values, `loop`, `disabled` items,
+  `orientation`, `dir`, typeahead, what happens on blur.
+- **Fluid Functionalism.** The component's page: its layouts, states, motion
+  (which spring tier), sizes on the 36px and 28px ladder, and the touches that
+  make it feel finished (the hover that follows, a press over the whole card).
+- **WAI-ARIA APG.** The pattern's roles and keyboard table, which the
+  `A11y.pattern` and the browser tests then hold the component to.
+
+The brief is one table, the union of every source's options:
+
+| Option | Seen in | Home | Decision |
+|---|---|---|---|
+| a selected card | Fluid, shadcn | view `selected`, styled per `surface` | adopt |
+| …one row per option… | | | adopt, adapt (how) or skip (why) |
+
+It goes under "Briefs" below in the same commit as the component's first
+code, so a reviewer can check the component against it. "Skip" needs a
+reason; "it was more work" is not one.
+
+### 2. Give every option one home
+
+Each option lives in exactly one layer; deciding which is most of the design.
+
+- **A fact the browser knows and a Message does not need** (pointer geometry,
+  a size, the nearest item) is a primitive Mount in `foldkit-primitives/dom`
+  that writes custom properties, as `FluidHover` and `Measure` do.
+- **A transition the user causes** (open, select, move the active item) is
+  state the application's Model owns, through a Behavior in
+  `foldkit-primitives/interaction` or `state` (`ListNavigation`, `Selection`,
+  `Disclosure`), sending Messages.
+- **A part of the anatomy** is a Slot. Anything the package draws is in one,
+  so a stylist can reach it.
+- **A look a stylist picks** (surface, size, tone, orientation, layout) is a
+  recipe axis with a default.
+- **Content and behavior flags** (title, media, `press`, `dismiss`, `disabled`)
+  are view options.
+- **A feel shared across components** (neutral hue, menu accent, control size,
+  motion) is a token or a knob in `Theme`, which recipes read.
+- **A state** the DOM already shows is styled from its attribute
+  (`Style.states`), and beside every variant that sets the same property.
+
+An option in two layers is two ways to do one thing; an option the source has
+and no layer can hold is the sign a primitive is missing.
+
+### 3. Make a primitive when the layers run out
+
+Before writing one, search the lists in "What makes the rest cheap" and
+`foldkit-primitives`' README: most needs are met. Write a new one when the
+behavior is a browser fact or interaction no existing primitive covers and
+more than one component needs it (`FluidHover` serves Card.group now and Menu,
+Listbox, Tabs and Segmented next). A new primitive:
+
+- names its output (custom properties, Messages) as a contract, not as a
+  detail of the first component that used it;
+- takes its options as args checked by a Schema, with defaults for the common
+  case;
+- makes every observer before any observes, and works without the ones jsdom
+  lacks;
+- has browser tests for what needs layout or the pointer, a mutation spec, a
+  row in its package README and in `skills/foldkit-plus/references/primitives.md`.
+
+It ships in its own commit, before the component that uses it.
+
+### 4. Hold it to the featureful bar
+
+A component is featureful when, against its brief:
+
+- every part the sources name is a Slot, and every option a home;
+- every state (hover, focus-visible, pressed, selected, disabled, invalid,
+  loading, open) is styled on every variant, checked by computed style in a
+  browser test;
+- it works by keyboard as the APG says, by touch (`hover: none` shows what
+  hover reveals), right to left, and still with `motion` at 0;
+- its sizes come from the size ladder and its colors from tokens, so every
+  `/create` knob reaches it;
+- an interactive one refuses to be drawn without an accessible name;
+- every option has a test that fails when the option is broken, proven by a
+  mutation;
+- its gallery page shows each axis and each state, with the code beside it.
+
+## Briefs
+
+### Card
+
+Written after the card was built, from what it took from each source; the
+briefs that follow come before their code.
+
+| Option | Seen in | Home | Decision |
+|---|---|---|---|
+| header, title, description, content, footer | shadcn | Slots | adopt |
+| an action in the header | shadcn | Slot `action`, view `action` | adopt |
+| a press over the whole card, button or link | Fluid | view `press`, Slot `overlay` | adopt |
+| selected | Fluid | view `selected`; fill set per `surface` | adopt |
+| disabled | Fluid | view `disabled` | adopt |
+| dismiss, shown on hover | Fluid | view `dismiss`, Slot `dismiss` | adopt; always shown under `hover: none` |
+| image and media tile | Fluid | Slots `image`, `media` | adopt |
+| stacked or inline | Fluid | recipe axis `orientation` | adopt |
+| outlined, elevated, filled, plain | Fluid, shadcn | recipe axis `surface` | adopt |
+| padding | ours | recipe axis `padding` | added, so a flush media card needs no override |
+| a group with one highlight that follows | Fluid | `Card.group`, primitive `FluidHover` | adopt |
+| group columns, divided or separated, border | Fluid | `columns` option; `CardGroup` axes | adopt |
 
 ## What makes the rest cheap
 
