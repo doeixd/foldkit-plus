@@ -13,8 +13,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "'--_fk-calendar-cell': '2.25rem'",
-        replace: "'--_fk-calendar-cell': '2rem'",
+        find: "const cell = ladder('height')",
+        replace: "const cell = '2rem'",
       },
     ],
     tests: browser,

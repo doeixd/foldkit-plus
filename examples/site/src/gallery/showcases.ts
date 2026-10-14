@@ -129,7 +129,10 @@ const fromRecipe = <Slots>(
     .filter(([name]) => only === undefined || only.includes(name))
     .map(([name, values]): Axis => {
       const names = Object.keys(values)
-      return { name, values: names, initial: recipe.def.defaults?.[name] ?? names[0]! }
+      // An axis the recipe leaves unset follows the page, as a size follows
+      // the ladder's step, which is the default one on this page.
+      const unset = names.includes('md') ? 'md' : names[0]!
+      return { name, values: names, initial: recipe.def.defaults?.[name] ?? unset }
     })
   // Every value passed was checked against the recipe's own axes by `valueOf`.
   const select = recipe as unknown as (selection: Selection) => StylePieces<Slots>

@@ -500,13 +500,22 @@ What a recipe assumes and does:
   )
   // Style.stylesheet(L.declare, …, DeleteStyle, Red): Red's background wins.
   ```
+- **Controls stand on one size ladder.** A button, a field, a select, a tab,
+  a segmented control, a table row and the rows of a menu, listbox or
+  combobox are all one rung tall: 36px by default and 28px compact, their
+  padding, gap and text stepping with them (`Theme.ladder`, read on the
+  element). `--fk-knob-step: 1` on any element makes everything inside it
+  compact, the popups it opens included, since they stay in the page. A
+  recipe's `size` (`sm` compact, `md` default, `lg` a half step up at 40px)
+  sets the step on its own element and beats the region; unset, which is the
+  default, follows it.
 - **State comes from the component's own attributes.** Checked, selected, and
   disabled looks read `aria-checked`, `aria-selected`, and `aria-disabled`,
   which `@foldkit/ui` already writes; no `whenInput` is needed.
 - **Tone and variant are independent.** A tone sets a few private custom
   properties that `solid`, `outline`, and `ghost` read — except `primary`,
-  which is ink by definition, and `icon`, which fixes its own square geometry
-  (combine it with `size: null`, since a density would un-square it). A tone
+  which is ink by definition, and `icon`, a square one rung of the size
+  ladder on a side. A tone
   also carries the line an `outline` draws: the fill, or for `neutral`, whose
   fill is a quiet grey, the page's default line. A neutral Checkbox or Switch
   that is on is in the page's ink, not the neutral grey, so it stands out
@@ -568,8 +577,8 @@ slot; over a look of your own in a later layer, say the same in that layer.
 `Recipes.Calendar` styles `CalendarSlots` in every mode: days in seven
 columns, months and years in three, each button reading its state off the
 cell (`data-today`, `data-selected`, `data-focused`, `data-outside-month`,
-`data-disabled`). `size` is the cell, `sm` (28px) or `md` (36px, the
-default). It draws no card, so the same style serves a calendar on the page
+`data-disabled`). Each cell is a rung of the size ladder, so `size`
+(`sm`, `md`) or the region steps it. It draws no card, so the same style serves a calendar on the page
 and one in a date picker's panel.
 
 Tabs glide when drawn with their `indicator` and `highlight` and given
@@ -617,8 +626,9 @@ buttons, not `Tabs` (the group is `role="group"`, each option `aria-pressed`).
 The pressed option takes the accent's tint, flat: that rule lives on the
 group, in `variants`, so icon tiles take the group piece alone, and an icon
 button's own background, a variant too, does not hide it. `tray` is a muted tray or a plain row (which
-sets no `display`: the Builder owns its narrow tabs' visibility); `size` is
-text density. Its `indicator` and `highlight` slots, drawn first in the group
+sets no `display`: the Builder owns its narrow tabs' visibility); `size` steps
+the tray and its options on the ladder (`xs` a half step below compact, 24px), the
+tray's inset counted in, so a tray is as tall as a button beside it. Its `indicator` and `highlight` slots, drawn first in the group
 and given `Segmented.fluid`, slide the pressed option's pill to a new press
 and move a faint pill to the option the pointer is on; until it runs the
 pressed option fills itself:

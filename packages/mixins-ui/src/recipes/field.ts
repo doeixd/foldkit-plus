@@ -5,13 +5,15 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { InputSlots } from '../input.js'
 import { TextareaSlots } from '../textarea.js'
+import { ladder } from 'foldkit-mixins/theme'
 import {
   component,
-  density,
   disabled,
   focusRing,
   focusWithin,
+  onLadder,
   ref,
+  steps,
   transition,
   variant,
 } from './design.js'
@@ -26,6 +28,7 @@ const control = component(
     color: ref.text.default,
     font: 'inherit',
     lineHeight: ref.leading.normal,
+    ...onLadder,
     ...transition('border-color, background-color'),
   }),
   Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),
@@ -53,12 +56,6 @@ const description = component(
   }),
 )
 
-const sizes = {
-  sm: density(ref.space['2xs'], ref.space.xs, ref.size.sm),
-  md: density(ref.space.xs, ref.space.sm, ref.size.md),
-  lg: density(ref.space.sm, ref.space.md, ref.size.lg),
-} as const
-
 const filled: StyleValue = variant(
   Style.self({ background: ref.surface.subtle, borderColor: 'transparent' }),
 )
@@ -67,23 +64,33 @@ const outlined: StyleValue = variant(Style.self({ background: ref.surface.base }
 export const Input = Style.recipeFor(InputSlots)({
   base: { input: control, label, description },
   variants: {
-    size: { sm: { input: sizes.sm }, md: { input: sizes.md }, lg: { input: sizes.lg } },
+    size: { sm: { input: steps.sm }, md: { input: steps.md }, lg: { input: steps.lg } },
     variant: { outline: { input: outlined }, filled: { input: filled } },
   },
-  defaults: { size: 'md', variant: 'outline' },
+  defaults: { variant: 'outline' },
 })
 
 export const Textarea = Style.recipeFor(TextareaSlots)({
   base: {
-    textarea: Style.compose(control, component(Style.self({ resize: 'vertical' }))),
+    // Lines rather than one: padded like a list row, and two lines tall at least.
+    textarea: Style.compose(
+      control,
+      component(
+        Style.self({
+          resize: 'vertical',
+          paddingBlock: ladder('row-pad'),
+          minBlockSize: `calc(2lh + 2 * ${ladder('row-pad')})`,
+        }),
+      ),
+    ),
     label,
     description,
   },
   variants: {
-    size: { sm: { textarea: sizes.sm }, md: { textarea: sizes.md }, lg: { textarea: sizes.lg } },
+    size: { sm: { textarea: steps.sm }, md: { textarea: steps.md }, lg: { textarea: steps.lg } },
     variant: { outline: { textarea: outlined }, filled: { textarea: filled } },
   },
-  defaults: { size: 'md', variant: 'outline' },
+  defaults: { variant: 'outline' },
 })
 
 /**
@@ -112,7 +119,7 @@ export const InputGroup: {
     Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
   ),
   affix: component(
-    Style.self({ color: ref.text.muted, paddingInlineStart: ref.space.sm, whiteSpace: 'nowrap' }),
+    Style.self({ color: ref.text.muted, paddingInlineStart: ladder('pad'), whiteSpace: 'nowrap' }),
   ),
   // In the variants layer, so it wins over a field's own look composed on the same slot.
   control: variant(

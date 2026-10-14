@@ -1,7 +1,7 @@
 /**
  * Tabs: the selected tab is `aria-selected`, which `@foldkit/ui` writes.
  * `variant` is an underline under a rule or a pill in a tray; `size` the
- * density of each tab. Drawn with its `indicator` and `highlight`, and given
+ * tabs' step on the size ladder. Drawn with its `indicator` and `highlight`, and given
  * `Tabs.fluid`, the underline or pill glides to the chosen tab and a hover
  * follows the pointer; until `Tabs.fluid` runs, the chosen tab marks itself.
  */
@@ -9,15 +9,16 @@ import { Style } from 'foldkit-mixins'
 import { TabsSlots } from '../tabs.js'
 import {
   component,
-  density,
   disabled,
   focusRing,
   glide,
+  hover,
+  onLadder,
   ref,
+  steps,
   transition,
   unfilledHover,
   variant,
-  hover,
 } from './design.js'
 
 const selected = '[aria-selected="true"]'
@@ -75,6 +76,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
     tab: component(
       Style.self({
         position: 'relative',
+        ...onLadder,
         border: '0',
         background: 'transparent',
         color: ref.text.muted,
@@ -150,9 +152,9 @@ export const Tabs = Style.recipeFor(TabsSlots)({
       },
     },
     size: {
-      sm: { tab: density(ref.space['2xs'], ref.space.sm, ref.size.sm) },
-      md: { tab: density(ref.space.xs, ref.space.md, ref.size.md) },
+      sm: { tablist: steps.sm },
+      md: { tablist: steps.md },
     },
   },
-  defaults: { variant: 'line', size: 'md' },
+  defaults: { variant: 'line' },
 })

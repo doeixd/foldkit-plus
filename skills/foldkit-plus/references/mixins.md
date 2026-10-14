@@ -442,9 +442,9 @@ export const stylesheet: string = Style.stylesheet(
 - Theme pieces (`foldkit-mixins/theme`): `Theme.root(theme, { omit?, colorScheme? })` is the
   tokens as `:root` custom properties and `Theme.scoped(theme, selector, overrides)` is overrides under a
   selector, typed by `theme`'s own groups and names so a misspelled knob is a type error, both unlayered global pieces (`L.in('theme', …)`). `Theme.tokens` is the shared
-  scales (`knob` density/radius-factor/motion/travel/shadow-strength, `space`, `radius`, `font`, `size`, `leading`, `weight`,
+  scales (`knob` density/radius-factor/motion/travel/step/shadow-strength, `space`, `radius`, `font`, `size`, `leading`, `weight`,
   `motion` (tiers `fast`/`moderate`/`slow` at 80/160/240ms, each with a quicker `-exit`, and the `settle`/`spring` easings; a duration of
-  something that moves multiplies by `knob.travel`, which the reset zeroes under reduced motion while fades keep theirs), `border`, `shadow`, `breakpoint`; `shadow.xs`…`2xl`/`inset` draw in `shadow.color`
+  something that moves multiplies by `knob.travel`, which the reset zeroes under reduced motion while fades keep theirs), `control` (the size ladder's two ends, 36px and 28px, read through `Theme.ladder(name)`, which blends them by `knob.step` on the element that uses it: `--fk-knob-step: 1` on a region makes its controls and the popups they open compact, and a recipe's `size` sets the step on its own element; unset, the default, follows the region), `border`, `shadow`, `breakpoint`; `shadow.xs`…`2xl`/`inset` draw in `shadow.color`
   (which `Theme.oklch` sets per scheme), dimmed by the `shadow-strength` knob). `Theme.oklch({ accent: { h, c, l }, … })` derives the
   palette (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,
   `error`, `info`; each family has a fill `default` with `hover`/`active`, a tint `subtle`, a line `outline`,

@@ -24,9 +24,31 @@ export const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
 export const variant = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
   Layers.standard.in('variants', Style.compose(...pieces))
 
-/** One density step: padding with a font size, for controls sized by padding. */
-export const density = (block: string, inline: string, font: string): StyleValue =>
-  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
+/**
+ * A bounded control on the size ladder: its height, padding, gap and text
+ * follow the `step` knob, so a region set compact shrinks it whole.
+ */
+export const onLadder: Declarations = {
+  minBlockSize: Theme.ladder('height'),
+  paddingBlock: '0',
+  paddingInline: Theme.ladder('pad'),
+  gap: Theme.ladder('gap'),
+  fontSize: Theme.ladder('text'),
+}
+
+/** A row of a list on the ladder: a control's height, so it lines up with the trigger that opened it. */
+export const rowOnLadder: Declarations = { ...onLadder, paddingInline: Theme.ladder('row-pad') }
+
+/**
+ * The steps a `size` axis chooses, set on the recipe's own element so a
+ * chosen size beats the region it sits in; a recipe with no size follows the
+ * region. `lg` is shadcn's third size, a half step up the ladder (40px).
+ */
+export const steps = {
+  sm: variant(Style.self({ '--fk-knob-step': '1' })),
+  md: variant(Style.self({ '--fk-knob-step': '0' })),
+  lg: variant(Style.self({ '--fk-knob-step': '-0.5' })),
+} as const
 
 /** A hover rule that skips a disabled element. */
 export const hover = (declarations: Declarations): StyleValue =>

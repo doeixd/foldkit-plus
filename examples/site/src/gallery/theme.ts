@@ -43,6 +43,8 @@ export const MenuColor = Schema.Literals([
 export const Easing = Schema.Literals(['ease', 'spring'])
 export const HeadingFont = Schema.Literals(['inherit', 'system', 'geist', 'serif', 'mono'])
 export const Direction = Schema.Literals(['ltr', 'rtl'])
+/** The size ladder's step: 36px controls, or Fluid Functionalism's compact 28px. */
+export const Size = Schema.Literals(['default', 'compact'])
 
 /** What `/create` adjusts; every field is one knob of the palette or the scales. */
 export const Knobs = Schema.Struct({
@@ -55,6 +57,7 @@ export const Knobs = Schema.Struct({
   surfaceContrast: Schema.Number,
   radius: Schema.Number,
   density: Schema.Number,
+  size: Size,
   motion: Schema.Number,
   /** As a percentage. */
   shadow: Schema.Number,
@@ -151,6 +154,7 @@ export const defaults: Knobs = {
   surfaceContrast: 24,
   radius: 1.4,
   density: 1,
+  size: 'default',
   motion: 1,
   shadow: 100,
   font: 'geist',
@@ -163,6 +167,7 @@ export const defaults: Knobs = {
 }
 
 const choiceKnobs = [
+  'size',
   'font',
   'base',
   'menuAccent',
@@ -182,7 +187,7 @@ export interface Look {
   readonly description: string
   readonly shape: Pick<
     Knobs,
-    'radius' | 'density' | 'shadow' | 'surfaceContrast' | 'font' | 'headingFont'
+    'radius' | 'density' | 'size' | 'shadow' | 'surfaceContrast' | 'font' | 'headingFont'
   >
 }
 
@@ -193,6 +198,7 @@ export const looks: ReadonlyArray<Look> = [
     shape: {
       radius: 1,
       density: 1,
+      size: 'default',
       shadow: 100,
       surfaceContrast: 24,
       font: 'geist',
@@ -205,6 +211,7 @@ export const looks: ReadonlyArray<Look> = [
     shape: {
       radius: 1,
       density: 0.85,
+      size: 'default',
       shadow: 80,
       surfaceContrast: 24,
       font: 'geist',
@@ -217,6 +224,7 @@ export const looks: ReadonlyArray<Look> = [
     shape: {
       radius: 2.2,
       density: 1.15,
+      size: 'default',
       shadow: 100,
       surfaceContrast: 22,
       font: 'system',
@@ -229,6 +237,7 @@ export const looks: ReadonlyArray<Look> = [
     shape: {
       radius: 0,
       density: 0.95,
+      size: 'default',
       shadow: 0,
       surfaceContrast: 28,
       font: 'mono',
@@ -240,7 +249,8 @@ export const looks: ReadonlyArray<Look> = [
     description: 'For compact interfaces',
     shape: {
       radius: 0.8,
-      density: 0.8,
+      density: 1,
+      size: 'compact',
       shadow: 60,
       surfaceContrast: 24,
       font: 'geist',
@@ -253,6 +263,7 @@ export const looks: ReadonlyArray<Look> = [
     shape: {
       radius: 1.8,
       density: 1.05,
+      size: 'default',
       shadow: 50,
       surfaceContrast: 14,
       font: 'system',
@@ -265,6 +276,7 @@ export const looks: ReadonlyArray<Look> = [
     shape: {
       radius: 0.5,
       density: 1.05,
+      size: 'default',
       shadow: 40,
       surfaceContrast: 20,
       font: 'system',
@@ -345,6 +357,7 @@ export const paletteOf = (knobs: Knobs) =>
       knob: {
         'radius-factor': String(knobs.radius),
         density: String(knobs.density),
+        step: knobs.size === 'compact' ? '1' : '0',
         motion: String(knobs.motion),
         'shadow-strength': percent(knobs.shadow),
       },
@@ -423,6 +436,7 @@ export const codeOf = (knobs: Knobs): string => {
     '  knob: {',
     `    'radius-factor': '${knobs.radius}',`,
     `    density: '${knobs.density}',`,
+    ...(knobs.size === 'compact' ? ["    step: '1',"] : []),
     `    motion: '${knobs.motion}',`,
     `    'shadow-strength': '${percent(knobs.shadow)}',`,
     '  },',

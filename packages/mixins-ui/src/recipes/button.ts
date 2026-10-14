@@ -1,24 +1,26 @@
 /**
  * A button: `tone` picks the colors, `variant` how they are applied, `size`
- * the density. Tone and variant are independent because a tone only sets the
- * private custom properties the variants read — except `primary`, which is
- * ink by definition, and `icon`, which fixes its own square geometry (combine
- * it with `size: null`, since a density would un-square it).
+ * its step on the size ladder (unset, it follows the region it sits in). Tone
+ * and variant are independent because a tone only sets the private custom
+ * properties the variants read — except `primary`, which is ink by
+ * definition, and `icon`, a square one rung of the ladder on a side.
  */
 import { Style } from 'foldkit-mixins'
 import { ButtonSlots } from '../button.js'
+import { ladder } from 'foldkit-mixins/theme'
 import {
   component,
-  density,
   disabled,
   focusRing,
+  hover,
+  onLadder,
   ref,
+  steps,
   tones,
   toneVar,
   transition,
   unfilledHover,
   variant,
-  hover,
 } from './design.js'
 
 /**
@@ -35,7 +37,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: ref.space.xs,
+        ...onLadder,
         border: `${ref.border.thin} solid transparent`,
         borderRadius: ref.radius.md,
         font: 'inherit',
@@ -101,8 +103,8 @@ export const Button = Style.recipeFor(ButtonSlots)({
           Style.self({
             background: 'transparent',
             color: ref.text.muted,
-            width: '2rem',
-            height: '2rem',
+            inlineSize: ladder('height'),
+            blockSize: ladder('height'),
             padding: '0',
             fontSize: '0',
             // The words are hidden, not gone: a gap beside them pushed the icon off center.
@@ -113,12 +115,12 @@ export const Button = Style.recipeFor(ButtonSlots)({
       },
     },
     size: {
-      sm: { button: density(ref.space['2xs'], ref.space.sm, ref.size.sm) },
-      md: { button: density(ref.space.xs, ref.space.md, ref.size.md) },
-      lg: { button: density(ref.space.sm, ref.space.lg, ref.size.lg) },
+      sm: { button: steps.sm },
+      md: { button: steps.md },
+      lg: { button: steps.lg },
     },
   },
-  defaults: { tone: 'accent', variant: 'solid', size: 'md' },
+  defaults: { tone: 'accent', variant: 'solid' },
   compound: [
     {
       // A destructive primary action announces itself on focus too.

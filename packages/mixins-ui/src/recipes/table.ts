@@ -5,6 +5,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { TableSlots } from '../table.js'
+import { ladder } from 'foldkit-mixins/theme'
 import { component, ref } from './design.js'
 
 export const Table = Style.recipeFor(TableSlots)({
@@ -13,7 +14,7 @@ export const Table = Style.recipeFor(TableSlots)({
       Style.self({
         inlineSize: '100%',
         borderCollapse: 'collapse',
-        fontSize: ref.size.sm,
+        fontSize: ladder('text'),
         fontVariantNumeric: 'tabular-nums',
       }),
     ),
@@ -30,8 +31,10 @@ export const Table = Style.recipeFor(TableSlots)({
     ),
     headerCell: component(
       Style.self({
-        paddingBlock: ref.space.xs,
-        paddingInline: ref.space.sm,
+        // A table cell's height is its least: each row is a rung of the ladder.
+        blockSize: ladder('height'),
+        paddingBlock: '0',
+        paddingInline: ladder('pad'),
         textAlign: 'start',
         fontSize: ref.size.xs,
         fontWeight: ref.weight.medium,
@@ -44,7 +47,7 @@ export const Table = Style.recipeFor(TableSlots)({
       Style.self({ borderBlockEnd: `${ref.border.thin} solid ${ref.outline.subtle}` }),
     ),
     cell: component(
-      Style.self({ paddingBlock: ref.space.xs, paddingInline: ref.space.sm }),
+      Style.self({ blockSize: ladder('height'), paddingBlock: '0', paddingInline: ladder('pad') }),
       Style.nest('&[data-numeric]', { textAlign: 'end' }),
     ),
   },

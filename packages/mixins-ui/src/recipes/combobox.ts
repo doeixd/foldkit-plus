@@ -1,9 +1,10 @@
 /**
  * A combobox: a text field with a toggle, filtering the shared popup panel.
- * The chosen row is tinted; `size` is the density of the field and each row.
+ * The chosen row is tinted; `size` steps the field and its rows on the size ladder.
  */
 import { Style } from 'foldkit-mixins'
 import { ComboboxSlots } from '../combobox.js'
+import { ladder } from 'foldkit-mixins/theme'
 import {
   component,
   disabled,
@@ -11,12 +12,13 @@ import {
   focusWithin,
   hover,
   listScroll,
+  onLadder,
   ref,
+  steps,
   transition,
 } from './design.js'
 import {
   backdrop,
-  density,
   heading,
   highlight,
   indicator,
@@ -46,8 +48,9 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
       Style.self({
         flex: '1',
         minInlineSize: '0',
-        paddingBlock: ref.space.xs,
-        paddingInline: ref.space.sm,
+        ...onLadder,
+        // Inside the wrapper's border, so the field as a whole is one rung tall.
+        minBlockSize: `calc(${ladder('height')} - 2 * ${ref.border.thin})`,
         border: '0',
         background: 'transparent',
         color: ref.text.default,
@@ -89,15 +92,9 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
   },
   variants: {
     size: {
-      sm: {
-        input: density(ref.space['2xs'], ref.space.xs, ref.size.sm),
-        item: density(ref.space['3xs'], ref.space.sm, ref.size.sm),
-      },
-      md: {
-        input: density(ref.space.xs, ref.space.sm, ref.size.md),
-        item: density(ref.space['2xs'], ref.space.sm, ref.size.sm),
-      },
+      // On the wrapper, so the trigger and the rows it opens step together.
+      sm: { wrapper: steps.sm },
+      md: { wrapper: steps.md },
     },
   },
-  defaults: { size: 'md' },
 })

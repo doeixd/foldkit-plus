@@ -58,6 +58,7 @@ describe('Theme.tokens', () => {
       'radius-factor': '1',
       motion: '1',
       travel: '1',
+      step: '0',
       'shadow-strength': '100%',
     })
     expect(Theme.tokens.space.md).toBe('calc(1rem * var(--fk-knob-density))')
@@ -87,6 +88,7 @@ describe('Theme.tokens', () => {
       'leading',
       'weight',
       'motion',
+      'control',
       'border',
       'shadow',
       'breakpoint',

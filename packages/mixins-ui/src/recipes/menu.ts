@@ -1,11 +1,20 @@
 /**
  * A menu: the trigger opens the shared popup panel, whose rows commit on
- * click. `size` is the density of each row.
+ * click. `size` steps the trigger and its rows on the size ladder.
  */
 import { Style } from 'foldkit-mixins'
 import { MenuSlots } from '../menu.js'
-import { component, disabled, focusRing, hover, listScroll, ref } from './design.js'
-import { backdrop, density, heading, highlight, item, panel, rows, separator } from './popup.js'
+import {
+  component,
+  disabled,
+  focusRing,
+  hover,
+  listScroll,
+  onLadder,
+  ref,
+  steps,
+} from './design.js'
+import { backdrop, heading, highlight, item, panel, rows, separator } from './popup.js'
 
 export const Menu = Style.recipeFor(MenuSlots)({
   base: {
@@ -14,15 +23,12 @@ export const Menu = Style.recipeFor(MenuSlots)({
       Style.self({
         display: 'inline-flex',
         alignItems: 'center',
-        gap: ref.space.xs,
-        paddingBlock: ref.space.xs,
-        paddingInline: ref.space.md,
+        ...onLadder,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.md,
         background: 'transparent',
         color: ref.text.default,
         font: 'inherit',
-        fontSize: ref.size.sm,
         fontWeight: ref.weight.medium,
         cursor: 'pointer',
       }),
@@ -42,9 +48,9 @@ export const Menu = Style.recipeFor(MenuSlots)({
   },
   variants: {
     size: {
-      sm: { item: density(ref.space['3xs'], ref.space.sm, ref.size.sm) },
-      md: { item: density(ref.space['2xs'], ref.space.sm, ref.size.sm) },
+      // On the wrapper, so the trigger and the rows it opens step together.
+      sm: { wrapper: steps.sm },
+      md: { wrapper: steps.md },
     },
   },
-  defaults: { size: 'md' },
 })

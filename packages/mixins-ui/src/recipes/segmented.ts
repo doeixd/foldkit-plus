@@ -9,7 +9,8 @@
  */
 import { Style } from 'foldkit-mixins'
 import { SegmentedSlots } from '../segmented.js'
-import { component, glide, hover, ref, variant } from './design.js'
+import { ladder } from 'foldkit-mixins/theme'
+import { component, glide, hover, onLadder, ref, steps, variant } from './design.js'
 
 const pressed = '[aria-pressed="true"]'
 const lit = ':where([data-fluid-hover]) > &'
@@ -62,6 +63,9 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
     ),
     option: component(
       Style.self({
+        ...onLadder,
+        // Inside the tray's inset, so the tray as a whole is one rung tall.
+        minBlockSize: `calc(${ladder('height')} - 2 * var(--_fk-segmented-inset, 0px))`,
         background: 'transparent',
         border: '0',
         borderRadius: ref.radius.sm,
@@ -78,10 +82,11 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
       tray: {
         group: variant(
           Style.self({
+            '--_fk-segmented-inset': ladder('inset'),
             background: ref.surface.muted,
             borderRadius: ref.radius.md,
             gap: '2px',
-            padding: '2px',
+            padding: 'var(--_fk-segmented-inset)',
           }),
         ),
       },
@@ -90,13 +95,14 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
       },
     },
     size: {
-      sm: {
-        option: variant(Style.self({ fontSize: ref.size.sm, padding: '0.4rem 0.75rem' })),
-      },
+      md: { group: steps.md, option: steps.md },
+      sm: { group: steps.sm, option: steps.sm },
+      // Below the ladder, for a tool strip in a crowded panel: 24px.
       xs: {
-        option: variant(Style.self({ fontSize: ref.size.xs, padding: '0.35rem 0.4rem' })),
+        group: variant(Style.self({ '--fk-knob-step': '1.5' })),
+        option: variant(Style.self({ '--fk-knob-step': '1.5' })),
       },
     },
   },
-  defaults: { tray: 'tray', size: 'sm' },
+  defaults: { tray: 'tray' },
 })

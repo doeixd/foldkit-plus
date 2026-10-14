@@ -103,6 +103,13 @@ describe('the theme creator', () => {
     expect(knobStyleOf(defaults, 'light')['--fk-knob-neutral-h']).toBe('var(--fk-hue-accent)')
   })
 
+  it('writes compact as the ladder step, in the code and the preview, and nothing by default', () => {
+    expect(codeOf(defaults)).not.toContain('step:')
+    expect(codeOf({ ...defaults, size: 'compact' })).toContain("    step: '1',")
+    expect(knobStyleOf({ ...defaults, size: 'compact' }, 'light')['--fk-knob-step']).toBe('1')
+    expect(knobStyleOf(defaults, 'light')['--fk-knob-step']).toBe('0')
+  })
+
   it('tells a style by its shape and knobs by every choice', () => {
     const lyra = looks.find(look => look.name === 'Lyra')!
     expect(inLook({ ...defaults, ...lyra.shape }, lyra)).toBe(true)

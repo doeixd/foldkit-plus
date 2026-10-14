@@ -6,9 +6,11 @@
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { CalendarSlots } from '../calendar.js'
-import { component, focusRing, hover, ref, variant } from './design.js'
+import { ladder } from 'foldkit-mixins/theme'
+import { component, focusRing, hover, ref, steps } from './design.js'
 
-const cell = 'var(--_fk-calendar-cell)'
+// Read on each cell, so a cell steps with the calendar's size or the region's.
+const cell = ladder('height')
 
 const quiet: StyleValue = component(
   Style.self({
@@ -125,9 +127,8 @@ export const Calendar = Style.recipeFor(CalendarSlots)({
   },
   variants: {
     size: {
-      sm: { root: variant(Style.self({ '--_fk-calendar-cell': '1.75rem' })) },
-      md: { root: variant(Style.self({ '--_fk-calendar-cell': '2.25rem' })) },
+      sm: { root: steps.sm },
+      md: { root: steps.md },
     },
   },
-  defaults: { size: 'md' },
 })

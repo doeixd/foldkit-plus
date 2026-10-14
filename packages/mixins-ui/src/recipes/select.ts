@@ -4,10 +4,17 @@
  */
 import { Style } from 'foldkit-mixins'
 import { SelectSlots } from '../select.js'
-import { component, disabled, focusRing, ref, transition, variant } from './design.js'
-
-const size = (block: string, inline: string, font: string) =>
-  variant(Style.self({ paddingBlock: block, paddingInline: `${inline} 2rem`, fontSize: font }))
+import { ladder } from 'foldkit-mixins/theme'
+import {
+  component,
+  disabled,
+  focusRing,
+  onLadder,
+  ref,
+  steps,
+  transition,
+  variant,
+} from './design.js'
 
 export const Select = Style.recipeFor(SelectSlots)({
   base: {
@@ -15,8 +22,9 @@ export const Select = Style.recipeFor(SelectSlots)({
       Style.self({
         display: 'block',
         inlineSize: '100%',
-        paddingBlock: ref.space.xs,
-        paddingInline: `${ref.space.sm} 2rem`,
+        ...onLadder,
+        // Room for the native arrow at the end.
+        paddingInline: `${ladder('pad')} 2rem`,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.md,
         background: ref.surface.base,
@@ -52,9 +60,9 @@ export const Select = Style.recipeFor(SelectSlots)({
   },
   variants: {
     size: {
-      sm: { select: size(ref.space['2xs'], ref.space.xs, ref.size.sm) },
-      md: { select: size(ref.space.xs, ref.space.sm, ref.size.md) },
-      lg: { select: size(ref.space.sm, ref.space.md, ref.size.lg) },
+      sm: { select: steps.sm },
+      md: { select: steps.md },
+      lg: { select: steps.lg },
     },
     variant: {
       outline: {

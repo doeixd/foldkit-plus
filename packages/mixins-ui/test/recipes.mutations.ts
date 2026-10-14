@@ -71,13 +71,12 @@ export default [
     tests,
   },
   {
-    name: 'a select keeps room for the value on every size',
+    name: 'a select keeps room for the value, whatever the size',
     edits: [
       {
         file: '../src/recipes/select.ts',
-        find: '  variant(Style.self({ paddingBlock: block, paddingInline: `${inline} 2rem`, fontSize: font }))',
-        replace:
-          '  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))',
+        find: "paddingInline: `${ladder('pad')} 2rem`,",
+        replace: "paddingInline: ladder('pad'),",
       },
     ],
     tests,

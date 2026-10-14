@@ -389,8 +389,9 @@ describe('Recipes', () => {
     const css = Style.forSlots(ButtonSlots)(
       Recipes.Button({ tone: 'neutral', variant: 'icon', size: null }),
     ).css
-    expect(css).toContain('width:2rem')
-    expect(css).toContain('height:2rem')
+    // A square one rung of the size ladder tall, beside the buttons it sits with.
+    expect(css).toContain(`inline-size:${Theme.ladder('height')}`)
+    expect(css).toContain(`block-size:${Theme.ladder('height')}`)
     expect(css).toContain('padding:0')
     expect(css).toContain('font-size:0')
     // No gap beside the hidden words, which pushed the glyph off center.
@@ -420,10 +421,11 @@ describe('Recipes', () => {
       expect(css({ tray: 'plain' })).not.toContain('background:var(--fk-surface-muted)')
     })
 
-    it('densities text options without touching the pressed rule', () => {
-      expect(css({ size: 'sm' })).toContain('font-size:var(--fk-size-sm)')
-      expect(css({ size: 'sm' })).toContain('padding:0.4rem 0.75rem')
-      expect(css({ size: 'xs' })).toContain('font-size:var(--fk-size-xs)')
+    it('steps the tray and its options together, below the ladder for xs', () => {
+      expect(css({ size: 'sm' }).match(/--fk-knob-step:1\}/g)).toHaveLength(2)
+      expect(css({ size: 'xs' }).match(/--fk-knob-step:1\.5\}/g)).toHaveLength(2)
+      // No size follows the region.
+      expect(css({ size: null })).not.toContain('--fk-knob-step:')
     })
   })
 
@@ -503,12 +505,11 @@ describe('Recipes', () => {
     const css = (selection: Parameters<typeof Recipes.Select>[0]): string =>
       Style.forSlots(SelectSlots)(Recipes.Select(selection)).css
 
-    it('keeps room for the value on every size', () => {
+    it('keeps room for the value, whatever the size', () => {
+      // The room is the base's, and a size moves only the step.
+      expect(css({ size: null })).toMatch(/padding-inline:[^;]*2rem/)
       for (const size of ['sm', 'md', 'lg'] as const) {
-        const variantBlocks = blocks(css({ size })).filter(block =>
-          block.startsWith('@layer variants'),
-        )
-        expect(variantBlocks.some(block => /padding-inline:[^;]*2rem/.test(block))).toBe(true)
+        expect(blocks(css({ size })).filter(block => /padding-inline/.test(block))).toHaveLength(1)
       }
     })
 
@@ -599,8 +600,8 @@ describe('Recipes', () => {
       expect(css({})).toMatch(/border:[^;]*solid[^;]*var\(--fk-outline-default\)/)
     })
 
-    it('densities the trigger by size', () => {
-      expect(css({ size: 'sm' })).toContain('font-size:var(--fk-size-sm)')
+    it('steps the trigger and its panel by size', () => {
+      expect(css({ size: 'sm' }).match(/--fk-knob-step:1\}/g)).toHaveLength(2)
     })
   })
 

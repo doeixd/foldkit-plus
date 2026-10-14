@@ -17,6 +17,7 @@ import {
   HeadingFont,
   MenuAccent,
   MenuColor,
+  Size,
   bases,
   codeOf,
   fontLabels,
@@ -92,10 +93,6 @@ const capital = (value: string) => value[0]!.toUpperCase() + value.slice(1).repl
 const choose = (model: Model, change: Partial<Knobs>) =>
   Message.ChosePreset({ knobs: { ...model.knobs, ...change } })
 
-/** The density a size is: compact is Fluid's 28px step of the default 36px, about 0.8. */
-const sizes = { default: 1, compact: 0.8 } as const
-type Size = keyof typeof sizes
-
 const shape = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   h.fieldset(slots.axis.attrs(), [
     h.legend(slots.axisName.attrs(), ['style']),
@@ -123,14 +120,8 @@ const shape = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   choices(slots, h, 'menu color', words(MenuColor.literals), model.knobs.menuColor, menuColor =>
     choose(model, { menuColor }),
   ),
-  choices(
-    slots,
-    h,
-    'size',
-    words(['default', 'compact'] as const),
-    (Object.keys(sizes) as ReadonlyArray<Size>).find(size => sizes[size] === model.knobs.density) ??
-      'default',
-    size => choose(model, { density: sizes[size] }),
+  choices(slots, h, 'size', words(Size.literals), model.knobs.size, size =>
+    choose(model, { size }),
   ),
   choices(slots, h, 'motion', words(Easing.literals), model.knobs.easing, easing =>
     choose(model, { easing, ...(model.knobs.motion === 0 ? { motion: 1 } : {}) }),

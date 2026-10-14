@@ -25,7 +25,15 @@ const shadow = (...layers: ReadonlyArray<string>) =>
   layers.map(layer => `${layer} color-mix(in oklch, ${shade} ${strength}, transparent)`).join(', ')
 
 export const tokens = define({
-  knob: { density: '1', 'radius-factor': '1', motion: '1', travel: '1', 'shadow-strength': '100%' },
+  knob: {
+    density: '1',
+    'radius-factor': '1',
+    motion: '1',
+    travel: '1',
+    // The size ladder's step: 0 default, 1 compact; `ladder` reads it.
+    step: '0',
+    'shadow-strength': '100%',
+  },
   space: {
     '3xs': space(0.125),
     '2xs': space(0.25),
@@ -83,6 +91,27 @@ export const tokens = define({
     spring:
       'linear(0, 0.041, 0.136, 0.255, 0.379, 0.497, 0.603, 0.693, 0.768, 0.829, 0.876, 0.913, 0.941, 0.961, 0.976, 0.986, 0.993, 0.998, 1, 1.002, 1.003, 1.003, 1.003, 1.003, 1)',
   },
+  // The size ladder's two ends, after Fluid Functionalism's: a 36px default
+  // control and a 28px compact one, everything about a control stepping down
+  // together. One height serves buttons, fields and the rows of a list, so a
+  // popup's row lines up with the trigger that opened it. Read through
+  // `ladder`, which blends the pair by the `step` knob.
+  control: {
+    height: '2.25rem',
+    'height-compact': '1.75rem',
+    pad: '0.75rem',
+    'pad-compact': '0.625rem',
+    'row-pad': '0.5rem',
+    'row-pad-compact': '0.375rem',
+    gap: '0.5rem',
+    'gap-compact': '0.25rem',
+    inset: '0.25rem',
+    'inset-compact': '0.125rem',
+    icon: '1rem',
+    'icon-compact': '0.875rem',
+    text: '0.875rem',
+    'text-compact': '0.8125rem',
+  },
   border: { thin: '1px', thick: '2px', heavy: '3px' },
   // Raised a little to a lot: a pressed control, a lifted cell, a menu, a
   // dialog. Each step is a tight contact layer plus a wide ambient one, so
@@ -105,6 +134,24 @@ export const tokens = define({
 })
 
 export type Tokens = typeof tokens
+
+/** A dimension on the size ladder, by its default end's name. */
+export type Rung = Exclude<keyof Tokens['control'], `${string}-compact`>
+
+/**
+ * A control's dimension on the size ladder: `name`'s default end blended
+ * toward its compact one by the `step` knob, and spacing multiplied by
+ * `density`. The blend is written here, not in a token, because a custom
+ * property resolves where it is declared: a token would read the step at
+ * `:root`, while this expression reads it on the element that uses it, so
+ * `--fk-knob-step: 1` on a toolbar makes everything in it compact, the menus
+ * it opens included. A step of `-0.5` is shadcn's large size, 40px.
+ */
+export const ladder = (name: Rung): string => {
+  const at = `var(--fk-control-${name})`
+  const stepped = `calc(${at} + (var(--fk-control-${name}-compact) - ${at}) * var(--fk-knob-step))`
+  return name === 'icon' || name === 'text' ? stepped : `calc(${stepped} * var(--fk-knob-density))`
+}
 
 // A plain `min-width`, of the window or of a named container.
 const MIN_WIDTH = /^(?:@container\s+[\w-]+\s+)?\(min-width:\s*(\d+(?:\.\d+)?)(rem|px)\)$/

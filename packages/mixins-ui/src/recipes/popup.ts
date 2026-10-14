@@ -5,7 +5,7 @@
  * trigger and density. Internal to the recipes, not a published contract.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { component, disabled, glide, hover, ref, variant } from './design.js'
+import { component, disabled, glide, ref, rowOnLadder } from './design.js'
 
 /** A line in the panel's own ink, so it reads on an inverted panel too. */
 const line = `color-mix(in oklab, ${ref.popup.ink} 14%, transparent)`
@@ -45,11 +45,11 @@ const lit = ':where([data-fluid-hover]) > &'
 /** One row of the panel. */
 export const item: StyleValue = component(
   Style.self({
-    display: 'block',
+    display: 'flex',
+    alignItems: 'center',
     inlineSize: '100%',
     boxSizing: 'border-box',
-    paddingBlock: ref.space['2xs'],
-    paddingInline: ref.space.sm,
+    ...rowOnLadder,
     border: '0',
     borderRadius: ref.radius.md,
     background: 'transparent',
@@ -134,7 +134,3 @@ export const separator: StyleValue = component(
     borderBlockStart: `${ref.border.thin} solid ${line}`,
   }),
 )
-
-/** Row density: block/inline padding and type size. */
-export const density = (block: string, inline: string, font: string): StyleValue =>
-  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))

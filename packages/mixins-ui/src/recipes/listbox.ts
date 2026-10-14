@@ -1,14 +1,22 @@
 /**
  * A listbox: the trigger shows the choice, the shared popup panel lists the
- * options with the chosen one tinted. `size` is the density of the trigger
- * and each row.
+ * options with the chosen one tinted. `size` steps the trigger and the rows it
+ * opens on the size ladder together; unset, they follow the region.
  */
 import { Style } from 'foldkit-mixins'
 import { ListboxSlots } from '../listbox.js'
-import { component, disabled, focusRing, listScroll, ref, transition } from './design.js'
+import {
+  component,
+  disabled,
+  focusRing,
+  listScroll,
+  onLadder,
+  ref,
+  steps,
+  transition,
+} from './design.js'
 import {
   backdrop,
-  density,
   heading,
   highlight,
   indicator,
@@ -27,10 +35,8 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: ref.space.sm,
         inlineSize: '100%',
-        paddingBlock: ref.space.xs,
-        paddingInline: ref.space.sm,
+        ...onLadder,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.md,
         background: ref.surface.base,
@@ -61,15 +67,9 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
   },
   variants: {
     size: {
-      sm: {
-        button: density(ref.space['2xs'], ref.space.xs, ref.size.sm),
-        item: density(ref.space['3xs'], ref.space.sm, ref.size.sm),
-      },
-      md: {
-        button: density(ref.space.xs, ref.space.sm, ref.size.md),
-        item: density(ref.space['2xs'], ref.space.sm, ref.size.sm),
-      },
+      // On the wrapper, so the trigger and the rows it opens step together.
+      sm: { wrapper: steps.sm },
+      md: { wrapper: steps.md },
     },
   },
-  defaults: { size: 'md' },
 })
