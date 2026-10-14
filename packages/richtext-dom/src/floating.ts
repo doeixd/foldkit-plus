@@ -41,6 +41,37 @@ export const placeOver = (
   }
 }
 
+/**
+ * Where a box goes under a caret, in viewport coordinates: `gap` below it, or above it when there
+ * is no room below; kept inside the viewport's width. What a slash menu opens at.
+ */
+export const placeUnder = (
+  target: Box,
+  floating: Pick<Box, 'width' | 'height'>,
+  viewport: Pick<Box, 'width' | 'height'>,
+  gap: number,
+): { readonly top: number; readonly left: number; readonly placement: 'top' | 'bottom' } => {
+  const below = target.top + target.height + gap
+  const fits = below + floating.height <= viewport.height
+  return {
+    top: fits ? below : Math.max(0, target.top - gap - floating.height),
+    left: Math.max(0, Math.min(target.left, viewport.width - floating.width)),
+    placement: fits ? 'bottom' : 'top',
+  }
+}
+
+/**
+ * The box a range occupies. A caret in an empty text node has no box of its own (every
+ * browser reports zeros), so it is read from the element the caret is in.
+ */
+const rangeBox = (range: Range): Box => {
+  const box = range.getBoundingClientRect()
+  if (box.width !== 0 || box.height !== 0 || box.top !== 0 || box.left !== 0) return box
+  const container = range.startContainer
+  const element = container instanceof Element ? container : container.parentElement
+  return element === null ? box : element.getBoundingClientRect()
+}
+
 /** Where a handle goes: level with the block's top, `gap` to its left, never past the left edge. */
 export const placeBeside = (
   target: Box,
@@ -74,8 +105,12 @@ const onLayout = (view: Window, place: () => void) => {
   }
 }
 
-/** Places `element` over the selection in `hostId` now and on each change, until released. */
-export const anchorToSelection = (element: Styled, hostId: string, gap: number) => {
+/**
+ * Places `element` over the selection in `hostId` now and on each change, until released. With
+ * `caret`, it follows a collapsed selection too, under it, as a slash menu does; otherwise a
+ * caret leaves it where it is, as a toolbar for selected text wants.
+ */
+export const anchorToSelection = (element: Styled, hostId: string, gap: number, caret = false) => {
   const owner = element.ownerDocument
   const view = owner.defaultView
   if (view === null) return () => {}
@@ -86,15 +121,18 @@ export const anchorToSelection = (element: Styled, hostId: string, gap: number) 
     const host = owner.getElementById(hostId)
     if (selection === null || selection.rangeCount === 0 || host === null) return
     const range = selection.getRangeAt(0)
-    if (range.collapsed || !host.contains(range.commonAncestorContainer)) return
+    if ((range.collapsed && !caret) || !host.contains(range.commonAncestorContainer)) return
+    const floating = element.getBoundingClientRect()
     write(
       element,
-      placeOver(
-        range.getBoundingClientRect(),
-        element.getBoundingClientRect(),
-        { width: view.innerWidth },
-        gap,
-      ),
+      caret
+        ? placeUnder(
+            rangeBox(range),
+            floating,
+            { width: view.innerWidth, height: view.innerHeight },
+            gap,
+          )
+        : placeOver(rangeBox(range), floating, { width: view.innerWidth }, gap),
     )
   }
   place()
@@ -157,13 +195,15 @@ export const selectionAnchor = Mount.defineStream('RichTextSelectionAnchor', {
     hostId: Schema.String,
     /** Pixels between the selection and the element. */
     gap: Schema.Number,
+    /** Follow a caret as well, under it: a slash menu's place. Absent, only selected text. */
+    caret: Schema.optionalKey(Schema.Boolean),
   },
   messages: [Schema.Never],
-  execute: ({ element, hostId, gap }) =>
+  execute: ({ element, hostId, gap, caret }) =>
     Stream.callback<never>(() =>
       Effect.acquireRelease(
         // A Mount's element is one the view drew, an HTML or SVG element, and both carry `style`.
-        Effect.sync(() => anchorToSelection(element as Styled, hostId, gap)),
+        Effect.sync(() => anchorToSelection(element as Styled, hostId, gap, caret === true)),
         release => Effect.sync(release),
       ),
     ),

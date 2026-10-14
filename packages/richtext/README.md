@@ -272,7 +272,8 @@ decides what the caret carries and passes it back on the next `InsertText`.
 
 A toggle can take a link off but cannot change where it points. `SetMark` puts exactly
 the given mark on every run a range covers, replacing the props of a same-named mark,
-and `ClearMark` takes a mark off by name. At a caret both act on the mark's extent
+and `ClearMark` takes a mark off by name, or, given a mark value, off only the runs carrying
+exactly that value (one discussion's highlight, leaving another's inside it). At a caret both act on the mark's extent
 around it, so an editor changes or removes the link the caret sits in without selecting
 it first; outside a mark they do nothing. `markExtent(document, position, name)` is that
 extent as a read: the mark, and the range of adjacent runs carrying it with the same

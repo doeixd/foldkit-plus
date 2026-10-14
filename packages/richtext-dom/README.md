@@ -240,7 +240,9 @@ a caret. The Mount only moves it. It places the element `gap` pixels above the p
 selection, centred and kept inside the window's width, or below when there is no room above,
 and again on `selectionchange`, any scroll, and resize; a selection outside the host is
 ignored. It writes `position: fixed`, `top`, `left`, and `data-placement` (`top` or `bottom`)
-on the element, so a style there must leave those alone.
+on the element, so a style there must leave those alone. With `caret: true` it follows a caret
+too, opening under it (above when there is no room below), which is where a slash menu goes; a
+caret in an empty run is read from the element it is in.
 
 ### The block handle: anchor and drag
 

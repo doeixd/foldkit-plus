@@ -29,8 +29,11 @@ export const Message = defineMessageUnion({
   ToggledMark: { mark: Schema.String },
   /** Exactly this mark over the selection, or over the mark's extent at a caret: a link's new `href`. */
   AppliedMark: { mark: RichText.RunMark },
-  /** The named mark off the selection, or off the mark's extent at a caret: unlinking. */
-  ClearedMark: { mark: Schema.String },
+  /**
+   * The named mark off the selection, or off the mark's extent at a caret: unlinking. A mark
+   * value clears only the runs carrying exactly it.
+   */
+  ClearedMark: { mark: RichText.RunMark },
   RetypedBlock: { block: RichText.TextBlock },
   /** The caret's block, wrapped in containers listed outermost first: a quote, a list item. */
   WrappedBlock: { containers: Schema.Array(RichText.Container) },

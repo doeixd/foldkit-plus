@@ -20,6 +20,12 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext`: `ClearMark` takes a mark value**, clearing only the
+  runs carrying exactly it, so one discussion's highlight goes without
+  another's inside it; the editor's `ClearedMark` carries either. `eachBlock`
+  is exported, for an application walking its document.
+- **`foldkit-richtext-dom`: `selectionAnchor({ caret: true })`** follows a
+  caret too, opening under it, which is where a slash menu goes.
 - **`foldkit-richtext-dom`: `editorAt(hostId, { slashEntries })`**, the slash
   catalogue Enter in a query resolves against, so an application's own entries
   (an image, a table) choose as the editor's do.

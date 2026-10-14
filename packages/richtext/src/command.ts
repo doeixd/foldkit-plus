@@ -60,8 +60,12 @@ export type Command =
    * mark around it (`markExtent`), and does nothing outside one.
    */
   | { readonly type: 'SetMark'; readonly mark: string | MarkValue }
-  /** Takes the named mark off every run the selection covers; a caret, off its extent. */
-  | { readonly type: 'ClearMark'; readonly mark: string }
+  /**
+   * Takes the named mark off every run the selection covers; a caret, off its extent. Given a
+   * mark value, only off the runs carrying exactly that value: one discussion's highlight,
+   * leaving another's inside it.
+   */
+  | { readonly type: 'ClearMark'; readonly mark: string | MarkValue }
   | { readonly type: 'SetSelection'; readonly selection: Selection | null }
   | { readonly type: 'Paste'; readonly slice: Slice }
   /** Retypes the block the selection starts in: a paragraph, or a heading. */
@@ -1313,7 +1317,13 @@ export const run = (
       span = ordered(state.document, extent.selection)
     }
     if (span === undefined) return failure('InvalidSelection')
-    const spans = covered(state.document, span.start, span.end)
+    // A value clears only the runs carrying exactly it, so those are all the runs it covers.
+    const spans = covered(state.document, span.start, span.end).filter(
+      entry =>
+        command.type !== 'ClearMark' ||
+        typeof mark === 'string' ||
+        entry.run.marks.some(held => sameMark(held, mark)),
+    )
     if (spans.length === 0) return apply(state, [])
     // A toggle keys on the name: the mark is present on every covered run, or
     // it is absent everywhere. Props are the mark's own business.

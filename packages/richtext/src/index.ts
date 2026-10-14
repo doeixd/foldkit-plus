@@ -13,6 +13,7 @@ export {
   type RunPlace,
   type LocatedRun,
   blockAtPath,
+  eachBlock,
   locateBlock,
   locateRun,
   textBefore,
