@@ -1240,6 +1240,11 @@ of its own named a form field "fits the Catalog". Read words with
   `String.fromCharCode`, and check the bytes with `repr` before trusting the
   file. (The commit that met this, `9d395e1`, says a test caught it; reading the
   bytes did, and the test was shown to catch it afterwards by mutation.)
+- **A `\\n` in a Python heredoc run through the Bash tool reaches the file as a newline.**
+  Three scripted edits in one session wrote a real line break into `'\n'` string literals
+  (`endsWith('\n')`, a mutation anchor, an e2e assertion); one compiled, inside a template
+  literal, and read as a different string. Write text holding escapes with the Edit or Write
+  tool, and grep the result with `grep -F` before trusting it.
 - **Python's text mode writes CRLF on Windows.** Scripted edits with
   `open(p, 'w')` turned `tsconfig.json` and `vitest.config.ts` into CRLF files
   that failed `format:check`. Pass `newline=''` when reading and writing.
