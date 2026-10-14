@@ -1063,7 +1063,16 @@ export const run = (
     if (code !== undefined) {
       return command.type === 'Indent' ? indent(state, code) : outdent(state, code)
     }
+    // A list item inside a table cell nests; a table inside a list item moves between cells.
+    const item = itemAtCaret(state, options.nodes)
     const at = tableAt(state.document, state.selection)
+    const tableDepth =
+      at === undefined ? -1 : (locateBlock(state.document, at.table.id)?.path.length ?? -1)
+    if (item !== undefined && item.containerPath.length > tableDepth) {
+      return command.type === 'Indent'
+        ? sinkItem(state, item, ids, options)
+        : liftItem(state, item, ids, options)
+    }
     if (at === undefined) return failure('InvalidSelection')
     return moveToCell(state, at, command.type === 'Indent' ? 'next' : 'previous', ids.mint)
   }
@@ -1599,7 +1608,95 @@ export const takesTab = (
   nodes?: NodeRegistry,
 ): boolean =>
   linesHolder({ document, selection }, nodes) !== undefined ||
+  itemAtCaret({ document, selection }, nodes) !== undefined ||
   tableAt(document, selection) !== undefined
+
+/** The list item the selection starts in, when the vocabulary says its list holds it. */
+const itemAtCaret = (state: EditorState, nodes: NodeRegistry | undefined) => {
+  if (state.selection?.type !== 'Range') return undefined
+  const start = ordered(state.document, state.selection)?.start
+  const run = start === undefined ? undefined : locateRun(state.document, start.node)
+  return run === undefined ? undefined : itemAround(state.document, run.path, nodes)
+}
+
+/** Whether two props hold the same values, for a list that two items may share. */
+const sameProps = (left: Schema.JsonObject, right: Schema.JsonObject): boolean => {
+  const keys = Object.keys(left)
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every(key => Object.hasOwn(right, key) && Equal.equals(left[key], right[key]))
+  )
+}
+
+/**
+ * Tab in a list item: the item moves under the item before it, as the last item of the list
+ * that item ends with, or of a new one like its own when it ends with none. It keeps its
+ * identity, and the caret with it. The first item has nothing to go under, and stays.
+ */
+const sinkItem = (
+  state: EditorState,
+  item: ItemAround,
+  ids: CommandIds,
+  options: RunOptions,
+): TransactionResult => {
+  if (item.list.type !== 'Node') return apply(state, [])
+  const list = item.list
+  const index = item.containerPath[item.containerPath.length - 1]!
+  const previous = (list.blocks ?? [])[index - 1]
+  if (previous?.type !== 'Node') return apply(state, [])
+  const nested = previous.blocks?.at(-1)
+  const last = nested?.type === 'Node' ? nested.blocks?.at(-1) : undefined
+  if (
+    nested?.type === 'Node' &&
+    nested.kind === list.kind &&
+    sameProps(nested.props, list.props) &&
+    last !== undefined
+  ) {
+    return run(
+      state,
+      { type: 'MoveBlock', node: item.container.id, to: { after: last.id } },
+      ids,
+      options,
+    )
+  }
+  const created = NodeId.make(ids.mint())
+  return apply(state, [
+    Edit.insertBlock(
+      { type: 'Node', kind: list.kind, id: created, props: list.props, children: [], blocks: [] },
+      (previous.blocks ?? []).length,
+      previous.id,
+    ),
+    Edit.moveBlock(item.container.id, 0, created),
+  ])
+}
+
+/**
+ * Shift+Tab in a list item: a nested item moves out to follow the item its list is in, and an
+ * item at the top level leaves its list, as `LiftBlock` takes it. A list the move empties goes.
+ */
+const liftItem = (
+  state: EditorState,
+  item: ItemAround,
+  ids: CommandIds,
+  options: RunOptions,
+): TransactionResult => {
+  const listPath = item.containerPath.slice(0, -1)
+  const outerItem = blockAtPath(state.document, listPath.slice(0, -1))
+  const outerList = blockAtPath(state.document, listPath.slice(0, -2))
+  const nestedInItem =
+    outerItem?.type === 'Node' &&
+    outerList?.type === 'Node' &&
+    options.nodes !== undefined &&
+    holdsItem(options.nodes, outerList.kind, outerItem.kind)
+  return nestedInItem
+    ? run(
+        state,
+        { type: 'MoveBlock', node: item.container.id, to: { after: outerItem.id } },
+        ids,
+        options,
+      )
+    : run(state, { type: 'LiftBlock' }, ids, options)
+}
 
 /** The first run anywhere in these blocks, nested ones included, in document order. */
 const firstRunIn = (blocks: ReadonlyArray<Block>): Run | undefined => {

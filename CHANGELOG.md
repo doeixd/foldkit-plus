@@ -41,7 +41,8 @@ version changed; `pnpm` skips versions already in the registry.
   `DeleteRow` and `DeleteColumn` edit the table around the caret's cell, each as
   one undo step (`tableAt` reads where the caret is). `Indent` and `Outdent` are
   Tab and Shift+Tab: indentation in code (and Enter keeps a line's), the next or
-  previous cell in a table, a new row after the last. `takesTab` says where Tab
+  previous cell in a table, a new row after the last, and in a list item, nesting
+  it under the item before it or moving it back out. `takesTab` says where Tab
   means something.
 - **`foldkit-richtext-dom`: an empty line can be reached.** It holds a
   `<br data-richtext-filler>`, where the caret stands, so it has a line's height
@@ -128,6 +129,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins/theme`, `foldkit-mixins-ui`: one size ladder.** After
+  Fluid Functionalism's: a `control` token group holds the two ends (36px and
+  28px controls, with their padding, gap, icon and text), a `step` knob
+  chooses between them, and `Theme.ladder(name)` writes the blend, read on the
+  element that uses it, so `--fk-knob-step: 1` on a toolbar makes everything
+  in it compact, the menus it opens included. Buttons, fields, selects, tabs,
+  segmented controls, table rows, calendar cells and the rows of a menu,
+  listbox or combobox all stand one rung tall, so a popup's row lines up with
+  its trigger. Breaking: a recipe's `size` only sets the step on its own
+  element (`sm` compact, `md` default, `lg` a half step up at 40px), and no
+  recipe defaults it any more, so an unset size follows the region. The
+  popups' `size` sets it on their `wrapper`, Tabs' on the `tablist`.
+  Segmented's sizes are `md`, `sm` and `xs` (24px), and control text is 14px,
+  13px compact.
 - **`foldkit-mixins/theme`: three motion tiers, and reduced motion keeps the
   fades.** `motion.fast`, `moderate` and `slow` are 80, 160 and 240ms, each with
   an exit a tier quicker (`fast-exit`, `moderate-exit`, `slow-exit`, eased by

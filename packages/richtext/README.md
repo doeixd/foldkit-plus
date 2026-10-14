@@ -253,8 +253,11 @@ a table (`InvalidSelection`).
 `Indent` and `Outdent` are Tab and Shift+Tab. In a kind declared `lineBreaks` (code) they add or
 remove a level of indentation (`INDENT`, two spaces): at the caret, or at the start of every line
 a range covers; Enter there starts the new line as indented as the one it broke. In a table cell
-they move the caret to the next or previous cell, and Tab in the last cell adds a row. Code inside
-a cell indents. Anywhere else they are refused, and `takesTab(document, selection, nodes)` says so
+they move the caret to the next or previous cell, and Tab in the last cell adds a row. In a list
+item, Tab nests it under the item before it (in the list that item ends with, or a new one of its
+own kind), and Shift+Tab moves a nested item out to follow its parent item, or takes a top-level
+item out of its list; the first item has nothing to nest under and stays. The innermost wins: code
+in a cell indents, a list in a cell nests. Anywhere else they are refused, and `takesTab(document, selection, nodes)` says so
 beforehand, which is how an editor leaves Tab to move focus there.
 
 `DeleteBackward` at the start of a container's first block used to do nothing, having no

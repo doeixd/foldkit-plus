@@ -307,7 +307,8 @@ inserts a block under fresh ids beside another (without `to`, beside the caret's
 it when empty), and `DeleteBlock { node }` deletes one with any container it empties. `InsertRow`/`InsertColumn`
 (`{ where }`), `DeleteRow` and `DeleteColumn` edit the table around the caret's cell
 (`tableAt`); `Indent`/`Outdent` are Tab and Shift+Tab: indentation in a `lineBreaks` kind (Enter
-keeps a line's), the next or previous cell in a table; `takesTab` says where Tab applies. `LiftBlock` is the inverse of a wrap, and
+keeps a line's), the next or previous cell in a table, a list item nested under the one before it
+or moved back out; `takesTab` says where Tab applies. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
 of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` retypes
 it to a paragraph; Enter in a kind declared `lineBreaks` (the standard `CodeBlock`) is a newline,
