@@ -59,6 +59,44 @@ below is translated, not copied:
 Each is a token, a knob or a piece. None adds a second set of sizes, which
 CLAUDE.md forbids.
 
+## What we keep
+
+Fluid's values are hex colors, pixels and fixed timings, tuned for one look.
+Ours derive from knobs, and that stays the point. Every change below has to
+keep these:
+
+- **Knobs are tokens, and every scale derives from one.** These knobs keep
+  reaching what they reach today, and the new groups derive from them too:
+  - `density` scales the control group;
+  - `radius-factor` scales `control.radius` and the concentric radii;
+  - `motion` scales the tiers;
+  - `shadow-strength` scales the shadow ladder.
+
+  A compact, rounder or stiller theme is still one override, through
+  `Theme.scoped` or an inline variable.
+- **The palette is derived, in OKLCH, from a few knobs.** The levels come
+  from `surface.base`, so the accent, `neutral-h`, `surface-saturation` and
+  `surface-contrast` reach them. Each level keeps the base's chroma, for the
+  reason `oklch.ts` records: steps with less read grey on a tinted page.
+  `light-dark()` pairs serve both schemes from one theme.
+- **The menu looks.** `menu.accent` and `menu.color` (inverted, translucent)
+  keep their `popup` tokens, and those win over the ladder's surface on a
+  menu's panel. The ladder decides a panel's level only when its `color` is
+  `default`.
+- **Shadows in the page's own hue.** The ladder's shadows keep `shadow.color`,
+  which is denser in a dark scheme so a shadow never glows.
+- **Text zoom.** Sizes stay in rem.
+- **The cascade.** Recipes select with axes and applications `.extend`
+  them. Every value is read through `Theme.ref`, so a misspelt name is a type
+  error.
+- **shadcn's names.** A recipe's `size` axis keeps `sm`, `md` and `lg`. The
+  plan maps them onto the ladder; it does not rename them.
+- **What ours already does better:**
+  - `FluidHover` lights nothing on touch;
+  - its overlays anchor for right to left;
+  - our popups never leave the DOM, which is what lets a region's knobs
+    reach them.
+
 ## 1. Motion
 
 **Fluid.**
@@ -177,18 +215,26 @@ CLAUDE.md forbids.
   - `control.gap` 8 / 4;
   - `control.icon` 16 / 14;
   - `control.radius`, from `radius.lg`.
-  - Heights are written in rem, so text zoom still works. Paddings multiply by
-    `density`; the height does not, so a dense theme makes controls tighter
-    inside and still lined up.
+  - Heights are written in rem, so text zoom still works. Every value,
+    height included, also multiplies by `density`, as `space` does today, so
+    the styles that compact through density (Nova, Mira) keep working. The
+    rows and the controls share that one product, so they still line up at
+    any density: `step` is the ladder, and `density` a continuous trim on
+    top of it.
 - **Regions.** `--fk-knob-step: 1` on any element (through `Theme.scoped`, or
   an inline variable from the Model) makes its subtree compact.
   - Our popups stay in the DOM (`portal: false`), and the top layer keeps DOM
     inheritance, so a menu opened in a compact toolbar is compact without any
     provider. Fluid needs React context crossing portals for the same result.
-- **Per component.** Each control recipe's `size` axis becomes
-  `default | compact`. The value sets the knob on its own element, which beats
-  the region. `lg` stays on Button, Input and Toggle as shadcn's third size,
-  outside the ladder and documented as such.
+- **Per component.** Each control recipe's `size` axis keeps shadcn's names:
+  - `sm` sets `--fk-knob-step: 1` on its own element, which beats the region;
+  - `md` sets `0`;
+  - `lg` stays outside the ladder, a step up, as shadcn's third size.
+
+  A chosen size beats the region, and no size follows it, as in Fluid. So
+  the recipes drop `size` from their `defaults`; today they default to `md`,
+  which would pin every control to the default step. This is a breaking
+  change: an unset size used to mean `md`, and now it means "the region's".
 - **Rows on the ladder.** These read `control.height` as their
   `min-block-size`:
   - popup rows (menu, listbox, combobox, select);
@@ -318,13 +364,22 @@ CLAUDE.md forbids.
 - **The ladder.** `surface.level-1` to `level-8`, derived from `surface.base`
   in `Theme.oklch`:
   - in a light scheme, levels 1 and 2 step toward white and 3 to 8 are the
-    lightest, with the base's chroma scaled down;
+    lightest, each keeping the base's chroma (see "What we keep"), so shadow
+    carries elevation there, as in Fluid;
   - in a dark scheme, each level adds an even step of lightness
     (`base-l-dark + k * level`, with `k` from `surface-contrast`, so the
     contrast knob reaches the ladder too).
-  - A `shadow.level-1` to `level-8` group pairs with it. Today's six named
-    shadows stay as aliases, so recipes and themes that name them keep
-    working.
+  - A `shadow.level-1` to `level-8` group pairs with it, built by the same
+    `shadow()` helper as today, so `shadow.color` and `shadow-strength` reach
+    it. Today's six named shadows stay as aliases, so recipes and themes that
+    name them keep working.
+- **Roles and levels.** The named surfaces stay, for a different question:
+  - `muted`, `subtle`, `default`, `overt` and `bedrock` are fills, saying
+    *what* a region is (a well, a code block, a backdrop);
+  - a level says *how high* a raised object sits.
+
+  A recipe uses a level only for something that raises, and a role for
+  everything else, so no surface has two ways to be chosen.
 - **Nesting without context.** A raised element marks itself
   `data-fk-raise` and sets `--fk-raise: <offset>`. Its level is the sum of
   every raised ancestor's offset, plus 1 for the page. CSS cannot write
@@ -344,7 +399,8 @@ CLAUDE.md forbids.
     eight. Until every engine CI runs has it, the eight rules stay.
 - **Which components raise.**
   - Popover, Menu, Listbox, Combobox and Select panels raise by 2, with the
-    shadow pinned to level 3.
+    shadow pinned to level 3. A menu `color` other than `default` keeps its
+    `popup` surface, and only its shadow comes from the ladder.
   - Dialog, Alert Dialog, Sheet and Drawer raise by 4.
   - Tooltip is inverted (`text.default` as the fill) and does not raise.
   - Card does not raise. It keeps shadcn's `outlined` default; Fluid's
