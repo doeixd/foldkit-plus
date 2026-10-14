@@ -61,6 +61,7 @@
     { "path": "./examples/livestore" },
     { "path": "./examples/kitchen-sink" },
     { "path": "./examples/data-grid" },
+    { "path": "./examples/richtext-playground" },
     { "path": "./examples/registry" },
     { "path": "./examples/auth" },
     { "path": "./examples/todo-app" },

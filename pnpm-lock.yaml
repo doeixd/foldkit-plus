@@ -1528,6 +1528,55 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  examples/richtext-playground:
+    dependencies:
+      effect:
+        specifier: ^4.0.4
+        version: 4.0.4
+      foldkit:
+        specifier: 0.168.0
+        version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+      foldkit-example-site:
+        specifier: workspace:*
+        version: link:../site
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../../packages/mixins
+      foldkit-mixins-richtext:
+        specifier: workspace:*
+        version: link:../../packages/mixins-richtext
+      foldkit-richtext:
+        specifier: workspace:*
+        version: link:../../packages/richtext
+      foldkit-richtext-code-shiki:
+        specifier: workspace:*
+        version: link:../../packages/richtext-code-shiki
+      foldkit-richtext-dom:
+        specifier: workspace:*
+        version: link:../../packages/richtext-dom
+      foldkit-richtext-markdown:
+        specifier: workspace:*
+        version: link:../../packages/richtext-markdown
+      shiki:
+        specifier: 4.5.0
+        version: 4.5.0
+    devDependencies:
+      '@effect/platform-browser':
+        specifier: ^4.0.4
+        version: 4.0.4(effect@4.0.4)
+      jsdom:
+        specifier: 30.1.2
+        version: 30.1.2(@noble/hashes@2.4.0)
+      playwright:
+        specifier: ^1.64.0
+        version: 1.64.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vite:
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+
   examples/site:
     dependencies:
       '@foldkit/ui':

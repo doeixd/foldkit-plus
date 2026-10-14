@@ -96,6 +96,36 @@ export const pagesDemo: Demo = {
   packages: ['richtext', 'richtext-dom', 'richtext-markdown', 'sync', 'durable'],
 }
 
+export const richtextDemo: Demo = {
+  title: 'A rich text playground',
+  url: 'https://foldkit-richtext-demo.pages.dev/',
+  example: 'examples/richtext-playground',
+  proves:
+    'One document with movable blocks, anchored discussions, images, tables, code, toggles and footnotes, every edit a transition of the Model.',
+  tryThis: [
+    {
+      title: 'Move',
+      text: 'Hover beside a block and drag its ⠿ handle, or open ⋯ to duplicate it, delete it or turn it into another kind.',
+    },
+    {
+      title: 'Discuss',
+      text: 'Select a few words and press 💬 to start a discussion; the highlight follows the text as you edit, and undo brings back what Resolve took.',
+    },
+    {
+      title: 'Insert',
+      text: 'Type / on an empty line for a table, a callout or a toggle, or paste or drop an image onto the page.',
+    },
+  ],
+  readFirst: 'examples/richtext-playground/src/app.ts',
+  packages: [
+    'richtext',
+    'richtext-dom',
+    'mixins-richtext',
+    'richtext-markdown',
+    'richtext-code-shiki',
+  ],
+}
+
 export const todoDemo: Demo = {
   title: 'A todo list an agent can use',
   url: 'https://foldkit-todo-demo.pages.dev/',
@@ -166,6 +196,7 @@ export const demos: ReadonlyArray<Demo> = [
   cmsDemo,
   registryDemo,
   pagesDemo,
+  richtextDemo,
   todoDemo,
   gridDemo,
   widgetsDemo,

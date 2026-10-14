@@ -1,0 +1,30 @@
+{
+  "name": "foldkit-example-richtext-playground",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "effect": "^4.0.4",
+    "foldkit": "0.168.0",
+    "foldkit-example-site": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-richtext": "workspace:*",
+    "foldkit-richtext": "workspace:*",
+    "foldkit-richtext-code-shiki": "workspace:*",
+    "foldkit-richtext-dom": "workspace:*",
+    "foldkit-richtext-markdown": "workspace:*",
+    "shiki": "4.5.0"
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "^4.0.4",
+    "jsdom": "30.1.2",
+    "playwright": "^1.64.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  }
+}
