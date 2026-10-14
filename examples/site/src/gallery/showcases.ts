@@ -18,23 +18,29 @@ import {
   CardGroupSlots,
   CardSlots,
   CheckboxSlots,
+  DialogSlots,
   EmptySlots,
   InputSlots,
   ItemSlots,
   KbdSlots,
   PaginationSlots,
+  PopoverSlots,
+  RadioGroupSlots,
   Recipes,
   SelectSlots,
   SeparatorSlots,
   SkeletonSlots,
+  SliderSlots,
   SpinnerSlots,
   SwitchSlots,
   TableSlots,
+  TabsSlots,
   TextareaSlots,
 } from 'foldkit-mixins-ui'
 
 import * as Snippet from '../snippets/components.js'
 import { forSlots } from '../snippets/theme.js'
+import * as Widgets from './widgets.js'
 
 /** One variant axis of a recipe, and the value it takes when none is picked. */
 export interface Axis {
@@ -59,6 +65,8 @@ export interface Live<Message> {
   readonly dismissed: boolean
   readonly onDismiss: Message
   readonly onRestore: Message
+  readonly widgets: Widgets.Model
+  readonly onWidget: (message: Widgets.Message) => Message
   readonly h: HtmlBuilder<Message>
 }
 
@@ -404,6 +412,122 @@ export const showcases: ReadonlyArray<Showcase> = [
       contract: 'EmptySlots',
     },
     () => Snippet.empty(Snippet.EmptyStyle, inert),
+  ),
+  fromRecipe(
+    {
+      slug: 'tabs',
+      title: 'Tabs',
+      summary: 'Panels of one place, one shown at a time, moved between by the arrow keys.',
+      recipe: 'Tabs',
+      file: 'tabs',
+      contract: 'TabsSlots',
+    },
+    TabsSlots,
+    Recipes.Tabs,
+    (style, live) =>
+      Snippet.tabs(
+        style,
+        live.widgets,
+        message => live.onWidget(Widgets.Message.GotTabs({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'radio-group',
+      title: 'Radio group',
+      summary: 'One choice of a few, each with a line that explains it.',
+      recipe: 'RadioGroup',
+      file: 'radio',
+      contract: 'RadioGroupSlots',
+    },
+    RadioGroupSlots,
+    Recipes.RadioGroup,
+    (style, live) =>
+      Snippet.radioGroup(
+        style,
+        { group: live.widgets.billingGroup, billing: live.widgets.billing },
+        message => live.onWidget(Widgets.Message.GotBillingGroup({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'slider',
+      title: 'Slider',
+      summary: 'A number in a range, dragged, clicked or stepped by the keys.',
+      recipe: 'Slider',
+      file: 'slider',
+      contract: 'SliderSlots',
+    },
+    SliderSlots,
+    Recipes.Slider,
+    (style, live) =>
+      Snippet.slider(
+        style,
+        live.widgets,
+        message => live.onWidget(Widgets.Message.GotSlider({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'dialog',
+      title: 'Dialog',
+      summary: 'A modal that holds focus until it is answered or Escape dismisses it.',
+      recipe: 'Dialog',
+      file: 'dialog',
+      contract: 'DialogSlots',
+    },
+    DialogSlots,
+    Recipes.Dialog,
+    (style, live) =>
+      Snippet.dialog(
+        style,
+        live.widgets.dialog,
+        {
+          onOpen: live.onWidget(Widgets.Message.OpenedDialog()),
+          onClose: live.onWidget(Widgets.Message.ClosedDialog()),
+          toMessage: message => live.onWidget(Widgets.Message.GotDialog({ message })),
+        },
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'popover',
+      title: 'Popover',
+      summary: 'A panel placed beside its button, closed by Escape or a press outside.',
+      recipe: 'Popover',
+      file: 'popover',
+      contract: 'PopoverSlots',
+    },
+    PopoverSlots,
+    Recipes.Popover,
+    (style, live) =>
+      Snippet.popover(
+        style,
+        live.widgets.popover,
+        message => live.onWidget(Widgets.Message.GotPopover({ message })),
+        live.h,
+      ),
+  ),
+  fixed(
+    {
+      slug: 'tooltip',
+      title: 'Tooltip',
+      summary: 'A hint on hover or focus, after a short wait.',
+      recipe: 'Tooltip',
+      file: 'tooltip',
+      contract: 'TooltipSlots',
+    },
+    live =>
+      Snippet.tooltip(
+        Snippet.TooltipStyle,
+        live.widgets.tooltip,
+        message => live.onWidget(Widgets.Message.GotTooltip({ message })),
+        live.h,
+      ),
   ),
 ]
 

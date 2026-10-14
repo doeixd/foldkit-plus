@@ -8,7 +8,7 @@
  * component pages: a variant, a preview's state, and `/create`'s knobs.
  */
 import { Effect, Match, Option, Schema } from 'effect'
-import { Command, Dom, Subscription, type Update } from 'foldkit'
+import { Command, Dom, Subscription, Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
@@ -22,6 +22,7 @@ import { Projection, Surface } from 'foldkit-surface'
 
 import { allSubsites } from './catalog.js'
 import { showcaseOf } from './gallery/showcases.js'
+import * as Widgets from './gallery/widgets.js'
 import {
   Font,
   Knob,
@@ -74,6 +75,8 @@ export const Model = Schema.Struct({
   /** The card chosen in the card group's preview, by key. */
   chosenCard: Schema.String,
   cardDismissed: Schema.Boolean,
+  /** The previews with state of their own: tabs, a dialog, a slider and the rest. */
+  widgets: Widgets.Model,
   knobs: Knobs,
   scheme: Scheme,
   pageScheme: PageScheme,
@@ -99,6 +102,7 @@ export const Message = defineMessageUnion({
   ChoseCard: { key: Schema.String },
   DismissedCard: {},
   RestoredCard: {},
+  GotWidget: { message: Widgets.Message },
   ChosePreset: { knobs: Knobs },
   MovedKnob: { knob: Knob, value: Schema.Number },
   ChoseFont: { font: Font },
@@ -180,6 +184,14 @@ const withKnobs = (model: Model, knobs: Knobs): UpdateReturn =>
     ? { model }
     : { model: modifyFields(model, { knobs: () => knobs, copied: () => false }) }
 
+const foldWidget = Update.foldChild({
+  read: (model: Model) => Option.some(model.widgets),
+  write: (model: Model, widgets: Widgets.Model) =>
+    widgets === model.widgets ? model : modifyFields(model, { widgets: () => widgets }),
+  toParentMessage: (message: Widgets.Message) => Message.GotWidget({ message }),
+  update: Widgets.update,
+})
+
 const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
   Match.valueTags(message, {
     ToggledMenu: () => ({ model: modifyFields(model, { menuOpen: open => !open }) }),
@@ -218,6 +230,7 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       model.cardDismissed
         ? { model: modifyFields(model, { cardDismissed: () => false }) }
         : { model },
+    GotWidget: ({ message }) => foldWidget(model, message),
     ChosePreset: ({ knobs }) => withKnobs(model, knobs),
     MovedKnob: ({ knob, value }) => {
       const range = ranges.find(each => each.knob === knob)
@@ -259,15 +272,21 @@ export const codeCopyOf = (event: MouseEvent): Option.Option<Message> => {
 
 /** A code block's copy button, answered for the static region that drew it without a handler. */
 export const subscriptions = placements.subscriptions(
-  Subscription.make<Model, Message>()(() => ({
-    codeCopy: Subscription.persistentEntry(
-      Dom.streamFromEventFilterMap({
-        target: () => document,
-        type: 'click',
-        filterMapEvent: codeCopyOf,
-      }),
-    ),
-  })),
+  Subscription.aggregate(
+    Subscription.make<Model, Message>()(() => ({
+      codeCopy: Subscription.persistentEntry(
+        Dom.streamFromEventFilterMap({
+          target: () => document,
+          type: 'click',
+          filterMapEvent: codeCopyOf,
+        }),
+      ),
+    })),
+    Subscription.lift(Widgets.subscriptions)<Model, Message>({
+      read: model => Option.some(model.widgets),
+      toParentMessage: message => Message.GotWidget({ message }),
+    }),
+  ),
 )
 
 // INIT
@@ -285,6 +304,7 @@ export const initial: Model = placements.initial({
   previewPage: 4,
   chosenCard: 'team',
   cardDismissed: false,
+  widgets: Widgets.initial,
   knobs: defaultKnobs,
   scheme: 'system',
   pageScheme: 'system',
@@ -337,6 +357,7 @@ const planOf = (withMeta: boolean) =>
       App.model.previewPage,
       App.model.chosenCard,
       App.model.cardDismissed,
+      App.model.widgets,
       App.model.knobs,
       App.model.scheme,
       App.model.pageScheme,

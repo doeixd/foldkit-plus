@@ -4,9 +4,18 @@
  * and its previews call the function the region defines with the style the
  * reader selected, so the code on the page is the code that drew it.
  */
+import { Option, Schema } from 'effect'
+import {
+  Dialog as UiDialog,
+  Popover as UiPopover,
+  RadioGroup as UiRadioGroup,
+  Tabs as UiTabs,
+} from '@foldkit/ui'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiSelect from '@foldkit/ui/select'
+import * as UiSlider from '@foldkit/ui/slider'
 import * as UiSwitch from '@foldkit/ui/switch'
+import * as UiTooltip from '@foldkit/ui/tooltip'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { NamedStyle } from 'foldkit-mixins'
 import {
@@ -27,6 +36,8 @@ import {
   CardSlots,
   Checkbox,
   CheckboxSlots,
+  Dialog,
+  DialogSlots,
   Empty,
   EmptySlots,
   Input,
@@ -37,6 +48,10 @@ import {
   KbdSlots,
   Pagination,
   PaginationSlots,
+  Popover,
+  PopoverSlots,
+  RadioGroup,
+  RadioGroupSlots,
   Recipes,
   Select,
   SelectSlots,
@@ -44,14 +59,20 @@ import {
   SeparatorSlots,
   Skeleton,
   SkeletonSlots,
+  Slider,
+  SliderSlots,
   Spinner,
   SpinnerSlots,
   Switch,
   SwitchSlots,
   Table,
   TableSlots,
+  Tabs,
+  TabsSlots,
   Textarea,
   TextareaSlots,
+  Tooltip,
+  TooltipSlots,
 } from 'foldkit-mixins-ui'
 
 import { forSlots } from './theme.js'
@@ -472,4 +493,283 @@ export const empty = (style: NamedStyle<typeof EmptySlots>, h: HtmlBuilder<never
     },
     h,
   )
+// #endregion
+
+// #region tabs
+export const TabsStyle = forSlots(TabsSlots)(Recipes.Tabs({}))
+
+export const Section = Schema.Literals(['overview', 'activity', 'settings'])
+export type Section = typeof Section.Type
+// Annotated: the inferred type names a foldkit internal module.
+export const SectionTabs: ReturnType<typeof UiTabs.create<Section>> = UiTabs.create<Section>()
+
+const sections: Record<Section, { readonly label: string; readonly text: string }> = {
+  overview: { label: 'Overview', text: 'Six people, three open milestones, one launch.' },
+  activity: { label: 'Activity', text: 'Ada published the pricing page an hour ago.' },
+  settings: { label: 'Settings', text: 'Who can see the project, and who can edit it.' },
+}
+
+/** The tabs' focus is the component's; which tab shows is the Model's. */
+export interface TabsState {
+  readonly tabs: UiTabs.Model
+  readonly section: Section
+}
+
+export const tabs = <Message>(
+  style: NamedStyle<typeof TabsSlots>,
+  state: TabsState,
+  toMessage: (message: UiTabs.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.tabs.id,
+    model: state.tabs,
+    view: SectionTabs.view,
+    viewInputs: {
+      tabs: Section.literals,
+      selectedValue: state.section,
+      ariaLabel: 'Project',
+      toView: Tabs.toView<Section, Message>(
+        [style.mixin],
+        { h },
+        ({ tablist, tabs, activeIndex }) =>
+          h.div(
+            [],
+            [
+              h.div(
+                tablist,
+                tabs.map(tab => h.button(tab.tab, [sections[tab.value].label])),
+              ),
+              ...tabs
+                .filter(tab => tab.index === activeIndex)
+                .map(tab => h.div(tab.panel, [h.p([], [sections[tab.value].text])])),
+            ],
+          ),
+      ),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region radio-group
+export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
+
+export const Billing = Schema.Literals(['monthly', 'yearly', 'lifetime'])
+export type Billing = typeof Billing.Type
+export const BillingGroup: ReturnType<typeof UiRadioGroup.create<Billing>> =
+  UiRadioGroup.create<Billing>()
+
+const billings: Record<Billing, { readonly label: string; readonly text: string }> = {
+  monthly: { label: 'Monthly', text: '$12 a month, cancel any time.' },
+  yearly: { label: 'Yearly', text: '$120 a year, two months free.' },
+  lifetime: { label: 'Lifetime', text: '$400 once.' },
+}
+
+/** The group's focus is the component's; the choice is the Model's. */
+export interface RadioGroupState {
+  readonly group: UiRadioGroup.Model
+  readonly billing: Billing
+}
+
+export const radioGroup = <Message>(
+  style: NamedStyle<typeof RadioGroupSlots>,
+  state: RadioGroupState,
+  toMessage: (message: UiRadioGroup.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.group.id,
+    model: state.group,
+    view: BillingGroup.view,
+    viewInputs: {
+      selectedValue: Option.some(state.billing),
+      options: Billing.literals,
+      ariaLabel: 'Billing',
+      hasOptionDescription: () => true,
+      toView: RadioGroup.toView<Billing, Message>([style.mixin], { h }, ({ group, options }) =>
+        h.div(
+          group,
+          options.map(option =>
+            h.div(
+              [h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'baseline' })],
+              [
+                h.button(option.option, []),
+                h.div(
+                  [h.Style({ display: 'grid' })],
+                  [
+                    h.label(option.label, [billings[option.value].label]),
+                    h.span(option.description, [billings[option.value].text]),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region slider
+export const SliderStyle = forSlots(SliderSlots)(Recipes.Slider({}))
+
+/** The drag is the component's; the value is the Model's. */
+export interface SliderState {
+  readonly slider: UiSlider.Model
+  readonly volume: number
+}
+
+export const slider = <Message>(
+  style: NamedStyle<typeof SliderSlots>,
+  state: SliderState,
+  toMessage: (message: UiSlider.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.slider.id,
+    model: state.slider,
+    view: UiSlider.view,
+    viewInputs: {
+      value: state.volume,
+      ariaLabel: 'Volume',
+      formatValue: (value: number) => `${Math.round(value)} percent`,
+      toView: Slider.toView([style.mixin], { h }, slider =>
+        h.div(slider.root, [
+          h.label(slider.label, [`Volume: ${state.volume}%`]),
+          h.div(slider.track, [h.div(slider.filledTrack, []), h.div(slider.thumb, [])]),
+        ]),
+      ),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region dialog
+export const DialogStyle = forSlots(DialogSlots)(Recipes.Dialog({}))
+const DangerStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' }))
+const QuietStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'ghost' }))
+
+/** The Messages that open and close the dialog, and the one that wraps its own. */
+export interface DialogMessages<Message> {
+  readonly onOpen: Message
+  readonly onClose: Message
+  readonly toMessage: (message: UiDialog.Message) => Message
+}
+
+export const dialog = <Message>(
+  style: NamedStyle<typeof DialogSlots>,
+  model: UiDialog.Model,
+  messages: DialogMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      Button.view({ label: 'Delete project', onClick: messages.onOpen, style: DangerStyle }, h),
+      h.submodel({
+        slotId: model.id,
+        model,
+        view: UiDialog.view,
+        viewInputs: {
+          hasDescription: true,
+          toView: Dialog.toView([style.mixin], { h }, dialog =>
+            h.dialog(
+              dialog.dialog,
+              dialog.isVisible
+                ? [
+                    h.div(dialog.backdrop),
+                    h.div(dialog.panel, [
+                      h.button(dialog.closeButton, ['✕']),
+                      h.h2(dialog.title, ['Delete this project?']),
+                      h.p(dialog.description, [
+                        'Its pages and their history go for good. Escape keeps it.',
+                      ]),
+                      h.div(
+                        [h.Style({ display: 'flex', gap: '0.5rem', justifyContent: 'end' })],
+                        [
+                          Button.view(
+                            { label: 'Cancel', onClick: messages.onClose, style: QuietStyle },
+                            h,
+                          ),
+                          Button.view(
+                            { label: 'Delete', onClick: messages.onClose, style: DangerStyle },
+                            h,
+                          ),
+                        ],
+                      ),
+                    ]),
+                  ]
+                : [],
+            ),
+          ),
+        },
+        toParentMessage: messages.toMessage,
+      }),
+    ],
+  )
+// #endregion
+
+// #region popover
+export const PopoverStyle = forSlots(PopoverSlots)(Recipes.Popover({}))
+
+export const popover = <Message>(
+  style: NamedStyle<typeof PopoverSlots>,
+  model: UiPopover.Model,
+  toMessage: (message: UiPopover.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: model.id,
+    model,
+    view: UiPopover.view,
+    viewInputs: {
+      // In place: a portal moves the panel out of the page that drew it.
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      toView: Popover.toView([style.mixin], { h }, popover =>
+        h.div(
+          [],
+          [
+            h.button(popover.button, ['Share']),
+            ...(popover.isVisible
+              ? [
+                  h.div(popover.backdrop, []),
+                  h.div(popover.panel, [h.p([], ['Anyone with the link can view this page.'])]),
+                ]
+              : []),
+          ],
+        ),
+      ),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region tooltip
+export const TooltipStyle = forSlots(TooltipSlots)(Recipes.Tooltip({}))
+
+export const tooltip = <Message>(
+  style: NamedStyle<typeof TooltipSlots>,
+  model: UiTooltip.Model,
+  toMessage: (message: UiTooltip.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: model.id,
+    model,
+    view: UiTooltip.view,
+    viewInputs: {
+      anchor: { placement: 'top', gap: 6, padding: 8, portal: false },
+      toView: Tooltip.toView([style.mixin], { h }, ({ trigger, panel, isVisible }) =>
+        h.div(
+          [],
+          [
+            h.button(trigger, ['Autosave']),
+            ...(isVisible ? [h.span(panel, ['Saved a second after you stop typing'])] : []),
+          ],
+        ),
+      ),
+    },
+    toParentMessage: toMessage,
+  })
 // #endregion

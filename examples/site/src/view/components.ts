@@ -32,6 +32,8 @@ export const liveOf = (model: Model, h: H): Live<Message> => ({
   dismissed: model.cardDismissed,
   onDismiss: Message.DismissedCard(),
   onRestore: Message.RestoredCard(),
+  widgets: model.widgets,
+  onWidget: message => Message.GotWidget({ message }),
   h,
 })
 

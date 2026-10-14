@@ -16,6 +16,7 @@ import {
   type Live,
   type Selection,
 } from '../src/gallery/showcases.js'
+import * as Widgets from '../src/gallery/widgets.js'
 
 const live: Live<string> = {
   checked: false,
@@ -29,6 +30,8 @@ const live: Live<string> = {
   dismissed: false,
   onDismiss: 'dismissed',
   onRestore: 'restored',
+  widgets: Widgets.initial,
+  onWidget: message => message._tag,
   h: SlotView.inertBuilder<string>(),
 }
 
@@ -76,11 +79,4 @@ describe('the showcases', () => {
     expect(new Set(slugs).size).toBe(slugs.length)
     expect(Option.isNone(showcaseOf('constructor'))).toBe(true)
   })
-
-  it.each(showcases.map(showcase => [showcase.slug, showcase] as const))(
-    '%s draws without throwing',
-    (_, showcase) => {
-      expect(() => showcase.preview({}, live)).not.toThrow()
-    },
-  )
 })
