@@ -143,4 +143,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a gap click presses however far out it lands',
+    edits: [
+      {
+        file,
+        find: '            if (gapReach !== undefined && reach > gapReach) return',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an item with no layout box places the highlight at zero',
+    edits: [
+      {
+        file,
+        find: '            if (rect.width === 0 && rect.height === 0) {',
+        replace: '            if (false) {',
+      },
+    ],
+    tests,
+  },
 ]

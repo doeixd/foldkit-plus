@@ -184,7 +184,7 @@ describe('CardGroup view', () => {
       const drawn = group({ cards, columns })
       expect(drawn?.data?.foldkitMount).toEqual({
         name: 'FluidHover',
-        args: { name: CARD_HOVER, item: '[data-card-item]', axis, gapClick: true },
+        args: { name: CARD_HOVER, item: '[data-card-item]', axis, gapClick: true, gapReach: 16 },
       })
       const highlight = highlightOf(drawn)
       expect(highlight).toHaveLength(1)

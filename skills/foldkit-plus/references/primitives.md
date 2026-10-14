@@ -158,7 +158,7 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **One highlight that follows the pointer across items:** the `FluidHover({ name, item, axis, gapClick })`
   Mount writes `--fk-<name>-x/-y/-w/-h/-shown/-moving` for the item nearest the pointer (gaps included;
   `axis` `y` list, `x` strip, `xy` grid), skipping disabled items, following `:focus-visible`, ignoring touch.
-  `gapClick` presses the highlighted item's `data-fluid-press` descendant. `follows: '[data-active]'` lights the
+  `gapClick` presses the highlighted item's `data-fluid-press` descendant, within `gapReach` pixels if given. `follows: '[data-active]'` lights the
   item the keys marked while the pointer is away; `from` is the item a fresh highlight grows out of and returns to.
   The container carries `data-fluid-hover="<name>"` while it runs; style the highlight under it.
   No Message.

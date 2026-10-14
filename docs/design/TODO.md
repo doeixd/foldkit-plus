@@ -799,9 +799,12 @@ keeps what the systems plan's "What we keep" lists.
 - [ ] **Systems 6, scroll edges and bars.** `Scroll.fade` and `Scroll.divider`
   in CSS alone, then a `ScrollBars` overlay Mount, native on touch.
   [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §5
-- [ ] **Systems 7, fluid hover's remaining rules.** `gapClick.maxDistance`, no
-  zero rects (three-frame retry), tabs' chosen marker dimming, and Table rows
-  as a consumer. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §6
+- [x] **Systems 7, fluid hover's remaining rules.** `gapReach` (Card.group at
+  16px), no zero rects (a three-frame retry); the tabs' chosen marker already
+  dims while another tab is hovered. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §6
+- [ ] **Table rows under fluid hover.** A highlight cannot be a child of a
+  `tbody`, so the table needs a wrapper slot of its own to draw it behind the
+  rows, with the borders beside the lit row going transparent over 80ms.
 - [ ] **Systems 8, component craft.** Button press and timing, icon stroke,
   merged selection runs in CSS, Checkbox, Radio, Switch, popup, Tooltip,
   Dialog and Badge values, each folded into that component's next brief.

@@ -66,7 +66,11 @@ const isDisabled = (item: Element) =>
  * to its scroll box like `Measure`'s, and `-shown` and `-moving` (see
  * `fluidHovered`); a view draws the highlight as an absolutely placed child
  * that reads them. With `gapClick`, a click in a gap presses the highlighted
- * item: its descendant marked `data-fluid-press`, or the item itself.
+ * item: its descendant marked `data-fluid-press`, or the item itself; with
+ * `gapReach` too, only a click within that many pixels of it, as a grid of
+ * cards with wide gutters wants (Fluid Functionalism's uses 16). A popup
+ * measured before it has a layout box keeps its last complete place, and
+ * tries again for three frames, rather than drawing the highlight at zero.
  *
  * `follows` names the item the highlight sits on while the pointer is not
  * moving it: a menu marks the row its keys reach (`[data-active]`), and the
@@ -85,12 +89,14 @@ export const FluidHover = Mount.defineStream('FluidHover', {
     item: Schema.String,
     axis: Axis,
     gapClick: Schema.Boolean,
+    /** How far from the highlighted item, in pixels, a click in a gap still presses it. */
+    gapReach: Schema.optional(Schema.Number),
     /** The selector of the item the highlight sits on while the pointer is not moving it. */
     follows: Schema.optional(Schema.String),
     /** The selector of the item a fresh highlight grows out of. */
     from: Schema.optional(Schema.String),
   },
-  execute: ({ element, name, item: selector, axis, gapClick, follows, from }) =>
+  execute: ({ element, name, item: selector, axis, gapClick, gapReach, follows, from }) =>
     Stream.callback<never>(() =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -102,10 +108,20 @@ export const FluidHover = Mount.defineStream('FluidHover', {
           let frame: number | undefined
 
           const origin = () => (from === undefined ? null : container.querySelector(from))
+          let retries = 0
           const place = (at: Element | null = active) => {
             if (at === null) return
             const box = container.getBoundingClientRect()
             const rect = at.getBoundingClientRect()
+            // No layout box yet (a popup still opening): keep the last place and look again.
+            if (rect.width === 0 && rect.height === 0) {
+              if (retries < 3) {
+                retries += 1
+                requestAnimationFrame(() => place(at))
+              }
+              return
+            }
+            retries = 0
             const x = rect.left - box.left - container.clientLeft + container.scrollLeft
             const y = rect.top - box.top - container.clientTop + container.scrollTop
             container.style.setProperty(property.x, `${x}px`)
@@ -190,6 +206,13 @@ export const FluidHover = Mount.defineStream('FluidHover', {
             if (container.style.getPropertyValue(property.shown) !== '1') return
             const target = event.target
             if (!(target instanceof Element) || target.closest(selector) !== null) return
+            const reach = distance(
+              active.getBoundingClientRect(),
+              event.clientX,
+              event.clientY,
+              'xy',
+            )
+            if (gapReach !== undefined && reach > gapReach) return
             const press = active.querySelector(`[${FLUID_PRESS_ATTRIBUTE}]`) ?? active
             if (press instanceof HTMLElement) press.click()
           }

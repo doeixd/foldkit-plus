@@ -247,6 +247,8 @@ export const group = <Message>(options: CardGroupView<Message>, h: HtmlBuilder<M
                 item: '[data-card-item]',
                 axis: columns > 1 ? 'xy' : 'y',
                 gapClick: true,
+                // A grid's gutters are wide: a click far out in one presses nothing.
+                gapReach: 16,
               }),
             ),
           ]

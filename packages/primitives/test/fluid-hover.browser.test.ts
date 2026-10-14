@@ -27,6 +27,7 @@ const mount = async (
     follows?: string
     from?: string
     chosen?: number
+    gapReach?: number
   } = {},
 ) => {
   const columns = options.columns ?? 1
@@ -55,6 +56,7 @@ const mount = async (
         item: '[data-item]',
         axis: options.axis ?? 'y',
         gapClick: true,
+        ...(options.gapReach === undefined ? {} : { gapReach: options.gapReach }),
         ...(options.follows === undefined ? {} : { follows: options.follows }),
         ...(options.from === undefined ? {} : { from: options.from }),
       }).f(container, liveViewStateChanges),
@@ -211,6 +213,48 @@ it('presses the highlighted item from a gap, and nothing from the item itself', 
     // A click on an item, beside its control, is the item's own: no press.
     hover.items[2]!.click()
     expect(hover.presses).toEqual([2, 2])
+  } finally {
+    await hover.stop()
+  }
+})
+
+it('presses from a gap only within its reach of the highlighted item', async () => {
+  const hover = await mount({ gapReach: 16 })
+  try {
+    // A click in the container at (x, y), where a real click lands.
+    const click = (x: number, y: number) => {
+      const box = hover.container.getBoundingClientRect()
+      hover.container.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: box.left + x, clientY: box.top + y }),
+      )
+    }
+    hover.point(50, 125)
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(2))
+    // Item 2 spans 130 to 170 down: 5px above it is in reach, beside it 40px out is not.
+    click(50, 125)
+    expect(hover.presses).toEqual([2])
+    click(150, 150)
+    expect(hover.presses).toEqual([2])
+  } finally {
+    await hover.stop()
+  }
+})
+
+it('keeps its last place while the item has no layout box, and takes the box once it has one', async () => {
+  const hover = await mount()
+  try {
+    hover.point(50, 30)
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(0))
+    const placed = [hover.read('x'), hover.read('y'), hover.read('w'), hover.read('h')]
+    // The item collapses, as a popup's rows do before it lays out, and is placed again.
+    hover.items[0]!.style.display = 'none'
+    window.dispatchEvent(new Event('resize'))
+    await frame()
+    await frame()
+    expect([hover.read('x'), hover.read('y'), hover.read('w'), hover.read('h')]).toEqual(placed)
+    hover.items[0]!.style.display = ''
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(0))
+    expect(hover.read('w')).toBe('100px')
   } finally {
     await hover.stop()
   }

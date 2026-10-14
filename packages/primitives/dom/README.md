@@ -16,7 +16,7 @@ wraps.
 | `InputMask({ pattern })` | Mount | `Input { value, raw }` | `#`, `A`, `*` placeholders |
 | `KeepInView({ selector })` | Mount | nothing | |
 | `Measure({ targets })` | Mount | nothing; writes custom properties | |
-| `FluidHover({ name, item, axis, gapClick, follows?, from? })` | Mount | nothing; writes custom properties | `axis`: `x`, `y`, `xy` |
+| `FluidHover({ name, item, axis, gapClick, gapReach?, follows?, from? })` | Mount | nothing; writes custom properties | `axis`: `x`, `y`, `xy` |
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
@@ -137,7 +137,9 @@ scroll box like `Measure`'s), `--fk-hover-shown` (`1` or `0`) and
 movement's duration scaled by it puts the highlight on its item rather than
 sliding it in); `fluidHovered('hover')` names them. With `gapClick`, a click in
 a gap presses the highlighted item: its descendant marked `data-fluid-press`
-(`FLUID_PRESS_ATTRIBUTE`), or the item. Like `Measure`, it sends no Message.
+(`FLUID_PRESS_ATTRIBUTE`), or the item; `gapReach: 16` limits that to a click
+within 16px of it, as a grid of cards with wide gutters wants. Like `Measure`,
+it sends no Message.
 
 `follows` names the item the highlight sits on while the pointer is not
 moving it: a menu marks the row its keys reach with `data-active`, so
@@ -150,7 +152,16 @@ the same element. While it runs, the container carries `data-fluid-hover`
 (`FLUID_HOVER_ATTRIBUTE`) set to the name, so a stylist draws the highlight,
 and drops each item's own hover, only where it really follows the pointer:
 before a page hydrates, the items keep theirs.
-Where there is no layout (jsdom), it starts and highlights nothing.
+Where there is no layout (jsdom), it starts and highlights nothing; an item
+with no layout box yet (a popup still opening) keeps the highlight's last
+place, and is measured again for three frames, rather than drawing it at zero.
+
+Give only what a click reaches a highlight: lighting an item that does
+nothing promises a press with nowhere to land, so a card group joins only its
+pressable cards. Fluid Functionalism's list of when to leave it off holds
+here too: where a wrong click would hurt, where only some items are
+clickable, where items stand in a lot of empty space, and where rows move as
+the page scrolls.
 
 **`InputMask({ pattern })`** masks a field against `#` (digit), `A`
 (letter), and `*` (either) placeholders with literal separators, rewrites the

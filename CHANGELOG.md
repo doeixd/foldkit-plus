@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-primitives/dom`: `FluidHover`'s `gapReach`,** the farthest a
+  click in a gap may land from the highlighted item and still press it;
+  `Card.group` uses 16px, after Fluid Functionalism's card grid. An item with
+  no layout box yet keeps the highlight's last place and is measured again
+  for three frames, rather than drawing the highlight at zero.
 - **`foldkit-richtext`: `InsertBlock` and `DeleteBlock`.** `InsertBlock` puts a
   block beside another under fresh identities (without a place, beside the
   caret's block); `DeleteBlock` deletes one with any container it empties and
