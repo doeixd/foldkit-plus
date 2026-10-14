@@ -107,6 +107,17 @@ export default [
     tests,
   },
   {
+    name: 'a heading jumped to keeps the old caret',
+    edits: [
+      {
+        file,
+        find: 'const placed = edit(closed(model), EditorMessage.Selected({ selection: caret }))',
+        replace: 'const placed = { model: closed(model) }',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'find opens empty over a selection',
     edits: [
       {

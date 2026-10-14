@@ -309,6 +309,17 @@ describe('find and replace', () => {
   })
 })
 
+describe('the contents', () => {
+  it('jump to a heading: the caret at its start, and the editor focused there', () => {
+    const initial = start()
+    const index = kinds(initial).lastIndexOf('Heading')
+    const heading = top(initial)[index]!
+    const jumped = update(initial, Message.JumpedToHeading({ node: heading.id }))
+    expect(jumped.model.editor.selection).toEqual(caret(runAt(initial, index)))
+    expect(jumped.commands?.map(command => command.name)).toContain('RichText.focus')
+  })
+})
+
 describe('menus', () => {
   it('one at a time, read as what is open', () => {
     const initial = start()

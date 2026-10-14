@@ -17,6 +17,7 @@ import {
   slashMenu,
   slashMenuView,
   slashMove,
+  tableOfContents,
   tableToolbar,
 } from 'foldkit-mixins-richtext'
 import { richtextDemo } from 'foldkit-example-site/demos'
@@ -47,6 +48,7 @@ import {
   Page,
   SlashMenuStyle,
   StatusStyle,
+  TableOfContentsStyle,
   TableToolbarStyle,
 } from './style.js'
 import { Blocks, IMAGE_TYPES, LANGUAGES, playgroundSlashEntries } from './vocabulary.js'
@@ -66,6 +68,7 @@ const BlockStyles = blockStyles<Message>().pipe(Style.attach(BlockStyleStyle))
 const Status = editorStatus<Message>().pipe(Style.attach(StatusStyle))
 const TableTools = tableToolbar<Message>().pipe(Style.attach(TableToolbarStyle))
 const CodeTools = codeToolbar<Message>().pipe(Style.attach(CodeToolbarStyle))
+const Contents = tableOfContents<Message>().pipe(Style.attach(TableOfContentsStyle))
 const FindBar = findReplace<Message>().pipe(Style.attach(FindReplaceStyle))
 const DemoGuide = demoGuide<Message>()
 
@@ -719,12 +722,31 @@ const discussions = (model: Model, slots: Slots, h: H): Html => {
         ),
       ]
     : []
-  return h.aside(slots.sidebar.attrs([h.AriaLabel('Discussions')]), [
-    h.h2(slots.sidebarTitle.attrs(), [`Discussions · ${threads.length}`]),
-    ...composer,
-    ...(threads.length === 0 && !model.composing
-      ? [h.p(slots.empty.attrs(), ['Select some text and press 💬 to start one.'])]
-      : threads.map(card)),
+  const contents =
+    RichText.outlineOf(model.document).length === 0
+      ? []
+      : [
+          h.section(slots.panel.attrs([h.AriaLabel('Contents')]), [
+            h.h2(slots.sidebarTitle.attrs(), ['Contents']),
+            Contents(
+              {
+                document: model.document,
+                selection: model.editor.selection,
+                chosen: node => Message.JumpedToHeading({ node }),
+              },
+              h,
+            ),
+          ]),
+        ]
+  return h.aside(slots.sidebar.attrs(), [
+    ...contents,
+    h.section(slots.panel.attrs([h.AriaLabel('Discussions')]), [
+      h.h2(slots.sidebarTitle.attrs(), [`Discussions · ${threads.length}`]),
+      ...composer,
+      ...(threads.length === 0 && !model.composing
+        ? [h.p(slots.empty.attrs(), ['Select some text and press 💬 to start one.'])]
+        : threads.map(card)),
+    ]),
   ])
 }
 

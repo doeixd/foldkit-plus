@@ -131,7 +131,7 @@ test('selected text starts a discussion anchored to it', async () => {
   await page.keyboard.press('Enter')
   await expect.poll(() => page.locator('h1 [data-comment]').textContent()).toBe('little')
   await expect
-    .poll(() => page.getByRole('complementary', { name: 'Discussions' }).textContent())
+    .poll(() => page.getByRole('region', { name: 'Discussions' }).textContent())
     .toContain('Is little right?')
   expect(errors).toEqual([])
 })
@@ -336,5 +336,19 @@ test('Ctrl+F finds in the document, marks the current match, and replaces', asyn
   await expect.poll(() => all.count()).toBe(0)
   await query.press('Escape')
   await expect.poll(() => page.getByRole('search').count()).toBe(0)
+  expect(errors).toEqual([])
+})
+
+test('the contents list the headings, and one chosen takes the caret to it', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const contents = page.getByRole('navigation', { name: 'Contents' })
+  const last = contents.getByRole('button').last()
+  const name = (await last.textContent()) ?? ''
+  await last.click()
+  await page.keyboard.type('Now ')
+  const heading = page.locator('[contenteditable=true] h2', { hasText: `Now ${name}` })
+  await expect.poll(() => heading.count()).toBe(1)
+  await expect.poll(() => last.getAttribute('aria-current')).toBe('location')
   expect(errors).toEqual([])
 })

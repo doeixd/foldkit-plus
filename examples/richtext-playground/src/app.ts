@@ -20,6 +20,7 @@ import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import {
   Editor,
   EditorState,
+  focus,
   overlay,
   placeEditor,
   type EditorView,
@@ -144,6 +145,8 @@ export const Message = defineMessageUnion({
   FindCaseToggled: {},
   ClosedFind: {},
   CompletedFocusFind: {},
+  /** A heading chosen from the contents: the caret goes to its start, and the editor's focus. */
+  JumpedToHeading: { node: RichText.NodeId },
   Reset: {},
 })
 export type Message = typeof Message.Type
@@ -740,5 +743,18 @@ const step = (model: Model, message: Message): Return =>
     }),
     ClosedFind: () => ({ model: modifyFields(model, { find: () => Option.none() }) }),
     CompletedFocusFind: () => ({ model }),
+    JumpedToHeading: ({ node }) => {
+      const block = blockOf(model, node)
+      const caret = block === undefined ? undefined : caretAtStart(block)
+      if (caret === undefined) return { model }
+      const placed = edit(closed(model), EditorMessage.Selected({ selection: caret }))
+      return {
+        ...placed,
+        commands: [
+          ...(placed.commands ?? []),
+          Command.mapMessage(focus(hostId, caret), message => Message.GotEditor({ message })),
+        ],
+      }
+    },
     Reset: () => init(),
   })

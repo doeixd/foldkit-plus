@@ -14,6 +14,7 @@ import {
   CodeToolbarSlots,
   EditorStatusSlots,
   FindReplaceSlots,
+  TableOfContentsSlots,
   LinkEditorSlots,
   SlashMenuSlots,
   TableToolbarSlots,
@@ -464,7 +465,7 @@ export const Page = A.slots({
     Style.self({
       display: 'grid',
       alignContent: 'start',
-      gap: t.space.sm,
+      gap: t.space.lg,
       padding: t.space.md,
       borderBlockStart: `1px solid ${t.outline.subtle}`,
       background: t.surface.subtle,
@@ -474,6 +475,7 @@ export const Page = A.slots({
       borderInlineStart: `1px solid ${t.outline.subtle}`,
     }),
   ),
+  panel: Style.self({ display: 'grid', alignContent: 'start', gap: t.space.sm }),
   sidebarTitle: Style.self({ margin: '0', fontSize: t.size.sm, fontWeight: t.weight.semibold }),
   empty: Style.self({ margin: '0', color: t.text.muted, fontSize: t.size.sm }),
   card: Style.compose(
@@ -601,5 +603,32 @@ export const FindReplaceStyle = A.forSlots(FindReplaceSlots)({
   button: Style.compose(
     control,
     Style.self({ fontSize: t.size.xs, minBlockSize: '1.75rem', whiteSpace: 'nowrap' }),
+  ),
+})
+
+export const TableOfContentsStyle = A.forSlots(TableOfContentsSlots)({
+  list: Style.self({ display: 'grid', margin: '0', padding: '0', listStyle: 'none' }),
+  entry: Style.compose(
+    Style.self({
+      display: 'block',
+      inlineSize: '100%',
+      padding: `${t.space['2xs']} ${t.space.xs}`,
+      // Each level below the shallowest one used steps in.
+      paddingInlineStart: `calc(${t.space.xs} + (var(--fk-toc-level, 1) - 1) * ${t.space.md})`,
+      border: '0',
+      borderInlineStart: '2px solid transparent',
+      background: 'none',
+      color: t.text.muted,
+      font: 'inherit',
+      fontSize: t.size.sm,
+      textAlign: 'start',
+      cursor: 'pointer',
+    }),
+    Style.pseudo(':hover', { color: t.text.default }),
+    Style.pseudo('[aria-current="location"]', {
+      color: t.accent.ink,
+      borderInlineStartColor: t.accent.default,
+      fontWeight: t.weight.semibold,
+    }),
   ),
 })
