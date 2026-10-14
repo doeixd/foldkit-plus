@@ -147,6 +147,5 @@ browser the URL store writes nothing, so a server render is safe.
 [`examples/todo-app`](../examples/todo-app) keeps the filter in the URL
 (`/?filter=active`, linkable and read back on navigation) and the composer's
 draft in Web Storage; `pnpm demo` prints both in section 12 of the transcript,
-and `test/runtime.test.ts` round-trips the URL. The design note is
-[`docs/design/MIRROR.md`](./design/MIRROR.md), and the
+and `test/runtime.test.ts` round-trips the URL. The
 [package README](../packages/mirror) documents the API.

@@ -380,7 +380,7 @@ RichText.validate(document, ArticleKit)
 ```
 
 `children` defaults to `RichText.textContent`, so a node holds runs; `blockContent`
-says it holds nested blocks (§116). `RichText.block(name)` declares one of the
+says it holds nested blocks. `RichText.block(name)` declares one of the
 built-in blocks and `RichText.atom(name)` declares a kind holding nothing, so an
 atom is exactly an application node with no content. `validate` walks nested blocks
 and reports `MismatchedDefinition` when a declaration and the document disagree
@@ -394,7 +394,7 @@ clipboard slices, history, and the interpreters all work on it unchanged — a
 split keeps its kind and props on both halves. `data-node="Kind"` is the default
 rendering in HTML and in the view until a Kit renderer replaces it.
 
-A node block may also accept **nested blocks** in `blocks` (§116), which is how a
+A node block may also accept **nested blocks** in `blocks`, which is how a
 List holds ListItems. The HTML serializer renders them inside the node's element
 and `toText` gives one line per text block; the read-only view and the editable
 adapter do the same, so a list keeps its items in every interpreter. HTML import
@@ -515,8 +515,7 @@ asserted.
 
 ## Migrations
 
-Migrations move semantic data forward when a deployment changes its vocabulary
-(§73) — a preserved node that is now implemented, a prop renamed, a kind
+Migrations move semantic data forward when a deployment changes its vocabulary — a preserved node that is now implemented, a prop renamed, a kind
 replaced:
 
 ```ts
@@ -576,7 +575,7 @@ framework-free. Nothing parses HTML back into authority without that walk.
 
 Three interpreters need to know which element a declared mark or node kind
 produces — this serializer, the read-only view, and the editable DOM interpreter —
-and they must not answer that three different ways (design §121). `rendering(...)`
+and they must not answer that three different ways. `rendering(...)`
 is that answer: a vocabulary built *over* a Kit, never inside one, holding per-name
 entries that are either fixed data or a function of the mark or block.
 
@@ -618,7 +617,7 @@ interpreter share this one answer.
 ## Decorations
 
 A decoration is derived, ephemeral presentation over a document range — a search match, a
-lint warning, a remote cursor, a syntax token — and never document content (§64):
+lint warning, a remote cursor, a syntax token — and never document content:
 
 ```ts
 const matches: RichText.DecorationSet = [{ from: at(0), to: at(7), kind: 'search' }]
@@ -649,7 +648,7 @@ token. The registry is a `Map` keyed by language, and a block whose language not
 registered for yields nothing. A token outside its block's text, covering nothing, or at a
 fractional offset throws, naming the language: a tokenizer's bug should not become a
 highlight over the wrong text. The grammars themselves are not here — they are
-format-specific, and belong to `foldkit-richtext-code` (§130).
+format-specific, and belong to `foldkit-richtext-code`.
 
 ```ts
 const numbers: RichText.CodeTokenizer = text =>
@@ -907,7 +906,7 @@ text is added after them; block identities are stable for a block's whole life.
 - Empty documents, empty blocks, and empty text runs are valid. No normalization
   creates nodes or merges text runs yet.
 - A `Node` block may carry nested blocks in `blocks`, and its presence is what
-  says the kind accepts them (§116): a List holds ListItems, a Quote paragraphs.
+  says the kind accepts them: a List holds ListItems, a Quote paragraphs.
   Nested content decodes, round-trips byte-equal, is counted by `inspect` and the
   decode limits, survives a deploy that lost its kind, and a selection or
   reference inside it resolves. Commands reach a run wherever it sits, so typing,
@@ -1027,5 +1026,3 @@ so a container is checked again whenever anything inside it changes, and indexes
 text runs. Edits copy the affected arrays and preserve untouched nodes. The
 performance section records the measured cases, the collaborative path included
 (`bench/replicated.bench.ts`).
-
-See the [design and phase status](../../docs/design/richtext-DESIGN.md#101-phase-1--pure-semantics-and-integration-feasibility).

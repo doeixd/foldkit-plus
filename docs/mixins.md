@@ -344,4 +344,3 @@ Use the examples in increasing order of scope:
 - [`foldkit-mixins`](../packages/mixins) — Slots, resolver, Style, Behavior, Theme and A11y.
 - [`foldkit-mixins-ui`](../packages/mixins-ui) — `@foldkit/ui` adapters.
 - [`foldkit-mixins-surface`](../packages/mixins-surface) — Surface → SlotView bridge.
-- [`docs/design/mixins-DESIGN.md`](./design/mixins-DESIGN.md) — substrate probes and implementation decisions.

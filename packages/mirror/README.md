@@ -774,8 +774,6 @@ this kernel.
 
 - [Mirrored state](../../docs/mirror.md) — the conceptual guide and package
   choice rules.
-- [Mirror design note](../../docs/design/MIRROR.md) — why mirroring is
-  observation rather than ownership.
 - [`foldkit-sync`](../sync) — state that must survive offline and converge.
 - [`foldkit-remote`](../remote) — a cache of facts owned by the server.
 - [`examples/todo-app`](../../examples/todo-app) — a linkable filter and a

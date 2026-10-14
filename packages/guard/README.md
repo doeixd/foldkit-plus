@@ -1,8 +1,7 @@
 # foldkit-guard
 
 Who may do what, declared once on a Foldkit Plus domain, and enforced on every
-path a row is read or written by. [`guard-DESIGN.md`](../../docs/design/guard-DESIGN.md)
-explains the design and why.
+path a row is read or written by.
 
 ## What it is
 

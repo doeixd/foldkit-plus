@@ -576,9 +576,6 @@ application already handles, which `update` (normally via `modifyFields`) reduce
 There is no agent-side Model write, so nothing the agent does can bypass
 transition semantics or diverge from what replay shows.
 
-The [design rationale](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/agent-DESIGN.md) records the
-alternatives that were considered and rejected.
-
 ## See also
 
 - [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) — what an agent may see and

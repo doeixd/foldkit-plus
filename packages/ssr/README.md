@@ -857,8 +857,6 @@ const Message = defineMessageUnion({
 
 ## See also
 
-- [The implementation plan](../../docs/design/ssr-PLAN.md): the decisions and
-  why, phase by phase.
 - [What the tests prove](./test/README.md).
 - [What this package asks of Foldkit](../../docs/upstream-foldkit-ssr.md).
 - [Site, Remote and SSR together](../../docs/site-remote-ssr.md): a routed

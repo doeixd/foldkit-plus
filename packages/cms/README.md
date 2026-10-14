@@ -316,7 +316,7 @@ with its transcript pinned by a test.
 
 - A revision list is a `Crud.list` you declare over `Cms.Entities.Revision`.
 - Preview is for the author, in their own session. A link someone else can open
-  is an audience, and is [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).
+  is an audience, and is not built yet.
 - The editor has no view of its own: render the form with `foldkit-mixins-form`,
   and the status and buttons yourself.
 - An address is checked while typing by `Cms.addressFree('posts')`, added with
@@ -325,4 +325,4 @@ with its transcript pinned by a test.
   the same key. Put a unique index on the column.
 - One working draft per entry, not one per author.
 - Media, rich text, localization, and review states beyond "who may publish" are
-  [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).
+  not built yet.

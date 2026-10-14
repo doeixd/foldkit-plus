@@ -8,8 +8,7 @@ integration (plus any bundle placements) and derives the runtime config —
 contracts — from that single list, checking it as it goes.
 
 This guide explains the idea and how it compares to the neighboring
-abstractions. For the rationale and history, see
-[wiring-DESIGN.md](./design/wiring-DESIGN.md). For the per-package calls, see
+abstractions. For the per-package calls, see
 the `foldkit-remote`, `foldkit-mirror`, `foldkit-sync`, and `foldkit-agent`
 READMEs and skill references.
 

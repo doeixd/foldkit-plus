@@ -161,5 +161,3 @@ refused this one write.
   [`foldkit-guard`](../packages/guard/README.md), each in full.
 - [`examples/auth`](../examples/auth): sign-in, `Me`, guarded notes, a page
   `Site.access` sends a visitor away from, and a Sync board, end to end.
-- [auth-DESIGN.md](./design/auth-DESIGN.md) and
-  [guard-DESIGN.md](./design/guard-DESIGN.md): the reasoning.

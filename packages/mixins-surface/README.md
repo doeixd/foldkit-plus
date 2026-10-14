@@ -187,9 +187,7 @@ direct named export if you prefer that to the `SurfaceView` namespace.
 ## Status
 
 The API is still settling in the `0.x` series. This is deliberately a small
-bridge rather than a second view system; changes should keep it that way. See
-[the design note](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md)
-for the underlying Mixins decisions.
+bridge rather than a second view system; changes should keep it that way.
 
 ## See also
 

@@ -6,8 +6,7 @@ The Document is stored like any other field, checked against a Catalog, and
 changed by the application's own transitions. This package performs no I/O,
 holds no state and draws nothing.
 
-> **Status:** experimental, `0.1.0`, on npm from the 0.16.0 release. From the
-> [page builder design](../../docs/design/pagebuilder-DESIGN.md): the
+> **Status:** experimental, `0.1.0`, on npm from the 0.16.0 release. It holds the
 > vocabulary, the stored Document, its validation, editing Operations,
 > migrations, drawing a page with Foldkit, on the server too, and appearance.
 > The editor is [`foldkit-builder`](../builder/README.md), drawn by
