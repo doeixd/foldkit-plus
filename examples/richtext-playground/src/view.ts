@@ -349,7 +349,7 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
   const props = block?.type === 'Node' ? block.props : {}
   const set = (changed: Readonly<Record<string, string | number | boolean>>) =>
     wrap(EditorMessage.ChangedProps({ node, props: changed }))
-  const siblings = siblingsOf(model.document, node)
+  const siblings = RichText.siblingsOf(model.document, node)
   const kind = block === undefined ? undefined : block.type === 'Node' ? block.kind : block.type
   const ofKind = (() => {
     switch (kind) {
@@ -455,13 +455,16 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
       : [
           item(
             'Move up',
-            wrap(EditorMessage.MovedBlock({ node, to: { before: siblings.previous } })),
+            wrap(EditorMessage.MovedBlock({ node, to: { before: siblings.previous.id } })),
           ),
         ]),
     ...(siblings.next === undefined
       ? []
       : [
-          item('Move down', wrap(EditorMessage.MovedBlock({ node, to: { after: siblings.next } }))),
+          item(
+            'Move down',
+            wrap(EditorMessage.MovedBlock({ node, to: { after: siblings.next.id } })),
+          ),
         ]),
     item('Duplicate', Message.DuplicatedBlock({ node })),
     item('Delete', wrap(EditorMessage.DeletedBlock({ node }))),
@@ -489,16 +492,6 @@ const CaptionEditor = (model: Model, node: RichText.NodeId, slots: Slots, h: H):
       ]),
     ]),
   ])
-
-const siblingsOf = (document: RichText.Document, node: RichText.NodeId) => {
-  const found = RichText.locateBlock(document, node)
-  if (found === undefined) return {}
-  const index = found.path[found.path.length - 1]!
-  const container = found.path.slice(0, -1)
-  const parent = container.length === 0 ? undefined : RichText.blockAtPath(document, container)
-  const blocks = parent?.type === 'Node' ? (parent.blocks ?? []) : document.children
-  return { previous: blocks[index - 1]?.id, next: blocks[index + 1]?.id }
-}
 
 /**
  * The handle beside the hovered block: a grip that drags it wherever the vocabulary lets it go,

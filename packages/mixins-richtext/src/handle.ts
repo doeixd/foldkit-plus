@@ -32,17 +32,6 @@ export interface BlockHandleInput<Message> {
   readonly wrap: (message: EditorEvent) => Message
 }
 
-/** The blocks either side of a block in its own container. */
-const siblingsOf = (document: RichText.Document, node: RichText.NodeId) => {
-  const found = RichText.locateBlock(document, node)
-  if (found === undefined) return {}
-  const container = found.path.slice(0, -1)
-  const parent = container.length === 0 ? undefined : RichText.blockAtPath(document, container)
-  const blocks = parent?.type === 'Node' ? (parent.blocks ?? []) : document.children
-  const index = found.path[found.path.length - 1]!
-  return { previous: blocks[index - 1], next: blocks[index + 1] }
-}
-
 /** The drag Mount lifted into the caller's Messages, as the grip carries it. */
 export const dragMount = <Message>(
   hostId: string,
@@ -62,7 +51,7 @@ export const blockHandle = <Message>(): SlotView.SlotView<
   Message
 > =>
   SlotView.forMessages<Message>().define(BlockHandleSlots, (input, slots, h): Html => {
-    const { previous, next } = siblingsOf(input.document, input.node)
+    const { previous, next } = RichText.siblingsOf(input.document, input.node)
     const move = (to: RichText.Beside) =>
       input.wrap(EditorMessage.MovedBlock({ node: input.node, to }))
     return h.div(slots.root.attrs([h.Role('group'), h.AriaLabel('Block')]), [

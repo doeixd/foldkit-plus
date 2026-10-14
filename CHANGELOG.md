@@ -23,7 +23,7 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-richtext`: `ClearMark` takes a mark value**, clearing only the
   runs carrying exactly it, so one discussion's highlight goes without
   another's inside it; the editor's `ClearedMark` carries either. `eachBlock`
-  is exported, for an application walking its document.
+  and `siblingsOf` are exported, for an application walking its document.
 - **`foldkit-richtext-dom`: `selectionAnchor({ caret: true })`** follows a
   caret too, opening under it, which is where a slash menu goes.
 - **`foldkit-richtext-dom`: `editorAt(hostId, { slashEntries })`**, the slash

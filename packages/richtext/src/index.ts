@@ -16,6 +16,7 @@ export {
   eachBlock,
   locateBlock,
   locateRun,
+  siblingsOf,
   textBefore,
   isBlank,
   textRangeBefore,

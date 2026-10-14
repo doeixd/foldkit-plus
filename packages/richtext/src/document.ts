@@ -338,6 +338,23 @@ export const locateBlock = (
   return found
 }
 
+/**
+ * The blocks either side of a block in its own container, which a handle's up and down move it
+ * past; both absent when the document does not hold it.
+ */
+export const siblingsOf = (
+  document: Document,
+  node: NodeId,
+): { readonly previous?: Block | undefined; readonly next?: Block | undefined } => {
+  const found = locateBlock(document, node)
+  if (found === undefined) return {}
+  const index = found.path[found.path.length - 1]!
+  const container = found.path.slice(0, -1)
+  const parent = container.length === 0 ? undefined : blockAtPath(document, container)
+  const blocks = parent?.type === 'Node' ? (parent.blocks ?? []) : document.children
+  return { previous: blocks[index - 1], next: blocks[index + 1] }
+}
+
 /** The run with this identity, wherever it sits. */
 export const locateRun = (document: Document, node: NodeId): LocatedRun | undefined => {
   let found: LocatedRun | undefined

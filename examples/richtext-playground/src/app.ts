@@ -195,26 +195,35 @@ export const threadRange = (
       }
 }
 
-/** The text a discussion is about, for its card. */
-export const quoteOf = (document: RichText.Document, thread: string): string => {
-  const parts: Array<string> = []
+const quotes = new WeakMap<RichText.Document, ReadonlyMap<string, string>>()
+
+/**
+ * Each discussion the document anchors, in document order, with the text it is about. One walk
+ * per document, kept by its identity: every card and every render reads the same answer.
+ */
+const anchored = (document: RichText.Document): ReadonlyMap<string, string> => {
+  const kept = quotes.get(document)
+  if (kept !== undefined) return kept
+  const found = new Map<string, string>()
   RichText.eachBlock(document.children, block => {
-    for (const run of block.children) if (threadOf(run) === thread) parts.push(run.text)
+    for (const run of block.children) {
+      const thread = threadOf(run)
+      if (thread !== undefined) found.set(thread, (found.get(thread) ?? '') + run.text)
+    }
   })
-  return parts.join('')
+  quotes.set(document, found)
+  return found
 }
+
+/** The text a discussion is about, for its card. */
+export const quoteOf = (document: RichText.Document, thread: string): string =>
+  anchored(document).get(thread) ?? ''
 
 /** The discussions whose text is still in the document, in document order. */
 export const openThreads = (model: Model): ReadonlyArray<Thread> => {
-  const order: Array<string> = []
-  RichText.eachBlock(model.document.children, block => {
-    for (const run of block.children) {
-      const thread = threadOf(run)
-      if (thread !== undefined && !order.includes(thread)) order.push(thread)
-    }
-  })
-  return order.flatMap(id => {
-    const thread = model.threads.find(candidate => candidate.id === id)
+  const byId = new Map(model.threads.map(thread => [thread.id, thread]))
+  return [...anchored(model.document).keys()].flatMap(id => {
+    const thread = byId.get(id)
     return thread === undefined ? [] : [thread]
   })
 }
@@ -253,8 +262,22 @@ const caretAtStart = (block: RichText.Block): RichText.Selection | undefined => 
 
 // --- the editor ----------------------------------------------------------------------------
 
+/** Every field of the editor's state; the check below fails to compile when one is missing. */
+const editorFields = [
+  'selection',
+  'nextId',
+  'history',
+  'storedMarks',
+  'menuIndex',
+  'hostId',
+] as const satisfies ReadonlyArray<keyof EditorState>
+const everyField: [Exclude<keyof EditorState, (typeof editorFields)[number]>] extends [never]
+  ? true
+  : never = true
+void everyField
+
 const sameEditor = (left: EditorState, right: EditorState): boolean =>
-  (Object.keys(left) as Array<keyof EditorState>).every(key => left[key] === right[key])
+  editorFields.every(key => left[key] === right[key])
 
 /**
  * One editor Message through the editor's `update`: the document it commits and the
