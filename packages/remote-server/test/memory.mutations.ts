@@ -44,4 +44,21 @@ export default [
     edits: [{ file: '../src/index.ts', find: "['shared', shared],", replace: '' }],
     tests: ['packages/remote-server/test/declared-fields.test.ts'],
   },
+  {
+    name: 'sources beside the rows are left out of the server',
+    edits: [
+      { file, find: 'entities: [...entities, ...(config.entities ?? [])],', replace: 'entities,' },
+    ],
+    tests,
+  },
+  {
+    name: 'a source for a declared entity is taken over its rows',
+    edits: [{ file, find: '    if (declared.has(source.entity))\n', replace: '    if (false)\n' }],
+    tests,
+  },
+  {
+    name: 'a second source for one entity silently wins',
+    edits: [{ file, find: '    if (extra.has(source.entity))\n', replace: '    if (false)\n' }],
+    tests,
+  },
 ]

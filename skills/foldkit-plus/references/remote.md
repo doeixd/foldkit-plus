@@ -596,6 +596,8 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // authorize: { Project: (principal: Principal, fields) => ... } plus principal: the layer's.
 // filter: { Project: (principal, fields) => Effect<{ fields, apply }> } decides per record;
 // readable: principal => Effect<(entity, row) => boolean> hides rows from reads, queries and refs.
+// entities: [MeSource] serves an entity no row backs (not in the rows' domain) beside the rows.
+// No principal: no layer, only .server, answered per request through serveFetch or handlers.
 // across a process boundary: RemoteRpc.toLayer(handlers) + your Effect RPC transport
 ```
 

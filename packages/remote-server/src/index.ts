@@ -848,24 +848,38 @@ export interface MemoryStore {
   readonly remove: (entity: string, id: string) => void
 }
 
-export interface MemoryBackend<P = undefined> extends MemoryStore {
+/**
+ * A memory backend made without a `principal`: its rows and the server over
+ * them, answered as whoever its caller names per request (`serveFetch`,
+ * `RemoteServer.handlers(served.server, principal)`).
+ */
+export interface MemoryServed<P> extends MemoryStore {
+  /**
+   * The rows' server, for serving them over a real transport, or as any
+   * principal: `RemoteRpc.toLayer(RemoteServer.handlers(backend.server, principal))`.
+   */
+  readonly server: ServerDefinition<P>
+}
+
+export interface MemoryBackend<P = undefined> extends MemoryServed<P> {
   /**
    * A `RemoteClient` answering from the rows as the configured `principal`.
    * Provide it where the real one would go.
    */
   readonly layer: Layer.Layer<RemoteClient>
-  /**
-   * The server the layer answers through, for serving the rows over a real
-   * transport, or as another principal:
-   * `RemoteRpc.toLayer(RemoteServer.handlers(backend.server, principal))`.
-   */
-  readonly server: ServerDefinition<P>
 }
 
 /** What `RemoteServer.memory` is made from. See `memory`. */
 export type MemoryConfig<P> = {
   readonly domain: Pick<RemoteDescriptor, 'registry'>
   readonly rows: MemoryRows
+  /**
+   * Sources for entities the domain does not declare, which no row backs (a
+   * `Me` row answered from the principal, `GuardServer.me`), served beside
+   * the rows. One for a declared entity is refused: the rows serve it.
+   */
+  readonly entities?: ReadonlyArray<EntitySource<P>>
+  /** Sources for queries, beside the domain's: one named as a declared query answers it instead of its body. */
   readonly queries?: ReadonlyArray<QuerySource<P>>
   readonly mutations?: (store: MemoryStore) => ReadonlyArray<MutationSource<P>>
   /** Per entity name, the fields a principal may read, as `RemoteServer.entity` takes it. */
@@ -884,12 +898,12 @@ export type MemoryConfig<P> = {
     principal: P,
     row: (entity: string, id: string) => Option.Option<Readonly<Record<string, unknown>>>,
   ) => Effect.Effect<MemoryReadable, RemoteServerError>
-} & (undefined extends P
-  ? { readonly principal?: P }
-  : {
-      /** Who the `layer` answers as. */
-      readonly principal: P
-    })
+  /** Who the `layer` answers as. Without it there is no `layer`, unless `P` admits `undefined`. */
+  readonly principal?: P
+}
+
+/** What a backend needs to give a `layer`: a principal to answer as, or one `undefined` can be. */
+export type MemoryAnswering<P> = undefined extends P ? unknown : { readonly principal: P }
 
 /** Whether a stored row of `entity` may be read, given its whole stored values. */
 export type MemoryReadable = (entity: string, row: Readonly<Record<string, unknown>>) => boolean
@@ -980,10 +994,25 @@ const pageOf = <Item>(
  *
  * Every field of every row is readable unless `authorize` names the entity:
  * then its function decides, per principal, as `RemoteServer.entity`'s does.
- * The `layer` answers as `principal`; `server` answers as any. It does not
- * push live changes. It is not a server to deploy.
+ * `entities` adds Sources for entities no row backs, which the domain must not
+ * declare. The `layer` answers as `principal`, and is absent without one
+ * (unless `P` admits `undefined`); `server` answers as any. It does not push
+ * live changes. It is not a server to deploy.
  */
-const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
+function memory<P = undefined>(config: MemoryConfig<P> & MemoryAnswering<P>): MemoryBackend<P>
+function memory<P = undefined>(config: MemoryConfig<P>): MemoryServed<P>
+function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
+  const declared = config.domain.registry.entities
+  const extra = new Set<string>()
+  for (const source of config.entities ?? []) {
+    if (declared.has(source.entity))
+      throw new Error(
+        `RemoteServer.memory: "${source.entity}" is a declared entity, which the rows serve; give its rows, or leave it out of the domain and keep its source`,
+      )
+    if (extra.has(source.entity))
+      throw new Error(`RemoteServer.memory: two sources in \`entities\` serve "${source.entity}"`)
+    extra.add(source.entity)
+  }
   const authorize = config.authorize ?? {}
   const filter = config.filter ?? {}
   const shared = config.shared ?? {}
@@ -1199,15 +1228,16 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
   ]
 
   const server = RemoteServer.make<P>({
-    entities,
+    entities: [...entities, ...(config.entities ?? [])],
     queries,
     mutations: config.mutations?.(store) ?? [],
   })
   return {
     ...store,
     server,
+    // Typed only where `principal` was given or `P` admits `undefined` (the
+    // overloads): otherwise it would answer as nobody, and is not offered.
     layer: Remote.clientLayer(
-      // `principal` is required by the config's type unless `P` admits undefined.
       RemoteServer.handlers(server, config.principal as P),
     ) as Layer.Layer<RemoteClient>,
   }

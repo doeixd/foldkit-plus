@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-server`: `RemoteServer.memory` takes `entities`,** Sources
+  for entities no row backs (`foldkit-guard`'s `GuardServer.me`), served
+  beside the rows. One naming an entity the rows' domain declares, or a second
+  for the same entity, is refused when the backend is made.
+
 - **`foldkit-primitives/dom`: `FluidHover`**, a Mount that moves one highlight
   across a container's items: the item nearest the pointer, gaps included, on
   the `x`, `y` or `xy` axis, skipping disabled items and following keyboard
@@ -26,6 +31,13 @@ version changed; `pnpm` skips versions already in the registry.
   picker's panel. The design-system example uses it in place of its own.
 
 ### Changed
+
+- **`foldkit-remote-server`: `RemoteServer.memory`'s `principal` is optional
+  for every principal type.** It is only who `layer` answers as: without it,
+  and with a principal type that does not admit `undefined`, the backend is a
+  `MemoryServed` (its store and `server`, no `layer`), for serving through
+  `serveFetch` or `handlers` as each request's principal. Code that omitted it
+  for such a type used to fail to compile; it now has no `layer` to call.
 
 - **`foldkit-mixins-ui`: `Card` is pressable, selectable and dismissible.**
   `press` (`{ onClick }` or `{ href, external? }`) stretches one button or link

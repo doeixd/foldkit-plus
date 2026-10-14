@@ -62,21 +62,16 @@ export const Policy = G.implement({
 })
 
 /**
- * The notes held in memory, each read through its Read rule. `Me` is no
- * stored row, so this backend's domain leaves it out; `GuardServer.me`
- * answers it below. The layer's `principal` goes unused: `serveFetch`
- * answers through `server`, as whoever each request resolves to.
+ * The notes held in memory, each read through its Read rule, and `Me`
+ * beside them: no stored row, so this backend's domain leaves it out, and
+ * `GuardServer.me` answers it from the principal. No `principal` either:
+ * `serveFetch` answers through `server`, as whoever each request resolves to.
  */
-const stored = RemoteServer.memory({
+export const { server } = RemoteServer.memory({
   domain: Remote.define({ entities: [Note], queries: [Notes] }),
   rows: { Note: notes },
-  principal: Option.none<User>(),
+  entities: [GuardServer.me(Me, Policy)],
   ...GuardServer.memory(Policy, [Note]),
-})
-
-export const server = RemoteServer.make<Option.Option<User>>({
-  entities: [...stored.server.entities.values(), GuardServer.me(Me, Policy)],
-  queries: [...stored.server.queries.values()],
 })
 
 // A Source that skipped a Read rule would serve every note; refuse to start instead.
