@@ -75,9 +75,18 @@ sources (see "How each component is built").
      `ChildAttribute`s that the application's builder cannot draw, so a menu
      drawn through `Menu.toView` has none. Step 2 rebuilds the popups' items
      anyway; it should draw the separator whenever groups have one.
-2. **Fluid hover everywhere it belongs.** A `highlight` slot and `FluidHover` in
-   Menu, Listbox, Combobox, Tabs (the sliding indicator) and Segmented, so
-   moving across their items moves one highlight.
+2. **Fluid hover everywhere it belongs.** *Done.* Tabs, Menu, Listbox,
+   Combobox and Segmented take an opt-in `fluid` (beside the style): one
+   highlight that follows the pointer and the keys, and a chosen marker that
+   glides (Tabs, Listbox, Combobox, Segmented). `FluidHover` gained `follows`
+   and `from` and marks its container `data-fluid-hover` while it runs, which
+   the recipes read so that nothing glides, and each item marks itself, until
+   it does. `fluid` is opt-in because a Scene test resolves every Mount with a
+   Message, and these send none. The popups' Mounts run on a `rows` box of
+   this package's: the panel carries upstream's anchor, and an element holds
+   one Mount. The brief's skips (labels that only the chosen tab shows, weight
+   without reflow, menu checkbox rows and submenus, a pause after a pick)
+   stay recorded in it.
 3. **`/create` at shadcn's level.** Beside today's palette, radius, density,
    motion, shadow and font knobs:
    - a neutral hue and chroma apart from the accent's (shadcn's base colors);
