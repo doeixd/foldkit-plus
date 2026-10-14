@@ -1,8 +1,8 @@
 /**
  * Tabs drawn with their indicator and highlight, on a real runtime: the
  * indicator sits under the chosen tab and goes to a new choice, the hover
- * lands on the tab the pointer is on, and a tablist drawn without an
- * indicator still marks its chosen tab.
+ * lands on the tab the pointer is on, and until `Tabs.fluid` runs the chosen
+ * tab marks itself and the indicator shows nothing.
  */
 import { Schema } from 'effect'
 import { Tabs as UiTabs } from '@foldkit/ui'
@@ -26,7 +26,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (marked: boolean) => {
+const mount = (fluid: boolean) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -44,11 +44,12 @@ const mount = (marked: boolean) => {
         selectedValue: model.value,
         ariaLabel: 'Project',
         toView: Tabs.toView(
-          [style.mixin, ...(marked ? Tabs.fluid : [])],
+          [style.mixin, ...(fluid ? Tabs.fluid : [])],
           { h },
           ({ tablist, indicator, highlight, tabs }) =>
             h.div(tablist, [
-              ...(marked ? [h.div(indicator), h.div(highlight)] : []),
+              h.div(indicator),
+              h.div(highlight),
               ...tabs.map(tab => h.button(tab.tab, [tab.value])),
             ]),
         ),
@@ -90,8 +91,8 @@ test('the indicator sits under the chosen tab and goes to a new choice', async (
   const handle = mount(true)
   try {
     await vi.waitFor(() => expect(spans(part(0), tab('overview'))).toBe(true))
-    // The tab draws no marker of its own while the indicator is drawn.
-    expect(getComputedStyle(tab('overview')).boxShadow).toBe('none')
+    // The tab's own marker goes (it transitions) once the indicator moves.
+    await vi.waitFor(() => expect(getComputedStyle(tab('overview')).boxShadow).toBe('none'))
     await userEvent.click(tab('settings'))
     await vi.waitFor(() => expect(spans(part(0), tab('settings'))).toBe(true))
   } finally {
@@ -113,12 +114,14 @@ test('the hover lands on the tab the pointer is on', async () => {
   }
 })
 
-test('a tablist drawn without an indicator still marks its chosen tab', async () => {
+test('without Tabs.fluid the chosen tab marks itself and the indicator shows nothing', async () => {
   const handle = mount(false)
   try {
     await vi.waitFor(() => expect(tab('overview')).toBeTruthy())
     expect(getComputedStyle(tab('overview')).boxShadow).not.toBe('none')
     expect(getComputedStyle(tab('activity')).boxShadow).toBe('none')
+    expect(getComputedStyle(part(0)).display).toBe('none')
+    expect(getComputedStyle(part(1)).display).toBe('none')
   } finally {
     handle.dispose()
   }

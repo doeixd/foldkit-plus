@@ -120,4 +120,9 @@ export default [
     edits: [{ file, find: '            place(origin())\n', replace: '' }],
     tests,
   },
+  {
+    name: 'the container is not marked while the highlight runs',
+    edits: [{ file, find: 'container.setAttribute(FLUID_HOVER_ATTRIBUTE, name)', replace: '' }],
+    tests,
+  },
 ]

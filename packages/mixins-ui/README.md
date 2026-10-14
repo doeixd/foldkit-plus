@@ -585,7 +585,11 @@ Tabs.toView([TabsStyle.mixin, ...Tabs.fluid], { h }, ({ tablist, indicator, high
 
 The recipe draws the `line` variant's rule or the `pill` variant's pill on the
 indicator, which springs to a new choice, and dims the pill while another tab
-is hovered. A tablist drawn without the indicator marks its chosen tab itself.
+is hovered. Until `Tabs.fluid` runs, as before a page hydrates, the indicator
+and highlight show nothing and the chosen tab marks itself: the recipe reads
+the `data-fluid-hover` attribute FluidHover sets while it runs. (`Tabs.fluid`
+is opt-in because a Scene test resolves every Mount with a Message, and these
+send none.)
 
 `Recipes.Tabs({ variant: 'pill' })`'s chosen tab is the accent's tint and ink,
 as a pressed Segmented option is. To look at every recipe in every variant and

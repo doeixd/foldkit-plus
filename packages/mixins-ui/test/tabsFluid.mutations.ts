@@ -12,19 +12,19 @@ export default [
     edits: [
       {
         file: recipe,
-        find: 'const marked = `:where(:not(:has(> [data-tabs-indicator]))) > &${selected}`',
+        find: 'const marked = `:where(:not([data-fluid-hover])) > &${selected}`',
         replace: 'const marked = `&${selected}`',
       },
     ],
     tests,
   },
   {
-    name: 'the indicator is drawn unmarked',
+    name: 'the indicator never shows',
     edits: [
       {
-        file: adapter,
-        find: "      context.h.DataAttribute('tabs-indicator', ''),\n",
-        replace: '',
+        file: recipe,
+        find: "const fluid = ':where([data-fluid-hover]) > &'",
+        replace: "const fluid = ':where([data-never]) > &'",
       },
     ],
     tests,

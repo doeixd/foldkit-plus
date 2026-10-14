@@ -18,6 +18,13 @@ export const fluidHovered = (name: string) =>
     moving: `--fk-${name}-moving`,
   }) as const
 
+/**
+ * The attribute `FluidHover` sets on its container, to the highlight's name,
+ * while it runs: a stylist draws the highlight, and drops each item's own
+ * hover, only under it.
+ */
+export const FLUID_HOVER_ATTRIBUTE = 'data-fluid-hover'
+
 /** The attribute that names, inside an item, the control a press in a gap reaches. */
 export const FLUID_PRESS_ATTRIBUTE = 'data-fluid-press'
 
@@ -210,11 +217,13 @@ export const FluidHover = Mount.defineStream('FluidHover', {
           container.addEventListener('scroll', soon, { passive: true })
           window.addEventListener('resize', soon)
           container.style.setProperty(property.shown, '0')
+          container.setAttribute(FLUID_HOVER_ATTRIBUTE, name)
           marked()
           return () => {
             if (frame !== undefined) cancelAnimationFrame(frame)
             sizes?.disconnect()
             marks?.disconnect()
+            container.removeAttribute(FLUID_HOVER_ATTRIBUTE)
             container.removeEventListener('pointermove', move)
             container.removeEventListener('pointerleave', leave)
             container.removeEventListener('focusin', focus)

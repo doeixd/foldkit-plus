@@ -15,7 +15,7 @@ import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
  *
  * `indicator` and `highlight` have no upstream bundle: they are this
  * package's, drawn first in the tablist, for the marker under the chosen tab
- * and the hover that follows the pointer. `fluid` places both.
+ * and the hover that follows the pointer, which `fluid` moves.
  */
 export const TabsSlots = Slots.define({
   tablist: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
@@ -44,47 +44,15 @@ export interface ResolvedTabs<Value extends string, Message> {
   readonly activeIndex: number
 }
 
-/** Resolves the tabs' nested render groups, preserving `activeIndex`. */
-export const resolve = <Value extends string, Input, Message>(
-  render: RenderInfo<Value>,
-  mixins: MixinList<Message>,
-  context: ResolveContext<Input, Message>,
-): ResolvedTabs<Value, Message> => {
-  const builders = buildersOf(TabsSlots, mixins, context)
-  return {
-    tablist: builders.tablist.attrs(render.tablist),
-    indicator: builders.indicator.attrs([
-      context.h.AriaHidden(true),
-      context.h.DataAttribute('tabs-indicator', ''),
-    ]),
-    highlight: builders.highlight.attrs([context.h.AriaHidden(true)]),
-    tabs: render.tabs.map(item => ({
-      ...item,
-      tab: builders.tab.attrs(item.tab),
-      panel: builders.panel.attrs(item.panel),
-    })),
-    activeIndex: render.activeIndex,
-  }
-}
-
-/** The tabs' `toView`: `draw` receives their bundles with `mixins` applied. */
-export const toView =
-  <Value extends string, Message>(
-    mixins: MixinList<Message>,
-    context: ResolveContext<unknown, Message>,
-    draw: (resolved: ResolvedTabs<Value, Message>) => Html,
-  ) =>
-  (render: RenderInfo<Value>): Html =>
-    draw(resolve(render, mixins, context))
-
 const chosen = '[aria-selected="true"]'
 
 /**
- * What draws the `indicator` and `highlight` move: on the tablist, the chosen
- * tab is measured (`--fk-tabs-chosen-x`, `-y`, `-w`, `-h`, `-display`) and
- * one highlight follows the pointer to the nearest tab (`--fk-tabs-hover-*`),
+ * What moves the `indicator` and `highlight`: on the tablist, the chosen tab
+ * is measured (`--fk-tabs-chosen-x`, `-y`, `-w`, `-h`, `-display`) and one
+ * highlight follows the pointer to the nearest tab (`--fk-tabs-hover-*`),
  * growing out of the chosen tab and returning to it. Pass them beside the
- * style: `Tabs.toView([style.mixin, ...Tabs.fluid], { h }, draw)`.
+ * style; until they run (before a page hydrates, or without them), each tab
+ * marks itself and the drawn indicator and highlight show nothing.
  */
 export const fluid = [
   Behavior.forSlots(TabsSlots)<unknown, never>(
@@ -113,3 +81,33 @@ export const fluid = [
     { name: 'TabsHover' },
   ).mixin,
 ] as const
+
+/** Resolves the tabs' nested render groups, preserving `activeIndex`. */
+export const resolve = <Value extends string, Input, Message>(
+  render: RenderInfo<Value>,
+  mixins: MixinList<Message>,
+  context: ResolveContext<Input, Message>,
+): ResolvedTabs<Value, Message> => {
+  const builders = buildersOf(TabsSlots, mixins, context)
+  return {
+    tablist: builders.tablist.attrs(render.tablist),
+    indicator: builders.indicator.attrs([context.h.AriaHidden(true)]),
+    highlight: builders.highlight.attrs([context.h.AriaHidden(true)]),
+    tabs: render.tabs.map(item => ({
+      ...item,
+      tab: builders.tab.attrs(item.tab),
+      panel: builders.panel.attrs(item.panel),
+    })),
+    activeIndex: render.activeIndex,
+  }
+}
+
+/** The tabs' `toView`: `draw` receives their bundles with `mixins` applied. */
+export const toView =
+  <Value extends string, Message>(
+    mixins: MixinList<Message>,
+    context: ResolveContext<unknown, Message>,
+    draw: (resolved: ResolvedTabs<Value, Message>) => Html,
+  ) =>
+  (render: RenderInfo<Value>): Html =>
+    draw(resolve(render, mixins, context))

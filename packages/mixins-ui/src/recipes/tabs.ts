@@ -1,9 +1,9 @@
 /**
  * Tabs: the selected tab is `aria-selected`, which `@foldkit/ui` writes.
  * `variant` is an underline under a rule or a pill in a tray; `size` the
- * density of each tab. Drawn with its `indicator` and `highlight` (and
- * `Tabs.fluid`), the underline or pill glides to the chosen tab and a hover
- * follows the pointer; without them, the chosen tab marks itself.
+ * density of each tab. Drawn with its `indicator` and `highlight`, and given
+ * `Tabs.fluid`, the underline or pill glides to the chosen tab and a hover
+ * follows the pointer; until `Tabs.fluid` runs, the chosen tab marks itself.
  */
 import { Style } from 'foldkit-mixins'
 import { TabsSlots } from '../tabs.js'
@@ -20,8 +20,10 @@ import {
 } from './design.js'
 
 const selected = '[aria-selected="true"]'
-/** A chosen tab marks itself only where no indicator is drawn for it. */
-const marked = `:where(:not(:has(> [data-tabs-indicator]))) > &${selected}`
+/** Where `Tabs.fluid` runs; a tablist marks it while its highlight follows the pointer. */
+const fluid = ':where([data-fluid-hover]) > &'
+/** A chosen tab marks itself until `Tabs.fluid` moves the indicator. */
+const marked = `:where(:not([data-fluid-hover])) > &${selected}`
 
 const hovered = (part: 'x' | 'y' | 'w' | 'h' | 'shown' | 'moving') => `var(--fk-tabs-hover-${part})`
 const chosen = (part: 'x' | 'y' | 'w' | 'h' | 'display') =>
@@ -57,14 +59,16 @@ export const Tabs = Style.recipeFor(TabsSlots)({
     indicator: component(
       Style.self({
         ...overlay,
-        display: chosen('display'),
+        display: 'none',
         zIndex: '-1',
         ...travel('1'),
       }),
+      Style.nest(fluid, { display: chosen('display') }),
     ),
     highlight: component(
       Style.self({
         ...overlay,
+        display: 'none',
         zIndex: '-1',
         inlineSize: hovered('w'),
         blockSize: hovered('h'),
@@ -74,6 +78,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         background: unfilledHover,
         ...travel(hovered('moving')),
       }),
+      Style.nest(fluid, { display: 'block' }),
     ),
     tab: component(
       Style.self({

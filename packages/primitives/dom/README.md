@@ -146,7 +146,10 @@ highlight fades once no item is marked and neither the pointer nor focus is
 inside. `from` names the item a fresh highlight grows out of and returns to as
 it fades: `from: '[aria-selected="true"]'` makes a tab's hover leave the chosen
 tab and rejoin it. A marker on the chosen item itself is `Measure`'s job, on
-the same element.
+the same element. While it runs, the container carries `data-fluid-hover`
+(`FLUID_HOVER_ATTRIBUTE`) set to the name, so a stylist draws the highlight,
+and drops each item's own hover, only where it really follows the pointer:
+before a page hydrates, the items keep theirs.
 Where there is no layout (jsdom), it starts and highlights nothing.
 
 **`InputMask({ pattern })`** masks a field against `#` (digit), `A`

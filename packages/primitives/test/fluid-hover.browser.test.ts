@@ -91,6 +91,7 @@ const mount = async (
 it('highlights the item under the pointer, and the nearer one from a gap', async () => {
   const hover = await mount()
   try {
+    expect(hover.container.getAttribute('data-fluid-hover')).toBe('hover')
     // Item 1 spans 70..110; item 2 130..170; the gap between is 110..130.
     hover.point(50, 90)
     await vi.waitFor(() => expect(hover.highlighted()).toBe(1))

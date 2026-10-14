@@ -44,7 +44,9 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-mixins-ui`: tabs glide.** `TabsSlots` gains `indicator` and
   `highlight`, and `Tabs.fluid` measures the chosen tab and moves one hover
   to the tab nearest the pointer, born at the chosen tab; drawn, the recipe's
-  rule or pill springs to a new choice.
+  rule or pill springs to a new choice. Until it runs, each tab marks itself.
+  `FluidHover` sets `data-fluid-hover` on its container while it runs, which
+  a recipe reads to draw a highlight in place of each item's own hover.
 - **`foldkit-mixins-ui`: `Item`'s `content` is optional**, for a row its
   title and description say all of, such as a notification.
 
