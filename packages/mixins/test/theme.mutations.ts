@@ -157,4 +157,26 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
+  {
+    name: 'a neutral hue given is ignored',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "knobs.neutral === undefined ? v('hue', 'accent') : String(knobs.neutral.h)",
+        replace: "v('hue', 'accent')",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'the neutrals keep the accent hue they started with',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "knobs.neutral === undefined ? v('hue', 'accent') : String(knobs.neutral.h)",
+        replace: 'String(knobs.neutral?.h ?? knobs.accent.h)',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
 ]

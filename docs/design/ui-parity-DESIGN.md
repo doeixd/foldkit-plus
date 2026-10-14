@@ -275,6 +275,27 @@ Per component:
 | Combobox: first row lit on open, keys loop through the field | Fluid, APG | upstream combobox | as upstream does |
 | Segmented: one pressed option, a sliding pill | Fluid Tabs (segmented) | `SegmentedSlots` `indicator`, `chosen` on `[aria-pressed="true"]` | adopt |
 
+### `/create` at shadcn's level (step 3)
+
+Read from shadcn's create configuration (`apps/v4/registry/config.ts`,
+`styles.tsx`, `themes.ts`, `base-colors.ts` in its repository) and Fluid
+Functionalism's Sizes, Surfaces and Motion craft notes.
+
+| Option | Seen in | Home | Decision |
+|---|---|---|---|
+| base color: neutral, stone, zinc, mauve, olive, mist, taupe | shadcn | a knob `neutral-h` beside `surface-c` (the chroma), defaulting to the accent's hue; `Theme.oklch({ neutral: { h } })` | adopt; `/create` names the seven, their hues read from shadcn's values |
+| theme: an accent from eighteen | shadcn | `accent-h`, `-c`, `-l` (exist) | exists; `/create`'s accent sliders cover it |
+| menu accent: subtle or bold | shadcn | popup tokens the popup recipes read: `popup.highlight`, `popup.highlight-ink` | adopt |
+| menu color: default, inverted, translucent, inverted translucent | shadcn | popup tokens `popup.surface`, `popup.ink`, `popup.blur` | adopt |
+| radius: none, small, medium, large | shadcn | `radius-factor` (exists) | exists; `/create` keeps its slider |
+| control size: default or compact | Fluid (36px, 28px) | `density` (exists), stepped by `/create` | adapt: compact is density 0.8; a type step with it waits for a size knob |
+| motion: spring, ease, none | Fluid | `motion.ease` set to `motion.spring`, or the `motion` knob at 0 | adopt in `/create` |
+| style: vega, nova, maia, lyra, mira, luma, sera | shadcn | `/create` presets over the knobs (radius, density, font, shadow, surface contrast) | adapt: knobs only; a style that changes a recipe's structure (lyra's boxy borders) waits for recipe presets |
+| heading font apart from the body's | shadcn | `font.heading` (exists) | adopt in `/create` |
+| right to left | shadcn | `dir` on the preview; the recipes use logical properties | adopt in `/create` |
+| a pointer cursor on buttons | shadcn | the recipes (exists) | exists |
+| icon library | shadcn | (deferred, as above) | skip |
+
 ## What makes the rest cheap
 
 - Stateless components are 30 to 60 lines over `Slots.define` and

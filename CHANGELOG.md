@@ -21,6 +21,10 @@ version changed; `pnpm` skips versions already in the registry.
   with `gapClick`, a click in a gap presses the highlighted item. `follows`
   lights the item a menu's keys marked, and `from` names the item a fresh
   highlight grows out of and returns to.
+- **`foldkit-mixins/theme`: `Theme.oklch({ neutral: { h } })`**, a hue for the
+  neutrals (surfaces, text, outlines, the shadow) apart from the accent's, as
+  shadcn's base colors are; without it they take the accent's and follow its
+  knob, as before. The hue is the `neutral-h` knob.
 - **`foldkit-mixins/theme`: `motion.spring`**, an easing token sampled from an
   underdamped spring (4% overshoot, resting exactly at the end), for a CSS
   transition that springs with no JavaScript.

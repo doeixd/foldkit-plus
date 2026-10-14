@@ -22,6 +22,13 @@ export interface OklchKnobs {
   /** Degrees added to the accent hue for the secondary and tertiary families. */
   readonly secondaryHueShift?: number
   readonly tertiaryHueShift?: number
+  /**
+   * The hue of the neutrals (surfaces, text, outlines, the shadow), apart
+   * from the accent's, as a base color is: a warm stone under a blue accent.
+   * Without it the neutrals take the accent's hue, and follow it when the
+   * `accent-h` knob moves.
+   */
+  readonly neutral?: { readonly h: number }
   /** Chroma of neutral surfaces; 0 is gray. */
   readonly surfaceSaturation?: number
   /** How far apart the surface steps are, 0–100%. */
@@ -133,6 +140,8 @@ export const oklch = (knobs: OklchKnobs) => {
       'accent-l': knobs.accent.l,
       'accent-c-dark': num(knobs.accent.dark?.c ?? Math.min(0.4, knobs.accent.c + 0.03)),
       'accent-l-dark': knobs.accent.dark?.l ?? '70%',
+      // The accent's hue unless one is given: an expression, so a moved accent moves it too.
+      'neutral-h': knobs.neutral === undefined ? v('hue', 'accent') : String(knobs.neutral.h),
       'secondary-shift': String(knobs.secondaryHueShift ?? 60),
       'tertiary-shift': String(knobs.tertiaryHueShift ?? -90),
       'surface-c': String(surfaceSaturation),
@@ -151,7 +160,7 @@ export const oklch = (knobs: OklchKnobs) => {
       accent: v('knob', 'accent-h'),
       secondary: `calc(${v('knob', 'accent-h')} + ${v('knob', 'secondary-shift')})`,
       tertiary: `calc(${v('knob', 'accent-h')} + ${v('knob', 'tertiary-shift')})`,
-      neutral: v('hue', 'accent'),
+      neutral: v('knob', 'neutral-h'),
     },
     surface: {
       base: ld(

@@ -171,3 +171,25 @@ test.each(['light', 'dark'] as const)(
     )
   },
 )
+
+test('the neutrals take a hue of their own, or the accent’s and follow it', () => {
+  const sheet = (palette: ReturnType<typeof Theme.oklch>, knobs = '') => {
+    const style = document.createElement('style')
+    style.dataset['test'] = ''
+    style.textContent =
+      Style.stylesheet(
+        L.declare,
+        L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
+        L.in('theme', Theme.root(palette, { omit: Theme.tokens, colorScheme: 'light' })),
+      ) + (knobs === '' ? '' : `:root{${knobs}}`)
+    document.head.append(style)
+  }
+  const accent = { h: 265, c: 0.16, l: '52%' }
+  sheet(Theme.oklch({ accent, neutral: { h: 60 }, surfaceSaturation: 0.02 }))
+  expect(distance(hueOf(computed('surface-base')), 60)).toBeLessThan(10)
+  expect(distance(hueOf(computed('accent-default')), 265)).toBeLessThan(10)
+  document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+  // No neutral hue: the accent's, and a moved accent knob moves it.
+  sheet(Theme.oklch({ accent, surfaceSaturation: 0.02 }), '--fk-knob-accent-h:150;')
+  expect(distance(hueOf(computed('surface-base')), 150)).toBeLessThan(10)
+})

@@ -334,8 +334,8 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
 ### Theme from a few knobs
 
 `foldkit-mixins/theme` extends the root `Theme` with the pieces a page ships. `Theme.oklch` takes
-an accent color and a few knobs (hue shifts, surface saturation and contrast, a contrast factor,
-feedback hues) and returns typed tokens for surfaces, text, outlines, and the accent, secondary,
+an accent color and a few knobs (hue shifts, a neutral hue, surface saturation and contrast, a
+contrast factor, feedback hues) and returns typed tokens for surfaces, text, outlines, and the accent, secondary,
 tertiary and feedback families. Only the `knob` group holds literals; every other value is a CSS
 expression over other tokens (`oklch(from …)`, `color-mix()`, `light-dark()`), so the browser does
 the derivation and one knob override recolors everything below it. Each family (`accent`,
@@ -345,7 +345,8 @@ line in it that stands off the base; and two text colors named for where they go
 text on that fill (near white on a mid accent), and `ink` is text in the family's color on the
 base surface, dark enough to read in a light scheme and light enough in a dark one. Colored text
 is `ink`, never `default`. The surfaces are the base at a few lightnesses with its chroma, so a
-panel and a sidebar read as the page's own color; `bedrock` is the deepest of them in both
+panel and a sidebar read as the page's own color, in the accent's hue unless `neutral: { h }` gives
+them one of their own (a base color: a warm stone under a blue accent); `bedrock` is the deepest of them in both
 schemes, and the focus ring, `outline.focus`, is the accent. The `syntax` group colors code by
 the kinds a tokenizer names (`syntax-keyword` is `--fk-syntax-keyword`, as
 `foldkit-richtext-code` and its Shiki adapter name them): `keyword`, `function` and `type` in
