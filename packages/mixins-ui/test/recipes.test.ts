@@ -81,6 +81,14 @@ const defined = new Set([
   // Written on an open popup's panel by its `fluid`.
   ...['x', 'y', 'w', 'h', 'display'].map(part => `popup-chosen-${part}`),
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `popup-hover-${part}`),
+  // Written on each overlay scroll bar by `ScrollBars`.
+  'scroll-thumb-offset',
+  'scroll-thumb-size',
+  // Published by a padded container with `Theme.nests`, read by `Theme.nested()`.
+  'outer-radius',
+  'inset',
+  // Written on a slider's control, marks and shown values by `Slider.view`.
+  ...['low', 'high', 'at'].map(part => `slider-${part}`),
 ])
 
 /** Every selection of a recipe: the defaults, then each value of each axis. */
@@ -562,6 +570,18 @@ describe('Recipes', () => {
     it('scales the thumb by size', () => {
       expect(css({ size: 'sm' })).toContain('--_fk-slider-size:0.75rem')
     })
+
+    it('draws a track as thick as the thumb, or a slim one', () => {
+      const slim = 'block-size:calc(var(--_fk-slider-size) * 0.375)'
+      expect(css({})).not.toContain(slim)
+      expect(css({ track: 'thin' })).toContain(slim)
+    })
+
+    it('widens the thumb for a value inside it, and only where values are shown', () => {
+      const pill = '--_fk-slider-thumb:calc(var(--_fk-slider-size) * 2.5)'
+      expect(css({})).not.toContain(pill)
+      expect(css({ value: 'inside' })).toContain(`[data-values]{${pill}`)
+    })
   })
 
   describe('Toast', () => {
@@ -645,19 +665,26 @@ describe('Recipes', () => {
     const css = (attribute = 'data-state'): string =>
       Style.forSlots(BadgeSlots)({ badge: Recipes.Badge({ attribute, tones }).badge }).css
 
-    it('compiles the pill, its dot, and one rule per mapped value', () => {
+    it('compiles the pill, its appearances, and one rule per mapped value', () => {
       expect(css()).toContain('border-radius:var(--fk-radius-xl)')
-      expect(css()).toContain('::before')
-      expect(css()).toContain('background:currentColor')
       expect(css()).toContain('[data-state="Published"]')
       expect(css()).toContain('[data-state="Changed"]')
       expect(css()).toContain('[data-state="New"]')
+      // The dot lives in the `dot` appearance alone, in the tone's fill.
+      expect(css()).not.toContain('::before')
+      const dotted = Style.forSlots(BadgeSlots)({
+        badge: Recipes.Badge({ attribute: 'data-state', tones, appearance: 'dot' }).badge,
+      }).css
+      expect(dotted).toContain('::before')
+      expect(dotted).toContain('background:var(--_fk-badge-fill)')
     })
 
     it('tones a value with its family wash and ink', () => {
-      expect(css()).toContain('background:var(--fk-success-subtle)')
-      expect(css()).toContain('color:var(--fk-success-ink)')
-      expect(css()).toContain('color:var(--fk-warning-ink)')
+      expect(css()).toContain('--_fk-badge-tint:var(--fk-success-subtle)')
+      expect(css()).toContain('--_fk-badge-ink:var(--fk-success-ink)')
+      expect(css()).toContain('--_fk-badge-ink:var(--fk-warning-ink)')
+      expect(css()).toContain('background:var(--_fk-badge-tint)')
+      expect(css()).toContain('color:var(--_fk-badge-ink)')
     })
 
     it('leaves an unmapped value on the base and takes the attribute', () => {

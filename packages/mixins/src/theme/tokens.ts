@@ -188,9 +188,34 @@ export const ladder = (name: Rung): string => {
  * concentric: the outer radius less the inset between them and the outer
  * surface's border, never below zero. Past a large radius, or with uneven
  * gaps, the two read as independent and may be tuned by eye.
+ *
+ * With no arguments, it reads what the nearest container that `nests` its
+ * children published, so a row, a pill or a highlight inside a padded panel
+ * follows the panel's corner without repeating its arithmetic. Outside any
+ * such container it is square.
  */
-export const nested = (outer: string, inset: string, border = '0px'): string =>
-  `max(0px, calc(${outer} - ${inset} - ${border}))`
+export function nested(): string
+export function nested(outer: string, inset: string, border?: string): string
+export function nested(outer?: string, inset?: string, border = '0px'): string {
+  return outer === undefined || inset === undefined
+    ? `max(0px, calc(var(--fk-outer-radius, 0px) - var(--fk-inset, 0px)))`
+    : `max(0px, calc(${outer} - ${inset} - ${border}))`
+}
+
+/**
+ * What a container that pads its children publishes for `nested()`: its
+ * corner inside its border, and the inset to them. Spread it beside the
+ * container's own radius and padding. The values are read on each child, so
+ * a container deeper in that `nests` again publishes its own.
+ */
+export const nests = (
+  radius: string,
+  inset: string,
+  border = '0px',
+): { readonly '--fk-outer-radius': string; readonly '--fk-inset': string } => ({
+  '--fk-outer-radius': `calc(${radius} - ${border})`,
+  '--fk-inset': inset,
+})
 
 /** A role of the type scale. */
 export type Role = 'display' | 'title' | 'subtitle' | 'body' | 'caption' | 'micro'

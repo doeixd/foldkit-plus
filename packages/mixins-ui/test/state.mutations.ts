@@ -10,19 +10,30 @@ export default [
     edits: [
       {
         file: '../src/recipes/popup.ts',
-        find: "borderRadius: nested(ref.radius.xl, ref.space['2xs'], ref.border.thin),",
-        replace: 'borderRadius: ref.radius.md,',
+        find: "    // Concentric with the panel's corner, inside its padding and border.\n    borderRadius: nested(),",
+        replace: '    borderRadius: ref.radius.md,',
       },
     ],
     tests,
   },
   {
-    name: 'the nested radius forgets the border',
+    name: 'a nesting container forgets its border',
     edits: [
       {
         file: '../../mixins/src/theme/tokens.ts',
-        find: '`max(0px, calc(${outer} - ${inset} - ${border}))`',
-        replace: '`max(0px, calc(${outer} - ${inset}))`',
+        find: "'--fk-outer-radius': `calc(${radius} - ${border})`,",
+        replace: "'--fk-outer-radius': `calc(${radius})`,",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the panel publishes no corner, so its rows are square',
+    edits: [
+      {
+        file: '../src/recipes/popup.ts',
+        find: "    ...nests(ref.radius.xl, ref.space['2xs'], ref.border.thin),\n",
+        replace: '',
       },
     ],
     tests,
