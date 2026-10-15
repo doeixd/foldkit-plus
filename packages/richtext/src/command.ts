@@ -21,6 +21,7 @@ import {
   type Text as Run,
 } from './document.js'
 import { withFreshIds, type Slice } from './clipboard.js'
+import { toText } from './html.js'
 import {
   markName,
   edgeMarks,
@@ -1768,6 +1769,12 @@ export const run = (
     const caret = span?.start ?? selection.anchor
     const at = locate(state.document, caret.node)
     if (at === undefined) return failure('MissingText')
+    // Into code, or any kind whose text keeps line breaks, what is pasted is its text.
+    const into = blockAtPath(state.document, at.path)
+    const holds = into?.type === 'Node' ? options.nodes?.definitionFor(into.kind) : undefined
+    if (holds?.kind === 'node' && holds.lineBreaks === true) {
+      return run(state, { type: 'InsertText', text: toText(content) }, ids, options)
+    }
     const index = at.path[at.path.length - 1]!
     const containerPath = at.path.slice(0, -1)
     // The content lands in the caret's own container, so pasting inside a list
@@ -1797,65 +1804,46 @@ export const run = (
     }
     const block = blockAtPath(state.document, at.path)
     if (block === undefined) return failure('MissingText')
-    const atBlockStart = at.runIndex === 0 && caret.offset === 0
-    const atBlockEnd = at.runIndex === block.children.length - 1 && caret.offset === at.text.length
-    let trailingRun: NodeId | undefined
-    if (atBlockStart) {
-      // Pasting at the very start puts the content above this block.
-      for (const [offset, piece] of inserted.entries()) {
-        operations.push(Edit.insertBlock(piece, index + offset, parent))
-      }
-    } else if (atBlockEnd) {
-      for (const [offset, piece] of inserted.entries()) {
-        operations.push(Edit.insertBlock(piece, index + 1 + offset, parent))
-      }
-    } else {
-      // Mid-block: split the block at the caret and land the content between
-      // the halves, so the text after the caret stays below what was pasted.
-      const textId = ids.mint()
-      operations.push(Edit.splitBlock(at.blockId, at.id, caret.offset, ids.mint(), textId))
-      trailingRun = NodeId.make(textId)
-      for (const [offset, piece] of inserted.entries()) {
-        operations.push(Edit.insertBlock(piece, index + 1 + offset, parent))
-      }
+    // The block splits at the caret and the content lands between the halves. The first
+    // piece joins the text before the caret and the last the text after it, when each can be
+    // one block with it, so a pasted word or line lands inside the sentence; a half left with
+    // nothing in it goes, unless it is the only place after a table or an image to type.
+    const end = span?.end ?? caret
+    const endBlock = blockAtPath(state.document, locate(state.document, end.node)?.path ?? at.path)
+    const beforeEmpty = offsetIn(block, caret) === 0
+    const afterEmpty =
+      endBlock === undefined || offsetIn(endBlock, end) === textOfBlock(endBlock).length
+    const tailText = NodeId.make(ids.mint())
+    const tail = NodeId.make(ids.mint())
+    operations.push(Edit.splitBlock(at.blockId, at.id, caret.offset, tail, tailText))
+    for (const [offset, piece] of inserted.entries()) {
+      operations.push(Edit.insertBlock(piece, index + 1 + offset, parent))
     }
-    const landing = landingAfter(
-      inserted,
-      trailingRun,
-      containerBlocks(state.document, containerPath),
-      index,
-      atBlockEnd,
+    const first = inserted[0]!
+    const last = inserted[inserted.length - 1]!
+    const lastRun = last.children[last.children.length - 1]
+    // Set before the joins, which carry it with the runs they move.
+    operations.push(
+      Edit.setSelection(
+        caretAt(
+          lastRun === undefined
+            ? { node: tailText, offset: 0, affinity: 'after' }
+            : { node: lastRun.id, offset: lastRun.text.length, affinity: 'after' },
+        ),
+      ),
     )
-    if (landing !== undefined) operations.push(Edit.setSelection(caretAt(landing)))
+    const joinsHead = joinable(block, first)
+    const joinsTail = joinable(last, block)
+    if (joinsHead) operations.push(Edit.joinBlocks(at.blockId, first.id))
+    if (joinsTail) {
+      operations.push(Edit.joinBlocks(joinsHead && last === first ? at.blockId : last.id, tail))
+    }
+    if (!joinsHead && beforeEmpty) operations.push(Edit.deleteBlock(at.blockId))
+    if (!joinsTail && afterEmpty && lastRun !== undefined) operations.push(Edit.deleteBlock(tail))
     return apply(state, operations)
   }
 
   return apply(state, [])
-}
-
-/**
- * Where the caret goes after a paste: the end of the last inserted run, or the
- * start of what follows when the inserted content ends without text — the
- * trailing half a split created, then the next sibling.
- */
-const landingAfter = (
-  inserted: ReadonlyArray<Block>,
-  trailingRun: NodeId | undefined,
-  siblings: ReadonlyArray<Block>,
-  index: number,
-  atBlockEnd: boolean,
-): Position | undefined => {
-  const last = inserted[inserted.length - 1]!
-  const lastRun = last.children[last.children.length - 1]
-  if (lastRun !== undefined) {
-    return { node: lastRun.id, offset: lastRun.text.length, affinity: 'after' }
-  }
-  if (trailingRun !== undefined) return { node: trailingRun, offset: 0, affinity: 'after' }
-  const following = siblings[index + (atBlockEnd ? 1 : 0)]
-  const followingRun = following?.children[0]
-  return followingRun === undefined
-    ? undefined
-    : { node: followingRun.id, offset: 0, affinity: 'after' }
 }
 
 /** Where an `InsertBlock` without a place goes: beside the caret's block, before it when empty. */

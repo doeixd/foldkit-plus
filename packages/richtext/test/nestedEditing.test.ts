@@ -213,14 +213,25 @@ describe('editing inside a nested block', () => {
     const result = success(
       run(state(caret('a', 3)), {
         type: 'Paste',
-        slice: RichText.sliceFromText('more', minted().mint),
+        slice: RichText.sliceOf(
+          RichText.decodeDocument({
+            version: 1,
+            children: ['more', 'lines'].map((text, at) => ({
+              type: 'Paragraph',
+              id: `m${at}`,
+              children: [{ type: 'Text', id: `m${at}-t`, text, marks: [] }],
+            })),
+          }),
+          range(['m0-t', 0], ['m1-t', 5]),
+        )!,
       }),
     )
+    // The first line joins the item's text; the second stays in the list.
     expect(
       containerAt(result.state.document, 0).map(block =>
         block.children.map(run => run.text).join(''),
       ),
-    ).toEqual(['one', 'more', 'two'])
+    ).toEqual(['onemore', 'lines', 'two'])
   })
 
   it('moves a list item within its container, and refuses a bad parent', () => {

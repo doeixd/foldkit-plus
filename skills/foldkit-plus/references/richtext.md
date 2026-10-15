@@ -101,8 +101,9 @@ collaborative undo is not implemented.
 trimmed to the selection), `serializeSlice`/`deserializeSlice` round-trip it
 with a strict decoder, `withFreshIds` remints identities for a paste, and
 `sliceFromText` is the plain-text fallback. `run(state, { type: 'Paste', slice },
-ids)` places a slice at the caret — above the block at its start, below at its
-end, and mid-block by splitting the block so trailing text stays below. `toHtml(blocks)` / `documentToHtml(document)` export HTML (marks as
+ids)` places a slice at the caret: its first and last blocks join the text before
+and after the caret when they can (a pasted word lands in the sentence), blocks that
+cannot (an image, a table) stand between the halves, and into code it pastes text. `toHtml(blocks)` / `documentToHtml(document)` export HTML (marks as
 `strong`/`em`/`code`, unknown marks as `data-marks`, unknown blocks as a
 placeholder, everything escaped) and `toText`/`documentToText` give plain text.
 `toHtml(blocks, renderer?)` takes a `rendering({ marks, nodes })` vocabulary — built

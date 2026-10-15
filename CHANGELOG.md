@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-richtext`: a paste joins the line it lands in.** The first pasted
+  block joins the text before the caret and the last the text after it, so a
+  copied word lands inside the sentence instead of splitting it onto a line of
+  its own; an image or table stands between the halves, and a paste into code
+  is its text. Breaking: `Paste` no longer puts content above a block at its
+  start or below it at its end as separate blocks.
 - **`foldkit-richtext-dom`: a press below the last block writes after it.** The
   caret goes to the end of a last paragraph or heading; after a table, code or
   an image a new paragraph opens, where no caret could get below them.

@@ -446,7 +446,8 @@ describe('translating an edit', () => {
         ]).children,
       },
     })
-    expect(texts(view.state).slice(-3)).toEqual(['last', 'one', 'two'])
+    // The first block joins the line the caret is at the end of.
+    expect(texts(view.state).slice(-2)).toEqual(['lastone', 'two'])
   })
 
   it('carries the caret to where the edit left it', () => {

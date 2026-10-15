@@ -757,12 +757,16 @@ Identities always come from the caller, like every other identity a live edit
 mints.
 
 Paste is a command (`{ type: 'Paste', slice }`): it remints every identity, then
-places the content relative to the caret — above the block at its start, below
-it at its end, and mid-block by splitting the block and landing the content
-between the halves, so text after the caret stays below what was pasted. A range
-selection is replaced first, and the caret lands at the end of the pasted text
-(or at the start of what follows when the pasted content has none). The DOM
-clipboard events that carry these payloads are not wired yet.
+splits the caret's block and lands the content between the halves. The first
+pasted block joins the text before the caret and the last joins the text after
+it, when each can be one block with it, so a copied word or line lands inside the
+sentence and several lines keep the sentence's two ends. A block that cannot join
+(an image, a table, a list) stands between the halves, and a half left empty goes,
+except the line after a pasted image or table, which is where writing goes on.
+Into a kind whose text keeps line breaks (code), the paste is its plain text. A
+range selection is replaced first, and the caret lands at the end of the pasted
+text. `foldkit-richtext-dom` reads the clipboard into a slice (its own payload,
+then HTML, then plain text) and sends this command.
 
 ## Undo history
 
