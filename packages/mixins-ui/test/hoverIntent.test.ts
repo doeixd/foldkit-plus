@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { Scene } from 'foldkit/test'
 import * as HoverIntent from '@foldkit/ui/hoverIntent'
-import { Style, type MixinValue, type SlotAttributes } from 'foldkit-mixins'
+import type { HtmlBuilder } from 'foldkit/html'
+import { Behavior, Event, Style, type MixinValue, type SlotAttributes } from 'foldkit-mixins'
 import { HoverIntent as Adapter, HoverIntentSlots } from '../src/index.js'
-import { classValue, holds } from './fixture.js'
+import { classValue, diagnosticFrom, holds } from './fixture.js'
 
 type Mixins = ReadonlyArray<MixinValue<HoverIntent.Message> | MixinValue<never>>
 
@@ -65,4 +66,22 @@ describe('HoverIntent adapter', () => {
     expect(classValue(captured!.panel)).toBe('hover-card')
     for (const child of captured!.render.panel) expect(holds(captured!.panel, child)).toBe(true)
   })
+
+  it.each(['trigger', 'panel'] as const)(
+    'refuses a Behavior that takes over the pointer entering its %s',
+    slot => {
+      const diagnostic = diagnosticFrom(() => {
+        const Steal = Behavior.forSlots(HoverIntentSlots)<undefined, HoverIntent.Message>({
+          [slot]: Behavior.slot({
+            requires: { events: [Event.Hover] },
+            attributes: ({ h }: { readonly h: HtmlBuilder<HoverIntent.Message> }) => [
+              h.OnMouseEnter(HoverIntent.Message.EnteredTrigger()),
+            ],
+          }),
+        })
+        run([Steal.mixin], () => {})
+      })
+      expect(diagnostic?.code).toBe('mixins:event-conflict')
+    },
+  )
 })
