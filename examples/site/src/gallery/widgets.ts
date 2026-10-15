@@ -422,14 +422,38 @@ const foldTags = Update.foldChild({
 })
 
 const sheetField = own('sheet', Message.GotSheet)
-const foldSheet = Update.foldChild({ ...sheetField, update: UiDialog.update, foldOutMessage: dialogOut })
-const openSheet = Update.foldChildStep({ ...sheetField, update: UiDialog.open, foldOutMessage: dialogOut })
-const closeSheet = Update.foldChildStep({ ...sheetField, update: UiDialog.close, foldOutMessage: dialogOut })
+const foldSheet = Update.foldChild({
+  ...sheetField,
+  update: UiDialog.update,
+  foldOutMessage: dialogOut,
+})
+const openSheet = Update.foldChildStep({
+  ...sheetField,
+  update: UiDialog.open,
+  foldOutMessage: dialogOut,
+})
+const closeSheet = Update.foldChildStep({
+  ...sheetField,
+  update: UiDialog.close,
+  foldOutMessage: dialogOut,
+})
 
 const drawerField = own('drawer', Message.GotDrawer)
-const foldDrawer = Update.foldChild({ ...drawerField, update: UiDialog.update, foldOutMessage: dialogOut })
-const openDrawer = Update.foldChildStep({ ...drawerField, update: UiDialog.open, foldOutMessage: dialogOut })
-const closeDrawer = Update.foldChildStep({ ...drawerField, update: UiDialog.close, foldOutMessage: dialogOut })
+const foldDrawer = Update.foldChild({
+  ...drawerField,
+  update: UiDialog.update,
+  foldOutMessage: dialogOut,
+})
+const openDrawer = Update.foldChildStep({
+  ...drawerField,
+  update: UiDialog.open,
+  foldOutMessage: dialogOut,
+})
+const closeDrawer = Update.foldChildStep({
+  ...drawerField,
+  update: UiDialog.close,
+  foldOutMessage: dialogOut,
+})
 
 const foldTripCalendar = Update.foldChild({
   ...own('trip', Message.GotTripCalendar),
@@ -606,7 +630,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       ),
     }),
     GotCopy: ({ message }) => {
-      const copied = ClipboardMessage.match(message, { Copied: () => true, CopyFailed: () => false })
+      const copied = ClipboardMessage.match(message, {
+        Copied: () => true,
+        CopyFailed: () => false,
+      })
       return copied === model.inputCopied
         ? { model }
         : { model: modifyFields(model, { inputCopied: () => copied }) }

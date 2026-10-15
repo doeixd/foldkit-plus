@@ -641,7 +641,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'menubar',
       title: 'Menubar',
-      summary: 'A row of menus with one tab stop, the arrows moving from one open menu to the next.',
+      summary:
+        'A row of menus with one tab stop, the arrows moving from one open menu to the next.',
       recipe: 'Menubar',
       file: 'menubar',
       contract: 'MenubarSlots',
@@ -660,7 +661,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'progress',
       title: 'Progress',
-      summary: 'How far work has gone, as a bar or a ring, sliding or turning while the end is unknown.',
+      summary:
+        'How far work has gone, as a bar or a ring, sliding or turning while the end is unknown.',
       recipe: 'Progress',
       file: 'progress',
       contract: 'ProgressSlots',
@@ -705,7 +707,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'steps',
       title: 'Steps',
-      summary: 'An ordered list of steps, those done checked, the current one marked, joined by a line.',
+      summary:
+        'An ordered list of steps, those done checked, the current one marked, joined by a line.',
       recipe: 'Steps',
       file: 'steps',
       contract: 'StepsSlots',
@@ -895,7 +898,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'tree-view',
       title: 'Tree view',
-      summary: 'Nested rows that open and shut, one tab stop, the arrows moving through what shows.',
+      summary:
+        'Nested rows that open and shut, one tab stop, the arrows moving through what shows.',
       recipe: 'TreeView',
       file: 'treeView',
       contract: 'TreeViewSlots',
@@ -933,7 +937,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'carousel',
       title: 'Carousel',
-      summary: 'Slides in a track that snaps one at a time, with previous, next and a dot per slide.',
+      summary:
+        'Slides in a track that snaps one at a time, with previous, next and a dot per slide.',
       recipe: 'Carousel',
       file: 'carousel',
       contract: 'CarouselSlots',
@@ -952,7 +957,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'nested-menu',
       title: 'Nested menu',
-      summary: 'A menu whose rows open submenus beside them, by ArrowRight, Enter or a resting pointer.',
+      summary:
+        'A menu whose rows open submenus beside them, by ArrowRight, Enter or a resting pointer.',
       recipe: 'NestedMenu',
       file: 'nestedMenu',
       contract: 'NestedMenuSlots',

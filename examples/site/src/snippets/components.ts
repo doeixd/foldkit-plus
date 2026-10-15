@@ -1621,12 +1621,23 @@ export const progress = <Message>(
 // #region meter
 export const MeterStyle = forSlots(MeterSlots)(Recipes.Meter({}))
 
-export const meter = <Message>(style: NamedStyle<typeof MeterSlots>, h: HtmlBuilder<Message>): Html =>
+export const meter = <Message>(
+  style: NamedStyle<typeof MeterSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
   h.div(
     [h.Style({ display: 'grid', gap: '1.25rem' })],
     [
       Meter.view(
-        { id: 'preview-battery', label: 'Battery', value: 64, low: 20, high: 80, optimum: 100, style },
+        {
+          id: 'preview-battery',
+          label: 'Battery',
+          value: 64,
+          low: 20,
+          high: 80,
+          optimum: 100,
+          style,
+        },
         h,
       ),
       Meter.view(
@@ -1678,7 +1689,10 @@ export const virtualList = <Message>(
 // #region steps
 export const StepsStyle = forSlots(StepsSlots)(Recipes.Steps({}))
 
-export const steps = <Message>(style: NamedStyle<typeof StepsSlots>, h: HtmlBuilder<Message>): Html =>
+export const steps = <Message>(
+  style: NamedStyle<typeof StepsSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
   Steps.view(
     {
       label: 'Checkout',
@@ -1757,13 +1771,17 @@ export const tagsInput = <Message>(
   model: TagsInput.Model,
   onMessage: (message: TagsInput.Message) => Message,
   h: HtmlBuilder<Message>,
-): Html => TagsInput.view({ model, onMessage, label: 'Topics', placeholder: 'Add a topic', style }, h)
+): Html =>
+  TagsInput.view({ model, onMessage, label: 'Topics', placeholder: 'Add a topic', style }, h)
 // #endregion
 
 // #region banner
 export const BannerStyle = forSlots(BannerSlots)(Recipes.Banner({}))
 
-export const banner = <Message>(style: NamedStyle<typeof BannerSlots>, h: HtmlBuilder<Message>): Html =>
+export const banner = <Message>(
+  style: NamedStyle<typeof BannerSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
   Banner.view(
     {
       label: 'Announcement',
@@ -1787,7 +1805,14 @@ export const inputCopy = <Message>(
   h: HtmlBuilder<Message>,
 ): Html =>
   InputCopy.view(
-    { id: 'preview-api-key', label: 'API key', value: API_KEY, copied, onCopy: onCopy(API_KEY), style },
+    {
+      id: 'preview-api-key',
+      label: 'API key',
+      value: API_KEY,
+      copied,
+      onCopy: onCopy(API_KEY),
+      style,
+    },
     h,
   )
 // #endregion
