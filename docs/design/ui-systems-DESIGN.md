@@ -38,7 +38,7 @@ below is translated, not copied:
 
 ## Where it stands (2026-10-14)
 
-Steps 1 to 4, 6a and 7 are built. What was built differs from the sections
+Steps 1 to 5, 6a and 7 are built. What was built differs from the sections
 below in these ways, and the code is the word on each:
 
 - **Motion (1).** As planned, but no recipe animates a popup's entrance yet,
@@ -60,7 +60,13 @@ below in these ways, and the code is the word on each:
   `currentColor` with its amount a knob; `selected` and `pressed` wait for a
   recipe that reads them. The image edge is `imageEdge` in the recipes'
   `design.ts`, not a `Surface` namespace (`foldkit-mixins-surface` is another
-  package). The ladder of eight levels (5) is open.
+  package). The ladder (5) is `Theme.raise(offset)` and
+  `Theme.raisedSurface()`: Chrome 156 has no `inherit()`, so the eight
+  depth rules carry it, each handing the shallower depths back to the
+  ancestor (`inherit`), since the element matches those rules too. Its
+  level is the private `--_fk-level`, because the token gates count any
+  `--fk-` read as a theme token. There is no shadow ladder: popups pin
+  theirs, and nothing else read one.
 - **Scroll (6).** The fade is `Utilities.scrollFade(axis)`, in the existing
   subpath, its size the `2xl` space step; the divider and the overlay bar
   (6b) are open.

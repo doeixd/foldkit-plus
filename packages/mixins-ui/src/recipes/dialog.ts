@@ -3,7 +3,7 @@
  * surface. `size` is the panel's maximum width.
  */
 import { Style } from 'foldkit-mixins'
-import { role } from 'foldkit-mixins/theme'
+import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { DialogSlots } from '../dialog.js'
 import { component, focusRing, ref, variant, hover } from './design.js'
 
@@ -47,9 +47,11 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         padding: ref.space.lg,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,
-        background: ref.surface.base,
+        background: raisedSurface(),
         boxShadow: ref.shadow['2xl'],
       }),
+      // Four levels up: a popover opened in it lands two above it.
+      raise(4),
     ),
     title: component(
       Style.self({

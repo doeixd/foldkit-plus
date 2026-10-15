@@ -6,6 +6,7 @@
  * a view composed in that universe.
  */
 import { Style } from 'foldkit-mixins'
+import { raise, raisedSurface } from 'foldkit-mixins/theme'
 import { DatePickerSlots } from '../datePicker.js'
 import { component, disabled, focusRing, onLadder, ref, steps, transition } from './design.js'
 
@@ -34,9 +35,10 @@ export const DatePicker = Style.recipeFor(DatePickerSlots)({
         minInlineSize: '18rem',
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,
-        background: ref.surface.base,
+        background: raisedSurface(),
         boxShadow: ref.shadow.lg,
       }),
+      raise(2),
     ),
     backdrop: component(Style.self({ position: 'fixed', inset: '0' })),
   },

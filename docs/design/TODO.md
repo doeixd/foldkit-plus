@@ -792,10 +792,11 @@ keeps what the systems plan's "What we keep" lists.
   an image edge. `selected` and `pressed` wait for a recipe that reads them
   (the Card's selected fill sits beside its `surface` variants).
   [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §4
-- [ ] **Systems 5, the surface ladder.** Probe CSS `inherit()` first; eight
-  levels from `surface.base`, keeping its chroma; nesting by depth rules;
-  popups raise 2 with their shadow pinned, dialogs 4; menu looks keep their
-  `popup` surface. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §4
+- [x] **Systems 5, the surface ladder.** `Theme.raise` and `Theme.raisedSurface`,
+  nesting by eight depth rules (Chrome 156 has no `inherit()`); popups raise 2
+  with their shadow pinned, dialogs 4; menu looks hold over their level.
+  The shadows stay the named ones: pinned, a ladder of eight had no reader.
+  [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §4
 - [x] **Systems 6a, scroll edges.** `Utilities.scrollFade(axis)`, in ScrollArea and
   the popups' lists. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §5
 - [ ] **Systems 6b, the scroll divider and an overlay bar.** A hairline at a

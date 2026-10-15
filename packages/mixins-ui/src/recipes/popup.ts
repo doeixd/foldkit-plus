@@ -5,7 +5,7 @@
  * trigger and density. Internal to the recipes, not a published contract.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { nested, role } from 'foldkit-mixins/theme'
+import { nested, raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { component, disabled, glide, ref, rowOnLadder } from './design.js'
 
 /** A line in the panel's own ink, so it reads on an inverted panel too. */
@@ -22,7 +22,9 @@ export const panel: StyleValue = component(
     padding: ref.space['2xs'],
     border: `${ref.border.thin} solid ${line}`,
     borderRadius: ref.radius.xl,
-    background: ref.popup.surface,
+    // The menu's look over the panel's level: the other scheme's base where it
+    // is inverted, made see-through where it is translucent.
+    background: `color-mix(in oklab, color-mix(in oklab, ${ref.popup.inverted} calc(${ref.knob['popup-invert']} * 100%), ${raisedSurface()}) calc(${ref.knob['popup-alpha']} * 100%), transparent)`,
     color: ref.popup.ink,
     backdropFilter: `blur(${ref.popup.blur})`,
     boxShadow: ref.shadow.lg,
@@ -31,6 +33,7 @@ export const panel: StyleValue = component(
   // The panel holds focus while the keys move the active row, which shows
   // where they are; a ring around the whole panel says nothing more.
   Style.pseudo(':focus-visible', { outline: 'none' }),
+  raise(2),
 )
 
 /** The click-away behind an open panel. */

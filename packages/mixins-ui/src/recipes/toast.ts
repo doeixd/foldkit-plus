@@ -5,6 +5,7 @@
  * attribute. No axes: one stack looks one way.
  */
 import { Style } from 'foldkit-mixins'
+import { raise, raisedSurface } from 'foldkit-mixins/theme'
 import { ToastSlots } from '../toast.js'
 import { component, ref } from './design.js'
 
@@ -27,9 +28,10 @@ export const Toast = Style.recipeFor(ToastSlots)({
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderInlineStart: `${ref.border.thick} solid ${ref.accent.default}`,
         borderRadius: ref.radius.lg,
-        background: ref.surface.base,
+        background: raisedSurface(),
         boxShadow: ref.shadow.lg,
       }),
+      raise(2),
     ),
   },
 })

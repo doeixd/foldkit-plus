@@ -193,6 +193,8 @@ export const oklch = (knobs: OklchKnobs) => {
       'state-tint': '8%',
       'state-tint-dark': '25%',
       'image-edge': '10%',
+      // How much lighter each raised level is in a dark scheme.
+      'raise-dark': '0.027',
     },
     hue: {
       accent: v('knob', 'accent-h'),
@@ -285,6 +287,11 @@ export const oklch = (knobs: OklchKnobs) => {
         'popup-invert',
         base,
       )} calc(${v('knob', 'popup-alpha')} * 100%), transparent)`,
+      // The other scheme's base, which an inverted panel takes wherever it is raised to.
+      inverted: ld(
+        `oklch(${v('knob', 'base-l-dark')} calc(${surfaceCDark} * 0.9) ${neutral})`,
+        `oklch(${v('knob', 'base-l')} calc(${surfaceC} * 0.9) ${neutral})`,
+      ),
       // The text of the opposite scheme: light on an inverted panel in a light one.
       ink: share(text([88, 0.8], [20, 2]), 'popup-invert', v('text', 'default')),
       highlight: share(

@@ -3,7 +3,7 @@
  * behind it. `size` is the panel's maximum width.
  */
 import { Style } from 'foldkit-mixins'
-import { role } from 'foldkit-mixins/theme'
+import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { PopoverSlots } from '../popover.js'
 import {
   component,
@@ -46,11 +46,12 @@ export const Popover = Style.recipeFor(PopoverSlots)({
         padding: ref.space.md,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,
-        background: ref.surface.base,
+        background: raisedSurface(),
         boxShadow: ref.shadow.lg,
         color: ref.text.muted,
         zIndex: '20',
       }),
+      raise(2),
     ),
     backdrop: component(Style.self({ position: 'fixed', inset: '0' })),
     arrow: component(

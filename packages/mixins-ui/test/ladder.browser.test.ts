@@ -152,7 +152,7 @@ test('the text steps with the controls: 14 on 20 by default, 13 on 18 compact', 
   try {
     await vi.waitFor(() => expect(document.querySelector('[data-part="row"]')).not.toBeNull())
     for (const part of ['button', 'input', 'row']) {
-      expect(text('default', part)).toEqual(['14px', '20px'])
+      expect([part, ...text('default', part)]).toEqual([part, '14px', '20px'])
       expect(text('compact', part)).toEqual(['13px', '18px'])
     }
   } finally {

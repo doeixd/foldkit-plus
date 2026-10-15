@@ -362,6 +362,11 @@ element's own text color (`hover`; `tint` and `tint-hover`, a see-through fill; 
 inside an image), so it reads at any elevation and on any band; its amounts are knobs
 (`state-hover`, `state-tint`, `state-tint-dark`, `image-edge`). `Theme.nested(outer, inset,
 border?)` is the radius of a surface inset in another, so their corners are concentric.
+`Theme.raise(offset)` lifts an element `offset` levels above the raised element holding it (or the
+page, level 1), capped at 8, and `Theme.raisedSurface()` is its background at that level: a popover
+opened in a dialog lands above the dialog with nothing passed. In a light scheme the first two
+levels step toward white and the rest stay there, so shadow carries elevation; in a dark scheme
+each level is an even step lighter.
 `Theme.tokens` is the
 non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
 Its `motion` group is three tiers, `fast`, `moderate` and `slow` (80, 160 and 240ms, for hover and

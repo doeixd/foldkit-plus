@@ -52,8 +52,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/popup.ts',
-        find: '    background: ref.popup.surface,',
-        replace: '    background: ref.surface.base,',
+        find: 'color-mix(in oklab, ${ref.popup.inverted} calc(',
+        replace: 'color-mix(in oklab, ${ref.surface.base} calc(',
       },
     ],
     tests: ['packages/mixins-ui/test/popup.browser.test.ts'],

@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins/theme`: a surface ladder that nests by itself.**
+  `Theme.raise(offset)` sets an element `offset` levels above the raised
+  element holding it, or the page (capped at 8), and `Theme.raisedSurface()`
+  paints it for its level, after Fluid Functionalism's ladder: in a light
+  scheme two steps toward white and then flat, so shadow carries elevation,
+  and in a dark scheme an even step lighter per level (`knob.raise-dark`).
+  Popups, popovers, date picker panels and toasts raise by 2 and dialogs by
+  4, so a popover opened in a dialog lands above it instead of melting into
+  a surface it shares. A popup keeps its menu look (`popup.inverted`, new,
+  and the translucency) over its level.
 - **`foldkit-mixins/utilities`: `scrollFade(axis)`**, after shadcn's and Fluid
   Functionalism's `scroll-fade`: a scroller's content dissolves toward an edge
   with more to scroll, its true start and end crisp until something is past
@@ -245,6 +255,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins`: injected styles keep the page's layer order.** The
+  `<style>` a draw injects carries the page's own `@layer` order first. It
+  carried none where the page had one, so once it stood ahead of the page's
+  sheet (a test's or an application's sheet put in after it), its
+  `@layer components { … }` made `components` the first layer, under the
+  reset, and a button's text fell back to the reset's 16px.
 - **`foldkit-mixins-ui`: a badge squeezed in a row keeps its words inside it.**
   The page reset floors every element's `min-width` at 0, so a badge in a
   narrow row shrank under its unwrapped text, which ran into the next one.

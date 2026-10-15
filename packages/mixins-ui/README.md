@@ -524,6 +524,11 @@ What a recipe assumes and does:
   neutral button is see-through (`state.tint`), and images carry a hairline
   inside their edge (`state.edge`). A popup's rows round concentrically inside
   its panel (`Theme.nested`), as a segmented option does inside its tray.
+- **Raised surfaces nest.** Popups, popovers, date picker panels and toasts
+  sit two levels above what holds them and dialogs four (`Theme.raise`), each
+  painted for its level, so a popover in a dialog lands above the dialog: a
+  step lighter in a dark scheme, the same flat surface with its own shadow in
+  a light one.
 - **State comes from the component's own attributes.** Checked, selected, and
   disabled looks read `aria-checked`, `aria-selected`, and `aria-disabled`,
   which `@foldkit/ui` already writes; no `whenInput` is needed.
