@@ -699,6 +699,15 @@ caret is in. `InsertFootnote` (`{ text? }`) puts a reference showing `nextFootno
 caret, its definition after the last block, and the caret in the note; `RenameFootnote` (`{ from,
 to }`) relabels the definition and every reference, refusing a label another footnote has.
 
+Media beside `Image` is opt-in the same way: `mediaNodes` declares `Video` and `Audio` (`{ src,
+title? }`, a video also `width?`) and `Attachment` (`{ src, name, size?, type? }`), and
+`mediaRendering`, laid under a rendering with `renderingOver`, draws them as `video` and `audio`
+with the browser's controls and an attachment as a download link showing its name and size.
+`mediaBlock(file)` is the block for a file a reader added, by its type. Where the file lives is
+the application's. A source must pass the URL policy, or be a `data:` URL of the kind's own
+family (`video/…`, `audio/…`); an attachment's may be any `data:` type that cannot run as a page
+(not HTML, SVG or XML), since it is only downloaded.
+
 Code highlighting is the second producer. A `CodeBlock` holds its `language` and plain text,
 and a `CodeTokenizer` — a pure `(text) => ReadonlyArray<{ from, to, kind }>` over that text —
 says what is in it; `codeDecorations(document, tokenizers)` runs the tokenizer registered for

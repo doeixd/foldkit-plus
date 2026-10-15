@@ -96,6 +96,12 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext`: video, audio and attachments.** `mediaNodes`
+  (`Video`, `Audio`, `Attachment`) are opt-in vocabulary, `mediaRendering`
+  draws them with the browser's controls and a download link, and
+  `mediaBlock(file)` makes the block a file's type calls for. A `data:` source
+  is accepted only of the kind's own family, and an attachment's never as HTML,
+  SVG or XML.
 - **`foldkit-richtext-markdown`: footnotes.** `parse(markdown, { footnotes: true })`
   reads `[^label]` and `[^label]: …` as `FootnoteRef` and `FootnoteDefinition`,
   and `print` writes them back; without the option they are reported and

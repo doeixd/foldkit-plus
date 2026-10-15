@@ -263,7 +263,9 @@ one match or all as one undo step, and `foldkit-mixins-richtext`'s `findReplace`
 one whose section holds the caret, which `foldkit-mixins-richtext`'s `tableOfContents` draws;
 footnotes are opt-in vocabulary (`FootnoteRef` mark, `FootnoteDefinition` node, tied by `label`):
 `footnotesOf`, `footnoteAt`, `nextFootnoteLabel`, the `InsertFootnote` and `RenameFootnote` commands
-(the editor's `InsertedFootnote`, `RenamedFootnote`), and `footnotePreview` as the card at a reference, `codeDecorations(document, tokenizers)`
+(the editor's `InsertedFootnote`, `RenamedFootnote`), and `footnotePreview` as the card at a reference;
+media is opt-in too (`mediaNodes`: `Video`, `Audio`, `Attachment`; `mediaRendering` draws them with
+the browser's controls and a download link; `mediaBlock(file)` picks the kind by type), `codeDecorations(document, tokenizers)`
 runs the `CodeTokenizer` registered in a `Map` for each `CodeBlock`'s `language` and returns
 its tokens as decorations (a token outside the text throws; `foldkit-richtext-code`'s
 `jsonTokenizer` is the first grammar, and never throws on half-typed JSON;

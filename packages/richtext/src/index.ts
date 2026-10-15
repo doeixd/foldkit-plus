@@ -219,3 +219,13 @@ export {
   nextFootnoteLabel,
   referenceLabel,
 } from './footnote.js'
+export {
+  Attachment,
+  Audio,
+  fileSize,
+  mediaBlock,
+  type MediaFile,
+  mediaNodes,
+  mediaRendering,
+  Video,
+} from './media.js'
