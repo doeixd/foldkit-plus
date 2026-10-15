@@ -2030,7 +2030,8 @@ export const carousel = <Message>(
                   display: 'grid',
                   placeItems: 'center',
                   blockSize: '10rem',
-                  border: '1px solid currentColor',
+                  // A fill, not a border: the slide rounds its corners by clipping, and a square border clipped there looks cut.
+                  background: 'color-mix(in oklab, currentColor 8%, transparent)',
                 }),
               ],
               [place],
