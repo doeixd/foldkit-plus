@@ -862,6 +862,17 @@ while keeping the best of what this project already has:
   Picker, and Nested Menu (one level deep). Their tests, unit and browser, were written
   without being run. Carousel does not yet hear a swipe (a `scrollend` Mount
   in primitives would report the slide in view).
+- [ ] **UI polish: bugs, merges and depth.** A review of the gallery found
+  shared faults (hovers that lay grey on coloured surfaces, corners that are
+  not concentric, collapses that overshoot, popups stacked inside their
+  triggers, the scrollbars), broken pages (Input OTP, Hover Card, Nested
+  Menu, Radio Group's labels, Skeleton, the Switch in RTL), pairs to merge
+  (Alert and Banner, the dialogs, Sheet and Drawer, the dates, the sliders,
+  the menus), and depth per component. Phase 0 runs the untested backlog and
+  screenshots every page first. [ui-polish-DESIGN.md](./ui-polish-DESIGN.md)
+- [ ] **Carousel dots** after Fluid Functionalism's
+  ([carousel-dots](https://www.fluidfunctionalism.com/docs/carousel-dots)).
+  [ui-polish-DESIGN.md](./ui-polish-DESIGN.md) Part C, Carousel
 - [ ] **Parity 7, chat.** Message, Message Scroller, Thinking Indicator,
   Thinking Steps and a Questionnaire.
 - [ ] **Parity 8, Zag's long tail.** Angle Slider, Cascade Select, Image
