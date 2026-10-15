@@ -43,8 +43,8 @@ describe('InputCopy.view', () => {
   })
 
   it('says Copied on the button and in the status region, which is there before', () => {
-    const [idle] = Inert.byRole(drawn(false), 'status')
-    expect(Inert.text(idle)).toBe('')
+    const idle = Inert.byRole(drawn(false), 'status')
+    expect(idle.map(Inert.text)).toEqual([''])
     const [status] = Inert.byRole(drawn(true), 'status')
     const [button] = Inert.byTag(drawn(true), 'button')
     expect(Inert.text(status)).toBe('Copied')
