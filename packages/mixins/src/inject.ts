@@ -53,8 +53,8 @@ interface Page {
   readonly globals: Set<string>
   /** Contributions already handled whole: a Style's are the same object every render. */
   readonly handled: WeakSet<object>
-  /** Whether a sheet on the page declares a layer order, so this one need not. */
-  readonly ordered: boolean
+  /** The layer order a sheet on the page declares, which the injected sheet repeats. */
+  readonly order: string | undefined
   /** The sheets counted, so a removed one means counting again. */
   readonly counted: ReadonlyArray<HTMLStyleElement>
   element: HTMLStyleElement | undefined
@@ -77,19 +77,19 @@ const current = (): Page => {
   )
     return page
   const present = new Set<string>()
-  let ordered = false
+  let order: string | undefined
   const counted = Array.from(document.querySelectorAll('style'))
   for (const sheet of counted) {
     const text = sheet.textContent ?? ''
     for (const [, className] of text.matchAll(COMPILED_CLASS))
       if (className !== undefined) present.add(className)
-    if (text.match(LAYER_STATEMENT) !== null) ordered = true
+    order ??= text.match(LAYER_STATEMENT)?.[0]
   }
   page = {
     present,
     globals: new Set(),
     handled: new WeakSet(),
-    ordered,
+    order,
     counted,
     element: undefined,
   }
@@ -103,9 +103,12 @@ const flush = (): void => {
   if (into.element === undefined) {
     const element = document.createElement('style')
     element.setAttribute('data-foldkit-styles', '')
-    // Without an order on the page, the standard one first, so rules inserted
-    // in any order still cascade by layer; an application's own order is left alone.
-    element.textContent = into.ordered ? '' : layerOrder()
+    // A layer order first: the page's own, or the standard one where it has
+    // none. Layers are ordered by where they are first named, so an injected
+    // `@layer components { … }` that came to stand ahead of the page's order
+    // (a test's sheet, or an application's, put in after it) would otherwise
+    // make `components` the first layer, under the reset.
+    element.textContent = into.order ?? layerOrder()
     document.head.appendChild(element)
     into.element = element
   }

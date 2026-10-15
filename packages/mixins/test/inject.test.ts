@@ -57,7 +57,7 @@ it('counts again when a sheet it counted is removed', async () => {
   expect(injected()?.textContent ?? '').toContain(rule.css)
 })
 
-it('leaves a layer order the page declares alone', async () => {
+it('repeats a layer order the page declares, and not the standard one', async () => {
   const sheet = document.createElement('style')
   sheet.textContent = '@layer base, app;'
   document.head.appendChild(sheet)
@@ -65,6 +65,9 @@ it('leaves a layer order the page declares alone', async () => {
   const text = injected()?.textContent ?? ''
   expect(text).toContain(rule.css)
   expect(text).not.toContain('@layer reset')
+  // First, so the injected sheet cannot reorder the page's layers if it ever
+  // stands ahead of the page's own sheet: a layer is placed where first named.
+  expect(text.startsWith('@layer base, app;')).toBe(true)
 })
 
 it('starts afresh when its element is gone', async () => {
