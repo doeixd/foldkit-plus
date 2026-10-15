@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `TreeView`, the APG tree view.** Nested rows with
+  one tab stop: the arrows move through the rows showing and open, shut,
+  enter or leave a row; Home and End; a character moves to the next row it
+  starts; Enter, Space or a click chooses a row. Its Model (`current`,
+  `open`, `selected`) is folded with `TreeView.update(nodes)`, which decides
+  each key from its own Model, so keys faster than a frame still move on. It
+  reuses `TreeNavigation`'s `shown`, `move` and `tabStop` and
+  `Typeahead.match`. Each item carries its depth as `--fk-tree-level`.
+  `Recipes.TreeView`, `Patterns.TreeView` and a gallery page.
 - **`foldkit-mixins-ui`: `ColorPicker`,** an OKLCH picker in the space
   `Theme.oklch` writes: three labelled native ranges for lightness, chroma
   and hue, each saying its value with its unit, over gradient tracks the

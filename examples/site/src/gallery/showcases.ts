@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  TreeViewSlots,
   ColorPickerSlots,
   InputCopySlots,
   BannerSlots,
@@ -884,6 +885,25 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.accent,
         value => live.onWidget(Widgets.Message.PickedAccent({ value })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'tree-view',
+      title: 'Tree view',
+      summary: 'Nested rows that open and shut, one tab stop, the arrows moving through what shows.',
+      recipe: 'TreeView',
+      file: 'treeView',
+      contract: 'TreeViewSlots',
+    },
+    TreeViewSlots,
+    Recipes.TreeView,
+    (style, live) =>
+      Snippet.treeView(
+        style,
+        live.widgets.treeView,
+        message => live.onWidget(Widgets.Message.GotTreeView({ message })),
         live.h,
       ),
   ),

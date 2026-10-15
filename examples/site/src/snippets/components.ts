@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  TreeView,
+  TreeViewSlots,
   ColorPicker,
   ColorPickerSlots,
   DateRange,
@@ -1894,6 +1896,55 @@ export const colorPicker = <Message>(
       style,
     },
     h,
+  )
+// #endregion
+
+// #region tree-view
+export const TreeViewStyle = forSlots(TreeViewSlots)(Recipes.TreeView({}))
+
+/** The preview's files, built once: `update` and the view read the same tree. */
+export const TREE_FILES: ReadonlyArray<TreeView.TreeNode> = [
+  {
+    id: 'src',
+    label: 'src',
+    children: [
+      {
+        id: 'components',
+        label: 'components',
+        children: [
+          { id: 'button', label: 'button.ts' },
+          { id: 'tree', label: 'tree.ts' },
+        ],
+      },
+      { id: 'index', label: 'index.ts' },
+    ],
+  },
+  { id: 'tests', label: 'tests', children: [{ id: 'tree-test', label: 'tree.test.ts' }] },
+  { id: 'lock', label: 'pnpm-lock.yaml', disabled: true },
+  { id: 'readme', label: 'README.md' },
+]
+
+/** The open, current and chosen rows are the tree's Model. */
+export const treeView = <Message>(
+  style: NamedStyle<typeof TreeViewSlots>,
+  model: TreeView.Model,
+  onMessage: (message: TreeView.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: '16rem' })],
+    [
+      TreeView.view({ label: 'Files', model, nodes: TREE_FILES, onMessage, style }, h),
+      h.p(
+        [],
+        [
+          Option.match(model.selected, {
+            onNone: () => 'Nothing chosen yet.',
+            onSome: id => `Chose ${id}.`,
+          }),
+        ],
+      ),
+    ],
   )
 // #endregion
 
