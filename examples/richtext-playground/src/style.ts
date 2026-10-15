@@ -393,7 +393,12 @@ export const Page = A.slots({
   ),
   header: Style.compose(
     row(t.space.md),
-    Style.self({ justifyContent: 'space-between', marginBlockEnd: t.space.md }),
+    Style.self({
+      flexWrap: 'nowrap',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      marginBlockEnd: t.space.md,
+    }),
   ),
   title: Style.self({ margin: '0', fontSize: t.size.lg, letterSpacing: '-0.02em' }),
   lede: Style.self({
@@ -420,18 +425,44 @@ export const Page = A.slots({
       borderBlockEnd: `1px solid ${t.outline.subtle}`,
       background: t.surface.base,
     }),
+    Style.media('(max-width: 40rem)', { flexWrap: 'nowrap', padding: `${t.space.xs}` }),
   ),
-  tool: control,
-  toolLabel: Style.self({ fontSize: t.size.sm }),
+  // On a phone the toolbar keeps to one row: what the slash menu also offers steps aside, and a
+  // labelled tool shows its icon alone.
+  tool: Style.compose(
+    control,
+    Style.media('(max-width: 40rem)', { minInlineSize: '1.875rem', paddingInline: '0' }),
+    Style.at(
+      '@media (max-width: 40rem)',
+      Style.pseudo('[data-priority="low"]', { display: 'none' }),
+    ),
+  ),
+  toolLabel: Style.compose(
+    Style.self({ fontSize: t.size.sm }),
+    Style.media('(max-width: 40rem)', { display: 'none' }),
+  ),
   spacer: Style.self({ flex: '1' }),
   dismiss: Style.self({ display: 'none' }),
-  separator: Style.self({
-    inlineSize: '1px',
-    blockSize: '1.25rem',
-    background: t.outline.subtle,
-    marginInline: t.space['2xs'],
-  }),
-  anchor: Style.self({ position: 'relative' }),
+  separator: Style.compose(
+    Style.self({
+      inlineSize: '1px',
+      blockSize: '1.25rem',
+      background: t.outline.subtle,
+      marginInline: t.space['2xs'],
+    }),
+    Style.media('(max-width: 40rem)', { marginInline: '1px' }),
+    Style.at(
+      '@media (max-width: 40rem)',
+      Style.pseudo('[data-priority="low"]', { display: 'none' }),
+    ),
+  ),
+  anchor: Style.compose(
+    Style.self({ position: 'relative' }),
+    Style.at(
+      '@media (max-width: 40rem)',
+      Style.pseudo('[data-priority="low"]', { display: 'none' }),
+    ),
+  ),
   dropdown: Style.compose(
     popup,
     Style.self({
@@ -709,6 +740,8 @@ export const BlockStyleMenuStyle = A.forSlots(BlockStyleMenuSlots)({
     control,
     Style.self({ minInlineSize: '9.5rem', justifyContent: 'space-between' }),
     Style.pseudo('[aria-expanded="true"]', { background: t.surface.muted }),
+    // On a phone the icon says the style, and the trigger's name says it aloud.
+    Style.media('(max-width: 40rem)', { minInlineSize: '0' }),
   ),
   menu: Style.compose(
     popup,
@@ -732,7 +765,14 @@ export const BlockStyleMenuStyle = A.forSlots(BlockStyleMenuSlots)({
     }),
   ),
   icon: Style.self({ display: 'inline-flex', color: t.text.muted }),
-  label: Style.self({ fontSize: t.size.sm }),
+  label: Style.compose(
+    Style.self({ fontSize: t.size.sm }),
+    // The trigger's label, not an item's: on a phone the icon says the style.
+    Style.at(
+      '@media (max-width: 40rem)',
+      Style.nest(':where([aria-haspopup="menu"]) > &', { display: 'none' }),
+    ),
+  ),
   check: Style.self({ display: 'inline-flex', color: t.accent.default, minInlineSize: '16px' }),
 })
 

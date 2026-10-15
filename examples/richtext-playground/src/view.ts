@@ -87,13 +87,16 @@ const textBefore = (model: Model): string => {
   return start === undefined ? '' : RichText.textBefore(model.document, start)
 }
 
-const MARKS: ReadonlyArray<readonly [mark: string, icon: RichTextIconName, title: string]> = [
-  ['Bold', 'bold', 'Bold (Ctrl+B)'],
-  ['Italic', 'italic', 'Italic (Ctrl+I)'],
-  ['Underline', 'underline', 'Underline'],
-  ['Strikethrough', 'strikethrough', 'Strikethrough'],
-  ['Code', 'code', 'Inline code'],
-  ['Highlight', 'highlight', 'Highlight'],
+/** The marks the toolbars offer; the less used ones step aside on a phone. */
+const MARKS: ReadonlyArray<
+  readonly [mark: string, icon: RichTextIconName, title: string, priority: 'high' | 'low']
+> = [
+  ['Bold', 'bold', 'Bold (Ctrl+B)', 'high'],
+  ['Italic', 'italic', 'Italic (Ctrl+I)', 'high'],
+  ['Underline', 'underline', 'Underline', 'low'],
+  ['Strikethrough', 'strikethrough', 'Strikethrough', 'low'],
+  ['Code', 'code', 'Inline code', 'low'],
+  ['Highlight', 'highlight', 'Highlight', 'low'],
 ]
 
 /** What the insert menu offers after a file, by slash entry id, in this order. */
@@ -129,14 +132,22 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         pressed,
         disabled = false,
         label,
-      }: { readonly pressed?: boolean; readonly disabled?: boolean; readonly label?: string } = {},
+        priority = 'high',
+      }: {
+        readonly pressed?: boolean
+        readonly disabled?: boolean
+        readonly label?: string
+        /** A low one is left out on a phone, where the slash menu still offers it. */
+        readonly priority?: 'high' | 'low'
+      } = {},
     ) =>
       h.button(
         slots.tool.attrs([
           h.Type('button'),
           h.Title(title),
-          // A shown label names the button; an icon alone is named by its title.
-          ...(label === undefined ? [h.AriaLabel(title.replace(/ \(.*\)$/, ''))] : []),
+          // Named by its label, or by its title without the shortcut; a phone hides the label.
+          h.AriaLabel(label ?? title.replace(/ \(.*\)$/, '')),
+          h.DataAttribute('priority', priority),
           ...(pressed === undefined ? [] : [h.AriaPressed(pressed ? 'true' : 'false')]),
           h.Disabled(disabled),
           ...(disabled ? [] : [h.OnClick(message)]),
@@ -146,11 +157,13 @@ export const PlaygroundView = SlotView.forMessages<Message>()
           ...(label === undefined ? [] : [h.span(slots.toolLabel.attrs(), [label])]),
         ],
       )
-    const separator = () => h.span(slots.separator.attrs([h.AriaHidden(true)]), [])
+    const separator = (priority: 'high' | 'low' = 'high') =>
+      h.span(slots.separator.attrs([h.AriaHidden(true), h.DataAttribute('priority', priority)]), [])
     const markTools = () =>
-      MARKS.map(([mark, name, title]) =>
+      MARKS.map(([mark, name, title, priority]) =>
         tool(name, title, wrap(EditorMessage.ToggledMark({ mark })), {
           pressed: markActive(state, mark),
+          priority,
         }),
       )
     const toggleMenu = (menu: Menu, isOpen: boolean): Message =>
@@ -200,20 +213,24 @@ export const PlaygroundView = SlotView.forMessages<Message>()
       ])
     const styleMenu = (place: 'toolbar' | 'floating') => {
       const isOpen = open.style === place
-      return h.div(slots.anchor.attrs(), [
-        StyleMenu(
-          {
-            document: model.document,
-            selection: model.editor.selection,
-            open: isOpen,
-            toggled: toggleMenu(Menu.Style({ place }), isOpen),
-            // A choice closes the menu as it retypes the block.
-            wrap: message => Message.MenuEdit({ message }),
-          },
-          h,
-        ),
-        ...(isOpen ? [dismiss()] : []),
-      ])
+      // Over selected text on a phone, the marks are room enough; the toolbar's menu remains.
+      return h.div(
+        slots.anchor.attrs([h.DataAttribute('priority', place === 'floating' ? 'low' : 'high')]),
+        [
+          StyleMenu(
+            {
+              document: model.document,
+              selection: model.editor.selection,
+              open: isOpen,
+              toggled: toggleMenu(Menu.Style({ place }), isOpen),
+              // A choice closes the menu as it retypes the block.
+              wrap: message => Message.MenuEdit({ message }),
+            },
+            h,
+          ),
+          ...(isOpen ? [dismiss()] : []),
+        ],
+      )
     }
 
     // --- the toolbar ---
@@ -287,6 +304,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         'bulleted-list',
         'Bulleted list',
         wrap(EditorMessage.WrappedBlock({ containers: [{ kind: 'List' }, { kind: 'ListItem' }] })),
+        { priority: 'low' },
       ),
       tool(
         'numbered-list',
@@ -296,6 +314,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
             containers: [{ kind: 'List', props: { ordered: true } }, { kind: 'ListItem' }],
           }),
         ),
+        { priority: 'low' },
       ),
       tool(
         'checklist',
@@ -305,11 +324,20 @@ export const PlaygroundView = SlotView.forMessages<Message>()
             containers: [{ kind: 'List' }, { kind: 'TaskItem', props: { checked: false } }],
           }),
         ),
+        { priority: 'low' },
       ),
-      tool('quote', 'Quote', wrap(EditorMessage.WrappedBlock({ containers: [{ kind: 'Quote' }] }))),
-      separator(),
+      tool(
+        'quote',
+        'Quote',
+        wrap(EditorMessage.WrappedBlock({ containers: [{ kind: 'Quote' }] })),
+        { priority: 'low' },
+      ),
+      separator('low'),
       insertMenu,
-      tool('comment', 'Comment on the selection', Message.StartedComment(), { disabled: !covers }),
+      tool('comment', 'Comment on the selection', Message.StartedComment(), {
+        disabled: !covers,
+        priority: 'low',
+      }),
       h.span(slots.spacer.attrs(), []),
       tool('search', 'Find and replace (Ctrl+F)', Message.OpenedFind(), {
         pressed: Option.isSome(model.find),
@@ -366,7 +394,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
                   ]
                 : [
                     styleMenu('floating'),
-                    separator(),
+                    separator('low'),
                     ...markTools(),
                     separator(),
                     tool('link', 'Link', Message.OpenedMenu({ menu: Menu.Link() }), {
