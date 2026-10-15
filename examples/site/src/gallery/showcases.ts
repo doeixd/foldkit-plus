@@ -24,6 +24,7 @@ import {
   CommandSlots,
   HoverIntentSlots,
   MenubarSlots,
+  MeterSlots,
   NavSlots,
   ProgressSlots,
   NumberFieldSlots,
@@ -655,6 +656,19 @@ export const showcases: ReadonlyArray<Showcase> = [
     ProgressSlots,
     Recipes.Progress,
     (style, live) => Snippet.progress(style, live.h),
+  ),
+  fromRecipe(
+    {
+      slug: 'meter',
+      title: 'Meter',
+      summary: 'A measurement within its range, coloured by how near it sits to the best value.',
+      recipe: 'Meter',
+      file: 'meter',
+      contract: 'MeterSlots',
+    },
+    MeterSlots,
+    Recipes.Meter,
+    (style, live) => Snippet.meter(style, live.h),
   ),
   fromRecipe(
     {

@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Meter`, `@foldkit/ui`'s Meter adapted.** A
+  measurement within a range, its root's `data-level` (`good`, `fair`,
+  `poor`) the HTML meter's judgment of the value against `low`, `high` and
+  `optimum` (`Meter.levelOf`), which the recipe colours success, warning or
+  error. `Recipes.Meter`, `Patterns.Meter` and a gallery page.
 - **`foldkit-mixins-ui`: `Progress`, `@foldkit/ui`'s Progress adapted,**
   with Circular Progress as its recipe's `shape: 'ring'`. `value` is an
   `Option`, none for work whose end is not known, which the bar shows

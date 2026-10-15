@@ -56,6 +56,8 @@ import {
   ContextMenu,
   Menubar,
   MenubarSlots,
+  Meter,
+  MeterSlots,
   Nav,
   NavSlots,
   Progress,
@@ -1586,6 +1588,34 @@ export const progress = <Message>(
         h,
       ),
       Progress.view({ id: 'preview-prepare', label: 'Preparing', value: Option.none(), style }, h),
+    ],
+  )
+// #endregion
+
+// #region meter
+export const MeterStyle = forSlots(MeterSlots)(Recipes.Meter({}))
+
+export const meter = <Message>(style: NamedStyle<typeof MeterSlots>, h: HtmlBuilder<Message>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '1.25rem' })],
+    [
+      Meter.view(
+        { id: 'preview-battery', label: 'Battery', value: 64, low: 20, high: 80, optimum: 100, style },
+        h,
+      ),
+      Meter.view(
+        {
+          id: 'preview-storage',
+          label: 'Storage used',
+          value: 91,
+          low: 20,
+          high: 80,
+          optimum: 0,
+          valueText: (value, max) => `${value} of ${max} GB`,
+          style,
+        },
+        h,
+      ),
     ],
   )
 // #endregion
