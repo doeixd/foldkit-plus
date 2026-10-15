@@ -3,11 +3,13 @@
  * or a button by what it is given, and a dismiss button only when the
  * application can dismiss it, named after the region.
  */
+import type { HtmlBuilder } from 'foldkit/html'
+import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Banner, BannerSlots, Patterns, Recipes } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { h, message, sends, type TestMessage } from './fixture.js'
 
 const style = Style.forSlots(BannerSlots)(Recipes.Banner({ tone: 'warning', emphasis: 'bold' }))
 
@@ -67,5 +69,40 @@ describe('Banner.view', () => {
     }
     expect(named()).toBe('Dismiss Cookies')
     expect(named('Accept and close')).toBe('Accept and close')
+  })
+
+  it('sends the action from the action and the dismissal from the dismiss button, neither submitting a form', () => {
+    const view = (h: HtmlBuilder<TestMessage>) =>
+      Banner.view(
+        {
+          label: 'News',
+          message: 'v2 is out.',
+          action: { label: 'Upgrade', onClick: message('Other') },
+          onDismiss: message('Clicked'),
+          style,
+        },
+        h,
+      )
+    sends(
+      view,
+      Scene.click(Scene.role('button', { name: 'Upgrade' })),
+      Scene.expectOutMessage(message('Other')),
+      Scene.click(Scene.role('button', { name: 'Dismiss News' })),
+      Scene.expectOutMessage(message('Clicked')),
+    )
+    expect(Inert.byTag(view(h), 'button').map(button => Inert.value(button, 'type'))).toEqual([
+      'button',
+      'button',
+    ])
+  })
+
+  it('hides its icon, which the region name already says', () => {
+    const drawn = Banner.view(
+      { label: 'Warning', message: 'Disk nearly full.', icon: h.span([], ['!']), style },
+      h,
+    )
+    const [region] = Inert.byTag(drawn, 'section')
+    const [icon] = Inert.children(region)
+    expect(Inert.value(icon, 'aria-hidden')).toBe('true')
   })
 })

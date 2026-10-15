@@ -1,5 +1,6 @@
 import { expect } from 'vitest'
-import type { Attribute, ChildAttribute } from 'foldkit/html'
+import type { Attribute, ChildAttribute, Html, HtmlBuilder } from 'foldkit/html'
+import { Scene } from 'foldkit/test'
 import {
   Attributes,
   Diagnostics,
@@ -16,6 +17,22 @@ export type Mixins = ReadonlyArray<
 >
 
 export const h = SlotView.inertBuilder<TestMessage>()
+
+type SceneStep<Message> = Parameters<typeof Scene.scene<0, Message, Message>>[1]
+
+/**
+ * A Scene over a stateless view: each Message it sends comes back as the
+ * OutMessage, so `Scene.expectOutMessage` says what an interaction sent.
+ */
+export const sends = <Message>(
+  view: (h: HtmlBuilder<Message>) => Html,
+  ...steps: Array<SceneStep<Message>>
+): void =>
+  Scene.scene<0, Message, Message>(
+    { update: (model, message) => ({ model, outMessage: message }), view: (_, h) => view(h) },
+    Scene.given(0),
+    ...steps,
+  )
 
 export const message = (tag: TestMessage['_tag']): TestMessage => ({ _tag: tag })
 
