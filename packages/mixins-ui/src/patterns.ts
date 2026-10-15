@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
+import { TreeViewSlots } from './treeView.js'
 import { ColorPickerSlots } from './colorPicker.js'
 import { InputCopySlots } from './inputCopy.js'
 import { BannerSlots } from './banner.js'
@@ -292,6 +293,21 @@ export const ColorPicker = A11y.pattern({
   },
 })
 
+export const TreeView = A11y.pattern({
+  root: {
+    capability: Capability.Container,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel],
+  },
+  item: {
+    capability: Capability.Focusable,
+    events: [Event.Focus],
+    attributes: [Attr.Role, Attr.AriaExpanded, Attr.AriaSelected],
+  },
+  row: { capability: Capability.Interactive, events: [Event.Click] },
+  group: { capability: Capability.Container, attributes: [Attr.Role] },
+})
+
 export const Nav = A11y.pattern({
   nav: { capability: Capability.Container },
   link: { capability: Capability.Interactive },
@@ -501,6 +517,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
+  entry('tree-view', TreeView, TreeViewSlots, 'stateful', ['tree', 'treeitem', 'group']),
   entry(
     'color-picker',
     ColorPicker,
