@@ -90,6 +90,9 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
+  /** The password field's text, and whether it shows. */
+  password: Schema.String,
+  passwordShown: Schema.Boolean,
   /** The rating's stars, none before any are given. */
   stay: Schema.Option(Schema.Number),
 })
@@ -131,6 +134,8 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  TypedPassword: { value: Schema.String },
+  ToggledPassword: {},
   RatedStay: { value: Schema.Number },
 })
 export type Message = typeof Message.Type
@@ -183,6 +188,8 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
+  password: '',
+  passwordShown: false,
   stay: Option.none(),
 }
 
@@ -449,6 +456,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
+    TypedPassword: ({ value }) =>
+      value === model.password
+        ? { model }
+        : { model: modifyFields(model, { password: () => value }) },
+    ToggledPassword: () => ({
+      model: modifyFields(model, { passwordShown: () => !model.passwordShown }),
+    }),
     RatedStay: ({ value }) =>
       Option.contains(model.stay, value)
         ? { model }

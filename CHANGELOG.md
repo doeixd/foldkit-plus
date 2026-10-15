@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `PasswordInput`,** a password field whose toggle
+  (`aria-pressed`, `aria-controls`) shows it as text, `autocomplete` kept as
+  `current-password` or `new-password`. `Recipes.PasswordInput` reuses
+  Input's pieces in InputGroup's box, draws the eye with `Icons.glyph` and
+  hides the browser's own reveal button. `Patterns.PasswordInput` and a
+  gallery page.
 - **`foldkit-mixins-ui`: `Rating`,** a row of stars as the APG's radio group
   of native radios: the application keeps `value` (an `Option`, none before
   anyone rates) and receives `onChange` with the star chosen. The arrows move

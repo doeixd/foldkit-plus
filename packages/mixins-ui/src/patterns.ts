@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
+import { PasswordInputSlots } from './passwordInput.js'
 import { RatingSlots } from './rating.js'
 import { StepsSlots } from './steps.js'
 import { VirtualListSlots } from './virtualList.js'
@@ -228,6 +229,21 @@ export const Rating = A11y.pattern({
     events: [Event.Change],
     attributes: [Attr.AriaLabel],
   },
+})
+
+export const PasswordInput = A11y.pattern({
+  label: { capability: Capability.Container },
+  input: {
+    capability: Capability.TextInput,
+    events: [Event.Input],
+    attributes: [Attr.AriaInvalid],
+  },
+  toggle: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel, Attr.AriaPressed],
+  },
+  description: { capability: Capability.Container, optional: true },
 })
 
 export const Nav = A11y.pattern({
@@ -439,6 +455,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
+  entry(
+    'password-input',
+    PasswordInput,
+    PasswordInputSlots,
+    'stateless',
+    ['textbox', 'button'],
+    ['native-control', 'form-submission'],
+  ),
   entry(
     'rating',
     Rating,

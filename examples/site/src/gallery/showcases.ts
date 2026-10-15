@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  PasswordInputSlots,
   RatingSlots,
   StepsSlots,
   VirtualListSlots,
@@ -721,6 +722,29 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.stay,
         value => live.onWidget(Widgets.Message.RatedStay({ value })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'password-input',
+      title: 'Password input',
+      summary: 'A password field with a toggle that shows it as text.',
+      recipe: 'PasswordInput',
+      file: 'passwordInput',
+      contract: 'PasswordInputSlots',
+    },
+    PasswordInputSlots,
+    Recipes.PasswordInput,
+    (style, live) =>
+      Snippet.passwordInput(
+        style,
+        {
+          value: live.widgets.password,
+          visible: live.widgets.passwordShown,
+          onInput: value => live.onWidget(Widgets.Message.TypedPassword({ value })),
+          onToggle: live.onWidget(Widgets.Message.ToggledPassword()),
+        },
         live.h,
       ),
   ),

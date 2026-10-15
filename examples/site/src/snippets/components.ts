@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  PasswordInput,
+  PasswordInputSlots,
   Rating,
   RatingSlots,
   Steps,
@@ -1701,6 +1703,32 @@ export const rating = <Message>(
         h,
       ),
     ],
+  )
+// #endregion
+
+// #region password-input
+export const PasswordInputStyle = forSlots(PasswordInputSlots)(Recipes.PasswordInput({}))
+
+export const passwordInput = <Message>(
+  style: NamedStyle<typeof PasswordInputSlots>,
+  field: {
+    readonly value: string
+    readonly visible: boolean
+    readonly onInput: (value: string) => Message
+    readonly onToggle: Message
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  PasswordInput.view(
+    {
+      id: 'preview-password',
+      label: 'Password',
+      description: 'At least twelve characters.',
+      autocomplete: 'new-password',
+      ...field,
+      style,
+    },
+    h,
   )
 // #endregion
 
