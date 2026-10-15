@@ -47,8 +47,26 @@ describe('Sidebar.view', () => {
     expect(Inert.value(nav, 'aria-label')).toBe('Workspace')
     expect(Inert.value(toggle, 'aria-controls')).toBe(Inert.value(nav, 'id'))
     expect(Inert.value(toggle, 'aria-expanded')).toBe('true')
+    expect(Inert.value(toggle, 'aria-label')).toBe('Hide Workspace')
+    expect(Inert.value(nav, 'inert')).toBeUndefined()
     const [collapsedNav] = Inert.byTag(drawn(true), 'nav')
+    const [collapsedToggle] = Inert.byTag(drawn(true), 'button')
     expect(Inert.value(collapsedNav, 'inert')).toBe('')
+    expect(Inert.value(collapsedToggle, 'aria-expanded')).toBe('false')
+    expect(Inert.value(collapsedToggle, 'aria-label')).toBe('Show Workspace')
+  })
+
+  it('has each section heading say whether it is open and name its links', () => {
+    const drawing = drawn(false)
+    const [, ...triggers] = Inert.byTag(drawing, 'button')
+    const lists = Inert.byTag(drawing, 'ul')
+    expect(triggers.map(trigger => Inert.value(trigger, 'aria-expanded'))).toEqual([
+      'true',
+      'false',
+    ])
+    expect(triggers.map(trigger => Inert.value(trigger, 'aria-controls'))).toEqual(
+      lists.map(list => Inert.value(list, 'id')),
+    )
   })
 
   it("keeps a shut section's links but out of reach, and marks the current page", () => {
