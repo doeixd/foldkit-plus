@@ -601,6 +601,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: a Skeleton bar shows in a container that sizes to
+  its content.** Its `inline-size: 100%` resolved to nothing there (a
+  centered column, a flex item), so the bar computed 0px wide and the
+  gallery's skeleton showed nothing. A bar now has a `4rem` floor.
 - **`foldkit-mixins-ui`: chevrons point the right way right to left.** The
   Accordion's, Sidebar's, TreeView's and Nested Menu's chevrons and the
   Carousel's arrows drew their two sides with logical borders, which mirror

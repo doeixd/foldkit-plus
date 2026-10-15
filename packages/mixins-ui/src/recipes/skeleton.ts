@@ -28,7 +28,14 @@ export const Skeleton = Style.recipeFor(SkeletonSlots)({
     shape: {
       bar: {
         bar: variant(
-          Style.self({ inlineSize: '100%', blockSize: '1rem', borderRadius: ref.radius.sm }),
+          // A floor, since a container that sizes to its content (a centered
+          // column, a flex item) gives `100%` nothing and the bar vanished.
+          Style.self({
+            inlineSize: '100%',
+            minInlineSize: '4rem',
+            blockSize: '1rem',
+            borderRadius: ref.radius.sm,
+          }),
         ),
       },
       circle: {

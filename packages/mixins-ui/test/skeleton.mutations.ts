@@ -4,8 +4,25 @@
  * test fails for every one.
  */
 const tests = ['packages/mixins-ui/test/skeleton.test.ts']
+const browser = ['packages/mixins-ui/test/skeleton.browser.test.ts']
 
 export default [
+  {
+    name: 'a bar has no floor, so it vanishes where its container sizes to content',
+    edits: [{ file: '../src/recipes/skeleton.ts', find: "minInlineSize: '4rem',", replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'a bar keeps to its floor, so it does not fill its container',
+    edits: [
+      {
+        file: '../src/recipes/skeleton.ts',
+        find: "inlineSize: '100%',\n            minInlineSize",
+        replace: "inlineSize: '4rem',\n            minInlineSize",
+      },
+    ],
+    tests: browser,
+  },
   {
     name: 'every bar interrupts',
     edits: [

@@ -467,7 +467,7 @@ export const SkeletonStyle = forSlots(SkeletonSlots)(Recipes.Skeleton({}))
 
 export const skeleton = (style: NamedStyle<typeof SkeletonSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
-    [],
+    [h.Style({ display: 'grid', gap: '0.5rem', inlineSize: 'min(20rem, 100%)' })],
     [
       Skeleton.view({ label: 'Loading the profile', style }, h),
       Skeleton.view({ style }, h),
