@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-richtext-dom`: a press below the last block writes after it.** The
+  caret goes to the end of a last paragraph or heading; after a table, code or
+  an image a new paragraph opens, where no caret could get below them.
 - **`foldkit-richtext`: Backspace and Delete beside a table, code or a quote.**
   An empty line next to a block it cannot join is removed and the caret steps
   into that block; Backspace from a line with text steps there. Both were

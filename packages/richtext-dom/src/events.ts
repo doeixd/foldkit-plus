@@ -621,11 +621,42 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       props: { [prop]: block.props[prop] !== true },
     })
   }
+  /**
+   * A press in the space below the last block writes after it, as below the last line of a
+   * page: at the end of a paragraph or heading, or on a new paragraph after anything else (a
+   * table, code, an image), which no caret could otherwise get below.
+   */
+  const pressBelow = (event: MouseEvent): boolean => {
+    const last = current.content.children.at(-1)
+    const element = last === undefined ? undefined : current.elements.get(last.id)
+    if (last === undefined || element === undefined) return false
+    if (event.clientY <= element.getBoundingClientRect().bottom) return false
+    event.preventDefault()
+    current.root.focus({ preventScroll: true })
+    const run =
+      last.type === 'Paragraph' || last.type === 'Heading' ? last.children.at(-1) : undefined
+    if (run !== undefined) {
+      const end = { node: run.id, offset: run.text.length, affinity: 'after' as const }
+      select({ type: 'Range', anchor: end, focus: end })
+      return true
+    }
+    options.onIntent({
+      type: 'InsertBlock',
+      block: {
+        type: 'Paragraph',
+        id: RichText.NodeId.make('paragraph'),
+        children: [{ type: 'Text', id: RichText.NodeId.make('text'), text: '', marks: [] }],
+      },
+      to: { after: last.id },
+    })
+    return true
+  }
   // A press on an atom (an image, a divider) selects it whole, as there is no text in it for
   // a caret, and keeps the browser from dragging it or putting the caret elsewhere.
   const onMouseDown = (event: MouseEvent): void => {
     const origin = event.target
     if (event.button !== 0 || !(origin instanceof Element)) return
+    if (origin === current.root && pressBelow(event)) return
     if (origin.closest(INTERACTIVE) !== null) return
     if (
       origin.closest(`[${RichText.ACTION_ATTRIBUTE}], [${RichText.TOGGLES_ATTRIBUTE}]`) !== null
