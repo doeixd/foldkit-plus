@@ -163,6 +163,8 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext-dom`: `blockAnchor`'s `side: 'inside-end'`.** A block's
+  toolbar inside its top right corner, covering nothing around the block.
 - **`foldkit-mixins-richtext`: `linkEdit`, and Enter that keeps up with typing.**
   The link editor's Enter sent the edit its last drawing decided, a frame
   behind fast keys, so Enter straight after typing applied the address before

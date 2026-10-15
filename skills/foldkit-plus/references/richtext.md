@@ -200,7 +200,7 @@ usually `RichText.validate` against its Kit. `tableToolbar<Message>()` (`{ docum
 wrap }`, `TableToolbarSlots`) edits the table around the caret's cell (rows, columns, header,
 delete), disabled outside one; `codeToolbar<Message>()` (`{ document, node, languages, wrap,
 copied }`, `CodeToolbarSlots`) sets a code block's language and sends the caller's Copy; draw
-either above its block with `blockAnchor({ …, side: 'above' })`. `blockHandle<Message>()` is the block handle:
+either above its block with `blockAnchor({ …, side: 'above' })`, or in its top right corner with `side: 'inside-end'`. `blockHandle<Message>()` is the block handle:
 `{ document, hostId, node, wrap }` in, `BlockHandleSlots` (`root`, `grip`, `up`, `down`) out; the
 grip drags the block wherever `RichText.moveTargets` allows (`blockDrag` from
 `foldkit-richtext-dom/toolbar`, keyed by the block), up sends

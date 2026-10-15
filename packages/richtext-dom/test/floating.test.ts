@@ -9,6 +9,7 @@ import {
   anchorToBlock,
   anchorToSelection,
   placeBeside,
+  placeInsideEnd,
   placeOver,
   placeUnder,
 } from '../src/floating.js'
@@ -163,6 +164,20 @@ describe('placeBeside', () => {
     ['inside the left edge', { ...target, left: 20 }, { top: 100, left: 0, placement: 'left' }],
   ] as const)('%s', (_, box, expected) => {
     expect(placeBeside(box, { width: 40 }, 8)).toEqual(expected)
+  })
+})
+
+describe('placeInsideEnd', () => {
+  it.each([
+    ['in the top right corner', { ...target, width: 300 }, 200 + 300 - 8 - 40],
+    // A toolbar wider than the block starts at its left edge rather than past it.
+    ['at the left edge of a narrow block', { ...target, width: 30 }, target.left],
+  ] as const)('%s', (_, box, left) => {
+    expect(placeInsideEnd(box, { width: 40 }, 8)).toEqual({
+      top: target.top + 8,
+      left,
+      placement: 'inside',
+    })
   })
 })
 

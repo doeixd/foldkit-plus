@@ -261,9 +261,11 @@ caret in an empty run is read from the element it is in.
 `blockAnchor({ hostId, node, gap })` places an element `gap` pixels left of block `node`, level
 with its top edge and never past the window's left edge; with `side: 'above'` it goes `gap`
 pixels above the block, at its left edge, or just inside its top when there is no room above,
-which is where a block's toolbar (a table's, a code block's) goes. It places it again when the editor's
-subtree changes (a patch can move a block without the page scrolling), on scroll, and on
-resize, and it finds a host drawn after it, or drawn again in the same parent.
+which is where a block's toolbar (a table's) goes; with `side: 'inside-end'` it goes inside the
+block's top right corner, for a toolbar that should cover nothing around the block (a code
+block's, over its own header). It places it again when the editor's subtree changes (a patch can
+move a block without the page scrolling), on scroll, on resize, and when the element's own size
+changes, and it finds a host drawn after it, or drawn again in the same parent.
 
 `blockDrag({ hostId, node })` drags block `node` by the element it is mounted on, to any block
 `RichText.moveTargets` allows under the placed vocabulary, so an item can go into another list

@@ -11,4 +11,26 @@ export default [
     edits: [{ file, find: '  sizes?.observe(element)\n', replace: '' }],
     tests,
   },
+  {
+    name: 'a narrow block’s toolbar starts past its left edge',
+    edits: [
+      {
+        file,
+        find: 'left: Math.max(target.left, target.left + target.width - gap - floating.width),',
+        replace: 'left: target.left + target.width - gap - floating.width,',
+      },
+    ],
+    tests: ['packages/richtext-dom/test/floating.test.ts'],
+  },
+  {
+    name: 'the corner is at the top edge',
+    edits: [
+      {
+        file,
+        find: '  top: target.top + gap,\n  left: Math.max',
+        replace: '  top: target.top,\n  left: Math.max',
+      },
+    ],
+    tests: ['packages/richtext-dom/test/floating.test.ts'],
+  },
 ]

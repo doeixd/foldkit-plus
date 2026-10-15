@@ -101,6 +101,24 @@ export const placeBeside = (
   placement: 'left',
 })
 
+/** Where a block's floating element goes: `blockAnchor`'s `side`. */
+const BlockSide = Schema.Literals(['left', 'above', 'inside-end'])
+type BlockSide = typeof BlockSide.Type
+
+/**
+ * Where a block's own toolbar goes when it should cover nothing around the block: inside its top
+ * right corner, `gap` in from both edges, and never past the block's left edge.
+ */
+export const placeInsideEnd = (
+  target: Box,
+  floating: Pick<Box, 'width'>,
+  gap: number,
+): { readonly top: number; readonly left: number; readonly placement: 'inside' } => ({
+  top: target.top + gap,
+  left: Math.max(target.left, target.left + target.width - gap - floating.width),
+  placement: 'inside',
+})
+
 type Styled = Element & ElementCSSInlineStyle
 
 const write = (
@@ -176,7 +194,7 @@ export const anchorToBlock = (
   hostId: string,
   node: RichText.NodeId,
   gap: number,
-  side: 'left' | 'above' = 'left',
+  side: BlockSide = 'left',
 ) => {
   const owner = element.ownerDocument
   const view = owner.defaultView
@@ -204,12 +222,12 @@ export const anchorToBlock = (
     if (block === undefined) return
     const box = block.getBoundingClientRect()
     const floating = element.getBoundingClientRect()
-    write(
-      element,
-      side === 'above'
-        ? placeAbove(box, floating, { width: view.innerWidth }, gap)
-        : placeBeside(box, floating, gap),
-    )
+    const placed = {
+      left: () => placeBeside(box, floating, gap),
+      above: () => placeAbove(box, floating, { width: view.innerWidth }, gap),
+      'inside-end': () => placeInsideEnd(box, floating, gap),
+    } satisfies Record<BlockSide, () => unknown>
+    write(element, placed[side]())
   }
   place()
   const release = onLayout(view, place, element)
@@ -249,8 +267,11 @@ export const blockAnchor = Mount.defineStream('RichTextBlockAnchor', {
     node: RichText.NodeId,
     /** Pixels between the handle and the block. */
     gap: Schema.Number,
-    /** Beside the block's left edge (a handle), or above it (a block's toolbar). Default left. */
-    side: Schema.optionalKey(Schema.Literals(['left', 'above'])),
+    /**
+     * Beside the block's left edge (a handle), above it (a block's toolbar), or inside its top
+     * right corner (a toolbar that should cover nothing around the block). Default left.
+     */
+    side: Schema.optionalKey(BlockSide),
   },
   messages: [Schema.Never],
   execute: ({ element, hostId, node, gap, side }) =>
