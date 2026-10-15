@@ -91,15 +91,24 @@ export const footnotesOf = (document: Document): ReadonlyArray<Footnote> => {
   }))
 }
 
-/** The label of the footnote whose reference the selection starts in. */
+/**
+ * The label of the footnote whose reference the selection starts in or right beside. A reference
+ * is a character or two, and its mark does not extend, so a click on one usually leaves the caret
+ * at its edge, in the run next to it; that caret counts as at the reference.
+ */
 export const footnoteAt = (document: Document, selection: Selection | null): string | undefined => {
   if (selection?.type !== 'Range') return undefined
   const start = rangeStart(document, selection)
   if (start === undefined) return undefined
   let found: string | undefined
   eachBlock(document.children, block => {
-    const run = block.children.find(each => each.id === start.node)
-    if (run !== undefined) found = referenceLabel(run)
+    const index = block.children.findIndex(each => each.id === start.node)
+    if (index < 0) return
+    const run = block.children[index]!
+    let beside: Text | undefined
+    if (start.offset === 0) beside = block.children[index - 1]
+    else if (start.offset === run.text.length) beside = block.children[index + 1]
+    found = referenceLabel(run) ?? (beside === undefined ? undefined : referenceLabel(beside))
   })
   return found
 }

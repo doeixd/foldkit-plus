@@ -381,7 +381,10 @@ The shipped policy is `Bold`/`Italic` → `after`, `Code` → `none`, and a mark
 registry declares → `both` (so preservation never retargets an unknown mark
 away). `resolveInsertion` retargets a boundary insertion when the current run
 carries marks that forbid the edge and the neighbor carries exactly the marks
-that remain; a registry changes which marks those are, not the rule. Declared
+that remain, in nested blocks as at the top level; a registry changes which marks
+those are, not the rule. At a block's outer edge there is no neighbor, so text typed
+there with no stored marks gets a run of its own carrying only the marks that
+extend: typing after a link or inline code that ends a paragraph leaves it. Declared
 names are also what `run` may add, so a Kit's marks are usable by name or value.
 
 `validate(document, kit)` is the publishing gate: it reports `UnknownMark` for a
@@ -1058,7 +1061,8 @@ text is added after them; block identities are stable for a block's whole life.
 - Marks carry boundary expansion (`Bold`/`Italic`: `after`, `Code`: `none`).
   `resolveInsertion(document, position)` retargets edge insertions whose marks
   forbid the edge to the neighbor carrying exactly the remaining marks; mixed
-  edges stay put rather than swapping formatting. Unknown marks default to
+  edges stay put rather than swapping formatting. At a block's outer edge, the
+  typed text takes its own run with only the marks that extend there. Unknown marks default to
   expanding both ways so preservation never retargets them away.
 - Every transaction ends by running its transforms (by default
   `mergeAdjacentRuns`): adjacent same-mark runs within touched blocks merge, the

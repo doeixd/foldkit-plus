@@ -23,6 +23,7 @@ import {
 import { withFreshIds, type Slice } from './clipboard.js'
 import {
   markName,
+  edgeMarks,
   resolveInsertion,
   propsFailure,
   sameMark,
@@ -1248,7 +1249,13 @@ export const run = (
     // Stored marks are explicit: when the command carries them, the inserted
     // text must end up with exactly that set, whatever run it lands in. Without
     // them, the boundary rule decides (typing after bold continues bold).
-    const stored = command.marks
+    // At a block's outer edge, a mark that does not extend there is left behind: the text
+    // carries the rest, as stored marks would.
+    const edge =
+      command.marks === undefined && isCollapsed(selection)
+        ? edgeMarks(state.document, selection.anchor, options.marks)
+        : undefined
+    const stored = command.marks ?? edge
     const target = isCollapsed(selection)
       ? stored === undefined
         ? resolveInsertion(state.document, selection.anchor, options.marks)
@@ -1260,7 +1267,8 @@ export const run = (
     const marks: Array<RunMark> = []
     if (stored !== undefined) {
       for (const mark of stored) {
-        if (!declared.accepts(mark)) return failure('InvalidInput')
+        // Marks kept from the run were already there; only marks a caller names are checked.
+        if (edge === undefined && !declared.accepts(mark)) return failure('InvalidInput')
         marks.push(mark)
       }
       // A mark-free kind refuses the format however it arrives, so inserting text

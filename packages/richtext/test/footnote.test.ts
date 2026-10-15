@@ -78,6 +78,11 @@ describe('the footnotes a document holds', () => {
 
   it('say which reference the caret is in', () => {
     expect(RichText.footnoteAt(document(), caret('r1', 1))).toBe('1')
+    // At either edge of the runs beside it, where a click on a one-character reference lands.
+    expect(RichText.footnoteAt(document(), caret('a', 5))).toBe('1')
+    expect(RichText.footnoteAt(document(), caret('b', 0))).toBe('1')
+    expect(RichText.footnoteAt(document(), caret('a', 4))).toBeUndefined()
+    expect(RichText.footnoteAt(document(), caret('b', 1))).toBeUndefined()
     expect(RichText.footnoteAt(document(), caret('a', 2))).toBeUndefined()
     expect(RichText.footnoteAt(document(), null)).toBeUndefined()
   })

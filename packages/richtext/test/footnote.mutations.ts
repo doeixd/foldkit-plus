@@ -30,6 +30,28 @@ export default [
     tests,
   },
   {
+    name: 'a caret beside a reference is not at it',
+    edits: [
+      {
+        file: footnote,
+        find: 'found = referenceLabel(run) ?? (beside === undefined ? undefined : referenceLabel(beside))',
+        replace: 'found = referenceLabel(run)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a caret anywhere in the run beside a reference is at it',
+    edits: [
+      {
+        file: footnote,
+        find: 'if (start.offset === 0) beside = block.children[index - 1]',
+        replace: 'if (true) beside = block.children[index - 1]',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a footnote goes at the start of a range',
     edits: [
       {

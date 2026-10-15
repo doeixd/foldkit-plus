@@ -88,6 +88,12 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext`: typing at a block's edge leaves a mark that does not
+  extend.** Text typed after a link, inline code or footnote reference that ends
+  a paragraph (or before one that starts it) used to join it, since there was
+  no neighbouring run to move to; it now gets a run with only the marks that
+  extend. `resolveInsertion` also reaches nested blocks, where it found nothing
+  before, so a list item or table cell kept extending such marks.
 - **Footnotes.** `foldkit-richtext` declares `FootnoteRef` and
   `FootnoteDefinition` for a kit to opt into, reads them with `footnotesOf`,
   `footnoteAt` and `nextFootnoteLabel`, and inserts and renames them with

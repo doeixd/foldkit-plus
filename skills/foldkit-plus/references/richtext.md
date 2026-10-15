@@ -438,7 +438,8 @@ selection)` reads it for `Link`: the `href` and range a link editor opens on). `
 `UnknownMark` for an
 undeclared name and `InvalidProps` for props its schema refuses, including a mark
 that declares props but carries none. `resolveInsertion` honors the policy, with
-an undeclared mark expanding `both`. Application node kinds are
+an undeclared mark expanding `both`; at a block's outer edge, typed text gets its own
+run with only the marks that extend (typing after a link ending a paragraph leaves it). Application node kinds are
 first-class: `RichText.node(name, { Props })` declares a `Node` block whose JSON
 props the Kit validates (`UnsupportedNode` / `InvalidProps`), with text-run
 children so positions and operations work unchanged. Migrations move persisted

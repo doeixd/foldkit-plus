@@ -1,5 +1,6 @@
 import { Equal, Schema } from 'effect'
 import {
+  eachBlock,
   markName,
   type Document,
   type MarkValue,
@@ -139,26 +140,60 @@ export const resolveInsertion = (
   position: Position,
   registry: MarkRegistry = shippedRegistry,
 ): Position => {
-  for (const block of document.children) {
+  let resolved = position
+  // Nested blocks too: a list item's or a table cell's runs follow the same rule.
+  eachBlock(document.children, block => {
     const index = block.children.findIndex(run => run.id === position.node)
     const run = block.children[index]
-    if (run === undefined) continue
+    if (run === undefined) return
     const leavingLeft = position.affinity === 'before' && position.offset === 0
     const leavingRight = position.affinity === 'after' && position.offset === run.text.length
-    if (!leavingLeft && !leavingRight) return position
+    if (!leavingLeft && !leavingRight) return
     const neighbor = leavingLeft ? block.children[index - 1] : block.children[index + 1]
-    if (neighbor === undefined) return position
-    const direction = leavingLeft ? 'before' : 'after'
-    const desired = run.marks.filter(mark => {
-      const expand = registry.expansionOf(markName(mark))
-      return expand === 'both' || expand === direction
-    })
-    if (!sameMarkSet(desired, neighbor.marks)) return position
-    return {
+    if (neighbor === undefined) return
+    const desired = extending(run.marks, leavingLeft ? 'before' : 'after', registry)
+    if (!sameMarkSet(desired, neighbor.marks)) return
+    resolved = {
       node: neighbor.id,
       offset: leavingLeft ? neighbor.text.length : 0,
       affinity: position.affinity,
     }
-  }
-  return position
+  })
+  return resolved
+}
+
+/** The marks of a run that extend past its edge in this direction. */
+const extending = (
+  marks: ReadonlyArray<RunMark>,
+  direction: 'before' | 'after',
+  registry: MarkRegistry,
+): ReadonlyArray<RunMark> =>
+  marks.filter(mark => {
+    const expand = registry.expansionOf(markName(mark))
+    return expand === 'both' || expand === direction
+  })
+
+/**
+ * The marks text typed at the outer edge of a block should carry, when they differ from its run's:
+ * a mark that does not extend past that edge (a link, a footnote reference) stops there. There is
+ * no neighbouring run to type into instead, as `resolveInsertion` finds inside a block, so the
+ * text needs a run of its own. Undefined anywhere else, and where every mark extends.
+ */
+export const edgeMarks = (
+  document: Document,
+  position: Position,
+  registry: MarkRegistry = shippedRegistry,
+): ReadonlyArray<RunMark> | undefined => {
+  let found: ReadonlyArray<RunMark> | undefined
+  eachBlock(document.children, block => {
+    const index = block.children.findIndex(run => run.id === position.node)
+    const run = block.children[index]
+    if (run === undefined || run.text.length === 0) return
+    const atEnd = index === block.children.length - 1 && position.offset === run.text.length
+    const atStart = index === 0 && position.offset === 0
+    if (!atEnd && !atStart) return
+    const desired = extending(run.marks, atEnd ? 'after' : 'before', registry)
+    if (desired.length !== run.marks.length) found = desired
+  })
+  return found
 }
