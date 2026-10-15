@@ -1518,17 +1518,17 @@ export const sidebar = <Message>(
           id: 'workspace',
           title: 'Workspace',
           links: [
-            { label: 'Inbox', href: '#inbox', current: true },
-            { label: 'Projects', href: '#projects' },
-            { label: 'Calendar', href: '#calendar' },
+            { label: 'Inbox', href: '#', current: true },
+            { label: 'Projects', href: '#' },
+            { label: 'Calendar', href: '#' },
           ],
         },
         {
           id: 'settings',
           title: 'Settings',
           links: [
-            { label: 'Members', href: '#members' },
-            { label: 'Billing', href: '#billing' },
+            { label: 'Members', href: '#' },
+            { label: 'Billing', href: '#' },
           ],
         },
       ],
@@ -1786,7 +1786,7 @@ export const banner = <Message>(
     {
       label: 'Announcement',
       message: 'Version 2 is out, with offline sync.',
-      action: { label: 'Read the notes', href: '#changelog' },
+      action: { label: 'Read the notes', href: '#' },
       style,
     },
     h,
@@ -2108,7 +2108,8 @@ export const nav = <Message>(style: NamedStyle<typeof NavSlots>, h: HtmlBuilder<
   UiNav.view<NavPage>({
     items: NavPage.literals,
     ariaLabel: 'Workspace',
-    toHref: page => `#${page.toLowerCase()}`,
+    // The demo's pages are not on this site, so each link stays on this page.
+    toHref: () => '#',
     isItemCurrent: page => page === 'Projects',
     // The current link's line glides, and a faint pill follows the pointer.
     toView: Nav.toView<NavPage, Message>([style.mixin, ...Nav.fluid], { h }, page => page),
