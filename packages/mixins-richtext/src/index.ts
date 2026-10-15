@@ -105,7 +105,7 @@ export {
 } from './source.js'
 
 /** The link editor's view and its slots (§132). */
-export { LinkEditorSlots, linkEditor, type LinkEditorInput } from './link.js'
+export { LinkEditorSlots, linkEdit, linkEditor, type LinkEditorInput } from './link.js'
 
 /** The menu's view and its slots (§123), beside the vocabulary it renders. */
 export { SlashMenuSlots, slashMenuView, type SlashMenuInput } from './menu.js'

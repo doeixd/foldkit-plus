@@ -4,14 +4,15 @@
  * policy before it is sent, and that what it sends is the editor's own Message wrapped for
  * the caller.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { SlotView, Style } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { describe, expect, it } from 'vitest'
-import { LinkEditorSlots, linkEditor } from '../src/index.js'
+import { LinkEditorSlots, linkEdit, linkEditor } from '../src/index.js'
+import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 
 const Message = defineMessageUnion({
   Drafted: { href: Schema.String },
@@ -204,6 +205,61 @@ describe('the link editor’s field', () => {
       Scene.Mount.expectNone(),
       Scene.keydown(input, 'Escape'),
       Scene.expect(Scene.selector('#closed')).toHaveText('true'),
+    )
+  })
+})
+
+describe('applying a draft', () => {
+  it.each([
+    ['a range, a safe address', range(at('a', 0), at('a', 3)), 'https://x.test', 'https://x.test'],
+    ['a caret in a link', caret('l', 2), '/b', '/b'],
+    ['a caret outside a link', caret('a', 1), '/b', undefined],
+    [
+      'an address the policy refuses',
+      range(at('a', 0), at('a', 3)),
+      'javascript:alert(1)',
+      undefined,
+    ],
+  ] as const)('with %s', (_, selection, draft, href) => {
+    const sent = linkEdit(document, selection, draft)
+    expect(Option.getOrUndefined(sent)).toEqual(
+      href === undefined
+        ? undefined
+        : EditorMessage.AppliedMark({ mark: { name: 'Link', props: { href } } }),
+    )
+  })
+
+  it('sends `submitted` on Enter, whatever draft the view last drew', () => {
+    const Submit = defineMessageUnion({ Submitted: {}, Other: {} })
+    type Submit = typeof Submit.Type
+    Scene.scene(
+      {
+        update: (model: { readonly said: string }, message: Submit) => ({
+          model: { said: message._tag },
+        }),
+        view: (model: { readonly said: string }, h: HtmlBuilder<Submit>) =>
+          h.div(
+            [],
+            [
+              linkEditor<Submit>()(
+                {
+                  document,
+                  selection: range(at('a', 0), at('a', 3)),
+                  // Drawn empty, as a view is a frame behind keys typed fast.
+                  draft: '',
+                  drafted: () => Submit.Other(),
+                  wrap: () => Submit.Other(),
+                  submitted: Submit.Submitted(),
+                },
+                h,
+              ),
+              h.p([h.Id('said')], [model.said]),
+            ],
+          ),
+      },
+      Scene.given({ said: '' }),
+      Scene.keydown(input, 'Enter'),
+      Scene.expect(Scene.selector('#said')).toHaveText('Submitted'),
     )
   })
 })

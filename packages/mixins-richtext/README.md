@@ -157,6 +157,12 @@ when it opens or closes, is the application's; give it `closed` and Escape in th
 it. Focusing the field as the editor opens, so a link can be pasted at once, is a Command the
 application runs (`Dom.focus('[data-link="address"]')`).
 
+The view decides what its button sends from the draft it was drawn with, which is a frame behind
+keys typed fast: Enter straight after the last character would apply the draft before it. Give
+it `submitted`, and Enter sends that instead, for `update` to apply
+`linkEdit(document, selection, draft)` to the draft the Model holds; `linkEdit` is the same
+decision the button makes, as an `Option` of the editor's Message.
+
 | Slot | Capability | Renders |
 | --- | --- | --- |
 | `root` | Container | the editor's wrapper, `role="group"` |

@@ -155,6 +155,12 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-mixins-richtext`: `linkEdit`, and Enter that keeps up with typing.**
+  The link editor's Enter sent the edit its last drawing decided, a frame
+  behind fast keys, so Enter straight after typing applied the address before
+  the last character, or nothing. Its new optional `submitted` is sent instead,
+  for `update` to apply `linkEdit(document, selection, draft)` to the Model's
+  own draft.
 - **`foldkit-mixins-richtext`: the link editor asks for a link and closes on
   Escape.** Its field says "Paste or type a link", Escape in it sends the new
   optional `closed`, and its button reads Apply rather than Link.
