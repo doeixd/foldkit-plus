@@ -480,7 +480,10 @@ that transition committed.
   before the built-in ones. A press on an atom (an image, a divider) selects it as a node
   selection; the browser is given the range around its element, which reads back as that
   selection, and the block carries `data-selected`, the only sign of it a stylesheet can
-  reach. From a selected atom an arrow goes to the text beside it. A press in the space below
+  reach. An arrow that leaves a block for an atom beside it (Right at its end, Down from its
+  last line) selects the atom rather than stepping over it, and from a selected atom an arrow
+  goes to the text beside it. A press on an adornment (a task's checkbox, a code block's Copy)
+  keeps the caret where it was, so writing goes on there. A press in the space below
   the last block puts the caret at the end of a last paragraph or heading, and after anything
   else (a table, code, an image) opens a paragraph there, which no caret could reach.
   `attachment.sync(state, changeSet)` patches and restores the

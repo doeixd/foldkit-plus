@@ -3,7 +3,10 @@
  * packages/richtext-dom/test/atom.mutations.ts` checks that a test fails for every one.
  */
 const file = '../src/events.ts'
-const tests = ['packages/richtext-dom/test/atom.test.ts']
+const tests = [
+  'packages/richtext-dom/test/atom.test.ts',
+  'packages/richtext-dom/test/atom.browser.test.ts',
+]
 
 export default [
   {
@@ -63,6 +66,66 @@ export default [
         file,
         find: "      const after = key === 'ArrowRight' || key === 'ArrowDown'",
         replace: "      const after = key === 'ArrowRight' || key === 'ArrowUp'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a press on an adornment moves the caret',
+    edits: [
+      {
+        file,
+        find: '      event.preventDefault()\n      return\n    }\n    if (origin.closest(INTERACTIVE) !== null) return',
+        replace: '      return\n    }\n    if (origin.closest(INTERACTIVE) !== null) return',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an arrow steps over an atom',
+    edits: [{ file, find: '      if (reached !== undefined) {', replace: '      if (false) {' }],
+    tests,
+  },
+  {
+    name: 'Shift and an arrow select an atom',
+    edits: [
+      {
+        file,
+        find: '    if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return undefined',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an arrow anywhere in the text selects the atom',
+    edits: [
+      {
+        file,
+        find: '    if (offset === (after ? length : 0)) return neighbour.id',
+        replace: '    return neighbour.id',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Down and Up from any line select the atom',
+    edits: [
+      {
+        file,
+        find: '    return onEdgeLine ? neighbour.id : undefined',
+        replace: '    return neighbour.id',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an arrow from a selected atom trusts the last report',
+    edits: [
+      {
+        file,
+        find: "const live = event.type === 'keydown' && !composing ? readSelection(current) : null",
+        replace: "const live = event.type === 'keydown' && !composing ? lastSelection : null",
       },
     ],
     tests,

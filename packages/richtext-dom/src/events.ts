@@ -471,16 +471,69 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
     if (owned) restoreSelection(current, state.selection)
   }
+  /**
+   * The atom an arrow key reaches from a caret at the edge it leaves its block by: the end or
+   * start for Right and Left, the last or first line for Down and Up, with an atom beside the
+   * block in its container.
+   */
+  const atomReached = (event: KeyboardEvent): RichText.NodeId | undefined => {
+    const key = event.key
+    const after = key === 'ArrowRight' || key === 'ArrowDown'
+    if (!after && key !== 'ArrowLeft' && key !== 'ArrowUp') return undefined
+    // With Shift a range grows, and with the others a word or a line is skipped.
+    if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return undefined
+    // Read live: a click just before may not have been reported yet.
+    const selection = readSelection(current)
+    if (selection?.type !== 'Range' || !samePosition(selection.anchor, selection.focus)) {
+      return undefined
+    }
+    const content = current.content
+    const found = RichText.locateRun(content, selection.focus.node)
+    if (found === undefined) return undefined
+    const index = found.path[found.path.length - 1]!
+    const holder =
+      found.path.length > 1 ? RichText.blockAtPath(content, found.path.slice(0, -1)) : undefined
+    const siblings = holder?.type === 'Node' ? (holder.blocks ?? []) : content.children
+    const block = siblings[index]
+    const neighbour = siblings[index + (after ? 1 : -1)]
+    if (block === undefined || neighbour === undefined) return undefined
+    if (!RichText.isAtom(options.nodes, neighbour)) return undefined
+    const lead = block.children.slice(0, found.index).reduce((sum, run) => sum + run.text.length, 0)
+    const offset = lead + selection.focus.offset
+    const length = block.children.reduce((sum, run) => sum + run.text.length, 0)
+    if (offset === (after ? length : 0)) return neighbour.id
+    if (key === 'ArrowRight' || key === 'ArrowLeft') return undefined
+    // Down and Up leave from the last or first line, which only the layout knows.
+    const caret = positionToRange(current, selection.focus)?.getBoundingClientRect()
+    const box = current.elements.get(block.id)?.getBoundingClientRect()
+    if (caret === undefined || box === undefined || caret.height === 0) return undefined
+    const onEdgeLine = after
+      ? caret.bottom > box.bottom - caret.height
+      : caret.top < box.top + caret.height
+    return onEdgeLine ? neighbour.id : undefined
+  }
   const onEvent = (event: Event): void => {
     // From a selected atom, an arrow goes to the text beside it, where a browser would step
     // into the atom's own markup.
-    if (event.type === 'keydown' && !composing && lastSelection?.type === 'Node') {
+    // Read live, as a click just before may not have been reported yet.
+    const live = event.type === 'keydown' && !composing ? readSelection(current) : null
+    if (live?.type === 'Node') {
       const key = (event as KeyboardEvent).key
       const after = key === 'ArrowRight' || key === 'ArrowDown'
       if (after || key === 'ArrowLeft' || key === 'ArrowUp') {
         event.preventDefault()
-        const beside = caretBeside(current.content, lastSelection.node, after)
+        const beside = caretBeside(current.content, live.node, after)
         if (beside !== null) select(beside)
+        return
+      }
+    }
+    // An arrow leaving a block for an atom beside it selects the atom, which a browser would
+    // step over.
+    if (event.type === 'keydown' && !composing) {
+      const reached = atomReached(event as KeyboardEvent)
+      if (reached !== undefined) {
+        event.preventDefault()
+        select({ type: 'Node', node: reached })
         return
       }
     }
@@ -657,12 +710,15 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     const origin = event.target
     if (event.button !== 0 || !(origin instanceof Element)) return
     if (origin === current.root && pressBelow(event)) return
-    if (origin.closest(INTERACTIVE) !== null) return
+    // An adornment (a task's checkbox, a code block's Copy) acts on its click; the press keeps
+    // the caret where it was, so writing goes on there after it.
     if (
       origin.closest(`[${RichText.ACTION_ATTRIBUTE}], [${RichText.TOGGLES_ATTRIBUTE}]`) !== null
     ) {
+      event.preventDefault()
       return
     }
+    if (origin.closest(INTERACTIVE) !== null) return
     const id = origin.closest('[data-block]')?.getAttribute('data-block')
     if (id === null || id === undefined || !current.root.contains(origin)) return
     const block = RichText.locateBlock(current.content, RichText.NodeId.make(id))?.block

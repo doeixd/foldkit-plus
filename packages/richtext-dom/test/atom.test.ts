@@ -97,3 +97,82 @@ describe('selecting an atom', () => {
     expect(where(readSelection(attachment.current()))).toEqual(where(expected))
   })
 })
+
+describe('reaching an atom with an arrow key', () => {
+  const arrow = (
+    attachment: ReturnType<typeof attach>,
+    key: string,
+    modifiers: { shiftKey?: boolean } = {},
+  ) => {
+    const event = new KeyboardEvent('keydown', {
+      key,
+      bubbles: true,
+      cancelable: true,
+      ...modifiers,
+    })
+    attachment.current().root.dispatchEvent(event)
+    return event
+  }
+
+  it.each([
+    ['ArrowRight', caret('before-t', 6)],
+    ['ArrowDown', caret('before-t', 6)],
+    ['ArrowLeft', caret('after-t', 0)],
+    ['ArrowUp', caret('after-t', 0)],
+  ] as const)('%s from the edge of the text beside it selects it', (key, from) => {
+    const { attachment, moves } = setup()
+    restoreSelection(attachment.current(), from)
+    expect(arrow(attachment, key).defaultPrevented).toBe(true)
+    expect(moves.at(-1)).toEqual(selected)
+  })
+
+  it('reads where the caret is, not the last report of it', () => {
+    const { attachment, moves, element } = setup()
+    press(element('rule'))
+    // The caret left the atom for the text after it, and the browser has not said so yet.
+    restoreSelection(attachment.current(), caret('after-t', 0))
+    arrow(attachment, 'ArrowLeft')
+    expect(moves.at(-1)).toEqual(selected)
+    expect(readSelection(attachment.current())).toEqual(selected)
+  })
+
+  it('leaves an arrow away from the edge, or with Shift, to the browser', () => {
+    const { attachment, moves } = setup()
+    restoreSelection(attachment.current(), caret('before-t', 3))
+    expect(arrow(attachment, 'ArrowRight').defaultPrevented).toBe(false)
+    restoreSelection(attachment.current(), caret('before-t', 6))
+    expect(arrow(attachment, 'ArrowRight', { shiftKey: true }).defaultPrevented).toBe(false)
+    expect(moves).toEqual([])
+  })
+})
+
+it('keeps the caret where it was on a press on an adornment', () => {
+  const dom = mount(
+    document,
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Task',
+          id: 'task',
+          props: {},
+          children: [{ type: 'Text', id: 'task-t', text: 'Do it', marks: [] }],
+        },
+      ],
+    }),
+    RichText.renderingOver(RichText.standardRendering, {
+      nodes: {
+        Task: () => ({
+          tag: 'div',
+          attributes: {},
+          adornments: [{ tag: 'input', attributes: { type: 'checkbox' }, toggles: 'done' }],
+        }),
+      },
+    }),
+  )
+  document.body.append(dom.root)
+  attach(dom, { onIntent: () => {} })
+  const box = dom.root.querySelector(`[${RichText.TOGGLES_ATTRIBUTE}]`)!
+  expect(press(box).defaultPrevented).toBe(true)
+})
