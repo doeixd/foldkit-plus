@@ -1,3 +1,4 @@
+/// <reference types="@vitest/browser-playwright" />
 /**
  * Weight without reflow, on a real page: a pressed segmented option turns
  * semibold, and with its text in `data-label` it is as wide pressed as not;
@@ -10,6 +11,7 @@ import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
+import { cdp } from 'vitest/browser'
 import { Recipes, SegmentedSlots } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
@@ -86,6 +88,46 @@ test('without data-label the pressed option widens, which the label prevents', a
     expect(pressed!).toBeGreaterThan(resting!)
     // And the labelled one holds the heavier width, not the lighter.
     expect(widths(true)[1]).toBe(pressed)
+  } finally {
+    handle.dispose()
+  }
+})
+
+type Frame = {
+  readonly frame: { readonly id: string }
+  readonly childFrames?: ReadonlyArray<Frame>
+}
+type AxNode = {
+  readonly role?: { readonly value?: string }
+  readonly name?: { readonly value?: string }
+}
+
+/** The buttons' names as Chrome's own accessibility tree has them, in every frame. */
+const buttonNames = async () => {
+  await cdp().send('Accessibility.enable')
+  const { frameTree } = (await cdp().send('Page.getFrameTree')) as { frameTree: Frame }
+  const frames: Array<Frame> = []
+  const walk = (frame: Frame) => {
+    frames.push(frame)
+    frame.childFrames?.forEach(walk)
+  }
+  walk(frameTree)
+  const names: Array<string> = []
+  for (const { frame } of frames) {
+    const { nodes } = (await cdp().send('Accessibility.getFullAXTree', { frameId: frame.id })) as {
+      nodes: ReadonlyArray<AxNode>
+    }
+    for (const node of nodes)
+      if (node.role?.value === 'button') names.push(String(node.name?.value))
+  }
+  return names
+}
+
+test("the label's hidden copy is no part of the button's name", async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(widths(true)).toHaveLength(2))
+    expect(await buttonNames()).toEqual(['Quarterly', 'Quarterly', 'Quarterly', 'Quarterly'])
   } finally {
     handle.dispose()
   }

@@ -154,6 +154,9 @@ export const Utilities = {
    * height: a block as wide as its widest child takes the heavier width
    * whatever the label's own weight. The element stays a block container,
    * so a `text-box` trim on it still works; without `data-label`, nothing.
+   * Hidden, the copy is no part of the element's accessible name: Chrome's
+   * own accessibility tree names a steady button once. (Vitest's in-page
+   * locator reads it twice, so a test presses such a button with `click()`.)
    */
   steady: (weight: keyof Tokens['weight'] & string): StyleValue =>
     nest('&[data-label]::after', {

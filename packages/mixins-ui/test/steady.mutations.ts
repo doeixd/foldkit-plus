@@ -36,4 +36,15 @@ export default [
     ],
     tests: ['packages/mixins-ui/test/card.test.ts'],
   },
+  {
+    name: "the label's copy is read into the button's name",
+    edits: [
+      {
+        file: '../../mixins/src/utilities.ts',
+        find: "      visibility: 'hidden',\n      fontWeight: t.weight[weight],",
+        replace: '      fontWeight: t.weight[weight],',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/steady.browser.test.ts'],
+  },
 ]

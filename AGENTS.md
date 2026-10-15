@@ -1170,6 +1170,12 @@ of its own named a form field "fits the Catalog". Read words with
   in a wide run: each test file runs in a frame, side by side when several
   run, and an element's own `getBoundingClientRect` is the frame's. Add
   `window.frameElement`'s offset.
+- **Vitest's locator names a button its own way, not Chrome's.** `userEvent.click`
+  on an accordion trigger timed out looking for "Team Team": vitest's in-page
+  library read a hidden `::after` copy into the name, which Chrome's own
+  accessibility tree does not (it says "Team"). Check a name against
+  Chrome's tree (`Accessibility.getFullAXTree` per frame, as
+  `steady.browser.test.ts` does), and press such an element with `click()`.
 - **The browser tests share one real pointer.** A test that read a row's
   resting fill as transparent failed in CI only: an earlier test file had left
   the mouse where the row was drawn, so it was hovered. Before asserting
