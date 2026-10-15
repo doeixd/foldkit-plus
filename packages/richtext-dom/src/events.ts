@@ -471,6 +471,29 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
     if (owned) restoreSelection(current, state.selection)
   }
+  /** For Mod+A in a kind whose text keeps line breaks (code), its text, unless that is selected. */
+  const codeToSelect = (event: KeyboardEvent): RichText.Selection | undefined => {
+    if (event.key.toLowerCase() !== 'a' || !MOD(event) || event.shiftKey || event.altKey) {
+      return undefined
+    }
+    const selection = readSelection(current)
+    if (selection?.type !== 'Range') return undefined
+    const found = RichText.locateRun(current.content, selection.focus.node)
+    const block =
+      found === undefined ? undefined : RichText.blockAtPath(current.content, found.path)
+    if (block?.type !== 'Node') return undefined
+    const declared = options.nodes?.definitionFor(block.kind)
+    if (declared?.kind !== 'node' || declared.lineBreaks !== true) return undefined
+    const first = block.children[0]
+    const last = block.children[block.children.length - 1]
+    if (first === undefined || last === undefined) return undefined
+    const whole: RichText.Selection = {
+      type: 'Range',
+      anchor: { node: first.id, offset: 0, affinity: 'after' },
+      focus: { node: last.id, offset: last.text.length, affinity: 'after' },
+    }
+    return sameSelection(selection, whole) ? undefined : whole
+  }
   /**
    * The atom an arrow key reaches from a caret at the edge it leaves its block by: the end or
    * start for Right and Left, the last or first line for Down and Up, with an atom beside the
@@ -524,6 +547,15 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
         event.preventDefault()
         const beside = caretBeside(current.content, live.node, after)
         if (beside !== null) select(beside)
+        return
+      }
+    }
+    // In code, the first select-all selects the code, and a second the document.
+    if (event.type === 'keydown' && !composing) {
+      const code = codeToSelect(event as KeyboardEvent)
+      if (code !== undefined) {
+        event.preventDefault()
+        select(code)
         return
       }
     }

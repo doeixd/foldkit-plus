@@ -485,7 +485,8 @@ that transition committed.
   goes to the text beside it. A press on an adornment (a task's checkbox, a code block's Copy)
   keeps the caret where it was, so writing goes on there. A third press selects its block's
   text, where the browser's selection runs on to the next block and typing over it would join
-  that block too. A press in the space below
+  that block too. In code (a kind declared `lineBreaks`), the first Mod+A selects the code and
+  a second the document. A press in the space below
   the last block puts the caret at the end of a last paragraph or heading, and after anything
   else (a table, code, an image) opens a paragraph there, which no caret could reach.
   `attachment.sync(state, changeSet)` patches and restores the

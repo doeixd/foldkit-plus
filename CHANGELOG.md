@@ -13,9 +13,10 @@ version changed; `pnpm` skips versions already in the registry.
   caret.** An arrow leaving a block for an atom beside it selects the atom,
   where the browser stepped over it, and a press on an adornment no longer
   takes the caret away from the text.
-- **`foldkit-richtext-dom`: a triple click selects its block's text.** The
-  browser's selection ran on to the start of the next block, so typing over it
-  swallowed that block's first line too.
+- **`foldkit-richtext-dom`: a triple click selects its block's text, and Ctrl+A
+  in code selects the code.** The browser's triple-click selection ran on to the
+  start of the next block, so typing over it swallowed that block's first line
+  too. In code, a second Ctrl+A selects the document.
 - **`foldkit-richtext`: a paste joins the line it lands in.** The first pasted
   block joins the text before the caret and the last the text after it, so a
   copied word lands inside the sentence instead of splitting it onto a line of
