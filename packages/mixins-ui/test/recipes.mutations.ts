@@ -115,6 +115,28 @@ export default [
     tests,
   },
   {
+    name: 'a thin slider track is as thick as the thumb',
+    edits: [
+      {
+        file: '../src/recipes/slider.ts',
+        find: 'track: variant(Style.self({ blockSize: `calc(${edge} * 0.375)` })),',
+        replace: 'track: variant(Style.self({ blockSize: edge })),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a slider thumb widens with no value inside it',
+    edits: [
+      {
+        file: '../src/recipes/slider.ts',
+        find: "Style.pseudo('[data-values]', { '--_fk-slider-thumb'",
+        replace: "Style.pseudo(':not([data-values])', { '--_fk-slider-thumb'",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a toast stacks above the page',
     edits: [{ file: '../src/recipes/toast.ts', find: "        zIndex: '50',\n", replace: '' }],
     tests,

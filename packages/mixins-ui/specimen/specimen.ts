@@ -238,7 +238,11 @@ const choices = section(
   ) +
     row(
       label('slider 60'),
-      `<span class="${slider['root']}" style="min-inline-size:12rem"><span class="${slider['label']}">Volume</span><span class="${slider['track']}" style="display:block;position:relative"><span class="${slider['filledTrack']}" style="position:absolute;inset:0 auto 0 0;inline-size:60%"></span><span class="${slider['thumb']}" style="position:absolute;inset-inline-start:60%"></span></span></span>`,
+      `<span class="${slider['root']}"><span class="${slider['label']}">Volume</span><span class="${slider['control']}" style="display:block;--fk-slider-low:0;--fk-slider-high:0.6"><span class="${slider['track']}" style="display:block"><span class="${slider['fill']}" style="display:block"></span></span><input type="range" class="${slider['thumb']}" data-thumb="value" value="60" aria-label="Volume"></span></span>`,
+    ) +
+    row(
+      label('slider 20–70'),
+      `<span class="${slider['root']}" role="group" aria-label="Price"><span class="${slider['label']}">Price</span><span class="${slider['control']}" data-range style="display:block;--fk-slider-low:0.2;--fk-slider-high:0.7"><span class="${slider['track']}" style="display:block"><span class="${slider['fill']}" style="display:block"></span></span><input type="range" class="${slider['thumb']}" data-thumb="low" max="70" value="20" aria-label="Minimum"><input type="range" class="${slider['thumb']}" data-thumb="high" min="20" value="70" aria-label="Maximum"></span></span>`,
     ),
 )
 
