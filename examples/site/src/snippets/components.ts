@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  TagsInput,
+  TagsInputSlots,
   PasswordInput,
   PasswordInputSlots,
   Rating,
@@ -1730,6 +1732,17 @@ export const passwordInput = <Message>(
     },
     h,
   )
+// #endregion
+
+// #region tags-input
+export const TagsInputStyle = forSlots(TagsInputSlots)(Recipes.TagsInput({}))
+
+export const tagsInput = <Message>(
+  style: NamedStyle<typeof TagsInputSlots>,
+  model: TagsInput.Model,
+  onMessage: (message: TagsInput.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => TagsInput.view({ model, onMessage, label: 'Topics', placeholder: 'Add a topic', style }, h)
 // #endregion
 
 // #region navigation-menu

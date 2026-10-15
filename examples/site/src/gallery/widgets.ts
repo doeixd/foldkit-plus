@@ -20,7 +20,15 @@ import {
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
-import { Accordion, CheckboxGroup, Dialog, Menubar, Resizable, Sidebar } from 'foldkit-mixins-ui'
+import {
+  Accordion,
+  CheckboxGroup,
+  Dialog,
+  Menubar,
+  Resizable,
+  Sidebar,
+  TagsInput,
+} from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
@@ -90,6 +98,8 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
+  /** The tags input's tags and draft. */
+  tags: TagsInput.Model,
   /** The password field's text, and whether it shows. */
   password: Schema.String,
   passwordShown: Schema.Boolean,
@@ -134,6 +144,7 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  GotTags: { message: TagsInput.Message },
   TypedPassword: { value: Schema.String },
   ToggledPassword: {},
   RatedStay: { value: Schema.Number },
@@ -188,6 +199,7 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
+  tags: TagsInput.init({ id: 'preview-tags', tags: ['effect', 'foldkit'] }),
   password: '',
   passwordShown: false,
   stay: Option.none(),
@@ -350,6 +362,11 @@ const foldVirtualList = Update.foldChild({
   update: UiVirtualList.update,
 })
 
+const foldTags = Update.foldChild({
+  ...own('tags', Message.GotTags),
+  update: TagsInput.update,
+})
+
 const foldListbox = Update.foldChild({
   ...own('listbox', Message.GotListbox),
   update: FrequencyBox.update,
@@ -456,6 +473,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
+    GotTags: ({ message }) => foldTags(model, message),
     TypedPassword: ({ value }) =>
       value === model.password
         ? { model }

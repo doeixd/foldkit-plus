@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `TagsInput`,** Zag's tags input: the tags as a
+  list of chips named by the field's label, each with a `Remove <tag>`
+  button, and a text input. Enter or the delimiter adds the draft, split at
+  the delimiter and trimmed, refusing empty and repeated parts; Backspace on
+  an empty draft removes the last tag; a removal sends focus back to the
+  input. The tags and the draft are its own small Model (`init`, `Message`,
+  `update`), and the keys reach `update`, so it decides from the current
+  draft, not the last frame's. A recipe, a pattern and a gallery page.
 - **`foldkit-mixins-ui`: `PasswordInput`,** a password field whose toggle
   (`aria-pressed`, `aria-controls`) shows it as text, `autocomplete` kept as
   `current-password` or `new-password`. `Recipes.PasswordInput` reuses

@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
+import { TagsInputSlots } from './tagsInput.js'
 import { PasswordInputSlots } from './passwordInput.js'
 import { RatingSlots } from './rating.js'
 import { StepsSlots } from './steps.js'
@@ -246,6 +247,17 @@ export const PasswordInput = A11y.pattern({
   description: { capability: Capability.Container, optional: true },
 })
 
+export const TagsInput = A11y.pattern({
+  label: { capability: Capability.Container },
+  input: { capability: Capability.Focusable, events: [Event.Input, Event.KeyDown] },
+  list: { capability: Capability.Container },
+  remove: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+  },
+})
+
 export const Nav = A11y.pattern({
   nav: { capability: Capability.Container },
   link: { capability: Capability.Interactive },
@@ -455,6 +467,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
+  entry(
+    'tags-input',
+    TagsInput,
+    TagsInputSlots,
+    'stateful',
+    ['textbox', 'list', 'listitem', 'button'],
+    ['native-control'],
+  ),
   entry(
     'password-input',
     PasswordInput,

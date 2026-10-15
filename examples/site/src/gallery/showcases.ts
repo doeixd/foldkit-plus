@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  TagsInputSlots,
   PasswordInputSlots,
   RatingSlots,
   StepsSlots,
@@ -745,6 +746,25 @@ export const showcases: ReadonlyArray<Showcase> = [
           onInput: value => live.onWidget(Widgets.Message.TypedPassword({ value })),
           onToggle: live.onWidget(Widgets.Message.ToggledPassword()),
         },
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'tags-input',
+      title: 'Tags input',
+      summary: 'A list of tags as removable chips, added with Enter or a comma.',
+      recipe: 'TagsInput',
+      file: 'tagsInput',
+      contract: 'TagsInputSlots',
+    },
+    TagsInputSlots,
+    Recipes.TagsInput,
+    (style, live) =>
+      Snippet.tagsInput(
+        style,
+        live.widgets.tags,
+        message => live.onWidget(Widgets.Message.GotTags({ message })),
         live.h,
       ),
   ),
