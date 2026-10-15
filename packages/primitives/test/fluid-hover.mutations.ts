@@ -120,9 +120,8 @@ export default [
     edits: [
       {
         file,
-        find: "const hide = () => container.style.setProperty(property.shown, '0')",
-        replace:
-          "const hide = () => (place(origin()), container.style.setProperty(property.shown, '0'))",
+        find: 'const hide = () => {',
+        replace: 'const hide = () => {\n            place(origin())',
       },
     ],
     tests,
@@ -162,6 +161,24 @@ export default [
         find: '            if (rect.width === 0 && rect.height === 0) {',
         replace: '            if (false) {',
       },
+    ],
+    tests,
+  },
+  {
+    name: 'the last lit item stays marked',
+    edits: [
+      {
+        file,
+        find: '.forEach(each => each !== item && each.removeAttribute(FLUID_LIT_ATTRIBUTE))',
+        replace: '.forEach(() => undefined)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'nothing is marked lit',
+    edits: [
+      { file, find: "item?.setAttribute(FLUID_LIT_ATTRIBUTE, '')", replace: 'item?.toString()' },
     ],
     tests,
   },

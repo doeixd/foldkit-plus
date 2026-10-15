@@ -71,6 +71,7 @@ const defined = new Set([
   // Written on the element by the card group's view and its FluidHover, not by a theme.
   'card-columns',
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `card-hover-${part}`),
+  ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `table-hover-${part}`),
   // Written on the tablist by `Tabs.fluid`'s Measure and FluidHover.
   ...['x', 'y', 'w', 'h', 'display'].map(part => `tabs-chosen-${part}`),
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `tabs-hover-${part}`),

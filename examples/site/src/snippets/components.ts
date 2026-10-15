@@ -453,6 +453,8 @@ export const table = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder<never
         { id: 'INV-003', status: 'Paid', amount: 350 },
       ],
       style,
+      // One highlight behind the rows, following the pointer.
+      fluid: true,
     },
     h,
   )

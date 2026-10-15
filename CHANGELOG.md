@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: a table under fluid hover.** `Table.view({ …, fluid:
+  true })` stands the table in a `frame` with one `highlight` behind the body
+  rows, following the pointer to the nearest one, after Fluid
+  Functionalism's: the lines above and below the lit row clear over 80ms, the
+  header's too when the first row is lit, and the lit row's text lifts.
+  `FluidHover` marks the item it is shown on `data-fluid-lit` for this.
 - **`foldkit-mixins-ui`: a press that shrinks a button 1px a side, and
   merged choices.** A solid or primary button's fill stops at its padding
   box under a border of its own color, which a press clears on the fast tier

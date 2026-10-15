@@ -160,7 +160,7 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   `axis` `y` list, `x` strip, `xy` grid), skipping disabled items, following `:focus-visible`, ignoring touch.
   `gapClick` presses the highlighted item's `data-fluid-press` descendant, within `gapReach` pixels if given. `follows: '[data-active]'` lights the
   item the keys marked while the pointer is away; `from` is the item a fresh highlight grows out of and returns to.
-  The container carries `data-fluid-hover="<name>"` while it runs; style the highlight under it.
+  The container carries `data-fluid-hover="<name>"` while it runs; style the highlight under it. The lit item carries `data-fluid-lit`.
   No Message.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
   `MoveEnded { completed }` with pointer capture; `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.

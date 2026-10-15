@@ -807,9 +807,9 @@ keeps what the systems plan's "What we keep" lists.
 - [x] **Systems 7, fluid hover's remaining rules.** `gapReach` (Card.group at
   16px), no zero rects (a three-frame retry); the tabs' chosen marker already
   dims while another tab is hovered. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §6
-- [ ] **Table rows under fluid hover.** A highlight cannot be a child of a
-  `tbody`, so the table needs a wrapper slot of its own to draw it behind the
-  rows, with the borders beside the lit row going transparent over 80ms.
+- [x] **Table rows under fluid hover.** `Table.view({ fluid: true })`, a `frame`
+  and `highlight` slot, and `FluidHover`'s `data-fluid-lit` for the lines
+  beside the lit row.
 - [ ] **Systems 8, component craft.** Done: the button's 1px press, merged
   selection runs, popup and dialog entrances. Our checkbox and radio fill
   when checked, so Fluid's clearing border is already their look. Icons stand

@@ -28,6 +28,9 @@ export const FLUID_HOVER_ATTRIBUTE = 'data-fluid-hover'
 /** The attribute that names, inside an item, the control a press in a gap reaches. */
 export const FLUID_PRESS_ATTRIBUTE = 'data-fluid-press'
 
+/** The attribute on the item the highlight is shown on, for what CSS draws beside it. */
+export const FLUID_LIT_ATTRIBUTE = 'data-fluid-lit'
+
 const Axis = Schema.Literals(['x', 'y', 'xy'])
 export type FluidAxis = typeof Axis.Type
 
@@ -71,6 +74,9 @@ const isDisabled = (item: Element) =>
  * cards with wide gutters wants (Fluid Functionalism's uses 16). A popup
  * measured before it has a layout box keeps its last complete place, and
  * tries again for three frames, rather than drawing the highlight at zero.
+ * The item the highlight is shown on carries `data-fluid-lit`, so a style
+ * can change what sits beside it (a table hides the lines around the lit
+ * row).
  *
  * `follows` names the item the highlight sits on while the pointer is not
  * moving it: a menu marks the row its keys reach (`[data-active]`), and the
@@ -129,9 +135,17 @@ export const FluidHover = Mount.defineStream('FluidHover', {
             container.style.setProperty(property.w, `${rect.width}px`)
             container.style.setProperty(property.h, `${rect.height}px`)
           }
+          /** Marks `item` as the lit one, and nothing else. */
+          const light = (item: Element | null) => {
+            container
+              .querySelectorAll(`[${FLUID_LIT_ATTRIBUTE}]`)
+              .forEach(each => each !== item && each.removeAttribute(FLUID_LIT_ATTRIBUTE))
+            item?.setAttribute(FLUID_LIT_ATTRIBUTE, '')
+          }
           const show = (next: Element) => {
             const appearing = container.style.getPropertyValue(property.shown) !== '1'
             active = next
+            light(next)
             const grows = appearing ? origin() : null
             if (appearing) container.style.setProperty(property.moving, '0')
             if (grows === null) {
@@ -151,7 +165,10 @@ export const FluidHover = Mount.defineStream('FluidHover', {
               requestAnimationFrame(() => container.style.setProperty(property.moving, '1'))
             }
           }
-          const hide = () => container.style.setProperty(property.shown, '0')
+          const hide = () => {
+            container.style.setProperty(property.shown, '0')
+            light(null)
+          }
           /** Whether the keyboard has an item focused, which the highlight then stays on. */
           const keyed = () => {
             const focused = document.activeElement
@@ -250,6 +267,7 @@ export const FluidHover = Mount.defineStream('FluidHover', {
             sizes?.disconnect()
             marks?.disconnect()
             container.removeAttribute(FLUID_HOVER_ATTRIBUTE)
+            light(null)
             container.removeEventListener('pointermove', move)
             container.removeEventListener('pointerleave', leave)
             container.removeEventListener('focusin', focus)

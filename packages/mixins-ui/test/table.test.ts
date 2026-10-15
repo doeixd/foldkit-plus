@@ -27,8 +27,10 @@ const rows: ReadonlyArray<Product> = [
 ]
 
 describe('TableSlots', () => {
-  it('publishes eight containers and nothing stateful', () => {
+  it('publishes ten containers and nothing stateful', () => {
     expect(Object.keys(TableSlots)).toEqual([
+      'frame',
+      'highlight',
       'root',
       'caption',
       'head',

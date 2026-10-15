@@ -170,6 +170,22 @@ it('appears without moving, then moves, and hides when the pointer leaves', asyn
   }
 })
 
+it('marks the lit item, the one item, and no item once it hides', async () => {
+  const hover = await mount()
+  try {
+    const lit = () =>
+      hover.items.flatMap((item, index) => (item.hasAttribute('data-fluid-lit') ? [index] : []))
+    hover.point(50, 30)
+    await vi.waitFor(() => expect(lit()).toEqual([0]))
+    hover.point(50, 150)
+    await vi.waitFor(() => expect(lit()).toEqual([2]))
+    hover.container.dispatchEvent(new PointerEvent('pointerleave'))
+    expect(lit()).toEqual([])
+  } finally {
+    await hover.stop()
+  }
+})
+
 it('hides when the pointer leaves after a click focused an item, but not a key', async () => {
   const hover = await mount()
   try {

@@ -156,6 +156,9 @@ Where there is no layout (jsdom), it starts and highlights nothing; an item
 with no layout box yet (a popup still opening) keeps the highlight's last
 place, and is measured again for three frames, rather than drawing it at zero.
 
+The item the highlight is shown on carries `data-fluid-lit` (`FLUID_LIT_ATTRIBUTE`), so a style
+changes what sits beside it: a table clears the lines around its lit row.
+
 Give only what a click reaches a highlight: lighting an item that does
 nothing promises a press with nowhere to land, so a card group joins only its
 pressable cards. Fluid Functionalism's list of when to leave it off holds
