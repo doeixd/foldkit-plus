@@ -65,13 +65,10 @@ export const view = <Message>(options: RatingView<Message>, h: HtmlBuilder<Messa
       onNone: () => 'not rated',
       onSome: value => `${starLabel(value)} of ${max}`,
     })
-    return h.div(
-      builders.root.attrs([h.Role('img'), h.AriaLabel(`${options.label}: ${said}`)]),
-      [
-        h.span(builders.label.attrs([h.AriaHidden(true)]), [options.label]),
-        ...values.map(value => h.span(builders.star.attrs([filled(value)]), [])),
-      ],
-    )
+    return h.div(builders.root.attrs([h.Role('img'), h.AriaLabel(`${options.label}: ${said}`)]), [
+      h.span(builders.label.attrs([h.AriaHidden(true)]), [options.label]),
+      ...values.map(value => h.span(builders.star.attrs([filled(value)]), [])),
+    ])
   }
 
   const disabled = options.disabled === true

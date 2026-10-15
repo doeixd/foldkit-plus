@@ -573,9 +573,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['group', 'slider', 'radiogroup', 'radio'],
     ['native-control'],
   ),
-  entry('input-copy', InputCopy, InputCopySlots, 'stateless', ['textbox', 'button', 'status'], [
-    'native-control',
-  ]),
+  entry(
+    'input-copy',
+    InputCopy,
+    InputCopySlots,
+    'stateless',
+    ['textbox', 'button', 'status'],
+    ['native-control'],
+  ),
   entry('banner', Banner, BannerSlots, 'stateless', ['region', 'button', 'link']),
   entry(
     'tags-input',

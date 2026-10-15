@@ -12,7 +12,9 @@ const level = (name: 'good' | 'fair' | 'poor') => `:where([data-level="${name}"]
 
 export const Meter = Style.recipeFor(MeterSlots)({
   base: {
-    root: component(Style.self({ display: 'grid', gap: ref.space['2xs'], inlineSize: 'min(20rem, 100%)' })),
+    root: component(
+      Style.self({ display: 'grid', gap: ref.space['2xs'], inlineSize: 'min(20rem, 100%)' }),
+    ),
     label: component(Style.self({ ...role('caption'), color: ref.text.muted })),
     track: component(
       Style.self({

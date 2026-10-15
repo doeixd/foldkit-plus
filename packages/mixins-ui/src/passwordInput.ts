@@ -1,12 +1,4 @@
-import {
-  Attr,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  SlotView,
-  type NamedStyle,
-} from 'foldkit-mixins'
+import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
 

@@ -55,7 +55,8 @@ export const view = <Item, Message>(
       viewInputs: {
         items,
         itemToKey,
-        itemToView: (item: Item, index: number) => h.div(builders.row.attrs(), [itemToView(item, index)]),
+        itemToView: (item: Item, index: number) =>
+          h.div(builders.row.attrs(), [itemToView(item, index)]),
         ...(overscan === undefined ? {} : { overscan }),
         ...rowHeights(options),
       },
@@ -76,5 +77,7 @@ const rowHeights = <Item>(
         : { itemToEstimatedRowHeightPx: options.itemToEstimatedRowHeightPx }),
     }
   }
-  return options.itemToRowHeightPx === undefined ? {} : { itemToRowHeightPx: options.itemToRowHeightPx }
+  return options.itemToRowHeightPx === undefined
+    ? {}
+    : { itemToRowHeightPx: options.itemToRowHeightPx }
 }
