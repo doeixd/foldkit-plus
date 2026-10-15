@@ -51,4 +51,26 @@ export default [
     ],
     tests: ['packages/mixins-ui/test/datePicker.test.ts'],
   },
+  {
+    name: 'an unfinished range closes the picker',
+    edits: [
+      {
+        file: '../src/datePicker.ts',
+        find: 'Option.filter(date => !isComplete(picked(selection, date))),',
+        replace: 'Option.filter(() => false),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a finished pick never reaches upstream',
+    edits: [
+      {
+        file: '../src/datePicker.ts',
+        find: 'onNone: () => upstreamUpdate(model, message),',
+        replace: 'onNone: () => ({ model }),',
+      },
+    ],
+    tests,
+  },
 ]
