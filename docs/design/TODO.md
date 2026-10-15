@@ -759,6 +759,26 @@ they stand on, from Fluid Functionalism's craft reference. Systems steps 1-4
 come before parity step 4, so the islands are built on the ladder. Every step
 keeps what the systems plan's "What we keep" lists.
 
+**The bar.** The UI work is measured against the best of each source at once:
+
+- the robustness, composability, flexibility and range of components of
+  [Zag.js](https://zagjs.com);
+- the standards, accessibility and patterns of the
+  [WAI-ARIA APG](https://www.w3.org/WAI/ARIA/apg/patterns/);
+- the usefulness and robustness of [Base UI](https://base-ui.com);
+- the beauty, components, options and variants, and out-of-the-box usefulness
+  of [Fluid Functionalism](https://www.fluidfunctionalism.com/);
+- the completeness of [shadcn/ui](https://ui.shadcn.com);
+- the customizability of [CSS-Tags](https://doeixd.github.io/CSS-Tags);
+
+while keeping the best of what this project already has:
+
+- primitives are reused, never copied;
+- everything can be used unstyled;
+- options, defaults, knobs, design tokens, layers and composition let an
+  application make any of it its own;
+- every part is synergistic and works with the others.
+
 - [x] **Parity 1-3:** gallery pages, fluid hover in lists and tabs, `/create`
   at shadcn's level. [ui-parity-DESIGN.md](./ui-parity-DESIGN.md)
 - [ ] **FileDrop's page.** `File.File`'s decoding services are `unknown`, which
