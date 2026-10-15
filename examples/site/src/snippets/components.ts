@@ -12,6 +12,7 @@ import {
   DatePicker as UiDatePicker,
   Dialog as UiDialog,
   HoverIntent as UiHoverIntent,
+  Nav as UiNav,
   Listbox as UiListbox,
   Menu as UiMenu,
   Popover as UiPopover,
@@ -53,6 +54,8 @@ import {
   Command,
   CommandSlots,
   ContextMenu,
+  Nav,
+  NavSlots,
   NumberField,
   NumberFieldSlots,
   OtpField,
@@ -1505,6 +1508,23 @@ export const sidebar = <Message>(
     },
     h,
   )
+// #endregion
+
+// #region navigation-menu
+export const NavStyle = forSlots(NavSlots)(Recipes.Nav({}))
+
+const NavPage = Schema.Literals(['Overview', 'Projects', 'Team', 'Settings'])
+type NavPage = typeof NavPage.Type
+
+export const nav = <Message>(style: NamedStyle<typeof NavSlots>, h: HtmlBuilder<Message>): Html =>
+  UiNav.view<NavPage>({
+    items: NavPage.literals,
+    ariaLabel: 'Workspace',
+    toHref: page => `#${page.toLowerCase()}`,
+    isItemCurrent: page => page === 'Projects',
+    // The current link's line glides, and a faint pill follows the pointer.
+    toView: Nav.toView<NavPage, Message>([style.mixin, ...Nav.fluid], { h }, page => page),
+  })
 // #endregion
 
 // #region segmented

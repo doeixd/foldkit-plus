@@ -17,6 +17,7 @@ import { CalendarSlots } from './calendar.js'
 import { CheckboxSlots } from './checkbox.js'
 import { CheckboxGroupSlots } from './checkboxGroup.js'
 import { CommandSlots } from './command.js'
+import { NavSlots } from './nav.js'
 import { NumberFieldSlots } from './numberField.js'
 import { OtpFieldSlots } from './otpField.js'
 import { ResizableSlots } from './resizable.js'
@@ -185,6 +186,11 @@ export const Sidebar = A11y.pattern({
     events: [Event.Click],
     attributes: [Attr.AriaExpanded],
   },
+})
+
+export const Nav = A11y.pattern({
+  nav: { capability: Capability.Container },
+  link: { capability: Capability.Interactive },
 })
 
 export const Dialog = A11y.pattern({
@@ -387,6 +393,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('otp-field', OtpField, OtpFieldSlots, 'stateless', ['textbox'], ['native-control']),
   entry('resizable', Resizable, ResizableSlots, 'stateful', ['separator']),
   entry('sidebar', Sidebar, SidebarSlots, 'stateless', ['navigation', 'button']),
+  entry('nav', Nav, NavSlots, 'stateless', ['navigation', 'link'], ['native-control']),
   entry(
     'dialog',
     Dialog,

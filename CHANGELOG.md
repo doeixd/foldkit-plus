@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Nav`, `@foldkit/ui`'s Nav adapted,** and with it
+  the navigation menu: `Nav.toView` draws the landmark's links in a list,
+  the current one `aria-current="page"`, and `Nav.fluid` glides a line to
+  the current link and a faint pill to the one the pointer nears, as Tabs'
+  do. The keys stay the browser's (no roving tab stop for a landmark).
+  `Recipes.Nav`, `Patterns.Nav` and a gallery page. shadcn's dropdown
+  panels in a navigation menu are not here yet.
 - **`foldkit-mixins-ui`: `Sidebar`,** from the widgets island into the
   package: shadcn's sidebar with Fluid Functionalism's collapse. A named
   navigation landmark of sections that open on the accordion's grid row

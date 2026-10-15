@@ -23,6 +23,7 @@ import {
   CheckboxSlots,
   CommandSlots,
   HoverIntentSlots,
+  NavSlots,
   NumberFieldSlots,
   OtpFieldSlots,
   ResizableSlots,
@@ -620,6 +621,19 @@ export const showcases: ReadonlyArray<Showcase> = [
         },
         live.h,
       ),
+  ),
+  fromRecipe(
+    {
+      slug: 'navigation-menu',
+      title: 'Navigation menu',
+      summary: 'The links of a site in a row, the current page marked by a line that glides to it.',
+      recipe: 'Nav',
+      file: 'nav',
+      contract: 'NavSlots',
+    },
+    NavSlots,
+    Recipes.Nav,
+    (style, live) => Snippet.nav(style, live.h),
   ),
   fromRecipe(
     {
