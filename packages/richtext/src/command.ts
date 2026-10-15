@@ -1561,6 +1561,10 @@ export const run = (
     if (backward && block.type === 'Node' && declaresText(options.nodes, block.kind)) {
       return run(state, { type: 'RetypeBlock', to: { type: 'Paragraph' } }, ids, options)
     }
+    // A heading does too, undoing the `# ` that made it, before a second press joins it.
+    if (backward && block.type === 'Heading') {
+      return run(state, { type: 'RetypeBlock', to: { type: 'Paragraph' } }, ids, options)
+    }
     // A block edge joins the sibling in the same container, wherever it sits.
     const containerPath = at.path.slice(0, -1)
     const siblings = containerBlocks(state.document, containerPath)
@@ -1572,6 +1576,26 @@ export const run = (
       return apply(state, [
         ...(textOfBlock(block) === '' ? [Edit.deleteBlock(block.id)] : []),
         Edit.setSelection({ type: 'Node', node: neighborBlock.id }),
+      ])
+    }
+    // Beside a block it cannot join (a table, code, a quote), an emptied line goes and the
+    // caret steps into that block; one with text keeps it, and Backspace only steps.
+    if (
+      neighborBlock !== undefined &&
+      !joinable(backward ? neighborBlock : block, backward ? block : neighborBlock)
+    ) {
+      const target = backward ? lastRunOf(neighborBlock) : firstRunIn([neighborBlock])
+      const empty = textOfBlock(block) === ''
+      if (target === undefined || (!backward && !empty)) return apply(state, [])
+      return apply(state, [
+        ...(empty ? [Edit.deleteBlock(block.id)] : []),
+        Edit.setSelection(
+          caretAt({
+            node: target.id,
+            offset: backward ? target.text.length : 0,
+            affinity: 'after',
+          }),
+        ),
       ])
     }
     if (neighborBlock === undefined) {

@@ -538,8 +538,12 @@ describe('Backspace at the start of a code block', () => {
     expect(result.state.document.children[1]?.children.map(run => run.text).join('')).toBe('le x')
   })
 
-  it('joins as before with no vocabulary to say the kind holds text, which refuses', () => {
-    // A join across a paragraph and a node kind is refused, so nothing changes.
-    expect(backspace(caret('c1', 0), {})).toMatchObject({ ok: false, error: 'InvalidRange' })
+  it('with no vocabulary to say the kind holds text, steps into the paragraph before', () => {
+    // A paragraph and a node kind cannot be one block, so the caret goes to the end of the
+    // paragraph and nothing is joined.
+    const result = backspace(caret('c1', 0), {})
+    if (!result.ok) throw new Error(result.error)
+    expect(result.state.document.children).toHaveLength(2)
+    expect(result.state.selection).toEqual(caret('p-t', 6))
   })
 })

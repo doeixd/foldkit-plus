@@ -192,8 +192,10 @@ describe('editing inside a nested block', () => {
     expect(blockAt(result.state.document, 1).children[0]?.text).toBe('tail')
   })
 
-  it('joins a list item with the previous sibling on Backspace', () => {
-    const result = success(run(state(caret('b', 0)), { type: 'DeleteBackward' }))
+  it('joins a list item with the previous sibling on Backspace, a heading once it is text', () => {
+    const retyped = success(run(state(caret('b', 0)), { type: 'DeleteBackward' }))
+    expect(blockAt(retyped.state.document, 0, 1)).toMatchObject({ type: 'Paragraph', id: 'li2' })
+    const result = success(run(retyped.state, { type: 'DeleteBackward' }))
     expect(containerAt(result.state.document, 0).map(block => block.id)).toEqual(['li1'])
     // The boundary goes; the runs keep their own marks.
     expect(runsOf(result.state.document, 0, 0)).toEqual([

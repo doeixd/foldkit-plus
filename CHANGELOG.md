@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-richtext`: Backspace and Delete beside a table, code or a quote.**
+  An empty line next to a block it cannot join is removed and the caret steps
+  into that block; Backspace from a line with text steps there. Both were
+  refused, so an empty line after a table could not be removed. Backspace at the
+  start of a heading now makes it a paragraph before a second press joins it.
 - **`foldkit-richtext-dom`: a placement's `keymap`, and Mod+Shift+S.** `editorAt`
   takes chords beside the built-in ones, and Strikethrough has a chord of its
   own. The playground binds Ctrl+U (underline), Ctrl+Shift+H (highlight) and
