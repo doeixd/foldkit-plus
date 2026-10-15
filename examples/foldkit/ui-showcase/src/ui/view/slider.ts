@@ -3,11 +3,10 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { Slider as UiSlider } from '@foldkit/ui'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
-import { Slider } from 'foldkit-mixins-ui'
 
 import { Message as UiMessage } from '../message.js'
 import type { UiModel } from '../model.js'
-import { DemoSliderStyle, SliderPageSlots, SliderPageStyle } from '../style/slider.js'
+import { SliderPageSlots, SliderPageStyle } from '../style/slider.js'
 
 type Slots = SlotBuilders<typeof SliderPageSlots, UiMessage>
 
@@ -24,6 +23,7 @@ type SliderDemo = Readonly<{
   toParentMessage: (message: UiSlider.Message) => UiMessage
 }>
 
+/** No `foldkit-mixins-ui` adapter covers upstream's Slider, so its bundles take the page's Slots. */
 const sliderDemo = (demo: SliderDemo, slots: Slots, h: HtmlBuilder<UiMessage>): Html =>
   h.submodel({
     slotId: demo.slider.id,
@@ -33,20 +33,17 @@ const sliderDemo = (demo: SliderDemo, slots: Slots, h: HtmlBuilder<UiMessage>): 
       value: demo.value,
       formatValue: demo.formatValue,
       orientation: demo.orientation,
-      toView: render => {
-        const slider = Slider.resolve(render, [DemoSliderStyle.mixin], { input: undefined, h })
-
-        return h.div(slots.row.attrs(), [
+      toView: ({ root, track, filledTrack, thumb, label }) =>
+        h.div(slots.row.attrs(), [
           h.div(slots.header.attrs(), [
-            h.label(slider.label, [demo.label]),
+            h.label(slots.label.attrs(label), [demo.label]),
             h.span(slots.value.attrs(), [demo.shownValue]),
           ]),
-          h.div(slider.root, [
-            h.div(slider.track, [h.div(slider.filledTrack)]),
-            h.div(slider.thumb),
+          h.div(slots.slider.attrs(root), [
+            h.div(slots.track.attrs(track), [h.div(slots.fill.attrs(filledTrack))]),
+            h.div(slots.thumb.attrs(thumb)),
           ]),
-        ])
-      },
+        ]),
     },
     toParentMessage: demo.toParentMessage,
   })

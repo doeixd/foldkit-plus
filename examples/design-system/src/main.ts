@@ -30,7 +30,6 @@ import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiDisclosure from '@foldkit/ui/disclosure'
 import * as UiFieldset from '@foldkit/ui/fieldset'
 import * as UiSelect from '@foldkit/ui/select'
-import * as UiSlider from '@foldkit/ui/slider'
 import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
@@ -243,7 +242,6 @@ export const Model = Schema.Struct({
   detailsOpen: Schema.Boolean,
   contact: Contact,
   volume: Schema.Number,
-  volumeSlider: UiSlider.Model,
   tooltip: UiTooltip.Model,
   contactGroup: UiRadioGroup.Model,
   sectionsTabs: UiTabs.Model,
@@ -282,7 +280,7 @@ export const Message = defineMessageUnion({
   UnderlineToggled: { value: Schema.Boolean },
   CountrySelected: { value: Schema.String },
   DetailsToggled: { value: Schema.Boolean },
-  VolumeSlider: { message: UiSlider.Message },
+  VolumeChanged: { value: Schema.Number },
   Tooltip: { message: UiTooltip.Message },
   ContactGroup: { message: UiRadioGroup.Message },
   SectionsTabs: { message: UiTabs.Message },
@@ -327,7 +325,6 @@ export const initModel = (today: CalendarDate): Model => ({
   detailsOpen: false,
   contact: 'email',
   volume: 60,
-  volumeSlider: UiSlider.init({ id: 'volume-slider', min: 0, max: 100, step: 5 }),
   tooltip: UiTooltip.init({ id: 'hint-tooltip' }),
   contactGroup: UiRadioGroup.init({ id: 'contact-group' }),
   sectionsTabs: UiTabs.init({ id: 'sections-tabs' }),
@@ -379,7 +376,7 @@ export const update = (model: Model, message: Message) =>
     DetailsToggled: ({ value }) => ({
       model: modifyFields(model, { detailsOpen: () => value }),
     }),
-    VolumeSlider: ({ message }) => foldVolumeSlider(model, message),
+    VolumeChanged: ({ value }) => ({ model: modifyFields(model, { volume: () => value }) }),
     Tooltip: ({ message }) => foldTooltip(model, message),
     ContactGroup: ({ message }) => foldContactGroup(model, message),
     SectionsTabs: ({ message }) => foldSectionsTabs(model, message),
@@ -433,24 +430,6 @@ const own = <K extends keyof Model, ChildMessage>(
   write: (model, child) =>
     modifyModel(model, { [field]: () => child } as { readonly [P in K]: () => Model[P] }),
   toParentMessage: message => wrap({ message }),
-})
-
-/**
- * The volume slider's interaction state lives beside the value it writes:
- * the child owns the drag, the parent owns the number, and each
- * `ChangedValue` the drag or keyboard produces becomes the value (already
- * snapped and clamped by the component).
- */
-const foldVolumeSlider = Update.foldChild({
-  ...own('volumeSlider', Message.VolumeSlider),
-  update: UiSlider.update,
-  foldOutMessage: UiSlider.OutMessage.match<Update.Step<Model, Message>>({
-    ChangedValue:
-      ({ value }) =>
-      model => ({
-        model: modifyFields(model, { volume: () => value }),
-      }),
-  }),
 })
 
 /** Visibility notifications need no parent state: showing is the child's own fact. */
@@ -964,29 +943,24 @@ const RadioDemo = (model: Pick<Model, 'contact' | 'contactGroup'>, h: HtmlBuilde
   })
 
 /**
- * The live volume slider: the component owns the drag and keyboard
- * interaction (through its drag subscriptions), the Model owns the value,
- * and the style attaches through the Slot contract in `toView`.
+ * The live volume slider: a native range input owns the drag and the keys,
+ * the Model owns the value, and each move arrives as `VolumeChanged`,
+ * already on the step.
  */
-const SliderDemo = (model: Pick<Model, 'volume' | 'volumeSlider'>, h: HtmlBuilder<Message>): Html =>
-  h.submodel({
-    slotId: model.volumeSlider.id,
-    model: model.volumeSlider,
-    view: UiSlider.view,
-    viewInputs: {
+const SliderDemo = (model: Pick<Model, 'volume'>, h: HtmlBuilder<Message>): Html =>
+  Slider.view(
+    {
+      id: 'volume-slider',
+      label: 'Volume',
       value: model.volume,
-      ariaLabel: 'Volume',
-      formatValue: (value: number) => `${Math.round(value)} percent`,
-      toView: attributes => {
-        const slider = Slider.resolve(attributes, [SliderStyle.mixin], { input: undefined, h })
-        return h.div(slider.root, [
-          h.label(slider.label, [`Volume: ${model.volume}`]),
-          h.div(slider.track, [h.div(slider.filledTrack, []), h.div(slider.thumb, [])]),
-        ])
-      },
+      step: 5,
+      format: value => `${value}%`,
+      showValue: true,
+      onChange: value => Message.VolumeChanged({ value }),
+      style: SliderStyle,
     },
-    toParentMessage: message => Message.VolumeSlider({ message }),
-  })
+    h,
+  )
 
 /**
  * A row-action menu: grouped items, one disabled, the choice reported back.
@@ -1088,7 +1062,11 @@ const DatePickerDemo = (
       triggerAttributes: childAttributes(chrome.trigger.attrs()),
       panelAttributes: childAttributes(chrome.panel.attrs()),
       backdropAttributes: childAttributes(chrome.backdrop.attrs()),
-      toCalendarView: Calendar.toView([CalendarStyle.mixin], { h }),
+      toCalendarView: Calendar.toView(
+        Calendar.Selection.Single({ date: model.maybeDue }),
+        [CalendarStyle.mixin],
+        { h },
+      ),
     },
     toParentMessage: message => Message.DatePicker({ message }),
   })
@@ -1806,6 +1784,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           BadgesView(undefined, h),
           Alert.view(
             {
+              layout: 'inline',
               title: 'Storage almost full',
               description: 'Only 2 GB left on this project.',
               icon: h.span([h.AriaHidden(true)], ['!']),
@@ -1816,6 +1795,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ),
           Alert.view(
             {
+              layout: 'inline',
               title: 'All checks passed',
               description: 'The deploy finished in 42 seconds.',
               icon: h.span([h.AriaHidden(true)], ['✓']),

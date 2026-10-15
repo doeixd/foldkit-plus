@@ -8,7 +8,6 @@ import { RadioGroup as UiRadioGroup } from '@foldkit/ui'
 import { Tabs as UiTabs } from '@foldkit/ui'
 import * as Animation from '@foldkit/ui/animation'
 import { File as FoldkitFile } from 'foldkit'
-import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import { Message, ToastStack, initModel, rootOverrideOf, update } from '../src/main.js'
 
@@ -69,49 +68,12 @@ describe('design-system update', () => {
       }),
     )
     expect(contact.model.contact).toBe('phone')
-    // Arrow keys step through the child's keyboard navigation.
-    const stepped = update(
-      contact.model,
-      Message.VolumeSlider({
-        message: UiSlider.Message.PressedKeyboardNavigation({
-          direction: 'StepIncrement',
-          value: 60,
-        }),
-      }),
-    )
-    expect(stepped.model.volume).toBe(65)
-    const steppedDown = update(
-      stepped.model,
-      Message.VolumeSlider({
-        message: UiSlider.Message.PressedKeyboardNavigation({
-          direction: 'StepDecrement',
-          value: 65,
-        }),
-      }),
-    )
-    expect(steppedDown.model.volume).toBe(60)
-    // A press starts the drag and each stop writes through ChangedValue.
-    const pressed = update(
-      steppedDown.model,
-      Message.VolumeSlider({
-        message: UiSlider.Message.PressedPointer({ value: 70, originValue: 60 }),
-      }),
-    )
-    expect(pressed.model.volume).toBe(70)
-    expect(pressed.model.volumeSlider.dragState._tag).toBe('Dragging')
-    const dragged = update(
-      pressed.model,
-      Message.VolumeSlider({ message: UiSlider.Message.MovedDragPointer({ value: 80 }) }),
-    )
-    expect(dragged.model.volume).toBe(80)
-    // A move with no drag in flight is ignored.
-    const idle = update(
-      modelForTests,
-      Message.VolumeSlider({ message: UiSlider.Message.MovedDragPointer({ value: 80 }) }),
-    )
-    expect(idle.model.volume).toBe(60)
+    // The slider's input reports each value it moves to, already on the step.
+    expect(contact.model.volume).toBe(60)
+    const turned = update(contact.model, Message.VolumeChanged({ value: 80 }))
+    expect(turned.model.volume).toBe(80)
     const popoverOpened = update(
-      dragged.model,
+      turned.model,
       Message.Popover({ message: UiPopover.Message.RequestedOpen() }),
     )
     expect(popoverOpened.model.popover.isOpen).toBe(true)

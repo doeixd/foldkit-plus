@@ -35,9 +35,9 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
 | The route, links, the mobile menu closing on navigation | plain Foldkit routing | `src/main.ts` |
 | Each component's state, keyboard and pointer handling, ARIA | `@foldkit/ui` Submodels in `UiModel` | `src/ui/model.ts`, `update.ts`, `subscriptions.ts` |
 | The values the demos edit | the Model | `src/ui/model.ts` |
-| Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosure, Dialog, Popover, Tooltip, Hover Intent, Slider, Tabs, Radio Group, Calendar (also inside Date Picker) | `foldkit-mixins-ui` adapters (`X.resolve`) | `src/ui/view/*.ts` |
+| Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosure, Dialog, Popover, Tooltip, Hover Intent, Tabs, Radio Group, Calendar (also inside Date Picker) | `foldkit-mixins-ui` adapters (`X.resolve`) | `src/ui/view/*.ts` |
 | Their looks | `Recipes.Button`, `Input`, `Textarea`, `Checkbox`, `Switch`, `Dialog`, `Tabs` (with `.extend`); page Styles for the rest | `src/ui/style/*.ts` |
-| Menu, Listbox, Combobox, Date Picker, Toast, File Drop, Drag and Drop, Animation, Virtual List, Nav, Meter, Progress | `@foldkit/ui`, drawn with the page's own Slots | `src/ui/view/*.ts` |
+| Menu, Listbox, Combobox, Date Picker, Toast, File Drop, Drag and Drop, Animation, Virtual List, Nav, Meter, Progress, Slider | `@foldkit/ui`, drawn with the page's own Slots | `src/ui/view/*.ts` |
 | Theme, shell, every page's Slots | `foldkit-mixins` | `src/style.ts`, `src/ui/style/*.ts` |
 
 ### What is not used, and why
@@ -78,8 +78,12 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
 - No `foldkit-mixins-ui` adapter for Menu, Listbox, Combobox, Date Picker or
   Toast (no `toView` seam), nor for File Drop, Nav, Drag and Drop, Animation,
   Virtual List, Meter and Progress, which do hand out attribute bundles.
+  The Slider is no longer adapted either: `foldkit-mixins-ui` draws its own,
+  for one number or a range, over native range inputs, so upstream's
+  Submodel takes the page's Slots here.
 - No recipe for Select, Fieldset, Disclosure, Popover, Tooltip, Hover Intent,
-  Slider, Radio Group or Calendar.
+  Radio Group or Calendar; `Recipes.Slider` styles `foldkit-mixins-ui`'s own
+  slider, not upstream's markup.
 - A recipe's pieces are optional per slot, so reusing `Recipes.Button`'s look
   on a plain `h.button` needs `?? Style.empty`; and `extend` cannot drop a
   slot's piece, so the Dialog recipe's corner close button is destructured out.

@@ -1,16 +1,32 @@
 import { Slots, Style } from 'foldkit-mixins'
-import { SliderSlots } from 'foldkit-mixins-ui'
 
 import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, shadow } from './shared.js'
 
+/**
+ * `foldkit-mixins-ui` draws a slider of its own rather than adapting
+ * `@foldkit/ui`'s, so the page gives upstream's bundles Slots of its own:
+ * `root`, `track`, `filledTrack`, `thumb` and `label` become `slider`,
+ * `track`, `fill`, `thumb` and `label`.
+ */
 export const SliderPageSlots = Slots.define({
   ...demoSlots,
   row: container,
   header: container,
   value: container,
+  label: container,
+  slider: container,
+  track: container,
+  fill: container,
+  thumb: container,
 })
 
+/**
+ * Upstream's accent track and round thumb. `@foldkit/ui` places the filled
+ * track and the thumb with inline style, marks the thumb `data-dragging`
+ * while it is held, and marks the root and the track `data-vertical` when the
+ * slider stands upright.
+ */
 export const SliderPageStyle = forSlots(SliderPageSlots)(
   {
     ...demoStyles,
@@ -29,19 +45,8 @@ export const SliderPageStyle = forSlots(SliderPageSlots)(
       color: t.text.overt,
     }),
     value: Style.self({ fontVariantNumeric: 'tabular-nums', color: t.text.muted }),
-  },
-  { name: 'SliderPageStyle' },
-)
-
-/**
- * `foldkit-mixins-ui` ships no Slider recipe; this is upstream's accent track
- * and round thumb. `@foldkit/ui` places the filled track and the thumb with
- * inline style, marks the thumb `data-dragging` while it is held, and marks
- * the root and the track `data-vertical` when the slider stands upright.
- */
-export const DemoSliderStyle = forSlots(SliderSlots)(
-  {
-    root: Style.compose(
+    label: Style.self({ fontWeight: t.weight.medium, cursor: 'pointer', userSelect: 'none' }),
+    slider: Style.compose(
       Style.self({
         position: 'relative',
         display: 'flex',
@@ -67,7 +72,7 @@ export const DemoSliderStyle = forSlots(SliderSlots)(
       }),
       Style.pseudo('[data-vertical]', { width: '0.375rem', height: '100%' }),
     ),
-    filledTrack: Style.self({ borderRadius: t.radius.full, background: t.accent.default }),
+    fill: Style.self({ borderRadius: t.radius.full, background: t.accent.default }),
     thumb: Style.compose(
       Style.self({
         width: '1.25rem',
@@ -85,7 +90,6 @@ export const DemoSliderStyle = forSlots(SliderSlots)(
       }),
       Style.pseudo('[data-dragging]', { cursor: 'grabbing' }),
     ),
-    label: Style.self({ fontWeight: t.weight.medium, cursor: 'pointer', userSelect: 'none' }),
   },
-  { name: 'DemoSliderStyle' },
+  { name: 'SliderPageStyle' },
 )

@@ -314,13 +314,14 @@ export const FieldsetStyle = app.forSlots(FieldsetSlots)(
 /** Radio options as circles; the chosen one fills with a dot. */
 export const RadioStyle = app.forSlots(RadioGroupSlots)(
   Recipes.RadioGroup.extend({
-    // One choice per line: the recipe lays the group as a row, the demo
-    // stacks it, circle beside its text.
+    // One choice per line, as the recipe stacks a vertical group, each row
+    // stretched and spaced wider.
     base: {
-      group: { flexDirection: 'column', alignItems: 'stretch', gap: t.space.sm },
-      // The 1rem circle top-aligns against a taller first line (21px here),
-      // so it rides 3px down to sit on the line's center. Measured in
-      // Chromium; re-measure if the label's type or the default size moves.
+      group: { alignItems: 'stretch', gap: t.space.sm },
+      // The recipe centers the circle on a body line (20px); this label's
+      // first line is taller (21px here), so it rides 3px down to sit on the
+      // line's center. Measured in Chromium; re-measure if the label's type
+      // or the default size moves.
       option: { marginBlockStart: '3px' },
     },
   })({}),
@@ -348,16 +349,8 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(Recipes.Calendar({}), {
   name: 'CalendarStyle',
 })
 
-export const SliderStyle = app.forSlots(SliderSlots)(
-  Recipes.Slider.extend({
-    // The thumb already offers the pointer; the bar it rides does too, so
-    // the whole control reads draggable before the pointer finds the thumb.
-    base: { track: { cursor: 'pointer' } },
-  })({}),
-  {
-    name: 'SliderStyle',
-  },
-)
+/** The shipped slider: one thumb spans its track, so the whole bar offers the pointer. */
+export const SliderStyle = app.forSlots(SliderSlots)(Recipes.Slider({}), { name: 'SliderStyle' })
 
 // --- overlays ----------------------------------------------------------------------
 // Popover, Tooltip, and HoverIntent are Submodels: each trigger draws through

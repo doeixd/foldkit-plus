@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The live slider and tooltip on the real Foldkit runtime: each Submodel
- * mounts, and interaction reaches the Model-owned value through the fold.
+ * The live slider on the real Foldkit runtime: it mounts, and a value its
+ * input reports reaches the Model and comes back drawn.
  */
 import { afterEach, expect, it, vi } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -38,7 +38,7 @@ const mount = (): { readonly dispose: () => void } => {
   return { dispose: () => handle.dispose() }
 }
 
-const thumb = (): HTMLElement | null => document.querySelector('[role="slider"]')
+const thumb = (): HTMLInputElement | null => document.querySelector('#volume-slider-value')
 
 /**
  * Polls `what` until it stops throwing. `vi.waitFor` never resolves in this
@@ -62,14 +62,15 @@ const settleFor = async (what: () => void, timeout = 8000): Promise<void> => {
   }
 }
 
-it('steps the owned volume from the thumb keyboard', async () => {
+// jsdom moves no native range on a key, so the test sends what a moved input sends.
+it('keeps the volume its input reports, and shows it', async () => {
   const mounted = mount()
   try {
-    await settleFor(() => expect(thumb()?.getAttribute('aria-valuenow')).toBe('60'))
-    expect(document.body.textContent).toContain('Volume: 60')
-    thumb()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-    await settleFor(() => expect(thumb()?.getAttribute('aria-valuenow')).toBe('65'))
-    await settleFor(() => expect(document.body.textContent).toContain('Volume: 65'))
+    await settleFor(() => expect(thumb()?.getAttribute('aria-valuetext')).toBe('60%'))
+    thumb()!.value = '65'
+    thumb()!.dispatchEvent(new Event('input', { bubbles: true }))
+    await settleFor(() => expect(thumb()?.getAttribute('aria-valuetext')).toBe('65%'))
+    await settleFor(() => expect(document.body.textContent).toContain('65%'))
   } finally {
     mounted.dispose()
   }
