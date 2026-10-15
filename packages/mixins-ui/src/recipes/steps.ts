@@ -152,9 +152,17 @@ export const Steps = Style.recipeFor(StepsSlots)({
           }),
         ),
         // Every step but the last grows, so the lines share the free width.
+        // Below the narrow width, a step showing no label takes no share, so
+        // the current step's words are not squeezed into its marker's neighbour.
         item: variant(
-          Style.self({ flex: '1 1 0', alignItems: 'start', gap: ref.space.xs }),
+          Style.self({ flex: '1 1 0', minInlineSize: '0', alignItems: 'start', gap: ref.space.xs }),
           Style.pseudo(':last-child', { flex: '0 0 auto' }),
+          Style.at(
+            narrow,
+            Style.nest(':where([data-state]:not([aria-current="step"]))&', {
+              flex: '0 0 auto',
+            }),
+          ),
         ),
         text: variant(
           Style.at(

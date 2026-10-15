@@ -79,4 +79,26 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'a narrow row keeps every label',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "Style.nest(':where([data-state]:not([aria-current=\"step\"])) > * > &', {",
+        replace: "Style.nest(':where([data-state]) > * > &', {",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a narrow row still shares with steps showing no label',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "Style.nest(':where([data-state]:not([aria-current=\"step\"]))&', {",
+        replace: "Style.nest(':where([data-state])&', {",
+      },
+    ],
+    tests: [unit],
+  },
 ]

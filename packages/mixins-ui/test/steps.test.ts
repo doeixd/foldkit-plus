@@ -133,4 +133,15 @@ describe('Steps recipe', () => {
     expect(css({ orientation: 'vertical' })).toMatch(/grid-column:1;grid-row:2/)
     expect(css({ orientation: 'horizontal' })).toMatch(/\{display:none\}/)
   })
+
+  it('below the narrow width, only the current step keeps its label and its share', () => {
+    const row = css({ orientation: 'horizontal' })
+    expect(row).toContain('@container (max-width: 32rem)')
+    expect(row).toMatch(
+      /:where\(\[data-state\]:not\(\[aria-current="step"\]\)\) > \* > [^{]+\{[^}]*position:absolute/,
+    )
+    expect(row).toMatch(
+      /:where\(\[data-state\]:not\(\[aria-current="step"\]\)\)[^{]+\{[^}]*flex:0 0 auto/,
+    )
+  })
 })
