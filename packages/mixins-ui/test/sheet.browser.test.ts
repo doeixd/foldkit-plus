@@ -72,7 +72,8 @@ test('a right sheet spans the right edge, bordered on its left', async () => {
     expect(Math.abs(box.right - document.documentElement.clientWidth)).toBeLessThan(1)
     expect(box.top).toBeLessThan(1)
     expect(Math.abs(box.bottom - window.innerHeight)).toBeLessThan(1)
-    expect(box.width).toBeLessThan(document.documentElement.clientWidth)
+    // `min(24rem, 75%)` at 1440px, its padding and border inside it.
+    expect(box.width).toBeCloseTo(384, 0)
     const look = getComputedStyle(panel)
     expect(look.borderLeftWidth).toBe('1px')
     expect(look.borderTopWidth).toBe('0px')

@@ -34,10 +34,7 @@ const frame = (side: Side): Declarations => {
   const facing = inner[side]
   return Object.fromEntries([
     ...sides.map(each => [`border${each}Width`, each === facing ? ref.border.thin : '0']),
-    ...allCorners.map(corner => [
-      `border${corner}Radius`,
-      corner.includes(facing) ? radius : '0',
-    ]),
+    ...allCorners.map(corner => [`border${corner}Radius`, corner.includes(facing) ? radius : '0']),
   ])
 }
 
@@ -53,9 +50,7 @@ const placed = {
 } as const
 
 const across = (side: Side): Declarations =>
-  side === 'top' || side === 'bottom'
-    ? { maxBlockSize: '80%' }
-    : { inlineSize: 'min(24rem, 75%)' }
+  side === 'top' || side === 'bottom' ? { maxBlockSize: '80%' } : { inlineSize: 'min(24rem, 75%)' }
 
 const edge = (side: Side) => ({
   // In `variants`, so it beats the Dialog's centering grid on the dialog.
@@ -65,6 +60,9 @@ const edge = (side: Side) => ({
       // The Dialog centers its panel with `margin-inline: auto`, which in a
       // grid item would beat the placement above.
       margin: '0',
+      // The Dialog's panel is `inline-size: 100%` with padding; without the
+      // reset's `border-box`, a top or bottom panel overflowed the viewport.
+      boxSizing: 'border-box',
       overflowY: 'auto',
       ...frame(side),
       ...across(side),
