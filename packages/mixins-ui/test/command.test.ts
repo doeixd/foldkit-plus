@@ -3,7 +3,8 @@
  * the field that points at the highlighted row, which moves to the first
  * enabled row when its own is filtered away.
  */
-import { Option } from 'effect'
+import { Match, Option } from 'effect'
+import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
@@ -58,6 +59,10 @@ describe('Command.filtered', () => {
     expect(Command.filtered(groups, '  ')).toBe(groups)
     expect(Command.filtered(groups, 'zzz')).toEqual([])
   })
+
+  it('drops a row missing any one word of the query', () => {
+    expect(Command.filtered(groups, 'new search')).toEqual([])
+  })
 })
 
 describe('Command.view', () => {
@@ -79,5 +84,89 @@ describe('Command.view', () => {
 
   it('says so when nothing matches', () => {
     expect(Inert.text(drawn('zzz', Option.none()))).toContain('No results.')
+  })
+
+  it('selects only the highlighted row, and leaves a disabled one unpressable', () => {
+    const rows = Inert.byRole(drawn('', Option.some('find')), 'option')
+    expect(rows.map(row => Inert.value(row, 'aria-selected'))).toEqual([
+      'false',
+      'true',
+      'false',
+      'false',
+    ])
+    const billing = rows[2]
+    expect(Inert.value(billing, 'aria-disabled')).toBe('true')
+    expect(billing?.data?.on?.['click']).toBeUndefined()
+    expect(rows[3]?.data?.on?.['click']).toBeTypeOf('function')
+  })
+})
+
+describe('Command keys', () => {
+  type Model = Readonly<{ active: Option.Option<string>; ran: string }>
+  type Message =
+    Readonly<{ _tag: 'Activated'; value: string }> | Readonly<{ _tag: 'Ran'; value: string }>
+  const scene = (active: Option.Option<string>, ...steps: ReadonlyArray<Step>) =>
+    Scene.scene<Model, Message>(
+      {
+        update: (model, message) => ({
+          model: Match.valueTags(message, {
+            Activated: ({ value }) => ({ ...model, active: Option.some(value) }),
+            Ran: ({ value }) => ({ ...model, ran: value }),
+          }),
+        }),
+        view: (model, h) =>
+          h.div(
+            [],
+            [
+              Command.view<string, Message>(
+                {
+                  id: 'palette',
+                  label: 'Search commands',
+                  groups,
+                  query: '',
+                  onQuery: () => ({ _tag: 'Ran', value: 'query' }),
+                  active: model.active,
+                  onActive: value => ({ _tag: 'Activated', value }),
+                  onRun: value => ({ _tag: 'Ran', value }),
+                },
+                h,
+              ),
+              h.output([], [model.ran]),
+            ],
+          ),
+      },
+      Scene.given<Model>({ active, ran: '' }),
+      ...steps,
+    )
+  type Step = Parameters<typeof Scene.scene<Model, Message>>[1]
+  const field = Scene.role('combobox')
+  const highlights = (value: string) =>
+    Scene.expect(field).toHaveAttr('aria-activedescendant', `palette-${value}`)
+
+  it('steps down and up through the enabled rows, past a disabled one', () => {
+    scene(Option.some('find'), Scene.keydown(field, 'ArrowDown'), highlights('theme'))
+    scene(Option.some('theme'), Scene.keydown(field, 'ArrowUp'), highlights('find'))
+  })
+
+  it('wraps at either end', () => {
+    scene(Option.some('theme'), Scene.keydown(field, 'ArrowDown'), highlights('new'))
+    scene(Option.some('new'), Scene.keydown(field, 'ArrowUp'), highlights('theme'))
+  })
+
+  it('runs the highlighted row on Enter, and a pressed one', () => {
+    scene(
+      Option.some('find'),
+      Scene.keydown(field, 'Enter'),
+      Scene.expect(Scene.selector('output')).toHaveText('find'),
+    )
+    scene(
+      Option.none(),
+      Scene.click('#palette-theme'),
+      Scene.expect(Scene.selector('output')).toHaveText('theme'),
+    )
+  })
+
+  it('leaves every other key to the field', () => {
+    scene(Option.some('find'), Scene.keydown(field, 'a'), Scene.expectIgnored())
   })
 })
