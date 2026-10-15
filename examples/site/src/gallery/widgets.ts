@@ -107,6 +107,8 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
+  /** The range slider's chosen price range. */
+  priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
   /** The file tree's open, current and chosen rows. */
   treeView: TreeView.Model,
   /** The color picker's accent, in OKLCH. */
@@ -162,6 +164,7 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotTreeView: { message: TreeView.Message },
   PickedAccent: { value: ColorPicker.Oklch },
   GotTripCalendar: { message: UiCalendar.Message },
@@ -230,6 +233,7 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
+  priceRange: { low: 100, high: 350 },
   treeView: TreeView.init({ id: 'preview-tree', open: ['src'] }),
   accent: { l: 62.5, c: 0.15, h: 250 },
   trip: UiCalendar.init({ id: 'preview-trip', today }),
@@ -543,6 +547,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
+    MovedPriceRange: ({ value }) =>
+      value.low === model.priceRange.low && value.high === model.priceRange.high
+        ? { model }
+        : { model: modifyFields(model, { priceRange: () => value }) },
     GotTreeView: ({ message }) => foldTreeView(model, message),
     PickedAccent: ({ value }) =>
       value.l === model.accent.l && value.c === model.accent.c && value.h === model.accent.h

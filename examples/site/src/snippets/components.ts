@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  RangeSlider,
+  RangeSliderSlots,
   TreeView,
   TreeViewSlots,
   ColorPicker,
@@ -1945,6 +1947,32 @@ export const treeView = <Message>(
         ],
       ),
     ],
+  )
+// #endregion
+
+// #region range-slider
+export const RangeSliderStyle = forSlots(RangeSliderSlots)(Recipes.RangeSlider({}))
+
+export const rangeSlider = <Message>(
+  style: NamedStyle<typeof RangeSliderSlots>,
+  value: RangeSlider.Range,
+  onChange: (value: RangeSlider.Range) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  RangeSlider.view(
+    {
+      id: 'preview-price',
+      label: 'Price',
+      value,
+      onChange,
+      min: 0,
+      max: 500,
+      step: 10,
+      format: amount => `$${amount}`,
+      thumbLabels: { low: 'Minimum price', high: 'Maximum price' },
+      style,
+    },
+    h,
   )
 // #endregion
 

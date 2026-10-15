@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  RangeSliderSlots,
   TreeViewSlots,
   ColorPickerSlots,
   InputCopySlots,
@@ -904,6 +905,25 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.treeView,
         message => live.onWidget(Widgets.Message.GotTreeView({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'range-slider',
+      title: 'Range slider',
+      summary: 'Two thumbs on one track choosing a low and a high value; neither passes the other.',
+      recipe: 'RangeSlider',
+      file: 'rangeSlider',
+      contract: 'RangeSliderSlots',
+    },
+    RangeSliderSlots,
+    Recipes.RangeSlider,
+    (style, live) =>
+      Snippet.rangeSlider(
+        style,
+        live.widgets.priceRange,
+        value => live.onWidget(Widgets.Message.MovedPriceRange({ value })),
         live.h,
       ),
   ),

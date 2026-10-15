@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `RangeSlider`,** two thumbs choosing a `{ low, high }`
+  range on one track, as the APG's multi-thumb slider: two native range
+  inputs, each bounded by the other and spanning only the track it can
+  travel, so the browser stops a thumb at the other with no redraw.
+  `RangeSlider.moved` snaps, bounds and orders a range. The Slider's look and
+  axes, `Patterns.RangeSlider` and a gallery page.
 - **`foldkit-mixins-ui`: `TreeView`, the APG tree view.** Nested rows with
   one tab stop: the arrows move through the rows showing and open, shut,
   enter or leave a row; Home and End; a character moves to the next row it
