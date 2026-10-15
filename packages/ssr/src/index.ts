@@ -1092,9 +1092,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * fallback: a post whose `Origin` (which
      * every browser sends on one) is not among them is a 403 before its body
      * is read, so a page elsewhere cannot post as someone signed in here. A
-     * form cannot carry a CSRF header; this is its check. `Origin: null` (a
-     * page served with `Referrer-Policy: no-referrer`) is taken when
-     * `Sec-Fetch-Site` says `same-origin`. Each must be an origin exactly as
+     * form cannot carry a CSRF header; this is its check. A post with no
+     * `Origin` or `Origin: null` (a page served with `Referrer-Policy:
+     * no-referrer`) is taken when `Sec-Fetch-Site` says `same-origin`. Each must be an origin exactly as
      * a browser sends it (`https://example.com`).
      */
     readonly origins?: ReadonlyArray<string> | undefined
@@ -1203,16 +1203,17 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
 }
 
 /**
- * Whether a post came from one of `origins`: its `Origin`, or, when a browser
- * withheld that (`Origin: null`, which a page served with `Referrer-Policy:
- * no-referrer` sends on its own forms), its `Sec-Fetch-Site`, which no page or
- * form can set. `foldkit-auth`'s resolver decides the same way.
+ * Whether a post came from one of `origins`, by what the browser sends and no
+ * page or form can set: its `Origin`, or, where that is missing or opaque
+ * (`Origin: null`, which a page served with `Referrer-Policy: no-referrer`
+ * sends on its own forms), its Fetch Metadata `Sec-Fetch-Site`. A post with
+ * neither header is refused. `foldkit-auth`'s resolver decides the same way.
  */
 const postedFrom = (request: Request, origins: ReadonlySet<string>): boolean => {
   const origin = request.headers.get('origin')
-  return origin === 'null'
+  return origin === null || origin === 'null'
     ? request.headers.get('sec-fetch-site') === 'same-origin'
-    : origin !== null && origins.has(origin)
+    : origins.has(origin)
 }
 
 const plainText = (status: number, body: string): Response =>

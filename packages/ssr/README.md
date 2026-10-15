@@ -702,9 +702,9 @@ and a form cannot carry a CSRF header. `SSR.entry`'s `origins` names the
 origins a form may be posted from; a post whose `Origin` (every browser sends
 one on a `POST`) is not among them is answered `403` before its body is read
 or `flags` and `resources` run. A page served with `Referrer-Policy:
-no-referrer` posts `Origin: null` even to its own site; such a post is taken
-when its `Sec-Fetch-Site`, which no page or form can set, says
-`same-origin`. A plan with a server fallback requires `origins`, since a post
+no-referrer` posts `Origin: null` even to its own site; such a post, or one
+with no `Origin` at all, is taken when its Fetch Metadata `Sec-Fetch-Site`,
+which no page or form can set, says `same-origin`, and refused without it. A plan with a server fallback requires `origins`, since a post
 runs `flags`, the config's `resources` and its own as whoever the cookie says
 posted: an entry made without them throws. An entry of your own that calls
 `SSR.handle` checks `Origin` itself.

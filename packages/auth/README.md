@@ -49,6 +49,33 @@ behalf, the `Origin` alone (below). From any other request it is refused, never
 quietly ignored: a page elsewhere borrows no one's session, and a client of
 the application's own that forgot the header learns so on its first call.
 
+### Why the Origin, and not SameSite or a token
+
+The check is made at the HTTP boundary, from what the browser sends and no
+page can set, so there is no token to issue, store or rotate:
+
+- **`Origin`**, compared with `http.origin` and `http.trustedOrigins`
+  exactly. Where a browser sends none (a same-origin `GET`) or an opaque one
+  (`Origin: null`, below), the Fetch Metadata header **`Sec-Fetch-Site`**
+  must say `same-origin`. A request with neither is refused: a browser too
+  old to send them, or a client that is not a browser and had better not be
+  holding someone's cookie.
+- **The CSRF header** is a constant, not a secret. A page on a trusted
+  origin that can run a script can send it; markup alone, such as an HTML
+  form injected into that page, cannot. `requests: 'browser'` drops it where
+  the browser itself makes the request.
+- **`SameSite`** is not relied on. Yielded sets `SameSite=Lax` explicitly
+  (Chrome's default for a cookie that names none sends it on a cross-site
+  `POST` for two minutes after it is set), but a site is not an origin:
+  every subdomain of the registrable domain is same-site, so a sibling such
+  as `user-content.app.example` would pass. Origins are compared instead, and a
+  sibling is trusted only when `trustedOrigins` names it.
+
+Remote posts every call, and Yielded's mutations are posts. Keep a `GET`
+of any endpoint of your own that the resolver answers from changing
+anything: the resolver refuses a cookie on a link followed from elsewhere (a
+cross-site `GET`), and a safe `GET` makes a gap in that check cost nothing.
+
 ## Install
 
 ```sh
@@ -234,15 +261,17 @@ not a way back to sign-in. Resolve the session in the host before calling
 | Request | Answer |
 | --- | --- |
 | No session cookie | a visitor |
-| A cookie, from a request without a trusted `Origin` (and, for `'scripted'`, the CSRF header) | 401, `The request did not show it came from this application.` |
+| A cookie, from a request without a trusted `Origin` or, lacking one, `Sec-Fetch-Site: same-origin` (and, for `'scripted'`, the CSRF header) | 401, `The request did not show it came from this application.` |
 | A cookie that no longer verifies (signed out, expired, idle, revoked) | 401, `Your session ended.` |
 | Two session cookies | 401, `Sign in again.` |
 | `x-foldkit-subject` naming someone other than the session | 401, `Who is signed in changed.` (`SUBJECT_CHANGED`) |
 | A session store that fails | a defect (500), never a visitor |
 
 A page served with `Referrer-Policy: no-referrer` sends `Origin: null` on its
-own posts; such a request counts as the application's when its
-`Sec-Fetch-Site`, which no page can set, says `same-origin`.
+own posts, and a same-origin `GET` sends no `Origin`; either counts as the
+application's when its `Sec-Fetch-Site`, which no page can set, says
+`same-origin`. Browsers send Fetch Metadata only to secure origins (`https:`
+and `localhost`), so over plain `http:` elsewhere such a request is refused.
 
 **A long-lived connection re-checks the cookie it opened with.** `revalidate`
 asks again of the request a live stream or socket opened with, and Yielded's

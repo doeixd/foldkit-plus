@@ -105,8 +105,25 @@ export default [
     tests,
   },
   {
-    name: 'a missing Origin is taken by Sec-Fetch-Site',
-    edits: [{ file, find: "origin === 'null'", replace: "origin === 'null' || origin === null" }],
+    name: 'a missing Origin is refused from its own site',
+    edits: [{ file, find: "origin === null || origin === 'null'", replace: "origin === 'null'" }],
+    tests,
+  },
+  {
+    name: 'an opaque Origin is read as written',
+    edits: [{ file, find: "origin === null || origin === 'null'", replace: 'origin === null' }],
+    tests,
+  },
+  {
+    name: 'Sec-Fetch-Site overrules an Origin',
+    edits: [
+      {
+        file,
+        find: "origin === null || origin === 'null'",
+        replace:
+          "origin === null || origin === 'null' || request.headers.get('sec-fetch-site') === 'same-origin'",
+      },
+    ],
     tests,
   },
   {

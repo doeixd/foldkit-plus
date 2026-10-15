@@ -464,6 +464,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-auth`, `foldkit-ssr`: a request with no `Origin` is taken by
+  Fetch Metadata.** `AuthServer.resolver` and `SSR.entry`'s `origins` read
+  `Sec-Fetch-Site: same-origin` in place of a missing `Origin` (a
+  same-origin `GET`), as they already did for `Origin: null`, and still
+  refuse a request with neither. The auth README says why the check rests on
+  the origin rather than on `SameSite` or a token.
 - **`foldkit-mixins-ui`: toggles on the ladder, and Fluid's switch.** A
   checkbox, radio or switch with no size stands on the ladder's icon rung
   (16px, 14px compact) instead of defaulting to `md`. The switch is a 34×20

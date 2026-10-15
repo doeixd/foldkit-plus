@@ -192,9 +192,14 @@ describe('AuthServer.resolver over a real Yielded session', () => {
       'Origin: null from a sibling site',
       { origin: 'null', 'sec-fetch-site': 'same-site', 'x-effect-auth-csrf': '1' },
     ],
+    ['no Origin from another site', { 'sec-fetch-site': 'cross-site', 'x-effect-auth-csrf': '1' }],
     [
-      'no Origin, claiming its own site',
-      { 'sec-fetch-site': 'same-origin', 'x-effect-auth-csrf': '1' },
+      'another origin, claiming its own site',
+      {
+        origin: 'https://elsewhere.test',
+        'sec-fetch-site': 'same-origin',
+        'x-effect-auth-csrf': '1',
+      },
     ],
     ['no CSRF header', { origin: 'https://app.test' }],
     ['the wrong CSRF value', { origin: 'https://app.test', 'x-effect-auth-csrf': '0' }],
@@ -226,18 +231,25 @@ describe('AuthServer.resolver over a real Yielded session', () => {
     })
   })
 
-  it('reads the cookie of a page that withholds its Origin, by Sec-Fetch-Site', async () => {
+  it.each([
     // A page served with Referrer-Policy: no-referrer posts Origin: null to its own site.
-    const cookie = ada
-    expect(
-      await whoami({
-        origin: 'null',
-        'sec-fetch-site': 'same-origin',
-        'x-effect-auth-csrf': '1',
-        cookie,
-      }),
-    ).toEqual({ status: 200, who: 'ada' })
-  })
+    ['an opaque Origin', { origin: 'null' }],
+    // A same-origin GET carries no Origin.
+    ['no Origin', {}],
+  ])(
+    'reads the cookie of a request with %s from its own site, by Sec-Fetch-Site',
+    async (_, origin) => {
+      const cookie = ada
+      expect(
+        await whoami({
+          ...origin,
+          'sec-fetch-site': 'same-origin',
+          'x-effect-auth-csrf': '1',
+          cookie,
+        }),
+      ).toEqual({ status: 200, who: 'ada' })
+    },
+  )
 
   it('answers a client that believes rightly', async () => {
     const cookie = ada

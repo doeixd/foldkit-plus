@@ -46,17 +46,18 @@ const cookieValues = (header: string | null, name: string): ReadonlyArray<string
   })
 
 /**
- * Whether `request` came from one of `trusted`: its `Origin`, or, when a
- * browser withheld that (`Origin: null`, which a page served with
- * `Referrer-Policy: no-referrer` sends on its own same-origin posts), its
- * `Sec-Fetch-Site`, which no page or form can set. `foldkit-ssr` checks a
- * posted form's `Origin` the same way.
+ * Whether `request` came from one of `trusted`, by what the browser sends and
+ * no page can set: its `Origin`, or, where it sends none (a same-origin `GET`)
+ * or an opaque one (`Origin: null`, from a page served with `Referrer-Policy:
+ * no-referrer`), its Fetch Metadata `Sec-Fetch-Site`. Origins, not sites, so a
+ * sibling subdomain is not trusted for sharing the site. A request with
+ * neither header is refused. `foldkit-ssr` checks a posted form the same way.
  */
 const cameFrom = (request: Request, trusted: ReadonlySet<string>): boolean => {
   const origin = request.headers.get('origin')
-  return origin === 'null'
+  return origin === null || origin === 'null'
     ? request.headers.get('sec-fetch-site') === 'same-origin'
-    : origin !== null && trusted.has(origin)
+    : trusted.has(origin)
 }
 
 const refuse = (reason: string) => new RemoteUnauthenticated({ message: reason, reason })

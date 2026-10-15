@@ -52,7 +52,7 @@ const transport = Remote.httpWithLive('/remote', {
 | Request | Answer |
 | --- | --- |
 | No session cookie | visitor |
-| A cookie without a trusted `Origin` (and, unless `requests: 'browser'`, the CSRF header `x-effect-auth-csrf: 1`) | 401 `The request did not show it came from this application.` |
+| A cookie without a trusted `Origin` or, where `Origin` is missing or `null`, `Sec-Fetch-Site: same-origin` (and, unless `requests: 'browser'`, the CSRF header `x-effect-auth-csrf: 1`) | 401 `The request did not show it came from this application.` |
 | A cookie that no longer verifies | 401 `Your session ended.` |
 | Two session cookies | 401 `Sign in again.` |
 | `x-foldkit-subject` naming someone else | 401 `Who is signed in changed.` |
