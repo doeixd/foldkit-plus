@@ -601,6 +601,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: a Sidebar section's links and a TreeView group's
+  rows hold still while they open.** The heading row stretched into the room
+  the opening grid left mid-transition, so the rows below it dropped (about
+  16px in the Sidebar) and rose back.
+  Sidebar and TreeView now share one `opensBelow` piece that keeps rows at
+  the top (`align-content: start`).
 - **`foldkit-mixins`: injected styles keep the page's layer order.** The
   `<style>` a draw injects carries the page's own `@layer` order first. It
   carried none where the page had one, so once it stood ahead of the page's

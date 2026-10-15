@@ -132,6 +132,30 @@ export const presence = (tier: 'fast' | 'slow', closed: Declarations): StyleValu
 }
 
 /**
+ * A heading row over a part that opens beneath it, `0fr` to `1fr` with no
+ * measured height; the part clips itself (`minBlockSize: 0`, `overflow`).
+ * Between the two, the container is taller than its rows, and `align-content`
+ * left at `normal` stretched the heading into that room: the heading grew and
+ * the opening part's text dropped, then rose back.
+ */
+export const opensBelow = (open: string): StyleValue =>
+  Style.compose(
+    Style.self({
+      display: 'grid',
+      gridTemplateRows: 'auto 0fr',
+      alignContent: 'start',
+      transitionProperty: 'grid-template-rows',
+      transitionDuration: travelled(ref.motion['fast-exit']),
+      transitionTimingFunction: ref.motion['ease-exit'],
+    }),
+    Style.pseudo(open, {
+      gridTemplateRows: 'auto 1fr',
+      transitionDuration: travelled(ref.motion.fast),
+      transitionTimingFunction: ref.motion.ease,
+    }),
+  )
+
+/**
  * The transition of an overlay a Mount places (a highlight, a chosen marker):
  * its place and size settle on `tier`, scaled by `moving` (a Mount's 0 or 1,
  * so a highlight appearing lands where it is), and its fade runs on `fast`.

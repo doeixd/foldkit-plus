@@ -55,9 +55,20 @@ export default [
     name: 'a shut group keeps its height',
     edits: [
       {
-        file: '../src/recipes/treeView.ts',
+        file: '../src/recipes/design.ts',
         find: "gridTemplateRows: 'auto 0fr',",
         replace: "gridTemplateRows: 'auto auto',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'an opening group stretches its parent row',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: "      alignContent: 'start',\n",
+        replace: '',
       },
     ],
     tests: [browser],

@@ -1,8 +1,8 @@
 /**
  * A sidebar: a column of sections on the page's muted surface, each heading
  * a row of the size ladder whose chevron turns as it opens, its links rows
- * beneath, the current page's tinted as a chosen row is. Its links open on
- * the accordion's grid row, with no measured height. Collapsed, the column
+ * beneath, the current page's tinted as a chosen row is. Its links open
+ * beneath their heading (`opensBelow`), with no measured height. Collapsed, the column
  * shrinks to nothing on the slow tier (a whole column moving is the
  * largest thing it animates, as Fluid Functionalism's) and its toggle stays.
  */
@@ -12,6 +12,7 @@ import { SidebarSlots } from '../sidebar.js'
 import {
   component,
   focusRing,
+  opensBelow,
   ref,
   rowOnLadder,
   transition,
@@ -64,20 +65,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       }),
       Style.pseudo(collapsed, { inlineSize: '0', opacity: '0' }),
     ),
-    section: component(
-      Style.self({
-        display: 'grid',
-        gridTemplateRows: 'auto 0fr',
-        transitionProperty: 'grid-template-rows',
-        transitionDuration: travelled(ref.motion['fast-exit']),
-        transitionTimingFunction: ref.motion['ease-exit'],
-      }),
-      Style.pseudo(open, {
-        gridTemplateRows: 'auto 1fr',
-        transitionDuration: travelled(ref.motion.fast),
-        transitionTimingFunction: ref.motion.ease,
-      }),
-    ),
+    section: component(opensBelow(open)),
     trigger: component(
       Style.self({
         display: 'flex',

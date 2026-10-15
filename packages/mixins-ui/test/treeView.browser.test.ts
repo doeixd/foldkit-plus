@@ -34,7 +34,8 @@ afterEach(async () => {
   document.body.replaceChildren()
 })
 
-const mount = () => {
+// Still by default, so a size is read where it ends rather than mid-flight.
+const mount = (motion = '0') => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -44,8 +45,7 @@ const mount = () => {
       Layers.standard.in('theme', Theme.root(theme)),
     ) +
     style.css +
-    // Still, so a size is read where it ends rather than mid-flight.
-    ':root{--fk-knob-motion:0}'
+    `:root{--fk-knob-motion:${motion}}`
   document.head.append(sheet)
   const before = document.createElement('button')
   before.textContent = 'Before'
@@ -135,6 +135,36 @@ test('a row sits further in per level, and a shut group takes no height', async 
       row(id).querySelector('[aria-hidden="true"]')!.getBoundingClientRect().left
     expect(start('components')).toBeGreaterThan(start('src'))
     expect(start('components') - start('src')).toBeCloseTo(start('button') - start('components'), 1)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('while a group opens, its first row stays put under its parent row', async () => {
+  const { handle } = mount('8')
+  try {
+    await vi.waitFor(() => expect(item('src')).not.toBeNull())
+    const group = item('src').querySelector('[role="group"]')!
+    const offsets: Array<number> = []
+    const heights: Array<number> = []
+    await userEvent.click(row('src'))
+    const settled = await vi.waitFor(
+      async () => {
+        await new Promise(resolve => requestAnimationFrame(resolve))
+        // From the parent row's top: a stretched parent row moves its own bottom with the child.
+        offsets.push(
+          row('components').getBoundingClientRect().top - row('src').getBoundingClientRect().top,
+        )
+        heights.push(group.getBoundingClientRect().height)
+        expect(item('src').getAnimations({ subtree: false })).toHaveLength(0)
+        expect(heights.length).toBeGreaterThan(3)
+        return heights.at(-1)!
+      },
+      { timeout: 5000, interval: 0 },
+    )
+    // Mid-flight, so the samples cover the opening and not only its end.
+    expect(heights.some(height => height > 0 && height < settled)).toBe(true)
+    expect(Math.max(...offsets) - Math.min(...offsets)).toBeLessThan(0.5)
   } finally {
     handle.dispose()
   }
