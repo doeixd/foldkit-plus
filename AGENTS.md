@@ -616,6 +616,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   neither ended nor reported; since then it fails, and a merge of Mounts
   (`Stream.mergeAll`) ends every stream in it, so one Behavior's failure took the
   canvas's clicks with it. The resolver's composed Mount fails each alone.
+- **A positioned sibling drawn later paints over an absolute overlay.** The
+  OtpField's input lay over its cells with `position: absolute`, but each cell
+  was `position: relative` and came after it, so every press landed on a cell
+  and the input never took focus; its unit tests read only the markup. Let
+  presses through (`pointer-events: none`) or raise the overlay, and test with
+  a real click at the covered spot (`otpField.browser.test.ts`).
 - **`text-box` trims a block container's lines, and nothing else.** On the
   `inline-flex` Button it did nothing (a 20px line stayed 20px; on a block it
   was 10px), and it does not inherit into the anonymous box holding the
