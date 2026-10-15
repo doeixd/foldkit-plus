@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Command`,** the widgets island's command palette as
+  shadcn's Command with Fluid Functionalism's CommandMenu behaviour: a field
+  that points at the highlighted row through `aria-activedescendant`, ↑ and
+  ↓ wrapping through enabled rows, Enter running the highlighted one, rows
+  in groups with shortcuts, and an empty state. The filter (`filtered`)
+  matches every query word against a row's label and keywords and never
+  re-sorts; a highlight filtered away moves to the first enabled row. The
+  query and highlight are the application's. A recipe, a pattern and a page.
 - **`foldkit-mixins-ui`: `ContextMenu`,** the widgets island's context menu
   as `@foldkit/ui`'s Menu opened where a right press landed: `target` on the
   area records the press's point and opens the menu on `contextmenu` (a right
@@ -124,6 +132,11 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext-dom`: a floating element follows its own size.** A
+  toolbar measured before its styles settled was placed below the selection
+  for good, covering the next line; `selectionAnchor` and `blockAnchor` now
+  place it again when its size changes, as a slash menu's does while a query
+  narrows it.
 - **`foldkit-mixins-richtext`: `blockStyleMenu`.** The block styles as one
   trigger naming the current style and a menu of them, the current one
   checked, for a toolbar with other things to hold.

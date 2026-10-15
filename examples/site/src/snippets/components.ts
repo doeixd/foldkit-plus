@@ -50,6 +50,8 @@ import {
   CardSlots,
   CheckboxGroup,
   CheckboxGroupSlots,
+  Command,
+  CommandSlots,
   ContextMenu,
   NumberField,
   NumberFieldSlots,
@@ -963,6 +965,75 @@ export const menu = <Message>(
           Option.match(state.action, {
             onNone: () => 'Nothing chosen yet',
             onSome: a => `Chose ${a}`,
+          }),
+        ],
+      ),
+    ],
+  )
+// #endregion
+
+// #region command
+export const CommandStyle = forSlots(CommandSlots)(Recipes.Command({}))
+
+/** The command menu's query and highlighted row, and the Messages that move them. */
+export interface CommandState {
+  readonly query: string
+  readonly active: Option.Option<string>
+  readonly ran: Option.Option<string>
+}
+
+export interface CommandMessages<Message> {
+  readonly onQuery: (query: string) => Message
+  readonly onActive: (value: string) => Message
+  readonly onRun: (value: string) => Message
+}
+
+export const command = <Message>(
+  style: NamedStyle<typeof CommandSlots>,
+  state: CommandState,
+  messages: CommandMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      Command.view(
+        {
+          id: 'palette',
+          label: 'Search commands',
+          placeholder: 'Type a command or search…',
+          groups: [
+            {
+              heading: 'Suggestions',
+              items: [
+                { value: 'new-page', label: 'New page', shortcut: '⌘N' },
+                { value: 'search', label: 'Search pages', keywords: ['find'], shortcut: '⌘K' },
+              ],
+            },
+            {
+              heading: 'Settings',
+              items: [
+                { value: 'theme', label: 'Change theme', keywords: ['dark', 'light'] },
+                { value: 'billing', label: 'Billing', disabled: true },
+                { value: 'members', label: 'Invite members', keywords: ['team'] },
+              ],
+            },
+          ],
+          query: state.query,
+          onQuery: messages.onQuery,
+          active: state.active,
+          onActive: messages.onActive,
+          onRun: messages.onRun,
+          style,
+        },
+        h,
+      ),
+      h.p(
+        [],
+        [
+          Option.match(state.ran, {
+            onNone: () => 'Nothing run yet',
+            onSome: value => `Ran ${value}`,
           }),
         ],
       ),

@@ -16,6 +16,7 @@ import { ButtonSlots } from './button.js'
 import { CalendarSlots } from './calendar.js'
 import { CheckboxSlots } from './checkbox.js'
 import { CheckboxGroupSlots } from './checkboxGroup.js'
+import { CommandSlots } from './command.js'
 import { NumberFieldSlots } from './numberField.js'
 import { OtpFieldSlots } from './otpField.js'
 import { DialogSlots } from './dialog.js'
@@ -145,6 +146,20 @@ export const OtpField = A11y.pattern({
     capability: Capability.Focusable,
     events: [Event.Input],
     attributes: [Attr.AriaLabel],
+  },
+})
+
+export const Command = A11y.pattern({
+  input: {
+    capability: Capability.Focusable,
+    events: [Event.Input, Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaExpanded],
+  },
+  list: { capability: Capability.Container, attributes: [Attr.Role] },
+  item: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role, Attr.AriaSelected],
   },
 })
 
@@ -336,6 +351,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('disclosure', Disclosure, DisclosureSlots, 'stateless', ['button']),
   entry('accordion', Accordion, AccordionSlots, 'stateless', ['button', 'region']),
   entry('checkbox-group', CheckboxGroup, CheckboxGroupSlots, 'stateless', ['group', 'checkbox']),
+  entry('command', Command, CommandSlots, 'stateless', ['combobox', 'listbox', 'option']),
   entry(
     'number-field',
     NumberField,

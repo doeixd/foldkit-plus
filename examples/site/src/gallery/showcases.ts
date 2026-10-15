@@ -21,6 +21,7 @@ import {
   CardSlots,
   CheckboxGroupSlots,
   CheckboxSlots,
+  CommandSlots,
   HoverIntentSlots,
   NumberFieldSlots,
   OtpFieldSlots,
@@ -519,6 +520,33 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.hoverCard,
         message => live.onWidget(Widgets.Message.GotHoverCard({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'command',
+      title: 'Command',
+      summary: 'A search field over every command, filtered as you type and run by Enter.',
+      recipe: 'Command',
+      file: 'command',
+      contract: 'CommandSlots',
+    },
+    CommandSlots,
+    Recipes.Command,
+    (style, live) =>
+      Snippet.command(
+        style,
+        {
+          query: live.widgets.commandQuery,
+          active: live.widgets.commandActive,
+          ran: live.widgets.commandRan,
+        },
+        {
+          onQuery: query => live.onWidget(Widgets.Message.TypedCommand({ query })),
+          onActive: value => live.onWidget(Widgets.Message.HighlightedCommand({ value })),
+          onRun: value => live.onWidget(Widgets.Message.RanCommand({ value })),
+        },
         live.h,
       ),
   ),

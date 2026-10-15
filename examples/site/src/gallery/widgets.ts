@@ -74,6 +74,10 @@ export const Model = Schema.Struct({
   fileMenu: UiMenu.Model,
   filePoint: Schema.Option(Schema.Struct({ x: Schema.Number, y: Schema.Number })),
   fileAction: Schema.Option(Action),
+  /** The command menu's query, highlighted row and last command run. */
+  commandQuery: Schema.String,
+  commandActive: Schema.Option(Schema.String),
+  commandRan: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -105,6 +109,9 @@ export const Message = defineMessageUnion({
   GotFileMenu: { message: UiMenu.Message },
   PointedFile: { x: Schema.Number, y: Schema.Number },
   OpenedFileMenu: {},
+  TypedCommand: { query: Schema.String },
+  HighlightedCommand: { value: Schema.String },
+  RanCommand: { value: Schema.String },
 })
 export type Message = typeof Message.Type
 
@@ -147,6 +154,9 @@ export const initial: Model = {
   fileMenu: UiMenu.init({ id: 'preview-file-menu', isAnimated: true }),
   filePoint: Option.none(),
   fileAction: Option.none(),
+  commandQuery: '',
+  commandActive: Option.none(),
+  commandRan: Option.none(),
 }
 
 type Step = Update.Step<Model, Message>
@@ -366,6 +376,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       model: modifyFields(model, { filePoint: () => Option.some({ x, y }) }),
     }),
     // The Menu's own Opened, with its first row active, as a key opening it does.
+    TypedCommand: ({ query }) => ({
+      model: modifyFields(model, { commandQuery: () => query }),
+    }),
+    HighlightedCommand: ({ value }) => ({
+      model: modifyFields(model, { commandActive: () => Option.some(value) }),
+    }),
+    RanCommand: ({ value }) => ({
+      model: modifyFields(model, { commandRan: () => Option.some(value) }),
+    }),
     OpenedFileMenu: () =>
       foldFileMenu(model, UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(0) })),
     GotMenu: ({ message }) => foldMenu(model, message),
