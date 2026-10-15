@@ -79,4 +79,58 @@ describe('Steps.view', () => {
     expect(items.map(item => Inert.value(item, 'data-state'))).toEqual(steps.map(() => 'complete'))
     expect(items.map(item => Inert.children(item).length)).toEqual([2, 2, 2, 1])
   })
+
+  it('draws a step’s icon in its marker in place of the number', () => {
+    const drawn = Steps.view(
+      {
+        label: 'Checkout',
+        steps: [{ title: 'Account', icon: h.span([], ['☺']) }, { title: 'Plan' }],
+        current: 0,
+        style,
+      },
+      h,
+    )
+    const [first, second] = Inert.byTag(drawn, 'li')
+    expect(Inert.text(first)).toBe('☺Account')
+    expect(Inert.text(second)).toBe('2Plan')
+  })
+
+  it('draws a step’s content after it, before the line, with its state', () => {
+    const drawn = Steps.view(
+      {
+        label: 'Checkout',
+        steps: [{ title: 'Account', content: h.p([], ['Your email']) }, { title: 'Plan' }],
+        current: 0,
+        style,
+      },
+      h,
+    )
+    const [first, second] = Inert.byTag(drawn, 'li')
+    const children = Inert.children(first)
+    expect(children).toHaveLength(3)
+    expect(Inert.text(children[1])).toBe('Your email')
+    expect(Inert.value(children[1], 'data-state')).toBe('current')
+    expect(Inert.children(second)).toHaveLength(1)
+  })
+})
+
+describe('Steps recipe', () => {
+  const css = (selection: Parameters<typeof Recipes.Steps>[0]) =>
+    Style.forSlots(StepsSlots)(Recipes.Steps(selection)).css
+
+  it('sizes the marker on the Avatar’s steps', () => {
+    expect(css({})).toContain('--_fk-steps-marker:1.75rem')
+    expect(css({ size: 'sm' })).toContain('--_fk-steps-marker:1.5rem')
+    expect(css({ size: 'lg' })).toContain('--_fk-steps-marker:2.5rem')
+  })
+
+  it('hides an icon under the check once its step is complete', () => {
+    expect(css({})).toMatch(/\[data-state="complete"\] > \*\{visibility:hidden/)
+  })
+
+  it('lays content beside the line when vertical, and draws none in a row', () => {
+    expect(css({ orientation: 'vertical' })).toMatch(/grid-column:2;grid-row:2/)
+    expect(css({ orientation: 'vertical' })).toMatch(/grid-column:1;grid-row:2/)
+    expect(css({ orientation: 'horizontal' })).toMatch(/\{display:none\}/)
+  })
 })

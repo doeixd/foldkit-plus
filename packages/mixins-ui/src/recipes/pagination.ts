@@ -2,10 +2,16 @@
  * Page navigation: one joined row of stops, the current one in the accent's
  * tint and ink, the rest quiet buttons that lift on hover. The current stop
  * reads `aria-current`, so its look follows the DOM with no JavaScript.
+ * `compact` drops the numbers but the current one: `narrow` (default) on a
+ * window under 30rem, `always`, or `never`.
  */
 import { Style } from 'foldkit-mixins'
 import { PaginationSlots } from '../pagination.js'
-import { component, disabled, focusRing, hover, ref, unfilledHover } from './design.js'
+import { component, disabled, focusRing, hover, ref, unfilledHover, variant } from './design.js'
+
+// The window, not the row: the row shrinks to its stops, so it cannot be the container it asks about.
+const narrow = '@media (max-width: 30rem)'
+const hidden = { display: 'none' }
 
 const stop = component(
   Style.self({
@@ -29,15 +35,21 @@ const stop = component(
 
 export const Pagination = Style.recipeFor(PaginationSlots)({
   base: {
+    // Wrapping, so a row wider than its room breaks onto a second line
+    // rather than running past it.
     root: component(
       Style.self({
         display: 'inline-flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
         alignItems: 'center',
         gap: ref.space['3xs'],
+        maxInlineSize: '100%',
       }),
     ),
-    prev: stop,
-    next: stop,
+    // A word, not a number: room either side, so "Previous" does not run into the 1 beside it.
+    prev: component(stop, Style.self({ paddingInline: ref.space.xs })),
+    next: component(stop, Style.self({ paddingInline: ref.space.xs })),
     page: component(
       stop,
       Style.states(
@@ -60,5 +72,31 @@ export const Pagination = Style.recipeFor(PaginationSlots)({
         color: ref.text.muted,
       }),
     ),
+    first: component(stop, Style.self({ paddingInline: ref.space.xs })),
+    last: component(stop, Style.self({ paddingInline: ref.space.xs })),
+    summary: component(
+      Style.self({
+        marginInlineEnd: ref.space.xs,
+        color: ref.text.muted,
+        fontVariantNumeric: 'tabular-nums',
+        whiteSpace: 'nowrap',
+      }),
+    ),
   },
+  variants: {
+    // Compact keeps the current stop and the words around it: the other
+    // numbers and the ellipses go, so a phone's row stays on one line.
+    compact: {
+      never: {},
+      narrow: {
+        page: variant(Style.at(narrow, Style.pseudo(':not([aria-current="page"])', hidden))),
+        ellipsis: variant(Style.at(narrow, Style.self(hidden))),
+      },
+      always: {
+        page: variant(Style.pseudo(':not([aria-current="page"])', hidden)),
+        ellipsis: variant(Style.self(hidden)),
+      },
+    },
+  },
+  defaults: { compact: 'narrow' },
 })

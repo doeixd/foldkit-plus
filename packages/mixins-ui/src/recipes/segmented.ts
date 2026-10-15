@@ -9,7 +9,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { SegmentedSlots } from '../segmented.js'
-import { ladder, nested } from 'foldkit-mixins/theme'
+import { ladder, nested, nests } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { component, glide, hover, onLadder, ref, steps, trimmed, variant } from './design.js'
 
@@ -29,7 +29,9 @@ const overlay = (name: 'hover' | 'chosen') =>
     inlineSize: at(name, 'w'),
     blockSize: at(name, 'h'),
     translate: `${at(name, 'x')} ${at(name, 'y')}`,
-    borderRadius: ref.radius.sm,
+    // The option's corner, which it marks: a fixed `sm` met the option's at
+    // no tray inset but one.
+    borderRadius: nested(),
     pointerEvents: 'none',
   })
 
@@ -65,13 +67,14 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
     option: component(
       Style.self({
         ...onLadder,
+        // Enough for an option with no steady copy; one with a copy needs its `label`.
         ...trimmed,
         // Inside the tray's inset, so the tray as a whole is one rung tall.
         minBlockSize: `calc(${ladder('height')} - 2 * var(--_fk-segmented-inset, 0px))`,
         background: 'transparent',
         border: '0',
         // Concentric with the tray's corner, inside its inset.
-        borderRadius: nested(ref.radius.md, 'var(--_fk-segmented-inset, 0px)'),
+        borderRadius: nested(),
         color: ref.text.muted,
         cursor: 'pointer',
         font: 'inherit',
@@ -81,6 +84,10 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
       // A pressed option turns semibold; a `data-label` on it keeps its width.
       Utilities.steady('semibold'),
     ),
+    // The words trimmed in a block of their own. On the option alone, the
+    // steady copy after them was its last line and took the bottom trim, so
+    // only the top of the words was trimmed and they sat 2.5px high.
+    label: component(Style.self({ display: 'block', ...trimmed })),
   },
   variants: {
     tray: {
@@ -92,11 +99,15 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
             borderRadius: ref.radius.md,
             gap: '2px',
             padding: 'var(--_fk-segmented-inset)',
+            ...nests(ref.radius.md, 'var(--_fk-segmented-inset)'),
           }),
         ),
       },
+      // No tray: the options keep the tray's corner, with nothing between.
       plain: {
-        group: variant(Style.self({ display: 'flex', gap: ref.space['3xs'] })),
+        group: variant(
+          Style.self({ display: 'flex', gap: ref.space['3xs'], ...nests(ref.radius.md, '0px') }),
+        ),
       },
     },
     size: {

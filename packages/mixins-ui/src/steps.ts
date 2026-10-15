@@ -11,6 +11,8 @@ import type { MixinList } from './resolve.js'
  * title and connector. A `current` past the last step completes them all.
  * Given `onSelect`, a completed step is a button that goes back to it; a
  * step ahead never is, since reaching it is the form's job, not the list's.
+ * A step's `icon` stands in the marker for its number, and its `content`
+ * follows it in the item, beside the connector in a vertical stepper.
  */
 export const StepsSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, attributes: [Attr.AriaLabel] }),
@@ -21,12 +23,20 @@ export const StepsSlots = Slots.define({
   text: Slot.make({ capability: Capability.Container }),
   title: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container }),
+  content: Slot.make({ capability: Capability.Container }),
   connector: Slot.make({ capability: Capability.Container }),
 })
 
 export interface Step {
   readonly title: string
   readonly description?: string | undefined
+  /** Drawn in the marker in place of the number, until the step is complete. */
+  readonly icon?: Html | undefined
+  /**
+   * Drawn under the step, beside the line to the next, in a vertical
+   * stepper: the form or the details of that step.
+   */
+  readonly content?: Html | undefined
 }
 
 export interface StepsView<Message> {
@@ -62,7 +72,9 @@ export const view = <Message>(options: StepsView<Message>, h: HtmlBuilder<Messag
       const state = stateOf(index, options.current)
       const marked = h.DataAttribute('state', state)
       const content = [
-        h.span(builders.marker.attrs([marked, h.AriaHidden(true)]), [String(index + 1)]),
+        h.span(builders.marker.attrs([marked, h.AriaHidden(true)]), [
+          step.icon ?? String(index + 1),
+        ]),
         h.span(builders.text.attrs(), [
           h.span(builders.title.attrs([marked]), [step.title]),
           ...(step.description === undefined
@@ -79,6 +91,9 @@ export const view = <Message>(options: StepsView<Message>, h: HtmlBuilder<Messag
                 content,
               )
             : h.div(builders.step.attrs(), content),
+          ...(step.content === undefined
+            ? []
+            : [h.div(builders.content.attrs([marked]), [step.content])]),
           ...(index === last
             ? []
             : [h.span(builders.connector.attrs([marked, h.AriaHidden(true)]), [])]),

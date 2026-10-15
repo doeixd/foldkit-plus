@@ -37,20 +37,33 @@ const unfilledInk = `var(--fk-ink, ${toneVar('ink')})`
  */
 const on = (declarations: Declarations): StyleValue =>
   Style.pseudo('[aria-pressed="true"]', declarations)
-/** On, an unfilled button is grounded in its tone's ink, faint, and written in it. */
-const unfilledOn = on({
+const held = ':active:not([aria-disabled="true"], :disabled)'
+
+/**
+ * On, an unfilled toggle is filled with its tone, as a solid button is, and
+ * hovered it keeps the fill: the plain hover tint, a more specific rule,
+ * would otherwise lay a film where the fill was.
+ */
+const unfilledOn: ReadonlyArray<StyleValue> = [
+  on({ background: toneVar('fill'), color: toneVar('on-fill') }),
+  Style.pseudo('[aria-pressed="true"]:hover:not([aria-disabled="true"], :disabled)', {
+    background: toneVar('fill-hover'),
+  }),
+]
+
+/** Held, an unfilled button is grounded in its tone's ink, faint, deeper than its hover. */
+const unfilledActive = Style.pseudo(held, {
   background: `color-mix(in oklab, ${toneVar('ink')} 16%, transparent)`,
-  color: toneVar('ink'),
 })
 
 /**
  * A press that shrinks a fill by exactly 1px a side, as Fluid
  * Functionalism's: the fill stops at the padding box and the 1px border
- * carries its color, which a press clears. A `scale` would warp, moving a wide
- * button's sides far more than its top. It presses on the fast tier and
- * springs back on the moderate one.
+ * carries its color, which a press clears, while the fill deepens to the
+ * family's `active`. It presses on the fast tier and springs back on the
+ * moderate one.
  */
-const press = (fill: string, fillHover: string): ReadonlyArray<StyleValue> => [
+const press = (fill: string, fillHover: string, fillActive: string): ReadonlyArray<StyleValue> => [
   Style.self({
     backgroundClip: 'padding-box',
     borderColor: fill,
@@ -58,7 +71,8 @@ const press = (fill: string, fillHover: string): ReadonlyArray<StyleValue> => [
     transitionTimingFunction: ref.motion.settle,
   }),
   hover({ borderColor: fillHover }),
-  Style.pseudo(':active:not([aria-disabled="true"], :disabled)', {
+  Style.pseudo(held, {
+    background: fillActive,
     borderColor: 'transparent',
     transitionDuration: ref.motion.fast,
   }),
@@ -79,8 +93,11 @@ export const Button = Style.recipeFor(ButtonSlots)({
         // A link drawn as a button (`Anchor`) is not underlined like one in running text.
         textDecoration: 'none',
         cursor: 'pointer',
-        ...transition('background-color, border-color, color'),
+        ...transition('background-color, border-color, color, scale'),
       }),
+      // Held, every variant gives a little. The scale is the motion: reduced
+      // motion zeroes `travel`, and the button holds its size.
+      Style.pseudo(held, { scale: `calc(1 - 0.02 * ${ref.knob.travel})` }),
       focusRing,
       disabled,
     ),
@@ -96,8 +113,8 @@ export const Button = Style.recipeFor(ButtonSlots)({
         button: variant(
           Style.self({ background: toneVar('fill'), color: toneVar('on-fill') }),
           hover({ background: toneVar('fill-hover') }),
-          ...press(toneVar('fill'), toneVar('fill-hover')),
-          on({ background: toneVar('fill-hover') }),
+          ...press(toneVar('fill'), toneVar('fill-hover'), toneVar('fill-active')),
+          on({ background: toneVar('fill-active') }),
         ),
       },
       outline: {
@@ -108,14 +125,16 @@ export const Button = Style.recipeFor(ButtonSlots)({
             borderColor: toneVar('line'),
           }),
           hover({ background: unfilledHover }),
-          unfilledOn,
+          unfilledActive,
+          ...unfilledOn,
         ),
       },
       ghost: {
         button: variant(
           Style.self({ background: 'transparent', color: unfilledInk }),
           hover({ background: unfilledHover }),
-          unfilledOn,
+          unfilledActive,
+          ...unfilledOn,
         ),
       },
       /**
@@ -131,6 +150,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
           ...press(
             ref.text.overt,
             `color-mix(in oklch, ${ref.text.overt} 85%, ${ref.surface.base})`,
+            `color-mix(in oklch, ${ref.text.overt} 72%, ${ref.surface.base})`,
           ),
         ),
       },
@@ -152,7 +172,8 @@ export const Button = Style.recipeFor(ButtonSlots)({
             gap: '0',
           }),
           hover({ background: unfilledHover, color: ref.text.overt }),
-          unfilledOn,
+          unfilledActive,
+          ...unfilledOn,
         ),
       },
     },

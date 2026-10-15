@@ -43,7 +43,9 @@ export const onLadder: Declarations = {
  * optically centered. A browser without `text-box` draws the same box, since
  * the height is the ladder's, not the text's. It trims a block container's
  * lines only: on a flex container (the Button, whose icon and words are flex
- * items) it does nothing, and it does not inherit.
+ * items) it does nothing, and it does not inherit. It trims the top of the
+ * first line and the bottom of the last, so a hidden line after the words
+ * (`Utilities.steady`'s copy) takes the bottom trim: trim the words' own box.
  */
 export const trimmed: Declarations = { textBox: 'trim-both cap alphabetic' }
 
@@ -190,6 +192,8 @@ export const glide = (tier: 'fast' | 'moderate', moving: string): Declarations =
 interface Tone {
   readonly fill: string
   readonly fillHover: string
+  /** The fill while it is pressed: the family's `active`, a step deeper than its hover. */
+  readonly fillActive: string
   readonly onFill: string
   readonly ink: string
   /** The line an outlined control draws: the fill, unless the fill is too pale for a line. */
@@ -201,6 +205,7 @@ const tone = (value: Tone): StyleValue =>
     Style.self({
       '--_fk-tone-fill': value.fill,
       '--_fk-tone-fill-hover': value.fillHover,
+      '--_fk-tone-fill-active': value.fillActive,
       '--_fk-tone-on-fill': value.onFill,
       '--_fk-tone-ink': value.ink,
       '--_fk-tone-line': value.line,
@@ -220,13 +225,15 @@ export const imageEdge: Declarations = {
   outlineOffset: `calc(-1 * ${ref.border.thin})`,
 }
 
-export const toneVar = (name: 'fill' | 'fill-hover' | 'on-fill' | 'ink' | 'line'): string =>
-  `var(--_fk-tone-${name})`
+export const toneVar = (
+  name: 'fill' | 'fill-hover' | 'fill-active' | 'on-fill' | 'ink' | 'line',
+): string => `var(--_fk-tone-${name})`
 
 export const tones = {
   accent: tone({
     fill: ref.accent.default,
     fillHover: ref.accent.hover,
+    fillActive: ref.accent.active,
     onFill: ref.accent['on-fill'],
     ink: ref.accent.ink,
     line: ref.accent.default,
@@ -238,6 +245,8 @@ export const tones = {
   neutral: tone({
     fill: ref.state.tint,
     fillHover: ref.state['tint-hover'],
+    // Hovered it lightens, as Fluid's; pressed it darkens with its own text.
+    fillActive: `color-mix(in oklab, ${ref.state.tint}, currentColor 10%)`,
     onFill: ref.text.overt,
     ink: ref.text.default,
     line: ref.outline.default,
@@ -249,6 +258,7 @@ export const tones = {
   ink: tone({
     fill: ref.text.default,
     fillHover: ref.text.overt,
+    fillActive: ref.text.overt,
     onFill: ref.surface.base,
     ink: ref.text.default,
     line: ref.text.default,
@@ -256,6 +266,7 @@ export const tones = {
   danger: tone({
     fill: ref.error.default,
     fillHover: ref.error.hover,
+    fillActive: ref.error.active,
     onFill: ref.error['on-fill'],
     ink: ref.error.ink,
     line: ref.error.outline,

@@ -33,6 +33,8 @@ export const SegmentedSlots = Slots.define({
     events: [Event.Click],
     attributes: [Attr.AriaPressed, Attr.Disabled, Attr.AriaDisabled],
   }),
+  /** An option's words, a box of their own so they can be trimmed apart from the option's steady copy. */
+  label: Slot.make({ capability: Capability.Container }),
   indicator: Slot.make({ capability: Capability.Container }),
   highlight: Slot.make({ capability: Capability.Container }),
 })
@@ -140,7 +142,7 @@ export const view = <Value extends string, Message>(
             ? [h.Disabled(true)]
             : [h.OnClick(options.onPress(option.value))]),
         ]),
-        [option.label],
+        [h.span(builders.label.attrs(), [option.label])],
       ),
     ),
   ])

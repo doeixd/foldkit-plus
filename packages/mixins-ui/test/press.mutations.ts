@@ -22,4 +22,31 @@ export default [
     edits: [{ file, find: "    backgroundClip: 'padding-box',\n", replace: '' }],
     tests,
   },
+  {
+    name: 'a press keeps the resting fill',
+    edits: [{ file, find: '    background: fillActive,\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a held button keeps its size',
+    edits: [
+      {
+        file,
+        find: 'scale: `calc(1 - 0.02 * ${ref.knob.travel})`',
+        replace: "scale: '1'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the press scales under reduced motion too',
+    edits: [
+      {
+        file,
+        find: 'scale: `calc(1 - 0.02 * ${ref.knob.travel})`',
+        replace: "scale: '0.98'",
+      },
+    ],
+    tests,
+  },
 ]

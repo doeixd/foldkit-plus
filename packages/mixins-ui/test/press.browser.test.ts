@@ -1,8 +1,10 @@
 /// <reference types="@vitest/browser-playwright" />
 /**
  * A solid button's press on a real page: at rest its border is its fill, so
- * the fill reaches its edge; pressed (`:active`), the border clears, and the
- * fill stands exactly 1px in on every side; let go, it comes back.
+ * the fill reaches its edge; pressed (`:active`), the border clears, the
+ * fill stands exactly 1px in on every side, deepens to the family's `active`,
+ * and the button gives a little (a 0.98 scale) unless `travel` is 0; let go,
+ * it comes back.
  */
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -23,7 +25,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = () => {
+const mount = (travel?: string) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -38,7 +40,9 @@ const mount = () => {
   document.body.appendChild(container)
   const view = (_: unknown, h: HtmlBuilder<never>) => {
     const b = SlotView.buildersFor(ButtonSlots, [button.mixin], { input: undefined, h })
-    return h.button(b.button.attrs([h.Type('button'), h.Id('press-target')]), ['Save'])
+    return h.div(travel === undefined ? [] : [h.Style({ '--fk-knob-travel': travel })], [
+      h.button(b.button.attrs([h.Type('button'), h.Id('press-target')]), ['Save']),
+    ])
   }
   return Runtime.embed(
     Runtime.makeElement({
@@ -107,13 +111,40 @@ test('pressed, a solid button stands 1px in on every side, and comes back when l
     // At rest the border is the fill, so the fill reaches the edge.
     await vi.waitFor(() => expect(style.borderTopColor).toBe(style.backgroundColor))
     expect(style.backgroundClip).toBe('padding-box')
+    const resting = style.backgroundColor
     // One lookup for both: a second `DOM.getDocument` hands out new ids.
     const target = await nodeOf('#press-target')
     await press(target, true)
     await vi.waitFor(() => expect(style.borderTopColor).toBe(transparent))
     expect(style.borderTopWidth).toBe('1px')
+    await vi.waitFor(() => expect(style.scale).toBe('0.98'))
+    expect(style.backgroundColor).not.toBe(resting)
     await press(target, false)
     await vi.waitFor(() => expect(style.borderTopColor).toBe(style.backgroundColor))
+    // At rest nothing sets a scale, so it computes as `none`.
+    expect(style.scale).toBe('none')
+    expect(style.backgroundColor).toBe(resting)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('with travel at 0, as under reduced motion, a held button deepens but keeps its size', async () => {
+  const handle = mount('0')
+  try {
+    const element = await vi.waitFor(() => {
+      const found = document.querySelector('button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    const style = getComputedStyle(element)
+    await vi.waitFor(() => expect(style.borderTopColor).toBe(style.backgroundColor))
+    const resting = style.backgroundColor
+    const target = await nodeOf('#press-target')
+    await press(target, true)
+    await vi.waitFor(() => expect(style.backgroundColor).not.toBe(resting))
+    expect(style.scale).toBe('1')
+    await press(target, false)
   } finally {
     handle.dispose()
   }
