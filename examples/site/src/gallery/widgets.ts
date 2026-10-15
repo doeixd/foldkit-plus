@@ -13,6 +13,7 @@ import {
   Combobox as UiCombobox,
   DatePicker as UiDatePicker,
   Dialog as UiDialog,
+  HoverIntent as UiHoverIntent,
   Listbox as UiListbox,
   Menu as UiMenu,
   Popover as UiPopover,
@@ -68,6 +69,7 @@ export const Model = Schema.Struct({
   servings: Schema.Number,
   /** The one-time code typed so far. */
   code: Schema.String,
+  hoverCard: UiHoverIntent.Model,
 })
 export type Model = typeof Model.Type
 
@@ -95,6 +97,7 @@ export const Message = defineMessageUnion({
   ToggledAlert: { value: Schema.String },
   ChangedServings: { value: Schema.Number },
   TypedCode: { code: Schema.String },
+  GotHoverCard: { message: UiHoverIntent.Message },
 })
 export type Message = typeof Message.Type
 
@@ -133,6 +136,7 @@ export const initial: Model = {
   alerts: ['mentions', 'replies'],
   servings: 4,
   code: '',
+  hoverCard: UiHoverIntent.init(),
 }
 
 type Step = Update.Step<Model, Message>
@@ -237,6 +241,12 @@ const foldPopover = Update.foldChild({
   foldOutMessage: UiPopover.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
 })
 
+const foldHoverCard = Update.foldChild({
+  ...own('hoverCard', Message.GotHoverCard),
+  update: UiHoverIntent.update,
+  foldOutMessage: UiHoverIntent.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
+})
+
 const foldTooltip = Update.foldChild({
   ...own('tooltip', Message.GotTooltip),
   update: UiTooltip.update,
@@ -328,6 +338,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     ClosedAlertDialog: () => closeAlertDialog(model),
     GotPopover: ({ message }) => foldPopover(model, message),
     GotTooltip: ({ message }) => foldTooltip(model, message),
+    GotHoverCard: ({ message }) => foldHoverCard(model, message),
     GotMenu: ({ message }) => foldMenu(model, message),
     GotListbox: ({ message }) => foldListbox(model, message),
     GotCombobox: ({ message }) => foldCombobox(model, message),

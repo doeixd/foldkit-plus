@@ -21,6 +21,7 @@ import {
   CardSlots,
   CheckboxGroupSlots,
   CheckboxSlots,
+  HoverIntentSlots,
   NumberFieldSlots,
   OtpFieldSlots,
   ComboboxSlots,
@@ -499,6 +500,25 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.code,
         code => live.onWidget(Widgets.Message.TypedCode({ code })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'hover-card',
+      title: 'Hover card',
+      summary: 'A card of more about a link, shown while the pointer or focus rests on it.',
+      recipe: 'HoverCard',
+      file: 'hoverCard',
+      contract: 'HoverIntentSlots',
+    },
+    HoverIntentSlots,
+    Recipes.HoverCard,
+    (style, live) =>
+      Snippet.hoverCard(
+        style,
+        live.widgets.hoverCard,
+        message => live.onWidget(Widgets.Message.GotHoverCard({ message })),
         live.h,
       ),
   ),

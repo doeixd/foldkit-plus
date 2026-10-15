@@ -11,6 +11,7 @@ import {
   Combobox as UiCombobox,
   DatePicker as UiDatePicker,
   Dialog as UiDialog,
+  HoverIntent as UiHoverIntent,
   Listbox as UiListbox,
   Menu as UiMenu,
   Popover as UiPopover,
@@ -27,6 +28,9 @@ import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import {
   Accordion,
   AccordionSlots,
+  Anchor,
+  HoverIntent,
+  HoverIntentSlots,
   Alert,
   AlertSlots,
   Avatar,
@@ -860,6 +864,53 @@ export const tooltip = <Message>(
           [
             h.button(trigger, ['Autosave']),
             ...(isVisible ? [h.span(panel, ['Saved a second after you stop typing'])] : []),
+          ],
+        ),
+      ),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region hover-card
+export const HoverCardStyle = forSlots(HoverIntentSlots)(Recipes.HoverCard({}))
+
+export const hoverCard = <Message>(
+  style: NamedStyle<typeof HoverIntentSlots>,
+  model: UiHoverIntent.Model,
+  toMessage: (message: UiHoverIntent.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: 'preview-hover-card',
+    model,
+    view: UiHoverIntent.view,
+    viewInputs: {
+      focusTriggerSelector: '#preview-hover-card-trigger',
+      toView: HoverIntent.toView([style.mixin], { h }, ({ trigger, panel, isVisible }) =>
+        h.span(
+          [],
+          [
+            h.button([...trigger, h.Id('preview-hover-card-trigger'), h.Type('button')], ['@ada']),
+            ...(isVisible
+              ? [
+                  h.div(
+                    [
+                      ...panel,
+                      h.OnMount(
+                        Anchor.Anchor({
+                          buttonId: 'preview-hover-card-trigger',
+                          anchor: { placement: 'bottom-start', gap: 8, padding: 8, portal: false },
+                        }),
+                      ),
+                    ],
+                    [
+                      h.p([], ['Ada Lovelace']),
+                      h.p([], ['Wrote the first program. 3 projects, 12 followers.']),
+                    ],
+                  ),
+                ]
+              : []),
           ],
         ),
       ),

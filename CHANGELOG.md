@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Recipes.HoverCard`,** the widgets island's hover
+  card as `@foldkit/ui`'s HoverIntent with a look: a trigger read as a link
+  and a raised panel that fades in as it is drawn (`@starting-style`),
+  placed by the `Anchor` Mount. The delays stay HoverIntent's. A gallery
+  page draws it.
 - **`foldkit-mixins-ui`: `OtpField`, Input OTP,** after shadcn's input-otp
   rather than the widgets island's cell per input: one real `<input>` over
   cells that only mirror it, so paste, Backspace, the caret and a phone's

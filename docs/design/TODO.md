@@ -825,7 +825,8 @@ keeps what the systems plan's "What we keep" lists.
   `foldkit-primitives/interaction`'s navigation); Toggle, as Button's
   `pressed`, and Toggle Group, as Segmented's `multiple` with `view` and
   `toggled`, rather than second components; Alert Dialog, as the Dialog with
-  `Dialog.isDismissal`; Number Input, as `NumberField`; Input OTP, as `OtpField`. Open: Context Menu, Hover Card,
+  `Dialog.isDismissal`; Number Input, as `NumberField`; Input OTP, as `OtpField`; Hover Card, as HoverIntent with `Recipes.HoverCard`.
+  Open: Context Menu,
   Menubar, Navigation Menu, Command, Sidebar and Resizable. Checkbox Group is
   done, as `CheckboxGroup`.
   An island stays in `examples/widgets` as the Behaviors example until the
