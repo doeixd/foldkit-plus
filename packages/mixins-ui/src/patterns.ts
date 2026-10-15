@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
+import { VirtualListSlots } from './virtualList.js'
 import { ProgressSlots } from './progress.js'
 import { NumberFieldSlots } from './numberField.js'
 import { OtpFieldSlots } from './otpField.js'
@@ -204,6 +205,11 @@ export const Progress = A11y.pattern({
 export const Meter = A11y.pattern({
   root: { capability: Capability.Container },
   label: { capability: Capability.Container },
+})
+
+export const VirtualList = A11y.pattern({
+  root: { capability: Capability.Container },
+  row: { capability: Capability.Container },
 })
 
 export const Nav = A11y.pattern({
@@ -415,6 +421,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
+  entry('virtual-list', VirtualList, VirtualListSlots, 'stateful', ['list', 'listitem']),
   entry(
     'dialog',
     Dialog,

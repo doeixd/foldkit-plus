@@ -23,6 +23,7 @@ import {
 import { Accordion, CheckboxGroup, Dialog, Menubar, Resizable, Sidebar } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
+import * as UiVirtualList from '@foldkit/ui/virtualList'
 
 import {
   Action,
@@ -87,6 +88,8 @@ export const Model = Schema.Struct({
   /** The menu bar's menus, and the command last chosen from it. */
   menubar: Menubar.Model,
   menubarChoice: Schema.Option(Schema.String),
+  /** The virtual list's scroll and measurements. */
+  virtualList: UiVirtualList.Model,
 })
 export type Model = typeof Model.Type
 
@@ -125,6 +128,7 @@ export const Message = defineMessageUnion({
   ToggledSidebarSection: { id: Schema.String },
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
+  GotVirtualList: { message: UiVirtualList.Message },
 })
 export type Message = typeof Message.Type
 
@@ -175,6 +179,7 @@ export const initial: Model = {
   sidebarCollapsed: false,
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
+  virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
 }
 
 type Step = Update.Step<Model, Message>
@@ -329,6 +334,11 @@ const foldMenubar = Update.foldChild({
   }),
 })
 
+const foldVirtualList = Update.foldChild({
+  ...own('virtualList', Message.GotVirtualList),
+  update: UiVirtualList.update,
+})
+
 const foldListbox = Update.foldChild({
   ...own('listbox', Message.GotListbox),
   update: FrequencyBox.update,
@@ -434,6 +444,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       foldFileMenu(model, UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(0) })),
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
+    GotVirtualList: ({ message }) => foldVirtualList(model, message),
     GotListbox: ({ message }) => foldListbox(model, message),
     GotCombobox: ({ message }) => foldCombobox(model, message),
     GotCalendar: ({ message }) => foldCalendar(model, message),

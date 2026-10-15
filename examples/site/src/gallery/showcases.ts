@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  VirtualListSlots,
   NumberFieldSlots,
   OtpFieldSlots,
   ResizableSlots,
@@ -669,6 +670,25 @@ export const showcases: ReadonlyArray<Showcase> = [
     MeterSlots,
     Recipes.Meter,
     (style, live) => Snippet.meter(style, live.h),
+  ),
+  fromRecipe(
+    {
+      slug: 'virtual-list',
+      title: 'Virtual list',
+      summary: 'Ten thousand rows that scroll as thirty, since only the rows in view are drawn.',
+      recipe: 'VirtualList',
+      file: 'virtualList',
+      contract: 'VirtualListSlots',
+    },
+    VirtualListSlots,
+    Recipes.VirtualList,
+    (style, live) =>
+      Snippet.virtualList(
+        style,
+        live.widgets.virtualList,
+        message => live.onWidget(Widgets.Message.GotVirtualList({ message })),
+        live.h,
+      ),
   ),
   fromRecipe(
     {

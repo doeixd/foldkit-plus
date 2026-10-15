@@ -468,6 +468,7 @@ A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
 | `Spinner` | `{ label? }`. `role="status"`. | `size`: `sm`, `md` (default). Slot `wheel`. |
 | `Table` | `{ columns: { header, value, numeric? }[], rows, caption?, fluid? }`. With `fluid`, one highlight behind the body rows follows the pointer, and the lines beside the lit row go. Sorting and selection stay with `foldkit-data-grid`. | No axis. Slots `frame`, `highlight` (with `fluid`), `root`, `caption`, `head`, `headerRow`, `headerCell`, `body`, `row`, `cell`. |
 | `Typography` | `{ level, text }`. The level chooses the element (`h1`–`h4`, `lead`, `body`, `small`, `muted`, `quote`, `code`, and the interface roles `display`, `title`, `subtitle`, `caption`, `micro` as paragraphs). | `level`, same set; a role is its size and leading on the size ladder. Defaults to `body`. Slot `text`. |
+| `VirtualList` | `@foldkit/ui`'s virtual list: `VirtualList.view({ model, items, itemToKey, itemToView, onMessage, overscan?, itemToRowHeightPx? \| dynamicRowHeights?, style? }, h)` draws only the rows in view. Its Model is upstream's (`@foldkit/ui/virtualList`'s `init`), kept by the application and folded with that module's `update`. A row's mixins may style it, not handle its events, since it is drawn inside the list's submodel. | No axis. Slots `root` (the box it scrolls within, 18rem tall by default) and `row`. |
 
 ## Recipes
 

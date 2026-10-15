@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `VirtualList`, `@foldkit/ui`'s virtual list
+  adapted.** It draws only the rows in view; its Model stays upstream's,
+  folded with that module's `update`. The `root` slot is the box it scrolls
+  within and `row` each row's content. `Recipes.VirtualList`,
+  `Patterns.VirtualList` and a gallery page of ten thousand rows.
 - **`foldkit-mixins-ui`: `Meter`, `@foldkit/ui`'s Meter adapted.** A
   measurement within a range, its root's `data-level` (`good`, `fair`,
   `poor`) the HTML meter's judgment of the value against `low`, `high` and

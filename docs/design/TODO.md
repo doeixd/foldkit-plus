@@ -832,9 +832,9 @@ keeps what the systems plan's "What we keep" lists.
   `Menubar`; Checkbox Group, as `CheckboxGroup`.
   An island stays in `examples/widgets` as the Behaviors example until the
   package's own has a page.
-- [ ] **Parity 5, upstream wrappers.** Done: nav, as `Nav`; Progress and
-  Circular Progress, as `Progress` and its `shape: 'ring'`. Meter, as `Meter`. Open: the
-  virtual list.
+- [x] **Parity 5, upstream wrappers.** Done: nav, as `Nav`; Progress and
+  Circular Progress, as `Progress` and its `shape: 'ring'`. Meter, as `Meter`; the virtual
+  list, as `VirtualList`.
 - [ ] **Parity 6, the missing everyday pieces.** Drawer and Sheet, Nested Menu,
   Tags Input, Rating, Password Input, Steps, Carousel, Banner, Input Copy, a
   date range, a range slider, Tree View and Color Picker.
