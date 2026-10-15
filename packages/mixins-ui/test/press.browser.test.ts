@@ -38,7 +38,7 @@ const mount = () => {
   document.body.appendChild(container)
   const view = (_: unknown, h: HtmlBuilder<never>) => {
     const b = SlotView.buildersFor(ButtonSlots, [button.mixin], { input: undefined, h })
-    return h.button(b.button.attrs([h.Type('button')]), ['Save'])
+    return h.button(b.button.attrs([h.Type('button'), h.Id('press-target')]), ['Save'])
   }
   return Runtime.embed(
     Runtime.makeElement({
@@ -51,28 +51,48 @@ const mount = () => {
   )
 }
 
+type DomNode = {
+  readonly nodeId: number
+  readonly contentDocument?: DomNode
+  readonly children?: ReadonlyArray<DomNode>
+}
+
 /**
- * Holds the main mouse button down over `element`, or lets it go. The
- * protocol takes the top page's coordinates, and the test runs in a frame
- * that stands elsewhere on it when several files run side by side, and may
- * be drawn scaled.
+ * Where `selector` is on the top page, as Chrome lays it out: the protocol's
+ * mouse takes the top page's coordinates, and the test's frame stands
+ * elsewhere on it, perhaps scaled, which only the browser knows exactly.
  */
-const mouse = (element: Element, type: 'mousePressed' | 'mouseReleased') => {
-  const box = element.getBoundingClientRect()
-  const frame = window.frameElement?.getBoundingClientRect() ?? {
-    left: 0,
-    top: 0,
-    width: window.innerWidth,
+const centerOf = async (selector: string) => {
+  const { root } = (await cdp().send('DOM.getDocument', { depth: -1, pierce: true })) as {
+    root: DomNode
   }
-  // The runner may draw the frame scaled down to fit; its pixels are then smaller.
-  const scale = frame.width / window.innerWidth
-  return cdp().send('Input.dispatchMouseEvent', {
-    type,
-    x: frame.left + (box.left + box.width / 2) * scale,
-    y: frame.top + (box.top + box.height / 2) * scale,
-    button: 'left',
-    clickCount: 1,
-  })
+  const documents: Array<number> = []
+  const walk = (node: DomNode) => {
+    if (node.contentDocument !== undefined) {
+      documents.push(node.contentDocument.nodeId)
+      walk(node.contentDocument)
+    }
+    node.children?.forEach(walk)
+  }
+  walk(root)
+  for (const nodeId of documents) {
+    const { nodeId: found } = (await cdp().send('DOM.querySelector', { nodeId, selector })) as {
+      nodeId: number
+    }
+    if (found === 0) continue
+    const { model } = (await cdp().send('DOM.getBoxModel', { nodeId: found })) as {
+      model: { readonly content: ReadonlyArray<number> }
+    }
+    const [x1, y1, , , x3, y3] = model.content
+    return { x: (x1! + x3!) / 2, y: (y1! + y3!) / 2 }
+  }
+  throw new Error(`no ${selector} in any frame`)
+}
+
+/** Holds the main mouse button down over `selector`, or lets it go. */
+const mouse = async (selector: string, type: 'mousePressed' | 'mouseReleased') => {
+  const { x, y } = await centerOf(selector)
+  return cdp().send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 })
 }
 
 const transparent = 'rgba(0, 0, 0, 0)'
@@ -89,10 +109,10 @@ test('held down, a solid button stands 1px in on every side, and comes back when
     // At rest the border is the fill, so the fill reaches the edge.
     await vi.waitFor(() => expect(style.borderTopColor).toBe(style.backgroundColor))
     expect(style.backgroundClip).toBe('padding-box')
-    await mouse(element, 'mousePressed')
+    await mouse('#press-target', 'mousePressed')
     await vi.waitFor(() => expect(style.borderTopColor).toBe(transparent))
     expect(style.borderTopWidth).toBe('1px')
-    await mouse(element, 'mouseReleased')
+    await mouse('#press-target', 'mouseReleased')
     await vi.waitFor(() => expect(style.borderTopColor).toBe(style.backgroundColor))
   } finally {
     handle.dispose()
