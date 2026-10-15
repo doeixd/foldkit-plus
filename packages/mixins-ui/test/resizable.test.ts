@@ -61,6 +61,6 @@ describe('Resizable.view', () => {
     const [handle] = Inert.all(drawn).filter(node => Inert.value(node, 'role') === 'separator')
     expect(Inert.value(handle, 'aria-valuenow')).toBe('35')
     expect(Inert.value(handle, 'aria-orientation')).toBe('vertical')
-    expect(Inert.value(handle, 'tabindex')).toBe('0')
+    expect(Inert.value(handle, 'tabIndex')).toBe(0)
   })
 })
