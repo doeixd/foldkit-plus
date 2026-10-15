@@ -64,6 +64,8 @@ export const Model = Schema.Struct({
   faq: Schema.Array(Schema.String),
   /** The checkbox group's checked alerts. */
   alerts: Schema.Array(Schema.String),
+  /** The number field's servings. */
+  servings: Schema.Number,
 })
 export type Model = typeof Model.Type
 
@@ -89,6 +91,7 @@ export const Message = defineMessageUnion({
   ChoseRange: { range: Range },
   ToggledFaq: { id: Schema.String },
   ToggledAlert: { value: Schema.String },
+  ChangedServings: { value: Schema.Number },
 })
 export type Message = typeof Message.Type
 
@@ -125,6 +128,7 @@ export const initial: Model = {
   range: 'week',
   faq: ['billing'],
   alerts: ['mentions', 'replies'],
+  servings: 4,
 }
 
 type Step = Update.Step<Model, Message>
@@ -334,6 +338,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     ToggledAlert: ({ value }) => ({
       model: modifyFields(model, { alerts: () => CheckboxGroup.toggled(model.alerts, value) }),
     }),
+    ChangedServings: ({ value }) =>
+      value === model.servings
+        ? { model }
+        : { model: modifyFields(model, { servings: () => value }) },
     SavedDraft: () =>
       notify(model, {
         variant: 'Success',

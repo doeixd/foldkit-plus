@@ -46,6 +46,8 @@ import {
   CardSlots,
   CheckboxGroup,
   CheckboxGroupSlots,
+  NumberField,
+  NumberFieldSlots,
   Checkbox,
   CheckboxSlots,
   Combobox,
@@ -1182,6 +1184,30 @@ export const checkboxGroup = <Message>(
       ],
       checked,
       onToggle,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region number-field
+export const NumberFieldStyle = forSlots(NumberFieldSlots)(Recipes.NumberField({}))
+
+export const numberField = <Message>(
+  style: NamedStyle<typeof NumberFieldSlots>,
+  value: number,
+  onChange: (value: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  NumberField.view(
+    {
+      id: 'servings',
+      label: 'Servings',
+      description: 'From 1 to 12; the arrow keys step it.',
+      value,
+      onChange,
+      min: 1,
+      max: 12,
       style,
     },
     h,

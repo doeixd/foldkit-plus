@@ -16,6 +16,7 @@ import { ButtonSlots } from './button.js'
 import { CalendarSlots } from './calendar.js'
 import { CheckboxSlots } from './checkbox.js'
 import { CheckboxGroupSlots } from './checkboxGroup.js'
+import { NumberFieldSlots } from './numberField.js'
 import { DialogSlots } from './dialog.js'
 import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
@@ -127,6 +128,15 @@ export const CheckboxGroup = A11y.pattern({
     events: [Event.Click],
     attributes: [Attr.Role],
   },
+})
+
+export const NumberField = A11y.pattern({
+  input: {
+    capability: Capability.Focusable,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role],
+  },
+  label: { capability: Capability.Container },
 })
 
 export const Dialog = A11y.pattern({
@@ -317,6 +327,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('disclosure', Disclosure, DisclosureSlots, 'stateless', ['button']),
   entry('accordion', Accordion, AccordionSlots, 'stateless', ['button', 'region']),
   entry('checkbox-group', CheckboxGroup, CheckboxGroupSlots, 'stateless', ['group', 'checkbox']),
+  entry(
+    'number-field',
+    NumberField,
+    NumberFieldSlots,
+    'stateless',
+    ['spinbutton'],
+    ['native-control'],
+  ),
   entry(
     'dialog',
     Dialog,

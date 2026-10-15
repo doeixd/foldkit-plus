@@ -21,6 +21,7 @@ import {
   CardSlots,
   CheckboxGroupSlots,
   CheckboxSlots,
+  NumberFieldSlots,
   ComboboxSlots,
   DatePickerSlots,
   DialogSlots,
@@ -459,6 +460,25 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.alerts,
         value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'number-field',
+      title: 'Number field',
+      summary: 'A number typed or stepped, inside its bounds and on its step.',
+      recipe: 'NumberField',
+      file: 'numberField',
+      contract: 'NumberFieldSlots',
+    },
+    NumberFieldSlots,
+    Recipes.NumberField,
+    (style, live) =>
+      Snippet.numberField(
+        style,
+        live.widgets.servings,
+        value => live.onWidget(Widgets.Message.ChangedServings({ value })),
         live.h,
       ),
   ),

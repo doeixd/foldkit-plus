@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `NumberField`,** from the widgets island into the
+  package: the APG's editable spinbutton and Zag's number input. The arrows,
+  PageUp and PageDown, Home and End step it through `SpinValue`'s `spin`, a
+  typed number commits on change (text that is no number leaves the value),
+  and steppers out of the tab order disable at their bound; every value is
+  clamped onto its step (`NumberField.settled`), a decimal step kept exact.
+  The value is the application's. `Recipes.NumberField`,
+  `Patterns.NumberField` and a gallery page.
 - **`foldkit-mixins-ui`: `CheckboxGroup`,** from the widgets island into the
   package, as Zag's checkbox group with Fluid Functionalism's rows: a
   `fieldset` named by its `legend`, each option the APG's checkbox named by a
