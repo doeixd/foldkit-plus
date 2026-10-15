@@ -29,7 +29,14 @@ import { markdownInputRules, print } from 'foldkit-richtext-markdown'
 import { stepMatch } from 'foldkit-mixins-richtext'
 import { ClipboardMessage, copyText } from 'foldkit-primitives/dom'
 import { firstThread, initialDocument } from './document.js'
-import { Blocks, decorate, playgroundSlashEntries, rendering, vocabulary } from './vocabulary.js'
+import {
+  Blocks,
+  decorate,
+  playgroundSlashEntries,
+  rendering,
+  RETURN_TO_REFERENCE,
+  vocabulary,
+} from './vocabulary.js'
 
 export const hostId = 'playground-editor'
 
@@ -155,8 +162,11 @@ export const Message = defineMessageUnion({
   FindCaseToggled: {},
   ClosedFind: {},
   CompletedFocusFind: {},
-  /** A heading chosen from the contents: the caret goes to its start, and the editor's focus. */
-  JumpedToHeading: { node: RichText.NodeId },
+  /**
+   * A heading chosen from the contents, or a note from a footnote's preview: the caret goes to
+   * the block's start, and the editor's focus with it.
+   */
+  JumpedTo: { node: RichText.NodeId },
   Reset: {},
 })
 export type Message = typeof Message.Type
@@ -562,6 +572,32 @@ const goToMatch = (model: Model, index: number): Return =>
     },
   })
 
+// --- going somewhere ------------------------------------------------------------------------
+
+/** The caret placed, and the editor given the focus there: for a control outside the editor. */
+const focusOn = (model: Model, caret: RichText.Selection): Return => {
+  const placed = edit(closed(model), EditorMessage.Selected({ selection: caret }))
+  return {
+    ...placed,
+    commands: [
+      ...(placed.commands ?? []),
+      Command.mapMessage(focus(hostId, caret), message => Message.GotEditor({ message })),
+    ],
+  }
+}
+
+/** A note's ↩: the caret after the first reference to its footnote, with the editor's focus. */
+const backToReference = (model: Model, definition: RichText.NodeId): Return => {
+  const block = blockOf(model, definition)
+  const label = block?.type === 'Node' ? block.props.label : undefined
+  const reference = RichText.footnotesOf(model.document).find(note => note.label === label)
+    ?.references[0]
+  const run = reference === undefined ? undefined : RichText.locateRun(model.document, reference)
+  if (run === undefined) return { model }
+  const after = { node: run.run.id, offset: run.run.text.length, affinity: 'after' as const }
+  return focusOn(model, { type: 'Range', anchor: after, focus: after })
+}
+
 // --- update --------------------------------------------------------------------------------
 
 export const update = (model: Model, message: Message): Return =>
@@ -570,6 +606,9 @@ export const update = (model: Model, message: Message): Return =>
 const step = (model: Model, message: Message): Return =>
   Message.match<Return>(message, {
     GotEditor: ({ message }) => {
+      if (message._tag === 'ActivatedAdornment' && message.action === RETURN_TO_REFERENCE) {
+        return backToReference(model, message.node)
+      }
       // Enter in a closed toggle's title adds a line inside it, which a closed toggle hides;
       // it opens first, in the same transition, so the new line is there to type on.
       const toggle = message._tag === 'Entered' ? closedToggleTitled(model) : undefined
@@ -797,18 +836,10 @@ const step = (model: Model, message: Message): Return =>
     }),
     ClosedFind: () => ({ model: modifyFields(model, { find: () => Option.none() }) }),
     CompletedFocusFind: () => ({ model }),
-    JumpedToHeading: ({ node }) => {
+    JumpedTo: ({ node }) => {
       const block = blockOf(model, node)
       const caret = block === undefined ? undefined : caretAtStart(block)
-      if (caret === undefined) return { model }
-      const placed = edit(closed(model), EditorMessage.Selected({ selection: caret }))
-      return {
-        ...placed,
-        commands: [
-          ...(placed.commands ?? []),
-          Command.mapMessage(focus(hostId, caret), message => Message.GotEditor({ message })),
-        ],
-      }
+      return caret === undefined ? { model } : focusOn(model, caret)
     },
     Reset: () => init(),
   })

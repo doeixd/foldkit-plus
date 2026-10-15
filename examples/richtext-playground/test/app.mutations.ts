@@ -118,6 +118,28 @@ export default [
     tests,
   },
   {
+    name: 'a note’s arrow does nothing',
+    edits: [
+      {
+        file,
+        find: "if (message._tag === 'ActivatedAdornment' && message.action === RETURN_TO_REFERENCE) {",
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a note’s arrow lands before the reference',
+    edits: [
+      {
+        file,
+        find: "const after = { node: run.run.id, offset: run.run.text.length, affinity: 'after' as const }",
+        replace: "const after = { node: run.run.id, offset: 0, affinity: 'after' as const }",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'find opens empty over a selection',
     edits: [
       {

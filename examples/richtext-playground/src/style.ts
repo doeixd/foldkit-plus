@@ -14,6 +14,7 @@ import {
   CodeToolbarSlots,
   EditorStatusSlots,
   FindReplaceSlots,
+  FootnotePreviewSlots,
   TableOfContentsSlots,
   LinkEditorSlots,
   SlashMenuSlots,
@@ -318,10 +319,15 @@ const writing = Style.compose(
     insetInlineStart: '0',
     color: t.text.muted,
   }),
-  Style.nest('[data-footnote] > a', {
+  Style.nest('[data-footnote] > button', {
     position: 'absolute',
     insetInlineEnd: '0',
-    textDecoration: 'none',
+    border: '0',
+    background: 'none',
+    padding: '0 2px',
+    color: t.text.link,
+    font: 'inherit',
+    cursor: 'pointer',
   }),
   Style.nest('[data-footnote] > p', { margin: '0' }),
   Style.nest('[data-decoration~="search"]', { background: t.accent.subtle }),
@@ -426,6 +432,16 @@ export const Page = A.slots({
     Style.self({ position: 'fixed', insetBlockStart: '-999px', zIndex: '6' }),
   ),
   status: Style.self({ color: t.text.default }),
+  // A footnote's note, fixed beside the caret by `selectionAnchor`.
+  notePreview: Style.compose(
+    popup,
+    Style.self({
+      position: 'fixed',
+      insetBlockStart: '-999px',
+      inlineSize: 'min(20rem, calc(100vw - 2rem))',
+      padding: t.space.sm,
+    }),
+  ),
   slash: Style.compose(
     popup,
     Style.self({
@@ -637,5 +653,26 @@ export const TableOfContentsStyle = A.forSlots(TableOfContentsSlots)({
       borderInlineStartColor: t.accent.default,
       fontWeight: t.weight.semibold,
     }),
+  ),
+})
+
+export const FootnotePreviewStyle = A.forSlots(FootnotePreviewSlots)({
+  root: Style.self({
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr',
+    alignItems: 'center',
+    gap: t.space.xs,
+  }),
+  label: Style.compose(field, Style.self({ inlineSize: '3.5rem', fontSize: t.size.xs })),
+  text: Style.self({
+    gridColumn: '1 / -1',
+    gridRow: '2',
+    margin: '0',
+    color: t.text.default,
+    fontSize: t.size.sm,
+  }),
+  button: Style.compose(
+    control,
+    Style.self({ justifySelf: 'end', fontSize: t.size.xs, minBlockSize: '1.75rem' }),
   ),
 })

@@ -1,6 +1,6 @@
 /**
  * What the page learns from the browser around the editor, as Mounts: the block the pointer is
- * over, image files chosen, pasted or dropped, and a footnote reference followed. The editor
+ * over, and image files chosen, pasted or dropped. The editor
  * owns its own subtree's events; these listen on elements the application draws around it.
  */
 import { Effect, Queue, Stream } from 'effect'
@@ -70,7 +70,7 @@ const imagesIn = (transfer: DataTransfer | null): ReadonlyArray<File> =>
  * Listens on the element around the editor. The pointer over a top-level block names it (the
  * last one stays named when the pointer leaves, so the handle beside it can be reached). A
  * paste or drop carrying files is taken here instead of by the browser, which would put the
- * file into the editable subtree itself. A click on a footnote reference scrolls to its note.
+ * file into the editable subtree itself.
  */
 export const canvasEvents = Mount.defineStream('PlaygroundCanvas', {
   messages: [Message.HoveredBlock, Message.ImageRead, Message.ImageRefused],
@@ -116,27 +116,16 @@ export const canvasEvents = Mount.defineStream('PlaygroundCanvas', {
             event.preventDefault()
             readImages(files, found)
           }
-          const onClick = (event: MouseEvent) => {
-            const reference =
-              event.target instanceof Element ? event.target.closest('[data-footnote-ref]') : null
-            const label = reference?.getAttribute('data-footnote-ref')
-            if (label === null || label === undefined) return
-            element.ownerDocument
-              .getElementById(`fn-${label}`)
-              ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          }
           element.addEventListener('pointermove', onMove)
           // Capture: the editor's own paste handler would read the file's name as text first.
           element.addEventListener('paste', onPaste, true)
           element.addEventListener('dragover', onDragOver)
           element.addEventListener('drop', onDrop)
-          element.addEventListener('click', onClick)
           return () => {
             element.removeEventListener('pointermove', onMove)
             element.removeEventListener('paste', onPaste, true)
             element.removeEventListener('dragover', onDragOver)
             element.removeEventListener('drop', onDrop)
-            element.removeEventListener('click', onClick)
           }
         }),
         release => Effect.sync(release),

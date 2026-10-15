@@ -24,7 +24,7 @@ import {
   type Model,
 } from '../src/app.js'
 import { discussedPhrase, firstThread } from '../src/document.js'
-import { Blocks } from '../src/vocabulary.js'
+import { Blocks, RETURN_TO_REFERENCE } from '../src/vocabulary.js'
 
 const step = (model: Model, ...messages: ReadonlyArray<Message>): Model =>
   messages.reduce((current, message) => update(current, message).model, model)
@@ -350,9 +350,41 @@ describe('the contents', () => {
     const initial = start()
     const index = kinds(initial).lastIndexOf('Heading')
     const heading = top(initial)[index]!
-    const jumped = update(initial, Message.JumpedToHeading({ node: heading.id }))
+    const jumped = update(initial, Message.JumpedTo({ node: heading.id }))
     expect(jumped.model.editor.selection).toEqual(caret(runAt(initial, index)))
     expect(jumped.commands?.map(command => command.name)).toContain('RichText.focus')
+  })
+})
+
+describe('footnotes', () => {
+  it('insert after the caret with the next label, the caret in the new note', () => {
+    const fresh = start()
+    const initial = select(fresh, caret(runAt(fresh, 0), 1))
+    const added = step(initial, edited(EditorMessage.InsertedFootnote({})))
+    const notes = RichText.footnotesOf(added.document)
+    expect(notes.map(note => note.label)).toEqual(['2', '1'])
+    const last = top(added).at(-1)!
+    expect(last.id).toBe(notes[0]!.definition)
+    expect(textOf(top(added)[0]!)).toBe(
+      `${textOf(top(initial)[0]!).slice(0, 1)}2${textOf(top(initial)[0]!).slice(1)}`,
+    )
+  })
+
+  it('go back from a note’s arrow to the reference, with the editor focused there', () => {
+    const initial = start()
+    const [note] = RichText.footnotesOf(initial.document)
+    const back = update(
+      initial,
+      edited(
+        EditorMessage.ActivatedAdornment({ node: note!.definition!, action: RETURN_TO_REFERENCE }),
+      ),
+    )
+    const reference = RichText.locateRun(initial.document, note!.references[0]!)!.run
+    expect(back.model.editor.selection).toMatchObject({
+      anchor: { node: reference.id, offset: reference.text.length },
+      focus: { node: reference.id, offset: reference.text.length },
+    })
+    expect(back.commands?.map(command => command.name)).toContain('RichText.focus')
   })
 })
 

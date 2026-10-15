@@ -77,12 +77,21 @@ view. Going to a match selects it in the editor without taking the find field's 
 ## Contents and export
 
 The sidebar's Contents is `tableOfContents` over the document's headings, the caret's section
-marked; choosing one sends `JumpedToHeading`, which puts the caret at the heading's start and
+marked; choosing one sends `JumpedTo`, which puts the caret at the heading's start and
 gives the editor the focus there with `focus(hostId, selection)`. Export copies the whole document
 (`exported` in [app.ts](src/app.ts)): Markdown through `foldkit-richtext-markdown`'s `print`, which
 reports what it has no syntax for (a callout, an image's caption) so the footer can say so; HTML
 through `RichText.toHtml` with the page's rendering; JSON as the encoded `RichText.Document`,
 which decodes back to the same document.
+
+## Footnotes
+
+The kit opts into `foldkit-richtext`'s footnotes (`FootnoteRef`, `FootnoteDefinition`), and the
+slash and insert menus offer Footnote, the editor's `InsertedFootnote`: a reference at the caret,
+its note last, the caret in the note. With the caret at a reference, `footnotePreview` is drawn
+beside it, showing the note, renaming it, and sending `JumpedTo` the note. The note's ↩ is an
+adornment with an `action`; the editor reports it as `ActivatedAdornment`, and `update` puts the
+caret after the first reference and gives the editor the focus there.
 
 ## Tests
 

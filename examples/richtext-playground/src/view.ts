@@ -13,6 +13,7 @@ import {
   codeToolbar,
   editorStatus,
   findReplace,
+  footnotePreview,
   linkEditor,
   slashMenu,
   slashMenuView,
@@ -45,6 +46,7 @@ import {
   BlockStyleStyle,
   CodeToolbarStyle,
   FindReplaceStyle,
+  FootnotePreviewStyle,
   LinkEditorStyle,
   Page,
   SlashMenuStyle,
@@ -70,6 +72,7 @@ const Status = editorStatus<Message>().pipe(Style.attach(StatusStyle))
 const TableTools = tableToolbar<Message>().pipe(Style.attach(TableToolbarStyle))
 const CodeTools = codeToolbar<Message>().pipe(Style.attach(CodeToolbarStyle))
 const Contents = tableOfContents<Message>().pipe(Style.attach(TableOfContentsStyle))
+const NotePreview = footnotePreview<Message>().pipe(Style.attach(FootnotePreviewStyle))
 const FindBar = findReplace<Message>().pipe(Style.attach(FindReplaceStyle))
 const DemoGuide = demoGuide<Message>()
 
@@ -307,6 +310,29 @@ export const PlaygroundView = SlotView.forMessages<Message>()
             ),
           ]
         : []
+    // A collapsed caret in a footnote reference: its note, beside the caret.
+    const notePopup =
+      RichText.coversText(model.editor.selection) ||
+      RichText.footnoteAt(model.document, model.editor.selection) === undefined
+        ? []
+        : [
+            h.div(
+              slots.notePreview.attrs([
+                h.OnMount(selectionAnchor({ hostId, gap: 8, caret: true })),
+              ]),
+              [
+                NotePreview(
+                  {
+                    document: model.document,
+                    selection: model.editor.selection,
+                    opened: node => Message.JumpedTo({ node }),
+                    wrap,
+                  },
+                  h,
+                ),
+              ],
+            ),
+          ]
     const slashPopup =
       slash === undefined || slash.matches.length === 0
         ? []
@@ -394,6 +420,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
               ...blockTools(model, slots, h),
               ...floating,
               ...slashPopup,
+              ...notePopup,
             ],
           ),
           discussions(model, slots, h),
@@ -759,7 +786,7 @@ const discussions = (model: Model, slots: Slots, h: H): Html => {
               {
                 document: model.document,
                 selection: model.editor.selection,
-                chosen: node => Message.JumpedToHeading({ node }),
+                chosen: node => Message.JumpedTo({ node }),
               },
               h,
             ),

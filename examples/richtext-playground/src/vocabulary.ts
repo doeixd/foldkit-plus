@@ -36,12 +36,6 @@ export const Comment = RichText.mark('Comment', {
   expand: 'none',
 })
 
-/** Where a footnote is referred to: the label its definition carries. */
-export const FootnoteRef = RichText.mark('FootnoteRef', {
-  Props: Schema.Struct({ label: Schema.String }),
-  expand: 'none',
-})
-
 // --- node kinds ----------------------------------------------------------------------------
 
 /** A highlighted note with an icon, holding text directly. */
@@ -59,11 +53,8 @@ export const Toggle = RichText.node('Toggle', {
   children: RichText.blockContent,
 })
 
-/** A footnote's text, at the end of the document, under the label its references carry. */
-export const FootnoteDefinition = RichText.node('FootnoteDefinition', {
-  Props: Schema.Struct({ label: Schema.String }),
-  children: RichText.blockContent,
-})
+/** The action of a note's ↩, which takes the caret back to the reference. */
+export const RETURN_TO_REFERENCE = 'return-to-reference'
 
 export const marks: ReadonlyArray<RichText.MarkDef> = [
   ...RichText.standardMarks,
@@ -71,13 +62,13 @@ export const marks: ReadonlyArray<RichText.MarkDef> = [
   Highlight,
   Kbd,
   Comment,
-  FootnoteRef,
+  RichText.FootnoteRef,
 ]
 export const nodes: ReadonlyArray<RichText.NodeDefinition> = [
   ...RichText.standardNodes,
   Callout,
   Toggle,
-  FootnoteDefinition,
+  RichText.FootnoteDefinition,
 ]
 
 export const vocabulary = {
@@ -205,9 +196,10 @@ export const rendering = RichText.renderingOver(RichText.standardRendering, {
         adornments: [
           { tag: 'span', attributes: { 'data-footnote-label': '' }, text: `${label}.` },
           {
-            tag: 'a',
-            attributes: { href: `#fnref-${label}`, 'aria-label': 'Back to the reference' },
+            tag: 'button',
+            attributes: { type: 'button', 'aria-label': 'Back to the reference' },
             text: '↩',
+            action: RETURN_TO_REFERENCE,
           },
         ],
       }
@@ -314,6 +306,12 @@ export const playgroundSlashEntries: ReadonlyArray<SlashEntry<EditorEvent>> = [
     label: 'Table',
     keywords: ['grid', 'rows'],
     message: EditorMessage.InsertedBlock({ block: Blocks.table() }),
+  },
+  {
+    id: 'footnote',
+    label: 'Footnote',
+    keywords: ['note', 'reference', 'citation'],
+    message: EditorMessage.InsertedFootnote({}),
   },
   {
     id: 'divider',

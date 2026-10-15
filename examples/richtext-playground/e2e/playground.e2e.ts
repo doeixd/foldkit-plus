@@ -386,3 +386,29 @@ test('a new empty line hints at the slash menu, until something is typed on it',
   await expect.poll(() => hinted.count()).toBe(0)
   expect(errors).toEqual([])
 })
+
+test('a footnote is inserted from the slash menu, previewed at its reference, and visited both ways', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await newLine(page)
+  await page.keyboard.type('Claim /foot')
+  await page.keyboard.press('Enter')
+  // The caret is in the new note, which the editor drew last.
+  await page.keyboard.type('Source')
+  const notes = page.locator('[contenteditable=true] [data-footnote]')
+  await expect.poll(() => notes.last().textContent()).toContain('Source')
+  const reference = page.locator('[contenteditable=true] sup[data-footnote-ref="2"]')
+  await reference.click()
+  const card = page.getByRole('group', { name: 'Footnote 2' })
+  await expect.poll(() => card.textContent()).toContain('Source')
+  await card.getByRole('button', { name: 'Go to note' }).click()
+  await page.keyboard.type('!')
+  await expect.poll(() => notes.last().textContent()).toContain('!Source')
+  await notes.last().getByRole('button', { name: 'Back to the reference' }).click()
+  await page.keyboard.type('x')
+  const paragraph = page.locator('[contenteditable=true] > p', { hasText: 'Claim' })
+  await expect.poll(() => paragraph.textContent()).toBe('Claim 2x')
+  // Typed after the reference, not into it.
+  expect(await reference.textContent()).toBe('2')
+  expect(errors).toEqual([])
+})
