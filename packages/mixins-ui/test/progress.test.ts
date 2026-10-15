@@ -35,6 +35,23 @@ describe('Progress.view', () => {
     expect(Inert.value(bar, 'data-state')).toBe('complete')
   })
 
+  it('measures the share from its own start', () => {
+    const share = (value: number, min: number, max: number) => {
+      const [bar] = Inert.byRole(
+        Progress.view({ id: 'step', label: 'Step', value: Option.some(value), min, max }, h),
+        'progressbar',
+      )
+      return Inert.style(bar)['--fk-progress']
+    }
+    expect(share(150, 100, 200)).toBe('0.5')
+    // A range of no width is complete, as upstream calls it.
+    expect(share(100, 100, 100)).toBe('1')
+  })
+
+  it('draws the ring by the share the view writes', () => {
+    expect(style.css).toContain('calc(var(--fk-progress, 0) * 1turn)')
+  })
+
   it('has no value while the end is not known', () => {
     const [bar] = Inert.byRole(drawn(Option.none()), 'progressbar')
     expect(Inert.value(bar, 'aria-valuenow')).toBeUndefined()
