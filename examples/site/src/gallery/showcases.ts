@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  BannerSlots,
   TagsInputSlots,
   PasswordInputSlots,
   RatingSlots,
@@ -767,6 +768,19 @@ export const showcases: ReadonlyArray<Showcase> = [
         message => live.onWidget(Widgets.Message.GotTags({ message })),
         live.h,
       ),
+  ),
+  fromRecipe(
+    {
+      slug: 'banner',
+      title: 'Banner',
+      summary: 'A notice across the top of a page, with an action and a dismiss button.',
+      recipe: 'Banner',
+      file: 'banner',
+      contract: 'BannerSlots',
+    },
+    BannerSlots,
+    Recipes.Banner,
+    style => Snippet.banner(style, inert),
   ),
   fromRecipe(
     {

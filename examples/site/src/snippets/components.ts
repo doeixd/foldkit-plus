@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  Banner,
+  BannerSlots,
   TagsInput,
   TagsInputSlots,
   PasswordInput,
@@ -1743,6 +1745,21 @@ export const tagsInput = <Message>(
   onMessage: (message: TagsInput.Message) => Message,
   h: HtmlBuilder<Message>,
 ): Html => TagsInput.view({ model, onMessage, label: 'Topics', placeholder: 'Add a topic', style }, h)
+// #endregion
+
+// #region banner
+export const BannerStyle = forSlots(BannerSlots)(Recipes.Banner({}))
+
+export const banner = <Message>(style: NamedStyle<typeof BannerSlots>, h: HtmlBuilder<Message>): Html =>
+  Banner.view(
+    {
+      label: 'Announcement',
+      message: 'Version 2 is out, with offline sync.',
+      action: { label: 'Read the notes', href: '#changelog' },
+      style,
+    },
+    h,
+  )
 // #endregion
 
 // #region navigation-menu

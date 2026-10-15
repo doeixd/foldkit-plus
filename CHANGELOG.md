@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Banner`, a page-level notice.** A full-width strip
+  named as a region landmark, with an optional link or button action and an
+  optional dismiss button (`onDismiss`); whether it shows is the
+  application's. Recipe axes `tone` (Alert's four) and `emphasis` (`subtle`,
+  `bold`). `Recipes.Banner`, `Patterns.Banner` and a gallery page.
 - **`foldkit-mixins-ui`: `TagsInput`,** Zag's tags input: the tags as a
   list of chips named by the field's label, each with a `Remove <tag>`
   button, and a text input. Enter or the delimiter adds the draft, split at

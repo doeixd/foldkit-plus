@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
+import { BannerSlots } from './banner.js'
 import { TagsInputSlots } from './tagsInput.js'
 import { PasswordInputSlots } from './passwordInput.js'
 import { RatingSlots } from './rating.js'
@@ -258,6 +259,17 @@ export const TagsInput = A11y.pattern({
   },
 })
 
+export const Banner = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.AriaLabel] },
+  action: { capability: Capability.Interactive, optional: true },
+  dismiss: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+    optional: true,
+  },
+})
+
 export const Nav = A11y.pattern({
   nav: { capability: Capability.Container },
   link: { capability: Capability.Interactive },
@@ -467,6 +479,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
+  entry('banner', Banner, BannerSlots, 'stateless', ['region', 'button', 'link']),
   entry(
     'tags-input',
     TagsInput,
