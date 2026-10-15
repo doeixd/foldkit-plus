@@ -1,14 +1,18 @@
+// @vitest-environment jsdom
 /**
  * TagsInput as a transition and as markup: a commit adds each new part of
  * the draft and refuses empty and repeated ones, Backspace on an empty
  * draft takes the last tag, a removal sends the focus back to the input,
  * and the chips are a list named by the field's label.
  */
+import { Effect } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Style, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Patterns, Recipes, TagsInput, TagsInputSlots } from '../src/index.js'
-import { h, message, type TestMessage } from './fixture.js'
+import { h, message, sends, type TestMessage } from './fixture.js'
 
 const { Message, init, update } = TagsInput
 
@@ -86,6 +90,17 @@ describe('TagsInput.update', () => {
     expect(gone.model).toBe(model)
     expect(gone.commands).toBeUndefined()
   })
+
+  it("focuses the field's own input once a tag is removed", async () => {
+    document.body.innerHTML = '<input id="topics"><input id="topics-input">'
+    const [command] = update(
+      init({ id: 'topics', tags: ['a'] }),
+      Message.Removed({ tag: 'a' }),
+    ).commands!
+    await Effect.runPromise(command!.effect)
+    expect(document.activeElement?.id).toBe('topics-input')
+    document.body.replaceChildren()
+  })
 })
 
 describe('TagsInput.view', () => {
@@ -108,6 +123,41 @@ describe('TagsInput.view', () => {
     expect(Inert.byTag(tree, 'button').map(button => Inert.value(button, 'aria-label'))).toEqual([
       'Remove react',
       'Remove effect',
+    ])
+  })
+
+  it('commits on Enter and on the delimiter, and passes every key on', () => {
+    const view = (h: HtmlBuilder<TagsInput.Message>) =>
+      TagsInput.view({ model: init({ id: 'topics' }), onMessage: m => m, label: 'Topics' }, h)
+    sends(
+      view,
+      Scene.keydown(Scene.label('Topics'), 'Enter'),
+      Scene.expectOutMessages(Message.Committed(), Message.Pressed({ key: 'Enter' })),
+      Scene.keydown(Scene.label('Topics'), ','),
+      Scene.expectOutMessages(Message.Committed(), Message.Pressed({ key: ',' })),
+      Scene.keydown(Scene.label('Topics'), 'a'),
+      Scene.expectOutMessage(Message.Pressed({ key: 'a' })),
+      Scene.type(Scene.label('Topics'), 'react'),
+      Scene.expectOutMessage(Message.Typed({ text: 'react' })),
+    )
+  })
+
+  it('removes the tag whose button is pressed', () => {
+    const lifted: Array<TagsInput.Message> = []
+    TagsInput.view(
+      {
+        model: init({ id: 'topics', tags: ['react', 'effect'] }),
+        onMessage: m => {
+          lifted.push(m)
+          return message('Clicked')
+        },
+        label: 'Topics',
+      },
+      h,
+    )
+    expect(lifted.filter(m => m._tag === 'Removed')).toEqual([
+      Message.Removed({ tag: 'react' }),
+      Message.Removed({ tag: 'effect' }),
     ])
   })
 
