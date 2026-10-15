@@ -14,7 +14,7 @@ import {
   Tabs as UiTabs,
 } from '@foldkit/ui'
 import { Option } from 'effect'
-import * as UiSlider from '@foldkit/ui/slider'
+import { Calendar as DateSelection, Menu } from 'foldkit-mixins-ui'
 import { describe, expect, it } from 'vitest'
 
 import * as Widgets from '../src/gallery/widgets.js'
@@ -42,17 +42,18 @@ describe('the previews with state', () => {
     expect(chosen.widgets.billing).toBe('lifetime')
   })
 
-  it('step the volume from where it stands', () => {
-    const stepped = send(
-      Widgets.Message.GotSlider({
-        message: UiSlider.Message.PressedKeyboardNavigation({
-          direction: 'StepIncrement',
-          value: initial.widgets.volume,
-        }),
-      }),
-    )
+  it('keep the volume and the price range the sliders moved to', () => {
+    const turned = send(Widgets.Message.TurnedVolume({ value: 65 }))
     expect(initial.widgets.volume).toBe(60)
-    expect(stepped.widgets.volume).toBe(65)
+    expect(turned.widgets.volume).toBe(65)
+    const moved = send(Widgets.Message.MovedPriceRange({ value: { low: 120, high: 350 } }))
+    expect(initial.widgets.priceRange).toEqual({ low: 100, high: 350 })
+    expect(moved.widgets.priceRange).toEqual({ low: 120, high: 350 })
+    const again = update(
+      turned,
+      Message.GotWidget({ message: Widgets.Message.TurnedVolume({ value: 65 }) }),
+    )
+    expect(again.model.widgets).toBe(turned.widgets)
   })
 
   it('open the dialog and close it again', () => {
@@ -68,11 +69,13 @@ describe('the previews with state', () => {
 
   it('keep the action, frequency and city that were chosen', () => {
     const acted = send(
-      Widgets.Message.GotMenu({
-        message: UiMenu.Message.SelectedItem({ index: 0, item: 'Rename' }),
+      Widgets.Message.GotPageMenu({
+        message: Menu.Message.GotMenu({
+          message: UiMenu.Message.SelectedItem({ index: 0, item: 'Rename' }),
+        }),
       }),
     )
-    expect(acted.widgets.action).toEqual(Option.some('Rename'))
+    expect(acted.widgets.pageChoice).toEqual(Option.some('Rename'))
     const backedUp = send(
       Widgets.Message.GotListbox({ message: UiListbox.Message.SelectedItem({ item: 'Weekly' }) }),
     )
@@ -95,7 +98,9 @@ describe('the previews with state', () => {
     const picked = send(
       Widgets.Message.GotCalendar({ message: UiCalendar.Message.ClickedDay({ date: day }) }),
     )
-    expect(picked.widgets.date).toEqual(Option.some(day))
+    expect(picked.widgets.selection).toEqual(
+      DateSelection.Selection.Single({ date: Option.some(day) }),
+    )
     const due = send(
       Widgets.Message.GotDatePicker({
         message: UiDatePicker.Message.GotCalendarMessage({

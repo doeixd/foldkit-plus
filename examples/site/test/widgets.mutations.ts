@@ -40,6 +40,28 @@ export default [
     tests,
   },
   {
+    name: 'the same volume makes a new Model',
+    edits: [
+      {
+        file: widgets,
+        find: 'value === model.volume ? { model }',
+        replace: 'value === model.volume ? { model: { ...model } }',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the range slider moves without the price range',
+    edits: [
+      {
+        file: widgets,
+        find: ': { model: modifyFields(model, { priceRange: () => value }) },',
+        replace: ': { model },',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the dialog does not close',
     edits: [
       {
@@ -50,17 +72,39 @@ export default [
     ],
     tests,
   },
-  ...['action', 'frequency', 'city', 'date', 'due'].map(field => ({
+  ...['frequency', 'city', 'due'].map(field => ({
     name: `the chosen ${field} is not kept`,
     edits: [
       {
         file: widgets,
-        find: `model => ({ model: modifyFields(model, { ${field}: () => Option.some(${field === 'date' || field === 'due' ? 'date' : 'value'}) }) }),`,
+        find: `model => ({ model: modifyFields(model, { ${field}: () => Option.some(${field === 'due' ? 'date' : 'value'}) }) }),`,
         replace: 'model => ({ model }),',
       },
     ],
     tests,
   })),
+  {
+    name: 'a chosen page action is not kept',
+    edits: [
+      {
+        file: widgets,
+        find: 'modifyFields(model, { pageChoice: () => chosenOf(chosen) })',
+        replace: 'modifyFields(model, { pageChoice: () => Option.none() })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a picked day never joins the calendar selection',
+    edits: [
+      {
+        file: widgets,
+        find: 'selection: () => DateSelection.picked(model.selection, date),',
+        replace: 'selection: () => model.selection,',
+      },
+    ],
+    tests,
+  },
   {
     name: 'saving the draft says something else',
     edits: [{ file: widgets, find: "title: 'Draft saved'", replace: "title: 'Saved'" }],

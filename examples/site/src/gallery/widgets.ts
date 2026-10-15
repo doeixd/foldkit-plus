@@ -16,7 +16,6 @@ import {
   Dialog as UiDialog,
   HoverIntent as UiHoverIntent,
   Listbox as UiListbox,
-  Menu as UiMenu,
   Popover as UiPopover,
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
@@ -30,27 +29,25 @@ import {
   InputCopy,
   Sidebar,
   TagsInput,
-  DateRange,
+  Calendar as DateSelection,
   ColorPicker,
   TreeView,
   Carousel,
-  NestedMenu,
+  Menu,
 } from 'foldkit-mixins-ui'
-import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
 
 import {
-  Action,
-  ActionMenu,
   Billing,
   BillingGroup,
   CityBox,
+  FILE_MENU,
   Frequency,
   FrequencyBox,
   MENUBAR,
-  NESTED_MENU,
+  PAGE_MENU,
   TREE_FILES,
   Notices,
   Range,
@@ -63,22 +60,25 @@ export const Model = Schema.Struct({
   section: Section,
   billingGroup: UiRadioGroup.Model,
   billing: Billing,
-  slider: UiSlider.Model,
+  /** The slider's volume. */
   volume: Schema.Number,
   dialog: UiDialog.Model,
   alertDialog: UiDialog.Model,
   sheet: UiDialog.Model,
-  drawer: UiDialog.Model,
   popover: UiPopover.Model,
   tooltip: UiTooltip.Model,
-  menu: UiMenu.Model,
-  action: Schema.Option(Action),
+  /** The menu a button opens and the one a right press opens, and what each last chose. */
+  fileMenu: Menu.Model,
+  fileChoice: Schema.Option(Schema.String),
+  pageMenu: Menu.Model,
+  pageChoice: Schema.Option(Schema.String),
   listbox: UiListbox.Model,
   frequency: Schema.Option(Frequency),
   combobox: UiCombobox.Model,
   city: Schema.Option(Schema.String),
   calendar: UiCalendar.Model,
-  date: Schema.Option(Calendar.CalendarDate),
+  /** The day picked on the calendar. */
+  selection: DateSelection.Selection,
   picker: UiDatePicker.Model,
   due: Schema.Option(Calendar.CalendarDate),
   notices: Notices.Model,
@@ -92,10 +92,6 @@ export const Model = Schema.Struct({
   /** The one-time code typed so far. */
   code: Schema.String,
   hoverCard: UiHoverIntent.Model,
-  /** The context menu, the point a right press opened it at, and what it last did. */
-  fileMenu: UiMenu.Model,
-  filePoint: Schema.Option(Schema.Struct({ x: Schema.Number, y: Schema.Number })),
-  fileAction: Schema.Option(Action),
   /** The command menu's query, highlighted row and last command run. */
   commandQuery: Schema.String,
   commandActive: Schema.Option(Schema.String),
@@ -110,12 +106,9 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
-  /** The nested menu's menus, and the row last chosen from it. */
-  nestedMenu: NestedMenu.Model,
-  nestedMenuChoice: Schema.Option(Schema.String),
   /** The carousel's slide. */
   slide: Schema.Number,
-  /** The range slider's chosen price range. */
+  /** The range slider's price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
   /** The file tree's open, current and chosen rows. */
   treeView: TreeView.Model,
@@ -123,7 +116,7 @@ export const Model = Schema.Struct({
   accent: ColorPicker.Oklch,
   /** The trip calendar, and the range picked on it. */
   trip: UiCalendar.Model,
-  tripDates: DateRange.Range,
+  tripDates: DateSelection.Selection,
   /** Whether the API key was copied. */
   inputCopied: Schema.Boolean,
   /** The tags input's tags and draft. */
@@ -139,7 +132,7 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   GotTabs: { message: UiTabs.Message },
   GotBillingGroup: { message: UiRadioGroup.Message },
-  GotSlider: { message: UiSlider.Message },
+  TurnedVolume: { value: Schema.Number },
   GotDialog: { message: UiDialog.Message },
   OpenedDialog: {},
   ClosedDialog: {},
@@ -148,7 +141,7 @@ export const Message = defineMessageUnion({
   ClosedAlertDialog: {},
   GotPopover: { message: UiPopover.Message },
   GotTooltip: { message: UiTooltip.Message },
-  GotMenu: { message: UiMenu.Message },
+  GotPageMenu: { message: Menu.Message },
   GotListbox: { message: UiListbox.Message },
   GotCombobox: { message: UiCombobox.Message },
   GotCalendar: { message: UiCalendar.Message },
@@ -161,9 +154,7 @@ export const Message = defineMessageUnion({
   ChangedServings: { value: Schema.Number },
   TypedCode: { code: Schema.String },
   GotHoverCard: { message: UiHoverIntent.Message },
-  GotFileMenu: { message: UiMenu.Message },
-  PointedFile: { x: Schema.Number, y: Schema.Number },
-  OpenedFileMenu: {},
+  GotFileMenu: { message: Menu.Message },
   TypedCommand: { query: Schema.String },
   HighlightedCommand: { value: Schema.String },
   RanCommand: { value: Schema.String },
@@ -172,7 +163,7 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
-  GotNestedMenu: { message: NestedMenu.Message },
+
   ChoseSlide: { index: Schema.Number },
   ShowedSlide: {},
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
@@ -182,9 +173,6 @@ export const Message = defineMessageUnion({
   GotSheet: { message: UiDialog.Message },
   OpenedSheet: {},
   ClosedSheet: {},
-  GotDrawer: { message: UiDialog.Message },
-  OpenedDrawer: {},
-  ClosedDrawer: {},
   PressedCopy: { text: Schema.String },
   GotCopy: { message: ClipboardMessage },
   GotTags: { message: TagsInput.Message },
@@ -202,22 +190,20 @@ export const initial: Model = {
   section: 'overview',
   billingGroup: UiRadioGroup.init({ id: 'preview-billing' }),
   billing: 'yearly',
-  slider: UiSlider.init({ id: 'preview-volume', min: 0, max: 100, step: 5 }),
   volume: 60,
   dialog: UiDialog.init({ id: 'preview-dialog', isAnimated: true }),
   alertDialog: UiDialog.init({ id: 'preview-alert-dialog', isAnimated: true }),
   sheet: UiDialog.init({ id: 'preview-sheet', isAnimated: true }),
-  drawer: UiDialog.init({ id: 'preview-drawer', isAnimated: true }),
   popover: UiPopover.init({ id: 'preview-popover' }),
   tooltip: UiTooltip.init({ id: 'preview-tooltip' }),
-  menu: UiMenu.init({ id: 'preview-menu', isAnimated: true }),
-  action: Option.none(),
+  pageMenu: Menu.init('preview-page-menu', PAGE_MENU),
+  pageChoice: Option.none(),
   listbox: UiListbox.init({ id: 'preview-frequency', isAnimated: true }),
   frequency: Option.some('Daily'),
   combobox: UiCombobox.init({ id: 'preview-city', isAnimated: true }),
   city: Option.none(),
   calendar: UiCalendar.init({ id: 'preview-calendar', today }),
-  date: Option.none(),
+  selection: DateSelection.empty('Single'),
   picker: UiDatePicker.init({
     id: 'preview-due',
     today,
@@ -232,9 +218,8 @@ export const initial: Model = {
   servings: 4,
   code: '',
   hoverCard: UiHoverIntent.init(),
-  fileMenu: UiMenu.init({ id: 'preview-file-menu', isAnimated: true }),
-  filePoint: Option.none(),
-  fileAction: Option.none(),
+  fileMenu: Menu.init('preview-file-menu', FILE_MENU),
+  fileChoice: Option.none(),
   commandQuery: '',
   commandActive: Option.none(),
   commandRan: Option.none(),
@@ -244,14 +229,12 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
-  nestedMenu: NestedMenu.init('preview-nested-menu', NESTED_MENU),
-  nestedMenuChoice: Option.none(),
   slide: 0,
   priceRange: { low: 100, high: 350 },
   treeView: TreeView.init({ id: 'preview-tree', open: ['src'] }),
   accent: { l: 62.5, c: 0.15, h: 250 },
   trip: UiCalendar.init({ id: 'preview-trip', today }),
-  tripDates: DateRange.empty,
+  tripDates: DateSelection.empty('Range'),
   inputCopied: false,
   tags: TagsInput.init({ id: 'preview-tags', tags: ['effect', 'foldkit'] }),
   password: '',
@@ -304,19 +287,6 @@ const foldBillingGroup = Update.foldChild({
         value === model.billing
           ? { model }
           : { model: modifyFields(model, { billing: () => value }) },
-  }),
-})
-
-const foldSlider = Update.foldChild({
-  ...own('slider', Message.GotSlider),
-  update: UiSlider.update,
-  foldOutMessage: UiSlider.OutMessage.match<Step>({
-    ChangedValue:
-      ({ value }) =>
-      model =>
-        value === model.volume
-          ? { model }
-          : { model: modifyFields(model, { volume: () => value }) },
   }),
 })
 
@@ -373,27 +343,39 @@ const foldTooltip = Update.foldChild({
   foldOutMessage: UiTooltip.OutMessage.match<Step>({ Shown: () => same, Hidden: () => same }),
 })
 
-/** The action chosen is the Model's; the menu has already closed. */
-const foldMenu = Update.foldChild({
-  ...own('menu', Message.GotMenu),
-  update: ActionMenu.update,
-  foldOutMessage: UiMenu.OutMessage.match<Step, UiMenu.OutMessage<Action>>({
-    Selected:
-      ({ value }) =>
-      model => ({ model: modifyFields(model, { action: () => Option.some(value) }) }),
+/** What each menu last chose is the Model's; the menu has already closed. */
+const chosenOf = ({
+  value,
+  submenu,
+}: {
+  readonly value: string
+  readonly submenu: Option.Option<string>
+}) =>
+  Option.some(
+    Option.match(submenu, {
+      onNone: () => value,
+      onSome: within => `${within} › ${value}`,
+    }),
+  )
+
+const foldFileMenu = Update.foldChild({
+  ...own('fileMenu', Message.GotFileMenu),
+  update: Menu.update,
+  foldOutMessage: Menu.OutMessage.match<Step>({
+    Selected: chosen => model => ({
+      model: modifyFields(model, { fileChoice: () => chosenOf(chosen) }),
+    }),
   }),
 })
 
-const fileMenuOut = UiMenu.OutMessage.match<Step, UiMenu.OutMessage<Action>>({
-  Selected:
-    ({ value }) =>
-    model => ({ model: modifyFields(model, { fileAction: () => Option.some(value) }) }),
-})
-const fileMenuField = own('fileMenu', Message.GotFileMenu)
-const foldFileMenu = Update.foldChild({
-  ...fileMenuField,
-  update: ActionMenu.update,
-  foldOutMessage: fileMenuOut,
+const foldPageMenu = Update.foldChild({
+  ...own('pageMenu', Message.GotPageMenu),
+  update: Menu.update,
+  foldOutMessage: Menu.OutMessage.match<Step>({
+    Selected: chosen => model => ({
+      model: modifyFields(model, { pageChoice: () => chosenOf(chosen) }),
+    }),
+  }),
 })
 
 const foldMenubar = Update.foldChild({
@@ -438,23 +420,6 @@ const closeSheet = Update.foldChildStep({
   foldOutMessage: dialogOut,
 })
 
-const drawerField = own('drawer', Message.GotDrawer)
-const foldDrawer = Update.foldChild({
-  ...drawerField,
-  update: UiDialog.update,
-  foldOutMessage: dialogOut,
-})
-const openDrawer = Update.foldChildStep({
-  ...drawerField,
-  update: UiDialog.open,
-  foldOutMessage: dialogOut,
-})
-const closeDrawer = Update.foldChildStep({
-  ...drawerField,
-  update: UiDialog.close,
-  foldOutMessage: dialogOut,
-})
-
 const foldTripCalendar = Update.foldChild({
   ...own('trip', Message.GotTripCalendar),
   update: UiCalendar.update,
@@ -462,7 +427,9 @@ const foldTripCalendar = Update.foldChild({
     SelectedDate:
       ({ date }) =>
       model => ({
-        model: modifyFields(model, { tripDates: () => DateRange.picked(model.tripDates, date) }),
+        model: modifyFields(model, {
+          tripDates: () => DateSelection.picked(model.tripDates, date),
+        }),
       }),
     ChangedViewMonth: () => same,
   }),
@@ -471,26 +438,6 @@ const foldTripCalendar = Update.foldChild({
 const foldTreeView = Update.foldChild({
   ...own('treeView', Message.GotTreeView),
   update: TreeView.update(TREE_FILES),
-})
-
-const foldNestedMenu = Update.foldChild({
-  ...own('nestedMenu', Message.GotNestedMenu),
-  update: NestedMenu.update,
-  foldOutMessage: NestedMenu.OutMessage.match<Step>({
-    Selected:
-      ({ value, submenu }) =>
-      model => ({
-        model: modifyFields(model, {
-          nestedMenuChoice: () =>
-            Option.some(
-              Option.match(submenu, {
-                onNone: () => value,
-                onSome: within => `${within} › ${value}`,
-              }),
-            ),
-        }),
-      }),
-  }),
 })
 
 const foldListbox = Update.foldChild({
@@ -522,7 +469,11 @@ const foldCalendar = Update.foldChild({
   foldOutMessage: UiCalendar.OutMessage.match<Step>({
     SelectedDate:
       ({ date }) =>
-      model => ({ model: modifyFields(model, { date: () => Option.some(date) }) }),
+      model => ({
+        model: modifyFields(model, {
+          selection: () => DateSelection.picked(model.selection, date),
+        }),
+      }),
     ChangedViewMonth: () => same,
   }),
 })
@@ -556,7 +507,8 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
   Message.match(message, {
     GotTabs: ({ message }) => foldTabs(model, message),
     GotBillingGroup: ({ message }) => foldBillingGroup(model, message),
-    GotSlider: ({ message }) => foldSlider(model, message),
+    TurnedVolume: ({ value }) =>
+      value === model.volume ? { model } : { model: modifyFields(model, { volume: () => value }) },
     GotDialog: ({ message }) => foldDialog(model, message),
     OpenedDialog: () => openDialog(model),
     ClosedDialog: () => closeDialog(model),
@@ -568,16 +520,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotSheet: ({ message }) => foldSheet(model, message),
     OpenedSheet: () => openSheet(model),
     ClosedSheet: () => closeSheet(model),
-    GotDrawer: ({ message }) => foldDrawer(model, message),
-    OpenedDrawer: () => openDrawer(model),
-    ClosedDrawer: () => closeDrawer(model),
     GotPopover: ({ message }) => foldPopover(model, message),
     GotTooltip: ({ message }) => foldTooltip(model, message),
     GotHoverCard: ({ message }) => foldHoverCard(model, message),
     GotFileMenu: ({ message }) => foldFileMenu(model, message),
-    PointedFile: ({ x, y }) => ({
-      model: modifyFields(model, { filePoint: () => Option.some({ x, y }) }),
-    }),
     // The Menu's own Opened, with its first row active, as a key opening it does.
     TypedCommand: ({ query }) => ({
       model: modifyFields(model, { commandQuery: () => query }),
@@ -600,12 +546,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     RanCommand: ({ value }) => ({
       model: modifyFields(model, { commandRan: () => Option.some(value) }),
     }),
-    OpenedFileMenu: () =>
-      foldFileMenu(model, UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(0) })),
-    GotMenu: ({ message }) => foldMenu(model, message),
+    GotPageMenu: ({ message }) => foldPageMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
-    GotNestedMenu: ({ message }) => foldNestedMenu(model, message),
     ChoseSlide: ({ index }) => ({
       model: index === model.slide ? model : modifyFields(model, { slide: () => index }),
       commands: Command.mapMessages([Carousel.ShowSlide({ id: 'preview-carousel', index })], () =>
@@ -676,18 +619,8 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }),
   })
 
-/**
- * The slider's drag reaches it through the page's pointer, outside the
- * slider, and each toast's timer dismisses it.
- */
+/** Each toast's timer dismisses it. */
 export const subscriptions = Subscription.aggregate(
-  Subscription.lift({
-    previewSliderPointer: UiSlider.subscriptions.dragPointer,
-    previewSliderEscape: UiSlider.subscriptions.dragEscape,
-  })<Model, Message>({
-    read: model => Option.some(model.slider),
-    toParentMessage: message => Message.GotSlider({ message }),
-  }),
   Subscription.lift(Notices.subscriptions)<Model, Message>({
     read: model => Option.some(model.notices),
     toParentMessage: message => Message.GotNotices({ message }),

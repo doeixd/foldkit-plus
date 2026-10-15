@@ -27,13 +27,10 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
-  NestedMenuSlots,
   CarouselSlots,
-  RangeSliderSlots,
   TreeViewSlots,
   ColorPickerSlots,
   InputCopySlots,
-  BannerSlots,
   TagsInputSlots,
   PasswordInputSlots,
   RatingSlots,
@@ -219,7 +216,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'alert',
       title: 'Alert',
-      summary: 'A message that asks for attention, in four tones.',
+      summary:
+        'A notice in four tones, tinted or bold: inline in the content, or a banner across the page.',
       recipe: 'Alert',
       file: 'alert',
       contract: 'AlertSlots',
@@ -570,33 +568,6 @@ export const showcases: ReadonlyArray<Showcase> = [
   ),
   fromRecipe(
     {
-      slug: 'context-menu',
-      title: 'Context menu',
-      summary: 'The menu a right press or Shift+F10 opens where it lands.',
-      recipe: 'Menu',
-      file: 'menu',
-      contract: 'MenuSlots',
-    },
-    MenuSlots,
-    Recipes.Menu,
-    (style, live) =>
-      Snippet.contextMenu(
-        style,
-        {
-          menu: live.widgets.fileMenu,
-          point: live.widgets.filePoint,
-          action: live.widgets.fileAction,
-        },
-        {
-          toMessage: message => live.onWidget(Widgets.Message.GotFileMenu({ message })),
-          onPoint: ({ x, y }) => live.onWidget(Widgets.Message.PointedFile({ x, y })),
-          onOpen: live.onWidget(Widgets.Message.OpenedFileMenu()),
-        },
-        live.h,
-      ),
-  ),
-  fromRecipe(
-    {
       slug: 'resizable',
       title: 'Resizable',
       summary: 'Two panels and a handle between them, dragged or stepped by the arrow keys.',
@@ -780,19 +751,6 @@ export const showcases: ReadonlyArray<Showcase> = [
   ),
   fromRecipe(
     {
-      slug: 'banner',
-      title: 'Banner',
-      summary: 'A notice across the top of a page, with an action and a dismiss button.',
-      recipe: 'Banner',
-      file: 'banner',
-      contract: 'BannerSlots',
-    },
-    BannerSlots,
-    Recipes.Banner,
-    style => Snippet.banner(style, inert),
-  ),
-  fromRecipe(
-    {
       slug: 'input-copy',
       title: 'Input copy',
       summary: 'A read-only value with a button that copies it, and says it did.',
@@ -814,7 +772,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'sheet',
       title: 'Sheet',
-      summary: 'A dialog that slides in from an edge of the screen, for a task beside the page.',
+      summary:
+        'A dialog that slides in from an edge of the screen; from the bottom with a handle, a drawer as on a phone.',
       recipe: 'Sheet',
       file: 'sheet',
       contract: 'DialogSlots',
@@ -830,48 +789,6 @@ export const showcases: ReadonlyArray<Showcase> = [
           onClose: live.onWidget(Widgets.Message.ClosedSheet()),
           toMessage: message => live.onWidget(Widgets.Message.GotSheet({ message })),
         },
-        live.h,
-      ),
-  ),
-  fromRecipe(
-    {
-      slug: 'drawer',
-      title: 'Drawer',
-      summary: 'A sheet that rises from the bottom with a handle, as on a phone.',
-      recipe: 'Drawer',
-      file: 'sheet',
-      contract: 'DialogSlots',
-    },
-    DialogSlots,
-    Recipes.Drawer,
-    (style, live) =>
-      Snippet.drawer(
-        style,
-        live.widgets.drawer,
-        {
-          onOpen: live.onWidget(Widgets.Message.OpenedDrawer()),
-          onClose: live.onWidget(Widgets.Message.ClosedDrawer()),
-          toMessage: message => live.onWidget(Widgets.Message.GotDrawer({ message })),
-        },
-        live.h,
-      ),
-  ),
-  fromRecipe(
-    {
-      slug: 'date-range',
-      title: 'Date range',
-      summary: 'A start and an end day, and the band between them, picked on one calendar.',
-      recipe: 'DateRange',
-      file: 'dateRange',
-      contract: 'CalendarSlots',
-    },
-    CalendarSlots,
-    Recipes.DateRange,
-    (style, live) =>
-      Snippet.dateRange(
-        style,
-        live.widgets,
-        message => live.onWidget(Widgets.Message.GotTripCalendar({ message })),
         live.h,
       ),
   ),
@@ -916,25 +833,6 @@ export const showcases: ReadonlyArray<Showcase> = [
   ),
   fromRecipe(
     {
-      slug: 'range-slider',
-      title: 'Range slider',
-      summary: 'Two thumbs on one track choosing a low and a high value; neither passes the other.',
-      recipe: 'RangeSlider',
-      file: 'rangeSlider',
-      contract: 'RangeSliderSlots',
-    },
-    RangeSliderSlots,
-    Recipes.RangeSlider,
-    (style, live) =>
-      Snippet.rangeSlider(
-        style,
-        live.widgets.priceRange,
-        value => live.onWidget(Widgets.Message.MovedPriceRange({ value })),
-        live.h,
-      ),
-  ),
-  fromRecipe(
-    {
       slug: 'carousel',
       title: 'Carousel',
       summary:
@@ -950,26 +848,6 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.slide,
         index => live.onWidget(Widgets.Message.ChoseSlide({ index })),
-        live.h,
-      ),
-  ),
-  fromRecipe(
-    {
-      slug: 'nested-menu',
-      title: 'Nested menu',
-      summary:
-        'A menu whose rows open submenus beside them, by ArrowRight, Enter or a resting pointer.',
-      recipe: 'NestedMenu',
-      file: 'nestedMenu',
-      contract: 'NestedMenuSlots',
-    },
-    NestedMenuSlots,
-    Recipes.NestedMenu,
-    (style, live) =>
-      Snippet.nestedMenu(
-        style,
-        { menu: live.widgets.nestedMenu, chosen: live.widgets.nestedMenuChoice },
-        message => live.onWidget(Widgets.Message.GotNestedMenu({ message })),
         live.h,
       ),
   ),
@@ -1047,7 +925,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'slider',
       title: 'Slider',
-      summary: 'A number in a range, dragged, clicked or stepped by the keys.',
+      summary:
+        'A number, or a low and a high one that cannot pass each other, dragged, pressed or stepped by the keys.',
       recipe: 'Slider',
       file: 'slider',
       contract: 'SliderSlots',
@@ -1057,31 +936,10 @@ export const showcases: ReadonlyArray<Showcase> = [
     (style, live) =>
       Snippet.slider(
         style,
-        live.widgets,
-        message => live.onWidget(Widgets.Message.GotSlider({ message })),
-        live.h,
-      ),
-  ),
-  fromRecipe(
-    {
-      slug: 'alert-dialog',
-      title: 'Alert dialog',
-      summary:
-        'A dialog that asks before something that cannot be undone, and waits for an answer.',
-      recipe: 'Dialog',
-      file: 'dialog',
-      contract: 'DialogSlots',
-    },
-    DialogSlots,
-    Recipes.Dialog,
-    (style, live) =>
-      Snippet.alertDialog(
-        style,
-        live.widgets.alertDialog,
+        { volume: live.widgets.volume, price: live.widgets.priceRange },
         {
-          onOpen: live.onWidget(Widgets.Message.OpenedAlertDialog()),
-          onClose: live.onWidget(Widgets.Message.ClosedAlertDialog()),
-          toMessage: message => live.onWidget(Widgets.Message.GotAlertDialog({ message })),
+          onVolume: value => live.onWidget(Widgets.Message.TurnedVolume({ value })),
+          onPrice: value => live.onWidget(Widgets.Message.MovedPriceRange({ value })),
         },
         live.h,
       ),
@@ -1090,7 +948,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'dialog',
       title: 'Dialog',
-      summary: 'A modal that holds focus until it is answered or Escape dismisses it.',
+      summary:
+        'A modal that holds focus until it is answered or Escape dismisses it; as an alert dialog, only an answer closes it.',
       recipe: 'Dialog',
       file: 'dialog',
       contract: 'DialogSlots',
@@ -1100,11 +959,18 @@ export const showcases: ReadonlyArray<Showcase> = [
     (style, live) =>
       Snippet.dialog(
         style,
-        live.widgets.dialog,
+        { dialog: live.widgets.dialog, alert: live.widgets.alertDialog },
         {
-          onOpen: live.onWidget(Widgets.Message.OpenedDialog()),
-          onClose: live.onWidget(Widgets.Message.ClosedDialog()),
-          toMessage: message => live.onWidget(Widgets.Message.GotDialog({ message })),
+          dialog: {
+            onOpen: live.onWidget(Widgets.Message.OpenedDialog()),
+            onClose: live.onWidget(Widgets.Message.ClosedDialog()),
+            toMessage: message => live.onWidget(Widgets.Message.GotDialog({ message })),
+          },
+          alert: {
+            onOpen: live.onWidget(Widgets.Message.OpenedAlertDialog()),
+            onClose: live.onWidget(Widgets.Message.ClosedAlertDialog()),
+            toMessage: message => live.onWidget(Widgets.Message.GotAlertDialog({ message })),
+          },
         },
         live.h,
       ),
@@ -1149,7 +1015,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'menu',
       title: 'Menu',
-      summary: 'Actions behind a button, in groups, moved through by the keys and typed to.',
+      summary:
+        'Actions behind a button, at the point a right press lands, or down a submenu beside its row.',
       recipe: 'Menu',
       file: 'menu',
       contract: 'MenuSlots',
@@ -1159,8 +1026,14 @@ export const showcases: ReadonlyArray<Showcase> = [
     (style, live) =>
       Snippet.menu(
         style,
-        live.widgets,
-        message => live.onWidget(Widgets.Message.GotMenu({ message })),
+        {
+          pageMenu: live.widgets.pageMenu,
+          pageChoice: live.widgets.pageChoice,
+          fileMenu: live.widgets.fileMenu,
+          fileChoice: live.widgets.fileChoice,
+        },
+        message => live.onWidget(Widgets.Message.GotPageMenu({ message })),
+        message => live.onWidget(Widgets.Message.GotFileMenu({ message })),
         live.h,
       ),
   ),
@@ -1206,7 +1079,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'calendar',
       title: 'Calendar',
-      summary: 'A month of days to pick from, with its months and years a press away.',
+      summary:
+        'A month of days to pick from, one day or a start and an end, with its months and years a press away.',
       recipe: 'Calendar',
       file: 'calendar',
       contract: 'CalendarSlots',
@@ -1216,8 +1090,14 @@ export const showcases: ReadonlyArray<Showcase> = [
     (style, live) =>
       Snippet.calendar(
         style,
-        live.widgets,
+        {
+          calendar: live.widgets.calendar,
+          selection: live.widgets.selection,
+          trip: live.widgets.trip,
+          tripDates: live.widgets.tripDates,
+        },
         message => live.onWidget(Widgets.Message.GotCalendar({ message })),
+        message => live.onWidget(Widgets.Message.GotTripCalendar({ message })),
         live.h,
       ),
   ),

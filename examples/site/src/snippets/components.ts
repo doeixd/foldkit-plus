@@ -14,14 +14,12 @@ import {
   HoverIntent as UiHoverIntent,
   Nav as UiNav,
   Listbox as UiListbox,
-  Menu as UiMenu,
   Popover as UiPopover,
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiSelect from '@foldkit/ui/select'
-import * as UiSlider from '@foldkit/ui/slider'
 import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import type * as UiVirtualList from '@foldkit/ui/virtualList'
@@ -54,28 +52,20 @@ import {
   CheckboxGroupSlots,
   Command,
   CommandSlots,
-  ContextMenu,
   Menubar,
   MenubarSlots,
   Meter,
   MeterSlots,
   Nav,
   NavSlots,
-  NestedMenu,
-  NestedMenuSlots,
   Carousel,
   CarouselSlots,
-  RangeSlider,
-  RangeSliderSlots,
   TreeView,
   TreeViewSlots,
   ColorPicker,
   ColorPickerSlots,
-  DateRange,
   InputCopy,
   InputCopySlots,
-  Banner,
-  BannerSlots,
   TagsInput,
   TagsInputSlots,
   PasswordInput,
@@ -119,7 +109,6 @@ import {
   ListboxView,
   Menu,
   MenuSlots,
-  MenuView,
   Pagination,
   PaginationSlots,
   Popover,
@@ -207,14 +196,32 @@ export const badges = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<neve
 // #region alert
 export const AlertStyle = forSlots(AlertSlots)(Recipes.Alert({}))
 
+// Inline, a status inside the content; as a banner, a named landmark across the page.
 export const alert = (style: NamedStyle<typeof AlertSlots>, h: HtmlBuilder<never>): Html =>
-  Alert.view(
-    {
-      title: 'A new version is out',
-      description: 'Reload to pick up the latest fixes. Your drafts are kept.',
-      style,
-    },
-    h,
+  h.div(
+    [h.Style({ display: 'grid', gap: '1rem' })],
+    [
+      Alert.view(
+        {
+          layout: 'inline',
+          title: 'A new version is out',
+          description: 'Reload to pick up the latest fixes. Your drafts are kept.',
+          actions: [{ label: 'Reload', href: '#' }],
+          style,
+        },
+        h,
+      ),
+      Alert.view(
+        {
+          layout: 'banner',
+          label: 'Announcement',
+          title: 'Version 2 is out, with offline sync.',
+          actions: [{ label: 'Read the notes', href: '#' }],
+          style,
+        },
+        h,
+      ),
+    ],
   )
 // #endregion
 
@@ -551,7 +558,20 @@ export const ItemStyle = forSlots(ItemSlots)(Recipes.Item({}))
 export const item = (style: NamedStyle<typeof ItemSlots>, h: HtmlBuilder<never>): Html =>
   Item.view(
     {
-      media: h.span([h.AriaHidden(true)], ['●']),
+      // A status mark in the success color, not a bare black dot that read as a list bullet.
+      media: h.span(
+        [
+          h.AriaHidden(true),
+          h.Style({
+            display: 'block',
+            inlineSize: '0.5rem',
+            blockSize: '0.5rem',
+            borderRadius: '50%',
+            background: 'oklch(0.62 0.15 150)',
+          }),
+        ],
+        [],
+      ),
       title: 'Deploy finished',
       description: '2 minutes ago',
       content: h.span([], ['Production is live.']),
@@ -675,7 +695,7 @@ export const radioGroup = <Message>(
           // presses the radio.
           options.map(option =>
             h.label(
-              [h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'baseline' })],
+              [h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'start' })],
               [
                 h.button(option.option, []),
                 h.span(
@@ -698,35 +718,57 @@ export const radioGroup = <Message>(
 // #region slider
 export const SliderStyle = forSlots(SliderSlots)(Recipes.Slider({}))
 
-/** The drag is the component's; the value is the Model's. */
-export interface SliderState {
-  readonly slider: UiSlider.Model
+/** Both values are the Model's: one number, and a range of two. */
+export interface SliderValues {
   readonly volume: number
+  readonly price: Slider.Range
+}
+
+/** The Message for each next value, of the kind its slider holds. */
+export interface SliderMessages<Message> {
+  readonly onVolume: (value: number) => Message
+  readonly onPrice: (value: Slider.Range) => Message
 }
 
 export const slider = <Message>(
   style: NamedStyle<typeof SliderSlots>,
-  state: SliderState,
-  toMessage: (message: UiSlider.Message) => Message,
+  values: SliderValues,
+  messages: SliderMessages<Message>,
   h: HtmlBuilder<Message>,
 ): Html =>
-  h.submodel({
-    slotId: state.slider.id,
-    model: state.slider,
-    view: UiSlider.view,
-    viewInputs: {
-      value: state.volume,
-      ariaLabel: 'Volume',
-      formatValue: (value: number) => `${Math.round(value)} percent`,
-      toView: Slider.toView([style.mixin], { h }, slider =>
-        h.div(slider.root, [
-          h.label(slider.label, [`Volume: ${state.volume}%`]),
-          h.div(slider.track, [h.div(slider.filledTrack, []), h.div(slider.thumb, [])]),
-        ]),
+  h.div(
+    [h.Style({ display: 'grid', gap: '2rem', inlineSize: 'min(20rem, 100%)' })],
+    [
+      Slider.view(
+        {
+          id: 'preview-volume',
+          label: 'Volume',
+          value: values.volume,
+          onChange: messages.onVolume,
+          step: 5,
+          format: value => `${value}%`,
+          showValue: true,
+          style,
+        },
+        h,
       ),
-    },
-    toParentMessage: toMessage,
-  })
+      Slider.view(
+        {
+          id: 'preview-price',
+          label: 'Price',
+          value: values.price,
+          onChange: messages.onPrice,
+          max: 500,
+          step: 10,
+          marks: [0, 100, 200, 300, 400, 500],
+          format: amount => `$${amount}`,
+          thumbLabels: { low: 'Minimum price', high: 'Maximum price' },
+          style,
+        },
+        h,
+      ),
+    ],
+  )
 // #endregion
 
 // #region dialog
@@ -741,34 +783,45 @@ export interface DialogMessages<Message> {
   readonly toMessage: (message: UiDialog.Message) => Message
 }
 
-export const dialog = <Message>(
-  style: NamedStyle<typeof DialogSlots>,
-  model: UiDialog.Model,
-  messages: DialogMessages<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
+/** One dialog of the page: its role and what it says. */
+interface Question<Message> {
+  readonly style: NamedStyle<typeof DialogSlots>
+  readonly model: UiDialog.Model
+  readonly messages: DialogMessages<Message>
+  readonly role: 'dialog' | 'alertdialog'
+  readonly opener: string
+  readonly title: string
+  readonly body: string
+  readonly answer: string
+}
+
+/**
+ * A dialog that asks before something that cannot be undone. As an alert
+ * dialog it draws no close button, and its application drops
+ * `Dialog.isDismissal` Messages, so only Cancel or the answer closes it.
+ */
+const ask = <Message>(question: Question<Message>, h: HtmlBuilder<Message>): Html => {
+  const { style, model, messages, role } = question
+  return h.div(
     [],
     [
-      Button.view({ label: 'Delete project', onClick: messages.onOpen, style: DangerStyle }, h),
+      Button.view({ label: question.opener, onClick: messages.onOpen, style: DangerStyle }, h),
       h.submodel({
         slotId: model.id,
         model,
         view: UiDialog.view,
         viewInputs: {
           hasDescription: true,
-          toView: Dialog.toView([style.mixin], { h }, dialog =>
+          toView: Dialog.toView([style.mixin], { h, role }, dialog =>
             h.dialog(
               dialog.dialog,
               dialog.isVisible
                 ? [
                     h.div(dialog.backdrop),
                     h.div(dialog.panel, [
-                      h.button(dialog.closeButton, ['✕']),
-                      h.h2(dialog.title, ['Delete this project?']),
-                      h.p(dialog.description, [
-                        'Its pages and their history go for good. Escape keeps it.',
-                      ]),
+                      ...(role === 'dialog' ? [h.button(dialog.closeButton, ['✕'])] : []),
+                      h.h2(dialog.title, [question.title]),
+                      h.p(dialog.description, [question.body]),
                       h.div(
                         [h.Style({ display: 'flex', gap: '0.5rem', justifyContent: 'end' })],
                         [
@@ -777,7 +830,11 @@ export const dialog = <Message>(
                             h,
                           ),
                           Button.view(
-                            { label: 'Delete', onClick: messages.onClose, style: DangerStyle },
+                            {
+                              label: question.answer,
+                              onClick: messages.onClose,
+                              style: DangerStyle,
+                            },
                             h,
                           ),
                         ],
@@ -792,62 +849,44 @@ export const dialog = <Message>(
       }),
     ],
   )
-// #endregion
+}
 
-// #region alert-dialog
-/**
- * An alert dialog: `role="alertdialog"` and no close button; the
- * application drops `Dialog.isDismissal` Messages, so only Cancel or Delete
- * answers it.
- */
-export const alertDialog = <Message>(
+/** A dialog that Escape dismisses, and an alert dialog that waits for an answer. */
+export const dialog = <Message>(
   style: NamedStyle<typeof DialogSlots>,
-  model: UiDialog.Model,
-  messages: DialogMessages<Message>,
+  models: { readonly dialog: UiDialog.Model; readonly alert: UiDialog.Model },
+  messages: { readonly dialog: DialogMessages<Message>; readonly alert: DialogMessages<Message> },
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
-    [],
+    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' })],
     [
-      Button.view({ label: 'Remove member', onClick: messages.onOpen, style: DangerStyle }, h),
-      h.submodel({
-        slotId: model.id,
-        model,
-        view: UiDialog.view,
-        viewInputs: {
-          hasDescription: true,
-          toView: Dialog.toView([style.mixin], { h }, dialog =>
-            h.dialog(
-              [...dialog.dialog, h.Role('alertdialog')],
-              dialog.isVisible
-                ? [
-                    h.div(dialog.backdrop),
-                    h.div(dialog.panel, [
-                      h.h2(dialog.title, ['Remove Ada from the team?']),
-                      h.p(dialog.description, [
-                        'She loses access to every project at once. Only an answer closes this.',
-                      ]),
-                      h.div(
-                        [h.Style({ display: 'flex', gap: '0.5rem', justifyContent: 'end' })],
-                        [
-                          Button.view(
-                            { label: 'Cancel', onClick: messages.onClose, style: QuietStyle },
-                            h,
-                          ),
-                          Button.view(
-                            { label: 'Remove', onClick: messages.onClose, style: DangerStyle },
-                            h,
-                          ),
-                        ],
-                      ),
-                    ]),
-                  ]
-                : [],
-            ),
-          ),
+      ask(
+        {
+          style,
+          model: models.dialog,
+          messages: messages.dialog,
+          role: 'dialog',
+          opener: 'Delete project',
+          title: 'Delete this project?',
+          body: 'Its pages and their history go for good. Escape keeps it.',
+          answer: 'Delete',
         },
-        toParentMessage: messages.toMessage,
-      }),
+        h,
+      ),
+      ask(
+        {
+          style,
+          model: models.alert,
+          messages: messages.alert,
+          role: 'alertdialog',
+          opener: 'Remove member',
+          title: 'Remove Ada from the team?',
+          body: 'She loses access to every project at once. Only an answer closes this.',
+          answer: 'Remove',
+        },
+        h,
+      ),
     ],
   )
 // #endregion
@@ -966,51 +1005,93 @@ export const hoverCard = <Message>(
 // #region menu
 export const MenuStyle = forSlots(MenuSlots)(Recipes.Menu({}))
 
-export const Action = Schema.Literals(['Rename', 'Duplicate', 'Move', 'Delete'])
-export type Action = typeof Action.Type
-// Annotated: the inferred type names a foldkit internal module.
-export const ActionMenu: ReturnType<typeof MenuView.create<Action>> = MenuView.create<Action>()
+/** The rows of the menu a button opens. */
+export const PAGE_MENU: ReadonlyArray<Menu.Row> = [
+  { label: 'Rename' },
+  { label: 'Duplicate' },
+  { label: 'Move' },
+  { label: 'Delete' },
+]
 
-/** The open menu is the component's; the action chosen is the Model's. */
+/** The rows of the menu a right press opens, two opening submenus beside them. */
+export const FILE_MENU: ReadonlyArray<Menu.Row> = [
+  { label: 'New tab' },
+  { label: 'Share', items: ['Email', 'Messages', 'Copy link'] },
+  { label: 'Export', items: ['PDF', 'PNG', 'SVG'], isItemDisabled: item => item === 'SVG' },
+  { label: 'Print' },
+]
+
+/** Each open menu is the component's; what each last chose is the Model's. */
 export interface MenuState {
-  readonly menu: UiMenu.Model
-  readonly action: Option.Option<Action>
+  readonly pageMenu: Menu.Model
+  readonly pageChoice: Option.Option<string>
+  readonly fileMenu: Menu.Model
+  readonly fileChoice: Option.Option<string>
 }
 
 export const menu = <Message>(
   style: NamedStyle<typeof MenuSlots>,
   state: MenuState,
-  toMessage: (message: UiMenu.Message) => Message,
+  toPage: (message: Menu.Message) => Message,
+  toFile: (message: Menu.Message) => Message,
   h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
+): Html => {
+  const chosen = (choice: Option.Option<string>) =>
+    h.p(
+      [],
+      [
+        Option.match(choice, {
+          onNone: () => 'Nothing chosen yet.',
+          onSome: value => `Chose ${value}.`,
+        }),
+      ],
+    )
+  return h.div(
     [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
     [
-      h.submodel({
-        slotId: state.menu.id,
-        model: state.menu,
-        view: ActionMenu.view,
-        viewInputs: {
-          anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
-          items: Action.literals,
-          itemToConfig: (action: Action) => ({ content: h.span([], [action]) }),
-          isItemDisabled: (action: Action) => action === 'Move',
+      Menu.view(
+        {
+          model: state.pageMenu,
+          rows: PAGE_MENU,
           buttonContent: h.span([], ['Page actions']),
-          toView: Menu.toView([style.mixin, ...Menu.fluid], { h }),
+          isRowDisabled: label => label === 'Move',
+          onMessage: toPage,
+          mixins: [style.mixin, ...Menu.fluid],
         },
-        toParentMessage: toMessage,
-      }),
-      h.p(
-        [],
+        h,
+      ),
+      chosen(state.pageChoice),
+      h.div(
         [
-          Option.match(state.action, {
-            onNone: () => 'Nothing chosen yet',
-            onSome: a => `Chose ${a}`,
+          ...Menu.target(toFile, h),
+          h.Tabindex(0),
+          h.AriaLabel('report.pdf, right-click or Shift+F10 for its actions'),
+          h.Style({
+            padding: '2rem 3rem',
+            border: '1px dashed currentColor',
+            borderRadius: '0.5rem',
+            cursor: 'context-menu',
           }),
         ],
+        ['report.pdf'],
       ),
+      Menu.view(
+        {
+          model: state.fileMenu,
+          rows: FILE_MENU,
+          buttonContent: h.span([], ['Actions for report.pdf']),
+          opensAt: 'point',
+          onMessage: toFile,
+          mixins: [style.mixin],
+          // The highlight must not chase the submenus' rows: they hold the menu's own rows.
+          submenuMixins: [style.mixin, ...Menu.fluid],
+        },
+        h,
+      ),
+      chosen(state.fileChoice),
     ],
   )
+}
 // #endregion
 
 // #region command
@@ -1075,69 +1156,6 @@ export const command = <Message>(
           Option.match(state.ran, {
             onNone: () => 'Nothing run yet',
             onSome: value => `Ran ${value}`,
-          }),
-        ],
-      ),
-    ],
-  )
-// #endregion
-
-// #region context-menu
-/** The context menu's state: the Menu's, the point it opened at, the last action. */
-export interface ContextMenuState {
-  readonly menu: UiMenu.Model
-  readonly point: Option.Option<ContextMenu.Point>
-  readonly action: Option.Option<Action>
-}
-
-export interface ContextMenuMessages<Message> {
-  readonly toMessage: (message: UiMenu.Message) => Message
-  readonly onPoint: (point: ContextMenu.Point) => Message
-  readonly onOpen: Message
-}
-
-export const contextMenu = <Message>(
-  style: NamedStyle<typeof MenuSlots>,
-  state: ContextMenuState,
-  messages: ContextMenuMessages<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
-    [
-      h.div(
-        [
-          ...ContextMenu.target({ onPoint: messages.onPoint, onOpen: messages.onOpen }, h),
-          h.Tabindex(0),
-          h.AriaLabel('report.pdf, right-click or Shift+F10 for its actions'),
-          h.Style({
-            padding: '2rem 3rem',
-            border: '1px dashed currentColor',
-            borderRadius: '0.5rem',
-            cursor: 'context-menu',
-          }),
-        ],
-        ['report.pdf'],
-      ),
-      h.submodel({
-        slotId: state.menu.id,
-        model: state.menu,
-        view: ActionMenu.view,
-        viewInputs: {
-          anchor: { placement: 'bottom-start', gap: 0, padding: 8, portal: false },
-          items: Action.literals,
-          itemToConfig: (action: Action) => ({ content: h.span([], [action]) }),
-          buttonContent: h.span([], ['Actions for report.pdf']),
-          toView: ContextMenu.toView([style.mixin, ...Menu.fluid], { h }, state.point),
-        },
-        toParentMessage: messages.toMessage,
-      }),
-      h.p(
-        [],
-        [
-          Option.match(state.action, {
-            onNone: () => 'Nothing chosen yet',
-            onSome: a => `Chose ${a}`,
           }),
         ],
       ),
@@ -1224,28 +1242,46 @@ export const combobox = <Message>(
 // #region calendar
 export const CalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({}))
 
-/** The month shown and the focused day are the component's; the date is the Model's. */
+/** Each month shown and focused day are the component's; each selection is the Model's. */
 export interface CalendarState {
   readonly calendar: UiCalendar.Model
-  readonly date: Option.Option<FoldkitCalendar.CalendarDate>
+  readonly selection: Calendar.Selection
+  readonly trip: UiCalendar.Model
+  readonly tripDates: Calendar.Selection
 }
 
 export const calendar = <Message>(
   style: NamedStyle<typeof CalendarSlots>,
   state: CalendarState,
   toMessage: (message: UiCalendar.Message) => Message,
+  toTrip: (message: UiCalendar.Message) => Message,
   h: HtmlBuilder<Message>,
-): Html =>
-  h.submodel({
-    slotId: state.calendar.id,
-    model: state.calendar,
-    view: UiCalendar.view,
-    viewInputs: {
-      maybeSelectedDate: state.date,
-      toView: Calendar.toView([style.mixin], { h }),
-    },
-    toParentMessage: toMessage,
-  })
+): Html => {
+  const month = (
+    id: string,
+    model: UiCalendar.Model,
+    selection: Calendar.Selection,
+    toParentMessage: (message: UiCalendar.Message) => Message,
+  ) =>
+    h.submodel({
+      slotId: id,
+      model,
+      view: UiCalendar.view,
+      viewInputs: {
+        // The marks show the chosen days; the Calendar's own marker would show one.
+        maybeSelectedDate: Calendar.selectedDate(selection),
+        toView: Calendar.toView(selection, [style.mixin], { h }),
+      },
+      toParentMessage,
+    })
+  return h.div(
+    [h.Style({ display: 'grid', gap: '1.5rem', justifyItems: 'start' })],
+    [
+      month(state.calendar.id, state.calendar, state.selection, toMessage),
+      month(state.trip.id, state.trip, state.tripDates, toTrip),
+    ],
+  )
+}
 // #endregion
 
 // #region date-picker
@@ -1283,7 +1319,11 @@ export const datePicker = <Message>(
       maybeSelectedDate: state.due,
       triggerContent: due =>
         h.span([], [Option.match(due, { onNone: () => 'Pick a due date', onSome: dayOf })]),
-      toCalendarView: Calendar.toView([PanelCalendarStyle.mixin], { h }),
+      toCalendarView: Calendar.toView(
+        Calendar.Selection.Single({ date: state.due }),
+        [PanelCalendarStyle.mixin],
+        { h },
+      ),
       toView: DatePicker.toView([style.mixin]),
     },
     toParentMessage: toMessage,
@@ -1468,7 +1508,7 @@ export const resizable = <Message>(
       h.Style({
         blockSize: '12rem',
         inlineSize: 'min(32rem, 100%)',
-        border: '1px solid currentColor',
+        border: '1px solid color-mix(in oklab, currentColor 20%, transparent)',
         borderRadius: '0.5rem',
         overflow: 'hidden',
       }),
@@ -1482,7 +1522,7 @@ export const resizable = <Message>(
           min: 0.2,
           max: 0.8,
           first: h.ul(
-            [h.Style({ margin: '0', padding: '0.75rem 1.5rem' })],
+            [h.Style({ margin: '0', padding: '0.75rem', listStyle: 'none' })],
             [h.li([], ['notes.txt']), h.li([], ['todo.md']), h.li([], ['grid.ts'])],
           ),
           second: h.p(
@@ -1675,16 +1715,21 @@ export const virtualList = <Message>(
   onMessage: (message: UiVirtualList.Message) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
-  VirtualList.view(
-    {
-      model,
-      items: FILES,
-      itemToKey: file => file,
-      itemToView: file => h.span([], [file]),
-      onMessage,
-      style,
-    },
-    h,
+  h.div(
+    [h.Style({ inlineSize: 'min(24rem, 100%)' })],
+    [
+      VirtualList.view(
+        {
+          model,
+          items: FILES,
+          itemToKey: file => file,
+          itemToView: file => h.span([], [file]),
+          onMessage,
+          style,
+        },
+        h,
+      ),
+    ],
   )
 // #endregion
 
@@ -1777,24 +1822,6 @@ export const tagsInput = <Message>(
   TagsInput.view({ model, onMessage, label: 'Topics', placeholder: 'Add a topic', style }, h)
 // #endregion
 
-// #region banner
-export const BannerStyle = forSlots(BannerSlots)(Recipes.Banner({}))
-
-export const banner = <Message>(
-  style: NamedStyle<typeof BannerSlots>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Banner.view(
-    {
-      label: 'Announcement',
-      message: 'Version 2 is out, with offline sync.',
-      action: { label: 'Read the notes', href: '#' },
-      style,
-    },
-    h,
-  )
-// #endregion
-
 // #region input-copy
 export const InputCopyStyle = forSlots(InputCopySlots)(Recipes.InputCopy({}))
 
@@ -1820,7 +1847,10 @@ export const inputCopy = <Message>(
 // #endregion
 
 // #region sheet
-/** The Dialog drawn with the Sheet recipe: the same Model, Messages and focus trap. */
+/**
+ * The Dialog drawn with the Sheet recipe: the same Model, Messages and focus
+ * trap. The handle is drawn always; the recipe shows it with `handle: 'bar'`.
+ */
 export const sheet = <Message>(
   style: NamedStyle<typeof DialogSlots>,
   model: UiDialog.Model,
@@ -1844,6 +1874,7 @@ export const sheet = <Message>(
                 ? [
                     h.div(dialog.backdrop),
                     h.div(dialog.panel, [
+                      h.div(dialog.handle),
                       h.button(dialog.closeButton, ['✕']),
                       h.h2(dialog.title, ['Edit profile']),
                       h.p(dialog.description, ['Changes show once you save. Escape keeps them.']),
@@ -1870,39 +1901,6 @@ export const sheet = <Message>(
       }),
     ],
   )
-// #endregion
-
-// #region drawer
-/** The Drawer is the Sheet's drawing under `Recipes.Drawer`: only the style differs. */
-export const drawer = sheet
-// #endregion
-
-// #region date-range
-export const DateRangeStyle = forSlots(CalendarSlots)(Recipes.DateRange({}))
-
-/** The month shown and the focused day are the component's; the range is the Model's. */
-export interface DateRangeState {
-  readonly trip: UiCalendar.Model
-  readonly tripDates: DateRange.Range
-}
-
-export const dateRange = <Message>(
-  style: NamedStyle<typeof CalendarSlots>,
-  state: DateRangeState,
-  toMessage: (message: UiCalendar.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.submodel({
-    slotId: state.trip.id,
-    model: state.trip,
-    view: UiCalendar.view,
-    viewInputs: {
-      // The marks show the chosen days; the Calendar's own marker would show one.
-      maybeSelectedDate: Option.none(),
-      toView: DateRange.toView(state.tripDates, [style.mixin], { h }),
-    },
-    toParentMessage: toMessage,
-  })
 // #endregion
 
 // #region color-picker
@@ -1981,32 +1979,6 @@ export const treeView = <Message>(
   )
 // #endregion
 
-// #region range-slider
-export const RangeSliderStyle = forSlots(RangeSliderSlots)(Recipes.RangeSlider({}))
-
-export const rangeSlider = <Message>(
-  style: NamedStyle<typeof RangeSliderSlots>,
-  value: RangeSlider.Range,
-  onChange: (value: RangeSlider.Range) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  RangeSlider.view(
-    {
-      id: 'preview-price',
-      label: 'Price',
-      value,
-      onChange,
-      min: 0,
-      max: 500,
-      step: 10,
-      format: amount => `$${amount}`,
-      thumbLabels: { low: 'Minimum price', high: 'Maximum price' },
-      style,
-    },
-    h,
-  )
-// #endregion
-
 // #region carousel
 export const CarouselStyle = forSlots(CarouselSlots)(Recipes.Carousel({}))
 
@@ -2044,58 +2016,6 @@ export const carousel = <Message>(
           style,
         },
         h,
-      ),
-    ],
-  )
-// #endregion
-
-// #region nested-menu
-export const NestedMenuStyle = forSlots(NestedMenuSlots)(Recipes.NestedMenu({}))
-const NestedMenuPanelStyle = forSlots(MenuSlots)(Recipes.Menu({}))
-
-/** The menu's rows, in the order `init` was given them. */
-export const NESTED_MENU: ReadonlyArray<NestedMenu.NestedRow> = [
-  { label: 'New tab' },
-  { label: 'Share', items: ['Email', 'Messages', 'Copy link'] },
-  { label: 'Export', items: ['PDF', 'PNG', 'SVG'], isItemDisabled: item => item === 'SVG' },
-  { label: 'Print' },
-]
-
-/** The open menus are the nested menu's; the row chosen is the Model's. */
-export interface NestedMenuState {
-  readonly menu: NestedMenu.Model
-  readonly chosen: Option.Option<string>
-}
-
-export const nestedMenu = <Message>(
-  style: NamedStyle<typeof NestedMenuSlots>,
-  state: NestedMenuState,
-  onMessage: (message: NestedMenu.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
-    [
-      NestedMenu.view(
-        {
-          model: state.menu,
-          rows: NESTED_MENU,
-          buttonContent: h.span([], ['File']),
-          onMessage,
-          style,
-          menuMixins: [NestedMenuPanelStyle.mixin],
-          submenuMixins: [NestedMenuPanelStyle.mixin, ...Menu.fluid],
-        },
-        h,
-      ),
-      h.p(
-        [],
-        [
-          Option.match(state.chosen, {
-            onNone: () => 'Nothing chosen yet.',
-            onSome: chosen => `Chose ${chosen}.`,
-          }),
-        ],
       ),
     ],
   )
