@@ -106,7 +106,8 @@ test('a right press opens the menu with its rows where it landed', async () => {
       expect(found).not.toBeNull()
       return found!
     })
-    await userEvent.click(area, { button: 'right', position: { x: 40, y: 30 } })
+    // Unequal offsets, so a press read with its axes swapped lands far off.
+    await userEvent.click(area, { button: 'right', position: { x: 140, y: 30 } })
     const rows = await vi.waitFor(() => {
       const found = document.querySelector<HTMLElement>('[role="menu"]')
       expect(found?.getBoundingClientRect().height).toBeGreaterThan(0)
@@ -115,7 +116,7 @@ test('a right press opens the menu with its rows where it landed', async () => {
     const box = area.getBoundingClientRect()
     const panel = rows.getBoundingClientRect()
     // Its top-left corner at the press, within a few pixels of anchoring.
-    expect(Math.abs(panel.left - (box.left + 40))).toBeLessThan(12)
+    expect(Math.abs(panel.left - (box.left + 140))).toBeLessThan(12)
     expect(Math.abs(panel.top - (box.top + 30))).toBeLessThan(12)
   } finally {
     handle.dispose()
