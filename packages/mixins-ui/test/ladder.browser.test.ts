@@ -13,6 +13,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import {
   ButtonSlots,
+  IconSlots,
   InputSlots,
   MenuSlots,
   Recipes,
@@ -28,6 +29,7 @@ const input = Style.forSlots(InputSlots)(Recipes.Input({}))
 const menu = Style.forSlots(MenuSlots)(Recipes.Menu({}))
 const segmented = Style.forSlots(SegmentedSlots)(Recipes.Segmented({}))
 const table = Style.forSlots(TableSlots)(Recipes.Table({}))
+const icon = Style.forSlots(IconSlots)(Recipes.Icon({}))
 const Model = Schema.Struct({})
 
 afterEach(() => {
@@ -44,6 +46,7 @@ const controls = (h: HtmlBuilder<never>, region: string): Html => {
   const m = SlotView.buildersFor(MenuSlots, [menu.mixin], { input: undefined, h })
   const s = SlotView.buildersFor(SegmentedSlots, [segmented.mixin], { input: undefined, h })
   const t = SlotView.buildersFor(TableSlots, [table.mixin], { input: undefined, h })
+  const g = SlotView.buildersFor(IconSlots, [icon.mixin], { input: undefined, h })
   return h.div(
     [h.DataAttribute('region', region)],
     [
@@ -60,6 +63,7 @@ const controls = (h: HtmlBuilder<never>, region: string): Html => {
       h.div(s.group.attrs([h.DataAttribute('part', 'segmented'), h.Role('group')]), [
         h.button(s.option.attrs([h.AriaPressed('true')]), ['Day']),
       ]),
+      h.span(g.glyph.attrs([h.DataAttribute('part', 'icon')]), []),
       h.table(t.root.attrs([]), [
         h.tbody(t.body.attrs([]), [
           h.tr(t.row.attrs([h.DataAttribute('part', 'table-row')]), [
@@ -80,7 +84,7 @@ const mount = () => {
       Layers.standard.in('reset', Defaults.reset),
       Layers.standard.in('theme', Theme.root(theme)),
     ) +
-    [button, chosen, large, input, menu, segmented, table].map(each => each.css).join('') +
+    [button, chosen, large, input, menu, segmented, table, icon].map(each => each.css).join('') +
     '[data-region="compact"]{--fk-knob-step:1}' +
     '[data-region="flat"]{--fk-control-height:0px;--fk-control-height-compact:0px}'
   document.head.append(sheet)
@@ -167,6 +171,17 @@ test("a segmented option's label is trimmed to its capitals, shorter than its li
     // With no rung to fill, the option is as tall as its text: a 20px line, trimmed.
     const option = document.querySelector('[data-region="flat"] [data-part="segmented"] button')!
     expect(option.getBoundingClientRect().height).toBeLessThan(14)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('an icon with no size steps with the ladder: 16px, and 14px compact', async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(document.querySelector('[data-part="row"]')).not.toBeNull())
+    expect(height('default', 'icon')).toBe(16)
+    expect(height('compact', 'icon')).toBe(14)
   } finally {
     handle.dispose()
   }

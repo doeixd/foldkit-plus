@@ -7,7 +7,13 @@ import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { DialogSlots } from '../dialog.js'
 import { component, focusRing, hover, presence, ref, variant } from './design.js'
 
-const width = (max: string) => variant(Style.self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
+/** A width one notch narrower in a compact region, as Fluid Functionalism's (400px to 360px). */
+const width = (max: string) =>
+  variant(
+    Style.self({
+      maxInlineSize: `min(calc(${max} * (1 - 0.1 * ${ref.knob.step})), 100% - 2rem)`,
+    }),
+  )
 
 export const Dialog = Style.recipeFor(DialogSlots)({
   base: {

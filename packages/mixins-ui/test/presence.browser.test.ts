@@ -11,11 +11,12 @@ import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { DialogSlots, MenuSlots, Recipes } from '../src/index.js'
+import { DialogSlots, MenuSlots, Recipes, TooltipSlots } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
 const menu = Style.forSlots(MenuSlots)(Recipes.Menu({}))
 const dialog = Style.forSlots(DialogSlots)(Recipes.Dialog({}))
+const tooltip = Style.forSlots(TooltipSlots)(Recipes.Tooltip({}))
 const Model = Schema.Struct({})
 
 afterEach(() => {
@@ -46,7 +47,8 @@ const mount = () => {
       Layers.standard.in('theme', Theme.root(theme)),
     ) +
     menu.css +
-    dialog.css
+    dialog.css +
+    tooltip.css
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'presence-browser'
@@ -54,16 +56,25 @@ const mount = () => {
   const view = (_: unknown, h: HtmlBuilder<never>) => {
     const m = SlotView.buildersFor(MenuSlots, [menu.mixin], { input: undefined, h })
     const d = SlotView.buildersFor(DialogSlots, [dialog.mixin], { input: undefined, h })
+    const t = SlotView.buildersFor(TooltipSlots, [tooltip.mixin], { input: undefined, h })
     const marks = (name: string, attributes: ReadonlyArray<readonly [string, string]>) => [
       h.AriaLabel(name),
       ...attributes.map(([key, value]) => h.Attribute(key, value)),
     ]
     return h.div(
       [],
-      states.flatMap(([name, attributes]) => [
-        h.div(m.items.attrs(marks(`menu ${name}`, attributes)), []),
-        h.div(d.panel.attrs(marks(`dialog ${name}`, attributes)), []),
-      ]),
+      [
+        ...states.flatMap(([name, attributes]) => [
+          h.div(m.items.attrs(marks(`menu ${name}`, attributes)), []),
+          h.div(d.panel.attrs(marks(`dialog ${name}`, attributes)), []),
+          h.div(t.panel.attrs(marks(`tooltip ${name}`, attributes)), []),
+        ]),
+        // A dialog in a compact region, beside the open one on the page.
+        h.div(
+          [h.Style({ '--fk-knob-step': '1' })],
+          [h.div(d.panel.attrs(marks('dialog compact', [])), [])],
+        ),
+      ],
     )
   }
   return Runtime.embed(
@@ -115,6 +126,33 @@ test('a popup placed above its trigger grows from its bottom edge, rising into p
     expect(style('menu closed').transformOrigin).toMatch(/ 0px$/)
     expect(style('menu above').transformOrigin).not.toBe(style('menu closed').transformOrigin)
     expect(style('menu above').translate).toBe('0px 4px')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a dialog in a compact region is one notch narrower', async () => {
+  const handle = mount()
+  try {
+    await drawn()
+    const width = (label: string) =>
+      document.querySelector(`[aria-label="${label}"]`)!.getBoundingClientRect().width
+    // The default size is 32rem, 512px; compact takes 10% off it.
+    expect(width('dialog open')).toBe(512)
+    expect(width('dialog compact')).toBeCloseTo(460.8, 1)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a tooltip slides 4px toward its trigger as it fades in', async () => {
+  const handle = mount()
+  try {
+    await drawn()
+    // Below its trigger it starts 4px up; above it, 4px down.
+    expect(style('tooltip closed').translate).toBe('0px -4px')
+    expect(style('tooltip above').translate).toBe('0px 4px')
+    expect(style('tooltip leaving').transitionDuration).toBe('0.06s, 0.06s, 0.06s')
   } finally {
     handle.dispose()
   }

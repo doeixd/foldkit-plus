@@ -812,10 +812,13 @@ keeps what the systems plan's "What we keep" lists.
   rows, with the borders beside the lit row going transparent over 80ms.
 - [ ] **Systems 8, component craft.** Done: the button's 1px press, merged
   selection runs, popup and dialog entrances. Our checkbox and radio fill
-  when checked, so Fluid's clearing border is already their look. Open: icon
-  stroke, the Switch's geometry and drag, Tooltip's delay and skip window,
-  Dialog widths, Select's pause after a pick, each folded into that
-  component's next brief. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
+  when checked, so Fluid's clearing border is already their look. Icons stand
+  on the ladder; dialogs narrow a notch when compact; tooltips slide toward
+  their trigger. Tooltip's delay is upstream's (`showDelay`), and a skip
+  window between neighbours is the application's (`reflectShowDelay`).
+  Not taken: thickening icon strokes on hover, which would restyle every
+  application's icon set. Open: the Switch's geometry and drag, Select's
+  pause after a pick. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
 - [ ] **Parity 4, the islands into the package.** Accordion, Toggle and Toggle
   Group, Input OTP, Number Input, Alert Dialog, Context Menu, Hover Card,
   Menubar, Navigation Menu, Command, Sidebar, Resizable and Checkbox Group.

@@ -442,7 +442,7 @@ describe('Recipes', () => {
     it('sizes the panel to the selected width', () => {
       const panel = Recipes.Dialog({ size: 'sm' }).panel
       expect(panel === undefined ? '' : Style.forSlots(DialogSlots)({ panel }).css).toContain(
-        'max-inline-size:min(24rem, 100% - 2rem)',
+        'max-inline-size:min(calc(24rem * (1 - 0.1 * var(--fk-knob-step))), 100% - 2rem)',
       )
     })
 

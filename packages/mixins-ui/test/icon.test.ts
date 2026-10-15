@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
 import { Inert } from 'foldkit-mixins/testing'
 import { IconSlots, view } from '../src/icon.js'
 import { Recipes } from '../src/index.js'
@@ -34,8 +35,8 @@ describe('Icon recipe', () => {
   const css = (selection: Parameters<typeof Recipes.Icon>[0]): string =>
     Style.forSlots(IconSlots)(Recipes.Icon(selection)).css
 
-  it('draws at the body size by default and shrinks when asked', () => {
-    expect(css({})).toContain('width:var(--fk-size-md)')
-    expect(css({ size: 'sm' })).toContain('width:var(--fk-size-sm)')
+  it('stands on the size ladder by default and takes the type scale when asked', () => {
+    expect(css({})).toContain(`inline-size:${Theme.ladder('icon')}`)
+    expect(css({ size: 'sm' })).toContain('inline-size:var(--fk-size-sm)')
   })
 })

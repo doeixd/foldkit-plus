@@ -1,11 +1,14 @@
 /**
- * An icon at the type scale. The drawing fills the box; size is the only axis.
+ * An icon. With no size it stands on the size ladder (16px, 14px compact),
+ * so it steps with the control it sits in; a size fixes it to the type
+ * scale. The drawing fills the box.
  */
 import { Style } from 'foldkit-mixins'
+import { ladder } from 'foldkit-mixins/theme'
 import { IconSlots } from '../icon.js'
 import { component, ref, variant } from './design.js'
 
-const box = (size: string) => variant(Style.self({ width: size, height: size }))
+const box = (size: string) => variant(Style.self({ inlineSize: size, blockSize: size }))
 
 export const Icon = Style.recipeFor(IconSlots)({
   base: {
@@ -16,6 +19,8 @@ export const Icon = Style.recipeFor(IconSlots)({
         alignItems: 'center',
         justifyContent: 'center',
         color: 'currentColor',
+        inlineSize: ladder('icon'),
+        blockSize: ladder('icon'),
       }),
     ),
   },
@@ -26,5 +31,4 @@ export const Icon = Style.recipeFor(IconSlots)({
       lg: { glyph: box(ref.size.lg) },
     },
   },
-  defaults: { size: 'md' },
 })

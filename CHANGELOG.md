@@ -184,6 +184,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins-ui`: an icon, a dialog and a tooltip on the systems.** An
+  Icon with no size stands on the size ladder (16px, 14px compact) instead of
+  defaulting to `md`; a dialog is one notch narrower in a compact region (10%,
+  as Fluid Functionalism's 400px to 360px); and a tooltip drawn with
+  `isAnimated` fades in on the fast tier, sliding 4px toward its trigger from
+  the side it opens on. Breaking: `Recipes.Icon({})` no longer means `md`.
 - **`foldkit-mixins/theme`, `foldkit-mixins-ui`: states as tints, and
   concentric corners.** `Theme.oklch` gains a `state` group, what a state lays
   over the surface under it as a mix of the element's own text color

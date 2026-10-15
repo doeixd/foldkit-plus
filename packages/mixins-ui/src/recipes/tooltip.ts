@@ -5,7 +5,7 @@
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { TooltipSlots } from '../tooltip.js'
-import { component, disabled, ref } from './design.js'
+import { component, disabled, presence, ref } from './design.js'
 
 export const Tooltip = Style.recipeFor(TooltipSlots)({
   base: {
@@ -37,6 +37,11 @@ export const Tooltip = Style.recipeFor(TooltipSlots)({
         color: ref.surface.base,
         ...role('caption'),
       }),
+      // Fades in on the fast tier, sliding 4px toward its trigger from the side it opens on.
+      presence('fast', { translate: '0 -4px' }),
+      Style.pseudo('[data-placement="top"][data-closed]', { translate: '0 4px' }),
+      Style.pseudo('[data-placement="left"][data-closed]', { translate: '4px 0' }),
+      Style.pseudo('[data-placement="right"][data-closed]', { translate: '-4px 0' }),
     ),
   },
 })
