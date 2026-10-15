@@ -9,6 +9,7 @@ import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage, type EditorEvent } from 'foldkit-richtext-dom/editor'
+import { richTextIcon, type RichTextIconName } from './icons.js'
 
 /** The elements the bar publishes: its wrapper, its two fields, the count, and its buttons. */
 export const FindReplaceSlots = Slots.define({
@@ -74,18 +75,25 @@ export const findReplace = <Message>(): SlotView.SlotView<
       {
         disabled = false,
         pressed,
-      }: { readonly disabled?: boolean; readonly pressed?: boolean } = {},
+        icon,
+      }: {
+        readonly disabled?: boolean
+        readonly pressed?: boolean
+        /** Drawn in place of the label, which then names the button and is its tooltip. */
+        readonly icon?: RichTextIconName
+      } = {},
     ) =>
       h.button(
         slots.button.attrs([
           h.Type('button'),
           h.DataAttribute('find', id),
           h.AriaLabel(label),
+          ...(icon === undefined ? [] : [h.Title(label)]),
           ...(pressed === undefined ? [] : [h.AriaPressed(pressed ? 'true' : 'false')]),
           h.Disabled(disabled),
           ...(disabled ? [] : [h.OnClick(message)]),
         ]),
-        [label],
+        [icon === undefined ? label : richTextIcon(h, icon)],
       )
     return h.div(slots.root.attrs([h.Role('search'), h.AriaLabel('Find and replace')]), [
       h.input(
@@ -106,9 +114,18 @@ export const findReplace = <Message>(): SlotView.SlotView<
       h.span(slots.count.attrs([h.AriaLive('polite')]), [
         input.query === '' ? '' : count === 0 ? 'No matches' : `${current + 1} of ${count}`,
       ]),
-      button('previous', 'Previous', input.stepped(-1), { disabled: count === 0 }),
-      button('next', 'Next', input.stepped(1), { disabled: count === 0 }),
-      button('case', 'Match case', input.caseToggled, { pressed: input.caseSensitive }),
+      button('previous', 'Previous match', input.stepped(-1), {
+        disabled: count === 0,
+        icon: 'chevron-up',
+      }),
+      button('next', 'Next match', input.stepped(1), {
+        disabled: count === 0,
+        icon: 'chevron-down',
+      }),
+      button('case', 'Match case', input.caseToggled, {
+        pressed: input.caseSensitive,
+        icon: 'match-case',
+      }),
       h.input(
         slots.field.attrs([
           h.Type('text'),
@@ -124,6 +141,6 @@ export const findReplace = <Message>(): SlotView.SlotView<
       ),
       button('replace', 'Replace', replaced(current), { disabled: count === 0 }),
       button('replace-all', 'Replace all', replaced(undefined), { disabled: count === 0 }),
-      button('close', 'Close', input.closed),
+      button('close', 'Close', input.closed, { icon: 'close' }),
     ])
   })

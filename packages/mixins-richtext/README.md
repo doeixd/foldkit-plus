@@ -343,7 +343,7 @@ document, and replacing is the editor's `ReplacedText`, an edit with its undo st
 | `root` | Container | `role="search"` |
 | `field` | TextInput | the find and replacement fields, `data-find="query"` and `"replacement"` |
 | `count` | Container | the count, `aria-live` |
-| `button` | Interactive | `data-find`: `previous`, `next`, `case`, `replace`, `replace-all`, `close` |
+| `button` | Interactive | `data-find`: `previous`, `next`, `case`, `replace`, `replace-all`, `close`; the first three and `close` draw an icon, named by `aria-label` and `title` |
 
 ## The table of contents
 
