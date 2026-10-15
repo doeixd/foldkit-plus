@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Recipes.Sheet` and `Recipes.Drawer`, the Dialog
+  from an edge.** shadcn's Sheet and vaul's Drawer as recipes over
+  `DialogSlots`: a `side` axis (`top`, `right`, `bottom`, `left`) pins the
+  panel to its edge and slides it in from there, the fade kept under reduced
+  motion. The Drawer comes from the bottom with rounded inner corners and a
+  handle drawn on the panel. Gallery pages for both.
 - **`foldkit-mixins-ui`: `InputCopy`, a value with a copy button.** A
   read-only field and a button named after its label; `InputCopy.Copy` is
   the Command that writes the clipboard and reports `Copied` or `CopyFailed`

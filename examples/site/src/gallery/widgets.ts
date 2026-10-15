@@ -60,6 +60,8 @@ export const Model = Schema.Struct({
   volume: Schema.Number,
   dialog: UiDialog.Model,
   alertDialog: UiDialog.Model,
+  sheet: UiDialog.Model,
+  drawer: UiDialog.Model,
   popover: UiPopover.Model,
   tooltip: UiTooltip.Model,
   menu: UiMenu.Model,
@@ -149,6 +151,12 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  GotSheet: { message: UiDialog.Message },
+  OpenedSheet: {},
+  ClosedSheet: {},
+  GotDrawer: { message: UiDialog.Message },
+  OpenedDrawer: {},
+  ClosedDrawer: {},
   PressedCopy: { text: Schema.String },
   GotCopy: { message: ClipboardMessage },
   GotTags: { message: TagsInput.Message },
@@ -170,6 +178,8 @@ export const initial: Model = {
   volume: 60,
   dialog: UiDialog.init({ id: 'preview-dialog', isAnimated: true }),
   alertDialog: UiDialog.init({ id: 'preview-alert-dialog', isAnimated: true }),
+  sheet: UiDialog.init({ id: 'preview-sheet', isAnimated: true }),
+  drawer: UiDialog.init({ id: 'preview-drawer', isAnimated: true }),
   popover: UiPopover.init({ id: 'preview-popover' }),
   tooltip: UiTooltip.init({ id: 'preview-tooltip' }),
   menu: UiMenu.init({ id: 'preview-menu', isAnimated: true }),
@@ -375,6 +385,16 @@ const foldTags = Update.foldChild({
   update: TagsInput.update,
 })
 
+const sheetField = own('sheet', Message.GotSheet)
+const foldSheet = Update.foldChild({ ...sheetField, update: UiDialog.update, foldOutMessage: dialogOut })
+const openSheet = Update.foldChildStep({ ...sheetField, update: UiDialog.open, foldOutMessage: dialogOut })
+const closeSheet = Update.foldChildStep({ ...sheetField, update: UiDialog.close, foldOutMessage: dialogOut })
+
+const drawerField = own('drawer', Message.GotDrawer)
+const foldDrawer = Update.foldChild({ ...drawerField, update: UiDialog.update, foldOutMessage: dialogOut })
+const openDrawer = Update.foldChildStep({ ...drawerField, update: UiDialog.open, foldOutMessage: dialogOut })
+const closeDrawer = Update.foldChildStep({ ...drawerField, update: UiDialog.close, foldOutMessage: dialogOut })
+
 const foldListbox = Update.foldChild({
   ...own('listbox', Message.GotListbox),
   update: FrequencyBox.update,
@@ -447,6 +467,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       Dialog.isDismissal(message) ? { model } : foldAlertDialog(model, message),
     OpenedAlertDialog: () => openAlertDialog(model),
     ClosedAlertDialog: () => closeAlertDialog(model),
+    GotSheet: ({ message }) => foldSheet(model, message),
+    OpenedSheet: () => openSheet(model),
+    ClosedSheet: () => closeSheet(model),
+    GotDrawer: ({ message }) => foldDrawer(model, message),
+    OpenedDrawer: () => openDrawer(model),
+    ClosedDrawer: () => closeDrawer(model),
     GotPopover: ({ message }) => foldPopover(model, message),
     GotTooltip: ({ message }) => foldTooltip(model, message),
     GotHoverCard: ({ message }) => foldHoverCard(model, message),

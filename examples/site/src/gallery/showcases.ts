@@ -804,6 +804,52 @@ export const showcases: ReadonlyArray<Showcase> = [
   ),
   fromRecipe(
     {
+      slug: 'sheet',
+      title: 'Sheet',
+      summary: 'A dialog that slides in from an edge of the screen, for a task beside the page.',
+      recipe: 'Sheet',
+      file: 'sheet',
+      contract: 'DialogSlots',
+    },
+    DialogSlots,
+    Recipes.Sheet,
+    (style, live) =>
+      Snippet.sheet(
+        style,
+        live.widgets.sheet,
+        {
+          onOpen: live.onWidget(Widgets.Message.OpenedSheet()),
+          onClose: live.onWidget(Widgets.Message.ClosedSheet()),
+          toMessage: message => live.onWidget(Widgets.Message.GotSheet({ message })),
+        },
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'drawer',
+      title: 'Drawer',
+      summary: 'A sheet that rises from the bottom with a handle, as on a phone.',
+      recipe: 'Drawer',
+      file: 'sheet',
+      contract: 'DialogSlots',
+    },
+    DialogSlots,
+    Recipes.Drawer,
+    (style, live) =>
+      Snippet.drawer(
+        style,
+        live.widgets.drawer,
+        {
+          onOpen: live.onWidget(Widgets.Message.OpenedDrawer()),
+          onClose: live.onWidget(Widgets.Message.ClosedDrawer()),
+          toMessage: message => live.onWidget(Widgets.Message.GotDrawer({ message })),
+        },
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
       slug: 'navigation-menu',
       title: 'Navigation menu',
       summary: 'The links of a site in a row, the current page marked by a line that glides to it.',

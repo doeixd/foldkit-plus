@@ -1781,6 +1781,64 @@ export const inputCopy = <Message>(
   )
 // #endregion
 
+// #region sheet
+/** The Dialog drawn with the Sheet recipe: the same Model, Messages and focus trap. */
+export const sheet = <Message>(
+  style: NamedStyle<typeof DialogSlots>,
+  model: UiDialog.Model,
+  messages: DialogMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      Button.view({ label: 'Edit profile', onClick: messages.onOpen, style: GroupedStyle }, h),
+      h.submodel({
+        slotId: model.id,
+        model,
+        view: UiDialog.view,
+        viewInputs: {
+          hasDescription: true,
+          toView: Dialog.toView([style.mixin], { h }, dialog =>
+            h.dialog(
+              dialog.dialog,
+              dialog.isVisible
+                ? [
+                    h.div(dialog.backdrop),
+                    h.div(dialog.panel, [
+                      h.button(dialog.closeButton, ['✕']),
+                      h.h2(dialog.title, ['Edit profile']),
+                      h.p(dialog.description, ['Changes show once you save. Escape keeps them.']),
+                      h.div(
+                        [h.Style({ display: 'flex', gap: '0.5rem', justifyContent: 'end' })],
+                        [
+                          Button.view(
+                            { label: 'Cancel', onClick: messages.onClose, style: QuietStyle },
+                            h,
+                          ),
+                          Button.view(
+                            { label: 'Save', onClick: messages.onClose, style: ButtonStyle },
+                            h,
+                          ),
+                        ],
+                      ),
+                    ]),
+                  ]
+                : [],
+            ),
+          ),
+        },
+        toParentMessage: messages.toMessage,
+      }),
+    ],
+  )
+// #endregion
+
+// #region drawer
+/** The Drawer is the Sheet's drawing under `Recipes.Drawer`: only the style differs. */
+export const drawer = sheet
+// #endregion
+
 // #region navigation-menu
 export const NavStyle = forSlots(NavSlots)(Recipes.Nav({}))
 
