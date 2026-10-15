@@ -41,7 +41,7 @@ import {
   type Model,
   type Thread,
 } from './app.js'
-import { canvasEvents, imagePicker } from './canvas.js'
+import { canvasEvents, filePicker } from './canvas.js'
 import {
   BlockStyleStyle,
   CodeToolbarStyle,
@@ -54,7 +54,7 @@ import {
   TableOfContentsStyle,
   TableToolbarStyle,
 } from './style.js'
-import { Blocks, IMAGE_TYPES, LANGUAGES, playgroundSlashEntries } from './vocabulary.js'
+import { Blocks, LANGUAGES, playgroundSlashEntries } from './vocabulary.js'
 
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
@@ -158,15 +158,9 @@ export const PlaygroundView = SlotView.forMessages<Message>()
     ])
     const media = h.div(slots.bar.attrs([h.Role('toolbar'), h.AriaLabel('Add to your document')]), [
       h.span(slots.barLabel.attrs(), ['Add to your document']),
-      h.label(slots.tool.attrs([h.Title('Upload an image')]), [
-        '🖼 Image',
-        h.input(
-          slots.file.attrs([
-            h.Type('file'),
-            h.Attribute('accept', IMAGE_TYPES.join(',')),
-            h.OnMount(imagePicker()),
-          ]),
-        ),
+      h.label(slots.tool.attrs([h.Title('Add an image, a video, a sound or any file')]), [
+        '📎 File',
+        h.input(slots.file.attrs([h.Type('file'), h.OnMount(filePicker())])),
       ]),
       button('▦ Table', 'Insert a table', Message.Inserted({ block: Blocks.table() })),
       button('💡 Callout', 'Insert a callout', Message.Inserted({ block: Blocks.callout() })),

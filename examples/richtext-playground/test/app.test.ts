@@ -171,6 +171,26 @@ describe('inserting from the toolbar', () => {
       props: { src: 'https://example.com/a.png', alt: 'a', width: 300 },
     })
   })
+
+  it('puts any other file in as its type says', () => {
+    const added = step(
+      start(),
+      Message.FileRead({
+        src: 'data:video/mp4;base64,AA',
+        name: 'clip.mp4',
+        type: 'video/mp4',
+        size: 2,
+      }),
+      Message.FileRead({
+        src: 'data:text/csv;base64,AA',
+        name: 'a.csv',
+        type: 'text/csv',
+        size: 2,
+      }),
+    )
+    expect(kinds(added).slice(-2)).toEqual(['Video', 'Attachment'])
+    expect(top(added).at(-2)).toMatchObject({ props: { title: 'clip' } })
+  })
 })
 
 describe('a block handle', () => {

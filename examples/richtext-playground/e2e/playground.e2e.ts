@@ -104,13 +104,35 @@ test('an image file is read into the document at its own width', async () => {
   await expect.poll(() => figure.locator('img').getAttribute('alt')).toBe('dot')
   expect(await figure.getAttribute('style')).toBe('--image-width: 2px')
 
+  expect(errors).toEqual([])
+})
+
+test('any other file becomes media or an attachment, and one too large is refused', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
   await page.setInputFiles('input[type=file]', {
     name: 'notes.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('hello'),
   })
+  const attachment = page.locator('[contenteditable=true] [data-attachment]').last()
+  await expect.poll(() => attachment.textContent()).toBe('notes.txt5 B')
+  expect(await attachment.getAttribute('href')).toBe('data:text/plain;base64,aGVsbG8=')
+  await page.setInputFiles('input[type=file]', {
+    name: 'tone.wav',
+    mimeType: 'audio/wav',
+    buffer: Buffer.from('RIFF'),
+  })
+  await expect
+    .poll(() => page.locator('[contenteditable=true] audio').last().getAttribute('title'))
+    .toBe('tone')
+  await page.setInputFiles('input[type=file]', {
+    name: 'huge.bin',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.alloc(9 * 1024 * 1024),
+  })
   await page.getByRole('alert').waitFor()
-  expect(await page.getByRole('alert').textContent()).toContain('notes.txt is not a PNG')
+  expect(await page.getByRole('alert').textContent()).toContain('huge.bin is larger than 8 MB')
   expect(errors).toEqual([])
 })
 

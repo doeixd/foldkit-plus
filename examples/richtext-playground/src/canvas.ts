@@ -9,35 +9,35 @@ import * as RichText from 'foldkit-richtext'
 import { Message } from './app.js'
 import { IMAGE_TYPES } from './vocabulary.js'
 
-/** The largest image this page reads into the document, which keeps it in memory. */
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+/** The largest file this page reads into the document, which keeps it in memory. */
+export const MAX_FILE_BYTES = 8 * 1024 * 1024
 
 /** The widest an added image starts, in CSS pixels; its handle's menu makes it wider. */
 const MAX_IMAGE_WIDTH = 640
 
-type ImageMessage = Extract<Message, { readonly _tag: 'ImageRead' | 'ImageRefused' }>
-type CanvasMessage = ImageMessage | Extract<Message, { readonly _tag: 'HoveredBlock' }>
-type Found = (message: ImageMessage) => void
+type FileMessage = Extract<Message, { readonly _tag: 'ImageRead' | 'FileRead' | 'FileRefused' }>
+type CanvasMessage = FileMessage | Extract<Message, { readonly _tag: 'HoveredBlock' }>
+type Found = (message: FileMessage) => void
 
-/** Reads image files into `data:` URLs, one Message each; anything else is refused by name. */
-const readImages = (files: ReadonlyArray<File>, found: Found): void => {
+/**
+ * Reads files into `data:` URLs, one Message each: an image this browser shows, at its own
+ * width; anything else as what its type says, a video, a sound or an attachment. A file too large
+ * to keep in the page is refused by name.
+ */
+const readFiles = (files: ReadonlyArray<File>, found: Found): void => {
   for (const file of files) {
-    if (!IMAGE_TYPES.includes(file.type)) {
-      found(
-        Message.ImageRefused({
-          reason: `${file.name} is not a PNG, JPEG, GIF, WebP or AVIF image.`,
-        }),
-      )
-      continue
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      found(Message.ImageRefused({ reason: `${file.name} is larger than 5 MB.` }))
+    if (file.size > MAX_FILE_BYTES) {
+      found(Message.FileRefused({ reason: `${file.name} is larger than 8 MB.` }))
       continue
     }
     const reader = new FileReader()
     reader.addEventListener('load', () => {
       const src = reader.result
       if (typeof src !== 'string') return
+      if (!IMAGE_TYPES.includes(file.type)) {
+        found(Message.FileRead({ src, name: file.name, type: file.type, size: file.size }))
+        return
+      }
       // Shown at its own width, up to a column's, rather than stretched: a small image stays small.
       const picture = new Image()
       picture.addEventListener('load', () =>
@@ -51,19 +51,19 @@ const readImages = (files: ReadonlyArray<File>, found: Found): void => {
       )
       picture.addEventListener('error', () =>
         found(
-          Message.ImageRefused({ reason: `${file.name} is not an image this browser can show.` }),
+          Message.FileRefused({ reason: `${file.name} is not an image this browser can show.` }),
         ),
       )
       picture.src = src
     })
     reader.addEventListener('error', () =>
-      found(Message.ImageRefused({ reason: `${file.name} could not be read.` })),
+      found(Message.FileRefused({ reason: `${file.name} could not be read.` })),
     )
     reader.readAsDataURL(file)
   }
 }
 
-const imagesIn = (transfer: DataTransfer | null): ReadonlyArray<File> =>
+const filesIn = (transfer: DataTransfer | null): ReadonlyArray<File> =>
   Array.from(transfer?.files ?? [])
 
 /**
@@ -73,7 +73,7 @@ const imagesIn = (transfer: DataTransfer | null): ReadonlyArray<File> =>
  * file into the editable subtree itself.
  */
 export const canvasEvents = Mount.defineStream('PlaygroundCanvas', {
-  messages: [Message.HoveredBlock, Message.ImageRead, Message.ImageRefused],
+  messages: [Message.HoveredBlock, Message.ImageRead, Message.FileRead, Message.FileRefused],
   execute: ({ element }) =>
     Stream.callback<CanvasMessage>(queue =>
       Effect.acquireRelease(
@@ -101,20 +101,20 @@ export const canvasEvents = Mount.defineStream('PlaygroundCanvas', {
             found(Message.HoveredBlock({ node: RichText.NodeId.make(id) }))
           }
           const onPaste = (event: ClipboardEvent) => {
-            const files = imagesIn(event.clipboardData)
+            const files = filesIn(event.clipboardData)
             if (files.length === 0) return
             event.preventDefault()
             event.stopPropagation()
-            readImages(files, found)
+            readFiles(files, found)
           }
           const onDragOver = (event: DragEvent) => {
             if (event.dataTransfer?.types.includes('Files') === true) event.preventDefault()
           }
           const onDrop = (event: DragEvent) => {
-            const files = imagesIn(event.dataTransfer)
+            const files = filesIn(event.dataTransfer)
             if (files.length === 0) return
             event.preventDefault()
-            readImages(files, found)
+            readFiles(files, found)
           }
           element.addEventListener('pointermove', onMove)
           // Capture: the editor's own paste handler would read the file's name as text first.
@@ -133,18 +133,16 @@ export const canvasEvents = Mount.defineStream('PlaygroundCanvas', {
     ),
 })
 
-/** Reads the images a file field is given, then empties it so the same file can be chosen again. */
-export const imagePicker = Mount.defineStream('PlaygroundImagePicker', {
-  messages: [Message.ImageRead, Message.ImageRefused],
+/** Reads the files a file field is given, then empties it so the same file can be chosen again. */
+export const filePicker = Mount.defineStream('PlaygroundFilePicker', {
+  messages: [Message.ImageRead, Message.FileRead, Message.FileRefused],
   execute: ({ element }) =>
-    Stream.callback<ImageMessage>(queue =>
+    Stream.callback<FileMessage>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const onChange = () => {
             if (!(element instanceof HTMLInputElement)) return
-            readImages(Array.from(element.files ?? []), message =>
-              Queue.offerUnsafe(queue, message),
-            )
+            readFiles(Array.from(element.files ?? []), message => Queue.offerUnsafe(queue, message))
             element.value = ''
           }
           element.addEventListener('change', onChange)

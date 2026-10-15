@@ -69,6 +69,7 @@ export const nodes: ReadonlyArray<RichText.NodeDefinition> = [
   Callout,
   Toggle,
   RichText.FootnoteDefinition,
+  ...RichText.mediaNodes,
 ]
 
 export const vocabulary = {
@@ -101,111 +102,114 @@ export const LANGUAGES: ReadonlyArray<CodeLanguage> = [
   { id: '', label: 'Plain text' },
 ]
 
-export const rendering = RichText.renderingOver(RichText.standardRendering, {
-  marks: {
-    Underline: { tag: 'u', attributes: {} },
-    Highlight: { tag: 'mark', attributes: {} },
-    Kbd: { tag: 'kbd', attributes: {} },
-    Comment: mark => ({
-      tag: 'span',
-      attributes: { 'data-comment': text(RichText.markProps(mark)?.thread) },
-    }),
-    FootnoteRef: mark => {
-      const label = text(RichText.markProps(mark)?.label)
-      return { tag: 'sup', attributes: { 'data-footnote-ref': label, id: `fnref-${label}` } }
+export const rendering = RichText.renderingOver(
+  RichText.renderingOver(RichText.standardRendering, RichText.mediaRendering),
+  {
+    marks: {
+      Underline: { tag: 'u', attributes: {} },
+      Highlight: { tag: 'mark', attributes: {} },
+      Kbd: { tag: 'kbd', attributes: {} },
+      Comment: mark => ({
+        tag: 'span',
+        attributes: { 'data-comment': text(RichText.markProps(mark)?.thread) },
+      }),
+      FootnoteRef: mark => {
+        const label = text(RichText.markProps(mark)?.label)
+        return { tag: 'sup', attributes: { 'data-footnote-ref': label, id: `fnref-${label}` } }
+      },
     },
-  },
-  nodes: {
-    TaskItem: block => ({
-      tag: 'li',
-      attributes: { 'data-task': block.props.checked === true ? 'checked' : 'unchecked' },
-      adornments: [
-        {
-          tag: 'input',
-          attributes: {
-            type: 'checkbox',
-            'aria-label': 'Done',
-            ...(block.props.checked === true ? { checked: '' } : {}),
-          },
-          toggles: 'checked',
-        },
-      ],
-    }),
-    CodeBlock: block => {
-      const language = text(block.props.language)
-      return {
-        tag: 'pre',
-        attributes: { 'data-language': language },
+    nodes: {
+      TaskItem: block => ({
+        tag: 'li',
+        attributes: { 'data-task': block.props.checked === true ? 'checked' : 'unchecked' },
         adornments: [
           {
-            tag: 'span',
-            attributes: { 'data-code-label': '' },
-            text: LANGUAGES.find(each => each.id === language)?.label ?? language,
+            tag: 'input',
+            attributes: {
+              type: 'checkbox',
+              'aria-label': 'Done',
+              ...(block.props.checked === true ? { checked: '' } : {}),
+            },
+            toggles: 'checked',
           },
         ],
-      }
-    },
-    Image: block => {
-      const src = imageSource(block.props.src)
-      const caption = text(block.props.caption)
-      const width = block.props.width
-      return {
-        tag: 'figure',
-        attributes: {
-          'data-image': '',
-          'data-align': text(block.props.align) || 'center',
-          ...(typeof width === 'number' ? { style: `--image-width: ${width}px` } : {}),
-        },
-        adornments: [
-          ...(src === undefined
-            ? []
-            : [{ tag: 'img', attributes: { src, alt: text(block.props.alt) } }]),
-          ...(caption === '' ? [] : [{ tag: 'figcaption', attributes: {}, text: caption }]),
-        ],
-      }
-    },
-    Callout: block => ({
-      tag: 'aside',
-      attributes: { 'data-callout': '' },
-      adornments: [
-        { tag: 'span', attributes: { 'data-callout-icon': '' }, text: text(block.props.icon) },
-      ],
-    }),
-    Toggle: block => ({
-      tag: 'div',
-      attributes: { 'data-toggle': block.props.open === true ? 'open' : 'closed' },
-      adornments: [
-        {
-          tag: 'button',
+      }),
+      CodeBlock: block => {
+        const language = text(block.props.language)
+        return {
+          tag: 'pre',
+          attributes: { 'data-language': language },
+          adornments: [
+            {
+              tag: 'span',
+              attributes: { 'data-code-label': '' },
+              text: LANGUAGES.find(each => each.id === language)?.label ?? language,
+            },
+          ],
+        }
+      },
+      Image: block => {
+        const src = imageSource(block.props.src)
+        const caption = text(block.props.caption)
+        const width = block.props.width
+        return {
+          tag: 'figure',
           attributes: {
-            type: 'button',
-            'data-toggle-arrow': '',
-            'aria-label': block.props.open === true ? 'Collapse' : 'Expand',
-            'aria-expanded': block.props.open === true ? 'true' : 'false',
+            'data-image': '',
+            'data-align': text(block.props.align) || 'center',
+            ...(typeof width === 'number' ? { style: `--image-width: ${width}px` } : {}),
           },
-          text: '▸',
-          toggles: 'open',
-        },
-      ],
-    }),
-    FootnoteDefinition: block => {
-      const label = text(block.props.label)
-      return {
-        tag: 'div',
-        attributes: { 'data-footnote': label, id: `fn-${label}` },
+          adornments: [
+            ...(src === undefined
+              ? []
+              : [{ tag: 'img', attributes: { src, alt: text(block.props.alt) } }]),
+            ...(caption === '' ? [] : [{ tag: 'figcaption', attributes: {}, text: caption }]),
+          ],
+        }
+      },
+      Callout: block => ({
+        tag: 'aside',
+        attributes: { 'data-callout': '' },
         adornments: [
-          { tag: 'span', attributes: { 'data-footnote-label': '' }, text: `${label}.` },
+          { tag: 'span', attributes: { 'data-callout-icon': '' }, text: text(block.props.icon) },
+        ],
+      }),
+      Toggle: block => ({
+        tag: 'div',
+        attributes: { 'data-toggle': block.props.open === true ? 'open' : 'closed' },
+        adornments: [
           {
             tag: 'button',
-            attributes: { type: 'button', 'aria-label': 'Back to the reference' },
-            text: '↩',
-            action: RETURN_TO_REFERENCE,
+            attributes: {
+              type: 'button',
+              'data-toggle-arrow': '',
+              'aria-label': block.props.open === true ? 'Collapse' : 'Expand',
+              'aria-expanded': block.props.open === true ? 'true' : 'false',
+            },
+            text: '▸',
+            toggles: 'open',
           },
         ],
-      }
+      }),
+      FootnoteDefinition: block => {
+        const label = text(block.props.label)
+        return {
+          tag: 'div',
+          attributes: { 'data-footnote': label, id: `fn-${label}` },
+          adornments: [
+            { tag: 'span', attributes: { 'data-footnote-label': '' }, text: `${label}.` },
+            {
+              tag: 'button',
+              attributes: { type: 'button', 'aria-label': 'Back to the reference' },
+              text: '↩',
+              action: RETURN_TO_REFERENCE,
+            },
+          ],
+        }
+      },
     },
   },
-})
+)
 
 // --- blocks the menus insert ---------------------------------------------------------------
 

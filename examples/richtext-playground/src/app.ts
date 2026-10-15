@@ -144,13 +144,15 @@ export const Message = defineMessageUnion({
   /** A block from the toolbar, put beside the caret's top-level block. */
   Inserted: { block: RichText.Block },
   ImageRead: { src: Schema.String, alt: Schema.String, width: Schema.Number },
+  /** Any other file: a video, a sound, or an attachment, as its type says. */
+  FileRead: { src: Schema.String, name: Schema.String, type: Schema.String, size: Schema.Number },
   /** A code block's text, to the clipboard: its toolbar's Copy. */
   CopiedCode: { node: RichText.NodeId },
   /** The whole document, to the clipboard: the export menu's choice. */
   Exported: { format: ExportFormat },
   /** What a copy did, with what it copied, for the footer. */
   GotClipboard: { message: ClipboardMessage, what: Schema.String },
-  ImageRefused: { reason: Schema.String },
+  FileRefused: { reason: Schema.String },
   DismissedNotice: {},
   SlashMoved: { index: Schema.Number },
   /** Ctrl+F: the find bar opens, on what is selected when that is short text. */
@@ -762,6 +764,14 @@ const step = (model: Model, message: Message): Return =>
           to: topLevelPlace(model),
         }),
       ),
+    FileRead: file =>
+      edit(
+        modifyFields(closed(model), { notice: () => Option.none() }),
+        EditorMessage.InsertedBlock({
+          block: RichText.mediaBlock(file),
+          to: topLevelPlace(model),
+        }),
+      ),
     CopiedCode: ({ node }) => {
       const block = blockOf(model, node)
       return block === undefined
@@ -795,7 +805,7 @@ const step = (model: Model, message: Message): Return =>
           ),
       }),
     }),
-    ImageRefused: ({ reason }) => ({
+    FileRefused: ({ reason }) => ({
       model: modifyFields(model, { notice: () => Option.some(reason) }),
     }),
     DismissedNotice: () => ({ model: modifyFields(model, { notice: () => Option.none() }) }),

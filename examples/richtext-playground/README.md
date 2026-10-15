@@ -60,9 +60,11 @@ block, `codeToolbar` picks the language and copies the code (`copyText` from `fo
 Tab and Shift+Tab indent and outdent, and Enter keeps the line's indentation. Anywhere else Tab
 moves focus, as it does on any page.
 
-An image is read from a file into a `data:` URL ([canvas.ts](src/canvas.ts)), from the file
-field, a paste or a drop, and shown at its own width up to 640 pixels. The standard URL policy
-refuses `data:` for links, so the rendering accepts it only as an image's source.
+A file is read into a `data:` URL ([canvas.ts](src/canvas.ts)), from the file field, a paste
+or a drop, up to 8 MB. An image is shown at its own width up to 640 pixels; any other file becomes
+what `RichText.mediaBlock` says its type is, a video, a sound or an attachment, drawn by
+`RichText.mediaRendering`. The standard URL policy refuses `data:` for links, so the rendering
+accepts it only as an image's source, and media accepts only its own kind's.
 
 ## Find and replace
 
