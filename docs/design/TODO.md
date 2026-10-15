@@ -837,9 +837,11 @@ keeps what the systems plan's "What we keep" lists.
   list, as `VirtualList`.
 - [ ] **Parity 6, the missing everyday pieces.** Done: Drawer and Sheet, as
   `Recipes.Drawer` and `Recipes.Sheet` over the Dialog; Tags Input, Rating,
-  Password Input, Steps, Banner and Input Copy. Open: Nested Menu, Carousel, a
-  date range, a range slider, Tree View and Color Picker. Their tests (unit,
-  and Sheet's browser test) were written without being run.
+  Password Input, Steps, Banner, Input Copy, Carousel, the date range (as
+  `DateRange` over the Calendar), the range slider, Tree View and Color
+  Picker. Open: Nested Menu. Their tests, unit and browser, were written
+  without being run. Carousel does not yet hear a swipe (a `scrollend` Mount
+  in primitives would report the slide in view).
 - [ ] **Parity 7, chat.** Message, Message Scroller, Thinking Indicator,
   Thinking Steps and a Questionnaire.
 - [ ] **Parity 8, Zag's long tail.** Angle Slider, Cascade Select, Image
