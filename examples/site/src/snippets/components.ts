@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  Rating,
+  RatingSlots,
   Steps,
   StepsSlots,
   VirtualList,
@@ -1671,6 +1673,34 @@ export const steps = <Message>(style: NamedStyle<typeof StepsSlots>, h: HtmlBuil
       style,
     },
     h,
+  )
+// #endregion
+
+// #region rating
+export const RatingStyle = forSlots(RatingSlots)(Recipes.Rating({}))
+
+export const rating = <Message>(
+  style: NamedStyle<typeof RatingSlots>,
+  value: Option.Option<number>,
+  onChange: (value: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'end' })],
+    [
+      Rating.view({ id: 'preview-stay', label: 'Your stay', value, onChange, style }, h),
+      Rating.view(
+        {
+          id: 'preview-average',
+          label: 'Average of 120 reviews',
+          value: Option.some(4),
+          onChange,
+          readOnly: true,
+          style,
+        },
+        h,
+      ),
+    ],
   )
 // #endregion
 

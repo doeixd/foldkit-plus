@@ -90,6 +90,8 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
+  /** The rating's stars, none before any are given. */
+  stay: Schema.Option(Schema.Number),
 })
 export type Model = typeof Model.Type
 
@@ -129,6 +131,7 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  RatedStay: { value: Schema.Number },
 })
 export type Message = typeof Message.Type
 
@@ -180,6 +183,7 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
+  stay: Option.none(),
 }
 
 type Step = Update.Step<Model, Message>
@@ -445,6 +449,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
+    RatedStay: ({ value }) =>
+      Option.contains(model.stay, value)
+        ? { model }
+        : { model: modifyFields(model, { stay: () => Option.some(value) }) },
     GotListbox: ({ message }) => foldListbox(model, message),
     GotCombobox: ({ message }) => foldCombobox(model, message),
     GotCalendar: ({ message }) => foldCalendar(model, message),

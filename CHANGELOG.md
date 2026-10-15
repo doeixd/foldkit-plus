@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Rating`,** a row of stars as the APG's radio group
+  of native radios: the application keeps `value` (an `Option`, none before
+  anyone rates) and receives `onChange` with the star chosen. The arrows move
+  the choice natively, `readOnly` draws one `img` that names the rating, and
+  `disabled` stills it. The recipe cuts each star with `clip-path` on the
+  radio's `::before`, keeping its focus ring whole, and previews the rating
+  under the pointer in CSS alone. `Patterns.Rating` and a gallery page.
 - **`foldkit-mixins-ui`: `Steps`, a stepper.** A named ordered list whose
   step at `current` is `aria-current="step"`, those before it complete (a
   check in the marker) and those after upcoming, as `data-state`, joined by

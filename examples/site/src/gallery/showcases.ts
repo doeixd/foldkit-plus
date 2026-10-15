@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  RatingSlots,
   StepsSlots,
   VirtualListSlots,
   NumberFieldSlots,
@@ -703,6 +704,25 @@ export const showcases: ReadonlyArray<Showcase> = [
     StepsSlots,
     Recipes.Steps,
     (style, live) => Snippet.steps(style, live.h),
+  ),
+  fromRecipe(
+    {
+      slug: 'rating',
+      title: 'Rating',
+      summary: 'A score out of five stars, chosen with a press or the arrows, or shown read-only.',
+      recipe: 'Rating',
+      file: 'rating',
+      contract: 'RatingSlots',
+    },
+    RatingSlots,
+    Recipes.Rating,
+    (style, live) =>
+      Snippet.rating(
+        style,
+        live.widgets.stay,
+        value => live.onWidget(Widgets.Message.RatedStay({ value })),
+        live.h,
+      ),
   ),
   fromRecipe(
     {

@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
+import { RatingSlots } from './rating.js'
 import { StepsSlots } from './steps.js'
 import { VirtualListSlots } from './virtualList.js'
 import { ProgressSlots } from './progress.js'
@@ -217,6 +218,16 @@ export const Steps = A11y.pattern({
   root: { capability: Capability.Container, attributes: [Attr.AriaLabel] },
   item: { capability: Capability.Container },
   trigger: { capability: Capability.Interactive, events: [Event.Click] },
+})
+
+export const Rating = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role] },
+  label: { capability: Capability.Container },
+  star: {
+    capability: Capability.Interactive,
+    events: [Event.Change],
+    attributes: [Attr.AriaLabel],
+  },
 })
 
 export const Nav = A11y.pattern({
@@ -428,6 +439,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
+  entry(
+    'rating',
+    Rating,
+    RatingSlots,
+    'stateless',
+    ['radiogroup', 'radio'],
+    ['native-control', 'form-submission'],
+  ),
   entry('steps', Steps, StepsSlots, 'stateless', ['list', 'listitem', 'button']),
   entry('virtual-list', VirtualList, VirtualListSlots, 'stateful', ['list', 'listitem']),
   entry(
