@@ -113,13 +113,18 @@ const write = (
 }
 
 /** Calls `place` on any scroll and on resize, until the returned release. */
-const onLayout = (view: Window, place: () => void) => {
+const onLayout = (view: Window, place: () => void, element: Styled) => {
+  // The element's own size too: it is measured where it is placed, and one drawn before its
+  // styles or content settle (a menu a query narrows) would stay where its first size put it.
+  const sizes = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(place)
   // Capture: a scrolling container's scroll does not bubble, but it passes the window first.
   view.addEventListener('scroll', place, true)
   view.addEventListener('resize', place)
+  sizes?.observe(element)
   return () => {
     view.removeEventListener('scroll', place, true)
     view.removeEventListener('resize', place)
+    sizes?.disconnect()
   }
 }
 
@@ -155,7 +160,7 @@ export const anchorToSelection = (element: Styled, hostId: string, gap: number, 
   }
   place()
   owner.addEventListener('selectionchange', place)
-  const release = onLayout(view, place)
+  const release = onLayout(view, place, element)
   return () => {
     owner.removeEventListener('selectionchange', place)
     release()
@@ -207,7 +212,7 @@ export const anchorToBlock = (
     )
   }
   place()
-  const release = onLayout(view, place)
+  const release = onLayout(view, place, element)
   return () => {
     observer.disconnect()
     release()

@@ -137,6 +137,11 @@ version changed; `pnpm` skips versions already in the registry.
   for good, covering the next line; `selectionAnchor` and `blockAnchor` now
   place it again when its size changes, as a slash menu's does while a query
   narrows it.
+- **`foldkit-richtext-dom`: a floating element follows its own size.** A
+  toolbar measured before its styles settled was placed below the selection
+  for good, covering the next line; `selectionAnchor` and `blockAnchor` now
+  place it again when its size changes, as a slash menu's does while a query
+  narrows it.
 - **`foldkit-mixins-richtext`: `blockStyleMenu`.** The block styles as one
   trigger naming the current style and a menu of them, the current one
   checked, for a toolbar with other things to hold.
