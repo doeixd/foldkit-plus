@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `OtpField`, Input OTP,** after shadcn's input-otp
+  rather than the widgets island's cell per input: one real `<input>` over
+  cells that only mirror it, so paste, Backspace, the caret and a phone's
+  `one-time-code` autofill are the browser's and no Command moves focus.
+  The code is the application's, kept to its pattern and length
+  (`OtpField.kept`); `groups` draws runs with a separator, and the next cell
+  draws a blinking caret while the field has focus. A recipe, a pattern and
+  a gallery page.
 - **`foldkit-mixins-ui`: `NumberField`,** from the widgets island into the
   package: the APG's editable spinbutton and Zag's number input. The arrows,
   PageUp and PageDown, Home and End step it through `SpinValue`'s `spin`, a

@@ -22,6 +22,7 @@ import {
   CheckboxGroupSlots,
   CheckboxSlots,
   NumberFieldSlots,
+  OtpFieldSlots,
   ComboboxSlots,
   DatePickerSlots,
   DialogSlots,
@@ -479,6 +480,25 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.servings,
         value => live.onWidget(Widgets.Message.ChangedServings({ value })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'otp-field',
+      title: 'Input OTP',
+      summary: 'A one-time code in cells, typed, pasted or filled from a text message.',
+      recipe: 'OtpField',
+      file: 'otpField',
+      contract: 'OtpFieldSlots',
+    },
+    OtpFieldSlots,
+    Recipes.OtpField,
+    (style, live) =>
+      Snippet.otpField(
+        style,
+        live.widgets.code,
+        code => live.onWidget(Widgets.Message.TypedCode({ code })),
         live.h,
       ),
   ),

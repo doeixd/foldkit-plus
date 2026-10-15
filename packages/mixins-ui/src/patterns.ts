@@ -17,6 +17,7 @@ import { CalendarSlots } from './calendar.js'
 import { CheckboxSlots } from './checkbox.js'
 import { CheckboxGroupSlots } from './checkboxGroup.js'
 import { NumberFieldSlots } from './numberField.js'
+import { OtpFieldSlots } from './otpField.js'
 import { DialogSlots } from './dialog.js'
 import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
@@ -137,6 +138,14 @@ export const NumberField = A11y.pattern({
     attributes: [Attr.Role],
   },
   label: { capability: Capability.Container },
+})
+
+export const OtpField = A11y.pattern({
+  input: {
+    capability: Capability.Focusable,
+    events: [Event.Input],
+    attributes: [Attr.AriaLabel],
+  },
 })
 
 export const Dialog = A11y.pattern({
@@ -335,6 +344,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['spinbutton'],
     ['native-control'],
   ),
+  entry('otp-field', OtpField, OtpFieldSlots, 'stateless', ['textbox'], ['native-control']),
   entry(
     'dialog',
     Dialog,

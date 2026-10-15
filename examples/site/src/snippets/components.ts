@@ -48,6 +48,8 @@ import {
   CheckboxGroupSlots,
   NumberField,
   NumberFieldSlots,
+  OtpField,
+  OtpFieldSlots,
   Checkbox,
   CheckboxSlots,
   Combobox,
@@ -1212,6 +1214,17 @@ export const numberField = <Message>(
     },
     h,
   )
+// #endregion
+
+// #region otp-field
+export const OtpFieldStyle = forSlots(OtpFieldSlots)(Recipes.OtpField({}))
+
+export const otpField = <Message>(
+  style: NamedStyle<typeof OtpFieldSlots>,
+  code: string,
+  onChange: (code: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html => OtpField.view({ label: 'Sign-in code', value: code, onChange, groups: [3, 3], style }, h)
 // #endregion
 
 // #region segmented

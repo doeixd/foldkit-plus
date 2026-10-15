@@ -312,7 +312,7 @@ takes no builder: its bundles speak the date picker's own Message, so it hands `
 builder. Result types: `ResolvedButton<M>`,
 `ResolvedRadioGroup<V, M>`, and so on.
 
-`Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | CheckboxGroup | CodeBlock | Empty | Icon | Item | Kbd | Label | NumberField | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
+`Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | CheckboxGroup | CodeBlock | Empty | Icon | Item | Kbd | Label | NumberField | OtpField | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the
@@ -358,6 +358,7 @@ that derived.
 | `Kbd` | `{ key }`. Names the key. | No axis. Slot `key`. |
 | `Label` | `{ for, text }`. `for` is the control's id. | No axis. Slot `label`. |
 | `NumberField` | `{ id, label, description?, value, onChange, min?, max?, step?, page?, format?, disabled? }`; `NumberField.settled(value, bounds)` clamps a value onto its step. The APG's editable spinbutton: an input with `role="spinbutton"` that the arrows, PageUp and PageDown, Home and End step, a typed number committing on change, between steppers out of the tab order that disable at their bound. | No axis. Slots `root`, `label`, `group`, `input`, `decrement`, `increment`, `description`. |
+| `OtpField` | `{ label, value, onChange, length?, pattern?, groups?, disabled? }`; `OtpField.kept(text, length, pattern)` filters a code. shadcn's input-otp: one real input (`autocomplete="one-time-code"`, paste and Backspace the browser's) over cells that mirror it, the next cell marked `data-next` for its caret. | No axis. Slots `root`, `input`, `group`, `cell`, `separator`. |
 | `Pagination` | `{ page, pageCount, onPage, label? }`. Fewer than two pages draws nothing. `Pagination.itemsOf(page, pageCount)` is the stops. | No axis. The current stop reads `aria-current`. Slots `root`, `prev`, `next`, `page`, `ellipsis`. |
 | `ScrollArea` | `{ content }`. The height that makes it scroll is the caller's mixin. The viewport is tabbable. | `orientation`: `vertical` (default), `horizontal`, `both`. Slot `viewport`. |
 | `Separator` | `{ orientation? }`, horizontal by default. A vertical rule needs its container to set the cross size. | `orientation`: `horizontal` (default), `vertical`. Slot `rule`. |
