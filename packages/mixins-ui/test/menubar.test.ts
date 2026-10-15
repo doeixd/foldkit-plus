@@ -6,9 +6,11 @@
  */
 import { Menu as UiMenu } from '@foldkit/ui'
 import { Option } from 'effect'
+import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { Menubar, MenubarSlots, Patterns } from '../src/index.js'
 import { A11y } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 
 const bar = Menubar.init(['file', 'edit', 'view'])
 const press = (model: Menubar.Model, key: 'ArrowRight' | 'ArrowLeft' | 'Home' | 'End') =>
@@ -73,6 +75,11 @@ describe('Menubar.update', () => {
     expect(press(model, 'Home').model).toBe(model)
   })
 
+  it('returns the same Model for a menu Message that changes nothing', () => {
+    const shut = Menubar.Message.GotMenu({ index: 0, message: UiMenu.Message.Closed() })
+    expect(Menubar.update(bar, shut).model).toBe(bar)
+  })
+
   it('the pointer opens a neighbour only while a menu is open', () => {
     expect(Menubar.update(bar, Menubar.Message.Hovered({ to: 1 })).model).toBe(bar)
     const result = Menubar.update(opened(bar, 0), Menubar.Message.Hovered({ to: 1 }))
@@ -89,5 +96,53 @@ describe('Menubar.update', () => {
     )
     expect(result.outMessage).toEqual(Menubar.OutMessage.Selected({ menu: 1, value: 'Copy' }))
     expect(open(result.model)).toEqual([false, false, false])
+  })
+})
+
+describe('Menubar.view', () => {
+  const scene = (model: Menubar.Model, ...steps: ReadonlyArray<Step>) =>
+    Scene.scene<Menubar.Model, Menubar.Message, Menubar.OutMessage>(
+      {
+        update: (model, message) => Menubar.update(model, message),
+        view: (model, h) =>
+          Menubar.view(
+            {
+              label: 'Editor',
+              model,
+              menus: [
+                { label: 'File', items: ['New'] },
+                { label: 'Edit', items: ['Copy'] },
+                { label: 'View', items: ['Zoom'] },
+              ],
+              onMessage: message => message,
+              menuMixins: [],
+            },
+            h,
+          ),
+      },
+      Scene.given(model),
+      ...steps,
+    )
+  type Step = Parameters<typeof Scene.scene<Menubar.Model, Menubar.Message, Menubar.OutMessage>>[1]
+  const stops = (expected: ReadonlyArray<number>) =>
+    Scene.tap<Menubar.Model, Menubar.Message, Menubar.OutMessage>(({ html }) =>
+      expect(
+        Inert.byRole(html, 'menuitem').map(trigger => Inert.value(trigger, 'tabindex')),
+      ).toEqual(expected),
+    )
+
+  it('makes the stop trigger the one tab stop, each a menuitem', () => {
+    scene({ ...bar, stop: 1 }, stops([-1, 0, -1]))
+  })
+
+  it('answers its own keys on the bar and leaves the rest', () => {
+    const [focusEdit] = press(bar, 'ArrowRight').commands ?? []
+    scene(
+      bar,
+      Scene.keydown(Scene.role('menubar'), 'ArrowRight'),
+      Scene.Command.resolve(focusEdit!, Menubar.Message.CompletedFocusTrigger()),
+      stops([-1, 0, -1]),
+    )
+    scene(bar, Scene.keydown(Scene.role('menubar'), 'a'), Scene.expectIgnored())
   })
 })
