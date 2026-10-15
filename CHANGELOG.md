@@ -601,6 +601,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: chevrons point the right way right to left.** The
+  Accordion's, Sidebar's, TreeView's and Nested Menu's chevrons and the
+  Carousel's arrows drew their two sides with logical borders, which mirror
+  under `dir="rtl"`, so a shut row's chevron pointed up and the arrows
+  pointed up and down. They and the Steps check now share `cornerSides`
+  (physical sides), and the Sidebar gains the right-to-left turn it lacked.
 - **`foldkit-mixins-ui`: a Sidebar section's links and a TreeView group's
   rows hold still while they open.** The heading row stretched into the room
   the opening grid left mid-transition, so the rows below it dropped (about

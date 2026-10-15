@@ -11,7 +11,16 @@ import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { AccordionSlots } from '../accordion.js'
-import { component, disabled, focusRing, ref, transition, travelled, variant } from './design.js'
+import {
+  component,
+  cornerSides,
+  disabled,
+  focusRing,
+  ref,
+  transition,
+  travelled,
+  variant,
+} from './design.js'
 
 const open = '[data-state="open"]'
 
@@ -62,8 +71,7 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
         inlineSize: '0.45em',
         blockSize: '0.45em',
         marginInlineEnd: '0.2em',
-        borderInlineEnd: `${ref.border.thick} solid currentColor`,
-        borderBlockEnd: `${ref.border.thick} solid currentColor`,
+        ...cornerSides(ref.border.thick, 'currentColor'),
         color: ref.text.muted,
         rotate: '-45deg',
         transitionProperty: 'rotate',

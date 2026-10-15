@@ -11,6 +11,7 @@ import { ladder, role } from 'foldkit-mixins/theme'
 import { SidebarSlots } from '../sidebar.js'
 import {
   component,
+  cornerSides,
   focusRing,
   opensBelow,
   ref,
@@ -90,13 +91,14 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       Style.self({
         inlineSize: '0.4em',
         blockSize: '0.4em',
-        borderInlineEnd: `${ref.border.thick} solid currentColor`,
-        borderBlockEnd: `${ref.border.thick} solid currentColor`,
+        ...cornerSides(ref.border.thick, 'currentColor'),
         rotate: '-45deg',
         transitionProperty: 'rotate',
         transitionDuration: travelled(ref.motion.fast),
         transitionTimingFunction: ref.motion.settle,
       }),
+      // Right to left, along the row is the other way; open is down either way.
+      Style.nest(':where([dir="rtl"]) &', { rotate: '135deg' }),
       Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),
     ),
     // The one grid row, opened on the section's `0fr` to `1fr`, clipped here.

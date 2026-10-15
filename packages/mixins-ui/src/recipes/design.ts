@@ -106,6 +106,17 @@ export const transition = (properties: string): Declarations => ({
   transitionTimingFunction: ref.motion.ease,
 })
 
+/**
+ * The right and bottom sides of a box, which a rotation turns into a chevron
+ * or a check. Physical, not logical: the mark is a drawing, and logical sides
+ * mirrored it under `dir="rtl"`, so every turn a recipe gives for right to
+ * left landed a quarter off (a shut row's chevron pointed up).
+ */
+export const cornerSides = (width: string, color: string): Declarations => ({
+  borderRight: `${width} solid ${color}`,
+  borderBottom: `${width} solid ${color}`,
+})
+
 /** A duration for something that moves or resizes: reduced motion snaps it, while fades keep theirs. */
 export const travelled = (duration: string) => `calc(${duration} * ${ref.knob.travel})`
 

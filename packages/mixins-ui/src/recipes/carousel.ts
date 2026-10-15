@@ -15,6 +15,7 @@ import { Utilities } from 'foldkit-mixins/utilities'
 import { CarouselSlots } from '../carousel.js'
 import {
   component,
+  cornerSides,
   disabled,
   focusRing,
   hover,
@@ -31,8 +32,7 @@ const chevron = (turn: string, nudge: string) =>
     content: '""',
     inlineSize: '0.45rem',
     blockSize: '0.45rem',
-    borderInlineEnd: `${ref.border.thick} solid currentColor`,
-    borderBlockEnd: `${ref.border.thick} solid currentColor`,
+    ...cornerSides(ref.border.thick, 'currentColor'),
     rotate: turn,
     translate: nudge,
   })

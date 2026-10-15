@@ -10,6 +10,7 @@ import { ladder } from 'foldkit-mixins/theme'
 import { TreeViewSlots } from '../treeView.js'
 import {
   component,
+  cornerSides,
   opensBelow,
   ref,
   rowOnLadder,
@@ -57,8 +58,7 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
         flexShrink: '0',
         inlineSize: '0.4em',
         blockSize: '0.4em',
-        borderInlineEnd: `${ref.border.thick} solid currentColor`,
-        borderBlockEnd: `${ref.border.thick} solid currentColor`,
+        ...cornerSides(ref.border.thick, 'currentColor'),
         rotate: '-45deg',
         transitionProperty: 'rotate',
         transitionDuration: travelled(ref.motion.fast),

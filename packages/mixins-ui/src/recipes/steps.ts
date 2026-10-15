@@ -10,7 +10,15 @@
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { StepsSlots } from '../steps.js'
-import { component, focusRing, ref, transition, unfilledHover, variant } from './design.js'
+import {
+  component,
+  cornerSides,
+  focusRing,
+  ref,
+  transition,
+  unfilledHover,
+  variant,
+} from './design.js'
 
 const complete = '[data-state="complete"]'
 const current = '[data-state="current"]'
@@ -79,8 +87,7 @@ export const Steps = Style.recipeFor(StepsSlots)({
         position: 'absolute',
         inlineSize: '0.3rem',
         blockSize: '0.6rem',
-        borderInlineEnd: `${ref.border.thick} solid ${ref.accent['on-fill']}`,
-        borderBlockEnd: `${ref.border.thick} solid ${ref.accent['on-fill']}`,
+        ...cornerSides(ref.border.thick, ref.accent['on-fill']),
         rotate: '45deg',
         translate: '0 -10%',
       }),

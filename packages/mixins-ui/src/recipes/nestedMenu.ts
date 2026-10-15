@@ -5,7 +5,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { NestedMenuSlots } from '../nestedMenu.js'
-import { component, ref } from './design.js'
+import { component, cornerSides, ref } from './design.js'
 
 export const NestedMenu = Style.recipeFor(NestedMenuSlots)({
   base: {
@@ -17,8 +17,7 @@ export const NestedMenu = Style.recipeFor(NestedMenuSlots)({
         inlineSize: '0.4em',
         blockSize: '0.4em',
         marginInlineStart: ref.space.sm,
-        borderInlineEnd: `${ref.border.thick} solid currentColor`,
-        borderBlockEnd: `${ref.border.thick} solid currentColor`,
+        ...cornerSides(ref.border.thick, 'currentColor'),
         color: ref.text.muted,
         rotate: '-45deg',
       }),
