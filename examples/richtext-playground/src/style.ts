@@ -56,7 +56,16 @@ const control = Style.compose(
   Style.pseudo(':focus-visible', { outline: `2px solid ${t.outline.focus}`, outlineOffset: '1px' }),
 )
 
+/**
+ * How a popup arrives: it fades in as it rises a few pixels into place. The rise is travel, which
+ * reduced motion zeroes, so for a reader who asked for stillness it only fades.
+ */
+const arrival = Style.global(
+  `@layer app { @keyframes playground-arrive { from { opacity: 0; translate: 0 calc(-4px * ${t.knob.travel}); } } }`,
+)
+
 const popup = Style.self({
+  animation: `playground-arrive ${t.motion.moderate} ${t.motion.settle}`,
   zIndex: '10',
   padding: t.space['2xs'],
   border: `1px solid ${t.outline.subtle}`,
@@ -378,6 +387,7 @@ const writing = Style.compose(
 
 export const Page = A.slots({
   page: Style.compose(
+    arrival,
     // Where a dragged block would land: a line the drag puts on the page, outside every view.
     // While a drag is under way the page is marked, and the cursor is a closed hand everywhere,
     // over text too; `!important` because the text's caret cursor is a closer rule.
@@ -548,7 +558,30 @@ export const Page = A.slots({
     popup,
     Style.self({ position: 'fixed', insetBlockStart: '-999px', zIndex: '6' }),
   ),
-  status: Style.self({ color: t.text.default }),
+  // A status floats at the foot of the window, where it is seen, and goes by itself.
+  toasts: Style.self({
+    position: 'fixed',
+    insetBlockEnd: t.space.lg,
+    insetInline: '0',
+    zIndex: '30',
+    display: 'flex',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+  }),
+  toast: Style.compose(
+    row(t.space.xs),
+    Style.self({
+      padding: `${t.space.xs} ${t.space.md}`,
+      borderRadius: t.radius.full,
+      background: t.popup.surface,
+      color: t.popup.ink,
+      boxShadow: t.shadow.lg,
+      fontSize: t.size.sm,
+      animation: `playground-arrive ${t.motion.moderate} ${t.motion.settle}`,
+    }),
+    Style.nest('& > svg', { color: t.success.default }),
+    Style.nest('&[data-failed="true"] > svg', { color: t.error.default }),
+  ),
   // A footnote's note, fixed beside the caret by `selectionAnchor`.
   notePreview: Style.compose(
     popup,

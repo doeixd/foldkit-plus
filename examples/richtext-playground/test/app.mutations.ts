@@ -206,13 +206,20 @@ export default [
     tests,
   },
   {
-    name: 'the footer says the code whatever was copied',
+    name: 'the status says the code whatever was copied',
     edits: [
       {
         file,
-        find: 'Copied: () => `Copied ${what}.`',
-        replace: "Copied: () => 'Copied the code.'",
+        find: 'Copied: () => ({ text: `Copied ${what}.`, failed: false }),',
+        replace: "Copied: () => ({ text: 'Copied the code.', failed: false }),",
       },
+    ],
+    tests,
+  },
+  {
+    name: 'an old status’s time takes a newer one away',
+    edits: [
+      { file, find: 'Option.getOrUndefined(model.status)?.text === status', replace: 'true' },
     ],
     tests,
   },

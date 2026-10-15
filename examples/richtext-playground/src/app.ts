@@ -99,6 +99,10 @@ export type Find = typeof Find.Type
 export const ExportFormat = Schema.Literals(['Markdown', 'HTML', 'JSON'])
 export type ExportFormat = typeof ExportFormat.Type
 
+/** What the last copy did, said for a moment: what it says, and whether it failed. */
+export const Status = Schema.Struct({ text: Schema.String, failed: Schema.Boolean })
+export type Status = typeof Status.Type
+
 export const Model = Schema.Struct({
   document: RichText.Document,
   editor: EditorState,
@@ -117,7 +121,7 @@ export const Model = Schema.Struct({
   /** Why the last file was not added. */
   notice: Schema.Option(Schema.String),
   /** What the last copy did, shown in the footer. */
-  status: Schema.Option(Schema.String),
+  status: Schema.Option(Status),
   find: Schema.Option(Find),
 })
 export type Model = typeof Model.Type
@@ -156,6 +160,8 @@ export const Message = defineMessageUnion({
   Exported: { format: ExportFormat },
   /** What a copy did, with what it copied, for the footer. */
   GotClipboard: { message: ClipboardMessage, what: Schema.String },
+  /** A status's time is up: it goes, unless a newer one took its place. */
+  StatusExpired: { status: Schema.String },
   FileRefused: { reason: Schema.String },
   DismissedNotice: {},
   SlashMoved: { index: Schema.Number },
@@ -521,6 +527,17 @@ const selectedQuery = (model: Model): string => {
   return text.length <= 80 && !/[\r\n]/.test(text) ? text : ''
 }
 
+/** How long a status shows before it goes by itself. */
+const STATUS_LASTS = '3 seconds'
+
+/** Takes a status away once it has been shown long enough to read. */
+const ExpireStatus = Command.define('ExpireStatus', {
+  args: { status: Schema.String },
+  messages: [Message.StatusExpired],
+  execute: ({ status }) =>
+    Effect.sleep(STATUS_LASTS).pipe(Effect.as(Message.StatusExpired({ status }))),
+})
+
 /** Gives the focus to the field a control just opened, so its keys go there at once. */
 const FocusField = Command.define('FocusField', {
   args: { selector: Schema.String },
@@ -818,17 +835,24 @@ const step = (model: Model, message: Message): Return =>
         ],
       }
     },
-    GotClipboard: ({ message, what }) => ({
-      model: modifyFields(model, {
-        status: () =>
-          Option.some(
-            ClipboardMessage.match(message, {
-              Copied: () => `Copied ${what}.`,
-              CopyFailed: ({ message: reason }) => `Could not copy: ${reason}`,
-            }),
-          ),
-      }),
-    }),
+    GotClipboard: ({ message, what }) => {
+      // The browser's reason is for a developer; a reader is told what did not happen.
+      const status = ClipboardMessage.match(message, {
+        Copied: () => ({ text: `Copied ${what}.`, failed: false }),
+        CopyFailed: () => ({
+          text: `Could not copy ${what}: this browser did not allow it.`,
+          failed: true,
+        }),
+      })
+      return {
+        model: modifyFields(model, { status: () => Option.some(status) }),
+        commands: [ExpireStatus({ status: status.text })],
+      }
+    },
+    StatusExpired: ({ status }) =>
+      Option.getOrUndefined(model.status)?.text === status
+        ? { model: modifyFields(model, { status: () => Option.none() }) }
+        : { model },
     FileRefused: ({ reason }) => ({
       model: modifyFields(model, { notice: () => Option.some(reason) }),
     }),

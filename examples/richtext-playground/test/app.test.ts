@@ -275,7 +275,7 @@ describe('a code block', () => {
       initial,
       Message.GotClipboard({ message: ClipboardMessage.Copied(), what: 'the code' }),
     )
-    expect(said.status).toEqual(Option.some('Copied the code.'))
+    expect(said.status).toEqual(Option.some({ text: 'Copied the code.', failed: false }))
   })
 })
 
@@ -361,7 +361,46 @@ describe('export', () => {
       result.model,
       Message.GotClipboard({ message: ClipboardMessage.Copied(), what: 'the document as JSON' }),
     )
-    expect(said.status).toEqual(Option.some('Copied the document as JSON.'))
+    expect(said.status).toEqual(
+      Option.some({ text: 'Copied the document as JSON.', failed: false }),
+    )
+  })
+})
+
+describe('a status', () => {
+  it('says plainly that a copy failed, without the browser’s own words', () => {
+    const failed = step(
+      start(),
+      Message.GotClipboard({
+        message: ClipboardMessage.CopyFailed({ message: 'NotAllowedError: denied' }),
+        what: 'the code',
+      }),
+    )
+    expect(failed.status).toEqual(
+      Option.some({
+        text: 'Could not copy the code: this browser did not allow it.',
+        failed: true,
+      }),
+    )
+  })
+
+  it('goes by itself, unless a newer one took its place', () => {
+    const copied = update(
+      start(),
+      Message.GotClipboard({ message: ClipboardMessage.Copied(), what: 'the code' }),
+    )
+    expect(copied.commands?.map(command => command.args)).toEqual([{ status: 'Copied the code.' }])
+    const newer = step(
+      copied.model,
+      Message.GotClipboard({ message: ClipboardMessage.Copied(), what: 'the document as JSON' }),
+    )
+    // The first status's time is up, but it is no longer the one shown.
+    const kept = step(newer, Message.StatusExpired({ status: 'Copied the code.' }))
+    expect(kept.status).toEqual(
+      Option.some({ text: 'Copied the document as JSON.', failed: false }),
+    )
+    const gone = step(kept, Message.StatusExpired({ status: 'Copied the document as JSON.' }))
+    expect(gone.status).toEqual(Option.none())
   })
 })
 

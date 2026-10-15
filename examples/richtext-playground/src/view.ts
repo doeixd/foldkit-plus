@@ -549,13 +549,26 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         ]),
         h.footer(slots.footer.attrs(), [
           Status({ document: model.document }, h),
-          ...Option.match(model.status, {
-            onNone: () => [],
-            onSome: status => [h.span(slots.status.attrs([h.Role('status')]), [status])],
-          }),
+
           h.span([], ['Edits and discussions stay in this page; Reset starts over.']),
         ]),
       ]),
+      // What a copy did, said where it is seen and gone by itself (`ExpireStatus`).
+      h.div(
+        slots.toasts.attrs([h.Role('status'), h.AriaLive('polite')]),
+        Option.match(model.status, {
+          onNone: () => [],
+          onSome: status => [
+            h.div(
+              slots.toast.attrs([
+                h.Key(status.text),
+                h.DataAttribute('failed', String(status.failed)),
+              ]),
+              [richTextIcon(h, status.failed ? 'close' : 'check'), status.text],
+            ),
+          ],
+        }),
+      ),
       DemoGuide({ demo: richtextDemo }, h),
     ])
   })
