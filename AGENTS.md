@@ -1320,6 +1320,10 @@ of its own named a form field "fits the Catalog". Read words with
   git commit` printed `1` and committed, twice in one session (a re-anchor
   and an ambiguous anchor each followed). Chain every check into the commit
   with `&&`, or read the output before committing.
+- **A heredoc ends the `&&` chain.** `cp … && python - <<'EOF' … EOF` then
+  `cp mine CHANGELOG.md && git commit` on the next line runs the commit even
+  when the script failed its own assert, with whatever `mine` an earlier run
+  left. Put the commit in a separate step after reading the script's output.
 - **A prepend that matches only the anchor line deletes it.** Matching the first
   line of a block (a changelog entry, a doc section) and replacing it with new
   text drops that line; the file stays valid and every check stays green, so
