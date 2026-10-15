@@ -5,16 +5,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { ListboxSlots } from '../listbox.js'
-import {
-  component,
-  disabled,
-  focusRing,
-  listScroll,
-  onLadder,
-  ref,
-  steps,
-  transition,
-} from './design.js'
+import { component, disabled, focusRing, onLadder, ref, steps, transition } from './design.js'
 import {
   backdrop,
   heading,
@@ -24,9 +15,11 @@ import {
   mergedChoice,
   panel,
   rows,
+  scroll,
   separator,
   unlit,
 } from './popup.js'
+import { bar, thumb } from './scrollBars.js'
 
 export const Listbox = Style.recipeFor(ListboxSlots)({
   base: {
@@ -52,7 +45,7 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
     ),
     backdrop,
     items: panel,
-    scroll: listScroll,
+    scroll,
     item: component(
       item,
       // The chosen row reads DOM state; its fill is the indicator's once that glides.
@@ -65,6 +58,8 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
     rows,
     highlight,
     indicator,
+    scrollBar: bar,
+    scrollThumb: thumb,
   },
   variants: {
     size: {

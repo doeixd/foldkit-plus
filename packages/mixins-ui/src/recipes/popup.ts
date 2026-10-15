@@ -5,8 +5,9 @@
  * trigger and density. Internal to the recipes, not a published contract.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { nested, raise, raisedSurface, role } from 'foldkit-mixins/theme'
-import { component, disabled, glide, presence, ref, rowOnLadder } from './design.js'
+import { nested, nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
+import { component, disabled, glide, listScroll, presence, ref, rowOnLadder } from './design.js'
+import { overlaid } from './scrollBars.js'
 
 /** A line in the panel's own ink, so it reads on an inverted panel too. */
 const line = `color-mix(in oklab, ${ref.popup.ink} 14%, transparent)`
@@ -22,6 +23,8 @@ export const panel: StyleValue = component(
     padding: ref.space['2xs'],
     border: `${ref.border.thin} solid ${line}`,
     borderRadius: ref.radius.xl,
+    // Its rows, their highlight and its marker take their corners from these.
+    ...nests(ref.radius.xl, ref.space['2xs'], ref.border.thin),
     // The menu's look over the panel's level: the other scheme's base where it
     // is inverted, made see-through where it is translucent.
     background: `color-mix(in oklab, color-mix(in oklab, ${ref.popup.inverted} calc(${ref.knob['popup-invert']} * 100%), ${raisedSurface()}) calc(${ref.knob['popup-alpha']} * 100%), transparent)`,
@@ -40,6 +43,13 @@ export const panel: StyleValue = component(
   Style.pseudo('[data-placement="top"]', { transformOrigin: 'bottom' }),
   Style.pseudo('[data-placement="top"][data-closed]', { translate: '0 4px' }),
 )
+
+/**
+ * The panel's capped scroll region, whose browser bar gives way to the
+ * overlay bar (`scrollBars.ts`) while the component's `overlayBars` runs; the
+ * bar lies over the panel's edge, beside the region.
+ */
+export const scroll: StyleValue = Style.compose(listScroll, overlaid)
 
 /** The click-away behind an open panel. */
 export const backdrop: StyleValue = component(Style.self({ position: 'fixed', inset: '0' }))
@@ -77,7 +87,7 @@ export const item: StyleValue = component(
     ...rowOnLadder,
     border: '0',
     // Concentric with the panel's corner, inside its padding and border.
-    borderRadius: nested(ref.radius.xl, ref.space['2xs'], ref.border.thin),
+    borderRadius: nested(),
     background: 'transparent',
     color: 'inherit',
     font: 'inherit',
@@ -111,7 +121,8 @@ const overlay = (name: 'hover' | 'chosen') => ({
   inlineSize: at(name, 'w'),
   blockSize: at(name, 'h'),
   translate: `${at(name, 'x')} ${at(name, 'y')}`,
-  borderRadius: ref.radius.md,
+  // The row's corner, which it lights or marks: a fixed one did not meet the panel's.
+  borderRadius: nested(),
   pointerEvents: 'none',
 })
 

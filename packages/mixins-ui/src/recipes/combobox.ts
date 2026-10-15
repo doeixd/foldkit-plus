@@ -11,7 +11,6 @@ import {
   focusRing,
   focusWithin,
   hover,
-  listScroll,
   onLadder,
   ref,
   steps,
@@ -27,9 +26,11 @@ import {
   mergedChoice,
   panel,
   rows,
+  scroll,
   separator,
   unlit,
 } from './popup.js'
+import { bar, thumb } from './scrollBars.js'
 
 export const Combobox = Style.recipeFor(ComboboxSlots)({
   base: {
@@ -79,7 +80,7 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
     ),
     backdrop,
     items: panel,
-    scroll: listScroll,
+    scroll,
     item: component(
       item,
       // The chosen row reads DOM state; its fill is the indicator's once that glides.
@@ -92,6 +93,8 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
     rows,
     highlight,
     indicator,
+    scrollBar: bar,
+    scrollThumb: thumb,
   },
   variants: {
     size: {

@@ -20,7 +20,13 @@ export default [
   },
   {
     name: 'the list is drawn outside its root slot',
-    edits: [{ file, find: 'return h.div(builders.root.attrs(), [', replace: 'return h.div([], [' }],
+    edits: [
+      {
+        file,
+        find: "builders.root.attrs(overlay ? [h.OnMount(ScrollBars({ scroller: ':scope > ul' }))] : []),",
+        replace: '[],',
+      },
+    ],
     tests: [unit],
   },
   {

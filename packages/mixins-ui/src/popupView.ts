@@ -31,6 +31,9 @@ interface PopupPanel<Message> {
   readonly rows?: SlotAttributes<Message> | undefined
   readonly highlight?: SlotAttributes<Message> | undefined
   readonly indicator?: SlotAttributes<Message> | undefined
+  /** The overlay bar beside `scroll`, in the panel, and its thumb. */
+  readonly scrollBar?: SlotAttributes<Message> | undefined
+  readonly scrollThumb?: SlotAttributes<Message> | undefined
 }
 
 const drawGroup = <Message>(group: PopupGroup<Message>, h: HtmlBuilder<Message>) => {
@@ -76,7 +79,14 @@ const drawPanel = <Message>(panel: PopupPanel<Message>, h: HtmlBuilder<Message>)
           h.keyed('div')(
             panel.items.key,
             panel.items.attributes,
-            panel.scroll === undefined ? groups : [h.div(panel.scroll, groups)],
+            panel.scroll === undefined
+              ? groups
+              : [
+                  h.div(panel.scroll, groups),
+                  ...(panel.scrollBar === undefined
+                    ? []
+                    : [h.div(panel.scrollBar, [h.div(panel.scrollThumb ?? [], [])])]),
+                ],
           ),
         ]),
   ]

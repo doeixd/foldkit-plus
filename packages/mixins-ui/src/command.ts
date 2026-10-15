@@ -1,6 +1,7 @@
 import { Option } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { ScrollBars } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -34,6 +35,10 @@ export const CommandSlots = Slots.define({
   }),
   shortcut: Slot.make({ capability: Capability.Container }),
   empty: Slot.make({ capability: Capability.Container }),
+  /** With `overlayBars`: the box around the list that holds its `bar`, and the bar's `thumb`. */
+  frame: Slot.make({ capability: Capability.Container }),
+  bar: Slot.make({ capability: Capability.Container }),
+  thumb: Slot.make({ capability: Capability.Container }),
 })
 
 export interface CommandItem<Value extends string> {
@@ -67,6 +72,12 @@ export interface CommandView<Value extends string, Message> {
   readonly onRun: (value: Value) => NoInfer<Message>
   /** What the list says when nothing matches. Default "No results." */
   readonly empty?: string | undefined
+  /**
+   * A thin bar over the list, which fades while it rests (`ScrollBars`), in
+   * place of the browser's, on a pointer that can hover. Off by default: its
+   * Mount sends no Message, which a Scene test would have to resolve.
+   */
+  readonly overlayBars?: boolean | undefined
   /** A style of `CommandSlots`, for the menu's look. */
   readonly style?: NamedStyle<typeof CommandSlots> | undefined
   /** Mixins beside the style. */
@@ -120,6 +131,66 @@ export const view = <Value extends string, Message>(
     })
     return Option.fromNullishOr(enabled[(at + by + enabled.length) % enabled.length]?.value)
   }
+  const overlay = options.overlayBars === true
+  const list = h.div(
+    builders.list.attrs([
+      h.Id(listId),
+      h.Role('listbox'),
+      h.AriaLabel(options.label),
+      ...(overlay ? [h.OnMount(ScrollBars({}))] : []),
+    ]),
+    groups.length === 0
+      ? [h.div(builders.empty.attrs([h.Role('presentation')]), [options.empty ?? 'No results.'])]
+      : groups.map((group, index) =>
+          h.keyed('div')(
+            group.heading ?? `group-${index}`,
+            builders.group.attrs([
+              h.Role('group'),
+              ...(group.heading === undefined ? [] : [h.AriaLabel(group.heading)]),
+            ]),
+            [
+              ...(group.heading === undefined
+                ? []
+                : [h.div(builders.heading.attrs([h.AriaHidden(true)]), [group.heading])]),
+              ...group.items.map(item => {
+                const disabled = item.disabled === true
+                const on = Option.isSome(current) && current.value === item.value
+                return h.keyed('div')(
+                  item.value,
+                  builders.item.attrs([
+                    h.Id(rowId(item.value)),
+                    h.Role('option'),
+                    h.AriaSelected(on),
+                    ...(on ? [h.DataAttribute('active', '')] : []),
+                    ...(disabled
+                      ? [h.AriaDisabled(true)]
+                      : [
+                          h.OnMouseEnter(options.onActive(item.value)),
+                          h.OnClick(options.onRun(item.value)),
+                        ]),
+                  ]),
+                  [
+                    h.span([], [item.label]),
+                    ...(item.shortcut === undefined
+                      ? []
+                      : [h.span(builders.shortcut.attrs([h.AriaHidden(true)]), [item.shortcut])]),
+                  ],
+                )
+              }),
+            ],
+          ),
+        ),
+  )
+  // With overlay bars, the list stands in a frame beside its bar, hidden from
+  // assistive technology: the list is what a reader scrolls.
+  const scrolling = overlay
+    ? h.div(builders.frame.attrs(), [
+        list,
+        h.div(builders.bar.attrs([h.DataAttribute('scroll-bar', 'block'), h.AriaHidden(true)]), [
+          h.div(builders.thumb.attrs(), []),
+        ]),
+      ])
+    : list
   return h.div(builders.root.attrs(), [
     h.input(
       builders.input.attrs([
@@ -151,49 +222,6 @@ export const view = <Value extends string, Message>(
         }),
       ]),
     ),
-    h.div(
-      builders.list.attrs([h.Id(listId), h.Role('listbox'), h.AriaLabel(options.label)]),
-      groups.length === 0
-        ? [h.div(builders.empty.attrs([h.Role('presentation')]), [options.empty ?? 'No results.'])]
-        : groups.map((group, index) =>
-            h.keyed('div')(
-              group.heading ?? `group-${index}`,
-              builders.group.attrs([
-                h.Role('group'),
-                ...(group.heading === undefined ? [] : [h.AriaLabel(group.heading)]),
-              ]),
-              [
-                ...(group.heading === undefined
-                  ? []
-                  : [h.div(builders.heading.attrs([h.AriaHidden(true)]), [group.heading])]),
-                ...group.items.map(item => {
-                  const disabled = item.disabled === true
-                  const on = Option.isSome(current) && current.value === item.value
-                  return h.keyed('div')(
-                    item.value,
-                    builders.item.attrs([
-                      h.Id(rowId(item.value)),
-                      h.Role('option'),
-                      h.AriaSelected(on),
-                      ...(on ? [h.DataAttribute('active', '')] : []),
-                      ...(disabled
-                        ? [h.AriaDisabled(true)]
-                        : [
-                            h.OnMouseEnter(options.onActive(item.value)),
-                            h.OnClick(options.onRun(item.value)),
-                          ]),
-                    ]),
-                    [
-                      h.span([], [item.label]),
-                      ...(item.shortcut === undefined
-                        ? []
-                        : [h.span(builders.shortcut.attrs([h.AriaHidden(true)]), [item.shortcut])]),
-                    ],
-                  )
-                }),
-              ],
-            ),
-          ),
-    ),
+    scrolling,
   ])
 }

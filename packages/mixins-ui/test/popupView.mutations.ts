@@ -35,8 +35,8 @@ export default [
     edits: [
       {
         file: view,
-        find: 'panel.scroll === undefined ? groups : [h.div(panel.scroll, groups)]',
-        replace: 'groups',
+        find: 'h.div(panel.scroll, groups),',
+        replace: 'groups,',
       },
     ],
     tests: forks,

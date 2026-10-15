@@ -1,25 +1,35 @@
 /**
  * A virtual list: a bordered box the list scrolls within, 18rem tall until
  * the application sizes it, whose rows are rungs of the size ladder with a
- * hairline between them and the hover fill.
+ * hairline between them and the hover fill. The overlay bar of
+ * `scrollBars.ts` stands over the list's edge where `ScrollBars` runs.
  */
 import { Style } from 'foldkit-mixins'
 import { VirtualListSlots } from '../virtualList.js'
 import { component, ref, rowOnLadder, transition, unfilledHover } from './design.js'
+import { bar, overlaidChild, thumb } from './scrollBars.js'
 
 export const VirtualList = Style.recipeFor(VirtualListSlots)({
   base: {
-    // One grid row of at least nothing, so upstream's scrolling list fits the box.
-    root: component(
-      Style.self({
-        display: 'grid',
-        gridTemplateRows: 'minmax(0, 1fr)',
-        blockSize: '18rem',
-        overflow: 'hidden',
-        border: `${ref.border.thin} solid ${ref.outline.subtle}`,
-        borderRadius: ref.radius.md,
-        background: ref.surface.default,
-      }),
+    // One grid cell of at least nothing, so upstream's scrolling list fits the
+    // box; the box fills its container's width, since sized to its content it
+    // took the widest row drawn and changed width as the list scrolled.
+    root: Style.compose(
+      component(
+        Style.self({
+          position: 'relative',
+          display: 'grid',
+          gridTemplateRows: 'minmax(0, 1fr)',
+          gridTemplateColumns: 'minmax(0, 1fr)',
+          inlineSize: '100%',
+          blockSize: '18rem',
+          overflow: 'hidden',
+          border: `${ref.border.thin} solid ${ref.outline.subtle}`,
+          borderRadius: ref.radius.md,
+          background: ref.surface.default,
+        }),
+      ),
+      overlaidChild,
     ),
     row: component(
       Style.self({
@@ -31,5 +41,7 @@ export const VirtualList = Style.recipeFor(VirtualListSlots)({
       }),
       Style.pseudo(':hover', { background: unfilledHover }),
     ),
+    bar,
+    thumb,
   },
 })

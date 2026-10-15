@@ -3,13 +3,15 @@
  * line under it, and the rows below in their groups, each a rung of the size
  * ladder, the highlighted one lit as a menu's row is, its shortcut at the
  * end in the caption role. The list scrolls past a cap, fading at an edge
- * with more beyond.
+ * with more beyond, under the overlay bar of `scrollBars.ts` where the view
+ * draws one (`overlayBars`).
  */
 import { Style } from 'foldkit-mixins'
-import { ladder, raise, raisedSurface, role } from 'foldkit-mixins/theme'
+import { ladder, nested, nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { CommandSlots } from '../command.js'
 import { component, ref, rowOnLadder, touchText } from './design.js'
+import { bar, overlaid, thumb } from './scrollBars.js'
 
 export const Command = Style.recipeFor(CommandSlots)({
   base: {
@@ -42,10 +44,23 @@ export const Command = Style.recipeFor(CommandSlots)({
       Style.pseudo('::placeholder', { color: ref.text.muted }),
       touchText,
     ),
-    list: component(
-      Style.self({ maxBlockSize: '20rem', overflowY: 'auto', padding: ref.space['2xs'] }),
-      Utilities.scrollFade('block'),
+    // Its rows meet the panel's lower corners, inside its border.
+    list: Style.compose(
+      component(
+        Style.self({
+          maxBlockSize: '20rem',
+          overflowY: 'auto',
+          padding: ref.space['2xs'],
+          ...nests(ref.radius.xl, ref.space['2xs'], ref.border.thin),
+        }),
+        Utilities.scrollFade('block'),
+      ),
+      overlaid,
     ),
+    // With `overlayBars`: the list's box, which its bar lies over.
+    frame: component(Style.self({ position: 'relative', display: 'grid', minBlockSize: '0' })),
+    bar,
+    thumb,
     group: component(Style.self({})),
     heading: component(
       Style.self({
@@ -62,7 +77,7 @@ export const Command = Style.recipeFor(CommandSlots)({
         alignItems: 'center',
         justifyContent: 'space-between',
         ...rowOnLadder,
-        borderRadius: ref.radius.md,
+        borderRadius: nested(),
         cursor: 'pointer',
       }),
       Style.pseudo('[data-active]', {

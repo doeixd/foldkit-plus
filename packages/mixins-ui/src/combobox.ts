@@ -1,6 +1,7 @@
 import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
-import { FluidHover, Measure } from 'foldkit-primitives/dom'
+import { FluidHover, Measure, ScrollBars } from 'foldkit-primitives/dom'
+import { scrollBarOf } from './popupScroll.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 import type {
   ComboboxGroupRender,
@@ -54,6 +55,8 @@ export const ComboboxSlots = Slots.define({
   rows: Slot.make({ capability: Capability.Container }),
   highlight: Slot.make({ capability: Capability.Container }),
   indicator: Slot.make({ capability: Capability.Container }),
+  scrollBar: Slot.make({ capability: Capability.Container }),
+  scrollThumb: Slot.make({ capability: Capability.Container }),
 })
 
 export type ResolvedComboboxItem<Message> = Omit<ComboboxItemRender, 'attributes'> & {
@@ -100,6 +103,9 @@ export type ResolvedCombobox<Message> = Omit<
   readonly highlight: SlotAttributes<Message> | undefined
   /** The marker `fluid` moves to the chosen row, drawn beside the highlight. */
   readonly indicator: SlotAttributes<Message> | undefined
+  /** The overlay bar `overlayBars` drives, beside `scroll` in the panel, and its thumb: only with `scroll`. */
+  readonly scrollBar: SlotAttributes<Message> | undefined
+  readonly scrollThumb: SlotAttributes<Message> | undefined
   readonly groups: ReadonlyArray<ResolvedComboboxGroup<Message>>
 }
 
@@ -148,6 +154,7 @@ export const resolve = <Input, Message>(
       render.items === undefined
         ? undefined
         : builders.indicator.attrs([context.h.AriaHidden(true)]),
+    ...scrollBarOf(render.scroll !== undefined, builders, context.h),
     groups: render.groups.map(group => ({
       key: group.key,
       heading:
@@ -231,5 +238,23 @@ export const fluid = [
       }),
     },
     { name: 'ComboboxHover' },
+  ).mixin,
+] as const
+
+/**
+ * What draws the open panel's `scrollBar` over its `scroll` (`ScrollBars`),
+ * in place of the browser's bar, on a pointer that can hover; a press on the
+ * bar leaves the field its focus. Pass it beside the style when the combobox
+ * scrolls (`itemsScrollAttributes`); without a `scroll` there is no bar.
+ */
+export const overlayBars = [
+  Behavior.forSlots(ComboboxSlots)<unknown, never>(
+    {
+      scroll: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => ScrollBars({}),
+      }),
+    },
+    { name: 'ComboboxScrollBars' },
   ).mixin,
 ] as const
