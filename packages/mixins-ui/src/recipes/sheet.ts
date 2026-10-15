@@ -1,11 +1,12 @@
 /**
- * Sheet and Drawer: the Dialog recipe with its panel pinned to an edge of the
- * viewport, shadcn's Sheet and vaul's Drawer. Both style `@foldkit/ui`'s
- * Dialog through `DialogSlots`, so the focus trap, Escape and the backdrop's
- * dismissal stay the Dialog's. The panel slides in from its `side` on the
- * slow tier; the slide travels, so reduced motion keeps only the fade.
+ * Sheet: the Dialog recipe with its panel pinned to an edge of the viewport,
+ * shadcn's Sheet and, with `handle: 'bar'`, vaul's Drawer. It styles
+ * `@foldkit/ui`'s Dialog through `DialogSlots`, so the focus trap, Escape and
+ * the backdrop's dismissal stay the Dialog's. The panel slides in from its
+ * `side` on the slow tier; the slide travels, so reduced motion keeps only
+ * the fade.
  */
-import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
+import { Style, type Declarations } from 'foldkit-mixins'
 import { DialogSlots } from '../dialog.js'
 import { component, ref, variant } from './design.js'
 import { Dialog } from './dialog.js'
@@ -19,8 +20,8 @@ const allCorners = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'] as const
 const inner = { top: 'Bottom', right: 'Left', bottom: 'Top', left: 'Right' } as const
 
 /**
- * The inner corners' radius: square on a Sheet, set by the Drawer. A private
- * property, so the Drawer rounds them without a second rule in this layer
+ * The inner corners' radius: square unless the handle rounds them. A private
+ * property, so the handle rounds them without a second rule in this layer
  * whose win would depend on emission order.
  */
 const radius = 'var(--_fk-sheet-radius, 0)'
@@ -52,6 +53,35 @@ const placed = {
 const across = (side: Side): Declarations =>
   side === 'top' || side === 'bottom' ? { maxBlockSize: '80%' } : { inlineSize: 'min(24rem, 75%)' }
 
+const length = '6.25rem'
+const thickness = '0.375rem'
+
+/**
+ * The handle on the panel's inner edge: a row of the panel's grid, first or
+ * last whatever the view's order, from the top or bottom; a bar standing on
+ * that edge, out of the flow, from the left or right.
+ */
+const grabber: Record<Side, Declarations> = {
+  top: { order: '1', justifySelf: 'center', inlineSize: length, blockSize: thickness },
+  bottom: { order: '-1', justifySelf: 'center', inlineSize: length, blockSize: thickness },
+  right: {
+    position: 'absolute',
+    insetBlock: '0',
+    marginBlock: 'auto',
+    left: ref.space.xs,
+    inlineSize: thickness,
+    blockSize: length,
+  },
+  left: {
+    position: 'absolute',
+    insetBlock: '0',
+    marginBlock: 'auto',
+    right: ref.space.xs,
+    inlineSize: thickness,
+    blockSize: length,
+  },
+}
+
 const edge = (side: Side) => ({
   // In `variants`, so it beats the Dialog's centering grid on the dialog.
   dialog: variant(Style.self({ placeItems: placed[side] })),
@@ -70,10 +100,20 @@ const edge = (side: Side) => ({
     // A slide replaces the Dialog's growth; the fade stays.
     Style.pseudo('[data-closed]', { scale: 'none', translate: offstage[side] }),
   ),
+  handle: variant(Style.self(grabber[side])),
 })
 
 export const Sheet = Style.recipeFor(DialogSlots)({
-  base: Dialog({ size: null }),
+  base: {
+    ...Dialog({ size: null }),
+    handle: component(
+      Style.self({
+        display: 'none',
+        borderRadius: ref.radius.full,
+        background: ref.outline.default,
+      }),
+    ),
+  },
   variants: {
     side: {
       top: edge('top'),
@@ -81,37 +121,14 @@ export const Sheet = Style.recipeFor(DialogSlots)({
       bottom: edge('bottom'),
       left: edge('left'),
     },
-  },
-  defaults: { side: 'right' },
-})
-
-/**
- * vaul's handle: a short bar on the panel's inner edge, drawn by the panel
- * itself, since `DialogSlots` has no element for it and markup outside a Slot
- * would leave a stylist no handle.
- */
-const handle = (pseudo: '::before' | '::after'): StyleValue =>
-  Style.pseudo(pseudo, {
-    content: '""',
-    justifySelf: 'center',
-    inlineSize: '6.25rem',
-    blockSize: '0.375rem',
-    borderRadius: ref.radius.full,
-    background: ref.outline.default,
-  })
-
-/**
- * A Sheet from the bottom by default, its inner corners rounded, with a
- * handle on its inner edge when it comes from the top or bottom: shadcn's
- * Drawer draws none from the left or right.
- */
-export const Drawer = Sheet.extend({
-  base: { panel: component(Style.self({ '--_fk-sheet-radius': ref.radius.lg })) },
-  variants: {
-    side: {
-      bottom: { panel: variant(handle('::before')) },
-      top: { panel: variant(handle('::after')) },
+    /** `bar` draws the handle and rounds the inner corners, vaul's Drawer. */
+    handle: {
+      none: {},
+      bar: {
+        panel: variant(Style.self({ '--_fk-sheet-radius': ref.radius.lg })),
+        handle: variant(Style.self({ display: 'block' })),
+      },
     },
   },
-  defaults: { side: 'bottom' },
+  defaults: { side: 'right', handle: 'none' },
 })

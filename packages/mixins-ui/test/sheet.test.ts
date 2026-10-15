@@ -1,12 +1,12 @@
 /**
- * Sheet and Drawer by their CSS: each side pins the panel to its edge, waits
- * past that edge while closed, and borders only the edge facing the page; the
- * Drawer adds a handle on that edge from the top or bottom alone.
+ * The Sheet by its CSS: each side pins the panel to its edge, waits past that
+ * edge while closed, and borders only the edge facing the page; `handle: 'bar'`
+ * shows the handle on that edge and rounds the inner corners.
  */
 import { describe, expect, it } from 'vitest'
 import { Style } from 'foldkit-mixins'
 import { DialogSlots } from '../src/dialog.js'
-import { Drawer, Sheet } from '../src/recipes/sheet.js'
+import { Sheet } from '../src/recipes/sheet.js'
 
 const css = (pieces: ReturnType<typeof Sheet>): string => Style.forSlots(DialogSlots)(pieces).css
 
@@ -34,31 +34,36 @@ describe('Sheet', () => {
   it('slides on the Dialog transition, which the travel knob stills', () => {
     expect(css(Sheet({}))).toContain('calc(var(--fk-motion-slow) * var(--fk-knob-travel))')
   })
-
-  it('squares the inner corners, which only the Drawer rounds', () => {
-    expect(css(Sheet({ side: 'bottom' }))).not.toContain('--_fk-sheet-radius:')
-    expect(css(Drawer({ side: 'bottom' }))).toContain('--_fk-sheet-radius:var(--fk-radius-lg)')
-    expect(css(Drawer({ side: 'bottom' }))).toContain(
-      'border-top-left-radius:var(--_fk-sheet-radius, 0)',
-    )
-  })
 })
 
-describe('Drawer', () => {
-  it('comes from the bottom, its handle on the top edge', () => {
-    const drawer = css(Drawer({}))
-    expect(drawer).toContain('place-items:end stretch')
-    expect(drawer).toMatch(/::before\{[^}]*content:""/)
+describe('the handle', () => {
+  it('is hidden and the inner corners square without a bar', () => {
+    const sheet = css(Sheet({ side: 'bottom' }))
+    expect(sheet).toContain('display:none')
+    expect(sheet).not.toContain('display:block')
+    expect(sheet).not.toContain('--_fk-sheet-radius:')
   })
 
-  it('puts the handle on the bottom edge from the top', () => {
-    const drawer = css(Drawer({ side: 'top' }))
-    expect(drawer).toMatch(/::after\{[^}]*content:""/)
-    expect(drawer).not.toContain('::before')
+  it('shows with a bar, which rounds the inner corners', () => {
+    const sheet = css(Sheet({ side: 'bottom', handle: 'bar' }))
+    expect(sheet).toMatch(/@layer variants\{[^}]*display:block/)
+    expect(sheet).toContain('--_fk-sheet-radius:var(--fk-radius-lg)')
+    expect(sheet).toContain('border-top-left-radius:var(--_fk-sheet-radius, 0)')
   })
 
-  it('draws no handle from the left or right', () => {
-    expect(css(Drawer({ side: 'left' }))).not.toMatch(/::(before|after)/)
-    expect(css(Drawer({ side: 'right' }))).not.toMatch(/::(before|after)/)
+  it.each([
+    { side: 'bottom', order: '-1' },
+    { side: 'top', order: '1' },
+  ] as const)('is the first or last row of a $side sheet by order', ({ side, order }) => {
+    expect(css(Sheet({ side, handle: 'bar' }))).toMatch(new RegExp(`[;{]order:${order}[;}]`))
+  })
+
+  it.each([
+    { side: 'right', edge: 'left' },
+    { side: 'left', edge: 'right' },
+  ] as const)('stands on the $edge edge of a $side sheet', ({ side, edge }) => {
+    expect(css(Sheet({ side, handle: 'bar' }))).toMatch(
+      new RegExp(`[;{]${edge}:var\\(--fk-space-xs\\)`),
+    )
   })
 })

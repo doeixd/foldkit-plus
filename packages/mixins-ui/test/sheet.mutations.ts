@@ -1,5 +1,5 @@
 /**
- * The Sheet and Drawer recipes, broken in turn:
+ * The Sheet recipe and its handle, broken in turn:
  * `pnpm mutate packages/mixins-ui/test/sheet.mutations.ts` checks that a
  * test fails for every one.
  */
@@ -71,25 +71,80 @@ export default [
     tests: [browser],
   },
   {
-    name: 'the Drawer squares its inner corners',
+    name: 'the bar squares the inner corners',
     edits: [
       {
         file: '../src/recipes/sheet.ts',
-        find: "component(Style.self({ '--_fk-sheet-radius': ref.radius.lg }))",
-        replace: 'component(Style.self({}))',
+        find: "panel: variant(Style.self({ '--_fk-sheet-radius': ref.radius.lg })),",
+        replace: 'panel: variant(Style.self({})),',
       },
     ],
     tests: [unit, browser],
   },
   {
-    name: "a bottom Drawer's handle is on its bottom edge",
+    name: 'the handle shows without a bar',
     edits: [
       {
         file: '../src/recipes/sheet.ts',
-        find: "bottom: { panel: variant(handle('::before')) },",
-        replace: "bottom: { panel: variant(handle('::after')) },",
+        find: "display: 'none',",
+        replace: "display: 'block',",
       },
     ],
     tests: [unit, browser],
+  },
+  {
+    name: 'the bar leaves the handle hidden',
+    edits: [
+      {
+        file: '../src/recipes/sheet.ts',
+        find: "handle: variant(Style.self({ display: 'block' })),",
+        replace: 'handle: variant(Style.self({})),',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: "a bottom sheet's handle is its last row",
+    edits: [
+      {
+        file: '../src/recipes/sheet.ts',
+        find: "bottom: { order: '-1',",
+        replace: "bottom: { order: '1',",
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: "a top sheet's handle keeps the view's order",
+    edits: [
+      {
+        file: '../src/recipes/sheet.ts',
+        find: "top: { order: '1',",
+        replace: "top: { order: '0',",
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: "a right sheet's handle stands on its outer edge",
+    edits: [
+      {
+        file: '../src/recipes/sheet.ts',
+        find: '    left: ref.space.xs,',
+        replace: '    right: ref.space.xs,',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'the handle is announced',
+    edits: [
+      {
+        file: '../src/dialog.ts',
+        find: 'handle: [context.h.AriaHidden(true)]',
+        replace: 'handle: []',
+      },
+    ],
+    tests: [browser],
   },
 ]

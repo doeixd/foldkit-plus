@@ -29,25 +29,54 @@ export const DialogSlots = Slots.define({
     events: [Event.Click],
     attributes: [Attr.Role, Attr.Disabled],
   }),
+  /**
+   * The Sheet's grabber, drawn in the panel: this package's, with no upstream
+   * bundle, and hidden from assistive technology. Draw it in a Sheet's panel
+   * only: the Sheet recipe hides it unless `handle: 'bar'`.
+   */
+  handle: Slot.make({ capability: Capability.Container }),
 })
 
 /** The dialog's bundles with the attached Mixins applied. */
 export type ResolvedDialog<Message> = Resolved<RenderInfo, typeof DialogSlots, Message>
 
+export interface DialogContext<Input, Message> extends ResolveContext<Input, Message> {
+  /**
+   * `'alertdialog'`, the APG's alert dialog, asks for an answer: its `dialog`
+   * bundle carries `role="alertdialog"`, and the application draws no close
+   * button and drops the Messages `isDismissal` names. `'dialog'`, the
+   * default, writes no role: the `<dialog>` element already has it.
+   */
+  readonly role?: 'dialog' | 'alertdialog'
+}
+
 /** Resolves the dialog's render groups; `isVisible` passes through unchanged. */
 export const resolve = <Input, Message>(
   render: RenderInfo,
   mixins: MixinList<Message>,
-  context: ResolveContext<Input, Message>,
-): ResolvedDialog<Message> => resolveFor(DialogSlots, mixins, context)(render)
+  context: DialogContext<Input, Message>,
+): ResolvedDialog<Message> => {
+  const dialog =
+    context.role === 'alertdialog'
+      ? [...render.dialog, context.h.Role('alertdialog')]
+      : render.dialog
+  return resolveFor(
+    DialogSlots,
+    mixins,
+    context,
+  )({
+    ...render,
+    dialog,
+    handle: [context.h.AriaHidden(true)],
+  })
+}
 
 /**
  * Whether `message` is the dialog dismissing itself: Escape, a press on the
  * backdrop, or its close button, which upstream all send as `RequestedClose`.
- * An alert dialog, the APG's, answers only to its own buttons: its
- * application drops such a Message in `update` instead of folding it, closes
- * from those buttons with `@foldkit/ui`'s `close`, and draws the dialog with
- * `role="alertdialog"` and no close button.
+ * An alert dialog (`role: 'alertdialog'`) answers only to its own buttons:
+ * its application drops such a Message in `update` instead of folding it, and
+ * closes from those buttons with `@foldkit/ui`'s `close`.
  */
 export const isDismissal = (message: DialogMessage): boolean => message._tag === 'RequestedClose'
 
@@ -55,7 +84,7 @@ export const isDismissal = (message: DialogMessage): boolean => message._tag ===
 export const toView =
   <Message>(
     mixins: MixinList<Message>,
-    context: ResolveContext<unknown, Message>,
+    context: DialogContext<unknown, Message>,
     draw: (resolved: ResolvedDialog<Message>) => Html,
   ) =>
   (render: RenderInfo): Html =>

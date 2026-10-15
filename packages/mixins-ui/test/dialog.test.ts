@@ -11,7 +11,7 @@ import {
   type SlotAttributes,
 } from 'foldkit-mixins'
 import { Dialog as DialogAdapter, DialogSlots } from '../src/index.js'
-import { classValue, holds } from './fixture.js'
+import { attributeOf, classValue, holds } from './fixture.js'
 
 type DialogMixins = ReadonlyArray<MixinValue<Dialog.Message> | MixinValue<never>>
 
@@ -28,7 +28,11 @@ interface Captured {
  * outside a runtime frame. `Scene.scene` supplies that frame and the real `h`,
  * so `toView` receives real ChildAttributes rather than a synthetic brand.
  */
-const runDialog = (mixins: DialogMixins, capture: (captured: Captured) => void): void => {
+const runDialog = (
+  mixins: DialogMixins,
+  capture: (captured: Captured) => void,
+  role: 'dialog' | 'alertdialog' = 'dialog',
+): void => {
   Scene.scene(
     {
       update: Dialog.update,
@@ -37,7 +41,7 @@ const runDialog = (mixins: DialogMixins, capture: (captured: Captured) => void):
           model,
           {
             toView: render => {
-              const resolved = DialogAdapter.resolve(render, mixins, { input: undefined, h })
+              const resolved = DialogAdapter.resolve(render, mixins, { input: undefined, h, role })
               capture({
                 isVisible: resolved.isVisible,
                 dialog: resolved.dialog,
@@ -78,6 +82,23 @@ describe('Dialog adapter', () => {
     const view = captured!
     for (const child of view.render.panel) expect(holds(view.panel, child)).toBe(true)
     expect(classValue(view.panel)).toBe('dialog-panel')
+  })
+
+  it.each([
+    ['alertdialog', 'alertdialog'],
+    ['dialog', undefined],
+  ] as const)('a %s role draws role %s on the dialog', (role, drawn) => {
+    let captured: Captured | undefined
+    runDialog(
+      [],
+      value => {
+        captured = value
+      },
+      role,
+    )
+    const view = captured!
+    expect(attributeOf(view.dialog, 'Role')?.value).toBe(drawn)
+    for (const child of view.render.dialog) expect(holds(view.dialog, child)).toBe(true)
   })
 
   it('refuses a Behavior that takes over the close button click', () => {

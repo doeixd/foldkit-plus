@@ -1,7 +1,7 @@
 /**
- * Sheet and Drawer on a real page: the open panel spans the edge it comes
- * from and borders only the side facing the page, and the Drawer's handle is
- * drawn on the panel.
+ * The Sheet on a real page: the open panel spans the edge it comes from and
+ * borders only the side facing the page, and its handle Slot is hidden until
+ * `handle: 'bar'` draws it on that side.
  */
 import { Schema } from 'effect'
 import { Dialog as UiDialog } from '@foldkit/ui'
@@ -11,7 +11,7 @@ import { Layers, Style, type StyleValues } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { Dialog, DialogSlots } from '../src/index.js'
-import { Drawer, Sheet } from '../src/recipes/sheet.js'
+import { Sheet } from '../src/recipes/sheet.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
 const L = Layers.standard
@@ -42,7 +42,10 @@ const openPanel = async (pieces: StyleValues<typeof DialogSlots>) => {
           h.dialog(
             dialog.dialog,
             dialog.isVisible
-              ? [h.div(dialog.backdrop), h.div(dialog.panel, [h.h2(dialog.title, ['Filters'])])]
+              ? [
+                  h.div(dialog.backdrop),
+                  h.div(dialog.panel, [h.div(dialog.handle), h.h2(dialog.title, ['Filters'])]),
+                ]
               : [],
           ),
         ),
@@ -62,12 +65,15 @@ const openPanel = async (pieces: StyleValues<typeof DialogSlots>) => {
     }),
   )
   await vi.waitFor(() => expect(document.querySelector('h2')).toBeTruthy())
-  return { panel: document.querySelector('h2')!.parentElement!, dispose: () => handle.dispose() }
+  const panel = document.querySelector('h2')!.parentElement!
+  return { panel, grabber: panel.firstElementChild!, dispose: () => handle.dispose() }
 }
 
 test('a right sheet spans the right edge, bordered on its left', async () => {
-  const { panel, dispose } = await openPanel(Sheet({ side: 'right' }))
+  const { panel, grabber, dispose } = await openPanel(Sheet({ side: 'right' }))
   try {
+    expect(getComputedStyle(grabber).display).toBe('none')
+    expect(grabber.getAttribute('aria-hidden')).toBe('true')
     const box = panel.getBoundingClientRect()
     expect(Math.abs(box.right - document.documentElement.clientWidth)).toBeLessThan(1)
     expect(box.top).toBeLessThan(1)
@@ -83,8 +89,8 @@ test('a right sheet spans the right edge, bordered on its left', async () => {
   }
 })
 
-test('a drawer spans the bottom edge, its top corners rounded and its handle drawn', async () => {
-  const { panel, dispose } = await openPanel(Drawer({}))
+test('a bottom sheet with a bar rounds its top corners, its handle above the title', async () => {
+  const { panel, grabber, dispose } = await openPanel(Sheet({ side: 'bottom', handle: 'bar' }))
   try {
     const box = panel.getBoundingClientRect()
     expect(Math.abs(box.bottom - window.innerHeight)).toBeLessThan(1)
@@ -94,7 +100,36 @@ test('a drawer spans the bottom edge, its top corners rounded and its handle dra
     expect(look.borderTopWidth).toBe('1px')
     expect(look.borderTopLeftRadius).not.toBe('0px')
     expect(look.borderBottomLeftRadius).toBe('0px')
-    expect(getComputedStyle(panel, '::before').height).toBe('6px')
+    const bar = grabber.getBoundingClientRect()
+    expect(bar.height).toBeCloseTo(6, 0)
+    expect(bar.width).toBeCloseTo(100, 0)
+    expect(Math.abs(bar.left + bar.width / 2 - (box.left + box.width / 2))).toBeLessThan(1)
+    const title = panel.querySelector('h2')!.getBoundingClientRect()
+    expect(bar.bottom).toBeLessThanOrEqual(title.top)
+  } finally {
+    dispose()
+  }
+})
+
+test('a top sheet with a bar draws its handle below the title', async () => {
+  const { panel, grabber, dispose } = await openPanel(Sheet({ side: 'top', handle: 'bar' }))
+  try {
+    const title = panel.querySelector('h2')!.getBoundingClientRect()
+    expect(grabber.getBoundingClientRect().top).toBeGreaterThanOrEqual(title.bottom)
+  } finally {
+    dispose()
+  }
+})
+
+test('a right sheet with a bar stands its handle on the left edge, centered', async () => {
+  const { panel, grabber, dispose } = await openPanel(Sheet({ side: 'right', handle: 'bar' }))
+  try {
+    const box = panel.getBoundingClientRect()
+    const bar = grabber.getBoundingClientRect()
+    expect(bar.width).toBeCloseTo(6, 0)
+    expect(bar.height).toBeCloseTo(100, 0)
+    expect(bar.left - box.left).toBeLessThan(box.width / 4)
+    expect(Math.abs(bar.top + bar.height / 2 - (box.top + box.height / 2))).toBeLessThan(1)
   } finally {
     dispose()
   }
