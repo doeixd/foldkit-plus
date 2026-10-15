@@ -184,7 +184,7 @@ style picker: `{ document, selection, wrap }` in, `BlockStyleSlots` (`root`, `to
 `button`) out, one `data-style` button per retype entry (Paragraph, Heading 1–3), pressed from
 `RichText.textBlockAt`, all disabled without a text selection; `blockStyleMenu<Message>()` is the
 same as one trigger and a menu (`{ …, open, toggled }`, `BlockStyleMenuSlots`). `linkEditor<Message>()` is the link
-editor: `{ document, selection, draft, drafted, wrap }` in, `LinkEditorSlots` (`root`, `input`,
+editor: `{ document, selection, draft, drafted, wrap, closed? }` in (Escape sends `closed`), `LinkEditorSlots` (`root`, `input`,
 `apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
 `RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
 nor a link at the caret) and `ClearedMark` from inside a link, and keeps no state.

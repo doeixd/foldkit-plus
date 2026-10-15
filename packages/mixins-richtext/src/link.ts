@@ -31,13 +31,15 @@ export interface LinkEditorInput<Message> {
   readonly drafted: (href: string) => Message
   /** An editor Message as this caller's, usually its `edited(...)` wrapper. */
   readonly wrap: (message: EditorEvent) => Message
+  /** What Escape in the field sends: usually closing the editor. Without it, Escape does nothing. */
+  readonly closed?: Message | undefined
 }
 
 /**
  * The link editor as a slot view. Applying needs an address the URL policy accepts
  * (`RichText.safeUrl`), which is what it sends, and something to link: a range, or a caret
  * inside a link. Otherwise the apply button is disabled and Enter in the field does nothing.
- * The remove button is drawn only inside a link.
+ * The remove button is drawn only inside a link. Escape in the field sends `closed`.
  */
 export const linkEditor = <Message>(): SlotView.SlotView<
   typeof LinkEditorSlots,
@@ -57,11 +59,13 @@ export const linkEditor = <Message>(): SlotView.SlotView<
           h.Type('url'),
           h.DataAttribute('link', 'address'),
           h.AriaLabel('Link address'),
+          h.Placeholder('Paste or type a link'),
           h.Value(input.draft),
           h.OnInput(input.drafted),
-          h.OnKeyDownPreventDefault(key =>
-            key === 'Enter' && apply !== undefined ? Option.some(apply) : Option.none(),
-          ),
+          h.OnKeyDownPreventDefault(key => {
+            if (key === 'Escape' && input.closed !== undefined) return Option.some(input.closed)
+            return key === 'Enter' && apply !== undefined ? Option.some(apply) : Option.none()
+          }),
         ]),
       ),
       h.button(
@@ -71,7 +75,7 @@ export const linkEditor = <Message>(): SlotView.SlotView<
           h.Disabled(apply === undefined),
           ...(apply === undefined ? [] : [h.OnClick(apply)]),
         ]),
-        [link === undefined ? 'Link' : 'Update'],
+        [link === undefined ? 'Apply' : 'Update'],
       ),
       ...(link === undefined
         ? []

@@ -163,3 +163,47 @@ describe('the link editor', () => {
     expect(Object.keys(root.children[0]?.data?.class ?? {})).toEqual(['link-address'])
   })
 })
+
+describe('the link editor’s field', () => {
+  const Field = defineMessageUnion({ Closed: {}, Drafted: { href: Schema.String } })
+  type Field = typeof Field.Type
+  interface Shown {
+    readonly closed: boolean
+  }
+  const fieldView = (model: Shown, h: HtmlBuilder<Field>) =>
+    h.div(
+      [],
+      [
+        linkEditor<Field>()(
+          {
+            document,
+            selection: caret('a', 1),
+            draft: '',
+            drafted: href => Field.Drafted({ href }),
+            wrap: () => Field.Closed(),
+            closed: Field.Closed(),
+          },
+          h,
+        ),
+        h.p([h.Id('closed')], [String(model.closed)]),
+      ],
+    )
+  const fieldUpdate = (model: Shown, message: Field): { readonly model: Shown } => ({
+    model: Field.match(message, {
+      Closed: () => ({ ...model, closed: true }),
+      Drafted: () => model,
+    }),
+  })
+
+  it('asks for a link, and closes on Escape', () => {
+    Scene.scene(
+      { update: fieldUpdate, view: fieldView },
+      Scene.given<Shown>({ closed: false }),
+      Scene.expect(Scene.selector(input)).toHaveAttr('placeholder', 'Paste or type a link'),
+      Scene.expect(Scene.selector(apply)).toHaveText('Apply'),
+      Scene.Mount.expectNone(),
+      Scene.keydown(input, 'Escape'),
+      Scene.expect(Scene.selector('#closed')).toHaveText('true'),
+    )
+  })
+})

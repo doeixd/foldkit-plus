@@ -155,6 +155,9 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-mixins-richtext`: the link editor asks for a link and closes on
+  Escape.** Its field says "Paste or type a link", Escape in it sends the new
+  optional `closed`, and its button reads Apply rather than Link.
 - **`foldkit-mixins-richtext`: the find bar's Previous, Next, Match case and
   Close are icons**, named by `aria-label` and `title`.
 - **`foldkit-richtext-dom`: a floating element follows its own size.** A

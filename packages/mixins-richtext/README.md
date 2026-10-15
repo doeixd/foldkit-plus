@@ -153,13 +153,15 @@ What it sends is `RichText.safeUrl(draft)`, so the address is cleaned and a `jav
 `data:` one is never sent. Applying needs such an address and something to link: a range of
 text, or a caret inside a link. Otherwise the apply button is disabled and Enter in the field
 falls through. The remove button is drawn only inside a link. Where the editor appears, and
-when it opens or closes, is the application's.
+when it opens or closes, is the application's; give it `closed` and Escape in the field sends
+it. Focusing the field as the editor opens, so a link can be pasted at once, is a Command the
+application runs (`Dom.focus('[data-link="address"]')`).
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
 | `root` | Container | the editor's wrapper, `role="group"` |
-| `input` | TextInput | the address field, `data-link="address"` |
-| `apply` | Interactive | the apply button, `data-link="apply"`, labelled Link or Update |
+| `input` | TextInput | the address field, `data-link="address"`, "Paste or type a link" |
+| `apply` | Interactive | the apply button, `data-link="apply"`, labelled Apply or Update |
 | `remove` | Interactive | the remove button, `data-link="remove"`, inside a link only |
 
 ## The slash menu
