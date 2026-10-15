@@ -2,7 +2,10 @@
  * A hover card over `@foldkit/ui`'s HoverIntent: a trigger read as a link to
  * something more, and a raised panel two levels above what holds it, as a
  * popover is, fading in on the fast tier as it is drawn. Place the panel
- * with the `Anchor` Mount; this styles it and leaves `top` and `left` alone.
+ * with the `Anchor` Mount; this styles it, takes it out of the flow (the
+ * Anchor's absolute strategy writes `top` and `left` but no `position`, so
+ * an unportaled card stood in the line and moved its trigger), and leaves
+ * `top` and `left` alone.
  */
 import { Style } from 'foldkit-mixins'
 import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
@@ -28,6 +31,9 @@ export const HoverCard = Style.recipeFor(HoverIntentSlots)({
     ),
     panel: component(
       Style.self({
+        position: 'absolute',
+        // Out of the flow at the trigger's edge it would shrink to its narrowest word.
+        inlineSize: 'max-content',
         maxInlineSize: '20rem',
         padding: ref.space.md,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,

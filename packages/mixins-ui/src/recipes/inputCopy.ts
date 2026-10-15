@@ -10,6 +10,11 @@ import { Utilities } from 'foldkit-mixins/utilities'
 import { InputCopySlots } from '../inputCopy.js'
 import { component, focusRing, ref, touchText, transition, unfilledHover } from './design.js'
 
+// The group's corner inside its border: the input and button round their
+// outer corners to it, so a ring drawn inset follows the curve the group
+// clips to, rather than a square corner cut off by it.
+const inner = `calc(${ref.radius.md} - ${ref.border.thin})`
+
 export const InputCopy = Style.recipeFor(InputCopySlots)({
   base: {
     root: component(Style.self({ display: 'flex', flexDirection: 'column', gap: ladder('gap') })),
@@ -35,6 +40,8 @@ export const InputCopy = Style.recipeFor(InputCopySlots)({
         paddingBlock: '0',
         paddingInline: ladder('pad'),
         border: '0',
+        borderStartStartRadius: inner,
+        borderEndStartRadius: inner,
         background: 'transparent',
         color: ref.text.default,
         font: 'inherit',
@@ -56,6 +63,8 @@ export const InputCopy = Style.recipeFor(InputCopySlots)({
         paddingInline: ladder('pad'),
         border: '0',
         borderInlineStart: `${ref.border.thin} solid ${ref.outline.default}`,
+        borderStartEndRadius: inner,
+        borderEndEndRadius: inner,
         background: 'transparent',
         color: ref.text.default,
         font: 'inherit',

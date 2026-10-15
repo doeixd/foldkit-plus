@@ -49,6 +49,11 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
         flexShrink: '0',
         inlineSize: edge,
         blockSize: edge,
+        // Centered on the first line of a label beside it, in a row aligned
+        // to its top: the body role gives `1lh` the label's leading. Aligned
+        // by baseline instead, an empty radio stood its bottom on the line.
+        ...role('body'),
+        marginBlockStart: `calc((1lh - ${edge}) / 2)`,
         padding: '0',
         border: `${ref.border.thin} solid ${ref.outline.overt}`,
         borderRadius: ref.radius.full,

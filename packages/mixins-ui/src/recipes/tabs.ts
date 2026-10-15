@@ -6,7 +6,7 @@
  * follows the pointer; until `Tabs.fluid` runs, the chosen tab marks itself.
  */
 import { Style } from 'foldkit-mixins'
-import { nested } from 'foldkit-mixins/theme'
+import { nested, nests } from 'foldkit-mixins/theme'
 import { TabsSlots } from '../tabs.js'
 import {
   component,
@@ -125,11 +125,13 @@ export const Tabs = Style.recipeFor(TabsSlots)({
             padding: ref.space['3xs'],
             borderRadius: ref.radius.lg,
             background: ref.surface.muted,
+            // The tabs, the chosen pill and the hover take their corners from these.
+            ...nests(ref.radius.lg, ref.space['3xs']),
           }),
         ),
         tab: variant(
           // Concentric with the tray's corner, inside its padding.
-          Style.self({ borderRadius: nested(ref.radius.lg, ref.space['3xs']) }),
+          Style.self({ borderRadius: nested() }),
           // The accent's tint and ink, as a pressed Segmented option: the base
           // surface on the tray barely differed from it in a dark scheme.
           Style.pseudo(selected, { color: ref.accent.ink }),
@@ -141,7 +143,8 @@ export const Tabs = Style.recipeFor(TabsSlots)({
             inlineSize: chosen('w'),
             blockSize: chosen('h'),
             translate: `${chosen('x')} ${chosen('y')}`,
-            borderRadius: ref.radius.md,
+            // The tab's own corner, so the pill meets the tab it marks.
+            borderRadius: nested(),
             background: ref.accent.subtle,
             opacity: `calc(1 - 0.15 * ${hovered('shown')})`,
           }),
@@ -149,6 +152,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         // The hover is the chosen pill, faint, as if it were trying the tab on.
         highlight: variant(
           Style.self({
+            borderRadius: nested(),
             background: ref.accent.subtle,
             opacity: `calc(0.4 * ${hovered('shown')})`,
           }),

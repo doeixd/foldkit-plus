@@ -5,6 +5,7 @@
  * the Menu recipe with its trigger made one of the bar's.
  */
 import { Style } from 'foldkit-mixins'
+import { nested, nests } from 'foldkit-mixins/theme'
 import { MenubarSlots } from '../menubar.js'
 import { component, ref, unfilledHover, variant } from './design.js'
 import { Menu } from './menu.js'
@@ -21,6 +22,8 @@ export const Menubar = Style.recipeFor(MenubarSlots)({
         background: ref.surface.muted,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,
+        // Its triggers take their corners from these.
+        ...nests(ref.radius.lg, ref.space['3xs'], ref.border.thin),
       }),
     ),
     // Above an open menu's backdrop, so pointing at a neighbour reaches it.
@@ -32,7 +35,8 @@ export const Menubar = Style.recipeFor(MenubarSlots)({
 export const MenubarMenu = Menu.extend({
   base: {
     button: variant(
-      Style.self({ border: '0', background: 'transparent' }),
+      // Concentric with the bar's corner, inside its padding and border.
+      Style.self({ border: '0', background: 'transparent', borderRadius: nested() }),
       Style.pseudo('[data-open]', { background: unfilledHover, color: ref.text.overt }),
     ),
   },
