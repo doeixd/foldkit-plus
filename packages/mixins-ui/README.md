@@ -505,15 +505,18 @@ What a recipe assumes and does:
   combobox are all one rung tall: 36px by default and 28px compact, their
   padding, gap and text stepping with them (`Theme.ladder`, read on the
   element). `--fk-knob-step: 1` on any element makes everything inside it
-  compact, the popups it opens included, since they stay in the page. A
-  recipe's `size` (`sm` compact, `md` default, `lg` a half step up at 40px)
-  sets the step on its own element and beats the region; unset, which is the
-  default, follows it.
+  compact, the popups it opens included when they stay in the page (an
+  anchor's `portal: false`, as the gallery's do); upstream portals a panel
+  out of the page by default, where no region reaches it. A recipe's `size`
+  (`sm` compact, `md` default, `lg` a half step up at 40px) sets the step on
+  its own element and beats the region, and a popup's sets it on its panel
+  too, so it holds portaled or not; unset, which is the default, follows the
+  region.
 - **Text comes in roles.** `Theme.role(name)` is a size and its leading,
   stepping with the ladder: `display`, `title`, `subtitle`, `body` (a
   control's text, 14px on 20), `caption` (badges, tooltips, a table's
-  headings) and `micro` (keycaps). Labels in fixed-height controls are trimmed
-  to their capitals (`text-box`), and a field's text is 16px on a coarse
+  headings) and `micro` (keycaps). A tab's and a segmented option's label is
+  trimmed to its capitals (`text-box`), centering it optically, and a field's text is 16px on a coarse
   pointer, so iOS Safari does not zoom the page into it.
 - **A state is a tint, not a surface.** A hover lays the palette's
   `state.hover`, a mix of the control's own text color, over whatever is under

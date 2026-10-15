@@ -36,6 +36,37 @@ below is translated, not copied:
 | `useFluidHover` hook | `FluidHover` Mount (exists), overlays drawn in Slots |
 | Ghost span for weight changes | A piece over a slot attribute, with no second element |
 
+## Where it stands (2026-10-14)
+
+Steps 1 to 4, 6a and 7 are built. What was built differs from the sections
+below in these ways, and the code is the word on each:
+
+- **Motion (1).** As planned, but no recipe animates a popup's entrance yet,
+  so exits through `data-closed` wait for the popup craft (8), and the grid
+  collapse for Accordion (parity 4).
+- **Sizes (2).** The tokens hold the two ends (`control.height` and
+  `height-compact`, …), and `Theme.ladder(name)` blends them on the element
+  that reads it: a token would resolve the step at `:root`. A popup's `size`
+  sets the step on its panel as well as its wrapper, since upstream portals
+  the panel out of the page by default; a region reaches only a panel kept in
+  place (`portal: false`).
+- **Type (3).** Body is 14px on 20 (shadcn's), not Fluid's 13, and subtitle
+  15 on 22 to stay above it; the text left the `control` group for the roles
+  (`Theme.role`). `text-box` trim works on a block container only, so tabs
+  and segmented options have it and the `inline-flex` Button does not.
+  Weight without reflow (`Type.steady`) is 3b, open.
+- **Surfaces (4).** The `state` group holds `hover` (12%, our tuned ghost
+  hover, not Fluid's 4 to 6%), `tint`, `tint-hover` and `edge`, each a mix of
+  `currentColor` with its amount a knob; `selected` and `pressed` wait for a
+  recipe that reads them. The image edge is `imageEdge` in the recipes'
+  `design.ts`, not a `Surface` namespace (`foldkit-mixins-surface` is another
+  package). The ladder of eight levels (5) is open.
+- **Scroll (6).** The fade is `Utilities.scrollFade(axis)`, in the existing
+  subpath, its size the `2xl` space step; the divider and the overlay bar
+  (6b) are open.
+- **Fluid hover (7).** The cap is a separate `gapReach` argument, not a
+  `gapClick` struct. Table rows as a consumer need a wrapper slot, open.
+
 ## What changes, in one line each
 
 1. **Motion** has three tiers (80, 160 and 240ms), each with an exit one tier

@@ -81,7 +81,8 @@ const mount = () => {
       Layers.standard.in('theme', Theme.root(theme)),
     ) +
     [button, chosen, large, input, menu, segmented, table].map(each => each.css).join('') +
-    '[data-region="compact"]{--fk-knob-step:1}'
+    '[data-region="compact"]{--fk-knob-step:1}' +
+    '[data-region="flat"]{--fk-control-height:0px;--fk-control-height-compact:0px}'
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'ladder-browser'
@@ -93,7 +94,7 @@ const mount = () => {
       init: () => ({ model: {} }),
       update: (model: typeof Model.Type) => ({ model }),
       view: (_: unknown, h: HtmlBuilder<never>) =>
-        h.div([], [controls(h, 'default'), controls(h, 'compact')]),
+        h.div([], [controls(h, 'default'), controls(h, 'compact'), controls(h, 'flat')]),
     }),
   )
 }
@@ -116,7 +117,7 @@ test('every control and row stands one rung, 36px, on the page', async () => {
   }
 })
 
-test('a region set compact makes each of them 28px, the rows its menu opens included', async () => {
+test('a region set compact makes each of them 28px, the rows of a menu drawn in it included', async () => {
   const handle = mount()
   try {
     await vi.waitFor(() => expect(document.querySelector('[data-part="row"]')).not.toBeNull())
@@ -154,6 +155,18 @@ test('the text steps with the controls: 14 on 20 by default, 13 on 18 compact', 
       expect(text('default', part)).toEqual(['14px', '20px'])
       expect(text('compact', part)).toEqual(['13px', '18px'])
     }
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("a segmented option's label is trimmed to its capitals, shorter than its line", async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(document.querySelector('[data-part="row"]')).not.toBeNull())
+    // With no rung to fill, the option is as tall as its text: a 20px line, trimmed.
+    const option = document.querySelector('[data-region="flat"] [data-part="segmented"] button')!
+    expect(option.getBoundingClientRect().height).toBeLessThan(14)
   } finally {
     handle.dispose()
   }

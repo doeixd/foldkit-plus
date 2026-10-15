@@ -173,8 +173,10 @@ export type Rung = Exclude<keyof Tokens['control'], `${string}-compact`>
  * `density`. The blend is written here, not in a token, because a custom
  * property resolves where it is declared: a token would read the step at
  * `:root`, while this expression reads it on the element that uses it, so
- * `--fk-knob-step: 1` on a toolbar makes everything in it compact, the menus
- * it opens included. A step of `-0.5` is shadcn's large size, 40px.
+ * `--fk-knob-step: 1` on a toolbar makes everything in it compact, a menu it
+ * opens included while the panel stays in the page (an anchor's `portal:
+ * false`); a portaled panel takes only the size its recipe chooses. A step of
+ * `-0.5` is shadcn's large size, 40px.
  */
 export const ladder = (name: Rung): string => {
   const stepped = blend('control', name)

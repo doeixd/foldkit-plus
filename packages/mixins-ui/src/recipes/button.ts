@@ -39,7 +39,6 @@ export const Button = Style.recipeFor(ButtonSlots)({
         alignItems: 'center',
         justifyContent: 'center',
         ...onLadder,
-        ...trimmed,
         border: `${ref.border.thin} solid transparent`,
         borderRadius: ref.radius.md,
         font: 'inherit',

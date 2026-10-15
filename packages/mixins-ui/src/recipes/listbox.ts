@@ -66,9 +66,10 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
   },
   variants: {
     size: {
-      // On the wrapper, so the trigger and the rows it opens step together.
-      sm: { wrapper: steps.sm },
-      md: { wrapper: steps.md },
+      // On the wrapper, so the trigger and the rows it opens step together,
+      // and on the panel too, which upstream portals out of the wrapper by default.
+      sm: { wrapper: steps.sm, items: steps.sm },
+      md: { wrapper: steps.md, items: steps.md },
     },
   },
 })

@@ -110,7 +110,9 @@ sources (see "How each component is built").
    the surface ladder, scrollbars and fluid hover's remaining rules, from
    Fluid's craft reference: [`ui-systems-DESIGN.md`](./ui-systems-DESIGN.md).
    Its first four steps come before step 4, so the islands are built on the
-   ladder; its `step` knob replaces the density stand-in for compact.
+   ladder; its `step` knob replaces the density stand-in for compact. *Steps
+   1 to 4, 6a and 7 are done;* that document's "Where it stands" says how
+   the build differs from its sections.
 4. **Move the islands into the package.** Accordion, Toggle and Toggle Group,
    Input OTP, Number Input, Alert Dialog, Context Menu, Hover Card, Menubar,
    Navigation Menu, Command, Sidebar, Resizable and Checkbox Group are in

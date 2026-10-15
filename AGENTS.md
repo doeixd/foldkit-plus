@@ -610,6 +610,16 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   neither ended nor reported; since then it fails, and a merge of Mounts
   (`Stream.mergeAll`) ends every stream in it, so one Behavior's failure took the
   canvas's clicks with it. The resolver's composed Mount fails each alone.
+- **`text-box` trims a block container's lines, and nothing else.** On the
+  `inline-flex` Button it did nothing (a 20px line stayed 20px; on a block it
+  was 10px), and it does not inherit into the anonymous box holding the
+  words. Measure a trimmed element's height before claiming the trim works.
+- **A knob set on a region does not reach a portaled panel.** Upstream's
+  Menu, Listbox and Combobox portal their panel to the document by default,
+  so a popup's `size` that set the step on its `wrapper` never reached its
+  rows, and a test that drew the slots as static markup passed. Set what a
+  panel needs on the panel's own slot, and test a popup by opening the real
+  component (`popupLadder.browser.test.ts`).
 - **An element holds one Mount.** Foldkit's `OnMount` replaces the vnode's
   `insert` hook, so a second one on an element silently drops the first. The
   mixins resolver composes the Mounts that Mixins contribute, but not one

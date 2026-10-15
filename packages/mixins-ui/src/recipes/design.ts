@@ -41,7 +41,9 @@ export const onLadder: Declarations = {
  * Letterforms centered in a box the ladder sizes: the line box trimmed to the
  * capital height and the baseline, so a label in a fixed-height control sits
  * optically centered. A browser without `text-box` draws the same box, since
- * the height is the ladder's, not the text's.
+ * the height is the ladder's, not the text's. It trims a block container's
+ * lines only: on a flex container (the Button, whose icon and words are flex
+ * items) it does nothing, and it does not inherit.
  */
 export const trimmed: Declarations = { textBox: 'trim-both cap alphabetic' }
 

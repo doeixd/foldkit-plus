@@ -40,4 +40,9 @@ export default [
     ],
     tests: ['packages/mixins-ui/test/ladder.browser.test.ts'],
   },
+  {
+    name: 'a segmented label keeps its whole line',
+    edits: [{ file: '../src/recipes/segmented.ts', find: '        ...trimmed,', replace: '' }],
+    tests: ['packages/mixins-ui/test/ladder.browser.test.ts'],
+  },
 ]
