@@ -78,6 +78,15 @@ focus ring, the popup highlight.
 - Command's list and rows (`recipes/command.ts:23, 65`) and Menubar's bar
   (`recipes/menubar.ts:23`) set radii by hand, unrelated to their containers.
 
+**Edited, not yet checked.** `Theme.nests(radius, inset, border?)` on the
+container and `Theme.nested()` on its descendants, in `foldkit-mixins`. The
+popup panel, Command's list, the Menubar's bar, Segmented's trays and pill
+Tabs publish; their rows, triggers, options, pills, highlights and markers
+read. InputCopy rounds its controls' outer corners instead (it pads nothing).
+Carousel's track has no padding and its slides already share its radius.
+A custom property that reads `var()` resolves where it is declared, so
+`nested()` is a plain `calc` placed in `border-radius`, read on the child.
+
 **Plan.** Make concentricity the default instead of each recipe's
 arithmetic. A container that pads its children publishes `--fk-outer-radius`
 and `--fk-inset`; `Theme.nested()` with no arguments reads them, so a child's
@@ -109,7 +118,7 @@ the record.
 **Plan.** A rule for the motion system: layout properties (`*-size`,
 `grid-template-*`) never take an overshooting curve; `glide`/`presence`
 already separate travel from fade, so add `collapse(tier)` to `design.ts`
-that every disclosure uses (Accordion, Sidebar, TreeView, NestedMenu later).
+that every disclosure uses (Accordion, Sidebar, TreeView; Menu submenus open without one).
 The content keeps its final layout while the row clips it. Browser test:
 sample the section's height every frame while it opens; it never exceeds
 its final height, and the first label's x never moves.
@@ -154,6 +163,17 @@ submenu scrolls), Combobox (width), Select, Menus.
 reference: a thin thumb that rests, widens on hover, fades when idle, native
 on touch, with fades at the edges that have more.
 
+**Edited, not yet checked.** `ScrollBars({ idle?, scroller? })` in
+`foldkit-primitives/dom` drives bars drawn beside the scroller (thumb 4px,
+6px on hover, idle fade; native on a coarse pointer); the look is
+`recipes/scrollBars.ts`; `Utilities.scrollDivider`/`scrollTimeline` draw
+the edge hairline where `timeline-scope` exists. Wired, opt-in
+(`overlayBars`), in ScrollArea (markup gains a `root`), Command,
+VirtualList, and Menu, Listbox and Combobox. Open: Table and Sidebar have
+no scrolling element yet; Dialog's body and Sheet need a wrapper with bar
+slots; nested and Menubar submenus; a gallery showing. Decide whether it
+should default on.
+
 **Plan.** This is systems 6b, now with a brief. A `ScrollBars` Mount draws an
 overlay thumb (rest 4px, hover 6px, idle fade after a pause, travel-aware),
 and keeps the native bar on coarse pointers. `Utilities.scrollFade` (6a)
@@ -163,6 +183,16 @@ stays the edge gradient; add the hairline divider at a scrolled edge (needs
 Sheet) uses the same pieces.
 
 ### A6. Right to left
+
+**Edited, not yet checked.** Keys: one `readingKey` helper
+(`packages/mixins-ui/src/direction.ts`) and a `direction?: 'ltr' | 'rtl'`
+view option on Menubar, Menu (its submenu opens on the left), TreeView,
+Resizable (keys and drag) and the horizontal Listbox forks; Messages stay
+logical. Progress's indeterminate sweep is mirrored. Chevrons and arrows
+(`cornerSides`), the Switch thumb and the Checkbox check were fixed earlier.
+Still open: the gallery passes no direction to those four previews, the
+per-component RTL browser tests, and the popup overlays measured from the
+left (deliberate: the Mounts measure from the left).
 
 **Confirmed:** the Switch thumb starts at `inset-inline-start` (logical) but
 moves by a positive physical `translate` (`recipes/toggle.ts:125, 138`), so
@@ -208,12 +238,12 @@ gallery page with the variants as examples.
 
 | Today | Becomes | How |
 |---|---|---|
-| `Alert`, `Banner` | `Alert` with `layout: inline \| banner` | Banner's region landmark and full-width strip as a layout; Alert's tones and emphasis shared; Fluid's [Banner](https://www.fluidfunctionalism.com/docs/banner) as the reference |
-| Dialog, Alert Dialog | Dialog, `role: dialog \| alertdialog` | `Dialog.isDismissal` stays; one page |
-| `Recipes.Sheet`, `Recipes.Drawer` | `Sheet` with `side` and a `handle`, plus drag (C, Sheet) | one recipe, one page |
-| Calendar, DatePicker, DateRange | one date system: `selection: single \| range \| multiple`, inline or in a popover | DateRange's `picked` becomes the range mode; the DatePicker stays open in range mode (needs upstream, or our own popover over the Calendar) |
-| Slider, RangeSlider | Slider with a `number` or a `{ low, high }` value | one recipe in Fluid's [slider](https://www.fluidfunctionalism.com/docs/slider) look |
-| Menu, ContextMenu, NestedMenu | one Menu page: a button, a point or a row opens it | shared panel recipe, submenus available to all three |
+| `Alert`, `Banner` | `Alert` with `layout: inline \| banner` | Banner's region landmark and full-width strip as a layout; Alert's tones and emphasis shared; Fluid's [Banner](https://www.fluidfunctionalism.com/docs/banner) as the reference. **Edited, not yet checked**: `Alert.view({ layout: 'inline' \| 'banner', … })`, a union type so a banner needs `label` and cannot be `assertive`; one recipe with `tone` and `emphasis`; `Patterns.Alert`; Banner removed. Fluid's compact layout and action styles stay in Part C |
+| Dialog, Alert Dialog | Dialog, `role: dialog \| alertdialog` | `Dialog.isDismissal` stays; one page. **Edited, not yet checked**: `role` on `Dialog.toView`/`resolve`'s context (`DialogContext`); the `alert-dialog` gallery page folded into `dialog`. `examples/widgets` keeps its own primitives-built alert dialog |
+| `Recipes.Sheet`, `Recipes.Drawer` | `Sheet` with `side` and a `handle`, plus drag (C, Sheet) | one recipe, one page. **Edited, not yet checked**: `Recipes.Sheet({ side, handle: 'none' \| 'bar' })`, the handle a `handle` Slot on `DialogSlots`; `Recipes.Drawer` removed; the gallery's Drawer page folded into Sheet. Drag and snap points stay in Part C |
+| Calendar, DatePicker, DateRange | one date system: `selection: single \| range \| multiple`, inline or in a popover | DateRange's `picked` becomes the range mode; the DatePicker stays open in range mode (needs upstream, or our own popover over the Calendar). **Edited, not yet checked**: `Calendar.Selection` (`Single`/`Range`/`Multiple`) with `empty`/`picked`/`isComplete`/`selectedDate`/`toView`; `DatePicker.update(selection)` keeps the popover open while the pick leaves it unfinished; `DateRange` removed; Calendar page shows one day and a range |
+| Slider, RangeSlider | Slider with a `number` or a `{ low, high }` value | one recipe in Fluid's [slider](https://www.fluidfunctionalism.com/docs/slider) look. **Edited, not yet checked**: `Slider.view` overloaded on the value, both kinds native range inputs (the upstream adapter dropped: it draws one thumb), `marks` and `showValue`, `Recipes.Slider` with `track: thick \| thin` and `value: above \| inside`; RangeSlider removed. Vertical, mark labels and ColorPicker on it stay in Part C |
+| Menu, ContextMenu, NestedMenu | one Menu page: a button, a point or a row opens it | shared panel recipe, submenus available to all three. **Edited, not yet checked**: `Menu.init(id, rows)`, `Menu.update`, `Menu.view({ ..., opensAt?: 'button' \| 'point', ... })` with `Menu.target`; `NestedMenu`/`ContextMenu` removed; one gallery page |
 
 ## Part B: bugs
 
@@ -225,32 +255,32 @@ page at 390, 768 and 1440px, dark, and `dir="rtl"`. No page logs an error.
 | Component | Symptom | Cause | Fix |
 |---|---|---|---|
 | Input OTP | The gallery example does not work | **confirmed:** the cells are drawn over the input, so a press on a cell lands on a `div` and focuses nothing; typing after focusing the input works | **Fixed** (batch B, `37f1737e`): the cell groups take no pointer; a browser test presses where a cell is drawn and types |
-| Hover Card | The link moves when the card shows | **confirmed:** the card is drawn in flow inside the trigger's `span`; the centred preview re-centres on the wider pair and the link jumps about 140px | A4 (top layer); until then, the card out of flow |
-| Nested Menu | The submenu scrolls inside the parent | **confirmed, worse:** the submenu's nearest clipping ancestor is the parent `role="menu"` (`overflow: auto`), and it is placed beside the parent, so it is clipped away entirely and never shows | A4 |
-| Radio Group | The label cannot be clicked; the dot sits off the text | **confirmed:** the radio is a `button`, the label a `<label>` with no `for` and no click, so a press on it changes nothing; the dot's centre sits 3px above the label's | press **fixed**: "a press on a radio's words presses it" (the row is a `label` around its radio; README and skill say so). The dot's offset waits for A7 |
+| Hover Card | The link moves when the card shows | **confirmed:** the card is drawn in flow inside the trigger's `span`; the centred preview re-centres on the wider pair and the link jumps about 140px. The Anchor's absolute strategy writes `top` and `left` but no `position` | **Edited, not yet checked**: the HoverCard recipe's panel is `position: absolute`. The top layer (A4) stays the long-term fix |
+| Nested Menu | The submenu scrolls inside the parent | **confirmed, worse:** the submenu's nearest clipping ancestor is the parent `role="menu"` (`overflow: auto`), and it is placed beside the parent, so it is clipped away entirely and never shows. The `overflow-y: auto` is the Anchor's, written inline | **Edited, not yet checked**, then merged: a submenu's row carries `data-open`, and the Menu recipe makes the panel holding an open one `overflow: visible !important` (only `!important` beats the inline declaration). A4 stays the long-term fix |
+| Radio Group | The label cannot be clicked; the dot sits off the text | **confirmed:** the radio is a `button`, the label a `<label>` with no `for` and no click, so a press on it changes nothing; the dot's centre sits 3px above the label's | press **fixed**: "a press on a radio's words presses it" (the row is a `label` around its radio; README and skill say so). The dot: **edited, not yet checked**, the radio centres on the first line of a top-aligned row (`calc((1lh - edge) / 2)`) |
 | Skeleton | Looks broken on the website | **confirmed:** every shape computes 0px wide (16px tall), so nothing shows | **Fixed**: "a Skeleton bar shows in a container that sizes to its content" (a `4rem` floor; the demo has a width). The composites stay in C |
-| VirtualList | The width changes while scrolling | **confirmed:** the list sizes to its widest drawn row, 121–131px as rows change | `grid-template-columns: minmax(0, 1fr)`, full width |
-| Carousel | The corners are cropped | **confirmed, two causes:** the gallery's slides drew a square `1px currentColor` border that the slide's rounded clip cut (**fixed**: "the carousel demo's slides are a fill"); and a focused slide's ring is cut at the sides by the track's `overflow` | inset the ring, or pad the snap area (`scroll-padding`) |
-| Segmented | Corners and vertical centring | **confirmed:** the text sits about 2.5px above centre in its 28px option. The trim is on an `inline-block`, which is a block container, and the steady copy is `height: 0` and adds no line, so the cause in A7 is wrong; the trimmed line's glyphs sit high | A2; find the real offset in A7 |
-| Switch | Broken in RTL | confirmed, A6 | — |
-| Checkbox | The mark is off centre | at 3×, the check sits a little up and left of centre; slight | A7 |
-| Kbd | Not optically centred | the line box is 1px above centre; at 3× the K reads slightly low. Minor | A7 |
+| VirtualList | The width changes while scrolling | **confirmed:** the list sizes to its widest drawn row, 121–131px as rows change | **Edited, not yet checked**: one `minmax(0, 1fr)` column, the box as wide as its container; the demo has a width |
+| Carousel | The corners are cropped | **confirmed, two causes:** the gallery's slides drew a square `1px currentColor` border that the slide's rounded clip cut (**fixed**: "the carousel demo's slides are a fill"); and what looked like a focused slide's ring cut at the sides was that same border: slides take no focus, and the track's ring is drawn outside it | nothing more |
+| Segmented | Corners and vertical centring | **confirmed:** the text sits about 2.5px above centre in its 28px option. The trim is on an `inline-block`, which is a block container, and the steady copy is `height: 0` and adds no line, so the cause in A7 is wrong. Measured: `text-box: trim-both` trims the first line's top and the last line's bottom, and the last line is the steady copy, so only the words' top was trimmed | **Edited, not yet checked**: `Segmented.view` draws the words in a new `label` Slot that holds the trim. Corners wait for A2 |
+| Switch | Broken in RTL | confirmed: the thumb starts at the inline start but moves by a physical `translate` | **Edited, not yet checked**: right to left it moves the other way |
+| Checkbox | The mark is off centre | measured from the ink at 8×: the check's middle is at 46.7% across and 43.75% down, about a pixel high; whole-pixel snapping leaves half a pixel across either way | **Edited, not yet checked**: `top: 19.5%` (49.6% down), placed with a physical `left` |
+| Kbd | Not optically centred | the line box is 1px above centre; measured: the capital stands about a pixel high in the key's face | **Edited, not yet checked**: the line trimmed to its capitals, the height given back as even padding |
 | Sidebar, TreeView | Jumps while a section opens | **confirmed, not the spring:** the shipped spring overshoots 0.3% (a fifth of a pixel on 72px). The heading row is an `auto` track, and mid-transition `align-content: normal` stretched it into the room the `fr` row left, so the links dropped about 16px and rose back. **Fixed**: "a Sidebar section or TreeView group holds its rows still while it opens" (`opensBelow`, with a frame-sampling browser test) | — |
-| InputCopy | The focus ring is cut by the corners | **confirmed:** the input's ring is an inset square outline (`outline-offset: -2px`, radius 0) inside a group with `overflow: hidden` and an 8.4px radius | ring on the group with `:focus-within`, concentric (A2) |
-| Steps | Misaligned by default | **partly:** the connector is centred on the marker (both at y 467.9). What reads as misaligned: the titles sit at different heights, because each text block is centred on its marker and the descriptions differ in length; the connectors' widths differ (16–28px); and at 390px the labels overlap the markers | align titles to the marker's top line; equal connectors; vertical below a width |
+| InputCopy | The focus ring is cut by the corners | **confirmed:** the input's ring is an inset square outline (`outline-offset: -2px`, radius 0) inside a group with `overflow: hidden` and an 8.4px radius | **Edited, not yet checked**: the input and button round their outer corners to the group's inner radius, so the inset rings follow it |
+| Steps | Misaligned by default | **partly:** the connector is centred on the marker (both at y 467.9). What reads as misaligned: the titles sit at different heights, because each text block is centred on its marker and the descriptions differ in length; the connectors' widths differ (16–28px); and at 390px the labels overlap the markers | **Edited, not yet checked**: steps align to their top, each title's first line centred on its marker, connectors on the markers' middle line; a horizontal row takes its container's width and below 32rem shows only the current label. Equal connectors are left: they need equal step widths |
 
 **Found in Phase 0, not in the review:**
 
 | Component | Symptom | Cause | Fix |
 |---|---|---|---|
 | Accordion, Sidebar, TreeView, Nested Menu, Carousel, Steps | RTL: a shut row's chevron pointed up, the Sidebar's open one left, the carousel's arrows up and down | the marks were drawn with logical borders, which mirror under `dir="rtl"`, so each recipe's RTL turn landed a quarter off; the Sidebar had no RTL turn | **Fixed**: "chevrons and arrows point the right way right to left" (`cornerSides`, physical sides; a browser test reads where each mark points) |
-| Alert | At 390px the title is squeezed into a three-line column beside the description | title and description sit side by side at every width | stack below a width, or wrap the pair (the merge in A9) |
-| Banner | At 390px the text is indented behind an empty gutter and the action centred under it | the strip's layout assumes a wide row | A9 merge with Alert |
-| Pagination | At 390px it overflows: "Previous1" touches | no compact layout | Part C: compact at narrow widths |
+| Alert | At 390px the title is squeezed into a three-line column beside the description | title and description sit side by side at every width | **Edited, not yet checked**: a grid, the title over the description and the icon beside both |
+| Banner | At 390px the text is indented behind an empty gutter and the action centred under it | the strip pads both sides for a dismiss button whether it has one or not | **Edited, not yet checked**: the root carries `data-dismissible`, and the room is kept only then; now the banner layout of the merged Alert |
+| Pagination | At 390px it overflows: "Previous1" touches | the row cannot wrap, and Previous and Next had almost no side padding | **Edited, not yet checked**: the row wraps and centres, and Previous and Next get room. A compact layout stays in Part C |
 | Radio Group | Drawn as a row though it says `aria-orientation="vertical"`; at 390px three narrow columns wrap | the layout ignores the orientation | **Fixed**: the recipe stacks unless `aria-orientation` is `horizontal` |
-| Item | The demo's media is a bare black `●` | gallery content | Part C examples |
-| Resizable | The demo's file list shows default list bullets | gallery content | gallery fix |
-| OTP, Steps (dark) | Cell borders and the upcoming marker are faint on the dark page | low-contrast outline token | check against A1 |
+| Item | The demo's media is a bare black `●` | gallery content | **Edited, not yet checked**: a small success-coloured status dot. More examples stay in Part C |
+| Resizable | The demo's file list shows default list bullets | gallery content | **Edited, not yet checked**: no bullets, an even inset, a quiet frame |
+| OTP, Steps (dark) | Cell borders and the upcoming marker are faint on the dark page | the outline token, judged from half-scale thumbnails | left for A1, which owns the palette |
 
 ## Part C: component by component
 
@@ -259,14 +289,12 @@ decides adopt, adapt or skip.
 
 ### Actions and display
 
-- **Button.** Systems 8 shipped a 1px press, which a user did not notice.
-  Make `:active` visible: the family's `active` fill (it exists,
-  `oklch.ts:136`), a 0.98 scale on the fast tier through `travel`, and
-  pressed (`aria-pressed`) as a filled state for toggles. Compare Fluid and
-  shadcn, and Base UI's states.
-- **Badge.** New appearances beside the tinted one: `dot` (a coloured dot,
-  plain text, no fill), `outline` (a tone border, plain or tone text), and
-  `solid`. Badge's dot already exists; make it an axis, not a fixed part.
+- **Button.** **Edited, not yet checked**: `:active` deepens to the
+  family's `active` fill with a 0.98 scale on the fast tier through `travel`;
+  pressed (`aria-pressed`) fills unfilled toggles with their tone. Comparing
+  Fluid, shadcn and Base UI states stays open.
+- **Badge.** **Edited, not yet checked**: `appearance: tinted | dot |
+  outline | solid`.
 - **Alert / Banner.** Merge (A9). From Fluid's Banner: icon, title and
   description, actions on the end or below, dismiss, tone and emphasis, a
   compact layout.
@@ -285,7 +313,7 @@ decides adopt, adapt or skip.
   a stacked group with overlap and a "+3", a status dot, a ring, initials
   with a colour from the name, shapes, an avatar with name and caption, an
   avatar inside a badge.
-- **Kbd.** A7, a keycap look (inner shadow), and `Kbd.combo(['⌘', 'K'])`.
+- **Kbd.** **Edited, not yet checked**: `Kbd.combo({ keys, joiner? })`. The keycap look (inner shadow) stays open.
 - **Separator.** Examples: horizontal and vertical, a label in the middle,
   spacing and inset options, dashed, thickness.
 - **Skeleton.** Fix (B), then: a shimmer wave option (travel-aware), text
@@ -348,11 +376,8 @@ decides adopt, adapt or skip.
 
 ### Navigation
 
-- **Breadcrumb.** Separators (chevron, slash, dot, custom), truncation (the
-  middle into an ellipsis menu), a maximum, icons.
-- **Pagination.** Simple (previous and next), numbered with ellipses,
-  siblings and boundaries, a page size select, "1–10 of 97", compact,
-  first and last.
+- **Breadcrumb.** **Edited, not yet checked**: separators (chevron, slash, dot, custom), a maximum with the middle folded into an ellipsis (`collapse`), icons.
+- **Pagination.** **Edited, not yet checked**: simple, numbered with ellipses, siblings and boundaries, "1–10 of 97", compact (wraps), first and last. A page size select stays open.
 - **Tabs.** Examples: underline, pill, vertical, with icons and counts,
   scrolling overflow, closable.
 - **Segmented.** Fix (A2, A7); examples: icons, sizes, full width, tray and
@@ -363,8 +388,7 @@ decides adopt, adapt or skip.
   slots, groups, counts and badges, icons, nested items, a gliding active
   marker, collapse to an icon rail with tooltips, a resizable width (the
   Resizable handle), a sheet on a phone, the collapsed state remembered.
-- **Steps.** Fix (B); markers on the Badge and Avatar sizes, icons per
-  step, vertical with content, the connector as a Progress.
+- **Steps.** **Edited, not yet checked**: icons per step, vertical with content. Markers on the Badge and Avatar sizes, and the connector as a Progress, stay open.
 - **Carousel.** Fix (B); dots after Fluid's
   [carousel dots](https://www.fluidfunctionalism.com/docs/carousel-dots),
   thumbnails, several per view, the swipe reported back (a `scrollend`

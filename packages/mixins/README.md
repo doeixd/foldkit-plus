@@ -361,7 +361,11 @@ switches it live. The `state` group is what a state lays over the surface under 
 element's own text color (`hover`; `tint` and `tint-hover`, a see-through fill; `edge`, a hairline
 inside an image), so it reads at any elevation and on any band; its amounts are knobs
 (`state-hover`, `state-tint`, `state-tint-dark`, `image-edge`). `Theme.nested(outer, inset,
-border?)` is the radius of a surface inset in another, so their corners are concentric.
+border?)` is the radius of a surface inset in another, so their corners are concentric. A
+container that pads its children can publish that instead: spread `Theme.nests(radius, inset,
+border?)` beside its own radius and padding, and `Theme.nested()` with no arguments on any
+descendant (a row, a pill, a highlight, a focus ring) reads it. Outside such a container it is
+square.
 `Theme.raise(offset)` lifts an element `offset` levels above the raised element holding it (or the
 page, level 1), capped at 8, and `Theme.raisedSurface()` is its background at that level: a popover
 opened in a dialog lands above the dialog with nothing passed. In a light scheme the first two
@@ -559,7 +563,10 @@ color as `'group.name'`), `items` and `justify` (`'between'` is `space-between`)
 constants `flex`, `column`, `grid`, `block`, `hidden`, `wFull`, `textCenter`, `uppercase`,
 `truncate`, `pointer` and `selectNone`, and `scrollFade(axis)`, a scroller's content dissolving
 toward an edge with more to scroll (a scroll-driven mask: the true ends stay crisp until something
-is past them, and a browser without scroll timelines gets no fade), and `steady(weight)`, room for a
+is past them, and a browser without scroll timelines gets no fade), `scrollDivider(axis)` with
+`scrollTimeline(axis)`, a hairline at each edge with more past it, drawn on a positioned parent's
+`::before` and `::after` (the fade's mask would erase a line inside the scroller) from the timeline
+the scroller names, where the browser has `timeline-scope`, and `steady(weight)`, room for a
 label at a heavier weight, read from the element's `data-label`, so turning bold moves nothing
 beside it. Each is a `Style.self` rule, unlayered, so it takes the
 layer of the style it is composed into, and a plain declaration after it wins per property. A
@@ -888,8 +895,9 @@ a page that imports it fails fast naming `vite`.
 ## `@foldkit/ui`
 
 `foldkit-mixins-ui` adapts `@foldkit/ui` components that expose attribute bundles or a consumer
-render seam. Button, Input, Checkbox, Disclosure, Dialog, Popover, Tooltip, Slider, Tabs,
-RadioGroup, Calendar and others are covered.
+render seam. Button, Input, Checkbox, Disclosure, Dialog, Popover, Tooltip, Tabs, RadioGroup,
+Calendar and others are covered. The Slider is drawn by `foldkit-mixins-ui` itself, for one number
+or a range, rather than adapted.
 
 Some components build their entire element tree internally and expose no attachment seam; those
 cannot be adapted without changing the component API. Others simply do not have an adapter yet.

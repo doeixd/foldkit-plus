@@ -263,18 +263,21 @@ you must understand before using mixins.
 bundles to `toView`. `foldkit-mixins-ui` turns those bundles into named slots so the same Style and
 Behavior model can apply.
 
-Button, Input, Checkbox, Disclosure, Dialog, Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar
+Button, Input, Checkbox, Disclosure, Dialog, Popover, Tooltip, Tabs, RadioGroup, Calendar
 and more are adapted.
 
-There are two reasons a component may not be covered:
+There are three reasons a component may not be covered:
 
 1. `Menu`, `Listbox`, `ComboBox` and `DatePicker` build their full element tree internally and
    expose no `toView`/attribute bundle seam. There is nowhere for a mixin to attach without a
    component API change.
 2. `Toast`, `FileDrop`, `VirtualList`, `DragAndDrop`, `Anchor`, `HoverIntent` and `Animation` simply
    do not have adapters yet. `FileDrop`, for example, exposes the seam an adapter would need.
+3. `Slider` is drawn by `foldkit-mixins-ui` itself (`Slider.view`), because a range of two thumbs
+   cannot be built on the upstream Slider's one, and one control should have one recipe.
 
-That distinction matters: one is an architectural boundary, the other is unfinished coverage.
+That distinction matters: the first is an architectural boundary, the second unfinished coverage,
+the third a choice.
 
 ## Accessibility contracts
 

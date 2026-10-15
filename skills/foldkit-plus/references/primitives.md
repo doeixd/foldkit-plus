@@ -162,6 +162,12 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   item the keys marked while the pointer is away; `from` is the item a fresh highlight grows out of and returns to.
   The container carries `data-fluid-hover="<name>"` while it runs; style the highlight under it. The lit item carries `data-fluid-lit`.
   No Message.
+- **An overlay scrollbar:** the `ScrollBars({ idle?, scroller? })` Mount on a scroller drives the bars drawn
+  beside it (siblings marked `data-scroll-bar="block"` or `"inline"`): each gets `data-scrollable`,
+  `data-shown` (scrolling or pointer moving, until `idle` ms, default 600), `data-dragging`, and
+  `--fk-scroll-thumb-offset/-size` (`scrollThumb`) for its thumb; a press on a bar jumps and drags. The
+  scroller carries `data-scroll-overlaid` while it runs (hide the native bar under it). A coarse pointer
+  gets nothing: native bars stay. `scroller: 'ul'` when the scroller holds another Mount. No Message.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
   `MoveEnded { completed }` with pointer capture; `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
 - **Focus ring for keyboard users only:** place `InputModality` (`events`; `{ modality }` from window keydown and pointerdown)

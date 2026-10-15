@@ -17,6 +17,7 @@ wraps.
 | `KeepInView({ selector })` | Mount | nothing | |
 | `Measure({ targets })` | Mount | nothing; writes custom properties | |
 | `FluidHover({ name, item, axis, gapClick, gapReach?, follows?, from? })` | Mount | nothing; writes custom properties | `axis`: `x`, `y`, `xy` |
+| `ScrollBars({ idle?, scroller? })` | Mount | nothing; writes custom properties and marks | `idle` in ms, default 600 |
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
@@ -165,6 +166,49 @@ pressable cards. Fluid Functionalism's list of when to leave it off holds
 here too: where a wrong click would hurt, where only some items are
 clickable, where items stand in a lot of empty space, and where rows move as
 the page scrolls.
+
+**`ScrollBars({})`** draws an overlay scrollbar, after Fluid Functionalism's:
+a thin thumb over the scroller's edge that shows while it scrolls or the
+pointer moves over it, and fades once it has been idle. It runs on the
+scroller and drives the bars drawn beside it, its parent's children marked
+`data-scroll-bar="block"` or `"inline"` (`SCROLL_BAR_ATTRIBUTE`), which a
+style places over the scroller's edge:
+
+```ts
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { SCROLL_BAR_ATTRIBUTE, ScrollBars } from 'foldkit-primitives/dom'
+
+// The thumb is the bar's child; a style places the bar and the thumb.
+const scrolling = <Message>(content: Html, h: HtmlBuilder<Message>): Html =>
+  h.div(
+    [h.Style({ position: 'relative' })],
+    [
+      h.div([h.OnMount(ScrollBars({})), h.Style({ overflowY: 'auto', maxHeight: '16rem' })], [content]),
+      h.div([h.Attribute(SCROLL_BAR_ATTRIBUTE, 'block')], [h.div([], [])]),
+    ],
+  )
+```
+
+Each bar gets `data-scrollable` while its axis has more to scroll,
+`data-shown` while the scroller scrolls or the pointer moves over the
+scroller and its bars (until `idle` milliseconds pass with neither, and for
+as long as the pointer rests on a bar), and `data-dragging` while its thumb is
+dragged; and `--fk-scroll-thumb-offset` and `--fk-scroll-thumb-size`
+(`scrollThumb`), in pixels along the bar, for the thumb inside it to read.
+Pressing a bar off its thumb moves the thumb there and drags it. It sends no
+Message: where a box is scrolled is the browser's. When the scroller is
+another component's and holds a Mount of its own (an element holds one), put
+`ScrollBars` on an element around it and name the scroller:
+`ScrollBars({ scroller: 'ul' })`, looked for once, when it mounts; the bars
+are still the scroller's siblings.
+
+Where the primary pointer is coarse or cannot hover (`(hover: hover) and
+(pointer: fine)` fails when it mounts) it does nothing, so touch keeps the
+browser's bar and its physics. Otherwise the scroller carries
+`data-scroll-overlaid` (`SCROLL_OVERLAID_ATTRIBUTE`) while it runs, so a style
+hides the native bar only then: before a page hydrates, the browser's bar
+stays. How the thumb rests, widens and fades is the style's;
+`foldkit-mixins-ui`'s ScrollArea recipe draws Fluid's (4px, 6px on hover).
 
 **`InputMask({ pattern })`** masks a field against `#` (digit), `A`
 (letter), and `*` (either) placeholders with literal separators, rewrites the

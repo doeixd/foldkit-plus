@@ -9,6 +9,37 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: a visible press and a filled toggle on buttons, four
+  badge looks, key combinations, richer breadcrumbs, pagination and steps.**
+  A held button shrinks 2% and deepens to its family's `active` fill (a new
+  tone, `fill-active`); a pressed toggle fills with its tone. `Badge` takes
+  `appearance`: `tinted` (default), `dot`, `outline` or `solid`.
+  `Kbd.combo({ keys, joiner? })` draws several keys in one `kbd`. Breadcrumb
+  steps take `icon`s, the view takes a custom `separator` and `collapse:
+  { max, onExpand }` (with `collapsedOf` as the pure split); the recipe draws
+  `slash`, `chevron` or `dot` separators. Pagination takes `siblings?`,
+  `boundaries?`, `numbered?`, `ends?` and `range?` (with `summaryOf` for
+  `"1–10 of 97"` and new `summary`, `first` and `last` slots). Steps take
+  per-step `icon`s and vertical `content`.
+- **An overlay scrollbar, after Fluid Functionalism's.** `ScrollBars` in
+  `foldkit-primitives/dom`; `overlayBars` on ScrollArea, Command and
+  VirtualList, and `Menu.overlayBars`, `Listbox.overlayBars` and
+  `Combobox.overlayBars` for popups; `Utilities.scrollDivider` and
+  `scrollTimeline` for a hairline at a scrolled edge. A browser's bar is
+  thick, always shown and different on every system; this thumb rests at
+  4px, widens to 6px under the pointer and fades when idle, its widening
+  travelling so reduced motion keeps only the fades. A coarse pointer keeps
+  its native bar. The bar sits beside the scroller, not in it, so the edge
+  fade does not erase it. It is opt-in, since its Mount sends no Message for
+  a Scene test to resolve. ScrollArea's markup gains a `root` around
+  `viewport`: a width set on the area goes on `root`.
+- **`foldkit-mixins`: `Theme.nests` and `Theme.nested()`.** A container that
+  pads its children spreads `Theme.nests(radius, inset, border?)`, and any
+  descendant's `borderRadius: Theme.nested()` is concentric with it, without
+  repeating the container's arithmetic. `Theme.nested(outer, inset, border?)`
+  is unchanged.
+- **`foldkit-mixins-ui`: a `label` Slot on Segmented**, the option's words,
+  which hold the `text-box` trim.
 - **`foldkit-richtext-dom`: arrows stop on an image, and a checkbox keeps the
   caret.** An arrow leaving a block for an atom beside it selects the atom,
   where the browser stepped over it, and a press on an adornment no longer
@@ -55,13 +86,6 @@ version changed; `pnpm` skips versions already in the registry.
   it for the text beside it. `isAtom(nodes, block)` is the test. Deleting a
   block now lands the caret where the block was even when it held no text,
   where it went to the top of the document.
-- **`foldkit-mixins-ui`: `NestedMenu`, a menu whose rows open submenus**
-  (shadcn's DropdownMenuSub, the APG's submenu), one level deep. ArrowRight,
-  Enter or Space opens a submenu on its first row, ArrowLeft or Escape closes
-  it back to its row, a resting pointer opens it after 150ms, and choosing
-  one of its rows closes everything. Each panel is `@foldkit/ui`'s Menu,
-  drawn inside its row; `update` sorts out which Menu a bubbled key belongs
-  to. `Recipes.NestedMenu`, `Patterns.NestedMenu` and a gallery page.
 - **`foldkit-mixins-ui`: `Carousel`, the APG carousel with no rotation.** A
   scroll-snap track of slides named "N of M", previous and next buttons,
   optional dots and a polite status. The index is the application's;
@@ -69,12 +93,6 @@ version changed; `pnpm` skips versions already in the registry.
   only without reduced motion. A swipe is not yet reported back to the
   index. Recipe axis `peek`. `Recipes.Carousel`, `Patterns.Carousel` and a
   gallery page.
-- **`foldkit-mixins-ui`: `RangeSlider`,** two thumbs choosing a `{ low, high }`
-  range on one track, as the APG's multi-thumb slider: two native range
-  inputs, each bounded by the other and spanning only the track it can
-  travel, so the browser stops a thumb at the other with no redraw.
-  `RangeSlider.moved` snaps, bounds and orders a range. The Slider's look and
-  axes, `Patterns.RangeSlider` and a gallery page.
 - **`foldkit-mixins-ui`: `TreeView`, the APG tree view.** Nested rows with
   one tab stop: the arrows move through the rows showing and open, shut,
   enter or leave a row; Home and End; a character moves to the next row it
@@ -91,29 +109,19 @@ version changed; `pnpm` skips versions already in the registry.
   text, and optional presets as a radio group of swatches. The color is the
   application's (`ColorPicker.Oklch`); `format`, `parse` (an `Option`) and
   `withChannel` are pure. `Patterns.ColorPicker` and a gallery page.
-- **`foldkit-mixins-ui`: `DateRange`, a start and an end day on the
-  Calendar.** The application owns the range and folds each pick through
-  `DateRange.picked` (start, then end, swapped if earlier, then a new start);
-  `DateRange.toView` marks the day cells and every chosen day `aria-selected`;
-  `Recipes.DateRange` (`Recipes.Calendar.extend`) fills the ends and draws
-  the band between them. A gallery page.
-- **`foldkit-mixins-ui`: `Recipes.Sheet` and `Recipes.Drawer`, the Dialog
-  from an edge.** shadcn's Sheet and vaul's Drawer as recipes over
-  `DialogSlots`: a `side` axis (`top`, `right`, `bottom`, `left`) pins the
-  panel to its edge and slides it in from there, the fade kept under reduced
-  motion. The Drawer comes from the bottom with rounded inner corners and a
-  handle drawn on the panel. Gallery pages for both.
+- **`foldkit-mixins-ui`: `Recipes.Sheet`, the Dialog from an edge.**
+  shadcn's Sheet and vaul's Drawer as one recipe over `DialogSlots`: a `side`
+  axis (`top`, `right`, `bottom`, `left`) pins the panel to its edge and
+  slides it in from there, the fade kept under reduced motion. From the
+  bottom with `handle: 'bar'`, a drawer as on a phone: the handle is a Slot,
+  `handle` on `DialogSlots`, drawn as `h.div(dialog.handle)` in the panel.
+  One gallery page.
 - **`foldkit-mixins-ui`: `InputCopy`, a value with a copy button.** A
   read-only field and a button named after its label; `InputCopy.Copy` is
   the Command that writes the clipboard and reports `Copied` or `CopyFailed`
   as `foldkit-primitives/dom`'s `ClipboardMessage`. The `copied` flag is the
   application's; copied, the button reads "Copied" and a status region
   announces it. `Recipes.InputCopy`, `Patterns.InputCopy` and a gallery page.
-- **`foldkit-mixins-ui`: `Banner`, a page-level notice.** A full-width strip
-  named as a region landmark, with an optional link or button action and an
-  optional dismiss button (`onDismiss`); whether it shows is the
-  application's. Recipe axes `tone` (Alert's four) and `emphasis` (`subtle`,
-  `bold`). `Recipes.Banner`, `Patterns.Banner` and a gallery page.
 - **`foldkit-mixins-ui`: `TagsInput`,** Zag's tags input: the tags as a
   list of chips named by the field's label, each with a `Remove <tag>`
   button, and a text input. Enter or the delimiter adds the draft, split at
@@ -196,13 +204,6 @@ version changed; `pnpm` skips versions already in the registry.
   matches every query word against a row's label and keywords and never
   re-sorts; a highlight filtered away moves to the first enabled row. The
   query and highlight are the application's. A recipe, a pattern and a page.
-- **`foldkit-mixins-ui`: `ContextMenu`,** the widgets island's context menu
-  as `@foldkit/ui`'s Menu opened where a right press landed: `target` on the
-  area records the press's point and opens the menu on `contextmenu` (a right
-  press, Shift+F10 or the ContextMenu key, the browser's own menu kept shut),
-  and `toView` turns the Menu's button into a mark of no size at that point,
-  which the Menu's anchor places the rows against. `update` folds the Menu's
-  `Opened` Message, since `@foldkit/ui` exports no `open`. A gallery page.
 - **`foldkit-mixins-ui`: `Recipes.HoverCard`,** the widgets island's hover
   card as `@foldkit/ui`'s HoverIntent with a look: a trigger read as a link
   and a raised panel that fades in as it is drawn (`@starting-style`),
@@ -232,12 +233,15 @@ version changed; `pnpm` skips versions already in the registry.
   stand together. `Recipes.CheckboxGroup` reuses the Checkbox recipe's
   pieces; `Patterns.CheckboxGroup` and a gallery page. Accordion, Segmented
   and CheckboxGroup now share one step for a multiple choice.
-- **`foldkit-mixins-ui`: an alert dialog, from the widgets island, as the
-  Dialog.** `Dialog.isDismissal(message)` names upstream's own dismissal
-  (Escape, a press on the backdrop, its close button); an application that
-  drops those in `update`, draws `role="alertdialog"` and no close button,
-  and closes from its own buttons with `@foldkit/ui`'s `close` has the APG's
-  alert dialog. The gallery has a page for it.
+- **`foldkit-mixins-ui`: an alert dialog is the Dialog with
+  `role: 'alertdialog'`.** `Dialog.toView(mixins, { h, role: 'alertdialog' },
+  draw)` (and `Dialog.resolve`) puts `role="alertdialog"` on the `dialog`
+  bundle; `'dialog'`, the default, writes none, as the `<dialog>` element has
+  it. `Dialog.isDismissal(message)` names upstream's own dismissal (Escape, a
+  press on the backdrop, its close button): an application that drops those
+  in `update`, draws no close button, and closes from its own buttons with
+  `@foldkit/ui`'s `close` has the APG's alert dialog. One recipe and one
+  gallery page, Dialog, show both.
 - **`foldkit-mixins-ui`: Toggle and Toggle Group, from the widgets islands,
   as what was already here.** A toggle is a Button with `pressed`, which
   writes `aria-pressed`; every variant has its on look. A toggle group is a
@@ -492,6 +496,80 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins-ui`: one `Menu`, by a button, at a point, or down a
+  submenu.** `Menu.init(id, rows)` (a row with `items` hosts a submenu, one
+  level deep), folded with `Menu.update`, drawn with `Menu.view({ model,
+  rows, buttonContent, onMessage, opensAt?, direction?, isRowDisabled?,
+  style?, mixins, submenuMixins? }, h)`. `opensAt: 'point'` with
+  `Menu.target(onMessage, h)` on the area is the context menu: a right press
+  records its point and the `contextmenu` after it opens the menu there.
+  `Selected` names the value and the submenu it came from. `Menu.fluid`
+  glides the highlight; `Menu.overlayBars` draws the overlay bar. One
+  recipe, one pattern, one gallery page. Breaking: `NestedMenu` and
+  `ContextMenu` are removed (rows with `items` for the first, `opensAt:
+  'point'` with `target` for the second); `MenuSlots` gains `sub`, `label`,
+  `chevron` and, with `overlayBars`, `scrollBar` and `scrollThumb`.
+- **`foldkit-mixins-ui`: one date system: `Calendar.Selection`.**
+  `Single`, `Range` or `Multiple`, owned by the application
+  (`Calendar.empty(mode)`; fold each `SelectedDate` through
+  `Calendar.picked`, which orders a range's ends; `Calendar.isComplete`
+  says when a picker may close). Draw inline with `Calendar.toView(selection,
+  mixins, { h })`, which marks each chosen day (`data-range-start`,
+  `data-range-end`, `data-in-range` on a range's band). `DatePicker.update`
+  takes the selection and keeps the popover open while the day leaves it
+  unfinished. The gallery's Calendar page shows one day and a range; the
+  Date range page is gone. Breaking: `DateRange` is removed (write a `Range`
+  selection and `Calendar.toView`).
+- **`foldkit-mixins-ui`: one `Slider`, for a number or a `{ low, high }`
+  range.** `Slider.view({ id, label, value, onChange, … }, h)` takes either
+  kind, and `onChange` is handed the same kind. Both are native
+  `input type="range"` thumbs, so the drag, the keys, right to left and the
+  form value are the browser's: one number is a thumb across the whole
+  track, named by the label; a range is two thumbs in a group, each bounded
+  by the other (`Slider.moved` snaps, bounds and orders a range, as the APG's
+  multi-thumb slider). `marks` dot values on the track (`data-filled` where
+  the fill covers them) and `showValue` draws each value, both hidden from
+  assistive technology. `Recipes.Slider` serves both, in Fluid
+  Functionalism's look: `track: 'thick'` (the default, the fill reaching
+  each thumb's far edge) or `'thin'`, and `value: 'above'` or `'inside'` (a
+  pill thumb). `Patterns.Slider` is the pattern. Breaking: `@foldkit/ui`'s
+  Slider is no longer adapted (`Slider.resolve`, `Slider.toView` and
+  `ResolvedSlider` are gone, and `SliderSlots` is the new view's, with slots
+  `root`, `label`, `control`, `track`, `fill`, `mark`, `value` and
+  `thumb`); an application hosting that Submodel draws it with Slots of its
+  own. Upstream's Escape-to-cancel and read-only mode are lost with it.
+- **`foldkit-mixins-ui`: one `Alert`, inline or a banner.** `Alert.view` takes
+  `layout: 'inline'` (a live region for something that just happened:
+  `role="alert"` when `assertive`, `role="status"` otherwise) or
+  `layout: 'banner'` (a full-width strip there on load: a `section` landmark
+  named by `label`, never a live region). Both take an optional icon, now
+  `aria-hidden`, a title and description, `actions` (each a link or a button
+  that sends a Message) and a dismiss button (`onDismiss`, `dismissLabel`).
+  The root writes `data-layout` and `data-dismissible`, and the banner keeps
+  room for the dismiss button only when it has one. `Recipes.Alert` gains
+  an `emphasis` axis (`subtle`, the default, or `bold`) and the slots
+  `actions`, `action` and `dismiss`; `Patterns.Alert` is the pattern, and
+  the gallery's Alert page shows both layouts. Breaking: `layout` is
+  required (write `layout: 'inline'` where an alert stood alone).
+- **`foldkit-mixins-ui`: Menubar, Menu, TreeView, Resizable and a
+  horizontal Listbox take `direction?: 'ltr' | 'rtl'`, and under `'rtl'`
+  ArrowLeft and ArrowRight swap.** A view cannot read the page's direction,
+  so these components moved the wrong way right to left: a submenu opened on
+  ArrowRight away from where it was drawn, and a split's handle grew the
+  panel the arrow pointed away from. Each view now translates the two arrows
+  before building its Message (as Zag's `getEventKey` does), so Messages and
+  `update` stay in reading order; the Menu's submenu opens on the left, and
+  Resizable reverses a drag's horizontal movement.
+- **`foldkit-mixins-ui`: one `Sheet` recipe, with a `side` and a `handle`.**
+  `Recipes.Drawer` was the Sheet from the bottom with a handle drawn as a
+  pseudo-element, which a stylist could not reach; the handle is now a Slot,
+  `handle` on `DialogSlots` (`aria-hidden`, drawn as `h.div(dialog.handle)` in
+  the panel), shown by `handle: 'bar'`, which also rounds the inner corners.
+  From the top or bottom it is the panel's last or first row; from the left or
+  right, a bar standing on the edge facing the page. The gallery's Drawer page
+  is the Sheet page's `side: bottom, handle: bar`. Breaking: `Recipes.Drawer`
+  is removed; write `Recipes.Sheet({ side: 'bottom', handle: 'bar' })` and
+  draw the handle in the panel.
 - **`foldkit-auth`, `foldkit-ssr`: a request with no `Origin` is taken by
   Fetch Metadata.** `AuthServer.resolver` and `SSR.entry`'s `origins` read
   `Sec-Fetch-Site: same-origin` in place of a missing `Origin` (a
@@ -601,6 +679,59 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: rows, pills and highlights follow their container's
+  corner.** A menu's, listbox's or combobox's highlight and chosen marker,
+  a Command's rows, a Menubar's triggers, a Segmented option's pill and
+  hover, and a pill Tabs' chosen pill and hover kept a fixed radius that did
+  not meet the panel or tray around them. Each container now publishes its
+  corner with `Theme.nests`, and they read `Theme.nested()`.
+- **`foldkit-mixins-ui`: a VirtualList keeps its width while it scrolls.**
+  Sized to its content, it took the widest row drawn (121–131px as rows
+  changed). Its box now fills its container, in one `minmax(0, 1fr)` column.
+- **`foldkit-mixins-ui`: InputCopy's focus rings follow the group's corners.**
+  The input's and button's inset rings were square inside a rounded group
+  that clips, so their outer corners were cut off; they now round those
+  corners to the group's inner radius.
+- **`foldkit-mixins-ui`: Steps line up, and fit a phone.** Each step's text
+  was centered on its marker, so a step with a description stood its title
+  higher; titles now start on the marker's middle line, and the connectors
+  sit on that line too. A horizontal row takes its container's width and,
+  below 32rem of it, shows only the current step's label (the others stay
+  for a screen reader), where every label had overlapped the markers.
+- **`foldkit-mixins-ui`: Pagination fits a narrow row.** At 390px "Previous"
+  ran into the "1" beside it; the row now wraps and centers, and Previous
+  and Next have room either side.
+- **`foldkit-mixins-ui`: an Alert stacks its title over its description.**
+  Side by side, a narrow alert squeezed its title into a column of single
+  words. The icon keeps its own column beside both.
+- **`foldkit-mixins-ui`: a Hover Card no longer moves its trigger.** The
+  Anchor writes `top` and `left` but no `position`, so an unportaled card
+  stood in the line beside its trigger and the centered row shifted; the
+  recipe now takes the panel out of the flow.
+- **`foldkit-mixins-ui`: a Nested Menu's submenu shows.** It is drawn inside
+  its row, in the menu's panel, which the Anchor makes scroll
+  (`overflow-y: auto`), so the submenu beside it was clipped away. A
+  submenu's row now carries `data-open`, and while one is open the
+  NestedMenu recipe lets its panel overflow.
+- **`foldkit-mixins-ui`: a Segmented option's words sit centered.** The
+  `text-box` trim on the option ended at the hidden semibold copy after the
+  words, its last line, so only their top was trimmed and they stood 2.5px
+  high. `Segmented.view` now draws the words in a new `label` Slot that
+  holds the trim; an option drawn by hand with a `data-label` should do the
+  same.
+- **`foldkit-mixins-ui`: smaller centering fixes.** The Checkbox's check
+  sits a pixel lower, on center, and is placed physically like its sides;
+  a Kbd's line is trimmed to its capitals with the height given back as
+  padding; a radio centers on the first line of a label beside it in a row
+  aligned to its top (`calc((1lh - edge) / 2)`).
+- **`foldkit-mixins-ui`: Progress's indeterminate bar sweeps right to left
+  under `dir="rtl"`.** The fill starts at the inline start but moved by a
+  physical `translate`, so right to left it appeared mid-track and slid off
+  the wrong side; a mirrored keyframe now runs under `:dir(rtl)`, with the
+  same timing, so reduced motion still holds it still.
+- **`foldkit-mixins-ui`: the Switch works right to left.** Its thumb starts
+  at the inline start but moved by a physical `translate`, so right to left
+  it slid off the far side; it now moves left there.
 - **`foldkit-mixins-ui`: the RadioGroup recipe stacks a vertical group.** The
   group was a row whatever its `aria-orientation`, and upstream's groups are
   vertical by default; it is now a column unless `aria-orientation` is
