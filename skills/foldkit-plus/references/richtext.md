@@ -348,8 +348,9 @@ become markup (a letter beside a delimiter may print as a character reference, s
 delimiter still opens or closes), and a table's first row is printed as its header, which is where GFM puts it;
 `TableRow` carries a `header` prop that HTML round-trips as `data-header`, and a header row
 anywhere but first is reported. `parse(markdown, { mint })` returns `{ document, diagnostics }` through
-micromark and `mdast`, reading the same set back; raw HTML, a link definition, a footnote,
-and a hard line break are reported rather than guessed at, and a link or image URL passes
+micromark and `mdast`, reading the same set back; raw HTML, a link definition, a footnote
+(unless `footnotes: true` reads it as `FootnoteRef`/`FootnoteDefinition`, which `print`
+writes as `[^label]`), and a hard line break are reported rather than guessed at, and a link or image URL passes
 the same `safeUrl` policy HTML import uses (refused ones are reported as `UnsafeUrl`).
 The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.

@@ -94,7 +94,7 @@ export const closeSource = (
     // The caret is read in a parse of the printed text and carried over by block text; the
     // parse's own identities are throwaway, since the caller's document is what continues.
     let n = 0
-    const read = parseMapped(session.draft, { mint: () => `caret-${n++}` })
+    const read = parseMapped(session.draft, { mint: () => `caret-${n++}`, footnotes: true })
     const at = positionAt(session.draft, read.segments, session.caret)
     return {
       document,

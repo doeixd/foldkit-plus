@@ -16,6 +16,12 @@ import { blockSpelling, styleOf, type BlockSpelling, type MarkdownStyle } from '
 export interface ParseOptions {
   /** Identity for every block and run this mints; the codec refuses a repeat. */
   readonly mint: () => string
+  /**
+   * Whether `[^label]` and `[^label]: …` read as `foldkit-richtext`'s footnotes (a run showing
+   * the label with `FootnoteRef`, and a `FootnoteDefinition`), for a kit that declares them.
+   * Without it they are reported and skipped, as a kit without them could not hold them.
+   */
+  readonly footnotes?: boolean | undefined
 }
 
 export interface ParsedMarkdown {
@@ -34,6 +40,7 @@ interface Reading {
   readonly spellings: Map<string, BlockSpelling>
   /** Where each run's text came from in the source (§147). */
   readonly segments: Array<Segment>
+  readonly footnotes: boolean | undefined
 }
 
 /**
@@ -134,6 +141,31 @@ const runsFrom = (
           diagnostics.push({ code: 'UnsupportedNode', detail: 'break' })
           finish()
           break
+        case 'footnoteReference': {
+          if (reading.footnotes !== true) {
+            diagnostics.push({ code: 'UnsupportedNode', detail: 'footnoteReference' })
+            break
+          }
+          const label = node.label ?? node.identifier
+          // The run shows the label, which sits inside `[^` and `]` in the source.
+          const start = (node.position?.start.offset ?? 0) + 2
+          const run: RichText.Text = {
+            type: 'Text',
+            id: RichText.NodeId.make(mint()),
+            text: label,
+            marks: [...at, RichText.FootnoteRef.of({ label })],
+          }
+          current.push(run)
+          reading.segments.push({
+            run: run.id,
+            at: 0,
+            value: label,
+            start,
+            end: start + label.length,
+            literal: true,
+          })
+          break
+        }
         case 'image':
           // An inline image has no place in the model; a paragraph holding only one is
           // hoisted to an Image block by the caller, so this is one among other content.
@@ -326,6 +358,19 @@ const blockFrom = (node: RootContent, reading: Reading): ReadonlyArray<RichText.
     }
     case 'thematicBreak':
       return [container('ThematicBreak', {}, [], mint)]
+    case 'footnoteDefinition':
+      if (reading.footnotes !== true) {
+        diagnostics.push({ code: 'UnsupportedNode', detail: 'footnoteDefinition' })
+        return []
+      }
+      return [
+        container(
+          RichText.FootnoteDefinition.name,
+          { label: node.label ?? node.identifier },
+          blocksFrom(node.children, reading),
+          mint,
+        ),
+      ]
     case 'table':
       return [tableBlock(node, reading)]
     default:
@@ -369,6 +414,7 @@ export const parseMapped = (
     mint: options.mint,
     spellings: new Map(),
     segments: [],
+    footnotes: options.footnotes,
   }
   const tree = fromMarkdown(markdown, {
     extensions: [gfm()],

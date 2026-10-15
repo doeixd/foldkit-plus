@@ -88,6 +88,10 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext-markdown`: footnotes.** `parse(markdown, { footnotes: true })`
+  reads `[^label]` and `[^label]: …` as `FootnoteRef` and `FootnoteDefinition`,
+  and `print` writes them back; without the option they are reported and
+  skipped, as before.
 - **`foldkit-richtext`: typing at a block's edge leaves a mark that does not
   extend.** Text typed after a link, inline code or footnote reference that ends
   a paragraph (or before one that starts it) used to join it, since there was

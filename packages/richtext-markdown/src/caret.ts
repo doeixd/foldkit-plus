@@ -92,7 +92,8 @@ export const offsetIn = (
   position: RichText.Position,
 ): number | undefined => {
   let n = 0
-  const read = parseMapped(printed, { mint: () => `caret-${n++}` })
+  // The text is the document's own, so a footnote in it is one the document holds.
+  const read = parseMapped(printed, { mint: () => `caret-${n++}`, footnotes: true })
   const at = alignedIn(document, read.document, position)
   if (at === undefined) return undefined
   const holds = (segment: Segment) =>

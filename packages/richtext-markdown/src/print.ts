@@ -182,6 +182,15 @@ const joined = (runs: ReadonlyArray<RichText.Text>): ReadonlyArray<RichText.Text
  * skipped inside one; a mark with no syntax here — or a link with no `href` — is reported and
  * its text kept.
  */
+/** What GFM takes as a footnote label: no whitespace, brackets or caret. */
+const FOOTNOTE_LABEL = /^[^\s[\]^]+$/
+
+/** A footnote reference's label, when it is one GFM can spell. */
+const footnoteLabel = (mark: RichText.RunMark): string | undefined => {
+  const label = RichText.markProps(mark)?.label
+  return typeof label === 'string' && FOOTNOTE_LABEL.test(label) ? label : undefined
+}
+
 const renderInline = (block: RichText.Block, printing: Printing, cell = false): string => {
   let out = ''
   const open: Array<OpenMark> = []
@@ -201,10 +210,19 @@ const renderInline = (block: RichText.Block, printing: Printing, cell = false): 
   const syntaxOf = (run: RichText.Text) => {
     const wanted: Array<readonly [RichText.RunMark, readonly [string, string]]> = []
     let code = false
+    // A reference prints as `[^label]` in place of the label its run shows.
+    let footnote: string | undefined
     for (const mark of run.marks) {
       const name = RichText.markName(mark)
       if (name === 'Code') {
         code = true
+        continue
+      }
+      if (name === RichText.FootnoteRef.name) {
+        footnote = footnoteLabel(mark)
+        if (footnote === undefined) {
+          printing.diagnostics.push({ code: 'UnsupportedMark', detail: name, node: run.id })
+        }
         continue
       }
       const syntax = delimiters(mark, printing.style)
@@ -212,7 +230,7 @@ const renderInline = (block: RichText.Block, printing: Printing, cell = false): 
         printing.diagnostics.push({ code: 'UnsupportedMark', detail: name, node: run.id })
       else wanted.push([mark, syntax])
     }
-    return { wanted, code }
+    return { wanted, code, footnote }
   }
   /** How many runs from `index` on carry `mark`, passing over whitespace that carries nothing. */
   const reach = (index: number, mark: RichText.RunMark): number => {
@@ -224,8 +242,11 @@ const renderInline = (block: RichText.Block, printing: Printing, cell = false): 
     return count
   }
   for (const [index, run] of runs.entries()) {
-    const { wanted, code } = syntaxOf(run)
-    const { lead, core, trail } = code ? { lead: '', core: run.text, trail: '' } : edges(run.text)
+    const { wanted, code, footnote } = syntaxOf(run)
+    const literal = code || footnote !== undefined
+    const { lead, core, trail } = literal
+      ? { lead: '', core: run.text, trail: '' }
+      : edges(run.text)
     if (core.length === 0) {
       // Whitespace alone carries no visible mark, so it waits for whatever comes next.
       pending += lead
@@ -256,7 +277,8 @@ const renderInline = (block: RichText.Block, printing: Printing, cell = false): 
           (MARK_RANK[RichText.markName(right.mark)] ?? 0) -
             (MARK_RANK[RichText.markName(left.mark)] ?? 0),
       )
-    let text = code ? codeSpan(core) : escapeInline(core, cell)
+    let text =
+      footnote !== undefined ? `[^${footnote}]` : code ? codeSpan(core) : escapeInline(core, cell)
     if (opening.length === 0 && between === '' && closeGap && isWordy(text[0]))
       text = referenceFirst(text)
     const first = opening[0]
@@ -402,6 +424,28 @@ const table = (block: RichText.NodeBlock, printing: Printing): ReadonlyArray<str
   return [lines[0]!, separator, ...lines.slice(1)]
 }
 
+/**
+ * A footnote's definition: `[^label]: ` and its first block, every line after it indented four,
+ * which is what keeps a second paragraph inside the note. A label GFM cannot spell is reported,
+ * and the note's blocks are printed rather than lost.
+ */
+const footnoteDefinition = (
+  block: RichText.NodeBlock,
+  printing: Printing,
+): ReadonlyArray<string> => {
+  const label = typeof block.props.label === 'string' ? block.props.label : ''
+  const content = renderBlocks(block.blocks ?? [], printing)
+  if (!FOOTNOTE_LABEL.test(label)) {
+    printing.diagnostics.push({ code: 'UnsupportedNode', detail: block.kind, node: block.id })
+    return content
+  }
+  const [first, ...rest] = content
+  return [
+    `[^${label}]: ${first ?? ''}`,
+    ...rest.map(line => (line.length === 0 ? '' : `    ${line}`)),
+  ]
+}
+
 /** One block other than a list as its lines, with no blank line around it. */
 const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<string> => {
   if (block.type === 'Unknown') {
@@ -433,6 +477,7 @@ const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<s
   if (block.kind === 'ThematicBreak') return [spellingOf(block, printing).rule.repeat(3)]
   if (block.kind === 'Image') return [image(block, printing)]
   if (block.kind === 'Table') return table(block, printing)
+  if (block.kind === RichText.FootnoteDefinition.name) return footnoteDefinition(block, printing)
   // A kind with no syntax is reported, and its content is printed rather than lost.
   printing.diagnostics.push({ code: 'UnsupportedNode', detail: block.kind, node: block.id })
   return renderBlocks(block.blocks ?? [], printing)
@@ -514,7 +559,7 @@ export const print = (document: RichText.Document, options: PrintOptions = {}): 
   let n = 0
   const mint = () => `print-${n++}`
   const same =
-    shape(parse(styled.markdown, { mint }).document) ===
-    shape(parse(canonical.markdown, { mint }).document)
+    shape(parse(styled.markdown, { mint, footnotes: true }).document) ===
+    shape(parse(canonical.markdown, { mint, footnotes: true }).document)
   return same ? styled : canonical
 }
