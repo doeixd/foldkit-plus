@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  StepsSlots,
   VirtualListSlots,
   NumberFieldSlots,
   OtpFieldSlots,
@@ -689,6 +690,19 @@ export const showcases: ReadonlyArray<Showcase> = [
         message => live.onWidget(Widgets.Message.GotVirtualList({ message })),
         live.h,
       ),
+  ),
+  fromRecipe(
+    {
+      slug: 'steps',
+      title: 'Steps',
+      summary: 'An ordered list of steps, those done checked, the current one marked, joined by a line.',
+      recipe: 'Steps',
+      file: 'steps',
+      contract: 'StepsSlots',
+    },
+    StepsSlots,
+    Recipes.Steps,
+    (style, live) => Snippet.steps(style, live.h),
   ),
   fromRecipe(
     {

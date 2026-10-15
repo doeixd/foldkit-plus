@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  Steps,
+  StepsSlots,
   VirtualList,
   VirtualListSlots,
   Progress,
@@ -1646,6 +1648,26 @@ export const virtualList = <Message>(
       itemToKey: file => file,
       itemToView: file => h.span([], [file]),
       onMessage,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region steps
+export const StepsStyle = forSlots(StepsSlots)(Recipes.Steps({}))
+
+export const steps = <Message>(style: NamedStyle<typeof StepsSlots>, h: HtmlBuilder<Message>): Html =>
+  Steps.view(
+    {
+      label: 'Checkout',
+      steps: [
+        { title: 'Account', description: 'Your details' },
+        { title: 'Plan', description: 'Pick a tier' },
+        { title: 'Payment', description: 'Card or invoice' },
+        { title: 'Review' },
+      ],
+      current: 2,
       style,
     },
     h,

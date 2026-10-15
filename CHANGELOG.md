@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Steps`, a stepper.** A named ordered list whose
+  step at `current` is `aria-current="step"`, those before it complete (a
+  check in the marker) and those after upcoming, as `data-state`, joined by
+  a connector. The application owns `current`; given `onSelect`, completed
+  steps are buttons that go back. Recipe axis `orientation`. `Recipes.Steps`,
+  `Patterns.Steps` and a gallery page.
 - **`foldkit-mixins-ui`: `VirtualList`, `@foldkit/ui`'s virtual list
   adapted.** It draws only the rows in view; its Model stays upstream's,
   folded with that module's `update`. The `root` slot is the box it scrolls
