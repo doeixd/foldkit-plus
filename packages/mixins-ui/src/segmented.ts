@@ -10,6 +10,7 @@ import {
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { FluidHover, Measure } from 'foldkit-primitives/dom'
+import { flipped } from './choices.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -105,8 +106,7 @@ export const toggled = <Value extends string>(
   options: { readonly multiple?: boolean; readonly optional?: boolean } = {},
 ): ReadonlyArray<Value> => {
   const on = pressed.includes(value)
-  if (options.multiple === true)
-    return on ? pressed.filter(each => each !== value) : [...pressed, value]
+  if (options.multiple === true) return flipped(pressed, value)
   if (!on) return [value]
   return options.optional === true ? [] : pressed
 }

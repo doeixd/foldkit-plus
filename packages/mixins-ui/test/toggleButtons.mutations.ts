@@ -52,8 +52,8 @@ export default [
     edits: [
       {
         file: '../src/segmented.ts',
-        find: 'on ? pressed.filter(each => each !== value) : [...pressed, value]',
-        replace: '[value]',
+        find: 'if (options.multiple === true) return flipped(pressed, value)',
+        replace: 'if (options.multiple === true) return [value]',
       },
     ],
     tests: ['packages/mixins-ui/test/segmented.test.ts'],

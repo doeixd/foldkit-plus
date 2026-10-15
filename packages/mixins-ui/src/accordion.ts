@@ -1,5 +1,6 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { flipped } from './choices.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -65,7 +66,7 @@ export const toggled = (
   options: { readonly multiple?: boolean; readonly collapsible?: boolean } = {},
 ): ReadonlyArray<string> => {
   const isOpen = open.includes(id)
-  if (options.multiple === true) return isOpen ? open.filter(each => each !== id) : [...open, id]
+  if (options.multiple === true) return flipped(open, id)
   if (!isOpen) return [id]
   return options.collapsible === false ? open : []
 }

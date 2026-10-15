@@ -19,7 +19,7 @@ import {
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
-import { Accordion, Dialog } from 'foldkit-mixins-ui'
+import { Accordion, CheckboxGroup, Dialog } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 
@@ -62,6 +62,8 @@ export const Model = Schema.Struct({
   range: Range,
   /** The accordion's open sections. */
   faq: Schema.Array(Schema.String),
+  /** The checkbox group's checked alerts. */
+  alerts: Schema.Array(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -86,6 +88,7 @@ export const Message = defineMessageUnion({
   SavedDraft: {},
   ChoseRange: { range: Range },
   ToggledFaq: { id: Schema.String },
+  ToggledAlert: { value: Schema.String },
 })
 export type Message = typeof Message.Type
 
@@ -121,6 +124,7 @@ export const initial: Model = {
   notices: Notices.init({ id: 'preview-notices' }),
   range: 'week',
   faq: ['billing'],
+  alerts: ['mentions', 'replies'],
 }
 
 type Step = Update.Step<Model, Message>
@@ -326,6 +330,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       range === model.range ? { model } : { model: modifyFields(model, { range: () => range }) },
     ToggledFaq: ({ id }) => ({
       model: modifyFields(model, { faq: () => Accordion.toggled(model.faq, id) }),
+    }),
+    ToggledAlert: ({ value }) => ({
+      model: modifyFields(model, { alerts: () => CheckboxGroup.toggled(model.alerts, value) }),
     }),
     SavedDraft: () =>
       notify(model, {

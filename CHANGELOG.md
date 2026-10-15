@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `CheckboxGroup`,** from the widgets island into the
+  package, as Zag's checkbox group with Fluid Functionalism's rows: a
+  `fieldset` named by its `legend`, each option the APG's checkbox named by a
+  `label` for it, the checked values the application's (`toggled` is the
+  transition). Drawn as a `list`, checked rows fill and merge where they
+  stand together. `Recipes.CheckboxGroup` reuses the Checkbox recipe's
+  pieces; `Patterns.CheckboxGroup` and a gallery page. Accordion, Segmented
+  and CheckboxGroup now share one step for a multiple choice.
 - **`foldkit-mixins-ui`: an alert dialog, from the widgets island, as the
   Dialog.** `Dialog.isDismissal(message)` names upstream's own dismissal
   (Escape, a press on the backdrop, its close button); an application that

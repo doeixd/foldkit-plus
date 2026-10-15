@@ -826,7 +826,8 @@ keeps what the systems plan's "What we keep" lists.
   `pressed`, and Toggle Group, as Segmented's `multiple` with `view` and
   `toggled`, rather than second components; Alert Dialog, as the Dialog with
   `Dialog.isDismissal`. Open: Input OTP, Number Input, Context Menu, Hover Card,
-  Menubar, Navigation Menu, Command, Sidebar, Resizable and Checkbox Group.
+  Menubar, Navigation Menu, Command, Sidebar and Resizable. Checkbox Group is
+  done, as `CheckboxGroup`.
   An island stays in `examples/widgets` as the Behaviors example until the
   package's own has a page.
 - [ ] **Parity 5, upstream wrappers.** Progress, Circular Progress, nav and the

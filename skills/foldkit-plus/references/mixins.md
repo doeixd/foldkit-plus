@@ -312,7 +312,7 @@ takes no builder: its bundles speak the date picker's own Message, so it hands `
 builder. Result types: `ResolvedButton<M>`,
 `ResolvedRadioGroup<V, M>`, and so on.
 
-`Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | CodeBlock | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
+`Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | CheckboxGroup | CodeBlock | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the
@@ -353,6 +353,7 @@ that derived.
 | `Empty` | `{ title, description?, icon?, action? }`. | No axis. Slots `root`, `icon`, `title`, `description`, `action`. |
 | `Icon` | `{ content, label? }`. A `label` is `role="img"`; without one the glyph is `aria-hidden`. | `size`: `sm`, `md`, `lg` on the type scale; none (the default) stands on the size ladder, 16px or 14px compact. Slot `glyph`. |
 | `Item` | `{ content?, media?, title?, description?, actions? }`; `content` follows the title and description. | `density`: `comfortable` (default), `compact`. Slots `root`, `media`, `content`, `title`, `description`, `actions`. |
+| `CheckboxGroup` | `{ id, legend, options: { value, label, description?, disabled? }[], checked, onToggle }`; `CheckboxGroup.toggled(checked, value)` is the transition. A `fieldset` named by its `legend`, each option the APG's checkbox (`role="checkbox"`) named by a `label` for it, so a press on the words toggles it. | `variant`: `plain` (default), `list` (checked rows fill, and merge where they stand together). The checkbox and label are the Checkbox recipe's pieces. Slots `root`, `legend`, `option`, `checkbox`, `label`, `description`. |
 | `CodeBlock` | `{ code, tokens?, language?, title?, lineNumbers?, copy? }`; `tokens` are a tokenizer's `{ from, to, kind }` (`foldkit-richtext-code`, `-shiki`); `copy.onCopy(code)` sends a Message, so run `copyText` from `foldkit-primitives`. | No axis; colors kinds from the theme's `syntax` group. Slots `root`, `header`, `title`, `copy`, `body`, `code`, `line`, `token`. |
 | `Kbd` | `{ key }`. Names the key. | No axis. Slot `key`. |
 | `Label` | `{ for, text }`. `for` is the control's id. | No axis. Slot `label`. |

@@ -44,6 +44,8 @@ import {
   Card,
   CardGroupSlots,
   CardSlots,
+  CheckboxGroup,
+  CheckboxGroupSlots,
   Checkbox,
   CheckboxSlots,
   Combobox,
@@ -1150,6 +1152,35 @@ export const accordion = <Message>(
         },
       ],
       open,
+      onToggle,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region checkbox-group
+export const CheckboxGroupStyle = forSlots(CheckboxGroupSlots)(
+  Recipes.CheckboxGroup({ variant: 'list' }),
+)
+
+export const checkboxGroup = <Message>(
+  style: NamedStyle<typeof CheckboxGroupSlots>,
+  checked: ReadonlyArray<string>,
+  onToggle: (value: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  CheckboxGroup.view(
+    {
+      id: 'alerts',
+      legend: 'Email me about',
+      options: [
+        { value: 'mentions', label: 'Mentions', description: 'When someone names you.' },
+        { value: 'replies', label: 'Replies to my comments' },
+        { value: 'digest', label: 'A weekly digest' },
+        { value: 'offers', label: 'Offers', disabled: true },
+      ],
+      checked,
       onToggle,
       style,
     },

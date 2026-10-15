@@ -15,6 +15,7 @@ import { AccordionSlots } from './accordion.js'
 import { ButtonSlots } from './button.js'
 import { CalendarSlots } from './calendar.js'
 import { CheckboxSlots } from './checkbox.js'
+import { CheckboxGroupSlots } from './checkboxGroup.js'
 import { DialogSlots } from './dialog.js'
 import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
@@ -116,6 +117,16 @@ export const Accordion = A11y.pattern({
     attributes: [Attr.AriaExpanded],
   },
   panel: { capability: Capability.Container, attributes: [Attr.Role] },
+})
+
+export const CheckboxGroup = A11y.pattern({
+  root: { capability: Capability.Container },
+  legend: { capability: Capability.Container },
+  checkbox: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role],
+  },
 })
 
 export const Dialog = A11y.pattern({
@@ -305,6 +316,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('fieldset', Fieldset, FieldsetSlots, 'stateless', ['group'], ['native-control']),
   entry('disclosure', Disclosure, DisclosureSlots, 'stateless', ['button']),
   entry('accordion', Accordion, AccordionSlots, 'stateless', ['button', 'region']),
+  entry('checkbox-group', CheckboxGroup, CheckboxGroupSlots, 'stateless', ['group', 'checkbox']),
   entry(
     'dialog',
     Dialog,

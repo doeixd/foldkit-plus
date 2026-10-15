@@ -19,6 +19,7 @@ import {
   CalendarSlots,
   CardGroupSlots,
   CardSlots,
+  CheckboxGroupSlots,
   CheckboxSlots,
   ComboboxSlots,
   DatePickerSlots,
@@ -439,6 +440,25 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.faq,
         id => live.onWidget(Widgets.Message.ToggledFaq({ id })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'checkbox-group',
+      title: 'Checkbox group',
+      summary: 'A question answered with any number of options, under its legend.',
+      recipe: 'CheckboxGroup',
+      file: 'checkboxGroup',
+      contract: 'CheckboxGroupSlots',
+    },
+    CheckboxGroupSlots,
+    Recipes.CheckboxGroup,
+    (style, live) =>
+      Snippet.checkboxGroup(
+        style,
+        live.widgets.alerts,
+        value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
         live.h,
       ),
   ),
