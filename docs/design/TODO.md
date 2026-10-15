@@ -827,7 +827,7 @@ keeps what the systems plan's "What we keep" lists.
   `toggled`, rather than second components; Alert Dialog, as the Dialog with
   `Dialog.isDismissal`; Number Input, as `NumberField`; Input OTP, as `OtpField`; Hover Card, as HoverIntent with `Recipes.HoverCard`.
   Context Menu, as the Menu at a point (`ContextMenu`). Command, as `Command`.
-  Open: Menubar, Navigation Menu, Sidebar and Resizable. Checkbox Group is
+  Resizable, as `Resizable`. Open: Menubar, Navigation Menu and Sidebar. Checkbox Group is
   done, as `CheckboxGroup`.
   An island stays in `examples/widgets` as the Behaviors example until the
   package's own has a page.

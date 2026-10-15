@@ -19,6 +19,7 @@ import { CheckboxGroupSlots } from './checkboxGroup.js'
 import { CommandSlots } from './command.js'
 import { NumberFieldSlots } from './numberField.js'
 import { OtpFieldSlots } from './otpField.js'
+import { ResizableSlots } from './resizable.js'
 import { DialogSlots } from './dialog.js'
 import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
@@ -160,6 +161,14 @@ export const Command = A11y.pattern({
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.Role, Attr.AriaSelected],
+  },
+})
+
+export const Resizable = A11y.pattern({
+  handle: {
+    capability: Capability.Interactive,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel],
   },
 })
 
@@ -361,6 +370,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['native-control'],
   ),
   entry('otp-field', OtpField, OtpFieldSlots, 'stateless', ['textbox'], ['native-control']),
+  entry('resizable', Resizable, ResizableSlots, 'stateful', ['separator']),
   entry(
     'dialog',
     Dialog,

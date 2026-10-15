@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Resizable`,** from the widgets island into the
+  package: shadcn's Resizable and the APG's window splitter, two panels with
+  a handle that is a `separator` with its value, stepped by the arrows and
+  sent to the bounds by Home and End, and dragged, following the `Move`
+  Mount from where the drag began over the group the `Resize` Mount
+  measured. The split is a small Model of its own (`init`, `Message`,
+  `update`) the application keeps; side by side or one over the other. A
+  recipe, a pattern and a gallery page.
 - **`foldkit-mixins-ui`: `Command`,** the widgets island's command palette as
   shadcn's Command with Fluid Functionalism's CommandMenu behaviour: a field
   that points at the highlighted row through `aria-activedescendant`, ↑ and

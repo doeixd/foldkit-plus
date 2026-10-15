@@ -57,6 +57,8 @@ import {
   NumberFieldSlots,
   OtpField,
   OtpFieldSlots,
+  Resizable,
+  ResizableSlots,
   Checkbox,
   CheckboxSlots,
   Combobox,
@@ -1411,6 +1413,49 @@ export const otpField = <Message>(
   onChange: (code: string) => Message,
   h: HtmlBuilder<Message>,
 ): Html => OtpField.view({ label: 'Sign-in code', value: code, onChange, groups: [3, 3], style }, h)
+// #endregion
+
+// #region resizable
+export const ResizableStyle = forSlots(ResizableSlots)(Recipes.Resizable({}))
+
+export const resizable = <Message>(
+  style: NamedStyle<typeof ResizableSlots>,
+  model: Resizable.Model,
+  onMessage: (message: Resizable.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [
+      h.Style({
+        blockSize: '12rem',
+        inlineSize: 'min(32rem, 100%)',
+        border: '1px solid currentColor',
+        borderRadius: '0.5rem',
+        overflow: 'hidden',
+      }),
+    ],
+    [
+      Resizable.view(
+        {
+          model,
+          onMessage,
+          label: 'Resize the file list',
+          min: 0.2,
+          max: 0.8,
+          first: h.ul(
+            [h.Style({ margin: '0', padding: '0.75rem 1.5rem' })],
+            [h.li([], ['notes.txt']), h.li([], ['todo.md']), h.li([], ['grid.ts'])],
+          ),
+          second: h.p(
+            [h.Style({ margin: '0', padding: '0.75rem' })],
+            ['Pick a file to preview it.'],
+          ),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
 // #endregion
 
 // #region segmented

@@ -25,6 +25,7 @@ import {
   HoverIntentSlots,
   NumberFieldSlots,
   OtpFieldSlots,
+  ResizableSlots,
   ComboboxSlots,
   DatePickerSlots,
   DialogSlots,
@@ -574,6 +575,25 @@ export const showcases: ReadonlyArray<Showcase> = [
           onPoint: ({ x, y }) => live.onWidget(Widgets.Message.PointedFile({ x, y })),
           onOpen: live.onWidget(Widgets.Message.OpenedFileMenu()),
         },
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'resizable',
+      title: 'Resizable',
+      summary: 'Two panels and a handle between them, dragged or stepped by the arrow keys.',
+      recipe: 'Resizable',
+      file: 'resizable',
+      contract: 'ResizableSlots',
+    },
+    ResizableSlots,
+    Recipes.Resizable,
+    (style, live) =>
+      Snippet.resizable(
+        style,
+        live.widgets.split,
+        message => live.onWidget(Widgets.Message.GotSplit({ message })),
         live.h,
       ),
   ),

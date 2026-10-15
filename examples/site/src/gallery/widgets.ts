@@ -20,7 +20,7 @@ import {
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
-import { Accordion, CheckboxGroup, Dialog } from 'foldkit-mixins-ui'
+import { Accordion, CheckboxGroup, Dialog, Resizable } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 
@@ -78,6 +78,8 @@ export const Model = Schema.Struct({
   commandQuery: Schema.String,
   commandActive: Schema.Option(Schema.String),
   commandRan: Schema.Option(Schema.String),
+  /** The resizable split. */
+  split: Resizable.Model,
 })
 export type Model = typeof Model.Type
 
@@ -112,6 +114,7 @@ export const Message = defineMessageUnion({
   TypedCommand: { query: Schema.String },
   HighlightedCommand: { value: Schema.String },
   RanCommand: { value: Schema.String },
+  GotSplit: { message: Resizable.Message },
 })
 export type Message = typeof Message.Type
 
@@ -157,6 +160,7 @@ export const initial: Model = {
   commandQuery: '',
   commandActive: Option.none(),
   commandRan: Option.none(),
+  split: Resizable.init(0.35),
 }
 
 type Step = Update.Step<Model, Message>
@@ -382,6 +386,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     HighlightedCommand: ({ value }) => ({
       model: modifyFields(model, { commandActive: () => Option.some(value) }),
     }),
+    GotSplit: ({ message }) => {
+      const split = Resizable.update(model.split, message, { min: 0.2, max: 0.8 })
+      return split === model.split
+        ? { model }
+        : { model: modifyFields(model, { split: () => split }) }
+    },
     RanCommand: ({ value }) => ({
       model: modifyFields(model, { commandRan: () => Option.some(value) }),
     }),
