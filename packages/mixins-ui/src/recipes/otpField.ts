@@ -39,7 +39,8 @@ export const OtpField = Style.recipeFor(OtpFieldSlots)({
       }),
       Style.pseudo('::selection', { background: 'transparent' }),
     ),
-    group: component(Style.self({ display: 'flex' })),
+    // The cells are positioned, so they paint over the input: presses pass through them to it.
+    group: component(Style.self({ display: 'flex', pointerEvents: 'none' })),
     cell: component(
       Style.self({
         position: 'relative',

@@ -3,6 +3,7 @@
  * code kept to its pattern and length, and the cell the next character goes
  * in marked for its caret.
  */
+import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
@@ -61,6 +62,69 @@ describe('OtpField.view', () => {
       false,
       false,
     ])
+  })
+
+  it('fills the cells it shows, and keeps the caret on the last cell of a full code', () => {
+    expect(cells('12').map(cell => Inert.value(cell, 'data-filled'))).toEqual([
+      'true',
+      'true',
+      'false',
+      'false',
+      'false',
+      'false',
+    ])
+    expect(cells('123456').map(cell => Inert.value(cell, 'data-next') !== undefined)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ])
+  })
+
+  it('asks a phone for its number pad for digits, and a keyboard otherwise', () => {
+    const inputMode = (pattern: 'digits' | 'alphanumeric') =>
+      Inert.value(
+        Inert.byTag(
+          OtpField.view({ label: 'Code', value: '', onChange: () => message('Other'), pattern }, h),
+          'input',
+        )[0],
+        'inputmode',
+      )
+    expect(inputMode('digits')).toBe('numeric')
+    expect(inputMode('alphanumeric')).toBe('text')
+  })
+
+  it('takes no input while disabled', () => {
+    const [input] = Inert.byTag(
+      OtpField.view(
+        { label: 'Code', value: '', onChange: () => message('Other'), disabled: true },
+        h,
+      ),
+      'input',
+    )
+    expect(Inert.value(input, 'disabled')).toBe(true)
+    expect(input?.data?.on?.['input']).toBeUndefined()
+  })
+
+  it('sends what was typed kept to its pattern and length', () => {
+    Scene.scene<string, string>(
+      {
+        update: (_code, code) => ({ model: code }),
+        view: (code, h) =>
+          h.div(
+            [],
+            [
+              OtpField.view({ label: 'Code', value: code, length: 4, onChange: next => next }, h),
+              h.output([], [code]),
+            ],
+          ),
+      },
+      Scene.given(''),
+      Scene.type(Scene.label('Code'), '1a2-345'),
+      Scene.expect(Scene.selector('output')).toHaveText('1234'),
+    )
   })
 
   it('puts a separator between its runs, and refuses runs that miss its length', () => {
