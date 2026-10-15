@@ -24,6 +24,7 @@ import {
   highlight,
   indicator,
   item,
+  mergedChoice,
   panel,
   rows,
   separator,
@@ -84,6 +85,7 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
       // The chosen row reads DOM state; its fill is the indicator's once that glides.
       Style.states({ true: { color: ref.accent.ink } }, 'aria-selected'),
       Style.nest(`${unlit}[aria-selected="true"]`, { background: ref.accent.subtle }),
+      mergedChoice,
     ),
     heading,
     separator,

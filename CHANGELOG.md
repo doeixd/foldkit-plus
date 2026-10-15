@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: a press that shrinks a button 1px a side, and
+  merged choices.** A solid or primary button's fill stops at its padding
+  box under a border of its own color, which a press clears on the fast tier
+  and brings back on the moderate one, so the surface shrinks exactly 1px a
+  side at any width, after Fluid Functionalism's (a scale would warp a wide
+  button). In a multiple listbox or combobox, chosen rows next to each other
+  square the corners between them, so a run reads as one block.
 - **`foldkit-mixins-ui`: popups and dialogs enter and leave.** Drawn with
   `@foldkit/ui`'s `isAnimated`, a menu, listbox or combobox panel fades in
   on the fast tier from a little smaller, sliding 4px from the side the

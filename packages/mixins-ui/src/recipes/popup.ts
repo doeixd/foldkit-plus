@@ -49,6 +49,22 @@ const lighted = { background: ref.popup.highlight, color: ref.popup['highlight-i
 
 /** A row outside any panel a fluid highlight runs in. */
 export const unlit = '&:not([data-fluid-hover] *)'
+
+/**
+ * Chosen rows next to each other read as one block, as Fluid
+ * Functionalism's merged selections do: the corners between two chosen rows
+ * square off, so a run is one rounded fill rather than a stack of pills.
+ */
+export const mergedChoice: StyleValue = Style.compose(
+  Style.nest(`${unlit}[aria-selected="true"]:has(+ [aria-selected="true"])`, {
+    borderEndStartRadius: '0',
+    borderEndEndRadius: '0',
+  }),
+  Style.nest(`[aria-selected="true"] + ${unlit}[aria-selected="true"]`, {
+    borderStartStartRadius: '0',
+    borderStartEndRadius: '0',
+  }),
+)
 const lit = ':where([data-fluid-hover]) > &'
 
 /** One row of the panel. */

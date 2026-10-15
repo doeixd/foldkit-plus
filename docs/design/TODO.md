@@ -810,10 +810,12 @@ keeps what the systems plan's "What we keep" lists.
 - [ ] **Table rows under fluid hover.** A highlight cannot be a child of a
   `tbody`, so the table needs a wrapper slot of its own to draw it behind the
   rows, with the borders beside the lit row going transparent over 80ms.
-- [ ] **Systems 8, component craft.** Button press and timing, icon stroke,
-  merged selection runs in CSS, Checkbox, Radio, Switch, popup, Tooltip,
-  Dialog and Badge values, each folded into that component's next brief.
-  [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
+- [ ] **Systems 8, component craft.** Done: the button's 1px press, merged
+  selection runs, popup and dialog entrances. Our checkbox and radio fill
+  when checked, so Fluid's clearing border is already their look. Open: icon
+  stroke, the Switch's geometry and drag, Tooltip's delay and skip window,
+  Dialog widths, Select's pause after a pick, each folded into that
+  component's next brief. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
 - [ ] **Parity 4, the islands into the package.** Accordion, Toggle and Toggle
   Group, Input OTP, Number Input, Alert Dialog, Context Menu, Hover Card,
   Menubar, Navigation Menu, Command, Sidebar, Resizable and Checkbox Group.

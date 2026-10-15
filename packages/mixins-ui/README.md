@@ -531,6 +531,10 @@ What a recipe assumes and does:
   `isAnimated` (`Menu.init({ id, isAnimated: true })`): a popup fades and
   grows on the fast tier, from the side its anchor placed it on, and a
   dialog on the slow one, each leaving on the quicker exit.
+- **A press shrinks a button by 1px a side.** A solid or primary button's
+  border carries its fill and clears while held, so the fill stands exactly
+  1px in at any width; chosen rows next to each other in a multiple listbox or
+  combobox merge into one block.
 - **Raised surfaces nest.** Popups, popovers, date picker panels and toasts
   sit two levels above what holds them and dialogs four (`Theme.raise`), each
   painted for its level, so a popover in a dialog lands above the dialog: a

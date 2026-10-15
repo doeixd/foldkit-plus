@@ -5,7 +5,7 @@
  * properties the variants read — except `primary`, which is ink by
  * definition, and `icon`, a square one rung of the ladder on a side.
  */
-import { Style } from 'foldkit-mixins'
+import { Style, type StyleValue } from 'foldkit-mixins'
 import { ButtonSlots } from '../button.js'
 import { ladder } from 'foldkit-mixins/theme'
 import {
@@ -30,6 +30,27 @@ import {
  * would not read.
  */
 const unfilledInk = `var(--fk-ink, ${toneVar('ink')})`
+
+/**
+ * A press that shrinks a fill by exactly 1px a side, as Fluid
+ * Functionalism's: the fill stops at the padding box and the 1px border
+ * carries its color, which a press clears. A `scale` would warp, moving a wide
+ * button's sides far more than its top. It presses on the fast tier and
+ * springs back on the moderate one.
+ */
+const press = (fill: string, fillHover: string): ReadonlyArray<StyleValue> => [
+  Style.self({
+    backgroundClip: 'padding-box',
+    borderColor: fill,
+    transitionDuration: ref.motion.moderate,
+    transitionTimingFunction: ref.motion.settle,
+  }),
+  hover({ borderColor: fillHover }),
+  Style.pseudo(':active:not([aria-disabled="true"], :disabled)', {
+    borderColor: 'transparent',
+    transitionDuration: ref.motion.fast,
+  }),
+]
 
 export const Button = Style.recipeFor(ButtonSlots)({
   base: {
@@ -63,6 +84,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
         button: variant(
           Style.self({ background: toneVar('fill'), color: toneVar('on-fill') }),
           hover({ background: toneVar('fill-hover') }),
+          ...press(toneVar('fill'), toneVar('fill-hover')),
         ),
       },
       outline: {
@@ -91,6 +113,10 @@ export const Button = Style.recipeFor(ButtonSlots)({
           hover({
             background: `color-mix(in oklch, ${ref.text.overt} 85%, ${ref.surface.base})`,
           }),
+          ...press(
+            ref.text.overt,
+            `color-mix(in oklch, ${ref.text.overt} 85%, ${ref.surface.base})`,
+          ),
         ),
       },
       /**
