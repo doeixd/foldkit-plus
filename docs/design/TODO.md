@@ -826,7 +826,7 @@ keeps what the systems plan's "What we keep" lists.
   `pressed`, and Toggle Group, as Segmented's `multiple` with `view` and
   `toggled`, rather than second components; Alert Dialog, as the Dialog with
   `Dialog.isDismissal`; Number Input, as `NumberField`; Input OTP, as `OtpField`; Hover Card, as HoverIntent with `Recipes.HoverCard`.
-  Open: Context Menu,
+  Context Menu, as the Menu at a point (`ContextMenu`). Open:
   Menubar, Navigation Menu, Command, Sidebar and Resizable. Checkbox Group is
   done, as `CheckboxGroup`.
   An island stays in `examples/widgets` as the Behaviors example until the

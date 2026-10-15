@@ -50,6 +50,7 @@ import {
   CardSlots,
   CheckboxGroup,
   CheckboxGroupSlots,
+  ContextMenu,
   NumberField,
   NumberFieldSlots,
   OtpField,
@@ -955,6 +956,69 @@ export const menu = <Message>(
           toView: Menu.toView([style.mixin, ...Menu.fluid], { h }),
         },
         toParentMessage: toMessage,
+      }),
+      h.p(
+        [],
+        [
+          Option.match(state.action, {
+            onNone: () => 'Nothing chosen yet',
+            onSome: a => `Chose ${a}`,
+          }),
+        ],
+      ),
+    ],
+  )
+// #endregion
+
+// #region context-menu
+/** The context menu's state: the Menu's, the point it opened at, the last action. */
+export interface ContextMenuState {
+  readonly menu: UiMenu.Model
+  readonly point: Option.Option<ContextMenu.Point>
+  readonly action: Option.Option<Action>
+}
+
+export interface ContextMenuMessages<Message> {
+  readonly toMessage: (message: UiMenu.Message) => Message
+  readonly onPoint: (point: ContextMenu.Point) => Message
+  readonly onOpen: Message
+}
+
+export const contextMenu = <Message>(
+  style: NamedStyle<typeof MenuSlots>,
+  state: ContextMenuState,
+  messages: ContextMenuMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      h.div(
+        [
+          ...ContextMenu.target({ onPoint: messages.onPoint, onOpen: messages.onOpen }, h),
+          h.Tabindex(0),
+          h.AriaLabel('report.pdf, right-click or Shift+F10 for its actions'),
+          h.Style({
+            padding: '2rem 3rem',
+            border: '1px dashed currentColor',
+            borderRadius: '0.5rem',
+            cursor: 'context-menu',
+          }),
+        ],
+        ['report.pdf'],
+      ),
+      h.submodel({
+        slotId: state.menu.id,
+        model: state.menu,
+        view: ActionMenu.view,
+        viewInputs: {
+          anchor: { placement: 'bottom-start', gap: 0, padding: 8, portal: false },
+          items: Action.literals,
+          itemToConfig: (action: Action) => ({ content: h.span([], [action]) }),
+          buttonContent: h.span([], ['Actions for report.pdf']),
+          toView: ContextMenu.toView([style.mixin, ...Menu.fluid], { h }, state.point),
+        },
+        toParentMessage: messages.toMessage,
       }),
       h.p(
         [],

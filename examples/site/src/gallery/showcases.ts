@@ -524,6 +524,33 @@ export const showcases: ReadonlyArray<Showcase> = [
   ),
   fromRecipe(
     {
+      slug: 'context-menu',
+      title: 'Context menu',
+      summary: 'The menu a right press or Shift+F10 opens where it lands.',
+      recipe: 'Menu',
+      file: 'menu',
+      contract: 'MenuSlots',
+    },
+    MenuSlots,
+    Recipes.Menu,
+    (style, live) =>
+      Snippet.contextMenu(
+        style,
+        {
+          menu: live.widgets.fileMenu,
+          point: live.widgets.filePoint,
+          action: live.widgets.fileAction,
+        },
+        {
+          toMessage: message => live.onWidget(Widgets.Message.GotFileMenu({ message })),
+          onPoint: ({ x, y }) => live.onWidget(Widgets.Message.PointedFile({ x, y })),
+          onOpen: live.onWidget(Widgets.Message.OpenedFileMenu()),
+        },
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
       slug: 'segmented',
       title: 'Segmented',
       summary: 'A few options in a tray, one pressed, with a pill that slides to a new press.',

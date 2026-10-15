@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `ContextMenu`,** the widgets island's context menu
+  as `@foldkit/ui`'s Menu opened where a right press landed: `target` on the
+  area records the press's point and opens the menu on `contextmenu` (a right
+  press, Shift+F10 or the ContextMenu key, the browser's own menu kept shut),
+  and `toView` turns the Menu's button into a mark of no size at that point,
+  which the Menu's anchor places the rows against. `update` folds the Menu's
+  `Opened` Message, since `@foldkit/ui` exports no `open`. A gallery page.
 - **`foldkit-mixins-ui`: `Recipes.HoverCard`,** the widgets island's hover
   card as `@foldkit/ui`'s HoverIntent with a look: a trigger read as a link
   and a raised panel that fades in as it is drawn (`@starting-style`),

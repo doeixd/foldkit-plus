@@ -70,6 +70,10 @@ export const Model = Schema.Struct({
   /** The one-time code typed so far. */
   code: Schema.String,
   hoverCard: UiHoverIntent.Model,
+  /** The context menu, the point a right press opened it at, and what it last did. */
+  fileMenu: UiMenu.Model,
+  filePoint: Schema.Option(Schema.Struct({ x: Schema.Number, y: Schema.Number })),
+  fileAction: Schema.Option(Action),
 })
 export type Model = typeof Model.Type
 
@@ -98,6 +102,9 @@ export const Message = defineMessageUnion({
   ChangedServings: { value: Schema.Number },
   TypedCode: { code: Schema.String },
   GotHoverCard: { message: UiHoverIntent.Message },
+  GotFileMenu: { message: UiMenu.Message },
+  PointedFile: { x: Schema.Number, y: Schema.Number },
+  OpenedFileMenu: {},
 })
 export type Message = typeof Message.Type
 
@@ -137,6 +144,9 @@ export const initial: Model = {
   servings: 4,
   code: '',
   hoverCard: UiHoverIntent.init(),
+  fileMenu: UiMenu.init({ id: 'preview-file-menu', isAnimated: true }),
+  filePoint: Option.none(),
+  fileAction: Option.none(),
 }
 
 type Step = Update.Step<Model, Message>
@@ -264,6 +274,18 @@ const foldMenu = Update.foldChild({
   }),
 })
 
+const fileMenuOut = UiMenu.OutMessage.match<Step, UiMenu.OutMessage<Action>>({
+  Selected:
+    ({ value }) =>
+    model => ({ model: modifyFields(model, { fileAction: () => Option.some(value) }) }),
+})
+const fileMenuField = own('fileMenu', Message.GotFileMenu)
+const foldFileMenu = Update.foldChild({
+  ...fileMenuField,
+  update: ActionMenu.update,
+  foldOutMessage: fileMenuOut,
+})
+
 const foldListbox = Update.foldChild({
   ...own('listbox', Message.GotListbox),
   update: FrequencyBox.update,
@@ -339,6 +361,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotPopover: ({ message }) => foldPopover(model, message),
     GotTooltip: ({ message }) => foldTooltip(model, message),
     GotHoverCard: ({ message }) => foldHoverCard(model, message),
+    GotFileMenu: ({ message }) => foldFileMenu(model, message),
+    PointedFile: ({ x, y }) => ({
+      model: modifyFields(model, { filePoint: () => Option.some({ x, y }) }),
+    }),
+    // The Menu's own Opened, with its first row active, as a key opening it does.
+    OpenedFileMenu: () =>
+      foldFileMenu(model, UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(0) })),
     GotMenu: ({ message }) => foldMenu(model, message),
     GotListbox: ({ message }) => foldListbox(model, message),
     GotCombobox: ({ message }) => foldCombobox(model, message),
