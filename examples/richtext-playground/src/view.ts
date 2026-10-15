@@ -568,19 +568,22 @@ export const PlaygroundView = SlotView.forMessages<Message>()
  * block's language and Copy. Keyed by the block, since the anchor reads its args once.
  */
 const blockTools = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
-  const above = (node: RichText.NodeId, tools: Html) =>
+  // A table's tools sit above it; a code block's in its own top corner, over its header, so
+  // they cover none of the text around it.
+  const placed = (node: RichText.NodeId, side: 'above' | 'inside-end', tools: Html) =>
     h.div(
       slots.blockTools.attrs([
         h.Key(`tools-${node}`),
-        h.OnMount(blockAnchor({ hostId, node, gap: 6, side: 'above' })),
+        h.OnMount(blockAnchor({ hostId, node, gap: 6, side })),
       ]),
       [tools],
     )
   const table = RichText.tableAt(model.document, model.editor.selection)
   if (table !== undefined) {
     return [
-      above(
+      placed(
         table.table.id,
+        'above',
         TableTools({ document: model.document, selection: model.editor.selection, wrap }, h),
       ),
     ]
@@ -588,8 +591,9 @@ const blockTools = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
   return Option.match(codeBlockAt(model), {
     onNone: () => [],
     onSome: node => [
-      above(
+      placed(
         node,
+        'inside-end',
         CodeTools(
           {
             document: model.document,
@@ -843,6 +847,15 @@ const blockHandle = (model: Model, node: RichText.NodeId, slots: Slots, h: H): H
 
 // --- discussions -------------------------------------------------------------------------------
 
+/** A person's initials, for the mark beside what they said: "Noor Patel" is NP. */
+const initialsOf = (name: string): string =>
+  name
+    .split(/\s+/)
+    .filter(word => word.length > 0)
+    .slice(0, 2)
+    .map(word => word[0]!.toUpperCase())
+    .join('')
+
 const discussions = (model: Model, slots: Slots, h: H): Html => {
   const threads = openThreads(model)
   const active = threadAt(model)
@@ -861,8 +874,9 @@ const discussions = (model: Model, slots: Slots, h: H): Html => {
     const isActive = thread.id === active
     const remarks = thread.remarks.map(remark =>
       h.div(slots.remark.attrs(), [
+        h.span(slots.avatar.attrs([h.AriaHidden(true)]), [initialsOf(remark.author)]),
         h.span(slots.author.attrs(), [remark.author]),
-        h.span([], [remark.body]),
+        h.span(slots.remarkBody.attrs(), [remark.body]),
       ]),
     )
     return isActive
