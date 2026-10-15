@@ -305,7 +305,9 @@ slashMenu(slashEntries, 'see /head', 0)?.highlighted?.label // 'Heading 1'
 - **`slashEntries`** leads with the text blocks a caret can become (`Paragraph`,
   `Heading 1`–`3`), then the standard containers (`Quote`, `Bulleted list`, `Numbered list`,
   `Code block`, whose id is `code-block` because `code` is the Code mark's), then the marks.
-  Each has a stable `id`, a `label`, the words a query may also match, and its Message.
+  Each has a stable `id`, a `label`, the words a query may also match, and its Message, and
+  for a menu to draw, a `description`, the `group` it is listed under (Text, Lists, Blocks,
+  Formatting), and an `icon` by name.
 - **`slashMenu(entries, textBefore, index)`** is the one value a view and `update` share:
   whether a query is open, what matches, and what Enter would send. A stale index falls back to
   the first match. `textBefore` is a read (`RichText.textBefore(document, position)`), not
@@ -315,8 +317,12 @@ slashMenu(slashEntries, 'see /head', 0)?.highlighted?.label // 'Heading 1'
   highlighted entry as the Message a click would send. Choosing an entry also removes the
   query typed for it, as one action: one transition and one undo step.
 
-`matchingEntries` filters, and it, `slashQuery`, and `slashMenu` work over any entries carrying
-a `message`, so an application's own catalogue reuses them.
+`matchingEntries` decides the order. With no query it lists every entry with each group's
+entries together, in the order the group first appears; with one, the best matches first (a
+label the query starts, then a word of a label, then a keyword, then any containing it). The
+keys move through that order and a menu draws it, so they cannot disagree. It, `slashQuery`, and
+`slashMenu` work over any entries carrying a `message`, so an application's own catalogue reuses
+them.
 
 ## Showing a document: the read-only renderer
 

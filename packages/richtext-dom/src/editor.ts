@@ -153,6 +153,12 @@ export interface SlashEntry<Payload> {
   readonly keywords: ReadonlyArray<string>
   /** What choosing this entry sends: an editor Message here, a caller's in a view. */
   readonly message: Payload
+  /** A line under the label saying what the entry makes. */
+  readonly description?: string | undefined
+  /** The heading the entry is listed under while no query narrows the menu. */
+  readonly group?: string | undefined
+  /** The icon a menu draws for it, by name; a view's own set says what names it knows. */
+  readonly icon?: string | undefined
 }
 
 /**
@@ -168,17 +174,20 @@ const HEADINGS: ReadonlyArray<{
   readonly level: 1 | 2 | 3
   readonly label: string
   readonly keywords: ReadonlyArray<string>
+  readonly description: string
 }> = [
-  { level: 1, label: 'Heading 1', keywords: ['h1', 'title'] },
-  { level: 2, label: 'Heading 2', keywords: ['h2', 'subtitle'] },
-  { level: 3, label: 'Heading 3', keywords: ['h3', 'section'] },
+  { level: 1, label: 'Heading 1', keywords: ['h1', 'title'], description: 'A title' },
+  { level: 2, label: 'Heading 2', keywords: ['h2', 'subtitle'], description: 'A section' },
+  { level: 3, label: 'Heading 3', keywords: ['h3', 'section'], description: 'A subsection' },
 ]
 
-/** What a mark is also searched by, so a query can name the element or the habit. */
-const MARK_KEYWORDS: Readonly<Record<string, ReadonlyArray<string>>> = {
-  Bold: ['strong', 'b'],
-  Italic: ['em', 'i'],
-  Code: ['monospace'],
+/** What a mark is also searched by, and what its entry says it does. */
+const MARK_ENTRIES: Readonly<
+  Record<string, { readonly keywords: ReadonlyArray<string>; readonly description: string }>
+> = {
+  Bold: { keywords: ['strong', 'b'], description: 'Strong emphasis' },
+  Italic: { keywords: ['em', 'i'], description: 'Emphasis' },
+  Code: { keywords: ['monospace'], description: 'Code within a line' },
 }
 
 /**
@@ -194,24 +203,36 @@ export const slashEntries: ReadonlyArray<SlashEntry<EditorEvent>> = [
     label: 'Paragraph',
     keywords: ['text', 'body'],
     message: Message.RetypedBlock({ block: { type: 'Paragraph' } }),
+    description: 'Plain text',
+    group: 'Text',
+    icon: 'paragraph',
   },
   ...HEADINGS.map(heading => ({
     id: `heading-${heading.level}`,
     label: heading.label,
     keywords: heading.keywords,
     message: Message.RetypedBlock({ block: { type: 'Heading', level: heading.level } }),
+    description: heading.description,
+    group: 'Text',
+    icon: `heading-${heading.level}`,
   })),
   {
     id: 'quote',
     label: 'Quote',
     keywords: ['blockquote', 'citation'],
     message: Message.WrappedBlock({ containers: [{ kind: 'Quote' }] }),
+    description: 'Words set apart',
+    group: 'Text',
+    icon: 'quote',
   },
   {
     id: 'bulleted-list',
     label: 'Bulleted list',
     keywords: ['ul', 'unordered', 'bullet'],
     message: Message.WrappedBlock({ containers: [{ kind: 'List' }, { kind: 'ListItem' }] }),
+    description: 'Points in no order',
+    group: 'Lists',
+    icon: 'bulleted-list',
   },
   {
     id: 'numbered-list',
@@ -220,6 +241,9 @@ export const slashEntries: ReadonlyArray<SlashEntry<EditorEvent>> = [
     message: Message.WrappedBlock({
       containers: [{ kind: 'List', props: { ordered: true } }, { kind: 'ListItem' }],
     }),
+    description: 'Steps in order',
+    group: 'Lists',
+    icon: 'numbered-list',
   },
   {
     // `code` is the Code mark's id; the block is a different entry.
@@ -227,29 +251,65 @@ export const slashEntries: ReadonlyArray<SlashEntry<EditorEvent>> = [
     label: 'Code block',
     keywords: ['pre', 'fence', 'snippet'],
     message: Message.ConvertedBlock({ to: { kind: 'CodeBlock' } }),
+    description: 'Code, kept as typed',
+    group: 'Blocks',
+    icon: 'code-block',
   },
   ...RichText.shippedMarks.map(definition => ({
     id: definition.name.toLowerCase(),
     label: definition.name,
-    keywords: MARK_KEYWORDS[definition.name] ?? [],
+    keywords: MARK_ENTRIES[definition.name]?.keywords ?? [],
     message: Message.ToggledMark({ mark: definition.name }),
+    description: MARK_ENTRIES[definition.name]?.description,
+    group: 'Formatting',
+    icon: definition.name.toLowerCase(),
   })),
 ]
 
+/** How well an entry answers a query: lower is better, `undefined` is no match. */
+const rank = (entry: SlashEntry<unknown>, needle: string): number | undefined => {
+  const label = entry.label.toLowerCase()
+  if (label.startsWith(needle)) return 0
+  if (label.split(/\s+/).some(word => word.startsWith(needle))) return 1
+  if (entry.keywords.some(word => word.toLowerCase().startsWith(needle))) return 2
+  if ([label, ...entry.keywords].some(word => word.toLowerCase().includes(needle))) return 3
+  return undefined
+}
+
 /**
- * The entries whose label or keywords contain the query, case-insensitively; every
- * entry when the query is empty, which is what `/` alone offers.
+ * What `/` alone offers: every entry, each group's together in the order its first entry comes,
+ * so the list a menu draws under its headings is the list the keys move through.
+ */
+const grouped = <Payload>(
+  entries: ReadonlyArray<SlashEntry<Payload>>,
+): ReadonlyArray<SlashEntry<Payload>> => {
+  const groups = new Map<string | undefined, Array<SlashEntry<Payload>>>()
+  for (const entry of entries) {
+    const group = groups.get(entry.group)
+    if (group === undefined) groups.set(entry.group, [entry])
+    else group.push(entry)
+  }
+  return [...groups.values()].flat()
+}
+
+/**
+ * The entries a query matches, case-insensitively, the best first: a label it starts, a word of
+ * a label it starts, a keyword it starts, then any it appears in, each in catalogue order.
+ * Every entry, grouped, when the query is empty, which is what `/` alone offers.
  */
 export const matchingEntries = <Payload>(
   entries: ReadonlyArray<SlashEntry<Payload>>,
   query: string,
 ): ReadonlyArray<SlashEntry<Payload>> => {
   const needle = query.trim().toLowerCase()
-  return needle.length === 0
-    ? entries
-    : entries.filter(entry =>
-        [entry.label, ...entry.keywords].some(word => word.toLowerCase().includes(needle)),
-      )
+  if (needle.length === 0) return grouped(entries)
+  return entries
+    .flatMap(entry => {
+      const score = rank(entry, needle)
+      return score === undefined ? [] : [{ entry, score }]
+    })
+    .sort((left, right) => left.score - right.score)
+    .map(({ entry }) => entry)
 }
 
 /** What a menu shows for one caret: its query, what matches, and what Enter would send. */

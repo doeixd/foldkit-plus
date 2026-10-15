@@ -116,6 +116,8 @@ export {
   type SlashEntry,
   type SlashMenu,
 } from './slash.js'
+/** The chrome's icons, after Lucide: as inline SVG, or as a CSS `url(…)` to mask. */
+export { isRichTextIcon, richTextIcon, richTextIconUrl, type RichTextIconName } from './icons.js'
 /** The table of contents, from the document's headings, and its slots. */
 export { TableOfContentsSlots, tableOfContents, type TableOfContentsInput } from './contents.js'
 /** The footnote preview at a reference, and its slots. */

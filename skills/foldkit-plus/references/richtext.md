@@ -175,8 +175,11 @@ Message wrapped for the caller, as the toolbar's `toggled` is) and `slashMove(en
 textBefore, index, key, modifiers)` — the keys a menu owns, using `foldkit-primitives`'
 `RovingTabindex.move`, so ArrowUp/Down, Home/End, wrapping, and a modified key behave as in
 any other list — and draws it with `slashMenuView<Message>()`: `SlashMenuSlots` (`root`,
-`list`, `item`), one `data-entry` item per match with `role="menuitem"`, `aria-current` on
-the highlighted one, and the entry's own Message on click. `blockStyles<Message>()` is the
+`list`, `heading`, `item`, `icon`, `label`, `description`, `empty`), one `data-entry` item per
+match with `role="menuitem"`, `aria-current` on the highlighted one, and the entry's own Message
+on click; entries carry `description`, `group` and `icon`, grouped under `/` alone and ranked
+under a query (`matchingEntries`). `richTextIcon(h, name)` / `richTextIconUrl(name)` are the
+chrome's icon set (Lucide, ISC). `blockStyles<Message>()` is the
 style picker: `{ document, selection, wrap }` in, `BlockStyleSlots` (`root`, `toolbar`,
 `button`) out, one `data-style` button per retype entry (Paragraph, Heading 1–3), pressed from
 `RichText.textBlockAt`, all disabled without a text selection. `linkEditor<Message>()` is the link

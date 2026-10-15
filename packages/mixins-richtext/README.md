@@ -176,14 +176,33 @@ Escape in `OnKeyDownPreventDefault` while a query is open, writing the index to
 `editor.menuIndex`. Enter is not: the editor's `update` resolves it against that index.
 
 Each item carries `data-entry` (its id), `role="menuitem"`, `aria-current="true"` on the
-highlighted one, and its entry's Message on click. Outside a query the view draws an empty
-list.
+highlighted one, and its entry's Message on click, and draws the entry's icon (when the set
+below has it), label and description. Under `/` alone the entries sit under their groups'
+headings; a query lists the best matches first, without headings, and one that matches nothing
+says "No matches". Outside a query the view draws nothing.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
 | `root` | Container | the menu's wrapper |
 | `list` | Collection | the list of matches |
+| `heading` | Container | a group's name, before its first entry |
 | `item` | Interactive | one entry, per match |
+| `icon` | Container | the entry's icon |
+| `label` | Container | the entry's label |
+| `description` | Container | the line under the label |
+| `empty` | Container | "No matches" |
+
+## Icons
+
+`richTextIcon(h, name, { size })` draws one of the chrome's icons as inline SVG, stroked in the
+text's color and hidden from assistive technology, so the control it sits in names it.
+`richTextIconUrl(name)` is the same drawing as a CSS `url(…)` for a stylesheet to mask, where a
+rendering's adornment cannot hold an element. The set covers the editor's slash entries (by
+their `icon`), the marks, the blocks an application inserts (table, image, video, audio, file,
+callout, toggle, divider, footnote), and the actions around them (undo, redo, search, replace,
+match-case, download, copy, trash, plus, more, grip, close, check, chevrons, back, contents,
+reset). `isRichTextIcon(name)` says whether a name has a drawing. The drawings are Lucide's,
+under its ISC license, whose notice is in `src/icons.ts`.
 
 ## The block handle
 

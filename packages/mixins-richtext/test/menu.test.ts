@@ -27,8 +27,11 @@ const items = (root: Html): ReadonlyArray<Node> =>
   Inert.all(root).filter(node => node.data?.attrs?.['data-entry'] !== undefined)
 const nodeFor = (root: Html, entry: string): Node | undefined =>
   items(root).find(node => node.data?.attrs?.['data-entry'] === entry)
+/** Each item's first words, its label: an icon before it draws none. */
 const labels = (root: Html): ReadonlyArray<string> =>
-  items(root).map(node => node.text ?? Inert.children(node)[0]?.text ?? '')
+  items(root).map(node => Inert.all(node).find(each => (each.text ?? '').length > 0)?.text ?? '')
+const texts = (root: Html): ReadonlyArray<string> =>
+  Inert.all(root).flatMap(node => (node.text === undefined ? [] : [node.text]))
 
 const catalogue = (): ReadonlyArray<SlashEntry<Message>> => [
   {
@@ -93,6 +96,52 @@ describe('the slash menu view', () => {
       'Italic',
       'Code',
     ])
+  })
+
+  it('heads each group while no query narrows it, and lists the best matches first after', () => {
+    const grouped = (): ReadonlyArray<SlashEntry<Message>> => [
+      { ...catalogue()[0]!, group: 'Text', description: 'Plain text' },
+      {
+        id: 'bold',
+        label: 'Bold',
+        keywords: ['strong'],
+        message: Message.Chose({ entry: 'bold' }),
+        group: 'Formatting',
+      },
+      { ...catalogue()[1]!, group: 'Text' },
+    ]
+    const all = render(undefined, { entries: grouped() })
+    // A group's entries come together, under one heading, in the order the keys move.
+    expect(labels(all)).toEqual(['Paragraph', 'Heading 1', 'Bold'])
+    expect(texts(all)).toEqual([
+      'Text',
+      'Paragraph',
+      'Plain text',
+      'Heading 1',
+      'Formatting',
+      'Bold',
+    ])
+    // `/b` starts no label but Bold's; a word in a label beats a keyword; no headings.
+    const narrowed = render(undefined, { entries: grouped(), textBefore: '/b' })
+    expect(texts(narrowed)).toEqual(['Bold'])
+    // A label's start beats a keyword's, whatever the catalogue's order.
+    const ranked = render(undefined, {
+      entries: [
+        {
+          id: 'other',
+          label: 'Other',
+          keywords: ['heading-like'],
+          message: Message.Chose({ entry: 'other' }),
+        },
+        ...catalogue(),
+      ],
+      textBefore: '/head',
+    })
+    expect(labels(ranked)).toEqual(['Heading 1', 'Other'])
+  })
+
+  it('says when nothing matches', () => {
+    expect(texts(render(undefined, { textBefore: '/zzz' }))).toEqual(['No matches'])
   })
 
   it('is an empty list outside a query, and when nothing matches', () => {

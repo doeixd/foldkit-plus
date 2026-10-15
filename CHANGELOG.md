@@ -112,6 +112,13 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **A slash menu worth reading, and an icon set.** `foldkit-richtext-dom`'s
+  `SlashEntry` gains `description`, `group` and `icon`, and the editor's entries
+  have all three; `matchingEntries` groups the catalogue under `/` and ranks a
+  query's matches, best first. `foldkit-mixins-richtext`'s `slashMenuView` draws
+  group headings, each entry's icon, label and description, and "No matches",
+  through new slots, and `richTextIcon`/`richTextIconUrl` are the chrome's icons
+  (after Lucide, ISC).
 - **`foldkit-richtext`: video, audio and attachments.** `mediaNodes`
   (`Video`, `Audio`, `Attachment`) are opt-in vocabulary, `mediaRendering`
   draws them with the browser's controls and a download link, and

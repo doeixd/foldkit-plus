@@ -13,13 +13,22 @@
  */
 import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { isRichTextIcon, richTextIcon } from './icons.js'
 import { slashMenu, type SlashEntry } from './slash.js'
 
-/** The elements the menu publishes: its wrapper, its list, and one item per match. */
+/**
+ * The elements the menu publishes: its wrapper, its list, a heading over each group, one item per
+ * match with its icon, label and description, and what shows when nothing matches.
+ */
 export const SlashMenuSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   list: Slot.make({ capability: Capability.Collection }),
+  heading: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Interactive }),
+  icon: Slot.make({ capability: Capability.Container }),
+  label: Slot.make({ capability: Capability.Container }),
+  description: Slot.make({ capability: Capability.Container }),
+  empty: Slot.make({ capability: Capability.Container }),
 })
 
 export interface SlashMenuInput<Message> {
@@ -40,24 +49,38 @@ export const slashMenuView = <Message>(): SlotView.SlotView<
     const menu = slashMenu(input.entries, input.textBefore, input.index)
     const matches = menu?.matches ?? []
     const highlighted = matches.findIndex(entry => entry === menu?.highlighted)
-    return h.div(slots.root.attrs(), [
-      h.div(
-        slots.list.attrs([h.Role('menu')]),
-        matches.map((entry, index) =>
-          h.button(
-            slots.item.attrs(
-              [
-                h.Type('button'),
-                h.Role('menuitem'),
-                h.DataAttribute('entry', entry.id),
-                h.AriaCurrent(index === highlighted ? 'true' : 'false'),
-                h.OnClick(entry.message),
-              ],
-              { index, id: entry.id, count: matches.length },
-            ),
-            [entry.label],
-          ),
+    // Groups head the whole catalogue; a query lists the best matches first, ungrouped.
+    const headed = menu?.query === ''
+    const item = (entry: SlashEntry<Message>, index: number): Html =>
+      h.button(
+        slots.item.attrs(
+          [
+            h.Type('button'),
+            h.Role('menuitem'),
+            h.DataAttribute('entry', entry.id),
+            h.AriaCurrent(index === highlighted ? 'true' : 'false'),
+            h.OnClick(entry.message),
+          ],
+          { index, id: entry.id, count: matches.length },
         ),
-      ),
+        [
+          ...(entry.icon !== undefined && isRichTextIcon(entry.icon)
+            ? [h.span(slots.icon.attrs(), [richTextIcon(h, entry.icon)])]
+            : []),
+          h.span(slots.label.attrs(), [entry.label]),
+          ...(entry.description === undefined
+            ? []
+            : [h.span(slots.description.attrs(), [entry.description])]),
+        ],
+      )
+    const rows = matches.flatMap((entry, index) =>
+      headed && entry.group !== undefined && entry.group !== matches[index - 1]?.group
+        ? [h.div(slots.heading.attrs([h.Role('presentation')]), [entry.group]), item(entry, index)]
+        : [item(entry, index)],
+    )
+    return h.div(slots.root.attrs(), [
+      matches.length === 0
+        ? h.p(slots.empty.attrs(), ['No matches'])
+        : h.div(slots.list.attrs([h.Role('menu'), h.AriaLabel('Insert')]), rows),
     ])
   })
