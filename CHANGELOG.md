@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `InputCopy`, a value with a copy button.** A
+  read-only field and a button named after its label; `InputCopy.Copy` is
+  the Command that writes the clipboard and reports `Copied` or `CopyFailed`
+  as `foldkit-primitives/dom`'s `ClipboardMessage`. The `copied` flag is the
+  application's; copied, the button reads "Copied" and a status region
+  announces it. `Recipes.InputCopy`, `Patterns.InputCopy` and a gallery page.
 - **`foldkit-mixins-ui`: `Banner`, a page-level notice.** A full-width strip
   named as a region landmark, with an optional link or button action and an
   optional dismiss button (`onDismiss`); whether it shows is the

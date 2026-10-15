@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  InputCopySlots,
   BannerSlots,
   TagsInputSlots,
   PasswordInputSlots,
@@ -781,6 +782,25 @@ export const showcases: ReadonlyArray<Showcase> = [
     BannerSlots,
     Recipes.Banner,
     style => Snippet.banner(style, inert),
+  ),
+  fromRecipe(
+    {
+      slug: 'input-copy',
+      title: 'Input copy',
+      summary: 'A read-only value with a button that copies it, and says it did.',
+      recipe: 'InputCopy',
+      file: 'inputCopy',
+      contract: 'InputCopySlots',
+    },
+    InputCopySlots,
+    Recipes.InputCopy,
+    (style, live) =>
+      Snippet.inputCopy(
+        style,
+        live.widgets.inputCopied,
+        text => live.onWidget(Widgets.Message.PressedCopy({ text })),
+        live.h,
+      ),
   ),
   fromRecipe(
     {

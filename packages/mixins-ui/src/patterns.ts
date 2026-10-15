@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
+import { InputCopySlots } from './inputCopy.js'
 import { BannerSlots } from './banner.js'
 import { TagsInputSlots } from './tagsInput.js'
 import { PasswordInputSlots } from './passwordInput.js'
@@ -270,6 +271,13 @@ export const Banner = A11y.pattern({
   },
 })
 
+export const InputCopy = A11y.pattern({
+  label: { capability: Capability.Container },
+  input: { capability: Capability.Focusable, attributes: [Attr.Value] },
+  button: { capability: Capability.Interactive, events: [Event.Click] },
+  status: { capability: Capability.Container, attributes: [Attr.Role] },
+})
+
 export const Nav = A11y.pattern({
   nav: { capability: Capability.Container },
   link: { capability: Capability.Interactive },
@@ -479,6 +487,9 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
+  entry('input-copy', InputCopy, InputCopySlots, 'stateless', ['textbox', 'button', 'status'], [
+    'native-control',
+  ]),
   entry('banner', Banner, BannerSlots, 'stateless', ['region', 'button', 'link']),
   entry(
     'tags-input',

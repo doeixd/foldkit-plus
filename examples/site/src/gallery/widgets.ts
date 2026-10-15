@@ -6,6 +6,7 @@
  */
 import { Effect, Option, Schema } from 'effect'
 import { Calendar, Subscription, Update } from 'foldkit'
+import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { makeModifyFieldsFor, modifyFields } from 'foldkit/struct'
 import {
@@ -26,12 +27,14 @@ import {
   Dialog,
   Menubar,
   Resizable,
+  InputCopy,
   Sidebar,
   TagsInput,
 } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
+import { ClipboardMessage } from 'foldkit-primitives/dom'
 
 import {
   Action,
@@ -98,6 +101,8 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
+  /** Whether the API key was copied. */
+  inputCopied: Schema.Boolean,
   /** The tags input's tags and draft. */
   tags: TagsInput.Model,
   /** The password field's text, and whether it shows. */
@@ -144,6 +149,8 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  PressedCopy: { text: Schema.String },
+  GotCopy: { message: ClipboardMessage },
   GotTags: { message: TagsInput.Message },
   TypedPassword: { value: Schema.String },
   ToggledPassword: {},
@@ -199,6 +206,7 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
+  inputCopied: false,
   tags: TagsInput.init({ id: 'preview-tags', tags: ['effect', 'foldkit'] }),
   password: '',
   passwordShown: false,
@@ -473,6 +481,18 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
+    PressedCopy: ({ text }) => ({
+      model,
+      commands: Command.mapMessages([InputCopy.Copy({ text })], message =>
+        Message.GotCopy({ message }),
+      ),
+    }),
+    GotCopy: ({ message }) => {
+      const copied = ClipboardMessage.match(message, { Copied: () => true, CopyFailed: () => false })
+      return copied === model.inputCopied
+        ? { model }
+        : { model: modifyFields(model, { inputCopied: () => copied }) }
+    },
     GotTags: ({ message }) => foldTags(model, message),
     TypedPassword: ({ value }) =>
       value === model.password

@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  InputCopy,
+  InputCopySlots,
   Banner,
   BannerSlots,
   TagsInput,
@@ -1758,6 +1760,23 @@ export const banner = <Message>(style: NamedStyle<typeof BannerSlots>, h: HtmlBu
       action: { label: 'Read the notes', href: '#changelog' },
       style,
     },
+    h,
+  )
+// #endregion
+
+// #region input-copy
+export const InputCopyStyle = forSlots(InputCopySlots)(Recipes.InputCopy({}))
+
+export const API_KEY = 'sk-live-4f9a2c71'
+
+export const inputCopy = <Message>(
+  style: NamedStyle<typeof InputCopySlots>,
+  copied: boolean,
+  onCopy: (text: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  InputCopy.view(
+    { id: 'preview-api-key', label: 'API key', value: API_KEY, copied, onCopy: onCopy(API_KEY), style },
     h,
   )
 // #endregion
