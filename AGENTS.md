@@ -1169,7 +1169,9 @@ of its own named a form field "fits the Catalog". Read words with
   mouse through `cdp()` (`Input.dispatchMouseEvent`) passed alone and missed
   in a wide run: each test file runs in a frame, side by side when several
   run, and an element's own `getBoundingClientRect` is the frame's. Add
-  `window.frameElement`'s offset.
+  `window.frameElement`'s offset, and multiply by the frame's scale (its
+  drawn width over `innerWidth`): the runner draws a frame scaled down to
+  fit, and the offset alone still missed in a wide run.
 - **Vitest's locator names a button its own way, not Chrome's.** `userEvent.click`
   on an accordion trigger timed out looking for "Team Team": vitest's in-page
   library read a hidden `::after` copy into the name, which Chrome's own
