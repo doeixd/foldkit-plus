@@ -28,7 +28,7 @@ import { richtextDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
-import { editorView as editorHost } from 'foldkit-richtext-dom/editor-bundle'
+import { editorView as editorHost, menuTextOf } from 'foldkit-richtext-dom/editor-bundle'
 import { blockAnchor, blockDrag, markActive, selectionAnchor } from 'foldkit-richtext-dom/toolbar'
 import {
   editorView,
@@ -79,13 +79,8 @@ const NotePreview = footnotePreview<Message>().pipe(Style.attach(FootnotePreview
 const FindBar = findReplace<Message>().pipe(Style.attach(FindReplaceStyle))
 const DemoGuide = demoGuide<Message>()
 
-/** The text before the caret, which says whether a slash menu is open and what it matches. */
-const textBefore = (model: Model): string => {
-  const selection = model.editor.selection
-  if (selection?.type !== 'Range') return ''
-  const start = RichText.rangeStart(model.document, selection)
-  return start === undefined ? '' : RichText.textBefore(model.document, start)
-}
+/** What says whether a slash menu is open and what it matches, as the editor's Enter reads it. */
+const menuText = (model: Model): string => menuTextOf(editorView(model))
 
 /** The marks the toolbars offer; the less used ones step aside on a phone. */
 const MARKS: ReadonlyArray<
@@ -365,7 +360,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
     })
 
     // --- what floats over the editor ---
-    const slash = slashMenu(slashEntries, textBefore(model), model.editor.menuIndex)
+    const slash = slashMenu(slashEntries, menuText(model), model.editor.menuIndex)
     const floating =
       RichText.coversText(model.editor.selection) &&
       !model.composing &&
@@ -442,7 +437,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
                 SlashMenu(
                   {
                     entries: slashEntries,
-                    textBefore: textBefore(model),
+                    textBefore: menuText(model),
                     index: model.editor.menuIndex,
                   },
                   h,
@@ -517,9 +512,11 @@ export const PlaygroundView = SlotView.forMessages<Message>()
               h.OnKeyDownPreventDefault((key, modifiers) => {
                 if (key === 'Escape' && Option.isSome(model.menu))
                   return Option.some(Message.ClosedMenu())
+                if (key === 'Escape' && slash !== undefined)
+                  return Option.some(wrap(EditorMessage.DismissedSlash()))
                 const index = slashMove(
                   slashEntries,
-                  textBefore(model),
+                  menuText(model),
                   model.editor.menuIndex,
                   key,
                   modifiers,

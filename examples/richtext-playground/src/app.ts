@@ -198,6 +198,7 @@ export const init = (): Return => ({
       history: RichText.emptyHistory,
       storedMarks: null,
       menuIndex: 0,
+      slashDismissed: Option.none(),
       hostId,
     },
     threads: [
@@ -398,6 +399,7 @@ const editorFields = [
   'history',
   'storedMarks',
   'menuIndex',
+  'slashDismissed',
   'hostId',
 ] as const satisfies ReadonlyArray<keyof EditorState>
 const everyField: [Exclude<keyof EditorState, (typeof editorFields)[number]>] extends [never]

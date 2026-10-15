@@ -476,3 +476,37 @@ test('Ctrl+F opens the find bar with nothing focused', async () => {
     .toBe('query')
   expect(errors).toEqual([])
 })
+
+test('Escape closes the slash menu, and Enter then starts a new line', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await newLine(page)
+  await page.keyboard.type('/he')
+  const entries = page.getByRole('menuitem')
+  await expect.poll(() => entries.count()).toBeGreaterThan(0)
+  await page.keyboard.press('Escape')
+  await expect.poll(() => entries.count()).toBe(0)
+  await page.keyboard.press('Enter')
+  const blocks = page.locator('[contenteditable=true] > *')
+  await expect
+    .poll(() => blocks.evaluateAll(all => all.slice(-2).map(block => block.textContent)))
+    .toEqual(['/he', ''])
+  expect(errors).toEqual([])
+})
+
+test('an image is selected by a click, and Delete removes it', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const figures = page.locator('[contenteditable=true] figure')
+  await expect.poll(() => figures.count()).toBe(1)
+  await figures.locator('img').click()
+  await expect.poll(() => figures.getAttribute('data-selected')).toBe('')
+  await page.keyboard.press('Delete')
+  await expect.poll(() => figures.count()).toBe(0)
+  // The caret is where the image was, at the start of the callout after it.
+  await page.keyboard.type('Here')
+  await expect
+    .poll(() => page.locator('[contenteditable=true] > :nth-child(3)').textContent())
+    .toContain('HereMake yourself')
+  expect(errors).toEqual([])
+})

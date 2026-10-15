@@ -167,7 +167,9 @@ and the editor Message choosing it), `matchingEntries(entries, query)`, and
 `slashMenu(entries, textBefore, index)` — the one value a menu's view and the editor's
 `update` share: the query, the matches, and the entry Enter would send, with a stale index
 falling back to the first match. The editor's Bundle carries `EditorState.menuIndex`, the
-highlighted entry the application moves with the keys, and its `update` resolves `Entered`
+highlighted entry the application moves with the keys, and `slashDismissed`, set by
+`Message.DismissedSlash` (Escape) and ended with its query; a menu reads `menuTextOf(view)`,
+empty while dismissed. Its `update` resolves `Entered`
 against a live query by handling the chosen entry as the Message a click would send — so
 the view never sends Enter, a mark entry updates the caret's stored marks, and the query
 the entry was typed into is removed in the same action (`runAction`). `foldkit-mixins-richtext`

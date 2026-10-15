@@ -3,7 +3,7 @@
  * A document the parent replaces outside an edit, as another replica's change arrives: with
  * `patchTo` the editor is patched in the host it has, rather than mounted afresh.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
@@ -44,6 +44,7 @@ const initial: Model = {
     history: RichText.emptyHistory,
     storedMarks: null,
     menuIndex: 0,
+    slashDismissed: Option.none(),
     hostId,
   },
 }

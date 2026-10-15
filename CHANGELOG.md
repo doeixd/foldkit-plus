@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-richtext-dom`: Escape closes the slash menu.** `Message.DismissedSlash`
+  keeps `EditorState.slashDismissed`, the slash of the query it closed, so the
+  menu stays shut while that query is typed on and Enter splits the line; it
+  ends with the query. `menuTextOf(view)` is what a menu reads, so a view and
+  Enter agree. `EditorState` and `EditorView` gain the field.
 - **`foldkit-richtext`: an atom is selected whole.** A press on an image or a
   divider selects it (outlined through `data-selected`), as does Backspace from
   the block after it or Delete from the block before; a second press deletes

@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import * as RichText from 'foldkit-richtext'
@@ -225,6 +225,8 @@ export const editorViewOf = (model: Model, page: Page): EditorView => ({
   history: RichText.emptyHistory,
   storedMarks: model.storedMarks,
   menuIndex: model.menuIndex,
+  // No menu is drawn here, so nothing dismisses one.
+  slashDismissed: Option.none(),
   hostId,
 })
 

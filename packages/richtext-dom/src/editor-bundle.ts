@@ -24,6 +24,7 @@ import {
   redecorateEditor,
   slashEntries,
   slashMenu,
+  slashQuery,
   type EditorEvent,
   type SlashEntry,
 } from './editor.js'
@@ -62,6 +63,8 @@ export const EditorState = Schema.Struct({
    * `update` resolves Enter against it.
    */
   menuIndex: Schema.Number,
+  /** The slash of the query whose menu Escape closed; it stays closed until that query ends. */
+  slashDismissed: Schema.OptionFromNullOr(RichText.Position),
   /**
    * The host element the view renders and the patch Command finds (§118). It is
    * per-placement, so it arrives as the Bundle's args and is carried here
@@ -85,6 +88,7 @@ export const EditorView = Schema.Struct({
   history: RichText.History,
   storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
   menuIndex: Schema.Number,
+  slashDismissed: Schema.OptionFromNullOr(RichText.Position),
   hostId: Schema.String,
 })
 export type EditorView = typeof EditorView.Type
@@ -199,7 +203,7 @@ export const replaceChangeSet = (
 
 type CommandMessage = Exclude<
   Message,
-  { readonly _tag: 'Undone' | 'Redone' | 'Patched' | 'ActivatedAdornment' }
+  { readonly _tag: 'Undone' | 'Redone' | 'Patched' | 'ActivatedAdornment' | 'DismissedSlash' }
 >
 
 const toCommand = (message: CommandMessage): RichText.Command => {
@@ -291,6 +295,31 @@ const textBeforeOf = (model: EditorView): string => {
   const start = RichText.rangeStart(model.document, model.selection)
   return start === undefined ? '' : RichText.textBefore(model.document, start)
 }
+
+/** Where the slash of the caret's live query is: none outside a query. */
+const slashOf = (model: EditorView): Option.Option<RichText.Position> => {
+  const query = slashQuery(textBeforeOf(model))
+  if (query === undefined || model.selection?.type !== 'Range') return Option.none()
+  const start = RichText.rangeStart(model.document, model.selection)
+  const range =
+    start === undefined
+      ? undefined
+      : RichText.textRangeBefore(model.document, start, query.length + 1)
+  return range?.type === 'Range' ? Option.some(range.anchor) : Option.none()
+}
+
+const dismissed = (model: EditorView): boolean =>
+  Option.exists(model.slashDismissed, slash =>
+    Option.exists(slashOf(model), live => live.node === slash.node && live.offset === slash.offset),
+  )
+
+/**
+ * The text a slash menu reads: the text before the caret, or nothing once Escape has closed
+ * the menu of the query the caret is in. Enter resolves against it, and an application's menu
+ * view reads it too, so the two agree on whether a menu is open.
+ */
+export const menuTextOf = (model: EditorView): string =>
+  dismissed(model) ? '' : textBeforeOf(model)
 
 /**
  * The kinds of the node blocks around the caret's block, innermost first; a range is read
@@ -462,11 +491,7 @@ const transition = (
   // mark entry update the caret's stored marks through the path a toggle already uses.
   const menu =
     incoming._tag === 'Entered'
-      ? slashMenu(
-          slashEntriesFor(model.hostId) ?? slashEntries,
-          textBeforeOf(model),
-          model.menuIndex,
-        )
+      ? slashMenu(slashEntriesFor(model.hostId) ?? slashEntries, menuTextOf(model), model.menuIndex)
       : undefined
   const message = menu?.highlighted?.message ?? incoming
   return Match.value(message).pipe(
@@ -476,6 +501,12 @@ const transition = (
       Patched: () => ({ model }),
       // A click asking the application for something, not an edit: nothing changes here.
       ActivatedAdornment: () => ({ model }),
+      DismissedSlash: () => {
+        const slash = slashOf(model)
+        return Option.isNone(slash) || dismissed(model)
+          ? { model }
+          : { model: { ...model, slashDismissed: slash } }
+      },
       Undone: undone => travel(model, state, undone),
       Redone: redone => travel(model, state, redone),
     }),
@@ -629,15 +660,22 @@ export const Editor = Bundle.make({
       history: RichText.emptyHistory,
       storedMarks: null,
       menuIndex: 0,
+      slashDismissed: Option.none(),
       hostId: args.hostId,
     },
   }),
   update: (model, incoming): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
     const result = transition(model, incoming)
     const out = result.outMessage
-    if (out?._tag === 'Edited' || out?._tag === 'Replaced')
-      carryKey(model.hostId, model.document, out.state.document)
-    return result
+    // An edit or a replacement carries the state it committed; a rejection, none.
+    const committed = out !== undefined && 'state' in out ? out.state : undefined
+    if (committed !== undefined) carryKey(model.hostId, model.document, committed.document)
+    // A dismissal ends with the query it closed, so a slash typed later opens a menu again.
+    // The child's document is the parent's, so the edit is read from what it committed.
+    const after = { ...result.model, document: committed?.document ?? result.model.document }
+    return Option.isSome(result.model.slashDismissed) && !dismissed(after)
+      ? { ...result, model: { ...result.model, slashDismissed: Option.none() } }
+      : result
   },
   // The host element belongs to the view; everything below it belongs to the
   // interpreter the mount attaches there.
@@ -664,6 +702,7 @@ const editorLink: Link<
       history: parent.editor.history,
       storedMarks: parent.editor.storedMarks,
       menuIndex: parent.editor.menuIndex,
+      slashDismissed: parent.editor.slashDismissed,
       hostId: parent.editor.hostId,
     }),
   // Only interaction state is written back: the document is not the child's. `read` builds a

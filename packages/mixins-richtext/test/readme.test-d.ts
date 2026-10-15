@@ -1,12 +1,19 @@
 /**
- * The README's table and code toolbar snippet, type-checked so it cannot drift from the API.
+ * The README's slash menu, table and code toolbar snippets, type-checked so it cannot drift from the API.
  */
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage, type EditorEvent } from 'foldkit-richtext-dom/editor'
+import { menuTextOf, type EditorState } from 'foldkit-richtext-dom/editor-bundle'
 import { blockAnchor } from 'foldkit-richtext-dom/toolbar'
-import { codeToolbar, tableToolbar } from 'foldkit-mixins-richtext'
+import {
+  codeToolbar,
+  slashEntries,
+  slashMenuView,
+  slashMove,
+  tableToolbar,
+} from 'foldkit-mixins-richtext'
 
 const Message = defineMessageUnion({
   GotEditor: { message: EditorMessage },
@@ -50,6 +57,30 @@ export const codeTools: Html = codeToolbar<Message>()(
     ],
     wrap: edited,
     copied: Message.CopiedCode({ node: code.id }),
+  },
+  h,
+)
+
+// The slash menu: where ArrowDown moves the highlight, and the view.
+declare const writing: { readonly editor: EditorState }
+declare const document: RichText.Document
+declare const modifiers: KeyboardModifiers
+
+const entries = slashEntries(message => edited(message))
+
+export const next = slashMove(
+  entries,
+  'see /head',
+  writing.editor.menuIndex,
+  'ArrowDown',
+  modifiers,
+)
+
+export const slash: Html = slashMenuView<Message>()(
+  {
+    entries,
+    textBefore: menuTextOf({ document, ...writing.editor }),
+    index: writing.editor.menuIndex,
   },
   h,
 )

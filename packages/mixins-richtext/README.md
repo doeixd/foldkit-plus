@@ -179,6 +179,7 @@ the two things the editor cannot: the keys that move the highlight, and the view
 
 ```ts
 import { slashEntries, slashMenuView, slashMove } from 'foldkit-mixins-richtext'
+import { menuTextOf } from 'foldkit-richtext-dom/editor-bundle'
 
 // The catalogue as the caller's Messages.
 const entries = slashEntries(message => edited(message))
@@ -188,7 +189,7 @@ const next = slashMove(entries, 'see /head', model.editor.menuIndex, 'ArrowDown'
 
 // The view, placed only while `slashMenu` says a query is open.
 slashMenuView<Message>()(
-  { entries, textBefore: RichText.textBefore(document, caret), index: model.editor.menuIndex },
+  { entries, textBefore: menuTextOf({ document, ...model.editor }), index: model.editor.menuIndex },
   h,
 )
 ```
@@ -196,9 +197,12 @@ slashMenuView<Message>()(
 `slashMove` returns the index a key moves the highlight to, or `undefined` for a key that moves
 nothing, and it starts from what the menu highlights now rather than a remembered index, so a
 query that narrowed past the old one does not move from a position no one can see. The keys
-are the application's to handle, because only it knows the caret: ArrowUp/Down, Home/End, and
-Escape in `OnKeyDownPreventDefault` while a query is open, writing the index to
-`editor.menuIndex`. Enter is not: the editor's `update` resolves it against that index.
+are the application's to handle, because only it knows the caret: ArrowUp/Down and Home/End in
+`OnKeyDownPreventDefault` while a query is open, writing the index to `editor.menuIndex`, and
+Escape, sending the editor's `DismissedSlash`. Enter is not: the editor's `update` resolves it
+against that index, unless Escape closed the menu. Reading the menu's text through
+`menuTextOf` (from `foldkit-richtext-dom/editor-bundle`) is what keeps a view shut while Enter
+splits.
 
 Each item carries `data-entry` (its id), `role="menuitem"`, `aria-current="true"` on the
 highlighted one, and its entry's Message on click, and draws the entry's icon (when the set

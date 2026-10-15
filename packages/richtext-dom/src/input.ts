@@ -8,7 +8,7 @@
  * in its own Model: its `update` is the editor's, with each committed edit folded back in.
  * The form owns that Model as the key's draft, and the document is the key's value.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Input } from 'foldkit-form'
 import * as RichText from 'foldkit-richtext'
@@ -84,8 +84,8 @@ export const richTextInput = (hostId: string, placement: EditorPlacement = {}) =
       hostId,
     }),
     // A stored draft shown again keeps its caret, format, and history (§124 §12); only the slash
-    // menu's highlight belongs to the moment it was typed in. The host is this placement's, not
+    // menu's highlight and dismissal belong to the moment it was typed in. The host is this placement's, not
     // whichever one the draft was stored from.
-    settled: model => ({ ...model, menuIndex: 0, hostId }),
+    settled: model => ({ ...model, menuIndex: 0, slashDismissed: Option.none(), hostId }),
   })
 }

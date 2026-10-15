@@ -207,7 +207,7 @@ submitted, and reported by `authoredChanged` like any other.
 - **Filling:** `fill` shows a given document with a history of its own and no selection, since
   the caret was in runs the given document does not have.
 - **Resuming:** `settled`, for a stored draft shown again, keeps the caret, the stored marks,
-  and the history, clears only the slash menu's highlight, and takes this placement's host id
+  and the history, clears only the slash menu's highlight and dismissal, and takes this placement's host id
   in case the draft was stored under another.
 
 ## Chrome around the editor
@@ -312,12 +312,17 @@ slashMenu(slashEntries, 'see /head', 0)?.highlighted?.label // 'Heading 1'
   Formatting), and an `icon` by name.
 - **`slashMenu(entries, textBefore, index)`** is the one value a view and `update` share:
   whether a query is open, what matches, and what Enter would send. A stale index falls back to
-  the first match. `textBefore` is a read (`RichText.textBefore(document, position)`), not
-  stored state, so there is no switch that opens or closes the menu.
+  the first match. The text a query is read from is the document's, so typing a slash opens
+  the menu and leaving the query closes it, with no switch to keep in step.
 - **`EditorState.menuIndex`** is the one thing a menu owns. The application moves it (with
   `slashMove` from `foldkit-mixins-richtext`), and on `Entered` the Bundle treats the
   highlighted entry as the Message a click would send. Choosing an entry also removes the
   query typed for it, as one action: one transition and one undo step.
+- **`Message.DismissedSlash`** is Escape over the menu. `EditorState.slashDismissed` keeps the
+  slash of the query it closed, so the menu stays shut while that query is typed on and Enter
+  splits the line, and it ends when the query does: a slash typed later opens a menu again.
+  `menuTextOf(view)` from `foldkit-richtext-dom/editor-bundle` is the text a menu reads, empty
+  while dismissed, and the Bundle's Enter reads it too, so a view built on it agrees with Enter.
 
 `matchingEntries` decides the order. With no query it lists every entry with each group's
 entries together, in the order the group first appears; with one, the best matches first (a

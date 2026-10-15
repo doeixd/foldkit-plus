@@ -79,6 +79,8 @@ export const Message = defineMessageUnion({
    * editor changes nothing; it is the application's to act on.
    */
   ActivatedAdornment: { node: RichText.NodeId, action: Schema.String },
+  /** Escape over a slash menu: it closes until its query ends, and Enter splits again. */
+  DismissedSlash: {},
   /** Props of a node block, set: a task's checkbox, a toggle's arrow, an image's caption. */
   ChangedProps: { node: RichText.NodeId, props: Schema.JsonObject },
   Selected: { selection: Schema.NullOr(RichText.Selection) },
@@ -92,11 +94,11 @@ export const Message = defineMessageUnion({
 export type Message = typeof Message.Type
 
 /**
- * What the DOM can ask for: the vocabulary without the patch acknowledgement,
- * which only the Command produces. The adapter's stream is typed by this, so a
+ * What the DOM can ask for: the vocabulary without the patch acknowledgement, which only the
+ * Command produces, and a slash menu's dismissal, which the application's menu sends. The adapter's stream is typed by this, so a
  * mount's result union names every Message it can actually emit.
  */
-export type EditorEvent = Exclude<Message, { readonly _tag: 'Patched' }>
+export type EditorEvent = Exclude<Message, { readonly _tag: 'Patched' | 'DismissedSlash' }>
 
 /**
  * What a browser intent means to an editor. The adapter reports only plain

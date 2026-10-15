@@ -2,6 +2,7 @@
  * The controlled-Bundle proof (§27). Each case drives one parent transition and
  * asserts what that single step committed, or deliberately did not.
  */
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import {
@@ -25,6 +26,7 @@ import {
   toggled,
   typed,
   undone,
+  menuTextOf,
   update,
   wrapped,
   type Model,
@@ -86,6 +88,7 @@ describe('one transition commits document and interaction state', () => {
       'menuIndex',
       'nextId',
       'selection',
+      'slashDismissed',
       'storedMarks',
     ])
   })
@@ -254,6 +257,7 @@ describe('rejection and external replacement', () => {
         history: RichText.emptyHistory,
         storedMarks: null,
         menuIndex: 0,
+        slashDismissed: Option.none(),
         hostId: before.editor.hostId,
       },
     }
@@ -451,6 +455,67 @@ describe('Enter in a live slash query (§123)', () => {
   it('splits when the text before the caret is not a query', () => {
     const after = step(asked('plain text'), pressed('Entered'))
     expect(after.document.children).toHaveLength(2)
+  })
+  describe('after Escape', () => {
+    const dismiss = (model: Model): Model => step(model, edited(Message.DismissedSlash()))
+    const view = (model: Model) => ({ document: model.document, ...model.editor })
+
+    it('splits on Enter, and the menu reads no query', () => {
+      const closed = dismiss(asked('/h2'))
+      expect(menuTextOf(view(closed))).toBe('')
+      const after = step(closed, pressed('Entered'))
+      expect(after.document.children).toHaveLength(2)
+      expect(after.document.children[0]?.children[0]?.text).toBe('/h2')
+    })
+
+    it('stays closed while the query is typed on', () => {
+      const typedOn = step(dismiss(asked('/h')), typed('2'))
+      expect(menuTextOf(view(typedOn))).toBe('')
+      expect(step(typedOn, pressed('Entered')).document.children).toHaveLength(2)
+    })
+
+    it('ends with its query, so a slash typed again opens a menu', () => {
+      const ended = step(dismiss(asked('/h2')), typed(' '))
+      expect(ended.editor.slashDismissed).toEqual(Option.none())
+      const again = step(ended, typed('/h1'))
+      expect(menuTextOf(view(again))).toBe('/h2 /h1')
+      expect(step(again, pressed('Entered')).document.children[0]).toMatchObject({
+        type: 'Heading',
+        level: 1,
+      })
+    })
+
+    it('keeps the Model when there is no query to close, or it is closed already', () => {
+      // The editor's own update, which the parent's write would otherwise hide.
+      const keeps = (model: Model) => {
+        const before = view(model)
+        const after = Editor.update(before, Message.DismissedSlash(), { hostId: before.hostId })
+        expect(after.model).toBe(before)
+      }
+      keeps(asked('plain'))
+      keeps(dismiss(asked('/h2')))
+    })
+
+    it('closes only its own query: another the caret moves to opens', () => {
+      const document = RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Paragraph',
+            id: 'p',
+            children: [{ type: 'Text', id: 'a', text: '/h2', marks: [] }],
+          },
+          {
+            type: 'Paragraph',
+            id: 'q',
+            children: [{ type: 'Text', id: 'b', text: '/h1', marks: [] }],
+          },
+        ],
+      })
+      const model = application.initial({ document }).model
+      const closed = dismiss({ ...model, editor: { ...model.editor, selection: caret('a', 3) } })
+      expect(menuTextOf(view(step(closed, selected(caret('b', 3)))))).toBe('/h1')
+    })
   })
 })
 
