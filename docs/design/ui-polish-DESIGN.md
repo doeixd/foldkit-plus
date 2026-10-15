@@ -224,11 +224,11 @@ page at 390, 768 and 1440px, dark, and `dir="rtl"`. No page logs an error.
 
 | Component | Symptom | Cause | Fix |
 |---|---|---|---|
-| Input OTP | The gallery example does not work | **confirmed:** the cells are drawn over the input, so a press on a cell lands on a `div` and focuses nothing; typing after focusing the input works | the cells take no pointer (`pointer-events: none`) or the input sits above them; a browser test that clicks a cell, types six digits and pastes |
+| Input OTP | The gallery example does not work | **confirmed:** the cells are drawn over the input, so a press on a cell lands on a `div` and focuses nothing; typing after focusing the input works | **Fixed** (batch B, `37f1737e`): the cell groups take no pointer; a browser test presses where a cell is drawn and types |
 | Hover Card | The link moves when the card shows | **confirmed:** the card is drawn in flow inside the trigger's `span`; the centred preview re-centres on the wider pair and the link jumps about 140px | A4 (top layer); until then, the card out of flow |
 | Nested Menu | The submenu scrolls inside the parent | **confirmed, worse:** the submenu's nearest clipping ancestor is the parent `role="menu"` (`overflow: auto`), and it is placed beside the parent, so it is clipped away entirely and never shows | A4 |
-| Radio Group | The label cannot be clicked; the dot sits off the text | **confirmed:** the radio is a `button`, the label a `<label>` with no `for` and no click, so a press on it changes nothing; the dot's centre sits 3px above the label's | a press on the label chooses (an `OnClick`, or the label wrapping the row); A7 |
-| Skeleton | Looks broken on the website | **confirmed:** every shape computes 0px wide (16px tall), so nothing shows | intrinsic sizes for shapes; the composites in C |
+| Radio Group | The label cannot be clicked; the dot sits off the text | **confirmed:** the radio is a `button`, the label a `<label>` with no `for` and no click, so a press on it changes nothing; the dot's centre sits 3px above the label's | press **fixed**: "a press on a radio's words presses it" (the row is a `label` around its radio; README and skill say so). The dot's offset waits for A7 |
+| Skeleton | Looks broken on the website | **confirmed:** every shape computes 0px wide (16px tall), so nothing shows | **Fixed**: "a Skeleton bar shows in a container that sizes to its content" (a `4rem` floor; the demo has a width). The composites stay in C |
 | VirtualList | The width changes while scrolling | **confirmed:** the list sizes to its widest drawn row, 121–131px as rows change | `grid-template-columns: minmax(0, 1fr)`, full width |
 | Carousel | The corners are cropped | **confirmed, two causes:** the gallery's slides drew a square `1px currentColor` border that the slide's rounded clip cut (**fixed**: "the carousel demo's slides are a fill"); and a focused slide's ring is cut at the sides by the track's `overflow` | inset the ring, or pad the snap area (`scroll-padding`) |
 | Segmented | Corners and vertical centring | **confirmed:** the text sits about 2.5px above centre in its 28px option. The trim is on an `inline-block`, which is a block container, and the steady copy is `height: 0` and adds no line, so the cause in A7 is wrong; the trimmed line's glyphs sit high | A2; find the real offset in A7 |
@@ -247,7 +247,7 @@ page at 390, 768 and 1440px, dark, and `dir="rtl"`. No page logs an error.
 | Alert | At 390px the title is squeezed into a three-line column beside the description | title and description sit side by side at every width | stack below a width, or wrap the pair (the merge in A9) |
 | Banner | At 390px the text is indented behind an empty gutter and the action centred under it | the strip's layout assumes a wide row | A9 merge with Alert |
 | Pagination | At 390px it overflows: "Previous1" touches | no compact layout | Part C: compact at narrow widths |
-| Radio Group | Drawn as a row though it says `aria-orientation="vertical"`; at 390px three narrow columns wrap | the layout ignores the orientation | lay out by the orientation |
+| Radio Group | Drawn as a row though it says `aria-orientation="vertical"`; at 390px three narrow columns wrap | the layout ignores the orientation | **Fixed**: the recipe stacks unless `aria-orientation` is `horizontal` |
 | Item | The demo's media is a bare black `●` | gallery content | Part C examples |
 | Resizable | The demo's file list shows default list bullets | gallery content | gallery fix |
 | OTP, Steps (dark) | Cell borders and the upcoming marker are faint on the dark page | low-contrast outline token | check against A1 |
@@ -417,7 +417,7 @@ decides adopt, adapt or skip.
 
 | Phase | Work | Why first |
 |---|---|---|
-| 0 | Run the untested backlog (unit, browser, mutation); screenshot every gallery page at three widths, light and dark, LTR and RTL; confirm or drop each hypothesis in Part B | nothing above is trusted until it runs. **Done 2026-10-15** apart from the mutation specs still being written (Part B records the rest) |
+| 0 | Run the untested backlog (unit, browser, mutation); screenshot every gallery page at three widths, light and dark, LTR and RTL; confirm or drop each hypothesis in Part B | nothing above is trusted until it runs. **Done 2026-10-15**: every parity component has a mutation spec (134 mutations, all killed), and Part B records the rest |
 | 1 | A1, A2, A3, A7 | shared rules; each fixes several findings |
 | 2 | Part B | broken things before better things |
 | 3 | A4 and A5 | larger systems; menus, popovers, combobox and scroll areas wait on them |
