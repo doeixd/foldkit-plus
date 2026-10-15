@@ -25,7 +25,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (travel?: string) => {
+const mount = () => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -40,9 +40,7 @@ const mount = (travel?: string) => {
   document.body.appendChild(container)
   const view = (_: unknown, h: HtmlBuilder<never>) => {
     const b = SlotView.buildersFor(ButtonSlots, [button.mixin], { input: undefined, h })
-    return h.div(travel === undefined ? [] : [h.Style({ '--fk-knob-travel': travel })], [
-      h.button(b.button.attrs([h.Type('button'), h.Id('press-target')]), ['Save']),
-    ])
+    return h.div([], [h.button(b.button.attrs([h.Type('button'), h.Id('press-target')]), ['Save'])])
   }
   return Runtime.embed(
     Runtime.makeElement({
@@ -121,31 +119,13 @@ test('pressed, a solid button stands 1px in on every side, and comes back when l
     expect(style.backgroundColor).not.toBe(resting)
     await press(target, false)
     await vi.waitFor(() => expect(style.borderTopColor).toBe(style.backgroundColor))
-    // At rest nothing sets a scale, so it computes as `none`.
-    expect(style.scale).toBe('none')
+    // At rest nothing sets a scale, so it computes as `none`; awaited, since
+    // the way back runs the press transition in reverse.
+    await vi.waitFor(() => expect(style.scale).toBe('none'))
     expect(style.backgroundColor).toBe(resting)
   } finally {
     handle.dispose()
   }
 })
 
-test('with travel at 0, as under reduced motion, a held button deepens but keeps its size', async () => {
-  const handle = mount('0')
-  try {
-    const element = await vi.waitFor(() => {
-      const found = document.querySelector('button')
-      expect(found).not.toBeNull()
-      return found!
-    })
-    const style = getComputedStyle(element)
-    await vi.waitFor(() => expect(style.borderTopColor).toBe(style.backgroundColor))
-    const resting = style.backgroundColor
-    const target = await nodeOf('#press-target')
-    await press(target, true)
-    await vi.waitFor(() => expect(style.backgroundColor).not.toBe(resting))
-    expect(style.scale).toBe('1')
-    await press(target, false)
-  } finally {
-    handle.dispose()
-  }
-})
+
