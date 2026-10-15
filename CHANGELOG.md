@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Sidebar`,** from the widgets island into the
+  package: shadcn's sidebar with Fluid Functionalism's collapse. A named
+  navigation landmark of sections that open on the accordion's grid row
+  (several at once), the current page marked `aria-current`, and a toggle
+  that collapses the whole column off the page on the slow tier rather than
+  to an icon rail. Shut sections and a collapsed column stay drawn and
+  `inert`. The open sections and the collapsed flag are the application's.
+  A recipe, a pattern and a gallery page.
 - **`foldkit-mixins-ui`: `Resizable`,** from the widgets island into the
   package: shadcn's Resizable and the APG's window splitter, two panels with
   a handle that is a `separator` with its value, stepped by the arrows and

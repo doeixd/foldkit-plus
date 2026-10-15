@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { NumberFieldSlots } from './numberField.js'
 import { OtpFieldSlots } from './otpField.js'
 import { ResizableSlots } from './resizable.js'
+import { SidebarSlots } from './sidebar.js'
 import { DialogSlots } from './dialog.js'
 import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
@@ -169,6 +170,20 @@ export const Resizable = A11y.pattern({
     capability: Capability.Interactive,
     events: [Event.KeyDown],
     attributes: [Attr.Role, Attr.AriaLabel],
+  },
+})
+
+export const Sidebar = A11y.pattern({
+  toggle: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded],
+  },
+  nav: { capability: Capability.Container },
+  trigger: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded],
   },
 })
 
@@ -371,6 +386,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   ),
   entry('otp-field', OtpField, OtpFieldSlots, 'stateless', ['textbox'], ['native-control']),
   entry('resizable', Resizable, ResizableSlots, 'stateful', ['separator']),
+  entry('sidebar', Sidebar, SidebarSlots, 'stateless', ['navigation', 'button']),
   entry(
     'dialog',
     Dialog,

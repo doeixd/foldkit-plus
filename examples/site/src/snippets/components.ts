@@ -59,6 +59,8 @@ import {
   OtpFieldSlots,
   Resizable,
   ResizableSlots,
+  Sidebar,
+  SidebarSlots,
   Checkbox,
   CheckboxSlots,
   Combobox,
@@ -1455,6 +1457,53 @@ export const resizable = <Message>(
         h,
       ),
     ],
+  )
+// #endregion
+
+// #region sidebar
+export const SidebarStyle = forSlots(SidebarSlots)(Recipes.Sidebar({}))
+
+export interface SidebarMessages<Message> {
+  readonly onToggleSection: (id: string) => Message
+  readonly onToggleCollapsed: Message
+}
+
+export const sidebar = <Message>(
+  style: NamedStyle<typeof SidebarSlots>,
+  state: { readonly open: ReadonlyArray<string>; readonly collapsed: boolean },
+  messages: SidebarMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Sidebar.view(
+    {
+      id: 'app-sidebar',
+      label: 'Workspace',
+      sections: [
+        {
+          id: 'workspace',
+          title: 'Workspace',
+          links: [
+            { label: 'Inbox', href: '#inbox', current: true },
+            { label: 'Projects', href: '#projects' },
+            { label: 'Calendar', href: '#calendar' },
+          ],
+        },
+        {
+          id: 'settings',
+          title: 'Settings',
+          links: [
+            { label: 'Members', href: '#members' },
+            { label: 'Billing', href: '#billing' },
+          ],
+        },
+      ],
+      open: state.open,
+      onToggleSection: messages.onToggleSection,
+      collapsed: state.collapsed,
+      onToggleCollapsed: messages.onToggleCollapsed,
+      style,
+    },
+    h,
   )
 // #endregion
 

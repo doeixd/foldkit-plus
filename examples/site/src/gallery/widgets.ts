@@ -20,7 +20,7 @@ import {
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
-import { Accordion, CheckboxGroup, Dialog, Resizable } from 'foldkit-mixins-ui'
+import { Accordion, CheckboxGroup, Dialog, Resizable, Sidebar } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 
@@ -80,6 +80,9 @@ export const Model = Schema.Struct({
   commandRan: Schema.Option(Schema.String),
   /** The resizable split. */
   split: Resizable.Model,
+  /** The sidebar's open sections, and whether it is collapsed. */
+  sidebarOpen: Schema.Array(Schema.String),
+  sidebarCollapsed: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
@@ -115,6 +118,8 @@ export const Message = defineMessageUnion({
   HighlightedCommand: { value: Schema.String },
   RanCommand: { value: Schema.String },
   GotSplit: { message: Resizable.Message },
+  ToggledSidebarSection: { id: Schema.String },
+  ToggledSidebar: {},
 })
 export type Message = typeof Message.Type
 
@@ -161,6 +166,8 @@ export const initial: Model = {
   commandActive: Option.none(),
   commandRan: Option.none(),
   split: Resizable.init(0.35),
+  sidebarOpen: ['workspace'],
+  sidebarCollapsed: false,
 }
 
 type Step = Update.Step<Model, Message>
@@ -385,6 +392,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     }),
     HighlightedCommand: ({ value }) => ({
       model: modifyFields(model, { commandActive: () => Option.some(value) }),
+    }),
+    ToggledSidebarSection: ({ id }) => ({
+      model: modifyFields(model, { sidebarOpen: () => Sidebar.toggled(model.sidebarOpen, id) }),
+    }),
+    ToggledSidebar: () => ({
+      model: modifyFields(model, { sidebarCollapsed: () => !model.sidebarCollapsed }),
     }),
     GotSplit: ({ message }) => {
       const split = Resizable.update(model.split, message, { min: 0.2, max: 0.8 })

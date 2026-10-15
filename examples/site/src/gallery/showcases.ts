@@ -26,6 +26,7 @@ import {
   NumberFieldSlots,
   OtpFieldSlots,
   ResizableSlots,
+  SidebarSlots,
   ComboboxSlots,
   DatePickerSlots,
   DialogSlots,
@@ -594,6 +595,29 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.split,
         message => live.onWidget(Widgets.Message.GotSplit({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'sidebar',
+      title: 'Sidebar',
+      summary:
+        'The navigation of an application in sections, collapsed off the page by its toggle.',
+      recipe: 'Sidebar',
+      file: 'sidebar',
+      contract: 'SidebarSlots',
+    },
+    SidebarSlots,
+    Recipes.Sidebar,
+    (style, live) =>
+      Snippet.sidebar(
+        style,
+        { open: live.widgets.sidebarOpen, collapsed: live.widgets.sidebarCollapsed },
+        {
+          onToggleSection: id => live.onWidget(Widgets.Message.ToggledSidebarSection({ id })),
+          onToggleCollapsed: live.onWidget(Widgets.Message.ToggledSidebar()),
+        },
         live.h,
       ),
   ),
