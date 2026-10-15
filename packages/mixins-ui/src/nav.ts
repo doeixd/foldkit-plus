@@ -56,10 +56,8 @@ export const resolve = <Value extends string, Input, Message>(
     items: render.items.map(info => ({
       ...info,
       item: builders.item.attrs(),
-      link: builders.link.attrs([
-        ...info.link,
-        ...(info.isCurrent ? [context.h.AriaCurrent('page')] : []),
-      ]),
+      // Upstream's bundle marks the current link `aria-current="page"` already.
+      link: builders.link.attrs(info.link),
     })),
   }
 }
