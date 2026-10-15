@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  Carousel,
+  CarouselSlots,
   RangeSlider,
   RangeSliderSlots,
   TreeView,
@@ -1973,6 +1975,47 @@ export const rangeSlider = <Message>(
       style,
     },
     h,
+  )
+// #endregion
+
+// #region carousel
+export const CarouselStyle = forSlots(CarouselSlots)(Recipes.Carousel({}))
+
+const PLACES = ['Dunes', 'Coast', 'Ridge', 'Valley']
+
+export const carousel = <Message>(
+  style: NamedStyle<typeof CarouselSlots>,
+  index: number,
+  onIndex: (index: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
+    [
+      Carousel.view(
+        {
+          id: 'preview-carousel',
+          label: 'Places',
+          slides: PLACES.map(place =>
+            h.div(
+              [
+                h.Style({
+                  display: 'grid',
+                  placeItems: 'center',
+                  blockSize: '10rem',
+                  border: '1px solid currentColor',
+                }),
+              ],
+              [place],
+            ),
+          ),
+          index,
+          onIndex,
+          style,
+        },
+        h,
+      ),
+    ],
   )
 // #endregion
 

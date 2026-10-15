@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
+import { CarouselSlots } from './carousel.js'
 import { RangeSliderSlots } from './rangeSlider.js'
 import { TreeViewSlots } from './treeView.js'
 import { ColorPickerSlots } from './colorPicker.js'
@@ -319,6 +320,24 @@ export const RangeSlider = A11y.pattern({
   },
 })
 
+export const Carousel = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  slide: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  previous: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+  },
+  next: { capability: Capability.Interactive, events: [Event.Click], attributes: [Attr.AriaLabel] },
+  dot: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+    optional: true,
+  },
+  status: { capability: Capability.Container, attributes: [Attr.Role] },
+})
+
 export const Nav = A11y.pattern({
   nav: { capability: Capability.Container },
   link: { capability: Capability.Interactive },
@@ -528,6 +547,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
+  entry('carousel', Carousel, CarouselSlots, 'stateless', ['group', 'button', 'status']),
   entry(
     'range-slider',
     RangeSlider,

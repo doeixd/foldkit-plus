@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Carousel`, the APG carousel with no rotation.** A
+  scroll-snap track of slides named "N of M", previous and next buttons,
+  optional dots and a polite status. The index is the application's;
+  `Carousel.ShowSlide` is the Command that scrolls the track to it, smoothly
+  only without reduced motion. A swipe is not yet reported back to the
+  index. Recipe axis `peek`. `Recipes.Carousel`, `Patterns.Carousel` and a
+  gallery page.
 - **`foldkit-mixins-ui`: `RangeSlider`,** two thumbs choosing a `{ low, high }`
   range on one track, as the APG's multi-thumb slider: two native range
   inputs, each bounded by the other and spanning only the track it can

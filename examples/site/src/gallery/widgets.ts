@@ -33,6 +33,7 @@ import {
   DateRange,
   ColorPicker,
   TreeView,
+  Carousel,
 } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
@@ -107,6 +108,8 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
+  /** The carousel's slide. */
+  slide: Schema.Number,
   /** The range slider's chosen price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
   /** The file tree's open, current and chosen rows. */
@@ -164,6 +167,8 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  ChoseSlide: { index: Schema.Number },
+  ShowedSlide: {},
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotTreeView: { message: TreeView.Message },
   PickedAccent: { value: ColorPicker.Oklch },
@@ -233,6 +238,7 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
+  slide: 0,
   priceRange: { low: 100, high: 350 },
   treeView: TreeView.init({ id: 'preview-tree', open: ['src'] }),
   accent: { l: 62.5, c: 0.15, h: 250 },
@@ -547,6 +553,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
+    ChoseSlide: ({ index }) => ({
+      model: index === model.slide ? model : modifyFields(model, { slide: () => index }),
+      commands: Command.mapMessages([Carousel.ShowSlide({ id: 'preview-carousel', index })], () =>
+        Message.ShowedSlide(),
+      ),
+    }),
+    ShowedSlide: () => ({ model }),
     MovedPriceRange: ({ value }) =>
       value.low === model.priceRange.low && value.high === model.priceRange.high
         ? { model }

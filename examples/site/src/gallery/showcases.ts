@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  CarouselSlots,
   RangeSliderSlots,
   TreeViewSlots,
   ColorPickerSlots,
@@ -924,6 +925,25 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.priceRange,
         value => live.onWidget(Widgets.Message.MovedPriceRange({ value })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'carousel',
+      title: 'Carousel',
+      summary: 'Slides in a track that snaps one at a time, with previous, next and a dot per slide.',
+      recipe: 'Carousel',
+      file: 'carousel',
+      contract: 'CarouselSlots',
+    },
+    CarouselSlots,
+    Recipes.Carousel,
+    (style, live) =>
+      Snippet.carousel(
+        style,
+        live.widgets.slide,
+        index => live.onWidget(Widgets.Message.ChoseSlide({ index })),
         live.h,
       ),
   ),
