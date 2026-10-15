@@ -113,7 +113,7 @@ export const richtextDemo: Demo = {
     },
     {
       title: 'Insert',
-      text: 'Type / on an empty line for a table, a callout or a toggle, or paste or drop an image onto the page.',
+      text: 'Type / on an empty line for a table, a callout, a toggle or a footnote, or paste or drop an image, a video, a sound or any file onto the page.',
     },
     {
       title: 'Find',
