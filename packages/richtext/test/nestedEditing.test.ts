@@ -163,14 +163,18 @@ describe('editing inside a nested block', () => {
     expect(blockAt(result.state.document, 1).children[0]?.text).toBe('tail')
   })
 
-  it('refuses a range that leaves its container, changing nothing', () => {
-    const before = state(range(['a', 1], ['t', 1]))
-    expect(run(before, { type: 'DeleteBackward' })).toEqual({
-      ok: false,
-      error: 'InvalidParent',
-    })
-    expect(runsOf(before.document, 0, 0)).toEqual([['one', []]])
-    expect(blockAt(before.document, 1).children[0]?.text).toBe('tail')
+  it('deletes a range that leaves its container, bringing the far end into the near one', () => {
+    // From `o|ne` in the list to `t|ail` after it: `two` goes whole, and `ail` joins `o`.
+    const result = success(run(state(range(['a', 1], ['t', 1])), { type: 'DeleteBackward' }))
+    const document = result.state.document
+    expect(containerAt(document, 0).map(block => block.id)).toEqual(['li1'])
+    expect(
+      runsOf(document, 0, 0)
+        .map(([text]) => text)
+        .join(''),
+    ).toBe('oail')
+    expect(document.children.map(block => block.id)).toEqual(['list', 'last'])
+    expect(result.state.selection).toEqual(caret('a', 1))
   })
 
   it('splits a list item with Enter, keeping the new item inside the list', () => {

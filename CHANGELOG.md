@@ -223,6 +223,12 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **`foldkit-richtext`: deleting a selection across kinds of block.** Select
+  all and Delete did nothing, and so did any range over an image, a table, a
+  list or a quote: the command refused a range it could not join. Such a range
+  is now cleared (blocks wholly inside go, the ends are trimmed and joined where
+  they can be, emptied containers go), and typing, Enter or pasting over it
+  clears it first. A range that leaves a table cell only loses its text.
 - **`foldkit-richtext-dom`: `blockAnchor`'s `side: 'inside-end'`.** A block's
   toolbar inside its top right corner, covering nothing around the block.
 - **`foldkit-mixins-richtext`: `linkEdit`, and Enter that keeps up with typing.**

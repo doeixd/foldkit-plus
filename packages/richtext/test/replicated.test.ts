@@ -221,7 +221,13 @@ const randomEdit = (
     return attempt({ type: 'InsertText', text: pick(['x', 'yz', ' ']) })
   }
   const filled = texts(view.state).filter(value => value.length > 0)
-  if (filled.length === 0) return undefined
+  // A range over several kinds of block deletes them all, so a long session can empty the
+  // document; it starts over rather than stopping there.
+  if (filled.length === 0) {
+    view.state = base()
+    view.selection = null
+    return undefined
+  }
   const blocks: Array<RichText.Block> = []
   const collect = (list: ReadonlyArray<RichText.Block>) => {
     for (const block of list) {

@@ -1010,9 +1010,15 @@ text is added after them; block identities are stable for a block's whole life.
   interpreter renders one, with the HTML importer reading a container back.
   Structural placement works at depth too: a split keeps its halves in the block's
   own container, siblings join within theirs, and a move or insert takes an
-  optional `parent` to enter or leave a container. What is still refused with
-  `InvalidParent` is a range that would have to merge across containers, and a
-  parent that cannot hold blocks.
+  optional `parent` to enter or leave a container. A range across containers or
+  kinds of block (a selection from a list into the paragraph after it, or the
+  whole document) is cleared as an editor clears one: the ends lose what it
+  covers, every block wholly between goes, the far end comes up beside the near
+  one and joins it when the two can be one (where the near end's container
+  takes its kind), and containers left empty go. A range that leaves a table
+  cell only loses its text. Typing, Enter or a paste over such a range clears it
+  first. What is still refused with `InvalidParent` is a parent that cannot hold
+  blocks.
 - `InsertText` targets one run and inherits that run's marks. When the command
   carries `marks`, the inserted span is split out of its run and given exactly
   that set instead — that is how a caller's stored marks reach the document.

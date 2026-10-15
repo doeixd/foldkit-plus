@@ -609,6 +609,147 @@ export const blocksAt = (document: Document, selection: Selection | null): Reado
   return path.map((_, depth) => blockAtPath(document, path.slice(0, depth + 1))!)
 }
 
+/** Whether `prefix` is a path to one of the blocks `path` lies inside, or `path` itself. */
+const startsWith = (path: BlockPath, prefix: BlockPath): boolean =>
+  prefix.length <= path.length && prefix.every((index, at) => path[at] === index)
+
+/** Document order of two block paths: a container comes before what it holds. */
+const pathOrder = (left: BlockPath, right: BlockPath): number => {
+  for (let at = 0; at < Math.min(left.length, right.length); at++) {
+    if (left[at] !== right[at]) return left[at]! - right[at]!
+  }
+  return left.length - right.length
+}
+
+/** Whether two blocks can be joined into one: what `JoinNode` accepts. */
+const joinable = (survivor: Block, removed: Block): boolean => {
+  if (survivor.type === 'Unknown' || removed.type === 'Unknown') return false
+  if (nestedBlocks(survivor) !== undefined || nestedBlocks(removed) !== undefined) return false
+  if (survivor.type !== 'Node' && removed.type !== 'Node') return true
+  return (
+    survivor.type === 'Node' &&
+    removed.type === 'Node' &&
+    survivor.kind === removed.kind &&
+    Equal.equals(survivor.props, removed.props)
+  )
+}
+
+const nestedBlocks = (block: Block): ReadonlyArray<Block> | undefined =>
+  block.type === 'Node' && block.blocks !== undefined ? block.blocks : undefined
+
+/** One result followed by another, as one: what `runAction` does for two commands. */
+const followedBy = (first: TransactionResult, second: TransactionResult): TransactionResult =>
+  !first.ok || !second.ok
+    ? second.ok
+      ? first
+      : second
+    : {
+        ok: true,
+        state: second.state,
+        changeSet: unionChangeSet(first.changeSet, second.changeSet),
+        positionMap: [...first.positionMap, ...second.positionMap],
+        transactions: [...first.transactions, ...second.transactions],
+      }
+
+/**
+ * Deletes a range that leaves its container, as selecting from one kind of block into another
+ * (or everything) and pressing Delete does: the text after `start` in its block and before
+ * `end` in its block goes, every block wholly between them goes, and the block `end` is in
+ * comes up beside the one `start` is in, joining it when the two can be one. A container it
+ * leaves empty goes too. A range that leaves a table cell (an isolating container) only loses
+ * its text: the cells stay, as a table's structure is not a selection's to remove. The caret
+ * ends at `start`.
+ */
+const clearRange = (
+  state: EditorState,
+  start: Position,
+  end: Position,
+  options: RunOptions,
+): TransactionResult => {
+  const document = state.document
+  const startAt = locate(document, start.node)
+  const endAt = locate(document, end.node)
+  if (startAt === undefined || endAt === undefined) return failure('MissingText')
+  const startPath = startAt.path
+  const endPath = endAt.path
+  const spans = covered(document, start, end)
+  const isolatingBetween = [startPath, endPath].some((path, side) => {
+    const other = side === 0 ? endPath : startPath
+    for (let depth = 1; depth < path.length; depth++) {
+      const container = path.slice(0, depth)
+      if (startsWith(other, container)) continue
+      const block = blockAtPath(document, container)
+      const declared = block?.type === 'Node' ? options.nodes?.definitionFor(block.kind) : undefined
+      if (declared?.kind === 'node' && declared.isolating === true) return true
+    }
+    return false
+  })
+  if (isolatingBetween) {
+    return apply(state, [
+      ...spans.map(span => Edit.deleteText(span.run.id, span.from, span.to)),
+      Edit.setSelection(caretAt(start)),
+    ])
+  }
+  // The ends lose what the range covers of them; everything between them goes whole.
+  const ends = spans.filter(
+    span =>
+      pathKey(span.run.path) === pathKey(startPath) || pathKey(span.run.path) === pathKey(endPath),
+  )
+  const between: Array<{ readonly id: NodeId; readonly path: BlockPath }> = []
+  eachBlock(document.children, (block, path) => {
+    if (pathOrder(path, startPath) <= 0 || pathOrder(path, endPath) >= 0) return
+    if (startsWith(endPath, path) || startsWith(startPath, path)) return
+    if (between.some(outer => startsWith(path, outer.path))) return
+    between.push({ id: block.id, path })
+  })
+  const first = apply(state, [
+    ...ends.map(span => Edit.deleteText(span.run.id, span.from, span.to)),
+    ...between.map(block => Edit.deleteBlock(block.id)),
+    Edit.setSelection(caretAt(start)),
+  ])
+  if (!first.ok) return first
+  // Bring the end block beside the start one, join them if they can be one, and take away
+  // the containers the move left empty.
+  const startBlock = blockAtPath(document, startPath)!
+  const endBlock = blockAtPath(document, endPath)!
+  const now = first.state.document
+  const survivorAt = locateBlock(now, startBlock.id)
+  const removedAt = locateBlock(now, endBlock.id)
+  if (survivorAt === undefined || removedAt === undefined) return first
+  const operations: Array<Operation> = []
+  const parentPath = survivorAt.path.slice(0, -1)
+  const parent = parentPath.length === 0 ? undefined : blockAtPath(now, parentPath)
+  const index = survivorAt.path[survivorAt.path.length - 1]!
+  const siblings = pathKey(removedAt.path.slice(0, -1)) === pathKey(parentPath)
+  // It comes up only where its kind may stand: a list holds items, not a paragraph.
+  if (
+    !siblings &&
+    parentPath.length > 0 &&
+    !acceptsChild(now, parentPath, blockKind(removedAt.block), options.nodes)
+  ) {
+    return first
+  }
+  if (!siblings) operations.push(Edit.moveBlock(endBlock.id, index + 1, parent?.id))
+  const adjacent = siblings ? removedAt.path[removedAt.path.length - 1] === index + 1 : true
+  if (adjacent && joinable(survivorAt.block, removedAt.block)) {
+    operations.push(Edit.joinBlocks(startBlock.id, endBlock.id))
+  }
+  if (!siblings) {
+    // Each container the end block was in, innermost first, goes when nothing else is left in it.
+    for (let depth = removedAt.path.length - 1; depth > 0; depth--) {
+      const container = blockAtPath(now, removedAt.path.slice(0, depth))
+      if (container === undefined || startsWith(survivorAt.path, removedAt.path.slice(0, depth))) {
+        break
+      }
+      // It held the end block, or the container holding it, and is empty once that goes.
+      if ((nestedBlocks(container) ?? []).length > 1) break
+      operations.push(Edit.deleteBlock(container.id))
+    }
+  }
+  if (operations.length === 0) return first
+  return followedBy(first, apply(first.state, [...operations, Edit.setSelection(caretAt(start))]))
+}
+
 /** The last run in a block's subtree, or undefined when it holds none. */
 const lastRunOf = (block: Block): Run | undefined => {
   if (block.type === 'Node' && block.blocks !== undefined) {
@@ -655,10 +796,14 @@ const deleteRange = (
   const blocks = containerBlocks(document, containerPath)
   const from = startAt.path[startAt.path.length - 1]!
   const to = endAt.path[endAt.path.length - 1]!
-  const survivor = blocks[from]!.id
+  const survivor = blocks[from]!
   for (let index = from + 1; index <= to; index++) {
     const block = blocks[index]
-    if (block !== undefined) deletions.push(Edit.joinBlocks(survivor, block.id))
+    if (block === undefined) continue
+    // A block between that cannot be one with the first (an image, a table, a list) is for
+    // `clearRange`, which removes it rather than joining it.
+    if (!joinable(survivor, block)) return undefined
+    deletions.push(Edit.joinBlocks(survivor.id, block.id))
   }
   return deletions
 }
@@ -1055,6 +1200,27 @@ export const run = (
 ): TransactionResult => {
   // The vocabulary an edit may add: the caller's Kit, or the shipped marks.
   const declared = options.marks ?? shippedRegistry
+  // A range that leaves its container (a selection over several kinds of block, or all of
+  // them) is cleared first, and what replaces it then acts on the caret that is left.
+  const range = state.selection
+  if (
+    (command.type === 'InsertText' ||
+      command.type === 'DeleteBackward' ||
+      command.type === 'DeleteForward' ||
+      command.type === 'SplitBlock' ||
+      command.type === 'Paste') &&
+    range?.type === 'Range' &&
+    !isCollapsed(range)
+  ) {
+    const span = ordered(state.document, range)
+    if (span !== undefined && deleteRange(state.document, span.start, span.end) === undefined) {
+      const cleared = clearRange(state, span.start, span.end, options)
+      if (!cleared.ok || command.type === 'DeleteBackward' || command.type === 'DeleteForward') {
+        return cleared
+      }
+      return followedBy(cleared, run(cleared.state, command, ids, options))
+    }
+  }
   if (command.type === 'SetSelection') {
     return apply(state, [Edit.setSelection(command.selection)])
   }
