@@ -54,6 +54,8 @@ import {
   Command,
   CommandSlots,
   ContextMenu,
+  Menubar,
+  MenubarSlots,
   Nav,
   NavSlots,
   NumberField,
@@ -1507,6 +1509,56 @@ export const sidebar = <Message>(
       style,
     },
     h,
+  )
+// #endregion
+
+// #region menubar
+export const MenubarStyle = forSlots(MenubarSlots)(Recipes.Menubar({}))
+const MenubarMenuStyle = forSlots(MenuSlots)(Recipes.MenubarMenu({}))
+
+/** The bar's menus, in the order of the Model's. */
+export const MENUBAR: ReadonlyArray<Menubar.MenubarMenu> = [
+  { label: 'File', items: ['New', 'Open', 'Save'] },
+  { label: 'Edit', items: ['Undo', 'Redo', 'Copy'], isItemDisabled: item => item === 'Redo' },
+  { label: 'View', items: ['Zoom in', 'Zoom out', 'Full screen'] },
+]
+
+/** The open menus are the bar's; the command chosen is the Model's. */
+export interface MenubarState {
+  readonly bar: Menubar.Model
+  readonly chosen: Option.Option<string>
+}
+
+export const menubar = <Message>(
+  style: NamedStyle<typeof MenubarSlots>,
+  state: MenubarState,
+  onMessage: (message: Menubar.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      Menubar.view(
+        {
+          label: 'Editor',
+          model: state.bar,
+          menus: MENUBAR,
+          onMessage,
+          style,
+          menuMixins: [MenubarMenuStyle.mixin, ...Menu.fluid],
+        },
+        h,
+      ),
+      h.p(
+        [],
+        [
+          Option.match(state.chosen, {
+            onNone: () => 'Nothing chosen yet.',
+            onSome: chosen => `Chose ${chosen}.`,
+          }),
+        ],
+      ),
+    ],
   )
 // #endregion
 

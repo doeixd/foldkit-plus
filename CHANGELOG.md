@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Menubar`, a row of `@foldkit/ui` Menus.** Its
+  Model holds the menus and the bar's one tab stop, folded with
+  `Menubar.update`, whose `Selected` OutMessage names the menu and the row.
+  The arrows move the stop while the menus are shut and open the next menu
+  while one is open; pointing at another trigger while one is open opens it,
+  and opening any menu shuts the rest without sending focus back to its
+  button. `Recipes.Menubar`, `Recipes.MenubarMenu`, `Patterns.Menubar` and a
+  gallery page.
 - **`foldkit-mixins-ui`: `Nav`, `@foldkit/ui`'s Nav adapted,** and with it
   the navigation menu: `Nav.toView` draws the landmark's links in a list,
   the current one `aria-current="page"`, and `Nav.fluid` glides a line to

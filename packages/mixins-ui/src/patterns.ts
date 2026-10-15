@@ -17,6 +17,7 @@ import { CalendarSlots } from './calendar.js'
 import { CheckboxSlots } from './checkbox.js'
 import { CheckboxGroupSlots } from './checkboxGroup.js'
 import { CommandSlots } from './command.js'
+import { MenubarSlots } from './menubar.js'
 import { NavSlots } from './nav.js'
 import { NumberFieldSlots } from './numberField.js'
 import { OtpFieldSlots } from './otpField.js'
@@ -186,6 +187,11 @@ export const Sidebar = A11y.pattern({
     events: [Event.Click],
     attributes: [Attr.AriaExpanded],
   },
+})
+
+export const Menubar = A11y.pattern({
+  bar: { capability: Capability.Container, events: [Event.KeyDown] },
+  menu: { capability: Capability.Container },
 })
 
 export const Nav = A11y.pattern({
@@ -394,6 +400,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('resizable', Resizable, ResizableSlots, 'stateful', ['separator']),
   entry('sidebar', Sidebar, SidebarSlots, 'stateless', ['navigation', 'button']),
   entry('nav', Nav, NavSlots, 'stateless', ['navigation', 'link'], ['native-control']),
+  entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry(
     'dialog',
     Dialog,

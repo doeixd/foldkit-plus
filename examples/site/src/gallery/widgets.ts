@@ -20,7 +20,7 @@ import {
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
-import { Accordion, CheckboxGroup, Dialog, Resizable, Sidebar } from 'foldkit-mixins-ui'
+import { Accordion, CheckboxGroup, Dialog, Menubar, Resizable, Sidebar } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 
@@ -32,6 +32,7 @@ import {
   CityBox,
   Frequency,
   FrequencyBox,
+  MENUBAR,
   Notices,
   Range,
   Section,
@@ -83,6 +84,9 @@ export const Model = Schema.Struct({
   /** The sidebar's open sections, and whether it is collapsed. */
   sidebarOpen: Schema.Array(Schema.String),
   sidebarCollapsed: Schema.Boolean,
+  /** The menu bar's menus, and the command last chosen from it. */
+  menubar: Menubar.Model,
+  menubarChoice: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -120,6 +124,7 @@ export const Message = defineMessageUnion({
   GotSplit: { message: Resizable.Message },
   ToggledSidebarSection: { id: Schema.String },
   ToggledSidebar: {},
+  GotMenubar: { message: Menubar.Message },
 })
 export type Message = typeof Message.Type
 
@@ -168,6 +173,8 @@ export const initial: Model = {
   split: Resizable.init(0.35),
   sidebarOpen: ['workspace'],
   sidebarCollapsed: false,
+  menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
+  menubarChoice: Option.none(),
 }
 
 type Step = Update.Step<Model, Message>
@@ -307,6 +314,21 @@ const foldFileMenu = Update.foldChild({
   foldOutMessage: fileMenuOut,
 })
 
+const foldMenubar = Update.foldChild({
+  ...own('menubar', Message.GotMenubar),
+  update: Menubar.update,
+  foldOutMessage: Menubar.OutMessage.match<Step>({
+    Selected:
+      ({ menu, value }) =>
+      model => ({
+        model: modifyFields(model, {
+          menubarChoice: () =>
+            Option.map(Option.fromNullishOr(MENUBAR[menu]), shown => `${shown.label} › ${value}`),
+        }),
+      }),
+  }),
+})
+
 const foldListbox = Update.foldChild({
   ...own('listbox', Message.GotListbox),
   update: FrequencyBox.update,
@@ -411,6 +433,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     OpenedFileMenu: () =>
       foldFileMenu(model, UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(0) })),
     GotMenu: ({ message }) => foldMenu(model, message),
+    GotMenubar: ({ message }) => foldMenubar(model, message),
     GotListbox: ({ message }) => foldListbox(model, message),
     GotCombobox: ({ message }) => foldCombobox(model, message),
     GotCalendar: ({ message }) => foldCalendar(model, message),

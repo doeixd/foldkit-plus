@@ -23,6 +23,7 @@ import {
   CheckboxSlots,
   CommandSlots,
   HoverIntentSlots,
+  MenubarSlots,
   NavSlots,
   NumberFieldSlots,
   OtpFieldSlots,
@@ -619,6 +620,25 @@ export const showcases: ReadonlyArray<Showcase> = [
           onToggleSection: id => live.onWidget(Widgets.Message.ToggledSidebarSection({ id })),
           onToggleCollapsed: live.onWidget(Widgets.Message.ToggledSidebar()),
         },
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'menubar',
+      title: 'Menubar',
+      summary: 'A row of menus with one tab stop, the arrows moving from one open menu to the next.',
+      recipe: 'Menubar',
+      file: 'menubar',
+      contract: 'MenubarSlots',
+    },
+    MenubarSlots,
+    Recipes.Menubar,
+    (style, live) =>
+      Snippet.menubar(
+        style,
+        { bar: live.widgets.menubar, chosen: live.widgets.menubarChoice },
+        message => live.onWidget(Widgets.Message.GotMenubar({ message })),
         live.h,
       ),
   ),

@@ -820,7 +820,7 @@ keeps what the systems plan's "What we keep" lists.
   application's icon set. Toggles stand on the ladder, and the Switch has
   Fluid's 34×20 geometry and hover pill. Open: dragging the Switch's thumb
   (a `PointerDrag` on the button), Select's pause after a pick (upstream's). [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
-- [ ] **Parity 4, the islands into the package.** Done: Accordion (arrow keys
+- [x] **Parity 4, the islands into the package.** Done: Accordion (arrow keys
   between its triggers, optional in the APG, are left to a later pass over
   `foldkit-primitives/interaction`'s navigation); Toggle, as Button's
   `pressed`, and Toggle Group, as Segmented's `multiple` with `view` and
@@ -828,8 +828,8 @@ keeps what the systems plan's "What we keep" lists.
   `Dialog.isDismissal`; Number Input, as `NumberField`; Input OTP, as `OtpField`; Hover Card, as HoverIntent with `Recipes.HoverCard`.
   Context Menu, as the Menu at a point (`ContextMenu`). Command, as `Command`.
   Resizable, as `Resizable`; Sidebar, as `Sidebar`; Navigation Menu, as
-  the adapted `Nav` (without shadcn's dropdown panels yet). Open: Menubar. Checkbox Group is
-  done, as `CheckboxGroup`.
+  the adapted `Nav` (without shadcn's dropdown panels yet); Menubar, as
+  `Menubar`; Checkbox Group, as `CheckboxGroup`.
   An island stays in `examples/widgets` as the Behaviors example until the
   package's own has a page.
 - [ ] **Parity 5, upstream wrappers.** Done: nav, as `Nav`. Open: Progress,
