@@ -282,6 +282,18 @@ const declaresText = (nodes: NodeRegistry | undefined, kind: string): boolean =>
   return declared?.kind === 'node' && declared.children === textContent
 }
 
+/**
+ * Whether a block is an atom, holding neither text nor blocks, as an image is. Without a
+ * vocabulary, a node with nothing in it is one.
+ */
+export const isAtom = (nodes: NodeRegistry | undefined, block: Block): boolean => {
+  if (block.type !== 'Node') return false
+  const declared = nodes?.definitionFor(block.kind)
+  return declared === undefined
+    ? block.blocks === undefined && block.children.length === 0
+    : declared.kind === 'atom'
+}
+
 /** Whether the vocabulary names `itemKind` among the kinds `listKind` holds, as `List` names `ListItem`. */
 const holdsItem = (nodes: NodeRegistry, listKind: string, itemKind: string): boolean => {
   const declared = nodes.definitionFor(listKind)
@@ -1322,9 +1334,11 @@ export const run = (
     const target = emptiedBy(state.document, deleting.path.slice(0, -1), [-1]) ?? command.node
     const gone = locateBlock(state.document, target)!
     const inside = (path: BlockPath) => gone.path.every((index, depth) => path[depth] === index)
-    const runs: Array<{ readonly run: Run; readonly inside: boolean }> = []
+    const runs: Array<{ readonly run: Run; readonly inside: boolean; readonly after: boolean }> = []
     eachBlock(state.document.children, (block, path) => {
-      for (const run of block.children) runs.push({ run, inside: inside(path) })
+      for (const run of block.children) {
+        runs.push({ run, inside: inside(path), after: pathOrder(path, gone.path) > 0 })
+      }
     })
     const selection = state.selection
     const holds =
@@ -1335,12 +1349,9 @@ export const run = (
         : [selection.anchor, selection.focus].some(end =>
             runs.some(entry => entry.inside && entry.run.id === end.node),
           ))
-    const firstGone = runs.findIndex(entry => entry.inside)
-    const following = runs.slice(Math.max(firstGone, 0)).find(entry => !entry.inside)
-    const preceding = runs
-      .slice(0, Math.max(firstGone, 0))
-      .reverse()
-      .find(entry => !entry.inside)
+    // By place, not by the runs the block held: an atom holds none.
+    const following = runs.find(entry => entry.after && !entry.inside)
+    const preceding = [...runs].reverse().find(entry => !entry.after && !entry.inside)
     const landing =
       following !== undefined
         ? { node: following.run.id, offset: 0, affinity: 'after' as const }
@@ -1409,6 +1420,28 @@ export const run = (
     ])
   }
   const selection = state.selection
+  // A selected block is deleted by Delete or Backspace, has a paragraph opened after it by
+  // Enter, and is replaced by what is typed over it.
+  if (selection?.type === 'Node') {
+    const paragraph: Block = {
+      type: 'Paragraph',
+      id: NodeId.make('paragraph'),
+      children: [{ type: 'Text', id: NodeId.make('text'), text: '', marks: [] }],
+    }
+    const after = { type: 'InsertBlock', block: paragraph, to: { after: selection.node } } as const
+    if (command.type === 'DeleteBackward' || command.type === 'DeleteForward') {
+      return run(state, { type: 'DeleteBlock', node: selection.node }, ids, options)
+    }
+    if (command.type === 'SplitBlock') return run(state, after, ids, options)
+    if (command.type === 'InsertText') {
+      return runAction(
+        state,
+        [after, { type: 'DeleteBlock', node: selection.node }, command],
+        ids,
+        options,
+      )
+    }
+  }
   if (selection === null || selection.type === 'Node') return failure('InvalidSelection')
 
   if (command.type === 'InsertText') {
@@ -1533,6 +1566,14 @@ export const run = (
     const siblings = containerBlocks(state.document, containerPath)
     const index = at.path[at.path.length - 1]!
     const neighborBlock = siblings[backward ? index - 1 : index + 1]
+    // An atom cannot take text, so the edge selects it, and a second press deletes it. A
+    // block left with nothing in it goes first, as Backspace on an empty line would.
+    if (neighborBlock !== undefined && isAtom(options.nodes, neighborBlock)) {
+      return apply(state, [
+        ...(textOfBlock(block) === '' ? [Edit.deleteBlock(block.id)] : []),
+        Edit.setSelection({ type: 'Node', node: neighborBlock.id }),
+      ])
+    }
     if (neighborBlock === undefined) {
       // Backspace at the start of a container's first block has nothing to join with, so
       // it lifts the block out, undoing what `> ` or `- ` did. Only with a vocabulary: it

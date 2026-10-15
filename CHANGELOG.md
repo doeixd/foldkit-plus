@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-richtext`: an atom is selected whole.** A press on an image or a
+  divider selects it (outlined through `data-selected`), as does Backspace from
+  the block after it or Delete from the block before; a second press deletes
+  it, Enter opens a paragraph after it, typing replaces it, and an arrow leaves
+  it for the text beside it. `isAtom(nodes, block)` is the test. Deleting a
+  block now lands the caret where the block was even when it held no text,
+  where it went to the top of the document.
 - **`foldkit-mixins-ui`: `NestedMenu`, a menu whose rows open submenus**
   (shadcn's DropdownMenuSub, the APG's submenu), one level deep. ArrowRight,
   Enter or Space opens a submenu on its first row, ArrowLeft or Escape closes

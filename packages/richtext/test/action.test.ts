@@ -174,9 +174,9 @@ describe('a composed action', () => {
     const result = RichText.runAction(
       state(caret('a', 2)),
       [
-        // A node selection is valid to set, but a delete needs a caret in text.
+        // A node selection is valid to set, but a mark needs text to land on.
         { type: 'SetSelection', selection: { type: 'Node', node: id('p') } },
-        { type: 'DeleteBackward' },
+        { type: 'ToggleMark', mark: 'Italic' },
       ],
       ids(),
     )

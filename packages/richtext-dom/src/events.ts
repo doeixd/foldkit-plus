@@ -136,9 +136,26 @@ export const intentFor = (
  * The semantic selection the browser is currently showing, if it resolves: null when the
  * page's selection is outside the editor, which is not the editor's to read.
  */
+/**
+ * The atom a range holds whole, as a node selection is drawn: an atom has no text for a caret,
+ * so the browser is given the range around its element.
+ */
+const selectedAtom = (dom: EditorDom, selection: Selection): RichText.NodeId | undefined => {
+  const parent = selection.anchorNode
+  if (parent === null || parent !== selection.focusNode) return undefined
+  if (Math.abs(selection.focusOffset - selection.anchorOffset) !== 1) return undefined
+  const child = parent.childNodes[Math.min(selection.anchorOffset, selection.focusOffset)]
+  const id = child instanceof Element ? child.getAttribute('data-block') : null
+  if (id === null) return undefined
+  const block = RichText.locateBlock(dom.content, RichText.NodeId.make(id))?.block
+  return block !== undefined && RichText.isAtom(undefined, block) ? block.id : undefined
+}
+
 export const readSelection = (dom: EditorDom): RichText.Selection | null => {
   const selection = dom.root.ownerDocument.defaultView?.getSelection()
   if (selection === null || selection === undefined || selection.rangeCount === 0) return null
+  const selected = selectedAtom(dom, selection)
+  if (selected !== undefined) return { type: 'Node', node: selected }
   const anchor = rangeToPosition(dom, selection.anchorNode ?? dom.root, selection.anchorOffset)
   const focus = rangeToPosition(dom, selection.focusNode ?? dom.root, selection.focusOffset)
   if (anchor === undefined || focus === undefined) return null
@@ -167,7 +184,15 @@ export const restoreSelection = (dom: EditorDom, selection: RichText.Selection |
   const live = window?.getSelection()
   if (window === null || window === undefined || live === null || live === undefined) return
   live.removeAllRanges()
-  if (selection === null || selection.type === 'Node') return
+  if (selection === null) return
+  if (selection.type === 'Node') {
+    const element = dom.elements.get(selection.node)
+    if (element === undefined || element.parentNode === null) return
+    const range = dom.root.ownerDocument.createRange()
+    range.selectNode(element)
+    live.addRange(range)
+    return
+  }
   const anchor = endpointFor(dom, selection.anchor)
   const focus = endpointFor(dom, selection.focus)
   if (anchor === undefined || focus === undefined) return
@@ -322,6 +347,32 @@ const emptyLineAt = (dom: EditorDom, selection: RichText.Selection | null): Elem
 }
 
 /**
+ * The caret in the nearest text before or after a block, as an arrow key leaves a selected
+ * image: null when there is no text on that side.
+ */
+const caretBeside = (
+  document: RichText.Document,
+  node: RichText.NodeId,
+  after: boolean,
+): RichText.Selection | null => {
+  let seen = false
+  let before: RichText.Block['children'][number] | undefined
+  let next: RichText.Block['children'][number] | undefined
+  RichText.eachBlock(document.children, block => {
+    if (block.id === node) seen = true
+    else if (!seen) before = block.children.at(-1) ?? before
+    else next ??= block.children[0]
+  })
+  const run = after ? next : before
+  if (!seen || run === undefined) return null
+  const at = { node: run.id, offset: after ? 0 : run.text.length, affinity: 'after' as const }
+  return { type: 'Range', anchor: at, focus: at }
+}
+
+/** What a press inside an atom belongs to rather than the editor: a control, a link. */
+const INTERACTIVE = 'a, button, input, select, textarea, video, audio'
+
+/**
  * Wires the owned subtree to an application. The adapter never decides what an
  * edit means: it translates events into commands, hands them to `onIntent`, and
  * patches whatever the application commits.
@@ -339,6 +390,18 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
    */
   let lastSelection: RichText.Selection | null = null
   let hinted: Element | undefined
+  let selectedBlock: Element | undefined
+  /**
+   * Marks the block a node selection holds with `data-selected`: the browser draws no
+   * selection of its own for one, so this is the only sign of it.
+   */
+  const markSelected = (): void => {
+    const target =
+      lastSelection?.type === 'Node' ? current.elements.get(lastSelection.node) : undefined
+    if (selectedBlock !== target) selectedBlock?.removeAttribute('data-selected')
+    target?.setAttribute('data-selected', '')
+    selectedBlock = target
+  }
   /** Moves `data-hint` to the empty line the caret is on, or takes it away. */
   const hint = (): void => {
     if (options.lineHint === undefined) return
@@ -353,6 +416,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       marked = drawPlaceholder(current, options.placeholder, marked)
     }
     hint()
+    markSelected()
   }
   redraw(dom)
   let composing = false
@@ -369,6 +433,16 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     if (selection === null || sameSelection(selection, lastSelection)) return
     lastSelection = selection
     hint()
+    markSelected()
+    options.onSelection?.(selection)
+  }
+  /** Takes a selection the editor made itself, as a click on an image or an arrow key does. */
+  const select = (selection: RichText.Selection): void => {
+    restoreSelection(current, selection)
+    if (sameSelection(selection, lastSelection)) return
+    lastSelection = selection
+    hint()
+    markSelected()
     options.onSelection?.(selection)
   }
   /**
@@ -395,6 +469,18 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     if (owned) restoreSelection(current, state.selection)
   }
   const onEvent = (event: Event): void => {
+    // From a selected atom, an arrow goes to the text beside it, where a browser would step
+    // into the atom's own markup.
+    if (event.type === 'keydown' && !composing && lastSelection?.type === 'Node') {
+      const key = (event as KeyboardEvent).key
+      const after = key === 'ArrowRight' || key === 'ArrowDown'
+      if (after || key === 'ArrowLeft' || key === 'ArrowUp') {
+        event.preventDefault()
+        const beside = caretBeside(current.content, lastSelection.node, after)
+        if (beside !== null) select(beside)
+        return
+      }
+    }
     // Tab is taken only where it means something, so it still leaves the editor elsewhere.
     if (event.type === 'keydown' && !composing) {
       const key = event as KeyboardEvent
@@ -532,6 +618,25 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       props: { [prop]: block.props[prop] !== true },
     })
   }
+  // A press on an atom (an image, a divider) selects it whole, as there is no text in it for
+  // a caret, and keeps the browser from dragging it or putting the caret elsewhere.
+  const onMouseDown = (event: MouseEvent): void => {
+    const origin = event.target
+    if (event.button !== 0 || !(origin instanceof Element)) return
+    if (origin.closest(INTERACTIVE) !== null) return
+    if (
+      origin.closest(`[${RichText.ACTION_ATTRIBUTE}], [${RichText.TOGGLES_ATTRIBUTE}]`) !== null
+    ) {
+      return
+    }
+    const id = origin.closest('[data-block]')?.getAttribute('data-block')
+    if (id === null || id === undefined || !current.root.contains(origin)) return
+    const block = RichText.locateBlock(current.content, RichText.NodeId.make(id))?.block
+    if (block === undefined || !RichText.isAtom(options.nodes, block)) return
+    event.preventDefault()
+    current.root.focus({ preventScroll: true })
+    select({ type: 'Node', node: block.id })
+  }
   const target = dom.root
   // The caret belongs to the document, not the subtree: a click elsewhere on the
   // page, or an arrow key, moves it without an event the root would see.
@@ -545,6 +650,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   target.addEventListener('cut', onCut)
   target.addEventListener('paste', onPaste)
   target.addEventListener('click', onClick)
+  target.addEventListener('mousedown', onMouseDown)
   return {
     current: () => current,
     held: () => deferred?.state.document ?? current.content,
@@ -586,6 +692,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       target.removeEventListener('cut', onCut)
       target.removeEventListener('paste', onPaste)
       target.removeEventListener('click', onClick)
+      target.removeEventListener('mousedown', onMouseDown)
     },
   }
 }

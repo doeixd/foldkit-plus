@@ -196,7 +196,10 @@ describe('insert text commands', () => {
       ok: false,
       error: 'InvalidSelection',
     })
-    expect(run(state({ type: 'Node', node: id('p') }), { type: 'InsertText', text: 'x' })).toEqual({
+    // A selected block is typed over; a mark has no text to land on.
+    expect(
+      run(state({ type: 'Node', node: id('p') }), { type: 'ToggleMark', mark: 'Italic' }),
+    ).toEqual({
       ok: false,
       error: 'InvalidSelection',
     })

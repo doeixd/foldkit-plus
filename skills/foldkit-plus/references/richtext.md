@@ -140,7 +140,8 @@ recovers after an IME or an outside mutation,
 `Range`, and `attach(dom, { onIntent })` turns `beforeinput`/`keydown`/composition
 and clipboard events into editor intent while preventing the browser from mutating
 the subtree behind the document. `onSelection` reports a caret the application did
-not just commit, and `mountInto(host, content, options)` at
+not just commit; a press on an atom reports a node selection of it, marked `data-selected`
+(Delete removes it, Enter opens a paragraph after it, typing replaces it), and `mountInto(host, content, options)` at
 `foldkit-richtext-dom/host` renders into a view's host element and records the
 attachment a patch Command later finds; if the host already holds exactly the subtree it would
 build (server markup), it keeps those elements (`adopt`), and otherwise replaces what is there. A registry can also be `placeRendering`d for

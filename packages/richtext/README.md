@@ -1019,6 +1019,13 @@ text is added after them; block identities are stable for a block's whole life.
   cell only loses its text. Typing, Enter or a paste over such a range clears it
   first. What is still refused with `InvalidParent` is a parent that cannot hold
   blocks.
+- An atom (an image, a divider) has no text for a caret, so it is selected whole.
+  Backspace at the start of the block after it, or Delete at the end of the block
+  before it, selects it, taking away the line the caret was on when that line is
+  empty; a second press deletes it, and the caret lands where it was. Over a node
+  selection, Enter opens an empty paragraph after the block, and typing replaces
+  the block with a paragraph of what was typed. `isAtom(nodes, block)` is the test:
+  the vocabulary's `atom` declaration, or, without one, a node holding nothing.
 - `InsertText` targets one run and inherits that run's marks. When the command
   carries `marks`, the inserted span is split out of its run and given exactly
   that set instead — that is how a caller's stored marks reach the document.

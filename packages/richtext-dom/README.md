@@ -467,7 +467,11 @@ that transition committed.
   focus. A keystroke, a composition start, a cut, or a paste reads the live selection first and
   reports it before its intent, because `selectionchange` is asynchronous and a click just
   before would otherwise be missed. `keymap` adds or overrides chord bindings, checked
-  before the built-in ones. `attachment.sync(state, changeSet)` patches and restores the
+  before the built-in ones. A press on an atom (an image, a divider) selects it as a node
+  selection; the browser is given the range around its element, which reads back as that
+  selection, and the block carries `data-selected`, the only sign of it a stylesheet can
+  reach. From a selected atom an arrow goes to the text beside it.
+  `attachment.sync(state, changeSet)` patches and restores the
   selection in one call, but only while the browser's selection is inside the editor: a sync
   never takes the caret from another editor or an input. While an IME is composing, the latest
   state waits and is drawn when composition ends, so another person's edit never rewrites the

@@ -74,6 +74,7 @@ export {
   moveTargets,
   coversText,
   takesTab,
+  isAtom,
   run,
   runAction,
   unionChangeSet,

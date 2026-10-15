@@ -305,6 +305,17 @@ const writing = Style.compose(
     inlineSize: '100%',
     borderRadius: t.radius.lg,
   }),
+  // A block selected whole (an image, a divider) has no caret or highlight of its own.
+  Style.nest('[data-selected]', {
+    outline: `2px solid ${t.outline.focus}`,
+    outlineOffset: '3px',
+    borderRadius: t.radius.lg,
+  }),
+  // The browser's range around it would paint over it too.
+  Style.nest('[data-selected]::selection, [data-selected] *::selection', {
+    background: 'transparent',
+  }),
+  Style.nest('figure[data-image]', { cursor: 'default' }),
   Style.nest('figure[data-image] > figcaption', {
     marginBlockStart: t.space.xs,
     color: t.text.muted,
