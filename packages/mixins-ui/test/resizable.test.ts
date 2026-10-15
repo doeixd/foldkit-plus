@@ -83,7 +83,8 @@ describe('Resizable.view', () => {
 
 describe('Resizable keys', () => {
   type Step = Parameters<typeof Scene.scene<Resizable.Model, Resizable.Message>>[1]
-  const scene = (
+  const sceneIn = (
+    direction: 'ltr' | 'rtl',
     orientation: 'horizontal' | 'vertical',
     share: number,
     ...steps: ReadonlyArray<Step>
@@ -97,6 +98,7 @@ describe('Resizable keys', () => {
               model,
               onMessage: message => message,
               orientation,
+              direction,
               min: 0.2,
               max: 0.7,
               label: 'Resize the list',
@@ -114,6 +116,11 @@ describe('Resizable keys', () => {
       ),
       ...steps,
     )
+  const scene = (
+    orientation: 'horizontal' | 'vertical',
+    share: number,
+    ...steps: ReadonlyArray<Step>
+  ) => sceneIn('ltr', orientation, share, ...steps)
   const handle = Scene.role('separator')
   const at = (percent: number) => Scene.expect(handle).toHaveAttr('aria-valuenow', String(percent))
 
@@ -130,5 +137,17 @@ describe('Resizable keys', () => {
 
   it("leaves the other axis's arrows alone", () => {
     scene('vertical', 0.5, Scene.keydown(handle, 'ArrowRight'), Scene.expectIgnored())
+  })
+
+  // Right to left the first panel is on the right: the handle moving left grows it.
+  it.each([
+    ['ArrowLeft', 55],
+    ['ArrowRight', 45],
+  ] as const)('right to left, %s goes to %i%', (key, percent) => {
+    sceneIn('rtl', 'horizontal', 0.5, Scene.keydown(handle, key), at(percent))
+  })
+
+  it('right to left, a vertical split keeps its arrows', () => {
+    sceneIn('rtl', 'vertical', 0.5, Scene.keydown(handle, 'ArrowDown'), at(55))
   })
 })

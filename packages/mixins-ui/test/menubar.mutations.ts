@@ -122,8 +122,52 @@ export default [
     edits: [
       {
         file,
-        find: 'isBarKey(key) ? Option.some(onMessage(Message.Pressed({ key }))) : Option.none(),',
-        replace: "Option.some(onMessage(Message.Pressed({ key: 'End' }))),",
+        find: 'return isBarKey(key) ? Option.some(onMessage(Message.Pressed({ key }))) : Option.none()',
+        replace: "return Option.some(onMessage(Message.Pressed({ key: 'End' })))",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the bar reads the arrows physically right to left',
+    edits: [
+      {
+        file,
+        find: 'const key = readingKey(pressed, options.direction)',
+        replace: 'const key = pressed',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'right to left, ArrowLeft stays ArrowLeft',
+    edits: [
+      {
+        file: '../src/direction.ts',
+        find: "if (key === 'ArrowLeft') return 'ArrowRight'\n",
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'right to left, ArrowRight stays ArrowRight',
+    edits: [
+      {
+        file: '../src/direction.ts',
+        find: "if (key === 'ArrowRight') return 'ArrowLeft'\n",
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'left to right swaps the arrows too',
+    edits: [
+      {
+        file: '../src/direction.ts',
+        find: "if (direction !== 'rtl') return key\n",
+        replace: '',
       },
     ],
     tests: [unit],

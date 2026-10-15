@@ -16,6 +16,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineView, type View as SubmodelView } from 'foldkit/submodel'
 import {
   computeRender,
+  type DirectionInput,
   type ListboxGroupRender,
   type ListboxHeadingRender,
   type ListboxItemRender,
@@ -51,18 +52,21 @@ const makeSharedView = (
 const singleShared = makeSharedView({ ariaMultiSelectable: false })
 const multiShared = makeSharedView({ ariaMultiSelectable: true })
 
-/** Upstream single view inputs plus the seam. */
+/** Upstream single view inputs plus the seam and `direction`. */
 export type SingleViewInputs<
   Item = string,
   Value extends string = Item extends string ? Item : string,
-> = UpstreamSingleInputs<Item, Value> & Readonly<{ toView?: (render: ListboxRenderInfo) => Html }>
+> = UpstreamSingleInputs<Item, Value> &
+  Readonly<{ toView?: (render: ListboxRenderInfo) => Html }> &
+  DirectionInput
 
-/** Upstream multi view inputs plus the seam. */
+/** Upstream multi view inputs plus the seam and `direction`. */
 export type MultiViewInputs<
   Item = string,
   Value extends string = Item extends string ? Item : string,
 > = UpstreamListbox.Multi.ViewInputs<Item, Value> &
-  Readonly<{ toView?: (render: ListboxRenderInfo) => Html }>
+  Readonly<{ toView?: (render: ListboxRenderInfo) => Html }> &
+  DirectionInput
 
 type MultiModel = UpstreamListbox.Multi.Model
 

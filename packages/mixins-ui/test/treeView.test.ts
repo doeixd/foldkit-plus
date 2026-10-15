@@ -6,6 +6,7 @@
  * depth and state with one tab stop.
  */
 import { Option } from 'effect'
+import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
@@ -180,6 +181,27 @@ describe('TreeView.view', () => {
   ] as const)('holds one tab stop, on %s', (_, current, stop) => {
     const stops = read(at([], current), 'tabIndex').filter(([, index]) => index === 0)
     expect(stops).toEqual([[`files-item-${stop}`, 0]])
+  })
+
+  it.each([
+    ['ltr', 'ArrowRight', 'true'],
+    ['ltr', 'ArrowLeft', 'false'],
+    ['rtl', 'ArrowLeft', 'true'],
+    ['rtl', 'ArrowRight', 'false'],
+  ] as const)('%s, %s on a shut row leaves it expanded %s', (direction, key, expanded) => {
+    Scene.scene<TreeView.Model, TreeView.Message>(
+      {
+        update,
+        view: (model, h) =>
+          TreeView.view(
+            { label: 'Files', model, nodes: FILES, onMessage: sent => sent, direction },
+            h,
+          ),
+      },
+      Scene.given(at([], Option.some('src'))),
+      Scene.keydown(Scene.role('tree'), key),
+      Scene.expect(Scene.selector('#files-item-src')).toHaveAttr('aria-expanded', expanded),
+    )
   })
 
   it('marks the chosen row and the disabled one', () => {

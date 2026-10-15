@@ -28,6 +28,7 @@ import type {
 } from '@foldkit/ui/listbox'
 import { childAttributes, type ChildAttribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import { defineView, type View as SubmodelView } from 'foldkit/submodel'
+import { readingKey } from './direction.js'
 import {
   findFirstEnabledIndex,
   groupContiguous,
@@ -83,11 +84,18 @@ const itemId = (id: string, index: number): string => `${id}-item-${index}`
 
 export type SharedBehavior = Readonly<{ ariaMultiSelectable: boolean }>
 
+/** The one view input the forks add beside upstream's. */
+export type DirectionInput = Readonly<{
+  /** Default `'ltr'`; under `'rtl'` a horizontal listbox's ArrowLeft and ArrowRight swap. */
+  direction?: 'ltr' | 'rtl' | undefined
+}>
+
 /** Normalized inputs: the multi shape both variants lower into, built from
  *  upstream's own pieces so field additions there flow through. */
 export type NormalizedInputs<Item, Value extends string> = BaseViewInputsCommon<Item> &
   Readonly<{ selectedValues: ReadonlyArray<Value> }> &
-  ItemToValueInput<Item, Value>
+  ItemToValueInput<Item, Value> &
+  DirectionInput
 
 export type SharedViewInputs = NormalizedInputs<unknown, string> & {
   toView?: ((render: ListboxRenderInfo) => Html) | undefined
@@ -140,6 +148,7 @@ export const computeRender = (
     ariaLabel,
     ariaLabelledBy,
     selectedValues,
+    direction,
   } = viewInputs
 
   const itemToValue = viewInputs.itemToValue ?? ((item: unknown) => globalThis.String(item))
@@ -321,7 +330,7 @@ export const computeRender = (
       ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
       : [
           h.OnPointerDown(handleButtonPointerDown),
-          h.OnKeyDownPreventDefault(handleButtonKeyDown),
+          h.OnKeyDownPreventDefault(key => handleButtonKeyDown(readingKey(key, direction))),
           h.OnKeyUpPreventDefault(handleSpaceKeyUp),
           h.OnClick(handleButtonClick()),
         ]),
@@ -394,7 +403,7 @@ export const computeRender = (
       ...(isLeaving
         ? []
         : [
-            h.OnKeyDownPreventDefault(handleItemsKeyDown),
+            h.OnKeyDownPreventDefault(key => handleItemsKeyDown(readingKey(key, direction))),
             h.OnKeyUpPreventDefault(handleSpaceKeyUp),
             h.OnBlur(Message.BlurredItems()),
           ]),

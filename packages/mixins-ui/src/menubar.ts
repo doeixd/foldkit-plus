@@ -7,6 +7,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
+import { readingKey } from './direction.js'
 import { toView as menuToView } from './menu.js'
 import { create, type MenuBundle } from './menuView.js'
 import { drawMenu } from './popupView.js'
@@ -16,9 +17,10 @@ import type { MixinList } from './resolve.js'
  * A menu bar, shadcn's and the APG's: a row of `@foldkit/ui` Menus, so each
  * menu's keys, typeahead, rows and dismissal stay the Menu's, and the bar
  * adds what a row of them needs. One trigger is the bar's tab stop, and
- * ArrowLeft and ArrowRight (Home and End while all are shut) move it; with a
- * menu open they shut it and open the next, its first row active. While one
- * is open, pointing at another trigger opens that one, and opening any menu
+ * ArrowLeft and ArrowRight (Home and End while all are shut) move it, the two
+ * swapped under `direction: 'rtl'`; with a menu open they shut it and open
+ * the next, its first row active. While one is open, pointing at another
+ * trigger opens that one, and opening any menu
  * shuts the rest. The menus' Models are this module's Model, which the
  * application keeps and folds with `update`, as it folds a Menu's.
  *
@@ -48,8 +50,9 @@ const isBarKey = Schema.is(BarKey)
 export const Message = defineMessageUnion({
   GotMenu: { index: Schema.Number, message: UiMenu.Message },
   /**
-   * A key pressed in the bar. `update` reads it against its own Model, not
-   * the one the last frame drew, so keys faster than a frame still move on.
+   * A key pressed in the bar, as a left-to-right reader presses it: ArrowRight
+   * is toward the bar's end. `update` reads it against its own Model, not the
+   * one the last frame drew, so keys faster than a frame still move on.
    */
   Pressed: { key: BarKey },
   /** The pointer reached the trigger at `to`. */
@@ -211,6 +214,8 @@ export interface MenubarView<ParentMessage> {
   /** One per menu of the Model, in its order. */
   readonly menus: ReadonlyArray<MenubarMenu>
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
+  /** Default `'ltr'`; under `'rtl'` ArrowLeft and ArrowRight swap. */
+  readonly direction?: 'ltr' | 'rtl' | undefined
   /** A style of `MenubarSlots`, for the bar's look. */
   readonly style?: NamedStyle<typeof MenubarSlots> | undefined
   /** The menus' mixins: a style of `MenuSlots` (`Recipes.MenubarMenu`), and `Menu.fluid`. */
@@ -231,9 +236,10 @@ export const view = <ParentMessage>(
     builders.bar.attrs([
       h.Role('menubar'),
       h.AriaLabel(options.label),
-      h.OnKeyDownPreventDefault(key =>
-        isBarKey(key) ? Option.some(onMessage(Message.Pressed({ key }))) : Option.none(),
-      ),
+      h.OnKeyDownPreventDefault(pressed => {
+        const key = readingKey(pressed, options.direction)
+        return isBarKey(key) ? Option.some(onMessage(Message.Pressed({ key }))) : Option.none()
+      }),
     ]),
     model.menus.flatMap((menu, index) => {
       const shown = options.menus[index]

@@ -85,4 +85,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a horizontal panel reads the arrows physically right to left',
+    edits: [
+      {
+        file: '../src/listboxShared.ts',
+        find: 'h.OnKeyDownPreventDefault(key => handleItemsKeyDown(readingKey(key, direction))),',
+        replace: 'h.OnKeyDownPreventDefault(handleItemsKeyDown),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the views drop the direction they are given',
+    edits: [
+      {
+        file: '../src/listboxShared.ts',
+        find: '    selectedValues,\n    direction,\n  } = viewInputs',
+        replace: "    selectedValues,\n  } = viewInputs\n  const direction = 'ltr'",
+      },
+    ],
+    tests,
+  },
 ]

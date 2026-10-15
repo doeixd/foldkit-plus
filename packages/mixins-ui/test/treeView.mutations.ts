@@ -30,6 +30,17 @@ export default [
     tests: [unit, browser],
   },
   {
+    name: 'the tree reads the arrows physically right to left',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'const key = readingKey(pressed, options.direction)',
+        replace: 'const key = pressed',
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'a label is drawn outside its Slot',
     edits: [
       {

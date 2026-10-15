@@ -4,8 +4,42 @@
  * test fails for every one.
  */
 const unit = 'packages/mixins-ui/test/progress.test.ts'
+const browser = 'packages/mixins-ui/test/progress.browser.test.ts'
 
 export default [
+  {
+    name: 'right to left, the fill sweeps rightward',
+    edits: [
+      {
+        file: '../src/recipes/progress.ts',
+        find: 'Style.nest(`&${unknown}:dir(rtl)`, { animation: sweep(slideBack.name) }),\n',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'right to left, the fill starts inside the track',
+    edits: [
+      {
+        file: '../src/recipes/progress.ts',
+        find: "from: { translate: '100% 0' },",
+        replace: "from: { translate: '0% 0' },",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'left to right, the fill stops inside the track',
+    edits: [
+      {
+        file: '../src/recipes/progress.ts',
+        find: "to: { translate: '250% 0' },",
+        replace: "to: { translate: '150% 0' },",
+      },
+    ],
+    tests: [browser],
+  },
   {
     name: 'the share runs past the end',
     edits: [

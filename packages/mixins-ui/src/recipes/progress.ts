@@ -2,7 +2,8 @@
  * Progress: `shape: 'bar'` is a rounded track whose fill grows on the
  * moderate tier, `shape: 'ring'` is Circular Progress, a ring whose arc is
  * the root's `--fk-progress` turned into a conic gradient. Not known, the
- * bar's fill slides through the track and the ring's quarter arc turns;
+ * bar's fill slides through the track toward its inline end, leftward right
+ * to left, and the ring's quarter arc turns;
  * reduced motion holds them still (each loop lasts `travelled`, 0 there,
  * which runs no animation), the bar's fill faint across the track.
  */
@@ -17,6 +18,16 @@ const slide = Style.keyframes({
   from: { translate: '-100% 0' },
   to: { translate: '250% 0' },
 })
+
+// `translate` is physical while the fill starts at the inline start: right
+// to left it starts on the right, and sweeps left.
+const slideBack = Style.keyframes({
+  from: { translate: '100% 0' },
+  to: { translate: '-250% 0' },
+})
+
+const sweep = (name: string) =>
+  `${name} ${travelled(`calc(${ref.motion.slow} * 6)`)} ${ref.motion.ease} infinite`
 
 const turn = Style.keyframes({
   from: { rotate: '0deg' },
@@ -48,12 +59,14 @@ export const Progress = Style.recipeFor(ProgressSlots)({
             transitionTimingFunction: ref.motion.settle,
           }),
           slide.style,
+          slideBack.style,
           // Still (`knob.travel` 0), the fill spans the track, faint.
           Style.pseudo(unknown, {
             inlineSize: `calc(40% + 60% * (1 - ${ref.knob.travel}))`,
             opacity: `calc(1 - 0.6 * (1 - ${ref.knob.travel}))`,
-            animation: `${slide.name} ${travelled(`calc(${ref.motion.slow} * 6)`)} ${ref.motion.ease} infinite`,
+            animation: sweep(slide.name),
           }),
+          Style.nest(`&${unknown}:dir(rtl)`, { animation: sweep(slideBack.name) }),
         ),
       },
       ring: {

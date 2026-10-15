@@ -10,6 +10,7 @@ import { CheckboxSlots } from '../checkbox.js'
 import { SwitchSlots } from '../switch.js'
 import {
   component,
+  cornerSides,
   disabled,
   focusRing,
   hover,
@@ -59,16 +60,19 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         background: toneVar('fill'),
         borderColor: toneVar('fill'),
       }),
-      // A check: two borders of a box, rotated; a dash when mixed.
+      // A check: two borders of a box, rotated; a dash when mixed. Placed
+      // physically, as its sides are, so right to left draws the same check
+      // in the same place. The box sits above center because the check's ink
+      // gathers at its corner, below: 19.5% puts the ink's middle at the
+      // box's (at 12% it stood a pixel high).
       Style.pseudo(`${checked}::after`, {
         content: '""',
         position: 'absolute',
-        insetBlockStart: '12%',
-        insetInlineStart: '32%',
+        top: '19.5%',
+        left: '32%',
         inlineSize: '32%',
         blockSize: '56%',
-        border: `solid ${toneVar('on-fill')}`,
-        borderWidth: `0 ${ref.border.thick} ${ref.border.thick} 0`,
+        ...cornerSides(ref.border.thick, toneVar('on-fill')),
         rotate: '45deg',
       }),
       Style.pseudo('[aria-checked="mixed"]::after', {
@@ -136,6 +140,11 @@ export const Switch = Style.recipeFor(SwitchSlots)({
       Style.pseudo(checked, { background: toneVar('fill') }),
       // On, it sits at the far end, and a stretch grows back from that end.
       Style.pseudo(`${checked}::before`, { translate: `calc(${rail} * 0.7 - ${stretch}) 0` }),
+      // `translate` is physical while the thumb starts at the inline start:
+      // right to left it starts on the right and moves left.
+      Style.nest(`&${checked}:dir(rtl)::before`, {
+        translate: `calc(-1 * (${rail} * 0.7 - ${stretch})) 0`,
+      }),
       focusRing,
       disabled,
     ),

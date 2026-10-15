@@ -100,29 +100,33 @@ describe('Menubar.update', () => {
 })
 
 describe('Menubar.view', () => {
-  const scene = (model: Menubar.Model, ...steps: ReadonlyArray<Step>) =>
-    Scene.scene<Menubar.Model, Menubar.Message, Menubar.OutMessage>(
-      {
-        update: (model, message) => Menubar.update(model, message),
-        view: (model, h) =>
-          Menubar.view(
-            {
-              label: 'Editor',
-              model,
-              menus: [
-                { label: 'File', items: ['New'] },
-                { label: 'Edit', items: ['Copy'] },
-                { label: 'View', items: ['Zoom'] },
-              ],
-              onMessage: message => message,
-              menuMixins: [],
-            },
-            h,
-          ),
-      },
-      Scene.given(model),
-      ...steps,
-    )
+  const sceneIn =
+    (direction: 'ltr' | 'rtl') =>
+    (model: Menubar.Model, ...steps: ReadonlyArray<Step>) =>
+      Scene.scene<Menubar.Model, Menubar.Message, Menubar.OutMessage>(
+        {
+          update: (model, message) => Menubar.update(model, message),
+          view: (model, h) =>
+            Menubar.view(
+              {
+                label: 'Editor',
+                model,
+                menus: [
+                  { label: 'File', items: ['New'] },
+                  { label: 'Edit', items: ['Copy'] },
+                  { label: 'View', items: ['Zoom'] },
+                ],
+                onMessage: message => message,
+                direction,
+                menuMixins: [],
+              },
+              h,
+            ),
+        },
+        Scene.given(model),
+        ...steps,
+      )
+  const scene = sceneIn('ltr')
   type Step = Parameters<typeof Scene.scene<Menubar.Model, Menubar.Message, Menubar.OutMessage>>[1]
   const stops = (expected: ReadonlyArray<number>) =>
     Scene.tap<Menubar.Model, Menubar.Message, Menubar.OutMessage>(({ html }) =>
@@ -144,5 +148,18 @@ describe('Menubar.view', () => {
       stops([-1, 0, -1]),
     )
     scene(bar, Scene.keydown(Scene.role('menubar'), 'a'), Scene.expectIgnored())
+  })
+
+  it.each([
+    ['ArrowLeft', 'ArrowRight', [-1, 0, -1]],
+    ['ArrowRight', 'ArrowLeft', [-1, -1, 0]],
+  ] as const)('right to left, %s moves as %s does left to right', (key, reading, expected) => {
+    const [focus] = press(bar, reading).commands ?? []
+    sceneIn('rtl')(
+      bar,
+      Scene.keydown(Scene.role('menubar'), key),
+      Scene.Command.resolve(focus!, Menubar.Message.CompletedFocusTrigger()),
+      stops(expected),
+    )
   })
 })

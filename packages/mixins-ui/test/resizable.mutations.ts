@@ -5,6 +5,7 @@
  */
 const file = '../src/resizable.ts'
 const unit = 'packages/mixins-ui/test/resizable.test.ts'
+const browser = 'packages/mixins-ui/test/resizable.browser.test.ts'
 
 export default [
   {
@@ -61,6 +62,28 @@ export default [
     name: 'ArrowLeft grows the first panel',
     edits: [{ file, find: "['ArrowLeft', -step],", replace: "['ArrowLeft', step]," }],
     tests: [unit],
+  },
+  {
+    name: 'the handle reads the arrows physically right to left',
+    edits: [
+      {
+        file,
+        find: 'const key = readingKey(pressed, options.direction)',
+        replace: 'const key = pressed',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a drag right to left follows the pointer physically',
+    edits: [
+      {
+        file,
+        find: "const across = options.direction === 'rtl' ? -1 : 1",
+        replace: 'const across = 1',
+      },
+    ],
+    tests: [browser],
   },
   {
     name: 'a vertical split steps on the horizontal arrows',

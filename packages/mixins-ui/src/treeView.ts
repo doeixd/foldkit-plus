@@ -8,13 +8,15 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { flipped } from './choices.js'
+import { readingKey } from './direction.js'
 import type { MixinList } from './resolve.js'
 
 /**
  * A tree view, the APG's and Zag's: nested rows that open and shut, one tab
  * stop, Up and Down through the rows showing, Right to open a row or step
- * into it, Left to shut it or step out, Home and End, Enter and Space to
- * choose a row (and open or shut it, if it holds rows), and a printed
+ * into it, Left to shut it or step out (the two swapped under `direction:
+ * 'rtl'`), Home and End, Enter and Space to choose a row (and open or shut
+ * it, if it holds rows), and a printed
  * character to the next showing row that starts with it. The keys are
  * `TreeNavigation`'s, decided in `update` against this Model, so keys faster
  * than a frame still move on. The current, open and chosen rows are this
@@ -63,7 +65,10 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  /** A key pressed in the tree, read against `update`'s own Model. */
+  /**
+   * A key pressed in the tree, read against `update`'s own Model, as a
+   * left-to-right reader presses it: ArrowRight steps in.
+   */
   Pressed: { key: Schema.String },
   /** A row took focus: tabbed into, or clicked. */
   Focused: { id: Schema.String },
@@ -234,6 +239,8 @@ export interface TreeViewView<ParentMessage> {
   /** The same tree `update` was given. */
   readonly nodes: ReadonlyArray<TreeNode>
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
+  /** Default `'ltr'`; under `'rtl'` ArrowLeft and ArrowRight swap. */
+  readonly direction?: 'ltr' | 'rtl' | undefined
   /** A style of `TreeViewSlots`, for the tree's look. */
   readonly style?: NamedStyle<typeof TreeViewSlots> | undefined
   /** Mixins beside the style. */
@@ -300,11 +307,12 @@ export const view = <ParentMessage>(
     builders.root.attrs([
       h.Role('tree'),
       h.AriaLabel(options.label),
-      h.OnKeyDownPreventDefault((key, modifiers) =>
-        handled.has(key) || Typeahead.isPrintable(key, modifiers)
+      h.OnKeyDownPreventDefault((pressed, modifiers) => {
+        const key = readingKey(pressed, options.direction)
+        return handled.has(key) || Typeahead.isPrintable(key, modifiers)
           ? Option.some(onMessage(Message.Pressed({ key })))
-          : Option.none(),
-      ),
+          : Option.none()
+      }),
     ]),
     draw(options.nodes, 1),
   )

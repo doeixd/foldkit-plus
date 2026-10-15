@@ -298,6 +298,28 @@ describe('forked listbox seam', () => {
     )
   })
 
+  it.each([
+    ['ltr', 'ArrowRight', 1],
+    ['ltr', 'ArrowLeft', 2],
+    ['rtl', 'ArrowLeft', 1],
+    ['rtl', 'ArrowRight', 2],
+  ] as const)('a horizontal listbox, %s, moves on %s to item %i', (direction, key, to) => {
+    Scene.scene<SingleModel, Message, UpstreamListbox.OutMessage<Fruit>>(
+      {
+        update: upstreamSingle.update,
+        view: (current, h) => forkSingle.view(current, { ...singleInputs(h), direction }, h),
+      },
+      Scene.given(singleModel({ ...openSingle(), orientation: 'Horizontal' })),
+      anchoredSingle(),
+      Scene.keydown(Scene.selector(panel), key),
+      Scene.Command.resolve(
+        UpstreamListbox.ScrollIntoView,
+        UpstreamListbox.Message.CompletedScrollIntoView(),
+      ),
+      Scene.expect(Scene.selector(panel)).toHaveAttr('aria-activedescendant', `${id}-item-${to}`),
+    )
+  })
+
   it('multi click selects and stays open', () => {
     Scene.scene<MultiModel, Message, UpstreamListbox.OutMessage<Fruit>>(
       {
