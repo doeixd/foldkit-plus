@@ -58,6 +58,8 @@ import {
   MenubarSlots,
   Nav,
   NavSlots,
+  Progress,
+  ProgressSlots,
   NumberField,
   NumberFieldSlots,
   OtpField,
@@ -1558,6 +1560,32 @@ export const menubar = <Message>(
           }),
         ],
       ),
+    ],
+  )
+// #endregion
+
+// #region progress
+export const ProgressStyle = forSlots(ProgressSlots)(Recipes.Progress({}))
+
+export const progress = <Message>(
+  style: NamedStyle<typeof ProgressSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'end' })],
+    [
+      Progress.view(
+        {
+          id: 'preview-upload',
+          label: 'Uploading',
+          value: Option.some(120),
+          max: 200,
+          valueText: (value, max) => `${value} of ${max} MB`,
+          style,
+        },
+        h,
+      ),
+      Progress.view({ id: 'preview-prepare', label: 'Preparing', value: Option.none(), style }, h),
     ],
   )
 // #endregion

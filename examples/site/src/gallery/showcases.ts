@@ -25,6 +25,7 @@ import {
   HoverIntentSlots,
   MenubarSlots,
   NavSlots,
+  ProgressSlots,
   NumberFieldSlots,
   OtpFieldSlots,
   ResizableSlots,
@@ -641,6 +642,19 @@ export const showcases: ReadonlyArray<Showcase> = [
         message => live.onWidget(Widgets.Message.GotMenubar({ message })),
         live.h,
       ),
+  ),
+  fromRecipe(
+    {
+      slug: 'progress',
+      title: 'Progress',
+      summary: 'How far work has gone, as a bar or a ring, sliding or turning while the end is unknown.',
+      recipe: 'Progress',
+      file: 'progress',
+      contract: 'ProgressSlots',
+    },
+    ProgressSlots,
+    Recipes.Progress,
+    (style, live) => Snippet.progress(style, live.h),
   ),
   fromRecipe(
     {

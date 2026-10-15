@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Progress`, `@foldkit/ui`'s Progress adapted,**
+  with Circular Progress as its recipe's `shape: 'ring'`. `value` is an
+  `Option`, none for work whose end is not known, which the bar shows
+  sliding and the ring turning, still under reduced motion. The root carries
+  the share done as `--fk-progress`. `Recipes.Progress`, `Patterns.Progress`
+  and a gallery page.
 - **`foldkit-mixins-ui`: `Menubar`, a row of `@foldkit/ui` Menus.** Its
   Model holds the menus and the bar's one tab stop, folded with
   `Menubar.update`, whose `Selected` OutMessage names the menu and the row.
