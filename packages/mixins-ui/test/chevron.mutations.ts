@@ -66,7 +66,7 @@ export default [
     name: "a submenu row's chevron has no right to left turn",
     edits: [
       {
-        file: '../src/recipes/nestedMenu.ts',
+        file: '../src/recipes/menu.ts',
         find: "      Style.nest(':where([dir=\"rtl\"]) &', { rotate: '135deg' }),\n",
         replace: '',
       },

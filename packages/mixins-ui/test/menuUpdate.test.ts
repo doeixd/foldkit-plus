@@ -1,39 +1,38 @@
 /**
- * NestedMenu's update: a submenu's row opens it instead of being chosen, by
+ * Menu's update: a submenu's row opens it instead of being chosen, by
  * ArrowRight, Enter or a resting pointer; while it is open the menu's
  * bubbled keys and blur are dropped and its Escape closes the submenu alone;
- * choosing a submenu's row closes everything and names the submenu; and no
- * focus ever goes to a submenu's button, which is a mark.
+ * choosing a submenu's row closes everything and names the submenu; no focus
+ * ever goes to a submenu's button, which is a mark; and at a point, the menu
+ * opens where the right press before it landed, or with no point from the
+ * keyboard.
  */
 import { Menu as UiMenu } from '@foldkit/ui'
 import { Option } from 'effect'
-import { A11y } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
-import * as NestedMenu from '../src/nestedMenu.js'
-import { NestedMenuSlots } from '../src/nestedMenu.js'
-import { Patterns } from '../src/index.js'
+import { Menu } from '../src/index.js'
 
 // Two submenus, so opening one has another to leave shut.
-const ROWS: ReadonlyArray<NestedMenu.NestedRow> = [
+const ROWS: ReadonlyArray<Menu.Row> = [
   { label: 'New tab' },
   { label: 'Share', items: ['Email', 'Messages'] },
   { label: 'Export', items: ['PDF', 'PNG'] },
   { label: 'Print' },
 ]
-const shut = NestedMenu.init('file', ROWS)
+const shut = Menu.init('file', ROWS)
 const SHARE = 1
 const EXPORT = 2
 
-type Result = ReturnType<typeof NestedMenu.update>
+type Result = ReturnType<typeof Menu.update>
 const names = (result: Result) => (result.commands ?? []).map(command => command.name)
-const menu = (model: NestedMenu.Model, message: UiMenu.Message) =>
-  NestedMenu.update(model, NestedMenu.Message.GotMenu({ message }))
-const submenu = (model: NestedMenu.Model, row: number, message: UiMenu.Message) =>
-  NestedMenu.update(model, NestedMenu.Message.GotSubmenu({ row, message }))
-const press = (model: NestedMenu.Model, key: 'ArrowRight' | 'ArrowLeft' | 'Tab') =>
-  NestedMenu.update(model, NestedMenu.Message.Pressed({ key }))
-const open = (model: NestedMenu.Model) => model.submenus.map(sub => sub.menu.isOpen)
-const sub = (model: NestedMenu.Model, row: number) => model.submenus.find(each => each.row === row)
+const menu = (model: Menu.Model, message: UiMenu.Message) =>
+  Menu.update(model, Menu.Message.GotMenu({ message }))
+const submenu = (model: Menu.Model, row: number, message: UiMenu.Message) =>
+  Menu.update(model, Menu.Message.GotSubmenu({ row, message }))
+const press = (model: Menu.Model, key: 'ArrowRight' | 'ArrowLeft' | 'Tab') =>
+  Menu.update(model, Menu.Message.Pressed({ key }))
+const open = (model: Menu.Model) => model.submenus.map(sub => sub.menu.isOpen)
+const sub = (model: Menu.Model, row: number) => model.submenus.find(each => each.row === row)
 
 /** The menu open with `row` active, as the keys leave it. */
 const onRow = (row: number) =>
@@ -41,16 +40,13 @@ const onRow = (row: number) =>
 /** The menu open with Share's submenu open on its first row. */
 const shareOpen = press(onRow(SHARE), 'ArrowRight').model
 
-describe('NestedMenu.update', () => {
-  it('meets the nested menu pattern', () => {
-    expect(A11y.validate(Patterns.NestedMenu, NestedMenuSlots)).toEqual([])
-  })
-
+describe('Menu.update', () => {
   it('keeps one shut submenu per row with items, at its row', () => {
     expect(shut.submenus.map(each => [each.row, each.label, each.menu.id])).toEqual([
       [SHARE, 'Share', 'file-sub-1'],
       [EXPORT, 'Export', 'file-sub-2'],
     ])
+    expect(Menu.init('plain', [{ label: 'Rename' }]).submenus).toEqual([])
   })
 
   it.each([
@@ -84,7 +80,7 @@ describe('NestedMenu.update', () => {
     const result = menu(onRow(3), UiMenu.Message.SelectedItem({ index: 3, item: 'Print' }))
     expect(result.model.menu.isOpen).toBe(false)
     expect(result.outMessage).toEqual(
-      NestedMenu.OutMessage.Selected({ value: 'Print', submenu: Option.none() }),
+      Menu.OutMessage.Selected({ value: 'Print', submenu: Option.none() }),
     )
   })
 
@@ -154,7 +150,7 @@ describe('NestedMenu.update', () => {
     expect(result.model.menu.isOpen).toBe(false)
     expect(open(result.model)).toEqual([false, false])
     expect(result.outMessage).toEqual(
-      NestedMenu.OutMessage.Selected({ value: 'Messages', submenu: Option.some('Share') }),
+      Menu.OutMessage.Selected({ value: 'Messages', submenu: Option.some('Share') }),
     )
     const focus = (result.commands ?? []).filter(
       command => command.name === UiMenu.FocusButton.name,
@@ -167,7 +163,7 @@ describe('NestedMenu.update', () => {
   })
 
   it('closing the menu closes its submenus, sending no focus to their buttons', () => {
-    const result = NestedMenu.update(shareOpen, NestedMenu.Message.PressedAway())
+    const result = Menu.update(shareOpen, Menu.Message.PressedAway())
     expect(result.model.menu.isOpen).toBe(false)
     expect(open(result.model)).toEqual([false, false])
     const focus = (result.commands ?? []).filter(
@@ -185,16 +181,15 @@ describe('NestedMenu.update', () => {
   })
 
   describe('the pointer', () => {
-    const over = (model: NestedMenu.Model, index: number) =>
+    const over = (model: Menu.Model, index: number) =>
       menu(model, UiMenu.Message.MovedPointerOverItem({ index, screenX: index, screenY: index }))
     /** The delay `result` started for `row`, run out. */
     const delayOf = (result: Result, row: number) => {
       const delays = (result.commands ?? []).filter(each => each.name === 'DelayHover')
       expect(delays.map(each => each.args)).toEqual([{ hover: result.model.hover, row }])
-      return NestedMenu.Message.CompletedHoverDelay({ hover: result.model.hover, row })
+      return Menu.Message.CompletedHoverDelay({ hover: result.model.hover, row })
     }
-    const settle = (result: Result, row: number) =>
-      NestedMenu.update(result.model, delayOf(result, row))
+    const settle = (result: Result, row: number) => Menu.update(result.model, delayOf(result, row))
 
     it('resting on a submenu row opens it once the delay runs out, no row active', () => {
       const hovered = over(onRow(0), SHARE)
@@ -208,7 +203,7 @@ describe('NestedMenu.update', () => {
       const first = over(onRow(0), SHARE)
       const stale = delayOf(first, SHARE)
       const later = over(first.model, 3)
-      expect(NestedMenu.update(later.model, stale).model).toBe(later.model)
+      expect(Menu.update(later.model, stale).model).toBe(later.model)
     })
 
     it('resting on another row closes the open submenu, focus on the menu', () => {
@@ -232,7 +227,7 @@ describe('NestedMenu.update', () => {
         SHARE,
         UiMenu.Message.MovedPointerOverItem({ index: 0, screenX: 5, screenY: 5 }),
       )
-      const result = NestedMenu.update(inside.model, stale)
+      const result = Menu.update(inside.model, stale)
       expect(result.model).toBe(inside.model)
       expect(open(result.model)).toEqual([true, false])
     })
@@ -242,11 +237,50 @@ describe('NestedMenu.update', () => {
       const stale = delayOf(hovered, SHARE)
       const opened = press(hovered.model, 'ArrowRight').model
       const closed = press(opened, 'ArrowLeft').model
-      expect(NestedMenu.update(closed, stale).model).toBe(closed)
+      expect(Menu.update(closed, stale).model).toBe(closed)
     })
 
     it('schedules nothing over a plain row while no submenu is open', () => {
       expect(names(over(onRow(SHARE), 3))).not.toContain('DelayHover')
+    })
+  })
+
+  describe('at a point', () => {
+    const POINT = { x: 140, y: 30 }
+    const pressed = (model: Menu.Model) =>
+      Menu.update(model, Menu.Message.PressedTarget({ point: POINT })).model
+    const requested = (model: Menu.Model) => Menu.update(model, Menu.Message.RequestedContextMenu())
+
+    it('a right press only records its point; the contextmenu after it opens there', () => {
+      const recorded = pressed(shut)
+      expect(recorded.menu.isOpen).toBe(false)
+      expect(recorded.point).toEqual(Option.none())
+      const result = requested(recorded)
+      expect(result.model.menu.isOpen).toBe(true)
+      expect(result.model.menu.maybeActiveItemIndex).toEqual(Option.some(0))
+      expect(result.model.point).toEqual(Option.some(POINT))
+      expect(result.model.press).toEqual(Option.none())
+    })
+
+    it('opened from the keyboard, with no press before it, it has no point', () => {
+      expect(requested(shut).model.point).toEqual(Option.none())
+    })
+
+    it('keeps its point while it closes, and the next keyboard open has none', () => {
+      const atPoint = requested(pressed(shut)).model
+      const closed = Menu.update(atPoint, Menu.Message.PressedAway()).model
+      expect(closed.menu.isOpen).toBe(false)
+      expect(closed.point).toEqual(Option.some(POINT))
+      expect(requested(closed).model.point).toEqual(Option.none())
+    })
+
+    it('opens its submenus as a menu under a button does', () => {
+      const atPoint = requested(pressed(shut)).model
+      const onShare = menu(
+        atPoint,
+        UiMenu.Message.ActivatedItem({ index: SHARE, activationTrigger: 'Keyboard' }),
+      ).model
+      expect(open(press(onShare, 'ArrowRight').model)).toEqual([true, false])
     })
   })
 })

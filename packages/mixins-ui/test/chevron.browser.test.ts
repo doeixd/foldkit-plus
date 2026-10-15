@@ -12,7 +12,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import {
   AccordionSlots,
   CarouselSlots,
-  NestedMenuSlots,
+  MenuSlots,
   Recipes,
   SidebarSlots,
   StepsSlots,
@@ -137,7 +137,7 @@ test.each([
   ['ltr', RIGHT],
   ['rtl', LEFT],
 ] as const)('in %s, a submenu row points the way its submenu opens', (dir, along) => {
-  const name = classOf(NestedMenuSlots, Recipes.NestedMenu({}), 'chevron')
+  const name = classOf(MenuSlots, Recipes.Menu({}), 'chevron')
   expect(pointing(draw(dir, `<span class="${name}"></span>`).firstElementChild!)).toBe(along)
 })
 
