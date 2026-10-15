@@ -24,8 +24,18 @@ describe('DateRange.picked', () => {
   it.each([
     ['nothing chosen: the day starts', range(none, none), 12, range(some(12), none)],
     ['a start: a later day ends', range(some(10), none), 14, range(some(10), some(14))],
-    ['a start: an earlier day ends, the two swapped', range(some(10), none), 3, range(some(3), some(10))],
-    ['a start: the same day ends, one day long', range(some(10), none), 10, range(some(10), some(10))],
+    [
+      'a start: an earlier day ends, the two swapped',
+      range(some(10), none),
+      3,
+      range(some(3), some(10)),
+    ],
+    [
+      'a start: the same day ends, one day long',
+      range(some(10), none),
+      10,
+      range(some(10), some(10)),
+    ],
     ['a whole range: the day starts again', range(some(3), some(10)), 20, range(some(20), none)],
     ['an end with no start: the day starts', range(none, some(10)), 5, range(some(5), none)],
   ] as const)('%s', (_, given, date, expected) => {
@@ -104,8 +114,8 @@ describe('DateRange.toView', () => {
     Scene.scene(
       app,
       Scene.given(given(DateRange.empty)),
-      Scene.click(Scene.selector('#trip-cell-2026-2-20 > button')),
-      Scene.click(Scene.selector('#trip-cell-2026-2-16 > button')),
+      Scene.click(Scene.selector('#trip-cell-2026-2-20 button')),
+      Scene.click(Scene.selector('#trip-cell-2026-2-16 button')),
       Scene.expect(cell(16)).toHaveAttr('data-range-start'),
       Scene.expect(cell(20)).toHaveAttr('data-range-end'),
       Scene.expectAll(Scene.all.selector('[data-in-range]')).toHaveCount(5),

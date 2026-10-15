@@ -7,10 +7,10 @@
  */
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { A11y, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Patterns, Recipes, TreeView, TreeViewSlots } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { message, type TestMessage } from './fixture.js'
 
 const { Message, init } = TreeView
 
@@ -111,11 +111,16 @@ describe('TreeView.update', () => {
 })
 
 const style = Style.forSlots(TreeViewSlots)(Recipes.TreeView({}))
-const drawn = (model: TreeView.Model) =>
-  TreeView.view(
-    { label: 'Files', model, nodes: FILES, onMessage: () => message('Clicked'), style },
-    h,
-  )
+// Drawn through `Inert.draw`, which alone marks the Slots that `unslotted` reads.
+const Drawn = SlotView.forMessages<TestMessage>().define(
+  TreeViewSlots,
+  (model: TreeView.Model, _, h) =>
+    TreeView.view(
+      { label: 'Files', model, nodes: FILES, onMessage: () => message('Clicked'), style },
+      h,
+    ),
+)
+const drawn = (model: TreeView.Model) => Inert.draw(Drawn, model)
 const items = (model: TreeView.Model) => Inert.byRole(drawn(model), 'treeitem')
 const read = (model: TreeView.Model, key: string) =>
   items(model).map(item => [Inert.value(item, 'id'), Inert.value(item, key)])

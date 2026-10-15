@@ -44,10 +44,13 @@ describe('ColorPicker.view', () => {
     const [label] = Inert.byTag(group, 'span')
     expect(Inert.value(group, 'aria-labelledby')).toBe(Inert.value(label, 'id'))
     for (const name of ['Lightness', 'Chroma', 'Hue']) {
-      const [range] = Inert.byLabel(picker, name)
-      expect(Inert.value(range, 'type')).toBe('range')
+      // `byLabel` also finds the channel's wrapper by its text; the control is the input it names.
+      const inputs = Inert.byLabel(picker, name).filter(node => node.sel === 'input')
+      expect(inputs.map(input => Inert.value(input, 'type'))).toEqual(['range'])
     }
-    const ranges = Inert.byTag(picker, 'input').filter(node => Inert.value(node, 'type') === 'range')
+    const ranges = Inert.byTag(picker, 'input').filter(
+      node => Inert.value(node, 'type') === 'range',
+    )
     expect(ranges.map(range => Inert.value(range, 'max'))).toEqual(['100', '0.4', '360'])
     expect(ranges.map(range => Inert.value(range, 'value'))).toEqual(['62.5', '0.15', '190'])
     expect(ranges.map(range => Inert.value(range, 'aria-valuetext'))).toEqual([
@@ -70,7 +73,9 @@ describe('ColorPicker.view', () => {
   })
 
   it('listens on every range', () => {
-    const ranges = Inert.byTag(drawn(), 'input').filter(node => Inert.value(node, 'type') === 'range')
+    const ranges = Inert.byTag(drawn(), 'input').filter(
+      node => Inert.value(node, 'type') === 'range',
+    )
     expect(ranges.map(range => typeof range.data?.on?.['input'])).toEqual(Array(3).fill('function'))
   })
 
@@ -94,7 +99,8 @@ describe('ColorPicker.view', () => {
     expect(inputs.map(input => Inert.value(input, 'disabled'))).toEqual(Array(5).fill(true))
     expect(
       inputs.some(
-        input => input.data?.on?.['input'] !== undefined || input.data?.on?.['change'] !== undefined,
+        input =>
+          input.data?.on?.['input'] !== undefined || input.data?.on?.['change'] !== undefined,
       ),
     ).toBe(false)
   })
