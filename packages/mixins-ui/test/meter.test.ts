@@ -37,6 +37,11 @@ describe('Meter.levelOf', () => {
     expect(Meter.levelOf(5, { low: 20, high: 80 })).toBe('fair')
     expect(Meter.levelOf(95, { low: 20, high: 80 })).toBe('fair')
   })
+
+  it('judges a value past the end as the end, which is no region past high', () => {
+    expect(Meter.levelOf(140, {})).toBe('good')
+    expect(Meter.levelOf(-5, { min: 0, low: 0 })).toBe('good')
+  })
 })
 
 describe('Meter.view', () => {
@@ -47,5 +52,33 @@ describe('Meter.view', () => {
     expect(Inert.value(meter, 'aria-labelledby')).toBe(Inert.value(label, 'id'))
     expect(Inert.value(meter, 'aria-valuenow')).toBe('100')
     expect(Inert.value(meter, 'data-level')).toBe('good')
+  })
+
+  it('judges the level by its own thresholds', () => {
+    const [meter] = Inert.byRole(
+      Meter.view({ id: 'charge', label: 'Battery', value: 10, ...battery }, h),
+      'meter',
+    )
+    expect(Inert.value(meter, 'data-level')).toBe('poor')
+  })
+
+  it('passes its range and its spoken value on', () => {
+    const [meter] = Inert.byRole(
+      Meter.view(
+        {
+          id: 'disk',
+          label: 'Disk',
+          value: 140,
+          min: 40,
+          max: 200,
+          valueText: (value, max) => `${value} of ${max} GB`,
+        },
+        h,
+      ),
+      'meter',
+    )
+    expect(Inert.value(meter, 'aria-valuemin')).toBe('40')
+    expect(Inert.value(meter, 'aria-valuenow')).toBe('140')
+    expect(Inert.value(meter, 'aria-valuetext')).toBe('140 of 200 GB')
   })
 })
