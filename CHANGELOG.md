@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `Accordion`,** from the `examples/widgets` island into
+  the package, after the APG pattern, shadcn's and Zag's options and Fluid
+  Functionalism's craft. `Accordion.view` draws the application's open ids,
+  each trigger a button in a heading naming its region; `Accordion.toggled`
+  is the transition, single or `multiple`, `collapsible` by default. A panel
+  opens on a `0fr`-`1fr` grid row (no measured height), clipped on its
+  container, a shut one stays drawn and `inert`, the chevron turns 90°, and
+  the open title turns semibold in its own width. `Recipes.Accordion`,
+  `Patterns.Accordion` and a gallery page.
 - **`foldkit-mixins-ui`: a table under fluid hover.** `Table.view({ …, fluid:
   true })` stands the table in a `frame` with one `highlight` behind the body
   rows, following the pointer to the nearest one, after Fluid

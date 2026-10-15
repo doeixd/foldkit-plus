@@ -43,8 +43,9 @@ below in these ways, and the code is the word on each:
 
 - **Motion (1).** As planned. Popups and dialogs enter and leave through
   upstream's `data-closed` and `data-leave` (`presence(tier, closed)`), a
-  popup from the side its anchor writes in `data-placement`; the grid
-  collapse waits for Accordion (parity 4).
+  popup from the side its anchor writes in `data-placement`; Accordion's
+  panel is the grid collapse, its row a `body` slot with no padding, since
+  a grid item is never smaller than its padding.
 - **Sizes (2).** The tokens hold the two ends (`control.height` and
   `height-compact`, …), and `Theme.ladder(name)` blends them on the element
   that reads it: a token would resolve the step at `:root`. A popup's `size`

@@ -11,6 +11,7 @@
  * entries validates against the same one.
  */
 import { A11y, Attr, Capability, Event } from 'foldkit-mixins'
+import { AccordionSlots } from './accordion.js'
 import { ButtonSlots } from './button.js'
 import { CalendarSlots } from './calendar.js'
 import { CheckboxSlots } from './checkbox.js'
@@ -106,6 +107,15 @@ export const Disclosure = A11y.pattern({
     attributes: [Attr.AriaExpanded],
   },
   panel: { capability: Capability.Container },
+})
+
+export const Accordion = A11y.pattern({
+  trigger: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded],
+  },
+  panel: { capability: Capability.Container, attributes: [Attr.Role] },
 })
 
 export const Dialog = A11y.pattern({
@@ -294,6 +304,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('switch', Switch, SwitchSlots, 'stateless', ['switch'], ['form-submission']),
   entry('fieldset', Fieldset, FieldsetSlots, 'stateless', ['group'], ['native-control']),
   entry('disclosure', Disclosure, DisclosureSlots, 'stateless', ['button']),
+  entry('accordion', Accordion, AccordionSlots, 'stateless', ['button', 'region']),
   entry(
     'dialog',
     Dialog,

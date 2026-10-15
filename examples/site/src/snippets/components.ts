@@ -25,6 +25,8 @@ import * as UiTooltip from '@foldkit/ui/tooltip'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import {
+  Accordion,
+  AccordionSlots,
   Alert,
   AlertSlots,
   Avatar,
@@ -1057,6 +1059,43 @@ export const toast = <Message>(
         toParentMessage: messages.toMessage,
       }),
     ],
+  )
+// #endregion
+
+// #region accordion
+export const AccordionStyle = forSlots(AccordionSlots)(Recipes.Accordion({}))
+
+export const accordion = <Message>(
+  style: NamedStyle<typeof AccordionSlots>,
+  open: ReadonlyArray<string>,
+  onToggle: (id: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Accordion.view(
+    {
+      id: 'faq',
+      items: [
+        {
+          id: 'billing',
+          title: 'Billing',
+          content: 'Seats, invoices and receipts, billed monthly.',
+        },
+        {
+          id: 'team',
+          title: 'Team',
+          content: 'Invite people, remove them, and assign their roles.',
+        },
+        {
+          id: 'keys',
+          title: 'API keys',
+          content: 'Mint a key per service, scope it, and revoke it.',
+        },
+      ],
+      open,
+      onToggle,
+      style,
+    },
+    h,
   )
 // #endregion
 

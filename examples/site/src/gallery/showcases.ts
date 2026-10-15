@@ -9,6 +9,7 @@ import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type NamedStyle, type StylePieces } from 'foldkit-mixins'
 import {
+  AccordionSlots,
   AlertSlots,
   AvatarSlots,
   BadgeSlots,
@@ -421,6 +422,25 @@ export const showcases: ReadonlyArray<Showcase> = [
       contract: 'EmptySlots',
     },
     () => Snippet.empty(Snippet.EmptyStyle, inert),
+  ),
+  fromRecipe(
+    {
+      slug: 'accordion',
+      title: 'Accordion',
+      summary: 'Sections that open under their headings, one at a time or several.',
+      recipe: 'Accordion',
+      file: 'accordion',
+      contract: 'AccordionSlots',
+    },
+    AccordionSlots,
+    Recipes.Accordion,
+    (style, live) =>
+      Snippet.accordion(
+        style,
+        live.widgets.faq,
+        id => live.onWidget(Widgets.Message.ToggledFaq({ id })),
+        live.h,
+      ),
   ),
   fromRecipe(
     {

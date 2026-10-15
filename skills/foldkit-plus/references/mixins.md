@@ -312,7 +312,7 @@ takes no builder: its bundles speak the date picker's own Message, so it hands `
 builder. Result types: `ResolvedButton<M>`,
 `ResolvedRadioGroup<V, M>`, and so on.
 
-`Recipes.Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | CodeBlock | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
+`Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | CodeBlock | Empty | Icon | Item | Kbd | Label | Pagination | ScrollArea | Separator | Skeleton | Spinner | Table | Typography` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the
@@ -341,6 +341,7 @@ that derived.
 
 | View | Call | Recipe |
 | --- | --- | --- |
+| `Accordion` | `{ id, items: { id, title, content, disabled? }[], open, onToggle, headingLevel? }`; `Accordion.toggled(open, id, { multiple?, collapsible? })` is the transition `update` applies, the open ids being the application's. Each trigger is a button in a heading naming its panel; a shut panel stays drawn and `inert`. The panel opens on a `0fr`-`1fr` grid row, the chevron turns, and the open title turns semibold in its own width. | `variant`: `divided` (default), `plain`. Slots `root`, `item`, `heading`, `trigger`, `label`, `chevron`, `panel`, `body`, `content`. |
 | `Alert` | `{ title, description?, icon?, assertive? }`. `assertive` is `role="alert"`; otherwise `role="status"`. | `tone`: `info` (default), `success`, `warning`, `error`. Slots `root`, `icon`, `title`, `description`. |
 | `AspectRatio` | `{ content? }`. Slot `frame`. | `ratio`: `square` (default), `video` (16/9), `portrait` (3/4). The corner reads `radius`. |
 | `Avatar` | `{ name, src }`. Initials show until the image covers them. | `size`: `sm`, `md` (default), `lg`. Slots `root`, `fallback`, `image`. |

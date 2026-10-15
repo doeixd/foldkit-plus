@@ -19,6 +19,7 @@ import {
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
+import { Accordion } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 
@@ -58,6 +59,8 @@ export const Model = Schema.Struct({
   due: Schema.Option(Calendar.CalendarDate),
   notices: Notices.Model,
   range: Range,
+  /** The accordion's open sections. */
+  faq: Schema.Array(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -78,6 +81,7 @@ export const Message = defineMessageUnion({
   GotNotices: { message: Notices.Message },
   SavedDraft: {},
   ChoseRange: { range: Range },
+  ToggledFaq: { id: Schema.String },
 })
 export type Message = typeof Message.Type
 
@@ -111,6 +115,7 @@ export const initial: Model = {
   due: Option.none(),
   notices: Notices.init({ id: 'preview-notices' }),
   range: 'week',
+  faq: ['billing'],
 }
 
 type Step = Update.Step<Model, Message>
@@ -292,6 +297,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotNotices: ({ message }) => foldNotices(model, message),
     ChoseRange: ({ range }) =>
       range === model.range ? { model } : { model: modifyFields(model, { range: () => range }) },
+    ToggledFaq: ({ id }) => ({
+      model: modifyFields(model, { faq: () => Accordion.toggled(model.faq, id) }),
+    }),
     SavedDraft: () =>
       notify(model, {
         variant: 'Success',

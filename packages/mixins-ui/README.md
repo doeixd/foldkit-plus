@@ -431,6 +431,7 @@ A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
 
 | View | Call | Recipe |
 | --- | --- | --- |
+| `Accordion` | `{ id, items: { id, title, content, disabled? }[], open, onToggle, headingLevel? }`; `Accordion.toggled(open, id, { multiple?, collapsible? })` is the transition `update` applies, the open ids being the application's. Each trigger is a button in a heading naming its panel; a shut panel stays drawn and `inert`. The panel opens on a `0fr`-`1fr` grid row, the chevron turns, and the open title turns semibold in its own width. | `variant`: `divided` (default), `plain`. Slots `root`, `item`, `heading`, `trigger`, `label`, `chevron`, `panel`, `body`, `content`. |
 | `Alert` | `{ title, description?, icon?, assertive? }`. `assertive` is `role="alert"`; otherwise `role="status"`. | `tone`: `info` (default), `success`, `warning`, `error`. Slots `root`, `icon`, `title`, `description`. |
 | `AspectRatio` | `{ content? }`. Slot `frame`. | `ratio`: `square` (default), `video` (16/9), `portrait` (3/4). The corner reads `radius`. |
 | `Avatar` | `{ name, src }`. Initials show until the image covers them. | `size`: `sm`, `md` (default), `lg`. Slots `root`, `fallback`, `image`. |
