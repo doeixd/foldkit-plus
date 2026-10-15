@@ -1165,6 +1165,11 @@ of its own named a form field "fits the Catalog". Read words with
   seen; the transition still had a frame to run, `Measure` measures every
   frame of one, and CI saw the margin early. Wait for `getAnimations()` to be
   empty before asserting what a later step alone causes.
+- **DevTools input takes the top page's coordinates.** A test pressing the
+  mouse through `cdp()` (`Input.dispatchMouseEvent`) passed alone and missed
+  in a wide run: each test file runs in a frame, side by side when several
+  run, and an element's own `getBoundingClientRect` is the frame's. Add
+  `window.frameElement`'s offset.
 - **The browser tests share one real pointer.** A test that read a row's
   resting fill as transparent failed in CI only: an earlier test file had left
   the mouse where the row was drawn, so it was hovered. Before asserting

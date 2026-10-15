@@ -51,13 +51,18 @@ const mount = () => {
   )
 }
 
-/** Holds the main mouse button down over `element`, or lets it go. */
+/**
+ * Holds the main mouse button down over `element`, or lets it go. The
+ * protocol takes the top page's coordinates, and the test runs in a frame
+ * that stands elsewhere on it when several files run side by side.
+ */
 const mouse = (element: Element, type: 'mousePressed' | 'mouseReleased') => {
   const box = element.getBoundingClientRect()
+  const frame = window.frameElement?.getBoundingClientRect() ?? { left: 0, top: 0 }
   return cdp().send('Input.dispatchMouseEvent', {
     type,
-    x: box.left + box.width / 2,
-    y: box.top + box.height / 2,
+    x: frame.left + box.left + box.width / 2,
+    y: frame.top + box.top + box.height / 2,
     button: 'left',
     clickCount: 1,
   })
