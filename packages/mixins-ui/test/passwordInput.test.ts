@@ -3,7 +3,9 @@
  * flag, the toggle one name with its state pressed or not and pointing at the
  * input, autocomplete kept, and a disabled field sending nothing.
  */
+import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
@@ -11,7 +13,8 @@ import { Inert } from 'foldkit-mixins/testing'
 import { PasswordInput, PasswordInputSlots, Patterns, Recipes } from '../src/index.js'
 import { h, message, sends } from './fixture.js'
 
-type Edited = { readonly _tag: 'Typed'; readonly text: string } | { readonly _tag: 'Toggled' }
+const Edited = defineMessageUnion({ Typed: { text: Schema.String }, Toggled: {} })
+type Edited = typeof Edited.Type
 
 const style = Style.forSlots(PasswordInputSlots)(Recipes.PasswordInput({}))
 interface Extra {
@@ -101,16 +104,16 @@ describe('PasswordInput.view', () => {
             id: 'sign-in',
             label: 'Password',
             value: '',
-            onInput: text => ({ _tag: 'Typed', text }),
+            onInput: text => Edited.Typed({ text }),
             visible: false,
-            onToggle: { _tag: 'Toggled' },
+            onToggle: Edited.Toggled(),
           },
           h,
         ),
       Scene.type(Scene.label('Password'), 'hunter2'),
-      Scene.expectOutMessage<Edited>({ _tag: 'Typed', text: 'hunter2' }),
+      Scene.expectOutMessage(Edited.Typed({ text: 'hunter2' })),
       Scene.click(Scene.role('button', { name: 'Show password' })),
-      Scene.expectOutMessage<Edited>({ _tag: 'Toggled' }),
+      Scene.expectOutMessage(Edited.Toggled()),
     )
   })
 

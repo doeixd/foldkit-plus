@@ -4,8 +4,9 @@
  * the choice sent from each; read-only, one image that says the rating.
  * What the arrows do between radios is the browser's.
  */
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
@@ -13,7 +14,8 @@ import { Inert } from 'foldkit-mixins/testing'
 import { Patterns, Rating, RatingSlots, Recipes } from '../src/index.js'
 import { h, message, sends } from './fixture.js'
 
-type Rated = { readonly _tag: 'Rated'; readonly value: number }
+const Rated = defineMessageUnion({ Rated: { value: Schema.Number } })
+type Rated = typeof Rated.Type
 
 const style = Style.forSlots(RatingSlots)(Recipes.Rating({}))
 const drawn = (
@@ -97,13 +99,13 @@ describe('Rating.view', () => {
             id: 'stay',
             label: 'Your stay',
             value: Option.some(2),
-            onChange: value => ({ _tag: 'Rated', value }),
+            onChange: value => Rated.Rated({ value }),
             style,
           },
           h,
         ),
       Scene.change(Scene.label('4 stars'), '4'),
-      Scene.expectOutMessage<Rated>({ _tag: 'Rated', value: 4 }),
+      Scene.expectOutMessage(Rated.Rated({ value: 4 })),
     )
   })
 
