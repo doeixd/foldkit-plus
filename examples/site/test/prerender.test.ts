@@ -44,6 +44,7 @@ const READ = [
   '/primitives',
   '/components',
   '/components/button',
+  '/components/radio-group',
   '/create',
 ]
 
@@ -250,6 +251,15 @@ describe('the generated site', () => {
     const code = button.querySelector('main figure pre code')
     expect(code?.textContent).toContain("Button.view({ label: 'Save changes', style }, h)")
     expect(code?.querySelector('[data-kind="syntax-keyword"]')?.textContent).toBe('export')
+  })
+
+  test("a press on a radio option's words presses its radio", () => {
+    const radios = Array.from(
+      page('/components/radio-group').querySelectorAll('main [data-size="page"] [role="radio"]'),
+    )
+    expect(radios).toHaveLength(3)
+    // A label's `control` is the element a press on it is sent to.
+    expect(radios.map(radio => radio.closest('label')?.control)).toEqual(radios)
   })
 
   test('the theme creator draws its knobs, a preview in them, and the code they make', () => {

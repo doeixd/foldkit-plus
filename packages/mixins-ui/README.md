@@ -398,7 +398,7 @@ adapter.
 | HoverIntent | `trigger`, `panel` (open and close delays with intent, for a hover card or a menu) |
 | Slider | `root`, `track`, `filledTrack`, `thumb`, `label`, `hiddenInput` |
 | Tabs | `tablist`, `tab`, `panel`, and this package's `indicator` and `highlight` (drawn first in the tablist, for `Tabs.fluid`) |
-| RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput` |
+| RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput`. Upstream's `option` is a `button` and its `label` bundle only an id, so a bare `label` takes no press: draw each row as a `label` element around its `option`, and the browser sends a press on the words to the radio. The recipe stacks the group unless `aria-orientation` is `horizontal` |
 | Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id |
 | Calendar | `root`, `header` (the heading's row, this package's own), `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
 | Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight` (over the `MenuView` fork; see below) |

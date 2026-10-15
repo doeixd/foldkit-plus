@@ -187,4 +187,15 @@ export default [
     ],
     tests: unit,
   },
+  {
+    name: "a radio option's words are not its label",
+    edits: [
+      {
+        file: '../src/snippets/components.ts',
+        find: '          options.map(option =>\n            h.label(',
+        replace: '          options.map(option =>\n            h.div(',
+      },
+    ],
+    tests: pages,
+  },
 ]

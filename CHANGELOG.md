@@ -601,6 +601,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: the RadioGroup recipe stacks a vertical group.** The
+  group was a row whatever its `aria-orientation`, and upstream's groups are
+  vertical by default; it is now a column unless `aria-orientation` is
+  `horizontal`. The README and the skill now say to draw each option as a
+  `label` around its radio, since upstream's label bundle carries only an id
+  and a bare label took no press (the gallery's did not).
 - **`foldkit-mixins-ui`: a Skeleton bar shows in a container that sizes to
   its content.** Its `inline-size: 100%` resolved to nothing there (a
   centered column, a flex item), so the bar computed 0px wide and the

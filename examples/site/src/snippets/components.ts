@@ -671,15 +671,17 @@ export const radioGroup = <Message>(
       toView: RadioGroup.toView<Billing, Message>([style.mixin], { h }, ({ group, options }) =>
         h.div(
           group,
+          // A row is a `label` around its radio, so a press on the words
+          // presses the radio.
           options.map(option =>
-            h.div(
+            h.label(
               [h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'baseline' })],
               [
                 h.button(option.option, []),
-                h.div(
+                h.span(
                   [h.Style({ display: 'grid' })],
                   [
-                    h.label(option.label, [billings[option.value].label]),
+                    h.span(option.label, [billings[option.value].label]),
                     h.span(option.description, [billings[option.value].text]),
                   ],
                 ),

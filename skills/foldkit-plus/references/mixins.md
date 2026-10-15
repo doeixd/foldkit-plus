@@ -301,7 +301,9 @@ seamless ones (Menu, Listbox, ComboBox, Toast, DatePicker) are adapted over
 small view forks transcribed from the pinned `@foldkit/ui` source, with
 state staying upstream.
 The same call goes in a Submodel's `viewInputs` (`toView: RadioGroup.toView(mixins, { h },
-({ group, options }) => …)`), with `Value` and `Message` inferred. `input` is optional: only what an
+({ group, options }) => …)`), with `Value` and `Message` inferred. Draw each radio option as a
+`label` element around its `option` button: upstream's `label` bundle is only an id, so a bare label
+takes no press. `input` is optional: only what an
 input-driven Mixin reads. `X.resolve(attributes, mixins, { h, input })` stays for bundles already in
 hand, such as a Calendar whose Mixins read `attributes._tag`. `Menu`, `Listbox`, `Combobox` and `Calendar`'s `toView` take `draw` optionally; without it they draw upstream's
 markup from the styled bundles (`Menu.toView([MenuStyle.mixin], { h })`). Tabs glide with `Tabs.toView([style.mixin, ...Tabs.fluid], { h }, ({ tablist, indicator, highlight, tabs }) => …)`,

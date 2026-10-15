@@ -37,7 +37,11 @@ const edge = `var(--_fk-toggle-size, ${ladder('icon')})`
 
 export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
   base: {
-    group: component(Style.self({ display: 'flex', gap: ref.space['2xs'] })),
+    // A column unless the group says it is a row; upstream's groups are vertical by default.
+    group: component(
+      Style.self({ display: 'flex', flexDirection: 'column', gap: ref.space['2xs'] }),
+      Style.states({ horizontal: { flexDirection: 'row' } }, 'aria-orientation'),
+    ),
     option: component(
       Style.self({
         position: 'relative',
