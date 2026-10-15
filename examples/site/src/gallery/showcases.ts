@@ -850,6 +850,25 @@ export const showcases: ReadonlyArray<Showcase> = [
   ),
   fromRecipe(
     {
+      slug: 'date-range',
+      title: 'Date range',
+      summary: 'A start and an end day, and the band between them, picked on one calendar.',
+      recipe: 'DateRange',
+      file: 'dateRange',
+      contract: 'CalendarSlots',
+    },
+    CalendarSlots,
+    Recipes.DateRange,
+    (style, live) =>
+      Snippet.dateRange(
+        style,
+        live.widgets,
+        message => live.onWidget(Widgets.Message.GotTripCalendar({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
       slug: 'navigation-menu',
       title: 'Navigation menu',
       summary: 'The links of a site in a row, the current page marked by a line that glides to it.',

@@ -61,6 +61,7 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  DateRange,
   InputCopy,
   InputCopySlots,
   Banner,
@@ -1837,6 +1838,34 @@ export const sheet = <Message>(
 // #region drawer
 /** The Drawer is the Sheet's drawing under `Recipes.Drawer`: only the style differs. */
 export const drawer = sheet
+// #endregion
+
+// #region date-range
+export const DateRangeStyle = forSlots(CalendarSlots)(Recipes.DateRange({}))
+
+/** The month shown and the focused day are the component's; the range is the Model's. */
+export interface DateRangeState {
+  readonly trip: UiCalendar.Model
+  readonly tripDates: DateRange.Range
+}
+
+export const dateRange = <Message>(
+  style: NamedStyle<typeof CalendarSlots>,
+  state: DateRangeState,
+  toMessage: (message: UiCalendar.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.trip.id,
+    model: state.trip,
+    view: UiCalendar.view,
+    viewInputs: {
+      // The marks show the chosen days; the Calendar's own marker would show one.
+      maybeSelectedDate: Option.none(),
+      toView: DateRange.toView(state.tripDates, [style.mixin], { h }),
+    },
+    toParentMessage: toMessage,
+  })
 // #endregion
 
 // #region navigation-menu

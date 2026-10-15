@@ -30,6 +30,7 @@ import {
   InputCopy,
   Sidebar,
   TagsInput,
+  DateRange,
 } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
@@ -103,6 +104,9 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
+  /** The trip calendar, and the range picked on it. */
+  trip: UiCalendar.Model,
+  tripDates: DateRange.Range,
   /** Whether the API key was copied. */
   inputCopied: Schema.Boolean,
   /** The tags input's tags and draft. */
@@ -151,6 +155,7 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  GotTripCalendar: { message: UiCalendar.Message },
   GotSheet: { message: UiDialog.Message },
   OpenedSheet: {},
   ClosedSheet: {},
@@ -216,6 +221,8 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
+  trip: UiCalendar.init({ id: 'preview-trip', today }),
+  tripDates: DateRange.empty,
   inputCopied: false,
   tags: TagsInput.init({ id: 'preview-tags', tags: ['effect', 'foldkit'] }),
   password: '',
@@ -395,6 +402,19 @@ const foldDrawer = Update.foldChild({ ...drawerField, update: UiDialog.update, f
 const openDrawer = Update.foldChildStep({ ...drawerField, update: UiDialog.open, foldOutMessage: dialogOut })
 const closeDrawer = Update.foldChildStep({ ...drawerField, update: UiDialog.close, foldOutMessage: dialogOut })
 
+const foldTripCalendar = Update.foldChild({
+  ...own('trip', Message.GotTripCalendar),
+  update: UiCalendar.update,
+  foldOutMessage: UiCalendar.OutMessage.match<Step>({
+    SelectedDate:
+      ({ date }) =>
+      model => ({
+        model: modifyFields(model, { tripDates: () => DateRange.picked(model.tripDates, date) }),
+      }),
+    ChangedViewMonth: () => same,
+  }),
+})
+
 const foldListbox = Update.foldChild({
   ...own('listbox', Message.GotListbox),
   update: FrequencyBox.update,
@@ -507,6 +527,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
+    GotTripCalendar: ({ message }) => foldTripCalendar(model, message),
     PressedCopy: ({ text }) => ({
       model,
       commands: Command.mapMessages([InputCopy.Copy({ text })], message =>

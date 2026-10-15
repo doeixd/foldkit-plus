@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `DateRange`, a start and an end day on the
+  Calendar.** The application owns the range and folds each pick through
+  `DateRange.picked` (start, then end, swapped if earlier, then a new start);
+  `DateRange.toView` marks the day cells and every chosen day `aria-selected`;
+  `Recipes.DateRange` (`Recipes.Calendar.extend`) fills the ends and draws
+  the band between them. A gallery page.
 - **`foldkit-mixins-ui`: `Recipes.Sheet` and `Recipes.Drawer`, the Dialog
   from an edge.** shadcn's Sheet and vaul's Drawer as recipes over
   `DialogSlots`: a `side` axis (`top`, `right`, `bottom`, `left`) pins the
