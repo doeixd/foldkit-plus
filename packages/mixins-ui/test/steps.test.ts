@@ -43,13 +43,31 @@ describe('Steps.view', () => {
     expect(Inert.text(items[0])).toBe('1AccountYour details')
   })
 
+  it('hides the number, which the list position already says', () => {
+    const drawn = Steps.view({ label: 'Checkout', steps, current: 2, style }, h)
+    const markers = Inert.byTag(drawn, 'span').filter(span => Inert.text(span) === '1')
+    expect(markers.map(marker => Inert.value(marker, 'aria-hidden'))).toEqual(['true'])
+  })
+
   it('makes completed steps buttons that go back, only when asked', () => {
+    const asked: Array<number> = []
     const offered = Steps.view(
-      { label: 'Checkout', steps, current: 2, onSelect: () => message('Clicked'), style },
+      {
+        label: 'Checkout',
+        steps,
+        current: 2,
+        onSelect: index => {
+          asked.push(index)
+          return message('Clicked')
+        },
+        style,
+      },
       h,
     )
     const buttons = Inert.byTag(offered, 'button')
     expect(buttons.map(Inert.text)).toEqual(['1AccountYour details', '2Plan'])
+    expect(asked).toEqual([0, 1])
+    expect(buttons.map(button => Inert.value(button, 'type'))).toEqual(['button', 'button'])
     expect(buttons[1]?.data?.on?.['click']).toBeTypeOf('function')
     const plain = Steps.view({ label: 'Checkout', steps, current: 2, style }, h)
     expect(Inert.byTag(plain, 'button')).toEqual([])
