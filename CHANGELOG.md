@@ -132,11 +132,8 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
-- **`foldkit-richtext-dom`: a floating element follows its own size.** A
-  toolbar measured before its styles settled was placed below the selection
-  for good, covering the next line; `selectionAnchor` and `blockAnchor` now
-  place it again when its size changes, as a slash menu's does while a query
-  narrows it.
+- **`foldkit-mixins-richtext`: the find bar's Previous, Next, Match case and
+  Close are icons**, named by `aria-label` and `title`.
 - **`foldkit-richtext-dom`: a floating element follows its own size.** A
   toolbar measured before its styles settled was placed below the selection
   for good, covering the next line; `selectionAnchor` and `blockAnchor` now
