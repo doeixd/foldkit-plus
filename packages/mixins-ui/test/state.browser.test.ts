@@ -55,6 +55,11 @@ const mount = (page: string, root = '') => {
           ]),
         ]),
         h.button(b.button.attrs([h.DataAttribute('part', 'neutral')]), ['Cancel']),
+        // Where the pointer is put, away from the controls: one left over a trigger hovers it.
+        h.div(
+          [h.DataAttribute('part', 'away'), h.Style({ height: '40px', marginBlockStart: '200px' })],
+          [],
+        ),
       ],
     )
   }
@@ -108,6 +113,7 @@ test("a trigger's hover reads on a page painted the muted surface", async () => 
   try {
     await drawn()
     const trigger = part('trigger')
+    await userEvent.hover(part('away'))
     const resting = getComputedStyle(trigger).backgroundColor
     await userEvent.hover(trigger)
     await vi.waitFor(() => expect(getComputedStyle(trigger).backgroundColor).not.toBe(resting))
@@ -115,7 +121,7 @@ test("a trigger's hover reads on a page painted the muted surface", async () => 
     const page = getComputedStyle(document.body).backgroundColor
     expect(getComputedStyle(trigger).backgroundColor).not.toBe(page)
   } finally {
-    await userEvent.hover(document.body, { position: { x: 1, y: 1 } })
+    await userEvent.hover(part('away'))
     handle.dispose()
   }
 })

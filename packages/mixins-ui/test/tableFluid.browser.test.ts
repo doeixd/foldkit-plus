@@ -23,7 +23,7 @@ const runs = [
 ]
 
 afterEach(async () => {
-  await userEvent.hover(document.body, { position: { x: 1, y: 1 } })
+  await userEvent.hover(document.getElementById('away') ?? document.body)
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
 })
@@ -48,17 +48,24 @@ const mount = () => {
       init: () => ({ model: {} }),
       update: (model: typeof Model.Type) => ({ model }),
       view: (_: unknown, h: HtmlBuilder<never>) =>
-        Table.view(
-          {
-            columns: [
-              { header: 'Run', value: (run: (typeof runs)[number]) => run.name },
-              { header: 'Minutes', numeric: true, value: run => run.minutes },
-            ],
-            rows: runs,
-            style,
-            fluid: true,
-          },
-          h,
+        h.div(
+          [],
+          [
+            // Where the pointer is put, away from the rows: one left over the table lights a row.
+            h.div([h.Id('away'), h.Style({ height: '40px', marginBlockEnd: '200px' })], []),
+            Table.view(
+              {
+                columns: [
+                  { header: 'Run', value: (run: (typeof runs)[number]) => run.name },
+                  { header: 'Minutes', numeric: true, value: run => run.minutes },
+                ],
+                rows: runs,
+                style,
+                fluid: true,
+              },
+              h,
+            ),
+          ],
         ),
     }),
   )
@@ -102,6 +109,7 @@ test('the first row lit takes the header line away too', async () => {
   try {
     await vi.waitFor(() => expect(rows()).toHaveLength(3))
     const header = document.querySelector('thead > tr')!
+    await userEvent.hover(document.getElementById('away')!)
     const resting = line(header)
     expect(resting).not.toBe(transparent)
     await userEvent.hover(rows()[0]!.cells[0]!)

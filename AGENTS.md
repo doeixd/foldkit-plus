@@ -1185,6 +1185,10 @@ of its own named a form field "fits the Catalog". Read words with
   the mouse where the row was drawn, so it was hovered. Before asserting
   anything `:hover` changes, move the pointer somewhere known
   (`userEvent.hover(document.body, { position: … })`).
+  A corner of the page is no such place: three CI runs failed a state test
+  that parked the pointer at the body's (1, 1), where its menu trigger was
+  drawn, so the next test read the trigger hovered. Draw an empty spot away
+  from the controls and hover that.
 - **A negative assertion needs a settle, not a sleep.** Registry tests
   asserted "no edit" after a 30-50ms sleep, and one absorbed-edit test failed
   only under full-suite load, when the sleep ran out before the reinstall
