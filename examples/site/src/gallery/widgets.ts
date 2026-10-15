@@ -19,7 +19,7 @@ import {
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
-import { Accordion } from 'foldkit-mixins-ui'
+import { Accordion, Dialog } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 
@@ -45,6 +45,7 @@ export const Model = Schema.Struct({
   slider: UiSlider.Model,
   volume: Schema.Number,
   dialog: UiDialog.Model,
+  alertDialog: UiDialog.Model,
   popover: UiPopover.Model,
   tooltip: UiTooltip.Model,
   menu: UiMenu.Model,
@@ -71,6 +72,9 @@ export const Message = defineMessageUnion({
   GotDialog: { message: UiDialog.Message },
   OpenedDialog: {},
   ClosedDialog: {},
+  GotAlertDialog: { message: UiDialog.Message },
+  OpenedAlertDialog: {},
+  ClosedAlertDialog: {},
   GotPopover: { message: UiPopover.Message },
   GotTooltip: { message: UiTooltip.Message },
   GotMenu: { message: UiMenu.Message },
@@ -96,6 +100,7 @@ export const initial: Model = {
   slider: UiSlider.init({ id: 'preview-volume', min: 0, max: 100, step: 5 }),
   volume: 60,
   dialog: UiDialog.init({ id: 'preview-dialog', isAnimated: true }),
+  alertDialog: UiDialog.init({ id: 'preview-alert-dialog', isAnimated: true }),
   popover: UiPopover.init({ id: 'preview-popover' }),
   tooltip: UiTooltip.init({ id: 'preview-tooltip' }),
   menu: UiMenu.init({ id: 'preview-menu', isAnimated: true }),
@@ -197,6 +202,23 @@ const closeDialog = Update.foldChildStep({
   foldOutMessage: dialogOut,
 })
 
+const alertField = own('alertDialog', Message.GotAlertDialog)
+const foldAlertDialog = Update.foldChild({
+  ...alertField,
+  update: UiDialog.update,
+  foldOutMessage: dialogOut,
+})
+const openAlertDialog = Update.foldChildStep({
+  ...alertField,
+  update: UiDialog.open,
+  foldOutMessage: dialogOut,
+})
+const closeAlertDialog = Update.foldChildStep({
+  ...alertField,
+  update: UiDialog.close,
+  foldOutMessage: dialogOut,
+})
+
 const foldPopover = Update.foldChild({
   ...own('popover', Message.GotPopover),
   update: UiPopover.update,
@@ -287,6 +309,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotDialog: ({ message }) => foldDialog(model, message),
     OpenedDialog: () => openDialog(model),
     ClosedDialog: () => closeDialog(model),
+    // An alert dialog answers only to its buttons: Escape and the backdrop do nothing.
+    GotAlertDialog: ({ message }) =>
+      Dialog.isDismissal(message) ? { model } : foldAlertDialog(model, message),
+    OpenedAlertDialog: () => openAlertDialog(model),
+    ClosedAlertDialog: () => closeAlertDialog(model),
     GotPopover: ({ message }) => foldPopover(model, message),
     GotTooltip: ({ message }) => foldTooltip(model, message),
     GotMenu: ({ message }) => foldMenu(model, message),

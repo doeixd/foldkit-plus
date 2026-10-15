@@ -1,4 +1,4 @@
-import type { RenderInfo } from '@foldkit/ui/dialog'
+import type { Message as DialogMessage, RenderInfo } from '@foldkit/ui/dialog'
 import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
@@ -40,6 +40,16 @@ export const resolve = <Input, Message>(
   mixins: MixinList<Message>,
   context: ResolveContext<Input, Message>,
 ): ResolvedDialog<Message> => resolveFor(DialogSlots, mixins, context)(render)
+
+/**
+ * Whether `message` is the dialog dismissing itself: Escape, a press on the
+ * backdrop, or its close button, which upstream all send as `RequestedClose`.
+ * An alert dialog, the APG's, answers only to its own buttons: its
+ * application drops such a Message in `update` instead of folding it, closes
+ * from those buttons with `@foldkit/ui`'s `close`, and draws the dialog with
+ * `role="alertdialog"` and no close button.
+ */
+export const isDismissal = (message: DialogMessage): boolean => message._tag === 'RequestedClose'
 
 /** The dialog's `toView`: `draw` receives its bundles with `mixins` applied. */
 export const toView =

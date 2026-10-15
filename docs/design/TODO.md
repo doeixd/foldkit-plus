@@ -824,7 +824,8 @@ keeps what the systems plan's "What we keep" lists.
   between its triggers, optional in the APG, are left to a later pass over
   `foldkit-primitives/interaction`'s navigation); Toggle, as Button's
   `pressed`, and Toggle Group, as Segmented's `multiple` with `view` and
-  `toggled`, rather than second components. Open: Input OTP, Number Input, Alert Dialog, Context Menu, Hover Card,
+  `toggled`, rather than second components; Alert Dialog, as the Dialog with
+  `Dialog.isDismissal`. Open: Input OTP, Number Input, Context Menu, Hover Card,
   Menubar, Navigation Menu, Command, Sidebar, Resizable and Checkbox Group.
   An island stays in `examples/widgets` as the Behaviors example until the
   package's own has a page.

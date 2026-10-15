@@ -520,6 +520,30 @@ export const showcases: ReadonlyArray<Showcase> = [
   ),
   fromRecipe(
     {
+      slug: 'alert-dialog',
+      title: 'Alert dialog',
+      summary:
+        'A dialog that asks before something that cannot be undone, and waits for an answer.',
+      recipe: 'Dialog',
+      file: 'dialog',
+      contract: 'DialogSlots',
+    },
+    DialogSlots,
+    Recipes.Dialog,
+    (style, live) =>
+      Snippet.alertDialog(
+        style,
+        live.widgets.alertDialog,
+        {
+          onOpen: live.onWidget(Widgets.Message.OpenedAlertDialog()),
+          onClose: live.onWidget(Widgets.Message.ClosedAlertDialog()),
+          toMessage: message => live.onWidget(Widgets.Message.GotAlertDialog({ message })),
+        },
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
       slug: 'dialog',
       title: 'Dialog',
       summary: 'A modal that holds focus until it is answered or Escape dismisses it.',

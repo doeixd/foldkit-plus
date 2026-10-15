@@ -42,7 +42,11 @@ export default [
   {
     name: 'the dialog does not close',
     edits: [
-      { file: widgets, find: '  update: UiDialog.close,', replace: '  update: UiDialog.open,' },
+      {
+        file: widgets,
+        find: '  ...dialogField,\n  update: UiDialog.close,',
+        replace: '  ...dialogField,\n  update: UiDialog.open,',
+      },
     ],
     tests,
   },

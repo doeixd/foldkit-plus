@@ -290,7 +290,7 @@ export const saveButton = (h: HtmlBuilder<Message>) =>
   )
 ```
 
-Adapters: Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosure, Dialog,
+Adapters (an alert dialog is the Dialog with `role="alertdialog"`, no close button, and `Dialog.isDismissal` Messages dropped in `update`): Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosure, Dialog,
 Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar, Menu, FileDrop, Toast, Listbox, Combobox, DatePicker (namespace + flat `XSlots`). Menu is
 special: `@foldkit/ui/menu` exposes no consumer seam, so `MenuView` transcribes its markup assembly
 from the pinned `@foldkit/ui` source (attributed in the module) with a `toView` added, and `Menu`

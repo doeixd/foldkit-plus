@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: an alert dialog, from the widgets island, as the
+  Dialog.** `Dialog.isDismissal(message)` names upstream's own dismissal
+  (Escape, a press on the backdrop, its close button); an application that
+  drops those in `update`, draws `role="alertdialog"` and no close button,
+  and closes from its own buttons with `@foldkit/ui`'s `close` has the APG's
+  alert dialog. The gallery has a page for it.
 - **`foldkit-mixins-ui`: Toggle and Toggle Group, from the widgets islands,
   as what was already here.** A toggle is a Button with `pressed`, which
   writes `aria-pressed`; every variant has its on look. A toggle group is a

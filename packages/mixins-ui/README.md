@@ -392,7 +392,7 @@ adapter.
 | Switch | `button`, `label`, `description`, `hiddenInput` |
 | Fieldset | `fieldset`, `legend`, `description` |
 | Disclosure | `button`, `panel` |
-| Dialog | `dialog`, `backdrop`, `panel`, `title`, `description`, `initialFocus`, `closeButton` |
+| Dialog | `dialog`, `backdrop`, `panel`, `title`, `description`, `initialFocus`, `closeButton`. An alert dialog is this one: draw it with `role="alertdialog"` and no close button, and drop the Messages `Dialog.isDismissal` names (Escape, the backdrop) in `update`, so only its own buttons, closing with `@foldkit/ui`'s `close`, answer it |
 | Popover | `button`, `panel`, `backdrop`, `arrow` |
 | Tooltip | `trigger`, `panel` |
 | HoverIntent | `trigger`, `panel` (open and close delays with intent, for a hover card or a menu) |

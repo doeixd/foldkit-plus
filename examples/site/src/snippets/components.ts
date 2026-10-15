@@ -740,6 +740,64 @@ export const dialog = <Message>(
   )
 // #endregion
 
+// #region alert-dialog
+/**
+ * An alert dialog: `role="alertdialog"` and no close button; the
+ * application drops `Dialog.isDismissal` Messages, so only Cancel or Delete
+ * answers it.
+ */
+export const alertDialog = <Message>(
+  style: NamedStyle<typeof DialogSlots>,
+  model: UiDialog.Model,
+  messages: DialogMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      Button.view({ label: 'Remove member', onClick: messages.onOpen, style: DangerStyle }, h),
+      h.submodel({
+        slotId: model.id,
+        model,
+        view: UiDialog.view,
+        viewInputs: {
+          hasDescription: true,
+          toView: Dialog.toView([style.mixin], { h }, dialog =>
+            h.dialog(
+              [...dialog.dialog, h.Role('alertdialog')],
+              dialog.isVisible
+                ? [
+                    h.div(dialog.backdrop),
+                    h.div(dialog.panel, [
+                      h.h2(dialog.title, ['Remove Ada from the team?']),
+                      h.p(dialog.description, [
+                        'She loses access to every project at once. Only an answer closes this.',
+                      ]),
+                      h.div(
+                        [h.Style({ display: 'flex', gap: '0.5rem', justifyContent: 'end' })],
+                        [
+                          Button.view(
+                            { label: 'Cancel', onClick: messages.onClose, style: QuietStyle },
+                            h,
+                          ),
+                          Button.view(
+                            { label: 'Remove', onClick: messages.onClose, style: DangerStyle },
+                            h,
+                          ),
+                        ],
+                      ),
+                    ]),
+                  ]
+                : [],
+            ),
+          ),
+        },
+        toParentMessage: messages.toMessage,
+      }),
+    ],
+  )
+// #endregion
+
 // #region popover
 export const PopoverStyle = forSlots(PopoverSlots)(Recipes.Popover({}))
 
