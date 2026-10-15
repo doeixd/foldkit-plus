@@ -1,7 +1,7 @@
 /**
  * The calendar recipe on a real page: a day is one step of the size ladder,
- * the chosen day fills with the accent, and a day outside the month is
- * quieter than one in it.
+ * the chosen day fills with the accent, a day outside the month is quieter
+ * than one in it, and a range's days sit on an unbroken band.
  */
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -23,7 +23,7 @@ afterEach(() => {
 
 const week = (style: NamedStyle<typeof CalendarSlots>) => (_: unknown, h: HtmlBuilder<never>) => {
   const slots = SlotView.buildersFor(CalendarSlots, [style.mixin], { input: undefined, h })
-  const day = (label: string, state: 'selected' | 'outside-month' | 'plain') =>
+  const day = (label: string, state: 'selected' | 'outside-month' | 'in-range' | 'plain') =>
     h.span(
       slots.dayCell.attrs([
         h.Role('gridcell'),
@@ -37,6 +37,7 @@ const week = (style: NamedStyle<typeof CalendarSlots>) => (_: unknown, h: HtmlBu
         day('30', 'outside-month'),
         day('1', 'plain'),
         day('2', 'selected'),
+        day('3', 'in-range'),
       ]),
     ]),
   ])
@@ -87,6 +88,22 @@ test('the chosen day fills, and a day outside the month is quieter', async () =>
     expect(getComputedStyle(day('1')).backgroundColor).toBe('rgba(0, 0, 0, 0)')
     expect(getComputedStyle(day('2')).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
     expect(getComputedStyle(day('30')).color).not.toBe(getComputedStyle(day('1')).color)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a day within a range has a band behind it, joined to its neighbours', async () => {
+  const handle = mount(Style.forSlots(CalendarSlots)(Recipes.Calendar({})))
+  try {
+    await vi.waitFor(() => expect(day('3')).toBeTruthy())
+    const band = getComputedStyle(day('3').parentElement!, '::before')
+    expect(band.backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+    expect(getComputedStyle(day('1').parentElement!, '::before').content).toBe('none')
+    // No gap between the columns, or the band would break between days.
+    const two = day('2').parentElement!.getBoundingClientRect()
+    const three = day('3').parentElement!.getBoundingClientRect()
+    expect(three.left - two.right).toBeCloseTo(0, 0)
   } finally {
     handle.dispose()
   }

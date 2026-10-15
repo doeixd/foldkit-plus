@@ -68,7 +68,10 @@ describe('Calendar adapter', () => {
           view: (model, h) =>
             CalendarUi.view(
               model,
-              { maybeSelectedDate: Option.none(), toView: Calendar.toView([Drawn.mixin], { h }) },
+              {
+                maybeSelectedDate: Option.none(),
+                toView: Calendar.toView(Calendar.empty('Single'), [Drawn.mixin], { h }),
+              },
               h,
             ),
         },

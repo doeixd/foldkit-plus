@@ -10,8 +10,10 @@ import type {
   YearsModeAttributes,
 } from '@foldkit/ui/calendar'
 import { Attr, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
-import { Match } from 'effect'
+import { Array as Arr, Match, Option, Schema } from 'effect'
+import * as Dates from 'foldkit/calendar'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineTaggedUnion } from 'foldkit/schema'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
@@ -254,16 +256,178 @@ export const draw = <Message>(calendar: ResolvedCalendar<Message>, h: HtmlBuilde
       ]),
   })
 
+const MaybeDate = Schema.OptionFromNullOr(Dates.CalendarDate)
+
 /**
- * The calendar's `toView`: `draw` receives its bundles with `mixins` applied;
- * without one, they are drawn by `draw` above. A Mixin that reads the mode
+ * What the application has chosen on a Calendar: one day, a start and an end,
+ * or any number of days. The selection is the application's; the Calendar
+ * keeps only the month shown and the focus. Fold each `SelectedDate` through
+ * `picked`, and draw with `toView(selection, …)`. The ends are stored as
+ * `null`, so a selection round-trips through JSON.
+ */
+export const Selection = defineTaggedUnion({
+  Single: { date: MaybeDate },
+  Range: { start: MaybeDate, end: MaybeDate },
+  Multiple: { dates: Schema.Array(Dates.CalendarDate) },
+})
+export type Selection = typeof Selection.Type
+
+const emptyOf = {
+  Single: Selection.Single({ date: Option.none() }),
+  Range: Selection.Range({ start: Option.none(), end: Option.none() }),
+  Multiple: Selection.Multiple({ dates: [] }),
+}
+
+/** A selection of `mode` with nothing chosen. */
+export const empty = (mode: Selection['_tag']): Selection => emptyOf[mode]
+
+/**
+ * The selection after a day is picked. Single takes the day. Range takes it
+ * as the other end of a start waiting for one, the earlier of the two
+ * becoming the start; otherwise the day starts a new range. Multiple adds the
+ * day, or removes it when it is chosen already, keeping the days in order.
+ */
+export const picked = (selection: Selection, date: Dates.CalendarDate): Selection =>
+  Selection.match(selection, {
+    Single: () => Selection.Single({ date: Option.some(date) }),
+    Range: ({ start, end }) =>
+      Option.match(
+        Option.filter(start, () => Option.isNone(end)),
+        {
+          onNone: () => Selection.Range({ start: Option.some(date), end: Option.none() }),
+          onSome: from =>
+            Selection.Range({
+              start: Option.some(Dates.min(from, date)),
+              end: Option.some(Dates.max(from, date)),
+            }),
+        },
+      ),
+    Multiple: ({ dates }) =>
+      Selection.Multiple({
+        dates: Arr.some(dates, Dates.isEqual(date))
+          ? dates.filter(chosen => !Dates.isEqual(chosen, date))
+          : Arr.sort([...dates, date], Dates.Order),
+      }),
+  })
+
+/**
+ * Whether the selection is whole: a day chosen, or both ends of a range. A
+ * Multiple selection never is, so a picker showing one stays open until it is
+ * dismissed.
+ */
+export const isComplete = (selection: Selection): boolean =>
+  Selection.match(selection, {
+    Single: ({ date }) => Option.isSome(date),
+    Range: ({ start, end }) => Option.isSome(start) && Option.isSome(end),
+    Multiple: () => false,
+  })
+
+/**
+ * The one day a Single selection holds, for upstream's `maybeSelectedDate`:
+ * a DatePicker shows it on its trigger and submits it under `name`. Nothing
+ * for a Range or Multiple selection, whose days `toView` marks.
+ */
+export const selectedDate = (selection: Selection): Option.Option<Dates.CalendarDate> =>
+  Selection.match(selection, {
+    Single: ({ date }) => date,
+    Range: () => Option.none(),
+    Multiple: () => Option.none(),
+  })
+
+interface Mark<Message> {
+  readonly chosen: boolean
+  readonly attributes: SlotAttributes<Message>
+}
+
+const dayKey = (date: Dates.CalendarDate): string => `${date.year}-${date.month}-${date.day}`
+
+/**
+ * How each day is marked. A chosen day, and a range's either end, is
+ * `data-selected`, as upstream marks its one date; a range's ends are
+ * `data-range-start` and `data-range-end`, and every day from start to end is
+ * `data-in-range`. Every chosen day is `aria-selected`, which overrides
+ * upstream's, since upstream knows only the date it is given.
+ */
+const marksOf = <Message>(
+  selection: Selection,
+  h: HtmlBuilder<Message>,
+): ((date: Dates.CalendarDate) => Mark<Message>) => {
+  const unmarked: Mark<Message> = { chosen: false, attributes: [] }
+  const chosen: Mark<Message> = {
+    chosen: true,
+    attributes: [h.DataAttribute('selected', ''), h.AriaSelected(true)],
+  }
+  return Selection.match(selection, {
+    Single:
+      ({ date }) =>
+      (day: Dates.CalendarDate) =>
+        Option.exists(date, Dates.isEqual(day)) ? chosen : unmarked,
+    Multiple: ({ dates }) => {
+      const keys = new Set(dates.map(dayKey))
+      return (day: Dates.CalendarDate) => (keys.has(dayKey(day)) ? chosen : unmarked)
+    },
+    Range: ({ start, end }) => {
+      const bounds = Option.all({ minimum: start, maximum: end })
+      return (day: Dates.CalendarDate) => {
+        const starts = Option.exists(start, Dates.isEqual(day))
+        const ends = Option.exists(end, Dates.isEqual(day))
+        const within = Option.exists(bounds, between => Dates.between(day, between))
+        if (!starts && !ends && !within) return unmarked
+        return {
+          chosen: true,
+          attributes: [
+            ...(starts ? [h.DataAttribute('range-start', '')] : []),
+            ...(ends ? [h.DataAttribute('range-end', '')] : []),
+            ...(within ? [h.DataAttribute('in-range', '')] : []),
+            ...(starts || ends ? [h.DataAttribute('selected', '')] : []),
+            h.AriaSelected(true),
+          ],
+        }
+      }
+    },
+  })
+}
+
+const marked = <Message>(
+  calendar: ResolvedCalendar<Message>,
+  selection: Selection,
+  h: HtmlBuilder<Message>,
+): ResolvedCalendar<Message> =>
+  Match.valueTags(calendar, {
+    Days: days => {
+      const markOf = marksOf(selection, h)
+      return {
+        ...days,
+        weeks: days.weeks.map(week => ({
+          ...week,
+          cells: week.cells.map(cell => {
+            const mark = markOf(cell.date)
+            return {
+              ...cell,
+              isSelected: cell.isSelected || mark.chosen,
+              cellAttributes: [...cell.cellAttributes, ...mark.attributes],
+            }
+          }),
+        })),
+      }
+    },
+    Months: months => months,
+    Years: years => years,
+  })
+
+/**
+ * The calendar's `toView`, with the days `selection` holds marked: `render`
+ * receives its bundles with `mixins` applied and the marks added; without
+ * one, they are drawn by `draw` above. Give the Calendar
+ * `maybeSelectedDate: selectedDate(selection)`. A Mixin that reads the mode
  * needs `resolve`, whose `input` can be `_tag`.
  */
 export const toView =
   <Message>(
+    selection: Selection,
     mixins: MixinList<Message>,
     context: ResolveContext<unknown, Message>,
     render: (resolved: ResolvedCalendar<Message>) => Html = resolved => draw(resolved, context.h),
   ) =>
   (attributes: CalendarAttributes): Html =>
-    render(resolve(attributes, mixins, context))
+    render(marked(resolve(attributes, mixins, context), selection, context.h))

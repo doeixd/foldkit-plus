@@ -1,8 +1,12 @@
 /**
  * A month grid, in every mode the calendar has: days in seven columns, months
  * and years in three. Cell buttons read their state off the cell (today,
- * selected, focused, disabled, outside the month). `size` is the cell, on
- * the ladder's two steps. No card: a picker's panel or the page gives it one.
+ * selected, focused, disabled, outside the month). A range's ends fill as a
+ * chosen day does, and a band runs behind every day between them: each day
+ * cell's `::before`, cut to the cell's inner half at either end, over weeks
+ * with no gap between columns so the band is unbroken. It reads the marks
+ * `Calendar.toView` adds. `size` is the cell, on the ladder's two steps. No
+ * card: a picker's panel or the page gives it one.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { CalendarSlots } from '../calendar.js'
@@ -63,12 +67,20 @@ const choice = (shape: 'round' | 'wide'): StyleValue =>
   )
 
 const centered = component(Style.self({ display: 'grid', placeItems: 'center' }))
-const week = component(
-  Style.self({
-    display: 'grid',
-    gridTemplateColumns: `repeat(7, ${cell})`,
-    gap: ref.space['3xs'],
+const week = component(Style.self({ display: 'grid', gridTemplateColumns: `repeat(7, ${cell})` }))
+
+const day = component(
+  centered,
+  Style.self({ position: 'relative', isolation: 'isolate' }),
+  Style.pseudo('[data-in-range]::before', {
+    content: "''",
+    position: 'absolute',
+    inset: '0',
+    zIndex: '-1',
+    background: ref.accent.subtle,
   }),
+  Style.pseudo('[data-range-start]::before', { insetInlineStart: '50%' }),
+  Style.pseudo('[data-range-end]::before', { insetInlineEnd: '50%' }),
 )
 
 export const Calendar = Style.recipeFor(CalendarSlots)({
@@ -118,7 +130,7 @@ export const Calendar = Style.recipeFor(CalendarSlots)({
       Style.self({ color: ref.text.muted, ...role('caption'), textAlign: 'center' }),
     ),
     weekRow: week,
-    dayCell: centered,
+    dayCell: day,
     dayButton: choice('round'),
     monthCell: centered,
     monthButton: choice('wide'),

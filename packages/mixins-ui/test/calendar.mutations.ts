@@ -42,6 +42,29 @@ export default [
     tests: browser,
   },
   {
+    name: 'a range draws no band',
+    edits: [
+      {
+        file: recipe,
+        find: "    zIndex: '-1',\n    background: ref.accent.subtle,\n",
+        replace: "    zIndex: '-1',\n",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the band breaks between days',
+    edits: [
+      {
+        file: recipe,
+        find: "const week = component(Style.self({ display: 'grid', gridTemplateColumns: `repeat(7, ${cell})` }))",
+        replace:
+          "const week = component(Style.self({ display: 'grid', gridTemplateColumns: `repeat(7, ${cell})`, gap: '4px' }))",
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'the header is drawn outside its slot',
     edits: [
       {
