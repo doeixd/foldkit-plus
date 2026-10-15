@@ -152,3 +152,35 @@ export const filePicker = Mount.defineStream('PlaygroundFilePicker', {
       ),
     ),
 })
+
+/**
+ * Closes the open menu on a press outside the element around it, or on Escape anywhere. Drawn
+ * only while a menu is open, as an empty marker inside the menu's anchor (the anchor holds the
+ * trigger too, so the trigger's own click is not outside), and so it listens only then.
+ */
+export const dismissOnOutside = Mount.defineStream('PlaygroundDismiss', {
+  messages: [Message.ClosedMenu],
+  execute: ({ element }) =>
+    Stream.callback<Extract<Message, { readonly _tag: 'ClosedMenu' }>>(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const region = element.parentElement ?? element
+          const close = () => Queue.offerUnsafe(queue, Message.ClosedMenu())
+          const onPress = (event: PointerEvent) => {
+            if (!(event.target instanceof Node) || !region.contains(event.target)) close()
+          }
+          const onKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') close()
+          }
+          const view = element.ownerDocument
+          view.addEventListener('pointerdown', onPress, true)
+          view.addEventListener('keydown', onKey, true)
+          return () => {
+            view.removeEventListener('pointerdown', onPress, true)
+            view.removeEventListener('keydown', onKey, true)
+          }
+        }),
+        release => Effect.sync(release),
+      ),
+    ),
+})

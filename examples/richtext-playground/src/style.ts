@@ -10,7 +10,7 @@ import { AppStyle } from 'foldkit-mixins/app'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
 import {
-  BlockStyleSlots,
+  BlockStyleMenuSlots,
   CodeToolbarSlots,
   EditorStatusSlots,
   FindReplaceSlots,
@@ -37,10 +37,11 @@ const control = Style.compose(
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: t.space['2xs'],
+    gap: t.space.xs,
     minInlineSize: '2rem',
     minBlockSize: '2rem',
     padding: `0 ${t.space.xs}`,
+    whiteSpace: 'nowrap',
     border: '0',
     borderRadius: t.radius.md,
     background: 'transparent',
@@ -84,7 +85,13 @@ const field = Style.compose(
 /** The editor's content: what the vocabulary's rendering draws, inside the host. */
 const writing = Style.compose(
   Prose.style({ measure: '46rem' }),
-  Style.self({ position: 'relative', fontSize: '1.0625rem', lineHeight: '1.75' }),
+  Style.self({
+    position: 'relative',
+    maxInlineSize: '52rem',
+    marginInline: 'auto',
+    fontSize: '1.0625rem',
+    lineHeight: '1.75',
+  }),
   // The inline start leaves room for the block handle, inside the page rather than past it.
   Style.nest('[contenteditable="true"]', {
     minBlockSize: '24rem',
@@ -331,6 +338,7 @@ const writing = Style.compose(
   Style.nest('[data-footnote]', {
     position: 'relative',
     paddingInlineStart: t.space.xl,
+    paddingInlineEnd: t.space.xl,
     color: t.text.subtle,
     fontSize: t.size.sm,
     borderBlockStart: `1px solid ${t.outline.subtle}`,
@@ -387,7 +395,7 @@ export const Page = A.slots({
     row(t.space.md),
     Style.self({ justifyContent: 'space-between', marginBlockEnd: t.space.md }),
   ),
-  title: Style.self({ margin: '0', fontSize: t.size.xl, letterSpacing: '-0.02em' }),
+  title: Style.self({ margin: '0', fontSize: t.size.lg, letterSpacing: '-0.02em' }),
   lede: Style.self({
     margin: `${t.space['2xs']} 0 0`,
     color: t.text.muted,
@@ -401,15 +409,22 @@ export const Page = A.slots({
     boxShadow: t.shadow.sm,
     overflow: 'clip',
   }),
+  // One row of tools that stays in reach while the document scrolls under it.
   bar: Style.compose(
     row(t.space['3xs']),
     Style.self({
-      padding: `${t.space.xs} ${t.space.md}`,
+      position: 'sticky',
+      insetBlockStart: '0',
+      zIndex: '8',
+      padding: `${t.space.xs} ${t.space.sm}`,
       borderBlockEnd: `1px solid ${t.outline.subtle}`,
+      background: t.surface.base,
     }),
   ),
-  barLabel: Style.self({ color: t.text.muted, fontSize: t.size.xs, marginInlineEnd: t.space.xs }),
   tool: control,
+  toolLabel: Style.self({ fontSize: t.size.sm }),
+  spacer: Style.self({ flex: '1' }),
+  dismiss: Style.self({ display: 'none' }),
   separator: Style.self({
     inlineSize: '1px',
     blockSize: '1.25rem',
@@ -421,20 +436,69 @@ export const Page = A.slots({
     popup,
     Style.self({
       position: 'absolute',
-      insetBlockStart: 'calc(100% + 4px)',
+      insetBlockStart: 'calc(100% + 6px)',
       insetInlineStart: '0',
-      minInlineSize: '13rem',
+      zIndex: '20',
+      minInlineSize: '16rem',
       display: 'grid',
+      gap: '1px',
+      padding: t.space['2xs'],
+    }),
+    Style.pseudo('[data-align="end"]', { insetInlineStart: 'auto', insetInlineEnd: '0' }),
+    Style.pseudo('[role="dialog"]', {
+      inlineSize: '18rem',
+      gap: t.space.sm,
+      padding: t.space.sm,
     }),
   ),
+  // An entry: its icon, its label, and a line under the label saying what it does.
   menuItem: Style.compose(
     control,
-    Style.self({ justifyContent: 'flex-start', inlineSize: '100%', textAlign: 'start' }),
+    Style.self({
+      display: 'grid',
+      gridTemplateColumns: 'auto 1fr',
+      columnGap: t.space.sm,
+      alignItems: 'center',
+      justifyContent: 'stretch',
+      inlineSize: '100%',
+      minBlockSize: '2.75rem',
+      padding: `${t.space['2xs']} ${t.space.sm}`,
+      textAlign: 'start',
+      whiteSpace: 'normal',
+    }),
+    Style.nest('& > svg', { gridRow: '1 / span 2', color: t.text.muted }),
+  ),
+  // A compact entry: an icon and a label on one line, as a block's menu lists them.
+  action: Style.compose(
+    control,
+    Style.self({
+      justifyContent: 'flex-start',
+      gap: t.space.sm,
+      inlineSize: '100%',
+      minBlockSize: '2rem',
+      padding: `0 ${t.space.sm}`,
+    }),
+    Style.nest('& > svg', { color: t.text.muted }),
+    Style.pseudo('[data-danger="true"]', { color: t.error.ink }),
+    Style.pseudo('[data-danger="true"]:hover', { background: t.error.subtle }),
+    Style.nest('&[data-danger="true"] > svg', { color: 'currentColor' }),
+  ),
+  menuLabel: Style.self({ fontSize: t.size.sm, color: t.text.default }),
+  menuDescription: Style.self({ fontSize: t.size.xs, color: t.text.muted }),
+  confirmText: Style.self({ margin: '0', fontSize: t.size.sm, lineHeight: '1.5' }),
+  danger: Style.compose(
+    control,
+    Style.self({ background: t.error.default, color: t.error['on-fill'] }),
+    Style.pseudo(':hover:not(:disabled)', { background: t.error.ink }),
   ),
   menuHeading: Style.self({
-    padding: `${t.space['2xs']} ${t.space.xs} 0`,
+    margin: '0',
+    padding: `${t.space.xs} ${t.space.sm} ${t.space['3xs']}`,
     color: t.text.muted,
     fontSize: t.size.xs,
+    fontWeight: t.weight.semibold,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
   }),
   menuRow: row('0'),
   body: Style.compose(
@@ -469,9 +533,10 @@ export const Page = A.slots({
     Style.self({
       position: 'fixed',
       insetBlockStart: '-999px',
-      minInlineSize: '14rem',
-      maxBlockSize: '18rem',
+      inlineSize: '18rem',
+      maxBlockSize: '22rem',
       overflow: 'auto',
+      overscrollBehavior: 'contain',
     }),
   ),
   // Fixed beside its block by `blockAnchor`, which writes `top` and `left`; the grip is centred
@@ -584,12 +649,51 @@ export const Page = A.slots({
 })
 
 export const SlashMenuStyle = A.forSlots(SlashMenuSlots)({
-  list: Style.self({ display: 'grid' }),
+  list: Style.self({ display: 'grid', gap: '1px' }),
+  heading: Style.self({
+    padding: `${t.space.xs} ${t.space.sm} ${t.space['3xs']}`,
+    color: t.text.muted,
+    fontSize: t.size.xs,
+    fontWeight: t.weight.semibold,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+  }),
+  // An entry: its icon in a tile, then its label over the line that says what it makes.
   item: Style.compose(
     control,
-    Style.self({ justifyContent: 'flex-start', inlineSize: '100%' }),
-    Style.pseudo('[aria-current="true"]', { background: t.accent.subtle, color: t.accent.ink }),
+    Style.self({
+      display: 'grid',
+      gridTemplateColumns: '2rem 1fr',
+      columnGap: t.space.sm,
+      alignItems: 'center',
+      justifyContent: 'stretch',
+      inlineSize: '100%',
+      padding: `${t.space['2xs']} ${t.space.xs}`,
+      textAlign: 'start',
+      whiteSpace: 'normal',
+    }),
+    Style.pseudo('[aria-current="true"]', { background: t.accent.subtle }),
   ),
+  icon: Style.self({
+    gridRow: '1 / span 2',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    inlineSize: '2rem',
+    blockSize: '2rem',
+    border: `1px solid ${t.outline.subtle}`,
+    borderRadius: t.radius.md,
+    background: t.surface.base,
+    color: t.text.default,
+  }),
+  label: Style.self({ fontSize: t.size.sm, color: t.text.default }),
+  description: Style.self({ fontSize: t.size.xs, color: t.text.muted }),
+  empty: Style.self({
+    margin: '0',
+    padding: `${t.space.xs} ${t.space.sm}`,
+    color: t.text.muted,
+    fontSize: t.size.sm,
+  }),
 })
 
 export const LinkEditorStyle = A.forSlots(LinkEditorSlots)({
@@ -599,9 +703,37 @@ export const LinkEditorStyle = A.forSlots(LinkEditorSlots)({
   remove: control,
 })
 
-export const BlockStyleStyle = A.forSlots(BlockStyleSlots)({
-  toolbar: row('0'),
-  button: control,
+export const BlockStyleMenuStyle = A.forSlots(BlockStyleMenuSlots)({
+  root: Style.self({ position: 'relative' }),
+  trigger: Style.compose(
+    control,
+    Style.self({ minInlineSize: '9.5rem', justifyContent: 'space-between' }),
+    Style.pseudo('[aria-expanded="true"]', { background: t.surface.muted }),
+  ),
+  menu: Style.compose(
+    popup,
+    Style.self({
+      position: 'absolute',
+      insetBlockStart: 'calc(100% + 6px)',
+      insetInlineStart: '0',
+      zIndex: '20',
+      display: 'grid',
+      minInlineSize: '12rem',
+    }),
+  ),
+  item: Style.compose(
+    control,
+    Style.self({
+      display: 'grid',
+      gridTemplateColumns: 'auto 1fr auto',
+      gap: t.space.sm,
+      justifyContent: 'stretch',
+      textAlign: 'start',
+    }),
+  ),
+  icon: Style.self({ display: 'inline-flex', color: t.text.muted }),
+  label: Style.self({ fontSize: t.size.sm }),
+  check: Style.self({ display: 'inline-flex', color: t.accent.default, minInlineSize: '16px' }),
 })
 
 export const StatusStyle = A.forSlots(EditorStatusSlots)({

@@ -9,17 +9,20 @@ import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
-  blockStyles,
+  blockStyleMenu,
   codeToolbar,
   editorStatus,
   findReplace,
   footnotePreview,
+  isRichTextIcon,
   linkEditor,
+  richTextIcon,
   slashMenu,
   slashMenuView,
   slashMove,
   tableOfContents,
   tableToolbar,
+  type RichTextIconName,
 } from 'foldkit-mixins-richtext'
 import { richtextDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
@@ -41,9 +44,9 @@ import {
   type Model,
   type Thread,
 } from './app.js'
-import { canvasEvents, filePicker } from './canvas.js'
+import { canvasEvents, dismissOnOutside, filePicker } from './canvas.js'
 import {
-  BlockStyleStyle,
+  BlockStyleMenuStyle,
   CodeToolbarStyle,
   FindReplaceStyle,
   FootnotePreviewStyle,
@@ -54,7 +57,7 @@ import {
   TableOfContentsStyle,
   TableToolbarStyle,
 } from './style.js'
-import { Blocks, LANGUAGES, playgroundSlashEntries } from './vocabulary.js'
+import { LANGUAGES, playgroundSlashEntries } from './vocabulary.js'
 
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
@@ -67,7 +70,7 @@ const slashEntries = playgroundSlashEntries.map(entry => ({
 
 const SlashMenu = slashMenuView<Message>().pipe(Style.attach(SlashMenuStyle))
 const LinkEditor = linkEditor<Message>().pipe(Style.attach(LinkEditorStyle))
-const BlockStyles = blockStyles<Message>().pipe(Style.attach(BlockStyleStyle))
+const StyleMenu = blockStyleMenu<Message>().pipe(Style.attach(BlockStyleMenuStyle))
 const Status = editorStatus<Message>().pipe(Style.attach(StatusStyle))
 const TableTools = tableToolbar<Message>().pipe(Style.attach(TableToolbarStyle))
 const CodeTools = codeToolbar<Message>().pipe(Style.attach(CodeToolbarStyle))
@@ -84,15 +87,30 @@ const textBefore = (model: Model): string => {
   return start === undefined ? '' : RichText.textBefore(model.document, start)
 }
 
-const MARKS: ReadonlyArray<readonly [mark: string, label: string, title: string]> = [
-  ['Bold', 'B', 'Bold (Ctrl+B)'],
-  ['Italic', 'I', 'Italic (Ctrl+I)'],
-  ['Underline', 'U', 'Underline'],
-  ['Strikethrough', 'S', 'Strikethrough'],
-  ['Code', '</>', 'Inline code'],
-  ['Highlight', '🖍', 'Highlight'],
-  ['Kbd', '⌘', 'Keyboard key'],
+const MARKS: ReadonlyArray<readonly [mark: string, icon: RichTextIconName, title: string]> = [
+  ['Bold', 'bold', 'Bold (Ctrl+B)'],
+  ['Italic', 'italic', 'Italic (Ctrl+I)'],
+  ['Underline', 'underline', 'Underline'],
+  ['Strikethrough', 'strikethrough', 'Strikethrough'],
+  ['Code', 'code', 'Inline code'],
+  ['Highlight', 'highlight', 'Highlight'],
 ]
+
+/** What the insert menu offers after a file, by slash entry id, in this order. */
+const INSERTS = ['table', 'callout', 'toggle', 'divider', 'footnote'] as const
+
+const EXPORTS: ReadonlyArray<readonly [format: ExportFormat, description: string]> = [
+  ['Markdown', 'Plain text, with # and *'],
+  ['HTML', 'For a web page'],
+  ['JSON', 'The document itself'],
+]
+
+/** The id of the one file field, which the insert menu's File entry is a label for. */
+const FILE_INPUT = 'playground-file'
+
+/** A slash entry's icon, where the set has one. */
+const iconOf = (name: string | undefined): RichTextIconName =>
+  name !== undefined && isRichTextIcon(name) ? name : 'plus'
 
 export const PlaygroundView = SlotView.forMessages<Message>()
   .define(Page.slots, (model: Model, slots, h): Html => {
@@ -102,123 +120,185 @@ export const PlaygroundView = SlotView.forMessages<Message>()
       storedMarks: model.editor.storedMarks,
     }
     const open = openMenu(model)
-    const button = (
-      label: string,
+    const covers = RichText.coversText(model.editor.selection)
+    const tool = (
+      name: RichTextIconName,
       title: string,
       message: Message,
       {
         pressed,
         disabled = false,
-      }: { readonly pressed?: boolean; readonly disabled?: boolean } = {},
+        label,
+      }: { readonly pressed?: boolean; readonly disabled?: boolean; readonly label?: string } = {},
     ) =>
       h.button(
         slots.tool.attrs([
           h.Type('button'),
           h.Title(title),
-          h.AriaLabel(title),
+          // A shown label names the button; an icon alone is named by its title.
+          ...(label === undefined ? [h.AriaLabel(title.replace(/ \(.*\)$/, ''))] : []),
           ...(pressed === undefined ? [] : [h.AriaPressed(pressed ? 'true' : 'false')]),
           h.Disabled(disabled),
           ...(disabled ? [] : [h.OnClick(message)]),
         ]),
-        [label],
+        [
+          richTextIcon(h, name),
+          ...(label === undefined ? [] : [h.span(slots.toolLabel.attrs(), [label])]),
+        ],
       )
     const separator = () => h.span(slots.separator.attrs([h.AriaHidden(true)]), [])
-    const markButtons = () =>
-      MARKS.map(([mark, label, title]) =>
-        button(label, title, wrap(EditorMessage.ToggledMark({ mark })), {
+    const markTools = () =>
+      MARKS.map(([mark, name, title]) =>
+        tool(name, title, wrap(EditorMessage.ToggledMark({ mark })), {
           pressed: markActive(state, mark),
         }),
       )
-
-    // --- the toolbars ---
-    const exportMenu = h.div(slots.anchor.attrs(), [
-      button(
-        '⇩ Export',
-        'Copy the document as Markdown, HTML or JSON',
-        open.export ? Message.ClosedMenu() : Message.OpenedMenu({ menu: Menu.Export() }),
-        { pressed: open.export },
-      ),
-      ...(open.export
-        ? [
-            h.div(
-              slots.dropdown.attrs([h.Role('menu')]),
-              ExportFormat.literals.map(format =>
-                h.button(
-                  slots.menuItem.attrs([
-                    h.Type('button'),
-                    h.Role('menuitem'),
-                    h.OnClick(Message.Exported({ format })),
-                  ]),
-                  [`Copy as ${format}`],
-                ),
+    const toggleMenu = (menu: Menu, isOpen: boolean): Message =>
+      isOpen ? Message.ClosedMenu() : Message.OpenedMenu({ menu })
+    // While a menu is open, a marker beside it closes it on a press outside or on Escape.
+    const dismiss = () => h.span(slots.dismiss.attrs([h.OnMount(dismissOnOutside())]), [])
+    /** A menu's trigger and, while it is open, what it shows: a menu, or a question. */
+    const anchored = (
+      trigger: Html,
+      shown: ReadonlyArray<Html> | undefined,
+      {
+        align = 'start',
+        role = 'menu',
+        label,
+      }: {
+        readonly align?: 'start' | 'end'
+        readonly role?: 'menu' | 'dialog'
+        readonly label: string
+      },
+    ) =>
+      h.div(slots.anchor.attrs(), [
+        trigger,
+        ...(shown === undefined
+          ? []
+          : [
+              h.div(
+                slots.dropdown.attrs([
+                  h.Role(role),
+                  h.AriaLabel(label),
+                  h.DataAttribute('align', align),
+                ]),
+                shown,
               ),
-            ),
-          ]
-        : []),
-    ])
-    const media = h.div(slots.bar.attrs([h.Role('toolbar'), h.AriaLabel('Add to your document')]), [
-      h.span(slots.barLabel.attrs(), ['Add to your document']),
-      h.label(slots.tool.attrs([h.Title('Add an image, a video, a sound or any file')]), [
-        '📎 File',
-        h.input(slots.file.attrs([h.Type('file'), h.OnMount(filePicker())])),
-      ]),
-      button('▦ Table', 'Insert a table', Message.Inserted({ block: Blocks.table() })),
-      button('💡 Callout', 'Insert a callout', Message.Inserted({ block: Blocks.callout() })),
-      button('▸ Toggle', 'Insert a toggle', Message.Inserted({ block: Blocks.toggle() })),
-      button('― Divider', 'Insert a divider', Message.Inserted({ block: Blocks.divider() })),
-      exportMenu,
-    ])
-    const insertMenu = h.div(slots.anchor.attrs(), [
-      button(
-        '+',
-        'Insert',
-        open.insert ? Message.ClosedMenu() : Message.OpenedMenu({ menu: Menu.Insert() }),
-        { pressed: open.insert },
-      ),
-      ...(open.insert
+              dismiss(),
+            ]),
+      ])
+    const menuEntry = (
+      name: RichTextIconName,
+      label: string,
+      description: string,
+      message: Message,
+    ) =>
+      h.button(slots.menuItem.attrs([h.Type('button'), h.Role('menuitem'), h.OnClick(message)]), [
+        richTextIcon(h, name),
+        h.span(slots.menuLabel.attrs(), [label]),
+        h.span(slots.menuDescription.attrs(), [description]),
+      ])
+    const styleMenu = (place: 'toolbar' | 'floating') => {
+      const isOpen = open.style === place
+      return h.div(slots.anchor.attrs(), [
+        StyleMenu(
+          {
+            document: model.document,
+            selection: model.editor.selection,
+            open: isOpen,
+            toggled: toggleMenu(Menu.Style({ place }), isOpen),
+            // A choice closes the menu as it retypes the block.
+            wrap: message => Message.MenuEdit({ message }),
+          },
+          h,
+        ),
+        ...(isOpen ? [dismiss()] : []),
+      ])
+    }
+
+    // --- the toolbar ---
+    const insertMenu = anchored(
+      tool('plus', 'Insert a block', toggleMenu(Menu.Insert(), open.insert), {
+        pressed: open.insert,
+        label: 'Insert',
+      }),
+      open.insert
         ? [
-            h.div(
-              slots.dropdown.attrs([h.Role('menu')]),
-              playgroundSlashEntries
-                .filter(entry => entry.message._tag !== 'ToggledMark')
-                .map(entry =>
-                  h.button(
-                    slots.menuItem.attrs([
-                      h.Type('button'),
-                      h.Role('menuitem'),
-                      h.OnClick(
-                        // A block the menu inserts goes at the top level, as the toolbar's do.
-                        Match.value(entry.message).pipe(
-                          Match.tag('InsertedBlock', ({ block }) => Message.Inserted({ block })),
-                          Match.orElse(wrap),
-                        ),
+            h.label(slots.menuItem.attrs([h.Role('menuitem'), h.For(FILE_INPUT)]), [
+              richTextIcon(h, 'file'),
+              h.span(slots.menuLabel.attrs(), ['Image, video or file']),
+              h.span(slots.menuDescription.attrs(), ['From your device, up to 8 MB']),
+            ]),
+            ...INSERTS.flatMap(id => {
+              const entry = playgroundSlashEntries.find(each => each.id === id)
+              return entry === undefined
+                ? []
+                : [
+                    menuEntry(
+                      iconOf(entry.icon),
+                      entry.label,
+                      entry.description ?? '',
+                      // A block goes at the top level, beside the caret's; the rest are edits.
+                      Match.value(entry.message).pipe(
+                        Match.tag('InsertedBlock', ({ block }) => Message.Inserted({ block })),
+                        Match.orElse(message => Message.MenuEdit({ message })),
                       ),
-                    ]),
-                    [entry.label],
-                  ),
-                ),
-            ),
+                    ),
+                  ]
+            }),
           ]
-        : []),
-    ])
-    const toolbar = h.div(slots.bar.attrs([h.Role('toolbar'), h.AriaLabel('Formatting')]), [
-      button('↶', 'Undo (Ctrl+Z)', wrap(EditorMessage.Undone()), {
+        : undefined,
+      { label: 'Insert' },
+    )
+    const exportMenu = anchored(
+      tool(
+        'download',
+        'Copy the document in another format',
+        toggleMenu(Menu.Export(), open.export),
+        {
+          pressed: open.export,
+          label: 'Export',
+        },
+      ),
+      open.export
+        ? EXPORTS.map(([format, description]) =>
+            menuEntry('copy', `Copy as ${format}`, description, Message.Exported({ format })),
+          )
+        : undefined,
+      { align: 'end', label: 'Export' },
+    )
+    const toolbar = h.div(slots.bar.attrs([h.Role('toolbar'), h.AriaLabel('Editor')]), [
+      tool('undo', 'Undo (Ctrl+Z)', wrap(EditorMessage.Undone()), {
         disabled: !RichText.canUndo(model.editor.history),
       }),
-      button('↷', 'Redo (Ctrl+Shift+Z)', wrap(EditorMessage.Redone()), {
+      tool('redo', 'Redo (Ctrl+Shift+Z)', wrap(EditorMessage.Redone()), {
         disabled: !RichText.canRedo(model.editor.history),
       }),
       separator(),
-      ...markButtons(),
+      styleMenu('toolbar'),
       separator(),
-      button(
-        'H',
-        'Heading',
-        wrap(EditorMessage.RetypedBlock({ block: { type: 'Heading', level: 2 } })),
+      ...markTools(),
+      tool('link', 'Link', toggleMenu(Menu.Link(), open.link), {
+        pressed: open.link || RichText.linkAt(model.document, model.editor.selection) !== undefined,
+        disabled: !covers,
+      }),
+      separator(),
+      tool(
+        'bulleted-list',
+        'Bulleted list',
+        wrap(EditorMessage.WrappedBlock({ containers: [{ kind: 'List' }, { kind: 'ListItem' }] })),
       ),
-      button('❝', 'Quote', wrap(EditorMessage.WrappedBlock({ containers: [{ kind: 'Quote' }] }))),
-      button(
-        '☑',
+      tool(
+        'numbered-list',
+        'Numbered list',
+        wrap(
+          EditorMessage.WrappedBlock({
+            containers: [{ kind: 'List', props: { ordered: true } }, { kind: 'ListItem' }],
+          }),
+        ),
+      ),
+      tool(
+        'checklist',
         'Checklist',
         wrap(
           EditorMessage.WrappedBlock({
@@ -226,19 +306,16 @@ export const PlaygroundView = SlotView.forMessages<Message>()
           }),
         ),
       ),
-      button(
-        '•',
-        'Bulleted list',
-        wrap(EditorMessage.WrappedBlock({ containers: [{ kind: 'List' }, { kind: 'ListItem' }] })),
-      ),
+      tool('quote', 'Quote', wrap(EditorMessage.WrappedBlock({ containers: [{ kind: 'Quote' }] }))),
       separator(),
       insertMenu,
-      button('💬', 'Comment on the selection', Message.StartedComment(), {
-        disabled: !RichText.coversText(model.editor.selection),
-      }),
-      button('🔍', 'Find and replace (Ctrl+F)', Message.OpenedFind(), {
+      tool('comment', 'Comment on the selection', Message.StartedComment(), { disabled: !covers }),
+      h.span(slots.spacer.attrs(), []),
+      tool('search', 'Find and replace (Ctrl+F)', Message.OpenedFind(), {
         pressed: Option.isSome(model.find),
       }),
+      exportMenu,
+      h.input(slots.file.attrs([h.Id(FILE_INPUT), h.Type('file'), h.OnMount(filePicker())])),
     ])
     const findBar = Option.match(model.find, {
       onNone: () => [],
@@ -285,21 +362,18 @@ export const PlaygroundView = SlotView.forMessages<Message>()
                       },
                       h,
                     ),
-                    button('✕', 'Close', Message.ClosedMenu()),
+                    tool('close', 'Close', Message.ClosedMenu()),
                   ]
                 : [
-                    BlockStyles(
-                      { document: model.document, selection: model.editor.selection, wrap },
-                      h,
-                    ),
+                    styleMenu('floating'),
                     separator(),
-                    ...markButtons(),
+                    ...markTools(),
                     separator(),
-                    button('🔗', 'Link', Message.OpenedMenu({ menu: Menu.Link() }), {
+                    tool('link', 'Link', Message.OpenedMenu({ menu: Menu.Link() }), {
                       pressed:
                         RichText.linkAt(model.document, model.editor.selection) !== undefined,
                     }),
-                    button('💬', 'Comment', Message.StartedComment()),
+                    tool('comment', 'Comment', Message.StartedComment()),
                   ],
             ),
           ]
@@ -327,8 +401,9 @@ export const PlaygroundView = SlotView.forMessages<Message>()
               ],
             ),
           ]
+    // Open while a query is: one that matches nothing says so.
     const slashPopup =
-      slash === undefined || slash.matches.length === 0
+      slash === undefined
         ? []
         : [
             h.div(
@@ -361,14 +436,39 @@ export const PlaygroundView = SlotView.forMessages<Message>()
           [
             h.h1(slots.title.attrs(), ['Rich text playground']),
             h.p(slots.lede.attrs(), [
-              'Movable blocks, anchored discussions, images, tables, code and footnotes in one document, edited by foldkit-richtext. Hover beside a block for its handle, select text to format it or start a discussion, or type / to add something.',
+              'One document to try foldkit-richtext on: blocks to move, text to discuss, tables, code, media and footnotes. Type / to add anything.',
             ]),
           ],
         ),
-        h.button(slots.primary.attrs([h.Type('button'), h.OnClick(Message.Reset())]), ['Reset']),
+        anchored(
+          tool(
+            'reset',
+            'Start over with the sample document',
+            toggleMenu(Menu.Reset(), open.reset),
+            {
+              pressed: open.reset,
+              label: 'Start over',
+            },
+          ),
+          open.reset
+            ? [
+                h.p(slots.confirmText.attrs(), [
+                  'Start over with the sample document? Your edits and discussions will be lost.',
+                ]),
+                h.div(slots.actions.attrs(), [
+                  h.button(slots.tool.attrs([h.Type('button'), h.OnClick(Message.ClosedMenu())]), [
+                    'Cancel',
+                  ]),
+                  h.button(slots.danger.attrs([h.Type('button'), h.OnClick(Message.Reset())]), [
+                    'Start over',
+                  ]),
+                ]),
+              ]
+            : undefined,
+          { align: 'end', role: 'dialog', label: 'Start over' },
+        ),
       ]),
       h.section(slots.surface.attrs([h.AriaLabel('Editor')]), [
-        media,
         toolbar,
         ...findBar,
         ...Option.match(model.notice, {
@@ -376,7 +476,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
           onSome: notice => [
             h.div(slots.notice.attrs([h.Role('alert')]), [
               notice,
-              button('✕', 'Dismiss', Message.DismissedNotice()),
+              tool('close', 'Dismiss', Message.DismissedNotice()),
             ]),
           ],
         }),
@@ -481,10 +581,21 @@ const blockTools = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
 
 const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Html => {
   const block = RichText.locateBlock(model.document, node)?.block
-  const item = (label: string, message: Message) =>
-    h.button(slots.menuItem.attrs([h.Type('button'), h.Role('menuitem'), h.OnClick(message)]), [
-      label,
-    ])
+  const item = (
+    name: RichTextIconName,
+    label: string,
+    message: Message,
+    { danger = false }: { readonly danger?: boolean } = {},
+  ) =>
+    h.button(
+      slots.action.attrs([
+        h.Type('button'),
+        h.Role('menuitem'),
+        ...(danger ? [h.DataAttribute('danger', 'true')] : []),
+        h.OnClick(message),
+      ]),
+      [richTextIcon(h, name), label],
+    )
   const heading = (label: string) => h.p(slots.menuHeading.attrs(), [label])
   const props = block?.type === 'Node' ? block.props : {}
   const set = (changed: Readonly<Record<string, string | number | boolean>>) =>
@@ -497,12 +608,25 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
       case 'Heading':
         return [
           heading('Turn into'),
-          item('Text', Message.RetypedBlock({ node, block: { type: 'Paragraph' } })),
-          item('Heading 1', Message.RetypedBlock({ node, block: { type: 'Heading', level: 1 } })),
-          item('Heading 2', Message.RetypedBlock({ node, block: { type: 'Heading', level: 2 } })),
-          item('Heading 3', Message.RetypedBlock({ node, block: { type: 'Heading', level: 3 } })),
-          item('Quote', Message.WrappedBlock({ node, containers: [{ kind: 'Quote' }] })),
+          item('paragraph', 'Text', Message.RetypedBlock({ node, block: { type: 'Paragraph' } })),
           item(
+            'heading-1',
+            'Heading 1',
+            Message.RetypedBlock({ node, block: { type: 'Heading', level: 1 } }),
+          ),
+          item(
+            'heading-2',
+            'Heading 2',
+            Message.RetypedBlock({ node, block: { type: 'Heading', level: 2 } }),
+          ),
+          item(
+            'heading-3',
+            'Heading 3',
+            Message.RetypedBlock({ node, block: { type: 'Heading', level: 3 } }),
+          ),
+          item('quote', 'Quote', Message.WrappedBlock({ node, containers: [{ kind: 'Quote' }] })),
+          item(
+            'checklist',
             'Checklist',
             Message.WrappedBlock({
               node,
@@ -551,7 +675,7 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
               ),
             ),
           ]),
-          item('Edit caption…', Message.OpenedMenu({ menu: Menu.Caption({ node }) })),
+          item('image', 'Edit caption…', Message.OpenedMenu({ menu: Menu.Caption({ node }) })),
         ]
       case 'Callout':
         return [
@@ -572,7 +696,11 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
         ]
       case 'Toggle':
         return [
-          item(props.open === true ? 'Collapse' : 'Expand', set({ open: props.open !== true })),
+          item(
+            'toggle',
+            props.open === true ? 'Collapse' : 'Expand',
+            set({ open: props.open !== true }),
+          ),
         ]
       default:
         return []
@@ -585,6 +713,7 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
       ? []
       : [
           item(
+            'chevron-up',
             'Move up',
             Message.MenuEdit({
               message: EditorMessage.MovedBlock({ node, to: { before: siblings.previous.id } }),
@@ -595,14 +724,17 @@ const BlockMenu = (model: Model, node: RichText.NodeId, slots: Slots, h: H): Htm
       ? []
       : [
           item(
+            'chevron-down',
             'Move down',
             Message.MenuEdit({
               message: EditorMessage.MovedBlock({ node, to: { after: siblings.next.id } }),
             }),
           ),
         ]),
-    item('Duplicate', Message.DuplicatedBlock({ node })),
-    item('Delete', Message.MenuEdit({ message: EditorMessage.DeletedBlock({ node }) })),
+    item('copy', 'Duplicate', Message.DuplicatedBlock({ node })),
+    item('trash', 'Delete', Message.MenuEdit({ message: EditorMessage.DeletedBlock({ node }) }), {
+      danger: true,
+    }),
   ])
 }
 
@@ -668,12 +800,13 @@ const blockHandle = (model: Model, node: RichText.NodeId, slots: Slots, h: H): H
             open ? Message.ClosedMenu() : Message.OpenedMenu({ menu: Menu.Block({ node }) }),
           ),
         ]),
-        ['⠿'],
+        [richTextIcon(h, 'grip')],
       ),
       ...Option.match(shown, {
         onNone: () => [],
         onSome: ({ caption }) => [
           caption ? CaptionEditor(model, node, slots, h) : BlockMenu(model, node, slots, h),
+          h.span(slots.dismiss.attrs([h.OnMount(dismissOnOutside())]), []),
         ],
       }),
     ],

@@ -74,7 +74,8 @@ test('a slash command chosen with Enter inserts its block where the line was', a
   const page = await open(errors)
   await newLine(page)
   await page.keyboard.type('/tab')
-  await page.getByRole('menuitem', { name: 'Table', exact: true }).waitFor()
+  // Named by its label, then the line under it.
+  await page.getByRole('menuitem', { name: /^Table/ }).waitFor()
   await page.keyboard.press('Enter')
   await page.keyboard.type('First cell')
   const tables = page.locator('[contenteditable=true] > table')
@@ -270,7 +271,8 @@ test('empty lines can be reached with the arrow keys, and a new callout has a li
       .evaluateAll(lines => lines.slice(1, 4).map(line => line.textContent))
   await expect.poll(texts).toEqual(['', 'up', 'down'])
 
-  await page.getByRole('button', { name: 'Insert a callout' }).click()
+  await page.getByRole('button', { name: 'Insert', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Callout' }).click()
   const callout = page.locator('[contenteditable=true] > aside').first()
   const [box, icon] = await Promise.all([
     callout.boundingBox(),
@@ -384,7 +386,7 @@ test('Export copies the document as Markdown to the clipboard', async () => {
     const page = await context.newPage()
     await page.goto(origin)
     await page.waitForSelector('[contenteditable=true] h1', { timeout: 120_000 })
-    await page.getByRole('button', { name: 'Copy the document as Markdown, HTML or JSON' }).click()
+    await page.getByRole('button', { name: 'Export', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Copy as Markdown' }).click()
     await expect
       .poll(() => page.getByRole('status').textContent())

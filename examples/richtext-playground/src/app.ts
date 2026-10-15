@@ -75,6 +75,10 @@ export const Menu = defineTaggedUnion({
   Insert: {},
   /** The toolbar's export menu. */
   Export: {},
+  /** A text style menu: the toolbar's, or the one over selected text. */
+  Style: { place: Schema.Literals(['toolbar', 'floating']) },
+  /** Starting over, asked before the document is thrown away. */
+  Reset: {},
   /** The link editor over the selection. */
   Link: {},
   /** An image's caption, being written. */
@@ -443,16 +447,28 @@ export const openMenu = (
   readonly insert: boolean
   readonly export: boolean
   readonly link: boolean
+  /** Where a text style menu is open, if one is. */
+  readonly style: 'toolbar' | 'floating' | undefined
+  readonly reset: boolean
   /** The block whose handle menu is open, and whether it shows the caption field. */
   readonly block: Option.Option<{ readonly node: RichText.NodeId; readonly caption: boolean }>
 } => {
-  const none = { insert: false, export: false, link: false, block: Option.none() }
+  const none = {
+    insert: false,
+    export: false,
+    link: false,
+    style: undefined,
+    reset: false,
+    block: Option.none(),
+  }
   return Option.match(model.menu, {
     onNone: () => none,
     onSome: menu =>
       Menu.match(menu, {
         Insert: () => ({ ...none, insert: true }),
         Export: () => ({ ...none, export: true }),
+        Style: ({ place }) => ({ ...none, style: place }),
+        Reset: () => ({ ...none, reset: true }),
         Link: () => ({ ...none, link: true }),
         Block: ({ node }) => ({ ...none, block: Option.some({ node, caption: false }) }),
         Caption: ({ node }) => ({ ...none, block: Option.some({ node, caption: true }) }),
@@ -639,6 +655,8 @@ const step = (model: Model, message: Message): Return =>
         Block: () => ({ model: opened }),
         Insert: () => ({ model: opened }),
         Export: () => ({ model: opened }),
+        Style: () => ({ model: opened }),
+        Reset: () => ({ model: opened }),
         Link: () => ({
           model: modifyFields(opened, {
             linkDraft: () => RichText.linkAt(model.document, model.editor.selection)?.href ?? '',
