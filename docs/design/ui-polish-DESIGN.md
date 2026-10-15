@@ -90,6 +90,12 @@ padded container in `recipes/`.
 
 **Seen in:** Sidebar sections, TreeView groups (and likely Accordion).
 
+**Done in Phase 0.** Hypothesis 1 was wrong and 2 was close: the cause was
+the stretched `auto` heading row (Part B). Sidebar and TreeView now share
+`opensBelow` in `design.ts`. Accordion animates a one-track panel, has no
+`auto` row, and did not jump. The original hypotheses are kept below for
+the record.
+
 **Hypotheses, to reproduce first.**
 1. The open transition uses `ref.motion.ease` (`recipes/sidebar.ts:78`,
    `recipes/treeView.ts:31`). `/create`'s motion presets can set `ease` to
@@ -173,11 +179,14 @@ toggle, and a browser test per component flips `dir`.
 **Seen in:** Segmented (space under the text), Kbd, the Checkbox mark,
 Radio's dot against its label, Steps.
 
-**Confirmed for Segmented:** each option carries both `trimmed` (`text-box`)
-and `Utilities.steady`'s hidden `::after` copy (`recipes/segmented.ts`).
-AGENTS.md records that `text-box` trims only a block container, and the
-option is a flex button, so the trim may do nothing while the hidden copy
-adds a line. **Plan:** one checked recipe for "a label centred in a fixed
+**Segmented, measured in Phase 0:** each option carries both `trimmed`
+(`text-box`) and `Utilities.steady`'s hidden `::after` copy
+(`recipes/segmented.ts`). The guess was that the trim did nothing on a flex
+button and the copy added a line. Neither holds: the option computes
+`inline-block` (a block container, so the trim applies) and the copy is
+`height: 0`. The text still sits about 2.5px above centre, so the offset
+comes from the trimmed glyphs themselves; measure ink, not line boxes,
+before choosing the fix. **Plan:** one checked recipe for "a label centred in a fixed
 height": a block inner span with the trim, the steady copy laid over it
 (grid stacking, not a second line). Kbd, Badge, Segmented, Tabs and Button
 use it. The Checkbox and Radio marks are centred with `place-items: center`
@@ -208,22 +217,40 @@ gallery page with the variants as examples.
 
 ## Part B: bugs
 
+Phase 0 (2026-10-15) reproduced each row in Chromium on the gallery, by
+script: geometry, computed style and hit tests, plus screenshots of every
+page at 390, 768 and 1440px, dark, and `dir="rtl"`. No page logs an error.
+**Fixed** rows name the commit's subject.
+
 | Component | Symptom | Cause | Fix |
 |---|---|---|---|
-| Input OTP | The gallery example does not work | hypothesis: the hidden input over the cells does not receive focus or input (z-order or `pointer-events`), or the widgets fold is not wired | reproduce, then a browser test that types six digits and pastes |
-| Hover Card | The link moves when the card shows | hypothesis, A4 | top layer |
-| Nested Menu | The submenu scrolls inside the parent | reported: drawn inside the parent's scroll slot | A4 |
-| Radio Group | The label cannot be clicked; the dot sits off the text | hypothesis: the label is not a `<label for>` around or beside the radio; alignment by margins | wrap or associate, A7 |
-| Skeleton | Looks broken on the website | hypothesis: a bar with `inline-size: 100%` inside a flex or grid cell that sizes to content collapses to 0, so only a pulse of nothing shows | reproduce; give shapes intrinsic sizes and the composites in C |
-| VirtualList | The width changes while scrolling | hypothesis: the root grid's column sizes to the widest rendered row | `grid-template-columns: minmax(0, 1fr)`, full width |
-| Carousel | The corners are cropped | hypothesis: the track's `overflow` clips each slide's radius and its focus ring | A2; inset the snap area (`scroll-padding`), round the slides, not the track |
-| Segmented | Corners and vertical centring | confirmed, A2 and A7 | — |
+| Input OTP | The gallery example does not work | **confirmed:** the cells are drawn over the input, so a press on a cell lands on a `div` and focuses nothing; typing after focusing the input works | the cells take no pointer (`pointer-events: none`) or the input sits above them; a browser test that clicks a cell, types six digits and pastes |
+| Hover Card | The link moves when the card shows | **confirmed:** the card is drawn in flow inside the trigger's `span`; the centred preview re-centres on the wider pair and the link jumps about 140px | A4 (top layer); until then, the card out of flow |
+| Nested Menu | The submenu scrolls inside the parent | **confirmed, worse:** the submenu's nearest clipping ancestor is the parent `role="menu"` (`overflow: auto`), and it is placed beside the parent, so it is clipped away entirely and never shows | A4 |
+| Radio Group | The label cannot be clicked; the dot sits off the text | **confirmed:** the radio is a `button`, the label a `<label>` with no `for` and no click, so a press on it changes nothing; the dot's centre sits 3px above the label's | a press on the label chooses (an `OnClick`, or the label wrapping the row); A7 |
+| Skeleton | Looks broken on the website | **confirmed:** every shape computes 0px wide (16px tall), so nothing shows | intrinsic sizes for shapes; the composites in C |
+| VirtualList | The width changes while scrolling | **confirmed:** the list sizes to its widest drawn row, 121–131px as rows change | `grid-template-columns: minmax(0, 1fr)`, full width |
+| Carousel | The corners are cropped | **confirmed, two causes:** the gallery's slides drew a square `1px currentColor` border that the slide's rounded clip cut (**fixed**: "the carousel demo's slides are a fill"); and a focused slide's ring is cut at the sides by the track's `overflow` | inset the ring, or pad the snap area (`scroll-padding`) |
+| Segmented | Corners and vertical centring | **confirmed:** the text sits about 2.5px above centre in its 28px option. The trim is on an `inline-block`, which is a block container, and the steady copy is `height: 0` and adds no line, so the cause in A7 is wrong; the trimmed line's glyphs sit high | A2; find the real offset in A7 |
 | Switch | Broken in RTL | confirmed, A6 | — |
-| Checkbox | The mark is off centre | confirmed offset, A7 | — |
-| Kbd | Not optically centred | hypothesis, A7 | — |
-| Sidebar, TreeView | Jumps while a section opens | hypotheses, A3 | — |
-| InputCopy | The focus ring is cut by the corners | hypothesis: the ring is on the input inside a group with `overflow: hidden` | ring on the group with `:focus-within`, or an inset ring, concentric (A2) |
-| Steps | Misaligned by default | hypothesis: marker and connector centred on different lines | align the connector to the marker's centre with the marker as the grid row |
+| Checkbox | The mark is off centre | at 3×, the check sits a little up and left of centre; slight | A7 |
+| Kbd | Not optically centred | the line box is 1px above centre; at 3× the K reads slightly low. Minor | A7 |
+| Sidebar, TreeView | Jumps while a section opens | **confirmed, not the spring:** the shipped spring overshoots 0.3% (a fifth of a pixel on 72px). The heading row is an `auto` track, and mid-transition `align-content: normal` stretched it into the room the `fr` row left, so the links dropped about 16px and rose back. **Fixed**: "a Sidebar section or TreeView group holds its rows still while it opens" (`opensBelow`, with a frame-sampling browser test) | — |
+| InputCopy | The focus ring is cut by the corners | **confirmed:** the input's ring is an inset square outline (`outline-offset: -2px`, radius 0) inside a group with `overflow: hidden` and an 8.4px radius | ring on the group with `:focus-within`, concentric (A2) |
+| Steps | Misaligned by default | **partly:** the connector is centred on the marker (both at y 467.9). What reads as misaligned: the titles sit at different heights, because each text block is centred on its marker and the descriptions differ in length; the connectors' widths differ (16–28px); and at 390px the labels overlap the markers | align titles to the marker's top line; equal connectors; vertical below a width |
+
+**Found in Phase 0, not in the review:**
+
+| Component | Symptom | Cause | Fix |
+|---|---|---|---|
+| Accordion, Sidebar, TreeView, Nested Menu, Carousel, Steps | RTL: a shut row's chevron pointed up, the Sidebar's open one left, the carousel's arrows up and down | the marks were drawn with logical borders, which mirror under `dir="rtl"`, so each recipe's RTL turn landed a quarter off; the Sidebar had no RTL turn | **Fixed**: "chevrons and arrows point the right way right to left" (`cornerSides`, physical sides; a browser test reads where each mark points) |
+| Alert | At 390px the title is squeezed into a three-line column beside the description | title and description sit side by side at every width | stack below a width, or wrap the pair (the merge in A9) |
+| Banner | At 390px the text is indented behind an empty gutter and the action centred under it | the strip's layout assumes a wide row | A9 merge with Alert |
+| Pagination | At 390px it overflows: "Previous1" touches | no compact layout | Part C: compact at narrow widths |
+| Radio Group | Drawn as a row though it says `aria-orientation="vertical"`; at 390px three narrow columns wrap | the layout ignores the orientation | lay out by the orientation |
+| Item | The demo's media is a bare black `●` | gallery content | Part C examples |
+| Resizable | The demo's file list shows default list bullets | gallery content | gallery fix |
+| OTP, Steps (dark) | Cell borders and the upcoming marker are faint on the dark page | low-contrast outline token | check against A1 |
 
 ## Part C: component by component
 
@@ -390,7 +417,7 @@ decides adopt, adapt or skip.
 
 | Phase | Work | Why first |
 |---|---|---|
-| 0 | Run the untested backlog (unit, browser, mutation); screenshot every gallery page at three widths, light and dark, LTR and RTL; confirm or drop each hypothesis in Part B | nothing above is trusted until it runs |
+| 0 | Run the untested backlog (unit, browser, mutation); screenshot every gallery page at three widths, light and dark, LTR and RTL; confirm or drop each hypothesis in Part B | nothing above is trusted until it runs. **Done 2026-10-15** apart from the mutation specs still being written (Part B records the rest) |
 | 1 | A1, A2, A3, A7 | shared rules; each fixes several findings |
 | 2 | Part B | broken things before better things |
 | 3 | A4 and A5 | larger systems; menus, popovers, combobox and scroll areas wait on them |
