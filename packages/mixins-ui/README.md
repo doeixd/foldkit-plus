@@ -527,6 +527,10 @@ What a recipe assumes and does:
   neutral button is see-through (`state.tint`), and images carry a hairline
   inside their edge (`state.edge`). A popup's rows round concentrically inside
   its panel (`Theme.nested`), as a segmented option does inside its tray.
+- **Popups and dialogs enter and leave** when drawn with `@foldkit/ui`'s
+  `isAnimated` (`Menu.init({ id, isAnimated: true })`): a popup fades and
+  grows on the fast tier, from the side its anchor placed it on, and a
+  dialog on the slow one, each leaving on the quicker exit.
 - **Raised surfaces nest.** Popups, popovers, date picker panels and toasts
   sit two levels above what holds them and dialogs four (`Theme.raise`), each
   painted for its level, so a popover in a dialog lands above the dialog: a

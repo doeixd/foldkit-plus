@@ -110,6 +110,28 @@ export const transition = (properties: string): Declarations => ({
 export const travelled = (duration: string) => `calc(${duration} * ${ref.knob.travel})`
 
 /**
+ * A surface that enters and leaves with `@foldkit/ui`'s animation states
+ * (`isAnimated`): it fades and grows from `closed` on `tier`, and a leave
+ * runs the quicker exit tween, since CSS takes the duration of the state it
+ * enters. The growth travels, so reduced motion keeps only the fade. A
+ * surface drawn without `isAnimated` carries no state and simply shows.
+ */
+export const presence = (tier: 'fast' | 'slow', closed: Declarations): StyleValue => {
+  const timing = (duration: string, ease: string): Declarations => ({
+    transitionDuration: `${duration}, ${travelled(duration)}, ${travelled(duration)}`,
+    transitionTimingFunction: `${ease}, ${ease}, ${ease}`,
+  })
+  return Style.compose(
+    Style.self({
+      transitionProperty: 'opacity, scale, translate',
+      ...timing(ref.motion[tier], ref.motion.ease),
+    }),
+    Style.pseudo('[data-closed]', { opacity: '0', ...closed }),
+    Style.pseudo('[data-leave]', timing(ref.motion[`${tier}-exit`], ref.motion['ease-exit'])),
+  )
+}
+
+/**
  * The transition of an overlay a Mount places (a highlight, a chosen marker):
  * its place and size settle on `tier`, scaled by `moving` (a Mount's 0 or 1,
  * so a highlight appearing lands where it is), and its fade runs on `fast`.

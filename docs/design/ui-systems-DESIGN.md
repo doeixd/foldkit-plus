@@ -41,9 +41,10 @@ below is translated, not copied:
 Steps 1 to 5, 3b, 6a and 7 are built. What was built differs from the sections
 below in these ways, and the code is the word on each:
 
-- **Motion (1).** As planned, but no recipe animates a popup's entrance yet,
-  so exits through `data-closed` wait for the popup craft (8), and the grid
-  collapse for Accordion (parity 4).
+- **Motion (1).** As planned. Popups and dialogs enter and leave through
+  upstream's `data-closed` and `data-leave` (`presence(tier, closed)`), a
+  popup from the side its anchor writes in `data-placement`; the grid
+  collapse waits for Accordion (parity 4).
 - **Sizes (2).** The tokens hold the two ends (`control.height` and
   `height-compact`, …), and `Theme.ladder(name)` blends them on the element
   that reads it: a token would resolve the step at `:root`. A popup's `size`

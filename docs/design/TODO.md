@@ -768,9 +768,9 @@ keeps what the systems plan's "What we keep" lists.
   [ui-parity-DESIGN.md](./ui-parity-DESIGN.md) step 1
 - [x] **Systems 1, motion.** Tiers of 80, 160 and 240ms with exits a tier
   quicker, and a `travel` knob that reduced motion zeroes while fades stay.
-  No recipe animates a popup's entrance yet, so exits through `data-closed`
-  land with the popup craft (systems 8; the showcase's panels show the
-  shape), and the `0fr`-`1fr` collapse with Accordion (parity 4).
+  Popups and dialogs enter and leave through upstream's `data-closed` and
+  `data-leave` (`presence` in `design.ts`); the `0fr`-`1fr` collapse lands
+  with Accordion (parity 4).
   [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §1
 - [x] **Systems 2, the size ladder.** A `step` knob and a `control` group
   (height, padding, gap, icon, radius) that rows and controls share, times

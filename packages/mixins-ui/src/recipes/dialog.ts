@@ -5,7 +5,7 @@
 import { Style } from 'foldkit-mixins'
 import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { DialogSlots } from '../dialog.js'
-import { component, focusRing, ref, variant, hover } from './design.js'
+import { component, focusRing, hover, presence, ref, variant } from './design.js'
 
 const width = (max: string) => variant(Style.self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
 
@@ -36,6 +36,8 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         inset: '0',
         background: `color-mix(in oklch, ${ref.surface.bedrock} 45%, transparent)`,
       }),
+      // The veil fades with its panel.
+      presence('slow', {}),
     ),
     panel: component(
       Style.self({
@@ -52,6 +54,8 @@ export const Dialog = Style.recipeFor(DialogSlots)({
       }),
       // Four levels up: a popover opened in it lands two above it.
       raise(4),
+      // The largest thing that moves: the slow tier, from a little smaller.
+      presence('slow', { scale: '0.97' }),
     ),
     title: component(
       Style.self({

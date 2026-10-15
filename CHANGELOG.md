@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: popups and dialogs enter and leave.** Drawn with
+  `@foldkit/ui`'s `isAnimated`, a menu, listbox or combobox panel fades in
+  on the fast tier from a little smaller, sliding 4px from the side the
+  anchor placed it on, and a dialog and its veil on the slow tier from 0.97;
+  each leaves on its tier's quicker exit, and reduced motion keeps the fade
+  alone. The gallery's widgets animate.
 - **`foldkit-mixins/utilities`: `steady(weight)`, weight without reflow.**
   The element's `data-label` holds its text, which a hidden, zero-height
   `::after` sets at `weight`, so a label that turns heavier when chosen

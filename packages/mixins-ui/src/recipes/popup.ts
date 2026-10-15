@@ -6,7 +6,7 @@
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { nested, raise, raisedSurface, role } from 'foldkit-mixins/theme'
-import { component, disabled, glide, ref, rowOnLadder } from './design.js'
+import { component, disabled, glide, presence, ref, rowOnLadder } from './design.js'
 
 /** A line in the panel's own ink, so it reads on an inverted panel too. */
 const line = `color-mix(in oklab, ${ref.popup.ink} 14%, transparent)`
@@ -34,6 +34,11 @@ export const panel: StyleValue = component(
   // where they are; a ring around the whole panel says nothing more.
   Style.pseudo(':focus-visible', { outline: 'none' }),
   raise(2),
+  // It grows out of its trigger, from the side the anchor placed it on.
+  Style.self({ transformOrigin: 'top' }),
+  presence('fast', { scale: '1 0.96', translate: '0 -4px' }),
+  Style.pseudo('[data-placement="top"]', { transformOrigin: 'bottom' }),
+  Style.pseudo('[data-placement="top"][data-closed]', { translate: '0 4px' }),
 )
 
 /** The click-away behind an open panel. */
