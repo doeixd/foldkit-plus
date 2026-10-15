@@ -56,8 +56,9 @@ describe('NumberField.view', () => {
 
   it('keeps its steppers out of the tab order, and disables the one at its bound', () => {
     const [decrease, increase] = Inert.byTag(drawn(1), 'button')
-    expect(Inert.value(decrease, 'tabindex')).toBe('-1')
-    expect(Inert.value(decrease, 'disabled')).toBeDefined()
+    expect(Inert.value(decrease, 'tabIndex')).toBe(-1)
+    expect(Inert.value(decrease, 'disabled')).toBe(true)
+    expect(Inert.value(increase, 'disabled')).toBeUndefined()
     expect(decrease?.data?.on?.['click']).toBeUndefined()
     expect(increase?.data?.on?.['click']).toBeTypeOf('function')
   })
