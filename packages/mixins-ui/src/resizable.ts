@@ -3,6 +3,7 @@ import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
+import { modifyFields } from 'foldkit/struct'
 import { Move } from 'foldkit-primitives/dom'
 import { Resize } from 'foldkit-primitives/observers'
 import type { MixinList } from './resolve.js'
@@ -63,21 +64,23 @@ const clamped = (share: number, bounds: Bounds) =>
 /** The split after `message`; the same Model when nothing changes. */
 export const update = (model: Model, message: Message, bounds: Bounds = {}): Model =>
   Message.match(message, {
-    Measured: ({ size }) => (size === model.size ? model : { ...model, size }),
-    DragStarted: () => ({ ...model, from: Option.some(model.share) }),
+    Measured: ({ size }) =>
+      size === model.size ? model : modifyFields(model, { size: () => size }),
+    DragStarted: () => modifyFields(model, { from: () => Option.some(model.share) }),
     Dragged: ({ delta }) =>
       Option.match(model.from, {
         onNone: () => model,
         onSome: from => {
           if (model.size <= 0) return model
           const share = clamped(from + delta / model.size, bounds)
-          return share === model.share ? model : { ...model, share }
+          return share === model.share ? model : modifyFields(model, { share: () => share })
         },
       }),
-    DragEnded: () => (Option.isNone(model.from) ? model : { ...model, from: Option.none() }),
+    DragEnded: () =>
+      Option.isNone(model.from) ? model : modifyFields(model, { from: () => Option.none() }),
     Set: ({ share }) => {
       const next = clamped(share, bounds)
-      return next === model.share ? model : { ...model, share: next }
+      return next === model.share ? model : modifyFields(model, { share: () => next })
     },
   })
 
