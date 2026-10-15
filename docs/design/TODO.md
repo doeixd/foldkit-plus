@@ -835,9 +835,11 @@ keeps what the systems plan's "What we keep" lists.
 - [x] **Parity 5, upstream wrappers.** Done: nav, as `Nav`; Progress and
   Circular Progress, as `Progress` and its `shape: 'ring'`. Meter, as `Meter`; the virtual
   list, as `VirtualList`.
-- [ ] **Parity 6, the missing everyday pieces.** Drawer and Sheet, Nested Menu,
-  Tags Input, Rating, Password Input, Steps, Carousel, Banner, Input Copy, a
-  date range, a range slider, Tree View and Color Picker.
+- [ ] **Parity 6, the missing everyday pieces.** Done: Drawer and Sheet, as
+  `Recipes.Drawer` and `Recipes.Sheet` over the Dialog; Tags Input, Rating,
+  Password Input, Steps, Banner and Input Copy. Open: Nested Menu, Carousel, a
+  date range, a range slider, Tree View and Color Picker. Their tests (unit,
+  and Sheet's browser test) were written without being run.
 - [ ] **Parity 7, chat.** Message, Message Scroller, Thinking Indicator,
   Thinking Steps and a Questionnaire.
 - [ ] **Parity 8, Zag's long tail.** Angle Slider, Cascade Select, Image

@@ -541,6 +541,12 @@ computed style in a browser test.
 agent's `margin: auto` centering must restore it (`margin: 'auto'`), or it
 lands in the top corner.
 
+**A rule's declarations are sorted, so a shorthand beside a longhand can
+win.** The stylesheet writes each rule's declarations alphabetically
+(`styleRules.ts`), not as authored: the Sheet's `borderWidth: '0'` beside
+`borderLeftWidth` landed after it and took the border away. In one rule,
+write either the shorthand or the longhands, never both.
+
 ## Traps already hit here
 
 Every item below cost real time here. Check for them by name, and **add to this
