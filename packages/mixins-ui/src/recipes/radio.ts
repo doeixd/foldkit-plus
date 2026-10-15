@@ -4,7 +4,7 @@
  * scale from the box like the Checkbox recipe's mark.
  */
 import { Style } from 'foldkit-mixins'
-import { role } from 'foldkit-mixins/theme'
+import { ladder, role } from 'foldkit-mixins/theme'
 import { RadioGroupSlots } from '../radioGroup.js'
 import {
   component,
@@ -32,7 +32,8 @@ const sizes = {
   lg: box('1.25rem'),
 } as const
 
-const edge = 'var(--_fk-toggle-size)'
+// With no size, the ladder's icon rung: 16px, 14px compact, as Fluid Functionalism's.
+const edge = `var(--_fk-toggle-size, ${ladder('icon')})`
 
 export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
   base: {
@@ -80,5 +81,5 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
     },
     size: { sm: { option: sizes.sm }, md: { option: sizes.md }, lg: { option: sizes.lg } },
   },
-  defaults: { tone: 'accent', size: 'md' },
+  defaults: { tone: 'accent' },
 })

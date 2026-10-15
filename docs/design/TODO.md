@@ -817,8 +817,9 @@ keeps what the systems plan's "What we keep" lists.
   their trigger. Tooltip's delay is upstream's (`showDelay`), and a skip
   window between neighbours is the application's (`reflectShowDelay`).
   Not taken: thickening icon strokes on hover, which would restyle every
-  application's icon set. Open: the Switch's geometry and drag, Select's
-  pause after a pick. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
+  application's icon set. Toggles stand on the ladder, and the Switch has
+  Fluid's 34×20 geometry and hover pill. Open: dragging the Switch's thumb
+  (a `PointerDrag` on the button), Select's pause after a pick (upstream's). [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
 - [ ] **Parity 4, the islands into the package.** Accordion, Toggle and Toggle
   Group, Input OTP, Number Input, Alert Dialog, Context Menu, Hover Card,
   Menubar, Navigation Menu, Command, Sidebar, Resizable and Checkbox Group.

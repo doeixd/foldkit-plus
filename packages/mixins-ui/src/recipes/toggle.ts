@@ -5,16 +5,17 @@
  * switch thumb are pseudo-elements, so the view renders an empty control.
  */
 import { Style } from 'foldkit-mixins'
-import { role } from 'foldkit-mixins/theme'
+import { ladder, role } from 'foldkit-mixins/theme'
 import { CheckboxSlots } from '../checkbox.js'
 import { SwitchSlots } from '../switch.js'
 import {
   component,
   disabled,
   focusRing,
+  hover,
   ref,
-  tones,
   toneVar,
+  tones,
   transition,
   travelled,
   variant,
@@ -35,7 +36,8 @@ const sizes = {
   lg: box('1.25rem'),
 } as const
 
-const edge = 'var(--_fk-toggle-size)'
+// With no size, the ladder's icon rung: 16px, 14px compact, as Fluid Functionalism's.
+const edge = `var(--_fk-toggle-size, ${ladder('icon')})`
 
 export const Checkbox = Style.recipeFor(CheckboxSlots)({
   base: {
@@ -89,8 +91,16 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
     },
     size: { sm: { checkbox: sizes.sm }, md: { checkbox: sizes.md }, lg: { checkbox: sizes.lg } },
   },
-  defaults: { tone: 'accent', size: 'md' },
+  defaults: { tone: 'accent' },
 })
+
+/**
+ * The switch's height, a quarter over the toggle edge: 20px on a 34px track
+ * with a 16px thumb by default, as Fluid Functionalism's. `stretch` is what
+ * the thumb grows by while hovered, into a pill.
+ */
+const rail = `calc(${edge} * 1.25)`
+const stretch = 'var(--_fk-switch-stretch, 0px)'
 
 export const Switch = Style.recipeFor(SwitchSlots)({
   base: {
@@ -99,8 +109,8 @@ export const Switch = Style.recipeFor(SwitchSlots)({
         position: 'relative',
         display: 'inline-block',
         flexShrink: '0',
-        inlineSize: `calc(${edge} * 1.8)`,
-        blockSize: edge,
+        inlineSize: `calc(${rail} * 1.7)`,
+        blockSize: rail,
         padding: '0',
         border: '0',
         borderRadius: ref.radius.full,
@@ -113,16 +123,19 @@ export const Switch = Style.recipeFor(SwitchSlots)({
         position: 'absolute',
         insetBlockStart: '2px',
         insetInlineStart: '2px',
-        inlineSize: `calc(${edge} - 4px)`,
-        blockSize: `calc(${edge} - 4px)`,
+        inlineSize: `calc(${rail} - 4px + ${stretch})`,
+        blockSize: `calc(${rail} - 4px)`,
         borderRadius: ref.radius.full,
         background: ref.surface.base,
-        transitionProperty: 'translate',
-        transitionDuration: travelled(ref.motion.moderate),
+        transitionProperty: 'translate, inline-size',
+        transitionDuration: `${travelled(ref.motion.moderate)}, ${travelled(ref.motion.moderate)}`,
         transitionTimingFunction: ref.motion.settle,
       }),
+      // Hovered, the thumb stretches into a pill, as if leaning to go.
+      hover({ '--_fk-switch-stretch': '2px' }),
       Style.pseudo(checked, { background: toneVar('fill') }),
-      Style.pseudo(`${checked}::before`, { translate: `calc(${edge} * 0.8) 0` }),
+      // On, it sits at the far end, and a stretch grows back from that end.
+      Style.pseudo(`${checked}::before`, { translate: `calc(${rail} * 0.7 - ${stretch}) 0` }),
       focusRing,
       disabled,
     ),
@@ -137,5 +150,5 @@ export const Switch = Style.recipeFor(SwitchSlots)({
     },
     size: { sm: { button: sizes.sm }, md: { button: sizes.md }, lg: { button: sizes.lg } },
   },
-  defaults: { tone: 'accent', size: 'md' },
+  defaults: { tone: 'accent' },
 })

@@ -511,7 +511,8 @@ What a recipe assumes and does:
   (`sm` compact, `md` default, `lg` a half step up at 40px) sets the step on
   its own element and beats the region, and a popup's sets it on its panel
   too, so it holds portaled or not; unset, which is the default, follows the
-  region.
+  region. An icon, checkbox, radio or switch with no size stands on the
+  ladder's icon rung, 16px or 14px compact.
 - **Text comes in roles.** `Theme.role(name)` is a size and its leading,
   stepping with the ladder: `display`, `title`, `subtitle`, `body` (a
   control's text, 14px on 20), `caption` (badges, tooltips, a table's

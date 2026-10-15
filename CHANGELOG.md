@@ -190,6 +190,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins-ui`: toggles on the ladder, and Fluid's switch.** A
+  checkbox, radio or switch with no size stands on the ladder's icon rung
+  (16px, 14px compact) instead of defaulting to `md`. The switch is a 34×20
+  track with a 16px thumb (its height a quarter over the toggle's edge, its
+  track 1.7 of that), and its thumb stretches 2px into a pill under the
+  pointer, growing back from the far end when on. Breaking: an unsized toggle
+  no longer means `md`, and the switch is larger than its old 29×16.
 - **`foldkit-mixins-ui`: an icon, a dialog and a tooltip on the systems.** An
   Icon with no size stands on the size ladder (16px, 14px compact) instead of
   defaulting to `md`; a dialog is one notch narrower in a compact region (10%,
