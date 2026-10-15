@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `NestedMenu`, a menu whose rows open submenus**
+  (shadcn's DropdownMenuSub, the APG's submenu), one level deep. ArrowRight,
+  Enter or Space opens a submenu on its first row, ArrowLeft or Escape closes
+  it back to its row, a resting pointer opens it after 150ms, and choosing
+  one of its rows closes everything. Each panel is `@foldkit/ui`'s Menu,
+  drawn inside its row; `update` sorts out which Menu a bubbled key belongs
+  to. `Recipes.NestedMenu`, `Patterns.NestedMenu` and a gallery page.
 - **`foldkit-mixins-ui`: `Carousel`, the APG carousel with no rotation.** A
   scroll-snap track of slides named "N of M", previous and next buttons,
   optional dots and a polite status. The index is the application's;

@@ -855,11 +855,11 @@ while keeping the best of what this project already has:
 - [x] **Parity 5, upstream wrappers.** Done: nav, as `Nav`; Progress and
   Circular Progress, as `Progress` and its `shape: 'ring'`. Meter, as `Meter`; the virtual
   list, as `VirtualList`.
-- [ ] **Parity 6, the missing everyday pieces.** Done: Drawer and Sheet, as
+- [x] **Parity 6, the missing everyday pieces.** Done: Drawer and Sheet, as
   `Recipes.Drawer` and `Recipes.Sheet` over the Dialog; Tags Input, Rating,
   Password Input, Steps, Banner, Input Copy, Carousel, the date range (as
   `DateRange` over the Calendar), the range slider, Tree View and Color
-  Picker. Open: Nested Menu. Their tests, unit and browser, were written
+  Picker, and Nested Menu (one level deep). Their tests, unit and browser, were written
   without being run. Carousel does not yet hear a swipe (a `scrollend` Mount
   in primitives would report the slide in view).
 - [ ] **Parity 7, chat.** Message, Message Scroller, Thinking Indicator,

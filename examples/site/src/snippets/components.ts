@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  NestedMenu,
+  NestedMenuSlots,
   Carousel,
   CarouselSlots,
   RangeSlider,
@@ -2014,6 +2016,58 @@ export const carousel = <Message>(
           style,
         },
         h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region nested-menu
+export const NestedMenuStyle = forSlots(NestedMenuSlots)(Recipes.NestedMenu({}))
+const NestedMenuPanelStyle = forSlots(MenuSlots)(Recipes.Menu({}))
+
+/** The menu's rows, in the order `init` was given them. */
+export const NESTED_MENU: ReadonlyArray<NestedMenu.NestedRow> = [
+  { label: 'New tab' },
+  { label: 'Share', items: ['Email', 'Messages', 'Copy link'] },
+  { label: 'Export', items: ['PDF', 'PNG', 'SVG'], isItemDisabled: item => item === 'SVG' },
+  { label: 'Print' },
+]
+
+/** The open menus are the nested menu's; the row chosen is the Model's. */
+export interface NestedMenuState {
+  readonly menu: NestedMenu.Model
+  readonly chosen: Option.Option<string>
+}
+
+export const nestedMenu = <Message>(
+  style: NamedStyle<typeof NestedMenuSlots>,
+  state: NestedMenuState,
+  onMessage: (message: NestedMenu.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      NestedMenu.view(
+        {
+          model: state.menu,
+          rows: NESTED_MENU,
+          buttonContent: h.span([], ['File']),
+          onMessage,
+          style,
+          menuMixins: [NestedMenuPanelStyle.mixin],
+          submenuMixins: [NestedMenuPanelStyle.mixin, ...Menu.fluid],
+        },
+        h,
+      ),
+      h.p(
+        [],
+        [
+          Option.match(state.chosen, {
+            onNone: () => 'Nothing chosen yet.',
+            onSome: chosen => `Chose ${chosen}.`,
+          }),
+        ],
       ),
     ],
   )

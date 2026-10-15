@@ -34,6 +34,7 @@ import {
   ColorPicker,
   TreeView,
   Carousel,
+  NestedMenu,
 } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
@@ -49,6 +50,7 @@ import {
   Frequency,
   FrequencyBox,
   MENUBAR,
+  NESTED_MENU,
   TREE_FILES,
   Notices,
   Range,
@@ -108,6 +110,9 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
+  /** The nested menu's menus, and the row last chosen from it. */
+  nestedMenu: NestedMenu.Model,
+  nestedMenuChoice: Schema.Option(Schema.String),
   /** The carousel's slide. */
   slide: Schema.Number,
   /** The range slider's chosen price range. */
@@ -167,6 +172,7 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  GotNestedMenu: { message: NestedMenu.Message },
   ChoseSlide: { index: Schema.Number },
   ShowedSlide: {},
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
@@ -238,6 +244,8 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
+  nestedMenu: NestedMenu.init('preview-nested-menu', NESTED_MENU),
+  nestedMenuChoice: Option.none(),
   slide: 0,
   priceRange: { low: 100, high: 350 },
   treeView: TreeView.init({ id: 'preview-tree', open: ['src'] }),
@@ -441,6 +449,26 @@ const foldTreeView = Update.foldChild({
   update: TreeView.update(TREE_FILES),
 })
 
+const foldNestedMenu = Update.foldChild({
+  ...own('nestedMenu', Message.GotNestedMenu),
+  update: NestedMenu.update,
+  foldOutMessage: NestedMenu.OutMessage.match<Step>({
+    Selected:
+      ({ value, submenu }) =>
+      model => ({
+        model: modifyFields(model, {
+          nestedMenuChoice: () =>
+            Option.some(
+              Option.match(submenu, {
+                onNone: () => value,
+                onSome: within => `${within} › ${value}`,
+              }),
+            ),
+        }),
+      }),
+  }),
+})
+
 const foldListbox = Update.foldChild({
   ...own('listbox', Message.GotListbox),
   update: FrequencyBox.update,
@@ -553,6 +581,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
+    GotNestedMenu: ({ message }) => foldNestedMenu(model, message),
     ChoseSlide: ({ index }) => ({
       model: index === model.slide ? model : modifyFields(model, { slide: () => index }),
       commands: Command.mapMessages([Carousel.ShowSlide({ id: 'preview-carousel', index })], () =>

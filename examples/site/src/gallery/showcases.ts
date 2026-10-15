@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  NestedMenuSlots,
   CarouselSlots,
   RangeSliderSlots,
   TreeViewSlots,
@@ -944,6 +945,25 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.slide,
         index => live.onWidget(Widgets.Message.ChoseSlide({ index })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'nested-menu',
+      title: 'Nested menu',
+      summary: 'A menu whose rows open submenus beside them, by ArrowRight, Enter or a resting pointer.',
+      recipe: 'NestedMenu',
+      file: 'nestedMenu',
+      contract: 'NestedMenuSlots',
+    },
+    NestedMenuSlots,
+    Recipes.NestedMenu,
+    (style, live) =>
+      Snippet.nestedMenu(
+        style,
+        { menu: live.widgets.nestedMenu, chosen: live.widgets.nestedMenuChoice },
+        message => live.onWidget(Widgets.Message.GotNestedMenu({ message })),
         live.h,
       ),
   ),
