@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `ColorPicker`,** an OKLCH picker in the space
+  `Theme.oklch` writes: three labelled native ranges for lightness, chroma
+  and hue, each saying its value with its unit, over gradient tracks the
+  recipe paints from the color's custom properties; a swatch, the color as
+  text, and optional presets as a radio group of swatches. The color is the
+  application's (`ColorPicker.Oklch`); `format`, `parse` (an `Option`) and
+  `withChannel` are pure. `Patterns.ColorPicker` and a gallery page.
 - **`foldkit-mixins-ui`: `DateRange`, a start and an end day on the
   Calendar.** The application owns the range and folds each pick through
   `DateRange.picked` (start, then end, swapped if earlier, then a new start);

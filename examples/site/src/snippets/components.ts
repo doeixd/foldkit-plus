@@ -61,6 +61,8 @@ import {
   MeterSlots,
   Nav,
   NavSlots,
+  ColorPicker,
+  ColorPickerSlots,
   DateRange,
   InputCopy,
   InputCopySlots,
@@ -1866,6 +1868,33 @@ export const dateRange = <Message>(
     },
     toParentMessage: toMessage,
   })
+// #endregion
+
+// #region color-picker
+export const ColorPickerStyle = forSlots(ColorPickerSlots)(Recipes.ColorPicker({}))
+
+export const colorPicker = <Message>(
+  style: NamedStyle<typeof ColorPickerSlots>,
+  value: ColorPicker.Oklch,
+  onChange: (value: ColorPicker.Oklch) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  ColorPicker.view(
+    {
+      id: 'preview-accent',
+      label: 'Accent',
+      value,
+      onChange,
+      presets: [
+        { label: 'Blue', value: { l: 62.5, c: 0.15, h: 250 } },
+        { label: 'Teal', value: { l: 70, c: 0.12, h: 190 } },
+        { label: 'Amber', value: { l: 80, c: 0.16, h: 80 } },
+        { label: 'Rose', value: { l: 65, c: 0.2, h: 10 } },
+      ],
+      style,
+    },
+    h,
+  )
 // #endregion
 
 // #region navigation-menu

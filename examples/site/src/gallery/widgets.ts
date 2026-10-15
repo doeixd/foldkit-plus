@@ -31,6 +31,7 @@ import {
   Sidebar,
   TagsInput,
   DateRange,
+  ColorPicker,
 } from 'foldkit-mixins-ui'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiTooltip from '@foldkit/ui/tooltip'
@@ -104,6 +105,8 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
+  /** The color picker's accent, in OKLCH. */
+  accent: ColorPicker.Oklch,
   /** The trip calendar, and the range picked on it. */
   trip: UiCalendar.Model,
   tripDates: DateRange.Range,
@@ -155,6 +158,7 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
+  PickedAccent: { value: ColorPicker.Oklch },
   GotTripCalendar: { message: UiCalendar.Message },
   GotSheet: { message: UiDialog.Message },
   OpenedSheet: {},
@@ -221,6 +225,7 @@ export const initial: Model = {
   menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
+  accent: { l: 62.5, c: 0.15, h: 250 },
   trip: UiCalendar.init({ id: 'preview-trip', today }),
   tripDates: DateRange.empty,
   inputCopied: false,
@@ -527,6 +532,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotMenu: ({ message }) => foldMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
+    PickedAccent: ({ value }) =>
+      value.l === model.accent.l && value.c === model.accent.c && value.h === model.accent.h
+        ? { model }
+        : { model: modifyFields(model, { accent: () => value }) },
     GotTripCalendar: ({ message }) => foldTripCalendar(model, message),
     PressedCopy: ({ text }) => ({
       model,

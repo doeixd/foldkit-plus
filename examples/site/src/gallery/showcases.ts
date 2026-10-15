@@ -27,6 +27,7 @@ import {
   MeterSlots,
   NavSlots,
   ProgressSlots,
+  ColorPickerSlots,
   InputCopySlots,
   BannerSlots,
   TagsInputSlots,
@@ -864,6 +865,25 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets,
         message => live.onWidget(Widgets.Message.GotTripCalendar({ message })),
+        live.h,
+      ),
+  ),
+  fromRecipe(
+    {
+      slug: 'color-picker',
+      title: 'Color picker',
+      summary: 'An OKLCH color from three sliders, with its swatch, its text and preset swatches.',
+      recipe: 'ColorPicker',
+      file: 'colorPicker',
+      contract: 'ColorPickerSlots',
+    },
+    ColorPickerSlots,
+    Recipes.ColorPicker,
+    (style, live) =>
+      Snippet.colorPicker(
+        style,
+        live.widgets.accent,
+        value => live.onWidget(Widgets.Message.PickedAccent({ value })),
         live.h,
       ),
   ),

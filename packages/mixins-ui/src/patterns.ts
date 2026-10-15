@@ -20,6 +20,7 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
+import { ColorPickerSlots } from './colorPicker.js'
 import { InputCopySlots } from './inputCopy.js'
 import { BannerSlots } from './banner.js'
 import { TagsInputSlots } from './tagsInput.js'
@@ -278,6 +279,19 @@ export const InputCopy = A11y.pattern({
   status: { capability: Capability.Container, attributes: [Attr.Role] },
 })
 
+export const ColorPicker = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role] },
+  label: { capability: Capability.Container },
+  channelLabel: { capability: Capability.Container },
+  slider: { capability: Capability.Focusable, events: [Event.Input] },
+  preset: {
+    capability: Capability.Interactive,
+    events: [Event.Change],
+    attributes: [Attr.AriaLabel],
+    optional: true,
+  },
+})
+
 export const Nav = A11y.pattern({
   nav: { capability: Capability.Container },
   link: { capability: Capability.Interactive },
@@ -487,6 +501,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
+  entry(
+    'color-picker',
+    ColorPicker,
+    ColorPickerSlots,
+    'stateless',
+    ['group', 'slider', 'radiogroup', 'radio'],
+    ['native-control'],
+  ),
   entry('input-copy', InputCopy, InputCopySlots, 'stateless', ['textbox', 'button', 'status'], [
     'native-control',
   ]),
