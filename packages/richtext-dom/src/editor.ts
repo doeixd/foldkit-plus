@@ -15,12 +15,13 @@ import {
   attachmentIn,
   decorationsFor,
   mountInto,
+  keymapFor,
   placeholdersFor,
   releaseMount,
   renderingFor,
   vocabularyFor,
 } from './host.js'
-import type { Decorate } from './events.js'
+import type { Decorate, KeyBinding } from './events.js'
 
 export const Message = defineMessageUnion({
   Typed: { text: Schema.String },
@@ -354,6 +355,8 @@ export interface EditorDrawing {
   readonly lineHint?: string | undefined
   /** The node vocabulary, which says where Tab means something (`RichText.takesTab`). */
   readonly nodes?: RichText.NodeRegistry | undefined
+  /** Chords beside the built-in ones, checked first (`AttachOptions.keymap`). */
+  readonly keymap?: ReadonlyArray<KeyBinding> | undefined
 }
 
 /**
@@ -382,6 +385,7 @@ export const attachEditor = (
       nodes: drawing.nodes,
       placeholder: drawing.placeholder,
       lineHint: drawing.lineHint,
+      keymap: drawing.keymap,
     },
     drawing.rendering,
   )
@@ -477,6 +481,7 @@ export const events = Mount.defineStream('RichTextDomEvents', {
             decorate: decorationsFor(element.id),
             ...placeholdersFor(element.id),
             nodes: vocabularyFor(element.id).nodes,
+            keymap: keymapFor(element.id),
           }),
         ),
         () => Effect.sync(() => releaseMount(element)),

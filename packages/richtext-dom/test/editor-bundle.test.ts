@@ -32,7 +32,13 @@ import {
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { decorationsFor, placeholdersFor, placeOverlay, renderingFor } from '../src/host.js'
+import {
+  decorationsFor,
+  keymapFor,
+  placeholdersFor,
+  placeOverlay,
+  renderingFor,
+} from '../src/host.js'
 import { Message } from '../src/editor.js'
 
 const id = RichText.NodeId.make
@@ -777,6 +783,16 @@ describe('decorations placed for the editor (§129)', () => {
     placeOverlay('overlaid-editor', [peer])
     editorAt('overlaid-editor', { decorate })
     expect(decorationsFor('overlaid-editor')(document())).toEqual(decorate(document()))
+  })
+})
+
+describe('the chords placed for the editor', () => {
+  it('records them, and forgets them when the id is placed again without', () => {
+    const keymap = [{ chord: 'Mod-u', command: { type: 'ToggleMark', mark: 'Underline' } }] as const
+    editorAt('chorded-editor', { keymap })
+    expect(keymapFor('chorded-editor')).toEqual(keymap)
+    editorAt('chorded-editor')
+    expect(keymapFor('chorded-editor')).toEqual([])
   })
 })
 

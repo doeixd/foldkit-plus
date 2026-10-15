@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-richtext-dom`: a placement's `keymap`, and Mod+Shift+S.** `editorAt`
+  takes chords beside the built-in ones, and Strikethrough has a chord of its
+  own. The playground binds Ctrl+U (underline), Ctrl+Shift+H (highlight) and
+  Ctrl+K (the link editor), and its toolbar names them.
 - **`foldkit-richtext`: `node(…, { indents })`, split from `lineBreaks`.** A kind
   can keep line breaks (Enter breaks the line, Enter on an empty last line
   leaves it) without Tab indenting it, as a callout of several lines does in

@@ -1,6 +1,6 @@
 /**
  * Indentation in code: Tab and Shift+Tab at a caret and over lines, and Enter keeping the line's
- * indentation. Code is the standard `CodeBlock`, which declares `lineBreaks`.
+ * indentation. Code is the standard `CodeBlock`, which declares `indents`.
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'

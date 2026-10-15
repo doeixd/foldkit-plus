@@ -116,6 +116,8 @@ What each part does, and does not do:
   outside it (a table of contents, a find bar closing on its match): the editor takes the focus
   with that selection, scrolled to the middle of the window when it is out of view. The browser
   reports the selection back as `Selected`.
+- **`keymap`**: chords beside the built-in ones, checked first, as `{ chord, command }`
+  (`Mod-u` toggling an application's `Underline`, say). `Mod` is Ctrl or Cmd.
 - **`slashEntries`**: what its slash menu offers, which Enter in a query resolves against: an
   application's own catalogue (an image, a table, a callout), beside or instead of the
   editor's `slashEntries`. The application's menu view draws the same list.
@@ -392,12 +394,15 @@ cases (each built as `Message.Typed({ text })` and so on, not exported one by on
 ```text
 Typed, Backspace, DeletedForward, Entered, ToggledMark, AppliedMark, ClearedMark,
 RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, MovedBlock, InsertedBlock,
-DeletedBlock, ChangedProps, InsertedRow, InsertedColumn, DeletedRow, DeletedColumn, Indented,
-Outdented, ActivatedAdornment, Selected, Pasted, Undone, Redone, Patched
+DeletedBlock, InsertedRow, InsertedColumn, DeletedRow, DeletedColumn, Indented, Outdented,
+ReplacedText, InsertedFootnote, RenamedFootnote, ActivatedAdornment, DismissedSlash,
+ChangedProps, Selected, Pasted, Undone, Redone, Patched
 ```
 
 The adapter reports what the browser did as commands, a caret, and history chords, and
-`toMessage` turns each into a Message. It refuses what the vocabulary cannot carry rather than
+`toMessage` turns each into a Message. Its chords are Mod+B, Mod+I and Mod+E for Bold, Italic
+and Code, Mod+Shift+S for Strikethrough (Mod+S alone is left to the browser), and Mod+Z,
+Mod+Shift+Z and Mod+Y for undo and redo; a placement's `keymap` adds its own, checked first. It refuses what the vocabulary cannot carry rather than
 dropping a detail: an insertion carrying marks, or a mark value with props, comes back
 `undefined`. The rest are the application's to send, because no browser event means them:
 

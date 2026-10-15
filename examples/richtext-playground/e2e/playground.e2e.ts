@@ -529,3 +529,20 @@ test('Enter in a callout breaks its line, and on an empty last line leaves it', 
   expect(await page.locator('[contenteditable=true] > aside').count()).toBe(1)
   expect(errors).toEqual([])
 })
+
+test('Ctrl+U underlines a selection, and Ctrl+K opens its link editor', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await page.locator('[contenteditable=true] h1 + p [data-run]').first().click()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Shift+End')
+  await page.keyboard.press('Control+u')
+  await expect
+    .poll(() => page.locator('[contenteditable=true] h1 + p u').count())
+    .toBeGreaterThan(0)
+  await page.keyboard.press('Control+k')
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-link')))
+    .toBe('address')
+  expect(errors).toEqual([])
+})

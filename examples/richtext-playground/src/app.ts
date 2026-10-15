@@ -48,6 +48,11 @@ placeEditor(hostId, {
   placeholder: 'Type / for blocks, or start writing…',
   lineHint: 'Type / for blocks',
   slashEntries: playgroundSlashEntries,
+  // The playground's own marks, beside the editor's chords for the standard ones.
+  keymap: [
+    { chord: 'Mod-u', command: { type: 'ToggleMark', mark: 'Underline' } },
+    { chord: 'Mod-Shift-h', command: { type: 'ToggleMark', mark: 'Highlight' } },
+  ],
 })
 
 /** The person using this page; the seeded discussion is someone else's. */

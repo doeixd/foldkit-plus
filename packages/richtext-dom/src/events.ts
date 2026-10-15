@@ -67,6 +67,9 @@ const markChord = (event: KeyboardEvent): string | undefined => {
       return 'Italic'
     case 'e':
       return 'Code'
+    // Without Shift, the browser's save.
+    case 's':
+      return event.shiftKey ? 'Strikethrough' : undefined
     default:
       return undefined
   }

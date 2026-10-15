@@ -37,6 +37,7 @@ import {
   placePlaceholders,
   placeRendering,
   placeServerRendered,
+  placeKeymap,
   placeSlashEntries,
   placeVocabulary,
   renderingFor,
@@ -45,7 +46,7 @@ import {
   type Vocabulary,
   vocabularyFor,
 } from './host.js'
-import type { Decorate } from './events.js'
+import type { Decorate, KeyBinding } from './events.js'
 import { renderEditable } from './view.js'
 
 /** Interaction state the parent owns beside the document. */
@@ -744,6 +745,12 @@ export interface EditorPlacement {
    */
   readonly lineHint?: string | undefined
   /**
+   * Chords beside the built-in ones (Bold, Italic, Code, Strikethrough, undo and redo), checked
+   * first: `{ chord: 'Mod-u', command: { type: 'ToggleMark', mark: 'Underline' } }` for a mark
+   * of the application's own. Defaults to none.
+   */
+  readonly keymap?: ReadonlyArray<KeyBinding> | undefined
+  /**
    * What its slash menu offers, which Enter resolves against: an application's own entries
    * (an image, a table, a callout) beside or instead of `slashEntries`. The application's menu
    * view draws the same list. Defaults to `slashEntries`.
@@ -773,6 +780,7 @@ export const placeEditor = (hostId: string, placement: EditorPlacement): void =>
     lineHint: placement.lineHint,
   })
   placeSlashEntries(hostId, placement.slashEntries)
+  placeKeymap(hostId, placement.keymap ?? [])
   placeServerRendered(hostId, placement.serverRendered ?? (() => false))
 }
 

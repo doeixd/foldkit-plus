@@ -6,7 +6,13 @@
  */
 import * as RichText from 'foldkit-richtext'
 import { adopt, mount } from './index.js'
-import { attach, type AttachOptions, type Attachment, type Decorate } from './events.js'
+import {
+  attach,
+  type AttachOptions,
+  type Attachment,
+  type Decorate,
+  type KeyBinding,
+} from './events.js'
 import type { EditorEvent, SlashEntry } from './editor.js'
 
 const attachments = new WeakMap<Element, Attachment>()
@@ -97,6 +103,16 @@ export const placePlaceholders = (hostId: string, placed: Placeholders): void =>
 
 /** The placeholders placed for a host id; none when nothing was placed. */
 export const placeholdersFor = (hostId: string): Placeholders => placeholders.get(hostId) ?? {}
+
+const keymaps = new Map<string, ReadonlyArray<KeyBinding>>()
+
+/** Records the chords a placement's editor adds to the built-in ones, by host id. */
+export const placeKeymap = (hostId: string, keymap: ReadonlyArray<KeyBinding>): void => {
+  keymaps.set(hostId, keymap)
+}
+
+/** The chords placed for a host id; none when nothing was placed. */
+export const keymapFor = (hostId: string): ReadonlyArray<KeyBinding> => keymaps.get(hostId) ?? []
 
 const slashCatalogues = new Map<string, ReadonlyArray<SlashEntry<EditorEvent>>>()
 

@@ -127,6 +127,7 @@ describe('translating events into intent', () => {
     ['b', { meta: true }, { type: 'ToggleMark', mark: 'Bold' }],
     ['i', { ctrl: true }, { type: 'ToggleMark', mark: 'Italic' }],
     ['e', { meta: true }, { type: 'ToggleMark', mark: 'Code' }],
+    ['S', { ctrl: true, shift: true }, { type: 'ToggleMark', mark: 'Strikethrough' }],
   ] as const)('maps keydown %s to a command', (value, modifiers, command) => {
     expect(intentFor(key(value, modifiers ?? {}))).toEqual({ preventDefault: true, command })
   })
@@ -140,6 +141,10 @@ describe('translating events into intent', () => {
     })
     expect(intentFor(key('y', { ctrl: true }))).toEqual({ preventDefault: true, history: 'redo' })
     expect(intentFor(key('z'))).toBeUndefined()
+  })
+
+  it('leaves Ctrl+S, without Shift, to the browser', () => {
+    expect(intentFor(key('s', { ctrl: true }))).toBeUndefined()
   })
 
   it('leaves ordinary typing to beforeinput and unknown keys alone', () => {

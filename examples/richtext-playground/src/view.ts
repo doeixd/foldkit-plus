@@ -88,10 +88,10 @@ const MARKS: ReadonlyArray<
 > = [
   ['Bold', 'bold', 'Bold (Ctrl+B)', 'high'],
   ['Italic', 'italic', 'Italic (Ctrl+I)', 'high'],
-  ['Underline', 'underline', 'Underline', 'low'],
-  ['Strikethrough', 'strikethrough', 'Strikethrough', 'low'],
-  ['Code', 'code', 'Inline code', 'low'],
-  ['Highlight', 'highlight', 'Highlight', 'low'],
+  ['Underline', 'underline', 'Underline (Ctrl+U)', 'low'],
+  ['Strikethrough', 'strikethrough', 'Strikethrough (Ctrl+Shift+S)', 'low'],
+  ['Code', 'code', 'Inline code (Ctrl+E)', 'low'],
+  ['Highlight', 'highlight', 'Highlight (Ctrl+Shift+H)', 'low'],
 ]
 
 /** What the insert menu offers after a file, by slash entry id, in this order. */
@@ -290,7 +290,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
       styleMenu('toolbar'),
       separator(),
       ...markTools(),
-      tool('link', 'Link', toggleMenu(Menu.Link(), open.link), {
+      tool('link', 'Link (Ctrl+K)', toggleMenu(Menu.Link(), open.link), {
         pressed: open.link || RichText.linkAt(model.document, model.editor.selection) !== undefined,
         disabled: !covers,
       }),
@@ -394,7 +394,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
                     separator('low'),
                     ...markTools(),
                     separator(),
-                    tool('link', 'Link', Message.OpenedMenu({ menu: Menu.Link() }), {
+                    tool('link', 'Link (Ctrl+K)', Message.OpenedMenu({ menu: Menu.Link() }), {
                       pressed:
                         RichText.linkAt(model.document, model.editor.selection) !== undefined,
                     }),
@@ -514,6 +514,16 @@ export const PlaygroundView = SlotView.forMessages<Message>()
                   return Option.some(Message.ClosedMenu())
                 if (key === 'Escape' && slash !== undefined)
                   return Option.some(wrap(EditorMessage.DismissedSlash()))
+                // Ctrl+K edits the link the selection covers or the caret is in, as the
+                // toolbar's Link does; elsewhere it is the browser's.
+                if (
+                  key.toLowerCase() === 'k' &&
+                  (modifiers.ctrlKey || modifiers.metaKey) &&
+                  !modifiers.altKey &&
+                  (RichText.coversText(model.editor.selection) ||
+                    RichText.linkAt(model.document, model.editor.selection) !== undefined)
+                )
+                  return Option.some(Message.OpenedMenu({ menu: Menu.Link() }))
                 const index = slashMove(
                   slashEntries,
                   menuText(model),
