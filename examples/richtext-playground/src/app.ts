@@ -26,7 +26,7 @@ import {
   type EditorView,
 } from 'foldkit-richtext-dom/editor-bundle'
 import { markdownInputRules, print } from 'foldkit-richtext-markdown'
-import { stepMatch } from 'foldkit-mixins-richtext'
+import { linkEdit, stepMatch } from 'foldkit-mixins-richtext'
 import { ClipboardMessage, copyText } from 'foldkit-primitives/dom'
 import { firstThread, initialDocument } from './document.js'
 import {
@@ -167,7 +167,12 @@ export const Message = defineMessageUnion({
   SteppedMatch: { step: Schema.Literals([1, -1]) },
   FindCaseToggled: {},
   ClosedFind: {},
-  CompletedFocusFind: {},
+  /** A field a control opened has the focus: the find bar's, or the link editor's. */
+  FocusedField: {},
+  /** The link editor's edit: the link applied or removed, the editor closed, the text focused. */
+  LinkEdited: { message: EditorMessage },
+  /** Enter in the link editor: the draft, as the Model holds it, applied. */
+  LinkSubmitted: {},
   /**
    * A heading chosen from the contents, or a note from a footnote's preview: the caret goes to
    * the block's start, and the editor's focus with it.
@@ -516,12 +521,12 @@ const selectedQuery = (model: Model): string => {
   return text.length <= 80 && !/[\r\n]/.test(text) ? text : ''
 }
 
-const FocusFind = Command.define('FocusFind', {
-  messages: [Message.CompletedFocusFind],
-  execute: Dom.focus('[data-find="query"]').pipe(
-    Effect.ignore,
-    Effect.as(Message.CompletedFocusFind()),
-  ),
+/** Gives the focus to the field a control just opened, so its keys go there at once. */
+const FocusField = Command.define('FocusField', {
+  args: { selector: Schema.String },
+  messages: [Message.FocusedField],
+  execute: ({ selector }) =>
+    Dom.focus(selector).pipe(Effect.ignore, Effect.as(Message.FocusedField())),
 })
 
 /**
@@ -661,6 +666,7 @@ const step = (model: Model, message: Message): Return =>
           model: modifyFields(opened, {
             linkDraft: () => RichText.linkAt(model.document, model.editor.selection)?.href ?? '',
           }),
+          commands: [FocusField({ selector: '[data-link="address"]' })],
         }),
         Caption: ({ node }) => {
           const block = blockOf(model, node)
@@ -844,7 +850,7 @@ const step = (model: Model, message: Message): Return =>
           find: () =>
             Option.some({ ...open, query: selected === '' ? open.query : selected, current: 0 }),
         }),
-        commands: [FocusFind()],
+        commands: [FocusField({ selector: '[data-find="query"]' })],
       }
     },
     FindQueried: ({ query }) => ({
@@ -863,7 +869,27 @@ const step = (model: Model, message: Message): Return =>
       model: withFind(model, find => ({ ...find, caseSensitive: !find.caseSensitive, current: 0 })),
     }),
     ClosedFind: () => ({ model: modifyFields(model, { find: () => Option.none() }) }),
-    CompletedFocusFind: () => ({ model }),
+    FocusedField: () => ({ model }),
+    LinkSubmitted: () =>
+      Option.match(linkEdit(model.document, model.editor.selection, model.linkDraft), {
+        onNone: () => ({ model }),
+        onSome: message => step(model, Message.LinkEdited({ message })),
+      }),
+    LinkEdited: ({ message }) => {
+      const result = edit(closed(model), message)
+      const selection = result.model.editor.selection
+      return selection === null
+        ? result
+        : {
+            ...result,
+            commands: [
+              ...(result.commands ?? []),
+              Command.mapMessage(focus(hostId, selection), message =>
+                Message.GotEditor({ message }),
+              ),
+            ],
+          }
+    },
     JumpedTo: ({ node }) => {
       const block = blockOf(model, node)
       const caret = block === undefined ? undefined : caretAtStart(block)

@@ -365,6 +365,30 @@ describe('export', () => {
   })
 })
 
+describe('the link editor', () => {
+  it('focuses its field as it opens, and closes on an edit with the text focused again', () => {
+    const initial = start()
+    const words = select(initial, over(runAt(initial, 0), 2, 6))
+    const opened = update(words, Message.OpenedMenu({ menu: Menu.Link() }))
+    expect(opened.commands?.map(command => command.args)).toEqual([
+      { selector: '[data-link="address"]' },
+    ])
+    const linked = update(
+      opened.model,
+      Message.LinkEdited({
+        message: EditorMessage.AppliedMark({
+          mark: { name: 'Link', props: { href: 'https://example.com' } },
+        }),
+      }),
+    )
+    expect(openMenu(linked.model).link).toBe(false)
+    expect(RichText.linkAt(linked.model.document, linked.model.editor.selection)?.href).toBe(
+      'https://example.com',
+    )
+    expect(linked.commands?.map(command => command.name)).toContain('RichText.focus')
+  })
+})
+
 describe('the contents', () => {
   it('jump to a heading: the caret at its start, and the editor focused there', () => {
     const initial = start()

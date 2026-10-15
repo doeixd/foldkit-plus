@@ -436,3 +436,29 @@ test('a footnote is inserted from the slash menu, previewed at its reference, an
   expect(await reference.textContent()).toBe('2')
   expect(errors).toEqual([])
 })
+
+test('a link is typed straight into the editor that opens, and writing goes on after it', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const first = page.locator('[contenteditable=true] h1 + p [data-run]').first()
+  await first.click()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Shift+End')
+  await page
+    .getByRole('toolbar', { name: 'Selection' })
+    .getByRole('button', { name: 'Link' })
+    .click()
+  // The field takes the focus as it opens, so a link can be pasted or typed at once.
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-link')))
+    .toBe('address')
+  await page.keyboard.type('https://example.com')
+  await page.keyboard.press('Enter')
+  // One link, drawn as more than one element where the discussion's highlight crosses it.
+  const link = page.locator('[contenteditable=true] h1 + p a[href="https://example.com"]')
+  await expect.poll(() => link.count()).toBeGreaterThan(0)
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute('contenteditable')))
+    .toBe('true')
+  expect(errors).toEqual([])
+})
