@@ -12,7 +12,7 @@ export const ButtonSlots = Slots.define({
   button: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaDisabled, Attr.Disabled],
+    attributes: [Attr.Role, Attr.AriaDisabled, Attr.Disabled, Attr.AriaPressed],
   }),
 })
 
@@ -57,6 +57,11 @@ export interface ButtonView<Message> {
   readonly type?: 'button' | 'submit' | 'reset' | undefined
   readonly disabled?: boolean | undefined
   readonly onClick?: Message | undefined
+  /**
+   * Whether the button is on, as a toggle button: `aria-pressed`, and the
+   * recipe's pressed look. Omit it for a button that is not a toggle.
+   */
+  readonly pressed?: boolean | undefined
 }
 
 export const view = <Message>(options: ButtonView<Message>, h: HtmlBuilder<Message>): Html =>
@@ -68,7 +73,13 @@ export const view = <Message>(options: ButtonView<Message>, h: HtmlBuilder<Messa
       toView: toView(
         [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
         { input: options.input, h },
-        ({ button }) => h.button(button, [options.label]),
+        ({ button }) =>
+          h.button(
+            options.pressed === undefined
+              ? button
+              : [...button, h.AriaPressed(String(options.pressed))],
+            [options.label],
+          ),
       ),
     },
     h,

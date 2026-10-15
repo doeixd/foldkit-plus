@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: Toggle and Toggle Group, from the widgets islands,
+  as what was already here.** A toggle is a Button with `pressed`, which
+  writes `aria-pressed`; every variant has its on look. A toggle group is a
+  segmented control: `Segmented.view` draws the options from the
+  application's pressed values, and `Segmented.toggled(pressed, value, {
+  multiple, optional })` is the transition, one at a time (kept pressed
+  unless `optional`) or several. The gallery's segmented control is drawn
+  with `Segmented.view`.
 - **`foldkit-mixins-ui`: `Accordion`,** from the `examples/widgets` island into
   the package, after the APG pattern, shadcn's and Zag's options and Fluid
   Functionalism's craft. `Accordion.view` draws the application's open ids,

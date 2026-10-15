@@ -220,6 +220,9 @@ const saveButton = (disabled: boolean, h: HtmlBuilder<Message>) =>
   )
 ```
 
+A toggle button, shadcn's Toggle, is a Button with `pressed`: it writes
+`aria-pressed`, and each variant has its on look.
+
 An input or a textarea places its own bundles, so its `view` takes a `draw`.
 `Input.view` and `Textarea.view` take the value and Messages, a style, and
 `@foldkit/ui`'s own config (`type` and `placeholder`, `rows` for a textarea):
@@ -674,6 +677,29 @@ const SegmentedStyle = Style.forSlots(SegmentedSlots)(
   },
   { layer: L.layer('app') },
 )
+```
+
+`Segmented.view` draws the options in one call from the application's
+pressed values, and `Segmented.toggled(pressed, value, { multiple, optional })`
+is the transition `update` applies. With `multiple` it is a toggle group,
+shadcn's and Zag's: any number pressed, each filling itself (draw it without
+`Segmented.fluid`, whose pill marks one):
+
+```ts
+Segmented.view(
+  {
+    label: 'Text style',
+    options: [
+      { value: 'bold', label: 'Bold' },
+      { value: 'italic', label: 'Italic' },
+    ],
+    pressed: model.marks,
+    onPress: mark => Message.ToggledMark({ mark }),
+    style: SegmentedStyle,
+  },
+  h,
+)
+// in update: modifyFields(model, { marks: () => Segmented.toggled(model.marks, mark, { multiple: true }) })
 ```
 
 ## Mechanisms

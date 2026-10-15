@@ -67,6 +67,23 @@ describe('Button.view', () => {
     }
   })
 
+  it('says a toggle is on or off with aria-pressed, and a plain button says neither', async () => {
+    for (const [pressed, expected] of [
+      [true, 'true'],
+      [false, 'false'],
+      [undefined, null],
+    ] as const) {
+      const handle = draw({ label: 'Bold', ...(pressed === undefined ? {} : { pressed }) })
+      try {
+        await vi.waitFor(() => expect(document.querySelector('button')?.textContent).toBe('Bold'))
+        expect(document.querySelector('button')?.getAttribute('aria-pressed')).toBe(expected)
+      } finally {
+        handle.dispose()
+        document.body.innerHTML = ''
+      }
+    }
+  })
+
   it('draws without a class when no style is given', async () => {
     const handle = draw({ label: 'Plain' })
     try {

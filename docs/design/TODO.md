@@ -822,8 +822,9 @@ keeps what the systems plan's "What we keep" lists.
   (a `PointerDrag` on the button), Select's pause after a pick (upstream's). [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §7
 - [ ] **Parity 4, the islands into the package.** Done: Accordion (arrow keys
   between its triggers, optional in the APG, are left to a later pass over
-  `foldkit-primitives/interaction`'s navigation). Open: Toggle and Toggle
-  Group, Input OTP, Number Input, Alert Dialog, Context Menu, Hover Card,
+  `foldkit-primitives/interaction`'s navigation); Toggle, as Button's
+  `pressed`, and Toggle Group, as Segmented's `multiple` with `view` and
+  `toggled`, rather than second components. Open: Input OTP, Number Input, Alert Dialog, Context Menu, Hover Card,
   Menubar, Navigation Menu, Command, Sidebar, Resizable and Checkbox Group.
   An island stays in `examples/widgets` as the Behaviors example until the
   package's own has a page.

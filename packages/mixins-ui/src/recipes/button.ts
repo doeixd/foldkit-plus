@@ -5,7 +5,7 @@
  * properties the variants read — except `primary`, which is ink by
  * definition, and `icon`, a square one rung of the ladder on a side.
  */
-import { Style, type StyleValue } from 'foldkit-mixins'
+import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { ButtonSlots } from '../button.js'
 import { ladder } from 'foldkit-mixins/theme'
 import {
@@ -30,6 +30,18 @@ import {
  * would not read.
  */
 const unfilledInk = `var(--fk-ink, ${toneVar('ink')})`
+
+/**
+ * A toggle button that is on (`aria-pressed="true"`), beside each variant
+ * that sets the same properties, since a state in the base would lose to them.
+ */
+const on = (declarations: Declarations): StyleValue =>
+  Style.pseudo('[aria-pressed="true"]', declarations)
+/** On, an unfilled button is grounded in its tone's ink, faint, and written in it. */
+const unfilledOn = on({
+  background: `color-mix(in oklab, ${toneVar('ink')} 16%, transparent)`,
+  color: toneVar('ink'),
+})
 
 /**
  * A press that shrinks a fill by exactly 1px a side, as Fluid
@@ -85,6 +97,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
           Style.self({ background: toneVar('fill'), color: toneVar('on-fill') }),
           hover({ background: toneVar('fill-hover') }),
           ...press(toneVar('fill'), toneVar('fill-hover')),
+          on({ background: toneVar('fill-hover') }),
         ),
       },
       outline: {
@@ -95,12 +108,14 @@ export const Button = Style.recipeFor(ButtonSlots)({
             borderColor: toneVar('line'),
           }),
           hover({ background: unfilledHover }),
+          unfilledOn,
         ),
       },
       ghost: {
         button: variant(
           Style.self({ background: 'transparent', color: unfilledInk }),
           hover({ background: unfilledHover }),
+          unfilledOn,
         ),
       },
       /**
@@ -137,6 +152,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
             gap: '0',
           }),
           hover({ background: unfilledHover, color: ref.text.overt }),
+          unfilledOn,
         ),
       },
     },
