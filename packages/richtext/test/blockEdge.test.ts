@@ -1,7 +1,7 @@
 /**
  * Backspace and Delete at the edge of a block whose neighbour it cannot be joined with: a table,
- * a code block, a quote. An empty line goes and the caret steps into the neighbour; a line with
- * text stays.
+ * a code block, a quote. An empty line goes and the caret steps into the neighbour. A line with
+ * text joins the nearest line inside a quote, and beside a table or code stays.
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
@@ -64,6 +64,14 @@ describe.each(neighbours)('beside %s', (_, block, run, length) => {
     expect(after.selection).toEqual(caret(run, length))
   })
 
+  it('Delete on an empty line before it removes the line and steps to its start', () => {
+    const { after } = press([paragraph('x', ''), block], caret('x-t', 0), 'DeleteForward')
+    expect(ids(after.document)).toEqual(['k'])
+    expect(after.selection).toEqual(caret(run, 0))
+  })
+})
+
+describe.each(neighbours.slice(1))('with text beside %s', (_, block, run, length) => {
   it('Backspace on a line with text after it steps to its end and changes nothing', () => {
     const { before, after } = press(
       [block, paragraph('x', 'text')],
@@ -74,12 +82,6 @@ describe.each(neighbours)('beside %s', (_, block, run, length) => {
     expect(after.selection).toEqual(caret(run, length))
   })
 
-  it('Delete on an empty line before it removes the line and steps to its start', () => {
-    const { after } = press([paragraph('x', ''), block], caret('x-t', 0), 'DeleteForward')
-    expect(ids(after.document)).toEqual(['k'])
-    expect(after.selection).toEqual(caret(run, 0))
-  })
-
   it('Delete at the end of a line with text before it leaves both as they are', () => {
     const { before, after } = press(
       [paragraph('x', 'text'), block],
@@ -88,4 +90,39 @@ describe.each(neighbours)('beside %s', (_, block, run, length) => {
     )
     expect(after).toBe(before)
   })
+})
+
+describe('with text beside a quote', () => {
+  const quote = neighbours[0][1]
+
+  it('Backspace joins the line to the quote’s last line', () => {
+    const { after } = press([quote, paragraph('x', 'text')], caret('x-t', 0), 'DeleteBackward')
+    expect(after.document.children.map(block => RichText.toText([block]))).toEqual(['insidetext'])
+    expect(after.selection).toEqual(caret('in-t', 6))
+  })
+
+  it('Delete joins the quote’s first line to the line', () => {
+    const { after } = press([paragraph('x', 'text'), quote], caret('x-t', 4), 'DeleteForward')
+    expect(after.document.children.map(block => RichText.toText([block]))).toEqual(['textinside'])
+    expect(after.selection).toEqual(caret('x-t', 4))
+  })
+})
+
+it('reaches past the end of a list item into the next one', () => {
+  const item = (block: string, text: string) =>
+    node('ListItem', { id: `${block}-item`, children: [], blocks: [paragraph(block, text)] })
+  const list = node('List', { children: [], blocks: [item('one', 'One'), item('two', 'Two')] })
+  const { after } = press([list], caret('one-t', 3), 'DeleteForward')
+  const [joined] = after.document.children
+  expect(joined?.type === 'Node' ? joined.blocks?.map(block => block.id) : []).toEqual(['one-item'])
+  expect(RichText.toText(after.document.children)).toBe('OneTwo')
+})
+
+it('selects an image it reaches past the end of a list, rather than deleting it', () => {
+  const item = node('ListItem', { id: 'item', children: [], blocks: [paragraph('one', 'One')] })
+  const list = node('List', { children: [], blocks: [item] })
+  const image = { type: 'Node', kind: 'Image', id: 'image', props: { src: 'x.png' }, children: [] }
+  const { before, after } = press([list, image], caret('one-t', 3), 'DeleteForward')
+  expect(after.document).toBe(before.document)
+  expect(after.selection).toEqual({ type: 'Node', node: 'image' })
 })

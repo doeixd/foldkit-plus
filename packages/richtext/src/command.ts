@@ -650,6 +650,45 @@ const joinable = (survivor: Block, removed: Block): boolean => {
 const nestedBlocks = (block: Block): ReadonlyArray<Block> | undefined =>
   block.type === 'Node' && block.blocks !== undefined ? block.blocks : undefined
 
+/** Whether going from one block to another leaves an isolating container, as a table cell is. */
+const crossesIsolating = (
+  document: Document,
+  from: BlockPath,
+  to: BlockPath,
+  nodes: NodeRegistry | undefined,
+): boolean =>
+  [from, to].some((path, side) => {
+    const other = side === 0 ? to : from
+    for (let depth = 1; depth < path.length; depth++) {
+      const container = path.slice(0, depth)
+      if (startsWith(other, container)) continue
+      const block = blockAtPath(document, container)
+      const declared = block?.type === 'Node' ? nodes?.definitionFor(block.kind) : undefined
+      if (declared?.kind === 'node' && declared.isolating === true) return true
+    }
+    return false
+  })
+
+/** The innermost first or last block inside the block at `path`: itself when it holds none. */
+const edgeLeaf = (document: Document, path: BlockPath, last: boolean): BlockPath => {
+  let at = path
+  for (;;) {
+    const held = nestedBlocks(blockAtPath(document, at)!)
+    if (held === undefined || held.length === 0) return at
+    at = [...at, last ? held.length - 1 : 0]
+  }
+}
+
+/** The first block after the one at `path` that holds no blocks, in document order. */
+const nextLeaf = (document: Document, path: BlockPath): BlockPath | undefined => {
+  let found: BlockPath | undefined
+  eachBlock(document.children, (block, at) => {
+    if (found !== undefined || pathOrder(at, path) <= 0 || startsWith(path, at)) return
+    if ((nestedBlocks(block) ?? []).length === 0) found = at
+  })
+  return found
+}
+
 /** One result followed by another, as one: what `runAction` does for two commands. */
 const followedBy = (first: TransactionResult, second: TransactionResult): TransactionResult =>
   !first.ok || !second.ok
@@ -686,18 +725,7 @@ const clearRange = (
   const startPath = startAt.path
   const endPath = endAt.path
   const spans = covered(document, start, end)
-  const isolatingBetween = [startPath, endPath].some((path, side) => {
-    const other = side === 0 ? endPath : startPath
-    for (let depth = 1; depth < path.length; depth++) {
-      const container = path.slice(0, depth)
-      if (startsWith(other, container)) continue
-      const block = blockAtPath(document, container)
-      const declared = block?.type === 'Node' ? options.nodes?.definitionFor(block.kind) : undefined
-      if (declared?.kind === 'node' && declared.isolating === true) return true
-    }
-    return false
-  })
-  if (isolatingBetween) {
+  if (crossesIsolating(document, startPath, endPath, options.nodes)) {
     return apply(state, [
       ...spans.map(span => Edit.deleteText(span.run.id, span.from, span.to)),
       Edit.setSelection(caretAt(start)),
@@ -1579,36 +1607,58 @@ export const run = (
         Edit.setSelection({ type: 'Node', node: neighborBlock.id }),
       ])
     }
-    // Beside a block it cannot join (a table, code, a quote), an emptied line goes and the
-    // caret steps into that block; one with text keeps it, and Backspace only steps.
-    if (
-      neighborBlock !== undefined &&
-      !joinable(backward ? neighborBlock : block, backward ? block : neighborBlock)
-    ) {
-      const target = backward ? lastRunOf(neighborBlock) : firstRunIn([neighborBlock])
-      const empty = textOfBlock(block) === ''
-      if (target === undefined || (!backward && !empty)) return apply(state, [])
-      return apply(state, [
-        ...(empty ? [Edit.deleteBlock(block.id)] : []),
-        Edit.setSelection(
-          caretAt({
-            node: target.id,
-            offset: backward ? target.text.length : 0,
-            affinity: 'after',
-          }),
-        ),
-      ])
-    }
-    if (neighborBlock === undefined) {
+    if (neighborBlock === undefined && backward) {
       // Backspace at the start of a container's first block has nothing to join with, so
       // it lifts the block out, undoing what `> ` or `- ` did. Only with a vocabulary: it
       // is what says a list item's paragraph must leave the list too, and a table cell must
-      // not be left at all. Otherwise, and forward, the edge stays a no-op.
+      // not be left at all. Otherwise the edge stays a no-op.
       const lifted =
-        backward && containerPath.length > 0 && options.nodes !== undefined
+        containerPath.length > 0 && options.nodes !== undefined
           ? liftOperations(state.document, siblings[index]!.id, ids, options.nodes)
           : undefined
       return apply(state, lifted ?? [])
+    }
+    // Past a sibling it cannot join, or forward past the end of its container, the edge
+    // reaches the nearest block on that side that holds no blocks: inside a list or a quote,
+    // its last or first line, which joins the line at the caret as clearing the empty range
+    // between them would. A table cell or code cannot take the line, so there an emptied line
+    // goes and Backspace steps into it, and Delete beside a line with text does nothing.
+    if (
+      neighborBlock === undefined ||
+      !joinable(backward ? neighborBlock : block, backward ? block : neighborBlock)
+    ) {
+      const leafPath =
+        neighborBlock === undefined
+          ? nextLeaf(state.document, at.path)
+          : edgeLeaf(state.document, [...containerPath, index + (backward ? -1 : 1)], backward)
+      const leaf = leafPath === undefined ? undefined : blockAtPath(state.document, leafPath)
+      if (leafPath === undefined || leaf === undefined) return apply(state, [])
+      const empty = textOfBlock(block) === ''
+      if (isAtom(options.nodes, leaf)) {
+        return apply(state, [Edit.setSelection({ type: 'Node', node: leaf.id })])
+      }
+      const first = leaf.children[0]
+      const last = leaf.children[leaf.children.length - 1]
+      const target = backward ? last : first
+      if (target === undefined) return apply(state, [])
+      const edge = {
+        node: target.id,
+        offset: backward ? target.text.length : 0,
+        affinity: 'after' as const,
+      }
+      // An empty line beside a list or a quote goes, rather than taking its line out of it.
+      const stepsOnly = empty && neighborBlock !== undefined
+      // Across a table cell, clearing the range only steps the caret, as it should.
+      if (!stepsOnly && (backward ? joinable(leaf, block) : joinable(block, leaf))) {
+        return backward
+          ? clearRange(state, edge, caret, options)
+          : clearRange(state, caret, edge, options)
+      }
+      if (neighborBlock === undefined || (!backward && !empty)) return apply(state, [])
+      return apply(state, [
+        ...(empty ? [Edit.deleteBlock(block.id)] : []),
+        Edit.setSelection(caretAt(edge)),
+      ])
     }
     const survivor = backward ? neighborBlock : siblings[index]!
     const removed = backward ? siblings[index]! : neighborBlock

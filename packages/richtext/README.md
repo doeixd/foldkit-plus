@@ -268,10 +268,13 @@ as a `CodeBlock`, Backspace retypes it to a paragraph instead of joining it to t
 above, which undoes a fence the way a lift undoes a list marker. A heading does the same with
 or without a vocabulary, undoing its `# `; a second press joins it.
 
-Beside a block it cannot be joined with (a table, code, a quote), Backspace on an empty line
-removes the line and puts the caret at the end of that block, and on a line with text only
-moves the caret there; Delete on an empty line before one removes it and puts the caret at the
-block's start, and on a line with text does nothing. Each used to be refused (`InvalidRange`),
+Beside a block it cannot be joined with, Backspace and Delete reach the nearest line on that
+side. Inside a list or a quote that is its last or first line, which the line at the caret
+joins, as clearing the empty range between them would; Delete at the end of a list item's last
+line reaches the next item's in the same way. A table cell or code cannot take the line, so
+there Backspace only moves the caret in, and Delete beside a line with text does nothing. An
+empty line goes, the caret stepping into its neighbour, rather than taking a line out of a
+list. An image or a divider reached this way is selected. Each was refused (`InvalidRange`),
 which left an empty line after a table that nothing could remove.
 
 `SplitBlock` at the end of a heading starts a paragraph under it, since what follows a title is

@@ -722,7 +722,21 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     const id = origin.closest('[data-block]')?.getAttribute('data-block')
     if (id === null || id === undefined || !current.root.contains(origin)) return
     const block = RichText.locateBlock(current.content, RichText.NodeId.make(id))?.block
-    if (block === undefined || !RichText.isAtom(options.nodes, block)) return
+    if (block === undefined) return
+    // A third press selects its block's text. The browser's own selection runs on to the
+    // start of the next block, so what is typed over it would swallow that block too.
+    const first = block.children[0]
+    const last = block.children[block.children.length - 1]
+    if (event.detail === 3 && first !== undefined && last !== undefined) {
+      event.preventDefault()
+      select({
+        type: 'Range',
+        anchor: { node: first.id, offset: 0, affinity: 'after' },
+        focus: { node: last.id, offset: last.text.length, affinity: 'after' },
+      })
+      return
+    }
+    if (!RichText.isAtom(options.nodes, block)) return
     event.preventDefault()
     current.root.focus({ preventScroll: true })
     select({ type: 'Node', node: block.id })

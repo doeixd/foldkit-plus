@@ -13,6 +13,9 @@ version changed; `pnpm` skips versions already in the registry.
   caret.** An arrow leaving a block for an atom beside it selects the atom,
   where the browser stepped over it, and a press on an adornment no longer
   takes the caret away from the text.
+- **`foldkit-richtext-dom`: a triple click selects its block's text.** The
+  browser's selection ran on to the start of the next block, so typing over it
+  swallowed that block's first line too.
 - **`foldkit-richtext`: a paste joins the line it lands in.** The first pasted
   block joins the text before the caret and the last the text after it, so a
   copied word lands inside the sentence instead of splitting it onto a line of
@@ -22,11 +25,13 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-richtext-dom`: a press below the last block writes after it.** The
   caret goes to the end of a last paragraph or heading; after a table, code or
   an image a new paragraph opens, where no caret could get below them.
-- **`foldkit-richtext`: Backspace and Delete beside a table, code or a quote.**
-  An empty line next to a block it cannot join is removed and the caret steps
-  into that block; Backspace from a line with text steps there. Both were
-  refused, so an empty line after a table could not be removed. Backspace at the
-  start of a heading now makes it a paragraph before a second press joins it.
+- **`foldkit-richtext`: Backspace and Delete beside a list, a quote, a table or
+  code.** They reach the nearest line on that side: a list's or a quote's last or
+  first line joins the caret's, and Delete at the end of a list item reaches the
+  next item; a table or code is stepped into, and an empty line beside one is
+  removed. All were refused, so an empty line after a table could not be
+  removed. Backspace at the start of a heading now makes it a paragraph before a
+  second press joins it.
 - **`foldkit-richtext-dom`: a placement's `keymap`, and Mod+Shift+S.** `editorAt`
   takes chords beside the built-in ones, and Strikethrough has a chord of its
   own. The playground binds Ctrl+U (underline), Ctrl+Shift+H (highlight) and

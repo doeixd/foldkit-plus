@@ -176,3 +176,17 @@ it('keeps the caret where it was on a press on an adornment', () => {
   const box = dom.root.querySelector(`[${RichText.TOGGLES_ATTRIBUTE}]`)!
   expect(press(box).defaultPrevented).toBe(true)
 })
+
+it('selects a block’s own text on a third press, and not into the next block', () => {
+  const { attachment, moves, element } = setup()
+  const third = new MouseEvent('mousedown', { bubbles: true, cancelable: true, detail: 3 })
+  element('before').dispatchEvent(third)
+  expect(third.defaultPrevented).toBe(true)
+  const from = { node: id('before-t'), offset: 0, affinity: 'after' }
+  const to = { node: id('before-t'), offset: 6, affinity: 'after' }
+  expect(moves).toEqual([{ type: 'Range', anchor: from, focus: to }])
+  expect(readSelection(attachment.current())).toMatchObject({
+    anchor: { offset: 0 },
+    focus: { offset: 6 },
+  })
+})

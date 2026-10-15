@@ -24,8 +24,8 @@ export default [
     edits: [
       {
         file,
-        find: 'if (block === undefined || !RichText.isAtom(options.nodes, block)) return',
-        replace: 'if (block === undefined) return',
+        find: '    if (!RichText.isAtom(options.nodes, block)) return',
+        replace: '',
       },
     ],
     tests,
@@ -126,6 +126,17 @@ export default [
         file,
         find: "const live = event.type === 'keydown' && !composing ? readSelection(current) : null",
         replace: "const live = event.type === 'keydown' && !composing ? lastSelection : null",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a third press is left to the browser',
+    edits: [
+      {
+        file,
+        find: '    if (event.detail === 3 && first !== undefined && last !== undefined) {',
+        replace: '    if (false) {',
       },
     ],
     tests,

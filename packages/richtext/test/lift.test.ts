@@ -142,17 +142,25 @@ describe('Backspace at the start of a container’s first block', () => {
     expect(shape(result.state.document.children)[1]).toBe('Quote(q)[Paragraph(p1), Paragraph(p3)]')
   })
 
-  it('does nothing without a vocabulary, in a table cell, or forwards', () => {
-    for (const [at, command, options] of [
-      ['pi1-t', 'DeleteBackward', {}],
-      ['pc-t', 'DeleteBackward', { nodes: standard }],
-      ['p3-t', 'DeleteForward', { nodes: standard }],
+  it('does nothing without a vocabulary, or in a table cell', () => {
+    for (const [at, options] of [
+      ['pi1-t', {}],
+      ['pc-t', { nodes: standard }],
     ] as const) {
-      const offset = command === 'DeleteForward' ? 1 : 0
-      const result = run(caret(at, offset), { type: command }, options)
+      const result = run(caret(at), { type: 'DeleteBackward' }, options)
       if (!result.ok) throw new Error(result.error)
       expect(result.state.document).toEqual(document())
     }
+  })
+
+  it('forwards, at the end of a container’s last block, joins the next line into it', () => {
+    const result = run(caret('p3-t', 1), { type: 'DeleteForward' }, { nodes: standard })
+    if (!result.ok) throw new Error(result.error)
+    const [, quote, list] = result.state.document.children
+    expect(RichText.toText([quote!])).toBe('a\nb\ncone')
+    // The item its line left has nothing in it, and goes.
+    expect(list?.type === 'Node' ? list.blocks?.map(item => item.id) : []).toEqual(['i2', 'i3'])
+    expect(result.state.selection).toEqual(caret('p3-t', 1))
   })
 })
 

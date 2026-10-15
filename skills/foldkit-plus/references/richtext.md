@@ -333,8 +333,9 @@ keeps a line's), the next or previous cell in a table, a list item nested under 
 or moved back out; `takesTab` says where Tab applies. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
 of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` or a
-heading retypes it to a paragraph; beside a block it cannot join (a table, code), an empty line
-is removed and the caret steps into that block; Enter in a kind declared `lineBreaks` (the standard `CodeBlock`, or a callout of several
+heading retypes it to a paragraph; beside a block it cannot join, Backspace and Delete reach
+the nearest line (a list's or a quote's last or first line joins the caret's; a table or code is
+only stepped into, and an empty line beside one is removed); Enter in a kind declared `lineBreaks` (the standard `CodeBlock`, or a callout of several
 lines) is a newline, and on an empty last line leaves it; Enter in a list item starts a new item
 with the old one's props under the kind's `splitProps` (a `TaskItem` starts unchecked), and
 Enter in an empty one leaves the list.
