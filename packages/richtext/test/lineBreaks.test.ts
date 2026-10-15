@@ -67,3 +67,37 @@ describe('Enter in a code block', () => {
     expect(kinds(enter('ab', 1))).toEqual(['CodeBlock', 'CodeBlock'])
   })
 })
+
+describe('a kind that keeps line breaks but is not indented, as a note', () => {
+  const Note = RichText.node('Note', { lineBreaks: true })
+  const nodes = RichText.nodeRegistry([...RichText.standardNodes, Note])
+  const note = (text: string): RichText.EditorState => ({
+    document: RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Note',
+          id: 'note',
+          props: {},
+          children: [{ type: 'Text', id: 't', text, marks: [] }],
+        },
+      ],
+    }),
+    selection: caretAt(text.length),
+  })
+  const runIn = (state: RichText.EditorState, command: RichText.Command) =>
+    RichText.run(state, command, { mint: () => 'unused' }, { nodes })
+
+  it('breaks the line without carrying the indentation before it', () => {
+    const result = runIn(note('  indented'), { type: 'SplitBlock' })
+    if (!result.ok) throw new Error(result.error)
+    expect(result.state.document.children[0]!.children[0]!.text).toBe('  indented\n')
+  })
+
+  it('leaves Tab to move focus, where code takes it', () => {
+    const state = note('text')
+    expect(RichText.takesTab(state.document, state.selection, nodes)).toBe(false)
+    expect(runIn(state, { type: 'Indent' })).toEqual({ ok: false, error: 'InvalidSelection' })
+  })
+})

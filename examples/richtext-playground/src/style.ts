@@ -200,7 +200,10 @@ const writing = Style.compose(
     border: `1px solid color-mix(in oklch, ${t.accent.default} 20%, transparent)`,
     borderRadius: t.radius.xl,
     background: t.accent.subtle,
+    whiteSpace: 'pre-wrap',
   }),
+  // As in code, a break at the end has no line of its own until something follows it.
+  Style.nest('[data-callout]::after', { content: '"\\200b"' }),
   Style.nest('[data-callout-icon]', {
     position: 'absolute',
     insetBlockStart: t.space.md,

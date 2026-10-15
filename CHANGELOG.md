@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-richtext`: `node(…, { indents })`, split from `lineBreaks`.** A kind
+  can keep line breaks (Enter breaks the line, Enter on an empty last line
+  leaves it) without Tab indenting it, as a callout of several lines does in
+  the playground, where Enter used to start a second callout. Breaking: Tab and
+  a broken line's indentation now follow `indents`, which the standard
+  `CodeBlock` declares beside `lineBreaks`; declare it on a code kind of your own.
 - **`foldkit-richtext-dom`: Escape closes the slash menu.** `Message.DismissedSlash`
   keeps `EditorState.slashDismissed`, the slash of the query it closed, so the
   menu stays shut while that query is typed on and Enter splits the line; it

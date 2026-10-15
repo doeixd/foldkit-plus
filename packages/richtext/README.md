@@ -250,7 +250,7 @@ column empties with it, and the last row or column takes the table. The caret go
 cell, or to its neighbour. Each is one transaction, so one undo step, and each is refused outside
 a table (`InvalidSelection`).
 
-`Indent` and `Outdent` are Tab and Shift+Tab. In a kind declared `lineBreaks` (code) they add or
+`Indent` and `Outdent` are Tab and Shift+Tab. In a kind declared `indents` (code) they add or
 remove a level of indentation (`INDENT`, two spaces): at the caret, or at the start of every line
 a range covers; Enter there starts the new line as indented as the one it broke. In a table cell
 they move the caret to the next or previous cell, and Tab in the last cell adds a row. In a list
@@ -851,7 +851,10 @@ those block kinds, `marks: 'none'` forbids marks on the kind's own runs, `isolat
 makes the kind a boundary a lift never crosses, as a table cell is, `splitProps` names
 props an item split off one of this kind starts with (typed from the kind's `Props`), `lineBreaks:
 true` makes Enter a newline in the kind's text rather than a split (Enter on an empty last line
-leaves it for a paragraph after; the standard `CodeBlock` declares it), and `within` names the kinds it may stand
+leaves it for a paragraph after; the standard `CodeBlock` declares it, and so may a callout of
+several lines), `indents: true` makes Tab indent its lines and Enter keep a line's indentation, as
+code does (`CodeBlock` declares both; without it, Tab still leaves the editor), and `within`
+names the kinds it may stand
 in, so a `ListItem` stands only in a `List` and never at the top level:
 
 ```ts

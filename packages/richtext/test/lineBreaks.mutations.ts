@@ -3,7 +3,7 @@
  * packages/richtext/test/lineBreaks.mutations.ts` checks that a test fails for every one.
  */
 const file = '../src/command.ts'
-const tests = ['packages/richtext/test/lineBreaks.test.ts']
+const tests = ['packages/richtext/test/lineBreaks.test.ts', 'packages/richtext/test/indent.test.ts']
 
 export default [
   {
@@ -29,6 +29,40 @@ export default [
         file,
         find: '        last?.id === at.id &&\n        caret.offset === at.text.length &&\n',
         replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'every kind with line breaks is indented',
+    edits: [
+      {
+        file,
+        find: "return definition?.kind === 'node' && definition.indents === true ? block : undefined",
+        replace:
+          "return definition?.kind === 'node' && definition.lineBreaks === true ? block : undefined",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a broken line never keeps its indentation',
+    edits: [
+      {
+        file,
+        find: '                definition.indents === true\n',
+        replace: '                false\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'every broken line keeps its indentation',
+    edits: [
+      {
+        file,
+        find: '                definition.indents === true\n',
+        replace: '                true\n',
       },
     ],
     tests,

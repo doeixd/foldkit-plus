@@ -157,7 +157,7 @@ export type Command =
   /** The caret's column, deleted from every row that has it; the last one deletes the table. */
   | { readonly type: 'DeleteColumn' }
   /**
-   * Tab. In a kind declared `lineBreaks` (code), a level of indentation at the caret, or at the
+   * Tab. In a kind declared `indents` (code), a level of indentation at the caret, or at the
    * start of every line a range covers; in a table cell, the caret to the next cell, adding a row
    * after the last. Refused anywhere else (`InvalidSelection`), so Tab can move focus there.
    */
@@ -1645,10 +1645,13 @@ export const run = (
           )
         : run(
             state,
-            // The new line starts as indented as the one it broke.
+            // In code, the new line starts as indented as the one it broke.
             {
               type: 'InsertText',
-              text: `\n${indentationAt(textOfBlock(holder), offsetIn(holder, caret) ?? 0)}`,
+              text:
+                definition.indents === true
+                  ? `\n${indentationAt(textOfBlock(holder), offsetIn(holder, caret) ?? 0)}`
+                  : '\n',
             },
             ids,
             options,
@@ -1846,7 +1849,7 @@ const besideCaret = (state: EditorState): Beside | undefined => {
 
 const textOfBlock = (block: Block): string => block.children.map(run => run.text).join('')
 
-/** The block the selection starts in when its kind keeps line breaks, as code does. */
+/** The block the selection starts in when its kind indents its lines, as code does. */
 const linesHolder = (state: EditorState, nodes: NodeRegistry | undefined): Block | undefined => {
   if (state.selection?.type !== 'Range') return undefined
   const start = ordered(state.document, state.selection)?.start
@@ -1854,7 +1857,7 @@ const linesHolder = (state: EditorState, nodes: NodeRegistry | undefined): Block
   const block = run === undefined ? undefined : blockAtPath(state.document, run.path)
   if (block?.type !== 'Node') return undefined
   const definition = nodes?.definitionFor(block.kind)
-  return definition?.kind === 'node' && definition.lineBreaks === true ? block : undefined
+  return definition?.kind === 'node' && definition.indents === true ? block : undefined
 }
 
 /**

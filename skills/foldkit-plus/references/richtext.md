@@ -325,13 +325,13 @@ vocabulary, props that decode as the kind's must still decode after. `InsertBloc
 inserts a block under fresh ids beside another (without `to`, beside the caret's block: before
 it when empty), and `DeleteBlock { node }` deletes one with any container it empties. `InsertRow`/`InsertColumn`
 (`{ where }`), `DeleteRow` and `DeleteColumn` edit the table around the caret's cell
-(`tableAt`); `Indent`/`Outdent` are Tab and Shift+Tab: indentation in a `lineBreaks` kind (Enter
+(`tableAt`); `Indent`/`Outdent` are Tab and Shift+Tab: indentation in an `indents` kind (Enter
 keeps a line's), the next or previous cell in a table, a list item nested under the one before it
 or moved back out; `takesTab` says where Tab applies. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
 of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` retypes
-it to a paragraph; Enter in a kind declared `lineBreaks` (the standard `CodeBlock`) is a newline,
-and on an empty last line leaves it; Enter in a list item starts a new item
+it to a paragraph; Enter in a kind declared `lineBreaks` (the standard `CodeBlock`, or a callout of several
+lines) is a newline, and on an empty last line leaves it; Enter in a list item starts a new item
 with the old one's props under the kind's `splitProps` (a `TaskItem` starts unchecked), and
 Enter in an empty one leaves the list.
 `InsertText` takes an optional `marks`: with it the inserted span carries

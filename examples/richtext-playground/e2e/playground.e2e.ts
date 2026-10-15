@@ -510,3 +510,22 @@ test('an image is selected by a click, and Delete removes it', async () => {
     .toContain('HereMake yourself')
   expect(errors).toEqual([])
 })
+
+test('Enter in a callout breaks its line, and on an empty last line leaves it', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const callout = page.locator('[contenteditable=true] > aside')
+  await callout.click({ position: { x: 600, y: 60 } })
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Second line')
+  await expect.poll(() => callout.textContent()).toMatch(/new\.\nSecond line$/)
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('After')
+  await expect
+    .poll(() => page.locator('[contenteditable=true] > aside + p').textContent())
+    .toBe('After')
+  expect(await page.locator('[contenteditable=true] > aside').count()).toBe(1)
+  expect(errors).toEqual([])
+})

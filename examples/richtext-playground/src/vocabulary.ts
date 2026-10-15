@@ -38,10 +38,14 @@ export const Comment = RichText.mark('Comment', {
 
 // --- node kinds ----------------------------------------------------------------------------
 
-/** A highlighted note with an icon, holding text directly. */
+/**
+ * A highlighted note with an icon, holding text directly. Enter breaks its line, and Enter on
+ * an empty last line leaves it, so a note can run to several lines.
+ */
 export const Callout = RichText.node('Callout', {
   Props: Schema.Struct({ icon: Schema.String }),
   children: RichText.textContent,
+  lineBreaks: true,
 })
 
 /**

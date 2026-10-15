@@ -95,6 +95,7 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
     children: textContent,
     marks: 'none',
     lineBreaks: true,
+    indents: true,
   }),
   atom('ThematicBreak'),
   atom('Image', {

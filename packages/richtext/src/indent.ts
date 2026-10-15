@@ -1,5 +1,5 @@
 /**
- * Indentation in a kind whose text keeps line breaks, as code does (`node(…, { lineBreaks })`):
+ * Indentation in a kind whose lines are indented, as code's are (`node(…, { indents })`):
  * Tab indents, Shift+Tab outdents, and Enter starts the new line as indented as the one it
  * broke. A line is the text between two breaks of one block.
  */
