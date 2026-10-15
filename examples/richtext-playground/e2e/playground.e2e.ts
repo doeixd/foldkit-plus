@@ -462,3 +462,17 @@ test('a link is typed straight into the editor that opens, and writing goes on a
     .toBe('true')
   expect(errors).toEqual([])
 })
+
+test('Ctrl+F opens the find bar with nothing focused', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+  })
+  await page.keyboard.press('Control+f')
+  await page.getByRole('search').waitFor()
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-find')))
+    .toBe('query')
+  expect(errors).toEqual([])
+})

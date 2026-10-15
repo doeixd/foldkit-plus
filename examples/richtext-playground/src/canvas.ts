@@ -184,3 +184,28 @@ export const dismissOnOutside = Mount.defineStream('PlaygroundDismiss', {
       ),
     ),
 })
+
+/**
+ * Ctrl+F (Cmd+F) anywhere on the page opens the find bar instead of the browser's, which cannot
+ * see a match the editor has not drawn yet. Listening on the document, it works wherever the
+ * focus is: in the text, on a toolbar, or on nothing at all.
+ */
+export const findShortcut = Mount.defineStream('PlaygroundFindShortcut', {
+  messages: [Message.OpenedFind],
+  execute: ({ element }) =>
+    Stream.callback<Extract<Message, { readonly _tag: 'OpenedFind' }>>(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const onKey = (event: KeyboardEvent) => {
+            if (event.key !== 'f' || event.altKey || !(event.ctrlKey || event.metaKey)) return
+            event.preventDefault()
+            Queue.offerUnsafe(queue, Message.OpenedFind())
+          }
+          const page = element.ownerDocument
+          page.addEventListener('keydown', onKey)
+          return () => page.removeEventListener('keydown', onKey)
+        }),
+        release => Effect.sync(release),
+      ),
+    ),
+})

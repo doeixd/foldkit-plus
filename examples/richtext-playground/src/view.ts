@@ -44,7 +44,7 @@ import {
   type Model,
   type Thread,
 } from './app.js'
-import { canvasEvents, dismissOnOutside, filePicker } from './canvas.js'
+import { canvasEvents, dismissOnOutside, filePicker, findShortcut } from './canvas.js'
 import {
   BlockStyleMenuStyle,
   CodeToolbarStyle,
@@ -459,7 +459,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
     })
 
     // --- the page ---
-    return h.main(slots.page.attrs(), [
+    return h.main(slots.page.attrs([h.OnMount(findShortcut())]), [
       h.header(slots.header.attrs(), [
         h.div(
           [],
@@ -515,8 +515,6 @@ export const PlaygroundView = SlotView.forMessages<Message>()
             slots.canvas.attrs([
               h.OnMount(canvasEvents()),
               h.OnKeyDownPreventDefault((key, modifiers) => {
-                if (key === 'f' && (modifiers.ctrlKey || modifiers.metaKey) && !modifiers.altKey)
-                  return Option.some(Message.OpenedFind())
                 if (key === 'Escape' && Option.isSome(model.menu))
                   return Option.some(Message.ClosedMenu())
                 const index = slashMove(
