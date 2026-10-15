@@ -1165,14 +1165,15 @@ of its own named a form field "fits the Catalog". Read words with
   seen; the transition still had a frame to run, `Measure` measures every
   frame of one, and CI saw the margin early. Wait for `getAnimations()` to be
   empty before asserting what a later step alone causes.
-- **DevTools input takes the top page's coordinates.** A test pressing the
-  mouse through `cdp()` (`Input.dispatchMouseEvent`) passed alone and missed
-  in a wide run: each test file runs in a frame, side by side when several
-  run, and an element's own `getBoundingClientRect` is the frame's. Adding
-  the frame's offset, then its scale, still missed now and then; ask Chrome
-  for the element's box on the top page (`DOM.getDocument` with `pierce`,
-  `DOM.querySelector` in each frame's document, `DOM.getBoxModel`), as
-  `press.browser.test.ts` does.
+- **A held mouse races the other test files.** A test that pressed the
+  mouse through `cdp()` (`Input.dispatchMouseEvent`) and checked `:active`
+  failed now and then in a wide run: every test file shares one real
+  pointer, and the others moved or pressed it while this one held it down.
+  Fixing the coordinates (the frame's offset, its scale, `DOM.getBoxModel`)
+  never made it reliable. Force the state instead (`CSS.forcePseudoState`
+  on a node from `DOM.querySelector`), and look the node up once: each
+  `DOM.getDocument` hands out new ids, and a release sent to a new id left
+  the old one forced.
 - **Vitest's locator names a button its own way, not Chrome's.** `userEvent.click`
   on an accordion trigger timed out looking for "Team Team": vitest's in-page
   library read a hidden `::after` copy into the name, which Chrome's own

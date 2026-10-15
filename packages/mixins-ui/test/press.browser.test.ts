@@ -1,8 +1,8 @@
 /// <reference types="@vitest/browser-playwright" />
 /**
  * A solid button's press on a real page: at rest its border is its fill, so
- * the fill reaches its edge; held down, the border clears, and the fill
- * stands exactly 1px in on every side; let go, it comes back.
+ * the fill reaches its edge; pressed (`:active`), the border clears, and the
+ * fill stands exactly 1px in on every side; let go, it comes back.
  */
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -57,12 +57,8 @@ type DomNode = {
   readonly children?: ReadonlyArray<DomNode>
 }
 
-/**
- * Where `selector` is on the top page, as Chrome lays it out: the protocol's
- * mouse takes the top page's coordinates, and the test's frame stands
- * elsewhere on it, perhaps scaled, which only the browser knows exactly.
- */
-const centerOf = async (selector: string) => {
+/** The protocol's id for `selector`, looked for in every frame's document. */
+const nodeOf = async (selector: string) => {
   const { root } = (await cdp().send('DOM.getDocument', { depth: -1, pierce: true })) as {
     root: DomNode
   }
@@ -79,25 +75,27 @@ const centerOf = async (selector: string) => {
     const { nodeId: found } = (await cdp().send('DOM.querySelector', { nodeId, selector })) as {
       nodeId: number
     }
-    if (found === 0) continue
-    const { model } = (await cdp().send('DOM.getBoxModel', { nodeId: found })) as {
-      model: { readonly content: ReadonlyArray<number> }
-    }
-    const [x1, y1, , , x3, y3] = model.content
-    return { x: (x1! + x3!) / 2, y: (y1! + y3!) / 2 }
+    if (found !== 0) return found
   }
   throw new Error(`no ${selector} in any frame`)
 }
 
-/** Holds the main mouse button down over `selector`, or lets it go. */
-const mouse = async (selector: string, type: 'mousePressed' | 'mouseReleased') => {
-  const { x, y } = await centerOf(selector)
-  return cdp().send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 })
+/**
+ * Holds a node pressed, or lets it go: Chrome forces its `:active`. A
+ * real held mouse races the other test files, which share one pointer and
+ * move or press it while this one holds it down.
+ */
+const press = async (nodeId: number, held: boolean) => {
+  await cdp().send('CSS.enable')
+  return cdp().send('CSS.forcePseudoState', {
+    nodeId,
+    forcedPseudoClasses: held ? ['active'] : [],
+  })
 }
 
 const transparent = 'rgba(0, 0, 0, 0)'
 
-test('held down, a solid button stands 1px in on every side, and comes back when let go', async () => {
+test('pressed, a solid button stands 1px in on every side, and comes back when let go', async () => {
   const handle = mount()
   try {
     const element = await vi.waitFor(() => {
@@ -109,10 +107,12 @@ test('held down, a solid button stands 1px in on every side, and comes back when
     // At rest the border is the fill, so the fill reaches the edge.
     await vi.waitFor(() => expect(style.borderTopColor).toBe(style.backgroundColor))
     expect(style.backgroundClip).toBe('padding-box')
-    await mouse('#press-target', 'mousePressed')
+    // One lookup for both: a second `DOM.getDocument` hands out new ids.
+    const target = await nodeOf('#press-target')
+    await press(target, true)
     await vi.waitFor(() => expect(style.borderTopColor).toBe(transparent))
     expect(style.borderTopWidth).toBe('1px')
-    await mouse('#press-target', 'mouseReleased')
+    await press(target, false)
     await vi.waitFor(() => expect(style.borderTopColor).toBe(style.backgroundColor))
   } finally {
     handle.dispose()
