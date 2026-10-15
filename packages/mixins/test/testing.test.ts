@@ -28,6 +28,13 @@ describe('Inert', () => {
     expect(Inert.classes(save)).toEqual(['primary', 'big'])
   })
 
+  it('reads a property by its attribute name, and no prototype key', () => {
+    const field = h.input([h.Tabindex(-1), h.Maxlength(6)])
+    expect(Inert.value(field, 'tabindex')).toBe(-1)
+    expect(Inert.value(field, 'maxlength')).toBe(6)
+    expect(Inert.value(field, 'constructor')).toBeUndefined()
+  })
+
   it('finds an element by its aria-label, its <label for>, or its innermost text', () => {
     expect(Inert.byLabel(page, 'Sections').map(node => node.sel)).toEqual(['nav'])
     expect(Inert.byLabel(page, 'Name').map(node => node.sel)).toEqual(['input'])

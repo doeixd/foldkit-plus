@@ -40,13 +40,26 @@ const text = (node: Html | undefined): string =>
     .join('')
 
 /** Attributes whose property has another name. */
-const propertyNames: Readonly<Record<string, string>> = { for: 'htmlFor', class: 'className' }
+// Foldkit writes these as DOM properties, under the property's own name.
+const propertyNames: Readonly<Record<string, string>> = {
+  for: 'htmlFor',
+  class: 'className',
+  tabindex: 'tabIndex',
+  maxlength: 'maxLength',
+  minlength: 'minLength',
+  readonly: 'readOnly',
+}
 
 /** An attribute or a property, whichever the builder wrote; the attribute first. */
-const value = (node: Html | undefined, key: string): unknown =>
-  node?.data?.attrs?.[key] ??
-  node?.data?.props?.[key] ??
-  node?.data?.props?.[propertyNames[key] ?? key]
+const value = (node: Html | undefined, key: string): unknown => {
+  // Own keys only: these are plain objects, and a key such as `constructor` reads Object's.
+  const own = (record: Readonly<Record<string, unknown>> | undefined, name: string) =>
+    record !== undefined && Object.hasOwn(record, name) ? record[name] : undefined
+  const property = Object.hasOwn(propertyNames, key) ? propertyNames[key]! : key
+  return (
+    own(node?.data?.attrs, key) ?? own(node?.data?.props, key) ?? own(node?.data?.props, property)
+  )
+}
 
 /** The classes on a node, in the order the builder wrote them. */
 const classes = (node: Html | undefined): ReadonlyArray<string> =>
