@@ -13,6 +13,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
+import { Utilities as U } from 'foldkit-mixins/utilities'
 import { CardGroupSlots, CardSlots } from '../card.js'
 import { component, focusRing, glide, imageEdge, ref, transition, variant } from './design.js'
 
@@ -87,6 +88,8 @@ export const Card = Style.recipeFor(CardSlots)({
         ...transition('font-weight'),
       }),
       Style.nest(':where([data-selected="true"]) &', { fontWeight: ref.weight.semibold }),
+      // The card writes its title in `data-label`, so turning semibold moves nothing.
+      U.steady('semibold'),
     ),
     description: component(
       Style.self({

@@ -10,6 +10,7 @@
 import { Style } from 'foldkit-mixins'
 import { SegmentedSlots } from '../segmented.js'
 import { ladder, nested } from 'foldkit-mixins/theme'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { component, glide, hover, onLadder, ref, steps, trimmed, variant } from './design.js'
 
 const pressed = '[aria-pressed="true"]'
@@ -77,6 +78,8 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
         fontWeight: ref.weight.medium,
       }),
       hover({ color: ref.text.overt }),
+      // A pressed option turns semibold; a `data-label` on it keeps its width.
+      Utilities.steady('semibold'),
     ),
   },
   variants: {

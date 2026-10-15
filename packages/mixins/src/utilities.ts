@@ -10,7 +10,7 @@
  * a plain declaration beside it wins per property. Compose them like any piece:
  * `[U.flex, U.gap('sm'), { color: t.text.muted }]`.
  */
-import { compose, global, keyframes, self, supports, type StyleValue } from './styleValue.js'
+import { compose, global, keyframes, nest, self, supports, type StyleValue } from './styleValue.js'
 import { ref, VAR_PREFIX } from './theme/core.js'
 import type { OklchTheme } from './theme/oklch.js'
 import { tokens, type Tokens } from './theme/tokens.js'
@@ -147,4 +147,21 @@ export const Utilities = {
    * right-to-left page `inline` fades the left edge first.
    */
   scrollFade: (axis: 'block' | 'inline' = 'block'): StyleValue => fades[axis],
+  /**
+   * Room for a label at `weight`, so it turns heavier (chosen, pressed)
+   * without moving what is beside it. The element's `data-label` holds the
+   * label's text, which a hidden `::after` sets at that weight with no
+   * height: a block as wide as its widest child takes the heavier width
+   * whatever the label's own weight. The element stays a block container,
+   * so a `text-box` trim on it still works; without `data-label`, nothing.
+   */
+  steady: (weight: keyof Tokens['weight'] & string): StyleValue =>
+    nest('&[data-label]::after', {
+      content: 'attr(data-label)',
+      display: 'block',
+      blockSize: '0',
+      overflow: 'hidden',
+      visibility: 'hidden',
+      fontWeight: t.weight[weight],
+    }),
 } as const

@@ -1077,16 +1077,19 @@ export const segmented = <Message>(
   return h.div(slots.group.attrs([h.Role('group'), h.AriaLabel('Range')]), [
     h.div(slots.indicator.attrs([h.AriaHidden(true)])),
     h.div(slots.highlight.attrs([h.AriaHidden(true)])),
-    ...Range.literals.map(each =>
-      h.button(
+    ...Range.literals.map(each => {
+      const label = each[0]!.toUpperCase() + each.slice(1)
+      return h.button(
         slots.option.attrs([
           h.Type('button'),
           h.AriaPressed(String(each === range)),
           h.OnClick(onRange(each)),
+          // Room for the label at its pressed weight, so a press moves nothing.
+          h.DataAttribute('label', label),
         ]),
-        [each[0]!.toUpperCase() + each.slice(1)],
-      ),
-    ),
+        [label],
+      )
+    }),
   ])
 }
 // #endregion

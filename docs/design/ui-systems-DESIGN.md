@@ -38,7 +38,7 @@ below is translated, not copied:
 
 ## Where it stands (2026-10-14)
 
-Steps 1 to 5, 6a and 7 are built. What was built differs from the sections
+Steps 1 to 5, 3b, 6a and 7 are built. What was built differs from the sections
 below in these ways, and the code is the word on each:
 
 - **Motion (1).** As planned, but no recipe animates a popup's entrance yet,
@@ -54,7 +54,9 @@ below in these ways, and the code is the word on each:
   15 on 22 to stay above it; the text left the `control` group for the roles
   (`Theme.role`). `text-box` trim works on a block container only, so tabs
   and segmented options have it and the `inline-flex` Button does not.
-  Weight without reflow (`Type.steady`) is 3b, open.
+  Weight without reflow (3b) is `Utilities.steady(weight)`: a zero-height
+  `::after` block of `attr(data-label)` at the heavier weight, not a grid
+  with a second span, so the element stays a block and keeps its trim.
 - **Surfaces (4).** The `state` group holds `hover` (12%, our tuned ghost
   hover, not Fluid's 4 to 6%), `tint`, `tint-hover` and `edge`, each a mix of
   `currentColor` with its amount a knob; `selected` and `pressed` wait for a

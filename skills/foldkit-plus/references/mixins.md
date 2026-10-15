@@ -179,7 +179,9 @@ Style.install(stylesheet) // browser entry only; returns the <style>
 A piece is a `StyleValue`, a declarations object (`Style.self`), or a list (`Style.compose`).
 `AppStyle`'s `slots`/`forSlots` compile in the `app` layer; its `stylesheet` is layer order,
 reset, tokens, palette and `Defaults.body` (`global` adds to `defaults`). Utilities take token
-names, so `U.p('4xl')` and `U.bg('surface.nope')` are type errors.
+names, so `U.p('4xl')` and `U.bg('surface.nope')` are type errors. `U.scrollFade(axis)` dissolves a
+scroller's content toward an edge with more to scroll (CSS only), and `U.steady(weight)` keeps room
+for a label at a heavier weight from its `data-label`, so turning bold moves nothing.
 
 ## 4. `foldkit-mixins-surface`
 

@@ -781,9 +781,10 @@ keeps what the systems plan's "What we keep" lists.
 - [x] **Systems 3, type roles.** Six roles on the ladder, recipes by role,
   `text-box` trim on fixed-height labels, 16px fields on coarse pointers;
   Prose already spaces only above. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §3
-- [ ] **Systems 3b, weight without reflow.** `weight` axes for optical size and
-  a steady-weight piece over a `data-label` the application writes, since
-  tab and option labels are its Html, not text the adapters hold.
+- [x] **Systems 3b, weight without reflow.** `Utilities.steady(weight)` over a
+  `data-label`: Card writes its title there, an application its segmented
+  options'. The `weight` axes for optical size wait for a theme with Inter
+  (its `opsz`); with Geist or the system font they would set nothing.
 - [ ] **Chat's streamed text unwrapped.** The reset gives every `p`
   `text-wrap: pretty`, which re-wraps earlier lines as words arrive; parity 7's
   message slot sets `text-wrap: wrap`.

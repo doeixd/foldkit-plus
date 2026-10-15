@@ -66,6 +66,11 @@ describe('Card view', () => {
     expect(Inert.byTag(card, 'img')).toHaveLength(1)
   })
 
+  it('writes its title into data-label, which keeps a chosen title as wide as a resting one', () => {
+    const [title] = Inert.byTag(view({ title: 'Nightly build' }), 'h3')
+    expect(Inert.value(title, 'data-label')).toBe('Nightly build')
+  })
+
   it('skips regions the card does not earn, and draws no control when it is not pressable', () => {
     const card = view({ content: h.span([], ['bare']) })
     expect(Inert.text(card)).toBe('bare')

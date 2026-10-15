@@ -140,7 +140,11 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
             h.div(builders.header.attrs(), [
               ...(options.title === undefined
                 ? []
-                : [h.h3(builders.title.attrs(), [options.title])]),
+                : [
+                    h.h3(builders.title.attrs([h.DataAttribute('label', options.title)]), [
+                      options.title,
+                    ]),
+                  ]),
               ...(options.description === undefined
                 ? []
                 : [h.p(builders.description.attrs(), [options.description])]),

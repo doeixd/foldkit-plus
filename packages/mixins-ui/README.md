@@ -516,7 +516,10 @@ What a recipe assumes and does:
   stepping with the ladder: `display`, `title`, `subtitle`, `body` (a
   control's text, 14px on 20), `caption` (badges, tooltips, a table's
   headings) and `micro` (keycaps). A tab's and a segmented option's label is
-  trimmed to its capitals (`text-box`), centering it optically, and a field's text is 16px on a coarse
+  trimmed to its capitals (`text-box`), centering it optically; a pressed
+  segmented option and a chosen card title turn semibold without moving
+  anything (the card writes its title in `data-label`; give an option its
+  text there, `h.DataAttribute('label', 'Week')`); and a field's text is 16px on a coarse
   pointer, so iOS Safari does not zoom the page into it.
 - **A state is a tint, not a surface.** A hover lays the palette's
   `state.hover`, a mix of the control's own text color, over whatever is under

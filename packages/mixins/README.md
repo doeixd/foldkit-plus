@@ -559,7 +559,9 @@ color as `'group.name'`), `items` and `justify` (`'between'` is `space-between`)
 constants `flex`, `column`, `grid`, `block`, `hidden`, `wFull`, `textCenter`, `uppercase`,
 `truncate`, `pointer` and `selectNone`, and `scrollFade(axis)`, a scroller's content dissolving
 toward an edge with more to scroll (a scroll-driven mask: the true ends stay crisp until something
-is past them, and a browser without scroll timelines gets no fade). Each is a `Style.self` rule, unlayered, so it takes the
+is past them, and a browser without scroll timelines gets no fade), and `steady(weight)`, room for a
+label at a heavier weight, read from the element's `data-label`, so turning bold moves nothing
+beside it. Each is a `Style.self` rule, unlayered, so it takes the
 layer of the style it is composed into, and a plain declaration after it wins per property. A
 value off the scale is a plain declaration (`{ fontSize: '3.75rem' }`); a color outside
 `Theme.oklch`'s groups is read through `t`.

@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins/utilities`: `steady(weight)`, weight without reflow.**
+  The element's `data-label` holds its text, which a hidden, zero-height
+  `::after` sets at `weight`, so a label that turns heavier when chosen
+  moves nothing beside it; the element stays a block, so a `text-box` trim
+  still works on it. A pressed segmented option and a chosen card title use
+  it, and the card writes its title into `data-label` itself.
 - **`foldkit-mixins/theme`: a surface ladder that nests by itself.**
   `Theme.raise(offset)` sets an element `offset` levels above the raised
   element holding it, or the page (capped at 8), and `Theme.raisedSurface()`
