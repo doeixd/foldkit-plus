@@ -5,10 +5,10 @@
  * and the chips are a list named by the field's label.
  */
 import { describe, expect, it } from 'vitest'
-import { A11y, Style } from 'foldkit-mixins'
+import { A11y, Style, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Patterns, Recipes, TagsInput, TagsInputSlots } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { h, message, type TestMessage } from './fixture.js'
 
 const { Message, init, update } = TagsInput
 
@@ -27,6 +27,21 @@ const drawn = (tags: ReadonlyArray<string>, disabled = false) =>
     },
     h,
   )
+
+// Drawn through `Inert.draw`, which alone marks the Slots that `unslotted` reads.
+const Drawn = SlotView.forMessages<TestMessage>().define(
+  TagsInputSlots,
+  (tags: ReadonlyArray<string>, _, h) =>
+    TagsInput.view(
+      {
+        model: init({ id: 'topics', tags }),
+        onMessage: () => message('Clicked'),
+        label: 'Topics',
+        style,
+      },
+      h,
+    ),
+)
 
 describe('TagsInput.update', () => {
   it.each([
@@ -79,7 +94,7 @@ describe('TagsInput.view', () => {
   })
 
   it('draws every element in a Slot', () => {
-    expect(Inert.unslotted(drawn(['a', 'b']))).toEqual([])
+    expect(Inert.unslotted(Inert.draw(Drawn, ['a', 'b']))).toEqual([])
   })
 
   it('draws the tags as a list the label names, each with a named remove button', () => {
