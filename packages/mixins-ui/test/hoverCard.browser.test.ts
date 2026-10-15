@@ -11,6 +11,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { HoverIntent, HoverIntentSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
@@ -33,7 +34,10 @@ const mount = () => {
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'hover-card'
-  document.body.appendChild(container)
+  // An empty spot below the trigger, to move the pointer off it.
+  const spot = document.createElement('div')
+  spot.style.blockSize = '200px'
+  document.body.append(container, spot)
   const view = (model: Model, h: HtmlBuilder<Message>) =>
     h.submodel({
       slotId: 'card',
@@ -72,6 +76,7 @@ const mount = () => {
   )
 }
 
+const away = () => document.body.lastElementChild!
 const card = () => document.querySelector<HTMLElement>('[aria-label="card"]')
 
 test('focus on the trigger opens the card, raised, and blur closes it', async () => {
@@ -82,6 +87,9 @@ test('focus on the trigger opens the card, raised, and blur closes it', async ()
       expect(found).not.toBeNull()
       return found!
     })
+    // A pointer an earlier test file left over the trigger hovers it, and a
+    // hovered trigger rightly keeps the card open through the blur.
+    await userEvent.hover(away())
     trigger.focus()
     await vi.waitFor(() => expect(card()).not.toBeNull())
     expect(getComputedStyle(card()!).boxShadow).not.toBe('none')
