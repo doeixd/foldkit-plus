@@ -14,6 +14,7 @@ import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { slashEntries, type EditorEvent, type SlashEntry } from 'foldkit-richtext-dom/editor'
+import { isRichTextIcon, richTextIcon } from './icons.js'
 
 type Retype = Extract<EditorEvent, { readonly _tag: 'RetypedBlock' }>
 
@@ -72,5 +73,92 @@ export const blockStyles = <Message>(): SlotView.SlotView<
           ),
         ),
       ),
+    ])
+  })
+
+/**
+ * The elements the style menu publishes: its wrapper, the trigger that names the current style,
+ * the menu, and one item per style with its icon, label and the check on the current one.
+ */
+export const BlockStyleMenuSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  trigger: Slot.make({ capability: Capability.Interactive }),
+  menu: Slot.make({ capability: Capability.Collection }),
+  item: Slot.make({ capability: Capability.Interactive }),
+  icon: Slot.make({ capability: Capability.Container }),
+  label: Slot.make({ capability: Capability.Container }),
+  check: Slot.make({ capability: Capability.Container }),
+})
+
+export interface BlockStyleMenuInput<Message> extends BlockStyleInput<Message> {
+  /** Whether the menu is open: the caller's, as every menu's is. */
+  readonly open: boolean
+  /** The trigger's Message, which opens the menu or closes it. */
+  readonly toggled: Message
+}
+
+/**
+ * The same styles as `blockStyles`, in the space of one button: the trigger names the style the
+ * selection's block has ("Text style" where none applies, as in a code block) and opens a menu of
+ * every style, the current one checked. Choosing one sends its `RetypedBlock` through `wrap`, which
+ * is where a caller also closes the menu. The trigger is disabled without a text selection.
+ */
+export const blockStyleMenu = <Message>(): SlotView.SlotView<
+  typeof BlockStyleMenuSlots,
+  BlockStyleMenuInput<Message>,
+  Message
+> =>
+  SlotView.forMessages<Message>().define(BlockStyleMenuSlots, (input, slots, h): Html => {
+    const current = RichText.textBlockAt(input.document, input.selection)
+    const live = input.selection?.type === 'Range'
+    const chosen = styles.find(
+      style => current !== undefined && Equal.equals(style.message.block, current),
+    )
+    const icon = (name: string | undefined) =>
+      name !== undefined && isRichTextIcon(name)
+        ? [h.span(slots.icon.attrs(), [richTextIcon(h, name)])]
+        : []
+    return h.div(slots.root.attrs(), [
+      h.button(
+        slots.trigger.attrs([
+          h.Type('button'),
+          h.AriaHasPopup('menu'),
+          h.AriaExpanded(input.open && live),
+          h.AriaLabel(`Text style: ${chosen?.label ?? 'none'}`),
+          h.Disabled(!live),
+          ...(live ? [h.OnClick(input.toggled)] : []),
+        ]),
+        [
+          ...icon(chosen?.icon),
+          h.span(slots.label.attrs(), [chosen?.label ?? 'Text style']),
+          richTextIcon(h, 'chevron-down', { size: 14 }),
+        ],
+      ),
+      ...(input.open && live
+        ? [
+            h.div(
+              slots.menu.attrs([h.Role('menu'), h.AriaLabel('Text style')]),
+              styles.map((style, index) =>
+                h.button(
+                  slots.item.attrs(
+                    [
+                      h.Type('button'),
+                      h.Role('menuitemradio'),
+                      h.AriaChecked(style === chosen),
+                      h.DataAttribute('style', style.id),
+                      h.OnClick(input.wrap(style.message)),
+                    ],
+                    { index, id: style.id, count: styles.length },
+                  ),
+                  [
+                    ...icon(style.icon),
+                    h.span(slots.label.attrs(), [style.label]),
+                    h.span(slots.check.attrs(), style === chosen ? [richTextIcon(h, 'check')] : []),
+                  ],
+                ),
+              ),
+            ),
+          ]
+        : []),
     ])
   })

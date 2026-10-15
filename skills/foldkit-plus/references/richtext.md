@@ -182,7 +182,8 @@ under a query (`matchingEntries`). `richTextIcon(h, name)` / `richTextIconUrl(na
 chrome's icon set (Lucide, ISC). `blockStyles<Message>()` is the
 style picker: `{ document, selection, wrap }` in, `BlockStyleSlots` (`root`, `toolbar`,
 `button`) out, one `data-style` button per retype entry (Paragraph, Heading 1–3), pressed from
-`RichText.textBlockAt`, all disabled without a text selection. `linkEditor<Message>()` is the link
+`RichText.textBlockAt`, all disabled without a text selection; `blockStyleMenu<Message>()` is the
+same as one trigger and a menu (`{ …, open, toggled }`, `BlockStyleMenuSlots`). `linkEditor<Message>()` is the link
 editor: `{ document, selection, draft, drafted, wrap }` in, `LinkEditorSlots` (`root`, `input`,
 `apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
 `RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range

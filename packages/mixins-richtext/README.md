@@ -105,6 +105,23 @@ quotes are not styles here: leaving one is a lift, not a retype.
 | `toolbar` | Collection | the row, `role="toolbar"` |
 | `button` | Interactive | one style, `data-style` (the entry's id) and `aria-pressed` |
 
+`blockStyleMenu<Message>()` offers the same styles in the space of one button, for a toolbar
+with other things to hold. Its input adds `open` and `toggled`, since whether a menu is open is
+the caller's. The trigger shows the current style's icon and label ("Text style" where none
+applies) and opens a `role="menu"` of every style, each a `menuitemradio`, the current one
+checked. A choice sends its `RetypedBlock` through `wrap`, which is where the caller closes the
+menu. The trigger is disabled without a text selection, and the menu draws nothing then.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the wrapper, to anchor the menu to |
+| `trigger` | Interactive | the button naming the style, `aria-haspopup="menu"`, `aria-expanded` |
+| `menu` | Collection | the open menu |
+| `item` | Interactive | one style, `data-style`, `aria-checked` |
+| `icon` | Container | a style's icon |
+| `label` | Container | a style's label |
+| `check` | Container | the check beside the current style |
+
 ## The link editor
 
 An address field with two buttons: link the selection (or change the link around the caret),
