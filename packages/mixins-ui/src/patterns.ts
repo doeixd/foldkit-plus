@@ -20,13 +20,11 @@ import { CommandSlots } from './command.js'
 import { MenubarSlots } from './menubar.js'
 import { MeterSlots } from './meter.js'
 import { NavSlots } from './nav.js'
-import { NestedMenuSlots } from './nestedMenu.js'
 import { CarouselSlots } from './carousel.js'
-import { RangeSliderSlots } from './rangeSlider.js'
 import { TreeViewSlots } from './treeView.js'
 import { ColorPickerSlots } from './colorPicker.js'
 import { InputCopySlots } from './inputCopy.js'
-import { BannerSlots } from './banner.js'
+import { AlertSlots } from './alert.js'
 import { TagsInputSlots } from './tagsInput.js'
 import { PasswordInputSlots } from './passwordInput.js'
 import { RatingSlots } from './rating.js'
@@ -265,8 +263,9 @@ export const TagsInput = A11y.pattern({
   },
 })
 
-export const Banner = A11y.pattern({
-  root: { capability: Capability.Container, attributes: [Attr.AriaLabel] },
+/** Inline, the root's `role` makes it a live region; as a banner, its `aria-label` names a landmark. */
+export const Alert = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
   action: { capability: Capability.Interactive, optional: true },
   dismiss: {
     capability: Capability.Interactive,
@@ -311,7 +310,8 @@ export const TreeView = A11y.pattern({
   group: { capability: Capability.Container, attributes: [Attr.Role] },
 })
 
-export const RangeSlider = A11y.pattern({
+/** One thumb named by the label, or a range's group of two thumbs that each name themselves. */
+export const Slider = A11y.pattern({
   root: { capability: Capability.Container, attributes: [Attr.Role] },
   label: { capability: Capability.Container },
   thumb: {
@@ -339,12 +339,6 @@ export const Carousel = A11y.pattern({
   status: { capability: Capability.Container, attributes: [Attr.Role] },
 })
 
-export const NestedMenu = A11y.pattern({
-  sub: { capability: Capability.Container },
-  label: { capability: Capability.Container },
-  chevron: { capability: Capability.Container },
-})
-
 export const Nav = A11y.pattern({
   nav: { capability: Capability.Container },
   link: { capability: Capability.Interactive },
@@ -370,13 +364,6 @@ export const Popover = A11y.pattern({
 export const Tooltip = A11y.pattern({
   trigger: { capability: Capability.Interactive, events: [Event.Focus, Event.Blur] },
   panel: { capability: Capability.Container, attributes: [Attr.Role] },
-})
-
-export const Slider = A11y.pattern({
-  root: { capability: Capability.Container },
-  track: { capability: Capability.Container, events: [Event.PointerDown] },
-  thumb: { capability: Capability.Focusable, attributes: [Attr.Role] },
-  label: { capability: Capability.Container },
 })
 
 export const Tabs = A11y.pattern({
@@ -554,12 +541,11 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
-  entry('nested-menu', NestedMenu, NestedMenuSlots, 'stateful', ['menu', 'menuitem']),
   entry('carousel', Carousel, CarouselSlots, 'stateless', ['group', 'button', 'status']),
   entry(
-    'range-slider',
-    RangeSlider,
-    RangeSliderSlots,
+    'slider',
+    Slider,
+    SliderSlots,
     'stateless',
     ['group', 'slider'],
     ['native-control', 'form-submission'],
@@ -581,7 +567,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['textbox', 'button', 'status'],
     ['native-control'],
   ),
-  entry('banner', Banner, BannerSlots, 'stateless', ['region', 'button', 'link']),
+  entry('alert', Alert, AlertSlots, 'stateless', ['status', 'alert', 'region', 'button', 'link']),
   entry(
     'tags-input',
     TagsInput,
@@ -625,7 +611,6 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['top-layer', 'escape-dismiss'],
   ),
   entry('tooltip', Tooltip, TooltipSlots, 'stateful', ['tooltip']),
-  entry('slider', Slider, SliderSlots, 'stateful', ['slider'], ['form-submission']),
   entry('tabs', Tabs, TabsSlots, 'stateful', ['tablist', 'tab', 'tabpanel']),
   entry(
     'radioGroup',
