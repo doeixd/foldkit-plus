@@ -43,7 +43,7 @@ describe('OtpField.view', () => {
     const [input] = Inert.byTag(drawn('12'), 'input')
     expect(Inert.value(input, 'aria-label')).toBe('Sign-in code')
     expect(Inert.value(input, 'autocomplete')).toBe('one-time-code')
-    expect(Inert.value(input, 'maxlength')).toBe('6')
+    expect(Inert.value(input, 'maxLength')).toBe(6)
     const groups = Inert.all(drawn('12')).filter(
       node => Inert.value(node, 'aria-hidden') === 'true',
     )
