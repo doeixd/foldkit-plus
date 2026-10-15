@@ -48,6 +48,10 @@ const mark = (point: Option.Option<Point>) => ({
   }),
   inlineSize: '0',
   blockSize: '0',
+  // The Menu recipe gives its button the ladder's height as a minimum, which
+  // would set the rows that much below the press.
+  minInlineSize: '0',
+  minBlockSize: '0',
   padding: '0',
   border: '0',
   overflow: 'hidden',
