@@ -322,6 +322,21 @@ selection)` Command with a caret at the heading's start. Nothing is drawn withou
 | `list` | Container | the `ul` |
 | `entry` | Interactive | a heading's button, its depth as `--fk-toc-level` (1 for the shallowest level used) |
 
+## The footnote preview
+
+`footnotePreview<Message>()` is drawn while the caret is in a footnote reference
+(`RichText.footnoteAt`), and is empty everywhere else, so a caller can anchor it at the selection
+and draw it always. It shows the note's text ("No note yet" when there is none), Go to note, which
+sends `opened(definition)` (the caller usually gives the editor the focus there with `focus`), and
+the label as a field that sends the editor's `RenamedFootnote` when it changes.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | `role="group"`, labelled with the footnote |
+| `label` | TextInput | the label field |
+| `text` | Container | the note's text |
+| `button` | Interactive | Go to note, disabled with no definition |
+
 ## The command palette
 
 The slash menu's catalogue, searched from a field of its own instead of typed into the

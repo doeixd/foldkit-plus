@@ -68,6 +68,10 @@ export const Message = defineMessageUnion({
     caseSensitive: Schema.optionalKey(Schema.Boolean),
     at: Schema.optionalKey(Schema.Number),
   },
+  /** `InsertFootnote`: a reference at the caret, its definition last, the caret in it. */
+  InsertedFootnote: { text: Schema.optionalKey(Schema.String) },
+  /** `RenameFootnote`: a footnote's label, on its definition and every reference. */
+  RenamedFootnote: { from: Schema.String, to: Schema.String },
   /** Shift+Tab: less indentation in code, the previous cell in a table. */
   Outdented: {},
   /**
@@ -394,6 +398,8 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Message.Indented,
     Message.Outdented,
     Message.ReplacedText,
+    Message.InsertedFootnote,
+    Message.RenamedFootnote,
     Message.ActivatedAdornment,
     Message.Selected,
     Message.Pasted,

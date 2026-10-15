@@ -6,6 +6,7 @@ import {
   eachBlock,
   positionInBlock,
   locateBlock,
+  rangeStart,
   locateRun,
   pathKey,
   textContent,
@@ -31,6 +32,13 @@ import {
 import { blockKind, standsWithin, type NodeRegistry } from './kit.js'
 import { indent, indentationAt, offsetIn, outdent } from './indent.js'
 import { findMatches, type SearchMatch } from './search.js'
+import {
+  FootnoteDefinition,
+  FootnoteRef,
+  footnotesOf,
+  nextFootnoteLabel,
+  referenceLabel,
+} from './footnote.js'
 import {
   deleteColumn,
   deleteRow,
@@ -167,6 +175,18 @@ export type Command =
       readonly caseSensitive?: boolean | undefined
       readonly at?: number | undefined
     }
+  /**
+   * A footnote at the caret, or at the end of a range: a reference showing the next free label
+   * (`nextFootnoteLabel`), and its definition after the last top-level block holding `text`, with
+   * the caret at the definition's start, ready to write the note.
+   */
+  | { readonly type: 'InsertFootnote'; readonly text?: string | undefined }
+  /**
+   * A footnote's label, `from`, becomes `to`: on its definition, and on every reference, whose
+   * text becomes `to` where it showed `from`. Refused (`InvalidInput`) when `to` is blank or
+   * another footnote's, or when no footnote is labelled `from`.
+   */
+  | { readonly type: 'RenameFootnote'; readonly from: string; readonly to: string }
 
 /** Where `MoveBlock` puts a block: before or after a sibling, named by identity. */
 export const Beside = Schema.Union([
@@ -1095,6 +1115,11 @@ export const run = (
     const chosen = command.at === undefined ? matches : matches.slice(command.at, command.at + 1)
     return replaceMatches(state, chosen, command.replacement, ids, options)
   }
+  if (command.type === 'InsertFootnote')
+    return insertFootnote(state, command.text ?? '', ids, options)
+  if (command.type === 'RenameFootnote') {
+    return renameFootnote(state, command.from, command.to.trim(), ids, options)
+  }
   if (command.type === 'InsertBlock') {
     const to = command.to ?? besideCaret(state)
     if (to === undefined) return failure('InvalidSelection')
@@ -1756,6 +1781,100 @@ const replaceMatches = (
     }
   }
   return done
+}
+
+const insertFootnote = (
+  state: EditorState,
+  text: string,
+  ids: CommandIds,
+  options: RunOptions,
+): TransactionResult => {
+  const selection = state.selection
+  if (selection?.type !== 'Range') return failure('InvalidSelection')
+  const start = rangeStart(state.document, selection)
+  const last = state.document.children[state.document.children.length - 1]
+  if (start === undefined || last === undefined) return failure('InvalidSelection')
+  const end = start === selection.anchor ? selection.focus : selection.anchor
+  const label = nextFootnoteLabel(state.document)
+  // Placeholder identities: InsertBlock mints fresh ones.
+  const definition: Block = {
+    type: 'Node',
+    kind: FootnoteDefinition.name,
+    id: NodeId.make('footnote'),
+    props: { label },
+    children: [],
+    blocks: [
+      {
+        type: 'Paragraph',
+        id: NodeId.make('footnote-text'),
+        children: [{ type: 'Text', id: NodeId.make('footnote-run'), text, marks: [] }],
+      },
+    ],
+  }
+  return runAction(
+    state,
+    [
+      { type: 'SetSelection', selection: { type: 'Range', anchor: end, focus: end } },
+      { type: 'InsertText', text: label, marks: [FootnoteRef.of({ label })] },
+      { type: 'InsertBlock', block: definition, to: { after: last.id } },
+    ],
+    ids,
+    options,
+  )
+}
+
+const renameFootnote = (
+  state: EditorState,
+  from: string,
+  to: string,
+  ids: CommandIds,
+  options: RunOptions,
+): TransactionResult => {
+  const notes = footnotesOf(state.document)
+  const note = notes.find(each => each.label === from)
+  if (note === undefined || to === '' || (to !== from && notes.some(each => each.label === to))) {
+    return failure('InvalidInput')
+  }
+  const relabelled = FootnoteRef.of({ label: to })
+  const references: Array<Command> = []
+  eachBlock(state.document.children, block => {
+    for (const run of block.children) {
+      if (referenceLabel(run) !== from) continue
+      references.push(
+        {
+          type: 'SetSelection',
+          selection: {
+            type: 'Range',
+            anchor: { node: run.id, offset: 0, affinity: 'after' },
+            focus: { node: run.id, offset: run.text.length, affinity: 'before' },
+          },
+        },
+        {
+          type: 'InsertText',
+          text: run.text === from ? to : run.text,
+          marks: run.marks.map(each => (markName(each) === FootnoteRef.name ? relabelled : each)),
+        },
+      )
+    }
+  })
+  // The caret goes back where it was, unless it was in a reference the rename rewrote.
+  const selection = state.selection
+  const inReference =
+    selection?.type === 'Range' &&
+    (note.references.includes(selection.anchor.node) ||
+      note.references.includes(selection.focus.node))
+  return runAction(
+    state,
+    [
+      ...(note.definition === undefined
+        ? []
+        : [{ type: 'SetProps' as const, node: note.definition, props: { label: to } }]),
+      ...references,
+      ...(inReference || selection === null ? [] : [{ type: 'SetSelection' as const, selection }]),
+    ],
+    ids,
+    options,
+  )
 }
 
 /** The first run anywhere in these blocks, nested ones included, in document order. */

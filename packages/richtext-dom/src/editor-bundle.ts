@@ -252,6 +252,10 @@ const toCommand = (message: CommandMessage): RichText.Command => {
         caseSensitive: message.caseSensitive,
         at: message.at,
       }
+    case 'InsertedFootnote':
+      return { type: 'InsertFootnote', text: message.text }
+    case 'RenamedFootnote':
+      return { type: 'RenameFootnote', from: message.from, to: message.to }
     case 'Outdented':
       return { type: 'Outdent' }
     case 'Selected':

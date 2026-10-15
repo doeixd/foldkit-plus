@@ -118,3 +118,5 @@ export {
 } from './slash.js'
 /** The table of contents, from the document's headings, and its slots. */
 export { TableOfContentsSlots, tableOfContents, type TableOfContentsInput } from './contents.js'
+/** The footnote preview at a reference, and its slots. */
+export { FootnotePreviewSlots, footnotePreview, type FootnotePreviewInput } from './footnote.js'

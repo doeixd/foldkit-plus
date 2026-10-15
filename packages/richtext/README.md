@@ -686,6 +686,16 @@ selection)` is the heading of the section the selection starts in, the last such
 before its block, and undefined before the first. A table of contents draws the one and marks the
 other.
 
+Footnotes are opt-in vocabulary: add `FootnoteRef` to the kit's marks and `FootnoteDefinition` to
+its nodes. A reference is the `FootnoteRef` mark (`{ label }`) on the run that shows the label, so
+it moves and undoes with the text; a definition is a block of blocks with the same label, so its
+note is ordinary editable text. The label is all that ties them. `footnotesOf(document)` lists
+every footnote by first reference, as `{ label, definition, references, text }`, then the
+definitions nothing refers to; `footnoteAt(document, selection)` is the label of the reference the
+caret is in. `InsertFootnote` (`{ text? }`) puts a reference showing `nextFootnoteLabel` at the
+caret, its definition after the last block, and the caret in the note; `RenameFootnote` (`{ from,
+to }`) relabels the definition and every reference, refusing a label another footnote has.
+
 Code highlighting is the second producer. A `CodeBlock` holds its `language` and plain text,
 and a `CodeTokenizer` — a pure `(text) => ReadonlyArray<{ from, to, kind }>` over that text —
 says what is in it; `codeDecorations(document, tokenizers)` runs the tokenizer registered for

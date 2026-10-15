@@ -88,6 +88,12 @@ version changed; `pnpm` skips versions already in the registry.
   click on one with `toggles` flips that boolean prop through the document.
 - **`foldkit-richtext`: the standard `Image` takes `caption`, `width` and
   `align`**, all optional; the standard rendering still draws the `img` alone.
+- **Footnotes.** `foldkit-richtext` declares `FootnoteRef` and
+  `FootnoteDefinition` for a kit to opt into, reads them with `footnotesOf`,
+  `footnoteAt` and `nextFootnoteLabel`, and inserts and renames them with
+  `InsertFootnote` and `RenameFootnote` (the editor's `InsertedFootnote`,
+  `RenamedFootnote`); `foldkit-mixins-richtext`'s `footnotePreview` is the card
+  at a reference.
 - **`foldkit-richtext-dom`: a hint on the empty line.** `lineHint` ("Type /
   for blocks") marks the empty paragraph the caret is in with `data-hint`, for
   a stylesheet to draw as it draws the placeholder. **Changed:** the host
