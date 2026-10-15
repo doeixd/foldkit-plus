@@ -75,7 +75,10 @@ const control = () => document.querySelector('[data-thumb]')?.parentElement
 const pointOf = (value: number) => {
   const box = control()!.getBoundingClientRect()
   const edge = box.height
-  return { x: box.left + edge / 2 + ((box.width - edge) * value) / 200, y: box.top + box.height / 2 }
+  return {
+    x: box.left + edge / 2 + ((box.width - edge) * value) / 200,
+    y: box.top + box.height / 2,
+  }
 }
 const hitAt = (point: { readonly x: number; readonly y: number }) =>
   document.elementFromPoint(point.x, point.y)

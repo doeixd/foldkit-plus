@@ -123,7 +123,11 @@ export const view = <Message>(options: RangeSliderView<Message>, h: HtmlBuilder<
         ...(options.name === undefined ? [] : [h.Attribute('name', options.name)]),
         ...(disabled
           ? [h.Disabled(true)]
-          : [h.OnInput(text => options.onChange(moved(options.value, which, Number(text), bounds)))]),
+          : [
+              h.OnInput(text =>
+                options.onChange(moved(options.value, which, Number(text), bounds)),
+              ),
+            ]),
       ]),
     )
 

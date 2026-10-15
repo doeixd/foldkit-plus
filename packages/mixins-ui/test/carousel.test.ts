@@ -90,7 +90,11 @@ describe('Carousel.view', () => {
     expect(clickable(next)).toBe(true)
     // Previous, the two dots not current, next.
     expect(asked).toEqual([0, 0, 2, 2])
-    expect(dots.map(dot => Inert.value(dot, 'aria-current'))).toEqual([undefined, 'true', undefined])
+    expect(dots.map(dot => Inert.value(dot, 'aria-current'))).toEqual([
+      undefined,
+      'true',
+      undefined,
+    ])
     expect(dots.map(clickable)).toEqual([true, false, true])
   })
 

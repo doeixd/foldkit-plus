@@ -63,10 +63,7 @@ const mount = () => {
           },
           h,
         ),
-        h.p(
-          [h.AriaLabel('chosen')],
-          [Option.getOrElse(model.chosen, () => 'nothing')],
-        ),
+        h.p([h.AriaLabel('chosen')], [Option.getOrElse(model.chosen, () => 'nothing')]),
       ],
     )
   return Runtime.embed(

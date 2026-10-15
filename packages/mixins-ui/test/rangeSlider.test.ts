@@ -43,7 +43,8 @@ const Drawn = SlotView.forMessages<TestMessage>().define(
 
 const drawn = (value: RangeSlider.Range, more: More = {}) => Inert.draw(Drawn, { value, more })
 
-const thumbs = (value: RangeSlider.Range, more: More = {}) => Inert.byTag(drawn(value, more), 'input')
+const thumbs = (value: RangeSlider.Range, more: More = {}) =>
+  Inert.byTag(drawn(value, more), 'input')
 
 describe('RangeSlider.view', () => {
   it('meets the range slider pattern', () => {
@@ -61,10 +62,7 @@ describe('RangeSlider.view', () => {
       'Maximum',
     ])
     expect([low, high].map(thumb => Inert.value(thumb, 'value'))).toEqual(['40', '120'])
-    expect([low, high].map(thumb => Inert.value(thumb, 'aria-valuetext'))).toEqual([
-      '$40',
-      '$120',
-    ])
+    expect([low, high].map(thumb => Inert.value(thumb, 'aria-valuetext'))).toEqual(['$40', '$120'])
   })
 
   it('bounds each thumb by the other, so neither can pass it', () => {
@@ -102,9 +100,9 @@ describe('RangeSlider.view', () => {
   it('submits both values under one name when given one', () => {
     const named = thumbs({ low: 0, high: 200 }, { name: 'price' })
     expect(named.map(thumb => Inert.value(thumb, 'name'))).toEqual(['price', 'price'])
-    expect(thumbs({ low: 0, high: 200 }).some(thumb => Inert.value(thumb, 'name') !== undefined)).toBe(
-      false,
-    )
+    expect(
+      thumbs({ low: 0, high: 200 }).some(thumb => Inert.value(thumb, 'name') !== undefined),
+    ).toBe(false)
   })
 })
 

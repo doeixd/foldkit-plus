@@ -400,7 +400,12 @@ export const view = <ParentMessage>(
   const { model, rows, onMessage } = options
   const label = (text: string) => h.span(builders.label.attrs(), [text])
 
-  const drawSubmenu = (sub: Submenu, items: ReadonlyArray<string>, row: NestedRow, labelId: string) =>
+  const drawSubmenu = (
+    sub: Submenu,
+    items: ReadonlyArray<string>,
+    row: NestedRow,
+    labelId: string,
+  ) =>
     h.submodel({
       slotId: sub.menu.id,
       model: sub.menu,

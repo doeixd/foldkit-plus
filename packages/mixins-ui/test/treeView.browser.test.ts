@@ -131,7 +131,8 @@ test('a row sits further in per level, and a shut group takes no height', async 
     expect(group.getBoundingClientRect().height).toBe(0)
     await userEvent.click(row('src'))
     await vi.waitFor(() => expect(group.getBoundingClientRect().height).toBeGreaterThan(10))
-    const start = (id: string) => row(id).querySelector('[aria-hidden="true"]')!.getBoundingClientRect().left
+    const start = (id: string) =>
+      row(id).querySelector('[aria-hidden="true"]')!.getBoundingClientRect().left
     expect(start('components')).toBeGreaterThan(start('src'))
     expect(start('components') - start('src')).toBeCloseTo(start('button') - start('components'), 1)
   } finally {

@@ -156,7 +156,9 @@ describe('NestedMenu.update', () => {
     expect(result.outMessage).toEqual(
       NestedMenu.OutMessage.Selected({ value: 'Messages', submenu: Option.some('Share') }),
     )
-    const focus = (result.commands ?? []).filter(command => command.name === UiMenu.FocusButton.name)
+    const focus = (result.commands ?? []).filter(
+      command => command.name === UiMenu.FocusButton.name,
+    )
     expect(focus.map(command => command.args)).toEqual([{ id: 'file' }])
     // The click bubbles to the submenu's row after: the closed menu ignores it.
     const bubbled = menu(result.model, UiMenu.Message.SelectedItem({ index: SHARE, item: 'Share' }))
@@ -168,7 +170,9 @@ describe('NestedMenu.update', () => {
     const result = NestedMenu.update(shareOpen, NestedMenu.Message.PressedAway())
     expect(result.model.menu.isOpen).toBe(false)
     expect(open(result.model)).toEqual([false, false])
-    const focus = (result.commands ?? []).filter(command => command.name === UiMenu.FocusButton.name)
+    const focus = (result.commands ?? []).filter(
+      command => command.name === UiMenu.FocusButton.name,
+    )
     expect(focus.map(command => command.args)).toEqual([{ id: 'file' }])
   })
 

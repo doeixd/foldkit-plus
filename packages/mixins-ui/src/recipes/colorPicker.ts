@@ -53,7 +53,12 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
       }),
     ),
     label: component(
-      Style.self({ ...whole, color: ref.text.overt, ...role('body'), fontWeight: ref.weight.medium }),
+      Style.self({
+        ...whole,
+        color: ref.text.overt,
+        ...role('body'),
+        fontWeight: ref.weight.medium,
+      }),
     ),
     swatch: component(
       Style.self({
@@ -65,7 +70,11 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
       }),
     ),
     value: component(
-      Style.self({ color: ref.text.default, ...role('caption'), fontVariantNumeric: 'tabular-nums' }),
+      Style.self({
+        color: ref.text.default,
+        ...role('caption'),
+        fontVariantNumeric: 'tabular-nums',
+      }),
     ),
     channel: component(Style.self({ ...whole, display: 'grid', gap: ref.space['2xs'] })),
     channelLabel: component(Style.self({ color: ref.text.muted, ...role('caption') })),
