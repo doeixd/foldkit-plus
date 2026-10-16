@@ -200,8 +200,9 @@ export const Steps = Style.recipeFor(StepsSlots)({
             columnGap: ref.space.xs,
           }),
         ),
-        step: variant(Style.self({ gridColumn: '1 / -1' })),
-        trigger: variant(Style.self({ gridColumn: '1 / -1' })),
+        // The first row by name: the line spans it too, and would push it down.
+        step: variant(Style.self({ gridColumn: '1 / -1', gridRow: '1' })),
+        trigger: variant(Style.self({ gridColumn: '1 / -1', gridRow: '1' })),
         content: variant(
           Style.self({
             gridColumn: '2',
@@ -209,16 +210,17 @@ export const Steps = Style.recipeFor(StepsSlots)({
             paddingBlock: `${ref.space['2xs']} ${ref.space.sm}`,
           }),
         ),
-        // Under the marker's center, as tall as the gap between two steps,
-        // or as the content beside it.
+        // Under the marker's center, from its foot to the next marker's top:
+        // down both rows from the marker's height, so a title and description
+        // taller than the marker leave no gap under it.
         connector: variant(
           Style.self({
             gridColumn: '1',
-            gridRow: '2',
+            gridRow: '1 / 3',
             justifySelf: 'center',
             inlineSize: ref.border.thick,
             minBlockSize: ref.space.lg,
-            marginBlock: ref.space['2xs'],
+            marginBlockStart: markerSize,
           }),
         ),
       },

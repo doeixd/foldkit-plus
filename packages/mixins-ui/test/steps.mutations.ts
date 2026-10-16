@@ -4,6 +4,7 @@
  * test fails for every one.
  */
 const unit = 'packages/mixins-ui/test/steps.test.ts'
+const browser = 'packages/mixins-ui/test/steps.browser.test.ts'
 
 export default [
   {
@@ -88,7 +89,7 @@ export default [
         replace: "Style.nest(':where([data-state]) > * > &', {",
       },
     ],
-    tests: [unit],
+    tests: [browser],
   },
   {
     name: 'a narrow row still shares with steps showing no label',
@@ -96,9 +97,38 @@ export default [
       {
         file: '../src/recipes/steps.ts',
         find: 'Style.nest(\':where([data-state]:not([aria-current="step"]))&\', {',
-        replace: "Style.nest(':where([data-state])&', {",
+        replace: "Style.nest(':where([data-none])&', {",
       },
     ],
-    tests: [unit],
+    tests: [browser],
+  },
+  {
+    name: 'the row is no container, so a phone shows every label',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "containerType: 'inline-size',",
+        replace: "containerType: 'normal',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a vertical line starts at the foot of the words',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "gridRow: '1 / 3',",
+        replace: "gridRow: '2',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a vertical line starts at the top of its marker',
+    edits: [
+      { file: '../src/recipes/steps.ts', find: 'marginBlockStart: markerSize,', replace: '' },
+    ],
+    tests: [browser],
   },
 ]
