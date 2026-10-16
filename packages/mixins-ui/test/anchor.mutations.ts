@@ -40,6 +40,17 @@ export default [
     tests: unit,
   },
   {
+    name: 'the top layer shows an element without the popover attribute',
+    edits: [
+      {
+        file: '../src/anchor.ts',
+        find: "typeof element.showPopover === 'function' &&\n  element.hasAttribute('popover')",
+        replace: "typeof element.showPopover === 'function'",
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: 'the top layer drops the wrapped Mount’s stream',
     edits: [
       {

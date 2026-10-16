@@ -44,11 +44,21 @@ describe('Anchor adapter', () => {
 })
 
 describe('topLayer', () => {
-  /** A panel with spied popover methods, as Chromium provides them. */
-  const popover = () => {
+  /**
+   * A panel with spied popover methods, as Chromium provides them: showing
+   * one without the `popover` attribute throws, as Chromium's does.
+   */
+  const popover = (attribute: boolean = true) => {
     const events: Array<string> = []
     const element = document.createElement('div')
+    if (attribute) element.setAttribute('popover', 'manual')
     const show = vi.fn(() => {
+      if (!element.hasAttribute('popover')) {
+        throw new DOMException(
+          'Not supported on element that does not have valid popover attribute',
+          'NotSupportedError',
+        )
+      }
       events.push('shown')
     })
     const hide = vi.fn(() => {
@@ -82,7 +92,7 @@ describe('topLayer', () => {
               Effect.sync(() => {
                 events.push('unpositioned')
               }),
-          ).pipe(Effect.as(Stream.never as Stream.Stream<never>)),
+          ).pipe(Effect.as(Stream.never)),
         ),
     })
     const fiber = Effect.runFork(Stream.runDrain(wrapped.f(element, liveViewStateChanges)))
@@ -103,6 +113,17 @@ describe('topLayer', () => {
     expect(hide).toHaveBeenCalledTimes(1)
   })
 
+  it('is a no-op on an element without the popover attribute, and the anchor still positions', async () => {
+    const { element, show, hide } = popover(false)
+    const wrapped = Anchor.topLayer({ name: 'Probe', f: () => Stream.make('positioned') })
+    const collected = await Effect.runPromise(
+      Stream.runCollect(wrapped.f(element, liveViewStateChanges)),
+    )
+    expect([...collected]).toEqual(['positioned'])
+    expect(show).not.toHaveBeenCalled()
+    expect(hide).not.toHaveBeenCalled()
+  })
+
   it('is a no-op where the popover API is missing, and the anchor still positions', async () => {
     const element = document.createElement('div')
     Object.defineProperty(element, 'showPopover', { value: undefined })
@@ -117,7 +138,7 @@ describe('topLayer', () => {
               positioned.push('positioned')
             }),
             () => Effect.void,
-          ).pipe(Effect.as(Stream.never as Stream.Stream<never>)),
+          ).pipe(Effect.as(Stream.never)),
         ),
     })
     const fiber = Effect.runFork(Stream.runDrain(wrapped.f(element, liveViewStateChanges)))

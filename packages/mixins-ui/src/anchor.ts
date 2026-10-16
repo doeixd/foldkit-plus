@@ -3,9 +3,9 @@
  * layer around an anchored panel: the floating element is placed against the
  * button whose id is given, with placement, gap, offset, padding, portal and
  * flip handled by `anchorSetup`, which also releases on unmount. The Mount
- * writes `position`, `top` and `left` on the element itself, imperatively; a
- * Style on the same slot must leave those alone, and `data-placement` is
- * written by `@foldkit/ui` for styling.
+ * writes `top` and `left` on the element itself, imperatively (and `position`
+ * too under the `fixed` strategy); a Style on the same slot must leave those
+ * alone, and `data-placement` is written by `@foldkit/ui` for styling.
  *
  * `portal` defaults to true upstream: the element is relocated into a
  * portal root, so the runtime no longer patches it and a test sees it move.
@@ -70,10 +70,16 @@ export type AnchorArgs = Parameters<typeof Anchor>[0]
  */
 const shown = new WeakSet<Element>()
 
+/**
+ * Whether the element can show as a popover: the API exists and the element
+ * has the attribute, without which `showPopover` throws `NotSupportedError`.
+ */
 const isPopover = (
   element: Element,
 ): element is HTMLElement & { showPopover(): void; hidePopover(): void } =>
-  element instanceof HTMLElement && typeof element.showPopover === 'function'
+  element instanceof HTMLElement &&
+  typeof element.showPopover === 'function' &&
+  element.hasAttribute('popover')
 
 /**
  * Draw an upstream-anchored, in-place panel in the browser's top layer: show
@@ -82,8 +88,9 @@ const isPopover = (
  * anchor keeps the panel in place (`portal: false`): upstream portal
  * relocation moves the element after the Mount acquires, and moving a shown
  * popover hides it again. The panel carries `popover="manual"` in its view.
- * Where the popover API is missing (a test renderer, SSR) the wrapper is a
- * no-op and the anchor positions in place.
+ * Where the popover API or the attribute is missing (a test renderer, SSR, a
+ * panel drawn without it) the wrapper is a no-op and the anchor positions in
+ * place.
  */
 export const topLayer = <Message, E>(
   action: Mount.MountAction<Message, E>,
