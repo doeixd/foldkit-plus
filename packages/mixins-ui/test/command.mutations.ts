@@ -13,6 +13,28 @@ export default [
     tests: [unit],
   },
   {
+    name: 'the query keeps its case',
+    edits: [
+      {
+        file,
+        find: '  const words = query\n    .toLowerCase()\n',
+        replace: '  const words = query\n',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: "a row's words keep their case",
+    edits: [
+      {
+        file,
+        find: "const text = [item.label, ...(item.keywords ?? [])].join(' ').toLowerCase()",
+        replace: "const text = [item.label, ...(item.keywords ?? [])].join(' ')",
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'the keys step onto a disabled row',
     edits: [
       {

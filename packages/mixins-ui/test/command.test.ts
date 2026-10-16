@@ -60,6 +60,13 @@ describe('Command.filtered', () => {
     expect(Command.filtered(groups, 'zzz')).toEqual([])
   })
 
+  it('matches whatever the case of the query or the label', () => {
+    const values = (query: string) =>
+      Command.filtered(groups, query).flatMap(group => group.items.map(item => item.value))
+    expect(values('SEARCH')).toEqual(['find'])
+    expect(values('billing')).toEqual(['billing'])
+  })
+
   it('drops a row missing any one word of the query', () => {
     expect(Command.filtered(groups, 'new search')).toEqual([])
   })
