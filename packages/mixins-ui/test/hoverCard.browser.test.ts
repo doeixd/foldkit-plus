@@ -79,6 +79,29 @@ const mount = () => {
 const away = () => document.body.lastElementChild!
 const card = () => document.querySelector<HTMLElement>('[aria-label="card"]')
 
+test('the open card stands outside the flow: its trigger stays where it was', async () => {
+  const handle = mount()
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = document.querySelector<HTMLButtonElement>('button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    await userEvent.hover(away())
+    const before = trigger.getBoundingClientRect()
+    trigger.focus()
+    const open = await vi.waitFor(() => {
+      expect(card()).not.toBeNull()
+      return card()!
+    })
+    expect(getComputedStyle(open).position).toBe('absolute')
+    const after = trigger.getBoundingClientRect()
+    expect([after.x, after.y]).toEqual([before.x, before.y])
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('focus on the trigger opens the card, raised, and blur closes it', async () => {
   const handle = mount()
   try {
