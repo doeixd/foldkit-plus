@@ -396,16 +396,16 @@ adapter.
 | Popover | `button`, `panel`, `backdrop`, `arrow` |
 | Tooltip | `trigger`, `panel` |
 | HoverIntent | `trigger`, `panel` (open and close delays with intent, for a hover card or a menu) |
-| Tabs | `tablist`, `tab`, `panel`, and this package's `indicator` and `highlight` (drawn first in the tablist, for `Tabs.fluid`) |
-| RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput`. Upstream's `option` is a `button` and its `label` bundle only an id, so a bare `label` takes no press: draw each row as a `label` element around its `option`, and the browser sends a press on the words to the radio. The recipe stacks the group unless `aria-orientation` is `horizontal`, and a row wraps. `variant: 'card'` frames each direct `label` and fills the one whose radio is checked. `tone`: `accent` (default), `neutral`; `size`: `sm`, `md`, `lg` |
-| Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id |
-| Calendar | `root`, `header` (the heading's row, this package's own), `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
-| Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight` (over the `MenuView` fork; see below) |
+| Tabs | `tablist`, `tab`, `panel`, and this package's `indicator` and `highlight` (drawn first in the tablist, for `Tabs.fluid`). `Tabs.readingKeys` beside the style reads the arrow keys by the tablist's direction (see [Right to left](#right-to-left)) |
+| RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput`, and this package's `card`. Upstream's `option` is a `button` and its `label` bundle only an id, so a bare `label` takes no press: draw each row as a `label` element around its `option`, carrying the option's `card` bundle (`h.label(option.card, [h.button(option.option, []), …])`), and the browser sends a press on the words to the radio. `card` is `data-checked` while its option is. The recipe stacks the group unless `aria-orientation` is `horizontal`, and a row wraps. `variant: 'card'` frames each card and fills the one whose radio is checked. `tone`: `accent` (default), `neutral`; `size`: `sm`, `md`, `lg`. `RadioGroup.readingKeys` as Tabs' |
+| Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id; `Anchor.topLayer(mount)` shows an in-place panel in the top layer around it (see [The top layer](#the-top-layer)) |
+| Calendar | `root`, `header` (the heading's row, this package's own), `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton`. `Calendar.readingKeys` as Tabs' |
+| Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `scrollBar` and `scrollThumb` (while the panel has a `scroll`), `label`, `sub` and `chevron` (the component's rows) (over the `MenuView` fork; see [Why some components needed a fork](#why-some-components-needed-a-fork)) |
 | FileDrop | `root`, `input` |
 | Toast | `container`, `entry` (over the `ToastView` fork; the dismiss control stays inside the consumer's `entryToView`) |
-| Listbox | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator` (over the `ListboxView` fork; single and multi share one transcription) |
-| Combobox | `wrapper`, `inputWrapper`, `input`, `toggleButton`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator` (over the `ComboboxView` fork; single and multi share one transcription) |
-| DatePicker | `trigger`, `panel`, `backdrop` (over the `DatePickerView` fork, which keeps upstream's Popover+Calendar composition and seams only the popover assembly) |
+| Listbox | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator`, `scrollBar`, `scrollThumb` (over the `ListboxView` fork; single and multi share one transcription). Recipe axis `width`: `auto` (default) or `trigger` |
+| Combobox | `wrapper`, `inputWrapper`, `input`, `toggleButton`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, and this package's `rows`, `highlight`, `indicator`, `scrollBar`, `scrollThumb` (over the `ComboboxView` fork; single and multi share one transcription). Recipe axis `width`: `trigger` (default) or `auto` |
+| DatePicker | `trigger`, `panel`, `backdrop` (over the `DatePickerView` fork, which keeps upstream's Popover+Calendar composition and seams only the popover assembly). A range or many days in the popover: see [Why some components needed a fork](#why-some-components-needed-a-fork) |
 
 ## Stateless vocabulary
 
@@ -438,16 +438,16 @@ A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
 | `AspectRatio` | `{ content? }`. Slot `frame`. | `ratio`: `square` (default), `video` (16/9), `portrait` (3/4). The corner reads `radius`. |
 | `Avatar` | `{ name, src }`. Initials show until the image covers them. | `size`: `sm`, `md` (default), `lg`. Slots `root`, `fallback`, `image`. |
 | `Badge` | `{ text, tone? }` writes `data-tone`. | `Recipes.Badge({ attribute, tones, appearance? })` maps that attribute; values outside the map keep the base. `appearance`: `tinted` (default), `dot`, `outline`, `solid`. Slot `badge`. |
-| `Breadcrumb` | `{ steps: { label, href?, current?, icon? }[], separator?, collapse? }`. `current` is text with `aria-current="page"`; the others are links. An `icon` draws before its label, hidden from assistive technology. `separator` is drawn between steps in place of the recipe's; `collapse: { max, onExpand, label? }` folds the middle of a long trail into an ellipsis (`Breadcrumb.collapsedOf(steps, max)` is the split). | No axis. Slots `root`, `list`, `item`, `link`, `current`, `icon`, `separator`, `ellipsis`. |
+| `Breadcrumb` | `{ steps: { label, href?, current?, icon? }[], separator?, collapse? }`. `current` is text with `aria-current="page"`; the others are links. An `icon` draws before its label, hidden from assistive technology. `separator` is drawn between steps in place of the recipe's; `collapse: { max, onExpand, label? }` folds the middle of a long trail into an ellipsis (`Breadcrumb.collapsedOf(steps, max)` is the split). | `separator`: `slash` (default), `chevron` or `dot`, drawn where the view is given no `separator` of its own. Slots `root`, `list`, `item`, `link`, `current`, `icon`, `separator`, `ellipsis`. |
 | `ButtonGroup` | `{ label, items }`. `role="group"`. The buttons stay the caller's. `Segmented` is the control that selects. | No axis. Slot `root`. |
 | `Card` | `{ title?, description?, content?, image?, media?, action?, footer?, press?, label?, selected?, disabled?, dismiss? }`. `press` is `{ onClick }` or `{ href, external? }`: one button or link stretched over the card, named by `label` or the title (a pressable card with neither throws); `action`, `footer` and the dismiss button stay pressable above it. `selected` is `aria-pressed` on the button, `aria-current` on the link. `dismiss: { onDismiss, label?, always? }` is revealed on hover and focus unless `always`, and always on a touch screen. The root carries `data-selected`, `data-disabled`, `data-pressable`, `data-dismissible` (the header then keeps clear of the button). | `orientation`: `stacked` (default), `inline` (image or media leading, footer trailing). `surface`: `outlined` (default), `elevated`, `filled`, `plain`. `padding`: `compact`, `comfortable` (default), `roomy`, `flush`. Slots `root`, `image`, `media`, `header`, `title`, `description`, `action`, `content`, `footer`, `overlay`, `dismiss`. |
 | `Card.group` | `{ cards: (CardView & { key })[], columns?, fluidHover?, label?, cardStyle? }`. A keyed list of cards in `columns` (default 1); each item carries `data-row` and `data-column`. With `fluidHover` (default) one highlight follows the pointer to the nearest card through `FluidHover` from `foldkit-primitives/dom`, reading both directions when there is more than one column, and a press in a gap presses the highlighted card. `cardStyle` styles every card that names no style of its own. | `Recipes.CardGroup`: `layout`: `divided` (default, hairlines between rows and columns), `separated`. `border`: `none` (default), `outlined`. Use cards of `surface: 'plain'` inside. Slots `root`, `list`, `item`, `highlight`. |
 | `Carousel` | The APG carousel, never rotating by itself: `Carousel.view({ id, label, slides, index, onIndex, loop?, picker?, slideLabel?, previousLabel?, nextLabel?, pickerLabel?, style? }, h)`. A group with `aria-roledescription="carousel"`, each slide a group named "2 of 5"; previous and next (`aria-disabled` at the ends unless `loop`), a dot per slide, and a polite status naming the slide shown. The track is a CSS scroll-snap scroller, so swipes move it natively. The application keeps `index` and answers `onIndex` with the `Carousel.ShowSlide({ id, index })` Command, which scrolls the slide into place once the render commits. A swipe is not reported back, so `index` stays where the last Message left it. | `peek`: `none` (default) or `edge`. Slots `root`, `track`, `slide`, `controls`, `previous`, `next`, `picker`, `dot`, `status`. |
-| `CheckboxGroup` | `{ id, legend, options: { value, label, description?, disabled? }[], checked, onToggle, error? }`; `toggled(checked, value)` is one option's transition, `coverage(options, checked)` is `none` \| `some` \| `all` (a disabled option counts for neither), and `setEnabled(options, on)` is every enabled option or none. A `fieldset` named by its `legend`, each option the APG's checkbox (`role="checkbox"`) named by a `label` for it, so a press on the words toggles it. `error` is shown under the options and the group is `aria-invalid`, described by it. | `variant`: `plain` (default), `list` (checked rows fill, and merge where they stand together; a vertical list has no gap, or the block would split). `orientation`: `vertical` (default), `horizontal` (a wrapping row). The checkbox sits on the label's row, so a description does not pull it down. Slots `root`, `legend`, `options`, `option`, `checkbox`, `label`, `description`, `error`. |
+| `CheckboxGroup` | `{ id, legend, options: { value, label, description?, disabled? }[], checked, onToggle, error?, selectAll? }`; `toggled(checked, value)` is one option's transition, `coverage(options, checked)` is `none` \| `some` \| `all` (a disabled option counts for neither), and `setEnabled(options, checked, on)` is every enabled option or none, a disabled one keeping the state `checked` gives it. `selectAll: { label, onSet }` draws a first row whose checkbox is checked, `mixed` or unchecked by `coverage` and controls every option; a press sends `onSet` with `setEnabled`'s values, on unless all already are. A `fieldset` named by its `legend`, each option the APG's checkbox (`role="checkbox"`) named by a `label` for it, so a press on the words toggles it. `error` is shown under the options and the group is `aria-invalid`, described by it. | `variant`: `plain` (default), `list` (checked rows fill, and merge where they stand together; a vertical list has no gap, or the block would split). `orientation`: `vertical` (default), `horizontal` (a wrapping row). The checkbox sits on the label's row, so a description does not pull it down. Slots `root`, `legend`, `options`, `option`, `checkbox`, `label`, `description`, `error`. |
 | `CodeBlock` | `{ code, tokens?, language?, title?, lineNumbers?, copy? }`. `tokens` are `{ from, to, kind }`, as `foldkit-richtext-code` and `foldkit-richtext-code-shiki` tokenizers return them; each is drawn with `data-kind`, and a token out of order or outside the code throws. The block's text is the code exactly. `copy: { onCopy?, copied? }`: `onCopy` gets the code, so run `copyText` from `foldkit-primitives`; without it the button has no handler, for a page whose script copies. `CodeBlock.linesOf` is the cut. | No axis. Colors each kind from the theme's `syntax` group; `data-line-numbers` numbers lines, `data-copied` marks a copy done. Slots `root`, `header`, `title`, `copy`, `body`, `code`, `line`, `token`. |
 | `ColorPicker` | `ColorPicker.view({ id, label, value, onChange, presets?, presetsLabel?, channelLabels?, disabled?, style? }, h)`: an OKLCH color (`ColorPicker.Oklch`, `{ l, c, h }`) as a `group` of three labelled native ranges, each saying its value with its unit in `aria-valuetext`, a swatch, the color as text, and `presets` as a `radiogroup` of native radios. `format`/`parse` (an `Option`) turn it to and from CSS text; `withChannel` sets one channel within its range. | `size`: `sm`, `md` (default), `lg`. Tracks paint gradients from the root's `--fk-color-l`/`-c`/`-h` by `[data-channel]`. Slots `root`, `label`, `swatch`, `value`, `channel`, `channelLabel`, `slider`, `presets`, `preset`. |
-| `Command` | `{ id, label, placeholder?, groups: { heading?, items: { value, label, keywords?, shortcut?, disabled? }[] }[], query, onQuery, active, onActive, onRun, empty? }`; `Command.filtered(groups, query)` is what a query leaves. shadcn's Command and Fluid's CommandMenu: the field points at the highlighted row through `aria-activedescendant`, ↑ and ↓ wrap through enabled rows, Enter runs the highlighted one; rows never re-sort, and a filtered-away highlight moves to the first enabled row. With `overlayBars`, the list stands in a `frame` beside an overlay bar (see [Overlay scroll bars](#overlay-scroll-bars)). | No axis. Slots `root`, `input`, `list`, `group`, `heading`, `item`, `shortcut`, `empty`, and `frame`, `bar`, `thumb` with `overlayBars`. |
-| `Calendar` | One date system, inline: `Calendar.Selection` is `Single`, `Range` or `Multiple`, owned by the application (`Calendar.empty(mode)`, fold each `SelectedDate` through `Calendar.picked`, `Calendar.isComplete` says when a picker may close). Draw with `Calendar.toView(selection, mixins, { h })` and `maybeSelectedDate: Calendar.selectedDate(selection)`, which marks each chosen day `aria-selected`: a range's ends `data-selected` with `data-range-start`/`data-range-end`, every day between `data-in-range`. | `size` (the Calendar's). Slots `CalendarSlots`. |
+| `Command` | `{ id, label, placeholder?, groups: { heading?, items: { value, label, keywords?, shortcut?, disabled? }[] }[], query, onQuery, active, onActive, onRun, empty? }`; `Command.filtered(groups, query)` is what a query leaves. shadcn's Command and Fluid's CommandMenu: the field points at the highlighted row through `aria-activedescendant`, ↑ and ↓ wrap through enabled rows, Enter runs the highlighted one; rows never re-sort, and a filtered-away highlight moves to the first enabled row. The list stands in a `frame` beside its bar, which `Command.overlayBars` drives (see [Overlay scroll bars](#overlay-scroll-bars)). A shortcut reads left to right on a right-to-left page. | No axis. Slots `root`, `input`, `list`, `group`, `heading`, `item`, `shortcut`, `empty`, `frame`, `bar`, `thumb`. |
+| `Calendar` | One date system, inline: `Calendar.Selection` is `Single`, `Range` or `Multiple`, owned by the application (`Calendar.empty(mode)`, fold each `SelectedDate` through `Calendar.picked`, `Calendar.isComplete` says when a picker may close). Spread `Calendar.inputs(selection, mixins, { h })` into upstream `Calendar.view`'s inputs: its `toView` (`Calendar.toView(selection, mixins, { h })`) marks each chosen day `aria-selected`, a range's ends `data-selected` with `data-range-start`/`data-range-end` and every day between `data-in-range`, and its `maybeSelectedDate` (`Calendar.selectedDate(selection)`, a Single selection's day) agrees with it. The grid of a Range or Multiple selection is `aria-multiselectable`. A selection in a popover is the DatePicker's. | `size` (the Calendar's). Slots `CalendarSlots`. |
 | `Empty` | `{ title, description?, icon?, action? }`. | No axis. Slots `root`, `icon`, `title`, `description`, `action`. |
 | `HoverCard` (recipe) | Styles `@foldkit/ui`'s HoverIntent (`HoverIntentSlots`): a trigger read as a link, a raised panel fading in on the fast tier as it is drawn. Place the panel with the `Anchor` Mount; the open and close delays are HoverIntent's (200ms and 300ms by default). | No axis. Slots `trigger`, `panel`. |
 | `Icon` | `{ content, label? }`. A `label` is `role="img"`; without one the glyph is `aria-hidden`. | `size`: `sm`, `md`, `lg` on the type scale; none (the default) stands on the size ladder, 16px or 14px compact. Slot `glyph`. |
@@ -455,18 +455,18 @@ A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
 | `Item` | `{ content?, media?, title?, description?, actions? }`; `content` follows the title and description. | `density`: `comfortable` (default), `compact`. Slots `root`, `media`, `content`, `title`, `description`, `actions`. |
 | `Kbd` | `{ key }`. Names the key. `Kbd.combo({ keys, joiner? }, h)` draws several in one `kbd`, with an optional joiner between them. | No axis. Slots `key`, `combo`, `joiner`. |
 | `Label` | `{ for, text }`. `for` is the control's id. | No axis. Slot `label`. |
-| `Menubar` | A row of `@foldkit/ui` Menus, shadcn's and the APG's menubar: `Menubar.view({ label, model, menus, onMessage, direction?, style?, menuMixins }, h)`, its Model (`Menubar.init(ids)`) folded with `Menubar.update`, whose `Selected` OutMessage names the menu and the row. One trigger is the tab stop; ArrowLeft/ArrowRight (Home/End while all are shut) move it, swapped under `direction: 'rtl'`, and with a menu open they open the next on its first row. While one is open, pointing at another opens it, and opening any shuts the rest. `Recipes.MenubarMenu` is the Menu recipe with a bar's flat triggers. | No axis. Slots `bar`, `menu`; each menu's are `MenuSlots`. |
+| `Menubar` | A row of `@foldkit/ui` Menus, shadcn's and the APG's menubar: `Menubar.view({ label, model, menus, onMessage, direction?, style?, menuMixins }, h)`, its Model (`Menubar.init(ids)`) folded with `Menubar.update`, whose `Selected` OutMessage names the menu and the row. One trigger is the tab stop; ArrowLeft/ArrowRight (Home/End while all are shut) move it, swapped under `direction: 'rtl'` (drawn as the bar's `dir`), and with a menu open they open the next on its first row. While one is open, pointing at another opens it, and opening any shuts the rest. `Recipes.MenubarMenu` is the Menu recipe with a bar's flat triggers. | No axis. Slots `bar`, `menu`; each menu's are `MenuSlots`. |
 | `Meter` | `@foldkit/ui`'s Meter: `Meter.view({ id, label, value, min?, max?, low?, high?, optimum?, valueText?, style? }, h)` draws a `meter` named by its label. The root says how good the value is as `data-level` (`good`, `fair`, `poor`), as the HTML meter judges it; `Meter.levelOf` is that judgment. A measurement, where `Progress` is work. | No axis; the fill takes success, warning or error by level. Slots `root`, `label`, `track`, `fill`. |
 | `Nav` | `@foldkit/ui`'s Nav adapted: `Nav.toView(mixins, { h }, label, draw?)` as the Nav's `toView`, drawing `nav > ul > li > a` with the current link `aria-current="page"`; `Nav.fluid` beside the style glides a line to the current link and a faint pill to the one the pointer nears. shadcn's navigation menu without its dropdown panels; the keys are the browser's. | No axis. Slots `nav`, `list`, `item`, `link`, `indicator`, `highlight`. |
-| `Menu` | One menu, opened three ways: `Menu.init(id, rows)` (a row with `items` hosts a submenu, one level deep), folded with `Menu.update`, drawn with `Menu.view({ model, rows, buttonContent, onMessage, opensAt?, direction?, isRowDisabled?, style?, mixins, submenuMixins? }, h)`. By a button (`opensAt` unset); at a point (`opensAt: 'point'`, with `Menu.target(onMessage, h)` on the area: a right press records its point and the `contextmenu` after it opens the menu there). A submenu's row is a `menuitem` with `aria-haspopup="menu"` and `aria-expanded`; ArrowRight, Enter or Space opens it on its first row, ArrowLeft or Escape closes it back to the row (under `direction: 'rtl'` the submenu opens on the left and the arrows swap), a pointer resting 150ms opens it, and choosing a leaf closes everything. `Selected` names the value and the submenu it came from. Pass `Menu.fluid` beside the style (in `submenuMixins`, not `mixins`, where rows open submenus). | No axis. Slots `MenuSlots` plus `sub`, `label`, `chevron`; with `overlayBars`, `scrollBar`, `scrollThumb`. |
+| `Menu` | One menu, opened three ways: `Menu.init(id, rows, { isAnimated?, isModal? })` (a row with `items` hosts a submenu, one level deep; `isAnimated` gives the menu's and its submenus' panels upstream's transition marks, for the recipe's fade, and `isModal` makes the rest of the page inert while the menu is open), folded with `Menu.update`, drawn with `Menu.view({ model, rows, buttonContent, onMessage, opensAt?, direction?, isRowDisabled?, mixins, submenuMixins? }, h)`, the style being one of the `mixins` (`[MenuStyle.mixin]`). By a button (`opensAt` unset); at a point (`opensAt: 'point'`, with `Menu.target(onMessage, h)` on the area: a right press records its point and the `contextmenu` after it opens the menu there). A submenu's row is a `menuitem` with `aria-haspopup="menu"` and `aria-expanded`; ArrowRight, Enter or Space opens it on its first row, ArrowLeft or Escape closes it back to the row (under `direction: 'rtl'`, drawn as the root's `dir`, the submenu opens on the left, its chevron points there, and the arrows swap), a pointer resting 150ms opens it, and choosing a leaf closes everything. `Selected` names the value and the submenu it came from. Pass `Menu.fluid` beside the style (in `submenuMixins`, not `mixins`, where rows open submenus). Its panels, submenus included, draw in the top layer. A `@foldkit/ui` Menu the application folds itself, for typed items or groups, is drawn through the panel adapter instead, and opens at a point with `Menu.drawAtPoint` and `Menu.pointTarget` (see [Why some components needed a fork](#why-some-components-needed-a-fork)). | No axis. Slots `MenuSlots`. |
 | `NumberField` | `{ id, label, description?, value, onChange, min?, max?, step?, page?, format?, disabled? }`; `NumberField.settled(value, bounds)` clamps a value onto its step. The APG's editable spinbutton: an input with `role="spinbutton"` that the arrows, PageUp and PageDown, Home and End step, a typed number committing on change, between steppers out of the tab order that disable at their bound. | No axis. Slots `root`, `label`, `group`, `input`, `decrement`, `increment`, `description`. |
 | `OtpField` | `{ label, value, onChange, length?, pattern?, groups?, disabled? }`; `OtpField.kept(text, length, pattern)` filters a code. shadcn's input-otp: one real input (`autocomplete="one-time-code"`, paste and Backspace the browser's) over cells that mirror it, the next cell marked `data-next` for its caret. | No axis. Slots `root`, `input`, `group`, `cell`, `separator`. |
-| `Pagination` | `{ page, pageCount, onPage, label?, siblings?, boundaries?, numbered?, ends?, range? }`. Fewer than two pages draws nothing. `Pagination.itemsOf(page, pageCount, window?)` is the stops; `Pagination.summaryOf(page, { total, perPage, text? })` is `"1–10 of 97"`. `numbered: false` leaves previous and next alone; `ends` draws first and last. | No axis. The current stop reads `aria-current`. Slots `root`, `summary`, `first`, `prev`, `next`, `last`, `page`, `ellipsis`. |
+| `Pagination` | `{ page, pageCount, onPage, label?, siblings?, boundaries?, numbered?, ends?, range? }`. Fewer than two pages draws nothing. `Pagination.itemsOf(page, pageCount, window?)` is the stops; `Pagination.summaryOf(page, { total, perPage, text? })` is `"1–10 of 97"`, drawn before the stops when `range` is given. `range.choose: { sizes, onPerPage, label? }` adds a select of rows per page (labelled `Rows per page` by default) that sends `onPerPage` with the size; the application sets `perPage` and a page that keeps its rows in view. `numbered: false` leaves previous and next alone; `ends` draws first and last. The current stop holds ` / 12` in a `pageCount` span hidden from assistive technology. | `compact`: `narrow` (default, below a 30rem window), `always` or `never`. Compact shows only the current number, with its ` / 12`, and no ellipses. The current stop reads `aria-current`. Slots `root`, `summary`, `perPage`, `perPageSelect`, `first`, `prev`, `next`, `last`, `page`, `pageCount`, `ellipsis`. |
 | `PasswordInput` | `PasswordInput.view({ id, label, value, onInput, visible, onToggle, autocomplete?, toggleLabel?, description?, invalid?, disabled? }, h)`: a password field whose toggle button (`aria-pressed`, `aria-controls`, one fixed name) shows it as text. `autocomplete` is `current-password` (default) or `new-password`; spellcheck and autocorrect stay off. The app owns the text and the flag. | `size` (`sm`, `md`, `lg`). Input's pieces in InputGroup's box; the eye is `Icons.glyph` by `aria-pressed`. Slots `root`, `label`, `group`, `input`, `toggle`, `description`. |
 | `Progress` | `@foldkit/ui`'s Progress: `Progress.view({ id, label, value, min?, max?, valueText?, style? }, h)` draws a `progressbar` named by its label. `value` is an `Option`; none is indeterminate, and the bar's fill sweeps toward the inline end, leftward right to left. The root carries the share done as `--fk-progress`. | `shape`: `bar` (default) or `ring`, Circular Progress. Slots `root`, `label`, `track`, `indicator`. |
 | `Rating` | `Rating.view({ id, label, value, onChange, max?, starLabel?, readOnly?, disabled?, style? }, h)`: a `radiogroup` of native radios named by its label, one per star under one name, so the browser's arrows move the choice and a form submits it. `value` is an `Option`; none is unrated. Read-only, it is one `img` whose name says the rating. | `tone`: `warning` (default, gold) or `accent`; `size`: `sm`, `md`, `lg`. Stars are a CSS `clip-path` on each radio's `::before`; pointing previews the rating. Slots `root`, `label`, `star`. |
-| `ScrollArea` | `{ content, overlayBars? }`. The height that makes it scroll is the caller's mixin, on `viewport` or `root`; a width goes on `root`, which the viewport fills and the bars lie over. The viewport is tabbable. With `overlayBars`, a bar per axis lies over the viewport's edge, driven by `ScrollBars` from `foldkit-primitives/dom`: a thumb that rests 4px wide, widens to 6px under the pointer, and fades once scrolling and the pointer rest; a coarse pointer keeps the browser's bar. See [Overlay scroll bars](#overlay-scroll-bars). | `orientation`: `vertical` (default), `horizontal`, `both`; `vertical` and `horizontal` fade the content toward an edge with more past it and draw a hairline there. Slots `root`, `viewport`, `bar`, `thumb`. |
-| `Resizable` | `Resizable.Model` (`init(share)`), its `Message` and `update(model, message, bounds)`, which the application keeps and folds; `Resizable.view({ model, onMessage, label, first, second, orientation?, direction?, min?, max?, step? })`. shadcn's Resizable and the APG's window splitter: the handle is a `separator` with its value, stepped by the arrows and sent to the bounds by Home and End; a drag follows the `Move` Mount from where it began over the group the `Resize` Mount measured. Under `direction: 'rtl'` the first panel is on the right, so ArrowLeft and a drag to the left grow it. | No axis; `data-orientation` lays it out. Slots `root`, `first`, `handle`, `second`. |
+| `ScrollArea` | `{ content }`. The height that makes it scroll is the caller's mixin, on `viewport` or `root`; a width goes on `root`, which the viewport fills and the bars lie over. The viewport is tabbable. A bar per axis is drawn beside the viewport, and `ScrollArea.overlayBars` beside the style lays them over its edge, driven by `ScrollBars` from `foldkit-primitives/dom`: a thumb that rests 4px wide, widens to 6px under the pointer, and fades once scrolling and the pointer rest; a coarse pointer keeps the browser's bar. See [Overlay scroll bars](#overlay-scroll-bars). | `orientation`: `vertical` (default), `horizontal`, `both`; `vertical` and `horizontal` fade the content toward an edge with more past it and draw a hairline there. Slots `root`, `viewport`, `bar`, `thumb`. |
+| `Resizable` | `Resizable.Model` (`init(share)`), its `Message` and `update(model, message, bounds)`, which the application keeps and folds; `Resizable.view({ model, onMessage, label, first, second, orientation?, direction?, min?, max?, step? })`. shadcn's Resizable and the APG's window splitter: the handle is a `separator` with its value, stepped by the arrows and sent to the bounds by Home and End; a drag follows the `Move` Mount from where it began over the group the `Resize` Mount measured. Under `direction: 'rtl'`, drawn as the root's `dir`, the first panel is on the right, so ArrowLeft and a drag to the left grow it. | No axis; `data-orientation` lays it out. Slots `root`, `first`, `handle`, `second`. |
 | `Separator` | `{ orientation? }`, horizontal by default. A vertical rule needs its container to set the cross size. | `orientation`: `horizontal` (default), `vertical`. Slot `rule`. |
 | `Sheet` (recipe) | Style `@foldkit/ui`'s Dialog (`DialogSlots`), drawn as a Dialog is, with `h.div(dialog.handle)` in the panel: the panel pinned to an edge of the viewport, sliding in from it on the slow tier as it fades (reduced motion keeps only the fade), bordered on the side facing the page. `handle: 'bar'` shows the handle on that edge (a row first or last in the panel from the bottom or top, a bar standing on the edge from the left or right) and rounds the inner corners: `Sheet({ side: 'bottom', handle: 'bar' })` is vaul's Drawer. The focus trap, Escape and backdrop dismissal stay the Dialog's. | `side`: `top`, `right` (default), `bottom`, `left`; `handle`: `none` (default), `bar`. Slots are `DialogSlots`. |
 | `Sidebar` | `{ id, label, sections: { id, title, links: { label, href, current? }[] }[], open, onToggleSection, collapsed, onToggleCollapsed }`; `Sidebar.toggled(open, id)` flips a section. shadcn's sidebar with Fluid's collapse: a named navigation landmark of sections that open like an accordion's (several at once), a toggle that collapses the whole column off the page (no icon rail), the current page `aria-current`. Shut sections and a collapsed column stay drawn and `inert`. | No axis. Slots `root`, `toggle`, `nav`, `section`, `trigger`, `chevron`, `links`, `item`, `link`. |
@@ -476,9 +476,9 @@ A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
 | `Steps` | `Steps.view({ label, steps: { title, description?, icon?, content? }[], current, onSelect?, style? }, h)`: a stepper, an ordered list named by `label`. The step at `current` is `aria-current="step"`, those before it `data-state="complete"` (a check replaces the number), those after `upcoming`. An `icon` stands in the marker for its number; `content` follows the step, beside the line in a vertical stepper. With `onSelect(index)`, completed steps are buttons for going back; steps ahead never are. The application owns `current`. | `orientation`: `horizontal` (default) or `vertical`. Slots `root`, `item`, `step`, `trigger`, `marker`, `text`, `title`, `description`, `content`, `connector`. |
 | `Table` | `{ columns: { header, value, numeric? }[], rows, caption?, fluid? }`. With `fluid`, one highlight behind the body rows follows the pointer, and the lines beside the lit row go. Sorting and selection stay with `foldkit-data-grid`. | No axis. Slots `frame`, `highlight` (with `fluid`), `root`, `caption`, `head`, `headerRow`, `headerCell`, `body`, `row`, `cell`. |
 | `TagsInput` | Zag's tags input, a small Model of its own: `TagsInput.init({ id, tags?, delimiter? })`, folded with `TagsInput.update` (which returns a focus Command), drawn with `TagsInput.view({ model, onMessage, label, placeholder?, disabled? }, h)`. The tags are a list of chips named by the label, each with a `Remove <tag>` button, then a text input. Enter or the delimiter (default `,`) adds the draft split at the delimiter and trimmed, refusing empty and repeated parts; Backspace on an empty draft removes the last tag; a removal returns focus to the input. Keys reach `update`, which decides from its own draft. | No axis; `data-disabled` on `control`. Slots `root`, `label`, `control`, `list`, `tag`, `remove`, `input`. |
-| `TreeView` | The APG's and Zag's tree view, a small Model of its own: `TreeView.init({ id, open? })`, folded with `TreeView.update(nodes)` (curried over the tree, flattened once), drawn with `TreeView.view({ label, model, nodes, onMessage, direction?, style?, mixins? }, h)` over nodes `{ id, label, children?, disabled? }`. One tab stop; Up/Down move through the rows showing, stepping over shut and disabled ones; Right opens or steps in, Left shuts or steps out (swapped under `direction: 'rtl'`); Home/End; a character moves to the next showing row that starts with it; Enter, Space or a click chooses a row and opens or shuts a branch. Keys reach `update`, which decides from its own Model and sends a focus Command. Each item carries `--fk-tree-level`; a shut group stays drawn and `inert`. | No axis; `data-state` on a branch `item` and its `group`. Slots `root`, `item`, `row`, `chevron`, `label`, `group`. |
+| `TreeView` | The APG's and Zag's tree view, a small Model of its own: `TreeView.init({ id, open? })`, folded with `TreeView.update(nodes)` (curried over the tree, flattened once), drawn with `TreeView.view({ label, model, nodes, onMessage, direction?, style?, mixins? }, h)` over nodes `{ id, label, children?, disabled? }`. One tab stop; Up/Down move through the rows showing, stepping over shut and disabled ones; Right opens or steps in, Left shuts or steps out (swapped under `direction: 'rtl'`, drawn as the root's `dir`); Home/End; a character moves to the next showing row that starts with it; Enter, Space or a click chooses a row and opens or shuts a branch. Keys reach `update`, which decides from its own Model and sends a focus Command. Each item carries `--fk-tree-level`; a shut group stays drawn and `inert`. | No axis; `data-state` on a branch `item` and its `group`. Slots `root`, `item`, `row`, `chevron`, `label`, `group`. |
 | `Typography` | `{ level, text }`. The level chooses the element (`h1`–`h4`, `lead`, `body`, `small`, `muted`, `quote`, `code`, and the interface roles `display`, `title`, `subtitle`, `caption`, `micro` as paragraphs). | `level`, same set; a role is its size and leading on the size ladder. Defaults to `body`. Slot `text`. |
-| `VirtualList` | `@foldkit/ui`'s virtual list: `VirtualList.view({ model, items, itemToKey, itemToView, onMessage, overscan?, itemToRowHeightPx? \| dynamicRowHeights?, style? }, h)` draws only the rows in view. Its Model is upstream's (`@foldkit/ui/virtualList`'s `init`), kept by the application and folded with that module's `update`. A row's mixins may style it, not handle its events, since it is drawn inside the list's submodel. With `overlayBars`, an overlay bar lies over the list's edge; `root` runs `ScrollBars` for upstream's list, which holds a Mount of its own. | No axis. Slots `root` (the box it scrolls within, 18rem tall by default), `row`, and `bar`, `thumb` with `overlayBars`. |
+| `VirtualList` | `@foldkit/ui`'s virtual list: `VirtualList.view({ model, items, itemToKey, itemToView, onMessage, overscan?, itemToRowHeightPx? \| dynamicRowHeights?, style?, mixins? }, h)` draws only the rows in view. Its Model is upstream's (`@foldkit/ui/virtualList`'s `init`), kept by the application and folded with that module's `update`. A row's mixins may style it, not handle its events, since it is drawn inside the list's submodel. A bar is drawn beside the list, and `VirtualList.overlayBars` lays it over the list's edge: `root` runs `ScrollBars` for upstream's list, which holds a Mount of its own. | No axis. Slots `root` (the box it scrolls within: 18rem tall by default and as wide as its container, offering 20rem where the container takes its width from it, so the rows drawn as it scrolls never resize it), `row`, `bar`, `thumb`. |
 
 ## Recipes
 
@@ -551,19 +551,33 @@ What a recipe assumes and does:
   `label` Slot, which holds the trim: on the option itself, the hidden copy
   took the trim's lower half); and a field's text is 16px on a coarse
   pointer, so iOS Safari does not zoom the page into it.
-- **A state is a tint, not a surface.** A hover lays the palette's
-  `state.hover`, a mix of the control's own text color, over whatever is under
-  it, so it reads on a muted page, a colored band or an inverted panel; the
-  neutral button is see-through (`state.tint`), and images carry a hairline
-  inside their edge (`state.edge`). A popup's rows round concentrically inside
-  its panel (`Theme.nested`), as a segmented option does inside its tray.
+- **A state is a tint, not a surface.** An unfilled control's hover is a
+  faint film of the state ink over whatever is under it, so it reads on a
+  muted page, a colored band or an inverted panel. The ink is the theme's
+  `--fk-state-ink` (`state.ink`: the element's own text, or the accent's ink
+  under `stateHue: 'accent'`) unless a painted surface above names its paint
+  in the local `--_fk-state-ink`: the accent and danger tones name their
+  fill, a subtle alert band its ink and a bold one its fill, so a hover on
+  blue is a deeper blue. The neutral and ink tones name the theme's ink back,
+  so a neutral control on a band does not take the band's hue, and one
+  `stateHue` override reaches every component. The neutral button is
+  see-through (`state.tint`), and images carry a hairline inside their edge
+  (`state.edge`). A popup's rows round concentrically inside its panel
+  (`Theme.nested`), as a segmented option does inside its tray.
 - **Popups and dialogs enter and leave** when drawn with `@foldkit/ui`'s
-  `isAnimated` (`Menu.init({ id, isAnimated: true })`): a popup fades and
-  grows on the fast tier, from the side its anchor placed it on, and a
-  dialog on the slow one, each leaving on the quicker exit.
-- **A press shrinks a button by 1px a side.** A solid or primary button's
-  border carries its fill and clears while held, so the fill stands exactly
-  1px in at any width; chosen rows next to each other in a multiple listbox or
+  `isAnimated` (the Menu component's `Menu.init(id, rows, { isAnimated:
+  true })`): a popup fades and grows on the fast tier, from the side its
+  anchor placed it on, and a dialog on the slow one, each leaving on the
+  quicker exit.
+- **A press gives.** Held, every button scales to 98% (the 2% multiplied by
+  `travel`, so reduced motion holds its size). A solid or primary button's
+  fill also deepens to its family's `active` and clears the 1px border of its
+  own color that it stands in, so the fill draws in by 1px a side; an
+  outline, ghost or icon button lays a deeper film of its tone's ink. A
+  pressed toggle (`aria-pressed="true"`) rests on its tone's fill, a solid
+  one on the `active` fill; hovered, a solid toggle keeps it and an unfilled
+  one takes its tone's hover fill; held, it deepens to the `active` fill; and
+  its text stays the fill's throughout. Chosen rows next to each other in a multiple listbox or
   combobox merge into one block.
 - **Raised surfaces nest.** Popups, popovers, date picker panels and toasts
   sit two levels above what holds them and dialogs four (`Theme.raise`), each
@@ -691,17 +705,20 @@ looks, the Mount only where the box is scrolled. On a coarse pointer the Mount
 does nothing, and the browser's bar, with its physics, stays; before it runs,
 as before a page hydrates, so does the browser's bar.
 
-Like `fluid`, it is opt-in, since a Scene test resolves every Mount with a
-Message: `overlayBars: true` on `ScrollArea`, `Command` and `VirtualList`, and
-`Menu.overlayBars`, `Listbox.overlayBars` and `Combobox.overlayBars` beside the
-style for a popup whose list scrolls (given `itemsScrollAttributes`).
+Every one is the same shape, a mixin list passed beside the style:
+`ScrollArea.overlayBars`, `Command.overlayBars` and `VirtualList.overlayBars`
+in the view's `mixins`, and `Menu.overlayBars`, `Listbox.overlayBars` and
+`Combobox.overlayBars` in `toView`'s for a popup whose list scrolls (given
+`itemsScrollAttributes`). Like `fluid`, it is off by default: a Scene test
+resolves every Mount with a Message, and this one sends none, so a default
+would burden the tests of every page that drew one.
 
 ```ts
 ScrollArea.view(
   {
     content: h.p([], ['A long text']),
-    overlayBars: true,
     style: Style.forSlots(ScrollAreaSlots)(Recipes.ScrollArea({})),
+    mixins: ScrollArea.overlayBars,
   },
   h,
 )
@@ -710,7 +727,9 @@ Listbox.toView([ListboxStyle.mixin, ...Listbox.fluid, ...Listbox.overlayBars], {
 
 The bar is a Slot of each component's own (`bar` and `thumb`; a popup's
 `scrollBar` and `scrollThumb`), beside the scroller rather than inside it, so
-the scroller's edge fade does not erase it. A ScrollArea also marks an edge
+the scroller's edge fade does not erase it. ScrollArea, Command and
+VirtualList always draw it, and a popup whenever its panel has a `scroll`;
+the recipe leaves it undrawn until `ScrollBars` marks it scrollable. A ScrollArea also marks an edge
 with more past it with a hairline (`Utilities.scrollDivider` on `root`,
 `Utilities.scrollTimeline` on `viewport`), drawn where the browser lets a
 parent read a child's scroll timeline (`timeline-scope`).
@@ -765,6 +784,60 @@ Segmented.view(
 // in update: modifyFields(model, { marks: () => Segmented.toggled(model.marks, mark, { multiple: true }) })
 ```
 
+### The top layer
+
+The panels of Menu (submenus included), Menubar, Listbox and Combobox that
+stay where they are drawn (an anchor's `portal: false`) draw in the
+browser's top layer, so no stacking context or ancestor `overflow` reaches
+them. Such a panel carries `popover="manual"`, and its anchor Mount is
+wrapped in `Anchor.topLayer`, which shows the panel as a popover around the
+Mount's own acquire and hides it once the Mount releases; the wrapper keeps
+the Mount's name, args and Messages, so a Scene test still resolves it, and
+the node stays where the runtime drew it. Light dismiss stays the
+application's Messages.
+
+- The panel sets `inset: auto`: the anchor writes only `left` and `top`, and
+  the browser's `inset: 0` would otherwise leave `right: 0` winning right to
+  left.
+- An unstyled panel keeps the browser's popover border, padding and
+  `Canvas` fill. Every recipe's panel replaces them; an inline reset would
+  beat the recipes.
+- `Anchor.topLayer` does nothing where the popover API or the element's
+  `popover` attribute is missing (jsdom, a server render, a panel drawn
+  without it), and the anchor places the panel in the page.
+- A panel that upstream portals keeps upstream's behavior, since moving a
+  shown popover hides it again. Popover, Tooltip, Hover Card and the
+  DatePicker's panel, and modal dialogs, are drawn by upstream views whose
+  Mounts this package cannot wrap, so they are not in the top layer.
+
+The popups' recipes take a `width` axis. `trigger` sets the panel's minimum
+width to its trigger's (`--button-width`, which upstream's anchor publishes
+once it has placed the panel), in place of the panel's 14rem minimum, so a
+narrow trigger gets a panel as narrow; `auto` keeps the 14rem. Combobox
+defaults to `trigger`, Listbox to `auto`.
+
+### Right to left
+
+Logical properties carry most of the recipes, and a few things follow the
+direction explicitly:
+
+- **A `direction` view option.** Menu, Menubar, TreeView, Resizable and a
+  horizontal Listbox take `direction?: 'ltr' | 'rtl'`. Under `'rtl'` the
+  view swaps ArrowLeft and ArrowRight before building its Message, so
+  Messages and `update` stay in reading order, and draws the direction as
+  its root's `dir`, so the CSS (a submenu's side, a chevron) reads what the
+  keys read. Unset, the keys read left to right and the page's `dir` stands.
+- **`readingKeys` for upstream's keys.** Tabs, RadioGroup and Calendar handle
+  their arrows in upstream bundles no view option reaches, so
+  `Tabs.readingKeys`, `RadioGroup.readingKeys` and `Calendar.readingKeys`,
+  passed beside the style, are a Mount that reads each arrow by the
+  element's own `:dir()` before upstream's handler sees it. They are opt-in
+  for the reason `fluid` is: a Scene test must resolve every Mount with a
+  Message, and these send none.
+- **Indicators.** `Segmented.fluid`, `Tabs.fluid` and `Nav.fluid` measure
+  their indicator again when a `dir` anywhere in the document changes, since
+  flipping it moves the items without resizing anything.
+
 ## Mechanisms
 
 `Touch` and `Icons` are style mechanisms, not components: no slots, no views.
@@ -812,21 +885,61 @@ check mean something.
 
 ## Why some components needed a fork
 
-The bridge needs a **consumer-visible attribute bundle**. `Listbox`,
-`ComboBox`, `DatePicker`, and `Toast` build (parts of) their
-element tree internally and expose no `toView`-style seam, so there is
-nothing for Mixins to attach to — a limitation of the exposed render seam,
-not of Slot resolution. Each is transcribed from the pinned `@foldkit/ui`
-source (attributed in its module) with the missing `toView` added, as
-described above; state, Messages, update, Commands, and Mounts stay
-upstream in every case. If upstream gains seams, the forks go away. (`Menu`
-used to be one; it is now this package's own component.)
+The bridge needs a **consumer-visible attribute bundle**. `Menu`, `Listbox`,
+`ComboBox`, `DatePicker`, and `Toast` build (parts of) their element tree
+internally and expose no `toView`-style seam, so there is nothing for Mixins
+to attach to — a limitation of the exposed render seam, not of Slot
+resolution. Each is transcribed from the pinned `@foldkit/ui` source
+(attributed in its module) with the missing `toView` added, and a parity
+battery draws the fork and upstream's view over the same models; state,
+Messages, update, Commands, and Mounts stay upstream in every case. If
+upstream gains seams, the forks go away.
 
 `Listbox`, `Combobox` and `Calendar` draw the standard markup from the
-styled bundles when `toView` is given no `draw`. `Menu.toView(mixins, { h }, draw?)`
-draws the component's own markup through `drawMenu` without one
-(`Menu.toView([MenuStyle.mixin], { h })` is a whole styled menu).
-Pass a `draw` to arrange the parts yourself.
+styled bundles when `toView` is given no `draw`; pass a `draw` to arrange the
+parts yourself.
+
+**The Menu is three layers**, each built on the one before:
+
+```text
+Menu.init / update / view      the component: string rows, submenus, a point
+        |
+MenuSlots, Menu.resolve,       the panel adapter: styles any @foldkit/ui Menu
+Menu.toView, fluid,            drawn through the fork, whoever keeps its Model
+overlayBars, drawAtPoint,
+pointTarget
+        |
+MenuView                       the fork: @foldkit/ui/menu's view with a toView
+```
+
+`MenuView` is the fork; the Menu's Model, `update` and Mounts are upstream's.
+The panel adapter styles a Menu drawn through it: `Menu.toView(mixins, { h },
+draw?)` is that Menu's `toView`, and without a `draw` draws the panel through
+`drawMenu` (`Menu.toView([MenuStyle.mixin], { h })` is a whole styled menu).
+Menubar draws its menus this way, and so does an application that folds
+`@foldkit/ui`'s Menu itself, for typed items or groups, which the component's
+rows do not have. Such a Menu opens at a point with `Menu.drawAtPoint(point,
+h)` as `toView`'s `draw` (its button becomes a mark of no size at `point`, an
+`Option`, which the anchor places the rows against, so give the anchor `gap:
+0`) and `Menu.pointTarget({ onPress, onOpen }, h)` on the area: a right press
+sends `onPress` with its point, which the application keeps, and the
+`contextmenu` after it (or Shift+F10, or the ContextMenu key) sends `onOpen`,
+which the application answers with the Menu's own `Opened` Message, the
+browser's menu kept shut. The component (`Menu.init/update/view`, in the table above) is
+this package's own, drawn through the adapter, as the Slider is; its
+`Menu.target` is `pointTarget` wired to its own Messages.
+
+`Toast` follows the fork's shape: `ToastView.make` binds upstream's
+`Toast.make` for the payload and swaps in the transcribed view; the dismiss
+control stays inside the consumer's `entryToView`, so it is content, not a
+slot. `Listbox` forks both variants over one shared transcription
+(`ListboxView.create` and `ListboxView.Multi.create` bind the upstream
+bundles; the single and multi Models are structurally identical, so the
+single adaptor maps `maybeSelectedValue` to `selectedValues` exactly as
+upstream's does). The forks add one view input upstream lacks, `direction?:
+'ltr' | 'rtl'`: under `'rtl'` a horizontal listbox's ArrowLeft moves to the
+next item. `Combobox` follows the same shape over its own shared
+transcription (`ComboboxView.create` / `ComboboxView.Multi.create`).
 
 `DatePicker`'s bundles mix the popover's pre-bound groups with the date
 picker's own attributes, so they speak only the date picker's Message. Its
@@ -834,25 +947,20 @@ picker's own attributes, so they speak only the date picker's Message. Its
 `DatePicker.toView(mixins, (resolved, h) => …)` hands `draw` the date
 picker's builder, and without a `draw` draws upstream's markup.
 
-`MenuView` transcribes `@foldkit/ui/menu`'s markup assembly (from the
-pinned `@foldkit/ui` source, attributed there) with the missing `toView`
-added, and a parity battery draws both views over the same
-models. If upstream gains a seam, the fork goes away. `Menu` itself
-(`Menu.init/update/view`) is this package's own component over `@foldkit/ui`
-Menus, as the Slider is. `Toast` follows the
-same shape: `ToastView.make` binds upstream's `Toast.make` for the payload
-and swaps in the transcribed view; the dismiss control stays inside the
-consumer's `entryToView`, so it is content, not a slot. `Listbox` forks both
-variants over one shared transcription (`ListboxView.create` and
-`ListboxView.Multi.create` bind the upstream bundles; the single and multi
-Models are structurally identical, so the single adaptor maps
-`maybeSelectedValue` to `selectedValues` exactly as upstream's does). The
-forks add one view input upstream lacks, `direction?: 'ltr' | 'rtl'`: under
-`'rtl'` a horizontal listbox's ArrowLeft moves to the next item.
-`Combobox` follows the same shape over its own shared transcription
-(`ComboboxView.create` / `ComboboxView.Multi.create`).
+A DatePicker also picks a whole `Calendar.Selection`, a range or many days.
+Fold it with `DatePicker.update(selection)`, given the selection the
+application keeps: upstream closes the popover on every day picked, and this
+keeps it open while the day leaves the selection unfinished (a range's first
+end, any day of a Multiple selection), reporting `SelectedDate` either way for
+the application to fold through `Calendar.picked`. Draw it with
+`DatePickerView.view` taking `selection` and `triggerContent: selection =>
+Html` in place of upstream's `maybeSelectedDate` and `triggerContent`, and
+`toCalendarView: Calendar.toView(selection, mixins, { h })`. Under `name`,
+each chosen day is a hidden input of its own, in order (a range's start,
+then its end), so `FormData.getAll(name)` reads `[start, end]`; nothing chosen
+submits the name once, empty.
 
-`VirtualList`, `DragAndDrop`, and `Animation` do not have adapters here yet.
+`DragAndDrop` and `Animation` do not have adapters here yet.
 
 ## Status
 
