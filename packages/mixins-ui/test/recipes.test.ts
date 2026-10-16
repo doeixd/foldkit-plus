@@ -559,6 +559,25 @@ describe('Recipes', () => {
     })
   })
 
+  describe('Checkbox', () => {
+    const css = (selection: Parameters<typeof Recipes.Checkbox>[0]): string =>
+      Style.forSlots(CheckboxSlots)(Recipes.Checkbox(selection)).css
+
+    it('wipes the check in over the fast tier, travel-aware', () => {
+      expect(css({})).toContain('clip-path:inset(0 100% 100% 0)')
+      expect(css({})).toContain(
+        'transition-duration:calc(var(--fk-motion-fast) * var(--fk-knob-travel))',
+      )
+      expect(css({})).toMatch(/\[aria-checked="true"\]::after\{[^}]*clip-path:inset\(0 0 0 0\)/)
+    })
+
+    it('keeps the mixed dash a dash, not a check', () => {
+      expect(css({})).toMatch(
+        /\[aria-checked="mixed"\]::after\{[^}]*block-size:auto;border:0;[^}]*inline-size:auto;[^}]*rotate:none/,
+      )
+    })
+  })
+
   describe('RadioGroup', () => {
     const css = (selection: Parameters<typeof Recipes.RadioGroup>[0]): string =>
       Style.forSlots(RadioGroupSlots)(Recipes.RadioGroup(selection)).css

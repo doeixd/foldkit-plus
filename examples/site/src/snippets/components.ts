@@ -558,7 +558,7 @@ export const selectInvalid = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuil
   )
 // #endregion
 
-// #region checkbox
+// #region checkbox-basic
 export const CheckboxStyle = forSlots(CheckboxSlots)(Recipes.Checkbox({}))
 
 export const checkbox = <Message>(
@@ -576,6 +576,72 @@ export const checkbox = <Message>(
         h.div(
           [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
           [h.button(resolved.checkbox, []), h.label(resolved.label, ['Accept the terms'])],
+        ),
+      ),
+    },
+    h,
+  )
+// #endregion
+
+// #region checkbox-indeterminate
+// A dash while the choice is off: neither on nor off. A press checks it.
+export const checkboxIndeterminate = <Message>(
+  style: NamedStyle<typeof CheckboxSlots>,
+  checked: boolean,
+  onToggle: (checked: boolean) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  UiCheckbox.view(
+    {
+      id: 'toppings',
+      isChecked: checked,
+      isIndeterminate: !checked,
+      onToggle,
+      toView: Checkbox.toView([style.mixin], { h }, resolved =>
+        h.div(
+          [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
+          [h.button(resolved.checkbox, []), h.label(resolved.label, ['Toppings'])],
+        ),
+      ),
+    },
+    h,
+  )
+// #endregion
+
+// #region checkbox-card
+// The card is the label and the box sits in it, so a press anywhere on the
+// card toggles the box. The label slot is not used: it carries its own click,
+// and a second one inside the label would turn the box off again.
+const CheckboxCardStyle = forSlots(CardSlots)(
+  Recipes.Card({ surface: 'outlined', padding: 'compact' }),
+)
+
+export const checkboxCard = <Message>(
+  style: NamedStyle<typeof CheckboxSlots>,
+  checked: boolean,
+  onToggle: (checked: boolean) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  UiCheckbox.view(
+    {
+      id: 'plan-team',
+      isChecked: checked,
+      onToggle,
+      toView: Checkbox.toView([style.mixin], { h }, resolved =>
+        h.label(
+          [h.Style({ display: 'block', maxInlineSize: '20rem', cursor: 'pointer' })],
+          [
+            Card.view(
+              {
+                title: 'Team',
+                description: 'Ten editors and every page.',
+                selected: checked,
+                action: h.button(resolved.checkbox, []),
+                style: CheckboxCardStyle,
+              },
+              h,
+            ),
+          ],
         ),
       ),
     },

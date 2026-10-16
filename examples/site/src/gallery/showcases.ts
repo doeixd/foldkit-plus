@@ -413,6 +413,25 @@ export const showcases: ReadonlyArray<Showcase> = [
     CheckboxSlots,
     Recipes.Checkbox,
     (style, live) => Snippet.checkbox(style, live.checked, live.onCheck, live.h),
+    undefined,
+    [
+      {
+        name: 'basic',
+        title: 'Basic',
+        draw: (style, live) => Snippet.checkbox(style, live.checked, live.onCheck, live.h),
+      },
+      {
+        name: 'indeterminate',
+        title: 'Indeterminate',
+        draw: (style, live) =>
+          Snippet.checkboxIndeterminate(style, live.checked, live.onCheck, live.h),
+      },
+      {
+        name: 'card',
+        title: 'Card',
+        draw: (style, live) => Snippet.checkboxCard(style, live.checked, live.onCheck, live.h),
+      },
+    ],
   ),
   fromRecipe(
     {

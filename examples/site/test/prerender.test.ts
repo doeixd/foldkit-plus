@@ -47,6 +47,7 @@ const READ = [
   '/components/radio-group',
   '/components/alert',
   '/components/badge',
+  '/components/checkbox',
   '/create',
 ]
 
@@ -272,6 +273,14 @@ describe('the generated site', () => {
           ['dot', 'Dot', 'badgesDot'],
           ['outline', 'Outline', 'badgesOutline'],
           ['solid', 'Solid', 'badgesSolid'],
+        ],
+      ],
+      [
+        'checkbox',
+        [
+          ['basic', 'Basic', 'checkbox'],
+          ['indeterminate', 'Indeterminate', 'checkboxIndeterminate'],
+          ['card', 'Card', 'checkboxCard'],
         ],
       ],
     ] as const) {

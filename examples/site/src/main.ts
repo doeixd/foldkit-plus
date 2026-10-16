@@ -302,7 +302,7 @@ export const initial: Model = placements.initial({
   example: 'view',
   copied: false,
   selection: {},
-  checked: true,
+  checked: false,
   switched: false,
   previewPage: 4,
   chosenCard: 'team',

@@ -21,6 +21,10 @@ version changed; `pnpm` skips versions already in the registry.
   `boundaries?`, `numbered?`, `ends?` and `range?` (with `summaryOf` for
   `"1–10 of 97"` and new `summary`, `first` and `last` slots). Steps take
   per-step `icon`s and vertical `content`.
+- **`foldkit-mixins-ui`: a checkbox check that wipes in.** The mark is drawn
+  clipped away and wipes on over the fast tier, travel-aware, so reduced
+  motion shows it at once. The mixed dash clears the check's box, borders
+  and turn. The gallery shows basic, indeterminate and a card checkbox.
 - **An overlay scrollbar, after Fluid Functionalism's.** `ScrollBars` in
   `foldkit-primitives/dom`; `overlayBars` on ScrollArea, Command and
   VirtualList, and `Menu.overlayBars`, `Listbox.overlayBars` and

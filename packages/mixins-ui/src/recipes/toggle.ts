@@ -64,8 +64,10 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
       // physically, as its sides are, so right to left draws the same check
       // in the same place. The box sits above center because the check's ink
       // gathers at its corner, below: 19.5% puts the ink's middle at the
-      // box's (at 12% it stood a pixel high).
-      Style.pseudo(`${checked}::after`, {
+      // box's (at 12% it stood a pixel high). The mark is always drawn,
+      // clipped away until checked, so checking wipes it on over the fast
+      // tier; the wipe travels, so reduced motion shows the mark at once.
+      Style.pseudo('::after', {
         content: '""',
         position: 'absolute',
         top: '19.5%',
@@ -74,11 +76,26 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         blockSize: '56%',
         ...cornerSides(ref.border.thick, toneVar('on-fill')),
         rotate: '45deg',
+        clipPath: 'inset(0 100% 100% 0)',
+        transitionProperty: 'clip-path',
+        transitionDuration: travelled(ref.motion.fast),
+        transitionTimingFunction: ref.motion.ease,
       }),
+      Style.pseudo(`${checked}::after`, { clipPath: 'inset(0 0 0 0)' }),
+      // The check's box lives on every `::after` so it can wipe in. A dash
+      // clears that box, or it inherits the check's size, borders and turn.
       Style.pseudo('[aria-checked="mixed"]::after', {
         content: '""',
         position: 'absolute',
-        inset: '45% 20%',
+        top: '45%',
+        right: '20%',
+        bottom: '45%',
+        left: '20%',
+        inlineSize: 'auto',
+        blockSize: 'auto',
+        border: '0',
+        rotate: 'none',
+        clipPath: 'inset(0 0 0 0)',
         background: toneVar('on-fill'),
       }),
       focusRing,

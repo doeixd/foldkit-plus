@@ -67,6 +67,14 @@ const mount = () => {
         ),
         h.button(s.button.attrs([h.AriaLabel('off'), h.Role('switch'), h.AriaChecked(false)]), []),
         h.button(s.button.attrs([h.AriaLabel('on'), h.Role('switch'), h.AriaChecked(true)]), []),
+        h.button(
+          c.checkbox.attrs([h.AriaLabel('checked'), h.Role('checkbox'), h.AriaChecked(true)]),
+          [],
+        ),
+        h.button(
+          c.checkbox.attrs([h.AriaLabel('mixed'), h.Role('checkbox'), h.AriaChecked('mixed')]),
+          [],
+        ),
       ],
     )
   }
@@ -118,6 +126,32 @@ test('a switch is a 34×20 track with a 16px thumb, at the far end when on', asy
     // On, the thumb's far edge is 2px in from the track's.
     const on = thumb('on')
     expect(on.start + on.width).toBe(34 - 2)
+  } finally {
+    handle.dispose()
+  }
+})
+
+/** The check or dash: the box's `::after`. */
+const mark = (label: string) => {
+  const element = document.querySelector(`[aria-label="${label}"]`)!
+  const style = getComputedStyle(element, '::after')
+  return {
+    width: Number.parseFloat(style.inlineSize),
+    height: Number.parseFloat(style.blockSize),
+    rotate: style.rotate,
+  }
+}
+
+test('a checked box shows its mark, and a mixed one is a dash', async () => {
+  const handle = mount()
+  try {
+    await drawn()
+    const checked = mark('checked')
+    expect(checked.rotate).toBe('45deg')
+    const mixed = mark('mixed')
+    // A dash runs across the box. The check's own box is taller than it is wide.
+    expect(mixed.width).toBeGreaterThan(mixed.height * 2)
+    expect(mixed.rotate).toBe('none')
   } finally {
     handle.dispose()
   }

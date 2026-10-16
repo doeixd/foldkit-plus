@@ -386,9 +386,11 @@ decides adopt, adapt or skip.
   descriptions inside options, the check's position and `sameWidth` do not
   apply to a native control (its options are text); those live with Listbox
   and Combobox.
-- **Checkbox.** Centre the mark (A7), animate the check (drawn in, on the
-  fast tier, travel-aware), indeterminate, sizes, tones, a card checkbox
-  (the whole card the label).
+- **Checkbox.** **Checked**: the mark wipes in over the fast tier,
+  travel-aware (reduced motion shows it at once), and the mixed dash is a
+  dash again (it had inherited the check's borders and rotation); sizes and
+  tones come from the recipe axes over every example; the gallery shows
+  basic, indeterminate and a card checkbox (the whole card the label).
 - **Checkbox Group.** Spacing on the ladder, a description per option,
   select-all with indeterminate, horizontal and vertical, an error.
 - **Radio Group.** Fix (B); card radios, descriptions, horizontal.
