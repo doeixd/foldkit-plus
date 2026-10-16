@@ -198,6 +198,12 @@ interface Tone {
   readonly ink: string
   /** The line an outlined control draws: the fill, unless the fill is too pale for a line. */
   readonly line: string
+  /**
+   * What a hover over the tone is made of: its fill where hued, the text
+   * elsewhere. A hued ancestor (an alert band) must not tint a neutral
+   * control sitting on it, so the neutral tones name the text back.
+   */
+  readonly stateInk: string
 }
 
 const tone = (value: Tone): StyleValue =>
@@ -209,15 +215,28 @@ const tone = (value: Tone): StyleValue =>
       '--_fk-tone-on-fill': value.onFill,
       '--_fk-tone-ink': value.ink,
       '--_fk-tone-line': value.line,
+      '--fk-state-ink': value.stateInk,
     }),
   )
 
 /**
- * The ground under an unfilled control on hover: the palette's `state.hover`,
- * its own text color, faint. A solid wash was near-white under the white text
- * a colored band sets, and a surface step vanished on a page of that step.
+ * What a painted surface names as the state ink: its paint where the theme
+ * lets surfaces name one, the element's own text elsewhere (`neutral`, as
+ * before). A `var()` in a token substitutes where the token is declared, so
+ * the ink cannot travel inside `state.hover`; it travels as its own property,
+ * read where the film is drawn.
  */
-export const unfilledHover = ref.state.hover
+export const surfaceInk = (paint: string): string =>
+  `color-mix(in oklab, ${paint} calc(${ref.knob['surface-ink']} * 100%), currentColor)`
+
+/**
+ * The ground under an unfilled control on hover: the state ink, faint. The
+ * ink is the element's own text unless a painted surface above it set it to
+ * its paint (an alert band, a tone's fill), so a hover on blue is a deeper
+ * blue. A solid wash was near-white under the white text a colored band sets,
+ * and a surface step vanished on a page of that step.
+ */
+export const unfilledHover = `color-mix(in oklab, ${ref.state.ink} ${ref.knob['state-hover']}, transparent)`
 
 /** A 1px hairline inside an image's edge, so a pale picture keeps its shape without a border changing its box. */
 export const imageEdge: Declarations = {
@@ -237,6 +256,7 @@ export const tones = {
     onFill: ref.accent['on-fill'],
     ink: ref.accent.ink,
     line: ref.accent.default,
+    stateInk: surfaceInk(ref.accent.default),
   }),
   // A quiet grey that still reads as a control: the neutral surface step was
   // barely off the page, and as an outline's line it all but vanished.
@@ -250,6 +270,7 @@ export const tones = {
     onFill: ref.text.overt,
     ink: ref.text.default,
     line: ref.outline.default,
+    stateInk: 'currentColor',
   }),
   /**
    * Neutral as dark as the page's text: a checked control that stands out
@@ -262,6 +283,7 @@ export const tones = {
     onFill: ref.surface.base,
     ink: ref.text.default,
     line: ref.text.default,
+    stateInk: 'currentColor',
   }),
   danger: tone({
     fill: ref.error.default,
@@ -270,5 +292,6 @@ export const tones = {
     onFill: ref.error['on-fill'],
     ink: ref.error.ink,
     line: ref.error.outline,
+    stateInk: surfaceInk(ref.error.default),
   }),
 } as const

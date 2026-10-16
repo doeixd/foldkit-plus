@@ -26,7 +26,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/design.ts',
-        find: 'export const unfilledHover = ref.state.hover',
+        find: "export const unfilledHover = `color-mix(in oklab, ${ref.state.ink} ${ref.knob['state-hover']}, transparent)`",
         replace: 'export const unfilledHover = ref.surface.muted',
       },
     ],

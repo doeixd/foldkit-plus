@@ -8,13 +8,22 @@
  * family; `emphasis` reads it as a tint (`subtle`, the family's tint and ink,
  * with a hairline under a banner) or a solid band (`bold`, the fill and the
  * text on it), so the two axes need no compound per pair. The actions and the
- * dismiss button take the band's text color and hover with `unfilledHover`,
- * which reads on either.
+ * dismiss button take the band's text color and hover in its paint, which the
+ * root names as the state ink, so a hover deepens the band instead of laying
+ * a grey film over it.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { AlertSlots, type AlertTone } from '../alert.js'
-import { component, focusRing, ref, transition, unfilledHover, variant } from './design.js'
+import {
+  component,
+  focusRing,
+  ref,
+  surfaceInk,
+  transition,
+  unfilledHover,
+  variant,
+} from './design.js'
 
 const toned = (tone: AlertTone): StyleValue =>
   variant(
@@ -170,6 +179,9 @@ export const Alert = Style.recipeFor(AlertSlots)({
             background: 'var(--_fk-alert-subtle)',
             color: 'var(--_fk-alert-ink)',
             '--_fk-alert-edge': 'var(--_fk-alert-line)',
+            // The actions hover in the band's paint, not in its text, so a
+            // hover on a bold band is a deeper band and not a grey film.
+            '--fk-state-ink': surfaceInk('var(--_fk-alert-subtle)'),
           }),
         ),
       },
@@ -179,6 +191,7 @@ export const Alert = Style.recipeFor(AlertSlots)({
             background: 'var(--_fk-alert-fill)',
             color: 'var(--_fk-alert-on-fill)',
             '--_fk-alert-edge': 'transparent',
+            '--fk-state-ink': surfaceInk('var(--_fk-alert-fill)'),
           }),
         ),
       },

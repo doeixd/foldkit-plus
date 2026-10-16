@@ -383,13 +383,13 @@ describe('Recipes', () => {
   })
 
   it.each(['outline', 'ghost', 'icon'] as const)(
-    'grounds a %s button’s hover on a tint of its own text, which reads on a colored band',
+    'grounds a %s button’s hover on the state ink, its text or its surface’s paint',
     variant => {
       const css = Style.forSlots(ButtonSlots)(
         Recipes.Button({ tone: 'neutral', variant, size: null }),
       ).css
       expect(css).toMatch(
-        /:hover:not\(\[aria-disabled="true"\], :disabled\)\{[^}]*background:var\(--fk-state-hover\)/,
+        /:hover:not\(\[aria-disabled="true"\], :disabled\)\{[^}]*background:color-mix\(in oklab, var\(--fk-state-ink\) var\(--fk-knob-state-hover\), transparent\)/,
       )
     },
   )

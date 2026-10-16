@@ -169,6 +169,13 @@ describe('Alert recipe', () => {
     expect(css({ emphasis: 'bold' })).toContain('color:var(--_fk-alert-on-fill)')
   })
 
+  it('names the band paint as the state ink, per emphasis', () => {
+    expect(css({})).toContain('--fk-state-ink:color-mix(in oklab, var(--_fk-alert-subtle)')
+    expect(css({ emphasis: 'bold' })).toContain(
+      '--fk-state-ink:color-mix(in oklab, var(--_fk-alert-fill)',
+    )
+  })
+
   it('lays a banner out as a strip, with room for a dismiss button only when it has one', () => {
     expect(css({})).toMatch(/\[data-layout="banner"\]\{[^}]*display:flex/)
     expect(css({})).toMatch(
