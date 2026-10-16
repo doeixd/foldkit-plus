@@ -35,7 +35,7 @@ afterEach(async () => {
 })
 
 // Still by default, so a size is read where it ends rather than mid-flight.
-const mount = (motion = '0') => {
+const mount = (motion = '0', direction: 'ltr' | 'rtl' = 'ltr') => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -55,8 +55,13 @@ const mount = (motion = '0') => {
   document.body.appendChild(container)
   const view = (model: TreeView.Model, h: HtmlBuilder<TreeView.Message>) =>
     h.div(
-      [h.Style({ inlineSize: '20rem' })],
-      [TreeView.view({ label: 'Files', model, nodes: FILES, onMessage: m => m, style }, h)],
+      [h.Dir(direction), h.Style({ inlineSize: '20rem' })],
+      [
+        TreeView.view(
+          { label: 'Files', model, nodes: FILES, onMessage: m => m, direction, style },
+          h,
+        ),
+      ],
     )
   const handle = Runtime.embed(
     Runtime.makeElement({
@@ -104,6 +109,22 @@ test('keys sent faster than a frame all land', async () => {
     item('src').focus()
     await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}{ArrowDown}')
     await vi.waitFor(() => expect(focusedId()).toBe('files-item-button'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('right to left, ArrowLeft opens and ArrowRight shuts', async () => {
+  const { handle } = mount('0', 'rtl')
+  try {
+    await vi.waitFor(() => expect(item('src')).not.toBeNull())
+    item('src').focus()
+    await userEvent.keyboard('{ArrowLeft}')
+    await vi.waitFor(() => expect(item('src').getAttribute('aria-expanded')).toBe('true'))
+    expect(focusedId()).toBe('files-item-src')
+    await userEvent.keyboard('{ArrowRight}')
+    await vi.waitFor(() => expect(item('src').getAttribute('aria-expanded')).toBe('false'))
+    expect(focusedId()).toBe('files-item-src')
   } finally {
     handle.dispose()
   }

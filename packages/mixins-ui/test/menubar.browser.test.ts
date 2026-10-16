@@ -1,0 +1,95 @@
+/**
+ * A menubar in a real browser: right to left, ArrowLeft moves the tab stop
+ * toward the inline end and ArrowRight moves it back.
+ */
+import { Schema } from 'effect'
+import { mapMessages } from 'foldkit/command'
+import type { HtmlBuilder } from 'foldkit/html'
+import * as Runtime from 'foldkit/runtime'
+import { Layers, Style } from 'foldkit-mixins'
+import { Defaults } from 'foldkit-mixins/defaults'
+import { Theme } from 'foldkit-mixins/theme'
+import { afterEach, expect, test, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
+import { Menubar, MenubarSlots, MenuSlots, Recipes } from '../src/index.js'
+
+const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const barStyle = Style.forSlots(MenubarSlots)(Recipes.Menubar({}))
+const menuStyle = Style.forSlots(MenuSlots)(Recipes.Menu({}))
+const Model = Schema.Struct({ bar: Menubar.Model })
+type Model = typeof Model.Type
+type Message = { readonly _tag: 'Got'; readonly message: Menubar.Message }
+const got = (message: Menubar.Message): Message => ({ _tag: 'Got', message })
+
+afterEach(() => {
+  document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+  document.body.replaceChildren()
+})
+
+const mount = () => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in('reset', Defaults.reset),
+      Layers.standard.in('theme', Theme.root(theme)),
+    ) +
+    barStyle.css +
+    menuStyle.css
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'menubar-browser'
+  document.body.appendChild(container)
+  const view = (model: Model, h: HtmlBuilder<Message>) =>
+    h.div(
+      [h.Dir('rtl')],
+      [
+        Menubar.view(
+          {
+            label: 'Editor',
+            model: model.bar,
+            menus: [
+              { label: 'File', items: ['New'] },
+              { label: 'Edit', items: ['Copy'] },
+              { label: 'View', items: ['Zoom'] },
+            ],
+            onMessage: got,
+            direction: 'rtl',
+            style: barStyle,
+            menuMixins: [menuStyle.mixin],
+          },
+          h,
+        ),
+      ],
+    )
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: { bar: Menubar.init(['file', 'edit', 'view']) } }),
+      update: (model: Model, message: Message) => {
+        const next = Menubar.update(model.bar, message.message)
+        return {
+          model: { bar: next.model },
+          commands: mapMessages(next.commands, got),
+        }
+      },
+      view,
+    }),
+  )
+}
+
+test('right to left, ArrowLeft moves toward the end and ArrowRight moves back', async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(document.getElementById('file-button')).not.toBeNull())
+    document.getElementById('file-button')!.focus()
+    await userEvent.keyboard('{ArrowLeft}')
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('edit-button'))
+    await userEvent.keyboard('{ArrowRight}')
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('file-button'))
+  } finally {
+    handle.dispose()
+  }
+})
