@@ -7,23 +7,28 @@ const tests = ['packages/mixins-ui/test/overlayBars.test.ts']
 
 export default [
   {
-    name: 'a Command runs no bars on its list',
+    name: 'a Command runs its bars on its root',
     edits: [
       {
         file: '../src/command.ts',
-        find: '      ...(overlay ? [h.OnMount(ScrollBars({}))] : []),\n',
-        replace: '',
+        find: '      list: Behavior.slot({',
+        replace: '      root: Behavior.slot({',
       },
     ],
     tests,
   },
   {
-    name: 'a Command with bars leaves its list unframed',
+    name: 'a Command leaves its list unframed',
+    edits: [{ file: '../src/command.ts', find: '    scrolling,', replace: '    list,' }],
+    tests,
+  },
+  {
+    name: "a VirtualList's bars look for no scroller",
     edits: [
       {
-        file: '../src/command.ts',
-        find: '  const scrolling = overlay\n',
-        replace: '  const scrolling = false\n',
+        file: '../src/virtualList.ts',
+        find: "mount: () => ScrollBars({ scroller: ':scope > ul' }),",
+        replace: 'mount: () => ScrollBars({}),',
       },
     ],
     tests,

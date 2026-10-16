@@ -1,7 +1,8 @@
 /**
- * Where the overlay scroll bar is wired: a Command or a popup draws its bar
- * beside the scroller and runs `ScrollBars` on the scroller only when asked,
- * and a popup with no scroll region draws no bar. The bar itself is
+ * Where the overlay scroll bar is wired: a Command, a VirtualList or a popup
+ * draws its bar beside the scroller, and runs `ScrollBars` only when its
+ * `overlayBars` is passed beside the style; a popup with no scroll region
+ * draws no bar. The bar itself is
  * `foldkit-primitives`' `scroll-bars.browser.test.ts`; its look,
  * `scrollBars.browser.test.ts`.
  */
@@ -9,13 +10,22 @@ import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
 import { Inert } from 'foldkit-mixins/testing'
-import { Combobox, Command, Listbox, ListboxSlots, Menu, MenuSlots } from '../src/index.js'
+import {
+  Combobox,
+  Command,
+  Listbox,
+  ListboxSlots,
+  Menu,
+  MenuSlots,
+  VirtualList,
+  VirtualListSlots,
+} from '../src/index.js'
 import { buildersOf } from '../src/resolve.js'
 import { scrollBarOf } from '../src/popupScroll.js'
 import { drawMenu } from '../src/popupView.js'
 import { h, message } from './fixture.js'
 
-const command = (overlayBars?: boolean) =>
+const command = (mixins?: typeof Command.overlayBars) =>
   Command.view(
     {
       id: 'palette',
@@ -26,7 +36,7 @@ const command = (overlayBars?: boolean) =>
       active: Option.none(),
       onActive: () => message('Other'),
       onRun: () => message('Clicked'),
-      ...(overlayBars === undefined ? {} : { overlayBars }),
+      ...(mixins === undefined ? {} : { mixins }),
     },
     h,
   )
@@ -36,16 +46,12 @@ const barsOf = (root: Html) =>
   Inert.all(root).filter(node => Inert.value(node, 'data-scroll-bar') !== undefined)
 
 describe('Command overlayBars', () => {
-  it('draws no bar and runs nothing unasked', () => {
-    const root = command()
-    expect(barsOf(root)).toEqual([])
-    expect(listOf(root)?.data?.foldkitMount).toBeUndefined()
-    // The list is the root's own child, as before there were bars.
-    expect(Inert.children(root)).toContain(listOf(root))
+  it('runs nothing unasked', () => {
+    expect(listOf(command())?.data?.foldkitMount).toBeUndefined()
   })
 
   it('frames the list beside a hidden bar, and runs the bars on the list', () => {
-    const root = command(true)
+    const root = command(Command.overlayBars)
     const list = listOf(root)
     expect(list?.data?.foldkitMount).toEqual({ name: 'ScrollBars', args: {} })
     const [bar] = barsOf(root)
@@ -55,6 +61,19 @@ describe('Command overlayBars', () => {
     // The bar is the list's sibling, in the frame: the Mount drives its scroller's siblings.
     const frame = Inert.all(root).find(node => Inert.children(node).includes(list!))
     expect(Inert.children(frame)).toEqual([list, bar])
+  })
+})
+
+describe('VirtualList overlayBars', () => {
+  it("runs the bars from the root on upstream's list, which holds a Mount of its own", () => {
+    const root = h.div(
+      buildersOf(VirtualListSlots, VirtualList.overlayBars, { h }).root.attrs([]),
+      [],
+    )
+    expect(root?.data?.foldkitMount).toEqual({
+      name: 'ScrollBars',
+      args: { scroller: ':scope > ul' },
+    })
   })
 })
 

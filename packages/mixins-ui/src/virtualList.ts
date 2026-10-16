@@ -1,5 +1,5 @@
 import * as UiVirtualList from '@foldkit/ui/virtualList'
-import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Behavior, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { ScrollBars } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
@@ -16,7 +16,7 @@ import type { MixinList } from './resolve.js'
  * is drawn inside the list's submodel, so its mixins may style it but not
  * handle its events: a handler there would speak the list's Messages. The
  * overlay `bar` and its `thumb` sit beside upstream's list, in `root`, which
- * runs `ScrollBars` for it: upstream's list holds a Mount of its own.
+ * `overlayBars` runs on: upstream's list holds a Mount of its own.
  */
 export const VirtualListSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -35,12 +35,6 @@ export type VirtualListView<Item, Message> = Readonly<{
   onMessage: (message: UiVirtualList.Message) => NoInfer<Message>
   /** Rows drawn beyond the view at each end. */
   overscan?: number | undefined
-  /**
-   * A thin bar over the list, which fades while it rests (`ScrollBars`), in
-   * place of the browser's, on a pointer that can hover. Off by default: its
-   * Mount sends no Message, which a Scene test would have to resolve.
-   */
-  overlayBars?: boolean | undefined
   /** A style of `VirtualListSlots`, for the look. */
   style?: NamedStyle<typeof VirtualListSlots> | undefined
   /** Mixins beside the style. */
@@ -58,36 +52,47 @@ export const view = <Item, Message>(
     { input: undefined, h },
   )
   const { model, items, itemToKey, itemToView, onMessage, overscan } = options
-  const overlay = options.overlayBars === true
-  return h.div(
-    builders.root.attrs(overlay ? [h.OnMount(ScrollBars({ scroller: ':scope > ul' }))] : []),
-    [
-      h.submodel({
-        slotId: model.id,
-        model,
-        view: UiVirtualList.view<Item>(),
-        viewInputs: {
-          items,
-          itemToKey,
-          itemToView: (item: Item, index: number) =>
-            h.div(builders.row.attrs(), [itemToView(item, index)]),
-          ...(overscan === undefined ? {} : { overscan }),
-          ...rowHeights(options),
-        },
-        toParentMessage: onMessage,
-      }),
-      // Hidden from assistive technology: the list is what a reader scrolls.
-      ...(overlay
-        ? [
-            h.div(
-              builders.bar.attrs([h.DataAttribute('scroll-bar', 'block'), h.AriaHidden(true)]),
-              [h.div(builders.thumb.attrs(), [])],
-            ),
-          ]
-        : []),
-    ],
-  )
+  return h.div(builders.root.attrs(), [
+    h.submodel({
+      slotId: model.id,
+      model,
+      view: UiVirtualList.view<Item>(),
+      viewInputs: {
+        items,
+        itemToKey,
+        itemToView: (item: Item, index: number) =>
+          h.div(builders.row.attrs(), [itemToView(item, index)]),
+        ...(overscan === undefined ? {} : { overscan }),
+        ...rowHeights(options),
+      },
+      toParentMessage: onMessage,
+    }),
+    // Drawn whether or not `overlayBars` runs: a bar no Mount marks scrollable
+    // is not drawn by the style. Hidden from assistive technology: the list is
+    // what a reader scrolls.
+    h.div(builders.bar.attrs([h.DataAttribute('scroll-bar', 'block'), h.AriaHidden(true)]), [
+      h.div(builders.thumb.attrs(), []),
+    ]),
+  ])
 }
+
+/**
+ * What draws the bar over upstream's list (`ScrollBars`, run from `root`), in
+ * place of the browser's, on a pointer that can hover; pass it beside the
+ * style. Not a default: its Mount sends no Message, yet a Scene test of every
+ * page that drew one would have to resolve it.
+ */
+export const overlayBars = [
+  Behavior.forSlots(VirtualListSlots)<unknown, never>(
+    {
+      root: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => ScrollBars({ scroller: ':scope > ul' }),
+      }),
+    },
+    { name: 'VirtualListScrollBars' },
+  ).mixin,
+] as const
 
 /** The one row-height input the options chose, as upstream's union holds it. */
 const rowHeights = <Item>(

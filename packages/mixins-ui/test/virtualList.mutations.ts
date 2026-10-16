@@ -23,8 +23,8 @@ export default [
     edits: [
       {
         file,
-        find: "builders.root.attrs(overlay ? [h.OnMount(ScrollBars({ scroller: ':scope > ul' }))] : []),",
-        replace: '[],',
+        find: 'return h.div(builders.root.attrs(), [',
+        replace: 'return h.div([], [',
       },
     ],
     tests: [unit],

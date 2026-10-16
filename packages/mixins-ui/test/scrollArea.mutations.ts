@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/scrollArea.ts',
-        find: '[h.Tabindex(0), ...(overlay',
-        replace: '[...(overlay',
+        find: 'builders.viewport.attrs([h.Tabindex(0)])',
+        replace: 'builders.viewport.attrs([])',
       },
     ],
     tests,
@@ -29,22 +29,22 @@ export default [
     tests,
   },
   {
-    name: 'the overlay bars run unasked',
+    name: 'the overlay bars run on the root',
     edits: [
       {
         file: '../src/scrollArea.ts',
-        find: 'const overlay = options.overlayBars === true',
-        replace: 'const overlay = true',
+        find: '      viewport: Behavior.slot({',
+        replace: '      root: Behavior.slot({',
       },
     ],
     tests,
   },
   {
-    name: 'the bars are drawn without their Mount',
+    name: 'the area draws no inline bar',
     edits: [
       {
         file: '../src/scrollArea.ts',
-        find: '...(overlay ? [h.OnMount(ScrollBars({}))] : [])',
+        find: "    bar('inline'),",
         replace: '',
       },
     ],

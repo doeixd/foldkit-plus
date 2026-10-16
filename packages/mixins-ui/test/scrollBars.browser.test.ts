@@ -1,5 +1,5 @@
 /**
- * A ScrollArea drawn with `overlayBars`, on a real page: the browser's bar
+ * A ScrollArea drawn with `ScrollArea.overlayBars`, on a real page: the browser's bar
  * gives way to a thumb as long as the view is of the content, resting 4px
  * wide 2px off the edge and widening to 6px under the pointer, shown while
  * the area scrolls; with `travel` at 0 (reduced motion) the widening snaps
@@ -57,7 +57,7 @@ const mount = (root: Readonly<Record<string, string>> = {}) => {
             ScrollArea.view(
               {
                 content: h.div([h.Style({ height: '400px' })], ['Long']),
-                overlayBars: true,
+                mixins: ScrollArea.overlayBars,
                 style,
               },
               h,

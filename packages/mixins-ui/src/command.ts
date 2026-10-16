@@ -1,5 +1,14 @@
 import { Option } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Attr,
+  Behavior,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { ScrollBars } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
@@ -35,7 +44,7 @@ export const CommandSlots = Slots.define({
   }),
   shortcut: Slot.make({ capability: Capability.Container }),
   empty: Slot.make({ capability: Capability.Container }),
-  /** With `overlayBars`: the box around the list that holds its `bar`, and the bar's `thumb`. */
+  /** The box around the list that holds its overlay `bar`, which `overlayBars` drives, and the bar's `thumb`. */
   frame: Slot.make({ capability: Capability.Container }),
   bar: Slot.make({ capability: Capability.Container }),
   thumb: Slot.make({ capability: Capability.Container }),
@@ -72,12 +81,6 @@ export interface CommandView<Value extends string, Message> {
   readonly onRun: (value: Value) => NoInfer<Message>
   /** What the list says when nothing matches. Default "No results." */
   readonly empty?: string | undefined
-  /**
-   * A thin bar over the list, which fades while it rests (`ScrollBars`), in
-   * place of the browser's, on a pointer that can hover. Off by default: its
-   * Mount sends no Message, which a Scene test would have to resolve.
-   */
-  readonly overlayBars?: boolean | undefined
   /** A style of `CommandSlots`, for the menu's look. */
   readonly style?: NamedStyle<typeof CommandSlots> | undefined
   /** Mixins beside the style. */
@@ -131,14 +134,8 @@ export const view = <Value extends string, Message>(
     })
     return Option.fromNullishOr(enabled[(at + by + enabled.length) % enabled.length]?.value)
   }
-  const overlay = options.overlayBars === true
   const list = h.div(
-    builders.list.attrs([
-      h.Id(listId),
-      h.Role('listbox'),
-      h.AriaLabel(options.label),
-      ...(overlay ? [h.OnMount(ScrollBars({}))] : []),
-    ]),
+    builders.list.attrs([h.Id(listId), h.Role('listbox'), h.AriaLabel(options.label)]),
     groups.length === 0
       ? [h.div(builders.empty.attrs([h.Role('presentation')]), [options.empty ?? 'No results.'])]
       : groups.map((group, index) =>
@@ -181,16 +178,15 @@ export const view = <Value extends string, Message>(
           ),
         ),
   )
-  // With overlay bars, the list stands in a frame beside its bar, hidden from
-  // assistive technology: the list is what a reader scrolls.
-  const scrolling = overlay
-    ? h.div(builders.frame.attrs(), [
-        list,
-        h.div(builders.bar.attrs([h.DataAttribute('scroll-bar', 'block'), h.AriaHidden(true)]), [
-          h.div(builders.thumb.attrs(), []),
-        ]),
-      ])
-    : list
+  // The list stands in a frame beside its bar, whether or not `overlayBars`
+  // runs: a bar no Mount marks scrollable is not drawn by the style. Hidden
+  // from assistive technology: the list is what a reader scrolls.
+  const scrolling = h.div(builders.frame.attrs(), [
+    list,
+    h.div(builders.bar.attrs([h.DataAttribute('scroll-bar', 'block'), h.AriaHidden(true)]), [
+      h.div(builders.thumb.attrs(), []),
+    ]),
+  ])
   return h.div(builders.root.attrs(), [
     h.input(
       builders.input.attrs([
@@ -225,3 +221,21 @@ export const view = <Value extends string, Message>(
     scrolling,
   ])
 }
+
+/**
+ * What draws the bar over the `list` (`ScrollBars`), in place of the
+ * browser's, on a pointer that can hover; pass it beside the style. Not a
+ * default: its Mount sends no Message, yet a Scene test of every page that
+ * drew one would have to resolve it.
+ */
+export const overlayBars = [
+  Behavior.forSlots(CommandSlots)<unknown, never>(
+    {
+      list: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => ScrollBars({}),
+      }),
+    },
+    { name: 'CommandScrollBars' },
+  ).mixin,
+] as const

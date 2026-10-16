@@ -3,8 +3,8 @@
  * line under it, and the rows below in their groups, each a rung of the size
  * ladder, the highlighted one lit as a menu's row is, its shortcut at the
  * end in the caption role. The list scrolls past a cap, fading at an edge
- * with more beyond, under the overlay bar of `scrollBars.ts` where the view
- * draws one (`overlayBars`).
+ * with more beyond, under the overlay bar of `scrollBars.ts` where
+ * `Command.overlayBars` runs.
  */
 import { Style } from 'foldkit-mixins'
 import { ladder, nested, nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
@@ -57,7 +57,7 @@ export const Command = Style.recipeFor(CommandSlots)({
       ),
       overlaid,
     ),
-    // With `overlayBars`: the list's box, which its bar lies over.
+    // The list's box, which its bar lies over.
     frame: component(Style.self({ position: 'relative', display: 'grid', minBlockSize: '0' })),
     bar,
     thumb,
