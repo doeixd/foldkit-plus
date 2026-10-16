@@ -349,19 +349,25 @@ export const computeRender = (
     onSome: index => [h.AriaActiveDescendant(itemId(id, index))],
   })
 
+  const placed = { position: 'absolute', margin: '0', visibility: 'hidden' }
   const anchorAttributes = [
-    h.Style({ position: 'absolute', margin: '0', visibility: 'hidden' }),
     // Only with an in-place panel: portal relocation moves a panel after the
     // Mount acquires, and moving a shown popover hides it again. The panel
     // then draws in the top layer, out of every stacking context and overflow
     // box; the anchor positions it as before, and light dismiss stays the
-    // application's Messages closing it.
+    // application's Messages closing it. A popover keeps the browser's
+    // `inset: 0`, of which the anchor overwrites only `left` and `top`: right
+    // to left, `right: 0` won and the panel opened at the viewport's far edge.
     ...(anchor.portal === false
       ? [
           h.Attribute('popover', 'manual'),
+          h.Style({ ...placed, inset: 'auto' }),
           h.OnMount(topLayer(UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor }))),
         ]
-      : [h.OnMount(UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor }))]),
+      : [
+          h.Style(placed),
+          h.OnMount(UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor })),
+        ]),
   ]
 
   const wrapper: ReadonlyArray<ChildAttribute> = childAttributes([

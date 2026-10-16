@@ -91,6 +91,12 @@ const isPopover = (
  * Where the popover API or the attribute is missing (a test renderer, SSR, a
  * panel drawn without it) the wrapper is a no-op and the anchor positions in
  * place.
+ *
+ * The view sets `inset: auto` on the panel, since the anchor writes only
+ * `left` and `top` over the browser's `inset: 0`. The browser's popover
+ * border, padding and `Canvas` fill stay on an unstyled panel: any author
+ * rule replaces them, as every recipe's panel does, where an inline reset
+ * would beat the recipes.
  */
 export const topLayer = <Message, E>(
   action: Mount.MountAction<Message, E>,
