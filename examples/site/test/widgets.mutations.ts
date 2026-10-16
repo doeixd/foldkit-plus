@@ -121,4 +121,46 @@ export default [
     ],
     tests,
   },
+  ...[
+    [
+      'the terms box toggles the card too',
+      '{ terms: () => checked }',
+      '{ terms: () => checked, teamPlan: () => checked }',
+    ],
+    [
+      'the toppings dash comes back when unchecked',
+      "const toppings = checked ? 'all' : 'none'",
+      "const toppings = checked ? 'all' : 'some'",
+    ],
+    ['the trail never unfolds', '{ trailExpanded: () => true }', '{ trailExpanded: () => false }'],
+    [
+      'a pressed format cannot be released',
+      'formats.includes(format) ? formats.filter(on => on !== format) : [...formats, format]',
+      '[...formats, format]',
+    ],
+    [
+      'every pagination example moves together',
+      '[example]: page }',
+      'numbered: page, simple: page, ends: page, range: page, siblings: page, compact: page }',
+    ],
+    [
+      'a new page size keeps the old page',
+      'range: Math.floor(((pages.range - 1) * model.perPage) / perPage) + 1,',
+      'range: pages.range,',
+    ],
+    [
+      'a checkbox group example toggles another',
+      '[example]: CheckboxGroup.toggled(alerts[example], value),',
+      'invalid: CheckboxGroup.toggled(alerts[example], value),',
+    ],
+    [
+      'the range picker forgets its start',
+      'stayDates: () => DateSelection.picked(model.stayDates, date),',
+      "stayDates: () => DateSelection.picked(DateSelection.empty('Range'), date),",
+    ],
+  ].map(([name, find, replace]) => ({
+    name: name!,
+    edits: [{ file: widgets, find: find!, replace: replace! }],
+    tests,
+  })),
 ]

@@ -12,6 +12,17 @@ const pages = ['examples/site/test/prerender.test.ts']
 
 export default [
   {
+    name: 'an example forgets the values it pins',
+    edits: [
+      {
+        file: '../src/gallery/showcases.ts',
+        find: 'drawExample(styleOf({ ...selection, ...pins }), live)',
+        replace: 'drawExample(styleOf(selection), live)',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: 'a picked value the recipe does not have reaches it',
     edits: [
       {

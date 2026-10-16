@@ -198,9 +198,12 @@ describe('the breadcrumb preview', () => {
 
 describe('the checkbox group previews', () => {
   it('each check their own alerts', () => {
-    const toggled = send(Widgets.Message.ToggledAlert({ example: 'invalid', value: 'digest' }))
+    const toggled = send(Widgets.Message.ToggledAlert({ example: 'described', value: 'digest' }))
       .widgets.alerts
-    expect(toggled).toEqual({ ...initial.widgets.alerts, invalid: ['digest'] })
+    expect(toggled).toEqual({
+      ...initial.widgets.alerts,
+      described: ['mentions', 'replies', 'digest'],
+    })
   })
 })
 
