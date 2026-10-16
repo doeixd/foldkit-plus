@@ -44,8 +44,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: 'if (steps.length <= kept) return',
-        replace: 'if (steps.length < kept - 1) return',
+        find: 'steps.length <= kept) return',
+        replace: 'steps.length < kept - 1) return',
       },
     ],
     tests,
