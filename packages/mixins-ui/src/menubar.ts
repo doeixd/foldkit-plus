@@ -214,7 +214,11 @@ export interface MenubarView<ParentMessage> {
   /** One per menu of the Model, in its order. */
   readonly menus: ReadonlyArray<MenubarMenu>
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
-  /** Default `'ltr'`; under `'rtl'` ArrowLeft and ArrowRight swap. */
+  /**
+   * Under `'rtl'` ArrowLeft and ArrowRight swap. Given, it is drawn as the
+   * bar's `dir`, so the CSS reads it too; unset, the keys read left to right
+   * and the page's `dir` stands.
+   */
   readonly direction?: 'ltr' | 'rtl' | undefined
   /** A style of `MenubarSlots`, for the bar's look. */
   readonly style?: NamedStyle<typeof MenubarSlots> | undefined

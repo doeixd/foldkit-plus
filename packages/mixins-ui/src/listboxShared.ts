@@ -87,7 +87,11 @@ export type SharedBehavior = Readonly<{ ariaMultiSelectable: boolean }>
 
 /** The one view input the forks add beside upstream's. */
 export type DirectionInput = Readonly<{
-  /** Default `'ltr'`; under `'rtl'` a horizontal listbox's ArrowLeft and ArrowRight swap. */
+  /**
+   * Under `'rtl'` a horizontal listbox's ArrowLeft and ArrowRight swap. Given,
+   * it is drawn as the root's `dir`, so the CSS reads it too; unset, the keys
+   * read left to right and the page's `dir` stands.
+   */
   direction?: 'ltr' | 'rtl' | undefined
 }>
 

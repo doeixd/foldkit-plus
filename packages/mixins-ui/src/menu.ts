@@ -741,7 +741,12 @@ export interface MenuViewOptions<ParentMessage> {
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
   /** Default `'button'`; `'point'` opens where `target`'s area was pressed. */
   readonly opensAt?: 'button' | 'point' | undefined
-  /** Default `'ltr'`; under `'rtl'` a submenu opens to the left, and ArrowLeft and ArrowRight swap. */
+  /**
+   * Under `'rtl'` a submenu opens to the left, and ArrowLeft and ArrowRight
+   * swap. Given, it is drawn as the root's `dir`, so the CSS (the chevrons)
+   * reads it too; unset, the keys read left to right and the page's `dir`
+   * stands.
+   */
   readonly direction?: 'ltr' | 'rtl' | undefined
   /** The menu's mixins: a style of `MenuSlots` (`Recipes.Menu`), which also styles the rows' words and chevrons. */
   readonly mixins: MixinList<ParentMessage>
