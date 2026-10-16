@@ -172,7 +172,7 @@ export const buttonGroup = (
   )
 // #endregion
 
-// #region badge
+// #region badge-tinted
 export const BadgeStyle = forSlots(BadgeSlots)(
   Recipes.Badge({
     attribute: 'data-tone',
@@ -180,7 +180,7 @@ export const BadgeStyle = forSlots(BadgeSlots)(
   }),
 )
 
-export const badges = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
+export const badgesTinted = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
     [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
     [
@@ -193,35 +193,98 @@ export const badges = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<neve
   )
 // #endregion
 
-// #region alert
+// #region badge-dot
+export const BadgeDotStyle = forSlots(BadgeSlots)(
+  Recipes.Badge({
+    attribute: 'data-tone',
+    tones: { live: 'success', review: 'warning', failed: 'error', draft: 'info' },
+    appearance: 'dot',
+  }),
+)
+
+export const badgesDot = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
+    [
+      Badge.view({ text: 'Live', tone: 'live', style }, h),
+      Badge.view({ text: 'In review', tone: 'review', style }, h),
+      Badge.view({ text: 'Failed', tone: 'failed', style }, h),
+      Badge.view({ text: 'Draft', tone: 'draft', style }, h),
+    ],
+  )
+// #endregion
+
+// #region badge-outline
+export const BadgeOutlineStyle = forSlots(BadgeSlots)(
+  Recipes.Badge({
+    attribute: 'data-tone',
+    tones: { live: 'success', review: 'warning', failed: 'error', draft: 'info' },
+    appearance: 'outline',
+  }),
+)
+
+export const badgesOutline = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
+    [
+      Badge.view({ text: 'Live', tone: 'live', style }, h),
+      Badge.view({ text: 'In review', tone: 'review', style }, h),
+      Badge.view({ text: 'Failed', tone: 'failed', style }, h),
+      Badge.view({ text: 'Draft', tone: 'draft', style }, h),
+    ],
+  )
+// #endregion
+
+// #region badge-solid
+export const BadgeSolidStyle = forSlots(BadgeSlots)(
+  Recipes.Badge({
+    attribute: 'data-tone',
+    tones: { live: 'success', review: 'warning', failed: 'error', draft: 'info' },
+    appearance: 'solid',
+  }),
+)
+
+export const badgesSolid = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
+    [
+      Badge.view({ text: 'Live', tone: 'live', style }, h),
+      Badge.view({ text: 'In review', tone: 'review', style }, h),
+      Badge.view({ text: 'Failed', tone: 'failed', style }, h),
+      Badge.view({ text: 'Draft', tone: 'draft', style }, h),
+    ],
+  )
+// #endregion
+
+// #region alert-inline
 export const AlertStyle = forSlots(AlertSlots)(Recipes.Alert({}))
 
-// Inline, a status inside the content; as a banner, a named landmark across the page.
-export const alert = (style: NamedStyle<typeof AlertSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '1rem' })],
-    [
-      Alert.view(
-        {
-          layout: 'inline',
-          title: 'A new version is out',
-          description: 'Reload to pick up the latest fixes. Your drafts are kept.',
-          actions: [{ label: 'Reload', href: '#' }],
-          style,
-        },
-        h,
-      ),
-      Alert.view(
-        {
-          layout: 'banner',
-          label: 'Announcement',
-          title: 'Version 2 is out, with offline sync.',
-          actions: [{ label: 'Read the notes', href: '#' }],
-          style,
-        },
-        h,
-      ),
-    ],
+// Inline, a status inside the content.
+export const alertInline = (style: NamedStyle<typeof AlertSlots>, h: HtmlBuilder<never>): Html =>
+  Alert.view(
+    {
+      layout: 'inline',
+      title: 'A new version is out',
+      description: 'Reload to pick up the latest fixes. Your drafts are kept.',
+      actions: [{ label: 'Reload', href: '#' }],
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region alert-banner
+// As a banner, a named landmark across the page.
+export const alertBanner = (style: NamedStyle<typeof AlertSlots>, h: HtmlBuilder<never>): Html =>
+  Alert.view(
+    {
+      layout: 'banner',
+      label: 'Announcement',
+      title: 'Version 2 is out, with offline sync.',
+      actions: [{ label: 'Read the notes', href: '#' }],
+      style,
+    },
+    h,
   )
 // #endregion
 

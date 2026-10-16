@@ -304,8 +304,11 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     if (code === undefined) throw new Error(`src/snippets/components.ts has no region ${slug}`)
     return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
   }
-  // Every showcase's code is read now, so a missing region fails the build, not one page.
-  for (const showcase of showcases) usage(showcase.slug)
+  // Every showcase's snippet regions read now, so a missing region fails the build, not one page.
+  for (const showcase of showcases) {
+    if (showcase.examples.length === 0) usage(showcase.slug)
+    else for (const example of showcase.examples) usage(`${showcase.slug}-${example.name}`)
+  }
 
   return {
     paths: [HOME, DEMOS, COMPONENTS, ...componentPaths, CREATE, ...byPath.keys()],

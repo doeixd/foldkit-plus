@@ -107,6 +107,19 @@ export interface Showcase {
   readonly contract: string
   readonly axes: ReadonlyArray<Axis>
   readonly preview: <Message>(selection: Selection, live: Live<Message>) => Html
+  /**
+   * Named examples drawn with the picked style, each with its own snippet
+   * region (`${slug}-${name}`) and a link to it (`#${name}`); empty until the
+   * showcase is migrated, while the page shows one preview and one snippet.
+   */
+  readonly examples: ReadonlyArray<ShowcaseExample>
+}
+
+/** One named example of a showcase, drawn with the picked style. */
+export interface ShowcaseExample {
+  readonly name: string
+  readonly title: string
+  readonly render: <Message>(selection: Selection, live: Live<Message>) => Html
 }
 
 /** The value `axis` takes under `selection`: what was picked, if the recipe has it. */
@@ -138,13 +151,20 @@ interface RecipeOf<Slots> {
  * A showcase from a recipe. `only` names the axes a reader may pick from,
  * when a value of another would need different markup (a vertical rule).
  * A selection's style is built once and kept: a reader goes back and forth.
+ * `examples` names the page's examples; each draws with the picked style, so
+ * the axes switch every example at once.
  */
 const fromRecipe = <Slots>(
-  about: Omit<Showcase, 'axes' | 'preview'>,
+  about: Omit<Showcase, 'axes' | 'preview' | 'examples'>,
   contract: Slots,
   recipe: RecipeOf<Slots> & ((selection: never) => StylePieces<Slots>),
   draw: <Message>(style: NamedStyle<Slots>, live: Live<Message>) => Html,
   only?: ReadonlyArray<string>,
+  examples: ReadonlyArray<{
+    readonly name: string
+    readonly title: string
+    readonly draw: <Message>(style: NamedStyle<Slots>, live: Live<Message>) => Html
+  }> = [],
 ): Showcase => {
   const axes = Object.entries(recipe.def.variants)
     .filter(([name]) => only === undefined || only.includes(name))
@@ -167,14 +187,37 @@ const fromRecipe = <Slots>(
     styles.set(key, style)
     return style
   }
-  return { ...about, axes, preview: (selection, live) => draw(styleOf(selection), live) }
+  return {
+    ...about,
+    axes,
+    preview: (selection, live) => draw(styleOf(selection), live),
+    examples: examples.map(({ name, title, draw: drawExample }) => ({
+      name,
+      title,
+      render: (selection, live) => drawExample(styleOf(selection), live),
+    })),
+  }
 }
 
 /** A showcase whose look has no axes to pick from. */
 const fixed = (
-  about: Omit<Showcase, 'axes' | 'preview'>,
+  about: Omit<Showcase, 'axes' | 'preview' | 'examples'>,
   draw: <Message>(live: Live<Message>) => Html,
-): Showcase => ({ ...about, axes: [], preview: (_, live) => draw(live) })
+  examples: ReadonlyArray<{
+    readonly name: string
+    readonly title: string
+    readonly draw: <Message>(live: Live<Message>) => Html
+  }> = [],
+): Showcase => ({
+  ...about,
+  axes: [],
+  preview: (_, live) => draw(live),
+  examples: examples.map(({ name, title, draw: drawExample }) => ({
+    name,
+    title,
+    render: (_, live) => drawExample(live),
+  })),
+})
 
 export const showcases: ReadonlyArray<Showcase> = [
   fromRecipe(
@@ -210,7 +253,25 @@ export const showcases: ReadonlyArray<Showcase> = [
       file: 'badge',
       contract: 'BadgeSlots',
     },
-    () => Snippet.badges(Snippet.BadgeStyle, inert),
+    () => Snippet.badgesTinted(Snippet.BadgeStyle, inert),
+    [
+      {
+        name: 'tinted',
+        title: 'Tinted',
+        draw: () => Snippet.badgesTinted(Snippet.BadgeStyle, inert),
+      },
+      { name: 'dot', title: 'Dot', draw: () => Snippet.badgesDot(Snippet.BadgeDotStyle, inert) },
+      {
+        name: 'outline',
+        title: 'Outline',
+        draw: () => Snippet.badgesOutline(Snippet.BadgeOutlineStyle, inert),
+      },
+      {
+        name: 'solid',
+        title: 'Solid',
+        draw: () => Snippet.badgesSolid(Snippet.BadgeSolidStyle, inert),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -224,7 +285,24 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     AlertSlots,
     Recipes.Alert,
-    style => Snippet.alert(style, inert),
+    (style, live) =>
+      live.h.div(
+        [live.h.Style({ display: 'grid', gap: '1rem' })],
+        [Snippet.alertInline(style, inert), Snippet.alertBanner(style, inert)],
+      ),
+    undefined,
+    [
+      {
+        name: 'inline',
+        title: 'Inline',
+        draw: (style, _live) => Snippet.alertInline(style, inert),
+      },
+      {
+        name: 'banner',
+        title: 'Banner',
+        draw: (style, _live) => Snippet.alertBanner(style, inert),
+      },
+    ],
   ),
   fromRecipe(
     {

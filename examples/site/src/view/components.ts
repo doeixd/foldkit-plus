@@ -179,19 +179,44 @@ export const componentPage = (
       ),
       schemeChoice(model, slots, h),
     ]),
-    preview(model, 'page', slots, h, [showcase.preview(model.selection, liveOf(model, h))]),
-    h.p(slots.selection.attrs(), [selectionCode(showcase, model.selection)]),
+    ...(showcase.examples.length === 0
+      ? [
+          preview(model, 'page', slots, h, [showcase.preview(model.selection, liveOf(model, h))]),
+          h.p(slots.selection.attrs(), [selectionCode(showcase, model.selection)]),
+        ]
+      : showcase.examples.flatMap(example => [
+          h.section(slots.section.attrs([h.AriaLabelledBy(`example-${example.name}`)]), [
+            h.h2(slots.sectionTitle.attrs([h.Id(example.name)]), [
+              example.title,
+              ' ',
+              h.a(slots.titleLink.attrs([h.Href(`#${example.name}`)]), ['#']),
+            ]),
+            preview(model, 'page', slots, h, [example.render(model.selection, liveOf(model, h))]),
+            h.div(slots.themeCode.attrs(), [
+              SSR.static(
+                `usage-${showcase.slug}-${example.name}`,
+                library.usage(`${showcase.slug}-${example.name}`),
+              ),
+            ]),
+          ]),
+        ])),
   ]),
   h.section(slots.section.attrs([h.AriaLabelledBy('usage')]), [
     h.h2(slots.sectionTitle.attrs([h.Id('usage')]), ['Usage']),
     h.p(slots.rowText.attrs(), [
-      'The function that drew the preview, over the theme module ',
+      showcase.examples.length === 0
+        ? 'The function that drew the preview, over the theme module '
+        : 'Each example above names the function that drew it, over the theme module ',
       h.a([h.Href(CREATE)], ['Create a theme']),
       ' writes. The preview passes it the style picked above instead of its default.',
     ]),
-    h.div(slots.themeCode.attrs(), [
-      SSR.static(`usage-${showcase.slug}`, library.usage(showcase.slug)),
-    ]),
+    ...(showcase.examples.length === 0
+      ? [
+          h.div(slots.themeCode.attrs(), [
+            SSR.static(`usage-${showcase.slug}`, library.usage(showcase.slug)),
+          ]),
+        ]
+      : []),
     h.p(slots.rowActions.attrs(), [
       h.a(
         slots.source.attrs([
