@@ -30,6 +30,7 @@ const live: Live<string> = {
   dismissed: false,
   onDismiss: 'dismissed',
   onRestore: 'restored',
+  direction: 'ltr',
   widgets: Widgets.initial,
   onWidget: message => message._tag,
   h: SlotView.inertBuilder<string>(),

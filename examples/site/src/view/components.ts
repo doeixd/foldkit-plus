@@ -32,6 +32,7 @@ export const liveOf = (model: Model, h: H): Live<Message> => ({
   dismissed: model.cardDismissed,
   onDismiss: Message.DismissedCard(),
   onRestore: Message.RestoredCard(),
+  direction: model.knobs.direction,
   widgets: model.widgets,
   onWidget: message => Message.GotWidget({ message }),
   h,
@@ -91,6 +92,20 @@ const schemes: ReadonlyArray<{ readonly value: Scheme; readonly label: string }>
 
 export const schemeChoice = (model: Model, slots: Slots, h: H): Html =>
   choices(slots, h, 'scheme', schemes, model.scheme, scheme => Message.ChoseScheme({ scheme }))
+
+/** Left to right or right to left: the previews that place or key off it follow. */
+export const directionChoice = (model: Model, slots: Slots, h: H): Html =>
+  choices(
+    slots,
+    h,
+    'direction',
+    [
+      { value: 'ltr', label: 'LTR' },
+      { value: 'rtl', label: 'RTL' },
+    ] as const,
+    model.knobs.direction,
+    direction => Message.ChoseDirection({ direction }),
+  )
 
 /** The rail on a component page: the overview, the theme creator, and each component. */
 export const componentsContents = (path: string, slots: Slots, h: H): ReadonlyArray<Html> => {
@@ -178,6 +193,7 @@ export const componentPage = (
         ),
       ),
       schemeChoice(model, slots, h),
+      directionChoice(model, slots, h),
     ]),
     ...(showcase.examples.length === 0
       ? [

@@ -215,15 +215,16 @@ Sheet) uses the same pieces.
 
 ### A6. Right to left
 
-**Edited, not yet checked.** Keys: one `readingKey` helper
+**Checked, with the remaining upstream overlays noted below.** Keys: one `readingKey` helper
 (`packages/mixins-ui/src/direction.ts`) and a `direction?: 'ltr' | 'rtl'`
 view option on Menubar, Menu (its submenu opens on the left), TreeView,
 Resizable (keys and drag) and the horizontal Listbox forks; Messages stay
 logical. Progress's indeterminate sweep is mirrored. Chevrons and arrows
 (`cornerSides`), the Switch thumb and the Checkbox check were fixed earlier.
-Still open: the gallery passes no direction to those four previews, the
-per-component RTL browser tests, and the popup overlays measured from the
-left (deliberate: the Mounts measure from the left).
+The gallery's direction control now reaches Menu, Menubar, Listbox, TreeView
+and Resizable, so those previews exercise the same option as their focused
+RTL tests. Still open: popup overlays measured from the left (deliberate: the
+Mounts measure from the left).
 
 **Confirmed:** the Switch thumb starts at `inset-inline-start` (logical) but
 moves by a positive physical `translate` (`recipes/toggle.ts:125, 138`), so

@@ -92,6 +92,8 @@ export interface Live<Message> {
   readonly dismissed: boolean
   readonly onDismiss: Message
   readonly onRestore: Message
+  /** The reader's direction, for views that place or key off it. */
+  readonly direction: 'ltr' | 'rtl'
   readonly widgets: Widgets.Model
   readonly onWidget: (message: Widgets.Message) => Message
   readonly h: HtmlBuilder<Message>
@@ -660,6 +662,7 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.split,
         message => live.onWidget(Widgets.Message.GotSplit({ message })),
+        live.direction,
         live.h,
       ),
   ),
@@ -703,6 +706,7 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         { bar: live.widgets.menubar, chosen: live.widgets.menubarChoice },
         message => live.onWidget(Widgets.Message.GotMenubar({ message })),
+        live.direction,
         live.h,
       ),
   ),
@@ -906,6 +910,7 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets.treeView,
         message => live.onWidget(Widgets.Message.GotTreeView({ message })),
+        live.direction,
         live.h,
       ),
   ),
@@ -1112,6 +1117,7 @@ export const showcases: ReadonlyArray<Showcase> = [
         },
         message => live.onWidget(Widgets.Message.GotPageMenu({ message })),
         message => live.onWidget(Widgets.Message.GotFileMenu({ message })),
+        live.direction,
         live.h,
       ),
   ),
@@ -1131,6 +1137,7 @@ export const showcases: ReadonlyArray<Showcase> = [
         style,
         live.widgets,
         message => live.onWidget(Widgets.Message.GotListbox({ message })),
+        live.direction,
         live.h,
       ),
   ),

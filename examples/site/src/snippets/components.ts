@@ -1097,6 +1097,7 @@ export const menu = <Message>(
   state: MenuState,
   toPage: (message: Menu.Message) => Message,
   toFile: (message: Menu.Message) => Message,
+  direction: 'ltr' | 'rtl',
   h: HtmlBuilder<Message>,
 ): Html => {
   const chosen = (choice: Option.Option<string>) =>
@@ -1119,6 +1120,7 @@ export const menu = <Message>(
           buttonContent: h.span([], ['Page actions']),
           isRowDisabled: label => label === 'Move',
           onMessage: toPage,
+          direction,
           mixins: [style.mixin, ...Menu.fluid],
         },
         h,
@@ -1145,6 +1147,7 @@ export const menu = <Message>(
           buttonContent: h.span([], ['Actions for report.pdf']),
           opensAt: 'point',
           onMessage: toFile,
+          direction,
           mixins: [style.mixin],
           // The highlight must not chase the submenus' rows: they hold the menu's own rows.
           submenuMixins: [style.mixin, ...Menu.fluid],
@@ -1244,6 +1247,7 @@ export const listbox = <Message>(
   style: NamedStyle<typeof ListboxSlots>,
   state: ListboxState,
   toMessage: (message: UiListbox.Message) => Message,
+  direction: 'ltr' | 'rtl',
   h: HtmlBuilder<Message>,
 ): Html =>
   h.submodel({
@@ -1252,6 +1256,7 @@ export const listbox = <Message>(
     view: FrequencyBox.view,
     viewInputs: {
       anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      direction,
       items: Frequency.literals,
       maybeSelectedValue: state.frequency,
       itemToConfig: (frequency: Frequency) => ({ content: h.span([], [frequency]) }),
@@ -1564,6 +1569,7 @@ export const resizable = <Message>(
   style: NamedStyle<typeof ResizableSlots>,
   model: Resizable.Model,
   onMessage: (message: Resizable.Message) => Message,
+  direction: 'ltr' | 'rtl',
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
@@ -1584,6 +1590,7 @@ export const resizable = <Message>(
           label: 'Resize the file list',
           min: 0.2,
           max: 0.8,
+          direction,
           first: h.ul(
             [h.Style({ margin: '0', padding: '0.75rem', listStyle: 'none' })],
             [h.li([], ['notes.txt']), h.li([], ['todo.md']), h.li([], ['grid.ts'])],
@@ -1668,6 +1675,7 @@ export const menubar = <Message>(
   style: NamedStyle<typeof MenubarSlots>,
   state: MenubarState,
   onMessage: (message: Menubar.Message) => Message,
+  direction: 'ltr' | 'rtl',
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
@@ -1679,6 +1687,7 @@ export const menubar = <Message>(
           model: state.bar,
           menus: MENUBAR,
           onMessage,
+          direction,
           style,
           menuMixins: [MenubarMenuStyle.mixin, ...Menu.fluid],
         },
@@ -2023,12 +2032,13 @@ export const treeView = <Message>(
   style: NamedStyle<typeof TreeViewSlots>,
   model: TreeView.Model,
   onMessage: (message: TreeView.Message) => Message,
+  direction: 'ltr' | 'rtl',
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
     [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: '16rem' })],
     [
-      TreeView.view({ label: 'Files', model, nodes: TREE_FILES, onMessage, style }, h),
+      TreeView.view({ label: 'Files', model, nodes: TREE_FILES, onMessage, direction, style }, h),
       h.p(
         [],
         [

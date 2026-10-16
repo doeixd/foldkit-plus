@@ -33,6 +33,16 @@ describe('the component pages', () => {
     )
     expect(update(initial, Message.ChoseScheme({ scheme: initial.scheme })).model).toBe(initial)
     expect(update(initial, Message.ChosePreset({ knobs: { ...defaults } })).model).toBe(initial)
+    expect(
+      update(initial, Message.ChoseDirection({ direction: initial.knobs.direction })).model,
+    ).toBe(initial)
+  })
+
+  it('turns the page right to left and back', () => {
+    const rtl = after(initial, Message.ChoseDirection({ direction: 'rtl' }))
+    expect(rtl.knobs.direction).toBe('rtl')
+    expect(rtl === initial).toBe(false)
+    expect(after(rtl, Message.ChoseDirection({ direction: 'ltr' })).knobs.direction).toBe('ltr')
   })
 
   it('keep a knob within its slider, and ignore a value that is no number', () => {

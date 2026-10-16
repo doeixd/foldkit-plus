@@ -24,6 +24,7 @@ import { allSubsites } from './catalog.js'
 import { showcaseOf } from './gallery/showcases.js'
 import * as Widgets from './gallery/widgets.js'
 import {
+  Direction,
   Font,
   Knob,
   Knobs,
@@ -107,6 +108,7 @@ export const Message = defineMessageUnion({
   MovedKnob: { knob: Knob, value: Schema.Number },
   ChoseFont: { font: Font },
   ChoseScheme: { scheme: Scheme },
+  ChoseDirection: { direction: Direction },
   ChosePageScheme: { scheme: PageScheme },
   FoundPageScheme: { scheme: PageScheme },
   AppliedPageScheme: {},
@@ -239,6 +241,7 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         : withKnobs(model, { ...model.knobs, [knob]: fit(range, value) })
     },
     ChoseFont: ({ font }) => withKnobs(model, { ...model.knobs, font }),
+    ChoseDirection: ({ direction }) => withKnobs(model, { ...model.knobs, direction }),
     ChoseScheme: ({ scheme }) =>
       scheme === model.scheme
         ? { model }
