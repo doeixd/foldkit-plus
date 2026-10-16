@@ -51,9 +51,13 @@ describe('CheckboxGroup.coverage', () => {
     expect(CheckboxGroup.coverage(options, checked)).toBe(state)
   })
 
-  it('checks every option that can be, or none', () => {
-    expect(CheckboxGroup.setEnabled(options, true)).toEqual(['mentions', 'digest'])
-    expect(CheckboxGroup.setEnabled(options, false)).toEqual([])
+  it.each([
+    ['on, a disabled option off: it stays off', [], true, ['mentions', 'digest']],
+    ['off, a disabled option off', ['digest'], false, []],
+    ['on, a disabled option on: it stays on', ['offers'], true, ['mentions', 'digest', 'offers']],
+    ['off, a disabled option on: it stays on', ['mentions', 'offers'], false, ['offers']],
+  ] as const)('checks every option that can be, or none: %s', (_, checked, on, expected) => {
+    expect(CheckboxGroup.setEnabled(options, checked, on)).toEqual(expected)
   })
 })
 
@@ -102,4 +106,36 @@ describe('CheckboxGroup.view', () => {
     expect(Inert.value(group, 'aria-invalid')).toBe('true')
     expect(Inert.value(group, 'aria-describedby')).toBe(Inert.value(error, 'id'))
   })
+})
+
+describe('CheckboxGroup.view with selectAll', () => {
+  const withAll = (checked: ReadonlyArray<'mentions' | 'digest' | 'offers'>) =>
+    CheckboxGroup.view(
+      {
+        id: 'alerts',
+        legend: 'Send me',
+        options,
+        checked,
+        onToggle: () => message('Clicked'),
+        selectAll: { label: 'Every alert', onSet: () => message('Other') },
+        style,
+      },
+      h,
+    )
+
+  it.each([
+    [[], false],
+    [['mentions'], 'mixed'],
+    [['mentions', 'digest'], true],
+  ] as const)(
+    'draws the select-all box first, inside the group, checked %j: %s',
+    (checked, state) => {
+      const [legend, rows] = Inert.children(Inert.byTag(withAll(checked), 'fieldset')[0])
+      expect(Inert.text(legend)).toBe('Send me')
+      const [all] = Inert.byRole(rows, 'checkbox')
+      expect(Inert.value(all, 'aria-checked')).toBe(String(state))
+      expect(Inert.value(all, 'aria-controls')).toBe('alerts-mentions alerts-digest alerts-offers')
+      expect(Inert.text(Inert.byTag(rows, 'label')[0])).toBe('Every alert')
+    },
+  )
 })

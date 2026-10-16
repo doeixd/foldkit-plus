@@ -36,6 +36,13 @@ export interface CheckboxGroupOption<Value extends string> {
   readonly disabled?: boolean | undefined
 }
 
+/** A first row that checks every option or none, as shadcn's and Base UI's parent checkbox does. */
+export interface CheckboxGroupSelectAll<Value extends string, Message> {
+  readonly label: string
+  /** Sent with the checked values a press leaves: `setEnabled`'s, on unless every option already is. */
+  readonly onSet: (checked: ReadonlyArray<Value>) => NoInfer<Message>
+}
+
 export interface CheckboxGroupView<Value extends string, Message> {
   /** What the options answer, the group's accessible name. */
   readonly legend: string
@@ -52,6 +59,8 @@ export interface CheckboxGroupView<Value extends string, Message> {
   readonly mixins?: MixinList<Message> | undefined
   /** Shown under the options, and the group is `aria-invalid`. */
   readonly error?: string | undefined
+  /** Draws a select-all row above the options, which the recipe sets the options in from. */
+  readonly selectAll?: CheckboxGroupSelectAll<Value, Message> | undefined
 }
 
 const enabled = <Value extends string>(
@@ -68,22 +77,35 @@ export const coverage = <Value extends string>(
   checked: ReadonlyArray<Value>,
 ): 'none' | 'some' | 'all' => {
   const values = enabled(options)
-  const on = values.filter(value => checked.includes(value)).length
+  const held = new Set<string>(checked)
+  const on = values.filter(value => held.has(value)).length
   if (on === 0 || values.length === 0) return 'none'
   return on === values.length ? 'all' : 'some'
 }
 
-/** Every option that can be checked, or none of them. */
+/**
+ * Every option that can be checked, or none of them, in the options' order:
+ * a disabled option keeps the state `checked` gives it either way, so a box
+ * locked on stays on.
+ */
 export const setEnabled = <Value extends string>(
   options: ReadonlyArray<CheckboxGroupOption<Value>>,
+  checked: ReadonlyArray<Value>,
   on: boolean,
-): ReadonlyArray<Value> => (on ? enabled(options) : [])
+): ReadonlyArray<Value> => {
+  const held = new Set<string>(checked)
+  return options.flatMap(option =>
+    (option.disabled === true ? held.has(option.value) : on) ? [option.value] : [],
+  )
+}
 
 /** The checked values after `value` is pressed: on if it was off, off if it was on. */
 export const toggled = <Value extends string>(
   checked: ReadonlyArray<Value>,
   value: Value,
 ): ReadonlyArray<Value> => flipped(checked, value)
+
+const checkedOf = { none: false, some: 'mixed', all: true } as const
 
 export const view = <Value extends string, Message>(
   options: CheckboxGroupView<Value, Message>,
@@ -98,15 +120,51 @@ export const view = <Value extends string, Message>(
   const error = options.error
   const invalid = error !== undefined && error !== ''
   const errorId = `${options.id}-error`
+  const idOf = (value: Value) => `${options.id}-${value}`
+  const selectAll = options.selectAll
+  // The select-all row: true when every option that can be is checked,
+  // `mixed` between, controlling every option's box, and disabled with no
+  // option to check.
+  const allRow = (all: CheckboxGroupSelectAll<Value, Message>): Html => {
+    const id = `${options.id}--all`
+    const state = coverage(options.options, options.checked)
+    const idle = enabled(options.options).length === 0
+    return h.div(
+      builders.option.attrs([
+        h.DataAttribute('checked', String(state === 'all')),
+        h.DataAttribute('all', ''),
+      ]),
+      [
+        h.button(
+          builders.checkbox.attrs([
+            h.Type('button'),
+            h.Id(id),
+            h.Role('checkbox'),
+            h.AriaChecked(checkedOf[state]),
+            h.AriaControls(options.options.map(option => idOf(option.value)).join(' ')),
+            ...(idle
+              ? [h.Disabled(true), h.AriaDisabled(true)]
+              : [
+                  h.OnClick(
+                    all.onSet(setEnabled(options.options, options.checked, state !== 'all')),
+                  ),
+                ]),
+          ]),
+          [],
+        ),
+        h.label(builders.label.attrs([h.For(id)]), [all.label]),
+      ],
+    )
+  }
   return h.fieldset(
     builders.root.attrs(invalid ? [h.AriaInvalid(true), h.AriaDescribedBy(errorId)] : []),
     [
       h.legend(builders.legend.attrs(), [options.legend]),
-      h.div(
-        builders.options.attrs(),
-        options.options.map(option => {
+      h.div(builders.options.attrs(), [
+        ...(selectAll === undefined ? [] : [allRow(selectAll)]),
+        ...options.options.map(option => {
           const on = checked.has(option.value)
-          const checkboxId = `${options.id}-${option.value}`
+          const checkboxId = idOf(option.value)
           const descriptionId = `${checkboxId}-description`
           const disabled = option.disabled === true
           return h.keyed('div')(
@@ -133,7 +191,7 @@ export const view = <Value extends string, Message>(
             ],
           )
         }),
-      ),
+      ]),
       ...(invalid ? [h.p(builders.error.attrs([h.Id(errorId)]), [error])] : []),
     ],
   )

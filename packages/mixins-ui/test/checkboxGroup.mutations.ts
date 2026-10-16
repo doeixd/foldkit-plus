@@ -95,4 +95,69 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'select-all drops a disabled option that is checked',
+    edits: [
+      {
+        file: view,
+        find: '(option.disabled === true ? held.has(option.value) : on)',
+        replace: '(option.disabled === true ? false : on)',
+      },
+    ],
+    tests: [...unit, ...browser],
+  },
+  {
+    name: 'select-all only ever checks',
+    edits: [
+      {
+        file: view,
+        find: "setEnabled(options.options, options.checked, state !== 'all')",
+        replace: 'setEnabled(options.options, options.checked, true)',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'select-all is never mixed',
+    edits: [{ file: view, find: "some: 'mixed',", replace: 'some: false,' }],
+    tests: unit,
+  },
+  {
+    name: 'the legend touches the first row',
+    edits: [{ file: recipe, find: "marginBlockEnd: ladder('gap'),", replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'a row is a rung tall, however short its words',
+    edits: [
+      {
+        file: recipe,
+        find: "rowGap: ladder('inset'),",
+        replace: "rowGap: ladder('inset'), minBlockSize: ladder('height'),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the options stand flush under the select-all box',
+    edits: [
+      {
+        file: recipe,
+        find: "marginInlineStart: `calc(${ladder('icon')} + ${ladder('gap')})`,",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: "a disabled option's words stay bright",
+    edits: [
+      {
+        file: recipe,
+        find: "component(Style.nest(dimmed, { opacity: '0.5' })),",
+        replace: 'Style.empty,',
+      },
+    ],
+    tests: browser,
+  },
 ]

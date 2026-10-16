@@ -14,6 +14,7 @@ import { component, ref, variant } from './design.js'
 import { Checkbox } from './toggle.js'
 
 const checked = '[data-checked="true"]'
+const dimmed = ':where(:has(> [aria-disabled="true"])) > &'
 const box = Checkbox({})
 
 /** Checked rows together read as one block: the corners between them square off. */
@@ -41,9 +42,11 @@ export const CheckboxGroup = Style.recipeFor(CheckboxGroupSlots)({
         minInlineSize: '0',
       }),
     ),
+    // A rendered legend is no flex item, so the root's gap misses it: its own margin, the same.
     legend: component(
       Style.self({
         padding: '0',
+        marginBlockEnd: ladder('gap'),
         color: ref.text.overt,
         ...role('body'),
         fontWeight: ref.weight.semibold,
@@ -66,8 +69,13 @@ export const CheckboxGroup = Style.recipeFor(CheckboxGroupSlots)({
         alignContent: 'start',
         columnGap: ladder('gap'),
         rowGap: ladder('inset'),
-        minBlockSize: ladder('height'),
+        // No height of its own: a row is as tall as its words, so a plain row
+        // and one with a description stand the same gap from the next.
         borderRadius: ref.radius.md,
+      }),
+      // Under a select-all row, the options stand in from its box by one box and its gap.
+      Style.nest(':where([data-all]) ~ &', {
+        marginInlineStart: `calc(${ladder('icon')} + ${ladder('gap')})`,
       }),
     ),
     // In the label's row only, so a description under it does not pull the box down.
@@ -75,9 +83,14 @@ export const CheckboxGroup = Style.recipeFor(CheckboxGroupSlots)({
       box.checkbox ?? Style.empty,
       component(Style.self({ gridRow: '1', alignSelf: 'center' })),
     ),
-    label: box.label ?? Style.empty,
+    // A disabled option's words dim with its box.
+    label: Style.compose(
+      box.label ?? Style.empty,
+      component(Style.nest(dimmed, { opacity: '0.5' })),
+    ),
     description: component(
       Style.self({ gridColumn: '2', margin: '0', color: ref.text.muted, ...role('caption') }),
+      Style.nest(dimmed, { opacity: '0.5' }),
     ),
     error: component(Style.self({ margin: '0', color: ref.error.ink, ...role('caption') })),
   },
