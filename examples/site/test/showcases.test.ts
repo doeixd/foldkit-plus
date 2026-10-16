@@ -19,8 +19,6 @@ import {
 import * as Widgets from '../src/gallery/widgets.js'
 
 const live: Live<string> = {
-  checked: false,
-  onCheck: () => 'checked',
   switched: false,
   onSwitch: () => 'switched',
   page: 1,

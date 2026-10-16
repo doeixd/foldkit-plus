@@ -81,8 +81,6 @@ export type Selection = Readonly<Record<string, string>>
 
 /** The state a preview controls, held in the page's Model, and the Messages that change it. */
 export interface Live<Message> {
-  readonly checked: boolean
-  readonly onCheck: (checked: boolean) => Message
   readonly switched: boolean
   readonly onSwitch: (on: boolean) => Message
   readonly page: number
@@ -232,6 +230,15 @@ const fixed = (
     render: (_, live) => drawExample(live),
   })),
 })
+
+// Each checkbox example holds its own state: one press toggles one box.
+const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: Live<Message>) =>
+  Snippet.checkbox(
+    style,
+    live.widgets.terms,
+    checked => live.onWidget(Widgets.Message.ToggledTerms({ checked })),
+    live.h,
+  )
 
 export const showcases: ReadonlyArray<Showcase> = [
   fromRecipe(
@@ -424,24 +431,35 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     CheckboxSlots,
     Recipes.Checkbox,
-    (style, live) => Snippet.checkbox(style, live.checked, live.onCheck, live.h),
+    checkboxBasic,
     undefined,
     [
       {
         name: 'basic',
         title: 'Basic',
-        draw: (style, live) => Snippet.checkbox(style, live.checked, live.onCheck, live.h),
+        draw: checkboxBasic,
       },
       {
         name: 'indeterminate',
         title: 'Indeterminate',
         draw: (style, live) =>
-          Snippet.checkboxIndeterminate(style, live.checked, live.onCheck, live.h),
+          Snippet.checkboxIndeterminate(
+            style,
+            live.widgets.toppings,
+            checked => live.onWidget(Widgets.Message.ToggledToppings({ checked })),
+            live.h,
+          ),
       },
       {
         name: 'card',
         title: 'Card',
-        draw: (style, live) => Snippet.checkboxCard(style, live.checked, live.onCheck, live.h),
+        draw: (style, live) =>
+          Snippet.checkboxCard(
+            style,
+            live.widgets.teamPlan,
+            checked => live.onWidget(Widgets.Message.ToggledTeamPlan({ checked })),
+            live.h,
+          ),
       },
     ],
   ),

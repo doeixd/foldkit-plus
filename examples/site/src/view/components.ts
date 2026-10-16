@@ -21,8 +21,6 @@ import { Message, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
 
 export const liveOf = (model: Model, h: H): Live<Message> => ({
-  checked: model.checked,
-  onCheck: checked => Message.ToggledCheckbox({ checked }),
   switched: model.switched,
   onSwitch: on => Message.ToggledSwitch({ on }),
   page: model.previewPage,

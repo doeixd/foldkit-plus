@@ -584,18 +584,21 @@ export const checkbox = <Message>(
 // #endregion
 
 // #region checkbox-indeterminate
-// A dash while the choice is off: neither on nor off. A press checks it.
+/** How many of the toppings are chosen: the box is a dash while only some are. */
+export const Toppings = Schema.Literals(['none', 'some', 'all'])
+export type Toppings = typeof Toppings.Type
+
 export const checkboxIndeterminate = <Message>(
   style: NamedStyle<typeof CheckboxSlots>,
-  checked: boolean,
+  toppings: Toppings,
   onToggle: (checked: boolean) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
   UiCheckbox.view(
     {
       id: 'toppings',
-      isChecked: checked,
-      isIndeterminate: !checked,
+      isChecked: toppings === 'all',
+      isIndeterminate: toppings === 'some',
       onToggle,
       toView: Checkbox.toView([style.mixin], { h }, resolved =>
         h.div(

@@ -53,6 +53,7 @@ import {
   Range,
   Section,
   SectionTabs,
+  Toppings,
 } from '../snippets/components.js'
 
 export const Model = Schema.Struct({
@@ -87,6 +88,10 @@ export const Model = Schema.Struct({
   range: Range,
   /** The accordion's open sections. */
   faq: Schema.Array(Schema.String),
+  /** The checkboxes': the terms accepted, how many toppings, and the card's plan. */
+  terms: Schema.Boolean,
+  toppings: Toppings,
+  teamPlan: Schema.Boolean,
   /** The checkbox group's checked alerts. */
   alerts: Schema.Array(Schema.String),
   /** The number field's servings. */
@@ -154,6 +159,9 @@ export const Message = defineMessageUnion({
   SavedDraft: {},
   ChoseRange: { range: Range },
   ToggledFaq: { id: Schema.String },
+  ToggledTerms: { checked: Schema.Boolean },
+  ToggledToppings: { checked: Schema.Boolean },
+  ToggledTeamPlan: { checked: Schema.Boolean },
   ToggledAlert: { value: Schema.String },
   SetAlerts: { values: Schema.Array(Schema.String) },
   ChangedServings: { value: Schema.Number },
@@ -220,6 +228,9 @@ export const initial: Model = {
   notices: Notices.init({ id: 'preview-notices' }),
   range: 'week',
   faq: ['billing'],
+  terms: false,
+  toppings: 'some',
+  teamPlan: false,
   alerts: ['mentions', 'replies'],
   servings: 4,
   code: '',
@@ -624,6 +635,22 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     ToggledFaq: ({ id }) => ({
       model: modifyFields(model, { faq: () => Accordion.toggled(model.faq, id) }),
     }),
+    ToggledTerms: ({ checked }) =>
+      checked === model.terms
+        ? { model }
+        : { model: modifyFields(model, { terms: () => checked }) },
+    // A press on the dash chooses every topping, and the next none: there is
+    // no way back to some from here, as a select-all box has none.
+    ToggledToppings: ({ checked }) => {
+      const toppings = checked ? 'all' : 'none'
+      return toppings === model.toppings
+        ? { model }
+        : { model: modifyFields(model, { toppings: () => toppings }) }
+    },
+    ToggledTeamPlan: ({ checked }) =>
+      checked === model.teamPlan
+        ? { model }
+        : { model: modifyFields(model, { teamPlan: () => checked }) },
     ToggledAlert: ({ value }) => ({
       model: modifyFields(model, { alerts: () => CheckboxGroup.toggled(model.alerts, value) }),
     }),

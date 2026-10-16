@@ -24,9 +24,6 @@ describe('the component pages', () => {
   })
 
   it("hand back the Model for a preview's control already in that state", () => {
-    expect(update(initial, Message.ToggledCheckbox({ checked: initial.checked })).model).toBe(
-      initial,
-    )
     expect(update(initial, Message.ToggledSwitch({ on: initial.switched })).model).toBe(initial)
     expect(update(initial, Message.ChosePreviewPage({ page: initial.previewPage })).model).toBe(
       initial,
