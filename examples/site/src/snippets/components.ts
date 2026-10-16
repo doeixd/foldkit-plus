@@ -423,10 +423,10 @@ export const textarea = (style: NamedStyle<typeof TextareaSlots>, h: HtmlBuilder
   )
 // #endregion
 
-// #region select
+// #region select-basic
 export const SelectStyle = forSlots(SelectSlots)(Recipes.Select({}))
 
-export const select = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuilder<never>): Html =>
+export const selectBasic = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuilder<never>): Html =>
   UiSelect.view(
     {
       id: 'region',
@@ -439,6 +439,117 @@ export const select = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuilder<nev
               resolved.select,
               ['Europe', 'Americas', 'Asia Pacific'].map(region => h.option([], [region])),
             ),
+          ],
+        ),
+      ),
+    },
+    h,
+  )
+// #endregion
+
+// #region select-placeholder
+// A prompt that is chosen until the reader picks a value: an empty, disabled,
+// selected option.
+export const selectPlaceholder = (
+  style: NamedStyle<typeof SelectSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  UiSelect.view(
+    {
+      id: 'region-placeholder',
+      toView: Select.toView([style.mixin], { h }, resolved =>
+        h.div(
+          [],
+          [
+            h.label(resolved.label, ['Region']),
+            h.select(resolved.select, [
+              h.option([h.Value(''), h.Disabled(true), h.Selected(true)], ['Choose a region']),
+              h.option([], ['Europe']),
+              h.option([], ['Americas']),
+              h.option([], ['Asia Pacific']),
+            ]),
+          ],
+        ),
+      ),
+    },
+    h,
+  )
+// #endregion
+
+// #region select-groups
+// Options under headings: an `optgroup` per continent, named by its label.
+export const selectGroups = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuilder<never>): Html =>
+  UiSelect.view(
+    {
+      id: 'region-groups',
+      toView: Select.toView([style.mixin], { h }, resolved =>
+        h.div(
+          [],
+          [
+            h.label(resolved.label, ['Region']),
+            h.select(resolved.select, [
+              h.optgroup(
+                [h.Attribute('label', 'Americas')],
+                [h.option([], ['United States']), h.option([], ['Canada'])],
+              ),
+              h.optgroup(
+                [h.Attribute('label', 'Europe')],
+                [h.option([], ['France']), h.option([], ['Germany'])],
+              ),
+            ]),
+          ],
+        ),
+      ),
+    },
+    h,
+  )
+// #endregion
+
+// #region select-disabled
+// An option the reader cannot pick stays in the list, dimmed.
+export const selectDisabled = (
+  style: NamedStyle<typeof SelectSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  UiSelect.view(
+    {
+      id: 'region-disabled',
+      toView: Select.toView([style.mixin], { h }, resolved =>
+        h.div(
+          [],
+          [
+            h.label(resolved.label, ['Region']),
+            h.select(resolved.select, [
+              h.option([], ['Europe']),
+              h.option([h.Disabled(true)], ['Antarctica (no shipping)']),
+              h.option([], ['Asia Pacific']),
+            ]),
+          ],
+        ),
+      ),
+    },
+    h,
+  )
+// #endregion
+
+// #region select-invalid
+// A refused value: the control draws its error line and names what is wrong.
+export const selectInvalid = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuilder<never>): Html =>
+  UiSelect.view(
+    {
+      id: 'region-invalid',
+      isInvalid: true,
+      hasDescription: true,
+      toView: Select.toView([style.mixin], { h }, resolved =>
+        h.div(
+          [],
+          [
+            h.label(resolved.label, ['Region']),
+            h.select(
+              resolved.select,
+              ['Europe', 'Americas', 'Asia Pacific'].map(region => h.option([], [region])),
+            ),
+            h.span(resolved.description, ['Pick a region we ship to.']),
           ],
         ),
       ),

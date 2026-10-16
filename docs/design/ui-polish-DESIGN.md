@@ -379,10 +379,13 @@ decides adopt, adapt or skip.
   rather than the page-adjacent `surface.subtle`; shared by Input, Textarea
   and Select, with a browser test pinning the field/base separation in both
   schemes.
-- **Select.** Fluid's [select](https://www.fluidfunctionalism.com/docs/select)
-  examples: icons, descriptions, groups and headings, sizes, a placeholder,
-  disabled options, the check's position, trigger variants; `sameWidth`
-  (A4).
+- **Select.** **Checked**: native-select examples — basic, placeholder (an
+  empty disabled selected option), groups with headings (`optgroup`), a
+  disabled option, and invalid with its description; sizes and
+  outline/filled come from the recipe axes over all of them. Icons and
+  descriptions inside options, the check's position and `sameWidth` do not
+  apply to a native control (its options are text); those live with Listbox
+  and Combobox.
 - **Checkbox.** Centre the mark (A7), animate the check (drawn in, on the
   fast tier, travel-aware), indeterminate, sizes, tones, a card checkbox
   (the whole card the label).

@@ -375,7 +375,31 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     SelectSlots,
     Recipes.Select,
-    style => Snippet.select(style, inert),
+    (style, _live) => Snippet.selectBasic(style, inert),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: (style, _live) => Snippet.selectBasic(style, inert) },
+      {
+        name: 'placeholder',
+        title: 'Placeholder',
+        draw: (style, _live) => Snippet.selectPlaceholder(style, inert),
+      },
+      {
+        name: 'groups',
+        title: 'Groups',
+        draw: (style, _live) => Snippet.selectGroups(style, inert),
+      },
+      {
+        name: 'disabled',
+        title: 'Disabled option',
+        draw: (style, _live) => Snippet.selectDisabled(style, inert),
+      },
+      {
+        name: 'invalid',
+        title: 'Invalid',
+        draw: (style, _live) => Snippet.selectInvalid(style, inert),
+      },
+    ],
   ),
   fromRecipe(
     {
