@@ -820,10 +820,12 @@ while keeping the best of what this project already has:
   [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §4
 - [x] **Systems 6a, scroll edges.** `Utilities.scrollFade(axis)`, in ScrollArea and
   the popups' lists. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §5
-- [ ] **Systems 6b, the scroll divider and an overlay bar.** A hairline at a
-  scroll edge on the parent's pseudo-elements (it needs `timeline-scope`), and
-  a `ScrollBars` Mount drawing a thumb that rests 4px and widens to 6px, native
-  on touch; until then the bars are the browser's, styled.
+- [x] **Systems 6b, the scroll divider and an overlay bar.** `ScrollBars` in
+  `foldkit-primitives/dom` (a thumb that rests 4px, widens to 6px, fades when
+  idle, native on a coarse pointer), opt-in as `overlayBars` on ScrollArea,
+  Command and VirtualList and `Menu`/`Listbox`/`Combobox.overlayBars`, with
+  `Utilities.scrollDivider`/`scrollTimeline` for the edge hairline where
+  `timeline-scope` exists. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §5
 - [x] **Systems 7, fluid hover's remaining rules.** `gapReach` (Card.group at
   16px), no zero rects (a three-frame retry); the tabs' chosen marker already
   dims while another tab is hovered. [ui-systems-DESIGN.md](./ui-systems-DESIGN.md) §6
