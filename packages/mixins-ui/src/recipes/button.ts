@@ -38,17 +38,24 @@ const unfilledInk = `var(--fk-ink, ${toneVar('ink')})`
 const on = (declarations: Declarations): StyleValue =>
   Style.pseudo('[aria-pressed="true"]', declarations)
 const held = ':active:not([aria-disabled="true"], :disabled)'
+/**
+ * A toggle that is on, hovered and not held. The plain hover and held rules
+ * are more specific than `on`, so each state of a toggle that is on needs a
+ * rule of its own, or the hover's or the press's look replaces the fill.
+ */
+const onHovered = '[aria-pressed="true"]:hover:not(:active, [aria-disabled="true"], :disabled)'
+const onHeld = '[aria-pressed="true"]:active:not([aria-disabled="true"], :disabled)'
 
 /**
  * On, an unfilled toggle is filled with its tone, as a solid button is, and
- * hovered it keeps the fill: the plain hover tint, a more specific rule,
- * would otherwise lay a film where the fill was.
+ * keeps the fill and the text on it when hovered (a step lighter) and when
+ * held (a step deeper): the plain hover and held films would otherwise lay a
+ * tint where the fill was, under text meant for the fill.
  */
 const unfilledOn: ReadonlyArray<StyleValue> = [
   on({ background: toneVar('fill'), color: toneVar('on-fill') }),
-  Style.pseudo('[aria-pressed="true"]:hover:not([aria-disabled="true"], :disabled)', {
-    background: toneVar('fill-hover'),
-  }),
+  Style.pseudo(onHovered, { background: toneVar('fill-hover'), color: toneVar('on-fill') }),
+  Style.pseudo(onHeld, { background: toneVar('fill-active'), color: toneVar('on-fill') }),
 ]
 
 /** Held, an unfilled button is grounded in its tone's ink, faint, deeper than its hover. */
@@ -114,7 +121,10 @@ export const Button = Style.recipeFor(ButtonSlots)({
           Style.self({ background: toneVar('fill'), color: toneVar('on-fill') }),
           hover({ background: toneVar('fill-hover') }),
           ...press(toneVar('fill'), toneVar('fill-hover'), toneVar('fill-active')),
+          // On, a solid toggle rests on the active fill, and keeps it hovered:
+          // the hover's lighter fill read as off. Held, the press applies.
           on({ background: toneVar('fill-active') }),
+          Style.pseudo(onHovered, { background: toneVar('fill-active') }),
         ),
       },
       outline: {
