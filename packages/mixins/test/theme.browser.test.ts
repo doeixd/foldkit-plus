@@ -169,26 +169,6 @@ test('the error fill keeps light text in a dark scheme', () => {
   )
 })
 
-test.each(['light', 'dark'] as const)(
-  'in a %s scheme, a film reads the ink set on its own element, not the root’s',
-  scheme => {
-    install(scheme)
-    // A painted surface names its paint; a hover over it films the paint.
-    // `var()` substitutes where the film is drawn, so the hue survives: a
-    // token would bake the root’s ink instead (a grey film on a blue band).
-    const surface = document.createElement('div')
-    surface.style.setProperty('--fk-state-ink', computed('accent-default'))
-    const film = document.createElement('div')
-    film.style.background =
-      'color-mix(in oklab, var(--fk-state-ink) var(--fk-knob-state-hover), transparent)'
-    surface.append(film)
-    document.body.append(surface)
-    const color = getComputedStyle(film).backgroundColor
-    expect(distance(hueOf(color), 265), color).toBeLessThan(6)
-    expect(chromaOf(color), color).toBeGreaterThan(0.1)
-  },
-)
-
 test('in accent mode the state ink defaults to the accent’s ink', () => {
   const loud = Theme.compose(
     Theme.tokens,

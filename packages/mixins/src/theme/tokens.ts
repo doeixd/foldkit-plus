@@ -191,8 +191,9 @@ export const ladder = (name: Rung): string => {
  *
  * With no arguments, it reads what the nearest container that `nests` its
  * children published, so a row, a pill or a highlight inside a padded panel
- * follows the panel's corner without repeating its arithmetic. Outside any
- * such container it is square.
+ * follows the panel's corner without repeating its arithmetic. The values
+ * inherit, so it reads the nearest ancestor that `nests`, however deep and in
+ * whatever component; it is square only where no ancestor does.
  */
 export function nested(): string
 export function nested(outer: string, inset: string, border?: string): string
