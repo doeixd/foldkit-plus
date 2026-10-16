@@ -496,6 +496,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins`, `foldkit-mixins-ui`: hovers take their surface’s paint,
+  not grey.** `unfilledHover` mixes `--fk-state-ink` on the hovering element
+  instead of the text, so a hover on a painted surface deepens the paint: the
+  alert band names its paint per emphasis, and the accent and danger tones
+  name their fills (neutral and ink tones name the text back). New
+  `OklchKnobs.stateHue`: `neutral` (today, through the derived
+  `surface-ink` knob, which a scoped override also switches at runtime),
+  `surface` (the default), `accent` (the default ink is the accent’s ink, so
+  hovers lean on the accent). A `var()` substitutes where the token is
+  declared, so the state tokens themselves stay text-based; the ink travels
+  as its own property, read where the film is drawn.
 - **`foldkit-mixins-ui`: one `Menu`, by a button, at a point, or down a
   submenu.** `Menu.init(id, rows)` (a row with `items` hosts a submenu, one
   level deep), folded with `Menu.update`, drawn with `Menu.view({ model,

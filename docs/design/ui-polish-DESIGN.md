@@ -40,27 +40,37 @@ Each finding below is marked **confirmed** (read in the source) or
 Context Menu, Sidebar, Menubar, VirtualList, the date range, TreeView, Nested
 Menu, Tabs.
 
-**Confirmed cause.** `unfilledHover` is `ref.state.hover`
-(`recipes/design.ts:180`), which `Theme.oklch` defines as
-`color-mix(in oklab, currentColor 12%, transparent)` (`theme/oklch.ts:269`).
-The ink is the text colour, a neutral grey, so every hover lays a grey film.
-On a neutral page that reads as a tint; on an accent, a raised popup in dark
-mode or any toned surface it reads as dirt, because grey mixed into a hue
-desaturates it.
+**Confirmed cause.** `unfilledHover` mixed `currentColor`, the text colour, a
+neutral grey, so every hover laid a grey film. On a neutral page that reads
+as a tint; on an accent fill or a toned band it desaturates the hue: a hover
+on blue read as dirt. Measured on a bold error band: the film was the pale
+on-fill text (lightness 98, chroma 0.08) over a fill of lightness 60,
+chroma 0.2.
 
-**Plan.**
-- Separate *what the state is made of* from *the text*: a `--fk-state-ink`
-  custom property that the state tokens mix instead of `currentColor`. It
-  defaults to the surface's own ink, and every surface that changes hue
-  (an accent or tone fill, `Theme.raise` levels, `surface.*` regions, popups)
-  sets it to its own ink, so a hover on blue is a deeper blue, not grey.
-- A knob `state-hue`: `neutral` (today), `surface` (the surface's hue, the
-  new default), `accent` (Fluid's look: hovers lean on the accent at low
-  chroma). One override changes every component.
-- Audit every reader of `state.*`, `surface.muted` used as a hover, and
-  `text.muted` used on fills; list them in the commit.
-- Browser test: computed hover background on an accent card and in a dark
-  popup has the surface's hue (OKLCH hue within a few degrees), not chroma 0.
+**Done.** A `--fk-state-ink` custom property that a hover film is made of,
+read on the element hovering (`unfilledHover` mixes it directly) instead of
+the text. It defaults to the element's own text, and a surface painted in a
+hue names its paint: the alert band per emphasis, the accent and danger
+tones. A hover on blue is a deeper blue. Neutral and ink tones name the text
+back, so a neutral control sitting on a band keeps a text-based fill.
+Mechanism note, learned the slow way: a `var()` substitutes where the token
+is declared, so a state token cannot carry a per-surface ink — only
+`currentColor` resolves per element. The tokens stay text-based; the ink
+travels as its own property.
+A knob `stateHue`: `neutral` (today: surfaces name the text back through the
+derived `surface-ink` knob, which is 0), `surface` (the new default), `accent`
+(Fluid's look: the default ink is the accent's ink, so hovers lean on the
+accent at low chroma). One override changes every component, and the choice
+also switches at runtime through `surface-ink`.
+Audit, as committed: `unfilledHover` is read in 20 recipes, all on neutral
+grounds except the alert bands; `surface.muted` as a hover is only Card's
+filled `pressableHover` (a deliberate fill step, neutral); `text.muted` on
+fills is deliberate quiet text (badge base, alert subtle ink-on-tint,
+pagination current) with no contrast failure; popup rows use the
+`popup.highlight` token (the panel ink's tint, or the accent fill when bold),
+left alone; `Theme.raise` levels keep the base hue. Browser test: a hovered
+action on a bold error band films the fill (hue 25, the fill's chroma and
+lightness) in both schemes.
 
 ### A2. Concentric corners
 
