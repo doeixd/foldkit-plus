@@ -278,10 +278,10 @@ export const oklch = (knobs: OklchKnobs) => {
     // overlays. `hover`, `tint` and `tint-hover` mix the element's own text
     // color: `currentColor` resolves where the film is drawn, so a hover reads
     // at any elevation, on a tinted band, and on an inverted panel alike. A
-    // film that must take its surface's hue instead reads `--fk-state-ink`
-    // directly (as `unfilledHover` does): a `var()` substitutes where the
-    // token is declared, so a token cannot carry a per-surface ink, but a
-    // property read on the element can. `tint` is a see-through fill, which
+    // film that must take its surface's hue instead reads a property on the
+    // element (`unfilledHover` reads a surface's `--_fk-state-ink`, falling
+    // back to this `ink`): a `var()` substitutes where the token is declared,
+    // so a token cannot carry a per-surface ink. `tint` is a see-through fill, which
     // takes on whatever it sits on (lighter when hovered, as Fluid's: the
     // press is what darkens). `edge` is a hairline inside an image, so a pale
     // edge keeps its shape. `ink` is the state ink where no surface set one:

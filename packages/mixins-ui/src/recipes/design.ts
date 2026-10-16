@@ -199,9 +199,9 @@ interface Tone {
   /** The line an outlined control draws: the fill, unless the fill is too pale for a line. */
   readonly line: string
   /**
-   * What a hover over the tone is made of: its fill where hued, the text
-   * elsewhere. A hued ancestor (an alert band) must not tint a neutral
-   * control sitting on it, so the neutral tones name the text back.
+   * What a hover over the tone is made of: its fill where hued, the theme's
+   * ink elsewhere. A hued ancestor (an alert band) must not tint a neutral
+   * control sitting on it, so the neutral tones name the theme's ink back.
    */
   readonly stateInk: string
 }
@@ -215,7 +215,7 @@ const tone = (value: Tone): StyleValue =>
       '--_fk-tone-on-fill': value.onFill,
       '--_fk-tone-ink': value.ink,
       '--_fk-tone-line': value.line,
-      '--fk-state-ink': value.stateInk,
+      '--_fk-state-ink': value.stateInk,
     }),
   )
 
@@ -231,12 +231,15 @@ export const surfaceInk = (paint: string): string =>
 
 /**
  * The ground under an unfilled control on hover: the state ink, faint. The
- * ink is the element's own text unless a painted surface above it set it to
- * its paint (an alert band, a tone's fill), so a hover on blue is a deeper
- * blue. A solid wash was near-white under the white text a colored band sets,
- * and a surface step vanished on a page of that step.
+ * ink is the theme's (`--fk-state-ink`: the text, or the accent's ink) unless
+ * a painted surface above set `--_fk-state-ink` to its paint (an alert band,
+ * a tone's fill), so a hover on blue is a deeper blue. The local name is
+ * separate so that a neutral tone can name the theme's ink back: writing the
+ * theme's own name on the element would hide the root's value from it. A
+ * solid wash was near-white under the white text a colored band sets, and a
+ * surface step vanished on a page of that step.
  */
-export const unfilledHover = `color-mix(in oklab, ${ref.state.ink} ${ref.knob['state-hover']}, transparent)`
+export const unfilledHover = `color-mix(in oklab, var(--_fk-state-ink, ${ref.state.ink}) ${ref.knob['state-hover']}, transparent)`
 
 /** A 1px hairline inside an image's edge, so a pale picture keeps its shape without a border changing its box. */
 export const imageEdge: Declarations = {
@@ -270,7 +273,7 @@ export const tones = {
     onFill: ref.text.overt,
     ink: ref.text.default,
     line: ref.outline.default,
-    stateInk: 'currentColor',
+    stateInk: ref.state.ink,
   }),
   /**
    * Neutral as dark as the page's text: a checked control that stands out
@@ -283,7 +286,7 @@ export const tones = {
     onFill: ref.surface.base,
     ink: ref.text.default,
     line: ref.text.default,
-    stateInk: 'currentColor',
+    stateInk: ref.state.ink,
   }),
   danger: tone({
     fill: ref.error.default,

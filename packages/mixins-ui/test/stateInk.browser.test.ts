@@ -1,30 +1,44 @@
 /// <reference types="@vitest/browser-playwright" />
 /**
- * A hover over a painted surface deepens the paint: on a bold error band, a
- * hovered action films the band's own fill, so the film has the error hue at
- * the fill's chroma. Filming the pale on-fill text instead read as grey.
+ * A hover is a film of the state ink, measured on a real page. On a bold
+ * error band, a hovered action films the band's own fill, so the film has
+ * the error hue at the fill's chroma (filming the pale on-fill text read as
+ * grey). On a subtle band it films the band's ink, which shows on the tint.
+ * A neutral ghost button on a bold band films the theme's ink, not the
+ * band's; with `stateHue: 'accent'`, that is the accent's ink.
  */
-import type { HtmlBuilder } from 'foldkit/html'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Schema } from 'effect'
-import { Layers, Style } from 'foldkit-mixins'
+import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { cdp } from 'vitest/browser'
-import { Alert, AlertSlots, Recipes } from '../src/index.js'
+import { Alert, AlertSlots, Button, ButtonSlots, Recipes } from '../src/index.js'
+import { force, nodeOf } from './pseudoState.js'
 
 type Message = { readonly _tag: 'Dismissed' }
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
-const alert = Style.forSlots(AlertSlots)(Recipes.Alert({ tone: 'error', emphasis: 'bold' }))
+const themeOf = (stateHue?: 'accent') =>
+  Theme.compose(
+    Theme.tokens,
+    Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' }, ...(stateHue && { stateHue }) }),
+  )
+const alertOf = (emphasis: 'subtle' | 'bold') =>
+  Style.forSlots(AlertSlots)(Recipes.Alert({ tone: 'error', emphasis }))
+const ghost = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'ghost' }))
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
 })
 
-const mount = (scheme: 'light' | 'dark') => {
+const mount = (
+  scheme: 'light' | 'dark',
+  css: string,
+  view: (h: HtmlBuilder<Message>) => Html,
+  stateHue?: 'accent',
+) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -32,13 +46,29 @@ const mount = (scheme: 'light' | 'dark') => {
       Layers.standard.declare,
       Layers.standard.in('reset', Defaults.reset),
       Layers.standard.in('tokens', Theme.root(Theme.tokens, { colorScheme: scheme })),
-      Layers.standard.in('theme', Theme.root(theme, { omit: Theme.tokens, colorScheme: scheme })),
-    ) + alert.css
+      Layers.standard.in(
+        'theme',
+        Theme.root(themeOf(stateHue), { omit: Theme.tokens, colorScheme: scheme }),
+      ),
+    ) + css
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'state-ink-browser'
   document.body.appendChild(container)
-  const view = (_: unknown, h: HtmlBuilder<Message>) =>
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model: Schema.Struct({}),
+      container,
+      init: () => ({ model: {} }),
+      update: (model: { readonly [key: string]: never }) => ({ model }),
+      view: (_: unknown, h: HtmlBuilder<Message>) => view(h),
+    }),
+  )
+}
+
+const mountAlert = (scheme: 'light' | 'dark', emphasis: 'subtle' | 'bold') => {
+  const style = alertOf(emphasis)
+  return mount(scheme, style.css, h =>
     Alert.view(
       {
         layout: 'banner',
@@ -46,68 +76,58 @@ const mount = (scheme: 'light' | 'dark') => {
         title: 'The API is down.',
         actions: [{ label: 'Status', href: '#status' }],
         onDismiss: { _tag: 'Dismissed' },
-        style: alert,
+        style,
       },
       h,
-    )
-  return Runtime.embed(
-    Runtime.makeElement({
-      Model: Schema.Struct({}),
-      container,
-      init: () => ({ model: {} }),
-      update: (model: { readonly [key: string]: never }) => ({ model }),
-      view,
-    }),
+    ),
   )
 }
 
-type DomNode = {
-  readonly nodeId: number
-  readonly contentDocument?: DomNode
-  readonly children?: ReadonlyArray<DomNode>
-}
-
-/** The protocol's id for `selector`, looked for in every frame's document. */
-const nodeOf = async (selector: string) => {
-  const { root } = (await cdp().send('DOM.getDocument', { depth: -1, pierce: true })) as {
-    root: DomNode
-  }
-  const documents: Array<number> = []
-  const walk = (node: DomNode) => {
-    if (node.contentDocument !== undefined) {
-      documents.push(node.contentDocument.nodeId)
-      walk(node.contentDocument)
-    }
-    node.children?.forEach(walk)
-  }
-  walk(root)
-  for (const nodeId of documents) {
-    const { nodeId: found } = (await cdp().send('DOM.querySelector', { nodeId, selector })) as {
-      nodeId: number
-    }
-    if (found !== 0) return found
-  }
-  throw new Error(`no ${selector} in any frame`)
-}
-
-/** Lightness, chroma, hue and alpha of a computed `oklab()` color. */
-const filmOf = (color: string) => {
-  const match = /^oklab\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\/\s*([\d.]+)/.exec(color)
-  if (match === null) throw new Error(`not an OKLab color: ${color}`)
-  const [lightness, a, b, alpha] = [match[1], match[2], match[3], match[4]].map(Number) as [
-    number,
-    number,
-    number,
-    number,
-  ]
-  return {
-    lightness: lightness * 100,
-    chroma: Math.hypot(a, b),
-    hue: ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360,
-    alpha,
-  }
+/** Lightness (0–100), chroma, hue and alpha of a computed `oklab()` or `oklch()` color. */
+const colorOf = (color: string) => {
+  const match = /^(oklab|oklch)\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*(?:\/\s*([\d.]+))?/.exec(
+    color,
+  )
+  if (match === null) throw new Error(`not an OKLab or OKLCH color: ${color}`)
+  const [l, x, y] = [match[2], match[3], match[4]].map(Number) as [number, number, number]
+  const alpha = match[5] === undefined ? 1 : Number(match[5])
+  return match[1] === 'oklch'
+    ? { lightness: l * 100, chroma: x, hue: y, alpha }
+    : {
+        lightness: l * 100,
+        chroma: Math.hypot(x, y),
+        hue: ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360,
+        alpha,
+      }
 }
 const distance = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b))
+
+const drawn = (selector: string) =>
+  vi.waitFor(() => {
+    const found = document.querySelector<HTMLElement>(selector)
+    expect(found).not.toBeNull()
+    return found!
+  })
+
+/** The settled film on `selector` with `:hover` forced on it. */
+const filmOf = async (selector: string) => {
+  const element = await drawn(selector)
+  // Forcing the pseudo state and reading the film race the hover's own
+  // 80ms fade: force again until the film reads settled.
+  return vi.waitFor(
+    async () => {
+      await force(await nodeOf(selector), ['hover'])
+      expect(element.matches(':hover')).toBe(true)
+      const settled = colorOf(getComputedStyle(element).backgroundColor)
+      // The film fades in to 12%; mid-fade reads are thinner.
+      expect(settled.alpha).toBeGreaterThan(0.11)
+      return settled
+    },
+    { timeout: 10000 },
+  )
+}
+
+const actions = ['[aria-label="Dismiss Outage"]', 'a']
 
 // The error fill the bold band paints, per scheme: lightness 60/64, chroma
 // 0.2, hue 25. The film is the fill at 12%, so it agrees on all three.
@@ -117,34 +137,10 @@ test.each([
 ] as const)(
   'in a %s scheme, a bold band hovers in its own fill, not in its pale text',
   async (scheme, lightness) => {
-    const handle = mount(scheme)
+    const handle = mountAlert(scheme, 'bold')
     try {
-      for (const selector of ['[aria-label="Dismiss Outage"]', 'a']) {
-        const element = await vi.waitFor(() => {
-          const found = document.querySelector<HTMLElement>(selector)
-          expect(found).not.toBeNull()
-          return found!
-        })
-        // Forcing the pseudo state and reading the film race the hover's own
-        // 80ms fade: force again until the film reads settled.
-        const film = await vi.waitFor(
-          async () => {
-            await cdp().send('DOM.enable')
-            await cdp().send('CSS.enable')
-            await cdp().send('CSS.forcePseudoState', {
-              nodeId: await nodeOf(selector),
-              forcedPseudoClasses: ['hover'],
-            })
-            expect(element.matches(':hover')).toBe(true)
-            const settled = filmOf(getComputedStyle(element).backgroundColor)
-            // The film fades in to 12%; mid-fade reads are thinner.
-            expect(settled.alpha).toBeGreaterThan(0.11)
-            return settled
-          },
-          { timeout: 10000 },
-        )
-        const rootEl = document.querySelector('[data-layout="banner"]')!
-        expect(rootEl.getAttribute('data-dismissible')).toBe('true')
+      for (const selector of actions) {
+        const film = await filmOf(selector)
         expect(distance(film.hue, 25), selector).toBeLessThan(6)
         expect(film.chroma, selector).toBeGreaterThan(0.15)
         expect(Math.abs(film.lightness - lightness), selector).toBeLessThan(4)
@@ -154,3 +150,59 @@ test.each([
     }
   },
 )
+
+// Filmed in its own tint, a subtle band's hover composites to the band: no
+// hover at all. Filmed in its ink, it is far from the tint in lightness.
+test.each(['light', 'dark'] as const)(
+  'in a %s scheme, a subtle band hovers in its ink, which shows on the tint',
+  async scheme => {
+    const handle = mountAlert(scheme, 'subtle')
+    try {
+      const band = colorOf(getComputedStyle(await drawn('[data-layout="banner"]')).backgroundColor)
+      for (const selector of actions) {
+        const film = await filmOf(selector)
+        expect(Math.abs(film.lightness - band.lightness), selector).toBeGreaterThan(25)
+        expect(distance(film.hue, 25), selector).toBeLessThan(15)
+      }
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+// The neutral tone names the theme's ink back, so `stateHue: 'accent'`
+// reaches it: the film has the accent's hue at a chroma the grey text has not.
+test.each(['light', 'dark'] as const)(
+  'in a %s scheme with accent state hues, a neutral ghost button hovers in the accent',
+  async scheme => {
+    const handle = mount(
+      scheme,
+      ghost.css,
+      h => Button.view({ label: 'Edit', style: ghost }, h),
+      'accent',
+    )
+    try {
+      const film = await filmOf('button')
+      expect(distance(film.hue, 265)).toBeLessThan(10)
+      expect(film.chroma).toBeGreaterThan(0.08)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+// The band names its fill for its own actions; a neutral control drawn on it
+// names the theme's ink back, or it would film the band's red.
+test('on a bold band, a neutral ghost button hovers in the text, not in the band', async () => {
+  const band = alertOf('bold')
+  const handle = mount('light', band.css + ghost.css, h => {
+    const slots = SlotView.buildersFor(AlertSlots, [band.mixin], { input: undefined, h })
+    return h.div(slots.root.attrs([]), [Button.view({ label: 'Edit', style: ghost }, h)])
+  })
+  try {
+    const film = await filmOf('button')
+    expect(film.chroma).toBeLessThan(0.05)
+  } finally {
+    handle.dispose()
+  }
+})

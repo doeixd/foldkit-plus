@@ -71,18 +71,3 @@ describe('Button pressed', () => {
     },
   )
 })
-
-describe('Button state ink', () => {
-  it.each([
-    ['accent', 'var(--fk-accent-default)'],
-    ['danger', 'var(--fk-error-default)'],
-  ] as const)('names the %s tone’s fill as the state ink where the theme lets it', (tone, fill) => {
-    expect(css({ tone })).toContain(
-      `--fk-state-ink:color-mix(in oklab, ${fill} calc(var(--fk-knob-surface-ink) * 100%), currentColor)`,
-    )
-  })
-
-  it('keeps the neutral tone’s state ink the text', () => {
-    expect(css({ tone: 'neutral' })).toContain('--fk-state-ink:currentColor')
-  })
-})
