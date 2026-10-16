@@ -6,6 +6,9 @@
  * Devin Jameson) at tag `@foldkit/ui@0.165.0`, with the computed bundles
  * named (`MenuRenderInfo`) and handed to `toView`.
  *
+ * Menu's panel adapter (`Menu.toView`) is a `toView` for it, and the Menu
+ * component and Menubar draw every Menu through it (see `./menu.ts`).
+ *
  * The default `toView` reproduces upstream's markup; the parity battery
  * draws both views over the same models, so drift fails loudly. If upstream
  * gains a seam, delete this module; on a bump, re-transcribe and re-run

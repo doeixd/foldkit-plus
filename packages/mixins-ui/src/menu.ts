@@ -1,21 +1,27 @@
 /**
  * A menu, opened by a button or at a point (a context menu), whose rows may
- * open submenus, in two layers.
+ * open submenus, in three layers, each built on the one before.
  *
- * The component (`init`, `update`, `view`, `target`) is the one way an
- * application draws a menu. Its Model holds `@foldkit/ui` Menus, one for the
+ * The fork (`MenuView`, `./menuView.ts`) is `@foldkit/ui`'s Menu view with a
+ * `toView` seam upstream lacks; the Menu's Model, `update` and Mounts stay
+ * upstream's.
+ *
+ * The panel adapter (`MenuSlots`, `resolve`, `toView`, `fluid`,
+ * `overlayBars`, `drawAtPoint`, `pointTarget`) styles a Menu drawn through
+ * the fork, whoever keeps its Model: `toView` is that Menu's `toView`. Menubar
+ * draws its menus through it, and so does an application that folds
+ * `@foldkit/ui`'s Menu itself, for typed items or groups, which the
+ * component's rows do not have; `drawAtPoint` and `pointTarget` open such a
+ * Menu at a point. One recipe, `Recipes.Menu`, styles every panel and the
+ * rows' words and chevrons.
+ *
+ * The component (`init`, `update`, `view`, `target`) is a menu of string rows
+ * drawn through the adapter. Its Model holds `@foldkit/ui` Menus, one for the
  * menu and one per row with `items`, so each keeps its own keys, typeahead and
  * rows, and `update` sorts out which Menu a key belongs to. A plain menu is a
  * menu none of whose rows have `items`, and a context menu is the same menu
- * with `opensAt: 'point'`: there is no second component for either, since a
- * submenu, a button and a point are each one difference in the same Model.
- *
- * The panel (`MenuSlots`, `toView`, `fluid`, `overlayBars`) is what every
- * menu draws, whoever keeps its Model: the component draws each of its Menus
- * through it, Menubar draws its menus through it, and an application that
- * folds `@foldkit/ui`'s Menu itself (for typed items or groups, which the
- * component's rows do not have) passes `toView` as that Menu's `toView`. One
- * recipe, `Recipes.Menu`, styles every panel and the rows' words and chevrons.
+ * with `opensAt: 'point'`: a submenu, a button and a point are each one
+ * difference in the same Model.
  *
  * Submenus are one level deep. A submenu is drawn inside its row, so its own
  * anchor places it beside the row: its button is a mark the size of the row
