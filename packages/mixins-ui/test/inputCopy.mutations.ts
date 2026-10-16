@@ -72,4 +72,15 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'the input and the button keep the group corner',
+    edits: [
+      {
+        file: '../src/recipes/inputCopy.ts',
+        find: 'const inner = `calc(${ref.radius.md} - ${ref.border.thin})`',
+        replace: 'const inner = ref.radius.md',
+      },
+    ],
+    tests: [unit],
+  },
 ]

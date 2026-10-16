@@ -89,3 +89,14 @@ describe('InputCopy.Copy', () => {
     expect(written).toEqual(['late'])
   })
 })
+
+describe('InputCopy recipe', () => {
+  const css = Style.forSlots(InputCopySlots)(Recipes.InputCopy({})).css
+
+  it('rounds the input and the button to the corner inside the group border', () => {
+    expect(css).toMatch(/border-start-start-radius:[^;}]*calc\(/)
+    expect(css).toMatch(/border-end-start-radius:[^;}]*calc\(/)
+    expect(css).toMatch(/border-start-end-radius:[^;}]*calc\(/)
+    expect(css).toMatch(/border-end-end-radius:[^;}]*calc\(/)
+  })
+})
