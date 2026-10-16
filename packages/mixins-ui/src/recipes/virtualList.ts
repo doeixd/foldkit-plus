@@ -12,8 +12,10 @@ import { bar, overlaidChild, thumb } from './scrollBars.js'
 export const VirtualList = Style.recipeFor(VirtualListSlots)({
   base: {
     // One grid cell of at least nothing, so upstream's scrolling list fits the
-    // box; the box fills its container's width, since sized to its content it
-    // took the widest row drawn and changed width as the list scrolled.
+    // box. The box fills its container's width, and where the container takes
+    // its width from the box (an inline block, a flex item), the box offers a
+    // fixed 20rem, not its rows: sized by the rows drawn it took the widest and
+    // changed width as the list scrolled.
     root: Style.compose(
       component(
         Style.self({
@@ -22,6 +24,8 @@ export const VirtualList = Style.recipeFor(VirtualListSlots)({
           gridTemplateRows: 'minmax(0, 1fr)',
           gridTemplateColumns: 'minmax(0, 1fr)',
           inlineSize: '100%',
+          contain: 'inline-size',
+          containIntrinsicInlineSize: '20rem',
           blockSize: '18rem',
           overflow: 'hidden',
           border: `${ref.border.thin} solid ${ref.outline.subtle}`,

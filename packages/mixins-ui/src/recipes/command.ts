@@ -86,8 +86,12 @@ export const Command = Style.recipeFor(CommandSlots)({
       }),
       Style.pseudo('[aria-disabled="true"]', { opacity: '0.5', cursor: 'not-allowed' }),
     ),
+    // A key combination reads left to right in every language: without a
+    // direction of its own, a right to left row draws "⌘N" as "N⌘".
     shortcut: component(
       Style.self({
+        direction: 'ltr',
+        unicodeBidi: 'isolate',
         color: ref.text.muted,
         ...role('caption'),
         fontVariantNumeric: 'tabular-nums',
