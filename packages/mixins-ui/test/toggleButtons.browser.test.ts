@@ -147,7 +147,7 @@ test.each(['light', 'dark'] as const)(
       for (const { variant, tone } of cases) {
         const element = buttonOf(variant, tone, true)
         const nodeId = await nodeOf(`[data-case="${variant} ${tone} true"] button`)
-        const looks = []
+        const looks: Array<Awaited<ReturnType<typeof lookOf>>> = []
         for (const state of states) {
           const look = await lookOf(element, nodeId, state)
           const label = `${variant} ${tone} [${state.join(', ')}]`
