@@ -44,10 +44,13 @@ Recipes.Select({ size: 'lg', variant: 'filled' })
 // @ts-expect-error a variant the select recipe does not offer.
 Recipes.Select({ variant: 'ghost' })
 
-Recipes.RadioGroup({ tone: 'neutral', size: 'lg' })
+Recipes.RadioGroup({ tone: 'neutral', size: 'lg', variant: 'card' })
 
 // @ts-expect-error a tone the radio recipe does not offer.
 Recipes.RadioGroup({ tone: 'brand' })
+
+// @ts-expect-error a variant the radio recipe does not offer.
+Recipes.RadioGroup({ variant: 'raised' })
 
 Recipes.Slider({ tone: 'neutral', size: 'md' })
 Recipes.Toast({})

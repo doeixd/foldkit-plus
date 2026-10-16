@@ -38,9 +38,16 @@ const edge = `var(--_fk-toggle-size, ${ladder('icon')})`
 export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
   base: {
     // A column unless the group says it is a row; upstream's groups are vertical by default.
+    // A row wraps, so three plans on a phone become a second line instead of
+    // overflowing it.
     group: component(
       Style.self({ display: 'flex', flexDirection: 'column', gap: ref.space['2xs'] }),
-      Style.states({ horizontal: { flexDirection: 'row' } }, 'aria-orientation'),
+      Style.states(
+        {
+          horizontal: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
+        },
+        'aria-orientation',
+      ),
     ),
     option: component(
       Style.self({
@@ -89,6 +96,31 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
       neutral: { option: tones.ink },
     },
     size: { sm: { option: sizes.sm }, md: { option: sizes.md }, lg: { option: sizes.lg } },
+    variant: {
+      plain: { group: variant(Style.self({})) },
+      // Each direct label is the card. The checked look reads the radio inside
+      // it, so the row the application draws needs no selected prop of its own.
+      card: {
+        group: variant(
+          Style.self({ gap: ladder('gap') }),
+          Style.nest('& > label', {
+            padding: ladder('row-pad'),
+            border: `${ref.border.thin} solid ${ref.outline.subtle}`,
+            borderRadius: ref.radius.lg,
+            background: ref.surface.base,
+            cursor: 'pointer',
+          }),
+          Style.nest('&[aria-orientation="horizontal"] > label', {
+            flex: '1',
+            minInlineSize: '12rem',
+          }),
+          Style.nest('& > label:has([aria-checked="true"])', {
+            borderColor: ref.outline.default,
+            background: ref.surface.subtle,
+          }),
+        ),
+      },
+    },
   },
-  defaults: { tone: 'accent' },
+  defaults: { tone: 'accent', variant: 'plain' },
 })

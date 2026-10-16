@@ -397,7 +397,10 @@ decides adopt, adapt or skip.
   `horizontal`; an `error` that marks the group invalid; `coverage` and
   `setEnabled` for a select-all, a disabled option counting for neither.
   The gallery shows alerts, descriptions, select-all and invalid.
-- **Radio Group.** Fix (B); card radios, descriptions, horizontal.
+- **Radio Group.** **Checked**: descriptions, a wrapping horizontal row
+  (`orientation: 'Horizontal'`), and `variant: 'card'`, which frames each
+  direct label and fills the one whose radio is checked. The gallery shows
+  all three. The press and the dot were fixed in Part B.
 - **Switch.** RTL (A6); a thumb drag (systems 8, open).
 - **Input OTP.** Fix (B); separators and groups (3-3), masked, numeric or
   alphanumeric, sizes.

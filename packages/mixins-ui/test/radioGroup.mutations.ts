@@ -4,6 +4,7 @@
  * test fails for every one.
  */
 const browser = ['packages/mixins-ui/test/radioGroup.browser.test.ts']
+const recipes = ['packages/mixins-ui/test/recipes.test.ts']
 
 export default [
   {
@@ -22,10 +23,27 @@ export default [
     edits: [
       {
         file: '../src/recipes/radio.ts',
-        find: "      Style.states({ horizontal: { flexDirection: 'row' } }, 'aria-orientation'),\n",
+        find: `      Style.states(
+        {
+          horizontal: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
+        },
+        'aria-orientation',
+      ),
+`,
         replace: '',
       },
     ],
     tests: browser,
+  },
+  {
+    name: 'a chosen card stays the same colour as the rest',
+    edits: [
+      {
+        file: '../src/recipes/radio.ts',
+        find: 'background: ref.surface.subtle,',
+        replace: 'background: ref.surface.base,',
+      },
+    ],
+    tests: [...recipes, ...browser],
   },
 ]

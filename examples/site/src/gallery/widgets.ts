@@ -59,6 +59,8 @@ export const Model = Schema.Struct({
   tabs: UiTabs.Model,
   section: Section,
   billingGroup: UiRadioGroup.Model,
+  billingRow: UiRadioGroup.Model,
+  billingCards: UiRadioGroup.Model,
   billing: Billing,
   /** The slider's volume. */
   volume: Schema.Number,
@@ -132,6 +134,8 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   GotTabs: { message: UiTabs.Message },
   GotBillingGroup: { message: UiRadioGroup.Message },
+  GotBillingRow: { message: UiRadioGroup.Message },
+  GotBillingCards: { message: UiRadioGroup.Message },
   TurnedVolume: { value: Schema.Number },
   GotDialog: { message: UiDialog.Message },
   OpenedDialog: {},
@@ -190,6 +194,8 @@ export const initial: Model = {
   tabs: UiTabs.init({ id: 'preview-tabs' }),
   section: 'overview',
   billingGroup: UiRadioGroup.init({ id: 'preview-billing' }),
+  billingRow: UiRadioGroup.init({ id: 'preview-billing-row' }),
+  billingCards: UiRadioGroup.init({ id: 'preview-billing-cards' }),
   billing: 'yearly',
   volume: 60,
   dialog: UiDialog.init({ id: 'preview-dialog', isAnimated: true }),
@@ -278,17 +284,31 @@ const foldTabs = Update.foldChild({
   }),
 })
 
+const billingOut = UiRadioGroup.OutMessage.match<Step, UiRadioGroup.OutMessage<Billing>>({
+  Selected:
+    ({ value }) =>
+    model =>
+      value === model.billing
+        ? { model }
+        : { model: modifyFields(model, { billing: () => value }) },
+})
+
 const foldBillingGroup = Update.foldChild({
   ...own('billingGroup', Message.GotBillingGroup),
   update: BillingGroup.update,
-  foldOutMessage: UiRadioGroup.OutMessage.match<Step, UiRadioGroup.OutMessage<Billing>>({
-    Selected:
-      ({ value }) =>
-      model =>
-        value === model.billing
-          ? { model }
-          : { model: modifyFields(model, { billing: () => value }) },
-  }),
+  foldOutMessage: billingOut,
+})
+
+const foldBillingRow = Update.foldChild({
+  ...own('billingRow', Message.GotBillingRow),
+  update: BillingGroup.update,
+  foldOutMessage: billingOut,
+})
+
+const foldBillingCards = Update.foldChild({
+  ...own('billingCards', Message.GotBillingCards),
+  update: BillingGroup.update,
+  foldOutMessage: billingOut,
 })
 
 const dialogOut = UiDialog.OutMessage.match<Step>({ Opened: () => same, Closed: () => same })
@@ -508,6 +528,8 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
   Message.match(message, {
     GotTabs: ({ message }) => foldTabs(model, message),
     GotBillingGroup: ({ message }) => foldBillingGroup(model, message),
+    GotBillingRow: ({ message }) => foldBillingRow(model, message),
+    GotBillingCards: ({ message }) => foldBillingCards(model, message),
     TurnedVolume: ({ value }) =>
       value === model.volume ? { model } : { model: modifyFields(model, { volume: () => value }) },
     GotDialog: ({ message }) => foldDialog(model, message),

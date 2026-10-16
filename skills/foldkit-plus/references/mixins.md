@@ -303,7 +303,7 @@ state staying upstream.
 The same call goes in a Submodel's `viewInputs` (`toView: RadioGroup.toView(mixins, { h },
 ({ group, options }) => …)`), with `Value` and `Message` inferred. Draw each radio option as a
 `label` element around its `option` button: upstream's `label` bundle is only an id, so a bare label
-takes no press. `input` is optional: only what an
+takes no press. `Recipes.RadioGroup({ variant: 'card' })` frames each direct `label` and fills the one whose radio is checked; `orientation: 'Horizontal'` on the view lays them in a wrapping row. `input` is optional: only what an
 input-driven Mixin reads. `X.resolve(attributes, mixins, { h, input })` stays for bundles already in
 hand, such as a Calendar whose Mixins read `attributes._tag`. `Listbox`, `Combobox` and `Calendar`'s `toView` take `draw` optionally; without it they draw upstream's
 markup from the styled bundles. `Menu.toView(mixins, { h }, draw?)` draws the component's own markup through `drawMenu` without one. Tabs glide with `Tabs.toView([style.mixin, ...Tabs.fluid], { h }, ({ tablist, indicator, highlight, tabs }) => …)`,

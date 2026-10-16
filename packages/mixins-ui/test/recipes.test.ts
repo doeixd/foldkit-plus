@@ -600,6 +600,12 @@ describe('Recipes', () => {
     it('sits the checked dot on whole pixels, centered at every size', () => {
       expect(css({})).toMatch(/\[aria-checked="true"\]::after\{[^}]*inset:3px/)
     })
+
+    it('fills the card whose radio is checked', () => {
+      expect(css({ variant: 'card' })).toContain('label:has([aria-checked="true"])')
+      expect(css({ variant: 'card' })).toContain('background:var(--fk-surface-subtle)')
+      expect(css({ variant: 'plain' })).not.toContain('label:has([aria-checked="true"])')
+    })
   })
 
   describe('Slider', () => {

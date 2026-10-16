@@ -1094,6 +1094,42 @@ export const showcases: ReadonlyArray<Showcase> = [
         message => live.onWidget(Widgets.Message.GotBillingGroup({ message })),
         live.h,
       ),
+    undefined,
+    [
+      {
+        name: 'descriptions',
+        title: 'Descriptions',
+        draw: (style, live) =>
+          Snippet.radioGroup(
+            style,
+            { group: live.widgets.billingGroup, billing: live.widgets.billing },
+            message => live.onWidget(Widgets.Message.GotBillingGroup({ message })),
+            live.h,
+          ),
+      },
+      {
+        name: 'horizontal',
+        title: 'Horizontal',
+        draw: (style, live) =>
+          Snippet.radioGroupHorizontal(
+            style,
+            { group: live.widgets.billingRow, billing: live.widgets.billing },
+            message => live.onWidget(Widgets.Message.GotBillingRow({ message })),
+            live.h,
+          ),
+      },
+      {
+        name: 'cards',
+        title: 'Cards',
+        draw: (style, live) =>
+          Snippet.radioGroupCards(
+            style,
+            { group: live.widgets.billingCards, billing: live.widgets.billing },
+            message => live.onWidget(Widgets.Message.GotBillingCards({ message })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {

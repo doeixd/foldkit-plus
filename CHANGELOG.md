@@ -21,6 +21,10 @@ version changed; `pnpm` skips versions already in the registry.
   `boundaries?`, `numbered?`, `ends?` and `range?` (with `summaryOf` for
   `"1–10 of 97"` and new `summary`, `first` and `last` slots). Steps take
   per-step `icon`s and vertical `content`.
+- **`foldkit-mixins-ui`: radio cards, and a wrapping row.** `Recipes.RadioGroup`
+  takes `variant: 'card'`, which frames each direct `label` and fills the one
+  whose radio is checked. A horizontal group (`aria-orientation="horizontal"`)
+  wraps. The gallery shows descriptions, a row, and cards.
 - **`foldkit-mixins-ui`: a checkbox group in a row, with an error.**
   `CheckboxGroup` takes `error` (the group is `aria-invalid` and described by
   it) and `orientation`: `vertical` (default) or `horizontal`. The rows sit

@@ -901,7 +901,6 @@ export const tabs = <Message>(
   })
 // #endregion
 
-// #region radio-group
 export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
 
 export const Billing = Schema.Literals(['monthly', 'yearly', 'lifetime'])
@@ -921,11 +920,21 @@ export interface RadioGroupState {
   readonly billing: Billing
 }
 
+/** How this drawing of the plans lays out. Cards frame each label. */
+export interface RadioLayout {
+  readonly orientation?: 'Vertical' | 'Horizontal' | undefined
+  readonly cards?: boolean | undefined
+}
+
+// #region radio-group-descriptions
+const RadioCards = forSlots(RadioGroupSlots)(Recipes.RadioGroup({ variant: 'card' }))
+
 export const radioGroup = <Message>(
   style: NamedStyle<typeof RadioGroupSlots>,
   state: RadioGroupState,
   toMessage: (message: UiRadioGroup.Message) => Message,
   h: HtmlBuilder<Message>,
+  layout: RadioLayout = {},
 ): Html =>
   h.submodel({
     slotId: state.group.id,
@@ -935,32 +944,54 @@ export const radioGroup = <Message>(
       selectedValue: Option.some(state.billing),
       options: Billing.literals,
       ariaLabel: 'Billing',
+      orientation: layout.orientation ?? 'Vertical',
       hasOptionDescription: () => true,
-      toView: RadioGroup.toView<Billing, Message>([style.mixin], { h }, ({ group, options }) =>
-        h.div(
-          group,
-          // A row is a `label` around its radio, so a press on the words
-          // presses the radio.
-          options.map(option =>
-            h.label(
-              [h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'start' })],
-              [
-                h.button(option.option, []),
-                h.span(
-                  [h.Style({ display: 'grid' })],
-                  [
-                    h.span(option.label, [billings[option.value].label]),
-                    h.span(option.description, [billings[option.value].text]),
-                  ],
-                ),
-              ],
+      toView: RadioGroup.toView<Billing, Message>(
+        [style.mixin, ...(layout.cards === true ? [RadioCards.mixin] : [])],
+        { h },
+        ({ group, options }) =>
+          h.div(
+            group,
+            // A row is a `label` around its radio, so a press on the words
+            // presses the radio. The label bundle is only the name's id.
+            options.map(option =>
+              h.label(
+                [h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'start' })],
+                [
+                  h.button(option.option, []),
+                  h.span(
+                    [h.Style({ display: 'grid' })],
+                    [
+                      h.span(option.label, [billings[option.value].label]),
+                      h.span(option.description, [billings[option.value].text]),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
       ),
     },
     toParentMessage: toMessage,
   })
+// #endregion
+
+// #region radio-group-horizontal
+export const radioGroupHorizontal = <Message>(
+  style: NamedStyle<typeof RadioGroupSlots>,
+  state: RadioGroupState,
+  toMessage: (message: UiRadioGroup.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => radioGroup(style, state, toMessage, h, { orientation: 'Horizontal' })
+// #endregion
+
+// #region radio-group-cards
+export const radioGroupCards = <Message>(
+  style: NamedStyle<typeof RadioGroupSlots>,
+  state: RadioGroupState,
+  toMessage: (message: UiRadioGroup.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => radioGroup(style, state, toMessage, h, { cards: true })
 // #endregion
 
 // #region slider

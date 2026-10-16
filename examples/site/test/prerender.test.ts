@@ -293,6 +293,14 @@ describe('the generated site', () => {
           ['invalid', 'Invalid', 'checkboxGroupInvalid'],
         ],
       ],
+      [
+        'radio-group',
+        [
+          ['descriptions', 'Descriptions', 'radioGroup'],
+          ['horizontal', 'Horizontal', 'radioGroupHorizontal'],
+          ['cards', 'Cards', 'radioGroupCards'],
+        ],
+      ],
     ] as const) {
       const generated = page(`/components/${slug}`)
       for (const [name, title, snippet] of examples) {
@@ -310,12 +318,21 @@ describe('the generated site', () => {
   })
 
   test("a press on a radio option's words presses its radio", () => {
-    const radios = Array.from(
-      page('/components/radio-group').querySelectorAll('main [data-size="page"] [role="radio"]'),
+    const groups = Array.from(
+      page('/components/radio-group').querySelectorAll(
+        'main [data-size="page"] [role="radiogroup"]',
+      ),
     )
-    expect(radios).toHaveLength(3)
-    // A label's `control` is the element a press on it is sent to.
-    expect(radios.map(radio => radio.closest('label')?.control)).toEqual(radios)
+    expect(groups).toHaveLength(3)
+    expect(
+      groups.filter(group => group.getAttribute('aria-orientation') === 'horizontal'),
+    ).toHaveLength(1)
+    for (const group of groups) {
+      const radios = Array.from(group.querySelectorAll('[role="radio"]'))
+      expect(radios).toHaveLength(3)
+      // A label's `control` is the element a press on it is sent to.
+      expect(radios.map(radio => radio.closest('label')?.control)).toEqual(radios)
+    }
   })
 
   test('the theme creator draws its knobs, a preview in them, and the code they make', () => {
