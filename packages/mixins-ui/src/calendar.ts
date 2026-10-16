@@ -9,11 +9,12 @@ import type {
   YearCell,
   YearsModeAttributes,
 } from '@foldkit/ui/calendar'
-import { Attr, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import { Array as Arr, Match, Option, Schema } from 'effect'
 import * as Dates from 'foldkit/calendar'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineTaggedUnion } from 'foldkit/schema'
+import { ReadingKeys } from './direction.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
@@ -138,6 +139,25 @@ export type ResolvedCalendar<Message> =
   | ResolvedDays<Message>
   | ResolvedMonths<Message>
   | ResolvedYears<Message>
+
+/**
+ * Arrow keys read by the direction the calendar is drawn in: right to left,
+ * ArrowLeft goes to the next day, month or year, as the APG asks. Upstream's
+ * keys know no direction, and its bundles no view option reaches, so this is a Mount
+ * (`ReadingKeys`) that reads the key before upstream's handler does. Pass it
+ * beside the style where the page may be right to left. It is not built in
+ * because a Scene test must resolve every Mount with a Message, and this one
+ * has none to give.
+ */
+export const readingKeys = Behavior.forSlots(CalendarSlots)<unknown, never>(
+  {
+    root: Behavior.slot({
+      requires: { capability: Capability.Container },
+      mount: () => ReadingKeys(),
+    }),
+  },
+  { name: 'CalendarReadingKeys' },
+).mixin
 
 /** Resolves every mode's nested groups, preserving the `_tag` and heading data. */
 export const resolve = <Input, Message>(

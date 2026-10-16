@@ -1,6 +1,7 @@
 import type { OptionInfo, RenderInfo } from '@foldkit/ui/radioGroup'
-import { Attr, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
+import { ReadingKeys } from './direction.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
@@ -48,6 +49,25 @@ export interface ResolvedRadioGroup<Value extends string, Message> {
   readonly selectedValue: RenderInfo<Value>['selectedValue']
   readonly hiddenInput: SlotAttributes<Message>
 }
+
+/**
+ * Arrow keys read by the direction the group is drawn in: right to left,
+ * ArrowLeft goes to the next option, as the APG asks. Upstream's keys know no
+ * direction, and its bundles no view option reaches, so this is a Mount
+ * (`ReadingKeys`) that reads the key before upstream's handler does. Pass it
+ * beside the style where the page may be right to left. It is not built in
+ * because a Scene test must resolve every Mount with a Message, and this one
+ * has none to give.
+ */
+export const readingKeys = Behavior.forSlots(RadioGroupSlots)<unknown, never>(
+  {
+    group: Behavior.slot({
+      requires: { capability: Capability.Container },
+      mount: () => ReadingKeys(),
+    }),
+  },
+  { name: 'RadioGroupReadingKeys' },
+).mixin
 
 /** Resolves every option's bundles alongside the group and hidden input. */
 export const resolve = <Value extends string, Input, Message>(
