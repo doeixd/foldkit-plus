@@ -494,6 +494,12 @@ describe('Recipes', () => {
       expect(css({})).toMatch(/\[aria-selected="true"\]\{[^}]*background:var\(--fk-accent-subtle\)/)
       expect(css({})).toMatch(/\[aria-selected="true"\]\{[^}]*color:var\(--fk-accent-ink\)/)
     })
+
+    it('leaves the panel its own width unless asked to match the trigger', () => {
+      expect(css({})).not.toContain('var(--button-width')
+      expect(css({ width: 'trigger' })).toContain('min-inline-size:var(--button-width, 14rem)')
+      expect(css({ width: 'auto' })).not.toContain('var(--button-width')
+    })
   })
 
   describe('Combobox', () => {
@@ -507,6 +513,11 @@ describe('Recipes', () => {
 
     it('tints the chosen row like the listbox', () => {
       expect(css({})).toMatch(/\[aria-selected="true"\]\{[^}]*background:var\(--fk-accent-subtle\)/)
+    })
+
+    it('holds the panel to the trigger’s width unless set free', () => {
+      expect(css({})).toContain('min-inline-size:var(--button-width, 14rem)')
+      expect(css({ width: 'auto' })).not.toContain('var(--button-width')
     })
   })
 

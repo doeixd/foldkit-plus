@@ -283,6 +283,18 @@ describe('forked combobox seam', () => {
     expect(render.groups[0]!.items).toHaveLength(3)
   })
 
+  it('draws the panel for the top layer', () => {
+    Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
+      {
+        update: upstreamSingle.update,
+        view: (current, h) => forkSingle.view(current, singleInputs(h), h),
+      },
+      Scene.given(openSingle()),
+      anchoredSingle(),
+      Scene.expect(Scene.selector(panel)).toHaveAttr('popover', 'manual'),
+    )
+  })
+
   it('single enter-select closes with the value', () => {
     Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
       {

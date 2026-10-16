@@ -28,6 +28,7 @@ import {
   whenOption as when,
 } from './menuUtils.js'
 import { drawMenu } from './popupView.js'
+import { topLayer } from './anchor.js'
 
 export type MenuItemRender = Readonly<{
   key: string
@@ -304,7 +305,11 @@ const computeRender = <Item extends string>(
 
   const anchorAttributes = [
     h.Style({ position: 'absolute', margin: '0', visibility: 'hidden' }),
-    h.OnMount(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor })),
+    // The panel draws in the top layer, out of every stacking context and
+    // overflow box; the anchor positions it as before, and light dismiss
+    // stays the application's Messages closing it.
+    h.Attribute('popover', 'manual'),
+    h.OnMount(topLayer(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor }))),
   ]
 
   const wrapper = childAttributes([

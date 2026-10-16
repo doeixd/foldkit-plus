@@ -28,6 +28,7 @@ import {
   rows,
   scroll,
   separator,
+  triggerWidth,
   unlit,
 } from './popup.js'
 import { bar, thumb } from './scrollBars.js'
@@ -103,5 +104,11 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
       sm: { wrapper: steps.sm, items: steps.sm },
       md: { wrapper: steps.md, items: steps.md },
     },
+    width: {
+      /** The panel at least as wide as the trigger, never narrower beside it. */
+      trigger: { items: triggerWidth },
+      auto: {},
+    },
   },
+  defaults: { width: 'trigger' },
 })

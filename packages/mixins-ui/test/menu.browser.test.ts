@@ -271,3 +271,31 @@ test('a right press opens the menu with its rows where it landed, its submenus b
     handle.dispose()
   }
 })
+
+test('an open panel escapes an overflow box: the top layer, not the page flow', async () => {
+  const handle = mount('button', 'ltr', (menu, h) =>
+    h.div(
+      [
+        h.Id('clip-box'),
+        h.Style({ blockSize: '60px', overflow: 'hidden', border: '1px solid transparent' }),
+      ],
+      [menu],
+    ),
+  )
+  try {
+    await toShare()
+    const box = byId('clip-box')!.getBoundingClientRect()
+    const panel = await panelOf('file-items')
+    // Taller than the box, hanging past it.
+    expect(panel.height).toBeGreaterThan(box.height)
+    expect(panel.bottom).toBeGreaterThan(box.bottom + 10)
+    // Painted past it too: the point below the box hits the panel, not the click-away behind it.
+    await vi.waitFor(() => {
+      const hit = document.elementFromPoint(panel.left + 10, box.bottom + 5)
+      expect(hit).not.toBeNull()
+      expect(byId('file-items')!.contains(hit)).toBe(true)
+    })
+  } finally {
+    handle.dispose()
+  }
+})

@@ -270,6 +270,18 @@ describe('forked listbox seam', () => {
     expect(render.hiddenInputs).toEqual([])
   })
 
+  it('draws the panel for the top layer', () => {
+    Scene.scene<SingleModel, Message, UpstreamListbox.OutMessage<Fruit>>(
+      {
+        update: upstreamSingle.update,
+        view: (current, h) => forkSingle.view(current, singleInputs(h), h),
+      },
+      Scene.given(openSingle()),
+      anchoredSingle(),
+      Scene.expect(Scene.selector(panel)).toHaveAttr('popover', 'manual'),
+    )
+  })
+
   it('single pointer-select closes with the value', () => {
     Scene.scene<SingleModel, Message, UpstreamListbox.OutMessage<Fruit>>(
       {

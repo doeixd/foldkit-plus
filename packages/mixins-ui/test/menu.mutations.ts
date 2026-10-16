@@ -4,6 +4,7 @@
  * fails for every one.
  */
 const tests = ['packages/mixins-ui/test/menu.test.ts']
+const browser = ['packages/mixins-ui/test/menu.browser.test.ts']
 
 export default [
   {
@@ -49,5 +50,27 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'an open panel stays in the page flow',
+    edits: [
+      {
+        file: '../src/menuView.ts',
+        find: 'h.OnMount(topLayer(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor })))',
+        replace: 'h.OnMount(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor }))',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a panel without the popover attribute never shows',
+    edits: [
+      {
+        file: '../src/menuView.ts',
+        find: "    h.Attribute('popover', 'manual'),\n",
+        replace: '',
+      },
+    ],
+    tests: browser,
   },
 ]

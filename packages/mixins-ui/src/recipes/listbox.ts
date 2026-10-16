@@ -17,6 +17,7 @@ import {
   rows,
   scroll,
   separator,
+  triggerWidth,
   unlit,
 } from './popup.js'
 import { bar, thumb } from './scrollBars.js'
@@ -68,5 +69,11 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
       sm: { wrapper: steps.sm, items: steps.sm },
       md: { wrapper: steps.md, items: steps.md },
     },
+    width: {
+      /** The panel at least as wide as the trigger, never narrower beside it. */
+      trigger: { items: triggerWidth },
+      auto: {},
+    },
   },
+  defaults: { width: 'auto' },
 })

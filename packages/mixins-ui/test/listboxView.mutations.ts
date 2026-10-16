@@ -107,4 +107,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the panel never reaches the top layer',
+    edits: [
+      {
+        file: '../src/listboxShared.ts',
+        find: "    h.Attribute('popover', 'manual'),\n",
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

@@ -85,4 +85,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the panel never reaches the top layer',
+    edits: [
+      {
+        file: '../src/comboboxShared.ts',
+        find: "    h.Attribute('popover', 'manual'),\n",
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

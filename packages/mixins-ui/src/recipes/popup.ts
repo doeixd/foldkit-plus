@@ -54,6 +54,14 @@ export const scroll: StyleValue = Style.compose(listScroll, overlaid)
 /** The click-away behind an open panel. */
 export const backdrop: StyleValue = component(Style.self({ position: 'fixed', inset: '0' }))
 
+/** The panel at least as wide as the trigger that opened it: upstream's
+ * anchor publishes the trigger's width as `--button-width` on the panel once
+ * positioned, 14rem (the panel's own floor) until then. A panel narrower than
+ * its trigger reads as a mistake beside it. */
+export const triggerWidth: StyleValue = component(
+  Style.self({ minInlineSize: 'var(--button-width, 14rem)' }),
+)
+
 /** A lit row: the theme's tint of the panel's ink, or its accent fill when the menu accent is bold. */
 const lighted = { background: ref.popup.highlight, color: ref.popup['highlight-ink'] }
 

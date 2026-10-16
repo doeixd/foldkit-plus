@@ -15,6 +15,7 @@ import {
   keyToIndex,
   whenOption as when,
 } from './menuUtils.js'
+import { topLayer } from './anchor.js'
 
 export type ComboboxItemRender = Readonly<{
   key: string
@@ -328,11 +329,17 @@ export const computeRender = (
 
   const anchorAttributes = [
     h.Style({ position: 'absolute', margin: '0', visibility: 'hidden' }),
+    // The panel draws in the top layer, out of every stacking context and
+    // overflow box; the anchor positions it as before, and light dismiss
+    // stays the application's Messages closing it.
+    h.Attribute('popover', 'manual'),
     h.OnMount(
-      UpstreamCombobox.AnchorCombobox({
-        buttonId: `${id}-input-wrapper`,
-        anchor,
-      }),
+      topLayer(
+        UpstreamCombobox.AnchorCombobox({
+          buttonId: `${id}-input-wrapper`,
+          anchor,
+        }),
+      ),
     ),
   ]
 

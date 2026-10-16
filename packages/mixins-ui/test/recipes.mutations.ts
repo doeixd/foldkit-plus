@@ -230,4 +230,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a combobox panel sets itself free of its trigger',
+    edits: [
+      {
+        file: '../src/recipes/combobox.ts',
+        find: "  defaults: { width: 'trigger' },",
+        replace: "  defaults: { width: 'auto' },",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'no listbox panel matches its trigger',
+    edits: [
+      {
+        file: '../src/recipes/listbox.ts',
+        find: '      trigger: { items: triggerWidth },',
+        replace: '      trigger: {},',
+      },
+    ],
+    tests,
+  },
 ]
