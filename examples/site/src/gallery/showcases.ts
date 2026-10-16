@@ -1485,6 +1485,31 @@ export const showcases: ReadonlyArray<Showcase> = [
         message => live.onWidget(Widgets.Message.GotDatePicker({ message })),
         live.h,
       ),
+    undefined,
+    [
+      {
+        name: 'single',
+        title: 'A day',
+        draw: (style, live) =>
+          Snippet.datePicker(
+            style,
+            live.widgets,
+            message => live.onWidget(Widgets.Message.GotDatePicker({ message })),
+            live.h,
+          ),
+      },
+      {
+        name: 'range',
+        title: 'A range',
+        draw: (style, live) =>
+          Snippet.datePickerRange(
+            style,
+            { picker: live.widgets.stayPicker, range: live.widgets.stayDates },
+            message => live.onWidget(Widgets.Message.GotStayPicker({ message })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fixed(
     {

@@ -59,6 +59,7 @@ const READ = [
   '/components/kbd',
   '/components/breadcrumb',
   '/components/scroll-area',
+  '/components/date-picker',
   '/create',
 ]
 
@@ -345,6 +346,13 @@ describe('the generated site', () => {
         ],
       ],
       [
+        'date-picker',
+        [
+          ['single', 'A day', 'datePicker'],
+          ['range', 'A range', 'DatePicker.update(range)'],
+        ],
+      ],
+      [
         'kbd',
         [
           ['key', 'A key', "Kbd.view({ key: 'Enter', style }, h)"],
@@ -424,6 +432,14 @@ describe('the generated site', () => {
     expect(group?.textContent).toContain('Pick at least one.')
   })
 
+  test('the range picker submits its dates under one name', () => {
+    const range = page('/components/date-picker').getElementById('range')?.closest('section')
+    expect(range?.querySelector('[data-size="page"] button')?.textContent).toBe('Pick your dates')
+    expect(
+      range?.querySelectorAll('[data-size="page"] input[type="hidden"][name="stay"]'),
+    ).toHaveLength(1)
+  })
+
   test('a key combination is one kbd holding a kbd per key', () => {
     const combo = page('/components/kbd').getElementById('combo')?.closest('section')
     const keys = Array.from(combo?.querySelectorAll('[data-size="page"] kbd > kbd') ?? [])
@@ -440,6 +456,12 @@ describe('the generated site', () => {
     expect(
       groups.filter(group => group.getAttribute('aria-orientation') === 'horizontal'),
     ).toHaveLength(1)
+    // Each row is the card slot, marked while its option is checked.
+    expect(
+      groups.map(group =>
+        Array.from(group.querySelectorAll('label'), row => row.getAttribute('data-checked')),
+      ),
+    ).toEqual(groups.map(() => ['false', 'true', 'false']))
     for (const group of groups) {
       const radios = Array.from(group.querySelectorAll('[role="radio"]'))
       expect(radios).toHaveLength(3)

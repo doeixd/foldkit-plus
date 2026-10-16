@@ -23,6 +23,7 @@ import {
 import {
   Accordion,
   CheckboxGroup,
+  DatePicker,
   Dialog,
   Menubar,
   Resizable,
@@ -100,6 +101,9 @@ export const Model = Schema.Struct({
   selection: DateSelection.Selection,
   picker: UiDatePicker.Model,
   due: Schema.Option(Calendar.CalendarDate),
+  /** The range picker, and the nights it holds. */
+  stayPicker: UiDatePicker.Model,
+  stayDates: DateSelection.Selection,
   notices: Notices.Model,
   range: Range,
   /** The accordion's open sections. */
@@ -178,6 +182,7 @@ export const Message = defineMessageUnion({
   GotCombobox: { message: UiCombobox.Message },
   GotCalendar: { message: UiCalendar.Message },
   GotDatePicker: { message: UiDatePicker.Message },
+  GotStayPicker: { message: UiDatePicker.Message },
   GotNotices: { message: Notices.Message },
   SavedDraft: {},
   ChoseRange: { range: Range },
@@ -252,6 +257,13 @@ export const initial: Model = {
     maxDate: Calendar.addYears(today, 5),
   }),
   due: Option.none(),
+  stayPicker: UiDatePicker.init({
+    id: 'preview-stay',
+    today,
+    minDate: today,
+    maxDate: Calendar.addYears(today, 1),
+  }),
+  stayDates: DateSelection.empty('Range'),
   notices: Notices.init({ id: 'preview-notices' }),
   range: 'week',
   faq: ['billing'],
@@ -557,6 +569,26 @@ const foldDatePicker = Update.foldChild({
   }),
 })
 
+// The range is read when the Message arrives: it decides whether a day closes the panel.
+const foldStayPicker = (model: Model, message: UiDatePicker.Message) =>
+  Update.foldChild({
+    ...own('stayPicker', Message.GotStayPicker),
+    update: DatePicker.update(model.stayDates),
+    foldOutMessage: UiDatePicker.OutMessage.match<Step>({
+      SelectedDate:
+        ({ date }) =>
+        model => ({
+          model: modifyFields(model, {
+            stayDates: () => DateSelection.picked(model.stayDates, date),
+          }),
+        }),
+      ClearedDate: () => model => ({
+        model: modifyFields(model, { stayDates: () => DateSelection.empty('Range') }),
+      }),
+      ChangedViewMonth: () => same,
+    }),
+  })(model, message)
+
 const noticesField = own('notices', Message.GotNotices)
 const noticesOut = Notices.OutMessage.match<Step>({ DismissedToast: () => same })
 const foldNotices = Update.foldChild({
@@ -665,6 +697,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotCombobox: ({ message }) => foldCombobox(model, message),
     GotCalendar: ({ message }) => foldCalendar(model, message),
     GotDatePicker: ({ message }) => foldDatePicker(model, message),
+    GotStayPicker: ({ message }) => foldStayPicker(model, message),
     GotNotices: ({ message }) => foldNotices(model, message),
     ChoseRange: ({ range }) =>
       range === model.range ? { model } : { model: modifyFields(model, { range: () => range }) },

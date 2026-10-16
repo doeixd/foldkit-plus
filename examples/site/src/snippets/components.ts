@@ -1109,7 +1109,8 @@ export const tabs = <Message>(
       selectedValue: state.section,
       ariaLabel: 'Project',
       toView: Tabs.toView<Section, Message>(
-        [style.mixin, ...Tabs.fluid],
+        // Arrow keys follow the page's direction: ArrowLeft is the next tab right to left.
+        [style.mixin, ...Tabs.fluid, Tabs.readingKeys],
         { h },
         ({ tablist, indicator, highlight, tabs, activeIndex }) =>
           h.div(
@@ -1168,27 +1169,31 @@ export const radioGroup = <Message>(
       ariaLabel: 'Billing',
       orientation,
       hasOptionDescription: () => true,
-      toView: RadioGroup.toView<Billing, Message>([style.mixin], { h }, ({ group, options }) =>
-        h.div(
-          group,
-          // A row is a `label` around its radio, so a press on the words
-          // presses the radio. The label bundle is only the name's id.
-          options.map(option =>
-            h.label(
-              [h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'start' })],
-              [
-                h.button(option.option, []),
-                h.span(
-                  [h.Style({ display: 'grid' })],
-                  [
-                    h.span(option.label, [billings[option.value].label]),
-                    h.span(option.description, [billings[option.value].text]),
-                  ],
-                ),
-              ],
+      toView: RadioGroup.toView<Billing, Message>(
+        [style.mixin, RadioGroup.readingKeys],
+        { h },
+        ({ group, options }) =>
+          h.div(
+            group,
+            // A row is a `label` around its radio, so a press on the words
+            // presses the radio. The label bundle is only the name's id; the
+            // row is the `card` slot, which the card variant frames.
+            options.map(option =>
+              h.label(
+                [...option.card, h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'start' })],
+                [
+                  h.button(option.option, []),
+                  h.span(
+                    [h.Style({ display: 'grid' })],
+                    [
+                      h.span(option.label, [billings[option.value].label]),
+                      h.span(option.description, [billings[option.value].text]),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
       ),
     },
     toParentMessage: toMessage,
@@ -1769,11 +1774,8 @@ export const calendar = <Message>(
       slotId: id,
       model,
       view: UiCalendar.view,
-      viewInputs: {
-        // The marks show the chosen days; the Calendar's own marker would show one.
-        maybeSelectedDate: Calendar.selectedDate(selection),
-        toView: Calendar.toView(selection, [style.mixin], { h }),
-      },
+      // The marks and upstream's selected day, both from the one selection.
+      viewInputs: Calendar.inputs(selection, [style.mixin, Calendar.readingKeys], { h }),
       toParentMessage,
     })
   return h.div(
@@ -1786,7 +1788,7 @@ export const calendar = <Message>(
 }
 // #endregion
 
-// #region date-picker
+// #region date-picker-single
 export const DatePickerStyle = forSlots(DatePickerSlots)(Recipes.DatePicker({}))
 const PanelCalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({ size: 'sm' }))
 
@@ -1823,7 +1825,64 @@ export const datePicker = <Message>(
         h.span([], [Option.match(due, { onNone: () => 'Pick a due date', onSome: dayOf })]),
       toCalendarView: Calendar.toView(
         Calendar.Selection.Single({ date: state.due }),
-        [PanelCalendarStyle.mixin],
+        [PanelCalendarStyle.mixin, Calendar.readingKeys],
+        { h },
+      ),
+      toView: DatePicker.toView([style.mixin]),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region date-picker-range
+// A range in a popover: the application's update is `DatePicker.update(range)`,
+// which keeps the panel open until both ends are picked. Under `name`, the
+// form submits the start and then the end.
+export interface DateRangeState {
+  readonly picker: UiDatePicker.Model
+  readonly range: Calendar.Selection
+}
+
+const endOf = (end: Option.Option<FoldkitCalendar.CalendarDate>, missing: string): string =>
+  Option.match(end, { onNone: () => missing, onSome: dayOf })
+
+export const datePickerRange = <Message>(
+  style: NamedStyle<typeof DatePickerSlots>,
+  state: DateRangeState,
+  toMessage: (message: UiDatePicker.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.picker.id,
+    model: state.picker,
+    view: DatePickerView.view,
+    viewInputs: {
+      anchor: {
+        placement: 'bottom-start',
+        gap: 4,
+        padding: 8,
+        isPlacementLocked: true,
+        portal: false,
+      },
+      selection: state.range,
+      name: 'stay',
+      triggerContent: selection =>
+        h.span(
+          [],
+          [
+            Calendar.Selection.match(selection, {
+              Range: ({ start, end }) =>
+                Option.isNone(start)
+                  ? 'Pick your dates'
+                  : `${endOf(start, '')} – ${endOf(end, 'pick an end')}`,
+              Single: ({ date }) => endOf(date, 'Pick a date'),
+              Multiple: ({ dates }) => `${dates.length} days`,
+            }),
+          ],
+        ),
+      toCalendarView: Calendar.toView(
+        state.range,
+        [PanelCalendarStyle.mixin, Calendar.readingKeys],
         { h },
       ),
       toView: DatePicker.toView([style.mixin]),

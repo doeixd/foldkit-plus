@@ -203,3 +203,28 @@ describe('the checkbox group previews', () => {
     expect(toggled).toEqual({ ...initial.widgets.alerts, invalid: ['digest'] })
   })
 })
+
+describe('the range picker preview', () => {
+  it('takes a start, then an end, from the days picked', () => {
+    const pick = (day: number) =>
+      Message.GotWidget({
+        message: Widgets.Message.GotStayPicker({
+          message: UiDatePicker.Message.GotCalendarMessage({
+            message: UiCalendar.Message.ClickedDay({ date: { year: 2026, month: 11, day } }),
+          }),
+        }),
+      })
+    const started = update(initial, pick(12)).model
+    const ended = update(started, pick(9)).model
+    expect([started.widgets.stayDates, ended.widgets.stayDates]).toEqual([
+      DateSelection.Selection.Range({
+        start: Option.some({ year: 2026, month: 11, day: 12 }),
+        end: Option.none(),
+      }),
+      DateSelection.Selection.Range({
+        start: Option.some({ year: 2026, month: 11, day: 9 }),
+        end: Option.some({ year: 2026, month: 11, day: 12 }),
+      }),
+    ])
+  })
+})
