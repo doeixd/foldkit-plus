@@ -58,7 +58,7 @@ const description = component(
 )
 
 const filled: StyleValue = variant(
-  Style.self({ background: ref.surface.subtle, borderColor: 'transparent' }),
+  Style.self({ background: ref.surface.field, borderColor: 'transparent' }),
 )
 const outlined: StyleValue = variant(Style.self({ background: ref.surface.base }))
 

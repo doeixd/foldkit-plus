@@ -210,6 +210,10 @@ describe('Theme.oklch', () => {
     expect(Theme.oklch({ ...knobs, stateHue: 'accent' }).knob['surface-ink']).toBe('1')
   })
 
+  it('names a separate field ground on the default step', () => {
+    expect(brand.surface.field).toBe('var(--fk-surface-default)')
+  })
+
   it('records the knobs as literals, with defaults filled', () => {
     expect(brand.knob['accent-h']).toBe('280')
     expect(brand.knob['accent-l']).toBe('60%')

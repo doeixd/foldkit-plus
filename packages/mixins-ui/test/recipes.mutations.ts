@@ -252,4 +252,20 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a filled field takes the page-adjacent tint',
+    edits: [
+      {
+        file: '../src/recipes/field.ts',
+        find: 'background: ref.surface.field, borderColor',
+        replace: 'background: ref.surface.subtle, borderColor',
+      },
+      {
+        file: '../src/recipes/select.ts',
+        find: 'background: ref.surface.field, borderColor',
+        replace: 'background: ref.surface.subtle, borderColor',
+      },
+    ],
+    tests,
+  },
 ]

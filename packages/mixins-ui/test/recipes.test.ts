@@ -521,6 +521,20 @@ describe('Recipes', () => {
     })
   })
 
+  describe('Input and Textarea', () => {
+    const inputCss = (selection: Parameters<typeof Recipes.Input>[0]): string =>
+      Style.forSlots(InputSlots)(Recipes.Input(selection)).css
+    const textareaCss = (selection: Parameters<typeof Recipes.Textarea>[0]): string =>
+      Style.forSlots(TextareaSlots)(Recipes.Textarea(selection)).css
+
+    it('fills from the field ground, not the quieter tint beside it', () => {
+      expect(inputCss({ variant: 'filled' })).toContain('background:var(--fk-surface-field)')
+      expect(textareaCss({ variant: 'filled' })).toContain('background:var(--fk-surface-field)')
+      expect(inputCss({ variant: 'filled' })).not.toContain('background:var(--fk-surface-subtle)')
+      expect(inputCss({ variant: 'outline' })).not.toContain('background:var(--fk-surface-field)')
+    })
+  })
+
   describe('Select', () => {
     const css = (selection: Parameters<typeof Recipes.Select>[0]): string =>
       Style.forSlots(SelectSlots)(Recipes.Select(selection)).css
@@ -534,8 +548,8 @@ describe('Recipes', () => {
     })
 
     it('fills instead of outlining on request', () => {
-      expect(css({ variant: 'filled' })).toContain('background:var(--fk-surface-subtle)')
-      expect(css({ variant: 'outline' })).not.toContain('background:var(--fk-surface-subtle)')
+      expect(css({ variant: 'filled' })).toContain('background:var(--fk-surface-field)')
+      expect(css({ variant: 'outline' })).not.toContain('background:var(--fk-surface-field)')
     })
 
     it('lines an invalid control in error', () => {

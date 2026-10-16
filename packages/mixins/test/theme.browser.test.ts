@@ -74,6 +74,18 @@ test.each(['light', 'dark'] as const)(
 )
 
 test.each(['light', 'dark'] as const)(
+  'in a %s scheme, the field ground stands further off the base than the quieter tint',
+  scheme => {
+    install(scheme)
+    const base = lightnessOf(computed('surface-base'))
+    const field = Math.abs(lightnessOf(computed('surface-field')) - base)
+    const subtle = Math.abs(lightnessOf(computed('surface-subtle')) - base)
+    expect(field, scheme).toBeGreaterThan(0.015)
+    expect(field, scheme).toBeGreaterThan(subtle)
+  },
+)
+
+test.each(['light', 'dark'] as const)(
   'in a %s scheme, the outlines keep the base’s tint and step away from it',
   scheme => {
     install(scheme)

@@ -70,7 +70,7 @@ export const Select = Style.recipeFor(SelectSlots)({
         select: variant(Style.self({ background: ref.surface.base })),
       },
       filled: {
-        select: variant(Style.self({ background: ref.surface.subtle, borderColor: 'transparent' })),
+        select: variant(Style.self({ background: ref.surface.field, borderColor: 'transparent' })),
       },
     },
   },

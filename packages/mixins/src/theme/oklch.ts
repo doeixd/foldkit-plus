@@ -219,6 +219,10 @@ export const oklch = (knobs: OklchKnobs) => {
         `oklch(${v('knob', 'base-l')} calc(${surfaceC} * 0.9) ${neutral})`,
         `oklch(${v('knob', 'base-l-dark')} calc(${surfaceCDark} * 0.9) ${neutral})`,
       ),
+      // A control's resting ground, separate from a neutral surface step so a
+      // field can keep its contrast if the steps move: filled fields read it,
+      // the page reads base.
+      field: v('surface', 'default'),
       // Each step keeps about the base's chroma, so a sidebar, a panel and
       // the page read as one color at a few lightnesses: one with less reads
       // grey on the page, one with more reads as another, bluer color.

@@ -230,4 +230,15 @@ export default [
     ],
     tests: ['packages/mixins/test/themePage.test.ts'],
   },
+  {
+    name: 'a field ground is the page itself',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "      field: v('surface', 'default'),",
+        replace: "      field: v('surface', 'base'),",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts', 'packages/mixins/test/themePage.test.ts'],
+  },
 ]
