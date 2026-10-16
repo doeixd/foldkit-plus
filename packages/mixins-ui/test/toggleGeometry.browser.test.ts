@@ -25,7 +25,7 @@ afterEach(async () => {
   document.body.replaceChildren()
 })
 
-const mount = () => {
+const mount = (motion = '0') => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -37,7 +37,7 @@ const mount = () => {
     checkbox.css +
     toggle.css +
     // Still, so a stretch is read where it ends rather than mid-flight.
-    ':root{--fk-knob-motion:0}'
+    `:root{--fk-knob-motion:${motion}}`
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'toggle-geometry'
@@ -74,6 +74,20 @@ const mount = () => {
         h.button(
           c.checkbox.attrs([h.AriaLabel('mixed'), h.Role('checkbox'), h.AriaChecked('mixed')]),
           [],
+        ),
+        // As under reduced motion, which zeroes `travel`.
+        h.div(
+          [h.Style({ '--fk-knob-travel': '0' })],
+          [
+            h.button(
+              c.checkbox.attrs([
+                h.AriaLabel('still box'),
+                h.Role('checkbox'),
+                h.AriaChecked(false),
+              ]),
+              [],
+            ),
+          ],
         ),
       ],
     )
@@ -139,19 +153,49 @@ const mark = (label: string) => {
     width: Number.parseFloat(style.inlineSize),
     height: Number.parseFloat(style.blockSize),
     rotate: style.rotate,
+    clipPath: style.clipPath,
+    duration: style.transitionDuration,
   }
 }
 
-test('a checked box shows its mark, and a mixed one is a dash', async () => {
+/** How much of the mark's box its `inset()` clip leaves showing, from 0 to 1. */
+const shownOf = ({ width, height, clipPath }: ReturnType<typeof mark>) => {
+  if (clipPath === 'none') return 1
+  const match = /^inset\(([^)]*)\)$/.exec(clipPath)
+  if (match === null) throw new Error(`not an inset() clip: ${clipPath}`)
+  const values = match[1]!.split(/\s+/)
+  const [top, right = top, bottom = top, left = right] = values
+  const px = (value: string | undefined, size: number) =>
+    value!.endsWith('%') ? (Number.parseFloat(value!) / 100) * size : Number.parseFloat(value!)
+  const across = Math.max(0, width - px(left, width) - px(right, width)) / width
+  const down = Math.max(0, height - px(top, height) - px(bottom, height)) / height
+  return across * down
+}
+
+// Every box draws its mark so that checking can wipe it in; only the clip
+// says whether it shows, so the clip is what each case reads.
+test('a checked box shows its check, an unchecked one none, and a mixed one a dash', async () => {
   const handle = mount()
   try {
     await drawn()
-    const checked = mark('checked')
-    expect(checked.rotate).toBe('45deg')
+    expect(shownOf(mark('checked'))).toBe(1)
+    expect(shownOf(mark('box'))).toBe(0)
     const mixed = mark('mixed')
+    expect(shownOf(mixed)).toBe(1)
     // A dash runs across the box. The check's own box is taller than it is wide.
     expect(mixed.width).toBeGreaterThan(mixed.height * 2)
     expect(mixed.rotate).toBe('none')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('the check wipes in over time, and at once under reduced motion', async () => {
+  const handle = mount('1')
+  try {
+    await drawn()
+    expect(Number.parseFloat(mark('box').duration)).toBeGreaterThan(0)
+    expect(mark('still box').duration).toBe('0s')
   } finally {
     handle.dispose()
   }

@@ -44,4 +44,55 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'no checked box shows its check',
+    edits: [
+      {
+        file,
+        find: "Style.pseudo(`${checked}::after`, { clipPath: 'inset(0 0 0 0)' }),",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'every unchecked box shows a check',
+    edits: [
+      { file, find: "clipPath: 'inset(0 100% 100% 0)'", replace: "clipPath: 'inset(0 0 0 0)'" },
+    ],
+    tests,
+  },
+  {
+    name: 'the check wipes in under reduced motion too',
+    edits: [
+      {
+        file,
+        find: 'transitionDuration: travelled(ref.motion.fast)',
+        replace: 'transitionDuration: ref.motion.fast',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a mixed box keeps the check mark box',
+    edits: [
+      {
+        file,
+        find: "inlineSize: 'auto',\n        blockSize: 'auto',\n        border: '0',\n        rotate: 'none',",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a mixed box keeps the check clipped away',
+    edits: [
+      {
+        file,
+        find: "rotate: 'none',\n        clipPath: 'inset(0 0 0 0)',",
+        replace: "rotate: 'none',",
+      },
+    ],
+    tests,
+  },
 ]

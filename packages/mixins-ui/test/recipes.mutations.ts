@@ -268,31 +268,4 @@ export default [
     ],
     tests,
   },
-  {
-    name: 'a checked box shows its mark at once',
-    edits: [
-      {
-        file: '../src/recipes/toggle.ts',
-        find: 'transitionDuration: travelled(ref.motion.fast)',
-        replace: 'transitionDuration: ref.motion.fast',
-      },
-      {
-        file: '../src/recipes/toggle.ts',
-        find: "clipPath: 'inset(0 100% 100% 0)'",
-        replace: "clipPath: 'inset(0 0 0 0)'",
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a mixed box keeps the check mark box',
-    edits: [
-      {
-        file: '../src/recipes/toggle.ts',
-        find: "inlineSize: 'auto',\n        blockSize: 'auto',\n        border: '0',\n        rotate: 'none',",
-        replace: "clipPath: 'inset(0 0 0 0)',",
-      },
-    ],
-    tests,
-  },
 ]
