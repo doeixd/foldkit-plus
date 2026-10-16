@@ -45,8 +45,10 @@ const mount = () => {
       view: UiHoverIntent.view,
       viewInputs: {
         toView: HoverIntent.toView([style.mixin], { h }, ({ trigger, panel, isVisible }) =>
+          // Centred in a row, so a card standing in the flow beside the
+          // trigger would push it aside: at the left edge, it would not.
           h.div(
-            [],
+            [h.Style({ display: 'flex', justifyContent: 'center' })],
             [
               h.button([...trigger, h.Type('button')], ['@ada']),
               ...(isVisible ? [h.div([...panel, h.AriaLabel('card')], ['Ada Lovelace'])] : []),
@@ -94,7 +96,7 @@ test('the open card stands outside the flow: its trigger stays where it was', as
       expect(card()).not.toBeNull()
       return card()!
     })
-    expect(getComputedStyle(open).position).toBe('absolute')
+    expect(open.getBoundingClientRect().width).toBeGreaterThan(0)
     const after = trigger.getBoundingClientRect()
     expect([after.x, after.y]).toEqual([before.x, before.y])
   } finally {
