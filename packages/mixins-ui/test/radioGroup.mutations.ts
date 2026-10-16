@@ -4,7 +4,6 @@
  * test fails for every one.
  */
 const browser = ['packages/mixins-ui/test/radioGroup.browser.test.ts']
-const recipes = ['packages/mixins-ui/test/recipes.test.ts']
 
 export default [
   {

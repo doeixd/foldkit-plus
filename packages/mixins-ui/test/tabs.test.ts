@@ -4,7 +4,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import * as TabsUi from '@foldkit/ui/tabs'
 import { Behavior, Event, Style, type MixinValue } from 'foldkit-mixins'
 import { Tabs, TabsSlots, type ResolvedTabs } from '../src/index.js'
-import { classValue, diagnosticFrom, holds, preserves } from './fixture.js'
+import { classValue, diagnosticFrom, preserves } from './fixture.js'
 
 type DemoValue = 'overview' | 'settings'
 

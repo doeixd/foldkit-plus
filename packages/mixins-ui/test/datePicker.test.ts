@@ -23,7 +23,6 @@ type Model = UpstreamDatePicker.Model
 const today = Calendar.make(2026, 4, 13)
 const id = 'picker'
 const trigger = `#${id}-popover-button`
-const panel = `#${id}-popover-panel`
 
 const inputsOf = (
   h: HtmlBuilder<Message>,

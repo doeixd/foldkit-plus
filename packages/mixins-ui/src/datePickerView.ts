@@ -17,7 +17,6 @@
 import { Option, Predicate, Schema } from 'effect'
 import * as Calendar from 'foldkit/calendar'
 import * as UiCalendar from '@foldkit/ui/calendar'
-import * as UpstreamDatePicker from '@foldkit/ui/datePicker'
 import { Message } from '@foldkit/ui/datePicker'
 import type { Model, ViewInputs as UpstreamViewInputs } from '@foldkit/ui/datePicker'
 import * as Popover from '@foldkit/ui/popover'
