@@ -2,6 +2,7 @@ import type { RenderInfo, TabInfo } from '@foldkit/ui/tabs'
 import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { FluidHover, Measure } from 'foldkit-primitives/dom'
+import { FollowDirection } from './direction.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
@@ -79,6 +80,16 @@ export const fluid = [
       }),
     },
     { name: 'TabsHover' },
+  ).mixin,
+  // Measured again when the direction flips, which resizes nothing.
+  Behavior.forSlots(TabsSlots)<unknown, never>(
+    {
+      tablist: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => FollowDirection(),
+      }),
+    },
+    { name: 'TabsDirection' },
   ).mixin,
 ] as const
 

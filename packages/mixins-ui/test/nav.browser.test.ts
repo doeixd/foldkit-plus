@@ -95,3 +95,38 @@ test('without Nav.fluid the current link marks itself and the overlays show noth
     handle.dispose()
   }
 })
+
+/**
+ * Nothing else that would measure again: no transition (a logical side that
+ * flips runs one), and items of a fixed width, since their words shaped right
+ * to left can differ by a fraction of a pixel and resize them.
+ */
+const stillAll = () => {
+  const still = document.createElement('style')
+  still.dataset['test'] = ''
+  still.textContent = '* { transition: none !important; } a { inline-size: 6rem; }'
+  document.head.append(still)
+}
+
+const settled = async () => {
+  for (let frame = 0; frame < 3; frame++) await new Promise(done => requestAnimationFrame(done))
+}
+
+test('when the page turns right to left, the indicator follows the current link', async () => {
+  stillAll()
+  const handle = mount(true)
+  try {
+    await vi.waitFor(() => expect(spans(part(0), link('docs'))).toBe(true))
+    // Past the frames its first measures are asked for in.
+    await settled()
+    const before = link('docs').getBoundingClientRect().left
+    document.documentElement.dir = 'rtl'
+    await vi.waitFor(() => {
+      expect(link('docs').getBoundingClientRect().left).not.toBe(before)
+      expect(spans(part(0), link('docs'))).toBe(true)
+    })
+  } finally {
+    handle.dispose()
+    document.documentElement.removeAttribute('dir')
+  }
+})

@@ -2,6 +2,7 @@ import type { ItemInfo, RenderInfo } from '@foldkit/ui/nav'
 import { Behavior, Capability, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { FluidHover, Measure } from 'foldkit-primitives/dom'
+import { FollowDirection } from './direction.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
@@ -121,5 +122,15 @@ export const fluid = [
       }),
     },
     { name: 'NavHover' },
+  ).mixin,
+  // Measured again when the direction flips, which resizes nothing.
+  Behavior.forSlots(NavSlots)<unknown, never>(
+    {
+      list: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => FollowDirection(),
+      }),
+    },
+    { name: 'NavDirection' },
   ).mixin,
 ] as const

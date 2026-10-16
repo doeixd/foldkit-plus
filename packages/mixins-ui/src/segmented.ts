@@ -10,6 +10,7 @@ import {
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { FluidHover, Measure } from 'foldkit-primitives/dom'
+import { FollowDirection } from './direction.js'
 import { flipped } from './choices.js'
 import type { MixinList } from './resolve.js'
 
@@ -73,6 +74,16 @@ export const fluid = [
       }),
     },
     { name: 'SegmentedHover' },
+  ).mixin,
+  // Measured again when the direction flips, which resizes nothing.
+  Behavior.forSlots(SegmentedSlots)<unknown, never>(
+    {
+      group: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => FollowDirection(),
+      }),
+    },
+    { name: 'SegmentedDirection' },
   ).mixin,
 ] as const
 

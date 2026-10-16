@@ -106,3 +106,40 @@ test('right to left, the pill still sits under the pressed option', async () => 
     document.body.dir = ''
   }
 })
+
+/**
+ * Nothing else that would measure again: no transition (a logical side that
+ * flips runs one), and items of a fixed width, since their words shaped right
+ * to left can differ by a fraction of a pixel and resize them.
+ */
+const stillAll = () => {
+  const still = document.createElement('style')
+  still.dataset['test'] = ''
+  still.textContent = '* { transition: none !important; } button { inline-size: 6rem; }'
+  document.head.append(still)
+}
+
+const settled = async () => {
+  for (let frame = 0; frame < 3; frame++) await new Promise(done => requestAnimationFrame(done))
+}
+
+test('when the page turns right to left, the pill follows the pressed option', async () => {
+  stillAll()
+  const handle = mount(true)
+  // The page's direction, not the body's, which the fixture sets.
+  document.body.removeAttribute('dir')
+  try {
+    await vi.waitFor(() => expect(spans(part(0), option('Week'))).toBe(true))
+    // Past the frames its first measures are asked for in.
+    await settled()
+    const before = option('Week').getBoundingClientRect().left
+    document.documentElement.dir = 'rtl'
+    await vi.waitFor(() => {
+      expect(option('Week').getBoundingClientRect().left).not.toBe(before)
+      expect(spans(part(0), option('Week'))).toBe(true)
+    })
+  } finally {
+    handle.dispose()
+    document.documentElement.removeAttribute('dir')
+  }
+})

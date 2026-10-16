@@ -61,4 +61,21 @@ export default [
     edits: [{ file: recipe, find: "left: '0',", replace: "insetInlineStart: '0'," }],
     tests,
   },
+  {
+    name: 'a direction flipped after mount leaves the indicator where it was',
+    // A Mount that does nothing here in its place, imported so the mutant still loads.
+    edits: [
+      {
+        file: adapter,
+        find: "import { FluidHover, Measure } from 'foldkit-primitives/dom'",
+        replace: "import { FluidHover, FollowTabStop, Measure } from 'foldkit-primitives/dom'",
+      },
+      {
+        file: adapter,
+        find: 'mount: () => FollowDirection(),',
+        replace: 'mount: () => FollowTabStop(),',
+      },
+    ],
+    tests,
+  },
 ]
