@@ -53,7 +53,8 @@ export const collapsedOf = (
   readonly after: ReadonlyArray<BreadcrumbStep>
 } => {
   const kept = Math.max(2, Math.floor(max))
-  if (steps.length <= kept) return { before: steps, hidden: [], after: [] }
+  // No maximum to fold to (`NaN`) folds nothing, as `Infinity` does.
+  if (Number.isNaN(kept) || steps.length <= kept) return { before: steps, hidden: [], after: [] }
   return {
     before: steps.slice(0, 1),
     hidden: steps.slice(1, steps.length - (kept - 1)),

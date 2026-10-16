@@ -30,7 +30,8 @@ export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
           padding: '0',
           listStyle: 'none',
         }),
-        Style.nest(between, { marginInlineEnd: ref.space.xs, color: ref.text.muted }),
+        // No margin of its own: the step's gap after it is the list's gap before it.
+        Style.nest(between, { color: ref.text.muted }),
       ),
       // In the axis's layer, and one attribute more specific, so it beats any separator chosen.
       variant(Style.nest(`&[data-separator="custom"] > li + li::before`, { content: 'none' })),

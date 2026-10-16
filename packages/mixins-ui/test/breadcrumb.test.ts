@@ -61,6 +61,13 @@ describe('collapsedOf', () => {
     expect(after).toEqual([])
   })
 
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])('folds nothing for a maximum of %s', max => {
+    const { before, hidden, after } = collapsedOf(long, max)
+    expect(labels(before)).toEqual(labels(long))
+    expect(hidden).toEqual([])
+    expect(after).toEqual([])
+  })
+
   it('never keeps fewer than the first and the last', () => {
     const { before, after } = collapsedOf(long, 0)
     expect(labels(before)).toEqual(['Home'])

@@ -105,4 +105,20 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the separator keeps a margin of its own after it',
+    edits: [
+      {
+        file: '../src/recipes/breadcrumb.ts',
+        find: 'Style.nest(between, { color: ref.text.muted }),',
+        replace: 'Style.nest(between, { marginInlineEnd: ref.space.xs, color: ref.text.muted }),',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/breadcrumb.browser.test.ts'],
+  },
+  {
+    name: 'a maximum of NaN folds the trail into itself',
+    edits: [{ file: '../src/breadcrumb.ts', find: 'Number.isNaN(kept) || ', replace: '' }],
+    tests,
+  },
 ]
