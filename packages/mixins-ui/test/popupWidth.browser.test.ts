@@ -19,6 +19,8 @@ const style = Style.forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger' })
 // recipe's bases, it would win over a selection placed there too.
 const base = Style.forSlots(ListboxSlots)({
   items: Layers.standard.in('components', Style.self({ minInlineSize: '0' })),
+  // Far wider than the rows, so a panel sized to them falls short.
+  button: Style.inline({ inlineSize: '30rem' }),
 })
 const Frequencies = ListboxView.create<string>()
 
@@ -57,8 +59,6 @@ test("a panel set to its trigger's width keeps it against a later base rule", as
             maybeSelectedValue: Option.none(),
             itemToConfig: (frequency: string) => ({ content: h.span([], [frequency]) }),
             buttonContent: h.span([], ['Frequency']),
-            // Far wider than the rows, so a panel sized to them falls short.
-            buttonAttributes: [h.Style({ inlineSize: '30rem' })],
             toView: Listbox.toView([style.mixin, base.mixin], { h }),
           },
           h,
