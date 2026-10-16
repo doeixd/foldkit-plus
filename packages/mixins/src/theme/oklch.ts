@@ -55,6 +55,15 @@ export interface OklchKnobs {
     readonly error?: number
     readonly info?: number
   }
+  /**
+   * What a hover is made of: `neutral` mixes the element's own text, as
+   * before; `surface` (the default) mixes a painted surface's own paint where
+   * one names it (an alert band, a tone's fill), the text elsewhere; `accent`
+   * leans every hover on the accent at low chroma, as Fluid's. One override
+   * changes every component. Painted surfaces read the derived `surface-ink`
+   * knob below (0 in `neutral`), so the choice also switches at runtime.
+   */
+  readonly stateHue?: 'neutral' | 'surface' | 'accent'
 }
 
 const v = (group: string, name: string) => `var(--fk-${group}-${name})`
@@ -192,6 +201,9 @@ export const oklch = (knobs: OklchKnobs) => {
       'state-hover': '12%',
       'state-tint': '8%',
       'state-tint-dark': '25%',
+      // Whether a painted surface names its paint as the state ink: 1,
+      // unless `stateHue` is `neutral`, when every hover mixes the text.
+      'surface-ink': knobs.stateHue === 'neutral' ? '0' : '1',
       'image-edge': '10%',
       // How much lighter each raised level is in a dark scheme.
       'raise-dark': '0.027',
@@ -259,12 +271,18 @@ export const oklch = (knobs: OklchKnobs) => {
       ),
     },
     // What a state lays over the surface under it, after Fluid Functionalism's
-    // overlays: a mix of the element's own text color, which a custom property
-    // resolves on the element that reads it, so a hover reads at any
-    // elevation, on a tinted band, and on an inverted panel alike. `tint` is
-    // a see-through fill, which takes on whatever it sits on (lighter when
-    // hovered, as Fluid's: the press is what darkens). `edge` is a hairline
-    // inside an image, so a pale edge keeps its shape.
+    // overlays. `hover`, `tint` and `tint-hover` mix the element's own text
+    // color: `currentColor` resolves where the film is drawn, so a hover reads
+    // at any elevation, on a tinted band, and on an inverted panel alike. A
+    // film that must take its surface's hue instead reads `--fk-state-ink`
+    // directly (as `unfilledHover` does): a `var()` substitutes where the
+    // token is declared, so a token cannot carry a per-surface ink, but a
+    // property read on the element can. `tint` is a see-through fill, which
+    // takes on whatever it sits on (lighter when hovered, as Fluid's: the
+    // press is what darkens). `edge` is a hairline inside an image, so a pale
+    // edge keeps its shape. `ink` is the state ink where no surface set one:
+    // the text (`surface`), the accent's ink (`accent`), or the text with the
+    // films reading it directly (`neutral`, as before).
     state: {
       hover: `color-mix(in oklab, currentColor ${v('knob', 'state-hover')}, transparent)`,
       tint: ld(
@@ -276,6 +294,7 @@ export const oklch = (knobs: OklchKnobs) => {
         `color-mix(in oklab, currentColor calc(${v('knob', 'state-tint-dark')} * 0.8), transparent)`,
       ),
       edge: `color-mix(in oklab, ${v('text', 'overt')} ${v('knob', 'image-edge')}, transparent)`,
+      ink: knobs.stateHue === 'accent' ? v('accent', 'ink') : 'currentColor',
     },
     // A menu's panel and its lit row, which the popup recipes read.
     popup: {

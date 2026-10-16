@@ -208,4 +208,26 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
+  {
+    name: 'the state ink stays the text in accent mode',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "ink: knobs.stateHue === 'accent' ? v('accent', 'ink') : 'currentColor',",
+        replace: "ink: 'currentColor',",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts', 'packages/mixins/test/themePage.test.ts'],
+  },
+  {
+    name: 'painted surfaces never name their ink',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "'surface-ink': knobs.stateHue === 'neutral' ? '0' : '1',",
+        replace: "'surface-ink': '0',",
+      },
+    ],
+    tests: ['packages/mixins/test/themePage.test.ts'],
+  },
 ]

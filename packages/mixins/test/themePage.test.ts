@@ -196,6 +196,20 @@ describe('Theme.oklch', () => {
     expect(alpha(dark)).toBeGreaterThan(alpha(light))
   })
 
+  it('names the state ink the text, or the accent’s ink', () => {
+    expect(brand.state.ink).toBe('currentColor')
+    const knobs = { accent: { h: 280, c: 0.15, l: '60%' } } as const
+    expect(Theme.oklch({ ...knobs, stateHue: 'neutral' }).state.ink).toBe('currentColor')
+    expect(Theme.oklch({ ...knobs, stateHue: 'accent' }).state.ink).toBe('var(--fk-accent-ink)')
+  })
+
+  it('lets painted surfaces name their ink except in neutral', () => {
+    expect(brand.knob['surface-ink']).toBe('1')
+    const knobs = { accent: { h: 280, c: 0.15, l: '60%' } } as const
+    expect(Theme.oklch({ ...knobs, stateHue: 'neutral' }).knob['surface-ink']).toBe('0')
+    expect(Theme.oklch({ ...knobs, stateHue: 'accent' }).knob['surface-ink']).toBe('1')
+  })
+
   it('records the knobs as literals, with defaults filled', () => {
     expect(brand.knob['accent-h']).toBe('280')
     expect(brand.knob['accent-l']).toBe('60%')
@@ -213,9 +227,12 @@ describe('Theme.oklch', () => {
   })
 
   it('every value outside knob is a reference expression over tokens that exist', () => {
+    // `currentColor` resolves on the element reading the token, so it is the
+    // one live literal a value may be.
     for (const [group, names] of Object.entries(brand)) {
       if (group === 'knob') continue
       for (const [name, value] of Object.entries(names)) {
+        if (value === 'currentColor') continue
         const found = references(value)
         expect(found.length, `${group}.${name} references nothing`).toBeGreaterThan(0)
         for (const [refGroup, refName] of found) {
