@@ -127,3 +127,13 @@ describe('the previews with state', () => {
     expect(again.model.widgets).toBe(chosen.widgets)
   })
 })
+
+describe('the menu previews', () => {
+  it('fade their menus and submenus in and out', () => {
+    for (const menu of [initial.widgets.fileMenu, initial.widgets.pageMenu])
+      expect(
+        [menu.menu, ...menu.submenus.map(submenu => submenu.menu)].map(m => m.isAnimated),
+      ).toEqual([menu.menu, ...menu.submenus].map(() => true))
+    expect(initial.widgets.fileMenu.submenus.length).toBeGreaterThan(0)
+  })
+})

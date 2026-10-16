@@ -168,7 +168,6 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
-
   ChoseSlide: { index: Schema.Number },
   ShowedSlide: {},
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
@@ -203,7 +202,7 @@ export const initial: Model = {
   sheet: UiDialog.init({ id: 'preview-sheet', isAnimated: true }),
   popover: UiPopover.init({ id: 'preview-popover' }),
   tooltip: UiTooltip.init({ id: 'preview-tooltip' }),
-  pageMenu: Menu.init('preview-page-menu', PAGE_MENU),
+  pageMenu: Menu.init('preview-page-menu', PAGE_MENU, { isAnimated: true }),
   pageChoice: Option.none(),
   listbox: UiListbox.init({ id: 'preview-frequency', isAnimated: true }),
   frequency: Option.some('Daily'),
@@ -225,7 +224,7 @@ export const initial: Model = {
   servings: 4,
   code: '',
   hoverCard: UiHoverIntent.init(),
-  fileMenu: Menu.init('preview-file-menu', FILE_MENU),
+  fileMenu: Menu.init('preview-file-menu', FILE_MENU, { isAnimated: true }),
   fileChoice: Option.none(),
   commandQuery: '',
   commandActive: Option.none(),
@@ -547,7 +546,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotTooltip: ({ message }) => foldTooltip(model, message),
     GotHoverCard: ({ message }) => foldHoverCard(model, message),
     GotFileMenu: ({ message }) => foldFileMenu(model, message),
-    // The Menu's own Opened, with its first row active, as a key opening it does.
     TypedCommand: ({ query }) => ({
       model: modifyFields(model, { commandQuery: () => query }),
     }),
