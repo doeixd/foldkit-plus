@@ -9,7 +9,8 @@
  * beside their rows there too. Animated, the menu and its submenus stay
  * drawn while they leave, marked for the recipe's fade.
  */
-import { Option, Schema } from 'effect'
+import { Menu as UiMenu } from '@foldkit/ui'
+import { Match, Option, Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
@@ -17,7 +18,7 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { Menu, MenuSlots, Recipes } from '../src/index.js'
+import { Menu, MenuSlots, MenuView, Recipes } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
 const style = Style.forSlots(MenuSlots)(Recipes.Menu({}))
@@ -359,6 +360,101 @@ test("an animated menu's submenu stays drawn while it leaves, marked for its fad
     const states = await leaving('file-sub-1-items', () => userEvent.keyboard('{ArrowLeft}'))
     expect(states).toContain('closed leave')
     expect(focusedId()).toBe('file-items')
+  } finally {
+    handle.dispose()
+  }
+})
+
+type Action = 'Rename' | 'Duplicate' | 'Delete'
+const Actions = MenuView.create<Action>()
+const AppModel = Schema.Struct({ menu: UiMenu.Model, point: Schema.Option(Menu.Point) })
+type AppModel = typeof AppModel.Type
+type AppMessage =
+  | { readonly _tag: 'GotActions'; readonly message: UiMenu.Message }
+  | { readonly _tag: 'Pressed'; readonly point: Menu.Point }
+  | { readonly _tag: 'AskedToOpen' }
+
+test("an application's own typed, grouped Menu opens at a point through toView", async () => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme))) +
+    style.css
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'actions'
+  document.body.appendChild(container)
+  const fold = (model: AppModel, message: UiMenu.Message) => {
+    const next = Actions.update(model.menu, message)
+    return {
+      model: { ...model, menu: next.model },
+      commands: mapMessages(next.commands ?? [], (inner): AppMessage => ({
+        _tag: 'GotActions',
+        message: inner,
+      })),
+    }
+  }
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: AppModel,
+      container,
+      init: () => ({ model: { menu: UiMenu.init({ id: 'actions' }), point: Option.none() } }),
+      update: (model: AppModel, message: AppMessage) =>
+        Match.valueTags(message, {
+          GotActions: ({ message }) => fold(model, message),
+          Pressed: ({ point }) => ({
+            model: { ...model, point: Option.some(point) },
+            commands: [],
+          }),
+          AskedToOpen: () =>
+            fold(model, UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(0) })),
+        }),
+      view: (model: AppModel, h: HtmlBuilder<AppMessage>) =>
+        h.div(
+          [
+            ...Menu.pointTarget(
+              {
+                onPress: (point): AppMessage => ({ _tag: 'Pressed', point }),
+                onOpen: { _tag: 'AskedToOpen' },
+              },
+              h,
+            ),
+            h.AriaLabel('area'),
+            h.Style({ margin: '80px', padding: '60px' }),
+          ],
+          [
+            'report.pdf',
+            h.submodel({
+              slotId: 'actions',
+              model: model.menu,
+              view: Actions.view,
+              viewInputs: {
+                anchor: { placement: 'bottom-start', gap: 0, padding: 8, portal: false },
+                items: ['Rename', 'Duplicate', 'Delete'],
+                itemGroupKey: (action: Action) => (action === 'Delete' ? 'danger' : 'edit'),
+                itemToConfig: (action: Action) => ({ content: h.span([], [action]) }),
+                buttonContent: h.span([], ['Actions']),
+                toView: Menu.toView([style.mixin], { h }, Menu.drawAtPoint(model.point, h)),
+              },
+              toParentMessage: (message): AppMessage => ({ _tag: 'GotActions', message }),
+            }),
+          ],
+        ),
+    }),
+  )
+  try {
+    const area = await vi.waitFor(() => {
+      const found = document.querySelector<HTMLElement>('[aria-label="area"]')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    await userEvent.click(area, { button: 'right', position: { x: 140, y: 30 } })
+    const box = area.getBoundingClientRect()
+    const panel = await panelOf('actions-items')
+    expect(Math.abs(panel.left - (box.left + 140))).toBeLessThan(12)
+    expect(Math.abs(panel.top - (box.top + 30))).toBeLessThan(12)
+    expect(document.querySelectorAll('#actions-items [role="group"]')).toHaveLength(2)
+    expect(byId('actions-button')?.tabIndex).toBe(-1)
   } finally {
     handle.dispose()
   }

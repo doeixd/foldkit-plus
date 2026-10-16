@@ -9,6 +9,17 @@ const browser = 'packages/mixins-ui/test/menu.browser.test.ts'
 
 export default [
   {
+    name: "an application's Menu drawn at a point keeps its button",
+    edits: [
+      {
+        file,
+        find: 'drawMenu({ ...resolved, button: pointButton(resolved.button, point, h) }, h)',
+        replace: 'drawMenu(resolved, h)',
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'the menu is never animated',
     edits: [
       {
@@ -117,8 +128,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Message.PressedTarget({ point: { x: clientX, y: clientY } })',
-        replace: 'Message.PressedTarget({ point: { x: clientY, y: clientX } })',
+        find: 'options.onPress({ x: clientX, y: clientY })',
+        replace: 'options.onPress({ x: clientY, y: clientX })',
       },
     ],
     tests: [browser],
@@ -128,7 +139,7 @@ export default [
     edits: [
       {
         file,
-        find: '  h.OnContextMenu(onMessage(Message.RequestedContextMenu())),\n',
+        find: '  h.OnContextMenu(options.onOpen),\n',
         replace: '',
       },
     ],

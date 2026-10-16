@@ -284,6 +284,66 @@ export interface Row {
 export const Point = Schema.Struct({ x: Schema.Number, y: Schema.Number })
 export type Point = typeof Point.Type
 
+/** The menu's button at a point: a mark of no size at `point`, or where it is drawn. */
+const pointMark = (point: Option.Option<Point>) => ({
+  ...Option.match(point, {
+    onNone: () => ({}),
+    onSome: ({ x, y }) => ({ position: 'fixed', left: `${x}px`, top: `${y}px` }),
+  }),
+  inlineSize: '0',
+  blockSize: '0',
+  // The Menu recipe gives its button the ladder's height as a minimum, which
+  // would set the rows that much below the press.
+  minInlineSize: '0',
+  minBlockSize: '0',
+  padding: '0',
+  border: '0',
+  overflow: 'hidden',
+  opacity: '0',
+})
+
+/** The button turned into the mark at `point`, with no tab stop: nothing shows where it stands. */
+const pointButton = <Message>(
+  button: SlotAttributes<Message>,
+  point: Option.Option<Point>,
+  h: HtmlBuilder<Message>,
+): SlotAttributes<Message> => [...button, h.Tabindex(-1), h.Style(pointMark(point))]
+
+/**
+ * A `draw` for `toView` that opens a `@foldkit/ui` Menu at a point, for an
+ * application that folds the Menu itself: its button becomes a mark of no
+ * size at `point` (where it is drawn, with none), which the Menu's anchor
+ * places the rows against, so give the anchor no `gap`. The application
+ * keeps the point, from `pointTarget`'s press, and opens the Menu with its
+ * `Opened` Message on `pointTarget`'s `onOpen`.
+ */
+export const drawAtPoint =
+  <Message>(point: Option.Option<Point>, h: HtmlBuilder<Message>) =>
+  (resolved: ResolvedMenu<Message>): Html =>
+    drawMenu({ ...resolved, button: pointButton(resolved.button, point, h) }, h)
+
+export interface PointTargetOptions<Message> {
+  /** A right press on the area, at its point in viewport pixels. */
+  readonly onPress: (point: Point) => Message
+  /** The area's `contextmenu`, which follows a right press, Shift+F10 or the ContextMenu key. */
+  readonly onOpen: Message
+}
+
+/**
+ * The attributes of the area a menu opens in at a point: a right press
+ * reports its point, and the `contextmenu` that follows asks to open, the
+ * browser's own menu kept shut. `target` is this for the component.
+ */
+export const pointTarget = <Message>(
+  options: PointTargetOptions<Message>,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Attribute<Message>> => [
+  h.OnPointerDown((_type, button, _screenX, _screenY, _time, clientX, clientY) =>
+    button === 2 ? Option.some(options.onPress({ x: clientX, y: clientY })) : Option.none(),
+  ),
+  h.OnContextMenu(options.onOpen),
+]
+
 const Submenu = Schema.Struct({
   /** The index of the row it opens from. */
   row: Schema.Number,
@@ -656,14 +716,14 @@ export const update = (model: Model, message: Message): Return =>
 export const target = <ParentMessage>(
   onMessage: (message: Message) => ParentMessage,
   h: HtmlBuilder<ParentMessage>,
-): ReadonlyArray<Attribute<ParentMessage>> => [
-  h.OnPointerDown((_type, button, _screenX, _screenY, _time, clientX, clientY) =>
-    button === 2
-      ? Option.some(onMessage(Message.PressedTarget({ point: { x: clientX, y: clientY } })))
-      : Option.none(),
-  ),
-  h.OnContextMenu(onMessage(Message.RequestedContextMenu())),
-]
+): ReadonlyArray<Attribute<ParentMessage>> =>
+  pointTarget(
+    {
+      onPress: point => onMessage(Message.PressedTarget({ point })),
+      onOpen: onMessage(Message.RequestedContextMenu()),
+    },
+    h,
+  )
 
 export interface MenuViewOptions<ParentMessage> {
   readonly model: Model
@@ -700,24 +760,6 @@ const rowMark = {
   opacity: '0',
   pointerEvents: 'none',
 }
-
-/** The menu's button at a point: a mark of no size at `point`, or where it is drawn. */
-const pointMark = (point: Option.Option<Point>) => ({
-  ...Option.match(point, {
-    onNone: () => ({}),
-    onSome: ({ x, y }) => ({ position: 'fixed', left: `${x}px`, top: `${y}px` }),
-  }),
-  inlineSize: '0',
-  blockSize: '0',
-  // The Menu recipe gives its button the ladder's height as a minimum, which
-  // would set the rows that much below the press.
-  minInlineSize: '0',
-  minBlockSize: '0',
-  padding: '0',
-  border: '0',
-  overflow: 'hidden',
-  opacity: '0',
-})
 
 export const view = <ParentMessage>(
   options: MenuViewOptions<ParentMessage>,
@@ -831,10 +873,7 @@ export const view = <ParentMessage>(
         drawMenu(
           {
             ...resolved,
-            // At a point, no tab stop: nothing shows where the mark stands.
-            button: atPoint
-              ? [...resolved.button, h.Tabindex(-1), h.Style(pointMark(model.point))]
-              : resolved.button,
+            button: atPoint ? pointButton(resolved.button, model.point, h) : resolved.button,
             // On press, ahead of the Menu's own click, which then finds it shut.
             backdrop:
               resolved.backdrop === undefined
