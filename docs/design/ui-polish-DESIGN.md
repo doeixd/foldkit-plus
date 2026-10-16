@@ -166,6 +166,27 @@ submenu scrolls), Combobox (width), Select, Menus.
 - Nested Menu's submenus then live in the top layer too, out of the parent's
   scroll box.
 
+**Done (main panels only).** Proved first: `anchorSetup` with `portal: false`
+positions a showing manual popover correctly and escapes an `overflow: hidden`
+ancestor (a Chromium probe), so no upstream fix was needed for the core. Our
+`Anchor.topLayer` wraps an upstream anchor Mount: it shows the panel around the
+Mount's own acquire and hides it once that Mount releases (a `WeakSet` of shown
+elements, a no-op where the popover API is missing), keeping the Mount's name,
+args and Messages so Scene tests still match. Menu, Listbox and Combobox draw
+their panels with `popover="manual"` and the wrapped Mount; a menu opened
+inside an `overflow: hidden` box paints past it (a browser test hits the panel
+below the box). `sameWidth` is a width axis on Combobox (default `trigger`) and
+Listbox (default `auto`): `min-inline-size: var(--button-width, 14rem)`, the
+`--button-width` upstream's `size` middleware publishes. Collision was already
+upstream's defaults (flip, shift, `size` with a viewport cap).
+**Deferred to upstream support:** submenu and menubar panels, Popover,
+Tooltip, Hover Card, the DatePicker panel and Select render through upstream
+views, whose Mounts attach inside upstream code a wrapper cannot reach (one
+Mount per element; bundle attributes are opaque). Same for modal `<dialog>`
+(their `AcquireResources` Mount) and the arrow slots there. Write-up: upstream
+`anchorSetup`/Anchor Mounts need a `topLayer` they own (show/hide around their
+positioning), so every view above gets it without forks.
+
 ### A5. Scrollbars and scroll areas
 
 **Seen in:** every scrolling surface. Fluid's

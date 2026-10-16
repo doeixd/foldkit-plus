@@ -507,6 +507,17 @@ version changed; `pnpm` skips versions already in the registry.
   hovers lean on the accent). A `var()` substitutes where the token is
   declared, so the state tokens themselves stay text-based; the ink travels
   as its own property, read where the film is drawn.
+- **`foldkit-mixins-ui`: menu, listbox and combobox panels draw in the top
+  layer.** `Anchor.topLayer` wraps an upstream anchor Mount: it shows the panel
+  as a manual popover around the Mount’s own acquire and hides it once that
+  Mount releases, keeping the Mount’s name, args and Messages. The panels
+  carry `popover="manual"`; no stacking context or ancestor `overflow` reaches
+  them, and the anchor positions them as before. A combobox panel is at least
+  as wide as its trigger by default (`width: trigger`, `min-inline-size:
+  var(--button-width, 14rem)`); Listbox takes the same axis defaulting to
+  `auto`. Submenu, menubar, Popover, Tooltip, Hover Card, DatePicker and
+  Select panels, modal `<dialog>` and arrows stay portal-based until upstream
+  owns top-layer mounting (their Mounts attach inside upstream views).
 - **`foldkit-mixins-ui`: one `Menu`, by a button, at a point, or down a
   submenu.** `Menu.init(id, rows)` (a row with `items` hosts a submenu, one
   level deep), folded with `Menu.update`, drawn with `Menu.view({ model,
