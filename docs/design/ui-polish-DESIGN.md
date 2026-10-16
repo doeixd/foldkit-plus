@@ -219,7 +219,12 @@ Sheet) uses the same pieces.
 
 ### A6. Right to left
 
-**Checked, except the deliberate popup-overlay exception below.** Keys: one `readingKey` helper
+**Open again (review, 2026-10-16).** The status below claimed more than a
+fresh build shows: indicators, Color Picker tracks, the Calendar's arrows
+and keys, Command's shortcuts, and the arrow keys of Tabs and a horizontal
+Radio Group are still wrong right to left. See Part E, E3.
+
+**Partly done.** Keys: one `readingKey` helper
 (`packages/mixins-ui/src/direction.ts`) and a `direction?: 'ltr' | 'rtl'
 view option on Menubar, Menu (its submenu opens on the left), TreeView,
 Resizable (keys and drag) and the horizontal Listbox forks; Messages stay
@@ -493,6 +498,220 @@ decides adopt, adapt or skip.
   (hearts), sizes, a label per value, clearing, Home and End.
 - **Resizable.** A nicer handle (grip dots, an accent line on hover),
   vertical, nested both ways, collapsible panels.
+
+## Part E: review of the first pass (2026-10-16)
+
+A first pass over Phases 0–5 (71 commits from 706c393a to 1fe1dad4) was
+reviewed commit by commit by five reviewers, each re-running the tests,
+re-applying the bugs it fixed and measuring a fresh build. What holds:
+the merges ported their tests and lost no tested capability; `nested()`,
+the top layer (left to right), ScrollBars, the state-ink tokens and the
+collapse helper `opensBelow` are sound; OTP, Skeleton, the stacked Radio
+Group, TreeView's collapse and the chevrons are fixed and proven; 27
+mutation specs re-run kill every mutation; unit (940 files) and mixins-ui
+browser (43 files) suites are green. What does not hold is below, grouped
+by the files a fixer owns. Reports: the session scratchpad's `review/`.
+
+The merge commits d2776da6..9ac43085 do not build one by one (each exports
+modules another deletes); bisect must skip them, 5fc1f906 being the first
+green commit. Shared history is not rewritten.
+
+### E1. CI and blockers
+
+- [ ] `examples/site/test/components.mutations.ts:193`: the anchor lost two
+  spaces of indentation when 1fe1dad4 re-indented the radio snippet
+  (`snippets/components.ts:957-958`), so the spec refuses to run and
+  `mutate:check` and `pnpm check` are red. Re-anchor, run `--only`.
+- [ ] Gallery example sections are unnamed: `view/components.ts:204-205`
+  labels each by `example-${name}` while its heading's id is `${name}`.
+  Fix and add the name check to the prerender test.
+- [ ] Top-layer panels open at the wrong side right to left: a shown
+  popover keeps the browser's `inset: 0`, the anchor writes only
+  `left`/`top`, so `right: 0` wins under `<html dir="rtl">`
+  (`menuView.ts:307`, `listboxShared.ts:353`, `comboboxShared.ts:332`).
+  `inset: auto`; a browser test that sets `dir` on `documentElement` (the
+  current one sets it on a wrapper, where the bug does not show). Decide
+  whether to reset the UA popover border, padding and `Canvas` background.
+- [ ] The richtext specs' four rotted anchors (`richtext/test/deleteAcross`,
+  `table`, `richtext-dom/test/hint` ×2) predate this work; leave them to the
+  richtext session, but list them so `mutate:check` red is explained.
+
+### E2. State colour and hovers
+
+- [ ] The default (subtle) Alert's actions and dismiss have no visible
+  hover: on the band, `--fk-state-ink` is the band's tint, so the film is
+  the band over itself (`recipes/alert.ts:184`). Use the band's ink; a
+  browser test for the subtle case.
+- [ ] `stateHue: 'accent'` does not reach neutral and ink tones: they set
+  `--fk-state-ink: currentColor` on the element, overriding the root
+  (`recipes/design.ts:273, 286`), so neutral ghost/outline Buttons, Radio,
+  Slider and Toggle still hover grey; the claim "one override changes every
+  component" (plan, CHANGELOG, skill) is false. Split the names
+  (`--_fk-state-ink` local, `--fk-state-ink` the theme's); a browser test
+  of a neutral ghost button in accent mode.
+- [ ] Pressed toggles (`recipes/button.ts:55, 117, 174`): an outline,
+  ghost or icon toggle pressed and held without hover gets a 16% tint with
+  on-fill text, so the label vanishes; a pressed icon toggle's glyph
+  changes colour on hover; a pressed solid toggle looks unpressed on hover.
+  Fix, and test with computed style under `CSS.forcePseudoState`, not CSS
+  text.
+
+### E3. Right to left (A6, reopened)
+
+- [ ] Segmented, Tabs and Navigation Menu indicators are measured only on
+  draw or resize and stay put after a direction change
+  (`recipes/segmented.ts:26-31`, `tabs.ts:40, 116, 145`, `nav.ts:21-24`):
+  remeasure on a direction change (key by direction as `resizable.ts:172`
+  does, or observe `dir`); a test that flips `dir` after mount.
+- [ ] Color Picker tracks run `to right` while the thumbs mirror
+  (`recipes/colorPicker.ts:27-30`): mirror under `:dir(rtl)`.
+- [ ] Calendar: ArrowLeft moves to the previous day, drawn to the right;
+  the month buttons swap sides but keep `‹`/`›` (`calendar.ts:216, 248`).
+- [ ] Command shortcuts render "N⌘" (`command.ts:89`):
+  `direction: ltr; unicode-bidi: isolate` on the shortcut slot.
+- [ ] Tabs and a horizontal Radio Group do not mirror their arrow keys
+  (only the five components with a `direction` option do).
+- [ ] A `direction` option swaps keys but no view draws `dir`: each view
+  with the option draws `h.Dir(direction)` on its root, so keys and CSS
+  agree (the Resizable README/skill sentence is false without it; a Menu
+  with `direction: 'rtl'` opens its submenu left with a right chevron).
+- [ ] One way to detect RTL: `:dir(rtl)` everywhere, not
+  `:where([dir="rtl"]) &` (accordion, sidebar, treeView, menu), which
+  matches an LTR island in an RTL page.
+- [ ] A browser RTL test per component that has a direction-dependent
+  part, setting `dir` on `documentElement`.
+
+### E4. Tests that cannot fail, and claims marked without proof
+
+- [ ] Hover Card's "trigger stays put" passes with a static card (the
+  fixture is left-aligned): centre the trigger so a card in flow moves it.
+- [ ] InputCopy's corner test is a regex over CSS that passes a wrong
+  radius: measure computed radii; use `nested()` (A2) instead of a
+  hard-coded `radius.md`.
+- [ ] Steps' narrow layout test reads CSS text and passes with
+  `containerType` removed: measure at a narrow width.
+- [ ] da1acf5b replaced the browser test "a held button keeps its size
+  under reduced motion" with a regex; restore it with
+  `CSS.forcePseudoState` (AGENTS.md).
+- [ ] The checkbox browser test asserts a rotation every mark has; test
+  that a checked box shows its check and an unchecked one does not.
+- [ ] Command search's `.toLowerCase()` is untested.
+- [ ] 50a7ef0f flipped about 30 rows to "Checked" with no browser test:
+  Switch RTL, Kbd, Checkbox and Segmented ink centring (use the audit's
+  `ink.mjs` method), Alert and Pagination at 390px, VirtualList. Each gets
+  its measuring test before it is marked again.
+- [ ] A3's test covers TreeView only and skips "never taller than its
+  final height" and "the first label's x never moves": add both, and
+  Sidebar.
+- [ ] `test/menu.mutations.ts:55` removes `topLayer` but keeps
+  `popover="manual"`, hiding the panel; remove both so only the overflow
+  test kills it.
+- [ ] The radio "press" test checks `label.control`; press it.
+- [ ] Badge, kbd, buttonLook and checkbox-recipe mutation specs re-read the
+  CSS line they change: replace with behaviour or computed-style tests.
+
+### E5. Merges and their docs
+
+- [ ] `Menu.init(id, rows)` never passes `isAnimated`, so every Menu snaps
+  (the fade at `recipes/popup.ts:42` never runs; the gallery's menus were
+  animated before): `Menu.init(id, rows, { isAnimated?, isModal? })` for the
+  menu and its submenus, a `data-closed` browser test, the gallery set.
+- [ ] `Menu.view` has no `style` option, yet the README, skill and
+  CHANGELOG document one (the snippet fails with TS2353): remove it there.
+- [ ] Calendar Range and Multiple mark many cells `aria-selected` but the
+  grid has no `aria-multiselectable="true"` (`calendar.ts:393`).
+- [ ] `DatePicker.update(selection)` (range in a popover) is untested in a
+  browser, in no example, and undocumented in README and skill; for a range,
+  `triggerContent` gets nothing and the hidden `name` input submits
+  nothing. A range picker on the Calendar page, a browser test, the limits
+  documented.
+- [ ] Two capabilities left with the merges and are not recorded: the
+  Slider's vertical orientation, and opening any typed Menu at a point (now
+  only the string-row component can). Restore a point mode on
+  `Menu.toView`, or record both.
+- [ ] Describe the Menu once, truly: `MenuView` is still the fork, `Menu.resolve`
+  /`toView` adapt it (Menubar uses that), and the component is built on
+  top (`README.md:821-837`, skill `mixins.md:300`, `menu.ts:5`).
+- [ ] A single date is passed twice (the selection and upstream's
+  `maybeSelectedDate`, `calendar.ts:427`): derive one from the other.
+- [ ] `gallery/widgets.ts:550, 171`: an orphaned comment and a stray blank
+  line.
+
+### E6. Systems' loose ends
+
+- [ ] Overlay bars have two API shapes (a boolean `overlayBars` on
+  ScrollArea, Command and VirtualList; an `X.overlayBars` mixin list on the
+  popups): pick one; browser tests for VirtualList and a popup; a gallery
+  example; decide whether they default on.
+- [ ] ScrollBars re-observes the scroller and every child on any child
+  change (`scroll-bars.ts:254-258`), once a frame while a VirtualList
+  scrolls: observe one content box.
+- [ ] `Anchor.topLayer` throws on an element without `popover`: guard.
+- [ ] `triggerWidth` is a selection built with `component()` (`popup.ts:57`):
+  `variant()`, and its doc says floor where it replaces.
+- [ ] Wrong comments: `nested()` "outside any such container it is square"
+  (`tokens.ts:194`; values inherit); `anchor.ts:6-7` says the anchor writes
+  `position`.
+- [ ] `theme.browser.test.ts:173` tests the browser's `var()`: delete.
+- [ ] Casts in `anchor.test.ts` (`Stream.never as …`): remove.
+- [ ] The skill misses top-layer panels, `Anchor.topLayer` and the popups'
+  `width` axis (Combobox `trigger`, Listbox `auto`).
+- [ ] VirtualList's width still changes while scrolling in a content-sized
+  container (132.6 → 127.7px); only the demo's fixed width hides it.
+
+### E7. Part C, finished properly
+
+- [ ] The gallery shows little of 04fa1bdb: examples for pressed toggles
+  (Button), `Kbd.combo`, Breadcrumb's separators, collapse and icons,
+  Pagination's ends, range, siblings and compact, Steps' icons and vertical
+  content.
+- [ ] Breadcrumb: twice the space after a separator as before
+  (`breadcrumb.ts:33`); the "…" should open a menu (the plan, shadcn), not
+  expand in place.
+- [ ] Pagination: the page-size select; compact mode hides the total.
+- [ ] Steps: vertical connectors do not reach the markers; Badge/Avatar
+  markers and a Progress connector are open.
+- [ ] Select: no dropdown arrow (`appearance: none`, nothing drawn) and a
+  placeholder that `::placeholder` cannot mute; and it was narrowed to the
+  native control and marked Checked, while Fluid's select is a custom
+  listbox: the custom Select (over Listbox) with Fluid's examples.
+- [ ] Checkbox Group: `setEnabled` drops a checked disabled option
+  (`checkboxGroup.ts:77-80`), contrary to "counts for neither"; uneven row
+  spacing; the disabled label not dimmed; select-all outside the group above
+  the legend; the invalid example errors while boxes are checked; the three
+  gallery checkbox examples share one state; "indeterminate" can never be
+  plainly unchecked.
+- [ ] Radio cards style the application's own `label`s, not a Slot, and the
+  selected card nearly vanishes in dark; the Cards snippet should show
+  `Recipes.RadioGroup({ variant: 'card' })`.
+- [ ] Badge's four example snippets have identical bodies.
+- [ ] Kbd's plan entry says the keycap is open; it shipped.
+
+### E8. Docs and tooling
+
+- [ ] The CHANGELOG logs never-released components (NestedMenu,
+  ContextMenu, DateRange, Recipes.Drawer, RangeSlider, Banner) as breaking
+  removals under Unreleased (`CHANGELOG.md:552-555, 565-566, 607-616`):
+  rewrite the Unreleased entries instead; drop the duplicate Sheet entry;
+  "Nested Menu" at 755-759 and 790.
+- [ ] The button press is described as both a 2% shrink and exactly 1px a
+  side (CHANGELOG 14 vs 287-293): describe the code (a 2% scale, a 1px
+  border cleared on solid buttons).
+- [ ] The top-layer scope in CHANGELOG:539 and §A4 says submenus and the
+  Menubar stay on portals; they are drawn `portal: false` and are in the
+  top layer.
+- [ ] README and skill rows say Breadcrumb and Pagination have no axis
+  (`separator`, `compact` exist).
+- [ ] `docs/mixins.md` lists Toast, FileDrop, VirtualList, Anchor and
+  HoverIntent as not covered.
+- [ ] `scripts/workspace-paths.mjs` and `packages/plus/scripts/generate.ts`
+  still format with prettier and `.prettierrc.json`: use oxfmt's `format()`,
+  drop the duplicate config. `.prettierignore`'s comment, AGENTS.md's and
+  CONTRIBUTING.md's sentence that bare `oxfmt` ignores the config (it reads
+  it, and formats html/mjs/jsonc outside the glob), the pipe-status trap's
+  incident (prettier, not oxfmt), and kitchen-sink's missing
+  `foldkit-primitives` mapping (the ScrollBars README snippet was never
+  compiled). Add the reformat commit 573d4529 to `.git-blame-ignore-revs`.
 
 ## Part D: sequence
 
