@@ -74,6 +74,39 @@ export default [
     tests: [unit],
   },
   {
+    name: "an earlier copy's reset cuts a later copy short",
+    edits: [
+      {
+        file: '../src/inputCopy.ts',
+        find: 'copy === model.copies && model.copied',
+        replace: 'model.copied',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Reset does not wait',
+    edits: [
+      {
+        file: '../src/inputCopy.ts',
+        find: 'Effect.sleep(Duration.millis(ms))',
+        replace: 'Effect.sleep(Duration.millis(0))',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Copied begins no Reset',
+    edits: [
+      {
+        file: '../src/inputCopy.ts',
+        find: 'commands: [Reset({ ms: model.resetAfter, copy: copies })],',
+        replace: 'commands: [],',
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'the input and the button keep the group corner',
     edits: [
       {

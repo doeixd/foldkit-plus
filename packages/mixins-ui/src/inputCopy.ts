@@ -1,8 +1,11 @@
-import { Schema } from 'effect'
+import { Duration, Effect, Schema } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import { ClipboardMessage, copyText } from 'foldkit-primitives/dom'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import type { Return } from 'foldkit/update'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -10,8 +13,10 @@ import type { MixinList } from './resolve.js'
  * The view holds no state: the button sends `onCopy`, the application's
  * `update` returns `Copy` with the value, and the `ClipboardMessage` it
  * yields (`Copied` or `CopyFailed`, from `foldkit-primitives/dom`) is where
- * the application sets the `copied` flag it passes back, and clears it, on a
- * timer or the next edit. Copied, the button reads "Copied" and a polite
+ * the application sets the `copied` flag it passes back. To have it go back
+ * to "Copy" on its own, keep this module's `Model` and fold `Copied` into it
+ * with `update`, which answers with `Reset` after the Model's `resetAfter`.
+ * Copied, the button reads "Copied" and a polite
  * status region, drawn always so it is in place before it speaks, says so:
  * a screen reader does not reliably announce a focused button's new name.
  */
@@ -30,6 +35,57 @@ export const Copy = Command.define('InputCopy.Copy', {
   messages: [ClipboardMessage.Copied, ClipboardMessage.CopyFailed],
   execute: ({ text }) => copyText(text).effect,
 })
+
+/**
+ * Whether the value shows as copied, and for how long. `copies` stamps each
+ * copy, so a reset begun by an earlier one does not cut a later one short.
+ */
+export const Model = Schema.Struct({
+  copied: Schema.Boolean,
+  copies: Schema.Number,
+  /** Milliseconds from a copy until the button says "Copy" again. */
+  resetAfter: Schema.Number,
+})
+export type Model = typeof Model.Type
+
+export const Message = defineMessageUnion({
+  /** The clipboard took the value: send it on `ClipboardMessage.Copied`. */
+  Copied: {},
+  /** A copy's `resetAfter` ran out; `copy` is the stamp it began with. */
+  ElapsedReset: { copy: Schema.Number },
+})
+export type Message = typeof Message.Type
+
+/** Not copied yet; `resetAfter` defaults to 2000 milliseconds. */
+export const init = (options: { readonly resetAfter?: number | undefined } = {}): Model => ({
+  copied: false,
+  copies: 0,
+  resetAfter: options.resetAfter ?? 2000,
+})
+
+/** Waits `ms`, then yields `ElapsedReset` for the copy stamped `copy`. */
+export const Reset = Command.define('InputCopy.Reset', {
+  args: { ms: Schema.Number, copy: Schema.Number },
+  messages: [Message.ElapsedReset],
+  execute: ({ ms, copy }) =>
+    Effect.sleep(Duration.millis(ms)).pipe(Effect.as(Message.ElapsedReset({ copy }))),
+})
+
+/** The field after `message`: copied and a `Reset` begun, or copied no more; the same Model when nothing changes. */
+export const update = (model: Model, message: Message): Return<Model, Message> =>
+  Message.match(message, {
+    Copied: () => {
+      const copies = model.copies + 1
+      return {
+        model: modifyFields(model, { copied: () => true, copies: () => copies }),
+        commands: [Reset({ ms: model.resetAfter, copy: copies })],
+      }
+    },
+    ElapsedReset: ({ copy }) =>
+      copy === model.copies && model.copied
+        ? { model: modifyFields(model, { copied: () => false }) }
+        : { model },
+  })
 
 export interface InputCopyView<Message> {
   /** Prefixes every id the field draws, unique on the page. */

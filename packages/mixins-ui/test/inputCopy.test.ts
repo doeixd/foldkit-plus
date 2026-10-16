@@ -4,7 +4,8 @@
  * that is drawn before it speaks; and `Copy`, which reports the clipboard's
  * answer as a Message, a refusal included.
  */
-import { Effect } from 'effect'
+import { Effect, Fiber } from 'effect'
+import { TestClock } from 'effect/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
@@ -87,5 +88,53 @@ describe('InputCopy.Copy', () => {
     })
     expect(await Effect.runPromise(command.effect)).toEqual(ClipboardMessage.Copied())
     expect(written).toEqual(['late'])
+  })
+})
+
+describe('InputCopy.update', () => {
+  const copiedOnce = InputCopy.update(
+    InputCopy.init({ resetAfter: 500 }),
+    InputCopy.Message.Copied(),
+  )
+
+  it('shows Copied and begins a Reset for that copy after resetAfter', () => {
+    expect(copiedOnce.model).toEqual({ copied: true, copies: 1, resetAfter: 500 })
+    expect(copiedOnce.commands?.map(command => command.name)).toEqual(['InputCopy.Reset'])
+  })
+
+  it('goes back to Copy when the Reset for the latest copy elapses', () => {
+    const { model } = InputCopy.update(
+      copiedOnce.model,
+      InputCopy.Message.ElapsedReset({ copy: 1 }),
+    )
+    expect(model.copied).toBe(false)
+  })
+
+  it("keeps a later copy's Copied when an earlier copy's Reset elapses", () => {
+    const again = InputCopy.update(copiedOnce.model, InputCopy.Message.Copied()).model
+    const { model } = InputCopy.update(again, InputCopy.Message.ElapsedReset({ copy: 1 }))
+    expect(model).toBe(again)
+    expect(model.copied).toBe(true)
+  })
+
+  it('returns the Model it was given when nothing shows as copied', () => {
+    const idle = InputCopy.init()
+    expect(InputCopy.update(idle, InputCopy.Message.ElapsedReset({ copy: 0 })).model).toBe(idle)
+  })
+})
+
+describe('InputCopy.Reset', () => {
+  it('yields ElapsedReset only once ms have passed', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(InputCopy.Reset({ ms: 500, copy: 3 }).effect)
+        yield* Effect.yieldNow
+        yield* TestClock.adjust('499 millis')
+        expect(fiber.pollUnsafe()).toBeUndefined()
+        yield* TestClock.adjust('1 millis')
+        return yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestClock.layer())),
+    )
+    expect(result).toEqual(InputCopy.Message.ElapsedReset({ copy: 3 }))
   })
 })
