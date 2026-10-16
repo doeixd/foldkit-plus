@@ -52,6 +52,8 @@ export default [
     tests,
   },
   {
+    // Both halves, as before the top layer: the wrapper alone removed leaves
+    // a popover never shown, which the browser hides from every test.
     name: 'an open panel stays in the page flow',
     edits: [
       {
@@ -59,11 +61,17 @@ export default [
         find: 'h.OnMount(topLayer(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor })))',
         replace: 'h.OnMount(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor }))',
       },
+      {
+        file: '../src/menuView.ts',
+        find: "    h.Attribute('popover', 'manual'),\n",
+        replace: '',
+      },
     ],
     tests: browser,
   },
   {
-    name: 'a panel without the popover attribute never shows',
+    // The wrapper then passes over the panel, which stays in the page flow.
+    name: 'a panel drawn without the popover attribute',
     edits: [
       {
         file: '../src/menuView.ts',
