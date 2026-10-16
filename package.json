@@ -34,8 +34,8 @@
     "typecheck": "tsc -b",
     "typecheck:force": "tsc -b --force",
     "check": "pnpm format:check && pnpm paths:check && pnpm tags:check && pnpm mutate:check && pnpm typecheck && pnpm test && pnpm demo && pnpm pack:check",
-    "format": "prettier --write \"**/*.{ts,json,yaml}\"",
-    "format:check": "prettier --check --cache \"**/*.{ts,json,yaml}\"",
+    "format": "oxfmt --write \"**/*.{ts,json,yaml}\"",
+    "format:check": "oxfmt --check \"**/*.{ts,json,yaml}\"",
     "pack:check": "pnpm build && node scripts/published-types.mjs && pnpm -r --filter \"./packages/*\" exec pnpm pack",
     "release": "pnpm build && pnpm -r --filter \"./packages/*\" publish --access public --no-git-checks"
   },
@@ -48,6 +48,7 @@
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "^4.0.4",
     "foldkit": "0.168.0",
+    "oxfmt": "^0.73.0",
     "playwright": "^1.64.0",
     "prettier": "^3.9.10",
     "tsdown": "^0.23.1",

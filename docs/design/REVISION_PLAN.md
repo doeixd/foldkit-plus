@@ -69,13 +69,13 @@ AGENTS.md             working agreements and a trap list — read it
 
 - pnpm workspace; `pnpm-workspace.yaml` pins the Node/package-manager versions.
 - Build: `tsdown`. Tests: `vitest`. Types: `tsc -b` (project references, one
-  `tsconfig.json` per package)`. Format: `prettier`.
+  `tsconfig.json` per package)`. Format: `oxfmt`.
 - The workspace runtime resolves to Node 22.21.1 via `pnpm exec node --version`.
   `foldkit-durable` needs Node 22 (`node:sqlite`).
 - Run the full CI sequence before every commit:
 
 ```sh
-pnpm format          # writes; run this, never bare prettier
+pnpm format          # writes; run this, never bare oxfmt
 pnpm format:check
 pnpm typecheck
 pnpm test
@@ -85,7 +85,7 @@ pnpm bench           # sync bench + durable storage script (not a gate)
 ```
 
 - `pnpm format` covers `**/*.{ts,json,yaml}` only. **Markdown is deliberately
-  ignored** — write docs by hand and do not run bare `prettier` on them.
+  ignored** — write docs by hand and do not run bare `oxfmt` on them.
 - Tests live in `packages/*/test/**/*.test.ts` and `examples/*/test/**/*.test.ts`
   (see `vitest.config.ts`). A `*.test-d.ts` is **type-checked but not executed**
   (vitest's include is `*.test.ts`), so type tests run under `pnpm typecheck`.

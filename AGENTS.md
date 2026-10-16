@@ -1299,10 +1299,10 @@ of its own named a form field "fits the Catalog". Read words with
   `encoding='utf-8'` on both reads and writes, write to the file only after the
   new content is fully built, and never chain a commit after a script in one
   command: check `wc -c` or `git diff --stat` first.
-- **Format with `pnpm format`, never bare `prettier`.** The config matches the
-  style already in the tree; without it prettier rewrites files to its own
-  defaults. Markdown is deliberately ignored, because prettier pads table
-  columns and reformats code inside fenced blocks, rewriting the documents'
+- **Format with `pnpm format`, never bare `oxfmt`.** The config matches the
+  style already in the tree; without it oxfmt rewrites files to its own
+  defaults. Markdown is deliberately ignored, because formatters pad table
+  columns and reformat code inside fenced blocks, rewriting the documents'
   illustrative snippets.
 - **A re-exported type and a same-named const collide.** `export { type Sync }
   from './sync.js'` beside `export const Sync = {…}` is `TS2323 Cannot redeclare
@@ -1493,7 +1493,7 @@ of its own named a form field "fits the Catalog". Read words with
 ## Repository
 
 - Workspace: pnpm, `packages/*` and `examples/*`.
-- Build: `tsdown`. Tests: `vitest`. Types: `tsc -b`. Format: `prettier`.
+- Build: `tsdown`. Tests: `vitest`. Types: `tsc -b`. Format: `oxfmt` (`prettier` stays as a library for the codegen scripts).
 - CI runs `format:check`, `typecheck`, `test`, `e2e`, and `demo` on push and
   PR. Run them locally before committing; `pnpm e2e` starts servers and a
   browser, so run it when a change reaches an example with a server.

@@ -22,8 +22,8 @@ pnpm demo
 pnpm pack:check
 ```
 
-Format with `pnpm format`, never bare `prettier`: the repository config matches
-the style already in the tree, and without it prettier rewrites files to its own
+Format with `pnpm format`, never bare `oxfmt`: the repository config matches
+the style already in the tree, and without it oxfmt rewrites files to its own
 defaults.
 
 ## Workspace resolution
