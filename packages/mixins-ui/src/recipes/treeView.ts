@@ -66,7 +66,7 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
       }),
       // A leaf keeps the chevron's room, so its label lines up with its siblings'.
       Style.nest(':where(:not([aria-expanded])) > * > &', { visibility: 'hidden' }),
-      Style.nest(':where([dir="rtl"]) &', { rotate: '135deg' }),
+      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),
       Style.nest(':where([aria-expanded="true"]) > * > &', { rotate: '45deg' }),
     ),
     label: component(

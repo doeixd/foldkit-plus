@@ -79,9 +79,10 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
         transitionTimingFunction: ref.motion.settle,
       }),
       Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),
-      // Right to left, along the row is the other way.
-      Style.nest(':where([dir="rtl"]) &', { rotate: '135deg' }),
-      Style.nest(`:where([dir="rtl"]) :where(${open}) > &`, { rotate: '45deg' }),
+      // Right to left, along the row is the other way; `:dir()` rather than an
+      // ancestor's `[dir]`, which a left-to-right island in the page also has.
+      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),
+      Style.nest(`:where(${open}) > &:where(:dir(rtl))`, { rotate: '45deg' }),
     ),
     // The one grid row the panel animates; clipped here, on the container,
     // since below 1fr Chrome sizes the track to f squared of its content.

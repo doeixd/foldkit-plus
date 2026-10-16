@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/sidebar.ts',
-        find: "      Style.nest(':where([dir=\"rtl\"]) &', { rotate: '135deg' }),\n",
+        find: "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),\n",
         replace: '',
       },
     ],
@@ -33,9 +33,9 @@ export default [
     edits: [
       {
         file: '../src/recipes/sidebar.ts',
-        find: "      Style.nest(':where([dir=\"rtl\"]) &', { rotate: '135deg' }),\n      Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),",
+        find: "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),\n      Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),",
         replace:
-          "      Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),\n      Style.nest(':where([dir=\"rtl\"]) &', { rotate: '135deg' }),",
+          "      Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),\n      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),",
       },
     ],
     tests: [browser],
@@ -45,7 +45,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/accordion.ts',
-        find: "      Style.nest(':where([dir=\"rtl\"]) &', { rotate: '135deg' }),\n",
+        find: "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),\n",
         replace: '',
       },
     ],
@@ -56,7 +56,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/treeView.ts',
-        find: "      Style.nest(':where([dir=\"rtl\"]) &', { rotate: '135deg' }),\n",
+        find: "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),\n",
         replace: '',
       },
     ],
@@ -67,7 +67,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/menu.ts',
-        find: "      Style.nest(':where([dir=\"rtl\"]) &', { rotate: '135deg' }),\n",
+        find: "      Style.pseudo(':dir(rtl)', { rotate: '135deg' }),\n",
         replace: '',
       },
     ],
@@ -84,4 +84,21 @@ export default [
     ],
     tests: [browser],
   },
+  ...(
+    [
+      ['accordion', "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
+      ['sidebar', "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
+      ['treeView', "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
+    ] as const
+  ).map(([recipe, find]) => ({
+    name: `the ${recipe} chevron turns under any right-to-left ancestor`,
+    edits: [
+      {
+        file: `../src/recipes/${recipe}.ts`,
+        find,
+        replace: find.replace('&:where(:dir(rtl))', ':where([dir="rtl"]) &'),
+      },
+    ],
+    tests: [browser],
+  })),
 ]

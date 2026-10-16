@@ -116,6 +116,16 @@ describe.each([
     expect(pointing(shutMark!)).toBe(along)
     expect(pointing(openMark!)).toBe(DOWN)
   })
+  test('in a left-to-right island of a right-to-left page, points right shut and down open', () => {
+    const name = chevron()
+    const holder = draw(
+      'rtl',
+      `<div dir="ltr"><button ${shut}><span class="${name}"></span></button><button ${open}><span class="${name}"></span></button></div>`,
+    )
+    const [shutMark, openMark] = holder.querySelectorAll('span')
+    expect(pointing(shutMark!)).toBe(RIGHT)
+    expect(pointing(openMark!)).toBe(DOWN)
+  })
 })
 
 test.each([
@@ -131,6 +141,15 @@ test.each([
   const [shutMark, openMark] = holder.querySelectorAll('span')
   expect(pointing(shutMark!)).toBe(along)
   expect(pointing(openMark!)).toBe(DOWN)
+})
+
+test('in a left-to-right island of a right-to-left page, a tree row points right', () => {
+  const name = classOf(TreeViewSlots, Recipes.TreeView({}), 'chevron')
+  const holder = draw(
+    'rtl',
+    `<div dir="ltr"><li aria-expanded="false"><div><span class="${name}"></span></div></li></div>`,
+  )
+  expect(pointing(holder.querySelector('span')!)).toBe(RIGHT)
 })
 
 test.each([

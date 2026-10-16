@@ -98,7 +98,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         transitionTimingFunction: ref.motion.settle,
       }),
       // Right to left, along the row is the other way; open is down either way.
-      Style.nest(':where([dir="rtl"]) &', { rotate: '135deg' }),
+      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),
       Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),
     ),
     // The one grid row, opened on the section's `0fr` to `1fr`, clipped here.
