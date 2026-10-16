@@ -45,6 +45,8 @@ const READ = [
   '/components',
   '/components/button',
   '/components/radio-group',
+  '/components/alert',
+  '/components/badge',
   '/create',
 ]
 
@@ -246,11 +248,46 @@ describe('the generated site', () => {
       ['variant', 'solid'],
       ['size', 'md'],
       ['scheme', 'System'],
+      ['direction', 'LTR'],
     ])
     expect(button.querySelector('[data-size="page"] button')?.textContent).toBe('Save changes')
     const code = button.querySelector('main figure pre code')
     expect(code?.textContent).toContain("Button.view({ label: 'Save changes', style }, h)")
     expect(code?.querySelector('[data-kind="syntax-keyword"]')?.textContent).toBe('export')
+  })
+
+  test('a showcase with examples shows each with its preview, code and link', () => {
+    for (const [slug, examples] of [
+      [
+        'alert',
+        [
+          ['inline', 'Inline', 'alertInline'],
+          ['banner', 'Banner', 'alertBanner'],
+        ],
+      ],
+      [
+        'badge',
+        [
+          ['tinted', 'Tinted', 'badgesTinted'],
+          ['dot', 'Dot', 'badgesDot'],
+          ['outline', 'Outline', 'badgesOutline'],
+          ['solid', 'Solid', 'badgesSolid'],
+        ],
+      ],
+    ] as const) {
+      const generated = page(`/components/${slug}`)
+      for (const [name, title, snippet] of examples) {
+        const heading = generated.getElementById(name)
+        expect(heading?.tagName, `${slug}#${name}`).toBe('H2')
+        expect(heading?.textContent, `${slug}#${name}`).toContain(title)
+        const section = heading?.closest('section')
+        expect(section?.querySelector(`a[href="#${name}"]`), `${slug}#${name}`).not.toBeNull()
+        expect(section?.querySelector('[data-size="page"]'), `${slug}#${name}`).not.toBeNull()
+        expect(section?.querySelector('pre code')?.textContent, `${slug}#${name}`).toContain(
+          snippet,
+        )
+      }
+    }
   })
 
   test("a press on a radio option's words presses its radio", () => {
