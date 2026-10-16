@@ -333,18 +333,43 @@ export const OutMessage = defineMessageUnion({
 })
 export type OutMessage = typeof OutMessage.Type
 
+/** How a menu opens and shuts; each is off by default, as upstream's. */
+export interface InitOptions {
+  /**
+   * Its panels, the menu's and its submenus', carry upstream's transition
+   * marks (`data-closed`, `data-enter`, `data-leave`) and stay drawn while
+   * they leave, so a recipe's fade runs.
+   */
+  readonly isAnimated?: boolean | undefined
+  /**
+   * While it is open the page does not scroll and the rest of it is inert.
+   * The menu's alone: its submenus are drawn inside it, and a modal submenu
+   * would make the menu's other rows inert.
+   */
+  readonly isModal?: boolean | undefined
+}
+
 /** A shut menu, and a shut submenu for each row with `items`. */
-export const init = (id: string, rows: ReadonlyArray<Row>): Model => ({
-  menu: UiMenu.init({ id }),
-  submenus: rows.flatMap((row, index) =>
-    row.items === undefined
-      ? []
-      : [{ row: index, label: row.label, menu: UiMenu.init({ id: `${id}-sub-${index}` }) }],
-  ),
-  hover: 0,
-  point: Option.none(),
-  press: Option.none(),
-})
+export const init = (id: string, rows: ReadonlyArray<Row>, options: InitOptions = {}): Model => {
+  const isAnimated = options.isAnimated ?? false
+  return {
+    menu: UiMenu.init({ id, isAnimated, isModal: options.isModal ?? false }),
+    submenus: rows.flatMap((row, index) =>
+      row.items === undefined
+        ? []
+        : [
+            {
+              row: index,
+              label: row.label,
+              menu: UiMenu.init({ id: `${id}-sub-${index}`, isAnimated }),
+            },
+          ],
+    ),
+    hover: 0,
+    point: Option.none(),
+    press: Option.none(),
+  }
+}
 
 /** How long the pointer rests on a row before its submenu opens, or the open one closes. */
 const HOVER_DELAY_MILLISECONDS = 150

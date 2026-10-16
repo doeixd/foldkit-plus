@@ -9,6 +9,39 @@ const browser = 'packages/mixins-ui/test/menu.browser.test.ts'
 
 export default [
   {
+    name: 'the menu is never animated',
+    edits: [
+      {
+        file,
+        find: 'menu: UiMenu.init({ id, isAnimated, isModal: options.isModal ?? false }),',
+        replace: 'menu: UiMenu.init({ id, isModal: options.isModal ?? false }),',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'no submenu is animated',
+    edits: [
+      {
+        file,
+        find: 'menu: UiMenu.init({ id: `${id}-sub-${index}`, isAnimated }),',
+        replace: 'menu: UiMenu.init({ id: `${id}-sub-${index}` }),',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the menu is never modal',
+    edits: [
+      {
+        file,
+        find: 'menu: UiMenu.init({ id, isAnimated, isModal: options.isModal ?? false }),',
+        replace: 'menu: UiMenu.init({ id, isAnimated }),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'a submenu opens below its row',
     edits: [
       {

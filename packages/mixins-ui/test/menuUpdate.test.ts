@@ -49,6 +49,13 @@ describe('Menu.update', () => {
     expect(Menu.init('plain', [{ label: 'Rename' }]).submenus).toEqual([])
   })
 
+  it('makes the menu modal alone: its submenus are drawn inside it', () => {
+    const modal = Menu.init('file', ROWS, { isModal: true })
+    expect(modal.menu.isModal).toBe(true)
+    expect(modal.submenus.map(each => each.menu.isModal)).toEqual([false, false])
+    expect(shut.menu.isModal).toBe(false)
+  })
+
   it.each([
     ['ArrowRight', () => press(onRow(SHARE), 'ArrowRight')],
     ['Enter', () => menu(onRow(SHARE), UiMenu.Message.RequestedItemClick({ index: SHARE }))],

@@ -6,7 +6,8 @@
  * submenu's row closes everything with focus on the trigger; and the pointer
  * resting on a submenu's row opens it. At a point: a right press on the area
  * opens the menu with its rows where the press landed, and its submenus open
- * beside their rows there too.
+ * beside their rows there too. Animated, the menu and its submenus stay
+ * drawn while they leave, marked for the recipe's fade.
  */
 import { Option, Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
@@ -35,11 +36,14 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (
-  opensAt: 'button' | 'point',
-  direction: 'ltr' | 'rtl',
-  around: (menu: Html, h: HtmlBuilder<Message>) => Html,
-) => {
+interface Mounting {
+  readonly opensAt: 'button' | 'point'
+  readonly direction: 'ltr' | 'rtl'
+  readonly around: (menu: Html, h: HtmlBuilder<Message>) => Html
+  readonly isAnimated?: boolean
+}
+
+const mount = ({ opensAt, direction, around, isAnimated = false }: Mounting) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -75,7 +79,9 @@ const mount = (
     Runtime.makeElement({
       Model,
       container,
-      init: () => ({ model: { menu: Menu.init('file', ROWS), chosen: Option.none() } }),
+      init: () => ({
+        model: { menu: Menu.init('file', ROWS, { isAnimated }), chosen: Option.none() },
+      }),
       update: (model: Model, message: Message) => {
         const next = Menu.update(model.menu, message.message)
         return {
@@ -95,27 +101,34 @@ const mount = (
 }
 
 /** A menu under a button, room around it; right to left, room on both sides, so only the placement picks the left. */
-const underButton = (direction: 'ltr' | 'rtl' = 'ltr') =>
-  mount('button', direction, (menu, h) =>
-    h.div(
-      [
-        h.Style({
-          padding: '40px',
-          ...(direction === 'rtl' ? { paddingInlineStart: '600px' } : {}),
-        }),
-      ],
-      [menu],
-    ),
-  )
+const underButton = (direction: 'ltr' | 'rtl' = 'ltr', isAnimated = false) =>
+  mount({
+    opensAt: 'button',
+    direction,
+    isAnimated,
+    around: (menu, h) =>
+      h.div(
+        [
+          h.Style({
+            padding: '40px',
+            ...(direction === 'rtl' ? { paddingInlineStart: '600px' } : {}),
+          }),
+        ],
+        [menu],
+      ),
+  })
 
 /** A menu at a point, drawn inside the area that opens it. */
 const inArea = () =>
-  mount('point', 'ltr', (menu, h) =>
-    h.div(
-      [...Menu.target(got, h), h.AriaLabel('area'), h.Style({ margin: '80px', padding: '60px' })],
-      ['report.pdf', menu],
-    ),
-  )
+  mount({
+    opensAt: 'point',
+    direction: 'ltr',
+    around: (menu, h) =>
+      h.div(
+        [...Menu.target(got, h), h.AriaLabel('area'), h.Style({ margin: '80px', padding: '60px' })],
+        ['report.pdf', menu],
+      ),
+  })
 
 const focusedId = () => document.activeElement?.id
 const byId = (id: string) => document.getElementById(id)
@@ -273,15 +286,18 @@ test('a right press opens the menu with its rows where it landed, its submenus b
 })
 
 test('an open panel escapes an overflow box: the top layer, not the page flow', async () => {
-  const handle = mount('button', 'ltr', (menu, h) =>
-    h.div(
-      [
-        h.Id('clip-box'),
-        h.Style({ blockSize: '60px', overflow: 'hidden', border: '1px solid transparent' }),
-      ],
-      [menu],
-    ),
-  )
+  const handle = mount({
+    opensAt: 'button',
+    direction: 'ltr',
+    around: (menu, h) =>
+      h.div(
+        [
+          h.Id('clip-box'),
+          h.Style({ blockSize: '60px', overflow: 'hidden', border: '1px solid transparent' }),
+        ],
+        [menu],
+      ),
+  })
   try {
     await toShare()
     const box = byId('clip-box')!.getBoundingClientRect()
@@ -295,6 +311,54 @@ test('an open panel escapes an overflow box: the top layer, not the page flow', 
       expect(hit).not.toBeNull()
       expect(byId('file-items')!.contains(hit)).toBe(true)
     })
+  } finally {
+    handle.dispose()
+  }
+})
+
+/**
+ * The transition marks the panel `id` passes through until `close` has it
+ * gone: they come and go within frames, so each change is recorded.
+ */
+const leaving = async (id: string, close: () => Promise<void>) => {
+  const panel = byId(id)!
+  const states: Array<string> = []
+  const observer = new MutationObserver(() =>
+    states.push(
+      ['closed', 'enter', 'leave'].filter(mark => panel.hasAttribute(`data-${mark}`)).join(' '),
+    ),
+  )
+  observer.observe(panel, { attributes: true })
+  try {
+    await close()
+    await vi.waitFor(() => expect(byId(id)).toBeNull())
+  } finally {
+    observer.disconnect()
+  }
+  return states
+}
+
+test('an animated menu stays drawn while it leaves, marked for its fade', async () => {
+  const handle = underButton('ltr', true)
+  try {
+    await toShare()
+    const states = await leaving('file-items', () => userEvent.keyboard('{Escape}'))
+    expect(states).toContain('closed leave')
+    expect(focusedId()).toBe('file-button')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("an animated menu's submenu stays drawn while it leaves, marked for its fade", async () => {
+  const handle = underButton('ltr', true)
+  try {
+    await toShare()
+    await userEvent.keyboard('{ArrowRight}')
+    await vi.waitFor(() => expect(focusedId()).toBe('file-sub-1-items'))
+    const states = await leaving('file-sub-1-items', () => userEvent.keyboard('{ArrowLeft}'))
+    expect(states).toContain('closed leave')
+    expect(focusedId()).toBe('file-items')
   } finally {
     handle.dispose()
   }
