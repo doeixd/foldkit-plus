@@ -879,6 +879,11 @@ export const view = <ParentMessage>(
         drawMenu(
           {
             ...resolved,
+            // So the CSS reads the direction the keys do: a submenu's chevron points where it opens.
+            wrapper:
+              options.direction === undefined
+                ? resolved.wrapper
+                : [...resolved.wrapper, h.Dir(options.direction)],
             button: atPoint ? pointButton(resolved.button, model.point, h) : resolved.button,
             // On press, ahead of the Menu's own click, which then finds it shut.
             backdrop:

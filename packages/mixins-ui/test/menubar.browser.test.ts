@@ -1,6 +1,7 @@
 /**
- * A menubar in a real browser: right to left, ArrowLeft moves the tab stop
- * toward the inline end and ArrowRight moves it back.
+ * A menubar in a real browser: right to left, its menus run from the right,
+ * ArrowLeft moves the tab stop toward the inline end and ArrowRight moves it
+ * back.
  */
 import { Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
@@ -42,8 +43,9 @@ const mount = () => {
   container.id = 'menubar-browser'
   document.body.appendChild(container)
   const view = (model: Model, h: HtmlBuilder<Message>) =>
+    // No `dir` of the page's: the bar draws its own from `direction`.
     h.div(
-      [h.Dir('rtl')],
+      [],
       [
         Menubar.view(
           {
@@ -84,6 +86,10 @@ test('right to left, ArrowLeft moves toward the end and ArrowRight moves back', 
   const handle = mount()
   try {
     await vi.waitFor(() => expect(document.getElementById('file-button')).not.toBeNull())
+    // The menus run right to left, so ArrowLeft moves the way the bar reads.
+    const file = document.getElementById('file-button')!.getBoundingClientRect()
+    const edit = document.getElementById('edit-button')!.getBoundingClientRect()
+    expect(edit.right).toBeLessThanOrEqual(file.left + 1)
     document.getElementById('file-button')!.focus()
     await userEvent.keyboard('{ArrowLeft}')
     await vi.waitFor(() => expect(document.activeElement?.id).toBe('edit-button'))

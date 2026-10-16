@@ -17,4 +17,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the bar draws no direction of its own',
+    edits: [
+      {
+        file: '../src/menubar.ts',
+        find: '...(options.direction === undefined ? [] : [h.Dir(options.direction)]),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

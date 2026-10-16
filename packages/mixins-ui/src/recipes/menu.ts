@@ -64,7 +64,7 @@ export const Menu = Style.recipeFor(MenuSlots)({
         color: ref.text.muted,
         rotate: '-45deg',
       }),
-      Style.nest(':where([dir="rtl"]) &', { rotate: '135deg' }),
+      Style.pseudo(':dir(rtl)', { rotate: '135deg' }),
     ),
     // A submenu is drawn inside its row, and the menu's panel scrolls: the
     // Anchor writes `overflow-y: auto` on it, which clipped away the submenu

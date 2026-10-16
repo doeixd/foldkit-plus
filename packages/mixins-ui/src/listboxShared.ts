@@ -371,6 +371,8 @@ export const computeRender = (
   ]
 
   const wrapper: ReadonlyArray<ChildAttribute> = childAttributes([
+    // So the CSS reads the direction the keys do.
+    ...(direction === undefined ? [] : [h.Dir(direction)]),
     ...(className ? [h.Class(className)] : []),
     ...attributes,
     ...(isVisible ? [h.DataAttribute('open', '')] : []),

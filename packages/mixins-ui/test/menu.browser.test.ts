@@ -33,6 +33,7 @@ type Message = { readonly _tag: 'Got'; readonly message: Menu.Message }
 const got = (message: Menu.Message): Message => ({ _tag: 'Got', message })
 
 afterEach(() => {
+  document.documentElement.removeAttribute('dir')
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
 })
@@ -55,8 +56,9 @@ const mount = ({ opensAt, direction, around, isAnimated = false }: Mounting) => 
   container.id = 'menu'
   document.body.appendChild(container)
   const view = (model: Model, h: HtmlBuilder<Message>) =>
+    // No `dir` of the page's: the menu draws its own from `direction`.
     h.div(
-      [h.Dir(direction)],
+      [],
       [
         around(
           Menu.view(
@@ -209,6 +211,10 @@ test('right to left, ArrowLeft opens the submenu on the left and ArrowRight clos
     await userEvent.keyboard('{ArrowRight}')
     await new Promise(resolve => requestAnimationFrame(resolve))
     expect(byId('file-sub-1-items')).toBeNull()
+    // Its chevron points the way it opens.
+    expect(getComputedStyle(shareRow()!.querySelector('[aria-hidden="true"]')!).rotate).toBe(
+      '135deg',
+    )
     await userEvent.keyboard('{ArrowLeft}')
     await vi.waitFor(() => expect(focusedId()).toBe('file-sub-1-items'))
     const row = shareRow()!.getBoundingClientRect()
@@ -220,6 +226,19 @@ test('right to left, ArrowLeft opens the submenu on the left and ArrowRight clos
     await userEvent.keyboard('{ArrowRight}')
     await vi.waitFor(() => expect(focusedId()).toBe('file-items'))
     expect(byId('file-sub-1-items')).toBeNull()
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a left-to-right menu on a right-to-left page points its chevrons right', async () => {
+  document.documentElement.dir = 'rtl'
+  const handle = underButton('ltr')
+  try {
+    await toShare()
+    expect(getComputedStyle(shareRow()!.querySelector('[aria-hidden="true"]')!).rotate).toBe(
+      '-45deg',
+    )
   } finally {
     handle.dispose()
   }

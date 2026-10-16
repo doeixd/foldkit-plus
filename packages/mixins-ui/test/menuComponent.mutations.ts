@@ -9,6 +9,28 @@ const browser = 'packages/mixins-ui/test/menu.browser.test.ts'
 
 export default [
   {
+    name: 'the menu draws no direction of its own',
+    edits: [
+      {
+        file,
+        find: ': [...resolved.wrapper, h.Dir(options.direction)],',
+        replace: ': resolved.wrapper,',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a chevron turns under any right-to-left ancestor',
+    edits: [
+      {
+        file: '../src/recipes/menu.ts',
+        find: "Style.pseudo(':dir(rtl)', { rotate: '135deg' }),",
+        replace: `Style.nest(':where([dir="rtl"]) &', { rotate: '135deg' }),`,
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: "an application's Menu drawn at a point keeps its button",
     edits: [
       {

@@ -1,6 +1,6 @@
 /**
- * A horizontal listbox in a real browser: right to left, ArrowLeft moves to
- * the next item and ArrowRight moves back.
+ * A horizontal listbox in a real browser: right to left, its CSS reads that
+ * direction too, ArrowLeft moves to the next item and ArrowRight moves back.
  */
 import { Option } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -39,8 +39,9 @@ const mount = () => {
   container.id = 'listbox-rtl-browser'
   document.body.appendChild(container)
   const view = (model: Model, h: HtmlBuilder<Message>) =>
+    // No `dir` of the page's: the listbox draws its own from `direction`.
     h.div(
-      [h.Dir('rtl')],
+      [],
       [
         Frequencies.view(
           model,
@@ -89,6 +90,8 @@ test('right to left, ArrowLeft moves to the next item and ArrowRight moves back'
         document.querySelector('[role="listbox"]')?.getAttribute('aria-activedescendant'),
       ).toBe('ladder-item-0'),
     )
+    // The CSS reads the direction the keys do.
+    expect(document.querySelector('[role="listbox"]')!.matches(':dir(rtl)')).toBe(true)
     await userEvent.keyboard('{ArrowLeft}')
     await vi.waitFor(() =>
       expect(

@@ -28,4 +28,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the listbox draws no direction of its own',
+    edits: [
+      {
+        file: '../src/listboxShared.ts',
+        find: '...(direction === undefined ? [] : [h.Dir(direction)]),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

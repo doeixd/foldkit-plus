@@ -236,6 +236,8 @@ export const view = <ParentMessage>(
     builders.bar.attrs([
       h.Role('menubar'),
       h.AriaLabel(options.label),
+      // So the CSS reads the direction the keys do.
+      ...(options.direction === undefined ? [] : [h.Dir(options.direction)]),
       h.OnKeyDownPreventDefault(pressed => {
         const key = readingKey(pressed, options.direction)
         return isBarKey(key) ? Option.some(onMessage(Message.Pressed({ key }))) : Option.none()
