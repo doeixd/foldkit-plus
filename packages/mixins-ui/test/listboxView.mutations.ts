@@ -108,6 +108,17 @@ export default [
     tests,
   },
   {
+    name: 'a portaled listbox panel still claims the top layer',
+    edits: [
+      {
+        file: '../src/listboxShared.ts',
+        find: '...(anchor.portal === false',
+        replace: '...(anchor.portal !== false',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the panel never reaches the top layer',
     edits: [
       {

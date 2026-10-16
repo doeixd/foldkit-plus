@@ -270,11 +270,28 @@ describe('forked listbox seam', () => {
     expect(render.hiddenInputs).toEqual([])
   })
 
-  it('draws the panel for the top layer', () => {
+  it('draws the panel for the top layer only when the anchor stays in place', () => {
     Scene.scene<SingleModel, Message, UpstreamListbox.OutMessage<Fruit>>(
       {
         update: upstreamSingle.update,
         view: (current, h) => forkSingle.view(current, singleInputs(h), h),
+      },
+      Scene.given(openSingle()),
+      anchoredSingle(),
+      Scene.expect(Scene.selector(panel)).not.toHaveAttr('popover', 'manual'),
+    )
+    Scene.scene<SingleModel, Message, UpstreamListbox.OutMessage<Fruit>>(
+      {
+        update: upstreamSingle.update,
+        view: (current, h) =>
+          forkSingle.view(
+            current,
+            {
+              ...singleInputs(h),
+              anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+            },
+            h,
+          ),
       },
       Scene.given(openSingle()),
       anchoredSingle(),

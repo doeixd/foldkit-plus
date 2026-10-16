@@ -13,11 +13,13 @@
  * without layout (jsdom's zero geometry) burns tens of seconds, portal or
  * not — drive the config, not the clock, in tests.
  *
- * `topLayer` draws an upstream-anchored panel in the browser's top layer
- * instead: it shows the element as a manual popover around the wrapped
- * Mount's own acquire, and hides it when that Mount releases. The node stays
- * where the runtime drew it (no portal relocation), so no stacking context or
- * ancestor overflow can reach it, while the anchor positions it as before.
+ * `topLayer` draws an upstream-anchored, in-place panel in the browser's top
+ * layer instead: it shows the element as a manual popover around the wrapped
+ * Mount's own acquire, and hides it when that Mount releases. Use it only
+ * when the anchor keeps the panel in place (`portal: false`); moving a
+ * relocated panel hides its popover again. The node stays where the runtime
+ * drew it (no portal relocation), so no stacking context or ancestor
+ * overflow can reach it, while the anchor positions it as before.
  * The panel carries `popover="manual"` in its view; light dismiss stays the
  * application's Messages. Wrapping keeps the wrapped Mount's name, args and
  * Messages, so `Scene.Mount.resolve` still matches it.
@@ -74,11 +76,14 @@ const isPopover = (
   element instanceof HTMLElement && typeof element.showPopover === 'function'
 
 /**
- * Draw an upstream-anchored panel in the browser's top layer: show it as a
- * manual popover, run the wrapped Mount's own acquire (which positions it),
- * and hide it once that Mount releases. The panel carries `popover="manual"`
- * in its view. Where the popover API is missing (a test renderer, SSR) the
- * wrapper is a no-op and the anchor positions in place.
+ * Draw an upstream-anchored, in-place panel in the browser's top layer: show
+ * it as a manual popover, run the wrapped Mount's own acquire (which
+ * positions it), and hide it once that Mount releases. Use it only when the
+ * anchor keeps the panel in place (`portal: false`): upstream portal
+ * relocation moves the element after the Mount acquires, and moving a shown
+ * popover hides it again. The panel carries `popover="manual"` in its view.
+ * Where the popover API is missing (a test renderer, SSR) the wrapper is a
+ * no-op and the anchor positions in place.
  */
 export const topLayer = <Message, E>(
   action: Mount.MountAction<Message, E>,

@@ -283,11 +283,28 @@ describe('forked combobox seam', () => {
     expect(render.groups[0]!.items).toHaveLength(3)
   })
 
-  it('draws the panel for the top layer', () => {
+  it('draws the panel for the top layer only when the anchor stays in place', () => {
     Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
       {
         update: upstreamSingle.update,
         view: (current, h) => forkSingle.view(current, singleInputs(h), h),
+      },
+      Scene.given(openSingle()),
+      anchoredSingle(),
+      Scene.expect(Scene.selector(panel)).not.toHaveAttr('popover', 'manual'),
+    )
+    Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
+      {
+        update: upstreamSingle.update,
+        view: (current, h) =>
+          forkSingle.view(
+            current,
+            {
+              ...singleInputs(h),
+              anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+            },
+            h,
+          ),
       },
       Scene.given(openSingle()),
       anchoredSingle(),

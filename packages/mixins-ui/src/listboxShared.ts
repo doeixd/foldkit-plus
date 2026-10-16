@@ -351,11 +351,17 @@ export const computeRender = (
 
   const anchorAttributes = [
     h.Style({ position: 'absolute', margin: '0', visibility: 'hidden' }),
-    // The panel draws in the top layer, out of every stacking context and
-    // overflow box; the anchor positions it as before, and light dismiss
-    // stays the application's Messages closing it.
-    h.Attribute('popover', 'manual'),
-    h.OnMount(topLayer(UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor }))),
+    // Only with an in-place panel: portal relocation moves a panel after the
+    // Mount acquires, and moving a shown popover hides it again. The panel
+    // then draws in the top layer, out of every stacking context and overflow
+    // box; the anchor positions it as before, and light dismiss stays the
+    // application's Messages closing it.
+    ...(anchor.portal === false
+      ? [
+          h.Attribute('popover', 'manual'),
+          h.OnMount(topLayer(UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor }))),
+        ]
+      : [h.OnMount(UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor }))]),
   ]
 
   const wrapper: ReadonlyArray<ChildAttribute> = childAttributes([

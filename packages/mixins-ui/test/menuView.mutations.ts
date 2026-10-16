@@ -85,4 +85,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a portaled menu panel still claims the top layer',
+    edits: [
+      {
+        file: '../src/menuView.ts',
+        find: '...(anchor.portal === false',
+        replace: '...(anchor.portal !== false',
+      },
+    ],
+    tests,
+  },
 ]

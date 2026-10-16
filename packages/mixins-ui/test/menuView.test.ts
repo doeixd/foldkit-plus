@@ -206,6 +206,32 @@ describe('forked view seam', () => {
     expect(render.groups[0]!.group).toBeUndefined()
   })
 
+  it('draws the panel for the top layer only when the anchor stays in place', () => {
+    Scene.scene<Menu.Model, Menu.Message, Menu.OutMessage<Fruit>>(
+      {
+        update: upstream.update,
+        view: (current, h) => fork.view(current, inputs(h), h),
+      },
+      Scene.given(open()),
+      anchored(),
+      Scene.expect(Scene.selector(panel)).not.toHaveAttr('popover', 'manual'),
+    )
+    Scene.scene<Menu.Model, Menu.Message, Menu.OutMessage<Fruit>>(
+      {
+        update: upstream.update,
+        view: (current, h) =>
+          fork.view(
+            current,
+            inputs(h, { anchor: { placement: 'bottom-start', portal: false } }),
+            h,
+          ),
+      },
+      Scene.given(open()),
+      anchored(),
+      Scene.expect(Scene.selector(panel)).toHaveAttr('popover', 'manual'),
+    )
+  })
+
   it('a closed custom toView carries button and wrapper alone', () => {
     let seen: MenuRenderInfo | undefined
     Scene.scene<Menu.Model, Menu.Message, Menu.OutMessage<Fruit>>(
