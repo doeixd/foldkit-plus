@@ -4,9 +4,6 @@
  */
 const tests = ['packages/mixins-ui/test/press.browser.test.ts']
 const file = '../src/recipes/button.ts'
-// The travel knob is read in unit CSS, not in a browser: sharing the page
-// with the press test left a constant scale unseen there.
-const knob = ['packages/mixins-ui/test/buttonLook.test.ts']
 
 export default [
   {
@@ -50,6 +47,6 @@ export default [
         replace: "scale: '0.98'",
       },
     ],
-    tests: knob,
+    tests,
   },
 ]
