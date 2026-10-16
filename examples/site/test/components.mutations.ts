@@ -192,8 +192,8 @@ export default [
     edits: [
       {
         file: '../src/snippets/components.ts',
-        find: '          options.map(option =>\n            h.label(',
-        replace: '          options.map(option =>\n            h.div(',
+        find: '            options.map(option =>\n              h.label(',
+        replace: '            options.map(option =>\n              h.div(',
       },
     ],
     tests: pages,
