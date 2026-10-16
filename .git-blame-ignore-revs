@@ -1,0 +1,5 @@
+# Commits that only reformat; `git blame --ignore-revs-file .git-blame-ignore-revs`
+# skips them, and GitHub's blame reads this file by itself.
+
+# format: reformat the tree with oxfmt
+573d4529991e87c950c2542741280b22f7f5aa89

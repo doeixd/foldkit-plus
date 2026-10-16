@@ -16,9 +16,13 @@
 import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import * as prettier from 'prettier'
+import { format } from 'oxfmt'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
+// oxfmt's `format` discovers no config; this is the one `pnpm format` reads.
+const { $schema: _, ...formatConfig } = JSON.parse(
+  readFileSync(join(root, '.oxfmtrc.jsonc'), 'utf8'),
+)
 const check = process.argv.includes('--check')
 const posix = path => path.split(sep).join('/')
 const dirs = folder =>
@@ -70,11 +74,7 @@ const importPattern = /(?:from\s+|import\(\s*)['"]([^'"]+)['"]/g
 const problems = []
 const rewritten = []
 
-for (const dir of [
-  ...dirs('packages'),
-  ...dirs('examples'),
-  ...dirs('examples/foldkit'),
-]) {
+for (const dir of [...dirs('packages'), ...dirs('examples'), ...dirs('examples/foldkit')]) {
   const tsconfigPath = join(dir, 'tsconfig.json')
   if (!existsSync(tsconfigPath)) continue
   const text = readFileSync(tsconfigPath, 'utf8')
@@ -137,14 +137,10 @@ for (const dir of [
   }
   tsconfig.compilerOptions = { ...tsconfig.compilerOptions, paths }
   // In the repository's style, so a rewrite never fails `format:check`.
-  const options = (await prettier.resolveConfig(tsconfigPath)) ?? {}
-  writeFileSync(
-    tsconfigPath,
-    await prettier.format(JSON.stringify(tsconfig, null, 2), {
-      ...options,
-      filepath: tsconfigPath,
-    }),
-  )
+  const formatted = await format(tsconfigPath, JSON.stringify(tsconfig, null, 2), formatConfig)
+  if (formatted.errors.length > 0)
+    throw new Error(`${tsconfigPath}: ${formatted.errors[0].message}`)
+  writeFileSync(tsconfigPath, formatted.code)
   rewritten.push(tsconfigPath)
 }
 

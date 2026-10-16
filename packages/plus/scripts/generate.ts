@@ -7,7 +7,7 @@
  */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import * as prettier from 'prettier'
+import { format, type FormatConfig } from 'oxfmt'
 
 import { fileOf, generatedFields, included, references, setupOf, writtenFiles } from './entries.js'
 
@@ -16,12 +16,17 @@ const root = join(here, '../..')
 const packages = included(root)
 const entries = packages.flatMap(each => each.entries)
 
+// oxfmt's `format` discovers no config; this is the one `pnpm format` reads.
+const { $schema: _, ...formatConfig }: FormatConfig & { $schema?: string } = JSON.parse(
+  readFileSync(join(root, '.oxfmtrc.jsonc'), 'utf8'),
+)
+
 /** Written as the repository formats it, so `pnpm format:check` passes after a run. */
-const write = async (path: string, text: string) =>
-  writeFileSync(
-    path,
-    await prettier.format(text, { ...(await prettier.resolveConfig(path)), filepath: path }),
-  )
+const write = async (path: string, text: string) => {
+  const formatted = await format(path, text, formatConfig)
+  if (formatted.errors.length > 0) throw new Error(`${path}: ${formatted.errors[0]?.message}`)
+  writeFileSync(path, formatted.code)
+}
 
 for (const stale of writtenFiles(here).filter(
   file => !entries.some(entry => `${entry.subpath}.ts` === file),

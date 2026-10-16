@@ -22,9 +22,9 @@ pnpm demo
 pnpm pack:check
 ```
 
-Format with `pnpm format`, never bare `oxfmt`: the repository config matches
-the style already in the tree, and without it oxfmt rewrites files to its own
-defaults.
+Format with `pnpm format`, never bare `oxfmt`: bare `oxfmt` reads the
+repository config too, but also formats the HTML pages, `.mjs` scripts and
+`.jsonc` files the script's `**/*.{ts,json,yaml}` leaves alone.
 
 ## Workspace resolution
 

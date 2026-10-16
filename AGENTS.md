@@ -1299,11 +1299,15 @@ of its own named a form field "fits the Catalog". Read words with
   `encoding='utf-8'` on both reads and writes, write to the file only after the
   new content is fully built, and never chain a commit after a script in one
   command: check `wc -c` or `git diff --stat` first.
-- **Format with `pnpm format`, never bare `oxfmt`.** The config matches the
-  style already in the tree; without it oxfmt rewrites files to its own
-  defaults. Markdown is deliberately ignored, because formatters pad table
-  columns and reformat code inside fenced blocks, rewriting the documents'
-  illustrative snippets.
+- **Format with `pnpm format`, never bare `oxfmt`.** Bare `oxfmt` reads
+  `.oxfmtrc.jsonc` too, but formats every file it knows, not only the
+  script's `**/*.{ts,json,yaml}`: on 2026-10-16 it listed four `.html`
+  pages, two `.mjs` scripts and the `.jsonc` config as unformatted. Markdown
+  is deliberately ignored (`.prettierignore`, which oxfmt reads), because
+  formatters pad table columns and reformat code inside fenced blocks,
+  rewriting the documents' illustrative snippets. A script that writes
+  formatted files (`pnpm paths`, the `foldkit-plus` generator) calls oxfmt's
+  `format()`, which discovers no config, so it reads `.oxfmtrc.jsonc` itself.
 - **A re-exported type and a same-named const collide.** `export { type Sync }
   from './sync.js'` beside `export const Sync = {…}` is `TS2323 Cannot redeclare
   exported variable`, even though a type and a value may share a name. Both
@@ -1325,7 +1329,7 @@ of its own named a form field "fits the Catalog". Read words with
   declaration and its comment, leaving each comment documenting the wrong thing; the
   typecheck and the tests cannot see it. Anchor on the comment's opening `/**`, or read the
   lines above the insert before committing.
-- **A pipe hides the exit status of what it pipes.** `oxfmt --check $F | tail -1 &&
+- **A pipe hides the exit status of what it pipes.** `prettier --check $F | tail -1 &&
   git commit` committed a file the check had just flagged, because `tail` succeeded.
   Redirect instead (`>/dev/null &&`) when a check gates the next command.
   `;` gates nothing either: `pnpm -s mutate:check >/dev/null; echo $?; …;
@@ -1493,7 +1497,7 @@ of its own named a form field "fits the Catalog". Read words with
 ## Repository
 
 - Workspace: pnpm, `packages/*` and `examples/*`.
-- Build: `tsdown`. Tests: `vitest`. Types: `tsc -b`. Format: `oxfmt` (`prettier` stays as a library for the codegen scripts).
+- Build: `tsdown`. Tests: `vitest`. Types: `tsc -b`. Format: `oxfmt` (`examples/site`'s API extractor keeps `prettier` as a library).
 - CI runs `format:check`, `typecheck`, `test`, `e2e`, and `demo` on push and
   PR. Run them locally before committing; `pnpm e2e` starts servers and a
   browser, so run it when a change reaches an example with a server.
