@@ -30,7 +30,8 @@ const mount = (direction: 'ltr' | 'rtl') => {
   document.body.appendChild(container)
   const view = (model: Resizable.Model, h: HtmlBuilder<Resizable.Message>) =>
     h.div(
-      [h.Dir(direction), h.Style({ inlineSize: '600px', blockSize: '100px' })],
+      // No `dir` here: the view draws its own `direction`.
+      [h.Style({ inlineSize: '600px', blockSize: '100px' })],
       [
         Resizable.view(
           {

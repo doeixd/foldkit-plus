@@ -55,7 +55,8 @@ const mount = (motion = '0', direction: 'ltr' | 'rtl' = 'ltr') => {
   document.body.appendChild(container)
   const view = (model: TreeView.Model, h: HtmlBuilder<TreeView.Message>) =>
     h.div(
-      [h.Dir(direction), h.Style({ inlineSize: '20rem' })],
+      // No `dir` here: the view draws its own `direction`.
+      [h.Style({ inlineSize: '20rem' })],
       [
         TreeView.view(
           { label: 'Files', model, nodes: FILES, onMessage: m => m, direction, style },
@@ -118,6 +119,12 @@ test('right to left, ArrowLeft opens and ArrowRight shuts', async () => {
   const { handle } = mount('0', 'rtl')
   try {
     await vi.waitFor(() => expect(item('src')).not.toBeNull())
+    // The row is drawn the way its keys read: its chevron at the right, pointing left.
+    const [chevron, label] = Array.from(row('src').children)
+    expect(chevron!.getBoundingClientRect().left).toBeGreaterThan(
+      label!.getBoundingClientRect().left,
+    )
+    expect(getComputedStyle(chevron!).rotate).toBe('135deg')
     item('src').focus()
     await userEvent.keyboard('{ArrowLeft}')
     await vi.waitFor(() => expect(item('src').getAttribute('aria-expanded')).toBe('true'))

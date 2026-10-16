@@ -119,4 +119,15 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'the view swaps its keys but draws no direction',
+    edits: [
+      {
+        file: file,
+        find: '...(options.direction === undefined ? [] : [h.Dir(options.direction)]),',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
 ]

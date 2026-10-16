@@ -144,6 +144,8 @@ export const view = <Outer>(options: ResizableView<Outer>, h: HtmlBuilder<Outer>
   return h.div(
     builders.root.attrs([
       h.DataAttribute('orientation', vertical ? 'vertical' : 'horizontal'),
+      // The keys' and the drag's direction is the drawing's, so the first panel is on the right.
+      ...(options.direction === undefined ? [] : [h.Dir(options.direction)]),
       h.Style({ '--_fk-split': `${percent}%` }),
       h.OnMount(measured),
     ]),

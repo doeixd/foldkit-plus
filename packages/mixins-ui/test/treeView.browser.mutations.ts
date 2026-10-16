@@ -17,4 +17,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the view swaps its keys but draws no direction',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: '...(options.direction === undefined ? [] : [h.Dir(options.direction)]),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

@@ -307,6 +307,8 @@ export const view = <ParentMessage>(
     builders.root.attrs([
       h.Role('tree'),
       h.AriaLabel(options.label),
+      // The keys' direction is the drawing's, so the chevrons' `:dir()` agrees with them.
+      ...(options.direction === undefined ? [] : [h.Dir(options.direction)]),
       h.OnKeyDownPreventDefault((pressed, modifiers) => {
         const key = readingKey(pressed, options.direction)
         return handled.has(key) || Typeahead.isPrintable(key, modifiers)
