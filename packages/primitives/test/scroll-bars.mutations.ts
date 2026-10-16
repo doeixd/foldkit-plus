@@ -104,8 +104,31 @@ export default [
     edits: [
       {
         file,
-        find: 'requestAnimationFrame(() => rewatch && watch())',
-        replace: 'requestAnimationFrame(() => undefined)',
+        find: 'if (node instanceof Element && (record.target === scroller || isBar(node))) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'removed content stays watched',
+    edits: [
+      {
+        file,
+        find: 'if (node instanceof Element) sizes.unobserve(node)',
+        replace: 'if (node instanceof Element) void node',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'every change watches everything again',
+    edits: [
+      {
+        file,
+        find: '            }\n            soon()\n',
+        replace:
+          '            }\n            for (const child of Array.from(scroller.children)) sizes.observe(child)\n            soon()\n',
       },
     ],
     tests,

@@ -75,12 +75,10 @@ export const ScrollBars = Mount.defineStream('ScrollBars', {
           const area = scroller.parentElement
           if (area === null) return () => {}
 
+          const isBar = (child: Element): child is HTMLElement =>
+            child instanceof HTMLElement && child.hasAttribute(SCROLL_BAR_ATTRIBUTE)
           /** Looked for at each use, so a redraw that replaced a bar is followed. */
-          const bars = () =>
-            Array.from(area.children).filter(
-              (child): child is HTMLElement =>
-                child instanceof HTMLElement && child.hasAttribute(SCROLL_BAR_ATTRIBUTE),
-            )
+          const bars = () => Array.from(area.children).filter(isBar)
           const axisOf = (bar: HTMLElement): Axis =>
             bar.getAttribute(SCROLL_BAR_ATTRIBUTE) === 'inline' ? 'inline' : 'block'
 
@@ -242,28 +240,29 @@ export const ScrollBars = Mount.defineStream('ScrollBars', {
             if (!onThumb) follow(event)
           }
 
-          // Made before anything observes: where one is missing, the Mount fails
-          // with nothing attached.
+          // Both made before anything observes: where one is missing, the Mount
+          // fails with nothing attached.
           const sizes = new ResizeObserver(soon)
-          // The content's size moves the thumb as much as the scroller's: what is
-          // inside is watched, and what was added or removed is watched again, at
-          // most once a frame (a virtual list swaps its rows as it scrolls).
-          let rewatch = false
-          const watch = () => {
-            rewatch = false
-            sizes.disconnect()
-            sizes.observe(scroller)
-            for (const child of Array.from(scroller.children)) sizes.observe(child)
-            for (const bar of bars()) sizes.observe(bar)
-          }
-          const changes = new MutationObserver(() => {
-            if (!rewatch) {
-              rewatch = true
-              requestAnimationFrame(() => rewatch && watch())
+          // The content's size moves the thumb as much as the scroller's, so each
+          // child of the scroller is watched, and each bar for its track. Only what
+          // a change added or removed is watched or let go: a virtual list swaps
+          // a row or two each frame it scrolls, out of many.
+          const changes = new MutationObserver(records => {
+            for (const record of records) {
+              for (const node of Array.from(record.removedNodes)) {
+                if (node instanceof Element) sizes.unobserve(node)
+              }
+              for (const node of Array.from(record.addedNodes)) {
+                if (node instanceof Element && (record.target === scroller || isBar(node))) {
+                  sizes.observe(node)
+                }
+              }
             }
             soon()
           })
-          watch()
+          sizes.observe(scroller)
+          for (const child of Array.from(scroller.children)) sizes.observe(child)
+          for (const bar of bars()) sizes.observe(bar)
           changes.observe(scroller, { childList: true })
           changes.observe(area, { childList: true })
           scroller.addEventListener('scroll', scrolled, { passive: true })
@@ -278,8 +277,6 @@ export const ScrollBars = Mount.defineStream('ScrollBars', {
             dragging?.()
             if (frame !== undefined) cancelAnimationFrame(frame)
             if (hiding !== undefined) clearTimeout(hiding)
-            // A watch asked for this frame would observe again after the disconnect.
-            rewatch = false
             sizes.disconnect()
             changes.disconnect()
             scroller.removeEventListener('scroll', scrolled)

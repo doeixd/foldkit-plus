@@ -116,6 +116,38 @@ it('follows content that grows, and an element added, without a scroll', async (
   }
 })
 
+it('watches what is in the box as it changes, and only what changed', async () => {
+  const watched = new Set<Element>()
+  let observed = 0
+  vi.spyOn(ResizeObserver.prototype, 'observe').mockImplementation(target => {
+    observed += 1
+    watched.add(target)
+  })
+  vi.spyOn(ResizeObserver.prototype, 'unobserve').mockImplementation(target => {
+    watched.delete(target)
+  })
+  vi.spyOn(ResizeObserver.prototype, 'disconnect').mockImplementation(() => watched.clear())
+  const bars = await mount()
+  try {
+    const rows = Array.from({ length: 10 }, () => document.createElement('div'))
+    bars.scroller.append(...rows)
+    await new Promise(requestAnimationFrame)
+    const before = observed
+    // As a virtual list scrolls: a row leaves one end and one comes in at the other, a frame apart.
+    for (let step = 0; step < 5; step++) {
+      bars.scroller.firstElementChild?.remove()
+      bars.scroller.append(document.createElement('div'))
+      await new Promise(requestAnimationFrame)
+    }
+    expect(observed - before).toBe(5)
+    expect(watched).toEqual(
+      new Set([bars.scroller, ...bars.scroller.children, bars.block, bars.inline]),
+    )
+  } finally {
+    await bars.stop()
+  }
+})
+
 it('shows the bars while the box scrolls, and hides them once idle', async () => {
   // Long enough for `waitFor`'s polling to see them shown.
   const bars = await mount({ idle: 200 })
