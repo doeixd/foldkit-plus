@@ -24,8 +24,8 @@ export default [
     edits: [
       {
         file: '../src/datePickerView.ts',
-        find: 'triggerContent: triggerContent(maybeSelectedDate),',
-        replace: 'triggerContent: triggerContent(undefined as never),',
+        find: 'face: inputs.triggerContent(inputs.maybeSelectedDate),',
+        replace: 'face: inputs.triggerContent(Option.none()),',
       },
     ],
     tests,
@@ -35,7 +35,7 @@ export default [
     edits: [
       {
         file: '../src/datePickerView.ts',
-        find: 'h.Value(hiddenInputValue)',
+        find: 'h.Value(value)',
         replace: "h.Value('')",
       },
     ],
@@ -73,5 +73,27 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'a range submits nothing',
+    edits: [
+      {
+        file: '../src/datePickerView.ts',
+        find: 'days: submitted(inputs.selection),',
+        replace: 'days: Option.toArray(selectedDate(inputs.selection)),',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/datePicker.browser.test.ts'],
+  },
+  {
+    name: 'nothing chosen submits no name',
+    edits: [
+      {
+        file: '../src/datePickerView.ts',
+        find: "shown.days.length === 0 ? [''] : ",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/datePicker.browser.test.ts'],
   },
 ]

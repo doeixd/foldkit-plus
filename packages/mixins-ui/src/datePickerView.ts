@@ -24,6 +24,7 @@ import * as Popover from '@foldkit/ui/popover'
 import { type Html, type HtmlBuilder } from 'foldkit/html'
 import { defineView } from 'foldkit/submodel'
 import type { SlotAttributes } from 'foldkit-mixins'
+import { Selection, selectedDate } from './calendar.js'
 import { idSelector } from './datePickerUtils.js'
 
 /**
@@ -41,13 +42,60 @@ export type DatePickerRenderInfo = Readonly<{
   isVisible: boolean
 }>
 
+/** What upstream's picker shows: one day. */
+type OfDate = Pick<UpstreamViewInputs, 'maybeSelectedDate' | 'triggerContent'> &
+  Readonly<{ selection?: never }>
+
+/**
+ * What a picker of a whole Calendar selection shows, one that
+ * `DatePicker.update(selection)` keeps open while a range is unfinished.
+ */
+type OfSelection = Readonly<{
+  /**
+   * The application's selection: the calendar's marked day, the trigger and
+   * the hidden inputs all read it. Under `name`, each chosen day is a hidden
+   * input of its own, in order (a range's start, then its end), as a multiple
+   * select submits its options, so `FormData.getAll(name)` reads them back.
+   */
+  selection: Selection
+  /** The trigger's face for the selection, such as both ends of a range. */
+  triggerContent: (selection: Selection) => Html
+  maybeSelectedDate?: never
+}>
+
 /**
  * Upstream view inputs plus the seam. Omit `toView` for upstream markup. It
  * is handed the date picker's own builder, since its bundles speak the date
- * picker's Message.
+ * picker's Message. In place of upstream's one day, a picker may show a
+ * whole `selection`.
  */
-export type DatePickerViewInputs = UpstreamViewInputs &
+export type DatePickerViewInputs = Omit<UpstreamViewInputs, keyof OfDate> &
+  (OfDate | OfSelection) &
   Readonly<{ toView?: (render: DatePickerRenderInfo, h: HtmlBuilder<Message>) => Html }>
+
+/** What the trigger, the calendar's mark and the hidden inputs show, from either kind of input. */
+const shownOf = (inputs: OfDate | OfSelection) => {
+  if (inputs.selection === undefined) {
+    return {
+      maybeSelectedDate: inputs.maybeSelectedDate,
+      face: inputs.triggerContent(inputs.maybeSelectedDate),
+      days: Option.toArray(inputs.maybeSelectedDate),
+    }
+  }
+  return {
+    maybeSelectedDate: selectedDate(inputs.selection),
+    face: inputs.triggerContent(inputs.selection),
+    days: submitted(inputs.selection),
+  }
+}
+
+/** The days a selection submits: its day, a range's ends, or every day of many. */
+const submitted = (selection: Selection): ReadonlyArray<Calendar.CalendarDate> =>
+  Selection.match(selection, {
+    Single: ({ date }) => Option.toArray(date),
+    Range: ({ start, end }) => [...Option.toArray(start), ...Option.toArray(end)],
+    Multiple: ({ dates }) => dates,
+  })
 
 const encodeIsoDate = Schema.encodeSync(Calendar.CalendarDateFromIsoString)
 
@@ -55,8 +103,6 @@ export const view = defineView<Model, Message, DatePickerViewInputs>(
   (model, viewInputs, h): Html => {
     const {
       anchor,
-      maybeSelectedDate,
-      triggerContent,
       toCalendarView,
       isDisabled,
       name,
@@ -83,6 +129,8 @@ export const view = defineView<Model, Message, DatePickerViewInputs>(
     }
 
     const triggerLabelAttributes = resolveTriggerLabel()
+
+    const shown = shownOf(viewInputs)
 
     const calendarViewLabels: UiCalendar.ViewLabels = {
       ...(viewInputs.previousMonthLabel !== undefined && {
@@ -122,7 +170,7 @@ export const view = defineView<Model, Message, DatePickerViewInputs>(
       model: model.calendar,
       view: UiCalendar.view,
       viewInputs: {
-        maybeSelectedDate,
+        maybeSelectedDate: shown.maybeSelectedDate,
         toView: toCalendarView,
         ...calendarViewLabels,
       },
@@ -147,7 +195,7 @@ export const view = defineView<Model, Message, DatePickerViewInputs>(
           ...(triggerClassName !== undefined ? [h.Class(triggerClassName)] : []),
           ...triggerAttributes,
         ],
-        triggerContent: triggerContent(maybeSelectedDate),
+        triggerContent: shown.face,
         panel: isVisible
           ? [
               ...panel,
@@ -181,14 +229,12 @@ export const view = defineView<Model, Message, DatePickerViewInputs>(
       toParentMessage: (message: Popover.Message) => Message.GotPopoverMessage({ message }),
     })
 
-    const hiddenInputValue = Option.match(maybeSelectedDate, {
-      onNone: () => '',
-      onSome: encodeIsoDate,
-    })
+    // Nothing chosen still submits the name, empty, as upstream's one input does.
+    const hiddenValues = shown.days.length === 0 ? [''] : shown.days.map(day => encodeIsoDate(day))
 
     const maybeHiddenInput: ReadonlyArray<Html> =
       name !== undefined
-        ? [h.input([h.Type('hidden'), h.Name(name), h.Value(hiddenInputValue)])]
+        ? hiddenValues.map(value => h.input([h.Type('hidden'), h.Name(name), h.Value(value)]))
         : []
 
     const wrapperAttributes = [

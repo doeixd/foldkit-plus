@@ -73,4 +73,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the first end of a range closes the popover',
+    edits: [
+      {
+        file: '../src/datePicker.ts',
+        find: 'Option.filter(date => !isComplete(picked(selection, date))),',
+        replace: 'Option.filter(() => false),',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/datePicker.browser.test.ts'],
+  },
 ]
