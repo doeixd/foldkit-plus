@@ -188,7 +188,7 @@ export default [
     tests: unit,
   },
   {
-    name: "a radio option's words are not its label",
+    name: 'a radio option’s words are not its label',
     edits: [
       {
         file: '../src/snippets/components.ts',
@@ -197,5 +197,27 @@ export default [
       },
     ],
     tests: pages,
+  },
+  {
+    name: 'the component pages offer no direction',
+    edits: [
+      {
+        file: '../src/view/components.ts',
+        find: '      schemeChoice(model, slots, h),\n      directionChoice(model, slots, h),',
+        replace: '      schemeChoice(model, slots, h),',
+      },
+    ],
+    tests: pages,
+  },
+  {
+    name: 'a chosen direction never lands in the knobs',
+    edits: [
+      {
+        file: '../src/main.ts',
+        find: '    ChoseDirection: ({ direction }) => withKnobs(model, { ...model.knobs, direction }),',
+        replace: '    ChoseDirection: () => ({ model }),',
+      },
+    ],
+    tests: unit,
   },
 ]

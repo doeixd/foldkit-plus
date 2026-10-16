@@ -180,6 +180,8 @@ export const BadgeStyle = forSlots(BadgeSlots)(
   }),
 )
 
+// Tinted, the default: a pill in the tone's tint.
+
 export const badgesTinted = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
     [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
@@ -202,6 +204,8 @@ export const BadgeDotStyle = forSlots(BadgeSlots)(
   }),
 )
 
+// Dot, a coloured dot before plain words.
+
 export const badgesDot = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
     [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
@@ -223,6 +227,8 @@ export const BadgeOutlineStyle = forSlots(BadgeSlots)(
   }),
 )
 
+// Outline, a line in the tone around words in its ink.
+
 export const badgesOutline = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
     [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
@@ -243,6 +249,8 @@ export const BadgeSolidStyle = forSlots(BadgeSlots)(
     appearance: 'solid',
   }),
 )
+
+// Solid, the tone's fill.
 
 export const badgesSolid = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
