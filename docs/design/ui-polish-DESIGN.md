@@ -257,10 +257,16 @@ the text's boxes share a centre within 0.5px.
 
 ### A8. Gallery pages with many examples
 
-Most findings say "show more examples". **Plan:** let a showcase carry
-several named examples, as Fluid's presets do, each with its own snippet
-region, the recipe axes still switchable over all of them, and a link to an
-example (`#preset-name`). Then each Part C entry lists the examples to draw.
+Most findings say "show more examples". **Done.** A showcase carries named
+examples (`Showcase.examples`), each drawn with the picked style, with its own
+snippet region (`${slug}-${name}` in `snippets/components.ts`) and a link to it
+(`#${name}`). The recipe axes stay switchable over all of them: the page
+holds one toolbar and renders one section per example (title, self-link,
+preview, code). Showcases without examples keep the old single-preview page,
+so Part C migrates them one by one. The site build prerenders every page and
+fails on a missing region; a unit test pins each example's region and the
+uniqueness of its fragment. Migrated: alert (inline, banner), badge (tinted,
+dot, outline, solid).
 
 ### A9. One component where there are two
 
