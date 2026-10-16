@@ -334,10 +334,10 @@ type PlaceConfig<Fields, Field extends string, B, OutStepMessage, R2> = NonNulla
 >
 
 export const withChild: WithChildStep = ((
-    field: string,
-    bundle: AnyBundle,
-    ...config: ReadonlyArray<unknown>
-  ) =>
+  field: string,
+  bundle: AnyBundle,
+  ...config: ReadonlyArray<unknown>
+) =>
   (self: object) =>
     extend(self, spec => ({
       ...spec,
@@ -423,10 +423,10 @@ type EachConfigFor<Fields, Field extends string, B, OutStepMessage, R2> = NonNul
 >
 
 export const withEach: WithEachStep = ((
-    field: string,
-    bundle: AnyBundle,
-    ...config: ReadonlyArray<unknown>
-  ) =>
+  field: string,
+  bundle: AnyBundle,
+  ...config: ReadonlyArray<unknown>
+) =>
   (self: object) =>
     extend(self, spec => ({
       ...spec,
@@ -464,7 +464,8 @@ type Unconfigured<Children> = {
  */
 type StepMessageOf<Config> = HookMessage<Config, 'onOut'> | HookMessage<Config, 'onMessage'>
 type StepRequirementsOf<Config> =
-  HookRequirements<Config, 'onOut'> | HookRequirements<Config, 'onMessage'>
+  | HookRequirements<Config, 'onOut'>
+  | HookRequirements<Config, 'onMessage'>
 type HookMessage<Config, Hook extends string> = Config extends {
   readonly [K in Hook]: (...input: ReadonlyArray<any>) => Update.Step<any, infer Message, any>
 }

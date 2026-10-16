@@ -93,7 +93,8 @@ const sameRecord = (
  * apply, so the name falls back the way an entry-less name does.
  */
 export type RenderingEntry<Value> =
-  ElementRendering | ((value: Value) => ElementRendering | undefined)
+  | ElementRendering
+  | ((value: Value) => ElementRendering | undefined)
 
 /**
  * A vocabulary of renderings built *over* a Kit, never inside it (§34, §121). A

@@ -768,7 +768,8 @@ type ParamsOf<P> = P extends Schema.Top
 
 /** What a Surface's `model` may return: a Projection, or an object of Projections and refs to lift. */
 type ModelShape<Root> =
-  Projection<Root, unknown> | Record<string, Projection<Root, any> | ModelRef<Root, any>>
+  | Projection<Root, unknown>
+  | Record<string, Projection<Root, any> | ModelRef<Root, any>>
 
 type ModelOf<Root, R> = R extends Projection<Root, infer M> ? M : StructValue<R>
 
@@ -1552,7 +1553,8 @@ export interface Wiring<Model, Message, R = never, Claims extends string = strin
   readonly onUrl?: ((model: Model, url: Url) => Model) | undefined
   readonly subscriptions?: Subscriptions<Model, Message, R> | undefined
   readonly resources?:
-    Readonly<Record<string, ManagedResourceEntry<Model, Message, any, any, any>>> | undefined
+    | Readonly<Record<string, ManagedResourceEntry<Model, Message, any, any, any>>>
+    | undefined
   /** Its Module contract; absent for wiring that owns and observes nothing. */
   readonly contract?: Contract | undefined
 }
@@ -1596,7 +1598,9 @@ export interface ModuleManifest {
 
 /** A value `Module.make` accepts: a contract, a value carrying one, or a Surface without params. */
 export type ModuleItem<Root> =
-  Contract | { readonly contract: Contract } | Surface<Root, any, any, void>
+  | Contract
+  | { readonly contract: Contract }
+  | Surface<Root, any, any, void>
 
 const label = (contract: Contract): string => `${contract.kind}:${contract.name}`
 /** Metadata summaries are application data (a query's input), so they cannot break the table. */

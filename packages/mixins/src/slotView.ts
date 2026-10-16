@@ -118,7 +118,8 @@ const buildersOver = <Slots, Message>(
                 mixins.flatMap(mixin => {
                   // As `attrs` reads it: a `Mixin<never>` only ever gives message-free data.
                   const contribution = mixin.contributions[slot] as
-                    SlotContribution<Message> | undefined
+                    | SlotContribution<Message>
+                    | undefined
                   // A static one as it is: two views apart only by a Style draw rows apart.
                   return contribution === undefined
                     ? []

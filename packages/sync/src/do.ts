@@ -154,7 +154,8 @@ const defaultPair = (): readonly [client: WebSocket, server: AcceptingWebSocket]
   const maker = (
     globalThis as {
       readonly WebSocketPair?:
-        (new () => { readonly 0: WebSocket; readonly 1: AcceptingWebSocket }) | undefined
+        | (new () => { readonly 0: WebSocket; readonly 1: AcceptingWebSocket })
+        | undefined
     }
   ).WebSocketPair
   if (maker === undefined)

@@ -39,7 +39,8 @@ export interface Wiring<Model, Message, R = never, Claims extends string = strin
   readonly onUrl?: ((model: Model, url: Url) => Model) | undefined
   readonly subscriptions?: Subscription.Subscriptions<Model, Message, R> | undefined
   readonly resources?:
-    Readonly<Record<string, ManagedResource.Entry<Model, Message, any, any, any>>> | undefined
+    | Readonly<Record<string, ManagedResource.Entry<Model, Message, any, any, any>>>
+    | undefined
   /** Its Module contract, read by `foldkit-bundle-surface`. */
   readonly contract?: object | undefined
 }

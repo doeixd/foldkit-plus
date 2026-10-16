@@ -35,7 +35,12 @@ const toPreviousStep = (current: Step.Step): Step.Step =>
   )
 
 type StepKey =
-  'personalInfo' | 'workHistory' | 'education' | 'skills' | 'coverLetter' | 'attachments'
+  | 'personalInfo'
+  | 'workHistory'
+  | 'education'
+  | 'skills'
+  | 'coverLetter'
+  | 'attachments'
 
 /**
  * Where a step lives in the Model. A step left as it was leaves the Model as it

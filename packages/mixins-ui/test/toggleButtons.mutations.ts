@@ -21,7 +21,11 @@ export default [
   {
     name: 'a solid toggle on looks off',
     edits: [
-      { file: recipe, find: "          on({ background: toneVar('fill-active') }),\n", replace: '' },
+      {
+        file: recipe,
+        find: "          on({ background: toneVar('fill-active') }),\n",
+        replace: '',
+      },
     ],
     tests: browser,
   },

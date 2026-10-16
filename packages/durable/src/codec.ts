@@ -21,7 +21,8 @@ export interface Codec<Value, Encoded = unknown> {
  * transaction.
  */
 export type CodecInput<Value, Encoded = unknown> =
-  Codec<Value, Encoded> | Schema.Codec<Value, Encoded>
+  | Codec<Value, Encoded>
+  | Schema.Codec<Value, Encoded>
 
 const fromSchema = <Value, Encoded>(
   schema: Schema.Codec<Value, Encoded>,

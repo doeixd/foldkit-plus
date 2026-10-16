@@ -44,7 +44,8 @@ export type ComboboxRenderInfo = Readonly<{
   inputWrapper: ReadonlyArray<ChildAttribute>
   input: ReadonlyArray<ChildAttribute>
   toggleButton:
-    { key: string; attributes: ReadonlyArray<ChildAttribute>; content: Html } | undefined
+    | { key: string; attributes: ReadonlyArray<ChildAttribute>; content: Html }
+    | undefined
   backdrop: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
   items: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
   scroll: ReadonlyArray<ChildAttribute> | undefined

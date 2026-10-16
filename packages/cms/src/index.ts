@@ -308,7 +308,8 @@ export interface Content<
    * `id` is the row's, or the entry's while there is no row yet.
    */
   readonly preview?:
-    ((value: Partial<Value>, id: string) => ReadonlyArray<OptimisticOperation>) | undefined
+    | ((value: Partial<Value>, id: string) => ReadonlyArray<OptimisticOperation>)
+    | undefined
 }
 
 const editor = makeEditor({ Entities, Operations })

@@ -581,7 +581,8 @@ export const Crud = {
     const held = (root: Root): ReadonlyArray<readonly [Key, (typeof lists)[number], string]> => {
       const model = options.chosen?.(root)
       const field = form.field as
-        ((model: FormModel, key: string) => { readonly value: unknown }) | undefined
+        | ((model: FormModel, key: string) => { readonly value: unknown })
+        | undefined
       if (model === undefined || field === undefined) return []
       return pickers.flatMap(([key, list]) => {
         const draft = field(model, key).value

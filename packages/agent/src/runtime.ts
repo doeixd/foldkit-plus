@@ -274,7 +274,8 @@ export const bind = <
         }
 
         const error = Option.getOrUndefined(Cause.findErrorOption(exit.cause)) as
-          { _tag?: string; capability?: string; tag?: string } | undefined
+          | { _tag?: string; capability?: string; tag?: string }
+          | undefined
         record({
           invocation,
           // A capability that resolved names itself even when the failure does

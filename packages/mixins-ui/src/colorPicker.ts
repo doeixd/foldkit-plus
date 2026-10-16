@@ -109,7 +109,8 @@ export interface ColorPickerView<Message> {
   readonly onChange: (value: Oklch) => NoInfer<Message>
   /** The channels' names; default `Lightness`, `Chroma`, `Hue`. */
   readonly channelLabels?:
-    { readonly l: string; readonly c: string; readonly h: string } | undefined
+    | { readonly l: string; readonly c: string; readonly h: string }
+    | undefined
   /** Colors one press away, drawn as a radio group of swatches; the one equal to `value` is checked. */
   readonly presets?: ReadonlyArray<ColorPickerPreset> | undefined
   /** The presets' group name; default `Presets`. */

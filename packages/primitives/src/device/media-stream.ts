@@ -74,7 +74,8 @@ export const mediaStream = <const Name extends string>(config: {
   readonly name: Name
   /** Read lazily so tests can substitute a double, like the SSE bundle. */
   readonly request?:
-    ((constraints: MediaStreamConstraints) => Promise<MediaStreamHandle>) | undefined
+    | ((constraints: MediaStreamConstraints) => Promise<MediaStreamHandle>)
+    | undefined
 }) => {
   const request = (constraints: MediaStreamConstraints): Promise<MediaStreamHandle> => {
     if (config.request !== undefined) return config.request(constraints)

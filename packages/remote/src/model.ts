@@ -313,7 +313,8 @@ export type RemoteMessage =
        * may name server state that is gone.
        */
       readonly connections?:
-        Readonly<Record<string, ReadonlyArray<ReadonlyArray<Edge>>>> | undefined
+        | Readonly<Record<string, ReadonlyArray<ReadonlyArray<Edge>>>>
+        | undefined
       readonly merge: MergePolicy
       /** The storage key the snapshot was read from, when it was: `restoredFrom`. */
       readonly from?: string | undefined

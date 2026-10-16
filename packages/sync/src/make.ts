@@ -414,7 +414,8 @@ const build = <
     // and a Struct are pure, so the low-level contract's `never` is satisfied.
     const sharedCodec = shared.schema as unknown as Schema.Codec<Shared, unknown>
     const stamps = options.stamp as
-      Record<string, (message: Message, commit: CommitStamp) => Message> | undefined
+      | Record<string, (message: Message, commit: CommitStamp) => Message>
+      | undefined
     const sync = defineSync<Message, Shared, unknown, unknown>({
       documentId: options.documentId,
       message: app.Message as unknown as Schema.Codec<Message, unknown>,
@@ -424,7 +425,8 @@ const build = <
       replay,
       // `durable` has already rejected anything outside the declared subset.
       coalesce: options.coalesce as
-        ((last: Message, next: Message) => Message | undefined) | undefined,
+        | ((last: Message, next: Message) => Message | undefined)
+        | undefined,
       ...(stamps === undefined
         ? {}
         : {

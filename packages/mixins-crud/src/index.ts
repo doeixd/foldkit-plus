@@ -119,7 +119,8 @@ export interface DetailInput<Value, Message, Key extends string = string> {
   /** Renderers by Display kind, for every field of that kind. */
   readonly renderers?: DisplayRenderers<Message> | undefined
   readonly cells?:
-    { readonly [K in Key]?: (value: Value, h: HtmlBuilder<Message>) => Html } | undefined
+    | { readonly [K in Key]?: (value: Value, h: HtmlBuilder<Message>) => Html }
+    | undefined
   readonly words?: ViewWords | undefined
 }
 

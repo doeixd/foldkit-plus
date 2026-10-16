@@ -127,5 +127,3 @@ test('pressed, a solid button stands 1px in on every side, and comes back when l
     handle.dispose()
   }
 })
-
-

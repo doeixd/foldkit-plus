@@ -90,7 +90,8 @@ export interface HttpHandlerOptions<Model, Context_, Principal, ByName, ByTag> {
    * request params would let any caller claim any identity.
    */
   readonly authenticate?:
-    ((request: HttpRequest) => Effect.Effect<Principal, Unauthenticated>) | undefined
+    | ((request: HttpRequest) => Effect.Effect<Principal, Unauthenticated>)
+    | undefined
 
   /**
    * A stable identity for a principal, used to bind a session to its creator.

@@ -76,7 +76,10 @@ export interface On<Rules, D extends Deny> {
 
 /** Anything a surface's list may hold, of any guard set. */
 export type AnyRule =
-  PrincipalGuard<any, string> | RowGuard<any, AnyEntity, string> | All<any> | Inherit<string>
+  | PrincipalGuard<any, string>
+  | RowGuard<any, AnyEntity, string>
+  | All<any>
+  | Inherit<string>
 
 /**
  * What a surface of the Entity named `Name` accepts from the guard set `Set`:

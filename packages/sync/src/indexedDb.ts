@@ -137,7 +137,8 @@ export const indexedDb = Effect.fn('Storage.indexedDb')(function* (
             const appended = transaction.objectStore('outbox').getAll()
             transaction.oncomplete = () => {
               const saved = state.result as
-                { pending: ReadonlyArray<{ readonly localSequence?: unknown }> } | undefined
+                | { pending: ReadonlyArray<{ readonly localSequence?: unknown }> }
+                | undefined
               const entries = appended.result as ReadonlyArray<OutboxEntry>
               // Only the last operation is ever rewritten, so the last row is the latest.
               const latest = entries[entries.length - 1]

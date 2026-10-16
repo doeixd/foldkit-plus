@@ -66,7 +66,8 @@ export interface StaticSite<
   readonly buildId?: string | undefined
   readonly origin: string
   readonly paths:
-    ReadonlyArray<SitePath> | (() => ReadonlyArray<SitePath> | Promise<ReadonlyArray<SitePath>>)
+    | ReadonlyArray<SitePath>
+    | (() => ReadonlyArray<SitePath> | Promise<ReadonlyArray<SitePath>>)
   readonly template: string
   readonly head?: Head | undefined
   readonly flags?: ((path: string) => unknown) | undefined
@@ -173,7 +174,8 @@ export interface SiteModule {
   readonly buildId?: string | undefined
   readonly origin: string
   readonly paths:
-    ReadonlyArray<SitePath> | (() => ReadonlyArray<SitePath> | Promise<ReadonlyArray<SitePath>>)
+    | ReadonlyArray<SitePath>
+    | (() => ReadonlyArray<SitePath> | Promise<ReadonlyArray<SitePath>>)
   readonly template?: ((built: string) => string) | undefined
   readonly head?: Head | undefined
   readonly flags?: ((path: string) => unknown) | undefined

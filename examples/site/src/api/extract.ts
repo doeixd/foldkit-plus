@@ -187,7 +187,10 @@ const isHidden = (node: ts.Node): boolean =>
 type Shape = 'declaration' | 'member'
 
 type FunctionLike =
-  ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | ts.MethodDeclaration
+  | ts.FunctionDeclaration
+  | ts.ArrowFunction
+  | ts.FunctionExpression
+  | ts.MethodDeclaration
 
 /** Reads one Program's declarations into the reference's shapes. */
 const reader = (root: string, checker: ts.TypeChecker) => {

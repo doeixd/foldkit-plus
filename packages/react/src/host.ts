@@ -102,7 +102,8 @@ const defineHostElement = () => {
       if (!callback) {
         callback = (...args) => {
           const toMessage = this.#input?.messages[name] as
-            ((...args: Array<unknown>) => unknown) | undefined
+            | ((...args: Array<unknown>) => unknown)
+            | undefined
           if (toMessage) this.#emit(toMessage(...args))
         }
         this.#callbacks.set(name, callback)

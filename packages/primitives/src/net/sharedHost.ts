@@ -11,7 +11,8 @@ export type ConversationHandler<Opening> = (opening: Opening, conversation: Conv
 
 /** Starts the host, once, the first time a conversation needs it. */
 export type StartHost<Opening> = () =>
-  ConversationHandler<Opening> | Promise<ConversationHandler<Opening>>
+  | ConversationHandler<Opening>
+  | Promise<ConversationHandler<Opening>>
 
 /** Where `SharedHost` runs the host: in a SharedWorker, or in the page when there is none. */
 export interface SharedHostOptions<Opening> {

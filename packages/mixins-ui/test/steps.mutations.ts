@@ -84,7 +84,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/steps.ts',
-        find: "Style.nest(':where([data-state]:not([aria-current=\"step\"])) > * > &', {",
+        find: 'Style.nest(\':where([data-state]:not([aria-current="step"])) > * > &\', {',
         replace: "Style.nest(':where([data-state]) > * > &', {",
       },
     ],
@@ -95,7 +95,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/steps.ts',
-        find: "Style.nest(':where([data-state]:not([aria-current=\"step\"]))&', {",
+        find: 'Style.nest(\':where([data-state]:not([aria-current="step"]))&\', {',
         replace: "Style.nest(':where([data-state])&', {",
       },
     ],

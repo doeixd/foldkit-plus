@@ -88,7 +88,8 @@ export interface CompiledMessageCompletion {
   readonly success: ReadonlySet<string>
   readonly failure: ReadonlySet<string>
   readonly correlate:
-    ((request: unknown, result: AnyMessage, call: Correlation) => boolean) | undefined
+    | ((request: unknown, result: AnyMessage, call: Correlation) => boolean)
+    | undefined
   readonly timeout: Duration.Duration
 }
 

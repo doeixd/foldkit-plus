@@ -356,7 +356,8 @@ export interface MirrorConfig<S extends Slice, Name extends string = string> {
   /** The slice: field refs (`[App.model.filter, App.model.q]`) or a writable projection over them. */
   readonly fields: S
   readonly keys?:
-    { readonly [K in keyof SliceFields<S>]?: KeyOptions<TypeOf<SliceFields<S>[K]>> } | undefined
+    | { readonly [K in keyof SliceFields<S>]?: KeyOptions<TypeOf<SliceFields<S>[K]>> }
+    | undefined
   /** The Model's initial value, when the application was built without one; defaults are read from it. */
   readonly initial?: SliceRoot<S> | undefined
   /**

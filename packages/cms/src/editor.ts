@@ -199,7 +199,8 @@ export interface EditorContent<FormModel, FormMessage, Value, Resources = {}, Se
     readonly slug: { readonly key: string } | undefined
   }
   readonly preview?:
-    ((value: Partial<Value>, id: string) => ReadonlyArray<OptimisticOperation>) | undefined
+    | ((value: Partial<Value>, id: string) => ReadonlyArray<OptimisticOperation>)
+    | undefined
 }
 
 const held = <A>(read: RemoteData<A> | undefined): A | undefined =>

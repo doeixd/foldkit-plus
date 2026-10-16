@@ -113,12 +113,13 @@ type MappedVariant<MessageInput, Ext, Model, Principal> = VariantConfig<
  */
 export type ValidateVariants<C extends Cases, Ext, Model, Principal> = {
   readonly [Tag in keyof Ext]: Tag extends keyof C & string
-    ? | DirectVariant<MessageInputOf<C, Tag>, Ext[Tag], Model, Principal>
-      | (MappedVariant<MessageInputOf<C, Tag>, Ext[Tag], Model, Principal> & {
-          // Set by `Agent.action`: the Message it makes must be this tag's.
-          readonly messageTag?: Tag
-        })
-      | string
+    ?
+        | DirectVariant<MessageInputOf<C, Tag>, Ext[Tag], Model, Principal>
+        | (MappedVariant<MessageInputOf<C, Tag>, Ext[Tag], Model, Principal> & {
+            // Set by `Agent.action`: the Message it makes must be this tag's.
+            readonly messageTag?: Tag
+          })
+        | string
     : never
 }
 
@@ -355,7 +356,8 @@ export const action = <
   extras: {
     readonly available?: ((model: Model) => boolean) | undefined
     readonly authorize?:
-      VariantConfig<Omit<ActionMessage, '_tag'>, Input, Model, Principal>['authorize'] | undefined
+      | VariantConfig<Omit<ActionMessage, '_tag'>, Input, Model, Principal>['authorize']
+      | undefined
   } = {},
 ) =>
   variant<

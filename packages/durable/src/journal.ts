@@ -218,7 +218,10 @@ export interface RecoveryOptions<Operation> {
 }
 
 export type AppendError =
-  InvalidOperationError | OperationRejectedError | IdentityConflictError | JournalError
+  | InvalidOperationError
+  | OperationRejectedError
+  | IdentityConflictError
+  | JournalError
 
 /**
  * The outcome of `append`. `AlreadyCommitted` means the operation is known but

@@ -168,7 +168,8 @@ export interface CmsServerConfig<User> {
    * named is any author's.
    */
   readonly transitions?:
-    { readonly [T in Transition]?: ReadonlyArray<PrincipalGuard<User>> | undefined } | undefined
+    | { readonly [T in Transition]?: ReadonlyArray<PrincipalGuard<User>> | undefined }
+    | undefined
   /**
    * Whether this author may make this transition of this entry, for a rule
    * about the entry itself: asked after the entry is found, the transition is

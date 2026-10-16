@@ -104,7 +104,8 @@ describe('Command.view', () => {
 describe('Command keys', () => {
   type Model = Readonly<{ active: Option.Option<string>; ran: string }>
   type Message =
-    Readonly<{ _tag: 'Activated'; value: string }> | Readonly<{ _tag: 'Ran'; value: string }>
+    | Readonly<{ _tag: 'Activated'; value: string }>
+    | Readonly<{ _tag: 'Ran'; value: string }>
   const scene = (active: Option.Option<string>, ...steps: ReadonlyArray<Step>) =>
     Scene.scene<Model, Message>(
       {

@@ -274,10 +274,11 @@ type PageSchema<S extends Schema.Constraint> = Schema.Struct<{
 type SelectionSpec<E extends AnyEntity, Spec> = {
   readonly [K in keyof Spec]: K extends keyof E['relations']
     ? E['relations'][K] extends EntityRelation<any, any, infer Target, infer C, any>
-      ? | true
-        | AnySelection<Target['name']>
-        // Only a `many` relation has pages.
-        | (C extends 'many' ? SelectionPage<Target['name'], any> : never)
+      ?
+          | true
+          | AnySelection<Target['name']>
+          // Only a `many` relation has pages.
+          | (C extends 'many' ? SelectionPage<Target['name'], any> : never)
       : never
     : K extends keyof E['members']
       ? true
@@ -291,7 +292,8 @@ type RelationShape<
 > = C extends 'many' ? Schema.$Array<S> : Optional extends true ? Schema.NullOr<S> : S
 
 type SelectedSchema<Member, Selected> = Member extends
-  EntityField<any, any, infer S> | EntityDerived<any, any, infer S>
+  | EntityField<any, any, infer S>
+  | EntityDerived<any, any, infer S>
   ? S
   : Member extends EntityRelation<any, any, infer Target, infer C, infer Optional>
     ? Selected extends SelectionPage<any, infer S>

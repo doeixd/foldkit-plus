@@ -10,7 +10,9 @@ export const FillDragEnded = Schema.TaggedStruct('FillDragEnded', {
   completed: Schema.Boolean,
 })
 export type FillFact =
-  typeof FillDragStarted.Type | typeof FillDraggedOver.Type | typeof FillDragEnded.Type
+  | typeof FillDragStarted.Type
+  | typeof FillDraggedOver.Type
+  | typeof FillDragEnded.Type
 
 /** The attribute that marks the fill handle, which the body's listener looks for. */
 export const fillHandleAttribute = 'data-fill-handle'

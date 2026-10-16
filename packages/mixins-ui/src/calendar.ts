@@ -135,7 +135,9 @@ export interface ResolvedYears<Message> {
   readonly cells: ReadonlyArray<ResolvedYearCell<Message>>
 }
 export type ResolvedCalendar<Message> =
-  ResolvedDays<Message> | ResolvedMonths<Message> | ResolvedYears<Message>
+  | ResolvedDays<Message>
+  | ResolvedMonths<Message>
+  | ResolvedYears<Message>
 
 /** Resolves every mode's nested groups, preserving the `_tag` and heading data. */
 export const resolve = <Input, Message>(

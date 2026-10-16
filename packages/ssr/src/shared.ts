@@ -65,10 +65,12 @@ export interface Meta {
   readonly type?: 'website' | 'article' | undefined
   readonly siteName?: string | undefined
   readonly article?:
-    { readonly published?: string | undefined; readonly modified?: string | undefined } | undefined
+    | { readonly published?: string | undefined; readonly modified?: string | undefined }
+    | undefined
   readonly robots?: string | undefined
   readonly alternates?:
-    ReadonlyArray<{ readonly hreflang: string; readonly href: string }> | undefined
+    | ReadonlyArray<{ readonly hreflang: string; readonly href: string }>
+    | undefined
   readonly jsonLd?: ReadonlyArray<Readonly<Record<string, unknown>>> | undefined
 }
 

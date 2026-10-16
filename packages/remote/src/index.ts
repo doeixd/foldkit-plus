@@ -348,7 +348,9 @@ export interface DomainMutateOptions {
  * the page and what the page reveals.
  */
 export type ActiveEntry<AppModel> =
-  ActiveSurface<AppModel> | Surface<AppModel, any, any, void> | SurfaceSource<AppModel>
+  | ActiveSurface<AppModel>
+  | Surface<AppModel, any, any, void>
+  | SurfaceSource<AppModel>
 
 /** A Foldkit Subscription entry of the Remote domain, emitting its Messages through `RemoteClient`. */
 export type RemoteEntry<AppModel, Dependencies> = EntryWithoutKeepAlive<
@@ -506,7 +508,8 @@ export interface RemoteDomain<
     projection: QueryProjection<AppModel, any, Name, Input>,
     options?: {
       readonly surfaces?:
-        Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>> | undefined
+        | Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
+        | undefined
     },
   ): QueryExplanation
   /**
@@ -523,7 +526,8 @@ export interface RemoteDomain<
     projection: Projection<AppModel, RemoteData<unknown>>,
     options?: {
       readonly surfaces?:
-        Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>> | undefined
+        | Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
+        | undefined
     },
   ): ReadDiagnosis
   /**

@@ -26,7 +26,9 @@ import { bind } from './runtime.js'
  * the agent sees.
  */
 export type ReadableProjection<Model, Value> =
-  Projection<Model, Value> | WritableProjection<Model, any> | Surface<Model, Value, any, void>
+  | Projection<Model, Value>
+  | WritableProjection<Model, any>
+  | Surface<Model, Value, any, void>
 
 /** The value a readable projection produces. */
 export type ProjectionValue<R> =

@@ -341,7 +341,8 @@ export const source = <P = unknown>(
     /** The fields every principal reads alike, of every row: see `EntitySource.shared`. */
     readonly shared?: ReadonlyArray<string> | undefined
     readonly policies?:
-      Readonly<Record<string, ((principal: P) => SQL | undefined) | undefined>> | undefined
+      | Readonly<Record<string, ((principal: P) => SQL | undefined) | undefined>>
+      | undefined
   },
 ): EntitySource<P, DrizzleDatabase> => {
   for (const field of Object.keys(options?.policies ?? {})) {
@@ -641,7 +642,9 @@ export const query = <P = unknown, Input = unknown>(
      * ordering is compiled instead.
      */
     readonly orderBy?:
-      readonly OrderTerm[] | ((input: Input, principal: P) => readonly OrderTerm[]) | undefined
+      | readonly OrderTerm[]
+      | ((input: Input, principal: P) => readonly OrderTerm[])
+      | undefined
     /**
      * Extra SQL this server adds, in its own dialect. With a body it is
      * conjoined with what the body compiled to rather than replacing it, so a

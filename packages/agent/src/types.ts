@@ -59,9 +59,12 @@ export interface Completion<
 > {
   readonly success: MessageConstructor<Success> | ReadonlyArray<MessageConstructor<Success>>
   readonly failure?:
-    MessageConstructor<Failure> | ReadonlyArray<MessageConstructor<Failure>> | undefined
+    | MessageConstructor<Failure>
+    | ReadonlyArray<MessageConstructor<Failure>>
+    | undefined
   readonly correlate?:
-    ((request: Request, result: Success | Failure, call: Correlation) => boolean) | undefined
+    | ((request: Request, result: Success | Failure, call: Correlation) => boolean)
+    | undefined
   readonly timeout?: Duration.Input | undefined
 }
 

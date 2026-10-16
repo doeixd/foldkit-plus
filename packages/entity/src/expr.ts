@@ -321,7 +321,15 @@ const toExpr = <T>(value: Operand<T> | T, step: string): AnyExpr => {
  * wrongly — see `Query.unsupported`.
  */
 export type Operation =
-  'eq' | 'isNull' | 'isNotNull' | 'contains' | 'in' | 'and' | 'or' | 'not' | 'compare'
+  | 'eq'
+  | 'isNull'
+  | 'isNotNull'
+  | 'contains'
+  | 'in'
+  | 'and'
+  | 'or'
+  | 'not'
+  | 'compare'
 
 /** One field an expression reads: its Entity's name and key, and the identity that owns it. */
 export interface FieldDependency {
@@ -836,7 +844,8 @@ export const Order = {
  * answer `Query.placement` gives, and the reason when it cannot.
  */
 export type Placement =
-  { readonly _tag: 'Placeable' } | { readonly _tag: 'NotPlaceable'; readonly reason: string }
+  | { readonly _tag: 'Placeable' }
+  | { readonly _tag: 'NotPlaceable'; readonly reason: string }
 
 const placeable: Placement = Object.freeze({ _tag: 'Placeable' })
 const notPlaceable = (reason: string): Placement => Object.freeze({ _tag: 'NotPlaceable', reason })

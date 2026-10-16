@@ -191,11 +191,8 @@ describe('DatePicker adapter', () => {
         message: UiCalendar.Message.ClickedDay({ date: day(date) }),
       })
     // As an application folds it: the selection read fresh for each Message.
-    const pick = (
-      selection: CalendarAdapter.Selection,
-      model: Model,
-      date: number,
-    ) => DatePickerAdapter.update(selection)(model, click(date))
+    const pick = (selection: CalendarAdapter.Selection, model: Model, date: number) =>
+      DatePickerAdapter.update(selection)(model, click(date))
 
     it.each([
       ['a single day', 'Single', false],
