@@ -224,6 +224,29 @@ test('the neutrals take a hue of their own, or the accent’s and follow it', ()
   expect(distance(hueOf(computed('surface-base')), 150)).toBeLessThan(10)
 })
 
+test.each(['light', 'dark'] as const)(
+  'in a %s scheme, a shadow takes the hue it is given, and the neutrals’ without one',
+  scheme => {
+    const sheet = (palette: ReturnType<typeof Theme.oklch>) => {
+      const style = document.createElement('style')
+      style.dataset['test'] = ''
+      style.textContent = Style.stylesheet(
+        L.declare,
+        L.in('tokens', Theme.root(Theme.tokens, { colorScheme: scheme })),
+        L.in('theme', Theme.root(palette, { omit: Theme.tokens, colorScheme: scheme })),
+      )
+      document.head.append(style)
+    }
+    const accent = { h: 265, c: 0.16, l: '52%' }
+    sheet(Theme.oklch({ accent, neutral: { h: 200 }, shadow: { h: 40, c: 0.06 } }))
+    expect(distance(hueOf(computed('shadow-color')), 40)).toBeLessThan(5)
+    expect(chromaOf(computed('shadow-color'))).toBeGreaterThan(0.05)
+    document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+    sheet(Theme.oklch({ accent, neutral: { h: 200 }, surfaceSaturation: 0.03 }))
+    expect(distance(hueOf(computed('shadow-color')), 200)).toBeLessThan(5)
+  },
+)
+
 describe('a menu panel', () => {
   const install = (menu: Parameters<typeof Theme.oklch>[0]['menu']) => {
     const style = document.createElement('style')

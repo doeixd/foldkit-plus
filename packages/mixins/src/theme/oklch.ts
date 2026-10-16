@@ -29,6 +29,12 @@ export interface OklchKnobs {
    * `accent-h` knob moves.
    */
   readonly neutral?: { readonly h: number }
+  /**
+   * The tint of every shadow: its hue (the neutrals' unless given) and chroma
+   * (twice the surfaces' unless given), so a warm theme's cards cast a warm
+   * shadow. `shadow-strength` still scales how much of it shows.
+   */
+  readonly shadow?: { readonly h?: number; readonly c?: number }
   /** Chroma of neutral surfaces; 0 is gray. */
   readonly surfaceSaturation?: number
   /** How far apart the surface steps are, 0–100%. */
@@ -205,6 +211,9 @@ export const oklch = (knobs: OklchKnobs) => {
       // unless `stateHue` is `neutral`, when every hover mixes the text.
       'surface-ink': knobs.stateHue === 'neutral' ? '0' : '1',
       'image-edge': '10%',
+      // The shadow's tint: the neutrals' hue, and a little more than their chroma.
+      'shadow-h': knobs.shadow?.h === undefined ? v('hue', 'neutral') : String(knobs.shadow.h),
+      'shadow-c': knobs.shadow?.c === undefined ? `calc(${surfaceC} * 2)` : num(knobs.shadow.c),
       // How much lighter each raised level is in a dark scheme.
       'raise-dark': '0.027',
     },
@@ -266,12 +275,13 @@ export const oklch = (knobs: OklchKnobs) => {
     ),
     secondary: family('secondary', rehue(accent, v('hue', 'secondary'))),
     tertiary: family('tertiary', rehue(accent, v('hue', 'tertiary'))),
-    // A near-black of the neutral hue: faint on a light surface, and denser
+    // A near-black of the shadow's hue: faint on a light surface, and denser
     // on a dark one, where a light shadow would read as a glow.
     shadow: {
       color: ld(
-        `oklch(25% calc(${surfaceC} * 2) ${neutral} / 0.14)`,
-        `oklch(5% calc(${surfaceCDark} * 2) ${neutral} / 0.6)`,
+        `oklch(25% ${v('knob', 'shadow-c')} ${v('knob', 'shadow-h')} / 0.14)`,
+        // A third more chroma, as the dark surfaces have.
+        `oklch(5% calc(${v('knob', 'shadow-c')} * 4 / 3) ${v('knob', 'shadow-h')} / 0.6)`,
       ),
     },
     // What a state lays over the surface under it, after Fluid Functionalism's

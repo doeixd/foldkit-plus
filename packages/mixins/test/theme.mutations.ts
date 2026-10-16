@@ -4,6 +4,28 @@
  */
 export default [
   {
+    name: 'a shadow ignores the hue it is given',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "'shadow-h': knobs.shadow?.h === undefined ? v('hue', 'neutral') : String(knobs.shadow.h),",
+        replace: "'shadow-h': v('hue', 'neutral'),",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'a shadow in the dark is drawn in the neutral hue',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "* 4 / 3) ${v('knob', 'shadow-h')} / 0.6)",
+        replace: '* 4 / 3) ${neutral} / 0.6)',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
     name: 'a tint is mixed in OKLCH, and takes the base hue',
     edits: [
       {
