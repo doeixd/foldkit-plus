@@ -26,6 +26,13 @@ export const RadioGroupSlots = Slots.define({
   }),
   label: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container }),
+  /**
+   * An option's whole row, which the application draws around its radio and
+   * words (a `label`, so a press anywhere on it presses the radio). No
+   * upstream bundle: this package's, `data-checked` while its option is, so
+   * a card recipe styles the row and its chosen look.
+   */
+  card: Slot.make({ capability: Capability.Container }),
   hiddenInput: Slot.make({
     capability: Capability.Base,
     attributes: [Attr.Value],
@@ -40,6 +47,7 @@ export type ResolvedRadioOption<Value extends string, Message> = Omit<
   readonly option: SlotAttributes<Message>
   readonly label: SlotAttributes<Message>
   readonly description: SlotAttributes<Message>
+  readonly card: SlotAttributes<Message>
 }
 
 /** The radio group's bundles with the attached Mixins applied. */
@@ -83,6 +91,7 @@ export const resolve = <Value extends string, Input, Message>(
       option: builders.option.attrs(option.option),
       label: builders.label.attrs(option.label),
       description: builders.description.attrs(option.description),
+      card: builders.card.attrs([context.h.DataAttribute('checked', String(option.isSelected))]),
     })),
     selectedValue: render.selectedValue,
     hiddenInput: builders.hiddenInput.attrs(render.hiddenInput),

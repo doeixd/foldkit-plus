@@ -44,7 +44,13 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
       Style.self({ display: 'flex', flexDirection: 'column', gap: ref.space['2xs'] }),
       Style.states(
         {
-          horizontal: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
+          // A wider gap across than down: the rows' words would otherwise run together.
+          horizontal: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            alignItems: 'flex-start',
+            columnGap: ref.space.md,
+          },
         },
         'aria-orientation',
       ),
@@ -88,6 +94,15 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
     ),
     label,
     description,
+    // A row: the radio on the first line of the words beside it.
+    card: component(
+      Style.self({
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: ladder('gap'),
+        cursor: 'pointer',
+      }),
+    ),
   },
   variants: {
     tone: {
@@ -98,25 +113,25 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
     size: { sm: { option: sizes.sm }, md: { option: sizes.md }, lg: { option: sizes.lg } },
     variant: {
       plain: { group: variant(Style.self({})) },
-      // Each direct label is the card. The checked look reads the radio inside
-      // it, so the row the application draws needs no selected prop of its own.
+      // Each option's `card` row is boxed; the chosen one takes the accent's
+      // border and tint, which read in a dark scheme as in a light one.
       card: {
-        group: variant(
-          Style.self({ gap: ladder('gap') }),
-          Style.nest('& > label', {
+        group: variant(Style.self({ gap: ladder('gap') })),
+        card: variant(
+          Style.self({
             padding: ladder('row-pad'),
             border: `${ref.border.thin} solid ${ref.outline.subtle}`,
             borderRadius: ref.radius.lg,
             background: ref.surface.base,
-            cursor: 'pointer',
+            ...transition('background-color, border-color'),
           }),
-          Style.nest('&[aria-orientation="horizontal"] > label', {
+          Style.nest(':where([aria-orientation="horizontal"]) > &', {
             flex: '1',
             minInlineSize: '12rem',
           }),
-          Style.nest('& > label:has([aria-checked="true"])', {
-            borderColor: ref.outline.default,
-            background: ref.surface.subtle,
+          Style.pseudo('[data-checked="true"]', {
+            borderColor: ref.accent.default,
+            background: ref.accent.subtle,
           }),
         ),
       },

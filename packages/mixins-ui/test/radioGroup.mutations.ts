@@ -23,13 +23,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/radio.ts',
-        find: `      Style.states(
-        {
-          horizontal: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
-        },
-        'aria-orientation',
-      ),
-`,
+        find: "flexDirection: 'row',",
         replace: '',
       },
     ],
@@ -40,10 +34,32 @@ export default [
     edits: [
       {
         file: '../src/recipes/radio.ts',
-        find: 'background: ref.surface.subtle,',
+        find: 'background: ref.accent.subtle,',
         replace: 'background: ref.surface.base,',
       },
     ],
-    tests: [...recipes, ...browser],
+    tests: browser,
+  },
+  {
+    name: 'a chosen card keeps the plain border',
+    edits: [
+      {
+        file: '../src/recipes/radio.ts',
+        find: 'borderColor: ref.accent.default,',
+        replace: 'borderColor: ref.outline.subtle,',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'every card but the chosen one is marked checked',
+    edits: [
+      {
+        file: '../src/radioGroup.ts',
+        find: 'String(option.isSelected)',
+        replace: 'String(!option.isSelected)',
+      },
+    ],
+    tests: browser,
   },
 ]
