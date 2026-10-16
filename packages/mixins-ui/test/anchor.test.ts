@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from 'vitest'
+import { Effect, Fiber, Stream } from 'effect'
+import { liveViewStateChanges } from 'foldkit/mount'
 import { Attributes, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { Anchor } from '../src/index.js'
 import { h, type TestMessage } from './fixture.js'
@@ -37,5 +40,88 @@ describe('Anchor adapter', () => {
         config: () => ({ buttonId: 'x', anchor: {} }),
       }),
     ).toThrow(/capability/)
+  })
+})
+
+describe('topLayer', () => {
+  /** A panel with spied popover methods, as Chromium provides them. */
+  const popover = () => {
+    const events: Array<string> = []
+    const element = document.createElement('div')
+    const show = vi.fn(() => {
+      events.push('shown')
+    })
+    const hide = vi.fn(() => {
+      events.push('hidden')
+    })
+    Object.assign(element, { showPopover: show, hidePopover: hide })
+    return { element, show, hide, events }
+  }
+
+  it('keeps the wrapped Mount’s name and args, so Scene tests still match it', () => {
+    const wrapped = Anchor.topLayer({
+      name: 'Probe',
+      args: { buttonId: 'x' },
+      f: () => Stream.never,
+    })
+    expect(wrapped.name).toBe('Probe')
+    expect(wrapped.args).toEqual({ buttonId: 'x' })
+  })
+
+  it('shows around the wrapped acquire, and hides once it releases', async () => {
+    const { element, show, hide, events } = popover()
+    const wrapped = Anchor.topLayer({
+      name: 'Probe',
+      f: () =>
+        Stream.unwrap(
+          Effect.acquireRelease(
+            Effect.sync(() => {
+              events.push('positioned')
+            }),
+            () =>
+              Effect.sync(() => {
+                events.push('unpositioned')
+              }),
+          ).pipe(Effect.as(Stream.never as Stream.Stream<never>)),
+        ),
+    })
+    const fiber = Effect.runFork(Stream.runDrain(wrapped.f(element, liveViewStateChanges)))
+    await vi.waitFor(() => expect(events).toEqual(['shown', 'positioned']))
+    expect(show).toHaveBeenCalledTimes(1)
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    expect(events).toEqual(['shown', 'positioned', 'unpositioned', 'hidden'])
+    expect(hide).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes the wrapped Mount’s messages through, then hides', async () => {
+    const { element, hide } = popover()
+    const wrapped = Anchor.topLayer({ name: 'Probe', f: () => Stream.make('a', 'b') })
+    const collected = await Effect.runPromise(
+      Stream.runCollect(wrapped.f(element, liveViewStateChanges)),
+    )
+    expect([...collected]).toEqual(['a', 'b'])
+    expect(hide).toHaveBeenCalledTimes(1)
+  })
+
+  it('is a no-op where the popover API is missing, and the anchor still positions', async () => {
+    const element = document.createElement('div')
+    Object.defineProperty(element, 'showPopover', { value: undefined })
+    Object.defineProperty(element, 'hidePopover', { value: undefined })
+    const positioned: Array<string> = []
+    const wrapped = Anchor.topLayer({
+      name: 'Probe',
+      f: () =>
+        Stream.unwrap(
+          Effect.acquireRelease(
+            Effect.sync(() => {
+              positioned.push('positioned')
+            }),
+            () => Effect.void,
+          ).pipe(Effect.as(Stream.never as Stream.Stream<never>)),
+        ),
+    })
+    const fiber = Effect.runFork(Stream.runDrain(wrapped.f(element, liveViewStateChanges)))
+    await vi.waitFor(() => expect(positioned).toEqual(['positioned']))
+    await Effect.runPromise(Fiber.interrupt(fiber))
   })
 })

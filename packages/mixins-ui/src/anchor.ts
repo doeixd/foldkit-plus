@@ -1,16 +1,26 @@
 /**
- * `@foldkit/ui`'s anchor positioning as a Mount and a Behavior: the floating
- * element is placed against the button whose id is given, with placement,
- * gap, offset, padding, portal and flip handled by `anchorSetup`, which also
- * releases on unmount. The Mount writes `position`, `top` and `left` on the
- * element itself, imperatively; a Style on the same slot must leave those
- * alone, and `data-placement` is written by `@foldkit/ui` for styling.
+ * `@foldkit/ui`'s anchor positioning as a Mount and a Behavior, and the top
+ * layer around an anchored panel: the floating element is placed against the
+ * button whose id is given, with placement, gap, offset, padding, portal and
+ * flip handled by `anchorSetup`, which also releases on unmount. The Mount
+ * writes `position`, `top` and `left` on the element itself, imperatively; a
+ * Style on the same slot must leave those alone, and `data-placement` is
+ * written by `@foldkit/ui` for styling.
  *
  * `portal` defaults to true upstream: the element is relocated into a
  * portal root, so the runtime no longer patches it and a test sees it move.
  * Pass `portal: false` to keep the node where the view drew it. Positioning
  * without layout (jsdom's zero geometry) burns tens of seconds, portal or
  * not — drive the config, not the clock, in tests.
+ *
+ * `topLayer` draws an upstream-anchored panel in the browser's top layer
+ * instead: it shows the element as a manual popover around the wrapped
+ * Mount's own acquire, and hides it when that Mount releases. The node stays
+ * where the runtime drew it (no portal relocation), so no stacking context or
+ * ancestor overflow can reach it, while the anchor positions it as before.
+ * The panel carries `popover="manual"` in its view; light dismiss stays the
+ * application's Messages. Wrapping keeps the wrapped Mount's name, args and
+ * Messages, so `Scene.Mount.resolve` still matches it.
  */
 import { Effect, Schema, Stream } from 'effect'
 import { AnchorConfig, anchorSetup } from '@foldkit/ui/anchor'
@@ -50,6 +60,49 @@ export const Anchor = Mount.defineStream('Anchor', {
 })
 
 export type AnchorArgs = Parameters<typeof Anchor>[0]
+
+/**
+ * The elements showing as manual popovers, so release hides only what this
+ * Mount showed: `showPopover` throws when the popover already shows, and no
+ * popover API reports it (`:top-layer` is not selectable everywhere).
+ */
+const shown = new WeakSet<Element>()
+
+const isPopover = (
+  element: Element,
+): element is HTMLElement & { showPopover(): void; hidePopover(): void } =>
+  element instanceof HTMLElement && typeof element.showPopover === 'function'
+
+/**
+ * Draw an upstream-anchored panel in the browser's top layer: show it as a
+ * manual popover, run the wrapped Mount's own acquire (which positions it),
+ * and hide it once that Mount releases. The panel carries `popover="manual"`
+ * in its view. Where the popover API is missing (a test renderer, SSR) the
+ * wrapper is a no-op and the anchor positions in place.
+ */
+export const topLayer = <Message, E>(
+  action: Mount.MountAction<Message, E>,
+): Mount.MountAction<Message, E> => ({
+  ...action,
+  f: (element, viewStateChanges) =>
+    Stream.unwrap(
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          if (isPopover(element) && !shown.has(element)) {
+            element.showPopover()
+            shown.add(element)
+          }
+        }),
+        () =>
+          Effect.sync(() => {
+            if (shown.has(element) && isPopover(element)) {
+              shown.delete(element)
+              element.hidePopover()
+            }
+          }),
+      ).pipe(Effect.as(action.f(element, viewStateChanges))),
+    ),
+})
 
 export interface BehaviorOptions<Input, Slots> {
   /** The slot to position. */
