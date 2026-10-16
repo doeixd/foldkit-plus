@@ -17,4 +17,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'right to left, the tracks still run from the left',
+    edits: [
+      {
+        file: '../src/recipes/colorPicker.ts',
+        find: '`[data-channel="${channel}"]:dir(rtl)`, { background: rtl[channel] }',
+        replace: '`[data-channel="${channel}"]:dir(rtl)`, { background: ltr[channel] }',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/colorPicker.browser.test.ts'],
+  },
 ]

@@ -22,15 +22,28 @@ const sizes = {
 const edge = 'var(--_fk-color-picker-size)'
 const [l, c, h] = ['var(--fk-color-l)', 'var(--fk-color-c)', 'var(--fk-color-h)']
 
-/** Each channel's track: its whole range at the other two channels' values. */
-const tracks = {
-  l: `linear-gradient(to right in oklch, oklch(0% ${c} ${h}), oklch(100% ${c} ${h}))`,
-  c: `linear-gradient(to right in oklch, oklch(${l} 0 ${h}), oklch(${l} 0.4 ${h}))`,
-  // A stop every sixth of a turn: between two stops a gradient takes the shorter way round, so two would not turn at all.
-  h: `linear-gradient(to right in oklch, ${[0, 60, 120, 180, 240, 300, 360]
-    .map(hue => `oklch(${l} ${c} ${hue})`)
-    .join(', ')})`,
-} as const
+/**
+ * Each channel's track: its whole range at the other two channels' values,
+ * running away from the side the range's minimum is drawn on, which is the
+ * right one right to left.
+ */
+const tracks = (toward: 'right' | 'left') => {
+  const to = `linear-gradient(to ${toward} in oklch`
+  return {
+    l: `${to}, oklch(0% ${c} ${h}), oklch(100% ${c} ${h}))`,
+    c: `${to}, oklch(${l} 0 ${h}), oklch(${l} 0.4 ${h}))`,
+    // A stop every sixth of a turn: between two stops a gradient takes the shorter way round, so two would not turn at all.
+    h: `${to}, ${[0, 60, 120, 180, 240, 300, 360].map(hue => `oklch(${l} ${c} ${hue})`).join(', ')})`,
+  } as const
+}
+
+const [ltr, rtl] = [tracks('right'), tracks('left')]
+
+const trackOf = (channel: 'l' | 'c' | 'h'): StyleValue =>
+  Style.compose(
+    Style.pseudo(`[data-channel="${channel}"]`, { background: ltr[channel] }),
+    Style.pseudo(`[data-channel="${channel}"]:dir(rtl)`, { background: rtl[channel] }),
+  )
 
 /** The thumb in both engines' pseudo-elements: one selector list would be dropped whole by the engine that knows neither name. */
 const thumb = (declarations: Declarations): StyleValue =>
@@ -89,9 +102,9 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
         cursor: 'pointer',
         ...imageEdge,
       }),
-      Style.pseudo('[data-channel="l"]', { background: tracks.l }),
-      Style.pseudo('[data-channel="c"]', { background: tracks.c }),
-      Style.pseudo('[data-channel="h"]', { background: tracks.h }),
+      trackOf('l'),
+      trackOf('c'),
+      trackOf('h'),
       thumb({
         appearance: 'none',
         boxSizing: 'border-box',
