@@ -3,6 +3,7 @@
  * `pnpm mutate packages/mixins-ui/test/inputCopy.mutations.ts` checks that a
  * test fails for every one.
  */
+const browser = 'packages/mixins-ui/test/inputCopy.browser.test.ts'
 const unit = 'packages/mixins-ui/test/inputCopy.test.ts'
 
 export default [
@@ -77,10 +78,33 @@ export default [
     edits: [
       {
         file: '../src/recipes/inputCopy.ts',
-        find: 'const inner = `calc(${ref.radius.md} - ${ref.border.thin})`',
+        find: 'const inner = nested()',
         replace: 'const inner = ref.radius.md',
       },
     ],
-    tests: [unit],
+    tests: [browser],
+  },
+  {
+    // What the review's regex let through: a radius off by a factor, still a calc.
+    name: 'the input and the button round three times too far',
+    edits: [
+      {
+        file: '../src/recipes/inputCopy.ts',
+        find: 'const inner = nested()',
+        replace: 'const inner = `calc(${nested()} * 3)`',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the group publishes its outer corner, not the one inside its border',
+    edits: [
+      {
+        file: '../src/recipes/inputCopy.ts',
+        find: "...nests(ref.radius.md, '0px', ref.border.thin),",
+        replace: "...nests(ref.radius.md, '0px'),",
+      },
+    ],
+    tests: [browser],
   },
 ]
