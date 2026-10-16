@@ -4,6 +4,7 @@
  * fails for every one.
  */
 const tests = ['packages/mixins-ui/test/badge.test.ts']
+const browser = ['packages/mixins-ui/test/badge.browser.test.ts']
 
 export default [
   {
@@ -26,7 +27,7 @@ export default [
         replace: "'--_fk-badge-tint': ref[tone].ink,",
       },
     ],
-    tests,
+    tests: browser,
   },
   {
     name: 'every appearance is tinted',
@@ -37,12 +38,12 @@ export default [
         replace: 'appearances.tinted,',
       },
     ],
-    tests,
+    tests: browser,
   },
   {
     name: 'a dot badge draws no dot',
     edits: [{ file: '../src/recipes/badge.ts', find: '    dot,\n  ),', replace: '  ),' }],
-    tests,
+    tests: browser,
   },
   {
     name: 'the solid fill ignores the tone',
@@ -53,7 +54,7 @@ export default [
         replace: "'--_fk-badge-fill': ref.text.muted,",
       },
     ],
-    tests,
+    tests: browser,
   },
   {
     name: 'an outline badge draws no line',
@@ -64,6 +65,6 @@ export default [
         replace: '',
       },
     ],
-    tests,
+    tests: browser,
   },
 ]

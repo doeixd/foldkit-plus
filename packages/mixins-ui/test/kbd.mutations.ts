@@ -4,6 +4,7 @@
  * fails for every one.
  */
 const tests = ['packages/mixins-ui/test/kbd.test.ts']
+const browser = ['packages/mixins-ui/test/kbd.browser.test.ts']
 
 export default [
   {
@@ -15,7 +16,7 @@ export default [
         replace: 'fontFamily: ref.font.body,',
       },
     ],
-    tests,
+    tests: browser,
   },
   {
     name: 'a keycap loses its lit top',
@@ -26,7 +27,7 @@ export default [
         replace: 'boxShadow: `',
       },
     ],
-    tests,
+    tests: browser,
   },
   {
     name: 'a combination joins its first key too',
@@ -66,6 +67,6 @@ export default [
         replace: '',
       },
     ],
-    tests,
+    tests: browser,
   },
 ]

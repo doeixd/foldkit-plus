@@ -1,13 +1,11 @@
 /**
- * Kbd: Container slots, a view naming the key, a combination drawn as a
- * `kbd` of keys, and a variant-free recipe (a keycap looks one way; the look
- * is chosen once).
+ * Kbd: Container slots, a view naming the key, and a combination drawn as a
+ * `kbd` of keys. The keycap's look is `kbd.browser.test.ts`.
  */
 import { describe, expect, it } from 'vitest'
-import { Capability, SlotView, Style } from 'foldkit-mixins'
+import { Capability, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { KbdSlots, combo, view } from '../src/kbd.js'
-import { Recipes } from '../src/index.js'
 
 const h = SlotView.inertBuilder<never>()
 
@@ -46,25 +44,5 @@ describe('Kbd.combo', () => {
 
   it('refuses a combination of no keys', () => {
     expect(() => combo({ keys: [] }, h)).toThrow(/at least one key/)
-  })
-})
-
-describe('Kbd recipe', () => {
-  const sheet = Style.forSlots(KbdSlots)(Recipes.Kbd({})).css
-
-  it('sets a mono keycap with a pressed lower edge', () => {
-    expect(sheet).toContain('font-family:var(--fk-font-mono)')
-    expect(sheet).toContain('border-block-end-width:var(--fk-border-thick)')
-    expect(sheet).toContain('white-space:nowrap')
-  })
-
-  it('lights the keycap’s top inside its edge', () => {
-    expect(sheet).toContain('box-shadow:inset 0 var(--fk-border-thin) 0 var(--fk-surface-base)')
-  })
-
-  it('sets a combination’s keys in a row, the joiner muted', () => {
-    expect(sheet).toContain('display:inline-flex')
-    expect(sheet).toContain('gap:var(--fk-space-3xs)')
-    expect(sheet).toContain('color:var(--fk-text-muted)')
   })
 })
