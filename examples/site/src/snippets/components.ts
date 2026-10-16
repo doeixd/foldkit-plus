@@ -611,7 +611,8 @@ export const checkboxIndeterminate = <Message>(
 // #region checkbox-card
 // The card is the label and the box sits in it, so a press anywhere on the
 // card toggles the box. The label slot is not used: it carries its own click,
-// and a second one inside the label would turn the box off again.
+// and a second one inside the label would turn the box off again. The card's
+// label takes the label's id instead, so the box is named by the card's words.
 const CheckboxCardStyle = forSlots(CardSlots)(
   Recipes.Card({ surface: 'outlined', padding: 'compact' }),
 )
@@ -629,7 +630,10 @@ export const checkboxCard = <Message>(
       onToggle,
       toView: Checkbox.toView([style.mixin], { h }, resolved =>
         h.label(
-          [h.Style({ display: 'block', maxInlineSize: '20rem', cursor: 'pointer' })],
+          [
+            h.Id(UiCheckbox.labelId('plan-team')),
+            h.Style({ display: 'block', maxInlineSize: '20rem', cursor: 'pointer' }),
+          ],
           [
             Card.view(
               {

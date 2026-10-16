@@ -23,10 +23,15 @@ import { site } from '../src/site.js'
 const repository = join(import.meta.dirname, '../../..')
 const template = readFileSync(join(import.meta.dirname, '../index.html'), 'utf8')
 
-/** What the link check needs of a page: the ids it carries and where it links. */
+/**
+ * What the link check needs of a page: the ids it carries and where it links,
+ * and every `aria-labelledby` naming an id the page lacks, which leaves its
+ * element without a name.
+ */
 interface Links {
   readonly ids: ReadonlySet<string>
   readonly hrefs: ReadonlyArray<string>
+  readonly unnamed: ReadonlyArray<string>
 }
 
 /**
@@ -71,7 +76,17 @@ beforeAll(async () => {
       const document = parser.parseFromString(page.html, 'text/html')
       if (READ.includes(page.path)) kept.set(page.path, document)
       const ids = new Set(Array.from(document.querySelectorAll('[id]'), element => element.id))
-      return [page.path, { ids, hrefs: hrefs(document) }] as const
+      // A closed dialog is out of the accessibility tree, and draws its title only once open.
+      const named = Array.from(document.querySelectorAll('[aria-labelledby]')).filter(
+        element => element.closest('dialog:not([open])') === null,
+      )
+      const unnamed = named.flatMap(element =>
+        (element.getAttribute('aria-labelledby') ?? '')
+          .split(/\s+/)
+          .filter(id => !ids.has(id))
+          .map(id => `${element.tagName.toLowerCase()} -> #${id}`),
+      )
+      return [page.path, { ids, hrefs: hrefs(document), unnamed }] as const
     }),
   )
   read = kept
@@ -343,6 +358,11 @@ describe('the generated site', () => {
     const canvas = create.querySelector('[data-size="canvas"]')
     expect(canvas?.getAttribute('style')).toContain('--fk-knob-accent-h: 264')
     expect(create.querySelector('main figure pre code')?.textContent).toBe(codeOf(defaults))
+  })
+
+  test('every element named by another on every page names one the page has', () => {
+    const unnamed = Array.from(links, ([path, at]) => at.unnamed.map(miss => `${path}: ${miss}`))
+    expect(unnamed.flat()).toEqual([])
   })
 
   test('every link on every page leads to a page the build wrote, or a file in the repository', () => {

@@ -201,7 +201,7 @@ export const componentPage = (
           h.p(slots.selection.attrs(), [selectionCode(showcase, model.selection)]),
         ]
       : showcase.examples.flatMap(example => [
-          h.section(slots.section.attrs([h.AriaLabelledBy(`example-${example.name}`)]), [
+          h.section(slots.section.attrs([h.AriaLabelledBy(example.name)]), [
             h.h2(slots.sectionTitle.attrs([h.Id(example.name)]), [
               example.title,
               ' ',
