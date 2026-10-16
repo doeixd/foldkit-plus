@@ -1683,10 +1683,8 @@ export const accordion = <Message>(
   )
 // #endregion
 
-// #region checkbox-group
-export const CheckboxGroupStyle = forSlots(CheckboxGroupSlots)(
-  Recipes.CheckboxGroup({ variant: 'list' }),
-)
+// #region checkbox-group-alerts
+export const CheckboxGroupStyle = forSlots(CheckboxGroupSlots)(Recipes.CheckboxGroup({}))
 
 export const checkboxGroup = <Message>(
   style: NamedStyle<typeof CheckboxGroupSlots>,
@@ -1706,6 +1704,106 @@ export const checkboxGroup = <Message>(
       ],
       checked,
       onToggle,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region checkbox-group-described
+export const checkboxGroupDescribed = <Message>(
+  style: NamedStyle<typeof CheckboxGroupSlots>,
+  checked: ReadonlyArray<string>,
+  onToggle: (value: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  CheckboxGroup.view(
+    {
+      id: 'alerts-described',
+      legend: 'Email me about',
+      options: [
+        { value: 'mentions', label: 'Mentions', description: 'When someone names you.' },
+        { value: 'replies', label: 'Replies', description: 'When someone answers you.' },
+        { value: 'digest', label: 'A weekly digest', description: 'Monday, a short one.' },
+      ],
+      checked,
+      onToggle,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region checkbox-group-select-all
+const SelectAllBox = forSlots(CheckboxSlots)(Recipes.Checkbox({}))
+const choices = [
+  { value: 'mentions', label: 'Mentions' },
+  { value: 'replies', label: 'Replies' },
+  { value: 'digest', label: 'A weekly digest' },
+  { value: 'offers', label: 'Offers', disabled: true },
+] as const
+
+export const checkboxGroupSelectAll = <Message>(
+  style: NamedStyle<typeof CheckboxGroupSlots>,
+  checked: ReadonlyArray<string>,
+  onToggle: (value: string) => Message,
+  onSet: (values: ReadonlyArray<string>) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const state = CheckboxGroup.coverage(choices, checked)
+  return h.div(
+    [h.Style({ display: 'grid', gap: '0.5rem' })],
+    [
+      UiCheckbox.view(
+        {
+          id: 'alerts-every',
+          isChecked: state === 'all',
+          isIndeterminate: state === 'some',
+          onToggle: on => onSet(CheckboxGroup.setEnabled(choices, on)),
+          toView: Checkbox.toView([SelectAllBox.mixin], { h }, resolved =>
+            h.div(
+              [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
+              [h.button(resolved.checkbox, []), h.label(resolved.label, ['Select all'])],
+            ),
+          ),
+        },
+        h,
+      ),
+      CheckboxGroup.view(
+        {
+          id: 'alerts-choices',
+          legend: 'Email me about',
+          options: choices,
+          checked,
+          onToggle,
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+}
+// #endregion
+
+// #region checkbox-group-invalid
+export const checkboxGroupInvalid = <Message>(
+  style: NamedStyle<typeof CheckboxGroupSlots>,
+  checked: ReadonlyArray<string>,
+  onToggle: (value: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  CheckboxGroup.view(
+    {
+      id: 'alerts-invalid',
+      legend: 'Email me about',
+      options: [
+        { value: 'mentions', label: 'Mentions' },
+        { value: 'replies', label: 'Replies' },
+        { value: 'digest', label: 'A weekly digest' },
+      ],
+      checked,
+      onToggle,
+      error: 'Pick at least one.',
       style,
     },
     h,

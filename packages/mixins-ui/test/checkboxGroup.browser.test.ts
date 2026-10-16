@@ -13,7 +13,10 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { CheckboxGroup, CheckboxGroupSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
-const style = Style.forSlots(CheckboxGroupSlots)(Recipes.CheckboxGroup({ variant: 'list' }))
+const list = Style.forSlots(CheckboxGroupSlots)(Recipes.CheckboxGroup({ variant: 'list' }))
+const horizontal = Style.forSlots(CheckboxGroupSlots)(
+  Recipes.CheckboxGroup({ orientation: 'horizontal' }),
+)
 const Model = Schema.Struct({ checked: Schema.Array(Schema.String) })
 type Model = typeof Model.Type
 type Message = { readonly _tag: 'Toggled'; readonly value: string }
@@ -24,7 +27,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (checked: ReadonlyArray<string>) => {
+const mount = (checked: ReadonlyArray<string>, style: typeof list = list) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -85,6 +88,19 @@ test("a press on an option's words toggles its box", async () => {
   }
 })
 
+test('a horizontal group lays its options in a row', async () => {
+  const handle = mount([], horizontal)
+  try {
+    await vi.waitFor(() => expect(box('Replies')).not.toBeNull())
+    const mentions = row('Mentions').getBoundingClientRect()
+    const replies = row('Replies').getBoundingClientRect()
+    expect(Math.abs(replies.top - mentions.top)).toBeLessThan(1)
+    expect(replies.left).toBeGreaterThan(mentions.right)
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('checked rows in a list fill, and merge where they stand together', async () => {
   const handle = mount(['Mentions', 'Replies', 'Offers'])
   try {
@@ -98,6 +114,10 @@ test('checked rows in a list fill, and merge where they stand together', async (
     expect(corners('Mentions')).toEqual([round, '0px'])
     expect(corners('Replies')).toEqual(['0px', round])
     expect(corners('Offers')).toEqual([round, round])
+    // Flush: a gap would open the block the squared corners are one of.
+    const mentions = row('Mentions').getBoundingClientRect()
+    const replies = row('Replies').getBoundingClientRect()
+    expect(Math.abs(replies.top - mentions.bottom)).toBeLessThan(0.5)
   } finally {
     handle.dispose()
   }

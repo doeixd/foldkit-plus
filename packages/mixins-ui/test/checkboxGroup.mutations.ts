@@ -42,6 +42,49 @@ export default [
     tests: browser,
   },
   {
+    name: 'a vertical list leaves a gap between checked rows',
+    edits: [{ file: recipe, find: "gap: '0'", replace: "gap: ladder('gap')" }],
+    tests: browser,
+  },
+  {
+    name: 'a horizontal group stacks its options',
+    edits: [{ file: recipe, find: "flexDirection: 'row'", replace: "flexDirection: 'column'" }],
+    tests: browser,
+  },
+  {
+    name: 'a disabled option counts as a choice',
+    edits: [
+      {
+        file: view,
+        find: 'option.disabled === true ? [] : [option.value]',
+        replace: '[option.value]',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'every mix of checks is some',
+    edits: [
+      {
+        file: view,
+        find: "return on === values.length ? 'all' : 'some'",
+        replace: "return 'some'",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'an error is not announced',
+    edits: [
+      {
+        file: view,
+        find: 'invalid ? [h.AriaInvalid(true), h.AriaDescribedBy(errorId)] : []',
+        replace: '[]',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: 'checked rows together keep their corners',
     edits: [
       {

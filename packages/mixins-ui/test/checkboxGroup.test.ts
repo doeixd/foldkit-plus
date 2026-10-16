@@ -27,12 +27,33 @@ const drawn = () =>
     h,
   )
 
+const options = [
+  { value: 'mentions', label: 'Mentions' },
+  { value: 'digest', label: 'Digest' },
+  { value: 'offers', label: 'Offers', disabled: true },
+] as const
+
 describe('CheckboxGroup.toggled', () => {
   it.each([
     ['checks an unchecked one', ['a'], 'b', ['a', 'b']],
     ['unchecks a checked one, keeping the rest in order', ['a', 'b', 'c'], 'b', ['a', 'c']],
   ] as const)('%s', (_, checked, value, after) => {
     expect(CheckboxGroup.toggled<string>(checked, value)).toEqual(after)
+  })
+})
+
+describe('CheckboxGroup.coverage', () => {
+  it.each([
+    ['none', [], 'none'],
+    ['some', ['mentions'], 'some'],
+    ['all, ignoring one that cannot be checked', ['mentions', 'digest', 'offers'], 'all'],
+  ] as const)('%s', (_, checked, state) => {
+    expect(CheckboxGroup.coverage(options, checked)).toBe(state)
+  })
+
+  it('checks every option that can be, or none', () => {
+    expect(CheckboxGroup.setEnabled(options, true)).toEqual(['mentions', 'digest'])
+    expect(CheckboxGroup.setEnabled(options, false)).toEqual([])
   })
 })
 
@@ -61,5 +82,24 @@ describe('CheckboxGroup.view', () => {
     expect(mentions?.data?.on?.['click']).toBeTypeOf('function')
     expect(Inert.value(sales, 'aria-disabled')).toBe('true')
     expect(sales?.data?.on?.['click']).toBeUndefined()
+  })
+
+  it('names its error and is invalid while one is showing', () => {
+    const group = CheckboxGroup.view(
+      {
+        id: 'alerts',
+        legend: 'Send me',
+        options: [{ value: 'mentions', label: 'Mentions' }],
+        checked: [],
+        onToggle: () => message('Clicked'),
+        error: 'Pick at least one.',
+        style,
+      },
+      h,
+    )
+    const [error] = Inert.byTag(group, 'p')
+    expect(Inert.text(error)).toBe('Pick at least one.')
+    expect(Inert.value(group, 'aria-invalid')).toBe('true')
+    expect(Inert.value(group, 'aria-describedby')).toBe(Inert.value(error, 'id'))
   })
 })

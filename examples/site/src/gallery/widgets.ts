@@ -151,6 +151,7 @@ export const Message = defineMessageUnion({
   ChoseRange: { range: Range },
   ToggledFaq: { id: Schema.String },
   ToggledAlert: { value: Schema.String },
+  SetAlerts: { values: Schema.Array(Schema.String) },
   ChangedServings: { value: Schema.Number },
   TypedCode: { code: Schema.String },
   GotHoverCard: { message: UiHoverIntent.Message },
@@ -606,6 +607,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     ToggledAlert: ({ value }) => ({
       model: modifyFields(model, { alerts: () => CheckboxGroup.toggled(model.alerts, value) }),
     }),
+    SetAlerts: ({ values }) =>
+      values.length === model.alerts.length && values.every((value, i) => value === model.alerts[i])
+        ? { model }
+        : { model: modifyFields(model, { alerts: () => values }) },
     TypedCode: ({ code }) =>
       code === model.code ? { model } : { model: modifyFields(model, { code: () => code }) },
     ChangedServings: ({ value }) =>

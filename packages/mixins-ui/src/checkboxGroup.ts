@@ -24,6 +24,9 @@ export const CheckboxGroupSlots = Slots.define({
   }),
   label: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container }),
+  /** The rows, apart from the legend and the error, so a row can sit beside its neighbours. */
+  options: Slot.make({ capability: Capability.Container }),
+  error: Slot.make({ capability: Capability.Container }),
 })
 
 export interface CheckboxGroupOption<Value extends string> {
@@ -47,7 +50,34 @@ export interface CheckboxGroupView<Value extends string, Message> {
   readonly style?: NamedStyle<typeof CheckboxGroupSlots> | undefined
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
+  /** Shown under the options, and the group is `aria-invalid`. */
+  readonly error?: string | undefined
 }
+
+const enabled = <Value extends string>(
+  options: ReadonlyArray<CheckboxGroupOption<Value>>,
+): ReadonlyArray<Value> =>
+  options.flatMap(option => (option.disabled === true ? [] : [option.value]))
+
+/**
+ * `all` when every option that can be checked is, `none` when none are, and
+ * `some` between. A disabled option counts for neither.
+ */
+export const coverage = <Value extends string>(
+  options: ReadonlyArray<CheckboxGroupOption<Value>>,
+  checked: ReadonlyArray<Value>,
+): 'none' | 'some' | 'all' => {
+  const values = enabled(options)
+  const on = values.filter(value => checked.includes(value)).length
+  if (on === 0 || values.length === 0) return 'none'
+  return on === values.length ? 'all' : 'some'
+}
+
+/** Every option that can be checked, or none of them. */
+export const setEnabled = <Value extends string>(
+  options: ReadonlyArray<CheckboxGroupOption<Value>>,
+  on: boolean,
+): ReadonlyArray<Value> => (on ? enabled(options) : [])
 
 /** The checked values after `value` is pressed: on if it was off, off if it was on. */
 export const toggled = <Value extends string>(
@@ -65,36 +95,46 @@ export const view = <Value extends string, Message>(
     { input: undefined, h },
   )
   const checked = new Set<string>(options.checked)
-  return h.fieldset(builders.root.attrs(), [
-    h.legend(builders.legend.attrs(), [options.legend]),
-    ...options.options.map(option => {
-      const on = checked.has(option.value)
-      const checkboxId = `${options.id}-${option.value}`
-      const descriptionId = `${checkboxId}-description`
-      const disabled = option.disabled === true
-      return h.keyed('div')(
-        option.value,
-        builders.option.attrs([h.DataAttribute('checked', String(on))]),
-        [
-          h.button(
-            builders.checkbox.attrs([
-              h.Type('button'),
-              h.Id(checkboxId),
-              h.Role('checkbox'),
-              h.AriaChecked(on),
-              ...(option.description === undefined ? [] : [h.AriaDescribedBy(descriptionId)]),
-              ...(disabled
-                ? [h.Disabled(true), h.AriaDisabled(true)]
-                : [h.OnClick(options.onToggle(option.value))]),
-            ]),
-            [],
-          ),
-          h.label(builders.label.attrs([h.For(checkboxId)]), [option.label]),
-          ...(option.description === undefined
-            ? []
-            : [h.p(builders.description.attrs([h.Id(descriptionId)]), [option.description])]),
-        ],
-      )
-    }),
-  ])
+  const error = options.error
+  const invalid = error !== undefined && error !== ''
+  const errorId = `${options.id}-error`
+  return h.fieldset(
+    builders.root.attrs(invalid ? [h.AriaInvalid(true), h.AriaDescribedBy(errorId)] : []),
+    [
+      h.legend(builders.legend.attrs(), [options.legend]),
+      h.div(
+        builders.options.attrs(),
+        options.options.map(option => {
+          const on = checked.has(option.value)
+          const checkboxId = `${options.id}-${option.value}`
+          const descriptionId = `${checkboxId}-description`
+          const disabled = option.disabled === true
+          return h.keyed('div')(
+            option.value,
+            builders.option.attrs([h.DataAttribute('checked', String(on))]),
+            [
+              h.button(
+                builders.checkbox.attrs([
+                  h.Type('button'),
+                  h.Id(checkboxId),
+                  h.Role('checkbox'),
+                  h.AriaChecked(on),
+                  ...(option.description === undefined ? [] : [h.AriaDescribedBy(descriptionId)]),
+                  ...(disabled
+                    ? [h.Disabled(true), h.AriaDisabled(true)]
+                    : [h.OnClick(options.onToggle(option.value))]),
+                ]),
+                [],
+              ),
+              h.label(builders.label.attrs([h.For(checkboxId)]), [option.label]),
+              ...(option.description === undefined
+                ? []
+                : [h.p(builders.description.attrs([h.Id(descriptionId)]), [option.description])]),
+            ],
+          )
+        }),
+      ),
+      ...(invalid ? [h.p(builders.error.attrs([h.Id(errorId)]), [error])] : []),
+    ],
+  )
 }

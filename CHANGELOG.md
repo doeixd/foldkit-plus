@@ -21,6 +21,13 @@ version changed; `pnpm` skips versions already in the registry.
   `boundaries?`, `numbered?`, `ends?` and `range?` (with `summaryOf` for
   `"1–10 of 97"` and new `summary`, `first` and `last` slots). Steps take
   per-step `icon`s and vertical `content`.
+- **`foldkit-mixins-ui`: a checkbox group in a row, with an error.**
+  `CheckboxGroup` takes `error` (the group is `aria-invalid` and described by
+  it) and `orientation`: `vertical` (default) or `horizontal`. The rows sit
+  in an `options` slot, spaced on the ladder; a vertical `list` keeps them
+  flush so checked rows stay one block. `coverage` and `setEnabled` are the
+  select-all transition, and a disabled option counts for neither. The
+  checkbox sits on the label's row, so a description does not pull it down.
 - **`foldkit-mixins-ui`: a checkbox check that wipes in.** The mark is drawn
   clipped away and wipes on over the fast tier, travel-aware, so reduced
   motion shows it at once. The mixed dash clears the check's box, borders

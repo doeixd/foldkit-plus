@@ -391,8 +391,12 @@ decides adopt, adapt or skip.
   dash again (it had inherited the check's borders and rotation); sizes and
   tones come from the recipe axes over every example; the gallery shows
   basic, indeterminate and a card checkbox (the whole card the label).
-- **Checkbox Group.** Spacing on the ladder, a description per option,
-  select-all with indeterminate, horizontal and vertical, an error.
+- **Checkbox Group.** **Checked**: rows spaced on the ladder (a vertical
+  list stays flush so checked rows stay one block); a description per
+  option, the box on the label's row; `orientation` `vertical` or
+  `horizontal`; an `error` that marks the group invalid; `coverage` and
+  `setEnabled` for a select-all, a disabled option counting for neither.
+  The gallery shows alerts, descriptions, select-all and invalid.
 - **Radio Group.** Fix (B); card radios, descriptions, horizontal.
 - **Switch.** RTL (A6); a thumb drag (systems 8, open).
 - **Input OTP.** Fix (B); separators and groups (3-3), masked, numeric or

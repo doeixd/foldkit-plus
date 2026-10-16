@@ -604,6 +604,54 @@ export const showcases: ReadonlyArray<Showcase> = [
         value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
         live.h,
       ),
+    undefined,
+    [
+      {
+        name: 'alerts',
+        title: 'Alerts',
+        draw: (style, live) =>
+          Snippet.checkboxGroup(
+            style,
+            live.widgets.alerts,
+            value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
+            live.h,
+          ),
+      },
+      {
+        name: 'described',
+        title: 'Descriptions',
+        draw: (style, live) =>
+          Snippet.checkboxGroupDescribed(
+            style,
+            live.widgets.alerts,
+            value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
+            live.h,
+          ),
+      },
+      {
+        name: 'select-all',
+        title: 'Select all',
+        draw: (style, live) =>
+          Snippet.checkboxGroupSelectAll(
+            style,
+            live.widgets.alerts,
+            value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
+            values => live.onWidget(Widgets.Message.SetAlerts({ values })),
+            live.h,
+          ),
+      },
+      {
+        name: 'invalid',
+        title: 'Invalid',
+        draw: (style, live) =>
+          Snippet.checkboxGroupInvalid(
+            style,
+            live.widgets.alerts,
+            value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
