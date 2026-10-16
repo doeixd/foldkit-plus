@@ -374,9 +374,11 @@ decides adopt, adapt or skip.
 
 ### Form controls
 
-- **Input.** The filled variant's fill needs more contrast with the page: a
-  `field` token (or the `surface-contrast` knob) rather than
-  `surface.muted`.
+- **Input.** **Checked**: the filled variant's fill is the new `surface.field`
+  token (on the `default` step, so it tracks the `surface-contrast` knob)
+  rather than the page-adjacent `surface.subtle`; shared by Input, Textarea
+  and Select, with a browser test pinning the field/base separation in both
+  schemes.
 - **Select.** Fluid's [select](https://www.fluidfunctionalism.com/docs/select)
   examples: icons, descriptions, groups and headings, sizes, a placeholder,
   disabled options, the check's position, trigger variants; `sameWidth`

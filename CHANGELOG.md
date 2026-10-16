@@ -38,6 +38,10 @@ version changed; `pnpm` skips versions already in the registry.
   descendant's `borderRadius: Theme.nested()` is concentric with it, without
   repeating the container's arithmetic. `Theme.nested(outer, inset, border?)`
   is unchanged.
+- **`foldkit-mixins`: a `surface.field` token for filled controls.** The
+  filled Input, Textarea and Select read `var(--fk-surface-field)` — the
+  `default` step, so it tracks the `surface-contrast` knob — instead of the
+  page-adjacent `surface.subtle`.
 - **`foldkit-mixins-ui`: a `label` Slot on Segmented**, the option's words,
   which hold the `text-box` trim.
 - **`foldkit-richtext-dom`: arrows stop on an image, and a checkbox keeps the
