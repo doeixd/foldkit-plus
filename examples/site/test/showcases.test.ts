@@ -21,8 +21,6 @@ import * as Widgets from '../src/gallery/widgets.js'
 const live: Live<string> = {
   switched: false,
   onSwitch: () => 'switched',
-  page: 1,
-  onPage: () => 'paged',
   chosen: 'team',
   onChoose: key => `chose ${key}`,
   dismissed: false,

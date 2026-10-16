@@ -7,7 +7,7 @@ import { Option } from 'effect'
 import type { Heading, PhrasingContent, RootContent, TableCell } from 'mdast'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { Behavior, Style } from 'foldkit-mixins'
+import { Behavior } from 'foldkit-mixins'
 import { CodeBlock, CodeBlockSlots } from 'foldkit-mixins-ui'
 
 import { COPY_ATTRIBUTE } from '../library.js'

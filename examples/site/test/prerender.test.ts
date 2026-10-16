@@ -55,6 +55,10 @@ const READ = [
   '/components/checkbox',
   '/components/checkbox-group',
   '/components/steps',
+  '/components/pagination',
+  '/components/kbd',
+  '/components/breadcrumb',
+  '/components/scroll-area',
   '/create',
 ]
 
@@ -318,6 +322,48 @@ describe('the generated site', () => {
         ],
       ],
       [
+        'button',
+        [
+          ['basic', 'Basic', "Button.view({ label: 'Save changes', style }, h)"],
+          ['toggle', 'Toggle', 'pressed: pressed.includes(format)'],
+        ],
+      ],
+      [
+        'breadcrumb',
+        [
+          ['basic', 'Basic', 'Recipes.Breadcrumb({})'],
+          ['icons', 'Icons', 'icon: outline(h'],
+          ['custom', 'A separator of your own', "separator: h.span([], ['→'])"],
+          ['collapsed', 'Collapsed', 'collapse: { max: 3, onExpand }'],
+        ],
+      ],
+      [
+        'scroll-area',
+        [
+          ['native', "The browser's bars", 'Recipes.ScrollArea.extend'],
+          ['overlay', 'Overlay bars', 'mixins: ScrollArea.overlayBars'],
+        ],
+      ],
+      [
+        'kbd',
+        [
+          ['key', 'A key', "Kbd.view({ key: 'Enter', style }, h)"],
+          ['combo', 'A combination', "Kbd.combo({ keys: ['⌘', 'K'], style }, h)"],
+          ['joined', 'Joined by words', "joiner: '+'"],
+        ],
+      ],
+      [
+        'pagination',
+        [
+          ['numbered', 'Numbered', 'pageCount: 12'],
+          ['simple', 'Previous and next', 'numbered: false'],
+          ['ends', 'First and last', 'ends: true'],
+          ['range', 'Rows and page size', 'sizes: [10, 20, 50]'],
+          ['siblings', 'Siblings and boundaries', 'siblings: 2, boundaries: 2'],
+          ['compact', 'Compact', "Recipes.Pagination({ compact: 'always' })"],
+        ],
+      ],
+      [
         'steps',
         [
           ['basic', 'Basic', 'steps'],
@@ -339,6 +385,49 @@ describe('the generated site', () => {
         )
       }
     }
+  })
+
+  test('each badge example shows its appearance on words of its own', () => {
+    const words = Array.from(
+      page('/components/badge').querySelectorAll('main section [data-size="page"]'),
+      preview => preview.textContent,
+    )
+    expect(words).toHaveLength(4)
+    expect(new Set(words).size).toBe(4)
+  })
+
+  test('the toggle buttons say which are pressed', () => {
+    const toggles = page('/components/button').getElementById('toggle')?.closest('section')
+    const pressed = Array.from(
+      toggles?.querySelectorAll('[data-size="page"] [role="group"] button') ?? [],
+      button => [button.textContent, button.getAttribute('aria-pressed')],
+    )
+    expect(pressed).toEqual([
+      ['Bold', 'true'],
+      ['Italic', 'false'],
+      ['Underline', 'false'],
+    ])
+  })
+
+  test('a long breadcrumb trail folds its middle into one button', () => {
+    const trail = page('/components/breadcrumb').getElementById('collapsed')?.closest('section')
+    const steps = Array.from(
+      trail?.querySelectorAll('[data-size="page"] nav li') ?? [],
+      step => step.querySelector('button')?.getAttribute('aria-label') ?? step.textContent,
+    )
+    expect(steps).toEqual(['Home', 'Show 3 more', 'Recipes', 'Breadcrumb'])
+  })
+
+  test('the invalid checkbox group says why while nothing is checked', () => {
+    const invalid = page('/components/checkbox-group').getElementById('invalid')?.closest('section')
+    const group = invalid?.querySelector('[data-size="page"] [aria-invalid="true"]')
+    expect(group?.textContent).toContain('Pick at least one.')
+  })
+
+  test('a key combination is one kbd holding a kbd per key', () => {
+    const combo = page('/components/kbd').getElementById('combo')?.closest('section')
+    const keys = Array.from(combo?.querySelectorAll('[data-size="page"] kbd > kbd') ?? [])
+    expect(keys.map(key => key.textContent)).toEqual(['⌘', 'K'])
   })
 
   test("a press on a radio option's words presses its radio", () => {

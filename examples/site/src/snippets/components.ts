@@ -84,6 +84,8 @@ import {
   OtpFieldSlots,
   Resizable,
   ResizableSlots,
+  ScrollArea,
+  ScrollAreaSlots,
   Sidebar,
   SidebarSlots,
   Checkbox,
@@ -145,11 +147,49 @@ import {
 
 import { forSlots } from './theme.js'
 
-// #region button
+// #region button-basic
 export const ButtonStyle = forSlots(ButtonSlots)(Recipes.Button({}))
 
 export const button = (style: NamedStyle<typeof ButtonSlots>, h: HtmlBuilder<never>): Html =>
   Button.view({ label: 'Save changes', style }, h)
+// #endregion
+
+// #region button-toggle
+// Toggle buttons: `pressed` draws `aria-pressed` and the recipe's pressed
+// look. Which are on is the Model's; each press sends the format.
+export const Format = Schema.Literals(['bold', 'italic', 'underline'])
+export type Format = typeof Format.Type
+
+const formatLabels: Record<Format, string> = {
+  bold: 'Bold',
+  italic: 'Italic',
+  underline: 'Underline',
+}
+
+export const toggleButtons = <Message>(
+  style: NamedStyle<typeof ButtonSlots>,
+  pressed: ReadonlyArray<Format>,
+  onToggle: (format: Format) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [
+      h.Role('group'),
+      h.AriaLabel('Text style'),
+      h.Style({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }),
+    ],
+    Format.literals.map(format =>
+      Button.view(
+        {
+          label: formatLabels[format],
+          pressed: pressed.includes(format),
+          onClick: onToggle(format),
+          style,
+        },
+        h,
+      ),
+    ),
+  )
 // #endregion
 
 // #region button-group
@@ -204,17 +244,22 @@ export const BadgeDotStyle = forSlots(BadgeSlots)(
   }),
 )
 
-// Dot, a coloured dot before plain words.
+// Dot, a coloured dot before plain words: a status beside what it is about,
+// quiet enough for every row of a list.
 
 export const badgesDot = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
+  h.ul(
+    [h.Style({ display: 'grid', gap: '0.5rem', margin: '0', padding: '0', listStyle: 'none' })],
     [
-      Badge.view({ text: 'Live', tone: 'live', style }, h),
-      Badge.view({ text: 'In review', tone: 'review', style }, h),
-      Badge.view({ text: 'Failed', tone: 'failed', style }, h),
-      Badge.view({ text: 'Draft', tone: 'draft', style }, h),
-    ],
+      { site: 'api.example.com', status: 'Live', tone: 'live' },
+      { site: 'staging.example.com', status: 'Deploying', tone: 'review' },
+      { site: 'old.example.com', status: 'Down', tone: 'failed' },
+    ].map(({ site, status, tone }) =>
+      h.li(
+        [h.Style({ display: 'flex', justifyContent: 'space-between', gap: '1rem' })],
+        [h.span([], [site]), Badge.view({ text: status, tone, style }, h)],
+      ),
+    ),
   )
 // #endregion
 
@@ -227,16 +272,17 @@ export const BadgeOutlineStyle = forSlots(BadgeSlots)(
   }),
 )
 
-// Outline, a line in the tone around words in its ink.
+// Outline, a line in the tone around words in its ink: labels that sit
+// beside a title without outweighing it.
 
 export const badgesOutline = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
+  h.p(
     [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
     [
-      Badge.view({ text: 'Live', tone: 'live', style }, h),
-      Badge.view({ text: 'In review', tone: 'review', style }, h),
-      Badge.view({ text: 'Failed', tone: 'failed', style }, h),
-      Badge.view({ text: 'Draft', tone: 'draft', style }, h),
+      h.strong([], ['foldkit-remote']),
+      Badge.view({ text: 'v0.4', style }, h),
+      Badge.view({ text: 'Beta', tone: 'draft', style }, h),
+      Badge.view({ text: 'Breaking change', tone: 'failed', style }, h),
     ],
   )
 // #endregion
@@ -250,16 +296,21 @@ export const BadgeSolidStyle = forSlots(BadgeSlots)(
   }),
 )
 
-// Solid, the tone's fill.
+// Solid, the tone's fill: the loudest, for the one thing to see first, such
+// as a count waiting or a word that must not be missed.
 
 export const badgesSolid = (style: NamedStyle<typeof BadgeSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
-    [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' })],
+    [h.Style({ display: 'grid', gap: '0.5rem', justifyItems: 'start' })],
     [
-      Badge.view({ text: 'Live', tone: 'live', style }, h),
-      Badge.view({ text: 'In review', tone: 'review', style }, h),
-      Badge.view({ text: 'Failed', tone: 'failed', style }, h),
-      Badge.view({ text: 'Draft', tone: 'draft', style }, h),
+      h.p(
+        [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0' })],
+        ['Inbox', Badge.view({ text: '12', tone: 'failed', style }, h)],
+      ),
+      h.p(
+        [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0' })],
+        [Badge.view({ text: 'New', tone: 'draft', style }, h), 'Comments now thread.'],
+      ),
     ],
   )
 // #endregion
@@ -701,11 +752,30 @@ export const avatars = (style: NamedStyle<typeof AvatarSlots>, h: HtmlBuilder<ne
   )
 // #endregion
 
-// #region kbd
+// #region kbd-key
 export const KbdStyle = forSlots(KbdSlots)(Recipes.Kbd({}))
 
-export const shortcut = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
-  h.p([], ['Search with ', Kbd.view({ key: '⌘', style }, h), ' ', Kbd.view({ key: 'K', style }, h)])
+export const kbdKey = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
+  h.p([], ['Press ', Kbd.view({ key: 'Enter', style }, h), ' to send.'])
+// #endregion
+
+// #region kbd-combo
+// Keys pressed together are one `kbd` holding a `kbd` per key.
+export const kbdCombo = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
+  h.p([], ['Search with ', Kbd.combo({ keys: ['⌘', 'K'], style }, h), '.'])
+// #endregion
+
+// #region kbd-joined
+// A joiner between keys whose names run together without one.
+export const kbdJoined = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
+  h.p(
+    [],
+    [
+      'Open the command palette with ',
+      Kbd.combo({ keys: ['Ctrl', 'Shift', 'P'], joiner: '+', style }, h),
+      '.',
+    ],
+  )
 // #endregion
 
 // #region separator
@@ -776,7 +846,23 @@ export const table = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder<never
   )
 // #endregion
 
-// #region breadcrumb
+/** A line icon in the text's colour, from one path on a 16-unit square. */
+const outline = <Message>(h: HtmlBuilder<Message>, d: string): Html =>
+  h.svg(
+    [
+      h.ViewBox('0 0 16 16'),
+      h.Attribute('width', '1em'),
+      h.Attribute('height', '1em'),
+      h.Attribute('fill', 'none'),
+      h.Attribute('stroke', 'currentColor'),
+      h.Attribute('stroke-width', '1.5'),
+      h.Attribute('stroke-linecap', 'round'),
+      h.Attribute('stroke-linejoin', 'round'),
+    ],
+    [h.path([h.Attribute('d', d)], [])],
+  )
+
+// #region breadcrumb-basic
 export const BreadcrumbStyle = forSlots(BreadcrumbSlots)(Recipes.Breadcrumb({}))
 
 export const breadcrumb = (
@@ -796,10 +882,147 @@ export const breadcrumb = (
   )
 // #endregion
 
-// #region pagination
+// #region breadcrumb-icons
+// An icon before a step's words, hidden from assistive technology.
+export const breadcrumbIcons = (
+  style: NamedStyle<typeof BreadcrumbSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  Breadcrumb.view(
+    {
+      steps: [
+        { label: 'Home', href: '#', icon: outline(h, 'M2 7l6-5 6 5v7H2zM6 14v-4h4v4') },
+        { label: 'Projects', href: '#', icon: outline(h, 'M1 3h5l2 2h7v8H1z') },
+        { label: 'Roadmap.md', current: true, icon: outline(h, 'M3 1h7l3 3v11H3zM10 1v3h3') },
+      ],
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region breadcrumb-custom
+// A separator of the view's own stands in for the recipe's.
+export const breadcrumbCustom = (
+  style: NamedStyle<typeof BreadcrumbSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  Breadcrumb.view(
+    {
+      steps: [
+        { label: 'Settings', href: '#' },
+        { label: 'Billing', href: '#' },
+        { label: 'Invoices', current: true },
+      ],
+      separator: h.span([], ['→']),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region breadcrumb-collapsed
+// A long trail folds its middle into an ellipsis; a press on it sends
+// `onExpand`, and the application draws the trail whole.
+export const breadcrumbCollapsed = <Message>(
+  style: NamedStyle<typeof BreadcrumbSlots>,
+  expanded: boolean,
+  onExpand: Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Breadcrumb.view(
+    {
+      steps: [
+        { label: 'Home', href: '#' },
+        { label: 'Docs', href: '#' },
+        { label: 'Packages', href: '#' },
+        { label: 'Mixins', href: '#' },
+        { label: 'Recipes', href: '#' },
+        { label: 'Breadcrumb', current: true },
+      ],
+      ...(expanded ? {} : { collapse: { max: 3, onExpand } }),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region pagination-numbered
 export const PaginationStyle = forSlots(PaginationSlots)(Recipes.Pagination({}))
 
 export const pagination = <Message>(
+  style: NamedStyle<typeof PaginationSlots>,
+  page: number,
+  onPage: (page: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html => Pagination.view({ page, pageCount: 12, onPage, style }, h)
+// #endregion
+
+// #region pagination-simple
+// Previous and next alone, for a feed with no page worth naming.
+export const paginationSimple = <Message>(
+  style: NamedStyle<typeof PaginationSlots>,
+  page: number,
+  onPage: (page: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html => Pagination.view({ page, pageCount: 12, onPage, numbered: false, style }, h)
+// #endregion
+
+// #region pagination-ends
+// First and last beside previous and next.
+export const paginationEnds = <Message>(
+  style: NamedStyle<typeof PaginationSlots>,
+  page: number,
+  onPage: (page: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html => Pagination.view({ page, pageCount: 20, onPage, ends: true, style }, h)
+// #endregion
+
+// #region pagination-range
+// Which rows the page shows, and a choice of how many a page holds.
+export const ROWS = 97
+
+export const paginationRange = <Message>(
+  style: NamedStyle<typeof PaginationSlots>,
+  rows: { readonly page: number; readonly perPage: number },
+  onPage: (page: number) => Message,
+  onPerPage: (perPage: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Pagination.view(
+    {
+      page: rows.page,
+      pageCount: Math.ceil(ROWS / rows.perPage),
+      onPage,
+      range: {
+        total: ROWS,
+        perPage: rows.perPage,
+        choose: { sizes: [10, 20, 50], onPerPage },
+      },
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region pagination-siblings
+// Two stops either side of the current page, and two at each end.
+export const paginationSiblings = <Message>(
+  style: NamedStyle<typeof PaginationSlots>,
+  page: number,
+  onPage: (page: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html => Pagination.view({ page, pageCount: 40, onPage, siblings: 2, boundaries: 2, style }, h)
+// #endregion
+
+// #region pagination-compact
+// The current page and the count alone, at every width: "5 / 12". The
+// default, `compact: 'narrow'`, does this only on a narrow window.
+export const PaginationCompactStyle = forSlots(PaginationSlots)(
+  Recipes.Pagination({ compact: 'always' }),
+)
+
+export const paginationCompact = <Message>(
   style: NamedStyle<typeof PaginationSlots>,
   page: number,
   onPage: (page: number) => Message,
@@ -1761,54 +1984,32 @@ export const checkboxGroupDescribed = <Message>(
 // #endregion
 
 // #region checkbox-group-select-all
-const SelectAllBox = forSlots(CheckboxSlots)(Recipes.Checkbox({}))
-const choices = [
-  { value: 'mentions', label: 'Mentions' },
-  { value: 'replies', label: 'Replies' },
-  { value: 'digest', label: 'A weekly digest' },
-  { value: 'offers', label: 'Offers', disabled: true },
-] as const
-
+// A first row that checks every option or none; Offers is locked on, and
+// stays on through both.
 export const checkboxGroupSelectAll = <Message>(
   style: NamedStyle<typeof CheckboxGroupSlots>,
   checked: ReadonlyArray<string>,
   onToggle: (value: string) => Message,
   onSet: (values: ReadonlyArray<string>) => Message,
   h: HtmlBuilder<Message>,
-): Html => {
-  const state = CheckboxGroup.coverage(choices, checked)
-  return h.div(
-    [h.Style({ display: 'grid', gap: '0.5rem' })],
-    [
-      UiCheckbox.view(
-        {
-          id: 'alerts-every',
-          isChecked: state === 'all',
-          isIndeterminate: state === 'some',
-          onToggle: on => onSet(CheckboxGroup.setEnabled(choices, on)),
-          toView: Checkbox.toView([SelectAllBox.mixin], { h }, resolved =>
-            h.div(
-              [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
-              [h.button(resolved.checkbox, []), h.label(resolved.label, ['Select all'])],
-            ),
-          ),
-        },
-        h,
-      ),
-      CheckboxGroup.view(
-        {
-          id: 'alerts-choices',
-          legend: 'Email me about',
-          options: choices,
-          checked,
-          onToggle,
-          style,
-        },
-        h,
-      ),
-    ],
+): Html =>
+  CheckboxGroup.view(
+    {
+      id: 'alerts-choices',
+      legend: 'Email me about',
+      options: [
+        { value: 'mentions', label: 'Mentions' },
+        { value: 'replies', label: 'Replies' },
+        { value: 'digest', label: 'A weekly digest' },
+        { value: 'offers', label: 'Offers', disabled: true },
+      ],
+      checked,
+      onToggle,
+      selectAll: { label: 'Select all', onSet },
+      style,
+    },
+    h,
   )
-}
 // #endregion
 
 // #region checkbox-group-invalid
@@ -1829,7 +2030,8 @@ export const checkboxGroupInvalid = <Message>(
       ],
       checked,
       onToggle,
-      error: 'Pick at least one.',
+      // Invalid until one is checked: the error says what would make it valid.
+      ...(checked.length === 0 ? { error: 'Pick at least one.' } : {}),
       style,
     },
     h,
@@ -2080,6 +2282,49 @@ export const meter = <Message>(
   )
 // #endregion
 
+// #region scroll-area-native
+// The box scrolls instead of the page, in the browser's own thin bars. Its
+// height is the caller's: the recipe extended by one, here.
+export const ScrollAreaStyle = forSlots(ScrollAreaSlots)(
+  Recipes.ScrollArea.extend({ base: { viewport: { maxBlockSize: '12rem' } } })({}),
+)
+
+const releases = (h: HtmlBuilder<never>): Html =>
+  h.ul(
+    [h.Style({ margin: '0', paddingInline: '1rem' })],
+    Array.from({ length: 24 }, (_, index) => h.li([], [`Release 0.${24 - index}.0`])),
+  )
+
+export const scrollArea = (
+  style: NamedStyle<typeof ScrollAreaSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  ScrollArea.view(
+    {
+      content: releases(h),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region scroll-area-overlay
+// Bars drawn over the content in place of the browser's, on a pointer that
+// can hover; a coarse pointer keeps the browser's. Off unless passed.
+export const scrollAreaOverlay = (
+  style: NamedStyle<typeof ScrollAreaSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  ScrollArea.view(
+    {
+      content: releases(h),
+      mixins: ScrollArea.overlayBars,
+      style,
+    },
+    h,
+  )
+// #endregion
+
 // #region virtual-list
 export const VirtualListStyle = forSlots(VirtualListSlots)(Recipes.VirtualList({}))
 
@@ -2139,21 +2384,6 @@ export const steps = <Message>(
 
 // #region steps-icons
 // A step's icon stands in its marker for the number, until the step is done.
-const outline = <Message>(h: HtmlBuilder<Message>, d: string): Html =>
-  h.svg(
-    [
-      h.ViewBox('0 0 16 16'),
-      h.Attribute('width', '1em'),
-      h.Attribute('height', '1em'),
-      h.Attribute('fill', 'none'),
-      h.Attribute('stroke', 'currentColor'),
-      h.Attribute('stroke-width', '1.5'),
-      h.Attribute('stroke-linecap', 'round'),
-      h.Attribute('stroke-linejoin', 'round'),
-    ],
-    [h.path([h.Attribute('d', d)], [])],
-  )
-
 export const stepsIcons = <Message>(
   style: NamedStyle<typeof StepsSlots>,
   h: HtmlBuilder<Message>,

@@ -12,9 +12,7 @@ import {
   AccordionSlots,
   AlertSlots,
   AvatarSlots,
-  BadgeSlots,
   BreadcrumbSlots,
-  ButtonGroupSlots,
   ButtonSlots,
   CalendarSlots,
   CardGroupSlots,
@@ -43,10 +41,8 @@ import {
   ComboboxSlots,
   DatePickerSlots,
   DialogSlots,
-  EmptySlots,
   InputSlots,
   ItemSlots,
-  KbdSlots,
   ListboxSlots,
   MenuSlots,
   PaginationSlots,
@@ -60,7 +56,6 @@ import {
   SliderSlots,
   SpinnerSlots,
   SwitchSlots,
-  TableSlots,
   TabsSlots,
   TextareaSlots,
 } from 'foldkit-mixins-ui'
@@ -83,8 +78,6 @@ export type Selection = Readonly<Record<string, string>>
 export interface Live<Message> {
   readonly switched: boolean
   readonly onSwitch: (on: boolean) => Message
-  readonly page: number
-  readonly onPage: (page: number) => Message
   readonly chosen: string
   readonly onChoose: (key: string) => Message
   readonly dismissed: boolean
@@ -231,6 +224,44 @@ const fixed = (
   })),
 })
 
+/** A pagination example on its own page of the widgets' Model. */
+const paged =
+  (
+    draw: <Message>(
+      style: NamedStyle<typeof PaginationSlots>,
+      page: number,
+      onPage: (page: number) => Message,
+      h: HtmlBuilder<Message>,
+    ) => Html,
+    example: Widgets.PaginationExample,
+  ) =>
+  <Message>(style: NamedStyle<typeof PaginationSlots>, live: Live<Message>): Html =>
+    draw(
+      style,
+      live.widgets.pages[example],
+      page => live.onWidget(Widgets.Message.ChosePage({ example, page })),
+      live.h,
+    )
+
+/** A checkbox group example on its own alerts of the widgets' Model. */
+const alertsOf =
+  (
+    draw: <Message>(
+      style: NamedStyle<typeof CheckboxGroupSlots>,
+      checked: ReadonlyArray<string>,
+      onToggle: (value: string) => Message,
+      h: HtmlBuilder<Message>,
+    ) => Html,
+    example: Widgets.AlertsExample,
+  ) =>
+  <Message>(style: NamedStyle<typeof CheckboxGroupSlots>, live: Live<Message>): Html =>
+    draw(
+      style,
+      live.widgets.alerts[example],
+      value => live.onWidget(Widgets.Message.ToggledAlert({ example, value })),
+      live.h,
+    )
+
 // Each checkbox example holds its own state: one press toggles one box.
 const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: Live<Message>) =>
   Snippet.checkbox(
@@ -253,6 +284,21 @@ export const showcases: ReadonlyArray<Showcase> = [
     ButtonSlots,
     Recipes.Button,
     style => Snippet.button(style, inert),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: style => Snippet.button(style, inert) },
+      {
+        name: 'toggle',
+        title: 'Toggle',
+        draw: (style, live) =>
+          Snippet.toggleButtons(
+            style,
+            live.widgets.formats,
+            format => live.onWidget(Widgets.Message.ToggledFormat({ format })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fixed(
     {
@@ -498,7 +544,20 @@ export const showcases: ReadonlyArray<Showcase> = [
       file: 'kbd',
       contract: 'KbdSlots',
     },
-    () => Snippet.shortcut(Snippet.KbdStyle, inert),
+    () => Snippet.kbdCombo(Snippet.KbdStyle, inert),
+    [
+      { name: 'key', title: 'A key', draw: () => Snippet.kbdKey(Snippet.KbdStyle, inert) },
+      {
+        name: 'combo',
+        title: 'A combination',
+        draw: () => Snippet.kbdCombo(Snippet.KbdStyle, inert),
+      },
+      {
+        name: 'joined',
+        title: 'Joined by words',
+        draw: () => Snippet.kbdJoined(Snippet.KbdStyle, inert),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -551,7 +610,7 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     () => Snippet.table(Snippet.TableStyle, inert),
   ),
-  fixed(
+  fromRecipe(
     {
       slug: 'breadcrumb',
       title: 'Breadcrumb',
@@ -560,9 +619,32 @@ export const showcases: ReadonlyArray<Showcase> = [
       file: 'breadcrumb',
       contract: 'BreadcrumbSlots',
     },
-    () => Snippet.breadcrumb(Snippet.BreadcrumbStyle, inert),
+    BreadcrumbSlots,
+    Recipes.Breadcrumb,
+    style => Snippet.breadcrumb(style, inert),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: style => Snippet.breadcrumb(style, inert) },
+      { name: 'icons', title: 'Icons', draw: style => Snippet.breadcrumbIcons(style, inert) },
+      {
+        name: 'custom',
+        title: 'A separator of your own',
+        draw: style => Snippet.breadcrumbCustom(style, inert),
+      },
+      {
+        name: 'collapsed',
+        title: 'Collapsed',
+        draw: (style, live) =>
+          Snippet.breadcrumbCollapsed(
+            style,
+            live.widgets.trailExpanded,
+            live.onWidget(Widgets.Message.ExpandedTrail()),
+            live.h,
+          ),
+      },
+    ],
   ),
-  fixed(
+  fromRecipe(
     {
       slug: 'pagination',
       title: 'Pagination',
@@ -571,7 +653,42 @@ export const showcases: ReadonlyArray<Showcase> = [
       file: 'pagination',
       contract: 'PaginationSlots',
     },
-    live => Snippet.pagination(Snippet.PaginationStyle, live.page, live.onPage, live.h),
+    PaginationSlots,
+    Recipes.Pagination,
+    paged(Snippet.pagination, 'numbered'),
+    undefined,
+    [
+      { name: 'numbered', title: 'Numbered', draw: paged(Snippet.pagination, 'numbered') },
+      {
+        name: 'simple',
+        title: 'Previous and next',
+        draw: paged(Snippet.paginationSimple, 'simple'),
+      },
+      { name: 'ends', title: 'First and last', draw: paged(Snippet.paginationEnds, 'ends') },
+      {
+        name: 'range',
+        title: 'Rows and page size',
+        draw: (style, live) =>
+          Snippet.paginationRange(
+            style,
+            { page: live.widgets.pages.range, perPage: live.widgets.perPage },
+            page => live.onWidget(Widgets.Message.ChosePage({ example: 'range', page })),
+            perPage => live.onWidget(Widgets.Message.ChosePerPage({ perPage })),
+            live.h,
+          ),
+      },
+      {
+        name: 'siblings',
+        title: 'Siblings and boundaries',
+        draw: paged(Snippet.paginationSiblings, 'siblings'),
+      },
+      {
+        name: 'compact',
+        title: 'Compact',
+        pins: { compact: 'always' },
+        draw: paged(Snippet.paginationCompact, 'compact'),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -627,36 +744,14 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     CheckboxGroupSlots,
     Recipes.CheckboxGroup,
-    (style, live) =>
-      Snippet.checkboxGroup(
-        style,
-        live.widgets.alerts,
-        value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
-        live.h,
-      ),
+    alertsOf(Snippet.checkboxGroup, 'alerts'),
     undefined,
     [
-      {
-        name: 'alerts',
-        title: 'Alerts',
-        draw: (style, live) =>
-          Snippet.checkboxGroup(
-            style,
-            live.widgets.alerts,
-            value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
-            live.h,
-          ),
-      },
+      { name: 'alerts', title: 'Alerts', draw: alertsOf(Snippet.checkboxGroup, 'alerts') },
       {
         name: 'described',
         title: 'Descriptions',
-        draw: (style, live) =>
-          Snippet.checkboxGroupDescribed(
-            style,
-            live.widgets.alerts,
-            value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
-            live.h,
-          ),
+        draw: alertsOf(Snippet.checkboxGroupDescribed, 'described'),
       },
       {
         name: 'select-all',
@@ -664,22 +759,16 @@ export const showcases: ReadonlyArray<Showcase> = [
         draw: (style, live) =>
           Snippet.checkboxGroupSelectAll(
             style,
-            live.widgets.alerts,
-            value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
-            values => live.onWidget(Widgets.Message.SetAlerts({ values })),
+            live.widgets.alerts['select-all'],
+            value => live.onWidget(Widgets.Message.ToggledAlert({ example: 'select-all', value })),
+            values => live.onWidget(Widgets.Message.SetAlerts({ example: 'select-all', values })),
             live.h,
           ),
       },
       {
         name: 'invalid',
         title: 'Invalid',
-        draw: (style, live) =>
-          Snippet.checkboxGroupInvalid(
-            style,
-            live.widgets.alerts,
-            value => live.onWidget(Widgets.Message.ToggledAlert({ value })),
-            live.h,
-          ),
+        draw: alertsOf(Snippet.checkboxGroupInvalid, 'invalid'),
       },
     ],
   ),
@@ -857,6 +946,29 @@ export const showcases: ReadonlyArray<Showcase> = [
     MeterSlots,
     Recipes.Meter,
     (style, live) => Snippet.meter(style, live.h),
+  ),
+  fixed(
+    {
+      slug: 'scroll-area',
+      title: 'Scroll area',
+      summary: 'A box that scrolls instead of the page, its bars thin or drawn over it.',
+      recipe: 'ScrollArea',
+      file: 'scrollArea',
+      contract: 'ScrollAreaSlots',
+    },
+    () => Snippet.scrollArea(Snippet.ScrollAreaStyle, inert),
+    [
+      {
+        name: 'native',
+        title: "The browser's bars",
+        draw: () => Snippet.scrollArea(Snippet.ScrollAreaStyle, inert),
+      },
+      {
+        name: 'overlay',
+        title: 'Overlay bars',
+        draw: () => Snippet.scrollAreaOverlay(Snippet.ScrollAreaStyle, inert),
+      },
+    ],
   ),
   fromRecipe(
     {

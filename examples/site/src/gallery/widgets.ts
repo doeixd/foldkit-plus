@@ -44,6 +44,7 @@ import {
   BillingGroup,
   CityBox,
   FILE_MENU,
+  Format,
   Frequency,
   FrequencyBox,
   MENUBAR,
@@ -55,6 +56,21 @@ import {
   SectionTabs,
   Toppings,
 } from '../snippets/components.js'
+
+/** The pagination examples, each on a page of its own. */
+export const PaginationExample = Schema.Literals([
+  'numbered',
+  'simple',
+  'ends',
+  'range',
+  'siblings',
+  'compact',
+])
+export type PaginationExample = typeof PaginationExample.Type
+
+/** The checkbox group examples, each with alerts of its own. */
+export const AlertsExample = Schema.Literals(['alerts', 'described', 'select-all', 'invalid'])
+export type AlertsExample = typeof AlertsExample.Type
 
 export const Model = Schema.Struct({
   tabs: UiTabs.Model,
@@ -92,8 +108,15 @@ export const Model = Schema.Struct({
   terms: Schema.Boolean,
   toppings: Toppings,
   teamPlan: Schema.Boolean,
-  /** The checkbox group's checked alerts. */
-  alerts: Schema.Array(Schema.String),
+  /** Whether the long breadcrumb trail was unfolded. */
+  trailExpanded: Schema.Boolean,
+  /** The toggle buttons' formats that are on. */
+  formats: Schema.Array(Format),
+  /** The page each pagination example shows, and the rows a page holds in the range one. */
+  pages: Schema.Record(PaginationExample, Schema.Number),
+  perPage: Schema.Number,
+  /** Each checkbox group example's checked alerts. */
+  alerts: Schema.Record(AlertsExample, Schema.Array(Schema.String)),
   /** The number field's servings. */
   servings: Schema.Number,
   /** The one-time code typed so far. */
@@ -162,8 +185,12 @@ export const Message = defineMessageUnion({
   ToggledTerms: { checked: Schema.Boolean },
   ToggledToppings: { checked: Schema.Boolean },
   ToggledTeamPlan: { checked: Schema.Boolean },
-  ToggledAlert: { value: Schema.String },
-  SetAlerts: { values: Schema.Array(Schema.String) },
+  ExpandedTrail: {},
+  ToggledFormat: { format: Format },
+  ChosePage: { example: PaginationExample, page: Schema.Number },
+  ChosePerPage: { perPage: Schema.Number },
+  ToggledAlert: { example: AlertsExample, value: Schema.String },
+  SetAlerts: { example: AlertsExample, values: Schema.Array(Schema.String) },
   ChangedServings: { value: Schema.Number },
   TypedCode: { code: Schema.String },
   GotHoverCard: { message: UiHoverIntent.Message },
@@ -231,7 +258,16 @@ export const initial: Model = {
   terms: false,
   toppings: 'some',
   teamPlan: false,
-  alerts: ['mentions', 'replies'],
+  trailExpanded: false,
+  formats: ['bold'],
+  pages: { numbered: 4, simple: 2, ends: 9, range: 2, siblings: 18, compact: 5 },
+  perPage: 10,
+  alerts: {
+    alerts: ['mentions', 'replies'],
+    described: ['mentions', 'replies'],
+    'select-all': ['mentions', 'offers'],
+    invalid: [],
+  },
   servings: 4,
   code: '',
   hoverCard: UiHoverIntent.init(),
@@ -651,13 +687,47 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       checked === model.teamPlan
         ? { model }
         : { model: modifyFields(model, { teamPlan: () => checked }) },
-    ToggledAlert: ({ value }) => ({
-      model: modifyFields(model, { alerts: () => CheckboxGroup.toggled(model.alerts, value) }),
-    }),
-    SetAlerts: ({ values }) =>
-      values.length === model.alerts.length && values.every((value, i) => value === model.alerts[i])
+    ExpandedTrail: () =>
+      model.trailExpanded
         ? { model }
-        : { model: modifyFields(model, { alerts: () => values }) },
+        : { model: modifyFields(model, { trailExpanded: () => true }) },
+    ToggledFormat: ({ format }) => ({
+      model: modifyFields(model, {
+        formats: formats =>
+          formats.includes(format) ? formats.filter(on => on !== format) : [...formats, format],
+      }),
+    }),
+    ChosePage: ({ example, page }) =>
+      page === model.pages[example]
+        ? { model }
+        : { model: modifyFields(model, { pages: pages => ({ ...pages, [example]: page }) }) },
+    // The page that keeps the first row shown in view, at the new size.
+    ChosePerPage: ({ perPage }) =>
+      perPage === model.perPage
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              perPage: () => perPage,
+              pages: pages => ({
+                ...pages,
+                range: Math.floor(((pages.range - 1) * model.perPage) / perPage) + 1,
+              }),
+            }),
+          },
+    ToggledAlert: ({ example, value }) => ({
+      model: modifyFields(model, {
+        alerts: alerts => ({
+          ...alerts,
+          [example]: CheckboxGroup.toggled(alerts[example], value),
+        }),
+      }),
+    }),
+    SetAlerts: ({ example, values }) => {
+      const now = model.alerts[example]
+      return values.length === now.length && values.every((value, i) => value === now[i])
+        ? { model }
+        : { model: modifyFields(model, { alerts: alerts => ({ ...alerts, [example]: values }) }) }
+    },
     TypedCode: ({ code }) =>
       code === model.code ? { model } : { model: modifyFields(model, { code: () => code }) },
     ChangedServings: ({ value }) =>

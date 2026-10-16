@@ -71,7 +71,6 @@ export const Model = Schema.Struct({
   selection: Schema.Record(Schema.String, Schema.String),
   /** What the previews' own controls hold. */
   switched: Schema.Boolean,
-  previewPage: Schema.Number,
   /** The card chosen in the card group's preview, by key. */
   chosenCard: Schema.String,
   cardDismissed: Schema.Boolean,
@@ -97,7 +96,6 @@ export const Message = defineMessageUnion({
   FailedToCopy: {},
   PickedVariant: { axis: Schema.String, value: Schema.String },
   ToggledSwitch: { on: Schema.Boolean },
-  ChosePreviewPage: { page: Schema.Number },
   ChoseCard: { key: Schema.String },
   DismissedCard: {},
   RestoredCard: {},
@@ -210,10 +208,6 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         : { model: modifyFields(model, { selection: picked => ({ ...picked, [axis]: value }) }) },
     ToggledSwitch: ({ on }) =>
       on === model.switched ? { model } : { model: modifyFields(model, { switched: () => on }) },
-    ChosePreviewPage: ({ page }) =>
-      page === model.previewPage
-        ? { model }
-        : { model: modifyFields(model, { previewPage: () => page }) },
     ChoseCard: ({ key }) =>
       key === model.chosenCard
         ? { model }
@@ -297,7 +291,6 @@ export const initial: Model = placements.initial({
   copied: false,
   selection: {},
   switched: false,
-  previewPage: 4,
   chosenCard: 'team',
   cardDismissed: false,
   widgets: Widgets.initial,
@@ -349,7 +342,6 @@ const planOf = (withMeta: boolean) =>
       App.model.copied,
       App.model.selection,
       App.model.switched,
-      App.model.previewPage,
       App.model.chosenCard,
       App.model.cardDismissed,
       App.model.widgets,

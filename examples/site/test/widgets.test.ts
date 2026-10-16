@@ -156,3 +156,50 @@ describe('the checkbox previews', () => {
     expect(none.widgets.toppings).toBe('none')
   })
 })
+
+describe('the pagination previews', () => {
+  it('each move their own page', () => {
+    const moved = send(Widgets.Message.ChosePage({ example: 'ends', page: 3 })).widgets.pages
+    expect(moved).toEqual({ ...initial.widgets.pages, ends: 3 })
+  })
+
+  it('keep the first row shown in view when a page holds more rows', () => {
+    // Page 3 of tens starts at row 21, which is on page 2 of twenties.
+    const third = send(Widgets.Message.ChosePage({ example: 'range', page: 3 }))
+    const larger = update(
+      third,
+      Message.GotWidget({ message: Widgets.Message.ChosePerPage({ perPage: 20 }) }),
+    ).model.widgets
+    expect([larger.perPage, larger.pages.range]).toEqual([20, 2])
+  })
+})
+
+describe('the toggle buttons preview', () => {
+  it('turns a format on, and off again', () => {
+    const on = send(Widgets.Message.ToggledFormat({ format: 'italic' }))
+    expect(on.widgets.formats).toEqual(['bold', 'italic'])
+    const off = update(
+      on,
+      Message.GotWidget({ message: Widgets.Message.ToggledFormat({ format: 'bold' }) }),
+    ).model
+    expect(off.widgets.formats).toEqual(['italic'])
+  })
+})
+
+describe('the breadcrumb preview', () => {
+  it('unfolds its trail once, and stays unfolded', () => {
+    const expanded = send(Widgets.Message.ExpandedTrail())
+    expect([initial.widgets.trailExpanded, expanded.widgets.trailExpanded]).toEqual([false, true])
+    expect(
+      update(expanded, Message.GotWidget({ message: Widgets.Message.ExpandedTrail() })).model,
+    ).toBe(expanded)
+  })
+})
+
+describe('the checkbox group previews', () => {
+  it('each check their own alerts', () => {
+    const toggled = send(Widgets.Message.ToggledAlert({ example: 'invalid', value: 'digest' }))
+      .widgets.alerts
+    expect(toggled).toEqual({ ...initial.widgets.alerts, invalid: ['digest'] })
+  })
+})
