@@ -97,4 +97,38 @@ export default [
     ],
     tests: unit,
   },
+  ...(
+    [
+      [
+        'a range',
+        'Range: () => [...days.grid, h.AriaMultiSelectable(true)],',
+        'Range: () => days.grid,',
+      ],
+      [
+        'many days',
+        'Multiple: () => [...days.grid, h.AriaMultiSelectable(true)],',
+        'Multiple: () => days.grid,',
+      ],
+      [
+        'one day',
+        'Single: () => days.grid,',
+        'Single: () => [...days.grid, h.AriaMultiSelectable(true)],',
+      ],
+    ] as const
+  ).map(([holding, find, replace]) => ({
+    name: `a grid holding ${holding} says the wrong thing of how many it holds`,
+    edits: [{ file: '../src/calendar.ts', find, replace }],
+    tests: ['packages/mixins-ui/test/calendarSelection.test.ts'],
+  })),
+  {
+    name: 'upstream is given no day for a Single selection',
+    edits: [
+      {
+        file: '../src/calendar.ts',
+        find: 'maybeSelectedDate: selectedDate(selection),',
+        replace: 'maybeSelectedDate: Option.none(),',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/calendarSelection.test.ts'],
+  },
 ]

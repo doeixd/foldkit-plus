@@ -13,6 +13,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Scene } from 'foldkit/test'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Calendar } from '../src/index.js'
+import { h } from './fixture.js'
 
 const { Selection } = Calendar
 
@@ -204,5 +205,29 @@ describe('Calendar.toView', () => {
       Scene.expect(cell(4)).not.toHaveAttr('data-selected'),
       Scene.expect(cell(9)).toHaveAttr('data-selected'),
     )
+  })
+
+  it.each([
+    ['a Single', single(some(10)), false],
+    ['a Range', range(some(10), some(13)), true],
+    ['a Multiple', multiple(3, 17), true],
+  ] as const)('says whether the grid holds many days, for %s selection', (_, selection, many) => {
+    const grid = Scene.expect(Scene.role('grid'))
+    Scene.scene(
+      app,
+      Scene.given(given(selection)),
+      many
+        ? grid.toHaveAttr('aria-multiselectable', 'true')
+        : grid.not.toHaveAttr('aria-multiselectable'),
+    )
+  })
+})
+
+describe('Calendar.inputs', () => {
+  it.each([
+    ['a Single selection: its day', single(some(10)), Option.some(day(10))],
+    ['a Range: nothing, its days marked by toView', range(some(10), some(13)), Option.none()],
+  ] as const)('gives upstream %s', (_, selection, expected) => {
+    expect(Calendar.inputs(selection, [], { h }).maybeSelectedDate).toEqual(expected)
   })
 })

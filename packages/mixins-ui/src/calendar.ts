@@ -420,6 +420,12 @@ const marked = <Message>(
       const markOf = marksOf(selection, h)
       return {
         ...days,
+        // A grid holding many chosen days says so, or a reader announces a single choice.
+        grid: Selection.match(selection, {
+          Single: () => days.grid,
+          Range: () => [...days.grid, h.AriaMultiSelectable(true)],
+          Multiple: () => [...days.grid, h.AriaMultiSelectable(true)],
+        }),
         weeks: days.weeks.map(week => ({
           ...week,
           cells: week.cells.map(cell => {
@@ -440,9 +446,9 @@ const marked = <Message>(
 /**
  * The calendar's `toView`, with the days `selection` holds marked: `render`
  * receives its bundles with `mixins` applied and the marks added; without
- * one, they are drawn by `draw` above. Give the Calendar
- * `maybeSelectedDate: selectedDate(selection)`. A Mixin that reads the mode
- * needs `resolve`, whose `input` can be `_tag`.
+ * one, they are drawn by `draw` above. A Mixin that reads the mode needs
+ * `resolve`, whose `input` can be `_tag`. `inputs` gives it with the
+ * `maybeSelectedDate` that agrees with it.
  */
 export const toView =
   <Message>(
@@ -453,3 +459,21 @@ export const toView =
   ) =>
   (attributes: CalendarAttributes): Html =>
     render(marked(resolve(attributes, mixins, context), selection, context.h))
+
+/**
+ * The Calendar's view inputs from one `selection`: `toView` above, and
+ * upstream's `maybeSelectedDate` read from the same selection, so the two
+ * cannot mark different days. Spread them into upstream `Calendar.view`'s inputs.
+ */
+export const inputs = <Message>(
+  selection: Selection,
+  mixins: MixinList<Message>,
+  context: ResolveContext<unknown, Message>,
+  render?: (resolved: ResolvedCalendar<Message>) => Html,
+): {
+  readonly maybeSelectedDate: Option.Option<Dates.CalendarDate>
+  readonly toView: (attributes: CalendarAttributes) => Html
+} => ({
+  maybeSelectedDate: selectedDate(selection),
+  toView: toView(selection, mixins, context, render),
+})
