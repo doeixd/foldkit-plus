@@ -147,7 +147,7 @@ export default [
         replace: 'page: variant(Style.at(narrow, Style.self(hidden))),',
       },
     ],
-    tests,
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
   },
   {
     name: 'compact is off unless asked',
@@ -158,6 +158,50 @@ export default [
         replace: "defaults: { compact: 'never' },",
       },
     ],
-    tests,
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
+  },
+  {
+    name: 'compact hides the total with the other numbers',
+    edits: [
+      {
+        file: '../src/recipes/pagination.ts',
+        find: 'pageCount: variant(Style.at(narrow, Style.self(shown))),',
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
+  },
+  {
+    name: 'the total shows beside every number',
+    edits: [
+      {
+        file: '../src/recipes/pagination.ts',
+        find: 'Style.self({ ...hidden, color: ref.text.muted, fontWeight: ref.weight.normal }),',
+        replace: 'Style.self({ color: ref.text.muted, fontWeight: ref.weight.normal }),',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
+  },
+  {
+    name: 'the select shows a size other than the one in use',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'h.Selected(size === range.perPage)',
+        replace: 'h.Selected(size !== range.perPage)',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
+  },
+  {
+    name: 'the select sends the first size whatever is chosen',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'choose.onPerPage(Number(value))',
+        replace: 'choose.onPerPage(choose.sizes[0] ?? Number(value))',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
   },
 ]

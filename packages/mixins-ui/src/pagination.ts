@@ -1,4 +1,4 @@
-import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
 
@@ -16,7 +16,16 @@ export const PaginationSlots = Slots.define({
   next: Slot.make({ capability: Capability.Interactive }),
   last: Slot.make({ capability: Capability.Interactive }),
   page: Slot.make({ capability: Capability.Interactive }),
+  /**
+   * After the current stop's number, `" / 12"`, hidden from assistive
+   * technology so the stop's name stays its number: the recipe shows it where
+   * `compact` hides the other numbers.
+   */
+  pageCount: Slot.make({ capability: Capability.Container }),
   ellipsis: Slot.make({ capability: Capability.Container }),
+  /** The page-size choice: its words and the select inside them. */
+  perPage: Slot.make({ capability: Capability.Container }),
+  perPageSelect: Slot.make({ capability: Capability.Interactive, events: [Event.Change] }),
 })
 
 /** One numbered stop, or a collapsed run of them. */
@@ -64,14 +73,26 @@ export const itemsOf = (
   return items
 }
 
+/** The rows a page may show, for a select of them; its value is the range's `perPage`. */
+export interface PaginationPerPage<Message> {
+  /** The sizes to choose from, such as `[10, 20, 50]`. */
+  readonly sizes: ReadonlyArray<number>
+  /** Sent with the size chosen; the application sets `perPage` and the page that keeps its rows in view. */
+  readonly onPerPage: (perPage: number) => Message
+  /** The words before the select; default `"Rows per page"`. */
+  readonly label?: string | undefined
+}
+
 /** The rows a page shows, from 1, and how many there are in all: what `summary` says. */
-export interface PaginationRange {
+export interface PaginationRange<Message = never> {
   /** Rows in all. */
   readonly total: number
   /** Rows a page shows. */
   readonly perPage: number
   /** The words; default `"1–10 of 97"`. */
   readonly text?: ((from: number, to: number, total: number) => string) | undefined
+  /** A select of how many rows a page shows, beside the summary. */
+  readonly choose?: PaginationPerPage<Message> | undefined
 }
 
 /**
@@ -90,7 +111,7 @@ export interface PaginationView<Message> extends PaginationWindow {
   /** Draws first and last beside previous and next. Default false. */
   readonly ends?: boolean | undefined
   /** Says which rows the page shows, before the stops: `"1–10 of 97"`. */
-  readonly range?: PaginationRange | undefined
+  readonly range?: PaginationRange<Message> | undefined
   /** A style of `PaginationSlots`, for the navigation's look. */
   readonly style?: NamedStyle<typeof PaginationSlots> | undefined
   /** Mixins beside the style. */
@@ -100,7 +121,7 @@ export interface PaginationView<Message> extends PaginationWindow {
 const shown = (from: number, to: number, total: number): string => `${from}–${to} of ${total}`
 
 /** The first and last row page `page` shows, and the total: `"11–20 of 97"`. */
-export const summaryOf = (page: number, range: PaginationRange): string => {
+export const summaryOf = <Message>(page: number, range: PaginationRange<Message>): string => {
   const total = Math.max(0, Math.floor(range.total))
   const perPage = Math.max(1, Math.floor(range.perPage))
   const from = Math.min(total, (page - 1) * perPage + 1)
@@ -132,12 +153,32 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
       [text],
     )
   const ends = options.ends === true
+  const range = options.range
+  const choose = range?.choose
+  const perPage =
+    range === undefined || choose === undefined
+      ? []
+      : [
+          h.label(builders.perPage.attrs(), [
+            choose.label ?? 'Rows per page',
+            h.select(
+              builders.perPageSelect.attrs([h.OnChange(value => choose.onPerPage(Number(value)))]),
+              choose.sizes.map(size =>
+                h.option(
+                  [h.Value(String(size)), h.Selected(size === range.perPage)],
+                  [String(size)],
+                ),
+              ),
+            ),
+          ]),
+        ]
   return h.nav(
     builders.root.attrs([h.AriaLabel(options.label ?? 'Pagination'), h.Role('navigation')]),
     [
-      ...(options.range === undefined
+      ...(range === undefined
         ? []
-        : [h.span(builders.summary.attrs(), [summaryOf(current, options.range)])]),
+        : [h.span(builders.summary.attrs(), [summaryOf(current, range)])]),
+      ...perPage,
       ...(ends ? [stop(1, 'first', 'First', current === 1)] : []),
       stop(current - 1, 'prev', 'Previous', current === 1),
       ...(options.numbered === false
@@ -150,7 +191,12 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
                     h.OnClick(options.onPage(item)),
                     ...(item === current ? [h.AriaCurrent('page')] : []),
                   ]),
-                  [String(item)],
+                  item === current
+                    ? [
+                        String(item),
+                        h.span(builders.pageCount.attrs([h.AriaHidden(true)]), [` / ${count}`]),
+                      ]
+                    : [String(item)],
                 ),
           )),
       stop(current + 1, 'next', 'Next', current === count),

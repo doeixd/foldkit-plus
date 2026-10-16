@@ -149,18 +149,26 @@ describe('Pagination view', () => {
       'Previous',
       '1',
       '4',
-      '5',
+      // The total after the current stop, which only `compact` shows.
+      '5 / 10',
       '6',
       '10',
       'Next',
     ])
-    expect(Inert.byTag(nav, 'span').map(ellipsis => Inert.text(ellipsis))).toEqual(['…', '…'])
+    // The two ellipses, and the total after the current stop.
+    expect(Inert.byTag(nav, 'span').map(span => Inert.text(span))).toEqual(['…', ' / 10', '…'])
   })
 
   it('marks the current stop and ends the run at its edges', () => {
     const nav = drawn(1, 3)
     const buttons = Inert.byTag(nav, 'button')
-    expect(buttons.map(button => Inert.text(button))).toEqual(['Previous', '1', '2', '3', 'Next'])
+    expect(buttons.map(button => Inert.text(button))).toEqual([
+      'Previous',
+      '1 / 3',
+      '2',
+      '3',
+      'Next',
+    ])
     expect(Inert.value(buttons[1], 'aria-current')).toBe('page')
     expect(Inert.value(buttons[0], 'disabled')).toBe(true)
     expect(Inert.value(buttons[4], 'disabled')).toBe(false)
@@ -171,9 +179,14 @@ describe('Pagination view', () => {
     expect(drawn(1, 0)).toBe(h.empty)
   })
 
+  /** Each stop's name: its label, or the words a reader hears, which leave out what is `aria-hidden`. */
   const labelsOf = (nav: ReturnType<typeof drawn>) =>
     Inert.byTag(nav, 'button').map(
-      button => Inert.value(button, 'aria-label') ?? Inert.text(button),
+      button =>
+        Inert.value(button, 'aria-label') ??
+        Inert.byTag(button, 'span')
+          .filter(span => String(Inert.value(span, 'aria-hidden')) === 'true')
+          .reduce((words, span) => words.replace(Inert.text(span), ''), Inert.text(button)),
     )
 
   it('simple, draws previous and next alone', () => {
@@ -245,16 +258,6 @@ describe('Pagination recipe', () => {
     const sheet = css({})
     expect(sheet).toMatch(/\[aria-current="page"\]\{[^}]*background:var\(--fk-accent-subtle\)/)
     expect(sheet).toContain('display:inline-flex')
-  })
-
-  it('compacts to the current stop on a narrow window by default, or always, or never', () => {
-    const narrowOnly =
-      /@media \(max-width: 30rem\)\{[^{}]*:not\(\[aria-current="page"\]\)\{display:none/
-    expect(css({})).toMatch(narrowOnly)
-    expect(css({ compact: 'never' })).not.toContain('display:none')
-    const always = css({ compact: 'always' })
-    expect(always).not.toContain('@media (max-width: 30rem)')
-    expect(always).toMatch(/:not\(\[aria-current="page"\]\)\{display:none/)
   })
 })
 
