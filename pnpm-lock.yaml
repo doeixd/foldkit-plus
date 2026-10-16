@@ -39,7 +39,7 @@ importers:
         specifier: 0.168.0
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
       oxfmt:
-        specifier: ^0.73.0
+        specifier: 0.73.0
         version: 0.73.0
       playwright:
         specifier: ^1.64.0

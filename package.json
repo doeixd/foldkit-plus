@@ -48,7 +48,7 @@
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "^4.0.4",
     "foldkit": "0.168.0",
-    "oxfmt": "^0.73.0",
+    "oxfmt": "0.73.0",
     "playwright": "^1.64.0",
     "prettier": "^3.9.10",
     "tsdown": "^0.23.1",

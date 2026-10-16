@@ -1325,8 +1325,8 @@ of its own named a form field "fits the Catalog". Read words with
   declaration and its comment, leaving each comment documenting the wrong thing; the
   typecheck and the tests cannot see it. Anchor on the comment's opening `/**`, or read the
   lines above the insert before committing.
-- **A pipe hides the exit status of what it pipes.** `prettier --check $F | tail -1 &&
-  git commit` committed a file prettier had just flagged, because `tail` succeeded.
+- **A pipe hides the exit status of what it pipes.** `oxfmt --check $F | tail -1 &&
+  git commit` committed a file the check had just flagged, because `tail` succeeded.
   Redirect instead (`>/dev/null &&`) when a check gates the next command.
   `;` gates nothing either: `pnpm -s mutate:check >/dev/null; echo $?; …;
   git commit` printed `1` and committed, twice in one session (a re-anchor
