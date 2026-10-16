@@ -6,7 +6,16 @@
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { nested, nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
-import { component, disabled, glide, listScroll, presence, ref, rowOnLadder } from './design.js'
+import {
+  component,
+  disabled,
+  glide,
+  listScroll,
+  presence,
+  ref,
+  rowOnLadder,
+  variant,
+} from './design.js'
 import { overlaid } from './scrollBars.js'
 
 /** A line in the panel's own ink, so it reads on an inverted panel too. */
@@ -54,11 +63,14 @@ export const scroll: StyleValue = Style.compose(listScroll, overlaid)
 /** The click-away behind an open panel. */
 export const backdrop: StyleValue = component(Style.self({ position: 'fixed', inset: '0' }))
 
-/** The panel at least as wide as the trigger that opened it: upstream's
- * anchor publishes the trigger's width as `--button-width` on the panel once
- * positioned, 14rem (the panel's own floor) until then. A panel narrower than
- * its trigger reads as a mistake beside it. */
-export const triggerWidth: StyleValue = component(
+/**
+ * The panel at least as wide as the trigger that opened it, a selection of a
+ * `width` axis: the trigger's width replaces the panel's 14rem minimum, so a
+ * trigger narrower than that gets a panel as narrow. Upstream's anchor
+ * publishes the width as `--button-width` once positioned; 14rem until then.
+ * A panel narrower than its trigger reads as a mistake beside it.
+ */
+export const triggerWidth: StyleValue = variant(
   Style.self({ minInlineSize: 'var(--button-width, 14rem)' }),
 )
 
