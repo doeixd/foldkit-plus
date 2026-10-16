@@ -75,6 +75,18 @@ describe('the showcases', () => {
     )
   })
 
+  it('keep the values an example pins, whatever is picked', () => {
+    const steps = Option.getOrThrow(showcaseOf('steps'))
+    const [basic, , vertical] = steps.examples
+    const pick = (orientation: string) => ({ orientation })
+    expect(markup(vertical!.render(pick('horizontal'), live))).toBe(
+      markup(vertical!.render(pick('vertical'), live)),
+    )
+    expect(markup(basic!.render(pick('horizontal'), live))).not.toBe(
+      markup(basic!.render(pick('vertical'), live)),
+    )
+  })
+
   it('have one page each', () => {
     const slugs = showcases.map(showcase => showcase.slug)
     expect(new Set(slugs).size).toBe(slugs.length)

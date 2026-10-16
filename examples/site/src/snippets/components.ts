@@ -924,21 +924,13 @@ export interface RadioGroupState {
   readonly billing: Billing
 }
 
-/** How this drawing of the plans lays out. Cards frame each label. */
-export interface RadioLayout {
-  readonly orientation?: 'Vertical' | 'Horizontal' | undefined
-  readonly cards?: boolean | undefined
-}
-
 // #region radio-group-descriptions
-const RadioCards = forSlots(RadioGroupSlots)(Recipes.RadioGroup({ variant: 'card' }))
-
 export const radioGroup = <Message>(
   style: NamedStyle<typeof RadioGroupSlots>,
   state: RadioGroupState,
   toMessage: (message: UiRadioGroup.Message) => Message,
   h: HtmlBuilder<Message>,
-  layout: RadioLayout = {},
+  orientation: 'Vertical' | 'Horizontal' = 'Vertical',
 ): Html =>
   h.submodel({
     slotId: state.group.id,
@@ -948,32 +940,29 @@ export const radioGroup = <Message>(
       selectedValue: Option.some(state.billing),
       options: Billing.literals,
       ariaLabel: 'Billing',
-      orientation: layout.orientation ?? 'Vertical',
+      orientation,
       hasOptionDescription: () => true,
-      toView: RadioGroup.toView<Billing, Message>(
-        [style.mixin, ...(layout.cards === true ? [RadioCards.mixin] : [])],
-        { h },
-        ({ group, options }) =>
-          h.div(
-            group,
-            // A row is a `label` around its radio, so a press on the words
-            // presses the radio. The label bundle is only the name's id.
-            options.map(option =>
-              h.label(
-                [h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'start' })],
-                [
-                  h.button(option.option, []),
-                  h.span(
-                    [h.Style({ display: 'grid' })],
-                    [
-                      h.span(option.label, [billings[option.value].label]),
-                      h.span(option.description, [billings[option.value].text]),
-                    ],
-                  ),
-                ],
-              ),
+      toView: RadioGroup.toView<Billing, Message>([style.mixin], { h }, ({ group, options }) =>
+        h.div(
+          group,
+          // A row is a `label` around its radio, so a press on the words
+          // presses the radio. The label bundle is only the name's id.
+          options.map(option =>
+            h.label(
+              [h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'start' })],
+              [
+                h.button(option.option, []),
+                h.span(
+                  [h.Style({ display: 'grid' })],
+                  [
+                    h.span(option.label, [billings[option.value].label]),
+                    h.span(option.description, [billings[option.value].text]),
+                  ],
+                ),
+              ],
             ),
           ),
+        ),
       ),
     },
     toParentMessage: toMessage,
@@ -986,16 +975,15 @@ export const radioGroupHorizontal = <Message>(
   state: RadioGroupState,
   toMessage: (message: UiRadioGroup.Message) => Message,
   h: HtmlBuilder<Message>,
-): Html => radioGroup(style, state, toMessage, h, { orientation: 'Horizontal' })
+): Html => radioGroup(style, state, toMessage, h, 'Horizontal')
 // #endregion
 
 // #region radio-group-cards
-export const radioGroupCards = <Message>(
-  style: NamedStyle<typeof RadioGroupSlots>,
-  state: RadioGroupState,
-  toMessage: (message: UiRadioGroup.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html => radioGroup(style, state, toMessage, h, { cards: true })
+// The group above, `radioGroup`, in the recipe's card variant: each option's
+// label is framed, and the checked one filled. Only the style changes.
+export const RadioGroupCardStyle = forSlots(RadioGroupSlots)(
+  Recipes.RadioGroup({ variant: 'card' }),
+)
 // #endregion
 
 // #region slider
@@ -2123,7 +2111,7 @@ export const virtualList = <Message>(
   )
 // #endregion
 
-// #region steps
+// #region steps-basic
 export const StepsStyle = forSlots(StepsSlots)(Recipes.Steps({}))
 
 export const steps = <Message>(
@@ -2140,6 +2128,80 @@ export const steps = <Message>(
         { title: 'Review' },
       ],
       current: 2,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region steps-icons
+// A step's icon stands in its marker for the number, until the step is done.
+const outline = <Message>(h: HtmlBuilder<Message>, d: string): Html =>
+  h.svg(
+    [
+      h.ViewBox('0 0 16 16'),
+      h.Attribute('width', '1em'),
+      h.Attribute('height', '1em'),
+      h.Attribute('fill', 'none'),
+      h.Attribute('stroke', 'currentColor'),
+      h.Attribute('stroke-width', '1.5'),
+      h.Attribute('stroke-linecap', 'round'),
+      h.Attribute('stroke-linejoin', 'round'),
+    ],
+    [h.path([h.Attribute('d', d)], [])],
+  )
+
+export const stepsIcons = <Message>(
+  style: NamedStyle<typeof StepsSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Steps.view(
+    {
+      label: 'Shipping',
+      steps: [
+        { title: 'Ordered', icon: outline(h, 'M3 4h10l-1 8H4zM6 4a2 2 0 0 1 4 0') },
+        { title: 'Packed', icon: outline(h, 'M2 5l6-3 6 3v6l-6 3-6-3zM2 5l6 3 6-3M8 8v6') },
+        { title: 'Shipped', icon: outline(h, 'M1 4h8v7H1zM9 7h3l3 3v1H9M4 13h1M11 13h1') },
+        { title: 'Delivered', icon: outline(h, 'M2 7l6-5 6 5v7H2zM6 14v-4h4v4') },
+      ],
+      current: 2,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region steps-vertical
+// Vertical, each step's content under it beside the line to the next. A
+// horizontal stepper has no room under its steps and draws no content.
+export const VerticalStepsStyle = forSlots(StepsSlots)(Recipes.Steps({ orientation: 'vertical' }))
+
+export const stepsVertical = <Message>(
+  style: NamedStyle<typeof StepsSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Steps.view(
+    {
+      label: 'Set up the workspace',
+      steps: [
+        {
+          title: 'Create the workspace',
+          content: h.p([], ['Named Northwind, at northwind.example.com.']),
+        },
+        {
+          title: 'Invite the team',
+          description: 'Three of ten seats',
+          content: h.div(
+            [h.Style({ display: 'grid', gap: '0.5rem', justifyItems: 'start' })],
+            [
+              h.p([], ['Ada and Grace have joined. Alan has not answered yet.']),
+              Button.view({ label: 'Send a reminder', style: ButtonStyle }, h),
+            ],
+          ),
+        },
+        { title: 'Connect a domain', content: h.p([], ['Point a CNAME at the workspace.']) },
+      ],
+      current: 1,
       style,
     },
     h,

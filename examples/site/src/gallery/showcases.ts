@@ -154,7 +154,8 @@ interface RecipeOf<Slots> {
  * when a value of another would need different markup (a vertical rule).
  * A selection's style is built once and kept: a reader goes back and forth.
  * `examples` names the page's examples; each draws with the picked style, so
- * the axes switch every example at once.
+ * the axes switch every example at once, except the values an example `pins`:
+ * a vertical stepper stays vertical whatever orientation is picked.
  */
 const fromRecipe = <Slots>(
   about: Omit<Showcase, 'axes' | 'preview' | 'examples'>,
@@ -166,6 +167,7 @@ const fromRecipe = <Slots>(
     readonly name: string
     readonly title: string
     readonly draw: <Message>(style: NamedStyle<Slots>, live: Live<Message>) => Html
+    readonly pins?: Selection
   }> = [],
 ): Showcase => {
   const axes = Object.entries(recipe.def.variants)
@@ -189,14 +191,24 @@ const fromRecipe = <Slots>(
     styles.set(key, style)
     return style
   }
+  for (const { name, pins = {} } of examples)
+    for (const [axis, value] of Object.entries(pins))
+      if (
+        !(
+          recipe.def.variants[axis] !== undefined && Object.hasOwn(recipe.def.variants[axis], value)
+        )
+      )
+        throw new Error(
+          `${about.slug}#${name} pins ${axis}: '${value}', which ${about.recipe} lacks`,
+        )
   return {
     ...about,
     axes,
     preview: (selection, live) => draw(styleOf(selection), live),
-    examples: examples.map(({ name, title, draw: drawExample }) => ({
+    examples: examples.map(({ name, title, draw: drawExample, pins = {} }) => ({
       name,
       title,
-      render: (selection, live) => drawExample(styleOf(selection), live),
+      render: (selection, live) => drawExample(styleOf({ ...selection, ...pins }), live),
     })),
   }
 }
@@ -860,6 +872,17 @@ export const showcases: ReadonlyArray<Showcase> = [
     StepsSlots,
     Recipes.Steps,
     (style, live) => Snippet.steps(style, live.h),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: (style, live) => Snippet.steps(style, live.h) },
+      { name: 'icons', title: 'Icons', draw: (style, live) => Snippet.stepsIcons(style, live.h) },
+      {
+        name: 'vertical',
+        title: 'Vertical, with content',
+        pins: { orientation: 'vertical' },
+        draw: (style, live) => Snippet.stepsVertical(style, live.h),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1121,8 +1144,9 @@ export const showcases: ReadonlyArray<Showcase> = [
       {
         name: 'cards',
         title: 'Cards',
+        pins: { variant: 'card' },
         draw: (style, live) =>
-          Snippet.radioGroupCards(
+          Snippet.radioGroup(
             style,
             { group: live.widgets.billingCards, billing: live.widgets.billing },
             message => live.onWidget(Widgets.Message.GotBillingCards({ message })),

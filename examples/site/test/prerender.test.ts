@@ -54,6 +54,7 @@ const READ = [
   '/components/badge',
   '/components/checkbox',
   '/components/checkbox-group',
+  '/components/steps',
   '/create',
 ]
 
@@ -313,7 +314,15 @@ describe('the generated site', () => {
         [
           ['descriptions', 'Descriptions', 'radioGroup'],
           ['horizontal', 'Horizontal', 'radioGroupHorizontal'],
-          ['cards', 'Cards', 'radioGroupCards'],
+          ['cards', 'Cards', "Recipes.RadioGroup({ variant: 'card' })"],
+        ],
+      ],
+      [
+        'steps',
+        [
+          ['basic', 'Basic', 'steps'],
+          ['icons', 'Icons', 'icon: outline(h'],
+          ['vertical', 'Vertical, with content', "Recipes.Steps({ orientation: 'vertical' })"],
         ],
       ],
     ] as const) {
