@@ -101,6 +101,12 @@ export type { CarouselView } from './carousel.js'
 export { TreeViewSlots } from './treeView.js'
 export type { TreeNode, TreeViewView } from './treeView.js'
 export { ColorPickerSlots } from './colorPicker.js'
+export type {
+  ColorPickerLabels,
+  ColorPickerPopover,
+  ColorPickerPreset,
+  ColorPickerView,
+} from './colorPicker.js'
 export { InputCopySlots } from './inputCopy.js'
 export type { InputCopyView } from './inputCopy.js'
 export { TagsInputSlots } from './tagsInput.js'
@@ -108,10 +114,12 @@ export type { TagsInputView } from './tagsInput.js'
 export { PasswordInputSlots } from './passwordInput.js'
 export type { Requirement as PasswordRequirement } from './passwordInput.js'
 export { RatingSlots } from './rating.js'
+export type { RatingDisplay, RatingInput, RatingView } from './rating.js'
 export { StepsSlots } from './steps.js'
 export type { Step, StepsView } from './steps.js'
 export { VirtualListSlots } from './virtualList.js'
 export { ProgressSlots } from './progress.js'
+export type { ProgressSection, ProgressTone, ProgressView } from './progress.js'
 export type { ResolvedNav } from './nav.js'
 export { NumberFieldSlots } from './numberField.js'
 export { OtpFieldSlots } from './otpField.js'
@@ -129,6 +137,7 @@ export type { NavEntry, NavLink, NavPanel, NavPanelGroup, NavPanelLink, NavView 
 export type { BreadcrumbCollapse, BreadcrumbExpand, BreadcrumbMenu } from './breadcrumb.js'
 export type { TabsClose, TabsContext } from './tabs.js'
 export type { ResizableView } from './resizable.js'
+export type { Mark as SliderMark } from './slider.js'
 export type { OtpFieldView } from './otpField.js'
 export type { NumberFieldView } from './numberField.js'
 export { CheckboxGroupSlots } from './checkboxGroup.js'
@@ -167,6 +176,7 @@ export { SpinnerSlots } from './spinner.js'
 export { SwitchSlots } from './switch.js'
 export { TabsSlots } from './tabs.js'
 export { TableSlots } from './table.js'
+export type { TableColumn, TableExpansion, TableSelection, TableSort, TableView } from './table.js'
 export { TextareaSlots } from './textarea.js'
 export { ToastSlots } from './toast.js'
 export { TooltipSlots } from './tooltip.js'
@@ -254,4 +264,12 @@ export type {
   ResolvedWeek,
   ResolvedYearCell,
   ResolvedYears,
+  CalendarOptions,
+  DropdownOption,
+  Dropdowns,
+  Preset as CalendarPreset,
+  PresetsView,
+  Preview as CalendarPreview,
+  ResolvedCaption,
+  ResolvedDropdown,
 } from './calendar.js'
