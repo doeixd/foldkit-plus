@@ -14,12 +14,12 @@ import { Style } from 'foldkit-mixins'
 import { NavSlots } from '../nav.js'
 import {
   component,
-  cornerSides,
   focusRing,
   glide,
   onLadder,
   ref,
   transition,
+  triggerChevron,
   unfilledHover,
   variant,
 } from './design.js'
@@ -96,26 +96,10 @@ export const Nav = Style.recipeFor(NavSlots)({
     item: component(Style.self({ display: 'flex', flexDirection: 'column' })),
     link: component(entry),
     trigger: component(entry),
-    // A chevron drawn in CSS, down under a row and up while its panel shows.
-    // It never shrinks: a phone's row squeezed its box to its borders alone,
-    // which the turn drew as a slanted tick.
+    // Down under a row, up while its panel shows.
     chevron: component(
-      Style.self({
-        flex: 'none',
-        inlineSize: '0.4em',
-        blockSize: '0.4em',
-        marginBlockStart: '-0.2em',
-        marginInlineStart: ref.space['3xs'],
-        ...cornerSides(ref.border.thick, 'currentColor'),
-        rotate: '45deg',
-        transitionProperty: 'rotate',
-        transitionDuration: `calc(${ref.motion.fast} * ${ref.knob.travel})`,
-        transitionTimingFunction: ref.motion.settle,
-      }),
-      Style.nest(':where([data-state="open"]) > &', {
-        rotate: '225deg',
-        marginBlockStart: '0.2em',
-      }),
+      triggerChevron(':where([data-state="open"]) > &', '0.4em'),
+      Style.self({ marginInlineStart: ref.space['3xs'] }),
       // In a column it points where the panel opens, open or not.
       Style.nest(`${column} > li > * > &`, { rotate: '-45deg', marginBlockStart: '0' }),
       Style.nest(`${column}:dir(rtl) > li > * > &`, { rotate: '135deg' }),

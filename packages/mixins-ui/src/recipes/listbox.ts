@@ -21,7 +21,7 @@ import {
   ref,
   steps,
   transition,
-  travelled,
+  triggerChevron,
   unfilledHover,
   variant,
 } from './design.js'
@@ -153,25 +153,9 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
       }),
       Style.states({ true: { color: ref.text.muted } }, 'data-placeholder'),
     ),
-    // Two sides of a box, turned to point down, and up while the list is open.
     chevron: component(
-      Style.self({
-        flex: 'none',
-        inlineSize: '0.45em',
-        blockSize: '0.45em',
-        marginBlockEnd: '0.2em',
-        ...cornerSides(ref.border.thick, 'currentColor'),
-        color: ref.text.muted,
-        rotate: '45deg',
-        transitionProperty: 'rotate, margin',
-        transitionDuration: travelled(ref.motion.fast),
-        transitionTimingFunction: ref.motion.settle,
-      }),
-      Style.nest(':where([aria-expanded="true"]) &', {
-        rotate: '225deg',
-        marginBlockEnd: '0',
-        marginBlockStart: '0.2em',
-      }),
+      triggerChevron(':where([aria-expanded="true"]) &', '0.45em'),
+      Style.self({ color: ref.text.muted }),
     ),
   },
   variants: {

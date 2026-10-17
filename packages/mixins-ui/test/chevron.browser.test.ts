@@ -1,7 +1,8 @@
 /**
  * The marks drawn from two sides of a box point where a reader expects, in
  * either direction: a shut row's chevron along the row (right, or left right
- * to left), an open one down, a carousel's arrows outward, and a check the
+ * to left), an open one down, a trigger's down and then up with its tip
+ * kept on the words' line, a carousel's arrows outward, and a check the
  * same way round in both. Where a mark points is worked out from what the
  * browser computed: the corner its two drawn sides make, turned by its
  * rotation and mirrored by any flip above it.
@@ -12,7 +13,10 @@ import { Theme } from 'foldkit-mixins/theme'
 import {
   AccordionSlots,
   CarouselSlots,
+  CascadeSelectSlots,
+  ListboxSlots,
   MenuSlots,
+  NavSlots,
   Recipes,
   SidebarSlots,
   StepsSlots,
@@ -88,6 +92,7 @@ const pointing = (element: Element, pseudo?: '::before' | '::after'): number => 
 const RIGHT = 0
 const DOWN = 90
 const LEFT = 180
+const UP = 270
 
 describe.each([
   [
@@ -126,6 +131,52 @@ describe.each([
     expect(pointing(shutMark!)).toBe(RIGHT)
     expect(pointing(openMark!)).toBe(DOWN)
   })
+})
+
+// Each as its view draws it: Listbox's and Cascade Select's inside the
+// trigger's value, Nav's straight in its trigger.
+const inValue = (name: string, state: string) =>
+  `<button aria-expanded="${state === 'open'}"><span><span class="${name}"></span></span></button>`
+describe.each([
+  ['Listbox', () => classOf(ListboxSlots, Recipes.Listbox({}), 'chevron'), inValue],
+  [
+    'Cascade Select',
+    () => classOf(CascadeSelectSlots, Recipes.CascadeSelect({}), 'chevron'),
+    inValue,
+  ],
+  [
+    'Nav',
+    () => classOf(NavSlots, Recipes.Nav({}), 'chevron'),
+    (name: string, state: string) =>
+      `<button data-state="${state}"><span class="${name}"></span></button>`,
+  ],
+] as const)("%s's trigger chevron", (_, chevron, trigger) => {
+  test.each(['ltr', 'rtl'] as const)(
+    'in %s, points down shut and up open, its tip on the line either way',
+    dir => {
+      const name = chevron()
+      const holder = draw(dir, trigger(name, 'closed') + trigger(name, 'open'))
+      for (const button of holder.querySelectorAll('button')) {
+        button.style.cssText = 'display: flex; align-items: center; font-size: 20px; padding: 0'
+        button.firstElementChild!.setAttribute('style', 'display: flex; align-items: center')
+      }
+      const [shutMark, openMark] = holder.querySelectorAll<HTMLElement>(`[class="${name}"]`)
+      expect(pointing(shutMark!)).toBe(DOWN)
+      expect(pointing(openMark!)).toBe(UP)
+      // Its top and bottom from the middle of its trigger's line.
+      const reach = (mark: HTMLElement) => {
+        const line = mark.closest('button')!.getBoundingClientRect()
+        const box = mark.getBoundingClientRect()
+        const middle = line.top + line.height / 2
+        return { above: middle - box.top, below: box.bottom - middle }
+      }
+      const [shut, open] = [reach(shutMark!), reach(openMark!)]
+      // Shut and open mirror each other across the line, moved a fifth of
+      // the text apart, so each tip lies as near the line as the other.
+      expect(shut!.above).toBeCloseTo(open!.below, 1)
+      expect(shut!.above - open!.above).toBeCloseTo(4, 1)
+    },
+  )
 })
 
 test.each([

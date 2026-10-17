@@ -27,7 +27,7 @@ import {
   ref,
   steps,
   transition,
-  travelled,
+  triggerChevron,
   unfilledHover,
   variant,
 } from './design.js'
@@ -88,19 +88,8 @@ export const CascadeSelect = Style.recipeFor(CascadeSelectSlots)({
       Style.states({ true: { color: ref.text.muted } }, 'data-placeholder'),
     ),
     chevron: component(
-      chevron('45deg'),
-      Style.self({
-        marginBlockEnd: '0.2em',
-        color: ref.text.muted,
-        transitionProperty: 'rotate, margin',
-        transitionDuration: travelled(ref.motion.fast),
-        transitionTimingFunction: ref.motion.settle,
-      }),
-      Style.nest(':where([aria-expanded="true"]) &', {
-        rotate: '225deg',
-        marginBlockEnd: '0',
-        marginBlockStart: '0.2em',
-      }),
+      triggerChevron(':where([aria-expanded="true"]) &', '0.45em'),
+      Style.self({ color: ref.text.muted }),
     ),
     // A cross of two bars in a round ghost button.
     clear: component(

@@ -161,6 +161,30 @@ export const turningChevron = (open: string, size: string): StyleValue =>
   )
 
 /**
+ * A trigger's chevron of `size`: down while shut, up once `open` (a selector
+ * on `&`) matches. A turned box draws its tip off centre, toward where it
+ * points, so the chevron moves the other way by as much and the tip stays on
+ * the words' line. Down and up are the same right to left. It never shrinks:
+ * a phone's row squeezed one to its borders alone, which the turn drew as a
+ * slanted tick.
+ */
+export const triggerChevron = (open: string, size: string): StyleValue =>
+  Style.compose(
+    Style.self({
+      flex: 'none',
+      inlineSize: size,
+      blockSize: size,
+      marginBlockStart: '-0.2em',
+      ...cornerSides(ref.border.thick, 'currentColor'),
+      rotate: '45deg',
+      transitionProperty: 'rotate, margin-block-start',
+      transitionDuration: travelled(ref.motion.fast),
+      transitionTimingFunction: ref.motion.settle,
+    }),
+    Style.nest(open, { rotate: '225deg', marginBlockStart: '0.2em' }),
+  )
+
+/**
  * A surface that enters and leaves with `@foldkit/ui`'s animation states
  * (`isAnimated`): it fades and grows from `closed` on `tier`, and a leave
  * runs the quicker exit tween, since CSS takes the duration of the state it

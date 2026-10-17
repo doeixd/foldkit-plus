@@ -94,4 +94,59 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: "a trigger's chevron is not nudged back onto the line",
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: "      blockSize: size,\n      marginBlockStart: '-0.2em',\n",
+        replace: '      blockSize: size,\n',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "a trigger's chevron does not turn open",
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: "{ rotate: '225deg', marginBlockStart: '0.2em' }",
+        replace: "{ marginBlockStart: '0.2em' }",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "the listbox's chevron opens only as the trigger's child",
+    edits: [
+      {
+        file: '../src/recipes/listbox.ts',
+        find: `triggerChevron(':where([aria-expanded="true"]) &'`,
+        replace: `triggerChevron(':where([aria-expanded="true"]) > &'`,
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "the cascade select's chevron opens only as the trigger's child",
+    edits: [
+      {
+        file: '../src/recipes/cascadeSelect.ts',
+        find: `triggerChevron(':where([aria-expanded="true"]) &'`,
+        replace: `triggerChevron(':where([aria-expanded="true"]) > &'`,
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "the nav's chevron opens on a state its trigger does not write",
+    edits: [
+      {
+        file: '../src/recipes/nav.ts',
+        find: `triggerChevron(':where([data-state="open"]) > &'`,
+        replace: `triggerChevron(':where([data-open]) > &'`,
+      },
+    ],
+    tests: [browser],
+  },
 ]

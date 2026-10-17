@@ -148,9 +148,10 @@ export default [
     name: 'a squeezed row shrinks the chevron to its borders',
     edits: [
       {
-        file: recipe,
-        find: "        flex: 'none',\n        inlineSize: '0.4em',",
-        replace: "        inlineSize: '0.4em',",
+        file: '../src/recipes/design.ts',
+        find: "      flex: 'none',\n      inlineSize: size,\n      blockSize: size,\n      marginBlockStart: '-0.2em',",
+        replace:
+          "      inlineSize: size,\n      blockSize: size,\n      marginBlockStart: '-0.2em',",
       },
     ],
     tests,

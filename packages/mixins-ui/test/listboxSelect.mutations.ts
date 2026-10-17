@@ -58,7 +58,13 @@ export default [
   },
   {
     name: 'the chevron does not turn while open',
-    edits: [{ file: '../src/recipes/listbox.ts', find: "rotate: '225deg',", replace: '' }],
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: "{ rotate: '225deg', marginBlockStart: '0.2em' }",
+        replace: "{ marginBlockStart: '0.2em' }",
+      },
+    ],
     tests: [browser],
   },
   {
