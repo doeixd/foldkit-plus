@@ -158,6 +158,9 @@ export const Model = Schema.Struct({
   /** The password field's text, and whether it shows. */
   password: Schema.String,
   passwordShown: Schema.Boolean,
+  /** The region chosen in the card grid, and the plan chosen in the item list. */
+  region: Schema.String,
+  plan: Schema.String,
   /** The rating's stars, none before any are given. */
   stay: Schema.Option(Schema.Number),
 })
@@ -223,6 +226,8 @@ export const Message = defineMessageUnion({
   TypedPassword: { value: Schema.String },
   ToggledPassword: {},
   RatedStay: { value: Schema.Number },
+  ChoseRegion: { region: Schema.String },
+  ChosePlan: { plan: Schema.String },
 })
 export type Message = typeof Message.Type
 
@@ -308,6 +313,8 @@ export const initial: Model = {
   password: '',
   passwordShown: false,
   stay: Option.none(),
+  region: 'Frankfurt',
+  plan: 'Team',
 }
 
 type Step = Update.Step<Model, Message>
@@ -696,6 +703,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       Option.contains(model.stay, value)
         ? { model }
         : { model: modifyFields(model, { stay: () => Option.some(value) }) },
+    ChoseRegion: ({ region }) =>
+      region === model.region
+        ? { model }
+        : { model: modifyFields(model, { region: () => region }) },
+    ChosePlan: ({ plan }) =>
+      plan === model.plan ? { model } : { model: modifyFields(model, { plan: () => plan }) },
     GotListbox: ({ message }) => foldListbox(model, message),
     GotCombobox: ({ message }) => foldCombobox(model, message),
     GotCalendar: ({ message }) => foldCalendar(model, message),

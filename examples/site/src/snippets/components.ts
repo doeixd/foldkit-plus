@@ -34,6 +34,7 @@ import {
   Alert,
   AlertSlots,
   Avatar,
+  AvatarGroupSlots,
   AvatarSlots,
   Badge,
   BadgeSlots,
@@ -103,6 +104,7 @@ import {
   Input,
   InputSlots,
   Item,
+  ItemGroupSlots,
   ItemSlots,
   Kbd,
   KbdSlots,
@@ -347,7 +349,7 @@ export const alertBanner = (style: NamedStyle<typeof AlertSlots>, h: HtmlBuilder
   )
 // #endregion
 
-// #region card
+// #region card-basic
 export const CardStyle = forSlots(CardSlots)(Recipes.Card({}))
 
 /** A sparkle in the text's color, for the card's media tile. */
@@ -389,7 +391,98 @@ export const card = <Message>(
       )
 // #endregion
 
-// #region card-group
+// #region card-stat
+// A number with what it counts and how it moved: the content is the figure.
+export const cardStat = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
+  Card.view(
+    {
+      title: 'Monthly revenue',
+      description: 'Up 12% on September',
+      action: Badge.view({ text: '+12%', tone: 'live', style: BadgeStyle }, h),
+      content: h.p([h.Style({ margin: '0', fontSize: '2rem', fontWeight: '600' })], ['$48,210']),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region card-media
+// A picture across the top, bled to the card's edges.
+export const cardMedia = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
+  Card.view(
+    {
+      image: h.img([h.Src(portrait(200)), h.Alt('')]),
+      title: 'Lisbon in spring',
+      description: 'Six days of trams, tiles and long lunches.',
+      footer: Button.view({ label: 'Read the guide', style: ButtonStyle }, h),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region card-profile
+export const CardProfileAvatarStyle = forSlots(AvatarSlots)(
+  Recipes.Avatar({ size: 'lg', color: 'name' }),
+)
+
+// A person: their avatar in the media tile's place, a name and a role.
+export const cardProfile = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
+  Card.view(
+    {
+      image: Avatar.view(
+        { name: 'Ada Lovelace', status: 'online', style: CardProfileAvatarStyle },
+        h,
+      ),
+      title: 'Ada Lovelace',
+      description: 'Analyst, Engine team',
+      footer: Button.view({ label: 'Message', style: ButtonStyle }, h),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region card-link
+export const CardLinkStyle = forSlots(CardSlots)(Recipes.Card({ lift: 'hover' }))
+
+// A whole card that goes somewhere: one link named by its title, lifting under the pointer.
+export const cardLink = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
+  Card.view(
+    {
+      media: sparkle(h),
+      title: 'Read the changelog',
+      description: 'Everything that shipped this month.',
+      press: { href: '#changelog' },
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region card-elevation
+export const CardLevels = (['0', '1', '2', '3'] as const).map(elevation =>
+  forSlots(CardSlots)(Recipes.Card({ surface: 'elevated', elevation })),
+)
+
+// Each level one more step above what holds it: lighter on a dark page, a
+// deeper contact and ambient shadow on a light one.
+export const cardElevation = (h: HtmlBuilder<never>): Html =>
+  h.div(
+    [
+      h.Style({
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))',
+        gap: '1.5rem',
+      }),
+    ],
+    CardLevels.map((style, level) =>
+      Card.view({ title: `Level ${level}`, description: `elevation: '${level}'`, style }, h),
+    ),
+  )
+// #endregion
+
+// #region card-group-plans
 export const CardGroupStyle = forSlots(CardGroupSlots)(Recipes.CardGroup({}))
 export const PlanStyle = forSlots(CardSlots)(
   Recipes.Card({ surface: 'plain', orientation: 'inline' }),
@@ -427,6 +520,34 @@ export const cardGroup = <Message>(
       })),
       style,
       cardStyle: PlanStyle,
+    },
+    h,
+  )
+// #endregion
+
+// #region card-group-grid
+export const CardGridStyle = forSlots(CardGroupSlots)(Recipes.CardGroup({ layout: 'separated' }))
+export const CardGridCardStyle = forSlots(CardSlots)(Recipes.Card({}))
+
+// Cards as one choice in a grid: the highlight follows the pointer both ways.
+export const cardGroupGrid = <Message>(
+  style: NamedStyle<typeof CardGroupSlots>,
+  choice: Choice<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Card.group(
+    {
+      label: 'Regions',
+      columns: 2,
+      cards: ['Frankfurt', 'Virginia', 'Singapore', 'São Paulo'].map(title => ({
+        key: title,
+        title,
+        description: 'Under 40ms from most of the region',
+        selected: title === choice.chosen,
+        press: { onClick: choice.onChoose(title) },
+      })),
+      style,
+      cardStyle: CardGridCardStyle,
     },
     h,
   )
@@ -738,7 +859,7 @@ const portrait = (hue: number): string =>
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="hsl(${hue} 45% 78%)"/><circle cx="20" cy="16" r="7" fill="hsl(${hue} 30% 45%)"/><ellipse cx="20" cy="39" rx="13" ry="11" fill="hsl(${hue} 30% 45%)"/></svg>`,
   )}`
 
-// #region avatar
+// #region avatar-pictures
 export const AvatarStyle = forSlots(AvatarSlots)(Recipes.Avatar({}))
 
 export const avatars = (style: NamedStyle<typeof AvatarSlots>, h: HtmlBuilder<never>): Html =>
@@ -749,6 +870,86 @@ export const avatars = (style: NamedStyle<typeof AvatarSlots>, h: HtmlBuilder<ne
       Avatar.view({ name: 'Grace Hopper', src: portrait(20), style }, h),
       Avatar.view({ name: 'Alan Turing', src: portrait(140), style }, h),
     ],
+  )
+// #endregion
+
+// #region avatar-initials
+export const AvatarInitialsStyle = forSlots(AvatarSlots)(Recipes.Avatar({ color: 'name' }))
+
+// No picture: initials in a colour from the name, the same everywhere for one person.
+export const avatarInitials = (
+  style: NamedStyle<typeof AvatarSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', gap: '0.5rem' })],
+    ['Ada Lovelace', 'Grace Hopper', 'Alan Turing', 'Edsger Dijkstra'].map(name =>
+      Avatar.view({ name, style }, h),
+    ),
+  )
+// #endregion
+
+// #region avatar-status
+// A dot on the lower end corner, said in the avatar's name: "Ada Lovelace, Online".
+export const avatarStatus = (style: NamedStyle<typeof AvatarSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'flex', gap: '0.75rem' })],
+    (['online', 'away', 'busy', 'offline'] as const).map((status, index) =>
+      Avatar.view({ name: 'Ada Lovelace', src: portrait(40 + index * 70), status, style }, h),
+    ),
+  )
+// #endregion
+
+// #region avatar-group
+export const AvatarStackStyle = forSlots(AvatarGroupSlots)(Recipes.AvatarGroup({}))
+
+// Overlapping, each ringed in the page, at most four and a count of the rest.
+export const avatarGroup = (style: NamedStyle<typeof AvatarSlots>, h: HtmlBuilder<never>): Html =>
+  Avatar.group(
+    {
+      label: 'Editors',
+      people: [
+        'Ada Lovelace',
+        'Grace Hopper',
+        'Alan Turing',
+        'Edsger Dijkstra',
+        'Barbara Liskov',
+        'Donald Knuth',
+      ].map((name, index) => ({ name, src: portrait(index * 60) })),
+      max: 4,
+      style: AvatarStackStyle,
+      avatarStyle: style,
+    },
+    h,
+  )
+// #endregion
+
+// #region avatar-shapes
+export const AvatarShapes = (['circle', 'rounded', 'square'] as const).map(shape =>
+  forSlots(AvatarSlots)(Recipes.Avatar({ shape, size: 'lg', ring: 'accent' })),
+)
+
+// A disc, a rounded square and a square, ringed in the accent.
+export const avatarShapes = (h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'flex', gap: '1rem' })],
+    AvatarShapes.map(style => Avatar.view({ name: 'Grace Hopper', src: portrait(20), style }, h)),
+  )
+// #endregion
+
+// #region avatar-named
+export const AvatarNamedRowStyle = forSlots(ItemSlots)(Recipes.Item({ density: 'compact' }))
+
+// An avatar with a name and a caption is an Item with the avatar as its media.
+export const avatarNamed = (style: NamedStyle<typeof AvatarSlots>, h: HtmlBuilder<never>): Html =>
+  Item.view(
+    {
+      media: Avatar.view({ name: 'Alan Turing', src: portrait(140), style }, h),
+      title: 'Alan Turing',
+      description: 'alan@example.com',
+      style: AvatarNamedRowStyle,
+    },
+    h,
   )
 // #endregion
 
@@ -778,7 +979,7 @@ export const kbdJoined = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<nev
   )
 // #endregion
 
-// #region separator
+// #region separator-basic
 export const SeparatorStyle = forSlots(SeparatorSlots)(Recipes.Separator({}))
 
 export const separator = (style: NamedStyle<typeof SeparatorSlots>, h: HtmlBuilder<never>): Html =>
@@ -794,7 +995,57 @@ export const separator = (style: NamedStyle<typeof SeparatorSlots>, h: HtmlBuild
   )
 // #endregion
 
-// #region skeleton
+// #region separator-label
+// Words in the middle of the rule, read as text; the rules either side are drawing.
+export const separatorLabel = (
+  style: NamedStyle<typeof SeparatorSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '1rem' })],
+    [
+      Button.view({ label: 'Continue with a passkey', style: ButtonStyle }, h),
+      Separator.view({ label: 'or', style }, h),
+      Button.view({ label: 'Continue with email', style: ButtonStyle }, h),
+    ],
+  )
+// #endregion
+
+// #region separator-vertical
+export const SeparatorVerticalStyle = forSlots(SeparatorSlots)(
+  Recipes.Separator({ orientation: 'vertical', spacing: 'sm' }),
+)
+
+// Between items in a row; the row's height is the rule's.
+export const separatorVertical = (
+  style: NamedStyle<typeof SeparatorSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', alignItems: 'center', blockSize: '1.25rem' })],
+    [
+      h.span([], ['Docs']),
+      Separator.view({ orientation: 'vertical', style }, h),
+      h.span([], ['API']),
+      Separator.view({ orientation: 'vertical', style }, h),
+      h.span([], ['Blog']),
+    ],
+  )
+// #endregion
+
+// #region separator-dashed
+export const SeparatorDashedStyle = forSlots(SeparatorSlots)(
+  Recipes.Separator({ line: 'dashed', thickness: 'thick', spacing: 'md', inset: 'md' }),
+)
+
+// Dashed and thick, with room above and below, stopping short of the sides.
+export const separatorDashed = (
+  style: NamedStyle<typeof SeparatorSlots>,
+  h: HtmlBuilder<never>,
+): Html => h.div([], [h.p([], ['Subtotal']), Separator.view({ style }, h), h.p([], ['Total'])])
+// #endregion
+
+// #region skeleton-basic
 export const SkeletonStyle = forSlots(SkeletonSlots)(Recipes.Skeleton({}))
 
 export const skeleton = (style: NamedStyle<typeof SkeletonSlots>, h: HtmlBuilder<never>): Html =>
@@ -808,11 +1059,90 @@ export const skeleton = (style: NamedStyle<typeof SkeletonSlots>, h: HtmlBuilder
   )
 // #endregion
 
-// #region spinner
+// #region skeleton-lines
+// A paragraph still loading: whole lines, the last one ending early.
+export const skeletonLines = (
+  style: NamedStyle<typeof SkeletonSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(24rem, 100%)' })],
+    [Skeleton.lines({ lines: 4, label: 'Loading the article', style }, h)],
+  )
+// #endregion
+
+// #region skeleton-shapes
+// The shapes content will take: a person, a card, rows of a table.
+export const skeletonShapes = (
+  style: NamedStyle<typeof SkeletonSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '1.5rem', inlineSize: 'min(24rem, 100%)' })],
+    [
+      Skeleton.avatarRow({ label: 'Loading the author', style }, h),
+      Skeleton.card({ label: 'Loading the post', style }, h),
+      h.div(
+        [],
+        [1, 2, 3].map(() => Skeleton.tableRow({ columns: 4, label: 'Loading a row', style }, h)),
+      ),
+    ],
+  )
+// #endregion
+
+// #region skeleton-shimmer
+export const SkeletonShimmerStyle = forSlots(SkeletonSlots)(
+  Recipes.Skeleton({ animation: 'shimmer' }),
+)
+
+// A band of the page sweeping across; still under reduced motion.
+export const skeletonShimmer = (
+  style: NamedStyle<typeof SkeletonSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(24rem, 100%)' })],
+    [Skeleton.avatarRow({ label: 'Loading the author', style }, h)],
+  )
+// #endregion
+
+// #region spinner-basic
 export const SpinnerStyle = forSlots(SpinnerSlots)(Recipes.Spinner({}))
 
 export const spinner = (style: NamedStyle<typeof SpinnerSlots>, h: HtmlBuilder<never>): Html =>
   Spinner.view({ label: 'Saving', style }, h)
+// #endregion
+
+// #region spinner-kinds
+export const SpinnerKinds = (['ring', 'dots', 'bars', 'pulse', 'orbit'] as const).map(kind =>
+  forSlots(SpinnerSlots)(Recipes.Spinner({ kind })),
+)
+
+// Five ways to say "still working", each still under reduced motion.
+export const spinnerKinds = (h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'flex', alignItems: 'center', gap: '1.5rem' })],
+    SpinnerKinds.map(style => Spinner.view({ label: 'Loading', style }, h)),
+  )
+// #endregion
+
+// #region spinner-label
+// The label shown beside the wheel is the status's words.
+export const spinnerLabel = (style: NamedStyle<typeof SpinnerSlots>, h: HtmlBuilder<never>): Html =>
+  Spinner.view({ label: 'Saving your changes', showLabel: true, style }, h)
+// #endregion
+
+// #region spinner-sizes
+export const SpinnerSizes = (['sm', 'md', 'lg'] as const).map(size =>
+  forSlots(SpinnerSlots)(Recipes.Spinner({ size, tone: 'current' })),
+)
+
+// Three sizes in the ink of the text around them, as inside a button or a badge.
+export const spinnerSizes = (h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'flex', alignItems: 'center', gap: '1rem' })],
+    SpinnerSizes.map(style => Spinner.view({ label: 'Loading', style }, h)),
+  )
 // #endregion
 
 // #region table
@@ -1030,7 +1360,7 @@ export const paginationCompact = <Message>(
 ): Html => Pagination.view({ page, pageCount: 12, onPage, style }, h)
 // #endregion
 
-// #region item
+// #region item-basic
 export const ItemStyle = forSlots(ItemSlots)(Recipes.Item({}))
 
 export const item = (style: NamedStyle<typeof ItemSlots>, h: HtmlBuilder<never>): Html =>
@@ -1059,15 +1389,102 @@ export const item = (style: NamedStyle<typeof ItemSlots>, h: HtmlBuilder<never>)
   )
 // #endregion
 
-// #region empty
-export const EmptyStyle = forSlots(EmptySlots)(Recipes.Empty({}))
+// #region item-settings
+export const SettingsListStyle = forSlots(ItemGroupSlots)(Recipes.ItemGroup({}))
+export const SettingsRowStyle = forSlots(ItemSlots)(Recipes.Item({ media: 'icon' }))
 
-export const empty = (style: NamedStyle<typeof EmptySlots>, h: HtmlBuilder<never>): Html =>
+// Settings: a list of rows, each one control that opens its page.
+export const itemSettings = (style: NamedStyle<typeof ItemSlots>, h: HtmlBuilder<never>): Html =>
+  Item.group(
+    {
+      label: 'Settings',
+      items: [
+        { key: 'profile', title: 'Profile', description: 'Name, photo and email' },
+        { key: 'security', title: 'Security', description: 'Passkeys and sessions' },
+        { key: 'billing', title: 'Billing', description: 'Plan and invoices' },
+      ].map(row => ({ ...row, media: sparkle(h), press: { href: `#${row.key}` } })),
+      style: SettingsListStyle,
+      itemStyle: style,
+    },
+    h,
+  )
+// #endregion
+
+// #region item-selectable
+// Rows as a choice: the chosen one is pressed and keeps a film of its text.
+export const itemSelectable = <Message>(
+  style: NamedStyle<typeof ItemSlots>,
+  choice: Choice<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Item.group(
+    {
+      label: 'Plan',
+      items: ['Starter', 'Team', 'Business'].map(title => ({
+        key: title,
+        title,
+        selected: title === choice.chosen,
+        press: { onClick: choice.onChoose(title) },
+      })),
+      itemStyle: style,
+    },
+    h,
+  )
+// #endregion
+
+// #region empty-results
+export const EmptyResultsStyle = forSlots(EmptySlots)(Recipes.Empty({}))
+
+// No results: say what was looked for, and offer the way out.
+export const emptyResults = (style: NamedStyle<typeof EmptySlots>, h: HtmlBuilder<never>): Html =>
   Empty.view(
     {
+      icon: sparkle(h),
+      title: 'No results for “invoices 2019”',
+      description: 'Check the spelling, or search every folder.',
+      action: Button.view({ label: 'Search everywhere', style: ButtonStyle }, h),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region empty-first-use
+export const EmptyFirstUseStyle = forSlots(EmptySlots)(Recipes.Empty({ frame: 'dashed' }))
+
+// First use: a dashed frame where the first item will go.
+export const emptyFirstUse = (style: NamedStyle<typeof EmptySlots>, h: HtmlBuilder<never>): Html =>
+  Empty.view(
+    {
+      icon: sparkle(h),
       title: 'No projects yet',
-      description: 'Create one to get started.',
-      action: Button.view({ label: 'New project', style: ButtonStyle }, h),
+      description: 'Projects hold your pages and the people who edit them.',
+      action: h.div(
+        [h.Style({ display: 'flex', gap: '0.5rem' })],
+        [
+          Button.view({ label: 'New project', style: ButtonStyle }, h),
+          Button.view({ label: 'Import', style: ButtonStyle }, h),
+        ],
+      ),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region empty-error
+export const EmptyErrorStyle = forSlots(EmptySlots)(
+  Recipes.Empty({ tone: 'danger', frame: 'filled' }),
+)
+
+// A load that failed: the icon in the error's ink, and a retry.
+export const emptyError = (style: NamedStyle<typeof EmptySlots>, h: HtmlBuilder<never>): Html =>
+  Empty.view(
+    {
+      icon: sparkle(h),
+      title: 'Could not load your projects',
+      description: 'The server did not answer. Your work is safe.',
+      action: Button.view({ label: 'Try again', style: ButtonStyle }, h),
       style,
     },
     h,

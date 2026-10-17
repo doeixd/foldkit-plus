@@ -41,6 +41,7 @@ import {
   ComboboxSlots,
   DatePickerSlots,
   DialogSlots,
+  EmptySlots,
   InputSlots,
   ItemSlots,
   ListboxSlots,
@@ -262,6 +263,16 @@ const alertsOf =
       live.h,
     )
 
+const cardBasic = <Message>(style: NamedStyle<typeof CardSlots>, live: Live<Message>) =>
+  Snippet.card(
+    style,
+    { dismissed: live.dismissed, onDismiss: live.onDismiss, onRestore: live.onRestore },
+    live.h,
+  )
+
+const cardPlans = <Message>(style: NamedStyle<typeof CardGroupSlots>, live: Live<Message>) =>
+  Snippet.cardGroup(style, { chosen: live.chosen, onChoose: live.onChoose }, live.h)
+
 // Each checkbox example holds its own state: one press toggles one box.
 const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: Live<Message>) =>
   Snippet.checkbox(
@@ -382,12 +393,21 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     CardSlots,
     Recipes.Card,
-    (style, live) =>
-      Snippet.card(
-        style,
-        { dismissed: live.dismissed, onDismiss: live.onDismiss, onRestore: live.onRestore },
-        live.h,
-      ),
+    cardBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: cardBasic },
+      { name: 'stat', title: 'A figure', draw: style => Snippet.cardStat(style, inert) },
+      { name: 'media', title: 'Media', draw: style => Snippet.cardMedia(style, inert) },
+      { name: 'profile', title: 'A person', draw: style => Snippet.cardProfile(style, inert) },
+      {
+        name: 'link',
+        title: 'A link',
+        draw: style => Snippet.cardLink(style, inert),
+        pins: { lift: 'hover' },
+      },
+      { name: 'elevation', title: 'Elevation', draw: () => Snippet.cardElevation(inert) },
+    ],
   ),
   fromRecipe(
     {
@@ -400,8 +420,25 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     CardGroupSlots,
     Recipes.CardGroup,
-    (style, live) =>
-      Snippet.cardGroup(style, { chosen: live.chosen, onChoose: live.onChoose }, live.h),
+    cardPlans,
+    undefined,
+    [
+      { name: 'plans', title: 'Plans', draw: cardPlans },
+      {
+        name: 'grid',
+        title: 'A grid',
+        draw: (style, live) =>
+          Snippet.cardGroupGrid(
+            style,
+            {
+              chosen: live.widgets.region,
+              onChoose: region => live.onWidget(Widgets.Message.ChoseRegion({ region })),
+            },
+            live.h,
+          ),
+        pins: { layout: 'separated' },
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -534,6 +571,20 @@ export const showcases: ReadonlyArray<Showcase> = [
     AvatarSlots,
     Recipes.Avatar,
     style => Snippet.avatars(style, inert),
+    undefined,
+    [
+      { name: 'pictures', title: 'Pictures', draw: style => Snippet.avatars(style, inert) },
+      {
+        name: 'initials',
+        title: 'Initials',
+        draw: style => Snippet.avatarInitials(style, inert),
+        pins: { color: 'name' },
+      },
+      { name: 'status', title: 'Status', draw: style => Snippet.avatarStatus(style, inert) },
+      { name: 'group', title: 'A group', draw: style => Snippet.avatarGroup(style, inert) },
+      { name: 'shapes', title: 'Shapes', draw: () => Snippet.avatarShapes(inert) },
+      { name: 'named', title: 'With a name', draw: style => Snippet.avatarNamed(style, inert) },
+    ],
   ),
   fixed(
     {
@@ -571,7 +622,23 @@ export const showcases: ReadonlyArray<Showcase> = [
     SeparatorSlots,
     Recipes.Separator,
     style => Snippet.separator(style, inert),
-    [],
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: style => Snippet.separator(style, inert) },
+      { name: 'label', title: 'A label', draw: style => Snippet.separatorLabel(style, inert) },
+      {
+        name: 'vertical',
+        title: 'Vertical',
+        draw: style => Snippet.separatorVertical(style, inert),
+        pins: { orientation: 'vertical' },
+      },
+      {
+        name: 'dashed',
+        title: 'Dashed',
+        draw: style => Snippet.separatorDashed(style, inert),
+        pins: { line: 'dashed', thickness: 'thick', spacing: 'md', inset: 'md' },
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -585,6 +652,18 @@ export const showcases: ReadonlyArray<Showcase> = [
     SkeletonSlots,
     Recipes.Skeleton,
     style => Snippet.skeleton(style, inert),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: style => Snippet.skeleton(style, inert) },
+      { name: 'lines', title: 'Lines', draw: style => Snippet.skeletonLines(style, inert) },
+      { name: 'shapes', title: 'Shapes', draw: style => Snippet.skeletonShapes(style, inert) },
+      {
+        name: 'shimmer',
+        title: 'Shimmer',
+        draw: style => Snippet.skeletonShimmer(style, inert),
+        pins: { animation: 'shimmer' },
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -598,6 +677,13 @@ export const showcases: ReadonlyArray<Showcase> = [
     SpinnerSlots,
     Recipes.Spinner,
     style => Snippet.spinner(style, inert),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: style => Snippet.spinner(style, inert) },
+      { name: 'kinds', title: 'Kinds', draw: () => Snippet.spinnerKinds(inert) },
+      { name: 'label', title: 'A label', draw: style => Snippet.spinnerLabel(style, inert) },
+      { name: 'sizes', title: 'Sizes', draw: () => Snippet.spinnerSizes(inert) },
+    ],
   ),
   fixed(
     {
@@ -702,8 +788,31 @@ export const showcases: ReadonlyArray<Showcase> = [
     ItemSlots,
     Recipes.Item,
     style => Snippet.item(style, inert),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: style => Snippet.item(style, inert) },
+      {
+        name: 'settings',
+        title: 'Settings',
+        draw: style => Snippet.itemSettings(style, inert),
+        pins: { media: 'icon' },
+      },
+      {
+        name: 'selectable',
+        title: 'A choice',
+        draw: (style, live) =>
+          Snippet.itemSelectable(
+            style,
+            {
+              chosen: live.widgets.plan,
+              onChoose: plan => live.onWidget(Widgets.Message.ChosePlan({ plan })),
+            },
+            live.h,
+          ),
+      },
+    ],
   ),
-  fixed(
+  fromRecipe(
     {
       slug: 'empty',
       title: 'Empty',
@@ -712,7 +821,25 @@ export const showcases: ReadonlyArray<Showcase> = [
       file: 'empty',
       contract: 'EmptySlots',
     },
-    () => Snippet.empty(Snippet.EmptyStyle, inert),
+    EmptySlots,
+    Recipes.Empty,
+    style => Snippet.emptyResults(style, inert),
+    undefined,
+    [
+      { name: 'results', title: 'No results', draw: style => Snippet.emptyResults(style, inert) },
+      {
+        name: 'first-use',
+        title: 'First use',
+        draw: style => Snippet.emptyFirstUse(style, inert),
+        pins: { frame: 'dashed' },
+      },
+      {
+        name: 'error',
+        title: 'An error',
+        draw: style => Snippet.emptyError(style, inert),
+        pins: { tone: 'danger', frame: 'filled' },
+      },
+    ],
   ),
   fromRecipe(
     {
