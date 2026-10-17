@@ -1,5 +1,8 @@
 /**
- * A segmented control: a tray of toggle buttons where pressing selects. The
+ * A segmented control: a tray of toggle buttons where pressing selects, or
+ * (`tray: 'underline'`) a row of them over a rule, the pressed one
+ * underlined as a tab. `size` is its step on the ladder, and `width:
+ * 'fill'` stretches it across its container in equal options. The
  * pressed option takes the accent's tint, flat: that rule lives on the group
  * (`> [aria-pressed="true"]`), so icon tiles take the group piece alone and
  * share it with text options. It is in the variants layer, so an option drawn
@@ -11,10 +14,22 @@ import { Style } from 'foldkit-mixins'
 import { SegmentedSlots } from '../segmented.js'
 import { ladder, nested, nests } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
-import { component, glide, hover, onLadder, ref, steps, trimmed, variant } from './design.js'
+import {
+  component,
+  glide,
+  hover,
+  onLadder,
+  ref,
+  steps,
+  trimmed,
+  unfilledHover,
+  variant,
+} from './design.js'
 
 const pressed = '[aria-pressed="true"]'
 const lit = ':where([data-fluid-hover]) > &'
+/** An option's height inside the tray's inset, so the tray as a whole is one rung tall. */
+const optionHeight = `calc(${ladder('height')} - 2 * var(--_fk-segmented-inset, 0px))`
 const at = (name: 'hover' | 'chosen', part: 'x' | 'y' | 'w' | 'h') =>
   `var(--fk-segmented-${name}-${part})`
 
@@ -69,8 +84,7 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
         ...onLadder,
         // Enough for an option with no steady copy; one with a copy needs its `label`.
         ...trimmed,
-        // Inside the tray's inset, so the tray as a whole is one rung tall.
-        minBlockSize: `calc(${ladder('height')} - 2 * var(--_fk-segmented-inset, 0px))`,
+        minBlockSize: optionHeight,
         background: 'transparent',
         border: '0',
         // Concentric with the tray's corner, inside its inset.
@@ -83,6 +97,29 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
       hover({ color: ref.text.overt }),
       // A pressed option turns semibold; a `data-label` on it keeps its width.
       Utilities.steady('semibold'),
+      // Its steady copy holds the words alone: room for the icon beside them too.
+      Style.nest('&[data-icon=""][data-label]::after', {
+        paddingInlineStart: `calc(${ladder('icon')} + ${ladder('gap')})`,
+      }),
+      // An icon alone, in a square.
+      Style.pseudo('[data-icon="only"]', { inlineSize: optionHeight, paddingInline: '0' }),
+    ),
+    content: component(
+      Style.self({
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: ladder('gap'),
+      }),
+    ),
+    icon: component(
+      Style.self({
+        display: 'inline-flex',
+        flexShrink: '0',
+        inlineSize: ladder('icon'),
+        blockSize: ladder('icon'),
+        verticalAlign: 'middle',
+      }),
     ),
     // The words trimmed in a block of their own. On the option alone, the
     // steady copy after them was its last line and took the bottom trim, so
@@ -95,6 +132,8 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
         group: variant(
           Style.self({
             '--_fk-segmented-inset': ladder('inset'),
+            // As wide as its options, as an inline control: a block's width left the tray running on.
+            inlineSize: 'fit-content',
             background: ref.surface.muted,
             borderRadius: ref.radius.md,
             gap: '2px',
@@ -109,14 +148,55 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
           Style.self({ display: 'flex', gap: ref.space['3xs'], ...nests(ref.radius.md, '0px') }),
         ),
       },
+      // A rule under the options, the pressed one underlined in the accent, as a tab.
+      underline: {
+        group: variant(
+          Style.self({
+            display: 'flex',
+            gap: ref.space['3xs'],
+            boxShadow: `inset 0 calc(-1 * ${ref.border.thin}) 0 ${ref.outline.default}`,
+            ...nests(ref.radius.md, '0px'),
+          }),
+          Style.nest(`> ${pressed}`, { color: ref.text.overt }),
+          Style.nest(`&:not([data-fluid-hover]) > ${pressed}`, {
+            background: 'transparent',
+            boxShadow: `inset 0 calc(-1 * ${ref.border.thick}) 0 ${ref.accent.default}`,
+          }),
+        ),
+        indicator: variant(
+          Style.self({
+            blockSize: ref.border.thick,
+            translate: `${at('chosen', 'x')} calc(${at('chosen', 'y')} + ${at('chosen', 'h')} - ${ref.border.thick})`,
+            borderRadius: '0',
+            background: ref.accent.default,
+          }),
+        ),
+        highlight: variant(
+          Style.self({ background: unfilledHover, opacity: 'var(--fk-segmented-hover-shown)' }),
+        ),
+      },
     },
     size: {
+      lg: { group: steps.lg, option: steps.lg },
       md: { group: steps.md, option: steps.md },
       sm: { group: steps.sm, option: steps.sm },
       // Below the ladder, for a tool strip in a crowded panel: 24px.
       xs: {
         group: variant(Style.self({ '--fk-knob-step': '1.5' })),
         option: variant(Style.self({ '--fk-knob-step': '1.5' })),
+      },
+    },
+    width: {
+      // Across its container, every option as wide as the widest.
+      fill: {
+        group: variant(
+          Style.self({
+            display: 'grid',
+            gridAutoFlow: 'column',
+            gridAutoColumns: '1fr',
+            inlineSize: 'auto',
+          }),
+        ),
       },
     },
   },

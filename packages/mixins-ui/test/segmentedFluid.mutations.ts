@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: 'Style.nest(`&:not([data-fluid-hover]) > ${pressed}`',
-        replace: 'Style.nest(`& > ${pressed}`',
+        find: 'Style.nest(`&:not([data-fluid-hover]) > ${pressed}`, { background: ref.accent.subtle })',
+        replace: 'Style.nest(`& > ${pressed}`, { background: ref.accent.subtle })',
       },
     ],
     tests,

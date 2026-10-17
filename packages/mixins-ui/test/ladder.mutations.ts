@@ -46,8 +46,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/segmented.ts',
-        find: ' - 2 * var(--_fk-segmented-inset, 0px))`,',
-        replace: ')`,',
+        find: "const optionHeight = `calc(${ladder('height')} - 2 * var(--_fk-segmented-inset, 0px))`",
+        replace: "const optionHeight = ladder('height')",
       },
     ],
     tests,

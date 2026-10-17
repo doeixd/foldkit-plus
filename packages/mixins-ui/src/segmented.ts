@@ -8,7 +8,7 @@ import {
   SlotView,
   type NamedStyle,
 } from 'foldkit-mixins'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { FluidHover, Measure } from 'foldkit-primitives/dom'
 import { FollowDirection } from './direction.js'
 import { flipped } from './choices.js'
@@ -36,6 +36,10 @@ export const SegmentedSlots = Slots.define({
   }),
   /** An option's words, a box of their own so they can be trimmed apart from the option's steady copy. */
   label: Slot.make({ capability: Capability.Container }),
+  /** A mark before an option's words, hidden from assistive technology. */
+  icon: Slot.make({ capability: Capability.Container }),
+  /** An option's mark and words in a row, drawn only for an option with an icon. */
+  content: Slot.make({ capability: Capability.Container }),
   indicator: Slot.make({ capability: Capability.Container }),
   highlight: Slot.make({ capability: Capability.Container }),
 })
@@ -90,7 +94,12 @@ export const fluid = [
 /** One option of a segmented control: what it stands for, and its words. */
 export interface SegmentedOption<Value extends string> {
   readonly value: Value
+  /** Its words; with `iconOnly`, its accessible name and tooltip. */
   readonly label: string
+  /** Drawn before the words, hidden from assistive technology. */
+  readonly icon?: Html | undefined
+  /** Draws the icon alone, a square option named by `label`. */
+  readonly iconOnly?: boolean | undefined
   readonly disabled?: boolean | undefined
 }
 
@@ -127,7 +136,9 @@ export const toggled = <Value extends string>(
 /**
  * A segmented control in one call: the options as pressed buttons in a
  * group, each label also in `data-label` so turning semibold when pressed
- * moves nothing, after the indicator and highlight `fluid` moves.
+ * moves nothing, after the indicator and highlight `fluid` moves. An option
+ * with an icon draws it and its words in a `content` row and is marked
+ * `data-icon`; one drawn `iconOnly` is named by its label.
  */
 export const view = <Value extends string, Message>(
   options: SegmentedView<Value, Message>,
@@ -142,19 +153,37 @@ export const view = <Value extends string, Message>(
   return h.div(builders.group.attrs([h.Role('group'), h.AriaLabel(options.label)]), [
     h.div(builders.indicator.attrs([h.AriaHidden(true)]), []),
     h.div(builders.highlight.attrs([h.AriaHidden(true)]), []),
-    ...options.options.map(option =>
-      h.button(
+    ...options.options.map(option => {
+      const words = h.span(builders.label.attrs(), [option.label])
+      // What the option names itself by, and what it draws.
+      const drawn = (): readonly [ReadonlyArray<Attribute<Message>>, ReadonlyArray<Html>] => {
+        const named = h.DataAttribute('label', option.label)
+        if (option.icon === undefined) return [[named], [words]]
+        const mark = h.span(builders.icon.attrs([h.AriaHidden(true)]), [option.icon])
+        if (option.iconOnly === true) {
+          return [
+            [h.AriaLabel(option.label), h.Title(option.label), h.DataAttribute('icon', 'only')],
+            [mark],
+          ]
+        }
+        return [
+          [named, h.DataAttribute('icon', '')],
+          [h.span(builders.content.attrs(), [mark, words])],
+        ]
+      }
+      const [naming, children] = drawn()
+      return h.button(
         builders.option.attrs([
           h.Key(option.value),
           h.Type('button'),
           h.AriaPressed(String(pressed.has(option.value))),
-          h.DataAttribute('label', option.label),
+          ...naming,
           ...(option.disabled === true
             ? [h.Disabled(true)]
             : [h.OnClick(options.onPress(option.value))]),
         ]),
-        [h.span(builders.label.attrs(), [option.label])],
-      ),
-    ),
+        children,
+      )
+    }),
   ])
 }
