@@ -122,6 +122,21 @@ export const cornerSides = (width: string, color: string): Declarations => ({
 /** A duration for something that moves or resizes: reduced motion snaps it, while fades keep theirs. */
 export const travelled = (duration: string) => `calc(${duration} * ${ref.knob.travel})`
 
+const spin = Style.keyframes({ to: { rotate: '360deg' } })
+
+/**
+ * A loading ring's turn, once every `cycle` while `when` (a selector on `&`)
+ * matches: a travel, so a still theme holds it, and none under reduced
+ * motion, where the reset runs every animation for 0.01ms and a turn left
+ * running would land at random each frame.
+ */
+export const turning = (cycle: string, when = '&'): StyleValue =>
+  Style.compose(
+    spin.style,
+    Style.nest(when, { animation: `${spin.name} ${travelled(cycle)} linear infinite` }),
+    Style.at('@media (prefers-reduced-motion: reduce)', Style.nest(when, { animation: 'none' })),
+  )
+
 /**
  * A chevron of `size`, two sides of a box turned: along the row while shut,
  * down once its parent matches `open`. Right to left, along the row is the

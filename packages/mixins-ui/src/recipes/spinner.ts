@@ -11,18 +11,15 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { SpinnerSlots } from '../spinner.js'
-import { component, ref, travelled, variant } from './design.js'
+import { component, ref, travelled, turning, variant } from './design.js'
 
 const size = 'var(--_fk-spinner-size)'
 const ink = 'var(--_fk-spinner-ink)'
 const track = `color-mix(in oklab, ${ink} 20%, transparent)`
 /** One cycle of a kind's movement: about three quarters of a second at the default motion. */
-const cycle = travelled(`calc(${ref.motion.slow} * 3)`)
+const period = `calc(${ref.motion.slow} * 3)`
+const cycle = travelled(period)
 
-const spin = Style.keyframes({
-  from: { transform: 'rotate(0deg)' },
-  to: { transform: 'rotate(360deg)' },
-})
 const rise = Style.keyframes({
   '0%, 80%, 100%': { transform: 'translateY(0)', opacity: '0.4' },
   '40%': { transform: 'translateY(-50%)', opacity: '1' },
@@ -83,9 +80,8 @@ export const Spinner = Style.recipeFor(SpinnerSlots)({
             borderRadius: ref.radius.full,
             border: `${ref.border.thick} solid ${track}`,
             borderTopColor: ink,
-            animation: `${spin.name} ${cycle} linear infinite`,
           }),
-          spin.style,
+          turning(period),
         ],
         [hidden],
       ),
@@ -131,9 +127,8 @@ export const Spinner = Style.recipeFor(SpinnerSlots)({
             position: 'relative',
             borderRadius: ref.radius.full,
             border: `${ref.border.thick} solid ${track}`,
-            animation: `${spin.name} ${cycle} linear infinite`,
           }),
-          spin.style,
+          turning(period),
         ],
         [
           Style.self({

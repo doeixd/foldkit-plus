@@ -181,26 +181,15 @@ export default [
     tests: browser,
   },
   {
-    name: 'the running marker ignores travel',
+    name: 'every marker turns, not only a running one',
     edits: [
       {
         file: recipe,
-        find: 'animation: `${spin.name} ${travelled(`calc(${ref.motion.slow} * 3)`)} linear infinite`,',
-        replace: 'animation: `${spin.name} calc(${ref.motion.slow} * 3) linear infinite`,',
+        find: "turning(`calc(${ref.motion.slow} * 3)`, marked('running'))",
+        replace: 'turning(`calc(${ref.motion.slow} * 3)`)',
       },
     ],
     tests: browser,
-  },
-  {
-    name: 'the running marker turns under reduced motion',
-    edits: [
-      {
-        file: recipe,
-        find: "      Style.at(\n        '@media (prefers-reduced-motion: reduce)',\n        Style.nest(marked('running'), { animation: 'none' }),\n      ),\n",
-        replace: '',
-      },
-    ],
-    tests: [...unit, ...browser],
   },
   {
     name: 'a done marker draws no check',

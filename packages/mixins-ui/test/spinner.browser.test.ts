@@ -43,7 +43,10 @@ const view = (_: unknown, h: HtmlBuilder<never>): Html =>
       ...kinds.map(kind => Spinner.view({ label: kind, style: styles[kind] }, h)),
       h.div(
         [h.Id('held'), h.Attribute('style', '--fk-knob-travel: 0')],
-        [Spinner.view({ label: 'held', style: styles['ring'] }, h)],
+        [
+          Spinner.view({ label: 'held', style: styles['ring'] }, h),
+          Spinner.view({ label: 'held dots', style: styles['dots'] }, h),
+        ],
       ),
       h.div(
         [h.Style({ color: 'rgb(200, 0, 0)' })],
@@ -128,6 +131,8 @@ test('the movement takes a travel’s time, and none with no travel', async () =
   try {
     expect(parseFloat(getComputedStyle(wheel('ring')).animationDuration)).toBeGreaterThan(0.5)
     expect(parseFloat(getComputedStyle(wheel('held')).animationDuration)).toBe(0)
+    for (const part of parts('held dots'))
+      expect(parseFloat(getComputedStyle(part).animationDuration)).toBe(0)
   } finally {
     handle.dispose()
   }

@@ -46,7 +46,7 @@ describe('Spinner recipe', () => {
 
   it('turns a ring through a keyframed rotation, for a travel’s time', () => {
     const sheet = css({})
-    expect(sheet).toContain('rotate(360deg)')
+    expect(sheet).toContain('rotate:360deg')
     expect(sheet).toContain('linear infinite')
     expect(sheet).toContain('var(--fk-knob-travel)')
   })

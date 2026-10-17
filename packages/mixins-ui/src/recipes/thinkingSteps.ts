@@ -25,7 +25,7 @@ import {
   opensBelow,
   ref,
   transition,
-  travelled,
+  turning,
   turningChevron,
   variant,
 } from './design.js'
@@ -35,8 +35,6 @@ const open = '[data-open="true"]'
 const size = 'var(--_fk-thinking-marker, 1rem)'
 // How far a step's body stands in: past its marker, to its title.
 const indent = `calc(${size} + ${ref.space.xs})`
-
-const spin = Style.keyframes({ to: { rotate: '360deg' } })
 
 // One bar of the cross, centred in the marker.
 const bar = (turn: string) => ({
@@ -124,13 +122,8 @@ export const ThinkingSteps = Style.recipeFor(ThinkingStepsSlots)({
       Style.nest(marked('running'), {
         border: `${ref.border.thick} solid color-mix(in oklab, ${ref.accent.default} 20%, transparent)`,
         borderTopColor: ref.accent.default,
-        animation: `${spin.name} ${travelled(`calc(${ref.motion.slow} * 3)`)} linear infinite`,
       }),
-      spin.style,
-      Style.at(
-        '@media (prefers-reduced-motion: reduce)',
-        Style.nest(marked('running'), { animation: 'none' }),
-      ),
+      turning(`calc(${ref.motion.slow} * 3)`, marked('running')),
       Style.nest(state('running'), { color: ref.accent.ink }),
       // A check: two sides of a box, turned.
       Style.nest(`${marked('done')}::after`, {

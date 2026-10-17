@@ -10,17 +10,6 @@ const recipe = '../src/recipes/spinner.ts'
 
 export default [
   {
-    name: 'the ring stops turning',
-    edits: [
-      {
-        file: recipe,
-        find: "to: { transform: 'rotate(360deg)' },",
-        replace: "to: { transform: 'rotate(0deg)' },",
-      },
-    ],
-    tests: unit,
-  },
-  {
     name: 'a shown label is said twice',
     edits: [
       {
@@ -47,8 +36,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: 'const cycle = travelled(`calc(${ref.motion.slow} * 3)`)',
-        replace: 'const cycle = `calc(${ref.motion.slow} * 3)`',
+        find: 'const cycle = travelled(period)',
+        replace: 'const cycle = period',
       },
     ],
     tests: [...unit, ...browser],

@@ -4,7 +4,8 @@
  * it enters on the right and leaves on the left. The value stands beside a
  * bar's label and inside a ring; a stacked bar's parts and a buffer are as
  * wide as their shares; stripes slide only as far as `travel` lets; a tone
- * is the token Meter's levels use; and a segmented track is cut.
+ * is the token Meter's levels use; a segmented track is cut; and an
+ * unknown ring turns for a travel's time, held under reduced motion.
  */
 import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -12,6 +13,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
+import { cdp } from 'vitest/browser'
 // From the modules, not the index: the test reads nothing else.
 import * as Progress from '../src/progress.js'
 import { ProgressSlots, type ProgressView } from '../src/progress.js'
@@ -312,5 +314,31 @@ test('a segmented track is cut into steps, and its fill’s end is square', asyn
     expect(getComputedStyle(track.firstElementChild!).borderEndEndRadius).toBe('0px')
   } finally {
     mounted.dispose()
+  }
+})
+
+const reduce = (value: 'reduce' | 'no-preference') =>
+  cdp().send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value }],
+  })
+
+test('an unknown ring turns for a travel’s time, none with no travel, held under reduced motion', async () => {
+  const turn = async (wrapper: Record<string, string> = {}) => {
+    const mounted = show({ shape: 'ring' }, { value: Option.none() }, wrapper)
+    try {
+      const style = getComputedStyle((await drawn()).rest[0]!)
+      return { name: style.animationName, seconds: parseFloat(style.animationDuration) }
+    } finally {
+      mounted.dispose()
+      clear()
+    }
+  }
+  expect((await turn()).seconds).toBeGreaterThan(0.5)
+  expect((await turn({ '--fk-knob-travel': '0' })).seconds).toBe(0)
+  await reduce('reduce')
+  try {
+    expect((await turn()).name).toBe('none')
+  } finally {
+    await reduce('no-preference')
   }
 })

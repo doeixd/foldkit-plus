@@ -4,9 +4,10 @@
  * `shape: 'ring'` is Circular Progress, a ring whose arc is the root's
  * `--fk-progress` turned into a conic gradient, with the value inside. Not
  * known, the bar's fill slides through the track toward its inline end,
- * leftward right to left, and the ring's quarter arc turns; reduced motion
- * holds them still (each loop lasts `travelled`, 0 there, which runs no
- * animation), the bar's fill faint across the track.
+ * leftward right to left, and the ring's quarter arc turns as a Spinner's
+ * ring does (`turning`); reduced motion holds them still (each loop lasts
+ * `travelled`, 0 there, and the ring stops), the bar's fill faint across
+ * the track.
  *
  * `tone` colours the fill with the tokens Meter's levels use (success,
  * warning, error), and a stacked bar's parts take theirs from `data-tone`.
@@ -18,7 +19,7 @@
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { ProgressSlots, type ProgressTone } from '../progress.js'
-import { component, ref, travelled, variant } from './design.js'
+import { component, ref, travelled, turning, variant } from './design.js'
 
 const unknown = '[data-state="indeterminate"]'
 
@@ -36,11 +37,6 @@ const slideBack = Style.keyframes({
 
 const sweep = (name: string) =>
   `${name} ${travelled(`calc(${ref.motion.slow} * 6)`)} ${ref.motion.ease} infinite`
-
-const turn = Style.keyframes({
-  from: { rotate: '0deg' },
-  to: { rotate: '360deg' },
-})
 
 const band = '1rem'
 
@@ -190,11 +186,10 @@ export const Progress = Style.recipeFor(ProgressSlots)({
             background: `conic-gradient(${fill} calc(var(--fk-progress, 0) * 1turn), ${ref.outline.subtle} 0)`,
             mask: `radial-gradient(farthest-side, transparent calc(100% - ${ringWidth}), black calc(100% - ${ringWidth}))`,
           }),
-          turn.style,
           Style.pseudo(unknown, {
             background: `conic-gradient(${fill} 0 0.25turn, ${ref.outline.subtle} 0)`,
-            animation: `${turn.name} ${travelled(`calc(${ref.motion.slow} * 4)`)} linear infinite`,
           }),
+          turning(`calc(${ref.motion.slow} * 4)`, `&${unknown}`),
         ),
         // Inside the ring, over its hole.
         value: variant(Style.self({ gridRow: '2', gridColumn: '1', placeSelf: 'center' })),
