@@ -5,9 +5,8 @@
  * `--fk-progress` turned into a conic gradient, with the value inside. Not
  * known, the bar's fill slides through the track toward its inline end,
  * leftward right to left, and the ring's quarter arc turns as a Spinner's
- * ring does (`turning`); reduced motion holds them still (each loop lasts
- * `travelled`, 0 there, and the ring stops), the bar's fill faint across
- * the track.
+ * ring does (`turning`); with no travel, or under reduced motion, they
+ * hold still, the bar's fill resting faint across the track.
  *
  * `tone` colours the fill with the tokens Meter's levels use (success,
  * warning, error), and a stacked bar's parts take theirs from `data-tone`.
@@ -19,7 +18,7 @@
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { ProgressSlots, type ProgressTone } from '../progress.js'
-import { component, ref, travelled, turning, variant } from './design.js'
+import { component, ref, stillWhenReduced, travelled, turning, variant } from './design.js'
 
 const unknown = '[data-state="indeterminate"]'
 
@@ -172,6 +171,10 @@ export const Progress = Style.recipeFor(ProgressSlots)({
             animation: sweep(slide.name),
           }),
           Style.nest(`&${unknown}:dir(rtl)`, { animation: sweep(slideBack.name) }),
+          // Held, the fill rests where a still theme draws it, across the
+          // track; the reset's 0.01ms sweep left it mostly past the end.
+          stillWhenReduced(`&${unknown}`),
+          stillWhenReduced(`&${unknown}:dir(rtl)`),
         ),
       },
       ring: {

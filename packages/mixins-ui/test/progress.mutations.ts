@@ -10,6 +10,18 @@ const recipe = '../src/recipes/progress.ts'
 
 export default [
   {
+    name: 'under reduced motion an unknown fill sweeps on',
+    edits: [{ file: recipe, find: '          stillWhenReduced(`&${unknown}`),\n', replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'right to left, under reduced motion an unknown fill sweeps on',
+    edits: [
+      { file: recipe, find: '          stillWhenReduced(`&${unknown}:dir(rtl)`),\n', replace: '' },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'right to left, the fill sweeps rightward',
     edits: [
       {

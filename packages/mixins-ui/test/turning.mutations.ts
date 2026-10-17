@@ -33,7 +33,7 @@ export default [
     edits: [
       {
         file: design,
-        find: "    Style.at('@media (prefers-reduced-motion: reduce)', Style.nest(when, { animation: 'none' })),\n",
+        find: '    stillWhenReduced(when),\n',
         replace: '',
       },
     ],

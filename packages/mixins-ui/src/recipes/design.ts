@@ -122,19 +122,27 @@ export const cornerSides = (width: string, color: string): Declarations => ({
 /** A duration for something that moves or resizes: reduced motion snaps it, while fades keep theirs. */
 export const travelled = (duration: string) => `calc(${duration} * ${ref.knob.travel})`
 
+/**
+ * No animation where `when` (a selector on `&`) matches under reduced
+ * motion: the reset runs every animation for 0.01ms, and a loop left running
+ * would land at random each frame. `when` must weigh as much as the rule
+ * that starts the loop, which comes first.
+ */
+export const stillWhenReduced = (when: string): StyleValue =>
+  Style.at('@media (prefers-reduced-motion: reduce)', Style.nest(when, { animation: 'none' }))
+
 const spin = Style.keyframes({ to: { rotate: '360deg' } })
 
 /**
  * A loading ring's turn, once every `cycle` while `when` (a selector on `&`)
  * matches: a travel, so a still theme holds it, and none under reduced
- * motion, where the reset runs every animation for 0.01ms and a turn left
- * running would land at random each frame.
+ * motion (`stillWhenReduced`).
  */
 export const turning = (cycle: string, when = '&'): StyleValue =>
   Style.compose(
     spin.style,
     Style.nest(when, { animation: `${spin.name} ${travelled(cycle)} linear infinite` }),
-    Style.at('@media (prefers-reduced-motion: reduce)', Style.nest(when, { animation: 'none' })),
+    stillWhenReduced(when),
   )
 
 /**

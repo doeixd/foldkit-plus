@@ -5,12 +5,15 @@
  * bar's label and inside a ring; a stacked bar's parts and a buffer are as
  * wide as their shares; stripes slide only as far as `travel` lets; a tone
  * is the token Meter's levels use; a segmented track is cut; and an
- * unknown ring turns for a travel's time, held under reduced motion.
+ * unknown ring turns for a travel's time, held under reduced motion. Held,
+ * with no travel or under the reset's reduced motion, an unknown bar's fill
+ * rests faint across the track.
  */
 import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Layers, Style } from 'foldkit-mixins'
+import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cdp } from 'vitest/browser'
@@ -29,7 +32,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (direction: 'ltr' | 'rtl') => {
+const mount = (direction: 'ltr' | 'rtl', wrapper: Record<string, string> = {}) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -47,7 +50,7 @@ const mount = (direction: 'ltr' | 'rtl') => {
       update: (model: Model) => ({ model }),
       view: (_model: Model, h: HtmlBuilder<never>) =>
         h.div(
-          [h.Dir(direction), h.Style({ inlineSize: '200px' })],
+          [h.Dir(direction), h.Style({ inlineSize: '200px', ...wrapper })],
           [Progress.view({ id: 'load', label: 'Loading', value: Option.none(), style }, h)],
         ),
     }),
@@ -342,3 +345,52 @@ test('an unknown ring turns for a travel’s time, none with no travel, held und
     await reduce('no-preference')
   }
 })
+
+test.each(['ltr', 'rtl'] as const)(
+  '%s, an unknown fill held by no travel or by reduced motion rests faint across the track',
+  async direction => {
+    // The reset, whose reduced motion runs every animation for 0.01ms.
+    const reset = document.createElement('style')
+    reset.dataset['test'] = ''
+    reset.textContent = Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in('reset', Defaults.reset),
+    )
+    document.head.append(reset)
+    const rest = async (wrapper: Record<string, string> = {}) => {
+      const mounted = mount(direction, wrapper)
+      try {
+        await vi.waitFor(() =>
+          expect(document.querySelector('[role="progressbar"]')).not.toBeNull(),
+        )
+        // A frame, so a sweep the reset left running has moved the fill.
+        await new Promise(resolve => requestAnimationFrame(resolve))
+        const track = document.querySelector('[role="progressbar"] > div')!
+        const fill = track.firstElementChild!
+        return {
+          track: track.getBoundingClientRect(),
+          fill: fill.getBoundingClientRect(),
+          opacity: Number(getComputedStyle(fill).opacity),
+        }
+      } finally {
+        mounted.dispose()
+        document.body.replaceChildren()
+      }
+    }
+    const held = async (wrapper: Record<string, string> = {}) => {
+      const { track, fill, opacity } = await rest(wrapper)
+      expect(fill.left).toBeGreaterThanOrEqual(track.left - 0.5)
+      expect(fill.right).toBeLessThanOrEqual(track.right + 0.5)
+      expect(fill.width).toBeCloseTo(track.width, 0)
+      expect(opacity).toBeGreaterThan(0.2)
+      expect(opacity).toBeLessThan(1)
+    }
+    await held({ '--fk-knob-travel': '0' })
+    await reduce('reduce')
+    try {
+      await held()
+    } finally {
+      await reduce('no-preference')
+    }
+  },
+)
