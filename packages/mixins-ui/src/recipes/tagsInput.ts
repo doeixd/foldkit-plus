@@ -2,7 +2,10 @@
  * A tags input: a label over one bordered box, at least a rung of the size
  * ladder tall, that wraps its chips and the input as a field wraps words,
  * the ring around the whole box while the input has focus. A chip is the
- * Badge's pill without its dot, its remove button quiet until hovered.
+ * Badge's pill without its dot, its remove button quiet until hovered. A
+ * refused commit shakes the box sideways once, over the moderate tier and
+ * travelling (so reduced motion keeps it still), its border in the error
+ * line, and the message under it says why in the error's ink.
  */
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
@@ -14,8 +17,23 @@ import {
   ref,
   touchText,
   transition,
+  travelled,
   unfilledHover,
 } from './design.js'
+
+const swing = (first: string, second: string) =>
+  Style.keyframes({
+    '0%, 100%': { translate: '0 0' },
+    '20%, 60%': { translate: `${first} 0` },
+    '40%, 80%': { translate: `${second} 0` },
+  })
+// Two shakes, one each way, since names are hashed from the frames: the view
+// alternates them, and an animation whose name changes plays again.
+const shakes = { even: swing('-4px', '4px'), odd: swing('4px', '-4px') }
+const shake = (name: string) => ({
+  animation: `${name} ${travelled(ref.motion.moderate)} ${ref.motion.ease}`,
+  borderColor: ref.error.outline,
+})
 
 export const TagsInput = Style.recipeFor(TagsInputSlots)({
   base: {
@@ -44,6 +62,9 @@ export const TagsInput = Style.recipeFor(TagsInputSlots)({
         outlineOffset: '2px',
       }),
       Style.nest('&[data-disabled="true"]', { opacity: '0.5', cursor: 'not-allowed' }),
+      shakes.even.style,
+      shakes.odd.style,
+      Style.states({ even: shake(shakes.even.name), odd: shake(shakes.odd.name) }, 'data-refused'),
     ),
     list: component(
       Style.self({
@@ -107,6 +128,11 @@ export const TagsInput = Style.recipeFor(TagsInputSlots)({
       Style.pseudo('::placeholder', { color: ref.text.muted }),
       disabled,
       touchText,
+    ),
+    message: component(
+      Style.self({ margin: '0', color: ref.error.ink, ...role('caption') }),
+      // Out of the column while silent, so the field keeps its gap and no more.
+      Style.pseudo(':empty', { position: 'absolute' }),
     ),
   },
 })

@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 /**
  * TagsInput as a transition and as markup: a commit adds each new part of
- * the draft and refuses empty and repeated ones, Backspace on an empty
- * draft takes the last tag, a removal sends the focus back to the input,
- * and the chips are a list named by the field's label.
+ * the draft and refuses empty and repeated ones and those past `max`, saying
+ * why until the next edit, Backspace on an empty draft takes the last tag, a
+ * removal sends the focus back to the input, and the chips are a list named
+ * by the field's label.
  */
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
@@ -14,7 +15,7 @@ import { Inert } from 'foldkit-mixins/testing'
 import { Patterns, Recipes, TagsInput, TagsInputSlots } from '../src/index.js'
 import { h, message, sends, type TestMessage } from './fixture.js'
 
-const { Message, init, update } = TagsInput
+const { Message, Refusal, init, update } = TagsInput
 
 const withDraft = (tags: ReadonlyArray<string>, draft: string) =>
   update(init({ id: 'topics', tags }), Message.Typed({ text: draft })).model
@@ -59,11 +60,60 @@ describe('TagsInput.update', () => {
   })
 
   it.each([
-    ['an empty draft', '   '],
-    ['a draft of tags already there', 'a, a'],
-  ])('refuses %s, keeping it to be seen', (_, draft) => {
-    const model = withDraft(['a'], draft)
+    ['a draft of blanks', ' , ', Refusal.Empty()],
+    ['a draft of tags already there', 'b, a', Refusal.Repeat({ tag: 'b' })],
+  ])('refuses %s, keeping it to be seen and saying why', (_, draft, refusal) => {
+    const model = withDraft(['a', 'b'], draft)
+    const after = update(model, Message.Committed()).model
+    expect(after.tags).toBe(model.tags)
+    expect(after.draft).toBe(draft)
+    expect(after.refusal).toEqual(Option.some(refusal))
+    expect(after.refusals).toBe(1)
+  })
+
+  it('adds the new parts of a draft and names the repeat it left out', () => {
+    const after = update(withDraft(['a'], 'b, a, c'), Message.Committed()).model
+    expect(after.tags).toEqual(['a', 'b', 'c'])
+    expect(after.draft).toBe('')
+    expect(after.refusal).toEqual(Option.some(Refusal.Repeat({ tag: 'a' })))
+  })
+
+  it('reads keys typed before the emptied input is drawn as the next draft alone', () => {
+    const added = update(withDraft([], 'react'), Message.Committed()).model
+    // The input still showed the added draft when these keys landed.
+    const early = update(added, Message.Typed({ text: 'reactvu' })).model
+    expect(early.draft).toBe('vu')
+    // Once a text arrives without it, the input was drawn empty: a retyped tag is a tag.
+    const drawn = update(added, Message.Typed({ text: 'r' })).model
+    expect(drawn.draft).toBe('r')
+    expect(update(drawn, Message.Typed({ text: 'react' })).model.draft).toBe('react')
+  })
+
+  it('takes nothing on Enter in an empty field', () => {
+    const model = init({ id: 'topics', tags: ['a'] })
     expect(update(model, Message.Committed()).model).toBe(model)
+  })
+
+  it('adds up to max, and refuses the rest as full', () => {
+    const typed = update(
+      init({ id: 'topics', tags: ['a'], max: 3 }),
+      Message.Typed({ text: 'b, c, d' }),
+    )
+    const after = update(typed.model, Message.Committed()).model
+    expect(after.tags).toEqual(['a', 'b', 'c'])
+    expect(after.refusal).toEqual(Option.some(Refusal.Full({ max: 3 })))
+    const full = update(update(after, Message.Typed({ text: 'e' })).model, Message.Committed())
+    expect(full.model.tags).toEqual(['a', 'b', 'c'])
+    expect(full.model.draft).toBe('e')
+    expect(full.model.refusals).toBe(2)
+  })
+
+  it.each([
+    ['an edit of the draft', Message.Typed({ text: 'c' })],
+    ['a removal', Message.Removed({ tag: 'a' })],
+  ])('forgets the refusal on %s', (_, message) => {
+    const refused = update(withDraft(['a'], 'a'), Message.Committed()).model
+    expect(update(refused, message).model.refusal).toEqual(Option.none())
   })
 
   it('splits on its own delimiter', () => {
@@ -158,6 +208,40 @@ describe('TagsInput.view', () => {
     expect(lifted.filter(m => m._tag === 'Removed')).toEqual([
       Message.Removed({ tag: 'react' }),
       Message.Removed({ tag: 'effect' }),
+    ])
+  })
+
+  it('says why a commit was refused in a status region drawn always, which the input points at', () => {
+    const quiet = drawn(['a'])
+    expect(Inert.byRole(quiet, 'status').map(Inert.text)).toEqual([''])
+    expect(Inert.value(Inert.byTag(quiet, 'input')[0], 'aria-describedby')).toBeUndefined()
+    const refused = update(withDraft(['a'], 'a'), Message.Committed()).model
+    const tree = TagsInput.view(
+      { model: refused, onMessage: () => message('Clicked'), label: 'Topics', style },
+      h,
+    )
+    const [status] = Inert.byRole(tree, 'status')
+    expect(Inert.text(status)).toBe('a is already added')
+    expect(Inert.value(Inert.byTag(tree, 'input')[0], 'aria-describedby')).toBe(
+      Inert.value(status, 'id'),
+    )
+  })
+
+  it('alternates the shake with each refusal, so a second one replays it', () => {
+    const control = (model: TagsInput.Model) =>
+      Inert.value(
+        Inert.byTag(
+          TagsInput.view({ model, onMessage: () => message('Clicked'), label: 'Topics' }, h),
+          'div',
+        )[1],
+        'data-refused',
+      )
+    const once = update(withDraft(['a'], 'a'), Message.Committed()).model
+    const twice = update(once, Message.Committed()).model
+    expect([control(withDraft(['a'], 'a')), control(once), control(twice)]).toEqual([
+      undefined,
+      'odd',
+      'even',
     ])
   })
 
