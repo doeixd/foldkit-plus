@@ -9,6 +9,47 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: Calendar options, presets and a locale.** The
+  fourth argument of `Calendar.toView`, `inputs` and `resolve`
+  (`CalendarOptions`) takes `weekNumbers` (ISO weeks), `caption: 'label'` or
+  month and year selects (`dropdowns`, answered by `Calendar.show`),
+  `paging` with `Calendar.alongside` for two months side by side, and a
+  range's `preview` under the pointer. Presets are `Calendar.lastDays`,
+  `nextDays`, `monthOf`, `day` and `presetsView`; `Calendar.localeOf(tag)`
+  reads upstream's `locale` from Intl; the recipe takes `outside: 'hidden'`.
+- **`foldkit-mixins-ui`: Tabs, Segmented, Breadcrumb and a navigation menu
+  with panels.** Tabs take icons and counts (`label` and `icon` slots, a
+  Badge after the words), `overflow: 'scroll'` (one line, its edges
+  fading), `size: 'lg'`, a vertical tablist's rule at its inline end, and
+  closable tabs (`TabsContext.close`: a close button and Delete; answer with
+  `Tabs.closing`). A Segmented option takes an `icon`, alone with
+  `iconOnly`; the recipe adds `tray: 'underline'`, `width: 'fill'` and `size:
+  'lg'`. Breadcrumb's `collapse: { max, menu }` makes the ellipsis open a
+  Menu of the hidden steps (`Breadcrumb.menuRows`, `Breadcrumb.chosen`).
+  `Nav.view` draws a navigation menu whose triggers open panels of link
+  columns in the top layer, with the APG's disclosure-navigation keys, its
+  open panel in `Nav.init`/`Nav.update`; the recipe adds `indicator: 'pill'`
+  and a column.
+- **`foldkit-mixins-ui`: Steps, Accordion, Table, Progress, Rating and
+  Resizable grow.** Steps take `marker: 'dot'`, `connector: 'progress'` with
+  the view's `progress`, and `size` on the Avatar's steps. The Accordion
+  takes `variant` (`plain`, `bordered`, `separated`, `filled`, `ghost`),
+  `separators`, `indicator: 'plus'`, `indicatorPosition: 'start'`, `active`
+  and its own `icon`. Table sorts (`sortKey`, `sort: { by, onSort }`,
+  `aria-sort`, `Table.nextSort`), chooses rows with checkboxes
+  (`selection`), opens a row's detail below it (`expansion`) and stands an
+  `empty` state across itself, all the application's; the recipe adds
+  `rows`, `density` and `header: 'sticky'`. Progress takes `showValue`, a
+  value of stacked `sections`, a `buffer` and `segments`, and the recipe
+  `tone`, `stripes` and `size`. Rating takes `precision: 0.5`, a read-only
+  fraction, `onClear`, `showValue`, and Home and End (`Rating.Ends`); a
+  read-only rating takes no `onChange`; the recipe adds `glyph` and an
+  `error` tone. Resizable collapses a panel (`collapsible`, `collapsedTo`)
+  on Enter or a double-click, nests either way, and `handle: 'grip'` shows
+  a pill of dots.
+- **`foldkit-primitives/dom`: `ScrollSettle`,** a Mount that reports the
+  item nearest a scroller's start once a scroll rests (`scrollend`, or a
+  quiet scroll where it is missing), right to left from the right edge.
 - **`foldkit-mixins-ui`: a custom Select, and Combobox chips, clearing and an
   empty panel.** A select drawn over Listbox: `Listbox.parts` draws an
   option's icon, label, description and check, and the trigger's value (or
@@ -213,29 +254,44 @@ version changed; `pnpm` skips versions already in the registry.
   it for the text beside it. `isAtom(nodes, block)` is the test. Deleting a
   block now lands the caret where the block was even when it held no text,
   where it went to the top of the document.
-- **`foldkit-mixins-ui`: `Carousel`, the APG carousel with no rotation.** A
-  scroll-snap track of slides named "N of M", previous and next buttons,
-  optional dots and a polite status. The index is the application's;
-  `Carousel.ShowSlide` is the Command that scrolls the track to it, smoothly
-  only without reduced motion. A swipe is not yet reported back to the
-  index. Recipe axis `peek`. `Recipes.Carousel`, `Patterns.Carousel` and a
-  gallery page.
+- **`foldkit-mixins-ui`: `Carousel`, the APG carousel.** A scroll-snap track
+  of slides named "N of M", previous and next buttons, dots and a polite
+  status. Its slide and rotation are a Model (`Carousel.init({ id, slide?,
+  autoplay?, delay? })`) folded with `Carousel.update({ count, perView?,
+  loop? })`, which returns `Carousel.ShowSlide`, the Command that scrolls the
+  track, smoothly only without reduced motion; a swipe comes back through
+  `ScrollSettle`, so the dots follow the finger. With `autoplay` it moves on
+  every `delay` (4s), pauses under the pointer, stops when focus arrives by
+  the keys, quiets its status while it rotates and draws the APG's rotation
+  button first; the current dot is Fluid's pill, filling over the delay.
+  `thumbnails` stand in for the dots, and `perView` shows several slides at
+  once, a dot per place the track can rest. Recipe axis `peek`.
+  `Recipes.Carousel`, `Patterns.Carousel` and a gallery page.
 - **`foldkit-mixins-ui`: `TreeView`, the APG tree view.** Nested rows with
   one tab stop: the arrows move through the rows showing and open, shut,
   enter or leave a row; Home and End; a character moves to the next row it
   starts; Enter, Space or a click chooses a row. Its Model (`current`,
-  `open`, `selected`) is folded with `TreeView.update(nodes)`, which decides
-  each key from its own Model, so keys faster than a frame still move on. It
-  reuses `TreeNavigation`'s `shown`, `move` and `tabStop` and
-  `Typeahead.match`. Each item carries its depth as `--fk-tree-level`.
-  `Recipes.TreeView`, `Patterns.TreeView` and a gallery page.
-- **`foldkit-mixins-ui`: `ColorPicker`,** an OKLCH picker in the space
-  `Theme.oklch` writes: three labelled native ranges for lightness, chroma
-  and hue, each saying its value with its unit, over gradient tracks the
-  recipe paints from the color's custom properties; a swatch, the color as
-  text, and optional presets as a radio group of swatches. The color is the
-  application's (`ColorPicker.Oklch`); `format`, `parse` (an `Option`) and
-  `withChannel` are pure. `Patterns.ColorPicker` and a gallery page.
+  `open`, `selected`, `checked`) is folded with `TreeView.update(nodes)`,
+  which decides each key from its own Model, so keys faster than a frame
+  still move on. It reuses `TreeNavigation`'s `shown`, `move` and `tabStop`
+  and `Typeahead.match`. Each item carries its depth as `--fk-tree-level`.
+  A node takes an `icon` and an `openIcon`; `Recipes.TreeView({ guides:
+  'lines' })` draws a guide down each open branch; `checkable` (on the view
+  and `update`) gives every row a tri-state box, the Model's `checked`
+  holding the leaves and a branch reading checked, mixed or not from them
+  (`TreeView.checksOf`), Space checking in `update`. `Recipes.TreeView`,
+  `Patterns.TreeView` and a gallery page.
+- **`foldkit-mixins-ui`: `ColorPicker`, after ReUI's:** a saturation and
+  brightness area (the pointer and the keys), hue and alpha Sliders painted
+  from the color (`Recipes.Slider({ track: 'paint', label: 'hidden' })`), the
+  browser's `EyeDropper` where there is one (`ColorPicker.Eyedrop`,
+  `canEyedrop`), text in hex, rgb, hsl or oklch that parses to an `Option`
+  (`format`, `parse`, and `color('#3b82f6')` for a literal in code), and
+  presets as a radio group of swatches. The color, its format and a draft
+  being typed are `ColorPicker.Model` (`init({ id, color?, format? })`),
+  folded with `ColorPicker.update`, so fast keys each step from the last
+  color; `toOklch` reads a color for a theme. `ColorPicker.popover` draws it
+  as a Popover's `toView`. `Patterns.ColorPicker` and a gallery page.
 - **`foldkit-mixins-ui`: `Recipes.Sheet`, the Dialog from an edge.**
   shadcn's Sheet and vaul's Drawer as one recipe over `DialogSlots`: the
   panel stands on the edge its `data-side` names (`top`, `right`, `bottom`,
@@ -315,12 +371,16 @@ version changed; `pnpm` skips versions already in the registry.
   panels in a navigation menu are not here yet.
 - **`foldkit-mixins-ui`: `Sidebar`,** from the widgets island into the
   package: shadcn's sidebar with Fluid Functionalism's collapse. A named
-  navigation landmark of sections that open on the accordion's grid row
-  (several at once), the current page marked `aria-current`, and a toggle
-  that collapses the whole column off the page on the slow tier rather than
-  to an icon rail. Shut sections and a collapsed column stay drawn and
-  `inert`. The open sections and the collapsed flag are the application's.
-  A recipe, a pattern and a gallery page.
+  navigation landmark with a header and a footer, groups with or without a
+  heading that open on the accordion's grid row (several at once), rows with
+  icons and counts, branches of nested links, the current page marked
+  `aria-current` with a marker that glides to it (`Sidebar.fluid`), and a
+  toggle that collapses it off the page (`collapse: 'offcanvas'`) or to a
+  rail of icons named in Tooltips (`'icons'`); on a phone an opener shows it
+  in a Sheet. Its Model (`Sidebar.init({ id, rows, open?, collapsed? })`,
+  `Sidebar.update`) holds what is open and collapsed, the rail's Tooltips
+  and the Sheet. `width: 'fill'` sizes it to a Resizable's panel. A recipe,
+  a pattern and a gallery page.
 - **`foldkit-mixins-ui`: `Resizable`,** from the widgets island into the
   package: shadcn's Resizable and the APG's window splitter, two panels with
   a handle that is a `separator` with its value, stepped by the arrows and
@@ -629,6 +689,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins-ui`: the Calendar's resolved days and a Segmented tray
+  (breaking).** `ResolvedDays`' paging buttons are `Option`s and its heading
+  is a `caption` (`Grid`, `Label` or `Dropdowns`); `toView`, `inputs` and
+  `resolve` take an options object fourth, `render` among them. A Segmented
+  `tray` is as wide as its options, not its container (`width: 'fill'` for
+  the old strip). A tab is a flex row: draw its words in the `label` slot to
+  keep their trim.
 - **`foldkit-mixins-ui`: the Tooltip takes its id; the Toast recipe drops its
   accent edge (breaking).** `Tooltip.toView` and `Tooltip.resolve` take the
   Tooltip's `id`, which the arrow points from.
@@ -730,8 +797,10 @@ version changed; `pnpm` skips versions already in the registry.
   `ResolvedSlider` are gone, and `SliderSlots` is the new view's, with slots
   `root`, `label`, `control`, `track`, `fill`, `mark`, `value` and
   `thumb`); an application hosting that Submodel draws it with Slots of its
-  own. Upstream's Escape-to-cancel, read-only mode and vertical orientation
-  are lost with it.
+  own. `orientation: 'vertical'`, `ticks`, labelled `marks` (`{ value, label
+  }`) and the recipe's `value: 'end'`, `track: 'paint'` and `label: 'hidden'`
+  are the view's too; upstream's Escape-to-cancel and read-only mode are
+  lost.
 - **`foldkit-mixins-ui`: one `Alert`, inline or a banner.** `Alert.view` takes
   `layout: 'inline'` (a live region for something that just happened:
   `role="alert"` when `assertive`, `role="status"` otherwise) or
