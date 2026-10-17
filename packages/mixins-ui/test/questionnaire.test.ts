@@ -11,7 +11,7 @@ import * as UiRadio from '@foldkit/ui/radioGroup'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { SlotView, Style } from 'foldkit-mixins'
+import { A11y, Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import {
   Message,
@@ -221,6 +221,15 @@ const roles = (drawn: Html, role: string) =>
   Inert.all(drawn).filter(node => Inert.value(node, 'role') === role)
 
 describe('Questionnaire view', () => {
+  it('meets its pattern: a form of questions, each saying what is missing', () => {
+    const pattern = A11y.pattern({
+      root: { capability: Capability.Container },
+      question: { capability: Capability.Container },
+      error: { capability: Capability.Container },
+    })
+    expect(A11y.validate(pattern, QuestionnaireSlots)).toEqual([])
+  })
+
   it('asks every question at once, each by its own control', () => {
     const drawn = drawWith(fresh(), { title: 'A few questions' })
     const [group] = roles(drawn, 'radiogroup')
