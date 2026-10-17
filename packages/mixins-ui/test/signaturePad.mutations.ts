@@ -103,16 +103,20 @@ export default [
     tests: [unit],
   },
   {
-    name: 'a press is measured from the border, not inside it',
-    edits: [{ file: source, find: 'left: left + element.clientLeft,', replace: 'left,' }],
+    name: 'a pen reads as a mouse',
+    edits: [{ file: source, find: "pen: pointerType === 'pen'", replace: 'pen: false' }],
     tests: [browser],
   },
   {
-    name: 'a press selects text and is not kept from the page',
-    edits: [{ file: source, find: '            event.preventDefault()', replace: '' }],
+    name: 'the pad is never measured',
+    edits: [
+      {
+        file: source,
+        find: 'Stream.merge(inkAt.f(element, viewStateChanges), inkSize.f(element, viewStateChanges))',
+        replace: 'inkAt.f(element, viewStateChanges)',
+      },
+    ],
     tests: [browser],
-    survives:
-      'A dispatched pointerdown starts no text selection or compatibility mouse events either way; what preventDefault keeps away needs a real press.',
   },
   {
     name: 'the PNG is drawn at the pad’s size, not its scale',

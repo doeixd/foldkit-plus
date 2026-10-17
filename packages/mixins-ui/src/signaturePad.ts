@@ -1,5 +1,7 @@
-import { Effect, Match, Option, Queue, Schema, Stream } from 'effect'
+import { Effect, Match, Option, Schema, Stream } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { PointerPosition, type PointerFact } from 'foldkit-primitives/dom'
+import { Resize, type Resized } from 'foldkit-primitives/observers'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -429,119 +431,19 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
 
 // ---------------------------------------------------------------- the pointer
 
-const Measured = Schema.TaggedStruct('Measured', Box)
-const Down = Schema.TaggedStruct('Down', { ...Box, point: Raw, pen: Schema.Boolean })
-const Moved = Schema.TaggedStruct('Moved', { ...Box, points: Schema.Array(Raw) })
-const Up = Schema.TaggedStruct('Up', {})
-type InkFact = typeof Measured.Type | typeof Down.Type | typeof Moved.Type | typeof Up.Type
-
-type Capturing = Element & {
-  setPointerCapture?: (pointerId: number) => void
-  releasePointerCapture?: (pointerId: number) => void
-}
+const inkAt = PointerPosition({})
+const inkSize = Resize()
 
 /**
- * Drawing on an element, as a Mount: its size when drawn and when it
- * changes, and one pointer's press, each point it moves through (every
- * coalesced event, so a fast pen keeps its curve) with its pressure, and its
- * release, the pointer captured meanwhile. Positions are in the element's
- * pixels; a second pointer while one draws is ignored.
+ * Drawing on the control, as one Mount (an element holds one): its content
+ * box's size when drawn and when it changes, and one pointer's press, every
+ * place it passes with its pressure, and its release.
  */
-const Ink = Mount.defineStream('SignaturePadInk', {
-  messages: [Measured, Down, Moved, Up],
-  execute: ({ element }) =>
-    Stream.callback<InkFact>(queue =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          const target: Capturing = element
-          let pointer: number | undefined
-          // The padding box, where the strokes are drawn: inside the border a press is measured from.
-          const box = () => {
-            const { left, top } = element.getBoundingClientRect()
-            return {
-              left: left + element.clientLeft,
-              top: top + element.clientTop,
-              width: element.clientWidth,
-              height: element.clientHeight,
-            }
-          }
-          const measure = () => {
-            const { width, height } = box()
-            if (width > 0 && height > 0) Queue.offerUnsafe(queue, Measured.make({ width, height }))
-          }
-          const pointOf = (event: PointerEvent, at: ReturnType<typeof box>) => ({
-            x: event.clientX - at.left,
-            y: event.clientY - at.top,
-            pressure: event.pressure,
-          })
-          const down = (event: Event) => {
-            if (!(event instanceof PointerEvent) || event.button !== 0) return
-            if (pointer !== undefined) return
-            pointer = event.pointerId
-            try {
-              target.setPointerCapture?.(event.pointerId)
-            } catch {
-              // A pointer the browser no longer tracks cannot be captured; its moves still come here.
-            }
-            // Kept from selecting text, and from the mouse events a touch would also send.
-            event.preventDefault()
-            const at = box()
-            Queue.offerUnsafe(
-              queue,
-              Down.make({
-                width: at.width,
-                height: at.height,
-                point: pointOf(event, at),
-                pen: event.pointerType === 'pen',
-              }),
-            )
-          }
-          const move = (event: Event) => {
-            if (!(event instanceof PointerEvent) || event.pointerId !== pointer) return
-            const at = box()
-            const coalesced = event.getCoalescedEvents?.() ?? []
-            const each = coalesced.length > 0 ? coalesced : [event]
-            Queue.offerUnsafe(
-              queue,
-              Moved.make({
-                width: at.width,
-                height: at.height,
-                points: each.map(one => pointOf(one, at)),
-              }),
-            )
-          }
-          const up = (event: Event) => {
-            if (!(event instanceof PointerEvent) || event.pointerId !== pointer) return
-            pointer = undefined
-            try {
-              target.releasePointerCapture?.(event.pointerId)
-            } catch {
-              // Capture may already be gone with the pointer.
-            }
-            Queue.offerUnsafe(queue, Up.make({}))
-          }
-          // Made before anything is listened to; without one (jsdom), the pad keeps its first size.
-          const Observer = globalThis.ResizeObserver
-          const sizes = Observer === undefined ? undefined : new Observer(measure)
-          const listeners: ReadonlyArray<readonly [string, (event: Event) => void]> = [
-            ['pointerdown', down],
-            ['pointermove', move],
-            ['pointerup', up],
-            ['pointercancel', up],
-            ['lostpointercapture', up],
-          ]
-          for (const [type, listener] of listeners) element.addEventListener(type, listener)
-          sizes?.observe(element)
-          measure()
-          return () => {
-            sizes?.disconnect()
-            for (const [type, listener] of listeners) element.removeEventListener(type, listener)
-          }
-        }),
-        stop => Effect.sync(stop),
-      ),
-    ),
-})
+const ink: Mount.MountAction<PointerFact | Resized> = {
+  name: 'SignaturePadInk',
+  f: (element, viewStateChanges) =>
+    Stream.merge(inkAt.f(element, viewStateChanges), inkSize.f(element, viewStateChanges)),
+}
 
 // ---------------------------------------------------------------- the view
 
@@ -634,15 +536,15 @@ export const view = <Outer>(options: SignaturePadView<Outer>, h: HtmlBuilder<Out
             ? [h.AriaDisabled(true)]
             : [
                 h.OnMount(
-                  Mount.mapMessage(Ink(), fact =>
+                  Mount.mapMessage(ink, fact =>
                     lift(
                       Match.valueTags(fact, {
-                        Measured: ({ width, height }) => Message.Measured({ width, height }),
-                        Down: ({ width, height, point, pen }) =>
-                          Message.Began({ width, height, point, pen }),
-                        Moved: ({ width, height, points }) =>
+                        Resized: ({ width, height }) => Message.Measured({ width, height }),
+                        PointerPressed: ({ width, height, point, pointerType }) =>
+                          Message.Began({ width, height, point, pen: pointerType === 'pen' }),
+                        PointerMoved: ({ width, height, points }) =>
                           Message.Extended({ width, height, points }),
-                        Up: () => Message.Ended(),
+                        PointerReleased: () => Message.Ended(),
                       }),
                     ),
                   ),
