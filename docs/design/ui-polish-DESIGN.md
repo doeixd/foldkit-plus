@@ -191,6 +191,12 @@ Mount per element; bundle attributes are opaque). Same for modal `<dialog>`
 foldkit/foldkit#1683: upstream `anchorSetup`/Anchor Mounts need a `topLayer`
 they own (show/hide around their positioning), so every view above gets it
 without forks.
+**Since done for Popover, Tooltip and Hover Card** (85038b4d…e3a96a7c): an
+`Anchor.layer` element drawn around the panel shows itself in the top layer
+while upstream's anchor places the panel inside it, with `Popover.anchor()`,
+`Tooltip.anchor()` and `HoverIntent.anchor()` as the defaults and an `arrow`
+slot on each. The DatePicker panel, Select and modal dialogs remain; the
+upstream requests are in E9.
 
 ### A5. Scrollbars and scroll areas
 
@@ -361,26 +367,26 @@ decides adopt, adapt or skip.
     option.
   - Examples from Fluid's [card presets](https://www.fluidfunctionalism.com/docs/card?preset=caI9E8):
     media, stat, pricing, profile, selectable, link card, card group as a
-    grid.
+    grid. **Integrated**: `elevation`, `lift`, the `shadow-h`/`shadow-c` knobs; examples stat, media, profile, link, elevation and a grid (components 98338a43…401c33b2; gallery 25974388, docs 277f601f, ad07a67c, c134284c.) Pricing and a selectable card beyond the group stay open.
 - **Avatar.** Recipes from [blobz](https://blobz.lirena.in/docs/components/):
   a stacked group with overlap and a "+3", a status dot, a ring, initials
   with a colour from the name, shapes, an avatar with name and caption, an
-  avatar inside a badge.
+  avatar inside a badge. **Integrated**: a group with a count, status, ring, initials by name, shapes, an avatar with a name as an Item (components 98338a43…401c33b2; gallery 25974388, docs 277f601f, ad07a67c, c134284c.) An avatar inside a badge stays open.
 - **Kbd.** **Checked**: `Kbd.combo({ keys, joiner? })`, and the keycap look (a heavier lower edge and a lit top, measured in `kbd.browser.test.ts`).
 - **Separator.** Examples: horizontal and vertical, a label in the middle,
-  spacing and inset options, dashed, thickness.
+  spacing and inset options, dashed, thickness. **Integrated**: a label, vertical, dashed with thickness, spacing and inset (components 98338a43…401c33b2; gallery 25974388, docs 277f601f, ad07a67c, c134284c.)
 - **Skeleton.** Fix (B), then: a shimmer wave option (travel-aware), text
   lines (`lines: 3`, a short last line), and composites (an avatar row, a
-  card, a table row) built from the existing shapes.
+  card, a table row) built from the existing shapes. **Integrated**: shimmer, lines, an avatar row, a card and table rows (components 98338a43…401c33b2; gallery 25974388, docs 277f601f, ad07a67c, c134284c.)
 - **Spinner.** Kinds: ring (today), dots, bars, pulse, orbit, an
   indeterminate ring shared with Progress; sizes and tones; a label beside
-  it.
+  it. **Integrated**: five kinds, sizes, tones and a label (components 98338a43…401c33b2; gallery 25974388, docs 277f601f, ad07a67c, c134284c.) The ring shared with Progress stays open.
 - **Item.** Say what it is (the row primitive: media, title, description,
   actions) and show it: settings rows, a notification list, a file row, a
-  selectable item, a link item.
+  selectable item, a link item. **Integrated**: the row primitive, pressable and chosen, `Item.group`; settings rows and a choice of rows (components 98338a43…401c33b2; gallery 25974388, docs 277f601f, ad07a67c, c134284c.)
 - **Empty.** Make it read as empty: a muted icon or illustration slot, a
   dashed border option, title, description, actions; examples for no
-  results, first use and an error.
+  results, first use and an error. **Integrated**: media, a dashed or filled frame, the danger tone; no results, first use and an error (components 98338a43…401c33b2; gallery 25974388, docs 277f601f, ad07a67c, c134284c.)
 
 ### Form controls
 
@@ -416,12 +422,12 @@ decides adopt, adapt or skip.
   alphanumeric, sizes.
 - **Password Input.** Check its slots against shadcn's and Zag's: a strength
   Meter slot (Meter synergy), a caps-lock hint, a requirements list, the
-  toggle's placement.
+  toggle's placement. **Integrated**: strength, requirements, a Caps Lock hint (components fc7fb1c9…340a5273; gallery 0a4e23f4; docs 277f601f, ad07a67c, c134284c.)
 - **Tags Input.** Show a refused tag (a repeat or an empty part): a message
   slot and a brief shake, travel-aware, announced politely; suggestions
-  through the Combobox; a maximum; chips as Badges.
+  through the Combobox; a maximum; chips as Badges. **Integrated**: refusals in a `message` with a shake, a maximum (components fc7fb1c9…340a5273; gallery 0a4e23f4; docs 277f601f, ad07a67c, c134284c.) Suggestions are the multiple Combobox with chips.
 - **InputCopy.** The focus ring (B, A2); go back to "Copy" after a delay the
-  application sets (`InputCopy.Reset` after `ms`, as a Command).
+  application sets (`InputCopy.Reset` after `ms`, as a Command). **Integrated**: `InputCopy.Model` and `Reset` after `resetAfter` (components fc7fb1c9…340a5273; gallery 0a4e23f4; docs 277f601f, ad07a67c, c134284c.)
 - **Slider / Range Slider.** Merge (A9); Fluid's look: a thick rounded
   track, the value inside or above the thumb, marks and ticks, steps,
   vertical.
@@ -433,7 +439,7 @@ decides adopt, adapt or skip.
   the APG): width matched to the input and configurable (A4); icons and
   descriptions; multiple selection with chips (TagsInput synergy); async
   loading; creatable; groups; matched text highlighted; an empty state;
-  clear; long lists through VirtualList.
+  clear; long lists through VirtualList. **Integrated**: chips, clear, empty and loading, groups, creatable, the typed text marked; `Combobox.draw` through `drawCombobox`'s `beforeInput`/`afterInput`/`afterPanel` (9ae2b484) (components fc7fb1c9…340a5273; gallery 0a4e23f4; docs 277f601f, ad07a67c, c134284c.) Long lists through VirtualList stay open (an upstream row seam).
 - **Dates.** Merge (A9). Typography like shadcn's and ReUI's (weights,
   tabular numbers, muted weekday labels and outside days). Edge cases: min
   and max, disabled dates, outside days, the locale's first day, week
@@ -466,24 +472,24 @@ decides adopt, adapt or skip.
 ### Overlays and menus
 
 - **Menus.** Merge the pages (A9); concentric rows (A2); checkbox and radio
-  items, shortcuts, submenus in the top layer (A4). Menubar gets the same.
+  items, shortcuts, submenus in the top layer (A4). Menubar gets the same. **Integrated**: checkbox and radio rows, groups, shortcuts and a destructive tone, Menubar too (components 4381fa3d, 3a90b39b, 5b9724c9, 6d7d3573, e4cf287c, 9f932a14; gallery aa2c829b, 81abe761; docs 277f601f, ad07a67c, c134284c.)
 - **Command.** Concentric (A2); from Fluid's
   [command menu](https://www.fluidfunctionalism.com/docs/command-menu?preset=kd4OW):
   groups with headings, shortcuts as Kbd, icons, a footer with key hints, an
-  empty and a loading state, nested pages, ⌘K in a dialog.
+  empty and a loading state, nested pages, ⌘K in a dialog. **Integrated**: icons, descriptions, pages, loading, hints, keycaps, ⌘K in a dialog (components 4381fa3d, 3a90b39b, 5b9724c9, 6d7d3573, e4cf287c, 9f932a14; gallery aa2c829b, 81abe761; docs 277f601f, ad07a67c, c134284c.)
 - **Popover, Tooltip, Hover Card.** A4 (top layer, collision, arrows,
-  anchors), and more examples per page.
+  anchors), and more examples per page. **Integrated**: in the top layer through `Anchor.layer`, placement defaults with flip and shift, arrows; examples per page (components 85038b4d…e3a96a7c; gallery 990d9579; docs 277f601f, ad07a67c, c134284c.)
 - **Dialog.** Merge (A9); sizes, a scrolling body with a sticky footer
-  (A5), a form, a destructive confirmation, nested.
+  (A5), a form, a destructive confirmation, nested. **Integrated**: sizes to `xl` and `full`, a scrolling body under a footer, a form, nested with `covered` (components 85038b4d…e3a96a7c; gallery 990d9579; docs 277f601f, ad07a67c, c134284c.)
 - **Sheet / Drawer.** The hardest. A brief over vaul, Radix and Base UI
   dialogs, Zag's dialog, Fluid and ReUI: drag to dismiss with velocity,
   snap points, the handle as a real slot, nested drawers, scaling the page
   behind, scroll lock, safe areas on a phone, the top layer (A4), focus,
-  sides and sizes, non-modal. One component (A9).
+  sides and sizes, non-modal. One component (A9). **Integrated**: `Sheet`, its handle dragging between points and away with vaul's thresholds, sides, nested, scaling the page (components 85038b4d…e3a96a7c; gallery 990d9579; docs 277f601f, ad07a67c, c134284c.) Non-modal waits on upstream (E9).
 - **Toast.** Rebuild after Sonner, Fluid and ReUI: a stack that expands on
   hover, swipe to dismiss, positions, a type with its icon, promise toasts
   (loading to success), actions, a duration that pauses on hover and focus,
-  a maximum shown, reduced motion.
+  a maximum shown, reduced motion. **Integrated**: the `Toast` component, its types, a promise, an action, the rich tone and positions on the Toast page (components 4381fa3d, 3a90b39b, 5b9724c9, 6d7d3573, e4cf287c, 9f932a14; gallery aa2c829b, 81abe761; docs 277f601f, ad07a67c, c134284c.) A focus hotkey and swipe velocity stay open.
 
 ### Data
 
@@ -676,10 +682,12 @@ green commit. Shared history is not rewritten.
 - [x] Pagination: the page-size select; compact mode hides the total. **Done**: 8fb1105b.
 - [ ] Steps: vertical connectors do not reach the markers; Badge/Avatar
   markers and a Progress connector are open. **Partly**: the vertical line reaches both markers (b41a6fba); the Badge/Avatar markers and a Progress connector stay open.
-- [ ] Select: no dropdown arrow (`appearance: none`, nothing drawn) and a
+- [x] Select: no dropdown arrow (`appearance: none`, nothing drawn) and a
   placeholder that `::placeholder` cannot mute; and it was narrowed to the
   native control and marked Checked, while Fluid's select is a custom
   listbox: the custom Select (over Listbox) with Fluid's examples.
+  **Done**: the chevron, the muted placeholder and `Listbox.parts` in
+  fc7fb1c9…340a5273; the custom examples on the Select page in 0a4e23f4.
 - [ ] Checkbox Group: `setEnabled` drops a checked disabled option
   (`checkboxGroup.ts:77-80`), contrary to "counts for neither"; uneven row
   spacing; the disabled label not dimmed; select-all outside the group above
@@ -717,6 +725,35 @@ green commit. Shared history is not rewritten.
   incident (prettier, not oxfmt), and kitchen-sink's missing
   `foldkit-primitives` mapping (the ScrollBars README snippet was never
   compiled). Add the reformat commit 573d4529 to `.git-blame-ignore-revs`. **Done**: 4b6ae0c3.
+
+### E9. Integration of Parts C and E (2026-10-16)
+
+- [x] The site builds again after the Menubar, Command and Tooltip breaks. **Done**: aa2c829b.
+- [x] Index exports for the Sheet, the avatar and item groups and the new types, and the
+  token gate over the group recipes and the Sheet. **Done**: 576d34e0.
+- [x] `Combobox.draw` draws through `drawCombobox`'s seams, with its mutations re-anchored;
+  the date picker's hidden input carries its name in server markup (a render-to-string
+  test; `h.Name` was already serialized in Foldkit 0.168). **Done**: 9ae2b484.
+- [x] The button comment, the root's unused prettier, kitchen-sink's `foldkit-primitives`.
+  **Done**: 12f0e229, 161927b4.
+- [x] Gallery examples for display, forms, menus, Command, Toast and the overlays, each
+  with widgets state of its own. **Done**: 25974388, 0a4e23f4, 81abe761, 990d9579.
+- [x] CHANGELOG, the mixins-ui README (its opening claim of no component state too) and
+  the skill. **Done**: 277f601f, ad07a67c, c134284c.
+- [ ] Screenshots of every changed gallery page at 390 and 1280, light and dark.
+- [ ] A Dialog's `initialFocus` on a `Button.view`: the view takes no attributes, so the
+  alert example cannot spread it on Cancel.
+
+Needs `@foldkit/ui` (open):
+
+- [ ] A non-modal Dialog: `InitConfig.isModal?` passed to `showDialog` and
+  `AcquireResources`, skipping the scroll lock when false; it gives a non-modal Sheet.
+- [ ] The Tooltip's arrow: `arrowId(id)` and an `arrow` bundle in its `RenderInfo`, so
+  `PlaceArrow` and its `!important` override can go.
+- [ ] Collision inside a top-layer ancestor: a `boundary`/`rootBoundary` in
+  `AnchorConfig`, or a top layer the anchor owns (foldkit/foldkit#1683).
+- [ ] A modal `<dialog>` in the top layer: upstream opens it with `show()` and a z-index,
+  so a transformed ancestor captures it.
 
 ## Part D: sequence
 
