@@ -290,4 +290,32 @@ describe('Menu.update', () => {
       expect(open(press(onShare, 'ArrowRight').model)).toEqual([true, false])
     })
   })
+
+  it('a chosen check row names itself and leaves the menu as it was, open', () => {
+    const before = onRow(0)
+    const result = Menu.update(before, Menu.Message.ChoseCheck({ value: 'Grid' }))
+    expect(result.model).toBe(before)
+    expect(result.outMessage).toEqual(
+      Menu.OutMessage.Selected({ value: 'Grid', submenu: Option.none() }),
+    )
+  })
+
+  it('finds the check row a Menu Message chooses, and no other', () => {
+    const rows: ReadonlyArray<Menu.Row> = [
+      { label: 'Cut' },
+      { label: 'Grid', check: 'checkbox', checked: false },
+    ]
+    const chosen = (index: number) =>
+      Menu.checkChosen(rows, UiMenu.Message.SelectedItem({ index, item: 'x' }))
+    expect(Option.map(chosen(1), row => row.label)).toEqual(Option.some('Grid'))
+    expect(chosen(0)).toEqual(Option.none())
+    expect(Menu.checkChosen(rows, UiMenu.Message.RequestedItemClick({ index: 1 }))).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('names keys drawn as symbols for aria-keyshortcuts', () => {
+    expect(Menu.keyShortcuts(['⌘', '⇧', 'P'])).toBe('Meta+Shift+P')
+    expect(Menu.keyShortcuts(['Ctrl', 'constructor'])).toBe('Control+constructor')
+  })
 })

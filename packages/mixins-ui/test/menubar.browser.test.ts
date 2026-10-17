@@ -52,9 +52,9 @@ const mount = () => {
             label: 'Editor',
             model: model.bar,
             menus: [
-              { label: 'File', items: ['New'] },
-              { label: 'Edit', items: ['Copy'] },
-              { label: 'View', items: ['Zoom'] },
+              { label: 'File', rows: [{ label: 'New' }] },
+              { label: 'Edit', rows: [{ label: 'Copy' }] },
+              { label: 'View', rows: [{ label: 'Zoom' }] },
             ],
             onMessage: got,
             direction: 'rtl',

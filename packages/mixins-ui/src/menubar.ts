@@ -8,7 +8,14 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import { readingKey } from './direction.js'
-import { toView as menuToView } from './menu.js'
+import {
+  checkChosen,
+  grouping,
+  toView as menuToView,
+  withRows,
+  type LeafRow,
+} from './menu.js'
+import type { KbdSlots } from './kbd.js'
 import { create, type MenuBundle } from './menuView.js'
 import { drawMenu } from './popupView.js'
 import type { MixinList } from './resolve.js'
@@ -57,6 +64,8 @@ export const Message = defineMessageUnion({
   Pressed: { key: BarKey },
   /** The pointer reached the trigger at `to`. */
   Hovered: { to: Schema.Number },
+  /** A checkbox or radio row of the menu at `menu` chosen, which leaves it open. */
+  ChoseCheck: { menu: Schema.Number, value: Schema.String },
   CompletedFocusTrigger: {},
 })
 export type Message = typeof Message.Type
@@ -197,14 +206,19 @@ export const update = (model: Model, message: Message): Return =>
     },
     Hovered: ({ to }) =>
       Option.isSome(openIndex(model)) ? opened(model, to, Option.none()) : { model },
+    ChoseCheck: ({ menu, value }) => ({
+      model,
+      outMessage: OutMessage.Selected({ menu, value }),
+    }),
     CompletedFocusTrigger: () => ({ model }),
   })
 
 export interface MenubarMenu {
   /** The trigger's text. */
   readonly label: string
-  readonly items: ReadonlyArray<string>
-  readonly isItemDisabled?: ((item: string) => boolean) | undefined
+  /** A Menu's rows, but none opens a submenu: checkbox and radio rows, shortcuts, groups and tones. */
+  readonly rows: ReadonlyArray<LeafRow>
+  readonly isRowDisabled?: ((label: string) => boolean) | undefined
 }
 
 export interface MenubarView<ParentMessage> {
@@ -224,6 +238,8 @@ export interface MenubarView<ParentMessage> {
   readonly style?: NamedStyle<typeof MenubarSlots> | undefined
   /** The menus' mixins: a style of `MenuSlots` (`Recipes.MenubarMenu`), and `Menu.fluid`. */
   readonly menuMixins: MixinList<ParentMessage>
+  /** A style of `KbdSlots` for the rows' shortcuts (`Recipes.Kbd`); without one they are the keys' words. */
+  readonly kbd?: NamedStyle<typeof KbdSlots> | undefined
 }
 
 export const view = <ParentMessage>(
@@ -261,15 +277,21 @@ export const view = <ParentMessage>(
               view: Menus.view,
               viewInputs: {
                 anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
-                items: shown.items,
+                items: shown.rows.map(row => row.label),
                 itemToConfig: (item: string) => ({ content: h.span([], [item]) }),
-                isItemDisabled: shown.isItemDisabled ?? (() => false),
+                isItemDisabled: shown.isRowDisabled ?? (() => false),
                 buttonContent: h.span([], [shown.label]),
+                ...grouping(shown.rows, h),
                 // The bar's tab stop, and a trigger as the APG's menubar names it.
                 toView: menuToView(options.menuMixins, { h }, resolved =>
                   drawMenu(
                     {
-                      ...resolved,
+                      ...withRows(
+                        resolved,
+                        shown.rows,
+                        { mixins: options.menuMixins, kbd: options.kbd },
+                        h,
+                      ),
                       button: [
                         ...resolved.button,
                         h.Role('menuitem'),
@@ -280,7 +302,13 @@ export const view = <ParentMessage>(
                   ),
                 ),
               },
-              toParentMessage: message => onMessage(Message.GotMenu({ index, message })),
+              toParentMessage: message =>
+                onMessage(
+                  Option.match(checkChosen(shown.rows, message), {
+                    onSome: row => Message.ChoseCheck({ menu: index, value: row.label }),
+                    onNone: () => Message.GotMenu({ index, message }),
+                  }),
+                ),
             }),
           ],
         ),

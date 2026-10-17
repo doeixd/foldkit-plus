@@ -51,7 +51,16 @@
  */
 import * as UiMenu from '@foldkit/ui/menu'
 import { Effect, Match, Option, Schema } from 'effect'
-import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import {
+  Attr,
+  Behavior,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  type NamedStyle,
+  type SlotAttributes,
+} from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -59,6 +68,8 @@ import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import { FluidHover, ScrollBars } from 'foldkit-primitives/dom'
 import { readingKey } from './direction.js'
+import * as Kbd from './kbd.js'
+import type { KbdSlots } from './kbd.js'
 import { scrollBarOf } from './popupScroll.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 import {
@@ -109,10 +120,21 @@ export const MenuSlots = Slots.define({
   scrollThumb: Slot.make({ capability: Capability.Container }),
   /** A row's words, which `view` draws. */
   label: Slot.make({ capability: Capability.Container }),
-  /** A submenu row's content, laid out as the row's own (`display: contents`). */
+  /**
+   * A row's content, laid out as the row's own (`display: contents`); a
+   * submenu row's says whether its submenu shows (`data-open`).
+   */
   sub: Slot.make({ capability: Capability.Container }),
   /** The mark that a row opens a submenu. */
   chevron: Slot.make({ capability: Capability.Container }),
+  /**
+   * A checkbox or radio row's mark, before its words, with `data-kind` and
+   * `data-checked`; every row of a menu holding one draws one, empty, so
+   * the words line up.
+   */
+  check: Slot.make({ capability: Capability.Container }),
+  /** The keys that run a row elsewhere, at its end, drawn as `Kbd.combo`. */
+  shortcut: Slot.make({ capability: Capability.Container }),
 })
 
 export type ResolvedMenuItem<Message> = Omit<MenuItemRender, 'attributes'> & {
@@ -250,7 +272,7 @@ export const fluid = [
         mount: () =>
           FluidHover({
             name: 'popup-hover',
-            item: '[role="menuitem"]',
+            item: '[role^="menuitem"]',
             axis: 'y',
             gapClick: true,
             follows: '[data-active]',
@@ -279,11 +301,213 @@ export const overlayBars = [
   ).mixin,
 ] as const
 
-/** One row of the menu; a row with `items` opens a submenu of them. */
-export interface Row {
+/** What any row may carry beside its words. */
+interface RowParts {
   readonly label: string
-  readonly items?: ReadonlyArray<string> | undefined
+  /**
+   * The keys that run it elsewhere, such as `['⌘', 'C']`: drawn at the row's
+   * end and named in its `aria-keyshortcuts` (`Meta+C`). The menu binds
+   * nothing; the application listens for them.
+   */
+  readonly shortcut?: readonly [string, ...ReadonlyArray<string>] | undefined
+  /** `'destructive'` for a row that deletes or cannot be undone: `data-tone` on the row. */
+  readonly tone?: 'destructive' | undefined
+  /**
+   * The heading of the group it stands in. Rows next to each other with one
+   * group are a `group` under one heading, and a separator parts groups. A
+   * group's rows stand together: the same name again starts another group.
+   */
+  readonly group?: string | undefined
+}
+
+/** A row chosen to run it, which closes the menu. */
+export interface ItemRow extends RowParts {
+  readonly check?: undefined
+  readonly items?: undefined
+}
+
+/**
+ * A row that is on or off: `menuitemcheckbox` or `menuitemradio`, with
+ * `aria-checked`. Choosing it sends `Selected` and leaves the menu open, as
+ * Base UI's checkbox and radio items do, so several can be set in one
+ * visit; the application keeps `checked`, and a radio row's group is the
+ * rows of its `group`.
+ */
+export interface CheckRow extends RowParts {
+  readonly check: 'checkbox' | 'radio'
+  readonly checked: boolean
+  readonly items?: undefined
+}
+
+/** A row that opens a submenu of `items`. */
+export interface SubmenuRow extends RowParts {
+  readonly items: ReadonlyArray<string>
   readonly isItemDisabled?: ((item: string) => boolean) | undefined
+  readonly check?: undefined
+}
+
+/** A row that opens nothing: what a Menubar's menus hold. */
+export type LeafRow = ItemRow | CheckRow
+
+/** One row of the menu. */
+export type Row = LeafRow | SubmenuRow
+
+const isCheck = (row: Row): row is CheckRow => row.check !== undefined
+const isSubmenu = (row: Row): row is SubmenuRow => row.items !== undefined
+
+// A Map: a key is read by what the application wrote, and a plain object
+// would answer `constructor` from its prototype.
+const KEY_NAMES: ReadonlyMap<string, string> = new Map([
+  ['⌘', 'Meta'],
+  ['⌃', 'Control'],
+  ['⌥', 'Alt'],
+  ['⇧', 'Shift'],
+  ['↵', 'Enter'],
+  ['⏎', 'Enter'],
+  ['⌫', 'Backspace'],
+  ['⌦', 'Delete'],
+  ['⎋', 'Escape'],
+  ['⇥', 'Tab'],
+  ['↑', 'ArrowUp'],
+  ['↓', 'ArrowDown'],
+  ['←', 'ArrowLeft'],
+  ['→', 'ArrowRight'],
+  ['Ctrl', 'Control'],
+  ['Cmd', 'Meta'],
+  ['Esc', 'Escape'],
+])
+
+/** The `aria-keyshortcuts` value of keys drawn as symbols: `['⌘', '⇧', 'P']` is `Meta+Shift+P`. */
+export const keyShortcuts = (keys: ReadonlyArray<string>): string =>
+  keys.map(key => KEY_NAMES.get(key) ?? key).join('+')
+
+/**
+ * The view inputs that set `rows` in their groups under their headings, for
+ * a Menu's `viewInputs`; none when no row names a group. A group is keyed by
+ * its first row, since a heading's words make no id.
+ */
+export const grouping = <Message>(
+  rows: ReadonlyArray<Row>,
+  h: HtmlBuilder<Message>,
+): Pick<UiMenu.ViewInputs<string>, 'itemGroupKey' | 'groupToHeading'> => {
+  if (!rows.some(row => row.group !== undefined)) return {}
+  const keys: Array<string> = []
+  rows.forEach((row, index) => {
+    const starts = index === 0 || rows[index - 1]?.group !== row.group
+    keys.push(starts ? `g${index}` : (keys[index - 1] ?? `g${index}`))
+  })
+  const headings = new Map(
+    rows.flatMap((row, index) =>
+      row.group === undefined ? [] : [[keys[index] ?? '', row.group] as const],
+    ),
+  )
+  return {
+    itemGroupKey: (_item, index) => keys[index] ?? '',
+    groupToHeading: key =>
+      Option.match(Option.fromNullishOr(headings.get(key)), {
+        onNone: () => undefined,
+        onSome: words => ({ content: h.span([], [words]) }),
+      }),
+  }
+}
+
+/**
+ * The check row a Menu Message chooses, if it chooses one. Send its
+ * `Selected` in place of the Message: the Menu's own `update` would close.
+ */
+export const checkChosen = (
+  rows: ReadonlyArray<Row>,
+  message: UiMenu.Message,
+): Option.Option<CheckRow> =>
+  Match.value(message).pipe(
+    Match.tag('SelectedItem', ({ index }) =>
+      Option.filter(Option.fromNullishOr(rows[index]), isCheck),
+    ),
+    Match.orElse(() => Option.none()),
+  )
+
+export interface RowsOptions<Message> {
+  /** The menu's mixins: they style the rows' words, marks and shortcuts too. */
+  readonly mixins: MixinList<Message>
+  /** A style of `KbdSlots` for the shortcuts' keys; without one they are the keys' words alone. */
+  readonly kbd?: NamedStyle<typeof KbdSlots> | undefined
+}
+
+/**
+ * A resolved menu with `rows` drawn in its rows, by index: each row's words
+ * (`label`), a checkbox or radio row's role, `aria-checked` and `check`
+ * mark, a shortcut and its `aria-keyshortcuts`, a tone, and a `separator`
+ * before every group after the first. Upstream draws a separator only from
+ * attributes an application cannot write, so it is drawn here.
+ */
+export const withRows = <Message>(
+  resolved: ResolvedMenu<Message>,
+  rows: ReadonlyArray<Row>,
+  options: RowsOptions<Message>,
+  h: HtmlBuilder<Message>,
+): ResolvedMenu<Message> => {
+  const builders = buildersOf(MenuSlots, options.mixins, { h })
+  const marked = rows.some(isCheck)
+  const draw = (item: ResolvedMenuItem<Message>, row: Row): ResolvedMenuItem<Message> => ({
+    ...item,
+    attributes: [
+      ...item.attributes,
+      ...(isCheck(row)
+        ? [
+            h.Role(row.check === 'checkbox' ? 'menuitemcheckbox' : 'menuitemradio'),
+            h.AriaChecked(row.checked),
+          ]
+        : []),
+      ...(row.tone === undefined ? [] : [h.DataAttribute('tone', row.tone)]),
+      ...(row.shortcut === undefined ? [] : [h.AriaKeyshortcuts(keyShortcuts(row.shortcut))]),
+    ],
+    content: h.span(builders.sub.attrs([h.Style({ display: 'contents' })]), [
+      ...(marked
+        ? [
+            h.span(
+              builders.check.attrs([
+                h.AriaHidden(true),
+                ...(isCheck(row)
+                  ? [
+                      h.DataAttribute('kind', row.check),
+                      h.DataAttribute('checked', String(row.checked)),
+                    ]
+                  : []),
+              ]),
+              [],
+            ),
+          ]
+        : []),
+      h.span(builders.label.attrs(), [row.label]),
+      ...(row.shortcut === undefined
+        ? []
+        : [
+            h.span(builders.shortcut.attrs([h.AriaHidden(true)]), [
+              Kbd.combo({ keys: row.shortcut, style: options.kbd }, h),
+            ]),
+          ]),
+    ]),
+  })
+  const groups = resolved.groups.map((group, at) => {
+    const first = resolved.groups.slice(0, at).reduce((count, each) => count + each.items.length, 0)
+    return {
+      ...group,
+      separator:
+        at === 0 || group.separator !== undefined
+          ? group.separator
+          : {
+              key: `${resolved.id}-separator-${at}`,
+              attributes: builders.separator.attrs([h.Role('separator')]),
+            },
+      items: group.items.map((item, offset) =>
+        Option.match(Option.fromNullishOr(rows[first + offset]), {
+          onNone: () => item,
+          onSome: row => draw(item, row),
+        }),
+      ),
+    }
+  })
+  return { ...resolved, groups }
 }
 
 /** A point in viewport pixels. */
@@ -388,6 +612,8 @@ export const Message = defineMessageUnion({
   CompletedHoverDelay: { hover: Schema.Number, row: Schema.Number },
   /** A right press on the `target` area, at its point. */
   PressedTarget: { point: Point },
+  /** A checkbox or radio row chosen, which leaves the menu open: its words. */
+  ChoseCheck: { value: Schema.String },
   /** The `target` area's `contextmenu`: a right press, Shift+F10 or the ContextMenu key. */
   RequestedContextMenu: {},
 })
@@ -706,6 +932,10 @@ export const update = (model: Model, message: Message): Return =>
       })
     },
     PressedTarget: ({ point }) => ({ model: written(model, { press: Option.some(point) }) }),
+    ChoseCheck: ({ value }) => ({
+      model,
+      outMessage: OutMessage.Selected({ value, submenu: Option.none() }),
+    }),
     // The press before it, if any, is where it opens; the keyboard's opens
     // at the area. Its first row active, as a key opening a Menu leaves it.
     RequestedContextMenu: () =>
@@ -756,6 +986,8 @@ export interface MenuViewOptions<ParentMessage> {
    * which its highlight would chase too.
    */
   readonly submenuMixins?: MixinList<ParentMessage> | undefined
+  /** A style of `KbdSlots` for the rows' shortcuts (`Recipes.Kbd`); without one they are the keys' words. */
+  readonly kbd?: NamedStyle<typeof KbdSlots> | undefined
 }
 
 /** A submenu's button: over its row, so the submenu's anchor places it beside the row. */
@@ -783,14 +1015,14 @@ export const view = <ParentMessage>(
   const label = (text: string) => h.span(builders.label.attrs(), [text])
   const submenuSide = options.direction === 'rtl' ? 'left-start' : 'right-start'
 
-  const drawSubmenu = (sub: Submenu, items: ReadonlyArray<string>, row: Row, labelId: string) =>
+  const drawSubmenu = (sub: Submenu, row: SubmenuRow, labelId: string) =>
     h.submodel({
       slotId: sub.menu.id,
       model: sub.menu,
       view: Menus.view,
       viewInputs: {
         anchor: { placement: submenuSide, gap: 8, padding: 8, portal: false },
-        items,
+        items: row.items,
         itemToConfig: (item: string) => ({ content: label(item) }),
         isItemDisabled: row.isItemDisabled ?? (() => false),
         buttonContent: label(row.label),
@@ -829,15 +1061,11 @@ export const view = <ParentMessage>(
           const index = start + offset
           const hosted = Option.all({
             sub: submenuAt(model, index),
-            row: Option.fromNullishOr(rows[index]),
-          }).pipe(
-            Option.flatMap(({ sub, row }) =>
-              Option.map(Option.fromNullishOr(row.items), items => ({ sub, row, items })),
-            ),
-          )
+            row: Option.filter(Option.fromNullishOr(rows[index]), isSubmenu),
+          })
           return Option.match(hosted, {
             onNone: () => item,
-            onSome: ({ sub, row, items }) => {
+            onSome: ({ sub, row }) => {
               const labelId = `${item.key}-label`
               return {
                 ...item,
@@ -856,9 +1084,11 @@ export const view = <ParentMessage>(
                     h.DataAttribute('open', String(sub.menu.isOpen)),
                   ]),
                   [
+                    // The words line up with a checkbox or radio row's.
+                    ...(marked ? [h.span(builders.check.attrs([h.AriaHidden(true)]), [])] : []),
                     h.span(builders.label.attrs([h.Id(labelId)]), [row.label]),
                     h.span(builders.chevron.attrs([h.AriaHidden(true)]), []),
-                    drawSubmenu(sub, items, row, labelId),
+                    drawSubmenu(sub, row, labelId),
                   ],
                 ),
               }
@@ -869,6 +1099,7 @@ export const view = <ParentMessage>(
     })
 
   const anyOpen = Option.isSome(openSubmenu(model))
+  const marked = rows.some(isCheck)
 
   return h.submodel({
     slotId: model.menu.id,
@@ -880,8 +1111,10 @@ export const view = <ParentMessage>(
       itemToConfig: (item: string) => ({ content: label(item) }),
       isItemDisabled: options.isRowDisabled ?? (() => false),
       buttonContent: options.buttonContent,
-      toView: toView(options.mixins, { h }, resolved =>
-        drawMenu(
+      ...grouping(rows, h),
+      toView: toView(options.mixins, { h }, given => {
+        const resolved = withRows(given, rows, { mixins: options.mixins, kbd: options.kbd }, h)
+        return drawMenu(
           {
             ...resolved,
             // So the CSS reads the direction the keys do: a submenu's chevron points where it opens.
@@ -920,9 +1153,15 @@ export const view = <ParentMessage>(
             groups: withSubmenus(resolved.groups),
           },
           h,
-        ),
-      ),
+        )
+      }),
     },
-    toParentMessage: message => onMessage(Message.GotMenu({ message })),
+    toParentMessage: message =>
+      onMessage(
+        Option.match(checkChosen(rows, message), {
+          onSome: row => Message.ChoseCheck({ value: row.label }),
+          onNone: () => Message.GotMenu({ message }),
+        }),
+      ),
   })
 }
