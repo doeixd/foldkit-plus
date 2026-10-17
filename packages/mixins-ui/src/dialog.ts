@@ -1,5 +1,5 @@
 import type { Message as DialogMessage, RenderInfo } from '@foldkit/ui/dialog'
-import { Attr, Behavior, Capability, Event, Slot, Slots } from 'foldkit-mixins'
+import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { ScrollBars } from 'foldkit-primitives/dom'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
@@ -85,6 +85,11 @@ export interface DialogContext<Input, Message> extends ResolveContext<Input, Mes
    * dialogs: the panel carries `data-covered`, and the recipe steps it back.
    */
   readonly covered?: boolean
+  /**
+   * Attributes added to a bundle before the mixins resolve, as the Sheet adds
+   * its drag to the panel and the handle.
+   */
+  readonly attributes?: { readonly [K in keyof typeof DialogSlots]?: SlotAttributes<Message> }
 }
 
 /** Resolves the dialog's render groups; `isVisible` passes through unchanged. */
@@ -93,24 +98,30 @@ export const resolve = <Input, Message>(
   mixins: MixinList<Message>,
   context: DialogContext<Input, Message>,
 ): ResolvedDialog<Message> => {
-  const dialog =
-    context.role === 'alertdialog'
-      ? [...render.dialog, context.h.Role('alertdialog')]
-      : render.dialog
-  const { h } = context
-  return resolveFor(
-    DialogSlots,
-    mixins,
-    context,
-  )({
-    ...render,
-    dialog,
+  const { h, attributes = {} } = context
+  const own: { readonly [K in keyof typeof DialogSlots]: SlotAttributes<Message> } = {
+    dialog:
+      context.role === 'alertdialog' ? [...render.dialog, h.Role('alertdialog')] : render.dialog,
+    backdrop: render.backdrop,
     panel:
       context.covered === true ? [...render.panel, h.DataAttribute('covered', '')] : render.panel,
+    title: render.title,
+    description: render.description,
+    initialFocus: render.initialFocus,
+    closeButton: render.closeButton,
     handle: [h.AriaHidden(true)],
+    body: [],
+    scroll: [],
     // Hidden from assistive technology: the body is what a reader scrolls.
     scrollBar: [h.DataAttribute('scroll-bar', 'block'), h.AriaHidden(true)],
-  })
+    scrollThumb: [],
+    footer: [],
+  }
+  const extra = new Map<string, SlotAttributes<Message>>(Object.entries(attributes))
+  const added = Object.fromEntries(
+    Object.entries(own).map(([slot, base]) => [slot, [...base, ...(extra.get(slot) ?? [])]]),
+  )
+  return resolveFor(DialogSlots, mixins, context)({ ...render, ...own, ...added })
 }
 
 /**
