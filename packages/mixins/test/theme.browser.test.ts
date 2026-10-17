@@ -324,3 +324,34 @@ test('the surface contrast knob spans steps a reader sees', () => {
     document.documentElement.style.removeProperty('--fk-knob-surface-contrast')
   }
 })
+
+/** OKLab of a computed OKLCH color, times 100, as the dataviz checks measure it. */
+const labOf = (color: string): readonly [number, number, number] => {
+  const lch = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(color)
+  if (lch === null) throw new Error(`not an OKLCH color: ${color}`)
+  const [l, c, h] = [Number(lch[1]), Number(lch[2]), (Number(lch[3]) * Math.PI) / 180]
+  return [l * 100, c * Math.cos(h) * 100, c * Math.sin(h) * 100]
+}
+
+test.each([
+  ['light', 0.43, 0.77],
+  ['dark', 0.48, 0.67],
+] as const)(
+  'in a %s scheme, the chart colors sit in the band, keep their chroma, and neighbors tell apart',
+  (scheme, low, high) => {
+    install(scheme)
+    const colors = ['1', '2', '3', '4', '5'].map(n => computed(`chart-${n}`))
+    for (const color of colors) {
+      expect(lightnessOf(color), color).toBeGreaterThanOrEqual(low)
+      expect(lightnessOf(color), color).toBeLessThanOrEqual(high)
+      expect(chromaOf(color), color).toBeGreaterThanOrEqual(0.1)
+    }
+    colors.slice(1).forEach((color, at) => {
+      const [a, b] = [labOf(colors[at]!), labOf(color)]
+      expect(
+        Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]),
+        `${at + 1} beside ${at + 2}`,
+      ).toBeGreaterThanOrEqual(15)
+    })
+  },
+)

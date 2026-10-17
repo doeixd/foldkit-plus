@@ -263,4 +263,26 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts', 'packages/mixins/test/themePage.test.ts'],
   },
+  {
+    name: 'the second chart color on the hue of the first',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "'2': chartInk(145,",
+        replace: "'2': chartInk(0,",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'a chart yellow too light for a dark page',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: '[0.764, 0.161], [0.67, 0.143]',
+        replace: '[0.764, 0.161], [0.8, 0.143]',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
 ]

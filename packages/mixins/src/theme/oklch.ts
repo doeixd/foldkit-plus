@@ -163,6 +163,18 @@ const family = (name: string, defaultValue: string) => {
 const syntaxInk = (hue: string) =>
   ld(`oklch(48% ${v('knob', 'syntax-c')} ${hue})`, `oklch(80% ${v('knob', 'syntax-c')} ${hue})`)
 
+/**
+ * A chart's series color: a hue a fixed turn from the first, at a lightness
+ * and chroma chosen for that hue in each scheme (a yellow sits lighter than a
+ * blue to read as strong). The five are the dataviz reference palette's first
+ * slots, in its order, which keeps neighbors apart under protan and deutan
+ * vision; moving `chart-h` turns them all and keeps the order.
+ */
+const chartInk = (turn: number, light: Step, dark: Step) => {
+  const hue = `calc(${v('knob', 'chart-h')} ${offset(turn)})`
+  return ld(`oklch(${light[0]} ${light[1]} ${hue})`, `oklch(${dark[0]} ${dark[1]} ${hue})`)
+}
+
 /** A feedback family, lighter in a dark scheme so its fill reads on a dark page. */
 const feedback = (name: string, l: number, c: number, dark: number) =>
   family(
@@ -198,6 +210,8 @@ export const oklch = (knobs: OklchKnobs) => {
       'error-h': String(knobs.feedback?.error ?? 25),
       'info-h': String(knobs.feedback?.info ?? 245),
       'syntax-c': num(knobs.syntaxChroma ?? 0.14),
+      // The first chart color's hue; the other four keep their places around it.
+      'chart-h': '255',
       // 0 or 1, each blending one look into the other, so a knob override switches it.
       'popup-bold': knobs.menu?.accent === 'bold' ? '1' : '0',
       'popup-invert': knobs.menu?.color?.startsWith('inverted') === true ? '1' : '0',
@@ -340,6 +354,15 @@ export const oklch = (knobs: OklchKnobs) => {
     // Under 65% in the dark, where the text on a fill turns dark: on red that reads muddy.
     error: feedback('error', 60, 0.2, 64),
     info: feedback('info', 65, 0.15, 70),
+    // Series colors, `chart-1` to `chart-5` as shadcn names them: a chart
+    // assigns them in order, never by rank, so a series keeps its color.
+    chart: {
+      '1': chartInk(0, [0.575, 0.163], [0.622, 0.161]),
+      '2': chartInk(145, [0.671, 0.175], [0.622, 0.173]),
+      '3': chartInk(-93, [0.669, 0.141], [0.621, 0.128]),
+      '4': chartInk(180, [0.764, 0.161], [0.67, 0.143]),
+      '5': chartInk(102, [0.716, 0.141], [0.622, 0.171]),
+    },
     // Code, by the kinds a tokenizer names (`syntax-keyword` is
     // `--fk-syntax-keyword`): each kind in a hue the palette already has, so
     // code follows the brand, and the quiet kinds in the text's own grey.
