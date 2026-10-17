@@ -41,11 +41,11 @@ export default [
     tests: [browser],
   },
   {
-    name: "the accordion's chevron has no right to left turn",
+    name: "the shared chevron (the accordion's) has no right to left turn",
     edits: [
       {
-        file: '../src/recipes/accordion.ts',
-        find: "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),\n",
+        file: '../src/recipes/design.ts',
+        find: "    Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),\n",
         replace: '',
       },
     ],
@@ -86,7 +86,7 @@ export default [
   },
   ...(
     [
-      ['accordion', "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
+      ['design', "    Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
       ['sidebar', "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
       ['treeView', "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
     ] as const

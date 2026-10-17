@@ -26,6 +26,7 @@ import {
   ref,
   transition,
   travelled,
+  turningChevron,
   variant,
 } from './design.js'
 import { shimmer } from './thinkingIndicator.js'
@@ -75,22 +76,7 @@ export const ThinkingSteps = Style.recipeFor(ThinkingStepsSlots)({
       focusRing,
     ),
     summary: component(shimmer('&[data-state="running"]')),
-    // Two sides of a box, turned: along the row while shut, down when open.
-    chevron: component(
-      Style.self({
-        flex: 'none',
-        inlineSize: '0.4em',
-        blockSize: '0.4em',
-        ...cornerSides(ref.border.thick, 'currentColor'),
-        rotate: '-45deg',
-        transitionProperty: 'rotate',
-        transitionDuration: travelled(ref.motion.fast),
-        transitionTimingFunction: ref.motion.settle,
-      }),
-      Style.nest(':where([aria-expanded="true"]) > &', { rotate: '45deg' }),
-      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),
-      Style.nest(':where([aria-expanded="true"]) > &:where(:dir(rtl))', { rotate: '45deg' }),
-    ),
+    chevron: component(turningChevron('[aria-expanded="true"]', '0.4em')),
     // The one grid row the root animates; it clips, so it holds no padding.
     panel: component(Style.self({ minBlockSize: '0', overflow: 'hidden' })),
     list: component(

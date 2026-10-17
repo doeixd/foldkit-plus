@@ -123,6 +123,29 @@ export const cornerSides = (width: string, color: string): Declarations => ({
 export const travelled = (duration: string) => `calc(${duration} * ${ref.knob.travel})`
 
 /**
+ * A chevron of `size`, two sides of a box turned: along the row while shut,
+ * down once its parent matches `open`. Right to left, along the row is the
+ * other way; `:dir()` rather than an ancestor's `[dir]`, which a
+ * left-to-right island in the page also has.
+ */
+export const turningChevron = (open: string, size: string): StyleValue =>
+  Style.compose(
+    Style.self({
+      flex: 'none',
+      inlineSize: size,
+      blockSize: size,
+      ...cornerSides(ref.border.thick, 'currentColor'),
+      rotate: '-45deg',
+      transitionProperty: 'rotate',
+      transitionDuration: travelled(ref.motion.fast),
+      transitionTimingFunction: ref.motion.settle,
+    }),
+    Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),
+    Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),
+    Style.nest(`:where(${open}) > &:where(:dir(rtl))`, { rotate: '45deg' }),
+  )
+
+/**
  * A surface that enters and leaves with `@foldkit/ui`'s animation states
  * (`isAnimated`): it fades and grows from `closed` on `tier`, and a leave
  * runs the quicker exit tween, since CSS takes the duration of the state it

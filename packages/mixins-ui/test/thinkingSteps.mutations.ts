@@ -170,12 +170,12 @@ export default [
     tests: browser,
   },
   {
-    name: 'the chevron does not turn',
+    name: 'the chevron turns with the root, not its trigger',
     edits: [
       {
         file: recipe,
-        find: "      Style.nest(':where([aria-expanded=\"true\"]) > &', { rotate: '45deg' }),\n",
-        replace: '',
+        find: 'turningChevron(\'[aria-expanded="true"]\'',
+        replace: 'turningChevron(open',
       },
     ],
     tests: browser,

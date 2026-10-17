@@ -55,7 +55,7 @@ export default [
     name: 'the chevron does not turn',
     edits: [
       {
-        file: recipe,
+        file: '../src/recipes/design.ts',
         find: "Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),",
         replace: '',
       },

@@ -28,12 +28,12 @@ import { Utilities } from 'foldkit-mixins/utilities'
 import { AccordionSlots } from '../accordion.js'
 import {
   component,
-  cornerSides,
   disabled,
   focusRing,
   ref,
   transition,
   travelled,
+  turningChevron,
   unfilledHover,
   variant,
 } from './design.js'
@@ -105,26 +105,10 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
       Style.nest(`:where(${open}) > &`, { fontWeight: ref.weight.semibold }),
       Utilities.steady('semibold'),
     ),
-    // Two sides of a box, turned: along the row while shut, down when open.
     chevron: component(
-      Style.self({
-        position: 'relative',
-        flex: 'none',
-        inlineSize: '0.45em',
-        blockSize: '0.45em',
-        marginInlineEnd: '0.2em',
-        ...cornerSides(ref.border.thick, 'currentColor'),
-        color: ref.text.muted,
-        rotate: '-45deg',
-        transitionProperty: 'rotate',
-        transitionDuration: travelled(ref.motion.fast),
-        transitionTimingFunction: ref.motion.settle,
-      }),
-      Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),
-      // Right to left, along the row is the other way; `:dir()` rather than an
-      // ancestor's `[dir]`, which a left-to-right island in the page also has.
-      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),
-      Style.nest(`:where(${open}) > &:where(:dir(rtl))`, { rotate: '45deg' }),
+      turningChevron(open, '0.45em'),
+      // Relative for the plus indicator's bars.
+      Style.self({ position: 'relative', marginInlineEnd: '0.2em', color: ref.text.muted }),
     ),
     // The view's own icon, a glyph's size, still: what it shows is the application's.
     icon: component(
