@@ -73,6 +73,9 @@ import {
   SignaturePadSlots,
   QrCodeSlots,
   ChartSlots,
+  CascadeSelectSlots,
+  FloatingPanelSlots,
+  TourSlots,
 } from '../src/index.js'
 import { attributeOf, h, message, type TestMessage } from './fixture.js'
 
@@ -128,6 +131,8 @@ const defined = new Set([
   ...['w', 'h'].map(part => `cropper-natural-${part}`),
   // The signature pad's typed-name face: the recipe sets its default, an application its own.
   'signature-font',
+  // Written on a tour step's progress by `Tour.view`.
+  'tour-progress',
 ])
 
 /** Every selection of a recipe: the defaults, then each value of each axis. */
@@ -220,6 +225,13 @@ const allPieces = [
   ),
   ...selections(Recipes.QrCode.def.variants).map(selection => Recipes.QrCode(selection)),
   ...selections(Recipes.Chart.def.variants).map(selection => Recipes.Chart(selection)),
+  ...selections(Recipes.CascadeSelect.def.variants).map(selection =>
+    Recipes.CascadeSelect(selection),
+  ),
+  ...selections(Recipes.FloatingPanel.def.variants).map(selection =>
+    Recipes.FloatingPanel(selection),
+  ),
+  ...selections(Recipes.Tour.def.variants).map(selection => Recipes.Tour(selection)),
 ].flatMap(pieces => Object.values(pieces))
 
 const compiled = {
@@ -387,6 +399,15 @@ const compiled = {
   ),
   Chart: selections(Recipes.Chart.def.variants).map(
     selection => Style.forSlots(ChartSlots)(Recipes.Chart(selection)).css,
+  ),
+  CascadeSelect: selections(Recipes.CascadeSelect.def.variants).map(
+    selection => Style.forSlots(CascadeSelectSlots)(Recipes.CascadeSelect(selection)).css,
+  ),
+  FloatingPanel: selections(Recipes.FloatingPanel.def.variants).map(
+    selection => Style.forSlots(FloatingPanelSlots)(Recipes.FloatingPanel(selection)).css,
+  ),
+  Tour: selections(Recipes.Tour.def.variants).map(
+    selection => Style.forSlots(TourSlots)(Recipes.Tour(selection)).css,
   ),
 }
 

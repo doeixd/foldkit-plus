@@ -8,10 +8,10 @@
 import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event } from 'foldkit-mixins'
+import { A11y } from 'foldkit-mixins'
 // From the modules, not the index: the test reads nothing else.
-import * as CascadeSelect from '../src/cascadeSelect.js'
 import { CascadeSelectSlots, type Config, type Node } from '../src/cascadeSelect.js'
+import { CascadeSelect, Patterns } from '../src/index.js'
 import { h, message } from './fixture.js'
 
 const { Message, init } = CascadeSelect
@@ -188,25 +188,6 @@ describe('CascadeSelect.update', () => {
   })
 })
 
-/** The contract the package's `A11y` catalog is to hold the select to. */
-const pattern = A11y.pattern({
-  trigger: {
-    capability: Capability.Interactive,
-    events: [Event.Click, Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaExpanded],
-  },
-  panel: {
-    capability: Capability.Interactive,
-    events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
-  },
-  item: {
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaSelected, Attr.AriaExpanded],
-  },
-})
-
 type Step = Parameters<typeof Scene.scene<CascadeSelect.Model, CascadeSelect.Message>>[1]
 
 const scene = (
@@ -236,7 +217,7 @@ const row = (name: string) => Scene.role('treeitem', { name })
 
 describe('CascadeSelect.view', () => {
   it('meets its pattern', () => {
-    expect(A11y.validate(pattern, CascadeSelectSlots)).toEqual([])
+    expect(A11y.validate(Patterns.CascadeSelect, CascadeSelectSlots)).toEqual([])
   })
 
   it('draws a closed trigger with its value, or the placeholder', () => {

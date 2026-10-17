@@ -66,6 +66,9 @@ import { ImageCropperSlots } from './imageCropper.js'
 import { SignaturePadSlots } from './signaturePad.js'
 import { QrCodeSlots } from './qrCode.js'
 import { ChartSlots } from './chart.js'
+import { CascadeSelectSlots } from './cascadeSelect.js'
+import { FloatingPanelSlots } from './floatingPanel.js'
+import { TourSlots } from './tour.js'
 
 /** Whether the widget keeps state of its own (a Submodel) or only decorates. */
 export type Tier = 'stateful' | 'stateless'
@@ -609,6 +612,47 @@ export const Chart = A11y.pattern({
   table: { capability: Capability.Container },
 })
 
+/** A combobox opening a tree of columns, each row a treeitem saying whether it is chosen and open. */
+export const CascadeSelect = A11y.pattern({
+  trigger: {
+    capability: Capability.Interactive,
+    events: [Event.Click, Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaExpanded],
+  },
+  panel: {
+    capability: Capability.Interactive,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel],
+  },
+  item: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role, Attr.AriaSelected, Attr.AriaExpanded],
+  },
+})
+
+/** A non-modal dialog, its drag trigger a named key stop, and a named close. */
+export const FloatingPanel = A11y.pattern({
+  panel: { capability: Capability.Container, attributes: [Attr.Role] },
+  dragTrigger: {
+    capability: Capability.Interactive,
+    events: [Event.KeyDown],
+    attributes: [Attr.AriaLabel],
+  },
+  close: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+  },
+})
+
+/** A step's dialog taking the keys, with presses to go on and to skip. */
+export const Tour = A11y.pattern({
+  panel: { capability: Capability.Interactive, events: [Event.KeyDown], attributes: [Attr.Role] },
+  next: { capability: Capability.Interactive, events: [Event.Click] },
+  skip: { capability: Capability.Interactive, events: [Event.Click] },
+})
+
 export interface Entry {
   readonly name: string
   readonly pattern: A11y.Pattern
@@ -847,4 +891,28 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   ),
   entry('qr-code', QrCode, QrCodeSlots, 'stateless', ['img']),
   entry('chart', Chart, ChartSlots, 'stateful', ['figure', 'group', 'status', 'table']),
+  entry(
+    'cascade-select',
+    CascadeSelect,
+    CascadeSelectSlots,
+    'stateful',
+    ['combobox', 'tree', 'group', 'treeitem', 'button'],
+    ['top-layer', 'backdrop', 'form-submission'],
+  ),
+  entry(
+    'floating-panel',
+    FloatingPanel,
+    FloatingPanelSlots,
+    'stateful',
+    ['dialog', 'button'],
+    ['escape-dismiss'],
+  ),
+  entry(
+    'tour',
+    Tour,
+    TourSlots,
+    'stateful',
+    ['dialog', 'button'],
+    ['top-layer', 'escape-dismiss', 'backdrop'],
+  ),
 ])

@@ -8,10 +8,10 @@
 import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event } from 'foldkit-mixins'
+import { A11y } from 'foldkit-mixins'
 // From the modules, not the index: the test reads nothing else.
-import * as Tour from '../src/tour.js'
 import { TourSlots, type Config } from '../src/tour.js'
+import { Tour, Patterns } from '../src/index.js'
 import { h, message } from './fixture.js'
 
 const { Message, init } = Tour
@@ -103,13 +103,6 @@ describe('Tour.update', () => {
   })
 })
 
-/** The contract the package's `A11y` catalog is to hold the tour to. */
-const pattern = A11y.pattern({
-  panel: { capability: Capability.Interactive, events: [Event.KeyDown], attributes: [Attr.Role] },
-  next: { capability: Capability.Interactive, events: [Event.Click] },
-  skip: { capability: Capability.Interactive, events: [Event.Click] },
-})
-
 type Step = Parameters<typeof Scene.scene<Tour.Model, Tour.Message, Tour.Ended>>[1]
 
 const scene = (
@@ -142,7 +135,7 @@ const layer = Scene.selector('[popover]')
 
 describe('Tour.view', () => {
   it('meets its pattern', () => {
-    expect(A11y.validate(pattern, TourSlots)).toEqual([])
+    expect(A11y.validate(Patterns.Tour, TourSlots)).toEqual([])
   })
 
   it('draws a step as a dialog named and described by it, with its place', () => {

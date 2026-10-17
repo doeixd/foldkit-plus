@@ -8,12 +8,12 @@
 import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event } from 'foldkit-mixins'
+import { A11y } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
 import { Bounds } from 'foldkit-primitives/observers'
 // From the modules, not the index: the test reads nothing else.
-import * as FloatingPanel from '../src/floatingPanel.js'
 import { FloatingPanelSlots, moveRect } from '../src/floatingPanel.js'
+import { FloatingPanel, Patterns } from '../src/index.js'
 import { h, message } from './fixture.js'
 
 const { Message, init } = FloatingPanel
@@ -168,21 +168,6 @@ describe('FloatingPanel.update', () => {
   })
 })
 
-/** The contract the package's `A11y` catalog is to hold the panel to. */
-const pattern = A11y.pattern({
-  panel: { capability: Capability.Container, attributes: [Attr.Role] },
-  dragTrigger: {
-    capability: Capability.Interactive,
-    events: [Event.KeyDown],
-    attributes: [Attr.AriaLabel],
-  },
-  close: {
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-  },
-})
-
 type Step = Parameters<
   typeof Scene.scene<FloatingPanel.Model, FloatingPanel.Message, FloatingPanel.Raised>
 >[1]
@@ -239,7 +224,7 @@ const trigger = Scene.label('Move Notes')
 
 describe('FloatingPanel.view', () => {
   it('meets its pattern', () => {
-    expect(A11y.validate(pattern, FloatingPanelSlots)).toEqual([])
+    expect(A11y.validate(Patterns.FloatingPanel, FloatingPanelSlots)).toEqual([])
   })
 
   it('draws an open panel as a non-modal dialog named by its title, where its rect says', () => {
