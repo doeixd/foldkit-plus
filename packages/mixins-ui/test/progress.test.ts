@@ -1,7 +1,9 @@
 /**
  * Progress as markup: a named progressbar whose value is its own, clamped
  * to its range, with the share done on the root for a ring to draw; and,
- * not known, no value at all, which is what indeterminate means.
+ * not known, no value at all, which is what indeterminate means. A stacked
+ * bar's value is its parts' sum, each part as wide as its share; a value
+ * shown is said once, by the bar; a buffer and segments ride on the track.
  */
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
@@ -57,5 +59,97 @@ describe('Progress.view', () => {
     expect(Inert.value(bar, 'aria-valuenow')).toBeUndefined()
     expect(Inert.style(bar)['--fk-progress']).toBeUndefined()
     expect(Inert.value(bar, 'data-state')).toBe('indeterminate')
+  })
+})
+
+const bar = (options: Partial<Progress.ProgressView<never>>) =>
+  Progress.view({ id: 'disk', label: 'Disk', value: Option.some(25), ...options }, h)
+
+describe('Progress sections', () => {
+  const parts = [
+    { label: 'Photos', value: 30, tone: 'success' as const },
+    { label: 'Mail', value: 20 },
+  ]
+
+  it('takes the parts’ sum as its value, and reads each part aloud', () => {
+    const [root] = Inert.byRole(bar({ value: parts }), 'progressbar')
+    expect(Inert.value(root, 'aria-valuenow')).toBe('50')
+    expect(Inert.value(root, 'aria-valuetext')).toBe('Photos 30, Mail 20')
+    expect(Inert.style(root)['--fk-progress']).toBe('0.5')
+  })
+
+  it('draws each part as wide as its share, in its tone, in place of one fill', () => {
+    const drawn = bar({ value: parts, min: 0, max: 200 })
+    const sections = Inert.all(drawn).filter(node => Inert.value(node, 'data-tone') !== undefined)
+    expect(sections.map(node => Inert.style(node)['inline-size'])).toEqual(['15%', '10%'])
+    expect(sections.map(node => Inert.value(node, 'data-tone'))).toEqual(['success', 'accent'])
+    // The track holds the parts alone.
+    const [track] = Inert.children(Inert.byRole(drawn, 'progressbar')[0]).slice(1)
+    expect(Inert.children(track)).toHaveLength(2)
+  })
+
+  it('cuts the parts where the range ends', () => {
+    const drawn = bar({
+      value: [
+        { label: 'A', value: 80 },
+        { label: 'B', value: 50 },
+      ],
+    })
+    const sections = Inert.all(drawn).filter(node => Inert.value(node, 'data-tone') !== undefined)
+    expect(sections.map(node => Inert.style(node)['inline-size'])).toEqual(['80%', '20%'])
+  })
+
+  it('measures from its own start', () => {
+    const [root] = Inert.byRole(
+      bar({ value: [{ label: 'A', value: 10 }], min: 100, max: 120 }),
+      'progressbar',
+    )
+    expect(Inert.value(root, 'aria-valuenow')).toBe('110')
+  })
+})
+
+describe('Progress value shown', () => {
+  const shown = (options: Partial<Progress.ProgressView<never>>) =>
+    Inert.all(bar({ showValue: true, ...options })).filter(
+      node => node.sel === 'span' && Inert.value(node, 'aria-hidden') === 'true',
+    )
+
+  it('shows the share as a percentage, hidden from a screen reader the bar already tells', () => {
+    expect(shown({}).map(Inert.text)).toEqual(['25%'])
+  })
+
+  it('shows what `valueText` says, as the bar reads it', () => {
+    const [text] = shown({
+      value: Option.some(120),
+      max: 200,
+      valueText: (v, m) => `${v} of ${m} MB`,
+    })
+    expect(Inert.text(text)).toBe('120 of 200 MB')
+    const [past] = shown({ value: Option.some(900), max: 200, valueText: (v, m) => `${v} of ${m}` })
+    expect(Inert.text(past)).toBe('200 of 200')
+  })
+
+  it('shows nothing while the end is unknown, or unasked', () => {
+    expect(shown({ value: Option.none() })).toEqual([])
+    expect(Inert.all(bar({})).filter(node => Inert.value(node, 'aria-hidden') === 'true')).toEqual(
+      [],
+    )
+  })
+})
+
+describe('Progress buffer and segments', () => {
+  it('draws the buffer at its share, behind the fill', () => {
+    const drawn = bar({ buffer: 60 })
+    const [, track] = Inert.children(Inert.byRole(drawn, 'progressbar')[0])
+    const [buffer, fill] = Inert.children(track)
+    expect(Inert.style(buffer)['inline-size']).toBe('60%')
+    expect(Inert.style(fill)['width']).toBe('25%')
+  })
+
+  it('tells the track how many steps to cut', () => {
+    const [root] = Inert.byRole(bar({ segments: 4 }), 'progressbar')
+    expect(Inert.value(root, 'data-segmented')).toBe('')
+    expect(Inert.style(root)['--fk-progress-segments']).toBe('4')
+    expect(Inert.style(root)['--fk-progress']).toBe('0.25')
   })
 })
