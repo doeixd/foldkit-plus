@@ -33,6 +33,8 @@ const mount = (
   options: {
     readonly dir?: 'rtl' | undefined
     readonly value?: number
+    readonly style?: typeof style
+    readonly format?: (value: number) => string
     /** Added after the recipe, unlayered, so it wins: a stylist's own rule. */
     readonly css?: string
   } = {},
@@ -46,7 +48,7 @@ const mount = (
       Layers.standard.in('reset', Defaults.reset),
       Layers.standard.in('theme', Theme.root(theme)),
     ) +
-    style.css +
+    (options.style ?? style).css +
     (options.css ?? '')
   document.head.append(sheet)
   const container = document.createElement('div')
@@ -61,7 +63,19 @@ const mount = (
       view: (model: AngleSlider.Model, h: HtmlBuilder<AngleSlider.Message>) =>
         h.div(
           [h.Style({ padding: '2rem', blockSize: '200vh' })],
-          [AngleSlider.view({ ...layout, model, label: 'Heading', onMessage: m => m, style }, h)],
+          [
+            AngleSlider.view(
+              {
+                ...layout,
+                model,
+                label: 'Heading',
+                onMessage: m => m,
+                style: options.style ?? style,
+                ...(options.format === undefined ? {} : { format: options.format }),
+              },
+              h,
+            ),
+          ],
         ),
     }),
   )
@@ -180,6 +194,37 @@ test('a marker the arc covers is filled, and one past it is not', async () => {
     const fill = (state: string) =>
       getComputedStyle(document.querySelector(`[data-state="${state}"]`)!).backgroundColor
     expect(fill('under')).not.toBe(fill('over'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+const sized = (size: 'sm' | 'md' | 'lg') => Style.forSlots(AngleSliderSlots)(Recipe({ size }))
+
+test.each(
+  (['sm', 'md', 'lg'] as const).flatMap(size =>
+    [0, 45, 90, 135, 270].map(value => [size, value] as const),
+  ),
+)('the needle at %s, %s degrees, clears the value in the middle', async (size, value) => {
+  const handle = mount({ value, style: sized(size), format: () => '1 of 4' })
+  try {
+    await ready()
+    await frames()
+    // The value is drawn last in the dial, the needle just before the thumb.
+    const text = control().lastElementChild!
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const words = range.getBoundingClientRect()
+    expect(text.textContent).toBe('1 of 4')
+    const needle = thumb().previousElementSibling!.getBoundingClientRect()
+    // The needle is drawn, and its box (rotated, so its bounds) misses the words'.
+    expect(needle.width * needle.height).toBeGreaterThan(0)
+    const apart =
+      needle.right <= words.left ||
+      needle.left >= words.right ||
+      needle.bottom <= words.top ||
+      needle.top >= words.bottom
+    expect(apart).toBe(true)
   } finally {
     handle.dispose()
   }

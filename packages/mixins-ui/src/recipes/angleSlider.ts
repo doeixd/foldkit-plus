@@ -3,7 +3,8 @@
  * `tone` from the top round to the value (`track: 'ring'`), left unfilled
  * (`'plain'`), or a whole face with the needle alone showing the value
  * (`'disc'`). The thumb rides the ring at `--fk-angle`, placed by `sin()` and
- * `cos()` of it, and a needle runs to it from the center; markers are dots
+ * `cos()` of it, and a needle runs to it from short of the value in the
+ * middle, or from the center when the value is below; markers are dots
  * on the ring, filled where the arc covers them, with their words inside it.
  * The value sits in the middle (`value: 'inside'`) or under the dial
  * (`'below'`). The dial is a drawing, so it is placed by physical sides and
@@ -88,8 +89,12 @@ export const AngleSlider = Style.recipeFor(AngleSliderSlots)({
         left: `calc(50% - ${ref.border.thick} / 2)`,
         top: `calc(50% - ${radius})`,
         inlineSize: ref.border.thick,
-        blockSize: radius,
-        transformOrigin: '50% 100%',
+        // From the ring inward, stopping short of the value in the middle so it never
+        // crosses it: `em` here is the value's type, and 2em clears about seven figures.
+        fontSize: role('title').fontSize,
+        blockSize: `calc(${radius} - 2em)`,
+        // The dial's center, wherever the needle stops.
+        transformOrigin: `50% ${radius}`,
         rotate: angle,
         borderRadius: ref.radius.full,
         background: toneVar('fill'),
@@ -168,6 +173,8 @@ export const AngleSlider = Style.recipeFor(AngleSliderSlots)({
             insetBlockEnd: 'auto',
           }),
         ),
+        // Nothing in the middle to clear: the needle runs to the center.
+        needle: variant(Style.self({ blockSize: radius })),
         control: variant(
           Style.self({
             marginBlockEnd: `calc(${role('title').lineHeight} + ${ref.space['2xs']})`,

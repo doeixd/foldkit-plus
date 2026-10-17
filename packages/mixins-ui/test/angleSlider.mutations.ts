@@ -160,4 +160,15 @@ export default [
     ],
     tests: [unit, browser],
   },
+  {
+    name: 'the needle runs from the center, through the value',
+    edits: [
+      {
+        file: '../src/recipes/angleSlider.ts',
+        find: 'blockSize: `calc(${radius} - 2em)`,',
+        replace: 'blockSize: radius,',
+      },
+    ],
+    tests: [browser],
+  },
 ]

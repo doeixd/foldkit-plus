@@ -1034,6 +1034,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: the Angle Slider's needle clears the value in the
+  middle.** It ran from the center to the thumb, straight through "45°" or
+  "1 of 4"; it now stops 2em of the value's type short of the center, and
+  runs to the center only when the value is drawn below the dial.
 - **`foldkit-mixins-ui`: the Image Cropper shows its image.** The recipe hid
   the image under any ancestor without `data-ready`, `body` included, so it
   stayed hidden after loading; the image now carries the mark itself.
