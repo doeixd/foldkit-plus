@@ -2,7 +2,9 @@
  * A tree view on a real runtime: Tab reaches its one stop, the arrows move
  * focus over the rows showing and into an opened row, keys sent faster than
  * a frame all land, a click focuses and chooses a row, a row sits a step
- * further in per level, and a shut group takes no height.
+ * further in per level, and a shut group takes no height; a press on a
+ * row's box checks it and chooses nothing; and a guide line runs down an
+ * open group under its row's chevron.
  */
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
@@ -14,7 +16,6 @@ import { userEvent } from 'vitest/browser'
 import { Recipes, TreeView, TreeViewSlots } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
-const style = Style.forSlots(TreeViewSlots)(Recipes.TreeView({}))
 
 const FILES: ReadonlyArray<TreeView.TreeNode> = [
   {
@@ -35,7 +36,12 @@ afterEach(async () => {
 })
 
 // Still by default, so a size is read where it ends rather than mid-flight.
-const mount = (motion = '0', direction: 'ltr' | 'rtl' = 'ltr') => {
+const mount = (
+  motion = '0',
+  direction: 'ltr' | 'rtl' = 'ltr',
+  more: { readonly checkable?: boolean; readonly guides?: 'none' | 'lines' } = {},
+) => {
+  const style = Style.forSlots(TreeViewSlots)(Recipes.TreeView({ guides: more.guides ?? 'none' }))
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -59,7 +65,15 @@ const mount = (motion = '0', direction: 'ltr' | 'rtl' = 'ltr') => {
       [h.Style({ inlineSize: '20rem' })],
       [
         TreeView.view(
-          { label: 'Files', model, nodes: FILES, onMessage: m => m, direction, style },
+          {
+            label: 'Files',
+            model,
+            nodes: FILES,
+            onMessage: m => m,
+            direction,
+            checkable: more.checkable,
+            style,
+          },
           h,
         ),
       ],
@@ -69,7 +83,7 @@ const mount = (motion = '0', direction: 'ltr' | 'rtl' = 'ltr') => {
       Model: TreeView.Model,
       container,
       init: () => ({ model: TreeView.init({ id: 'files' }) }),
-      update: TreeView.update(FILES),
+      update: TreeView.update(FILES, { checkable: more.checkable }),
       view,
     }),
   )
@@ -193,6 +207,49 @@ test('while a group opens, its first row stays put under its parent row', async 
     // Mid-flight, so the samples cover the opening and not only its end.
     expect(heights.some(height => height > 0 && height < settled)).toBe(true)
     expect(Math.max(...offsets) - Math.min(...offsets)).toBeLessThan(0.5)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a press on the box of a row checks it and the rows beneath it, and chooses nothing', async () => {
+  const { handle } = mount('0', 'ltr', { checkable: true })
+  try {
+    await vi.waitFor(() => expect(item('src')).not.toBeNull())
+    const box = (id: string) => row(id).querySelector('[data-state]')!
+    await userEvent.click(box('src'))
+    await vi.waitFor(() => expect(item('src').getAttribute('aria-checked')).toBe('true'))
+    expect(item('src').getAttribute('aria-selected')).toBe('false')
+    expect(item('src').getAttribute('aria-expanded')).toBe('false')
+    expect(item('button').getAttribute('aria-checked')).toBe('true')
+    expect(getComputedStyle(box('src')).backgroundColor).toBe(
+      getComputedStyle(box('src')).borderTopColor,
+    )
+    expect(getComputedStyle(box('readme')).backgroundColor).not.toBe(
+      getComputedStyle(box('src')).backgroundColor,
+    )
+    // Space on the current row unchecks it, as the box did.
+    item('src').focus()
+    await userEvent.keyboard(' ')
+    await vi.waitFor(() => expect(item('src').getAttribute('aria-checked')).toBe('false'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a guide line runs down an open group, under the chevron of its row', async () => {
+  const { handle } = mount('0', 'ltr', { guides: 'lines' })
+  try {
+    await vi.waitFor(() => expect(item('src')).not.toBeNull())
+    await userEvent.click(row('src'))
+    const group = item('src').querySelector('[role="group"]')!
+    await vi.waitFor(() => expect(group.getBoundingClientRect().height).toBeGreaterThan(10))
+    const line = getComputedStyle(group, '::before')
+    expect(line.content).toBe('""')
+    const chevron = row('src').firstElementChild!.getBoundingClientRect()
+    const left = group.getBoundingClientRect().left + parseFloat(line.left)
+    expect(left).toBeCloseTo(chevron.left + chevron.width / 2, 0)
+    expect(parseFloat(line.height)).toBeCloseTo(group.getBoundingClientRect().height, 0)
   } finally {
     handle.dispose()
   }

@@ -25,7 +25,16 @@ import type { MixinList } from './resolve.js'
  * Each row is an `item` (the `treeitem`, which takes focus) holding a `row`
  * (the line drawn and clicked) and, when it holds rows, a `group`. The item
  * carries its depth as `--fk-tree-level` and `data-state` open or closed; a
- * shut group stays drawn, `inert`, so it can animate shut.
+ * shut group stays drawn, `inert`, so it can animate shut. A row draws its
+ * node's `icon` (its `openIcon` while open) before its label.
+ *
+ * A `checkable` tree, Zag's, gives each row a box: checking a row that
+ * holds rows checks every enabled row beneath it, and it reads checked,
+ * unchecked or mixed from them, as `aria-checked` on the item and
+ * `data-state` on its `checkbox`. Space checks the current row, a press on
+ * the box checks its row, and Enter and a press on the row still choose.
+ * What is checked is the Model's `checked`, the ids of the rows holding no
+ * rows; a disabled row keeps what it was given.
  */
 export const TreeViewSlots = Slots.define({
   root: Slot.make({
@@ -40,6 +49,9 @@ export const TreeViewSlots = Slots.define({
   }),
   row: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   chevron: Slot.make({ capability: Capability.Container }),
+  /** The row's box in a `checkable` tree; pressing it checks the row and chooses nothing. */
+  checkbox: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  icon: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
   group: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
 })
@@ -50,6 +62,10 @@ export interface TreeNode {
   readonly label: string
   readonly children?: ReadonlyArray<TreeNode> | undefined
   readonly disabled?: boolean | undefined
+  /** Drawn before the label: a file's kind, a shut folder. */
+  readonly icon?: Html | undefined
+  /** Drawn in place of `icon` while the row is open: an open folder. */
+  readonly openIcon?: Html | undefined
 }
 
 export const Model = Schema.Struct({
@@ -61,6 +77,8 @@ export const Model = Schema.Struct({
   open: Schema.Array(Schema.String),
   /** The chosen row, `aria-selected`. */
   selected: Schema.Option(Schema.String),
+  /** The checked rows that hold no rows; a row holding rows reads its state from them. */
+  checked: Schema.Array(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -73,6 +91,8 @@ export const Message = defineMessageUnion({
   /** A row took focus: tabbed into, or clicked. */
   Focused: { id: Schema.String },
   Clicked: { id: Schema.String },
+  /** A row's box was pressed. */
+  Checked: { id: Schema.String },
   CompletedFocusItem: {},
 })
 export type Message = typeof Message.Type
@@ -80,11 +100,13 @@ export type Message = typeof Message.Type
 export const init = (options: {
   readonly id: string
   readonly open?: ReadonlyArray<string>
+  readonly checked?: ReadonlyArray<string>
 }): Model => ({
   id: options.id,
   current: Option.none(),
   open: options.open ?? [],
   selected: Option.none(),
+  checked: options.checked ?? [],
 })
 
 /** The DOM id of a row's `treeitem`. */
@@ -103,6 +125,8 @@ const FocusItem = Command.define('FocusItem', {
 interface Flat {
   readonly rows: ReadonlyArray<TreeNavigation.Row>
   readonly labels: ReadonlyMap<string, string>
+  /** Each row's rows that hold none, itself for such a row, in tree order. */
+  readonly leaves: ReadonlyMap<string, ReadonlyArray<string>>
 }
 
 // The view and `update` both read the tree flat; flatten each tree once.
@@ -113,8 +137,9 @@ const flatOf = (nodes: ReadonlyArray<TreeNode>): Flat => {
   if (known !== undefined) return known
   const rows: Array<TreeNavigation.Row> = []
   const labels = new Map<string, string>()
-  const walk = (level: ReadonlyArray<TreeNode>, parent: string | null): void => {
-    for (const node of level) {
+  const leaves = new Map<string, ReadonlyArray<string>>()
+  const walk = (level: ReadonlyArray<TreeNode>, parent: string | null): ReadonlyArray<string> =>
+    level.flatMap(node => {
       const children = node.children ?? []
       rows.push({
         id: node.id,
@@ -123,11 +148,12 @@ const flatOf = (nodes: ReadonlyArray<TreeNode>): Flat => {
         disabled: node.disabled === true,
       })
       labels.set(node.id, node.label)
-      walk(children, node.id)
-    }
-  }
+      const under = children.length > 0 ? walk(children, node.id) : [node.id]
+      leaves.set(node.id, under)
+      return under
+    })
   walk(nodes, null)
-  const flat = { rows, labels }
+  const flat = { rows, labels, leaves }
   flats.set(nodes, flat)
   return flat
 }
@@ -170,17 +196,59 @@ const chosen = (model: Model, row: TreeNavigation.Row): Return => {
 }
 
 /**
- * The tree's `update` over `nodes`, the tree the view draws; the same Model
- * when nothing changes. Pass the same `nodes` the view gets, built once.
+ * Each row's check: `true` when every row it holds that holds none is
+ * checked, `'mixed'` when some are, `false` when none are.
  */
-export const update = (nodes: ReadonlyArray<TreeNode>) => {
+export const checksOf = (
+  nodes: ReadonlyArray<TreeNode>,
+  checked: ReadonlyArray<string>,
+): ReadonlyMap<string, boolean | 'mixed'> => {
+  const on = new Set(checked)
+  const states = new Map<string, boolean | 'mixed'>()
+  for (const [id, under] of flatOf(nodes).leaves) {
+    const count = under.filter(leaf => on.has(leaf)).length
+    states.set(id, count === 0 ? false : count === under.length || 'mixed')
+  }
+  return states
+}
+
+/**
+ * The tree's `update` over `nodes`, the tree the view draws; the same Model
+ * when nothing changes. Pass the same `nodes` the view gets, built once, and
+ * `checkable` as the view has it, which makes Space check the current row.
+ */
+export const update = (
+  nodes: ReadonlyArray<TreeNode>,
+  options: { readonly checkable?: boolean | undefined } = {},
+) => {
   const flat = flatOf(nodes)
   const byId = new Map(flat.rows.map(row => [row.id, row]))
   const enabled = (id: string): Option.Option<TreeNavigation.Row> =>
     Option.filter(Option.fromUndefinedOr(byId.get(id)), row => row.disabled !== true)
+  /**
+   * The row checked, or unchecked when every enabled row beneath it already
+   * is: a mixed row checks, as a mixed checkbox does when pressed.
+   */
+  const check = (model: Model, row: TreeNavigation.Row): Return => {
+    const on = new Set(model.checked)
+    const under = (flat.leaves.get(row.id) ?? []).filter(id => Option.isSome(enabled(id)))
+    if (under.length === 0) return { model }
+    const all = under.every(id => on.has(id))
+    for (const id of under) {
+      if (all) on.delete(id)
+      else on.add(id)
+    }
+    return { model: modifyFields(model, { checked: () => [...on] }) }
+  }
   return (model: Model, message: Message): Return =>
     Message.match<Return>(message, {
       Pressed: ({ key }) => {
+        if (key === ' ' && options.checkable === true) {
+          return Option.match(Option.flatMap(model.current, enabled), {
+            onNone: () => ({ model }),
+            onSome: row => check(model, row),
+          })
+        }
         if (key === 'Enter' || key === ' ') {
           return Option.match(Option.flatMap(model.current, enabled), {
             onNone: () => ({ model }),
@@ -226,8 +294,18 @@ export const update = (nodes: ReadonlyArray<TreeNode>) => {
           onNone: () => ({ model }),
           onSome: row => chosen(model, row),
         }),
+      Checked: ({ id }) =>
+        Option.match(enabled(id), {
+          onNone: () => ({ model }),
+          onSome: row => check(model, row),
+        }),
       CompletedFocusItem: () => ({ model }),
     })
+}
+
+const stateOf = (check: boolean | 'mixed'): 'checked' | 'unchecked' | 'mixed' => {
+  if (check === 'mixed') return 'mixed'
+  return check ? 'checked' : 'unchecked'
 }
 
 const handled = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'])
@@ -241,6 +319,8 @@ export interface TreeViewView<ParentMessage> {
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
   /** Default `'ltr'`; under `'rtl'` ArrowLeft and ArrowRight swap. */
   readonly direction?: 'ltr' | 'rtl' | undefined
+  /** Gives each row a box; pass the same to `update`. */
+  readonly checkable?: boolean | undefined
   /** A style of `TreeViewSlots`, for the tree's look. */
   readonly style?: NamedStyle<typeof TreeViewSlots> | undefined
   /** Mixins beside the style. */
@@ -258,6 +338,7 @@ export const view = <ParentMessage>(
   )
   const { model, onMessage } = options
   const open = new Set(model.open)
+  const checks = options.checkable === true ? checksOf(options.nodes, model.checked) : undefined
   const stop = TreeNavigation.tabStop(
     TreeNavigation.shown(flatOf(options.nodes).rows, navigationOf(model), args),
     Option.getOrNull(model.current),
@@ -279,6 +360,7 @@ export const view = <ParentMessage>(
           h.AriaSelected(Option.contains(model.selected, node.id)),
           ...(branch ? [h.AriaExpanded(shown), state] : []),
           ...(node.disabled === true ? [h.AriaDisabled(true)] : []),
+          ...(checks === undefined ? [] : [h.AriaChecked(checks.get(node.id) ?? false)]),
           h.Tabindex(stop === node.id ? 0 : -1),
           h.Style({ '--fk-tree-level': String(depth) }),
           h.OnFocus(onMessage(Message.Focused({ id: node.id }))),
@@ -286,6 +368,28 @@ export const view = <ParentMessage>(
         [
           h.div(builders.row.attrs([h.OnClick(onMessage(Message.Clicked({ id: node.id })))]), [
             h.span(builders.chevron.attrs([h.AriaHidden(true)]), []),
+            ...(checks === undefined
+              ? []
+              : [
+                  h.span(
+                    builders.checkbox.attrs([
+                      h.AriaHidden(true),
+                      h.DataAttribute('state', stateOf(checks.get(node.id) ?? false)),
+                      // Stopped, so the row's own press, which chooses it, does not hear it too.
+                      h.OnClick(onMessage(Message.Checked({ id: node.id })), {
+                        propagation: 'Stop',
+                      }),
+                    ]),
+                    [],
+                  ),
+                ]),
+            ...Option.match(
+              Option.fromUndefinedOr(shown ? (node.openIcon ?? node.icon) : node.icon),
+              {
+                onNone: () => [],
+                onSome: icon => [h.span(builders.icon.attrs([h.AriaHidden(true)]), [icon])],
+              },
+            ),
             h.span(builders.label.attrs(), [node.label]),
           ]),
           ...(branch
