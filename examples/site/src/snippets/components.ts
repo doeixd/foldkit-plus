@@ -3934,7 +3934,6 @@ export const rating = <Message>(
           id: 'preview-average',
           label: 'Average of 120 reviews',
           value: Option.some(4),
-          onChange,
           readOnly: true,
           style,
         },

@@ -134,9 +134,6 @@ export interface SidebarGroup {
   readonly rows: ReadonlyArray<SidebarRow>
 }
 
-/** @deprecated The old name of `SidebarGroup`, kept while the package index exports it. */
-export type SidebarSection = SidebarGroup
-
 const isBranch = (row: SidebarRow): row is SidebarBranch => row.items !== undefined
 
 const Tip = Schema.Struct({ row: Schema.String, tooltip: UiTooltip.Model })

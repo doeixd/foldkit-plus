@@ -17,7 +17,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 // From the modules, not the index: the test reads nothing else.
 import * as Rating from '../src/rating.js'
-import { RatingSlots, type RatingView } from '../src/rating.js'
+import { RatingSlots, type RatingInput } from '../src/rating.js'
 import * as Recipes from '../src/recipes/rating.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
@@ -34,7 +34,7 @@ afterEach(() => {
 const mount = (
   value: Option.Option<number>,
   selection: Parameters<typeof Recipes.Rating>[0] = {},
-  options: Partial<RatingView<Message>> = {},
+  options: Partial<RatingInput<Message>> & { readonly shownOnly?: boolean } = {},
   direction: 'ltr' | 'rtl' = 'ltr',
 ) => {
   const style = Style.forSlots(RatingSlots)(Recipes.Rating(selection))
@@ -65,18 +65,23 @@ const mount = (
         h.div(
           [h.Dir(direction)],
           [
-            Rating.view(
-              {
-                id: 'stay',
-                label: 'Your stay',
-                value: model.value,
-                onChange: rated => Message.Rated({ value: rated }),
-                onClear: () => Message.Cleared(),
-                style,
-                ...options,
-              },
-              h,
-            ),
+            options.shownOnly === true
+              ? Rating.view(
+                  { id: 'stay', label: 'Your stay', value: model.value, readOnly: true, style },
+                  h,
+                )
+              : Rating.view(
+                  {
+                    id: 'stay',
+                    label: 'Your stay',
+                    value: model.value,
+                    onChange: rated => Message.Rated({ value: rated }),
+                    onClear: () => Message.Cleared(),
+                    style,
+                    ...options,
+                  },
+                  h,
+                ),
           ],
         ),
     }),
@@ -147,7 +152,7 @@ test('a half star is half as wide, and a press on a star’s first half gives it
 const gradient = (element: Element) => getComputedStyle(element, '::before').backgroundImage
 
 test('read-only, a fraction fills its last star part way, from the right right to left', async () => {
-  let mounted = mount(Option.some(4.3), {}, { readOnly: true })
+  let mounted = mount(Option.some(4.3), {}, { shownOnly: true })
   try {
     await vi.waitFor(() => expect(document.querySelector('[role="img"]')).not.toBeNull())
     const marks = Array.from(document.querySelectorAll('[role="img"] > span')).slice(1)
@@ -159,7 +164,7 @@ test('read-only, a fraction fills its last star part way, from the right right t
   }
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
-  mounted = mount(Option.some(4.3), {}, { readOnly: true }, 'rtl')
+  mounted = mount(Option.some(4.3), {}, { shownOnly: true }, 'rtl')
   try {
     await vi.waitFor(() => expect(document.querySelector('[role="img"]')).not.toBeNull())
     const last = document.querySelectorAll('[role="img"] > span')[5]!

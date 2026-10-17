@@ -32,33 +32,47 @@ export const RatingSlots = Slots.define({
   value: Slot.make({ capability: Capability.Container }),
 })
 
-export interface RatingView<Message> {
+interface RatingCommon<Message> {
   /** Names the radios as one group, and prefixes the ids; unique on the page. */
   readonly id: string
   /** What is rated, shown and naming the group. */
   readonly label: string
   /** The stars given, up to `max`; none before any are. Read-only, any fraction. */
   readonly value: Option.Option<number>
-  /** The Message for the star chosen; its type comes from `h`. */
-  readonly onChange: (value: number) => NoInfer<Message>
-  /** Sent when the star already chosen is pressed again; without it, a press keeps it. */
-  readonly onClear?: (() => NoInfer<Message>) | undefined
   /** The number of stars; default 5. */
   readonly max?: number | undefined
-  /** The step a choice takes: whole stars (default) or halves. */
-  readonly precision?: 1 | 0.5 | undefined
   /** How a number of stars reads aloud, and shows with `showValue`; default `"3 stars"`. */
   readonly starLabel?: ((value: number) => string) | undefined
   /** Shows the rating in words beside the stars, as `starLabel` says it. */
   readonly showValue?: boolean | undefined
-  /** Shows the rating without taking a new one. */
-  readonly readOnly?: boolean | undefined
-  readonly disabled?: boolean | undefined
   /** A style of `RatingSlots`, for the look. */
   readonly style?: NamedStyle<typeof RatingSlots> | undefined
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
 }
+
+/** A rating that takes a choice. */
+export interface RatingInput<Message> extends RatingCommon<Message> {
+  readonly readOnly?: false | undefined
+  /** The Message for the star chosen; its type comes from `h`. */
+  readonly onChange: (value: number) => NoInfer<Message>
+  /** Sent when the star already chosen is pressed again; without it, a press keeps it. */
+  readonly onClear?: (() => NoInfer<Message>) | undefined
+  /** The step a choice takes: whole stars (default) or halves. */
+  readonly precision?: 1 | 0.5 | undefined
+  readonly disabled?: boolean | undefined
+}
+
+/** A rating shown and not taken: it sends nothing, so it takes no Messages. */
+export interface RatingDisplay<Message> extends RatingCommon<Message> {
+  readonly readOnly: true
+  readonly onChange?: never
+  readonly onClear?: never
+  readonly precision?: never
+  readonly disabled?: never
+}
+
+export type RatingView<Message> = RatingInput<Message> | RatingDisplay<Message>
 
 const EndChosen = Schema.TaggedStruct('EndChosen', { value: Schema.Number })
 

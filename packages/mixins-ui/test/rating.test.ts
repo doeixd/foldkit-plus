@@ -22,7 +22,7 @@ type Rated = typeof Rated.Type
 const style = Style.forSlots(RatingSlots)(Recipes.Rating({}))
 const drawn = (
   value: Option.Option<number>,
-  more: Partial<Rating.RatingView<TestMessage>> = {},
+  more: Partial<Rating.RatingInput<TestMessage>> = {},
   builder: HtmlBuilder<TestMessage> = h,
 ) =>
   Rating.view(
@@ -36,6 +36,10 @@ const drawn = (
     },
     builder,
   )
+
+/** The same rating read-only: no `onChange`, which it would never send. */
+const shownOnly = (value: Option.Option<number>, builder: HtmlBuilder<TestMessage> = h) =>
+  Rating.view({ id: 'stay', label: 'Your stay', value, readOnly: true, style }, builder)
 
 describe('Rating.view', () => {
   it('meets the rating pattern', () => {
@@ -121,13 +125,13 @@ describe('Rating.view', () => {
   })
 
   it('read-only, is one image that says the rating, with no radios', () => {
-    const shown = drawn(Option.some(4), { readOnly: true })
+    const shown = shownOnly(Option.some(4))
     const [image] = Inert.byRole(shown, 'img')
     expect(Inert.value(image, 'aria-label')).toBe('Your stay: 4 stars of 5')
     const [label] = Inert.byTag(image, 'span')
     expect(Inert.value(label, 'aria-hidden')).toBe('true')
     expect(Inert.byTag(shown, 'input')).toEqual([])
-    const [unrated] = Inert.byRole(drawn(Option.none(), { readOnly: true }), 'img')
+    const [unrated] = Inert.byRole(shownOnly(Option.none()), 'img')
     expect(Inert.value(unrated, 'aria-label')).toBe('Your stay: not rated')
   })
 })
@@ -142,13 +146,13 @@ const fills = (shown: ReturnType<typeof drawn>) =>
 
 describe('Rating, read-only and fractional', () => {
   it('fills each mark as far as the rating goes, the last by its fraction', () => {
-    expect(fills(drawn(Option.some(4.3), { readOnly: true }))).toEqual(['1', '1', '1', '1', '0.3'])
-    expect(fills(drawn(Option.some(2.5), { readOnly: true }))).toEqual(['1', '1', '0.5', '0', '0'])
-    expect(fills(drawn(Option.none(), { readOnly: true }))).toEqual(['0', '0', '0', '0', '0'])
+    expect(fills(shownOnly(Option.some(4.3)))).toEqual(['1', '1', '1', '1', '0.3'])
+    expect(fills(shownOnly(Option.some(2.5)))).toEqual(['1', '1', '0.5', '0', '0'])
+    expect(fills(shownOnly(Option.none()))).toEqual(['0', '0', '0', '0', '0'])
   })
 
   it('says the fraction', () => {
-    const [image] = Inert.byRole(drawn(Option.some(4.3), { readOnly: true }), 'img')
+    const [image] = Inert.byRole(shownOnly(Option.some(4.3)), 'img')
     expect(Inert.value(image, 'aria-label')).toBe('Your stay: 4.3 stars of 5')
   })
 })
@@ -253,9 +257,6 @@ describe('Rating ends', () => {
   })
 
   it('takes no keys read-only, so it needs no Mount', () => {
-    sends(
-      (h: HtmlBuilder<TestMessage>) => drawn(Option.some(3), { readOnly: true }, h),
-      Scene.Mount.expectNone(),
-    )
+    sends((h: HtmlBuilder<TestMessage>) => shownOnly(Option.some(3), h), Scene.Mount.expectNone())
   })
 })

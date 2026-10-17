@@ -117,7 +117,17 @@ export { NumberFieldSlots } from './numberField.js'
 export { OtpFieldSlots } from './otpField.js'
 export { ResizableSlots } from './resizable.js'
 export { SidebarSlots } from './sidebar.js'
-export type { SidebarLink, SidebarSection, SidebarView } from './sidebar.js'
+export type {
+  SidebarBranch,
+  SidebarGroup,
+  SidebarLeaf,
+  SidebarLink,
+  SidebarRow,
+  SidebarView,
+} from './sidebar.js'
+export type { NavEntry, NavLink, NavPanel, NavPanelGroup, NavPanelLink, NavView } from './nav.js'
+export type { BreadcrumbCollapse, BreadcrumbExpand, BreadcrumbMenu } from './breadcrumb.js'
+export type { TabsClose, TabsContext } from './tabs.js'
 export type { ResizableView } from './resizable.js'
 export type { OtpFieldView } from './otpField.js'
 export type { NumberFieldView } from './numberField.js'
