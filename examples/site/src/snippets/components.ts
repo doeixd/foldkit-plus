@@ -1338,7 +1338,7 @@ export const spinnerSizes = (h: HtmlBuilder<never>): Html =>
   )
 // #endregion
 
-// #region table
+// #region table-basic
 export const TableStyle = forSlots(TableSlots)(Recipes.Table({}))
 
 interface Invoice {
@@ -1366,6 +1366,160 @@ export const table = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder<never
       fluid: true,
     },
     h,
+  )
+// #endregion
+
+// #region table-sortable
+const invoices: ReadonlyArray<Invoice> = [
+  { id: 'INV-001', status: 'Paid', amount: 250 },
+  { id: 'INV-002', status: 'Pending', amount: 150 },
+  { id: 'INV-003', status: 'Paid', amount: 350 },
+  { id: 'INV-004', status: 'Overdue', amount: 450 },
+]
+
+const invoiceColumns = [
+  { header: 'Invoice', sortKey: 'id', value: (row: Invoice) => row.id },
+  { header: 'Status', sortKey: 'status', value: (row: Invoice) => row.status },
+  {
+    header: 'Amount',
+    sortKey: 'amount',
+    numeric: true,
+    value: (row: Invoice) => `$${row.amount.toFixed(2)}`,
+  },
+]
+
+const invoiceOrder: ReadonlyMap<string, (a: Invoice, b: Invoice) => number> = new Map([
+  ['id', (a: Invoice, b: Invoice) => a.id.localeCompare(b.id)],
+  ['status', (a: Invoice, b: Invoice) => a.status.localeCompare(b.status)],
+  ['amount', (a: Invoice, b: Invoice) => a.amount - b.amount],
+])
+
+/** The rows in the sort's order: the application sorts, the table draws. */
+const sortedInvoices = (sort: Option.Option<Table.TableSort>): ReadonlyArray<Invoice> =>
+  Option.match(
+    Option.flatMap(sort, ({ column, direction }) =>
+      Option.map(Option.fromUndefinedOr(invoiceOrder.get(column)), compare => ({
+        compare,
+        sign: direction === 'ascending' ? 1 : -1,
+      })),
+    ),
+    {
+      onNone: () => invoices,
+      onSome: ({ compare, sign }) => [...invoices].sort((a, b) => sign * compare(a, b)),
+    },
+  )
+
+export const tableSortable = <Message>(
+  style: NamedStyle<typeof TableSlots>,
+  sort: Option.Option<Table.TableSort>,
+  // In update: `sort: () => Table.nextSort(model.sort, column)`.
+  onSort: (column: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Table.view<Invoice, Message>(
+    {
+      caption: 'Recent invoices',
+      columns: invoiceColumns,
+      rows: sortedInvoices(sort),
+      rowKey: row => row.id,
+      sort: { by: sort, onSort },
+      style,
+      fluid: true,
+    },
+    h,
+  )
+// #endregion
+
+// #region table-selection
+
+export const tableSelection = <Message>(
+  style: NamedStyle<typeof TableSlots>,
+  chosen: ReadonlyArray<string>,
+  onToggle: (id: string, selected: boolean) => Message,
+  onToggleAll: (ids: ReadonlyArray<string>) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Table.view<Invoice, Message>(
+    {
+      columns: invoiceColumns,
+      rows: invoices,
+      rowKey: row => row.id,
+      selection: {
+        id: 'invoices-chosen',
+        isSelected: row => chosen.includes(row.id),
+        onToggle: (row, selected) => onToggle(row.id, selected),
+        onToggleAll: all => onToggleAll(all ? invoices.map(row => row.id) : []),
+        rowLabel: row => `Select ${row.id}`,
+        checkbox: CheckboxStyle,
+      },
+      style,
+      fluid: true,
+    },
+    h,
+  )
+// #endregion
+
+// #region table-expandable
+export const tableExpandable = <Message>(
+  style: NamedStyle<typeof TableSlots>,
+  open: ReadonlyArray<string>,
+  onToggle: (id: string, expanded: boolean) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Table.view<Invoice, Message>(
+    {
+      columns: invoiceColumns,
+      rows: invoices,
+      rowKey: row => row.id,
+      expansion: {
+        id: 'invoices-open',
+        isExpanded: row => open.includes(row.id),
+        onToggle: (row, expanded) => onToggle(row.id, expanded),
+        detail: row =>
+          h.p([], [`${row.id} was sent on the 1st and is ${row.status.toLowerCase()}.`]),
+        label: row => `Details of ${row.id}`,
+      },
+      style,
+      fluid: true,
+    },
+    h,
+  )
+// #endregion
+
+// #region table-empty
+const TableEmptyStyle = forSlots(EmptySlots)(Recipes.Empty({ size: 'compact' }))
+
+export const tableEmpty = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder<never>): Html =>
+  Table.view<Invoice>(
+    {
+      columns: invoiceColumns,
+      rows: [],
+      empty: Empty.view(
+        {
+          title: 'No invoices yet',
+          description: 'Invoices you send show up here.',
+          style: TableEmptyStyle,
+        },
+        h,
+      ),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region table-sticky
+const manyInvoices: ReadonlyArray<Invoice> = Array.from({ length: 20 }, (_, index) => ({
+  id: `INV-${String(index + 1).padStart(3, '0')}`,
+  status: index % 3 === 0 ? 'Pending' : 'Paid',
+  amount: 100 + index * 25,
+}))
+
+// Pinned: `Recipes.Table({ header: 'sticky', rows: 'striped', density: 'compact' })`.
+export const tableSticky = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ maxBlockSize: '16rem', overflow: 'auto' })],
+    [Table.view<Invoice>({ columns: invoiceColumns, rows: manyInvoices, style }, h)],
   )
 // #endregion
 
@@ -3841,7 +3995,7 @@ export const otpField = <Message>(
 ): Html => OtpField.view({ label: 'Sign-in code', value: code, onChange, groups: [3, 3], style }, h)
 // #endregion
 
-// #region resizable
+// #region resizable-basic
 export const ResizableStyle = forSlots(ResizableSlots)(Recipes.Resizable({}))
 
 export const resizable = <Message>(
@@ -3877,6 +4031,75 @@ export const resizable = <Message>(
           second: h.p(
             [h.Style({ margin: '0', padding: '0.75rem' })],
             ['Pick a file to preview it.'],
+          ),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region resizable-collapsible
+// The same bounds go to `Resizable.update(model, message, bounds)`.
+const sidebarBounds = { min: 0.2, max: 0.6, collapsible: 'first' as const }
+
+// Pinned: `Recipes.Resizable({ handle: 'grip' })`.
+export const resizableCollapsible = <Message>(
+  style: NamedStyle<typeof ResizableSlots>,
+  model: Resizable.Model,
+  onMessage: (message: Resizable.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ blockSize: '12rem', inlineSize: 'min(32rem, 100%)' })],
+    [
+      Resizable.view(
+        {
+          model,
+          onMessage,
+          ...sidebarBounds,
+          label: 'Resize the sidebar; Enter or a double-click folds it away',
+          first: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Folders']),
+          second: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Messages']),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region resizable-nested
+export const resizableNested = <Message>(
+  style: NamedStyle<typeof ResizableSlots>,
+  outer: Resizable.Model,
+  inner: Resizable.Model,
+  onOuter: (message: Resizable.Message) => Message,
+  onInner: (message: Resizable.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ blockSize: '16rem', inlineSize: 'min(36rem, 100%)' })],
+    [
+      Resizable.view(
+        {
+          model: outer,
+          onMessage: onOuter,
+          label: 'Resize the file list',
+          first: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Files']),
+          // One over the other, inside the second panel: the split fills it.
+          second: Resizable.view(
+            {
+              model: inner,
+              onMessage: onInner,
+              orientation: 'vertical',
+              label: 'Resize the editor',
+              first: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Editor']),
+              second: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Terminal']),
+              style,
+            },
+            h,
           ),
           style,
         },
@@ -4060,7 +4283,7 @@ export const menubar = <Message>(
   )
 // #endregion
 
-// #region progress
+// #region progress-basic
 export const ProgressStyle = forSlots(ProgressSlots)(Recipes.Progress({}))
 
 export const progress = <Message>(
@@ -4083,6 +4306,130 @@ export const progress = <Message>(
       ),
       Progress.view({ id: 'preview-prepare', label: 'Preparing', value: Option.none(), style }, h),
     ],
+  )
+// #endregion
+
+// #region progress-value
+export const progressValue = (
+  style: NamedStyle<typeof ProgressSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '1.5rem' })],
+    [
+      Progress.view(
+        {
+          id: 'value-copy',
+          label: 'Copying files',
+          value: Option.some(64),
+          showValue: true,
+          style,
+        },
+        h,
+      ),
+      Progress.view(
+        {
+          id: 'value-upload',
+          label: 'Uploading',
+          value: Option.some(120),
+          max: 200,
+          valueText: (value, max) => `${value} of ${max} MB`,
+          showValue: true,
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region progress-stacked
+export const progressStacked = (
+  style: NamedStyle<typeof ProgressSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  Progress.view(
+    {
+      id: 'stacked-disk',
+      label: 'Storage',
+      value: [
+        { label: 'Photos', value: 38, tone: 'accent' },
+        { label: 'Mail', value: 21, tone: 'success' },
+        { label: 'Backups', value: 14, tone: 'warning' },
+      ],
+      showValue: true,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region progress-buffer
+export const progressBuffer = (
+  style: NamedStyle<typeof ProgressSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  Progress.view(
+    {
+      id: 'buffer-video',
+      label: 'Played',
+      value: Option.some(35),
+      buffer: 70,
+      valueText: '1:45 of 5:00, loaded to 3:30',
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region progress-striped
+// Pinned: `Recipes.Progress({ stripes: 'moving', size: 'lg' })`; still under reduced motion.
+export const progressStriped = (
+  style: NamedStyle<typeof ProgressSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  Progress.view(
+    { id: 'striped-sync', label: 'Syncing', value: Option.some(55), showValue: true, style },
+    h,
+  )
+// #endregion
+
+// #region progress-ring
+// Pinned: `Recipes.Progress({ shape: 'ring', size: 'lg' })`.
+export const progressRing = (
+  style: NamedStyle<typeof ProgressSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', gap: '2rem' })],
+    [
+      Progress.view(
+        { id: 'ring-done', label: 'Done', value: Option.some(72), showValue: true, style },
+        h,
+      ),
+      Progress.view({ id: 'ring-wait', label: 'Waiting', value: Option.none(), style }, h),
+    ],
+  )
+// #endregion
+
+// #region progress-steps
+// The steps done of the steps there are, the track cut into one segment each.
+export const progressSteps = (
+  style: NamedStyle<typeof ProgressSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  Progress.view(
+    {
+      id: 'steps-setup',
+      label: 'Setting up',
+      value: Option.some(2),
+      max: 4,
+      segments: 4,
+      valueText: (value, max) => `Step ${value} of ${max}`,
+      showValue: true,
+      style,
+    },
+    h,
   )
 // #endregion
 
@@ -4324,7 +4671,7 @@ export const stepsDots = <Message>(
   )
 // #endregion
 
-// #region rating
+// #region rating-basic
 export const RatingStyle = forSlots(RatingSlots)(Recipes.Rating({}))
 
 export const rating = <Message>(
@@ -4348,6 +4695,84 @@ export const rating = <Message>(
         h,
       ),
     ],
+  )
+// #endregion
+
+// #region rating-half
+export const ratingHalf = <Message>(
+  style: NamedStyle<typeof RatingSlots>,
+  value: Option.Option<number>,
+  onChange: (value: number) => Message,
+  onClear: () => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  // A press on the star already chosen clears it.
+  Rating.view(
+    { id: 'half-film', label: 'The film', value, onChange, onClear, precision: 0.5, style },
+    h,
+  )
+// #endregion
+
+// #region rating-fraction
+export const ratingFraction = (
+  style: NamedStyle<typeof RatingSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  Rating.view(
+    {
+      id: 'fraction-average',
+      label: 'Average of 1,204 reviews',
+      value: Option.some(4.3),
+      readOnly: true,
+      showValue: true,
+      starLabel: value => `${value} stars`,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region rating-hearts
+// Pinned: `Recipes.Rating({ glyph: 'heart', tone: 'error', size: 'lg' })`.
+export const ratingHearts = <Message>(
+  style: NamedStyle<typeof RatingSlots>,
+  value: Option.Option<number>,
+  onChange: (value: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Rating.view(
+    {
+      id: 'hearts-recipe',
+      label: 'How much you liked it',
+      value,
+      onChange,
+      starLabel: value => (value === 1 ? '1 heart' : `${value} hearts`),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region rating-labels
+const verdicts = ['Useless', 'Poor', 'Ok', 'Good', 'Excellent']
+
+export const ratingLabels = <Message>(
+  style: NamedStyle<typeof RatingSlots>,
+  value: Option.Option<number>,
+  onChange: (value: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Rating.view(
+    {
+      id: 'labels-support',
+      label: 'Your support call',
+      value,
+      onChange,
+      starLabel: value => verdicts[value - 1] ?? `${value} stars`,
+      showValue: true,
+      style,
+    },
+    h,
   )
 // #endregion
 

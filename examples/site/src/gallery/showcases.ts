@@ -68,6 +68,7 @@ import {
   TextareaSlots,
   ToastSlots,
   TooltipSlots,
+  TableSlots,
   type Nav,
   type Carousel,
 } from 'foldkit-mixins-ui'
@@ -562,6 +563,23 @@ const accordionBasic = <Message>(style: NamedStyle<typeof AccordionSlots>, live:
     live.h,
   )
 
+const ratingBasic = <Message>(style: NamedStyle<typeof RatingSlots>, live: Live<Message>) =>
+  Snippet.rating(
+    style,
+    live.widgets.stay,
+    value => live.onWidget(Widgets.Message.RatedStay({ value })),
+    live.h,
+  )
+
+const resizableBasic = <Message>(style: NamedStyle<typeof ResizableSlots>, live: Live<Message>) =>
+  Snippet.resizable(
+    style,
+    live.widgets.split,
+    message => live.onWidget(Widgets.Message.GotSplit({ message })),
+    live.direction,
+    live.h,
+  )
+
 // Each checkbox example holds its own state: one press toggles one box.
 const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: Live<Message>) =>
   Snippet.checkbox(
@@ -1043,16 +1061,64 @@ export const showcases: ReadonlyArray<Showcase> = [
       { name: 'sizes', title: 'Sizes', draw: () => Snippet.spinnerSizes(inert) },
     ],
   ),
-  fixed(
+  fromRecipe(
     {
       slug: 'table',
       title: 'Table',
-      summary: 'Rows and columns, numbers aligned to the end.',
+      summary:
+        'Rows and columns, numbers aligned to the end; sorted, chosen and opened by the application.',
       recipe: 'Table',
       file: 'table',
       contract: 'TableSlots',
     },
-    () => Snippet.table(Snippet.TableStyle, inert),
+    TableSlots,
+    Recipes.Table,
+    style => Snippet.table(style, inert),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: style => Snippet.table(style, inert) },
+      {
+        name: 'sortable',
+        title: 'Sortable headings',
+        draw: (style, live) =>
+          Snippet.tableSortable(
+            style,
+            live.widgets.invoiceSort,
+            column => live.onWidget(Widgets.Message.SortedInvoices({ column })),
+            live.h,
+          ),
+      },
+      {
+        name: 'selection',
+        title: 'Row selection',
+        draw: (style, live) =>
+          Snippet.tableSelection(
+            style,
+            live.widgets.invoicesChosen,
+            (id, selected) => live.onWidget(Widgets.Message.ChoseInvoice({ id, selected })),
+            ids => live.onWidget(Widgets.Message.ChoseInvoices({ ids })),
+            live.h,
+          ),
+      },
+      {
+        name: 'expandable',
+        title: 'Expandable rows',
+        draw: (style, live) =>
+          Snippet.tableExpandable(
+            style,
+            live.widgets.invoicesOpen,
+            (id, expanded) => live.onWidget(Widgets.Message.OpenedInvoice({ id, expanded })),
+            live.h,
+          ),
+      },
+      { name: 'empty', title: 'Empty', draw: style => Snippet.tableEmpty(style, inert) },
+      {
+        name: 'sticky',
+        title: 'Sticky header, striped',
+        draw: style => Snippet.tableSticky(style, inert),
+        pins: { header: 'sticky', rows: 'striped', density: 'compact' },
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1400,14 +1466,36 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     ResizableSlots,
     Recipes.Resizable,
-    (style, live) =>
-      Snippet.resizable(
-        style,
-        live.widgets.split,
-        message => live.onWidget(Widgets.Message.GotSplit({ message })),
-        live.direction,
-        live.h,
-      ),
+    resizableBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Side by side', draw: resizableBasic },
+      {
+        name: 'collapsible',
+        title: 'A collapsible sidebar',
+        draw: (style, live) =>
+          Snippet.resizableCollapsible(
+            style,
+            live.widgets.collapsibleSplit,
+            message => live.onWidget(Widgets.Message.GotCollapsibleSplit({ message })),
+            live.h,
+          ),
+        pins: { handle: 'grip' },
+      },
+      {
+        name: 'nested',
+        title: 'Nested both ways',
+        draw: (style, live) =>
+          Snippet.resizableNested(
+            style,
+            live.widgets.outerSplit,
+            live.widgets.innerSplit,
+            message => live.onWidget(Widgets.Message.GotOuterSplit({ message })),
+            message => live.onWidget(Widgets.Message.GotInnerSplit({ message })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1481,6 +1569,45 @@ export const showcases: ReadonlyArray<Showcase> = [
     ProgressSlots,
     Recipes.Progress,
     (style, live) => Snippet.progress(style, live.h),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: (style, live) => Snippet.progress(style, live.h) },
+      {
+        name: 'value',
+        title: 'With its value',
+        draw: style => Snippet.progressValue(style, inert),
+      },
+      {
+        name: 'stacked',
+        title: 'Stacked',
+        draw: style => Snippet.progressStacked(style, inert),
+        pins: { shape: 'bar' },
+      },
+      {
+        name: 'buffer',
+        title: 'Buffered',
+        draw: style => Snippet.progressBuffer(style, inert),
+        pins: { shape: 'bar' },
+      },
+      {
+        name: 'striped',
+        title: 'Striped and moving',
+        draw: style => Snippet.progressStriped(style, inert),
+        pins: { shape: 'bar', stripes: 'moving', size: 'lg' },
+      },
+      {
+        name: 'ring',
+        title: 'A ring with its value',
+        draw: style => Snippet.progressRing(style, inert),
+        pins: { shape: 'ring', size: 'lg' },
+      },
+      {
+        name: 'steps',
+        title: 'Steps as progress',
+        draw: style => Snippet.progressSteps(style, inert),
+        pins: { shape: 'bar' },
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1585,13 +1712,51 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     RatingSlots,
     Recipes.Rating,
-    (style, live) =>
-      Snippet.rating(
-        style,
-        live.widgets.stay,
-        value => live.onWidget(Widgets.Message.RatedStay({ value })),
-        live.h,
-      ),
+    ratingBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: ratingBasic },
+      {
+        name: 'half',
+        title: 'Half stars, cleared by a second press',
+        draw: (style, live) =>
+          Snippet.ratingHalf(
+            style,
+            live.widgets.film,
+            value => live.onWidget(Widgets.Message.RatedFilm({ value })),
+            () => live.onWidget(Widgets.Message.ClearedFilm()),
+            live.h,
+          ),
+      },
+      {
+        name: 'fraction',
+        title: 'A read-only average',
+        draw: style => Snippet.ratingFraction(style, inert),
+      },
+      {
+        name: 'hearts',
+        title: 'Hearts',
+        draw: (style, live) =>
+          Snippet.ratingHearts(
+            style,
+            live.widgets.hearts,
+            value => live.onWidget(Widgets.Message.RatedHearts({ value })),
+            live.h,
+          ),
+        pins: { glyph: 'heart', tone: 'error', size: 'lg' },
+      },
+      {
+        name: 'labels',
+        title: 'A word per value',
+        draw: (style, live) =>
+          Snippet.ratingLabels(
+            style,
+            live.widgets.support,
+            value => live.onWidget(Widgets.Message.RatedSupport({ value })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {

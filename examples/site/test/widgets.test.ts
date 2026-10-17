@@ -380,3 +380,35 @@ describe('the navigation previews', () => {
     expect(closed.widgets.files.scrolling.files).toContain('tabs.ts')
   })
 })
+
+describe('the data previews', () => {
+  it('choose an invoice once, and keep the Model when it is chosen again', () => {
+    const chosen = send(Widgets.Message.ChoseInvoice({ id: 'INV-003', selected: true }))
+    expect(chosen.widgets.invoicesChosen).toEqual(['INV-002', 'INV-003'])
+    const again = update(
+      chosen,
+      Message.GotWidget({
+        message: Widgets.Message.ChoseInvoice({ id: 'INV-003', selected: true }),
+      }),
+    )
+    expect(again.model.widgets).toBe(chosen.widgets)
+    expect(
+      send(Widgets.Message.ChoseInvoice({ id: 'INV-002', selected: false })).widgets.invoicesChosen,
+    ).toEqual([])
+  })
+
+  it('sort the invoices ascending, then descending, then not at all', () => {
+    const sort = (model: typeof initial) =>
+      update(
+        model,
+        Message.GotWidget({ message: Widgets.Message.SortedInvoices({ column: 'amount' }) }),
+      ).model
+    const once = sort(initial)
+    const twice = sort(once)
+    expect([once, twice, sort(twice)].map(model => model.widgets.invoiceSort)).toEqual([
+      Option.some({ column: 'amount', direction: 'ascending' }),
+      Option.some({ column: 'amount', direction: 'descending' }),
+      Option.none(),
+    ])
+  })
+})

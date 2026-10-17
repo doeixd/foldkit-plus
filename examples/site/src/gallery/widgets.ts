@@ -36,6 +36,7 @@ import {
   Carousel,
   Menu,
   Nav,
+  Table,
   Sheet,
   Command as CommandMenu,
   Toast,
@@ -283,6 +284,23 @@ export const Model = Schema.Struct({
   palettePages: Schema.Array(Schema.String),
   paletteRan: Schema.Option(Schema.String),
   toasts: Schema.Record(ToastExample, Toast.Model),
+  /** The invoices table's sort, chosen rows and open rows. */
+  invoiceSort: Schema.Option(
+    Schema.Struct({
+      column: Schema.String,
+      direction: Schema.Literals(['ascending', 'descending']),
+    }),
+  ),
+  invoicesChosen: Schema.Array(Schema.String),
+  invoicesOpen: Schema.Array(Schema.String),
+  /** The half-star, heart and worded ratings. */
+  film: Schema.Option(Schema.Number),
+  hearts: Schema.Option(Schema.Number),
+  support: Schema.Option(Schema.Number),
+  /** The collapsible split and the nested ones. */
+  collapsibleSplit: Resizable.Model,
+  outerSplit: Resizable.Model,
+  innerSplit: Resizable.Model,
   /** The region chosen in the card grid, and the plan chosen in the item list. */
   region: Schema.String,
   plan: Schema.String,
@@ -366,6 +384,17 @@ export const Message = defineMessageUnion({
   ToggledPassword: {},
   RatedStay: { value: Schema.Number },
   ChoseRegion: { region: Schema.String },
+  SortedInvoices: { column: Schema.String },
+  ChoseInvoice: { id: Schema.String, selected: Schema.Boolean },
+  ChoseInvoices: { ids: Schema.Array(Schema.String) },
+  OpenedInvoice: { id: Schema.String, expanded: Schema.Boolean },
+  RatedFilm: { value: Schema.Number },
+  ClearedFilm: {},
+  RatedHearts: { value: Schema.Number },
+  RatedSupport: { value: Schema.Number },
+  GotCollapsibleSplit: { message: Resizable.Message },
+  GotOuterSplit: { message: Resizable.Message },
+  GotInnerSplit: { message: Resizable.Message },
   GotViewMenu: { message: Menu.Message },
   OpenedPalette: {},
   GotPalette: { message: UiDialog.Message },
@@ -595,6 +624,15 @@ export const initial: Model = {
     'bottom-center': Toast.init('preview-toasts-bottom-center', { position: 'bottom-center' }),
     'bottom-end': Toast.init('preview-toasts-bottom-end', { position: 'bottom-end' }),
   },
+  invoiceSort: Option.none(),
+  invoicesChosen: ['INV-002'],
+  invoicesOpen: [],
+  film: Option.some(3.5),
+  hearts: Option.some(4),
+  support: Option.none(),
+  collapsibleSplit: Resizable.init(0.3),
+  outerSplit: Resizable.init(0.3),
+  innerSplit: Resizable.init(0.6),
   region: 'Frankfurt',
   plan: 'Team',
 }
@@ -999,6 +1037,10 @@ const foldTrailMenu = Update.foldChild({
   update: Menu.update,
   foldOutMessage: Menu.OutMessage.match<Step>({ Selected: () => same }),
 })
+
+/** `ids` with `id` in or out; the same array when it already is. */
+const including = (ids: ReadonlyArray<string>, id: string, on: boolean): ReadonlyArray<string> =>
+  ids.includes(id) === on ? ids : on ? [...ids, id] : ids.filter(each => each !== id)
 
 const foldTagsMax = Update.foldChild({
   ...own('tagsMax', Message.GotTagsMax),
@@ -1411,6 +1453,56 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         : { model: modifyFields(model, { region: () => region }) },
     ChosePlan: ({ plan }) =>
       plan === model.plan ? { model } : { model: modifyFields(model, { plan: () => plan }) },
+    SortedInvoices: ({ column }) => ({
+      model: modifyFields(model, { invoiceSort: () => Table.nextSort(model.invoiceSort, column) }),
+    }),
+    ChoseInvoice: ({ id, selected }) => {
+      const chosen = including(model.invoicesChosen, id, selected)
+      return chosen === model.invoicesChosen
+        ? { model }
+        : { model: modifyFields(model, { invoicesChosen: () => chosen }) }
+    },
+    ChoseInvoices: ({ ids }) => ({ model: modifyFields(model, { invoicesChosen: () => ids }) }),
+    OpenedInvoice: ({ id, expanded }) => {
+      const open = including(model.invoicesOpen, id, expanded)
+      return open === model.invoicesOpen
+        ? { model }
+        : { model: modifyFields(model, { invoicesOpen: () => open }) }
+    },
+    RatedFilm: ({ value }) => ({ model: modifyFields(model, { film: () => Option.some(value) }) }),
+    ClearedFilm: () =>
+      Option.isNone(model.film)
+        ? { model }
+        : { model: modifyFields(model, { film: () => Option.none() }) },
+    RatedHearts: ({ value }) => ({
+      model: modifyFields(model, { hearts: () => Option.some(value) }),
+    }),
+    RatedSupport: ({ value }) => ({
+      model: modifyFields(model, { support: () => Option.some(value) }),
+    }),
+    // The bounds the collapsible example's view takes, which must agree with these.
+    GotCollapsibleSplit: ({ message }) => {
+      const split = Resizable.update(model.collapsibleSplit, message, {
+        min: 0.2,
+        max: 0.6,
+        collapsible: 'first',
+      })
+      return split === model.collapsibleSplit
+        ? { model }
+        : { model: modifyFields(model, { collapsibleSplit: () => split }) }
+    },
+    GotOuterSplit: ({ message }) => {
+      const split = Resizable.update(model.outerSplit, message)
+      return split === model.outerSplit
+        ? { model }
+        : { model: modifyFields(model, { outerSplit: () => split }) }
+    },
+    GotInnerSplit: ({ message }) => {
+      const split = Resizable.update(model.innerSplit, message)
+      return split === model.innerSplit
+        ? { model }
+        : { model: modifyFields(model, { innerSplit: () => split }) }
+    },
     GotListbox: ({ message }) => foldListbox(model, message),
     GotCombobox: ({ message }) => foldCombobox(model, message),
     GotCalendar: ({ message }) => foldCalendar(model, message),
