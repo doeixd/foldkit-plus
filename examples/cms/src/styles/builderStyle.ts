@@ -361,14 +361,9 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       fontSize: t.size.sm,
       gap: t.space['2xs'],
     }),
-    choices: Style.compose(
-      Recipes.Segmented({ tray: 'tray' }).group ?? Style.empty,
-      Style.self({ display: 'flex' }),
-    ),
-    choice: Style.compose(
-      Recipes.Segmented({ size: 'xs' }).option ?? Style.empty,
-      Style.self({ flex: '1' }),
-    ),
+    // Across the field, as the selects beside them are.
+    choices: Recipes.Segmented({ tray: 'tray', width: 'fill' }).group ?? Style.empty,
+    choice: Recipes.Segmented({ size: 'xs' }).option ?? Style.empty,
     shortcuts: Style.self({
       alignItems: 'baseline',
       columnGap: t.space.sm,
@@ -437,9 +432,13 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Recipes.Segmented({ tray: 'tray' }).group ?? Style.empty,
       Style.self({ display: 'flex' }),
     ),
-    // The narrow editor's tabs, a segmented control like the viewports. Their `display`
-    // is the Builder's: hidden while the editor is wide.
-    panelTabs: Recipes.Segmented({ tray: 'tray' }).group ?? Style.empty,
+    // The narrow editor's tabs, a segmented control like the viewports, across the
+    // editor. Their `display` is the Builder's, hidden while the editor is wide, so
+    // not `width: 'fill'`, whose grid would show them.
+    panelTabs: Style.compose(
+      Recipes.Segmented({ tray: 'tray' }).group ?? Style.empty,
+      Style.self({ inlineSize: 'auto' }),
+    ),
     panelTab: Style.compose(
       Recipes.Segmented({ size: 'sm' }).option ?? Style.empty,
       Style.self({ flex: '1' }),

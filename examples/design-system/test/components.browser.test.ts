@@ -152,6 +152,19 @@ test('navigation trails a breadcrumb', async () => {
   await seen('Launch checklist')
 })
 
+test('the plan picker spans its column, its plans in equal shares', async () => {
+  mount()
+  await seen('Team plans')
+  await vi.waitFor(() => {
+    const plans = document.querySelector('[role="group"][aria-label="Plan"]')
+    if (!(plans instanceof HTMLElement) || plans.parentElement === null) throw new Error('no plans')
+    expect(plans.getBoundingClientRect().width).toBeCloseTo(plans.parentElement.clientWidth, 0)
+    const widths = Array.from(plans.children, plan => plan.getBoundingClientRect().width)
+    expect(widths).toHaveLength(3)
+    widths.forEach(width => expect(width).toBeCloseTo(widths[0]!, 0))
+  })
+})
+
 test('display shows people, keys, rules, placeholders, and a spinner', async () => {
   mount()
   await seen('Loading projects')

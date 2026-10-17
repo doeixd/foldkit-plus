@@ -508,3 +508,28 @@ it('adds a Section dragged onto an empty page, where nothing marks a place', asy
     expect(page.querySelectorAll('[data-composition-node]').length).toBeGreaterThan(0),
   )
 })
+
+it('draws its segmented choices and its narrow tabs across their rows', async () => {
+  // Across what holds it, within a pixel.
+  const across = (element: HTMLElement | null) => {
+    if (element?.parentElement === null || element === null) throw new Error('not drawn')
+    const holder = element.parentElement
+    const style = getComputedStyle(holder)
+    const inner =
+      holder.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+    expect(element.getBoundingClientRect().width).toBeCloseTo(inner, 0)
+  }
+  unmount = mount(stylesheet, 3)
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  canvas()?.querySelector<HTMLElement>('[data-composition-node="h1"] h2')?.click()
+  const size = () => document.querySelector<HTMLElement>('[role="group"][aria-label="Size"]')
+  await vi.waitFor(() => expect(size()).not.toBeNull())
+  across(size())
+  unmount()
+  document.body.innerHTML = ''
+
+  unmount = mount(stylesheet, 3, longPage(3), '600px')
+  const tabs = () => document.querySelector<HTMLElement>('[aria-label="Panels"]')
+  await vi.waitFor(() => expect(tabs()?.checkVisibility()).toBe(true))
+  across(tabs())
+})

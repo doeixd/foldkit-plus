@@ -607,14 +607,9 @@ export const PillTabsStyle = app.forSlots(TabsSlots)(
     name: 'PillTabsStyle',
   },
 )
+// Across the column, the plans in equal shares.
 export const PlanStyle = app.forSlots(SegmentedSlots)(
-  {
-    group: Style.compose(
-      L.in('layouts', Layout.cluster({ gap: '2px', align: 'center' })),
-      Recipes.Segmented({ tray: 'tray', size: 'sm' }).group ?? Style.empty,
-    ),
-    option: Recipes.Segmented({ tray: 'tray', size: 'sm' }).option ?? Style.empty,
-  },
+  Recipes.Segmented({ tray: 'tray', size: 'sm', width: 'fill' }),
   { name: 'PlanStyle' },
 )
 
