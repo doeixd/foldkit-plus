@@ -687,6 +687,99 @@ version changed; `pnpm` skips versions already in the registry.
   pressed pill, through its new `indicator` and `highlight` slots.
 - **`foldkit-mixins-ui`: `Item`'s `content` is optional**, for a row its
   title and description say all of, such as a notification.
+- **`foldkit-mixins-ui`: `ChatMessage` and `MessageScroller`.** A chat
+  message with an author, avatar, time, a sending/sent/failed status with a
+  retry and named actions, the user's at the end in a bubble;
+  `ChatMessage.group` draws a sender's following messages as continued. Its
+  body wraps with `text-wrap: wrap`, so a streamed answer never moves a word
+  off an earlier line, and a streaming message is `aria-busy`. Recipe axes
+  `layout` (`chat`, `thread`), `bubble` and `content` (`text`, `markdown`,
+  spaced as Prose). `MessageScroller` is a `role="log"` in a `ScrollArea`
+  that follows the newest message while the reader is at the end, stops when
+  they scroll up, offers a jump button counting what arrived (`Appended`),
+  and holds the message in view as older ones load above; its `FollowEnd`
+  Mount is exported for Scene tests.
+- **`foldkit-mixins-ui`: `ThinkingIndicator`, `ThinkingSteps` and
+  `Questionnaire`.** The indicator is an assistant at work: dots, a pulse or
+  the view's icon beside words a band of light sweeps, and a detail line, in
+  a polite status drawn always (`active: false` draws it empty); recipe axes
+  `mark`, `label`, `tone`. Thinking Steps is a trace of reasoning and tool
+  calls under a button saying the running step or "Thought for 4s", each step
+  pending, running, done or failed, in words too, with a duration, detail
+  and steps of its own (`onToggleStep`); its openness is an `Option` the
+  application keeps, none following the work. `ThinkingSteps.stateOf`,
+  `shown`, `elapsed`; axes `variant`, `connector`. The Questionnaire asks
+  single choice, multiple choice and free text questions, with an "Other"
+  field, all at once or one at a time; `update` says what is missing and
+  focuses it, and returns `OutMessage.Answered` once all are answered.
+  `Question` is a Schema, so an assistant's tool input decodes into it; axes
+  `variant`, `actions`.
+- **`foldkit-mixins-ui`: `AngleSlider`, `Timer` and `Marquee`, after Zag's.**
+  A dial in degrees dragged round or stepped by the APG's slider keys, which
+  go round past 0, with `step`, `largeStep`, labelled `marks`,
+  `restrictToMarks`, read-only, invalid and a hidden input (recipe `tone`,
+  `track`, `value`, `size`). A countdown or stopwatch started, paused,
+  resumed, reset and restarted, its clock read by Commands on Effect's
+  `Clock` so TestClock drives a run, a `role="timer"` with each unit in a
+  Slot; `Timer.phase`, `Timer.partsOf` (recipe `tone`, `look`, `progress`,
+  `size`). Content that scrolls on without a seam: measured copies filling
+  the viewport, a speed in pixels a second, four sides, a delay and a round
+  count, held by a pointer, by focus or by its pause press (WCAG 2.2.2), its
+  copies `inert`, and still under reduced motion (recipe `spacing`,
+  `edges`).
+- **`foldkit-mixins-ui`: `ImageCropper` and `SignaturePad`, after Zag's.** A
+  crop of an image that a drag moves and eight handles resize, zoomed by a
+  Slider, the wheel and `+`/`-` with the selection kept on screen, panned,
+  turned by quarters, locked to an aspect or round; the crop is the Model's
+  in the turned image's pixels (`ImageCropper.crop`), and `RequestedExport`
+  returns the `Export` Command answering `Exported({ url, width, height })`
+  or `FailedExport` (recipe `guides`, `handles`, `viewport`). Strokes drawn
+  by one pointer, a pen's pressure used and a mouse's simulated from speed,
+  kept as data and drawn as smoothed variable-width outlines (`pathOf`),
+  with undo, clear, "Sign here" and a typed name instead; `toSvg` is pure
+  and `RequestedPng` returns `ExportPng` (recipe `surface`, `size`).
+- **`foldkit-mixins`: a `chart` group in `Theme.oklch`.** `chart-1` to
+  `chart-5`, as shadcn names them: the dataviz reference palette's first five
+  slots in its order, each a fixed turn from the `chart-h` knob at a
+  lightness and chroma set per hue and per scheme.
+- **`foldkit-mixins-ui`: `QrCode` and `Chart`.** `QrCode.view` draws text as
+  one SVG path in a quiet zone, one image named by what it encodes, with an
+  overlay (a logo) that raises the level from M to H; `QrCode.encode` and
+  `pathOf` are pure, `QrCode.Download` saves the drawn code as PNG or SVG
+  in its colors, and the recipe draws it dark on light on any page
+  (`scheme`, `size`). Encoded by `uqr`, now a dependency. `Chart.view` draws
+  bars, a line, an area or a donut with round ticks, gridlines, a legend and
+  a tooltip, in percentages, so it fills any width with nothing measured and
+  renders the same on a server; `Chart.Model` holds the lit point, the
+  arrows, Home and End step through the points while a status says each,
+  and the data is a table, hidden unless `table: 'shown'`. Series take
+  `chart-1` to `chart-5`; recipe axes `height`, `grid`, `indicator`.
+- **`foldkit-mixins-ui`: `CascadeSelect`, `FloatingPanel` and `Tour`.** One
+  value chosen as a path through nested options (`CascadeSelect.update({
+  nodes })`) from a top-layer APG tree with a column per level or one level
+  at a time (`layout: 'drill'`), the arrows within and between levels,
+  Home, End and a letter, `expandOn: 'hover'`, `parents`, `clearable`,
+  `levels` and a hidden input (recipe `size`, `trigger`, `width`). A
+  non-modal window whose rect and stage are its Model: dragged, resized
+  from eight edges within the viewport, `min`, `max` and a `grid`, moved and
+  resized by the arrows, minimized, maximized, restored and closed, stacked
+  by an `order` its `Raised` OutMessage updates (`FloatingPanel.raise`;
+  recipe `header`). A tour of steps beside their targets in the top layer,
+  over a dim with a cutout the target's presses reach, the target scrolled
+  into view, Next, Back, the arrows, Skip and Escape, focus back to the
+  opener and `Ended { completed }` at the end; a step without a target, or
+  with a missing one, stands in the middle.
+- **`foldkit-mixins-ui`: `Anchor.layerBox`**, the top-layer box `layer`
+  draws, without its `TopLayer` Mount, for a box whose own Mount shows it
+  through `topLayer`.
+- **`foldkit-primitives/dom`: `PointerPosition({ focus? })`**, a Mount
+  reporting one pointer's press, moves (with coalesced points and pressure)
+  and release in the element's padding box, captured, with move listeners
+  only during a press; `paddingBoxOf({ rect, border })` and
+  `measurePaddingBox(element)`. In `foldkit-mixins-ui` the color picker's
+  area, the angle slider's dial and the signature pad read the pointer
+  through it (no API change).
+- **Site: pages for every component above.**
 
 ### Changed
 
