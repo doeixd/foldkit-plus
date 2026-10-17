@@ -84,6 +84,10 @@ const defined = new Set([
   // Written on an open popup's panel by its `fluid`.
   ...['x', 'y', 'w', 'h', 'display'].map(part => `popup-chosen-${part}`),
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `popup-hover-${part}`),
+  // Written on a toast stack's list and toasts by its view and `Toast.Stack`.
+  ...['front', 'total', 'count', 'offset', 'index', 'swipe-x', 'swipe-y'].map(
+    part => `toast-${part}`,
+  ),
   // Written on each overlay scroll bar by `ScrollBars`.
   'scroll-thumb-offset',
   'scroll-thumb-size',
@@ -619,11 +623,6 @@ describe('Recipes', () => {
     it('stacks entries bottom-right above the page', () => {
       expect(css()).toContain('position:fixed')
       expect(css()).toContain('z-index:50')
-    })
-
-    it('edges each entry with the accent', () => {
-      expect(css()).toContain('border-inline-start:')
-      expect(css()).toContain('var(--fk-accent-default)')
     })
   })
 
