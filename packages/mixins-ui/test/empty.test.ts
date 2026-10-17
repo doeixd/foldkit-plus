@@ -1,7 +1,7 @@
 /**
  * Empty: five Container slots with no state behind them, a view that draws
- * only the regions the state earns, and a variant-free recipe (nothing here
- * varies; the look is chosen once).
+ * only the regions the state earns with its picture hidden from a screen
+ * reader, and a recipe that centres it.
  */
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
@@ -37,6 +37,11 @@ describe('Empty view', () => {
     }
     const bare = view({ title: 'Nothing here' }, h)
     expect(Inert.text(bare)).toBe('Nothing here')
+  })
+
+  it('hides its picture, which the title says in words', () => {
+    const drawn = view({ title: 'No results', icon: h.span([], ['⌕']) }, h)
+    expect(Inert.value(Inert.children(drawn)[0], 'aria-hidden')).toBe('true')
   })
 })
 
