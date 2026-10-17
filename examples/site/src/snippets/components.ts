@@ -6,6 +6,8 @@
  */
 import { Option, Schema } from 'effect'
 import { Calendar as FoldkitCalendar } from 'foldkit'
+import * as FoldkitCommand from 'foldkit/command'
+import { modifyFields } from 'foldkit/struct'
 import {
   Calendar as UiCalendar,
   Combobox as UiCombobox,
@@ -1468,6 +1470,35 @@ export const breadcrumbCollapsed = <Message>(
   )
 // #endregion
 
+// #region breadcrumb-menu
+// The "…" opens a Menu of the hidden steps; the application keeps the Menu's Model.
+export const trail: ReadonlyArray<Breadcrumb.BreadcrumbStep> = [
+  { label: 'Home', href: '#' },
+  { label: 'Docs', href: '#' },
+  { label: 'Packages', href: '#' },
+  { label: 'Mixins', href: '#' },
+  { label: 'Recipes', href: '#' },
+  { label: 'Breadcrumb', current: true },
+]
+export const TRAIL_MAX = 3
+export const trailMenu = Menu.init('trail-menu', Breadcrumb.menuRows(trail, TRAIL_MAX))
+
+export const breadcrumbMenu = <Message>(
+  style: NamedStyle<typeof BreadcrumbSlots>,
+  menu: Menu.Model,
+  onMessage: (message: Menu.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Breadcrumb.view(
+    {
+      steps: trail,
+      collapse: { max: TRAIL_MAX, menu: { model: menu, onMessage, mixins: [MenuStyle.mixin] } },
+      style,
+    },
+    h,
+  )
+// #endregion
+
 // #region pagination-numbered
 export const PaginationStyle = forSlots(PaginationSlots)(Recipes.Pagination({}))
 
@@ -1683,7 +1714,7 @@ export const emptyError = (style: NamedStyle<typeof EmptySlots>, h: HtmlBuilder<
   )
 // #endregion
 
-// #region tabs
+// #region tabs-underline
 export const TabsStyle = forSlots(TabsSlots)(Recipes.Tabs({}))
 
 export const Section = Schema.Literals(['overview', 'activity', 'settings'])
@@ -1721,14 +1752,15 @@ export const tabs = <Message>(
         // Arrow keys follow the page's direction: ArrowLeft is the next tab right to left.
         [style.mixin, ...Tabs.fluid, Tabs.readingKeys],
         { h },
-        ({ tablist, indicator, highlight, tabs, activeIndex }) =>
+        ({ tablist, indicator, highlight, label, tabs, activeIndex }) =>
           h.div(
             [],
             [
               h.div(tablist, [
                 h.div(indicator),
                 h.div(highlight),
-                ...tabs.map(tab => h.button(tab.tab, [sections[tab.value].label])),
+                // The words in `label`, which keeps their trim in the tab's flex row.
+                ...tabs.map(tab => h.button(tab.tab, [h.span(label, [sections[tab.value].label])])),
               ]),
               ...tabs
                 .filter(tab => tab.index === activeIndex)
@@ -1739,6 +1771,200 @@ export const tabs = <Message>(
     },
     toParentMessage: toMessage,
   })
+// #endregion
+
+// #region tabs-pill
+// The chosen tab on a pill that glides, drawn by `tabs`.
+export const TabsPillStyle = forSlots(TabsSlots)(Recipes.Tabs({ variant: 'pill' }))
+// #endregion
+
+// #region tabs-icons
+// An icon before each tab's words and a Badge count after them; the words sit in `label`.
+export const Inbox = Schema.Literals(['inbox', 'drafts', 'sent'])
+export type Inbox = typeof Inbox.Type
+export const InboxTabs: ReturnType<typeof UiTabs.create<Inbox>> = UiTabs.create<Inbox>()
+
+const folders: Record<
+  Inbox,
+  { readonly label: string; readonly icon: string; readonly count?: string }
+> = {
+  inbox: { label: 'Inbox', icon: 'M2 9h3l1 2h4l1-2h3M2 9l2-6h8l2 6v4H2z', count: '12' },
+  drafts: { label: 'Drafts', icon: 'M3 13l1-4 7-7 3 3-7 7z', count: '3' },
+  sent: { label: 'Sent', icon: 'M2 8l12-5-5 12-2-5z' },
+}
+
+export interface InboxState {
+  readonly tabs: UiTabs.Model
+  readonly folder: Inbox
+}
+
+export const tabsIcons = <Message>(
+  style: NamedStyle<typeof TabsSlots>,
+  state: InboxState,
+  toMessage: (message: UiTabs.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.tabs.id,
+    model: state.tabs,
+    view: InboxTabs.view,
+    viewInputs: {
+      tabs: Inbox.literals,
+      selectedValue: state.folder,
+      ariaLabel: 'Mail',
+      toView: Tabs.toView<Inbox, Message>(
+        [style.mixin, ...Tabs.fluid],
+        { h },
+        ({ tablist, indicator, highlight, label, icon, tabs }) =>
+          h.div(tablist, [
+            h.div(indicator),
+            h.div(highlight),
+            ...tabs.map(tab => {
+              const folder = folders[tab.value]
+              return h.button(tab.tab, [
+                h.span(icon, [outline(h, folder.icon)]),
+                h.span(label, [folder.label]),
+                ...(folder.count === undefined
+                  ? []
+                  : [Badge.view({ text: folder.count, style: BadgeStyle }, h)]),
+              ])
+            }),
+          ]),
+      ),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region tabs-vertical
+// Upright: the arrows go up and down, and the underline stands at the tabs' inline end.
+export const tabsVertical = <Message>(
+  style: NamedStyle<typeof TabsSlots>,
+  state: InboxState,
+  toMessage: (message: UiTabs.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.tabs.id,
+    model: state.tabs,
+    view: InboxTabs.view,
+    viewInputs: {
+      tabs: Inbox.literals,
+      selectedValue: state.folder,
+      ariaLabel: 'Mail',
+      orientation: 'Vertical',
+      toView: Tabs.toView<Inbox, Message>(
+        [style.mixin, ...Tabs.fluid],
+        { h },
+        ({ tablist, indicator, highlight, label, tabs, activeIndex }) =>
+          h.div(
+            [h.Style({ display: 'flex', gap: '1.5rem' })],
+            [
+              h.div(tablist, [
+                h.div(indicator),
+                h.div(highlight),
+                ...tabs.map(tab => h.button(tab.tab, [h.span(label, [folders[tab.value].label])])),
+              ]),
+              ...tabs
+                .filter(tab => tab.index === activeIndex)
+                .map(tab => h.div(tab.panel, [`${folders[tab.value].label} is empty.`])),
+            ],
+          ),
+      ),
+    },
+    toParentMessage: toMessage,
+  })
+// #endregion
+
+// #region tabs-closable
+// Each tab closes with its cross or Delete; Tabs.closing says what is left and what takes focus.
+export const OpenFiles = Schema.Struct({
+  tabs: UiTabs.Model,
+  files: Schema.Array(Schema.String),
+  chosen: Schema.String,
+})
+export type OpenFiles = typeof OpenFiles.Type
+export const FileTabs: ReturnType<typeof UiTabs.create<string>> = UiTabs.create<string>()
+
+/** Answers a tab's `onClose`: the file goes, and the tab after it takes focus. */
+export const closeFile = <Message>(
+  state: OpenFiles,
+  file: string,
+  toMessage: (message: UiTabs.Message) => Message,
+): {
+  readonly state: OpenFiles
+  readonly commands: ReadonlyArray<FoldkitCommand.Command<Message>>
+} => {
+  const after = Tabs.closing(state.files, state.chosen, file)
+  return {
+    state: modifyFields(state, {
+      files: () => after.tabs,
+      chosen: chosen => Option.getOrElse(after.selected, () => chosen),
+    }),
+    commands: FoldkitCommand.mapMessages(
+      Option.toArray(
+        Option.map(after.focus, index => UiTabs.FocusTab({ id: state.tabs.id, index })),
+      ),
+      toMessage,
+    ),
+  }
+}
+
+export const tabsClosable = <Message>(
+  style: NamedStyle<typeof TabsSlots>,
+  state: OpenFiles,
+  messages: {
+    readonly toMessage: (message: UiTabs.Message) => Message
+    readonly onClose: (file: string) => Message
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.tabs.id,
+    model: state.tabs,
+    view: FileTabs.view,
+    viewInputs: {
+      tabs: state.files,
+      selectedValue: state.chosen,
+      ariaLabel: 'Open files',
+      toView: Tabs.toView<string, Message>(
+        [style.mixin, ...Tabs.fluid],
+        { h, close: { onClose: messages.onClose } },
+        ({ tablist, indicator, highlight, label, tabs }) =>
+          h.div(tablist, [
+            h.div(indicator),
+            h.div(highlight),
+            ...tabs.map(tab =>
+              h.div(tab.item, [
+                h.button(tab.tab, [h.span(label, [tab.value])]),
+                ...Option.match(tab.close, {
+                  onNone: () => [],
+                  onSome: close => [h.button(close, [])],
+                }),
+              ]),
+            ),
+          ]),
+      ),
+    },
+    toParentMessage: messages.toMessage,
+  })
+// #endregion
+
+// #region tabs-scrolling
+export const TabsScrollStyle = forSlots(TabsSlots)(Recipes.Tabs({ overflow: 'scroll' }))
+
+// More tabs than fit: one line that scrolls, its edges fading where more lies
+// past, and focus scrolling a tab into view. The closable files in a narrow box.
+export const tabsScrolling = <Message>(
+  style: NamedStyle<typeof TabsSlots>,
+  state: OpenFiles,
+  messages: {
+    readonly toMessage: (message: UiTabs.Message) => Message
+    readonly onClose: (file: string) => Message
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div([h.Style({ inlineSize: 'min(20rem, 100%)' })], [tabsClosable(style, state, messages, h)])
 // #endregion
 
 export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
@@ -3603,37 +3829,122 @@ export const resizable = <Message>(
   )
 // #endregion
 
-// #region sidebar
+// #region sidebar-rail
 export const SidebarStyle = forSlots(SidebarSlots)(Recipes.Sidebar({}))
+export const SidebarSheetStyle = forSlots(DialogSlots)(Recipes.Sheet({}))
 
-export const SIDEBAR_GROUPS: ReadonlyArray<Sidebar.SidebarGroup> = [
+export const appSidebar = Sidebar.init({
+  id: 'app-sidebar',
+  rows: ['inbox', 'projects', 'calendar', 'members', 'billing'],
+  open: ['settings'],
+})
+
+const workspace = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<Sidebar.SidebarGroup> => [
   {
     id: 'workspace',
-    title: 'Workspace',
     rows: [
-      { id: 'inbox', label: 'Inbox', href: '#', current: true },
-      { id: 'projects', label: 'Projects', href: '#' },
-      { id: 'calendar', label: 'Calendar', href: '#' },
+      {
+        id: 'inbox',
+        label: 'Inbox',
+        href: '#',
+        current: true,
+        badge: '12',
+        icon: outline(h, 'M2 9h3l1 2h4l1-2h3M2 9l2-6h8l2 6v4H2z'),
+      },
+      {
+        id: 'projects',
+        label: 'Projects',
+        icon: outline(h, 'M1 3h5l2 2h7v8H1z'),
+        items: [
+          { label: 'Website', href: '#' },
+          { label: 'Mobile app', href: '#' },
+        ],
+      },
+      {
+        id: 'calendar',
+        label: 'Calendar',
+        href: '#',
+        icon: outline(h, 'M2 4h12v10H2zM2 7h12M5 2v3M11 2v3'),
+      },
     ],
   },
   {
     id: 'settings',
     title: 'Settings',
     rows: [
-      { id: 'members', label: 'Members', href: '#' },
-      { id: 'billing', label: 'Billing', href: '#' },
+      {
+        id: 'members',
+        label: 'Members',
+        href: '#',
+        badge: '3',
+        icon: outline(h, 'M6 7a2 2 0 100-4 2 2 0 000 4zM2 13c0-2 2-4 4-4s4 2 4 4'),
+      },
+      { id: 'billing', label: 'Billing', href: '#', icon: outline(h, 'M2 4h12v8H2zM2 7h12') },
     ],
   },
 ]
 
-// Which groups are open and whether it is collapsed are the sidebar's Model,
-// `Sidebar.init({ id, rows })`, folded with `Sidebar.update`.
+// Collapsed to a rail of icons named in tooltips; on a phone the opener shows it in a Sheet.
 export const sidebar = <Message>(
   style: NamedStyle<typeof SidebarSlots>,
   model: Sidebar.Model,
   onMessage: (message: Sidebar.Message) => Message,
   h: HtmlBuilder<Message>,
-): Html => Sidebar.view({ model, onMessage, label: 'Workspace', groups: SIDEBAR_GROUPS, style }, h)
+): Html =>
+  Sidebar.view(
+    {
+      model,
+      onMessage,
+      label: 'Workspace',
+      groups: workspace(h),
+      header: h.strong([], ['Acme']),
+      footer: h.span([], ['ada@acme.dev']),
+      collapse: 'icons',
+      style,
+      mixins: Sidebar.fluid,
+      tooltip: [TooltipStyle.mixin],
+      sheet: [SidebarSheetStyle.mixin],
+    },
+    h,
+  )
+// #endregion
+
+// #region sidebar-resizable
+export const SidebarFillStyle = forSlots(SidebarSlots)(Recipes.Sidebar({ width: 'fill' }))
+
+// The sidebar as a Resizable's first panel, filling it; the split is the Resizable's Model.
+export const sidebarResizable = <Message>(
+  model: Sidebar.Model,
+  split: Resizable.Model,
+  messages: {
+    readonly onSidebar: (message: Sidebar.Message) => Message
+    readonly onSplit: (message: Resizable.Message) => Message
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  Resizable.view(
+    {
+      model: split,
+      onMessage: messages.onSplit,
+      label: 'Sidebar width',
+      min: 0.2,
+      max: 0.5,
+      first: Sidebar.view(
+        {
+          model,
+          onMessage: messages.onSidebar,
+          label: 'Workspace',
+          groups: workspace(h),
+          style: SidebarFillStyle,
+          mixins: Sidebar.fluid,
+        },
+        h,
+      ),
+      second: h.p([], ['The page.']),
+      style: ResizableStyle,
+    },
+    h,
+  )
 // #endregion
 
 // #region menubar
@@ -4468,7 +4779,7 @@ export const carousel = <Message>(
   )
 // #endregion
 
-// #region navigation-menu
+// #region navigation-menu-links
 export const NavStyle = forSlots(NavSlots)(Recipes.Nav({}))
 
 const NavPage = Schema.Literals(['Overview', 'Projects', 'Team', 'Settings'])
@@ -4486,7 +4797,72 @@ export const nav = <Message>(style: NamedStyle<typeof NavSlots>, h: HtmlBuilder<
   })
 // #endregion
 
-// #region segmented
+// #region navigation-menu-panels
+// A trigger shows a panel of links in the top layer below it; which one shows is Nav's Model.
+export const siteNav: ReadonlyArray<Nav.NavEntry> = [
+  { label: 'Overview', href: '#' },
+  {
+    id: 'packages',
+    label: 'Packages',
+    groups: [
+      {
+        title: 'Build',
+        links: [
+          { label: 'Mixins', href: '#', description: 'Slots, styles and behaviors.' },
+          { label: 'Mixins UI', href: '#', description: 'Components on the slots.', current: true },
+        ],
+      },
+      {
+        title: 'Data',
+        links: [
+          { label: 'Remote', href: '#', description: 'Server facts, cached and live.' },
+          { label: 'Sync', href: '#', description: 'Durable operations, offline first.' },
+        ],
+      },
+    ],
+  },
+  { id: 'learn', label: 'Learn', groups: [{ links: [{ label: 'Guides', href: '#' }] }] },
+  { label: 'Blog', href: '#' },
+]
+
+export const navPanels = <Message>(
+  style: NamedStyle<typeof NavSlots>,
+  model: Nav.Model,
+  onMessage: (message: Nav.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Nav.view(
+    { model, entries: siteNav, label: 'Site', onMessage, mixins: [style.mixin, ...Nav.fluid] },
+    h,
+  )
+// #endregion
+
+// #region navigation-menu-pill
+export const NavPillStyle = forSlots(NavSlots)(Recipes.Nav({ indicator: 'pill' }))
+// #endregion
+
+// #region navigation-menu-vertical
+// A column: the arrows go up and down, and a panel opens beside it.
+export const navVertical = <Message>(
+  style: NamedStyle<typeof NavSlots>,
+  model: Nav.Model,
+  onMessage: (message: Nav.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Nav.view(
+    {
+      model,
+      entries: siteNav,
+      label: 'Site',
+      orientation: 'vertical',
+      onMessage,
+      mixins: [style.mixin, ...Nav.fluid],
+    },
+    h,
+  )
+// #endregion
+
+// #region segmented-basic
 export const SegmentedStyle = forSlots(SegmentedSlots)(Recipes.Segmented({}))
 
 export const Range = Schema.Literals(['day', 'week', 'month', 'year'])
@@ -4513,4 +4889,72 @@ export const segmented = <Message>(
     },
     h,
   )
+// #endregion
+
+// #region segmented-icons
+export const ViewMode = Schema.Literals(['list', 'board', 'calendar'])
+export type ViewMode = typeof ViewMode.Type
+
+const modes: Record<ViewMode, { readonly label: string; readonly icon: string }> = {
+  list: { label: 'List', icon: 'M2 4h12M2 8h12M2 12h12' },
+  board: { label: 'Board', icon: 'M2 2h5v12H2zM9 2h5v7H9z' },
+  calendar: { label: 'Calendar', icon: 'M2 4h12v10H2zM2 7h12M5 2v3M11 2v3' },
+}
+
+// An icon before each option's words, or alone (`iconOnly`), named by its label.
+export const segmentedIcons = <Message>(
+  style: NamedStyle<typeof SegmentedSlots>,
+  mode: ViewMode,
+  onMode: (mode: ViewMode) => Message,
+  iconOnly: boolean,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Segmented.view(
+    {
+      label: 'View',
+      options: ViewMode.literals.map(value => ({
+        value,
+        label: modes[value].label,
+        icon: outline(h, modes[value].icon),
+        iconOnly,
+      })),
+      pressed: [mode],
+      onPress: onMode,
+      style,
+      mixins: Segmented.fluid,
+    },
+    h,
+  )
+// #endregion
+
+// #region segmented-icon-only
+// The icons alone, each option named by its label (`aria-label` and `title`):
+// `segmentedIcons(style, mode, onMode, true, h)`.
+// #endregion
+
+// #region segmented-sizes
+export const SegmentedSizes = (['sm', 'md', 'lg'] as const).map(size =>
+  forSlots(SegmentedSlots)(Recipes.Segmented({ size })),
+)
+
+// Three steps of the size ladder, each a control of its own.
+export const segmentedSizes = <Message>(
+  range: Range,
+  onRange: (range: Range) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    SegmentedSizes.map(style => segmented(style, range, onRange, h)),
+  )
+// #endregion
+
+// #region segmented-full
+export const SegmentedFullStyle = forSlots(SegmentedSlots)(Recipes.Segmented({ width: 'fill' }))
+// #endregion
+
+// #region segmented-underline
+export const SegmentedUnderlineStyle = forSlots(SegmentedSlots)(
+  Recipes.Segmented({ tray: 'underline' }),
+)
 // #endregion

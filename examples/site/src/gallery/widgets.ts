@@ -35,6 +35,7 @@ import {
   TreeView,
   Carousel,
   Menu,
+  Nav,
   Sheet,
   Command as CommandMenu,
   Toast,
@@ -57,7 +58,17 @@ import {
   FrequencyBox,
   MENUBAR,
   PAGE_MENU,
-  SIDEBAR_GROUPS,
+  appSidebar,
+  FileTabs,
+  InboxTabs,
+  type InboxState,
+  OpenFiles,
+  TRAIL_MAX,
+  trail,
+  trailMenu,
+  closeFile,
+  ViewMode,
+  Inbox,
   ViewOptions,
   viewRows,
   cities,
@@ -79,6 +90,16 @@ export const PaginationExample = Schema.Literals([
   'compact',
 ])
 export type PaginationExample = typeof PaginationExample.Type
+
+/** The tab examples each with tabs of their own, and the navigation menus. */
+export const InboxExample = Schema.Literals(['icons', 'vertical'])
+export type InboxExample = typeof InboxExample.Type
+export const FilesExample = Schema.Literals(['closable', 'scrolling'])
+export type FilesExample = typeof FilesExample.Type
+export const NavExample = Schema.Literals(['panels', 'pill', 'vertical'])
+export type NavExample = typeof NavExample.Type
+
+const InboxModel = Schema.Struct({ tabs: UiTabs.Model, folder: Inbox })
 
 /** The carousel examples. */
 export const CarouselExample = Schema.Literals(['places'])
@@ -192,6 +213,17 @@ export const Model = Schema.Struct({
   split: Resizable.Model,
   /** The sidebar's open groups, whether it is collapsed, its tooltips and phone Sheet. */
   sidebar: Sidebar.Model,
+  /** The resizable sidebar's own Model, and its split. */
+  sidebarResizable: Sidebar.Model,
+  sidebarSplit: Resizable.Model,
+  /** The pill tabs' own tabs and section. */
+  pillTabs: Schema.Struct({ tabs: UiTabs.Model, section: Section }),
+  inboxes: Schema.Record(InboxExample, InboxModel),
+  files: Schema.Record(FilesExample, OpenFiles),
+  viewMode: ViewMode,
+  navs: Schema.Record(NavExample, Nav.Model),
+  /** The breadcrumb's menu of the steps it folds away. */
+  trailMenu: Menu.Model,
   /** The menu bar's menus, and the command last chosen from it. */
   menubar: Menubar.Model,
   menubarChoice: Schema.Option(Schema.String),
@@ -294,6 +326,15 @@ export const Message = defineMessageUnion({
   RanCommand: { value: Schema.String },
   GotSplit: { message: Resizable.Message },
   GotSidebar: { message: Sidebar.Message },
+  GotSidebarResizable: { message: Sidebar.Message },
+  GotSidebarSplit: { message: Resizable.Message },
+  GotPillTabs: { message: UiTabs.Message },
+  GotInboxTabs: { example: InboxExample, message: UiTabs.Message },
+  GotFileTabs: { example: FilesExample, message: UiTabs.Message },
+  ClosedFile: { example: FilesExample, file: Schema.String },
+  ChoseViewMode: { mode: ViewMode },
+  GotNav: { example: NavExample, message: Nav.Message },
+  GotTrailMenu: { message: Menu.Message },
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
   GotCarousel: { message: Carousel.Message },
@@ -353,6 +394,12 @@ const initialViewOptions: ViewOptions = {
   zoom: 'Fit',
   chosen: Option.none(),
 }
+
+const openFiles = (id: string): OpenFiles => ({
+  tabs: UiTabs.init({ id }),
+  files: ['index.ts', 'tabs.ts', 'nav.ts', 'sidebar.ts', 'menu.ts', 'sheet.ts', 'badge.ts'],
+  chosen: 'tabs.ts',
+})
 
 // The day the page was loaded; a picker that shows another opens on the wrong month.
 const today = Effect.runSync(Calendar.today.local)
@@ -438,11 +485,26 @@ export const initial: Model = {
   commandActive: Option.none(),
   commandRan: Option.none(),
   split: Resizable.init(0.35),
-  sidebar: Sidebar.init({
-    id: 'app-sidebar',
-    rows: SIDEBAR_GROUPS.flatMap(group => group.rows.map(row => row.id)),
-    open: ['workspace'],
+  sidebar: appSidebar,
+  sidebarResizable: Sidebar.init({
+    id: 'app-sidebar-resizable',
+    rows: ['inbox', 'projects', 'calendar', 'members', 'billing'],
+    open: ['settings'],
   }),
+  sidebarSplit: Resizable.init(0.3),
+  pillTabs: { tabs: UiTabs.init({ id: 'preview-tabs-pill' }), section: 'overview' },
+  inboxes: {
+    icons: { tabs: UiTabs.init({ id: 'preview-inbox' }), folder: 'inbox' },
+    vertical: { tabs: UiTabs.init({ id: 'preview-inbox-vertical' }), folder: 'inbox' },
+  },
+  files: { closable: openFiles('preview-files'), scrolling: openFiles('preview-files-scroll') },
+  viewMode: 'board',
+  navs: {
+    panels: Nav.init('preview-site-nav'),
+    pill: Nav.init('preview-pill-nav'),
+    vertical: Nav.init('preview-side-nav'),
+  },
+  trailMenu,
   menubar: Menubar.init(
     MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`),
     { isAnimated: true },
@@ -814,6 +876,86 @@ const foldSidebar = Update.foldChild({
   update: Sidebar.update,
 })
 
+const foldSidebarResizable = Update.foldChild({
+  ...own('sidebarResizable', Message.GotSidebarResizable),
+  update: Sidebar.update,
+})
+
+const foldPillTabs = Update.foldChild({
+  read: (model: Model) => Option.some(model.pillTabs.tabs),
+  write: (model, tabs) => modifyFields(model, { pillTabs: pill => ({ ...pill, tabs }) }),
+  toParentMessage: message => Message.GotPillTabs({ message }),
+  update: SectionTabs.update,
+  foldOutMessage: UiTabs.OutMessage.match<Step, UiTabs.OutMessage<Section>>({
+    Selected:
+      ({ value }) =>
+      model =>
+        value === model.pillTabs.section
+          ? { model }
+          : { model: modifyFields(model, { pillTabs: pill => ({ ...pill, section: value }) }) },
+  }),
+})
+
+const foldInboxTabs = Update.foldChildAt({
+  update: InboxTabs.update,
+  readAt: (model: Model, example: InboxExample) => Option.some(model.inboxes[example].tabs),
+  writeAt: (model, example, tabs) =>
+    modifyFields(model, {
+      inboxes: inboxes => ({ ...inboxes, [example]: { ...inboxes[example], tabs } }),
+    }),
+  toParentMessage: (example, message) => Message.GotInboxTabs({ example, message }),
+  foldOutMessage: example =>
+    UiTabs.OutMessage.match<Step, UiTabs.OutMessage<Inbox>>({
+      Selected:
+        ({ value }) =>
+        model =>
+          value === model.inboxes[example].folder
+            ? { model }
+            : {
+                model: modifyFields(model, {
+                  inboxes: inboxes => ({
+                    ...inboxes,
+                    [example]: { ...inboxes[example], folder: value },
+                  }),
+                }),
+              },
+    }),
+})
+
+const writeFiles = (model: Model, example: FilesExample, files: OpenFiles): Model =>
+  modifyFields(model, { files: all => ({ ...all, [example]: files }) })
+
+const foldFileTabs = Update.foldChildAt({
+  update: FileTabs.update,
+  readAt: (model: Model, example: FilesExample) => Option.some(model.files[example].tabs),
+  writeAt: (model, example, tabs) => writeFiles(model, example, { ...model.files[example], tabs }),
+  toParentMessage: (example, message) => Message.GotFileTabs({ example, message }),
+  foldOutMessage: example =>
+    UiTabs.OutMessage.match<Step, UiTabs.OutMessage<string>>({
+      Selected:
+        ({ value }) =>
+        model =>
+          value === model.files[example].chosen
+            ? { model }
+            : { model: writeFiles(model, example, { ...model.files[example], chosen: value }) },
+    }),
+})
+
+const foldNav = Update.foldChildAt({
+  update: Nav.update,
+  readAt: (model: Model, example: NavExample) => Option.some(model.navs[example]),
+  writeAt: (model, example, nav) =>
+    modifyFields(model, { navs: navs => ({ ...navs, [example]: nav }) }),
+  toParentMessage: (example, message) => Message.GotNav({ example, message }),
+})
+
+// The gallery's steps lead to `#`, so a step chosen from the menu only closes it.
+const foldTrailMenu = Update.foldChild({
+  ...own('trailMenu', Message.GotTrailMenu),
+  update: Menu.update,
+  foldOutMessage: Menu.OutMessage.match<Step>({ Selected: () => same }),
+})
+
 const foldTagsMax = Update.foldChild({
   ...own('tagsMax', Message.GotTagsMax),
   update: TagsInput.update,
@@ -1061,6 +1203,28 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       model: modifyFields(model, { commandActive: () => Option.some(value) }),
     }),
     GotSidebar: ({ message }) => foldSidebar(model, message),
+    GotSidebarResizable: ({ message }) => foldSidebarResizable(model, message),
+    GotSidebarSplit: ({ message }) => {
+      const split = Resizable.update(model.sidebarSplit, message, { min: 0.2, max: 0.5 })
+      return split === model.sidebarSplit
+        ? { model }
+        : { model: modifyFields(model, { sidebarSplit: () => split }) }
+    },
+    GotPillTabs: ({ message }) => foldPillTabs(model, message),
+    GotInboxTabs: ({ example, message }) => foldInboxTabs(model, example, message),
+    GotFileTabs: ({ example, message }) => foldFileTabs(model, example, message),
+    ClosedFile: ({ example, file }) => {
+      const closed = closeFile(model.files[example], file, message =>
+        Message.GotFileTabs({ example, message }),
+      )
+      return { model: writeFiles(model, example, closed.state), commands: closed.commands }
+    },
+    ChoseViewMode: ({ mode }) =>
+      mode === model.viewMode
+        ? { model }
+        : { model: modifyFields(model, { viewMode: () => mode }) },
+    GotNav: ({ example, message }) => foldNav(model, example, message),
+    GotTrailMenu: ({ message }) => foldTrailMenu(model, message),
     GotSplit: ({ message }) => {
       const split = Resizable.update(model.split, message, { min: 0.2, max: 0.8 })
       return split === model.split

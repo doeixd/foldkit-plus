@@ -371,3 +371,12 @@ describe('the overlay previews', () => {
     expect(Sheet.isOpen(shut.widgets.sheets.drawer)).toBe(false)
   })
 })
+
+describe('the navigation previews', () => {
+  it('close a file in one tab example and leave the other', () => {
+    const closed = send(Widgets.Message.ClosedFile({ example: 'closable', file: 'tabs.ts' }))
+    expect(closed.widgets.files.closable.files).not.toContain('tabs.ts')
+    expect(closed.widgets.files.closable.chosen).not.toBe('tabs.ts')
+    expect(closed.widgets.files.scrolling.files).toContain('tabs.ts')
+  })
+})

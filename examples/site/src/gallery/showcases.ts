@@ -7,6 +7,7 @@
  */
 import { Option } from 'effect'
 import type {
+  Tabs as UiTabs,
   Combobox as UiCombobox,
   Listbox as UiListbox,
   Popover as UiPopover,
@@ -67,6 +68,7 @@ import {
   TextareaSlots,
   ToastSlots,
   TooltipSlots,
+  type Nav,
 } from 'foldkit-mixins-ui'
 
 import * as Snippet from '../snippets/components.js'
@@ -472,6 +474,57 @@ const sheetMessages = <Message>(
 
 const sheetDrawer = <Message>(style: NamedStyle<typeof DialogSlots>, live: Live<Message>) =>
   Snippet.sheetDrawer(style, live.widgets.sheets.drawer, sheetMessages(live, 'drawer'), live.h)
+
+const tabsUnderline = <Message>(style: NamedStyle<typeof TabsSlots>, live: Live<Message>) =>
+  Snippet.tabs(
+    style,
+    live.widgets,
+    message => live.onWidget(Widgets.Message.GotTabs({ message })),
+    live.h,
+  )
+
+const inboxMessage =
+  <Message>(live: Live<Message>, example: Widgets.InboxExample) =>
+  (message: UiTabs.Message) =>
+    live.onWidget(Widgets.Message.GotInboxTabs({ example, message }))
+
+const fileMessages = <Message>(live: Live<Message>, example: Widgets.FilesExample) => ({
+  toMessage: (message: UiTabs.Message) =>
+    live.onWidget(Widgets.Message.GotFileTabs({ example, message })),
+  onClose: (file: string) => live.onWidget(Widgets.Message.ClosedFile({ example, file })),
+})
+
+const segmentedBasic = <Message>(style: NamedStyle<typeof SegmentedSlots>, live: Live<Message>) =>
+  Snippet.segmented(
+    style,
+    live.widgets.range,
+    range => live.onWidget(Widgets.Message.ChoseRange({ range })),
+    live.h,
+  )
+
+const segmentedIcons =
+  (iconOnly: boolean) =>
+  <Message>(style: NamedStyle<typeof SegmentedSlots>, live: Live<Message>) =>
+    Snippet.segmentedIcons(
+      style,
+      live.widgets.viewMode,
+      mode => live.onWidget(Widgets.Message.ChoseViewMode({ mode })),
+      iconOnly,
+      live.h,
+    )
+
+const navMessage =
+  <Message>(live: Live<Message>, example: Widgets.NavExample) =>
+  (message: Nav.Message) =>
+    live.onWidget(Widgets.Message.GotNav({ example, message }))
+
+const sidebarRail = <Message>(style: NamedStyle<typeof SidebarSlots>, live: Live<Message>) =>
+  Snippet.sidebar(
+    style,
+    live.widgets.sidebar,
+    message => live.onWidget(Widgets.Message.GotSidebar({ message })),
+    live.h,
+  )
 
 // Each checkbox example holds its own state: one press toggles one box.
 const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: Live<Message>) =>
@@ -997,6 +1050,17 @@ export const showcases: ReadonlyArray<Showcase> = [
             live.h,
           ),
       },
+      {
+        name: 'menu',
+        title: 'The hidden steps in a menu',
+        draw: (style, live) =>
+          Snippet.breadcrumbMenu(
+            style,
+            live.widgets.trailMenu,
+            message => live.onWidget(Widgets.Message.GotTrailMenu({ message })),
+            live.h,
+          ),
+      },
     ],
   ),
   fromRecipe(
@@ -1299,13 +1363,31 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     SidebarSlots,
     Recipes.Sidebar,
-    (style, live) =>
-      Snippet.sidebar(
-        style,
-        live.widgets.sidebar,
-        message => live.onWidget(Widgets.Message.GotSidebar({ message })),
-        live.h,
-      ),
+    sidebarRail,
+    undefined,
+    [
+      { name: 'rail', title: 'A rail of icons', draw: sidebarRail },
+      {
+        name: 'resizable',
+        title: 'Resizable',
+        draw: (_style, live) =>
+          live.h.div(
+            [live.h.Style({ blockSize: '24rem' })],
+            [
+              Snippet.sidebarResizable(
+                live.widgets.sidebarResizable,
+                live.widgets.sidebarSplit,
+                {
+                  onSidebar: message =>
+                    live.onWidget(Widgets.Message.GotSidebarResizable({ message })),
+                  onSplit: message => live.onWidget(Widgets.Message.GotSidebarSplit({ message })),
+                },
+                live.h,
+              ),
+            ],
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1657,6 +1739,34 @@ export const showcases: ReadonlyArray<Showcase> = [
     NavSlots,
     Recipes.Nav,
     (style, live) => Snippet.nav(style, live.h),
+    undefined,
+    [
+      { name: 'links', title: 'Links', draw: (style, live) => Snippet.nav(style, live.h) },
+      {
+        name: 'panels',
+        title: 'Panels',
+        draw: (style, live) =>
+          Snippet.navPanels(style, live.widgets.navs.panels, navMessage(live, 'panels'), live.h),
+      },
+      {
+        name: 'pill',
+        title: 'A pill',
+        draw: (style, live) =>
+          Snippet.navPanels(style, live.widgets.navs.pill, navMessage(live, 'pill'), live.h),
+        pins: { indicator: 'pill' },
+      },
+      {
+        name: 'vertical',
+        title: 'Vertical',
+        draw: (style, live) =>
+          Snippet.navVertical(
+            style,
+            live.widgets.navs.vertical,
+            navMessage(live, 'vertical'),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1669,13 +1779,25 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     SegmentedSlots,
     Recipes.Segmented,
-    (style, live) =>
-      Snippet.segmented(
-        style,
-        live.widgets.range,
-        range => live.onWidget(Widgets.Message.ChoseRange({ range })),
-        live.h,
-      ),
+    segmentedBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: segmentedBasic },
+      { name: 'icons', title: 'Icons', draw: segmentedIcons(false) },
+      { name: 'icon-only', title: 'Icons alone', draw: segmentedIcons(true) },
+      {
+        name: 'sizes',
+        title: 'Sizes',
+        draw: (_style, live) =>
+          Snippet.segmentedSizes(
+            live.widgets.range,
+            range => live.onWidget(Widgets.Message.ChoseRange({ range })),
+            live.h,
+          ),
+      },
+      { name: 'full', title: 'Full width', draw: segmentedBasic, pins: { width: 'fill' } },
+      { name: 'underline', title: 'Underline', draw: segmentedBasic, pins: { tray: 'underline' } },
+    ],
   ),
   fromRecipe(
     {
@@ -1688,13 +1810,63 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     TabsSlots,
     Recipes.Tabs,
-    (style, live) =>
-      Snippet.tabs(
-        style,
-        live.widgets,
-        message => live.onWidget(Widgets.Message.GotTabs({ message })),
-        live.h,
-      ),
+    tabsUnderline,
+    undefined,
+    [
+      { name: 'underline', title: 'Underline', draw: tabsUnderline },
+      {
+        name: 'pill',
+        title: 'Pill',
+        draw: (style, live) =>
+          Snippet.tabs(
+            style,
+            live.widgets.pillTabs,
+            message => live.onWidget(Widgets.Message.GotPillTabs({ message })),
+            live.h,
+          ),
+        pins: { variant: 'pill' },
+      },
+      {
+        name: 'icons',
+        title: 'Icons and counts',
+        draw: (style, live) =>
+          Snippet.tabsIcons(style, live.widgets.inboxes.icons, inboxMessage(live, 'icons'), live.h),
+      },
+      {
+        name: 'vertical',
+        title: 'Vertical',
+        draw: (style, live) =>
+          Snippet.tabsVertical(
+            style,
+            live.widgets.inboxes.vertical,
+            inboxMessage(live, 'vertical'),
+            live.h,
+          ),
+      },
+      {
+        name: 'closable',
+        title: 'Closable',
+        draw: (style, live) =>
+          Snippet.tabsClosable(
+            style,
+            live.widgets.files.closable,
+            fileMessages(live, 'closable'),
+            live.h,
+          ),
+      },
+      {
+        name: 'scrolling',
+        title: 'Scrolling',
+        draw: (style, live) =>
+          Snippet.tabsScrolling(
+            style,
+            live.widgets.files.scrolling,
+            fileMessages(live, 'scrolling'),
+            live.h,
+          ),
+        pins: { overflow: 'scroll' },
+      },
+    ],
   ),
   fromRecipe(
     {
