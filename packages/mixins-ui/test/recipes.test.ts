@@ -99,8 +99,9 @@ const defined = new Set([
   // Written on a sheet's panel by `Sheet.view`: the point it rests at and the drag.
   'sheet-snap',
   'sheet-offset',
-  // Written on a slider's control, marks and shown values by `Slider.view`.
-  ...['low', 'high', 'at'].map(part => `slider-${part}`),
+  // Written on a slider's control, marks and shown values by `Slider.view`, and its
+  // track's length and paint by a holder such as the color picker.
+  ...['low', 'high', 'at', 'length', 'paint', 'thumb-paint'].map(part => `slider-${part}`),
 ])
 
 /** Every selection of a recipe: the defaults, then each value of each axis. */
