@@ -8,7 +8,7 @@
 import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event, SlotView, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import {
   ThinkingStepsSlots,
@@ -20,6 +20,7 @@ import {
   type ThinkingStepsView,
 } from '../src/thinkingSteps.js'
 import { ThinkingSteps } from '../src/recipes/thinkingSteps.js'
+import { Patterns } from '../src/index.js'
 import { h, message, sends, type TestMessage } from './fixture.js'
 
 const style = Style.forSlots(ThinkingStepsSlots)(ThinkingSteps({}))
@@ -111,16 +112,7 @@ describe('ThinkingSteps summary', () => {
 
 describe('ThinkingSteps view', () => {
   it('meets its pattern: a button that shows the list it names', () => {
-    const pattern = A11y.pattern({
-      trigger: {
-        capability: Capability.Interactive,
-        events: [Event.Click],
-        attributes: [Attr.AriaExpanded],
-      },
-      list: { capability: Capability.Container },
-      state: { capability: Capability.Container },
-    })
-    expect(A11y.validate(pattern, ThinkingStepsSlots)).toEqual([])
+    expect(A11y.validate(Patterns.ThinkingSteps, ThinkingStepsSlots)).toEqual([])
   })
 
   it('shut, keeps the list drawn and inert, the trigger naming it', () => {

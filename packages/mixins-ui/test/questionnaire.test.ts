@@ -11,7 +11,7 @@ import * as UiRadio from '@foldkit/ui/radioGroup'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Capability, SlotView, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import {
   Message,
@@ -28,6 +28,7 @@ import {
   type QuestionnaireView,
 } from '../src/questionnaire.js'
 import { Questionnaire } from '../src/recipes/questionnaire.js'
+import { Patterns } from '../src/index.js'
 import { sends } from './fixture.js'
 
 const style = Style.forSlots(QuestionnaireSlots)(Questionnaire({}))
@@ -222,12 +223,7 @@ const roles = (drawn: Html, role: string) =>
 
 describe('Questionnaire view', () => {
   it('meets its pattern: a form of questions, each saying what is missing', () => {
-    const pattern = A11y.pattern({
-      root: { capability: Capability.Container },
-      question: { capability: Capability.Container },
-      error: { capability: Capability.Container },
-    })
-    expect(A11y.validate(pattern, QuestionnaireSlots)).toEqual([])
+    expect(A11y.validate(Patterns.Questionnaire, QuestionnaireSlots)).toEqual([])
   })
 
   it('asks every question at once, each by its own control', () => {

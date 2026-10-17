@@ -5,10 +5,11 @@
  * reduced motion.
  */
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, SlotView, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { ThinkingIndicatorSlots, view } from '../src/thinkingIndicator.js'
 import { ThinkingIndicator } from '../src/recipes/thinkingIndicator.js'
+import { Patterns } from '../src/index.js'
 
 const h = SlotView.inertBuilder<never>()
 const style = Style.forSlots(ThinkingIndicatorSlots)(ThinkingIndicator({}))
@@ -50,11 +51,7 @@ describe('ThinkingIndicator view', () => {
   })
 
   it('meets its pattern: a status the words fill', () => {
-    const pattern = A11y.pattern({
-      root: { capability: Capability.Container, attributes: [Attr.Role] },
-      label: { capability: Capability.Container },
-    })
-    expect(A11y.validate(pattern, ThinkingIndicatorSlots)).toEqual([])
+    expect(A11y.validate(Patterns.ThinkingIndicator, ThinkingIndicatorSlots)).toEqual([])
   })
 })
 

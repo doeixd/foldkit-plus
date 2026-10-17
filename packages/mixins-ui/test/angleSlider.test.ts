@@ -7,24 +7,12 @@
  * step or to the nearest mark, and the same Model when nothing moves.
  */
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event, SlotView, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Theme } from 'foldkit-mixins/theme'
-import * as AngleSlider from '../src/angleSlider.js'
-import { AngleSliderSlots } from '../src/angleSlider.js'
+import { AngleSlider, AngleSliderSlots, Patterns } from '../src/index.js'
 import { AngleSlider as Recipe } from '../src/recipes/angleSlider.js'
 import { message, type TestMessage } from './fixture.js'
-
-/** The pattern `patterns.ts` takes for the dial: a named group around one slider thumb. */
-const pattern = A11y.pattern({
-  root: { capability: Capability.Container, attributes: [Attr.Role] },
-  label: { capability: Capability.Container },
-  thumb: {
-    capability: Capability.Focusable,
-    events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
-  },
-})
 
 const style = Style.forSlots(AngleSliderSlots)(Recipe({}))
 const marks = [{ value: 0, label: 'N' }, { value: 90, label: 'E' }, { value: 180 }, { value: 270 }]
@@ -43,7 +31,7 @@ const thumbOf = (more: More = {}) => Inert.bySlot(drawn(more), 'thumb')[0]
 
 describe('AngleSlider.view', () => {
   it('meets the angle slider pattern', () => {
-    expect(A11y.validate(pattern, AngleSliderSlots)).toEqual([])
+    expect(A11y.validate(Patterns.AngleSlider, AngleSliderSlots)).toEqual([])
   })
 
   it('is a group named by its label around one slider saying the angle', () => {

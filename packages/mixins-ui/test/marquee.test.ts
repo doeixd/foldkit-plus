@@ -7,25 +7,12 @@
  * nothing keeps it.
  */
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event, SlotView, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Theme } from 'foldkit-mixins/theme'
-import * as Marquee from '../src/marquee.js'
-import { MarqueeSlots } from '../src/marquee.js'
+import { Marquee, MarqueeSlots, Patterns } from '../src/index.js'
 import { Marquee as Recipe } from '../src/recipes/marquee.js'
 import { message, type TestMessage } from './fixture.js'
-
-/** The pattern `patterns.ts` takes for the marquee: a named region, and a press to hold it. */
-const pattern = A11y.pattern({
-  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
-  viewport: { capability: Capability.Container },
-  pause: {
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-    optional: true,
-  },
-})
 
 const { Message } = Marquee
 const model = Marquee.init({ id: 'logos' })
@@ -55,7 +42,7 @@ const rootOf = (more: More = {}) => Inert.byRole(drawn(more), 'region')[0]
 
 describe('Marquee.view', () => {
   it('meets the marquee pattern', () => {
-    expect(A11y.validate(pattern, MarqueeSlots)).toEqual([])
+    expect(A11y.validate(Patterns.Marquee, MarqueeSlots)).toEqual([])
   })
 
   it('is a region described as a marquee and named by its label', () => {

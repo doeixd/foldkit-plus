@@ -11,25 +11,11 @@
  */
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event, SlotView, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import * as SignaturePad from '../src/signaturePad.js'
-import { SignaturePadSlots } from '../src/signaturePad.js'
+import { SignaturePad, SignaturePadSlots, Patterns } from '../src/index.js'
 import { SignaturePad as Recipe } from '../src/recipes/signaturePad.js'
 import { message, type TestMessage } from './fixture.js'
-
-// What `Patterns.SignaturePad` holds once the pad is in the package's catalog.
-const pattern = A11y.pattern({
-  root: { capability: Capability.Container, attributes: [Attr.Role] },
-  label: { capability: Capability.Container },
-  control: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
-  clear: {
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-  },
-  input: { capability: Capability.TextInput, events: [Event.Input], optional: true },
-})
 
 const style = Style.forSlots(SignaturePadSlots)(Recipe({}))
 const { Message } = SignaturePad
@@ -94,7 +80,7 @@ const pen = SignaturePad.init({ id: 'p' }).pen
 
 describe('SignaturePad.view', () => {
   it('meets the signature pad pattern', () => {
-    expect(A11y.validate(pattern, SignaturePadSlots)).toEqual([])
+    expect(A11y.validate(Patterns.SignaturePad, SignaturePadSlots)).toEqual([])
   })
 
   it('is a group named by its label, the control an image named by what it holds', () => {

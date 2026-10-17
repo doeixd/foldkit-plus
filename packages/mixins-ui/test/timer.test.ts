@@ -10,21 +10,12 @@
 import { Effect, Fiber, Option } from 'effect'
 import { TestClock } from 'effect/testing'
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event, SlotView, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Theme } from 'foldkit-mixins/theme'
-import * as Timer from '../src/timer.js'
-import { TimerSlots } from '../src/timer.js'
+import { Timer, TimerSlots, Patterns } from '../src/index.js'
 import { Timer as Recipe } from '../src/recipes/timer.js'
 import { message, type TestMessage } from './fixture.js'
-
-/** The pattern `patterns.ts` takes for the timer: a named group, a timer, and its presses. */
-const pattern = A11y.pattern({
-  root: { capability: Capability.Container, attributes: [Attr.Role] },
-  label: { capability: Capability.Container },
-  area: { capability: Capability.Container, attributes: [Attr.Role] },
-  action: { capability: Capability.Interactive, events: [Event.Click], optional: true },
-})
 
 const { Message } = Timer
 const countdown = Timer.init({ id: 'tea', countdown: true, duration: 180_000 })
@@ -212,7 +203,7 @@ const pressesOf = (more: More = {}) =>
 
 describe('Timer.view', () => {
   it('meets the timer pattern', () => {
-    expect(A11y.validate(pattern, TimerSlots)).toEqual([])
+    expect(A11y.validate(Patterns.Timer, TimerSlots)).toEqual([])
   })
 
   it('is a group around a timer, both named by the label', () => {

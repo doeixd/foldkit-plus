@@ -10,29 +10,11 @@
  */
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event, SlotView, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import * as ImageCropper from '../src/imageCropper.js'
-import { ImageCropperSlots } from '../src/imageCropper.js'
+import { ImageCropper, ImageCropperSlots, Patterns } from '../src/index.js'
 import { ImageCropper as Recipe } from '../src/recipes/imageCropper.js'
 import { message, type TestMessage } from './fixture.js'
-
-// What `Patterns.ImageCropper` holds once the cropper is in the package's catalog.
-const pattern = A11y.pattern({
-  root: { capability: Capability.Container, attributes: [Attr.Role] },
-  label: { capability: Capability.Container },
-  selection: {
-    capability: Capability.Focusable,
-    events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
-  },
-  rotate: {
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-    optional: true,
-  },
-})
 
 const style = Style.forSlots(ImageCropperSlots)(Recipe({}))
 const { Message } = ImageCropper
@@ -77,7 +59,7 @@ const drawn = (more: More = {}) => Inert.draw(Cropper, more)
 
 describe('ImageCropper.view', () => {
   it('meets the cropper pattern', () => {
-    expect(A11y.validate(pattern, ImageCropperSlots)).toEqual([])
+    expect(A11y.validate(Patterns.ImageCropper, ImageCropperSlots)).toEqual([])
   })
 
   it('is a group named by its label, its selection a slider saying the crop', () => {
