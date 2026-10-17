@@ -1,7 +1,8 @@
 /**
  * Resizable as a transition and as markup: a drag follows the pointer from
- * where it began over the measured group, keys step within the bounds, and
- * the handle is a separator with its value.
+ * where it began over the measured group, keys step within the bounds, a
+ * collapsible panel collapses and comes back where it was, and the handle
+ * is a separator with its value.
  */
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
@@ -149,5 +150,129 @@ describe('Resizable keys', () => {
 
   it('right to left, a vertical split keeps its arrows', () => {
     sceneIn('rtl', 'vertical', 0.5, Scene.keydown(handle, 'ArrowDown'), at(55))
+  })
+})
+
+describe('Resizable collapse', () => {
+  const first = { collapsible: 'first' as const, min: 0.2 }
+
+  it('collapses the first panel to nothing, and puts it back where it was', () => {
+    const collapsed = update(init(0.35), Message.Toggled(), first)
+    expect(collapsed.share).toBe(0)
+    const back = update(collapsed, Message.Toggled(), first)
+    expect(back.share).toBe(0.35)
+    expect(back.restore).toEqual(init().restore)
+  })
+
+  it('collapses the second panel toward the end, keeping what it is told to', () => {
+    const bounds = { collapsible: 'second' as const, collapsedTo: 0.1 }
+    expect(update(init(0.4), Message.Toggled(), bounds).share).toBe(0.9)
+    expect(
+      update(init(0.4), Message.Toggled(), { collapsible: 'first', collapsedTo: 0.05 }).share,
+    ).toBe(0.05)
+  })
+
+  it('does nothing when no panel collapses', () => {
+    const model = init(0.4)
+    expect(update(model, Message.Toggled())).toBe(model)
+  })
+
+  it('forgets where to go back to once a key or a drag moves the handle', () => {
+    const collapsed = update(init(0.35), Message.Toggled(), first)
+    const stepped = update(collapsed, Message.Set({ share: 0.05 }), first)
+    expect(stepped.share).toBe(0.2)
+    expect(update(stepped, Message.Toggled(), first).share).toBe(0)
+    let dragged = update(collapsed, Message.Measured({ size: 500 }), first)
+    dragged = update(
+      update(dragged, Message.DragStarted(), first),
+      Message.Dragged({ delta: 200 }),
+      first,
+    )
+    expect(dragged.share).toBe(0.4)
+    expect(update(dragged, Message.Toggled(), first).share).toBe(0)
+  })
+
+  it('a key at the bound changes nothing, collapsed or not', () => {
+    const model = init(0.2)
+    expect(update(model, Message.Set({ share: 0 }), first)).toBe(model)
+    // Collapsed, the same key opens the panel to its least.
+    const opened = update(update(model, Message.Toggled(), first), Message.Set({ share: 0 }), first)
+    expect(opened.share).toBe(0.2)
+    expect(opened.restore).toEqual(init().restore)
+  })
+})
+
+describe('Resizable collapse keys', () => {
+  const scene = (
+    collapsible: 'first' | undefined,
+    ...steps: ReadonlyArray<Parameters<typeof Scene.scene<Resizable.Model, Resizable.Message>>[1]>
+  ) =>
+    Scene.scene<Resizable.Model, Resizable.Message>(
+      {
+        update: (model, message) => ({ model: update(model, message, { collapsible }) }),
+        view: (model, h) =>
+          Resizable.view(
+            {
+              model,
+              onMessage: message => message,
+              collapsible,
+              label: 'Resize the list',
+              first: h.p([], ['one']),
+              second: h.p([], ['two']),
+            },
+            h,
+          ),
+      },
+      Scene.given(init(0.4)),
+      Scene.Mount.resolveAll(
+        [Resize, Message.Measured({ size: 600 })],
+        [Move, Message.DragEnded()],
+      ),
+      ...steps,
+    )
+  const handle = Scene.role('separator')
+
+  it('Enter collapses and puts back; the collapsed panel is marked', () => {
+    scene(
+      'first',
+      Scene.keydown(handle, 'Enter'),
+      Scene.expect(handle).toHaveAttr('aria-valuenow', '0'),
+      // The first panel is the one marked.
+      Scene.expect(Scene.selector('[data-collapsed]')).toHaveText('one'),
+      Scene.keydown(handle, 'Enter'),
+      Scene.expect(handle).toHaveAttr('aria-valuenow', '40'),
+      Scene.expect(Scene.selector('[data-collapsed]')).toBeAbsent(),
+    )
+  })
+
+  it('a double-click collapses', () => {
+    scene('first', Scene.doubleClick(handle), Scene.expect(handle).toHaveAttr('aria-valuenow', '0'))
+  })
+
+  it('reaches down to the collapsed share, for a screen reader', () => {
+    scene('first', Scene.expect(handle).toHaveAttr('aria-valuemin', '0'))
+    scene(undefined, Scene.expect(handle).toHaveAttr('aria-valuemin', '10'))
+  })
+
+  it('leaves Enter alone when nothing collapses', () => {
+    scene(undefined, Scene.keydown(handle, 'Enter'), Scene.expectIgnored())
+  })
+})
+
+describe('Resizable grip', () => {
+  it('draws a grip in the handle, hidden from a screen reader', () => {
+    const drawn = Resizable.view(
+      {
+        model: init(0.5),
+        onMessage: () => message('Other'),
+        label: 'Resize',
+        first: h.p([], ['one']),
+        second: h.p([], ['two']),
+      },
+      h,
+    )
+    const [handle] = Inert.all(drawn).filter(node => Inert.value(node, 'role') === 'separator')
+    const [grip] = Inert.children(handle)
+    expect(Inert.value(grip, 'aria-hidden')).toBe('true')
   })
 })
