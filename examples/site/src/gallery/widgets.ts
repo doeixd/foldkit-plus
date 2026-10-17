@@ -4,7 +4,7 @@
  * focus, a drag or an open popup and this Model owns the choice. The site
  * holds one of these and folds `Message` into it.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Duration, Effect, Match, Option, Schema } from 'effect'
 import { Calendar, Subscription, Update } from 'foldkit'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
@@ -35,6 +35,8 @@ import {
   TreeView,
   Carousel,
   Menu,
+  Command as CommandMenu,
+  Toast,
 } from 'foldkit-mixins-ui'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
@@ -53,6 +55,8 @@ import {
   FrequencyBox,
   MENUBAR,
   PAGE_MENU,
+  ViewOptions,
+  viewRows,
   cities,
   TREE_FILES,
   Notices,
@@ -97,6 +101,13 @@ export const CityExample = Schema.Literals(['empty', 'clear', 'groups', 'creatab
 export type CityExample = typeof CityExample.Type
 
 const CityState = Schema.Struct({ combobox: UiCombobox.Model, city: Schema.Option(Schema.String) })
+
+/** The toast examples, each with a stack of its own, and a stack at each place. */
+export const ToastExample = Schema.Union([
+  Schema.Literals(['types', 'promise', 'action', 'rich']),
+  Toast.Position,
+])
+export type ToastExample = typeof ToastExample.Type
 
 /** The checkbox group examples, each with alerts of its own. */
 export const AlertsExample = Schema.Literals(['alerts', 'described', 'select-all', 'invalid'])
@@ -203,6 +214,16 @@ export const Model = Schema.Struct({
   newPassword: Schema.String,
   newPasswordShown: Schema.Boolean,
   capsLock: Schema.Boolean,
+  /** The View menu, and what its rows set. */
+  viewMenu: Menu.Model,
+  viewOptions: ViewOptions,
+  /** The command menu in a dialog: the dialog, its query and highlight, the pages stepped into. */
+  palette: UiDialog.Model,
+  paletteQuery: Schema.String,
+  paletteActive: Schema.Option(Schema.String),
+  palettePages: Schema.Array(Schema.String),
+  paletteRan: Schema.Option(Schema.String),
+  toasts: Schema.Record(ToastExample, Toast.Model),
   /** The region chosen in the card grid, and the plan chosen in the item list. */
   region: Schema.String,
   plan: Schema.String,
@@ -272,6 +293,18 @@ export const Message = defineMessageUnion({
   ToggledPassword: {},
   RatedStay: { value: Schema.Number },
   ChoseRegion: { region: Schema.String },
+  GotViewMenu: { message: Menu.Message },
+  OpenedPalette: {},
+  GotPalette: { message: UiDialog.Message },
+  TypedPalette: { query: Schema.String },
+  HighlightedPalette: { value: Schema.String },
+  RanPalette: { value: Schema.String },
+  LeftPalettePage: {},
+  GotToast: { example: ToastExample, message: Toast.Message },
+  RaisedToast: { example: ToastExample, type: Toast.Type },
+  StartedUpload: {},
+  FinishedUpload: { id: Schema.String },
+  Archived: {},
   GotSelect: { example: SelectExample, message: UiListbox.Message },
   GotCityBox: { example: CityExample, message: UiCombobox.Message },
   GotCityTags: { message: UiCombobox.Message },
@@ -295,6 +328,13 @@ const cityState = (example: CityExample, city: Option.Option<string> = Option.no
   combobox: UiCombobox.init({ id: `preview-city-${example}`, isAnimated: true }),
   city,
 })
+
+const initialViewOptions: ViewOptions = {
+  grid: false,
+  rulers: true,
+  zoom: 'Fit',
+  chosen: Option.none(),
+}
 
 // The day the page was loaded; a picker that shows another opens on the wrong month.
 const today = Effect.runSync(Calendar.today.local)
@@ -409,6 +449,25 @@ export const initial: Model = {
   newPassword: '',
   newPasswordShown: false,
   capsLock: false,
+  viewMenu: Menu.init('preview-view-menu', viewRows(initialViewOptions), { isAnimated: true }),
+  viewOptions: initialViewOptions,
+  palette: UiDialog.init({ id: 'preview-palette-dialog', isAnimated: true }),
+  paletteQuery: '',
+  paletteActive: Option.none(),
+  palettePages: [],
+  paletteRan: Option.none(),
+  toasts: {
+    types: Toast.init('preview-toasts-types'),
+    promise: Toast.init('preview-toasts-promise'),
+    action: Toast.init('preview-toasts-action'),
+    rich: Toast.init('preview-toasts-rich'),
+    'top-start': Toast.init('preview-toasts-top-start', { position: 'top-start' }),
+    'top-center': Toast.init('preview-toasts-top-center', { position: 'top-center' }),
+    'top-end': Toast.init('preview-toasts-top-end', { position: 'top-end' }),
+    'bottom-start': Toast.init('preview-toasts-bottom-start', { position: 'bottom-start' }),
+    'bottom-center': Toast.init('preview-toasts-bottom-center', { position: 'bottom-center' }),
+    'bottom-end': Toast.init('preview-toasts-bottom-end', { position: 'bottom-end' }),
+  },
   region: 'Frankfurt',
   plan: 'Team',
 }
@@ -680,6 +739,95 @@ const foldInputCopy = Update.foldChild({
   update: InputCopy.update,
 })
 
+/** The View menu's answer to a chosen row: a check flips, a radio picks, any other is chosen. */
+const viewChose = (options: ViewOptions, value: string): ViewOptions =>
+  Match.value(value).pipe(
+    Match.withReturnType<ViewOptions>(),
+    Match.when('Grid', () => ({ ...options, grid: !options.grid })),
+    Match.when('Rulers', () => ({ ...options, rulers: !options.rulers })),
+    Match.when('Fit', () => ({ ...options, zoom: 'Fit' })),
+    Match.when('Actual size', () => ({ ...options, zoom: 'Actual size' })),
+    Match.orElse(() => ({ ...options, chosen: Option.some(value) })),
+  )
+
+const foldViewMenu = Update.foldChild({
+  ...own('viewMenu', Message.GotViewMenu),
+  update: Menu.update,
+  foldOutMessage: Menu.OutMessage.match<Step>({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { viewOptions: options => viewChose(options, value) }),
+      }),
+  }),
+})
+
+const paletteField = own('palette', Message.GotPalette)
+const foldPalette = Update.foldChild({
+  ...paletteField,
+  update: UiDialog.update,
+  foldOutMessage: dialogOut,
+})
+const openPalette = Update.foldChildStep({
+  ...paletteField,
+  update: UiDialog.open,
+  foldOutMessage: dialogOut,
+})
+const closePalette = Update.foldChildStep({
+  ...paletteField,
+  update: UiDialog.close,
+  foldOutMessage: dialogOut,
+})
+
+/** The toasts' Commands, as this Model's Messages for the stack they came from. */
+const toastCommands = (
+  example: ToastExample,
+  commands: ReadonlyArray<Command.Command<Toast.Message>> | undefined,
+) => Command.mapMessages(commands ?? [], message => Message.GotToast({ example, message }))
+
+/** `input` shown on one example's stack. */
+const showToast = (
+  model: Model,
+  example: ToastExample,
+  input: Toast.ToastInput,
+): Update.Return<Model, Message> & { readonly id: string } => {
+  const shown = Toast.show(model.toasts[example], input)
+  return {
+    id: shown.id,
+    model: modifyFields(model, { toasts: toasts => ({ ...toasts, [example]: shown.model }) }),
+    commands: toastCommands(example, shown.commands),
+  }
+}
+
+const TOAST_TITLES: ReadonlyMap<Toast.Type, string> = new Map([
+  ['default', 'Event created'],
+  ['info', 'A new version is out'],
+  ['success', 'Changes saved'],
+  ['warning', 'Your session ends in 5 minutes'],
+  ['error', 'The file could not be read'],
+])
+
+/** Waits as an upload would, then says it is done. */
+const FinishUpload = Command.define('FinishUpload', {
+  args: { id: Schema.String },
+  messages: [Message.FinishedUpload],
+  execute: ({ id }) =>
+    Effect.sleep(Duration.millis(1500)).pipe(Effect.as(Message.FinishedUpload({ id }))),
+})
+
+const foldToast = Update.foldChildAt({
+  update: Toast.update,
+  readAt: (model: Model, example: ToastExample) => Option.some(model.toasts[example]),
+  writeAt: (model, example, stack) =>
+    modifyFields(model, { toasts: toasts => ({ ...toasts, [example]: stack }) }),
+  toParentMessage: (example, message) => Message.GotToast({ example, message }),
+  // The archive's Undo: the thread is back, and a toast says so.
+  foldOutMessage: example =>
+    Toast.OutMessage.match<Step>({
+      Acted: () => model => showToast(model, example, { type: 'info', title: 'Thread restored' }),
+    }),
+})
+
 const foldTags = Update.foldChild({
   ...own('tags', Message.GotTags),
   update: TagsInput.update,
@@ -883,6 +1031,64 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }),
     GotInputCopy: ({ message }) => foldInputCopy(model, message),
     GotSelect: ({ example, message }) => foldSelect(model, example, message),
+    GotViewMenu: ({ message }) => foldViewMenu(model, message),
+    OpenedPalette: () => openPalette(model),
+    GotPalette: ({ message }) => foldPalette(model, message),
+    TypedPalette: ({ query }) => ({ model: modifyFields(model, { paletteQuery: () => query }) }),
+    HighlightedPalette: ({ value }) => ({
+      model: modifyFields(model, { paletteActive: () => Option.some(value) }),
+    }),
+    // "Change theme" steps into its page; any other row runs, and the dialog closes.
+    RanPalette: ({ value }) =>
+      value === 'theme'
+        ? {
+            model: modifyFields(model, {
+              palettePages: pages => [...pages, 'Theme'],
+              paletteQuery: () => '',
+              paletteActive: () => Option.none(),
+            }),
+          }
+        : closePalette(
+            modifyFields(model, {
+              paletteRan: () => Option.some(value),
+              palettePages: () => [],
+              paletteQuery: () => '',
+            }),
+          ),
+    LeftPalettePage: () =>
+      model.palettePages.length === 0
+        ? { model }
+        : { model: modifyFields(model, { palettePages: pages => pages.slice(0, -1) }) },
+    GotToast: ({ example, message }) => foldToast(model, example, message),
+    RaisedToast: ({ example, type }) =>
+      showToast(model, example, {
+        type,
+        title: TOAST_TITLES.get(type) ?? type,
+        description: 'Just now',
+      }),
+    StartedUpload: () => {
+      const shown = showToast(model, 'promise', { type: 'loading', title: 'Uploading report.pdf…' })
+      return {
+        model: shown.model,
+        commands: [...(shown.commands ?? []), FinishUpload({ id: shown.id })],
+      }
+    },
+    FinishedUpload: ({ id }) => {
+      const settled = Toast.settle(model.toasts.promise, id, {
+        type: 'success',
+        title: 'Uploaded',
+        description: 'report.pdf is in your files.',
+      })
+      return {
+        model: modifyFields(model, { toasts: toasts => ({ ...toasts, promise: settled.model }) }),
+        commands: toastCommands('promise', settled.commands),
+      }
+    },
+    Archived: () =>
+      showToast(model, 'action', {
+        title: 'Thread archived',
+        action: { label: 'Undo', value: 'undo' },
+      }),
     GotCityBox: ({ example, message }) => foldCityBox(model, example, message),
     GotCityTags: ({ message }) => foldCityTags(model, message),
     ToggledCityLoading: () => ({
@@ -1003,8 +1209,14 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }),
   })
 
-/** Each toast's timer dismisses it. */
+/**
+ * Each toast's timer dismisses it, and ⌘K or Ctrl+K opens the command
+ * menu's dialog: the site lifts `palette` only while the Command page shows.
+ */
 export const subscriptions = Subscription.aggregate(
+  Subscription.make<Model, Message>()(() => ({
+    palette: Subscription.persistentEntry(CommandMenu.hotkey(Message.OpenedPalette())),
+  })),
   Subscription.lift(Notices.subscriptions)<Model, Message>({
     read: model => Option.some(model.notices),
     toParentMessage: message => Message.GotNotices({ message }),

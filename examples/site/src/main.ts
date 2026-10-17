@@ -276,6 +276,10 @@ export const subscriptions = placements.subscriptions(
     Subscription.lift(Widgets.subscriptions)<Model, Message>({
       read: model => Option.some(model.widgets),
       toParentMessage: message => Message.GotWidget({ message }),
+      // ⌘K belongs to the browser everywhere but the page that shows the menu.
+      when: {
+        palette: model => model.page._tag === 'Component' && model.page.slug === 'command',
+      },
     }),
   ),
 )

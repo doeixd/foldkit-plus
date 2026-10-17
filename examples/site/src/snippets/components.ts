@@ -53,6 +53,7 @@ import {
   CheckboxGroupSlots,
   Command,
   CommandSlots,
+  type CommandGroup,
   Menubar,
   MenubarSlots,
   Meter,
@@ -2109,7 +2110,7 @@ export const hoverCard = <Message>(
   })
 // #endregion
 
-// #region menu
+// #region menu-actions
 export const MenuStyle = forSlots(MenuSlots)(Recipes.Menu({}))
 
 /** The rows of the menu a button opens. */
@@ -2204,7 +2205,70 @@ export const menu = <Message>(
 }
 // #endregion
 
-// #region command
+// #region menu-view-options
+export const Zoom = Schema.Literals(['Fit', 'Actual size'])
+
+/** What the View menu sets: the application keeps it, and builds the rows from it. */
+export const ViewOptions = Schema.Struct({
+  grid: Schema.Boolean,
+  rulers: Schema.Boolean,
+  zoom: Zoom,
+  chosen: Schema.Option(Schema.String),
+})
+export type ViewOptions = typeof ViewOptions.Type
+
+// Checkbox and radio rows send `Selected` and keep the menu open; rows of one
+// group stand under its heading; a shortcut is drawn as keys at the row's end.
+export const viewRows = (options: ViewOptions): ReadonlyArray<Menu.Row> => [
+  { label: 'Grid', check: 'checkbox', checked: options.grid, group: 'Show', shortcut: ['⌘', 'G'] },
+  { label: 'Rulers', check: 'checkbox', checked: options.rulers, group: 'Show' },
+  { label: 'Fit', check: 'radio', checked: options.zoom === 'Fit', group: 'Zoom' },
+  {
+    label: 'Actual size',
+    check: 'radio',
+    checked: options.zoom === 'Actual size',
+    group: 'Zoom',
+  },
+  { label: 'Delete', tone: 'destructive', shortcut: ['⌫'] },
+]
+
+export const viewOptionsMenu = <Message>(
+  style: NamedStyle<typeof MenuSlots>,
+  state: { readonly menu: Menu.Model; readonly options: ViewOptions },
+  onMessage: (message: Menu.Message) => Message,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      Menu.view(
+        {
+          model: state.menu,
+          rows: viewRows(state.options),
+          buttonContent: h.span([], ['View']),
+          onMessage,
+          direction,
+          mixins: [style.mixin, ...Menu.fluid],
+          kbd: KbdStyle,
+        },
+        h,
+      ),
+      h.p(
+        [],
+        [
+          `Grid ${state.options.grid ? 'on' : 'off'}, rulers ${state.options.rulers ? 'on' : 'off'}, ${state.options.zoom}.`,
+          ...Option.match(state.options.chosen, {
+            onNone: () => [],
+            onSome: value => [` Chose ${value}.`],
+          }),
+        ],
+      ),
+    ],
+  )
+// #endregion
+
+// #region command-basic
 export const CommandStyle = forSlots(CommandSlots)(Recipes.Command({}))
 
 /** The command menu's query and highlighted row, and the Messages that move them. */
@@ -2266,6 +2330,133 @@ export const command = <Message>(
         },
         h,
       ),
+      h.p(
+        [],
+        [
+          Option.match(state.ran, {
+            onNone: () => 'Nothing run yet',
+            onSome: value => `Ran ${value}`,
+          }),
+        ],
+      ),
+    ],
+  )
+// #endregion
+
+// #region command-dialog
+export const PaletteDialogStyle = forSlots(DialogSlots)(Recipes.Dialog({}))
+
+const PALETTE: ReadonlyArray<CommandGroup<string>> = [
+  {
+    heading: 'Pages',
+    items: [
+      { value: 'new-page', label: 'New page', shortcut: ['⌘', 'N'] },
+      {
+        value: 'search',
+        label: 'Search pages',
+        description: 'Titles and text',
+        keywords: ['find'],
+      },
+    ],
+  },
+  {
+    heading: 'Settings',
+    items: [
+      { value: 'theme', label: 'Change theme', keywords: ['dark', 'light'], opensPage: true },
+    ],
+  },
+]
+
+const THEMES: ReadonlyArray<CommandGroup<string>> = [
+  {
+    items: [
+      { value: 'light', label: 'Light' },
+      { value: 'dark', label: 'Dark' },
+      { value: 'system', label: 'As the system' },
+    ],
+  },
+]
+
+/** The dialog is the component's; the query, the highlight and the pages stepped into are the Model's. */
+export interface PaletteState {
+  readonly dialog: UiDialog.Model
+  readonly query: string
+  readonly active: Option.Option<string>
+  readonly pages: ReadonlyArray<string>
+  readonly ran: Option.Option<string>
+}
+
+export interface PaletteMessages<Message> {
+  readonly onOpen: Message
+  readonly toDialog: (message: UiDialog.Message) => Message
+  readonly onQuery: (query: string) => Message
+  readonly onActive: (value: string) => Message
+  readonly onRun: (value: string) => Message
+  readonly onBack: Message
+}
+
+// ⌘K or Ctrl+K opens it from anywhere on this page: the application lifts
+// `Command.hotkey(onOpen)` into its subscriptions. "Change theme" steps
+// into a page, and Backspace in the empty field steps back out.
+export const commandDialog = <Message>(
+  style: NamedStyle<typeof CommandSlots>,
+  state: PaletteState,
+  messages: PaletteMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      h.p(
+        [],
+        [
+          Button.view({ label: 'Open the menu', onClick: messages.onOpen, style: ButtonStyle }, h),
+          ' or press ',
+          Kbd.combo({ keys: ['⌘', 'K'], style: KbdStyle }, h),
+        ],
+      ),
+      h.submodel({
+        slotId: state.dialog.id,
+        model: state.dialog,
+        view: UiDialog.view,
+        viewInputs: {
+          toView: Dialog.toView([PaletteDialogStyle.mixin], { h }, dialog =>
+            h.dialog(
+              dialog.dialog,
+              dialog.isVisible
+                ? [
+                    h.div(dialog.backdrop),
+                    h.div(dialog.panel, [
+                      h.h2(dialog.title, ['Command menu']),
+                      Command.view(
+                        {
+                          id: 'preview-palette',
+                          label: 'Search commands',
+                          placeholder: 'Type a command or search…',
+                          groups: state.pages.length === 0 ? PALETTE : THEMES,
+                          query: state.query,
+                          onQuery: messages.onQuery,
+                          active: state.active,
+                          onActive: messages.onActive,
+                          onRun: messages.onRun,
+                          page: { trail: state.pages, onBack: messages.onBack },
+                          hints: [
+                            { keys: ['↑', '↓'], label: 'to move' },
+                            { keys: ['↵'], label: 'to run' },
+                          ],
+                          style,
+                          kbd: KbdStyle,
+                        },
+                        h,
+                      ),
+                    ]),
+                  ]
+                : [],
+            ),
+          ),
+        },
+        toParentMessage: messages.toDialog,
+      }),
       h.p(
         [],
         [
@@ -2712,7 +2903,7 @@ export const datePickerRange = <Message>(
   })
 // #endregion
 
-// #region toast
+// #region toast-payload
 export const ToastStyle = forSlots(ToastSlots)(Recipes.Toast({}))
 const NoticeStyle = forSlots(ItemSlots)(Recipes.Item({}))
 const DismissStyle = forSlots(ButtonSlots)(
@@ -2772,6 +2963,110 @@ export const toast = <Message>(
         toParentMessage: messages.toMessage,
       }),
     ],
+  )
+// #endregion
+
+// #region toast-types
+/** A stack of toasts: the component's state, folded with `Toast.update`. */
+export interface ToastStack<Message> {
+  readonly model: Toast.Model
+  readonly onMessage: (message: Toast.Message) => Message
+  /** The stack's landmark name, unique on the page. */
+  readonly label: string
+}
+
+export const TOAST_TYPES = ['default', 'info', 'success', 'warning', 'error'] as const
+
+// One button per type; the application answers each with `Toast.show`.
+export const toastTypes = <Message>(
+  style: NamedStyle<typeof ToastSlots>,
+  stack: ToastStack<Message>,
+  onShow: (type: (typeof TOAST_TYPES)[number]) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' })],
+    [
+      ...TOAST_TYPES.map(type =>
+        Button.view({ label: type, onClick: onShow(type), style: ButtonStyle }, h),
+      ),
+      Toast.view({ model: stack.model, onMessage: stack.onMessage, label: stack.label, style }, h),
+    ],
+  )
+// #endregion
+
+// #region toast-promise
+// `show` a loading toast, run the work as a Command, and `settle` the same
+// toast with its outcome when the work's Message comes back.
+export const toastPromise = <Message>(
+  style: NamedStyle<typeof ToastSlots>,
+  stack: ToastStack<Message>,
+  onUpload: Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      Button.view({ label: 'Upload report.pdf', onClick: onUpload, style: ButtonStyle }, h),
+      Toast.view(
+        {
+          model: stack.model,
+          onMessage: stack.onMessage,
+          label: stack.label,
+          icons: { loading: Spinner.view({ label: 'Uploading', style: SpinnerStyle }, h) },
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region toast-action
+// A toast with an action: pressing it sends `Acted` with its value, and the toast leaves.
+export const toastAction = <Message>(
+  style: NamedStyle<typeof ToastSlots>,
+  stack: ToastStack<Message>,
+  onArchive: Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      Button.view({ label: 'Archive the thread', onClick: onArchive, style: ButtonStyle }, h),
+      Toast.view({ model: stack.model, onMessage: stack.onMessage, label: stack.label, style }, h),
+    ],
+  )
+// #endregion
+
+// #region toast-rich
+// Each type on its own tint and edge; drawn by `toastTypes`.
+export const ToastRichStyle = forSlots(ToastSlots)(Recipes.Toast({ tone: 'rich' }))
+// #endregion
+
+// #region toast-positions
+// A stack where its Model says, `Toast.init(id, { position })`: one per place here.
+export const toastPositions = <Message>(
+  style: NamedStyle<typeof ToastSlots>,
+  stacks: Readonly<Record<Toast.Position, Toast.Model>>,
+  onMessage: (position: Toast.Position, message: Toast.Message) => Message,
+  onShow: (position: Toast.Position) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' })],
+    Toast.Position.literals.flatMap(position => [
+      Button.view({ label: position, onClick: onShow(position), style: ButtonStyle }, h),
+      Toast.view(
+        {
+          model: stacks[position],
+          onMessage: message => onMessage(position, message),
+          label: `Notifications, ${position}`,
+          style,
+        },
+        h,
+      ),
+    ]),
   )
 // #endregion
 

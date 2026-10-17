@@ -298,3 +298,60 @@ describe('the form previews', () => {
     expect(digit.widgets).toBe(on.widgets)
   })
 })
+
+describe('the menu, command and toast previews', () => {
+  const view = (value: string) =>
+    Message.GotWidget({
+      message: Widgets.Message.GotViewMenu({
+        message: Menu.Message.GotMenu({
+          message: UiMenu.Message.SelectedItem({
+            index: ['Grid', 'Rulers', 'Fit', 'Actual size', 'Delete'].indexOf(value),
+            item: value,
+          }),
+        }),
+      }),
+    })
+
+  it('flip a checkbox row, pick a radio row, and choose a plain one', () => {
+    const grid = update(initial, view('Grid')).model
+    expect(grid.widgets.viewOptions.grid).toBe(true)
+    const zoomed = update(grid, view('Actual size')).model
+    expect(zoomed.widgets.viewOptions.zoom).toBe('Actual size')
+    const deleted = update(zoomed, view('Delete')).model
+    expect(deleted.widgets.viewOptions.chosen).toEqual(Option.some('Delete'))
+    expect(update(deleted, view('Grid')).model.widgets.viewOptions.grid).toBe(false)
+  })
+
+  it('step into the theme page, back out, and close on a run', () => {
+    const run = (value: string) =>
+      Message.GotWidget({ message: Widgets.Message.RanPalette({ value }) })
+    const opened = send(Widgets.Message.OpenedPalette())
+    const theme = update(opened, run('theme')).model
+    expect(theme.widgets.palettePages).toEqual(['Theme'])
+    expect(theme.widgets.palette.isOpen).toBe(true)
+    const back = update(
+      theme,
+      Message.GotWidget({ message: Widgets.Message.LeftPalettePage() }),
+    ).model
+    expect(back.widgets.palettePages).toEqual([])
+    const ran = update(theme, run('dark')).model
+    expect(ran.widgets.paletteRan).toEqual(Option.some('dark'))
+    expect(ran.widgets.palette.isOpen).toBe(false)
+  })
+
+  it('settle the upload toast it showed, on its own stack', () => {
+    const started = send(Widgets.Message.StartedUpload())
+    const [loading] = started.widgets.toasts.promise.entries
+    expect(loading?.type).toBe('loading')
+    expect(started.widgets.toasts.types.entries).toHaveLength(0)
+    const finished = update(
+      started,
+      Message.GotWidget({
+        message: Widgets.Message.FinishedUpload({ id: loading?.id ?? '' }),
+      }),
+    ).model
+    expect(finished.widgets.toasts.promise.entries.map(entry => [entry.type, entry.title])).toEqual(
+      [['success', 'Uploaded']],
+    )
+  })
+})

@@ -60,6 +60,7 @@ import {
   SwitchSlots,
   TabsSlots,
   TextareaSlots,
+  ToastSlots,
 } from 'foldkit-mixins-ui'
 
 import * as Snippet from '../snippets/components.js'
@@ -337,6 +338,58 @@ const tagsBasic = <Message>(style: NamedStyle<typeof TagsInputSlots>, live: Live
     message => live.onWidget(Widgets.Message.GotTags({ message })),
     live.h,
   )
+
+const commandBasic = <Message>(style: NamedStyle<typeof CommandSlots>, live: Live<Message>) =>
+  Snippet.command(
+    style,
+    {
+      query: live.widgets.commandQuery,
+      active: live.widgets.commandActive,
+      ran: live.widgets.commandRan,
+    },
+    {
+      onQuery: query => live.onWidget(Widgets.Message.TypedCommand({ query })),
+      onActive: value => live.onWidget(Widgets.Message.HighlightedCommand({ value })),
+      onRun: value => live.onWidget(Widgets.Message.RanCommand({ value })),
+    },
+    live.h,
+  )
+
+const menuActions = <Message>(style: NamedStyle<typeof MenuSlots>, live: Live<Message>) =>
+  Snippet.menu(
+    style,
+    {
+      pageMenu: live.widgets.pageMenu,
+      pageChoice: live.widgets.pageChoice,
+      fileMenu: live.widgets.fileMenu,
+      fileChoice: live.widgets.fileChoice,
+    },
+    message => live.onWidget(Widgets.Message.GotPageMenu({ message })),
+    message => live.onWidget(Widgets.Message.GotFileMenu({ message })),
+    live.direction,
+    live.h,
+  )
+
+/** One toast example's stack of the widgets' Model, named for its landmark. */
+const toastStack = <Message>(
+  live: Live<Message>,
+  example: Widgets.ToastExample,
+  label: string,
+): Snippet.ToastStack<Message> => ({
+  model: live.widgets.toasts[example],
+  onMessage: message => live.onWidget(Widgets.Message.GotToast({ example, message })),
+  label,
+})
+
+const toastTypes =
+  (example: 'types' | 'rich') =>
+  <Message>(style: NamedStyle<typeof ToastSlots>, live: Live<Message>) =>
+    Snippet.toastTypes(
+      style,
+      toastStack(live, example, example === 'rich' ? 'Notifications, rich' : 'Notifications'),
+      type => live.onWidget(Widgets.Message.RaisedToast({ example, type })),
+      live.h,
+    )
 
 // Each checkbox example holds its own state: one press toggles one box.
 const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: Live<Message>) =>
@@ -1101,21 +1154,36 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     CommandSlots,
     Recipes.Command,
-    (style, live) =>
-      Snippet.command(
-        style,
-        {
-          query: live.widgets.commandQuery,
-          active: live.widgets.commandActive,
-          ran: live.widgets.commandRan,
-        },
-        {
-          onQuery: query => live.onWidget(Widgets.Message.TypedCommand({ query })),
-          onActive: value => live.onWidget(Widgets.Message.HighlightedCommand({ value })),
-          onRun: value => live.onWidget(Widgets.Message.RanCommand({ value })),
-        },
-        live.h,
-      ),
+    commandBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: commandBasic },
+      {
+        name: 'dialog',
+        title: 'In a dialog (⌘K)',
+        draw: (style, live) =>
+          Snippet.commandDialog(
+            style,
+            {
+              dialog: live.widgets.palette,
+              query: live.widgets.paletteQuery,
+              active: live.widgets.paletteActive,
+              pages: live.widgets.palettePages,
+              ran: live.widgets.paletteRan,
+            },
+            {
+              onOpen: live.onWidget(Widgets.Message.OpenedPalette()),
+              toDialog: message => live.onWidget(Widgets.Message.GotPalette({ message })),
+              onQuery: query => live.onWidget(Widgets.Message.TypedPalette({ query })),
+              onActive: value => live.onWidget(Widgets.Message.HighlightedPalette({ value })),
+              onRun: value => live.onWidget(Widgets.Message.RanPalette({ value })),
+              onBack: live.onWidget(Widgets.Message.LeftPalettePage()),
+            },
+            live.h,
+          ),
+        pins: { frame: 'bare' },
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1679,20 +1747,23 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     MenuSlots,
     Recipes.Menu,
-    (style, live) =>
-      Snippet.menu(
-        style,
-        {
-          pageMenu: live.widgets.pageMenu,
-          pageChoice: live.widgets.pageChoice,
-          fileMenu: live.widgets.fileMenu,
-          fileChoice: live.widgets.fileChoice,
-        },
-        message => live.onWidget(Widgets.Message.GotPageMenu({ message })),
-        message => live.onWidget(Widgets.Message.GotFileMenu({ message })),
-        live.direction,
-        live.h,
-      ),
+    menuActions,
+    undefined,
+    [
+      { name: 'actions', title: 'Actions', draw: menuActions },
+      {
+        name: 'view-options',
+        title: 'View options',
+        draw: (style, live) =>
+          Snippet.viewOptionsMenu(
+            style,
+            { menu: live.widgets.viewMenu, options: live.widgets.viewOptions },
+            message => live.onWidget(Widgets.Message.GotViewMenu({ message })),
+            live.direction,
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1861,7 +1932,7 @@ export const showcases: ReadonlyArray<Showcase> = [
       },
     ],
   ),
-  fixed(
+  fromRecipe(
     {
       slug: 'toast',
       title: 'Toast',
@@ -1870,16 +1941,62 @@ export const showcases: ReadonlyArray<Showcase> = [
       file: 'toast',
       contract: 'ToastSlots',
     },
-    live =>
-      Snippet.toast(
-        Snippet.ToastStyle,
-        live.widgets.notices,
-        {
-          onNotify: live.onWidget(Widgets.Message.SavedDraft()),
-          toMessage: message => live.onWidget(Widgets.Message.GotNotices({ message })),
-        },
-        live.h,
-      ),
+    ToastSlots,
+    Recipes.Toast,
+    toastTypes('types'),
+    undefined,
+    [
+      { name: 'types', title: 'Types', draw: toastTypes('types') },
+      {
+        name: 'promise',
+        title: 'A promise',
+        draw: (style, live) =>
+          Snippet.toastPromise(
+            style,
+            toastStack(live, 'promise', 'Uploads'),
+            live.onWidget(Widgets.Message.StartedUpload()),
+            live.h,
+          ),
+      },
+      {
+        name: 'action',
+        title: 'An action',
+        draw: (style, live) =>
+          Snippet.toastAction(
+            style,
+            toastStack(live, 'action', 'Archive'),
+            live.onWidget(Widgets.Message.Archived()),
+            live.h,
+          ),
+      },
+      { name: 'rich', title: 'Rich colors', draw: toastTypes('rich'), pins: { tone: 'rich' } },
+      {
+        name: 'positions',
+        title: 'Positions',
+        draw: (style, live) =>
+          Snippet.toastPositions(
+            style,
+            live.widgets.toasts,
+            (example, message) => live.onWidget(Widgets.Message.GotToast({ example, message })),
+            example => live.onWidget(Widgets.Message.RaisedToast({ example, type: 'success' })),
+            live.h,
+          ),
+      },
+      {
+        name: 'payload',
+        title: 'Your own payload',
+        draw: (_style, live) =>
+          Snippet.toast(
+            Snippet.ToastStyle,
+            live.widgets.notices,
+            {
+              onNotify: live.onWidget(Widgets.Message.SavedDraft()),
+              toMessage: message => live.onWidget(Widgets.Message.GotNotices({ message })),
+            },
+            live.h,
+          ),
+      },
+    ],
   ),
 ]
 
