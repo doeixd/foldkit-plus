@@ -146,6 +146,9 @@ export const selectionCode = (showcase: Showcase, selection: Selection): string 
 
 const inert = SlotView.inertBuilder<never>()
 
+/** The value of an axis the recipe sets nothing for until one is picked. */
+const UNSET = 'unset'
+
 interface RecipeOf<Slots> {
   readonly def: {
     readonly variants: Readonly<Record<string, object>>
@@ -178,17 +181,27 @@ const fromRecipe = <Slots>(
     .filter(([name]) => only === undefined || only.includes(name))
     .map(([name, values]): Axis => {
       const names = Object.keys(values)
+      const initial = recipe.def.defaults?.[name]
+      if (initial !== undefined) return { name, values: names, initial }
       // An axis the recipe leaves unset follows the page, as a size follows
-      // the ladder's step, which is the default one on this page.
-      const unset = names.includes('md') ? 'md' : names[0]!
-      return { name, values: names, initial: recipe.def.defaults?.[name] ?? unset }
+      // the ladder's step, which is the default one on this page. One with no
+      // such step (a lone `overflow: 'scroll'`, a `width: 'fill'`) can be left
+      // unset, and is at first: picking its only value would force it on.
+      return names.includes('md')
+        ? { name, values: names, initial: 'md' }
+        : { name, values: [UNSET, ...names], initial: UNSET }
     })
   // Every value passed was checked against the recipe's own axes by `valueOf`.
   const select = recipe as unknown as (selection: Selection) => StylePieces<Slots>
   const styles = new Map<string, NamedStyle<Slots>>()
   const styleOf = (selection: Selection): NamedStyle<Slots> => {
-    const chosen = Object.fromEntries(axes.map(axis => [axis.name, valueOf(axis, selection)]))
-    const key = axes.map(axis => chosen[axis.name]).join('/')
+    const chosen = Object.fromEntries(
+      axes.flatMap(axis => {
+        const value = valueOf(axis, selection)
+        return value === UNSET ? [] : [[axis.name, value]]
+      }),
+    )
+    const key = axes.map(axis => valueOf(axis, selection)).join('/')
     const known = styles.get(key)
     if (known !== undefined) return known
     const style = forSlots(contract)(select(chosen))
@@ -810,7 +823,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'select',
       title: 'Select',
-      summary: 'The native select, styled like the fields beside it.',
+      summary:
+        'The native select, styled like the fields beside it, and a custom one drawn over Listbox with icons, descriptions and groups.',
       recipe: 'Select',
       file: 'select',
       contract: 'SelectSlots',
@@ -1492,7 +1506,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'resizable',
       title: 'Resizable',
-      summary: 'Two panels and a handle between them, dragged or stepped by the arrow keys.',
+      summary:
+        'Two panels and a handle between them, dragged or stepped by the arrow keys, collapsed and nested.',
       recipe: 'Resizable',
       file: 'resizable',
       contract: 'ResizableSlots',
@@ -1535,7 +1550,7 @@ export const showcases: ReadonlyArray<Showcase> = [
       slug: 'sidebar',
       title: 'Sidebar',
       summary:
-        'The navigation of an application in sections, collapsed off the page by its toggle.',
+        'The navigation of an application in groups, collapsed off the page or to a rail of icons, and in a sheet on a phone.',
       recipe: 'Sidebar',
       file: 'sidebar',
       contract: 'SidebarSlots',
@@ -1551,7 +1566,8 @@ export const showcases: ReadonlyArray<Showcase> = [
         title: 'Resizable',
         draw: (_style, live) =>
           live.h.div(
-            [live.h.Style({ blockSize: '24rem' })],
+            // A box of its own size: the preview centres what it holds, which a split would shrink to nothing.
+            [live.h.Style({ blockSize: '24rem', inlineSize: 'min(40rem, 100%)' })],
             [
               Snippet.sidebarResizable(
                 live.widgets.sidebarResizable,
@@ -1738,7 +1754,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'rating',
       title: 'Rating',
-      summary: 'A score out of five stars, chosen with a press or the arrows, or shown read-only.',
+      summary:
+        'A score out of five stars, halves or hearts, chosen with a press or the arrows, or shown read-only to any fraction.',
       recipe: 'Rating',
       file: 'rating',
       contract: 'RatingSlots',
@@ -1888,7 +1905,7 @@ export const showcases: ReadonlyArray<Showcase> = [
       slug: 'sheet',
       title: 'Sheet',
       summary:
-        'A dialog that slides in from an edge of the screen; from the bottom with a handle, a drawer as on a phone.',
+        'A dialog from an edge of the screen whose handle drags it between resting points and away, a drawer as on a phone.',
       recipe: 'Sheet',
       file: 'sheet',
       contract: 'DialogSlots',
@@ -2010,7 +2027,7 @@ export const showcases: ReadonlyArray<Showcase> = [
       slug: 'carousel',
       title: 'Carousel',
       summary:
-        'Slides in a track that snaps one at a time, with previous, next and a dot per slide.',
+        'Slides in a track that snaps, with previous, next, dots or thumbnails, several at once, and a rotation that pauses.',
       recipe: 'Carousel',
       file: 'carousel',
       contract: 'CarouselSlots',
@@ -2043,7 +2060,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'navigation-menu',
       title: 'Navigation menu',
-      summary: 'The links of a site in a row, the current page marked by a line that glides to it.',
+      summary:
+        'The links of a site in a row or a column, the current page marked by a line that glides to it, and panels of links under its triggers.',
       recipe: 'Nav',
       file: 'nav',
       contract: 'NavSlots',
@@ -2107,7 +2125,17 @@ export const showcases: ReadonlyArray<Showcase> = [
             live.h,
           ),
       },
-      { name: 'full', title: 'Full width', draw: segmentedBasic, pins: { width: 'fill' } },
+      {
+        name: 'full',
+        title: 'Full width',
+        // As wide as the box it is in, which here is the preview's width.
+        draw: (style, live) =>
+          live.h.div(
+            [live.h.Style({ inlineSize: 'min(28rem, 100%)' })],
+            [segmentedBasic(style, live)],
+          ),
+        pins: { width: 'fill' },
+      },
       { name: 'underline', title: 'Underline', draw: segmentedBasic, pins: { tray: 'underline' } },
     ],
   ),
@@ -2115,7 +2143,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'tabs',
       title: 'Tabs',
-      summary: 'Panels of one place, one shown at a time, moved between by the arrow keys.',
+      summary:
+        'Panels of one place, one shown at a time, moved between by the arrow keys; with icons, counts, a scrolling row and tabs that close.',
       recipe: 'Tabs',
       file: 'tabs',
       contract: 'TabsSlots',
@@ -2241,7 +2270,7 @@ export const showcases: ReadonlyArray<Showcase> = [
       slug: 'slider',
       title: 'Slider',
       summary:
-        'A number, or a low and a high one that cannot pass each other, dragged, pressed or stepped by the keys.',
+        'A number, or a low and a high one that cannot pass each other, across or upright, with marks, ticks and its value shown.',
       recipe: 'Slider',
       file: 'slider',
       contract: 'SliderSlots',
@@ -2435,7 +2464,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'combobox',
       title: 'Combobox',
-      summary: 'A field that suggests as you type, and keeps one of its suggestions.',
+      summary:
+        'A field that suggests as you type, and keeps one suggestion or several as chips, with a clear button and an empty panel.',
       recipe: 'Combobox',
       file: 'combobox',
       contract: 'ComboboxSlots',

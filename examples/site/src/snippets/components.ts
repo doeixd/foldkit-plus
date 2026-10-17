@@ -2480,7 +2480,10 @@ export const dialogTerms = <Message>(
                       h.div(dialog.body, [
                         h.div(
                           dialog.scroll,
-                          [...TERMS, ...TERMS].map(term => h.p([], [term])),
+                          // The reset zeroes a paragraph's margins: each term keeps a line between.
+                          [...TERMS, ...TERMS].map(term =>
+                            h.p([h.Style({ marginBlock: '0 0.75rem' })], [term]),
+                          ),
                         ),
                         h.div(dialog.scrollBar, [h.div(dialog.scrollThumb)]),
                       ]),

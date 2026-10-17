@@ -83,6 +83,20 @@ describe('the showcases', () => {
     )
   })
 
+  it('leave an axis with no default and no middle step unset until it is picked', () => {
+    const table = Option.getOrThrow(showcaseOf('table'))
+    expect(table.axes.find(axis => axis.name === 'density')).toEqual({
+      name: 'density',
+      values: ['unset', 'compact', 'regular', 'comfortable'],
+      initial: 'unset',
+    })
+    expect(selectionCode(table, {})).toBe('forSlots(TableSlots)(Recipes.Table({}))')
+    const [basic] = table.examples
+    expect(markup(basic!.render({ density: 'compact' }, live))).not.toBe(
+      markup(basic!.render({}, live)),
+    )
+  })
+
   it('have one page each', () => {
     const slugs = showcases.map(showcase => showcase.slug)
     expect(new Set(slugs).size).toBe(slugs.length)
