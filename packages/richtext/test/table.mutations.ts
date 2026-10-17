@@ -122,8 +122,8 @@ export default [
     edits: [
       {
         file: command,
-        find: 'text: `\\n${indentationAt(textOfBlock(holder), offsetIn(holder, caret) ?? 0)}`,',
-        replace: "text: '\\n',",
+        find: '? `\\n${indentationAt(textOfBlock(holder), offsetIn(holder, caret) ?? 0)}`',
+        replace: "? '\\n'",
       },
     ],
     tests,

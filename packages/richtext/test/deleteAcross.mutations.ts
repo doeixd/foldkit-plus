@@ -39,7 +39,13 @@ export default [
   },
   {
     name: 'a table cell is crossed like any container',
-    edits: [{ file, find: '  if (isolatingBetween) {', replace: '  if (false) {' }],
+    edits: [
+      {
+        file,
+        find: '  if (crossesIsolating(document, startPath, endPath, options.nodes)) {',
+        replace: '  if (false) {',
+      },
+    ],
     tests,
   },
   {

@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file,
-        find: "if (selection?.type !== 'Range' || !samePosition(selection.anchor, selection.focus)) {",
-        replace: "if (selection?.type !== 'Range') {",
+        find: "Element | undefined => {\n  if (selection?.type !== 'Range' || !samePosition(selection.anchor, selection.focus)) {",
+        replace: "Element | undefined => {\n  if (selection?.type !== 'Range') {",
       },
     ],
     tests,
@@ -54,8 +54,9 @@ export default [
     edits: [
       {
         file,
-        find: '    lastSelection = selection\n    hint()\n',
-        replace: '    lastSelection = selection\n',
+        find: '    if (selection === null || sameSelection(selection, lastSelection)) return\n    lastSelection = selection\n    hint()\n',
+        replace:
+          '    if (selection === null || sameSelection(selection, lastSelection)) return\n    lastSelection = selection\n',
       },
     ],
     tests,
