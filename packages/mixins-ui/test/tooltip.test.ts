@@ -32,7 +32,11 @@ const runTooltip = (mixins: TooltipMixins, capture: (captured: Captured) => void
           {
             anchor: {},
             toView: render => {
-              const resolved = TooltipAdapter.resolve(render, mixins, { input: undefined, h })
+              const resolved = TooltipAdapter.resolve(render, mixins, {
+                input: undefined,
+                h,
+                id: 'test-tooltip',
+              })
               capture({
                 isVisible: resolved.isVisible,
                 trigger: resolved.trigger,
