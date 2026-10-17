@@ -69,6 +69,7 @@ import {
   ToastSlots,
   TooltipSlots,
   type Nav,
+  type Carousel,
 } from 'foldkit-mixins-ui'
 
 import * as Snippet from '../snippets/components.js'
@@ -523,6 +524,41 @@ const sidebarRail = <Message>(style: NamedStyle<typeof SidebarSlots>, live: Live
     style,
     live.widgets.sidebar,
     message => live.onWidget(Widgets.Message.GotSidebar({ message })),
+    live.h,
+  )
+
+const carouselAt =
+  (
+    example: Widgets.CarouselExample,
+    draw: <Message>(
+      style: NamedStyle<typeof CarouselSlots>,
+      model: Carousel.Model,
+      onMessage: (message: Carousel.Message) => Message,
+      h: HtmlBuilder<Message>,
+    ) => Html,
+  ) =>
+  <Message>(style: NamedStyle<typeof CarouselSlots>, live: Live<Message>) =>
+    draw(
+      style,
+      live.widgets.carousels[example],
+      message => live.onWidget(Widgets.Message.GotCarousel({ example, message })),
+      live.h,
+    )
+
+const treeBasic = <Message>(style: NamedStyle<typeof TreeViewSlots>, live: Live<Message>) =>
+  Snippet.treeView(
+    style,
+    live.widgets.treeView,
+    message => live.onWidget(Widgets.Message.GotTreeView({ message })),
+    live.direction,
+    live.h,
+  )
+
+const accordionBasic = <Message>(style: NamedStyle<typeof AccordionSlots>, live: Live<Message>) =>
+  Snippet.accordion(
+    style,
+    live.widgets.faq,
+    id => live.onWidget(Widgets.Message.ToggledFaq({ id })),
     live.h,
   )
 
@@ -1185,13 +1221,35 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     AccordionSlots,
     Recipes.Accordion,
-    (style, live) =>
-      Snippet.accordion(
-        style,
-        live.widgets.faq,
-        id => live.onWidget(Widgets.Message.ToggledFaq({ id })),
-        live.h,
-      ),
+    accordionBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: accordionBasic },
+      {
+        name: 'plus',
+        title: 'Cards with a plus',
+        pins: { variant: 'separated', indicator: 'plus', indicatorPosition: 'start' },
+        draw: (style, live) =>
+          Snippet.accordionPlus(
+            style,
+            live.widgets.faqPlus,
+            id => live.onWidget(Widgets.Message.ToggledFaqPlus({ id })),
+            live.h,
+          ),
+      },
+      {
+        name: 'active',
+        title: 'Ghost, the open one tinted',
+        pins: { variant: 'ghost', separators: 'off', active: 'item' },
+        draw: (style, live) =>
+          Snippet.accordionActive(
+            style,
+            live.widgets.faqActive,
+            id => live.onWidget(Widgets.Message.ToggledFaqActive({ id })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1502,6 +1560,18 @@ export const showcases: ReadonlyArray<Showcase> = [
         pins: { orientation: 'vertical' },
         draw: (style, live) => Snippet.stepsVertical(style, live.h),
       },
+      {
+        name: 'progress',
+        title: 'A progress connector',
+        pins: { connector: 'progress' },
+        draw: (style, live) => Snippet.stepsProgress(style, live.h),
+      },
+      {
+        name: 'dots',
+        title: 'Dots',
+        pins: { marker: 'dot' },
+        draw: (style, live) => Snippet.stepsDots(style, live.h),
+      },
     ],
   ),
   fromRecipe(
@@ -1698,14 +1768,34 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     TreeViewSlots,
     Recipes.TreeView,
-    (style, live) =>
-      Snippet.treeView(
-        style,
-        live.widgets.treeView,
-        message => live.onWidget(Widgets.Message.GotTreeView({ message })),
-        live.direction,
-        live.h,
-      ),
+    treeBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: treeBasic },
+      {
+        name: 'icons',
+        title: 'Icons and guides',
+        draw: (style, live) =>
+          Snippet.treeViewIcons(
+            style,
+            live.widgets.treeIcons,
+            message => live.onWidget(Widgets.Message.GotTreeIcons({ message })),
+            live.h,
+          ),
+        pins: { guides: 'lines' },
+      },
+      {
+        name: 'checkboxes',
+        title: 'Checkboxes',
+        draw: (style, live) =>
+          Snippet.treeViewCheckboxes(
+            style,
+            live.widgets.treeChecks,
+            message => live.onWidget(Widgets.Message.GotTreeChecks({ message })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1719,13 +1809,27 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     CarouselSlots,
     Recipes.Carousel,
-    (style, live) =>
-      Snippet.carousel(
-        style,
-        live.widgets.carousels.places,
-        message => live.onWidget(Widgets.Message.GotCarousel({ message })),
-        live.h,
-      ),
+    carouselAt('places', Snippet.carousel),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: carouselAt('places', Snippet.carousel) },
+      {
+        name: 'autoplay',
+        title: 'Autoplay',
+        draw: carouselAt('autoplay', Snippet.carouselAutoplay),
+      },
+      {
+        name: 'thumbnails',
+        title: 'Thumbnails',
+        draw: carouselAt('thumbnails', Snippet.carouselThumbnails),
+      },
+      {
+        name: 'per-view',
+        title: 'Two per view',
+        draw: carouselAt('perView', Snippet.carouselPerView),
+        pins: { peek: 'none' },
+      },
+    ],
   ),
   fromRecipe(
     {

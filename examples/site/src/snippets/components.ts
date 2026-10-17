@@ -3606,7 +3606,7 @@ export const toastPositions = <Message>(
   )
 // #endregion
 
-// #region accordion
+// #region accordion-basic
 export const AccordionStyle = forSlots(AccordionSlots)(Recipes.Accordion({}))
 
 export const accordion = <Message>(
@@ -3637,6 +3637,63 @@ export const accordion = <Message>(
       ],
       open,
       onToggle,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region accordion-plus
+export const PlusAccordionStyle = forSlots(AccordionSlots)(
+  Recipes.Accordion({ variant: 'separated', indicator: 'plus', indicatorPosition: 'start' }),
+)
+
+// Several open at once (`Accordion.toggled(open, id, { multiple: true })`), a
+// plus that lies flat into a minus at the start of each card.
+export const accordionPlus = <Message>(
+  style: NamedStyle<typeof AccordionSlots>,
+  open: ReadonlyArray<string>,
+  onToggle: (id: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Accordion.view(
+    {
+      id: 'faq-plus',
+      items: [
+        { id: 'refunds', title: 'Refunds', content: 'Within 30 days, to the card that paid.' },
+        { id: 'seats', title: 'Seats', content: 'Add or remove them at any time.' },
+        { id: 'sso', title: 'Single sign-on', content: 'On the Business plan.', disabled: true },
+      ],
+      open,
+      onToggle,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region accordion-active
+export const ActiveAccordionStyle = forSlots(AccordionSlots)(
+  Recipes.Accordion({ variant: 'ghost', separators: 'off', active: 'item' }),
+)
+
+// A ghost accordion whose open section is tinted, row and panel, with its own icon.
+export const accordionActive = <Message>(
+  style: NamedStyle<typeof AccordionSlots>,
+  open: ReadonlyArray<string>,
+  onToggle: (id: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Accordion.view(
+    {
+      id: 'faq-active',
+      items: [
+        { id: 'billing', title: 'Billing', content: 'Seats, invoices and receipts.' },
+        { id: 'team', title: 'Team', content: 'Invite people and assign roles.' },
+      ],
+      open,
+      onToggle,
+      icon: outline(h, 'M4 6l4 4 4-4'),
       style,
     },
     h,
@@ -4227,6 +4284,46 @@ export const stepsVertical = <Message>(
   )
 // #endregion
 
+// #region steps-progress
+export const ProgressStepsStyle = forSlots(StepsSlots)(Recipes.Steps({ connector: 'progress' }))
+
+// The connector is the Progress bar's track, filling after each step done and,
+// after the current one, by how far it has gone.
+export const stepsProgress = <Message>(
+  style: NamedStyle<typeof StepsSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Steps.view(
+    {
+      label: 'Upload',
+      steps: [{ title: 'Choose' }, { title: 'Upload' }, { title: 'Process' }, { title: 'Done' }],
+      current: 1,
+      progress: 0.6,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region steps-dots
+export const DotStepsStyle = forSlots(StepsSlots)(Recipes.Steps({ marker: 'dot' }))
+
+// Dots for a light stepper; `size` sets a numbered marker on the Avatar's sizes.
+export const stepsDots = <Message>(
+  style: NamedStyle<typeof StepsSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Steps.view(
+    {
+      label: 'Onboarding',
+      steps: [{ title: 'Profile' }, { title: 'Team' }, { title: 'Billing' }, { title: 'Launch' }],
+      current: 2,
+      style,
+    },
+    h,
+  )
+// #endregion
+
 // #region rating
 export const RatingStyle = forSlots(RatingSlots)(Recipes.Rating({}))
 
@@ -4683,7 +4780,7 @@ export const colorPicker = <Message>(
   )
 // #endregion
 
-// #region tree-view
+// #region tree-view-basic
 export const TreeViewStyle = forSlots(TreeViewSlots)(Recipes.TreeView({}))
 
 /** The preview's files, built once: `update` and the view read the same tree. */
@@ -4733,7 +4830,89 @@ export const treeView = <Message>(
   )
 // #endregion
 
-// #region carousel
+// #region tree-view-icons
+export const GuidedTreeStyle = forSlots(TreeViewSlots)(Recipes.TreeView({ guides: 'lines' }))
+
+const FOLDER = 'M1.5 4.5h4l1.5 1.5h7.5v6.5h-13z'
+const FOLDER_OPEN = 'M1.5 4.5h4l1.5 1.5h6v2M1.5 12.5l2-4.5h11l-2 4.5z'
+const FILE = 'M4 1.5h5l3 3v10H4zM9 1.5v3h3'
+
+/** Built once: `update` and the view read the same tree. */
+export const TREE_ICONS: ReadonlyArray<TreeView.TreeNode> = [
+  {
+    id: 'src',
+    label: 'src',
+    children: [
+      { id: 'index', label: 'index.ts' },
+      {
+        id: 'components',
+        label: 'components',
+        children: [
+          { id: 'button', label: 'button.ts' },
+          { id: 'tree', label: 'tree.ts' },
+        ],
+      },
+    ],
+  },
+  { id: 'readme', label: 'README.md' },
+]
+
+/** Each node's icon, a folder open or shut; drawn per builder, so built in the view. */
+const withIcons = <Message>(
+  h: HtmlBuilder<Message>,
+  nodes: ReadonlyArray<TreeView.TreeNode>,
+): ReadonlyArray<TreeView.TreeNode> =>
+  nodes.map(node =>
+    node.children === undefined
+      ? { ...node, icon: outline(h, FILE) }
+      : {
+          ...node,
+          icon: outline(h, FOLDER),
+          openIcon: outline(h, FOLDER_OPEN),
+          children: withIcons(h, node.children),
+        },
+  )
+
+// A folder or file before each label, and a guide down each open folder.
+export const treeViewIcons = <Message>(
+  style: NamedStyle<typeof TreeViewSlots>,
+  model: TreeView.Model,
+  onMessage: (message: TreeView.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: '16rem' })],
+    [
+      TreeView.view(
+        { label: 'Files', model, nodes: withIcons(h, TREE_ICONS), onMessage, style },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region tree-view-checkboxes
+/** Folded with `TreeView.update(TREE_ICONS, { checkable: true })`. */
+export const treeViewCheckboxes = <Message>(
+  style: NamedStyle<typeof TreeViewSlots>,
+  model: TreeView.Model,
+  onMessage: (message: TreeView.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: '16rem' })],
+    [
+      TreeView.view(
+        { label: 'Files to commit', model, nodes: TREE_ICONS, onMessage, checkable: true, style },
+        h,
+      ),
+      // `checked` holds the files alone; a folder reads checked or mixed from them.
+      h.p([], [model.checked.length === 0 ? 'Nothing staged.' : `${model.checked.length} staged.`]),
+    ],
+  )
+// #endregion
+
+// #region carousel-basic
 export const CarouselStyle = forSlots(CarouselSlots)(Recipes.Carousel({}))
 
 const PLACES = ['Dunes', 'Coast', 'Ridge', 'Valley']
@@ -4771,6 +4950,113 @@ export const carousel = <Message>(
               [place],
             ),
           ),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region carousel-autoplay
+const SHOTS = ['Dunes', 'Coast', 'Ridge', 'Valley', 'Delta']
+
+const shot = <Message>(h: HtmlBuilder<Message>, place: string): Html =>
+  h.div(
+    [
+      h.Style({
+        display: 'grid',
+        placeItems: 'center',
+        blockSize: '10rem',
+        background: 'color-mix(in oklab, currentColor 8%, transparent)',
+      }),
+    ],
+    [place],
+  )
+
+/** Folded with `Carousel.update(AUTOPLAY_LAYOUT)`; its Model from `Carousel.init({ id, autoplay: true })`. */
+export const AUTOPLAY_LAYOUT: Carousel.CarouselLayout = { count: SHOTS.length, loop: true }
+
+// Moves on every four seconds, the current dot filling as it waits. A pointer
+// on it pauses it, focus from the keys stops it, and the button in its
+// corner, first in the tab order, stops and starts it.
+export const carouselAutoplay = <Message>(
+  style: NamedStyle<typeof CarouselSlots>,
+  model: Carousel.Model,
+  onMessage: (message: Carousel.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
+    [
+      Carousel.view(
+        {
+          label: 'Places',
+          model,
+          onMessage,
+          loop: AUTOPLAY_LAYOUT.loop,
+          slides: SHOTS.map(place => shot(h, place)),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region carousel-thumbnails
+export const THUMBNAILS_LAYOUT: Carousel.CarouselLayout = { count: SHOTS.length }
+
+// A small copy of each slide in place of the dots; the one shown is ringed.
+export const carouselThumbnails = <Message>(
+  style: NamedStyle<typeof CarouselSlots>,
+  model: Carousel.Model,
+  onMessage: (message: Carousel.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
+    [
+      Carousel.view(
+        {
+          label: 'Places',
+          model,
+          onMessage,
+          slides: SHOTS.map(place => shot(h, place)),
+          thumbnails: SHOTS.map(place =>
+            h.span(
+              [h.Style({ display: 'grid', placeItems: 'center', fontSize: '0.625rem' })],
+              [place],
+            ),
+          ),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region carousel-per-view
+export const PER_VIEW_LAYOUT: Carousel.CarouselLayout = { count: SHOTS.length, perView: 2 }
+
+// Two slides at once, a dot per place the track can rest: four for five slides.
+export const carouselPerView = <Message>(
+  style: NamedStyle<typeof CarouselSlots>,
+  model: Carousel.Model,
+  onMessage: (message: Carousel.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(32rem, 100%)' })],
+    [
+      Carousel.view(
+        {
+          label: 'Places',
+          model,
+          onMessage,
+          perView: PER_VIEW_LAYOUT.perView,
+          slides: SHOTS.map(place => shot(h, place)),
           style,
         },
         h,

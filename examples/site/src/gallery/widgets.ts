@@ -48,6 +48,10 @@ import {
   Billing,
   BillingGroup,
   CAROUSEL_LAYOUT,
+  AUTOPLAY_LAYOUT,
+  THUMBNAILS_LAYOUT,
+  PER_VIEW_LAYOUT,
+  TREE_ICONS,
   CityBox,
   CityTags,
   Fruit,
@@ -102,7 +106,7 @@ export type NavExample = typeof NavExample.Type
 const InboxModel = Schema.Struct({ tabs: UiTabs.Model, folder: Inbox })
 
 /** The carousel examples. */
-export const CarouselExample = Schema.Literals(['places'])
+export const CarouselExample = Schema.Literals(['places', 'autoplay', 'thumbnails', 'perView'])
 export type CarouselExample = typeof CarouselExample.Type
 
 /** The custom select examples, each with a list and a fruit of its own. */
@@ -231,6 +235,12 @@ export const Model = Schema.Struct({
   virtualList: UiVirtualList.Model,
   /** Each carousel example's slide and rotation. */
   carousels: Schema.Record(CarouselExample, Carousel.Model),
+  /** The tree with icons and the one with checkboxes. */
+  treeIcons: TreeView.Model,
+  treeChecks: TreeView.Model,
+  /** The open sections of the plus and the tinted accordions. */
+  faqPlus: Schema.Array(Schema.String),
+  faqActive: Schema.Array(Schema.String),
   /** The range slider's price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
   /** The file tree's open, current and chosen rows. */
@@ -337,7 +347,11 @@ export const Message = defineMessageUnion({
   GotTrailMenu: { message: Menu.Message },
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
-  GotCarousel: { message: Carousel.Message },
+  GotCarousel: { example: CarouselExample, message: Carousel.Message },
+  GotTreeIcons: { message: TreeView.Message },
+  GotTreeChecks: { message: TreeView.Message },
+  ToggledFaqPlus: { id: Schema.String },
+  ToggledFaqActive: { id: Schema.String },
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotTreeView: { message: TreeView.Message },
   GotAccent: { message: ColorPicker.Message },
@@ -511,7 +525,16 @@ export const initial: Model = {
   ),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
-  carousels: { places: Carousel.init({ id: 'preview-carousel' }) },
+  carousels: {
+    places: Carousel.init({ id: 'preview-carousel' }),
+    autoplay: Carousel.init({ id: 'preview-carousel-autoplay', autoplay: true }),
+    thumbnails: Carousel.init({ id: 'preview-carousel-thumbs' }),
+    perView: Carousel.init({ id: 'preview-carousel-two' }),
+  },
+  treeIcons: TreeView.init({ id: 'preview-tree-icons', open: ['src'] }),
+  treeChecks: TreeView.init({ id: 'preview-tree-checks', open: ['src'], checked: ['index'] }),
+  faqPlus: ['refunds'],
+  faqActive: ['billing'],
   priceRange: { low: 100, high: 350 },
   treeView: TreeView.init({ id: 'preview-tree', open: ['src'] }),
   accent: ColorPicker.init({ id: 'preview-accent', color: ColorPicker.color('#3b82f6') }),
@@ -863,12 +886,33 @@ const foldAccent = Update.foldChild({
   update: ColorPicker.update,
 })
 
-const foldCarousel = Update.foldChild({
-  read: (model: Model) => Option.some(model.carousels.places),
-  write: (model, places) =>
-    modifyFields(model, { carousels: carousels => ({ ...carousels, places }) }),
-  toParentMessage: message => Message.GotCarousel({ message }),
-  update: Carousel.update(CAROUSEL_LAYOUT),
+/** Each carousel example's update, over the layout its view draws. */
+const carouselUpdates: Readonly<Record<CarouselExample, ReturnType<typeof Carousel.update>>> = {
+  places: Carousel.update(CAROUSEL_LAYOUT),
+  autoplay: Carousel.update(AUTOPLAY_LAYOUT),
+  thumbnails: Carousel.update(THUMBNAILS_LAYOUT),
+  perView: Carousel.update(PER_VIEW_LAYOUT),
+}
+
+const foldCarousel = Update.foldChildAt({
+  update: (
+    carousel: Carousel.Model,
+    step: (carousel: Carousel.Model) => ReturnType<ReturnType<typeof Carousel.update>>,
+  ) => step(carousel),
+  readAt: (model: Model, example: CarouselExample) => Option.some(model.carousels[example]),
+  writeAt: (model, example, carousel) =>
+    modifyFields(model, { carousels: carousels => ({ ...carousels, [example]: carousel }) }),
+  toParentMessage: (example, message) => Message.GotCarousel({ example, message }),
+})
+
+const foldTreeIcons = Update.foldChild({
+  ...own('treeIcons', Message.GotTreeIcons),
+  update: TreeView.update(TREE_ICONS),
+})
+
+const foldTreeChecks = Update.foldChild({
+  ...own('treeChecks', Message.GotTreeChecks),
+  update: TreeView.update(TREE_ICONS, { checkable: true }),
 })
 
 const foldSidebar = Update.foldChild({
@@ -1237,7 +1281,18 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotPageMenu: ({ message }) => foldPageMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
-    GotCarousel: ({ message }) => foldCarousel(model, message),
+    GotCarousel: ({ example, message }) =>
+      foldCarousel(model, example, carousel => carouselUpdates[example](carousel, message)),
+    GotTreeIcons: ({ message }) => foldTreeIcons(model, message),
+    GotTreeChecks: ({ message }) => foldTreeChecks(model, message),
+    ToggledFaqPlus: ({ id }) => ({
+      model: modifyFields(model, {
+        faqPlus: () => Accordion.toggled(model.faqPlus, id, { multiple: true }),
+      }),
+    }),
+    ToggledFaqActive: ({ id }) => ({
+      model: modifyFields(model, { faqActive: () => Accordion.toggled(model.faqActive, id) }),
+    }),
     MovedPriceRange: ({ value }) =>
       value.low === model.priceRange.low && value.high === model.priceRange.high
         ? { model }
