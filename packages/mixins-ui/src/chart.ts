@@ -45,7 +45,7 @@ export const ChartSlots = Slots.define({
   plot: Slot.make({
     capability: Capability.Focusable,
     events: [Event.KeyDown, Event.Focus, Event.Blur, Event.Hover],
-    attributes: [Attr.Role, Attr.AriaLabel],
+    attributes: [Attr.Role],
   }),
   /** The `svg` the marks are drawn in, in percentages of the plot. */
   canvas: Slot.make({ capability: Capability.Container }),
