@@ -4,6 +4,9 @@ import * as Mount from 'foldkit/mount'
 export const SwipeStarted = Schema.TaggedStruct('SwipeStarted', {
   pointerId: Schema.Number,
   pointerType: Schema.String,
+  /** The border box of what `measure` names (the element itself by default), as the swipe starts. */
+  width: Schema.Number,
+  height: Schema.Number,
 })
 export type SwipeStarted = typeof SwipeStarted.Type
 
@@ -76,12 +79,21 @@ export const velocityOf = (samples: ReadonlyArray<Sample>): { x: number; y: numb
  * down captures the pointer, each move reports the delta from where it
  * started, and up reports the last delta with the velocity over the last
  * `SWIPE_WINDOW` milliseconds, by the events' own time stamps. Cancel or
- * lost capture ends it incomplete. What a delta or a speed means is the
- * parent's `update`. Capture is released with the Mount.
+ * lost capture ends it incomplete. The start reports the size of what is
+ * moved, so a distance can be read as a share of it. What a delta or a speed
+ * means is the parent's `update`. Capture is released with the Mount.
  */
 export const Swipe = Mount.defineStream('Swipe', {
   messages: [SwipeStarted, Swiped, SwipeEnded],
-  execute: ({ element }) =>
+  args: {
+    /**
+     * The nearest ancestor matching this selector is measured as the swipe
+     * starts, for what the swipe moves (a sheet's panel, dragged by its
+     * handle). Default: the element itself.
+     */
+    measure: Schema.optional(Schema.String),
+  },
+  execute: ({ element, measure }) =>
     Stream.callback<SwipeFact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -132,7 +144,17 @@ export const Swipe = Mount.defineStream('Swipe', {
                 } catch {
                   // Without capture the move still reports while over the element.
                 }
-                offer(SwipeStarted.make({ pointerId, pointerType: pointer.pointerType ?? 'mouse' }))
+                const moved =
+                  measure === undefined ? element : (element.closest(measure) ?? element)
+                const box = moved.getBoundingClientRect()
+                offer(
+                  SwipeStarted.make({
+                    pointerId,
+                    pointerType: pointer.pointerType ?? 'mouse',
+                    width: box.width,
+                    height: box.height,
+                  }),
+                )
               },
             ],
             [

@@ -25,7 +25,7 @@ const facts = (count: number, gesture: (handle: HTMLElement) => void) => {
   return Effect.runPromise(
     Effect.gen(function* () {
       const fiber = yield* Effect.forkChild(
-        takeMessages(Swipe().f(handle, Mount.liveViewStateChanges), count),
+        takeMessages(Swipe({}).f(handle, Mount.liveViewStateChanges), count),
       )
       for (let i = 0; i < 50; i++) yield* Effect.yieldNow
       gesture(handle)
@@ -48,7 +48,7 @@ describe('Swipe', () => {
       fire(handle, 'pointerup', 580, { pointerId: 1, clientX: 0, clientY: 310 })
     })
     expect(seen).toEqual([
-      SwipeStarted.make({ pointerId: 1, pointerType: 'touch' }),
+      SwipeStarted.make({ pointerId: 1, pointerType: 'touch', width: 0, height: 0 }),
       Swiped.make({ pointerId: 1, deltaX: 0, deltaY: 10 }),
       Swiped.make({ pointerId: 1, deltaX: 0, deltaY: 110 }),
       Swiped.make({ pointerId: 1, deltaX: 0, deltaY: 210 }),
@@ -90,7 +90,7 @@ describe('Swipe', () => {
       fire(handle, 'pointercancel', 30, { pointerId: 1 })
     })
     expect(seen).toEqual([
-      SwipeStarted.make({ pointerId: 1, pointerType: 'touch' }),
+      SwipeStarted.make({ pointerId: 1, pointerType: 'touch', width: 0, height: 0 }),
       Swiped.make({ pointerId: 1, deltaX: 0, deltaY: 60 }),
       SwipeEnded.make({
         pointerId: 1,
