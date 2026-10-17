@@ -48,9 +48,9 @@ const onHeld = '[aria-pressed="true"]:active:not([aria-disabled="true"], :disabl
 
 /**
  * On, an unfilled toggle is filled with its tone, as a solid button is, and
- * keeps the fill and the text on it when hovered (a step lighter) and when
- * held (a step deeper): the plain hover and held films would otherwise lay a
- * tint where the fill was, under text meant for the fill.
+ * keeps a fill and the text on it when hovered (the tone's hover fill) and
+ * when held (its active fill): the plain hover and held films would
+ * otherwise lay a tint where the fill was, under text meant for the fill.
  */
 const unfilledOn: ReadonlyArray<StyleValue> = [
   on({ background: toneVar('fill'), color: toneVar('on-fill') }),
@@ -122,7 +122,8 @@ export const Button = Style.recipeFor(ButtonSlots)({
           hover({ background: toneVar('fill-hover') }),
           ...press(toneVar('fill'), toneVar('fill-hover'), toneVar('fill-active')),
           // On, a solid toggle rests on the active fill, and keeps it hovered:
-          // the hover's lighter fill read as off. Held, the press applies.
+          // the hover fill, a step from the resting one, read as off. Held,
+          // the press applies.
           on({ background: toneVar('fill-active') }),
           Style.pseudo(onHovered, { background: toneVar('fill-active') }),
         ),
