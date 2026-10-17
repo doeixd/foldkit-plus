@@ -54,8 +54,7 @@ export const view = <Message = never>(
     )
   }
   // A `separator` role makes its children presentational, which would hide the label.
-  const line = () =>
-    h.div(builders.rule.attrs([h.AriaHidden(true)]), [])
+  const line = () => h.div(builders.rule.attrs([h.AriaHidden(true)]), [])
   return h.div(builders.root.attrs(), [
     line(),
     h.span(builders.label.attrs(), [options.label]),

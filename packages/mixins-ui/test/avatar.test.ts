@@ -13,8 +13,7 @@ import { AvatarGroup } from '../src/recipes/avatar.js'
 const h = SlotView.inertBuilder<never>()
 const style = Style.forSlots(AvatarSlots)(Recipes.Avatar({}))
 const groupStyle = Style.forSlots(AvatarGroupSlots)(AvatarGroup({}))
-const hueOf = (drawn: ReturnType<typeof view>) =>
-  Inert.style(drawn)['--fk-avatar-hue']
+const hueOf = (drawn: ReturnType<typeof view>) => Inert.style(drawn)['--fk-avatar-hue']
 
 describe('AvatarSlots', () => {
   it('publishes four containers and nothing stateful', () => {
