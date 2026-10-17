@@ -22,6 +22,16 @@ export default [
     tests: [browser],
   },
   {
+    name: 'under reduced motion moving stripes slide on',
+    edits: [{ file: recipe, find: "  stillWhenReduced('&'),\n", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'right to left, under reduced motion moving stripes slide on',
+    edits: [{ file: recipe, find: "  stillWhenReduced('&:dir(rtl)'),\n", replace: '' }],
+    tests: [browser],
+  },
+  {
     name: 'right to left, the fill sweeps rightward',
     edits: [
       {

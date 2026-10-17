@@ -11,9 +11,9 @@
  * `tone` colours the fill with the tokens Meter's levels use (success,
  * warning, error), and a stacked bar's parts take theirs from `data-tone`.
  * `stripes` lays bands over the fill, `moving` sliding them, also only as
- * far as `travel` lets. A buffer is the fill's tone, faint; a segmented
- * track is cut by a mask, so the fill needs no steps of its own. `size`
- * thickens the bar and widens the ring.
+ * far as `travel` lets, and not under reduced motion. A buffer is the
+ * fill's tone, faint; a segmented track is cut by a mask, so the fill needs
+ * no steps of its own. `size` thickens the bar and widens the ring.
  */
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
@@ -76,6 +76,8 @@ const moving = Style.compose(
   // An unknown end's sweep outranks these, so it stays the fill's motion.
   Style.self({ animation: banding(bandsOn.name) }),
   Style.nest('&:dir(rtl)', { animation: banding(bandsBack.name) }),
+  stillWhenReduced('&'),
+  stillWhenReduced('&:dir(rtl)'),
 )
 
 const toned = (color: string) => ({ root: variant(Style.self({ '--_fk-progress-tone': color })) })

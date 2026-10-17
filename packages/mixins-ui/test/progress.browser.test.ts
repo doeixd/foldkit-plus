@@ -281,6 +281,24 @@ test('moving stripes slide, and stand still where `travel` is 0', async () => {
   }
 })
 
+test.each(['ltr', 'rtl'] as const)(
+  '%s, moving stripes stand still under reduced motion',
+  async dir => {
+    await reduce('reduce')
+    document.body.dir = dir
+    const mounted = show({ stripes: 'moving' }, {})
+    try {
+      const fill = await fillOf()
+      expect(getComputedStyle(fill).backgroundImage).toContain('linear-gradient')
+      expect(fill.getAnimations()).toEqual([])
+    } finally {
+      mounted.dispose()
+      document.body.removeAttribute('dir')
+      await reduce('no-preference')
+    }
+  },
+)
+
 test('still stripes stay still, and an unknown end keeps its sweep under moving ones', async () => {
   let mounted = show({ stripes: 'still' }, {})
   try {

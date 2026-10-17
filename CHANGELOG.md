@@ -1045,7 +1045,8 @@ version changed; `pnpm` skips versions already in the registry.
   quarter arc stood at a random angle each frame, and the bar's sweeping
   fill stopped near its last frame, mostly outside the track. The ring now
   stands still, as a Spinner's does, and the bar's fill rests faint across
-  the track, as it does with no `travel`.
+  the track, as it does with no `travel`. Moving stripes, which slid at
+  random the same way, stand still too.
 - **`foldkit-mixins-ui`: a loading Toast's ring holds still under reduced
   motion.** It breathed instead, and the reset's 0.01ms made the breath
   flicker; it now stands still, as every loading ring does.
