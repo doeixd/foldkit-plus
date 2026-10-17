@@ -630,7 +630,8 @@ version changed; `pnpm` skips versions already in the registry.
   `ResolvedSlider` are gone, and `SliderSlots` is the new view's, with slots
   `root`, `label`, `control`, `track`, `fill`, `mark`, `value` and
   `thumb`); an application hosting that Submodel draws it with Slots of its
-  own. Upstream's Escape-to-cancel and read-only mode are lost with it.
+  own. Upstream's Escape-to-cancel, read-only mode and vertical orientation
+  are lost with it.
 - **`foldkit-mixins-ui`: one `Alert`, inline or a banner.** `Alert.view` takes
   `layout: 'inline'` (a live region for something that just happened:
   `role="alert"` when `assertive`, `role="status"` otherwise) or
