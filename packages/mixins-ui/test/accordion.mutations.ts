@@ -67,4 +67,108 @@ export default [
     edits: [{ file: recipe, find: "      Utilities.steady('semibold'),\n", replace: '' }],
     tests: browser,
   },
+  {
+    name: 'a separator after every section, the last too',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest('& + &', { borderBlockStart:",
+        replace: "Style.nest('&', { borderBlockStart:",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'separated cards keep the line between them',
+    edits: [
+      {
+        file: recipe,
+        find: "...apart({ gap: ref.space.sm, '--_fk-accordion-separator': 'transparent' }),",
+        replace: '...apart({ gap: ref.space.sm }),',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a section with an edge keeps its words against it',
+    edits: [
+      {
+        file: recipe,
+        find: '        paddingInline: inset,\n        border:',
+        replace: "        paddingInline: '0',\n        border:",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'filled sections are not filled',
+    edits: [{ file: recipe, find: '            background: ref.surface.muted,', replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'a ghost row does not fill under the pointer',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo(':hover:not(:disabled)', { background: unfilledHover }),",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the plus stays a plus open',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest(`:where(${open}) > &::after`, { rotate: '0deg' }),",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the plus box turns with the chevron',
+    edits: [
+      {
+        file: recipe,
+        find: "lower layer; the bars do the turning.\n            rotate: '0deg',",
+        replace: 'lower layer; the bars do the turning.',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the indicator stays at the end',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.self({ flexDirection: 'row-reverse', justifyContent: 'flex-end' })",
+        replace: 'Style.self({})',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'an open section is not tinted',
+    edits: [
+      {
+        file: recipe,
+        find: 'item: variant(Style.pseudo(open, { background: ref.accent.subtle })),',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the view draws the chevron beside its own icon',
+    edits: [
+      {
+        file: view,
+        find: 'options.icon === undefined',
+        replace: 'true',
+      },
+    ],
+    tests: unit,
+  },
 ]

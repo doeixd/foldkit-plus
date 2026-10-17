@@ -71,6 +71,19 @@ describe('Accordion view', () => {
     expect(keys?.data?.on?.['click']).toBeUndefined()
   })
 
+  it('draws its own icon in place of the chevron, with each section’s state', () => {
+    const drawn = view({ open: ['team'], icon: h.span([], ['+']) })
+    // Each row's one hidden mark is the icon: no chevron beside it.
+    const marks = (drawn: ReturnType<typeof view>) =>
+      Inert.byTag(drawn, 'span').filter(span => Inert.value(span, 'aria-hidden') === 'true')
+    expect(marks(drawn).map(icon => [Inert.text(icon), Inert.value(icon, 'data-state')])).toEqual([
+      ['+', 'closed'],
+      ['+', 'open'],
+      ['+', 'closed'],
+    ])
+    expect(marks(view({})).map(chevron => Inert.text(chevron))).toEqual(['', '', ''])
+  })
+
   it('heads its sections at the level the page outline needs', () => {
     expect(Inert.byTag(view({ headingLevel: 2 }), 'h2')).toHaveLength(3)
   })

@@ -24,6 +24,8 @@ export const AccordionSlots = Slots.define({
   }),
   label: Slot.make({ capability: Capability.Container }),
   chevron: Slot.make({ capability: Capability.Container }),
+  /** The view's own `icon`, drawn in place of the chevron. */
+  icon: Slot.make({ capability: Capability.Container }),
   panel: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
   /** The panel's one grid row, with no padding of its own, so it can shrink to nothing. */
   body: Slot.make({ capability: Capability.Container }),
@@ -46,6 +48,11 @@ export interface AccordionView<Message> {
   readonly onToggle: (id: string) => NoInfer<Message>
   /** Prefixes every id the accordion draws, unique on the page. */
   readonly id: string
+  /**
+   * Drawn in each row in place of the recipe's chevron or plus, carrying the
+   * section's `data-state`; the recipe leaves it still.
+   */
+  readonly icon?: Html | undefined
   /** The level of the headings that hold the triggers, for the page's outline. Default 3. */
   readonly headingLevel?: 2 | 3 | 4 | 5 | 6 | undefined
   /** A style of `AccordionSlots`, for the accordion's look. */
@@ -115,7 +122,9 @@ export const view = <Message>(options: AccordionView<Message>, h: HtmlBuilder<Me
             [
               // Its text in `data-label` too, so turning semibold when open moves nothing.
               h.span(builders.label.attrs([h.DataAttribute('label', item.title)]), [item.title]),
-              h.span(builders.chevron.attrs([h.AriaHidden(true)]), []),
+              options.icon === undefined
+                ? h.span(builders.chevron.attrs([h.AriaHidden(true)]), [])
+                : h.span(builders.icon.attrs([h.AriaHidden(true), state]), [options.icon]),
             ],
           ),
         ]),
