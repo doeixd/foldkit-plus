@@ -1,5 +1,6 @@
-import { Effect, Match, Option, Queue, Schema, Stream } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { PointerPosition, type PointerMoved, type PointerPressed } from 'foldkit-primitives/dom'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
@@ -203,82 +204,9 @@ export const update = (layout: AngleSliderLayout = {}) => {
 
 // ---------------------------------------------------------------- the control's pointer
 
-const Turned = Schema.TaggedStruct('Turned', { angle: Schema.Number })
-const Let = Schema.TaggedStruct('Let', {})
-
-type Capturing = Element & {
-  setPointerCapture?: (pointerId: number) => void
-  releasePointerCapture?: (pointerId: number) => void
-}
-
-/**
- * The pointer's angle around the element's center, clockwise from the top,
- * as a Mount: on a primary press and at each move until the release, the
- * pointer captured meanwhile, and `Let` when it is released. Measured at each
- * event, so a dial that moved or resized is followed. A press focuses the
- * slider inside, so the keys go on from where the pointer left it.
- */
-const DialPointer = Mount.defineStream('AngleSliderDial', {
-  messages: [Turned, Let],
-  execute: ({ element }) =>
-    Stream.callback<typeof Turned.Type | typeof Let.Type>(queue =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          const target: Capturing = element
-          let pointer: number | undefined
-          const report = (event: PointerEvent) => {
-            const box = element.getBoundingClientRect()
-            const x = event.clientX - (box.left + box.width / 2)
-            const y = event.clientY - (box.top + box.height / 2)
-            Queue.offerUnsafe(
-              queue,
-              Turned.make({ angle: turn((Math.atan2(x, -y) * 180) / Math.PI) }),
-            )
-          }
-          const down = (event: Event) => {
-            if (!(event instanceof PointerEvent) || event.button !== 0) return
-            pointer = event.pointerId
-            try {
-              target.setPointerCapture?.(event.pointerId)
-            } catch {
-              // A pointer the browser no longer tracks cannot be captured; its moves still come here.
-            }
-            // Kept from the browser's own focus and text selection on a press.
-            event.preventDefault()
-            const thumb = element.querySelector('[role="slider"]')
-            if (thumb instanceof HTMLElement) thumb.focus()
-            report(event)
-          }
-          const move = (event: Event) => {
-            if (event instanceof PointerEvent && event.pointerId === pointer) report(event)
-          }
-          const up = (event: Event) => {
-            if (!(event instanceof PointerEvent) || event.pointerId !== pointer) return
-            pointer = undefined
-            try {
-              target.releasePointerCapture?.(event.pointerId)
-            } catch {
-              // Capture may already be gone with the pointer.
-            }
-            Queue.offerUnsafe(queue, Let.make({}))
-          }
-          const listeners: ReadonlyArray<readonly [string, (event: Event) => void]> = [
-            ['pointerdown', down],
-            ['pointermove', move],
-            ['pointerup', up],
-            ['pointercancel', up],
-            ['lostpointercapture', up],
-          ]
-          for (const [type, listener] of listeners) element.addEventListener(type, listener)
-          return listeners
-        }),
-        listeners =>
-          Effect.sync(() => {
-            for (const [type, listener] of listeners) element.removeEventListener(type, listener)
-          }),
-      ),
-    ),
-})
+/** The pointer's angle around the dial's center, clockwise from the top. */
+const angleIn = ({ point, width, height }: PointerPressed | PointerMoved) =>
+  turn((Math.atan2(point.x - width / 2, -(point.y - height / 2)) * 180) / Math.PI)
 
 // ---------------------------------------------------------------- the view
 
@@ -346,11 +274,13 @@ export const view = <Outer>(options: AngleSliderView<Outer>, h: HtmlBuilder<Oute
           changes
             ? [
                 h.OnMount(
-                  Mount.mapMessage(DialPointer(), fact =>
+                  // A press focuses the slider, so the keys go on from where the pointer left it.
+                  Mount.mapMessage(PointerPosition({ focus: '[role="slider"]' }), fact =>
                     lift(
                       Match.valueTags(fact, {
-                        Turned: ({ angle }) => Message.Pointed({ angle }),
-                        Let: () => Message.Released(),
+                        PointerPressed: at => Message.Pointed({ angle: angleIn(at) }),
+                        PointerMoved: at => Message.Pointed({ angle: angleIn(at) }),
+                        PointerReleased: () => Message.Released(),
                       }),
                     ),
                   ),

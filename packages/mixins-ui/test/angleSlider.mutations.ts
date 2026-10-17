@@ -23,10 +23,15 @@ export default [
     edits: [
       {
         file: '../src/angleSlider.ts',
-        find: 'Math.atan2(x, -y)',
-        replace: 'Math.atan2(x, y)',
+        find: '-(point.y - height / 2)',
+        replace: 'point.y - height / 2',
       },
     ],
+    tests: [browser],
+  },
+  {
+    name: 'the dial turns around its corner',
+    edits: [{ file: '../src/angleSlider.ts', find: 'point.x - width / 2', replace: 'point.x' }],
     tests: [browser],
   },
   {
@@ -34,16 +39,20 @@ export default [
     edits: [
       {
         file: '../src/angleSlider.ts',
-        find: 'if (thumb instanceof HTMLElement) thumb.focus()',
-        replace: '',
+        find: `PointerPosition({ focus: '[role="slider"]' })`,
+        replace: 'PointerPosition({})',
       },
     ],
     tests: [browser],
   },
   {
-    name: 'the dial follows the pointer after it is released',
+    name: 'the release ends no turn',
     edits: [
-      { file: '../src/angleSlider.ts', find: '            pointer = undefined\n', replace: '' },
+      {
+        file: '../src/angleSlider.ts',
+        find: 'PointerReleased: () => Message.Released(),',
+        replace: 'PointerReleased: () => Message.Set({ value: 0 }),',
+      },
     ],
     tests: [browser],
   },
