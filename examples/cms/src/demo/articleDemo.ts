@@ -189,8 +189,8 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
       actives,
       prefetch: (model, projection) =>
         Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }),
-      // The editor's patch Command draws into a host element this story has none of.
-      skipCommand: name => name === 'RichText.patch',
+      // The editor's patch and answer Commands reach a host element this story has none of.
+      skipCommand: name => name === 'RichText.patch' || name === 'RichText.answer',
       runCommand: (effect, client) =>
         Effect.runPromise(
           (effect as Effect.Effect<Message, never, RemoteClient>).pipe(Effect.provide(client)),

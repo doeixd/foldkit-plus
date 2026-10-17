@@ -25,8 +25,8 @@ export default [
     edits: [
       {
         file: events,
-        find: "options.onIntent({ type: key.shiftKey ? 'Outdent' : 'Indent' })",
-        replace: "options.onIntent({ type: 'Indent' })",
+        find: "onIntent({ type: key.shiftKey ? 'Outdent' : 'Indent' })",
+        replace: "onIntent({ type: 'Indent' })",
       },
     ],
     tests,

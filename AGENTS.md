@@ -1271,9 +1271,21 @@ of its own named a form field "fits the Catalog". Read words with
   on a loaded CI runner even `setTimeout(1)` between press and move ran
   past that, and every flick read as a rest. Space such events with a
   busy-wait in one synchronous run (`flick` in `sheet.browser.test.ts`),
-  first prove the Mount is listening (a press it reports), and wait for the
-  outcome itself, not for a mark (`data-dragging`) a synchronous run may
-  never draw.
+  and wait for the outcome itself, not for a mark (`data-dragging`) a
+  synchronous run may never draw.
+- **A child's bookkeeping Message must not reset the parent's own state.**
+  The Sheet cleared its drag on every Dialog Message, meant for opening and
+  closing; a Dialog animation or `SucceededShowDialog` landing after the press
+  dropped the drag, and the Swipe, still holding the pointer, ignored every
+  later press. On CI that read as "the press never reaches the handle" for
+  weeks. Reset on the child's transition that means it (`isOpen` changing),
+  and when a CI-only failure resists, log the Messages `update` receives.
+- **A key the browser handles meets the last drawn page, not the Model.**
+  An edit's patch is a Command, which a loaded machine runs after the next
+  keys, so three Enters and an ArrowUp moved the caret through a page without
+  the new lines. The editor now holds caret keys, and edits behind them,
+  until every edit it asked for is answered (`Attachment.answered`).
+  Reproduce such a race locally with `Emulation.setCPUThrottlingRate`.
 - **End goes to the end of a line, not of a block, and CI wraps elsewhere.**
   The playground's e2e pressed a callout at a fixed point, then End, and
   typed: on CI, whose fonts (DejaVu Sans) wrap the text onto more lines, the

@@ -20,6 +20,7 @@ import {
   events,
   focusEditor,
   Message,
+  answerEditor,
   patchEditor,
   redecorateEditor,
   slashEntries,
@@ -286,6 +287,20 @@ const patch = (hostId: string, state: RichText.EditorState, changeSet: RichText.
 })
 
 /**
+ * Answers an edit the editor asked for (`Attachment.answered`), last among the Commands of
+ * its transition: the runtime runs them in order, so the answer follows the draw, or stands
+ * alone for an edit refused or changing nothing. An application that replaces the patch
+ * with its own keeps the answer after it.
+ */
+const answer = (hostId: string) => ({
+  name: 'RichText.answer',
+  effect: Effect.as(
+    Effect.sync(() => answerEditor(hostId)),
+    Message.Patched(),
+  ),
+})
+
+/**
  * The text between the start of the caret's block and the caret, or `''` when the
  * selection names no caret. A menu and the input rules read this; nothing about the query
  * is stored. A range is read from its start, which is where what is typed over it lands,
@@ -512,6 +527,9 @@ const transition = (
       Redone: redone => travel(model, state, redone),
     }),
     Match.orElse(message => {
+      // Every edit the editor asks for is answered, once drawn or refused; a reported caret
+      // is not an ask.
+      const answering = message._tag === 'Selected' ? [] : [answer(model.hostId)]
       let nextId = model.nextId
       // With nothing selected, a mark toggle is the caret's own state: the next
       // typed text lands with it. A caret move ends the format it was carrying.
@@ -527,7 +545,11 @@ const transition = (
         collapsed &&
         !(vocabulary.marks ?? RichText.shippedRegistry).accepts(message.mark)
       ) {
-        return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
+        return {
+          model,
+          outMessage: { _tag: 'Rejected', error: 'InvalidInput' },
+          commands: answering,
+        }
       }
       const storedMarks =
         message._tag === 'ToggledMark' && collapsed
@@ -578,12 +600,14 @@ const transition = (
       const result = fallback ? runAction([command]) : attempt
       if (!result.ok) {
         // A refused command changes nothing, so it does not burn identities.
-        return { model, outMessage: { _tag: 'Rejected', error: result.error } }
+        return { model, outMessage: { _tag: 'Rejected', error: result.error }, commands: answering }
       }
       // `runAction` returns the state it was given when nothing changed: a caret the browser
       // echoes back, or a command with nothing to act on. Keeping the Model keeps the page from
       // rendering, and a caret that did not move keeps the format it carries.
-      if (result.state === state && storedMarks === model.storedMarks) return { model }
+      if (result.state === state && storedMarks === model.storedMarks) {
+        return { model, commands: answering }
+      }
       // History holds content, not cursor movement: a selection change keeps the
       // redo stack, and a no-op edit adds no step to undo.
       const contentChanged = result.state.document !== model.document
@@ -607,7 +631,7 @@ const transition = (
           changeSet: result.changeSet,
           transactions: result.transactions,
         },
-        commands: [patch(model.hostId, result.state, result.changeSet)],
+        commands: [patch(model.hostId, result.state, result.changeSet), ...answering],
       }
     }),
   )

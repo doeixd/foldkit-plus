@@ -84,9 +84,9 @@ describe('the view renders the host the patch Command finds', () => {
       { update, view: (model, h) => editor.view(model, h) },
       Scene.given<Model>(start(caret('a', 2))),
       // Every rendered mount must be resolved. This one is a listener, so it is
-      // resolved with an event the editor refuses: nothing is left pending, and
-      // the assertion below is about what the view rendered.
-      Scene.Mount.resolve(events, Message.ToggledMark({ mark: 'Unknown' })),
+      // resolved with the caret reported where it is, which changes nothing and
+      // asks for no Command: the assertion below is about what the view rendered.
+      Scene.Mount.resolve(events, Message.Selected({ selection: caret('a', 2) })),
       Scene.expect(Scene.selector('#richtext-editor')).toExist(),
     )
   })

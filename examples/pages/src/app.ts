@@ -291,14 +291,15 @@ const applyEdit = (
     model,
     commands: [
       // The editor's own patch would draw its placeholder ids, only for this one to replace
-      // them; this one patches from whatever is drawn, so it is the only one needed.
-      ...commands.filter(command => command.name !== 'RichText.patch'),
+      // them; this one patches from whatever is drawn, so it is the only one needed. First:
+      // the editor's answer, among the rest, must follow the draw.
       toApp(
         patchTo(hostId, keyed, {
           document: Replicated.project(body),
           selection: Replicated.resolve(body, model.selection),
         }),
       ),
+      ...commands.filter(command => command.name !== 'RichText.patch'),
       carets(model, page.id, body),
       Sync.fact(fact),
     ],

@@ -297,7 +297,39 @@ export interface Attachment {
   readonly held: () => RichText.Document
   /** True between compositionstart and compositionend. */
   readonly composing: () => boolean
+  /**
+   * Tells it an edit it asked for is drawn, or refused: input that came after the ask was held
+   * until then, and goes on when every ask is answered. The editor answers each, in order.
+   */
+  readonly answered: () => void
   readonly detach: () => void
+}
+
+/** A caret key's move, as `Selection.modify` makes it. */
+interface CaretMove {
+  readonly extend: boolean
+  readonly direction: 'backward' | 'forward' | 'left' | 'right'
+  readonly granularity: 'character' | 'line' | 'lineboundary'
+}
+
+const CARET_KEYS: Readonly<Record<string, Omit<CaretMove, 'extend'>>> = {
+  ArrowUp: { direction: 'backward', granularity: 'line' },
+  ArrowDown: { direction: 'forward', granularity: 'line' },
+  // Left and right, not backward and forward: the arrows go the way they point in any direction.
+  ArrowLeft: { direction: 'left', granularity: 'character' },
+  ArrowRight: { direction: 'right', granularity: 'character' },
+  Home: { direction: 'backward', granularity: 'lineboundary' },
+  End: { direction: 'forward', granularity: 'lineboundary' },
+}
+
+/** How long held input waits for an edit nothing answers. */
+const UNANSWERED_MS = 1000
+
+/** The move a caret key makes, with Shift or none: other modifiers keep the browser's. */
+const caretMoveOf = (event: KeyboardEvent): CaretMove | undefined => {
+  if (event.altKey || event.ctrlKey || event.metaKey) return undefined
+  const move = Object.hasOwn(CARET_KEYS, event.key) ? CARET_KEYS[event.key] : undefined
+  return move === undefined ? undefined : { ...move, extend: event.shiftKey }
 }
 
 const samePosition = (left: RichText.Position, right: RichText.Position): boolean =>
@@ -465,6 +497,52 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
    * sets are unioned, which never under-invalidates.
    */
   let deferred: { state: RichText.EditorState; changeSet: RichText.ChangeSet } | undefined
+  /**
+   * Input held after asking for an edit until what is drawn holds it, in the order it came.
+   * The browser moves the caret through what is drawn, and the edit is drawn by a Command
+   * that a loaded machine runs after the next keys: three Enters and an ArrowUp went up from
+   * the old last line, two lines too far. A caret key waits, and an edit asked behind it
+   * waits too, so it lands where the move took the caret. The editor answers every edit once
+   * it is drawn or refused (`answered`); when none is unanswered they are made in order, and
+   * one that asks for another edit holds the rest again. An edit nothing answers (a command
+   * the editor has no Message for) lets them go after `UNANSWERED_MS`.
+   */
+  let held: Array<() => void> = []
+  let unanswered = 0
+  let fallback: ReturnType<typeof setTimeout> | undefined
+  const release = (): void => {
+    while (held.length > 0 && unanswered === 0) held.shift()!()
+  }
+  const answered = (): void => {
+    unanswered = Math.max(0, unanswered - 1)
+    if (unanswered > 0) return
+    clearTimeout(fallback)
+    release()
+  }
+  const holdMove = (move: CaretMove): void => {
+    held.push(() => {
+      const live = current.root.ownerDocument.defaultView?.getSelection()
+      if (live === null || live === undefined || !ownsSelection()) return
+      live.modify(move.extend ? 'extend' : 'move', move.direction, move.granularity)
+      reportSelection()
+    })
+  }
+  const ask = (command: RichText.Command): void => {
+    unanswered++
+    clearTimeout(fallback)
+    fallback = setTimeout(() => {
+      unanswered = 0
+      release()
+    }, UNANSWERED_MS)
+    options.onIntent(command)
+  }
+  const onIntent = (command: RichText.Command): void => {
+    if (held.length === 0) return ask(command)
+    held.push(() => {
+      reportSelection()
+      ask(command)
+    })
+  }
   const draw = (state: RichText.EditorState, changeSet: RichText.ChangeSet): void => {
     const owned = ownsSelection()
     lastSelection = state.selection
@@ -536,6 +614,14 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     return onEdgeLine ? neighbour.id : undefined
   }
   const onEvent = (event: Event): void => {
+    if (unanswered > 0 && event.type === 'keydown' && !composing) {
+      const move = caretMoveOf(event as KeyboardEvent)
+      if (move !== undefined) {
+        event.preventDefault()
+        holdMove(move)
+        return
+      }
+    }
     // From a selected atom, an arrow goes to the text beside it, where a browser would step
     // into the atom's own markup.
     // Read live, as a click just before may not have been reported yet.
@@ -576,7 +662,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
         if (!RichText.takesTab(current.content, readSelection(current), options.nodes)) return
         event.preventDefault()
         reportSelection()
-        options.onIntent({ type: key.shiftKey ? 'Outdent' : 'Indent' })
+        onIntent({ type: key.shiftKey ? 'Outdent' : 'Indent' })
         return
       }
     }
@@ -587,7 +673,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     // been reported yet: report it first, or the edit lands at the caret before the click.
     if (intent.command !== undefined) {
       reportSelection()
-      options.onIntent(intent.command)
+      onIntent(intent.command)
     }
     if (intent.history !== undefined) options.onHistory?.(intent.history)
   }
@@ -610,7 +696,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     if (deferred !== undefined) draw(deferred.state, deferred.changeSet)
     else if (lastSelection !== null) restoreSelection(current, lastSelection)
     deferred = undefined
-    if (data != null && data.length > 0) options.onIntent({ type: 'InsertText', text: data })
+    if (data != null && data.length > 0) onIntent({ type: 'InsertText', text: data })
   }
   const writeClipboard = (clipboard: ClipboardLike, slice: RichText.Slice): void => {
     clipboard.setData(SLICE_CLIPBOARD_TYPE, RichText.serializeSlice(slice))
@@ -642,7 +728,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       selection?.type === 'Range' &&
       selection.anchor.node === selection.focus.node &&
       selection.anchor.offset === selection.focus.offset
-    if (!collapsed) options.onIntent({ type: 'DeleteBackward' })
+    if (!collapsed) onIntent({ type: 'DeleteBackward' })
   }
   const onPaste = (event: Event): void => {
     const clipboard = (event as Event & { readonly clipboardData?: ClipboardLike }).clipboardData
@@ -667,7 +753,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     if (slice === undefined || slice.blocks.length === 0) return
     event.preventDefault()
     reportSelection()
-    options.onIntent({ type: 'Paste', slice })
+    onIntent({ type: 'Paste', slice })
   }
   // A click on an adornment that toggles a prop (a task's checkbox, a toggle's arrow) flips it in
   // the document; the browser's own change to a checkbox is refused, since the patch that
@@ -700,7 +786,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
         : RichText.locateBlock(current.content, RichText.NodeId.make(id))?.block
     if (block?.type !== 'Node') return
     event.preventDefault()
-    options.onIntent({
+    onIntent({
       type: 'SetProps',
       node: block.id,
       props: { [prop]: block.props[prop] !== true },
@@ -725,7 +811,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       select({ type: 'Range', anchor: end, focus: end })
       return true
     }
-    options.onIntent({
+    onIntent({
       type: 'InsertBlock',
       block: {
         type: 'Paragraph',
@@ -791,6 +877,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     current: () => current,
     held: () => deferred?.state.document ?? current.content,
     composing: () => composing,
+    answered,
     redecorate: () => {
       if (composing) return
       const selection = readSelection(current)
@@ -819,6 +906,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       }
     },
     detach: () => {
+      clearTimeout(fallback)
       ownerDocument.removeEventListener('selectionchange', reportSelection)
       target.removeEventListener('beforeinput', onEvent)
       target.removeEventListener('keydown', onEvent)

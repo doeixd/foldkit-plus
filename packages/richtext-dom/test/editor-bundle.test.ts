@@ -1033,24 +1033,26 @@ describe('an input rule placed for the editor (§124 §4)', () => {
 })
 
 describe('a Message that changes nothing keeps the Model', () => {
-  // A fresh selection equal by value: what `selectionchange` reports back.
-  it.each<[string, RichText.Selection | null, ParentMessage]>([
-    ['the patch Command’s completion', caret('a', 1), patched()],
-    ['the same caret, reported again', caret('a', 1), selected(caret('a', 1))],
+  // A fresh selection equal by value: what `selectionchange` reports back. An edit the
+  // editor asked for is answered though it changed nothing, so the input held behind it goes.
+  it.each<[string, RichText.Selection | null, ParentMessage, ReadonlyArray<string>]>([
+    ['the patch Command’s completion', caret('a', 1), patched(), []],
+    ['the same caret, reported again', caret('a', 1), selected(caret('a', 1)), []],
     [
       'the same range, reported again',
       range(['a', 0], ['b', 1]),
       selected(range(['a', 0], ['b', 1])),
+      [],
     ],
-    ['no selection, reported again', null, selected(null)],
-    ['Backspace at the document’s start', caret('a', 0), pressed('Backspace')],
-    ['undo with nothing to undo', caret('a', 1), undone()],
-    ['a refused command', caret('a', 1), toggled('Nope')],
-  ])('%s', (_, selection, message) => {
+    ['no selection, reported again', null, selected(null), []],
+    ['Backspace at the document’s start', caret('a', 0), pressed('Backspace'), ['RichText.answer']],
+    ['undo with nothing to undo', caret('a', 1), undone(), []],
+    ['a refused command', caret('a', 1), toggled('Nope'), ['RichText.answer']],
+  ])('%s', (_, selection, message, commands) => {
     const model = start(selection)
     const result = update(model, message)
     expect(result.model).toBe(model)
-    expect(result.commands ?? []).toEqual([])
+    expect((result.commands ?? []).map(command => command.name)).toEqual(commands)
   })
 
   it('keeps the caret’s stored marks when the caret is reported where it is', () => {

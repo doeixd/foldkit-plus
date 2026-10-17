@@ -408,6 +408,12 @@ export const patchEditor = (
   return true
 }
 
+/** Tells the editor at `hostId` that an edit it asked for is drawn or refused (`Attachment.answered`). */
+export const answerEditor = (hostId: string): void => {
+  const host = document.getElementById(hostId)
+  if (host !== null) attachmentIn(host)?.answered()
+}
+
 /** Draws the decorations of the editor at `hostId` again; false when none is attached there. */
 export const redecorateEditor = (hostId: string): boolean => {
   const host = document.getElementById(hostId)

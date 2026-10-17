@@ -5,6 +5,25 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- `foldkit-richtext-dom/editor`'s `answerEditor(hostId)` and the attachment's `answered()`:
+  the editor bundle answers every edit its editor asks for, once drawn or refused, with a
+  `RichText.answer` Command. A Scene test that sends an edit which changes nothing now
+  resolves that Command, and an application that replaces the editor's `RichText.patch`
+  with its own runs its patch before the editor's other Commands.
+
+### Fixed
+
+- `foldkit-mixins-ui`: a Sheet grabbed while its Dialog was still opening (an animation
+  ending, a `SucceededShowDialog`) lost the drag, and its handle took no new press until the
+  pointer was let go. A drag now ends only when the Dialog opens or closes. (#186)
+- `foldkit-richtext-dom`: a caret key pressed before an edit was drawn moved the caret
+  through the page as it was: three fast Enters and an ArrowUp went two lines up. Caret keys,
+  and edits typed behind them, wait until the edits before them are drawn. (#187)
+
 ## 0.22.0
 
 A component library worth building on, and a richer rich-text editor.

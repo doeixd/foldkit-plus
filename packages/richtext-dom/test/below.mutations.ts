@@ -40,7 +40,7 @@ export default [
     edits: [
       {
         file,
-        find: "    options.onIntent({\n      type: 'InsertBlock',",
+        find: "    onIntent({\n      type: 'InsertBlock',",
         replace: "    void ({\n      type: 'InsertBlock',",
       },
     ],
