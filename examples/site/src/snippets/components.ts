@@ -71,6 +71,7 @@ import {
   TagsInputSlots,
   PasswordInput,
   PasswordInputSlots,
+  type PasswordRequirement,
   Rating,
   RatingSlots,
   Steps,
@@ -727,6 +728,193 @@ export const selectInvalid = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuil
       ),
     },
     h,
+  )
+// #endregion
+
+// #region select-custom
+export const SelectMenuStyle = forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger' }))
+
+export const Fruit = Schema.Literals(['Apple', 'Banana', 'Cherry', 'Durian'])
+export type Fruit = typeof Fruit.Type
+export const FruitBox: ReturnType<typeof ListboxView.create<Fruit>> = ListboxView.create<Fruit>()
+
+/** The open list is the component's; the fruit chosen is the Model's. */
+export interface FruitState {
+  readonly listbox: UiListbox.Model
+  readonly fruit: Option.Option<Fruit>
+}
+
+/** What the examples below change: a row's parts, which rows are off, and their groups. */
+export interface FruitRows {
+  readonly option?: (fruit: Fruit) => Listbox.OptionContent
+  readonly isDisabled?: (fruit: Fruit) => boolean
+  readonly groupOf?: (fruit: Fruit) => string
+}
+
+// A select drawn over Listbox: `Listbox.parts` draws each row and the
+// trigger's value, or its placeholder, and chevron.
+export const selectCustom = <Message>(
+  style: NamedStyle<typeof ListboxSlots>,
+  state: FruitState,
+  toMessage: (message: UiListbox.Message) => Message,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+  rows: FruitRows = {},
+): Html => {
+  const part = Listbox.parts([style.mixin], { h })
+  const option = rows.option ?? ((fruit: Fruit) => ({ label: fruit }))
+  return h.submodel({
+    slotId: state.listbox.id,
+    model: state.listbox,
+    view: FruitBox.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      direction,
+      items: Fruit.literals,
+      maybeSelectedValue: state.fruit,
+      ...(rows.isDisabled === undefined ? {} : { isItemDisabled: rows.isDisabled }),
+      ...(rows.groupOf === undefined
+        ? {}
+        : {
+            itemGroupKey: rows.groupOf,
+            groupToHeading: (group: string) => ({ content: h.span([], [group]) }),
+          }),
+      itemToConfig: (fruit: Fruit) => ({ content: part.option(option(fruit)) }),
+      buttonContent: part.trigger(Option.map(state.fruit, option), 'Pick a fruit'),
+      toView: Listbox.toView([style.mixin, ...Listbox.fluid], { h }),
+    },
+    toParentMessage: toMessage,
+  })
+}
+// #endregion
+
+// #region select-custom-icons
+const FRUIT_ICONS = new Map<Fruit, string>([
+  ['Apple', '🍎'],
+  ['Banana', '🍌'],
+  ['Cherry', '🍒'],
+  ['Durian', '🥭'],
+])
+
+// An icon before each label, in the list and on the trigger.
+export const selectIcons = <Message>(
+  style: NamedStyle<typeof ListboxSlots>,
+  state: FruitState,
+  toMessage: (message: UiListbox.Message) => Message,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+): Html =>
+  selectCustom(style, state, toMessage, direction, h, {
+    option: fruit => ({
+      label: fruit,
+      icon: h.span([h.AriaHidden(true)], [FRUIT_ICONS.get(fruit) ?? '']),
+    }),
+  })
+// #endregion
+
+// #region select-custom-descriptions
+const FRUIT_NOTES = new Map<Fruit, string>([
+  ['Apple', 'Crisp, and keeps for weeks'],
+  ['Banana', 'Ripens on the counter'],
+  ['Cherry', 'Early summer only'],
+  ['Durian', 'Strong; ask before opening'],
+])
+
+// A line under each label, in the list only: the trigger shows the label.
+export const selectDescriptions = <Message>(
+  style: NamedStyle<typeof ListboxSlots>,
+  state: FruitState,
+  toMessage: (message: UiListbox.Message) => Message,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+): Html =>
+  selectCustom(style, state, toMessage, direction, h, {
+    option: fruit => ({ label: fruit, description: FRUIT_NOTES.get(fruit) }),
+  })
+// #endregion
+
+// #region select-custom-groups
+// Rows next to each other with one group key stand under its heading.
+export const selectCustomGroups = <Message>(
+  style: NamedStyle<typeof ListboxSlots>,
+  state: FruitState,
+  toMessage: (message: UiListbox.Message) => Message,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+): Html =>
+  selectCustom(style, state, toMessage, direction, h, {
+    groupOf: fruit => (fruit === 'Apple' || fruit === 'Banana' ? 'Every day' : 'In season'),
+  })
+// #endregion
+
+// #region select-custom-placeholder
+// Nothing chosen yet: the trigger shows `selectCustom`'s placeholder, muted.
+export const selectPrompt = <Message>(
+  style: NamedStyle<typeof ListboxSlots>,
+  state: FruitState,
+  toMessage: (message: UiListbox.Message) => Message,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+): Html => selectCustom(style, state, toMessage, direction, h)
+// #endregion
+
+// #region select-custom-disabled
+// A row that shows but cannot be chosen, saying why.
+export const selectDisabledOption = <Message>(
+  style: NamedStyle<typeof ListboxSlots>,
+  state: FruitState,
+  toMessage: (message: UiListbox.Message) => Message,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+): Html =>
+  selectCustom(style, state, toMessage, direction, h, {
+    option: fruit => ({
+      label: fruit,
+      description: fruit === 'Durian' ? 'Out of season' : undefined,
+    }),
+    isDisabled: fruit => fruit === 'Durian',
+  })
+// #endregion
+
+// #region select-custom-check-start
+// The chosen row's check before its label, as macOS draws it.
+export const SelectCheckStartStyle = forSlots(ListboxSlots)(
+  Recipes.Listbox({ width: 'trigger', check: 'start' }),
+)
+// #endregion
+
+// #region select-custom-trigger-filled
+// A trigger filled like a field, with no outline.
+export const SelectFilledStyle = forSlots(ListboxSlots)(
+  Recipes.Listbox({ width: 'trigger', trigger: 'filled' }),
+)
+// #endregion
+
+// #region select-custom-trigger-ghost
+// A trigger with no fill until hovered, for a toolbar.
+export const SelectGhostStyle = forSlots(ListboxSlots)(
+  Recipes.Listbox({ width: 'trigger', trigger: 'ghost' }),
+)
+// #endregion
+
+// #region select-custom-sizes
+export const SelectSizes = (['sm', 'md', 'lg'] as const).map(size => ({
+  size,
+  style: forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger', size })),
+}))
+
+// The trigger and the rows it opens step together.
+export const selectSizes = <Message>(
+  states: Readonly<Record<'sm' | 'md' | 'lg', FruitState>>,
+  toMessage: (size: 'sm' | 'md' | 'lg', message: UiListbox.Message) => Message,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' })],
+    SelectSizes.map(({ size, style }) =>
+      selectCustom(style, states[size], message => toMessage(size, message), direction, h),
+    ),
   )
 // #endregion
 
@@ -2129,7 +2317,7 @@ export const listbox = <Message>(
   })
 // #endregion
 
-// #region combobox
+// #region combobox-basic
 export const ComboboxStyle = forSlots(ComboboxSlots)(Recipes.Combobox({}))
 
 export const cities = ['Kyiv', 'Lagos', 'Lima', 'Oslo', 'Osaka', 'Quito', 'Seoul', 'Zurich']
@@ -2162,6 +2350,216 @@ export const combobox = <Message>(
       itemToDisplayText: (city: string) => city,
       inputPlaceholder: 'Find a city',
       buttonContent: h.span([], ['▾']),
+      toView: Combobox.toView([style.mixin, ...Combobox.fluid], { h }),
+    },
+    toParentMessage: toMessage,
+  })
+}
+// #endregion
+
+// #region combobox-multiple
+export const CityTags: ReturnType<typeof ComboboxView.Multi.create<string>> =
+  ComboboxView.Multi.create<string>()
+
+/** What is typed is the component's; the cities chosen are the Model's. */
+export interface CityTagsState {
+  readonly combobox: UiCombobox.Multi.Model
+  readonly cities: ReadonlyArray<string>
+}
+
+// Several cities as chips in the field, each with a remove button; the
+// list stays open while choosing, and a chosen city chosen again goes.
+export const comboboxMultiple = <Message>(
+  style: NamedStyle<typeof ComboboxSlots>,
+  state: CityTagsState,
+  toMessage: (message: UiCombobox.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const typed = state.combobox.inputValue
+  const part = Combobox.parts([style.mixin], { h })
+  return h.submodel({
+    slotId: state.combobox.id,
+    model: state.combobox,
+    view: CityTags.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      items: cities.filter(city => city.toLowerCase().includes(typed.toLowerCase())),
+      restingInputValue: '',
+      selectedValues: state.cities,
+      itemToConfig: (city: string) => ({ content: part.option({ label: city }, typed) }),
+      itemToValue: (city: string) => city,
+      itemToDisplayText: (city: string) => city,
+      ariaLabel: 'Cities',
+      inputPlaceholder: 'Add a city',
+      empty: h.span([], ['No cities match']),
+      clearContent: h.span([h.AriaHidden(true)], ['×']),
+      chips: {},
+      toView: Combobox.toView([style.mixin, ...Combobox.fluid], { h }),
+    },
+    toParentMessage: toMessage,
+  })
+}
+// #endregion
+
+// #region combobox-empty
+/** Whether the cities are still being fetched, and the Message that flips it. */
+export interface Loading<Message> {
+  readonly on: boolean
+  readonly onToggle: Message
+}
+
+// What the panel says with nothing to list: no match, or a fetch still out.
+export const comboboxEmpty = <Message>(
+  style: NamedStyle<typeof ComboboxSlots>,
+  state: ComboboxState,
+  loading: Loading<Message>,
+  toMessage: (message: UiCombobox.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const typed = state.combobox.inputValue.toLowerCase()
+  return h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      Button.view(
+        {
+          label: 'Still loading',
+          pressed: loading.on,
+          onClick: loading.onToggle,
+          style: ButtonStyle,
+        },
+        h,
+      ),
+      h.submodel({
+        slotId: state.combobox.id,
+        model: state.combobox,
+        view: CityBox.view,
+        viewInputs: {
+          anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+          items: loading.on ? [] : cities.filter(city => city.toLowerCase().includes(typed)),
+          restingInputValue: Option.getOrElse(state.city, () => ''),
+          maybeSelectedValue: state.city,
+          itemToConfig: (city: string) => ({ content: h.span([], [city]) }),
+          itemToValue: (city: string) => city,
+          itemToDisplayText: (city: string) => city,
+          ariaLabel: 'City',
+          inputPlaceholder: 'Type a city that is not there',
+          empty: h.span([], [loading.on ? 'Loading cities…' : 'No cities match']),
+          toView: Combobox.toView([style.mixin, ...Combobox.fluid], { h }),
+        },
+        toParentMessage: toMessage,
+      }),
+    ],
+  )
+}
+// #endregion
+
+// #region combobox-clear
+// A clear button while the field has text: it empties the field and the choice.
+export const comboboxClear = <Message>(
+  style: NamedStyle<typeof ComboboxSlots>,
+  state: ComboboxState,
+  toMessage: (message: UiCombobox.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const typed = state.combobox.inputValue.toLowerCase()
+  return h.submodel({
+    slotId: state.combobox.id,
+    model: state.combobox,
+    view: CityBox.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      items: cities.filter(city => city.toLowerCase().includes(typed)),
+      restingInputValue: Option.getOrElse(state.city, () => ''),
+      maybeSelectedValue: state.city,
+      itemToConfig: (city: string) => ({ content: h.span([], [city]) }),
+      itemToValue: (city: string) => city,
+      itemToDisplayText: (city: string) => city,
+      ariaLabel: 'City',
+      inputPlaceholder: 'Find a city',
+      clearContent: h.span([h.AriaHidden(true)], ['×']),
+      clearLabel: 'Clear the city',
+      toView: Combobox.toView([style.mixin, ...Combobox.fluid], { h }),
+    },
+    toParentMessage: toMessage,
+  })
+}
+// #endregion
+
+// #region combobox-groups
+// A Map: a city is read by what the list holds, and a plain object would
+// answer `constructor` from its prototype.
+const CONTINENTS = new Map([
+  ['Kyiv', 'Europe'],
+  ['Oslo', 'Europe'],
+  ['Zurich', 'Europe'],
+  ['Lagos', 'Africa'],
+  ['Lima', 'South America'],
+  ['Quito', 'South America'],
+  ['Osaka', 'Asia'],
+  ['Seoul', 'Asia'],
+])
+const byContinent = [...CONTINENTS.keys()]
+
+// Rows next to each other with one group key stand under its heading.
+export const comboboxGroups = <Message>(
+  style: NamedStyle<typeof ComboboxSlots>,
+  state: ComboboxState,
+  toMessage: (message: UiCombobox.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const typed = state.combobox.inputValue.toLowerCase()
+  return h.submodel({
+    slotId: state.combobox.id,
+    model: state.combobox,
+    view: CityBox.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      items: byContinent.filter(city => city.toLowerCase().includes(typed)),
+      restingInputValue: Option.getOrElse(state.city, () => ''),
+      maybeSelectedValue: state.city,
+      itemToConfig: (city: string) => ({ content: h.span([], [city]) }),
+      itemToValue: (city: string) => city,
+      itemToDisplayText: (city: string) => city,
+      itemGroupKey: (city: string) => CONTINENTS.get(city) ?? 'Elsewhere',
+      groupToHeading: (continent: string) => ({ content: h.span([], [continent]) }),
+      ariaLabel: 'City',
+      inputPlaceholder: 'Find a city',
+      toView: Combobox.toView([style.mixin, ...Combobox.fluid], { h }),
+    },
+    toParentMessage: toMessage,
+  })
+}
+// #endregion
+
+// #region combobox-creatable
+// With no match, the typed words are the one row, offered as a new city;
+// the Model adds it to `created` when it is chosen.
+export const comboboxCreatable = <Message>(
+  style: NamedStyle<typeof ComboboxSlots>,
+  state: ComboboxState,
+  created: ReadonlyArray<string>,
+  toMessage: (message: UiCombobox.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const typed = state.combobox.inputValue.trim()
+  const known = [...cities, ...created]
+  const matches = known.filter(city => city.toLowerCase().includes(typed.toLowerCase()))
+  return h.submodel({
+    slotId: state.combobox.id,
+    model: state.combobox,
+    view: CityBox.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      items: matches.length === 0 && typed !== '' ? [typed] : matches,
+      restingInputValue: Option.getOrElse(state.city, () => ''),
+      maybeSelectedValue: state.city,
+      itemToConfig: (city: string) => ({
+        content: h.span([], [known.includes(city) ? city : `Create “${city}”`]),
+      }),
+      itemToValue: (city: string) => city,
+      itemToDisplayText: (city: string) => city,
+      ariaLabel: 'City',
+      inputPlaceholder: 'Find or add a city',
       toView: Combobox.toView([style.mixin, ...Combobox.fluid], { h }),
     },
     toParentMessage: toMessage,
@@ -2955,7 +3353,7 @@ export const rating = <Message>(
   )
 // #endregion
 
-// #region password-input
+// #region password-input-basic
 export const PasswordInputStyle = forSlots(PasswordInputSlots)(Recipes.PasswordInput({}))
 
 export const passwordInput = <Message>(
@@ -2981,7 +3379,62 @@ export const passwordInput = <Message>(
   )
 // #endregion
 
-// #region tags-input
+// #region password-input-new
+/** The rules a new password keeps, each read from what is typed. */
+export const passwordRules = (value: string): ReadonlyArray<PasswordRequirement> => [
+  { label: 'At least 12 characters', met: value.length >= 12 },
+  { label: 'A number', met: /[0-9]/.test(value) },
+  { label: 'Upper and lower case', met: /[a-z]/.test(value) && /[A-Z]/.test(value) },
+  { label: 'A symbol', met: /[^a-zA-Z0-9]/.test(value) },
+]
+
+/** The field's text and whether it shows, and what Caps Lock was last read as. */
+export interface NewPassword<Message> {
+  readonly value: string
+  readonly visible: boolean
+  readonly capsLock: boolean
+  readonly onInput: (value: string) => Message
+  readonly onToggle: Message
+  readonly onCapsLock: (reading: Option.Option<boolean>) => Message
+}
+
+// A strength meter over the rules kept, the rules under the field, and a
+// hint while Caps Lock is on, read from each key typed.
+export const passwordInputNew = <Message>(
+  style: NamedStyle<typeof PasswordInputSlots>,
+  field: NewPassword<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const rules = passwordRules(field.value)
+  return PasswordInput.view(
+    {
+      id: 'preview-new-password',
+      label: 'New password',
+      autocomplete: 'new-password',
+      value: field.value,
+      visible: field.visible,
+      onInput: field.onInput,
+      onToggle: field.onToggle,
+      strength: {
+        id: 'preview-new-password-strength',
+        label: 'Strength',
+        value: rules.filter(rule => rule.met).length,
+        max: 4,
+        low: 2,
+        high: 3,
+        optimum: 4,
+        style: MeterStyle,
+      },
+      requirements: rules,
+      capsLock: { on: field.capsLock, onKey: field.onCapsLock },
+      style,
+    },
+    h,
+  )
+}
+// #endregion
+
+// #region tags-input-basic
 export const TagsInputStyle = forSlots(TagsInputSlots)(Recipes.TagsInput({}))
 
 export const tagsInput = <Message>(
@@ -2991,6 +3444,42 @@ export const tagsInput = <Message>(
   h: HtmlBuilder<Message>,
 ): Html =>
   TagsInput.view({ model, onMessage, label: 'Topics', placeholder: 'Add a topic', style }, h)
+// #endregion
+
+// #region tags-input-max
+// At most three: a fourth is refused, said under the field, and the field shakes once.
+export const tagsInputMax = <Message>(
+  style: NamedStyle<typeof TagsInputSlots>,
+  model: TagsInput.Model,
+  onMessage: (message: TagsInput.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => TagsInput.view({ model, onMessage, label: 'Labels, up to three', style }, h)
+// #endregion
+
+// #region tags-input-refusals
+// Type a tag the field holds already: the refusal is said in your words.
+export const tagsInputRefusals = <Message>(
+  style: NamedStyle<typeof TagsInputSlots>,
+  model: TagsInput.Model,
+  onMessage: (message: TagsInput.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  TagsInput.view(
+    {
+      model,
+      onMessage,
+      label: 'Topics',
+      placeholder: 'Type effect again',
+      refusalText: refusal =>
+        TagsInput.Refusal.match(refusal, {
+          Repeat: ({ tag }) => `“${tag}” is on the list already.`,
+          Empty: () => 'Type a topic first.',
+          Full: ({ max }) => `That makes more than ${max}.`,
+        }),
+      style,
+    },
+    h,
+  )
 // #endregion
 
 // #region input-copy

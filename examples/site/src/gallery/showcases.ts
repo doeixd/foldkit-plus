@@ -6,6 +6,7 @@
  * axes first.
  */
 import { Option } from 'effect'
+import type { Combobox as UiCombobox, Listbox as UiListbox } from '@foldkit/ui'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type NamedStyle, type StylePieces } from 'foldkit-mixins'
 import {
@@ -273,6 +274,70 @@ const cardBasic = <Message>(style: NamedStyle<typeof CardSlots>, live: Live<Mess
 const cardPlans = <Message>(style: NamedStyle<typeof CardGroupSlots>, live: Live<Message>) =>
   Snippet.cardGroup(style, { chosen: live.chosen, onChoose: live.onChoose }, live.h)
 
+type FruitDraw = <Message>(
+  style: NamedStyle<typeof ListboxSlots>,
+  state: Snippet.FruitState,
+  toMessage: (message: UiListbox.Message) => Message,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+) => Html
+
+/** A custom select example on its own list and fruit of the widgets' Model, in its own style. */
+const custom = (
+  name: string,
+  title: string,
+  style: NamedStyle<typeof ListboxSlots>,
+  draw: FruitDraw,
+  example: Widgets.SelectExample = 'custom',
+) => ({
+  name,
+  title,
+  draw: <Message>(_style: NamedStyle<typeof SelectSlots>, live: Live<Message>) =>
+    draw(
+      style,
+      live.widgets.selects[example],
+      message => live.onWidget(Widgets.Message.GotSelect({ example, message })),
+      live.direction,
+      live.h,
+    ),
+})
+
+const cityMessage =
+  <Message>(live: Live<Message>, example: Widgets.CityExample) =>
+  (message: UiCombobox.Message) =>
+    live.onWidget(Widgets.Message.GotCityBox({ example, message }))
+
+const comboboxBasic = <Message>(style: NamedStyle<typeof ComboboxSlots>, live: Live<Message>) =>
+  Snippet.combobox(
+    style,
+    live.widgets,
+    message => live.onWidget(Widgets.Message.GotCombobox({ message })),
+    live.h,
+  )
+
+const passwordBasic = <Message>(
+  style: NamedStyle<typeof PasswordInputSlots>,
+  live: Live<Message>,
+) =>
+  Snippet.passwordInput(
+    style,
+    {
+      value: live.widgets.password,
+      visible: live.widgets.passwordShown,
+      onInput: value => live.onWidget(Widgets.Message.TypedPassword({ value })),
+      onToggle: live.onWidget(Widgets.Message.ToggledPassword()),
+    },
+    live.h,
+  )
+
+const tagsBasic = <Message>(style: NamedStyle<typeof TagsInputSlots>, live: Live<Message>) =>
+  Snippet.tagsInput(
+    style,
+    live.widgets.tags,
+    message => live.onWidget(Widgets.Message.GotTags({ message })),
+    live.h,
+  )
+
 // Each checkbox example holds its own state: one press toggles one box.
 const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: Live<Message>) =>
   Snippet.checkbox(
@@ -500,6 +565,75 @@ export const showcases: ReadonlyArray<Showcase> = [
         name: 'invalid',
         title: 'Invalid',
         draw: (style, _live) => Snippet.selectInvalid(style, inert),
+      },
+      // Drawn over Listbox: the native select's style does not reach them.
+      custom('custom', 'Custom', Snippet.SelectMenuStyle, Snippet.selectCustom),
+      custom(
+        'custom-icons',
+        'Custom, with icons',
+        Snippet.SelectMenuStyle,
+        Snippet.selectIcons,
+        'icons',
+      ),
+      custom(
+        'custom-descriptions',
+        'Custom, with descriptions',
+        Snippet.SelectMenuStyle,
+        Snippet.selectDescriptions,
+        'descriptions',
+      ),
+      custom(
+        'custom-groups',
+        'Custom, in groups',
+        Snippet.SelectMenuStyle,
+        Snippet.selectCustomGroups,
+        'groups',
+      ),
+      custom(
+        'custom-placeholder',
+        'Custom, with a placeholder',
+        Snippet.SelectMenuStyle,
+        Snippet.selectPrompt,
+        'placeholder',
+      ),
+      custom(
+        'custom-disabled',
+        'Custom, with a disabled option',
+        Snippet.SelectMenuStyle,
+        Snippet.selectDisabledOption,
+        'disabled',
+      ),
+      custom(
+        'custom-check-start',
+        'Custom, the check first',
+        Snippet.SelectCheckStartStyle,
+        Snippet.selectCustom,
+        'check-start',
+      ),
+      custom(
+        'custom-trigger-filled',
+        'Custom, a filled trigger',
+        Snippet.SelectFilledStyle,
+        Snippet.selectCustom,
+        'trigger-filled',
+      ),
+      custom(
+        'custom-trigger-ghost',
+        'Custom, a ghost trigger',
+        Snippet.SelectGhostStyle,
+        Snippet.selectCustom,
+        'trigger-ghost',
+      ),
+      {
+        name: 'custom-sizes',
+        title: 'Custom, in three sizes',
+        draw: (_style, live) =>
+          Snippet.selectSizes(
+            live.widgets.selects,
+            (example, message) => live.onWidget(Widgets.Message.GotSelect({ example, message })),
+            live.direction,
+            live.h,
+          ),
       },
     ],
   ),
@@ -1171,17 +1305,28 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     PasswordInputSlots,
     Recipes.PasswordInput,
-    (style, live) =>
-      Snippet.passwordInput(
-        style,
-        {
-          value: live.widgets.password,
-          visible: live.widgets.passwordShown,
-          onInput: value => live.onWidget(Widgets.Message.TypedPassword({ value })),
-          onToggle: live.onWidget(Widgets.Message.ToggledPassword()),
-        },
-        live.h,
-      ),
+    passwordBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: passwordBasic },
+      {
+        name: 'new',
+        title: 'A new password',
+        draw: (style, live) =>
+          Snippet.passwordInputNew(
+            style,
+            {
+              value: live.widgets.newPassword,
+              visible: live.widgets.newPasswordShown,
+              capsLock: live.widgets.capsLock,
+              onInput: value => live.onWidget(Widgets.Message.TypedNewPassword({ value })),
+              onToggle: live.onWidget(Widgets.Message.ToggledNewPassword()),
+              onCapsLock: reading => live.onWidget(Widgets.Message.ReadCapsLock({ reading })),
+            },
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1194,13 +1339,33 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     TagsInputSlots,
     Recipes.TagsInput,
-    (style, live) =>
-      Snippet.tagsInput(
-        style,
-        live.widgets.tags,
-        message => live.onWidget(Widgets.Message.GotTags({ message })),
-        live.h,
-      ),
+    tagsBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: tagsBasic },
+      {
+        name: 'max',
+        title: 'A maximum',
+        draw: (style, live) =>
+          Snippet.tagsInputMax(
+            style,
+            live.widgets.tagsMax,
+            message => live.onWidget(Widgets.Message.GotTagsMax({ message })),
+            live.h,
+          ),
+      },
+      {
+        name: 'refusals',
+        title: 'Refusals',
+        draw: (style, live) =>
+          Snippet.tagsInputRefusals(
+            style,
+            live.widgets.tagsRefusals,
+            message => live.onWidget(Widgets.Message.GotTagsRefusals({ message })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1216,7 +1381,7 @@ export const showcases: ReadonlyArray<Showcase> = [
     (style, live) =>
       Snippet.inputCopy(
         style,
-        live.widgets.inputCopied,
+        live.widgets.inputCopy.copied,
         text => live.onWidget(Widgets.Message.PressedCopy({ text })),
         live.h,
       ),
@@ -1560,13 +1725,71 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     ComboboxSlots,
     Recipes.Combobox,
-    (style, live) =>
-      Snippet.combobox(
-        style,
-        live.widgets,
-        message => live.onWidget(Widgets.Message.GotCombobox({ message })),
-        live.h,
-      ),
+    comboboxBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: comboboxBasic },
+      {
+        name: 'multiple',
+        title: 'Several, as chips',
+        draw: (style, live) =>
+          Snippet.comboboxMultiple(
+            style,
+            live.widgets.cityTags,
+            message => live.onWidget(Widgets.Message.GotCityTags({ message })),
+            live.h,
+          ),
+      },
+      {
+        name: 'empty',
+        title: 'Empty and loading',
+        draw: (style, live) =>
+          Snippet.comboboxEmpty(
+            style,
+            live.widgets.cityBoxes.empty,
+            {
+              on: live.widgets.cityLoading,
+              onToggle: live.onWidget(Widgets.Message.ToggledCityLoading()),
+            },
+            cityMessage(live, 'empty'),
+            live.h,
+          ),
+      },
+      {
+        name: 'clear',
+        title: 'A clear button',
+        draw: (style, live) =>
+          Snippet.comboboxClear(
+            style,
+            live.widgets.cityBoxes.clear,
+            cityMessage(live, 'clear'),
+            live.h,
+          ),
+      },
+      {
+        name: 'groups',
+        title: 'Groups',
+        draw: (style, live) =>
+          Snippet.comboboxGroups(
+            style,
+            live.widgets.cityBoxes.groups,
+            cityMessage(live, 'groups'),
+            live.h,
+          ),
+      },
+      {
+        name: 'creatable',
+        title: 'Creatable',
+        draw: (style, live) =>
+          Snippet.comboboxCreatable(
+            style,
+            live.widgets.cityBoxes.creatable,
+            live.widgets.createdCities,
+            cityMessage(live, 'creatable'),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {

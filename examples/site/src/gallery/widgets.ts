@@ -44,12 +44,16 @@ import {
   Billing,
   BillingGroup,
   CityBox,
+  CityTags,
+  Fruit,
+  FruitBox,
   FILE_MENU,
   Format,
   Frequency,
   FrequencyBox,
   MENUBAR,
   PAGE_MENU,
+  cities,
   TREE_FILES,
   Notices,
   Range,
@@ -68,6 +72,31 @@ export const PaginationExample = Schema.Literals([
   'compact',
 ])
 export type PaginationExample = typeof PaginationExample.Type
+
+/** The custom select examples, each with a list and a fruit of its own. */
+export const SelectExample = Schema.Literals([
+  'custom',
+  'icons',
+  'descriptions',
+  'groups',
+  'placeholder',
+  'disabled',
+  'check-start',
+  'trigger-filled',
+  'trigger-ghost',
+  'sm',
+  'md',
+  'lg',
+])
+export type SelectExample = typeof SelectExample.Type
+
+const FruitState = Schema.Struct({ listbox: UiListbox.Model, fruit: Schema.Option(Fruit) })
+
+/** The single combobox examples past the first, each with a field and a city of its own. */
+export const CityExample = Schema.Literals(['empty', 'clear', 'groups', 'creatable'])
+export type CityExample = typeof CityExample.Type
+
+const CityState = Schema.Struct({ combobox: UiCombobox.Model, city: Schema.Option(Schema.String) })
 
 /** The checkbox group examples, each with alerts of its own. */
 export const AlertsExample = Schema.Literals(['alerts', 'described', 'select-all', 'invalid'])
@@ -151,13 +180,29 @@ export const Model = Schema.Struct({
   /** The trip calendar, and the range picked on it. */
   trip: UiCalendar.Model,
   tripDates: DateSelection.Selection,
-  /** Whether the API key was copied. */
-  inputCopied: Schema.Boolean,
+  /** Whether the API key shows as copied, until its reset. */
+  inputCopy: InputCopy.Model,
   /** The tags input's tags and draft. */
   tags: TagsInput.Model,
   /** The password field's text, and whether it shows. */
   password: Schema.String,
   passwordShown: Schema.Boolean,
+  selects: Schema.Record(SelectExample, FruitState),
+  cityBoxes: Schema.Record(CityExample, CityState),
+  /** The multiple combobox's field, and the cities it holds. */
+  cityTags: Schema.Struct({
+    combobox: UiCombobox.Multi.Model,
+    cities: Schema.Array(Schema.String),
+  }),
+  /** Whether the empty combobox's cities are still loading, and the cities added in the creatable one. */
+  cityLoading: Schema.Boolean,
+  createdCities: Schema.Array(Schema.String),
+  tagsMax: TagsInput.Model,
+  tagsRefusals: TagsInput.Model,
+  /** The new password field's text, whether it shows, and whether Caps Lock was on. */
+  newPassword: Schema.String,
+  newPasswordShown: Schema.Boolean,
+  capsLock: Schema.Boolean,
   /** The region chosen in the card grid, and the plan chosen in the item list. */
   region: Schema.String,
   plan: Schema.String,
@@ -227,9 +272,29 @@ export const Message = defineMessageUnion({
   ToggledPassword: {},
   RatedStay: { value: Schema.Number },
   ChoseRegion: { region: Schema.String },
+  GotSelect: { example: SelectExample, message: UiListbox.Message },
+  GotCityBox: { example: CityExample, message: UiCombobox.Message },
+  GotCityTags: { message: UiCombobox.Message },
+  ToggledCityLoading: {},
+  GotTagsMax: { message: TagsInput.Message },
+  GotTagsRefusals: { message: TagsInput.Message },
+  TypedNewPassword: { value: Schema.String },
+  ToggledNewPassword: {},
+  ReadCapsLock: { reading: Schema.Option(Schema.Boolean) },
+  GotInputCopy: { message: InputCopy.Message },
   ChosePlan: { plan: Schema.String },
 })
 export type Message = typeof Message.Type
+
+const fruitState = (example: SelectExample, fruit: Option.Option<Fruit>) => ({
+  listbox: UiListbox.init({ id: `preview-select-${example}`, isAnimated: true }),
+  fruit,
+})
+
+const cityState = (example: CityExample, city: Option.Option<string> = Option.none()) => ({
+  combobox: UiCombobox.init({ id: `preview-city-${example}`, isAnimated: true }),
+  city,
+})
 
 // The day the page was loaded; a picker that shows another opens on the wrong month.
 const today = Effect.runSync(Calendar.today.local)
@@ -308,11 +373,42 @@ export const initial: Model = {
   accent: { l: 62.5, c: 0.15, h: 250 },
   trip: UiCalendar.init({ id: 'preview-trip', today }),
   tripDates: DateSelection.empty('Range'),
-  inputCopied: false,
+  inputCopy: InputCopy.init({ resetAfter: 2000 }),
   tags: TagsInput.init({ id: 'preview-tags', tags: ['effect', 'foldkit'] }),
   password: '',
   passwordShown: false,
   stay: Option.none(),
+  selects: {
+    custom: fruitState('custom', Option.some('Apple')),
+    icons: fruitState('icons', Option.some('Cherry')),
+    descriptions: fruitState('descriptions', Option.some('Banana')),
+    groups: fruitState('groups', Option.some('Cherry')),
+    placeholder: fruitState('placeholder', Option.none()),
+    disabled: fruitState('disabled', Option.some('Apple')),
+    'check-start': fruitState('check-start', Option.some('Banana')),
+    'trigger-filled': fruitState('trigger-filled', Option.some('Apple')),
+    'trigger-ghost': fruitState('trigger-ghost', Option.some('Apple')),
+    sm: fruitState('sm', Option.some('Apple')),
+    md: fruitState('md', Option.some('Apple')),
+    lg: fruitState('lg', Option.some('Apple')),
+  },
+  cityBoxes: {
+    empty: cityState('empty'),
+    clear: cityState('clear', Option.some('Oslo')),
+    groups: cityState('groups'),
+    creatable: cityState('creatable'),
+  },
+  cityTags: {
+    combobox: UiCombobox.Multi.init({ id: 'preview-cities', isAnimated: true }),
+    cities: ['Lima', 'Seoul'],
+  },
+  cityLoading: false,
+  createdCities: [],
+  tagsMax: TagsInput.init({ id: 'preview-tags-max', tags: ['urgent', 'design'], max: 3 }),
+  tagsRefusals: TagsInput.init({ id: 'preview-tags-refusals', tags: ['effect', 'foldkit'] }),
+  newPassword: '',
+  newPasswordShown: false,
+  capsLock: false,
   region: 'Frankfurt',
   plan: 'Team',
 }
@@ -485,6 +581,103 @@ const foldMenubar = Update.foldChild({
 const foldVirtualList = Update.foldChild({
   ...own('virtualList', Message.GotVirtualList),
   update: UiVirtualList.update,
+})
+
+const foldSelect = Update.foldChildAt({
+  update: FruitBox.update,
+  readAt: (model: Model, example: SelectExample) => Option.some(model.selects[example].listbox),
+  writeAt: (model, example, listbox) =>
+    modifyFields(model, {
+      selects: selects => ({ ...selects, [example]: { ...selects[example], listbox } }),
+    }),
+  toParentMessage: (example, message) => Message.GotSelect({ example, message }),
+  foldOutMessage: example =>
+    UiListbox.OutMessage.match<Step, UiListbox.OutMessage<Fruit>>({
+      Selected:
+        ({ value }) =>
+        model =>
+          Option.contains(model.selects[example].fruit, value)
+            ? { model }
+            : {
+                model: modifyFields(model, {
+                  selects: selects => ({
+                    ...selects,
+                    [example]: { ...selects[example], fruit: Option.some(value) },
+                  }),
+                }),
+              },
+    }),
+})
+
+/** Sets one city example's choice. */
+const choseCity = (model: Model, example: CityExample, city: Option.Option<string>): Model =>
+  modifyFields(model, {
+    cityBoxes: boxes => ({ ...boxes, [example]: { ...boxes[example], city } }),
+  })
+
+const foldCityBox = Update.foldChildAt({
+  update: CityBox.update,
+  readAt: (model: Model, example: CityExample) => Option.some(model.cityBoxes[example].combobox),
+  writeAt: (model, example, combobox) =>
+    modifyFields(model, {
+      cityBoxes: boxes => ({ ...boxes, [example]: { ...boxes[example], combobox } }),
+    }),
+  toParentMessage: (example, message) => Message.GotCityBox({ example, message }),
+  foldOutMessage: example =>
+    UiCombobox.OutMessage.match<Step, UiCombobox.OutMessage<string>>({
+      // A city the lists do not hold was typed into the creatable one: it is added.
+      Selected:
+        ({ value }) =>
+        model => {
+          const chosen = choseCity(model, example, Option.some(value))
+          return cities.includes(value) || model.createdCities.includes(value)
+            ? { model: chosen }
+            : {
+                model: modifyFields(chosen, { createdCities: created => [...created, value] }),
+              }
+        },
+      ClearedSelection: () => model => ({ model: choseCity(model, example, Option.none()) }),
+    }),
+})
+
+const foldCityTags = Update.foldChild({
+  read: (model: Model) => Option.some(model.cityTags.combobox),
+  write: (model, combobox) => modifyFields(model, { cityTags: tags => ({ ...tags, combobox }) }),
+  toParentMessage: message => Message.GotCityTags({ message }),
+  update: CityTags.update,
+  foldOutMessage: UiCombobox.OutMessage.match<Step, UiCombobox.OutMessage<string>>({
+    // Choosing a chosen city again takes it back off.
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          cityTags: tags => ({
+            ...tags,
+            cities: tags.cities.includes(value)
+              ? tags.cities.filter(city => city !== value)
+              : [...tags.cities, value],
+          }),
+        }),
+      }),
+    ClearedSelection: () => model => ({
+      model: modifyFields(model, { cityTags: tags => ({ ...tags, cities: [] }) }),
+    }),
+  }),
+})
+
+const foldTagsMax = Update.foldChild({
+  ...own('tagsMax', Message.GotTagsMax),
+  update: TagsInput.update,
+})
+
+const foldTagsRefusals = Update.foldChild({
+  ...own('tagsRefusals', Message.GotTagsRefusals),
+  update: TagsInput.update,
+})
+
+const foldInputCopy = Update.foldChild({
+  ...own('inputCopy', Message.GotInputCopy),
+  update: InputCopy.update,
 })
 
 const foldTags = Update.foldChild({
@@ -682,14 +875,34 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         Message.GotCopy({ message }),
       ),
     }),
-    GotCopy: ({ message }) => {
-      const copied = ClipboardMessage.match(message, {
-        Copied: () => true,
-        CopyFailed: () => false,
-      })
-      return copied === model.inputCopied
+    // A refused copy leaves the button as it was: there is nothing to say was copied.
+    GotCopy: ({ message }) =>
+      ClipboardMessage.match(message, {
+        Copied: () => foldInputCopy(model, InputCopy.Message.Copied()),
+        CopyFailed: () => ({ model }),
+      }),
+    GotInputCopy: ({ message }) => foldInputCopy(model, message),
+    GotSelect: ({ example, message }) => foldSelect(model, example, message),
+    GotCityBox: ({ example, message }) => foldCityBox(model, example, message),
+    GotCityTags: ({ message }) => foldCityTags(model, message),
+    ToggledCityLoading: () => ({
+      model: modifyFields(model, { cityLoading: () => !model.cityLoading }),
+    }),
+    GotTagsMax: ({ message }) => foldTagsMax(model, message),
+    GotTagsRefusals: ({ message }) => foldTagsRefusals(model, message),
+    TypedNewPassword: ({ value }) =>
+      value === model.newPassword
         ? { model }
-        : { model: modifyFields(model, { inputCopied: () => copied }) }
+        : { model: modifyFields(model, { newPassword: () => value }) },
+    ToggledNewPassword: () => ({
+      model: modifyFields(model, { newPasswordShown: () => !model.newPasswordShown }),
+    }),
+    // A key that says nothing of Caps Lock, such as a digit, keeps what was read last.
+    ReadCapsLock: ({ reading }) => {
+      const on = Option.getOrElse(reading, () => model.capsLock)
+      return on === model.capsLock
+        ? { model }
+        : { model: modifyFields(model, { capsLock: () => on }) }
     },
     GotTags: ({ message }) => foldTags(model, message),
     TypedPassword: ({ value }) =>

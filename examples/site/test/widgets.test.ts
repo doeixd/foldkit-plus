@@ -14,7 +14,8 @@ import {
   Tabs as UiTabs,
 } from '@foldkit/ui'
 import { Option } from 'effect'
-import { Calendar as DateSelection, Menu } from 'foldkit-mixins-ui'
+import { Calendar as DateSelection, InputCopy, Menu } from 'foldkit-mixins-ui'
+import { ClipboardMessage } from 'foldkit-primitives/dom'
 import { describe, expect, it } from 'vitest'
 
 import * as Widgets from '../src/gallery/widgets.js'
@@ -229,5 +230,71 @@ describe('the range picker preview', () => {
         end: Option.some({ year: 2026, month: 11, day: 12 }),
       }),
     ])
+  })
+})
+
+describe('the form previews', () => {
+  it('keep each custom select its own fruit', () => {
+    const picked = send(
+      Widgets.Message.GotSelect({
+        example: 'icons',
+        message: UiListbox.Message.SelectedItem({ item: 'Banana' }),
+      }),
+    )
+    expect(picked.widgets.selects.icons.fruit).toEqual(Option.some('Banana'))
+    expect(picked.widgets.selects.custom.fruit).toEqual(initial.widgets.selects.custom.fruit)
+  })
+
+  it('take a chosen city off the multiple combobox when it is chosen again', () => {
+    const choose = (item: string) =>
+      Message.GotWidget({
+        message: Widgets.Message.GotCityTags({
+          message: UiCombobox.Message.SelectedItem({ item, displayText: item, wasSelected: false }),
+        }),
+      })
+    const added = update(initial, choose('Oslo')).model
+    expect(added.widgets.cityTags.cities).toEqual(['Lima', 'Seoul', 'Oslo'])
+    expect(update(added, choose('Lima')).model.widgets.cityTags.cities).toEqual(['Seoul', 'Oslo'])
+  })
+
+  it('add a city typed into the creatable combobox, and not a known one', () => {
+    const choose = (item: string) =>
+      send(
+        Widgets.Message.GotCityBox({
+          example: 'creatable',
+          message: UiCombobox.Message.SelectedItem({ item, displayText: item, wasSelected: false }),
+        }),
+      )
+    expect(choose('Accra').widgets.createdCities).toEqual(['Accra'])
+    expect(choose('Accra').widgets.cityBoxes.creatable.city).toEqual(Option.some('Accra'))
+    expect(choose('Oslo').widgets.createdCities).toEqual([])
+  })
+
+  it('show the key copied until its reset, and not after a refused copy', () => {
+    const copied = send(Widgets.Message.GotCopy({ message: ClipboardMessage.Copied() }))
+    expect(copied.widgets.inputCopy.copied).toBe(true)
+    const reset = update(
+      copied,
+      Message.GotWidget({
+        message: Widgets.Message.GotInputCopy({
+          message: InputCopy.Message.ElapsedReset({ copy: copied.widgets.inputCopy.copies }),
+        }),
+      }),
+    ).model
+    expect(reset.widgets.inputCopy.copied).toBe(false)
+    const refused = send(
+      Widgets.Message.GotCopy({ message: ClipboardMessage.CopyFailed({ message: 'denied' }) }),
+    )
+    expect(refused.widgets).toBe(initial.widgets)
+  })
+
+  it('keep what Caps Lock was read as through a key that says nothing of it', () => {
+    const on = send(Widgets.Message.ReadCapsLock({ reading: Option.some(true) }))
+    expect(on.widgets.capsLock).toBe(true)
+    const digit = update(
+      on,
+      Message.GotWidget({ message: Widgets.Message.ReadCapsLock({ reading: Option.none() }) }),
+    ).model
+    expect(digit.widgets).toBe(on.widgets)
   })
 })
