@@ -545,7 +545,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
-  entry('carousel', Carousel, CarouselSlots, 'stateless', ['group', 'button', 'status']),
+  entry('carousel', Carousel, CarouselSlots, 'stateful', ['group', 'button', 'status']),
   entry(
     'slider',
     Slider,

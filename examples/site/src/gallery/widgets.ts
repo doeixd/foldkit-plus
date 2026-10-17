@@ -197,11 +197,7 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
-  /**
-   * The carousel's slide and rotation, by example. A Record, not a field of
-   * its own: the site's Surface walks every struct field, and refuses the
-   * Carousel Model's `index`, a name its ModelRef reserves.
-   */
+  /** Each carousel example's slide and rotation. */
   carousels: Schema.Record(CarouselExample, Carousel.Model),
   /** The range slider's price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),

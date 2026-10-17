@@ -143,7 +143,7 @@ test('a swipe the track comes to rest from moves the dot to the slide shown', as
 })
 
 test('starts where its Model says, drawn there at once', async () => {
-  const handle = mount(Carousel.init({ id: 'trip', index: 2 }))
+  const handle = mount(Carousel.init({ id: 'trip', slide: 2 }))
   try {
     await vi.waitFor(() => element('#trip-slide-3'))
     await vi.waitFor(() => expect(Math.abs(offset(2))).toBeLessThan(1))

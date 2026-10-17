@@ -19,7 +19,7 @@ import type { MixinList } from './resolve.js'
  * reports where it came to rest.
  *
  * ```text
- * button, dot, swipe, timer -> Message -> update -> index -> ShowSlide -> track
+ * button, dot, swipe, timer -> Message -> update -> slide -> ShowSlide -> track
  * ```
  *
  * The current slide, and whether it rotates, are this Model, which the
@@ -80,8 +80,11 @@ export type Rotation = typeof Rotation.Type
 export const Model = Schema.Struct({
   /** Prefixes every id the carousel draws, unique on the page. */
   id: Schema.String,
-  /** The slide at the track's start, from 0. */
-  index: Schema.Number,
+  /**
+   * The slide at the track's start, from 0. Not `index`, a name a Surface's
+   * ModelRef reserves, so the Model can stand in any application's.
+   */
+  slide: Schema.Number,
   rotation: Rotation,
   /** The pointer rests on the carousel, which pauses its rotation. */
   hovered: Schema.Boolean,
@@ -115,13 +118,13 @@ export const DELAY = 4000
 
 export const init = (options: {
   readonly id: string
-  readonly index?: number
+  readonly slide?: number
   /** Rotate from the start; default no rotation and no rotation button. */
   readonly autoplay?: boolean
   readonly delay?: number
 }): Model => ({
   id: options.id,
-  index: options.index ?? 0,
+  slide: options.slide ?? 0,
   rotation: options.autoplay === true ? 'Rotating' : 'None',
   hovered: false,
   delay: options.delay ?? DELAY,
@@ -199,9 +202,9 @@ const counted = (model: Model): Return => {
 /** `index` shown, its wait begun again, and the track scrolled to it when `scroll`. */
 const shown = (model: Model, index: number, scroll: boolean): Return => {
   const moved =
-    index === model.index && !model.counting
+    index === model.slide && !model.counting
       ? model
-      : modifyFields(model, { index: () => index, counting: () => false })
+      : modifyFields(model, { slide: () => index, counting: () => false })
   const next = counted(moved)
   return scroll
     ? {
@@ -225,7 +228,7 @@ export const update = (layout: CarouselLayout) => {
       // already showed only starts a wait, as the track does once drawn.
       Settled: ({ index }) => {
         const at = clamp(index, places)
-        return at === model.index ? counted(model) : shown(model, at, false)
+        return at === model.slide ? counted(model) : shown(model, at, false)
       },
       StartedRotation: () =>
         model.rotation === 'Stopped'
@@ -251,12 +254,12 @@ export const update = (layout: CarouselLayout) => {
         // Every pause and stop ends the count, so only the latest wait of a running carousel counts.
         if (turn !== model.turn || !model.counting) return { model }
         const last = places - 1
-        if (model.index >= last && !loop) {
+        if (model.slide >= last && !loop) {
           return {
             model: modifyFields(model, { rotation: () => 'Stopped', counting: () => false }),
           }
         }
-        return shown(model, model.index >= last ? 0 : model.index + 1, true)
+        return shown(model, model.slide >= last ? 0 : model.slide + 1, true)
       },
       CompletedShowSlide: () => ({ model }),
     })
@@ -316,7 +319,7 @@ export const view = <ParentMessage>(
   const perView = Math.max(1, Math.floor(options.perView ?? 1))
   const places = placesOf({ count, perView })
   const last = places - 1
-  const current = clamp(model.index, places)
+  const current = clamp(model.slide, places)
   const loop = options.loop === true && places > 1
   const slideLabel = options.slideLabel ?? ofCount
   const roledescription = (value: string) => h.Attribute('aria-roledescription', value)
