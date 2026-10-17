@@ -449,3 +449,37 @@ describe('an app holding a preview', () => {
     )
   })
 })
+
+describe('Calendar.localeOf', () => {
+  it.each([
+    ['en-US', 'Sunday', 'February 11, 2026', 'February 2026'],
+    ['de-DE', 'Monday', '11. Februar 2026', 'Februar 2026'],
+  ] as const)(
+    '%s starts its weeks on %s, in its own words and order',
+    (tag, first, long, heading) => {
+      const locale = Calendar.localeOf(tag)
+      expect(locale.firstDayOfWeek).toBe(first)
+      expect(Dates.formatLong(feb(11), locale)).toBe(long)
+      expect(Dates.formatMonthYear(feb(11), locale)).toBe(heading)
+    },
+  )
+
+  it('starts a week on Saturday where the language does', () => {
+    expect(Calendar.localeOf('ar-EG').firstDayOfWeek).toBe('Saturday')
+  })
+
+  it('names the months and days, Sunday first as upstream keeps them', () => {
+    const french = Calendar.localeOf('fr-FR')
+    expect(french.monthNames[0]).toBe('janvier')
+    expect(french.dayNames[0]).toBe('dimanche')
+    expect(french.firstDayOfWeek).toBe('Monday')
+  })
+
+  it('draws the week from its first day', () => {
+    Scene.scene(
+      app(Calendar.empty('Single'), () => ({})),
+      Scene.given(calendar({ locale: Calendar.localeOf('de-DE') })),
+      Scene.expect(Scene.selector('[role="columnheader"]')).toHaveText(/Mo/),
+    )
+  })
+})

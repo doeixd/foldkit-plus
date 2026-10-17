@@ -335,4 +335,26 @@ export default [
     ],
     tests: ['packages/mixins-ui/test/calendarLook.browser.test.ts'],
   },
+  {
+    name: 'a week starts a day late',
+    edits: [
+      {
+        file: adapter,
+        find: 'dayNamesOrder[first % 7]',
+        replace: 'dayNamesOrder[(first + 1) % 7]',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/calendarOptions.test.ts'],
+  },
+  {
+    name: 'a long month is written as a number',
+    edits: [
+      {
+        file: adapter,
+        find: "options.month === 'long'",
+        replace: "options.month === 'numeric'",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/calendarOptions.test.ts'],
+  },
 ]

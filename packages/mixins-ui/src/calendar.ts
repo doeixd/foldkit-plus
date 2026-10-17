@@ -928,3 +928,124 @@ export const presetsView = <Message>(
     ),
   )
 }
+
+const dayNamesOrder = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const
+
+/** Intl's week starts Monday 1 through Sunday 7. */
+const firstDayOf = (tag: string): Dates.DayOfWeek => {
+  const locale = new Intl.Locale(tag)
+  // `getWeekInfo` in today's engines, a `weekInfo` getter in older ones; neither is in every lib.
+  const read: unknown = Reflect.get(locale, 'getWeekInfo')
+  const info: unknown =
+    typeof read === 'function' ? Reflect.apply(read, locale, []) : Reflect.get(locale, 'weekInfo')
+  const first = typeof info === 'object' && info !== null ? Reflect.get(info, 'firstDay') : 1
+  return typeof first === 'number' ? (dayNamesOrder[first % 7] ?? 'Monday') : 'Monday'
+}
+
+type Part = Dates.DatePart
+
+/** A date's parts as Intl writes them for `tag`, read as the calendar's `DatePart`s. */
+const partsOf = (tag: string, options: Intl.DateTimeFormatOptions): ReadonlyArray<Part> =>
+  new Intl.DateTimeFormat(tag, { ...options, timeZone: 'UTC' })
+    .formatToParts(Date.UTC(2026, 1, 11))
+    .flatMap((part): ReadonlyArray<Part> => {
+      switch (part.type) {
+        case 'month':
+          return [
+            options.month === 'long'
+              ? Dates.DatePart.MonthName()
+              : options.month === 'short'
+                ? Dates.DatePart.ShortMonthName()
+                : Dates.DatePart.MonthNumber(),
+          ]
+        case 'day':
+          return [Dates.DatePart.DayNumber()]
+        case 'weekday':
+          return [Dates.DatePart.DayName()]
+        case 'year':
+          return [Dates.DatePart.YearNumber()]
+        case 'literal':
+          return [Dates.DatePart.LiteralText({ text: part.value })]
+        default:
+          // An era or a related year has no part of its own; the calendar is Gregorian.
+          return []
+      }
+    })
+
+const formatOf = (
+  tag: string,
+  options: Intl.DateTimeFormatOptions,
+  fallback: Dates.DateFormat,
+): Dates.DateFormat => {
+  const parts = partsOf(tag, options)
+  return Arr.isReadonlyArrayNonEmpty(parts) ? parts : fallback
+}
+
+const monthYearOf = (tag: string): Dates.MonthYearFormat => {
+  const parts = new Intl.DateTimeFormat(tag, { year: 'numeric', month: 'long', timeZone: 'UTC' })
+    .formatToParts(Date.UTC(2026, 1, 11))
+    .flatMap((part): ReadonlyArray<Dates.MonthYearFormat[number]> => {
+      switch (part.type) {
+        case 'month':
+          return [Dates.DatePart.MonthName()]
+        case 'year':
+          return [Dates.DatePart.YearNumber()]
+        case 'literal':
+          return [Dates.DatePart.LiteralText({ text: part.value })]
+        default:
+          return []
+      }
+    })
+  return Arr.isReadonlyArrayNonEmpty(parts) ? parts : Dates.defaultEnglishLocale.monthYearFormat
+}
+
+/**
+ * The calendar's locale for a BCP 47 tag, from the engine's Intl: month and
+ * weekday names, the first day of the week (Intl's week info; Monday where
+ * the engine has none), and dates written in the language's own order. Pass
+ * it as upstream `Calendar.init`'s `locale`.
+ */
+export const localeOf = (tag: string): Dates.LocaleConfig => {
+  const name = (options: Intl.DateTimeFormatOptions) => (at: number) =>
+    new Intl.DateTimeFormat(tag, { ...options, timeZone: 'UTC' }).format(at)
+  const month = (format: Intl.DateTimeFormatOptions['month']) => (index: number) =>
+    name({ month: format })(Date.UTC(2026, index, 15))
+  // 1 February 2026 is a Sunday: day names are kept Sunday first.
+  const weekday = (format: Intl.DateTimeFormatOptions['weekday']) => (index: number) =>
+    name({ weekday: format })(Date.UTC(2026, 1, 1 + index))
+  const twelve = <A>(f: (index: number) => A) =>
+    [f(0), f(1), f(2), f(3), f(4), f(5), f(6), f(7), f(8), f(9), f(10), f(11)] as const
+  const seven = <A>(f: (index: number) => A) => [f(0), f(1), f(2), f(3), f(4), f(5), f(6)] as const
+  const english = Dates.defaultEnglishLocale
+  return {
+    firstDayOfWeek: firstDayOf(tag),
+    monthNames: twelve(month('long')),
+    shortMonthNames: twelve(month('short')),
+    dayNames: seven(weekday('long')),
+    shortDayNames: seven(weekday('short')),
+    longFormat: formatOf(
+      tag,
+      { year: 'numeric', month: 'long', day: 'numeric' },
+      english.longFormat,
+    ),
+    shortFormat: formatOf(
+      tag,
+      { year: 'numeric', month: 'short', day: 'numeric' },
+      english.shortFormat,
+    ),
+    ariaLabelFormat: formatOf(
+      tag,
+      { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' },
+      english.ariaLabelFormat,
+    ),
+    monthYearFormat: monthYearOf(tag),
+  }
+}
