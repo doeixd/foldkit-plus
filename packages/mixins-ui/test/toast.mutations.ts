@@ -158,4 +158,15 @@ export default [
     edits: [{ file: recipe, find: "blockSize: 'var(--fk-toast-front)',", replace: '' }],
     tests: browser,
   },
+  {
+    name: 'the loading ring does not turn',
+    edits: [
+      {
+        file: recipe,
+        find: `'&[data-type="loading"]:empty::before'),`,
+        replace: `'&[data-type="busy"]:empty::before'),`,
+      },
+    ],
+    tests: browser,
+  },
 ]

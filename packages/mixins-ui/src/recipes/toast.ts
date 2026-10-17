@@ -6,14 +6,24 @@
  * (`Toast.Stack`'s properties). A card enters from its edge and fades out
  * as it leaves, carrying on the way it was swiped; each movement travels,
  * so reduced motion keeps only the fades. The icon draws its type's mark in
- * the type's ink, a turning ring for `loading`; `tone: 'rich'` tints the
- * whole card in its type, as Sonner's `richColors`. A card drawn outside
- * the component's list (the fork's) lays out in a plain column.
+ * the type's ink, a turning ring for `loading` (`turning`, still under
+ * reduced motion); `tone: 'rich'` tints the whole card in its type, as
+ * Sonner's `richColors`. A card drawn outside the component's list (the
+ * fork's) lays out in a plain column.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { ToastSlots } from '../toast.js'
-import { component, focusRing, hover, ref, travelled, unfilledHover, variant } from './design.js'
+import {
+  component,
+  focusRing,
+  hover,
+  ref,
+  travelled,
+  turning,
+  unfilledHover,
+  variant,
+} from './design.js'
 
 /** A mask of a 20×20 drawing in the text's colour. */
 const mask = (path: string) =>
@@ -43,9 +53,6 @@ const inks = {
   warning: ref.warning.ink,
   info: ref.info.ink,
 } as const
-
-const spin = Style.keyframes({ to: { rotate: '360deg' } })
-const breathe = Style.keyframes({ '50%': { opacity: '0.4' } })
 
 /** How far each card behind the front one peeks out, and how much smaller it is. */
 const peek = ref.space.xs
@@ -205,17 +212,10 @@ export const Toast = Style.recipeFor(ToastSlots)({
         border: `${ref.border.thick} solid color-mix(in oklab, currentColor 20%, transparent)`,
         borderInlineStartColor: 'currentColor',
         borderRadius: ref.radius.full,
-        animation: `${spin.name} ${travelled(`calc(${ref.motion.slow} * 3)`)} linear infinite`,
       }),
-      spin.style,
-      breathe.style,
-      // A wheel that cannot turn still says work is going on.
-      Style.at(
-        '@media (prefers-reduced-motion: reduce)',
-        Style.nest('&[data-type="loading"]:empty::before', {
-          animation: `${breathe.name} calc(${ref.motion.slow} * 6) ease-in-out infinite`,
-        }),
-      ),
+      // Still under reduced motion, as every loading ring is: a breath in its
+      // place ran for the reset's 0.01ms too, and flickered.
+      turning(`calc(${ref.motion.slow} * 3)`, '&[data-type="loading"]:empty::before'),
     ),
     body: component(
       Style.self({

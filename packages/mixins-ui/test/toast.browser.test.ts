@@ -9,7 +9,8 @@
  * dismiss it; its action sends `Acted`. A loading toast waits until it is
  * settled, then counts down as its outcome. The newest toast is spoken from
  * a polite live region, and an error from an assertive one. Under reduced
- * motion the cards no longer travel, and still fade.
+ * motion the cards no longer travel, and still fade, and a loading ring
+ * that turns otherwise holds still.
  */
 import { Option, Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
@@ -389,4 +390,49 @@ test('under reduced motion a card no longer travels, and still fades', async () 
   } finally {
     handle.dispose()
   }
+})
+
+test('a loading toast’s ring turns, and holds still under reduced motion', async () => {
+  const ring = async () => {
+    const { handle, send } = mount(
+      { duration: 60_000 },
+      { s0: show('Uploading', { type: 'loading' }) },
+    )
+    try {
+      await send('s0')
+      const icon = await vi.waitFor(() => {
+        const found = card(0)?.querySelector('[data-type="loading"]')
+        expect(found).toBeTruthy()
+        return found!
+      })
+      const turns = document.getAnimations().filter(animation => {
+        const effect = animation.effect
+        return (
+          effect instanceof KeyframeEffect &&
+          effect.target === icon &&
+          effect.pseudoElement === '::before' &&
+          effect.getKeyframes().some(frame => frame['rotate'] === '360deg')
+        )
+      })
+      const style = getComputedStyle(icon, '::before')
+      return {
+        turns: turns.length,
+        name: style.animationName,
+        seconds: parseFloat(style.animationDuration),
+      }
+    } finally {
+      handle.dispose()
+      document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+      document.body.replaceChildren()
+    }
+  }
+  const moving = await ring()
+  expect(moving.turns).toBe(1)
+  expect(moving.seconds).toBeGreaterThan(0.5)
+  await cdp().send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+  })
+  const held = await ring()
+  expect(held.turns).toBe(0)
+  expect(held.name).toBe('none')
 })
