@@ -14,8 +14,8 @@ export default [
     edits: [
       {
         file,
-        find: 'resolveFor(HoverIntentSlots, mixins, context)(render)',
-        replace: 'resolveFor(HoverIntentSlots, [], context)(render)',
+        find: 'resolveFor(HoverIntentSlots, mixins, context)({ ...render, arrow',
+        replace: 'resolveFor(HoverIntentSlots, [], context)({ ...render, arrow',
       },
     ],
     tests: [unit],

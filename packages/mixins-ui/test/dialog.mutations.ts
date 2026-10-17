@@ -23,7 +23,7 @@ export default [
     edits: [
       {
         file: '../src/dialog.ts',
-        find: "[...render.dialog, context.h.Role('alertdialog')]",
+        find: "[...render.dialog, h.Role('alertdialog')]",
         replace: 'render.dialog',
       },
     ],
