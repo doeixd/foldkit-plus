@@ -202,3 +202,77 @@ test('a dot marker is the dot of a Badge, its number hidden', async () => {
     handle.dispose()
   }
 })
+
+// How far right a node's words are painted: their own extent, cut at their
+// element's box when it clips what overflows it.
+const paintedRight = (element: HTMLElement) => {
+  const ink = document.createRange()
+  ink.selectNodeContents(element)
+  const right = ink.getBoundingClientRect().right
+  return getComputedStyle(element).overflowX === 'visible'
+    ? right
+    : Math.min(right, element.getBoundingClientRect().right)
+}
+
+test.each([
+  ['a short title keeps its word', 'Upload'],
+  ['a long title is cut short', 'Uploading'],
+])(
+  'in a row as narrow as a phone gives it, %s and stops before its connector',
+  async (_, current) => {
+    const handle = mount('horizontal', '18rem', {
+      selection: { size: 'md', connector: 'progress' },
+      steps: () => [
+        { title: 'Choose' },
+        { title: current },
+        { title: 'Process' },
+        { title: 'Done' },
+      ],
+    })
+    try {
+      await vi.waitFor(() => expect(markers()).toHaveLength(4))
+      const item = all('li')[1]!
+      const title = item.querySelector<HTMLElement>('[data-state] + span > span')!
+      const connector = item.querySelector<HTMLElement>(':scope > span[aria-hidden="true"]')!
+      expect(title.textContent).toBe(current)
+      expect(title.getBoundingClientRect().width).toBeGreaterThan(0)
+      expect(paintedRight(title)).toBeLessThanOrEqual(connector.getBoundingClientRect().left)
+      // The connectors shorten for the title shown, so a short word is whole.
+      expect(title.scrollWidth <= title.clientWidth).toBe(current === 'Upload')
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+// Where a marker's middle is painted: a dot's own box, else the marker's.
+const markerMiddle = (marker: HTMLElement) => {
+  const box = marker.getBoundingClientRect()
+  const dot = getComputedStyle(marker, '::before')
+  if (dot.content === 'none' || dot.content === 'normal') return box.top + box.height / 2
+  const top = parseFloat(dot.top) + parseFloat(dot.marginTop)
+  return (
+    box.top + parseFloat(getComputedStyle(marker).borderTopWidth) + top + parseFloat(dot.height) / 2
+  )
+}
+
+test.each(
+  (['number', 'dot'] as const).flatMap(marker =>
+    ([undefined, 'xs', 'sm', 'md', 'lg'] as const).map(size => [marker, size] as const),
+  ),
+)('a %s marker of size %s has its connector through its middle', async (marker, size) => {
+  const handle = mount('horizontal', '40rem', {
+    selection: size === undefined ? { marker } : { marker, size },
+  })
+  try {
+    await vi.waitFor(() => expect(markers()).toHaveLength(4))
+    const lines = all('li > span[aria-hidden="true"]')
+    expect(lines).toHaveLength(3)
+    lines.forEach((line, index) => {
+      const box = line.getBoundingClientRect()
+      expect(box.top + box.height / 2).toBeCloseTo(markerMiddle(markers()[index]!), 0)
+    })
+  } finally {
+    handle.dispose()
+  }
+})

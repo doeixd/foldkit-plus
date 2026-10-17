@@ -4,7 +4,8 @@
  * filled with a check drawn in CSS over its hidden number, and the line
  * after a complete step takes the accent. `orientation: 'horizontal'` lays
  * the steps in a row as wide as its container, the lines stretching between
- * them, and below 32rem only the current step's label shows;
+ * them, and below 32rem only the current step's label shows, the lines
+ * shortening for it and a word still too long cut with an ellipsis;
  * `orientation: 'vertical'` stacks them, each line running down from under
  * its marker beside the step's content, in the body's size under its
  * title. The states fade on the fast tier; nothing moves. A step's icon in
@@ -180,7 +181,11 @@ export const Steps = Style.recipeFor(StepsSlots)({
             }),
           ),
         ),
+        // A word wider than the room a step has is cut short, not drawn over
+        // the next marker: in a phone's row four markers leave the current
+        // title a few dozen pixels.
         text: variant(
+          Style.nest('& > *', { overflow: 'hidden', textOverflow: 'ellipsis' }),
           Style.at(
             narrow,
             Style.nest(':where([data-state]:not([aria-current="step"])) > * > &', {
@@ -204,6 +209,8 @@ export const Steps = Style.recipeFor(StepsSlots)({
             blockSize: line,
             marginBlockStart: `calc((${markerSize} - ${line}) / 2)`,
           }),
+          // Shorter where room is short, so the one title shown keeps its words.
+          Style.at(narrow, Style.self({ minInlineSize: ref.space.xs })),
           Style.nest('&::before', {
             blockSize: '100%',
             inlineSize: `calc(${fill} * 100%)`,
@@ -273,8 +280,13 @@ export const Steps = Style.recipeFor(StepsSlots)({
             background: 'transparent',
             color: 'transparent',
           }),
+          // Out of the flow, so the hidden number takes no row of the grid
+          // under it and the dot keeps the middle the connector runs along.
           Style.nest('&::before', {
             content: '""',
+            position: 'absolute',
+            inset: '0',
+            margin: 'auto',
             inlineSize: dot,
             blockSize: dot,
             borderRadius: ref.radius.full,

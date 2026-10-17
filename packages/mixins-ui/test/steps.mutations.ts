@@ -188,6 +188,39 @@ export default [
     tests: [browser],
   },
   {
+    name: "a phone's row draws a long title over the next connector",
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "Style.nest('& > *', { overflow: 'hidden', textOverflow: 'ellipsis' }),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "a phone's row keeps its connectors long and cuts the title shown",
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: 'Style.at(narrow, Style.self({ minInlineSize: ref.space.xs })),',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "a dot sits in its marker's corner",
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "margin: 'auto',",
+        replace: "margin: '0',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'progress past the end is drawn past it',
     edits: [
       {
