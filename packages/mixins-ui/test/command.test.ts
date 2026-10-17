@@ -70,6 +70,15 @@ describe('Command.filtered', () => {
   it('drops a row missing any one word of the query', () => {
     expect(Command.filtered(groups, 'new search')).toEqual([])
   })
+
+  it('matches a row by its description too', () => {
+    const described: ReadonlyArray<CommandGroup<string>> = [
+      { items: [{ value: 'export', label: 'Export', description: 'As a PDF file' }] },
+    ]
+    expect(
+      Command.filtered(described, 'pdf').flatMap(group => group.items.map(item => item.value)),
+    ).toEqual(['export'])
+  })
 })
 
 describe('Command.view', () => {
@@ -172,6 +181,43 @@ describe('Command keys', () => {
       Scene.click('#palette-theme'),
       Scene.expect(Scene.selector('output')).toHaveText('theme'),
     )
+  })
+
+  it('names a row by its words alone, its shortcut in aria-keyshortcuts', () => {
+    const row = Inert.byRole(
+      Command.view(
+        {
+          id: 'palette',
+          label: 'Search commands',
+          groups: [
+            {
+              items: [
+                {
+                  value: 'new',
+                  label: 'New page',
+                  description: 'A blank page',
+                  shortcut: ['⌘', 'N'],
+                  icon: h.span([], ['+']),
+                },
+              ],
+            },
+          ],
+          query: '',
+          onQuery: () => message('Other'),
+          active: Option.none(),
+          onActive: () => message('Other'),
+          onRun: () => message('Clicked'),
+        },
+        h,
+      ),
+      'option',
+    )[0]!
+    expect(Inert.value(row, 'aria-keyshortcuts')).toBe('Meta+N')
+    const hidden = Inert.all(row)
+      .filter(node => node !== row && Inert.value(node, 'aria-hidden') === 'true')
+      .map(node => Inert.text(node))
+    expect(hidden).toEqual(['+', '⌘N'])
+    expect(Inert.text(row)).toContain('A blank page')
   })
 
   it('leaves every other key to the field', () => {

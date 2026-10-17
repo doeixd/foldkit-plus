@@ -77,7 +77,10 @@ const mountCommand = (options: { readonly bars: boolean }) =>
                 id: 'palette',
                 label: 'Search commands',
                 groups: [
-                  { heading: 'File', items: [{ value: 'new', label: 'New page', shortcut: '⌘N' }] },
+                  {
+                    heading: 'File',
+                    items: [{ value: 'new', label: 'New page', shortcut: ['⌘', 'N'] }],
+                  },
                   { items: COMMANDS },
                 ],
                 query: '',
@@ -250,14 +253,9 @@ test("a Command's shortcut reads left to right on a right to left page", async (
   const handle = mountCommand({ bars: false })
   try {
     await vi.waitFor(() => expect(document.getElementById('palette-new')).not.toBeNull())
-    const keys = document.querySelector('#palette-new [aria-hidden="true"]')!.firstChild!
-    const at = (index: number) => {
-      const range = document.createRange()
-      range.setStart(keys, index)
-      range.setEnd(keys, index + 1)
-      return range.getBoundingClientRect().left
-    }
-    expect(keys.textContent).toBe('⌘N')
+    const keys = [...document.querySelectorAll('#palette-new kbd kbd')]
+    const at = (index: number) => keys[index]!.getBoundingClientRect().left
+    expect(keys.map(key => key.textContent)).toEqual(['⌘', 'N'])
     expect(at(0)).toBeLessThan(at(1))
     // Still at the row's end, which right to left is its left.
     const row = document.getElementById('palette-new')!.getBoundingClientRect()

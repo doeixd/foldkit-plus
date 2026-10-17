@@ -5,6 +5,8 @@
  */
 const file = '../src/command.ts'
 const unit = 'packages/mixins-ui/test/command.test.ts'
+const browser = 'packages/mixins-ui/test/command.browser.test.ts'
+const recipe = '../src/recipes/command.ts'
 
 export default [
   {
@@ -28,8 +30,8 @@ export default [
     edits: [
       {
         file,
-        find: "const text = [item.label, ...(item.keywords ?? [])].join(' ').toLowerCase()",
-        replace: "const text = [item.label, ...(item.keywords ?? [])].join(' ')",
+        find: "        .join(' ')\n        .toLowerCase()\n",
+        replace: "        .join(' ')\n",
       },
     ],
     tests: [unit],
@@ -109,5 +111,80 @@ export default [
     name: 'a disabled row runs when pressed',
     edits: [{ file, find: '...(disabled\n', replace: '...(false\n' }],
     tests: [unit],
+  },
+  {
+    name: 'a row is not matched by its description',
+    edits: [{ file, find: "item.description ?? '',", replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'a shortcut is not named',
+    edits: [
+      {
+        file,
+        find: '[h.AriaKeyshortcuts(keyShortcuts(item.shortcut))]',
+        replace: '[]',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Backspace never leaves a page',
+    edits: [
+      {
+        file,
+        find: 'Option.map(Option.fromNullishOr(options.page), page => page.onBack)',
+        replace: 'Option.none()',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'Backspace leaves a page with words in the field',
+    edits: [{ file, find: "return options.query === ''", replace: 'return true' }],
+    tests: [browser],
+  },
+  {
+    name: 'only ⌘K opens the menu',
+    edits: [
+      {
+        file,
+        find: "matchHotkey('meta+k', press) || matchHotkey('ctrl+k', press)",
+        replace: "matchHotkey('meta+k', press)",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a loading list is not busy',
+    edits: [{ file, find: '[h.AriaBusy(true)]', replace: '[]' }],
+    tests: [browser],
+  },
+  {
+    name: 'a loading list says nothing',
+    edits: [
+      {
+        file,
+        find: '[h.div(builders.loading.attrs(), [options.loading])]',
+        replace: '[]',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a hint draws no words',
+    edits: [{ file, find: '[keys(hint.keys), hint.label]', replace: '[keys(hint.keys)]' }],
+    tests: [browser],
+  },
+  {
+    name: "a shortcut's keys take the row's direction",
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest('& > *', { direction: 'ltr', unicodeBidi: 'isolate' }),",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/lists.browser.test.ts'],
   },
 ]
