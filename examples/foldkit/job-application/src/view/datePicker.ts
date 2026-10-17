@@ -44,12 +44,24 @@ const calendarView = <Message>(
       Days: days =>
         h.div(days.root, [
           h.div(slots.calendarBar.attrs(), [
-            h.button(days.previousMonthButton, ['‹']),
-            h.button(
-              [h.Id(days.heading.id), ...days.headingButton],
-              [days.heading.text, headingChevron],
-            ),
-            h.button(days.nextMonthButton, ['›']),
+            // No options are passed, so both paging buttons are drawn and the caption is the grid's button.
+            ...Option.match(days.previousMonthButton, {
+              onNone: () => [],
+              onSome: attributes => [h.button(attributes, ['‹'])],
+            }),
+            Match.valueTags(days.caption, {
+              Grid: ({ headingButton }) =>
+                h.button(
+                  [h.Id(days.heading.id), ...headingButton],
+                  [days.heading.text, headingChevron],
+                ),
+              Label: ({ heading }) => h.span(heading, [days.heading.text]),
+              Dropdowns: () => h.span([], [days.heading.text]),
+            }),
+            ...Option.match(days.nextMonthButton, {
+              onNone: () => [],
+              onSome: attributes => [h.button(attributes, ['›'])],
+            }),
           ]),
           h.div(days.grid, [
             h.div(

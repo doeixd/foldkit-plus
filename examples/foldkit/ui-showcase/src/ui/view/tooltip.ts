@@ -44,6 +44,7 @@ const tooltipDemo = (
           const { trigger, panel, isVisible } = Tooltip.resolve(render, [DemoTooltipStyle.mixin], {
             input: undefined,
             h,
+            id: demo.tooltip.id,
           })
 
           return h.div(slots.wrapper.attrs(), [

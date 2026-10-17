@@ -3,7 +3,7 @@
  * Calendar adapter: the day grid, and the month and year pickers its heading
  * opens. Upstream repeats it in both pages; here it is drawn once.
  */
-import { Match } from 'effect'
+import { Match, Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import type { Calendar as UiCalendar } from '@foldkit/ui'
@@ -46,9 +46,21 @@ const draw = (
       Days: days =>
         h.div(days.root, [
           h.div(slots.calendarHeader.attrs(), [
-            navButton(days.previousMonthButton, Icon.chevronLeft, slots, h),
-            headingButton(days.heading, days.headingButton, slots, h),
-            navButton(days.nextMonthButton, Icon.chevronRight, slots, h),
+            // No options are passed, so both paging buttons are drawn and the caption is the grid's button.
+            ...Option.match(days.previousMonthButton, {
+              onNone: () => [],
+              onSome: attributes => [navButton(attributes, Icon.chevronLeft, slots, h)],
+            }),
+            Match.valueTags(days.caption, {
+              Grid: ({ headingButton: attributes }) =>
+                headingButton(days.heading, attributes, slots, h),
+              Label: ({ heading }) => h.span(heading, [days.heading.text]),
+              Dropdowns: () => h.span([], [days.heading.text]),
+            }),
+            ...Option.match(days.nextMonthButton, {
+              onNone: () => [],
+              onSome: attributes => [navButton(attributes, Icon.chevronRight, slots, h)],
+            }),
           ]),
           h.div(days.grid, [
             h.div(
