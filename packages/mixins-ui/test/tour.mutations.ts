@@ -5,6 +5,8 @@
  */
 const file = '../src/tour.ts'
 const recipe = '../src/recipes/tour.ts'
+// The cutout's Mount, `foldkit-primitives/dom`'s.
+const trackBox = '../../primitives/src/dom/track-box.ts'
 const unit = 'packages/mixins-ui/test/tour.test.ts'
 const browser = 'packages/mixins-ui/test/tour.browser.test.ts'
 
@@ -114,19 +116,28 @@ export default [
   },
   {
     name: 'the cutout stays where the page was',
-    edits: [{ file, find: "view?.addEventListener('scroll', place, true)", replace: '' }],
+    edits: [
+      {
+        file: trackBox,
+        find: "view?.addEventListener('scroll', place, { capture: true, passive: true })",
+        replace: '',
+      },
+    ],
     tests: [browser],
   },
   {
     name: 'the cutout looks for its target once',
     edits: [
       {
-        file,
-        find: "attributeFilter: ['data-target']",
-        replace: "attributeFilter: ['data-never']",
+        file: trackBox,
+        find: 'attributeFilter: [TRACK_TARGET_ATTRIBUTE],',
+        replace: "attributeFilter: ['data-never'],",
       },
     ],
     tests: [browser],
+    // `track-box.mutations.ts` kills it, with the attribute changed alone.
+    survives:
+      "a step's change also redraws its panel, and the document's change reads the target again",
   },
   {
     name: 'a placed step takes no focus',
@@ -235,6 +246,28 @@ export default [
   {
     name: 'the ring takes presses meant for the target',
     edits: [{ file, find: "                  pointerEvents: 'none',\n", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: "the cutout is not told its target's corner",
+    edits: [
+      {
+        file,
+        find: "TrackBox({ name: 'tour', radius: true })",
+        replace: "TrackBox({ name: 'tour' })",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the ring keeps a corner of its own',
+    edits: [
+      {
+        file: recipe,
+        find: "borderRadius: 'calc(var(--fk-tour-radius, 0px) + var(--fk-tour-padding, 0px))',",
+        replace: "borderRadius: '8px',",
+      },
+    ],
     tests: [browser],
   },
   {

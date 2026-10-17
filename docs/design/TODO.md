@@ -905,7 +905,7 @@ while keeping the best of what this project already has:
   and zoom; a Cascade Select's `multiple` and its fluid hover; a Floating
   Panel's aspect lock, `absolute` strategy and double-click to maximize; a
   Tour's wait steps, focus trap and dots; a Marquee's round-end events.
-- [ ] **Follow-ups from parity 7 and 8.** Seen in the gallery's
+- [x] **Follow-ups from parity 7 and 8.** Seen in the gallery's
   screenshots: the Image Cropper's image never shows (its recipe hides it
   under `:not([data-ready]) &`, which any ancestor without the attribute
   matches, `body` included); the Angle Slider's needle crosses its value
@@ -913,7 +913,8 @@ while keeping the best of what this project already has:
   drill layout is the narrow one, chosen by the application). Spotlight as
   a primitive: `Tour.Spotlight` follows an element named by its
   `data-target` and writes its box as custom properties, which a coach mark
-  or a measuring overlay would reuse from `foldkit-primitives/dom`. The
+  or a measuring overlay would reuse from `foldkit-primitives/dom` (done
+  2026-10-17: `TrackBox`, which the Tour draws with). The
   Sidebar's and Tree View's chevrons draw the recipes' shared
   `turningChevron` (done 2026-10-17).
 

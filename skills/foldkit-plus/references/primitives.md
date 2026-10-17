@@ -155,6 +155,10 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **Draw over a marked element:** the `Measure({ targets: { selected: selector } })` Mount writes
   `--fk-selected-x/-y/-w/-h/-display` on its element, relative to its scroll box; place an overlay
   absolutely from them. No Message, nothing in the Model.
+- **Draw over another element anywhere on the page:** the `TrackBox({ name, radius? })` Mount follows the
+  element whose id is its own `data-target` (`TRACK_TARGET_ATTRIBUTE`, read again when it changes) and writes
+  `--fk-<name>-x/-y/-w/-h` (viewport pixels) and, with `radius`, `-radius` (`trackedBox(name)`), through scrolls,
+  resizes and the target drawn anew; sends `TrackedTarget { target, found }` on each change. The Tour's cutout uses it.
 - **One highlight that follows the pointer across items:** the `FluidHover({ name, item, axis, gapClick })`
   Mount writes `--fk-<name>-x/-y/-w/-h/-shown/-moving` for the item nearest the pointer (gaps included;
   `axis` `y` list, `x` strip, `xy` grid), skipping disabled items, following `:focus-visible`, ignoring touch.

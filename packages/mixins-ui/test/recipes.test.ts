@@ -133,6 +133,9 @@ const defined = new Set([
   'signature-font',
   // Written on a tour step's progress by `Tour.view`.
   'tour-progress',
+  // Written on the tour's layer: its padding by `Tour.view`, its target's corner by `TrackBox`.
+  'tour-padding',
+  'tour-radius',
 ])
 
 /** Every selection of a recipe: the defaults, then each value of each axis. */

@@ -7,6 +7,7 @@
  */
 import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
+import { TrackBox } from 'foldkit-primitives/dom'
 import { describe, expect, it } from 'vitest'
 import { A11y } from 'foldkit-mixins'
 // From the modules, not the index: the test reads nothing else.
@@ -126,7 +127,7 @@ const scene = (
 
 const drawn = (found = true) =>
   Scene.Mount.resolveAll(
-    [Tour.Spotlight, Message.Spotlit({ target: 'nav', found })],
+    [TrackBox, Message.Spotlit({ target: 'nav', found })],
     [Tour.PlaceStep, Message.Placed()],
   )
 const shown = () => Scene.Command.resolve(Tour.ShowStep, Message.CompletedShowStep())
@@ -204,7 +205,7 @@ describe('Tour.view', () => {
       drawn(),
       Scene.keydown(dialog, 'Escape'),
       Scene.expectOutMessage(Tour.Ended.make({ completed: false })),
-      Scene.Mount.expectEnded(Tour.Spotlight, Tour.PlaceStep),
+      Scene.Mount.expectEnded(TrackBox, Tour.PlaceStep),
       Scene.expect(dialog).toBeAbsent(),
     )
     scene(
@@ -235,7 +236,7 @@ describe('Tour.view', () => {
       drawn(),
       Scene.click(blocker),
       Scene.expectOutMessage(Tour.Ended.make({ completed: false })),
-      Scene.Mount.expectEnded(Tour.Spotlight, Tour.PlaceStep),
+      Scene.Mount.expectEnded(TrackBox, Tour.PlaceStep),
     )
     expect(() => scene(started().model, {}, drawn(), Scene.click(blocker))).toThrow(/click handler/)
   })

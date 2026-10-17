@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-primitives/dom`: `TrackBox`.** A Mount that follows the element
+  named by its `data-target` and writes its viewport box (and, asked, its
+  corner radius) as `--fk-<name>-x`, `-y`, `-w`, `-h` and `-radius`, telling
+  `TrackedTarget { target, found }`; the Tour's cutout now draws with it
+  (its `Spotlight` Mount is gone, its properties are `--fk-tour-w` and `-h`,
+  and its ring follows the target's corner).
 - **`foldkit-mixins-ui`: Calendar options, presets and a locale.** The
   fourth argument of `Calendar.toView`, `inputs` and `resolve`
   (`CalendarOptions`) takes `weekNumbers` (ISO weeks), `caption: 'label'` or

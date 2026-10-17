@@ -1,11 +1,12 @@
 /**
- * Tour: the page dimmed in the overlay's shade around a rounded cutout over
- * the target, ringed in the accent, and each step a raised card with the
- * Popover's arrow at its target: its place (`2 of 5`) over a thin bar that
- * fills as the tour goes on, its title, its text, and a row of actions with
- * Skip at the start and Next filled in the accent at the end. A step with
- * no target stands in the middle over the whole dim. The cutout glides from
- * target to target and the bar fills; both travel, so reduced motion jumps.
+ * Tour: the page dimmed in the overlay's shade around a cutout over the
+ * target, rounded as the target is and ringed in the accent, and each step
+ * a raised card with the Popover's arrow at its target: its place
+ * (`2 of 5`) over a thin bar that fills as the tour goes on, its title, its
+ * text, and a row of actions with Skip at the start and Next filled in the
+ * accent at the end. A step with no target stands in the middle over the
+ * whole dim. The cutout glides from target to target and the bar fills; both
+ * travel, so reduced motion jumps.
  */
 import { Style } from 'foldkit-mixins'
 import { ladder, raise, raisedSurface, role } from 'foldkit-mixins/theme'
@@ -53,7 +54,8 @@ export const Tour = Style.recipeFor(TourSlots)({
     ),
     spotlight: component(
       Style.self({
-        borderRadius: ref.radius.lg,
+        // Its target's corner, grown by the padding, so the ring runs beside its edge.
+        borderRadius: 'calc(var(--fk-tour-radius, 0px) + var(--fk-tour-padding, 0px))',
         boxShadow: `0 0 0 ${ref.border.thick} ${ref.accent.default}, 0 0 0 100vmax ${dim}`,
         transitionProperty: 'left, top, width, height',
         transitionDuration: travelled(ref.motion.moderate),

@@ -1,6 +1,7 @@
 import { AnchorConfig, anchorSetup, type Placement } from '@foldkit/ui/anchor'
-import { Effect, Option, Queue, Schema, Stream } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { TRACK_TARGET_ATTRIBUTE, TrackBox } from 'foldkit-primitives/dom'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -27,12 +28,15 @@ import type { MixinList } from './resolve.js'
  * view: step -> the panel anchored to its target, the cutout following the target
  * ```
  *
- * The cutout's place is a browser fact: the `Spotlight` Mount reads the
- * target's box (on a scroll, a resize, and the target's own resize) and
- * writes it as `--fk-tour-x`, `-y`, `-width` and `-height`, so a stylist
- * reads them and nothing crosses the Model. The dim takes presses outside
- * the cutout, so the page cannot be used mid-step; the target can, unless
- * `interactive` is false. The tour is drawn in the browser's top layer.
+ * The cutout's place is a browser fact: `TrackBox` (`foldkit-primitives/dom`)
+ * on the layer follows the target named by its `data-target` and writes its
+ * box as `--fk-tour-x`, `-y`, `-w` and `-h`, and its corner as
+ * `--fk-tour-radius`, so a stylist reads them and nothing crosses the Model;
+ * one layer follows every step, so the cutout can glide between targets. A
+ * target not on the page, or gone from it, is told as `Spotlit`. The dim
+ * takes presses outside the cutout, so the page cannot be used mid-step; the
+ * target can, unless `interactive` is false. The tour is drawn in the
+ * browser's top layer.
  *
  * Each step is a non-modal dialog named by its title and described by its
  * text, focused as it shows. Focus is not held in it: a step may ask the
@@ -241,58 +245,6 @@ export const update = (config: Config) => {
     })
 }
 
-/**
- * Tracks the element named by its own `data-target` and writes that
- * element's box, in viewport pixels, as `--fk-tour-x`, `-y`, `-width` and
- * `-height` on its own element. The attribute is read again whenever it
- * changes, so one element follows every step and the cutout can glide from
- * target to target. Each new target reports whether it was found.
- */
-export const Spotlight = Mount.defineStream('Tour.Spotlight', {
-  messages: [Message.Spotlit],
-  execute: ({ element }) =>
-    Stream.callback<Extract<Message, { readonly _tag: 'Spotlit' }>>(queue =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          const view = element.ownerDocument.defaultView
-          const Resizes = view?.ResizeObserver
-          let target: Element | null = null
-          const place = () => {
-            if (!(element instanceof HTMLElement) || target === null) return
-            const box = target.getBoundingClientRect()
-            element.style.setProperty('--fk-tour-x', `${box.left}px`)
-            element.style.setProperty('--fk-tour-y', `${box.top}px`)
-            element.style.setProperty('--fk-tour-width', `${box.width}px`)
-            element.style.setProperty('--fk-tour-height', `${box.height}px`)
-          }
-          // Every observer is made before any observes, so one that throws leaves nothing attached.
-          const resized = Resizes === undefined ? undefined : new Resizes(place)
-          const follow = () => {
-            const id = element.getAttribute('data-target') ?? ''
-            target = id === '' ? null : element.ownerDocument.getElementById(id)
-            resized?.disconnect()
-            if (target !== null) resized?.observe(target)
-            place()
-            if (id !== '')
-              Queue.offerUnsafe(queue, Message.Spotlit({ target: id, found: target !== null }))
-          }
-          const retargeted = new MutationObserver(follow)
-          retargeted.observe(element, { attributes: true, attributeFilter: ['data-target'] })
-          view?.addEventListener('scroll', place, true)
-          view?.addEventListener('resize', place)
-          follow()
-          return () => {
-            retargeted.disconnect()
-            resized?.disconnect()
-            view?.removeEventListener('scroll', place, true)
-            view?.removeEventListener('resize', place)
-          }
-        }),
-        stop => Effect.sync(stop),
-      ),
-    ),
-})
-
 /** Places the step against its target, focusing it once placed. */
 export const PlaceStep = Mount.define('Tour.PlaceStep', {
   args: { buttonId: Schema.String, anchor: AnchorConfig, arrowId: Schema.String },
@@ -374,13 +326,13 @@ export const view = <ParentMessage>(
   const target = Option.isSome(model.missing) ? Option.none() : Option.fromNullishOr(step.target)
   const anchored = Option.isSome(target)
   const isLast = model.step === count - 1
-  const hole = (side: 'x' | 'y', size: 'width' | 'height', far: boolean) =>
+  const hole = (side: 'x' | 'y', size: 'w' | 'h', far: boolean) =>
     `calc(var(--fk-tour-${side}, 0px) ${far ? `+ var(--fk-tour-${size}, 0px) + ${padding}px` : `- ${padding}px`})`
   const [left, top, right, bottom] = [
-    hole('x', 'width', false),
-    hole('y', 'height', false),
-    hole('x', 'width', true),
-    hole('y', 'height', true),
+    hole('x', 'w', false),
+    hole('y', 'h', false),
+    hole('x', 'w', true),
+    hole('y', 'h', true),
   ]
 
   const action = (builder: typeof builders.next, words: string, message: Message) =>
@@ -459,12 +411,18 @@ export const view = <ParentMessage>(
   return h.div(
     builders.layer.attrs([
       ...layerBox(h, { '--fk-tour-padding': `${padding}px` }),
-      h.DataAttribute(
-        'target',
+      h.Attribute(
+        TRACK_TARGET_ATTRIBUTE,
         Option.getOrElse(target, () => ''),
       ),
       ...(options.direction === undefined ? [] : [h.Dir(options.direction)]),
-      h.OnMount(topLayer(Mount.mapMessage(Spotlight(), send))),
+      h.OnMount(
+        topLayer(
+          Mount.mapMessage(TrackBox({ name: 'tour', radius: true }), ({ target, found }) =>
+            send(Message.Spotlit({ target, found })),
+          ),
+        ),
+      ),
     ]),
     [
       h.div(

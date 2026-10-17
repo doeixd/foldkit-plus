@@ -87,7 +87,11 @@ const mount = (view: Partial<Tour.TourView<Got>> = {}, direction: 'ltr' | 'rtl' 
           [
             h.button([h.Id('help'), h.OnClick(Got.Started())], ['Start tour']),
             h.button(
-              [h.Id('nav'), h.OnClick(Got.PressedNav()), h.Style({ marginInlineStart: '200px' })],
+              [
+                h.Id('nav'),
+                h.OnClick(Got.PressedNav()),
+                h.Style({ marginInlineStart: '200px', borderRadius: '6px' }),
+              ],
               [`Navigation ${model.pressed}`],
             ),
             h.div([h.Style({ blockSize: '2000px' })], []),
@@ -133,6 +137,8 @@ test('shows in the top layer below its target, focused, the cutout ringing the t
       expect(ring.top).toBeCloseTo(target.top - 8, 0)
       expect(ring.width).toBeCloseTo(target.width + 16, 0)
     })
+    // Its target's corner grown by the padding, so the ring runs beside the target's edge.
+    expect(getComputedStyle(spotlight()!).borderTopLeftRadius).toBe('14px')
   } finally {
     mounted.dispose()
   }
