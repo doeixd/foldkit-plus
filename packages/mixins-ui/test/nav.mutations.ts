@@ -47,8 +47,8 @@ export default [
     edits: [
       {
         file,
-        find: "FluidHover({ name: 'nav-hover',",
-        replace: "FluidHover({ name: 'tabs-hover',",
+        find: "name: 'nav-hover',",
+        replace: "name: 'tabs-hover',",
       },
     ],
     tests: [browser],

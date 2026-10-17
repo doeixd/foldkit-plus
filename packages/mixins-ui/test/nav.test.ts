@@ -4,6 +4,7 @@
  * does not count.
  */
 import { Nav as UiNav } from '@foldkit/ui'
+import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
@@ -55,4 +56,32 @@ describe('Nav.view', () => {
         expect(Inert.value(overlay, 'aria-hidden')).toBe('true')
       }
     }))
+})
+
+describe('Nav.update', () => {
+  const shut = Nav.init('site')
+  const open = Nav.update(shut, Nav.Message.Toggled({ panel: 'products' })).model
+
+  it('shows a pressed trigger’s panel, and hides it on a second press', () => {
+    expect(open.open).toEqual(Option.some('products'))
+    expect(Nav.update(open, Nav.Message.Toggled({ panel: 'products' })).model.open).toEqual(
+      Option.none(),
+    )
+    expect(Nav.update(open, Nav.Message.Toggled({ panel: 'docs' })).model.open).toEqual(
+      Option.some('docs'),
+    )
+  })
+
+  it('returns the Model it was given when nothing changes', () => {
+    expect(Nav.update(shut, Nav.Message.Dismissed()).model).toBe(shut)
+    expect(Nav.update(shut, Nav.Message.Escaped({ index: 1 })).model).toBe(shut)
+    expect(Nav.update(open, Nav.Message.MovedTop({ from: 0, count: 3, move: 'previous' }))).toEqual(
+      {
+        model: open,
+      },
+    )
+    expect(
+      Nav.update(open, Nav.Message.MovedInPanel({ entry: 1, from: 2, count: 3, move: 'last' })),
+    ).toEqual({ model: open })
+  })
 })

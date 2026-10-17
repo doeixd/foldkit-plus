@@ -1,15 +1,34 @@
 /**
- * A navigation menu: links in a row, each a rung of the size ladder, the
- * current one in the strong ink with a line under it. Given `Nav.fluid`, the
- * line glides to the current link and a faint pill follows the pointer to
- * the nearest one; until it runs, the current link draws its own line.
+ * A navigation menu: links and triggers in a row (or a column, on the list's
+ * `data-orientation="vertical"`), each a rung of the size ladder, the
+ * current one in the strong ink with a line under it (`indicator:
+ * 'underline'`, beside it in a column) or a tinted pill behind it
+ * (`indicator: 'pill'`). A trigger's chevron turns while its panel shows,
+ * and the panel is a popup card of link columns, each link's words over a
+ * muted line. Given `Nav.fluid`, the line or pill glides to the current
+ * entry and a faint pill follows the pointer to the nearest one; until it
+ * runs, the current entry draws its own mark.
  */
 import { Style } from 'foldkit-mixins'
 import { NavSlots } from '../nav.js'
-import { component, focusRing, glide, onLadder, ref, transition, unfilledHover } from './design.js'
+import {
+  component,
+  cornerSides,
+  focusRing,
+  glide,
+  onLadder,
+  ref,
+  transition,
+  unfilledHover,
+  variant,
+} from './design.js'
+import { panel } from './popup.js'
 
-const current = '[aria-current="page"]'
+const current = ':is([aria-current="page"], [data-current])'
 const fluid = ':where([data-fluid-hover]) > &'
+const column = ':where([data-orientation="vertical"])'
+/** A top-level entry of a list no Mount marks, where it draws its own mark. */
+const unlit = (state: string) => `:where(:not([data-fluid-hover])) > :where(li) > &${state}`
 const at = (name: 'hover' | 'chosen', part: 'x' | 'y' | 'w' | 'h') =>
   `var(--fk-nav-${name}-${part})`
 
@@ -26,6 +45,34 @@ const overlay = (name: 'hover' | 'chosen') =>
     listStyle: 'none',
   })
 
+/** A top-level link or trigger. */
+const entry = Style.compose(
+  Style.self({
+    position: 'relative',
+    display: 'inline-flex',
+    alignItems: 'center',
+    ...onLadder,
+    border: '0',
+    borderRadius: ref.radius.md,
+    background: 'transparent',
+    color: ref.text.muted,
+    font: 'inherit',
+    fontWeight: ref.weight.medium,
+    textDecoration: 'none',
+    cursor: 'pointer',
+    ...transition('color, background-color'),
+  }),
+  Style.pseudo(':hover', { color: ref.text.overt }),
+  Style.pseudo(current, { color: ref.text.overt }),
+  // Without `fluid`, the current entry draws its own line and the hover its fill.
+  Style.nest(unlit(':hover'), { background: unfilledHover }),
+  Style.nest(unlit(current), {
+    boxShadow: `inset 0 calc(-1 * ${ref.border.thick}) 0 ${ref.accent.default}`,
+  }),
+  Style.nest(`${column} > :where(li) > &`, { justifyContent: 'space-between' }),
+  focusRing,
+)
+
 export const Nav = Style.recipeFor(NavSlots)({
   base: {
     nav: component(Style.self({})),
@@ -39,30 +86,90 @@ export const Nav = Style.recipeFor(NavSlots)({
         padding: '0',
         listStyle: 'none',
       }),
+      Style.pseudo('[data-orientation="vertical"]', {
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        inlineSize: 'fit-content',
+      }),
     ),
-    item: component(Style.self({})),
-    link: component(
+    item: component(Style.self({ display: 'flex', flexDirection: 'column' })),
+    link: component(entry),
+    trigger: component(entry),
+    // A chevron drawn in CSS, down under a row and up while its panel shows.
+    chevron: component(
       Style.self({
-        position: 'relative',
-        display: 'inline-flex',
-        alignItems: 'center',
-        ...onLadder,
-        borderRadius: ref.radius.md,
+        inlineSize: '0.4em',
+        blockSize: '0.4em',
+        marginBlockStart: '-0.2em',
+        marginInlineStart: ref.space['3xs'],
+        ...cornerSides(ref.border.thick, 'currentColor'),
+        rotate: '45deg',
+        transitionProperty: 'rotate',
+        transitionDuration: `calc(${ref.motion.fast} * ${ref.knob.travel})`,
+        transitionTimingFunction: ref.motion.settle,
+      }),
+      Style.nest(':where([data-state="open"]) > &', {
+        rotate: '225deg',
+        marginBlockStart: '0.2em',
+      }),
+      // In a column it points where the panel opens, open or not.
+      Style.nest(`${column} > li > * > &`, { rotate: '-45deg', marginBlockStart: '0' }),
+      Style.nest(`${column}:dir(rtl) > li > * > &`, { rotate: '135deg' }),
+    ),
+    panel: Style.compose(
+      panel,
+      component(
+        Style.self({
+          marginBlockStart: '0',
+          padding: ref.space.xs,
+          maxInlineSize: 'min(40rem, calc(100vw - 16px))',
+        }),
+      ),
+    ),
+    groups: component(
+      Style.self({
+        display: 'grid',
+        gridAutoFlow: 'column',
+        gridAutoColumns: 'minmax(12rem, 1fr)',
+        gap: ref.space.xs,
+      }),
+    ),
+    group: component(
+      Style.self({ display: 'flex', flexDirection: 'column', gap: ref.space['3xs'] }),
+    ),
+    heading: component(
+      Style.self({
+        paddingInline: ref.space.xs,
+        paddingBlock: ref.space['3xs'],
         color: ref.text.muted,
+        fontSize: ref.size.xs,
         fontWeight: ref.weight.medium,
+      }),
+    ),
+    links: component(
+      Style.self({ display: 'grid', gap: '0', margin: '0', padding: '0', listStyle: 'none' }),
+    ),
+    panelItem: component(Style.self({})),
+    panelLink: component(
+      Style.self({
+        display: 'grid',
+        gap: ref.space['3xs'],
+        padding: ref.space.xs,
+        borderRadius: ref.radius.md,
+        color: 'inherit',
         textDecoration: 'none',
-        ...transition('color, background-color'),
+        ...transition('background-color'),
       }),
-      Style.pseudo(':hover', { color: ref.text.overt }),
-      Style.pseudo(current, { color: ref.text.overt }),
-      // Without `fluid`, the current link draws its own line and fill.
-      Style.nest(`:where(:not([data-fluid-hover])) > :where(li) > &:hover`, {
-        background: unfilledHover,
-      }),
-      Style.nest(`:where(:not([data-fluid-hover])) > :where(li) > &${current}`, {
-        boxShadow: `inset 0 calc(-1 * ${ref.border.thick}) 0 ${ref.accent.default}`,
+      Style.pseudo(':hover', { background: unfilledHover }),
+      Style.pseudo('[aria-current="page"]', {
+        background: ref.accent.subtle,
+        color: ref.accent.ink,
       }),
       focusRing,
+    ),
+    title: component(Style.self({ fontWeight: ref.weight.medium })),
+    description: component(
+      Style.self({ color: ref.text.muted, fontSize: ref.size.sm, lineHeight: ref.leading.snug }),
     ),
     indicator: component(
       overlay('chosen'),
@@ -73,6 +180,15 @@ export const Nav = Style.recipeFor(NavSlots)({
         borderRadius: ref.radius.full,
         background: ref.accent.default,
         ...glide('moderate', '1'),
+      }),
+      // In a column, a bar along the current entry's inline start.
+      Style.nest(`${column} > &`, {
+        inlineSize: ref.border.thick,
+        blockSize: at('chosen', 'h'),
+        marginBlockStart: '0',
+      }),
+      Style.nest(`${column}:dir(rtl) > &`, {
+        translate: `calc(${at('chosen', 'x')} + ${at('chosen', 'w')} - ${ref.border.thick}) ${at('chosen', 'y')}`,
       }),
       Style.nest(fluid, { display: 'var(--fk-nav-chosen-display, none)' }),
     ),
@@ -89,4 +205,35 @@ export const Nav = Style.recipeFor(NavSlots)({
       Style.nest(fluid, { display: 'block' }),
     ),
   },
+  variants: {
+    indicator: {
+      underline: {},
+      // A tinted pill behind the current entry, as a chosen pill tab's.
+      pill: {
+        link: variant(
+          Style.pseudo(current, { color: ref.accent.ink }),
+          Style.nest(unlit(current), { boxShadow: 'none', background: ref.accent.subtle }),
+        ),
+        trigger: variant(
+          Style.pseudo(current, { color: ref.accent.ink }),
+          Style.nest(unlit(current), { boxShadow: 'none', background: ref.accent.subtle }),
+        ),
+        indicator: variant(
+          Style.self({
+            zIndex: '-1',
+            inlineSize: at('chosen', 'w'),
+            blockSize: at('chosen', 'h'),
+            marginBlockStart: '0',
+            translate: `${at('chosen', 'x')} ${at('chosen', 'y')}`,
+            borderRadius: ref.radius.md,
+            background: ref.accent.subtle,
+          }),
+          Style.nest(`${column}:dir(rtl) > &`, {
+            translate: `${at('chosen', 'x')} ${at('chosen', 'y')}`,
+          }),
+        ),
+      },
+    },
+  },
+  defaults: { indicator: 'underline' },
 })
