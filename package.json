@@ -50,7 +50,6 @@
     "foldkit": "0.168.0",
     "oxfmt": "0.73.0",
     "playwright": "^1.64.0",
-    "prettier": "^3.9.10",
     "tsdown": "^0.23.1",
     "tsx": "^4.23.15",
     "typescript": "7.0.2",
