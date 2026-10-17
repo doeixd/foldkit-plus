@@ -35,6 +35,7 @@ import {
   TreeView,
   Carousel,
   Menu,
+  Sheet,
   Command as CommandMenu,
   Toast,
 } from 'foldkit-mixins-ui'
@@ -102,6 +103,16 @@ export type CityExample = typeof CityExample.Type
 
 const CityState = Schema.Struct({ combobox: UiCombobox.Model, city: Schema.Option(Schema.String) })
 
+/** The popover, tooltip, dialog and sheet examples, each with a Model of its own. */
+export const PopoverExample = Schema.Literals(['below', 'top-start', 'no-arrow', 'clipped'])
+export type PopoverExample = typeof PopoverExample.Type
+export const TooltipExample = Schema.Literals(['above', 'right', 'edge'])
+export type TooltipExample = typeof TooltipExample.Type
+export const DialogExample = Schema.Literals(['terms', 'form', 'nested', 'nested-inner'])
+export type DialogExample = typeof DialogExample.Type
+export const SheetExample = Schema.Literals(['drawer', 'right', 'fixed', 'nested', 'nested-inner'])
+export type SheetExample = typeof SheetExample.Type
+
 /** The toast examples, each with a stack of its own, and a stack at each place. */
 export const ToastExample = Schema.Union([
   Schema.Literals(['types', 'promise', 'action', 'rich']),
@@ -124,9 +135,10 @@ export const Model = Schema.Struct({
   volume: Schema.Number,
   dialog: UiDialog.Model,
   alertDialog: UiDialog.Model,
-  sheet: UiDialog.Model,
-  popover: UiPopover.Model,
-  tooltip: UiTooltip.Model,
+  dialogs: Schema.Record(DialogExample, UiDialog.Model),
+  sheets: Schema.Record(SheetExample, Sheet.Model),
+  popovers: Schema.Record(PopoverExample, UiPopover.Model),
+  tooltips: Schema.Record(TooltipExample, UiTooltip.Model),
   /** The menu a button opens and the one a right press opens, and what each last chose. */
   fileMenu: Menu.Model,
   fileChoice: Schema.Option(Schema.String),
@@ -244,8 +256,11 @@ export const Message = defineMessageUnion({
   GotAlertDialog: { message: UiDialog.Message },
   OpenedAlertDialog: {},
   ClosedAlertDialog: {},
-  GotPopover: { message: UiPopover.Message },
-  GotTooltip: { message: UiTooltip.Message },
+  GotPopover: { example: PopoverExample, message: UiPopover.Message },
+  GotTooltip: { example: TooltipExample, message: UiTooltip.Message },
+  GotDialogAt: { example: DialogExample, message: UiDialog.Message },
+  OpenedDialogAt: { example: DialogExample },
+  ClosedDialogAt: { example: DialogExample },
   GotPageMenu: { message: Menu.Message },
   GotListbox: { message: UiListbox.Message },
   GotCombobox: { message: UiCombobox.Message },
@@ -283,9 +298,9 @@ export const Message = defineMessageUnion({
   GotTreeView: { message: TreeView.Message },
   PickedAccent: { value: ColorPicker.Oklch },
   GotTripCalendar: { message: UiCalendar.Message },
-  GotSheet: { message: UiDialog.Message },
-  OpenedSheet: {},
-  ClosedSheet: {},
+  GotSheet: { example: SheetExample, message: Sheet.Message },
+  OpenedSheet: { example: SheetExample },
+  ClosedSheet: { example: SheetExample },
   PressedCopy: { text: Schema.String },
   GotCopy: { message: ClipboardMessage },
   GotTags: { message: TagsInput.Message },
@@ -349,9 +364,30 @@ export const initial: Model = {
   volume: 60,
   dialog: UiDialog.init({ id: 'preview-dialog', isAnimated: true }),
   alertDialog: UiDialog.init({ id: 'preview-alert-dialog', isAnimated: true }),
-  sheet: UiDialog.init({ id: 'preview-sheet', isAnimated: true }),
-  popover: UiPopover.init({ id: 'preview-popover' }),
-  tooltip: UiTooltip.init({ id: 'preview-tooltip' }),
+  dialogs: {
+    terms: UiDialog.init({ id: 'preview-terms', isAnimated: true }),
+    form: UiDialog.init({ id: 'preview-rename-dialog', isAnimated: true }),
+    nested: UiDialog.init({ id: 'preview-share', isAnimated: true }),
+    'nested-inner': UiDialog.init({ id: 'preview-share-link', isAnimated: true }),
+  },
+  sheets: {
+    drawer: Sheet.init({ id: 'preview-sheet', side: 'bottom', points: [0.5, 1] }),
+    right: Sheet.init({ id: 'preview-sheet-right', side: 'right' }),
+    fixed: Sheet.init({ id: 'preview-sheet-fixed', points: [0.4, 0.8], dismissible: false }),
+    nested: Sheet.init({ id: 'preview-sheet-plans' }),
+    'nested-inner': Sheet.init({ id: 'preview-sheet-compare', points: [0.6] }),
+  },
+  popovers: {
+    below: UiPopover.init({ id: 'preview-popover' }),
+    'top-start': UiPopover.init({ id: 'preview-popover-top-start' }),
+    'no-arrow': UiPopover.init({ id: 'preview-popover-no-arrow' }),
+    clipped: UiPopover.init({ id: 'preview-popover-clipped' }),
+  },
+  tooltips: {
+    above: UiTooltip.init({ id: 'preview-tooltip' }),
+    right: UiTooltip.init({ id: 'preview-tooltip-right' }),
+    edge: UiTooltip.init({ id: 'preview-tooltip-edge' }),
+  },
   pageMenu: Menu.init('preview-page-menu', PAGE_MENU, { isAnimated: true }),
   pageChoice: Option.none(),
   listbox: UiListbox.init({ id: 'preview-frequency', isAnimated: true }),
@@ -569,10 +605,37 @@ const closeAlertDialog = Update.foldChildStep({
   foldOutMessage: dialogOut,
 })
 
-const foldPopover = Update.foldChild({
-  ...own('popover', Message.GotPopover),
+const foldPopover = Update.foldChildAt({
   update: UiPopover.update,
-  foldOutMessage: UiPopover.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
+  readAt: (model: Model, example: PopoverExample) => Option.some(model.popovers[example]),
+  writeAt: (model, example, popover) =>
+    modifyFields(model, { popovers: popovers => ({ ...popovers, [example]: popover }) }),
+  toParentMessage: (example, message) => Message.GotPopover({ example, message }),
+  foldOutMessage: () =>
+    UiPopover.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
+})
+
+/** One dialog example stepped: by its own Message, or opened or closed. */
+const foldDialogAt = Update.foldChildAt({
+  update: (
+    dialog: UiDialog.Model,
+    step: (dialog: UiDialog.Model) => ReturnType<typeof UiDialog.update>,
+  ) => step(dialog),
+  readAt: (model: Model, example: DialogExample) => Option.some(model.dialogs[example]),
+  writeAt: (model, example, dialog) =>
+    modifyFields(model, { dialogs: dialogs => ({ ...dialogs, [example]: dialog }) }),
+  toParentMessage: (example, message) => Message.GotDialogAt({ example, message }),
+  foldOutMessage: () => dialogOut,
+})
+
+/** One sheet example stepped: by its own Message, or opened or closed. */
+const foldSheet = Update.foldChildAt({
+  update: (sheet: Sheet.Model, step: (sheet: Sheet.Model) => Sheet.Return) => step(sheet),
+  readAt: (model: Model, example: SheetExample) => Option.some(model.sheets[example]),
+  writeAt: (model, example, sheet) =>
+    modifyFields(model, { sheets: sheets => ({ ...sheets, [example]: sheet }) }),
+  toParentMessage: (example, message) => Message.GotSheet({ example, message }),
+  foldOutMessage: () => dialogOut,
 })
 
 const foldHoverCard = Update.foldChild({
@@ -581,10 +644,13 @@ const foldHoverCard = Update.foldChild({
   foldOutMessage: UiHoverIntent.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
 })
 
-const foldTooltip = Update.foldChild({
-  ...own('tooltip', Message.GotTooltip),
+const foldTooltip = Update.foldChildAt({
   update: UiTooltip.update,
-  foldOutMessage: UiTooltip.OutMessage.match<Step>({ Shown: () => same, Hidden: () => same }),
+  readAt: (model: Model, example: TooltipExample) => Option.some(model.tooltips[example]),
+  writeAt: (model, example, tooltip) =>
+    modifyFields(model, { tooltips: tooltips => ({ ...tooltips, [example]: tooltip }) }),
+  toParentMessage: (example, message) => Message.GotTooltip({ example, message }),
+  foldOutMessage: () => UiTooltip.OutMessage.match<Step>({ Shown: () => same, Hidden: () => same }),
 })
 
 /** What each menu last chose is the Model's; the menu has already closed. */
@@ -833,23 +899,6 @@ const foldTags = Update.foldChild({
   update: TagsInput.update,
 })
 
-const sheetField = own('sheet', Message.GotSheet)
-const foldSheet = Update.foldChild({
-  ...sheetField,
-  update: UiDialog.update,
-  foldOutMessage: dialogOut,
-})
-const openSheet = Update.foldChildStep({
-  ...sheetField,
-  update: UiDialog.open,
-  foldOutMessage: dialogOut,
-})
-const closeSheet = Update.foldChildStep({
-  ...sheetField,
-  update: UiDialog.close,
-  foldOutMessage: dialogOut,
-})
-
 const foldTripCalendar = Update.foldChild({
   ...own('trip', Message.GotTripCalendar),
   update: UiCalendar.update,
@@ -969,11 +1018,16 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       Dialog.isDismissal(message) ? { model } : foldAlertDialog(model, message),
     OpenedAlertDialog: () => openAlertDialog(model),
     ClosedAlertDialog: () => closeAlertDialog(model),
-    GotSheet: ({ message }) => foldSheet(model, message),
-    OpenedSheet: () => openSheet(model),
-    ClosedSheet: () => closeSheet(model),
-    GotPopover: ({ message }) => foldPopover(model, message),
-    GotTooltip: ({ message }) => foldTooltip(model, message),
+    GotSheet: ({ example, message }) =>
+      foldSheet(model, example, sheet => Sheet.update(sheet, message)),
+    OpenedSheet: ({ example }) => foldSheet(model, example, Sheet.open),
+    ClosedSheet: ({ example }) => foldSheet(model, example, Sheet.close),
+    GotDialogAt: ({ example, message }) =>
+      foldDialogAt(model, example, dialog => UiDialog.update(dialog, message)),
+    OpenedDialogAt: ({ example }) => foldDialogAt(model, example, UiDialog.open),
+    ClosedDialogAt: ({ example }) => foldDialogAt(model, example, UiDialog.close),
+    GotPopover: ({ example, message }) => foldPopover(model, example, message),
+    GotTooltip: ({ example, message }) => foldTooltip(model, example, message),
     GotHoverCard: ({ message }) => foldHoverCard(model, message),
     GotFileMenu: ({ message }) => foldFileMenu(model, message),
     TypedCommand: ({ query }) => ({

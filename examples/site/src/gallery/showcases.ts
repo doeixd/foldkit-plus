@@ -6,7 +6,12 @@
  * axes first.
  */
 import { Option } from 'effect'
-import type { Combobox as UiCombobox, Listbox as UiListbox } from '@foldkit/ui'
+import type {
+  Combobox as UiCombobox,
+  Listbox as UiListbox,
+  Popover as UiPopover,
+} from '@foldkit/ui'
+import type * as UiTooltip from '@foldkit/ui/tooltip'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type NamedStyle, type StylePieces } from 'foldkit-mixins'
 import {
@@ -61,6 +66,7 @@ import {
   TabsSlots,
   TextareaSlots,
   ToastSlots,
+  TooltipSlots,
 } from 'foldkit-mixins-ui'
 
 import * as Snippet from '../snippets/components.js'
@@ -390,6 +396,82 @@ const toastTypes =
       type => live.onWidget(Widgets.Message.RaisedToast({ example, type })),
       live.h,
     )
+
+const popoverAt =
+  (
+    example: Widgets.PopoverExample,
+    draw: <Message>(
+      style: NamedStyle<typeof PopoverSlots>,
+      model: UiPopover.Model,
+      toMessage: (message: UiPopover.Message) => Message,
+      h: HtmlBuilder<Message>,
+    ) => Html,
+  ) =>
+  <Message>(style: NamedStyle<typeof PopoverSlots>, live: Live<Message>) =>
+    draw(
+      style,
+      live.widgets.popovers[example],
+      message => live.onWidget(Widgets.Message.GotPopover({ example, message })),
+      live.h,
+    )
+
+const tooltipAt =
+  (
+    example: Widgets.TooltipExample,
+    draw: <Message>(
+      style: NamedStyle<typeof TooltipSlots>,
+      model: UiTooltip.Model,
+      toMessage: (message: UiTooltip.Message) => Message,
+      h: HtmlBuilder<Message>,
+    ) => Html,
+  ) =>
+  <Message>(live: Live<Message>) =>
+    draw(
+      Snippet.TooltipStyle,
+      live.widgets.tooltips[example],
+      message => live.onWidget(Widgets.Message.GotTooltip({ example, message })),
+      live.h,
+    )
+
+const dialogMessages = <Message>(
+  live: Live<Message>,
+  example: Widgets.DialogExample,
+): Snippet.DialogMessages<Message> => ({
+  onOpen: live.onWidget(Widgets.Message.OpenedDialogAt({ example })),
+  onClose: live.onWidget(Widgets.Message.ClosedDialogAt({ example })),
+  toMessage: message => live.onWidget(Widgets.Message.GotDialogAt({ example, message })),
+})
+
+const dialogConfirm = <Message>(style: NamedStyle<typeof DialogSlots>, live: Live<Message>) =>
+  Snippet.dialog(
+    style,
+    { dialog: live.widgets.dialog, alert: live.widgets.alertDialog },
+    {
+      dialog: {
+        onOpen: live.onWidget(Widgets.Message.OpenedDialog()),
+        onClose: live.onWidget(Widgets.Message.ClosedDialog()),
+        toMessage: message => live.onWidget(Widgets.Message.GotDialog({ message })),
+      },
+      alert: {
+        onOpen: live.onWidget(Widgets.Message.OpenedAlertDialog()),
+        onClose: live.onWidget(Widgets.Message.ClosedAlertDialog()),
+        toMessage: message => live.onWidget(Widgets.Message.GotAlertDialog({ message })),
+      },
+    },
+    live.h,
+  )
+
+const sheetMessages = <Message>(
+  live: Live<Message>,
+  example: Widgets.SheetExample,
+): Snippet.SheetMessages<Message> => ({
+  onOpen: live.onWidget(Widgets.Message.OpenedSheet({ example })),
+  onClose: live.onWidget(Widgets.Message.ClosedSheet({ example })),
+  toMessage: message => live.onWidget(Widgets.Message.GotSheet({ example, message })),
+})
+
+const sheetDrawer = <Message>(style: NamedStyle<typeof DialogSlots>, live: Live<Message>) =>
+  Snippet.sheetDrawer(style, live.widgets.sheets.drawer, sheetMessages(live, 'drawer'), live.h)
 
 // Each checkbox example holds its own state: one press toggles one box.
 const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: Live<Message>) =>
@@ -1466,17 +1548,44 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     DialogSlots,
     Recipes.Sheet,
-    (style, live) =>
-      Snippet.sheet(
-        style,
-        live.widgets.sheet,
-        {
-          onOpen: live.onWidget(Widgets.Message.OpenedSheet()),
-          onClose: live.onWidget(Widgets.Message.ClosedSheet()),
-          toMessage: message => live.onWidget(Widgets.Message.GotSheet({ message })),
-        },
-        live.h,
-      ),
+    sheetDrawer,
+    undefined,
+    [
+      { name: 'drawer', title: 'A drawer', draw: sheetDrawer },
+      {
+        name: 'right',
+        title: 'From the side',
+        draw: (style, live) =>
+          Snippet.sheetSide(style, live.widgets.sheets.right, sheetMessages(live, 'right'), live.h),
+        pins: { handle: 'none' },
+      },
+      {
+        name: 'fixed',
+        title: 'Not dismissible',
+        draw: (style, live) =>
+          Snippet.sheetFixed(
+            style,
+            live.widgets.sheets.fixed,
+            sheetMessages(live, 'fixed'),
+            live.h,
+          ),
+      },
+      {
+        name: 'nested',
+        title: 'Nested',
+        draw: (style, live) =>
+          Snippet.sheetNested(
+            style,
+            {
+              outer: live.widgets.sheets.nested,
+              inner: live.widgets.sheets['nested-inner'],
+              outerMessages: sheetMessages(live, 'nested'),
+              innerMessages: sheetMessages(live, 'nested-inner'),
+            },
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1680,24 +1789,48 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     DialogSlots,
     Recipes.Dialog,
-    (style, live) =>
-      Snippet.dialog(
-        style,
-        { dialog: live.widgets.dialog, alert: live.widgets.alertDialog },
-        {
-          dialog: {
-            onOpen: live.onWidget(Widgets.Message.OpenedDialog()),
-            onClose: live.onWidget(Widgets.Message.ClosedDialog()),
-            toMessage: message => live.onWidget(Widgets.Message.GotDialog({ message })),
-          },
-          alert: {
-            onOpen: live.onWidget(Widgets.Message.OpenedAlertDialog()),
-            onClose: live.onWidget(Widgets.Message.ClosedAlertDialog()),
-            toMessage: message => live.onWidget(Widgets.Message.GotAlertDialog({ message })),
-          },
-        },
-        live.h,
-      ),
+    dialogConfirm,
+    undefined,
+    [
+      { name: 'confirm', title: 'Confirm', draw: dialogConfirm },
+      {
+        name: 'terms',
+        title: 'A long body',
+        draw: (style, live) =>
+          Snippet.dialogTerms(
+            style,
+            live.widgets.dialogs.terms,
+            dialogMessages(live, 'terms'),
+            live.h,
+          ),
+      },
+      {
+        name: 'form',
+        title: 'A form',
+        draw: (style, live) =>
+          Snippet.dialogForm(
+            style,
+            live.widgets.dialogs.form,
+            dialogMessages(live, 'form'),
+            live.h,
+          ),
+      },
+      {
+        name: 'nested',
+        title: 'Nested',
+        draw: (style, live) =>
+          Snippet.dialogNested(
+            style,
+            {
+              outer: live.widgets.dialogs.nested,
+              inner: live.widgets.dialogs['nested-inner'],
+              outerMessages: dialogMessages(live, 'nested'),
+              innerMessages: dialogMessages(live, 'nested-inner'),
+            },
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -1710,13 +1843,27 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     PopoverSlots,
     Recipes.Popover,
-    (style, live) =>
-      Snippet.popover(
-        style,
-        live.widgets.popover,
-        message => live.onWidget(Widgets.Message.GotPopover({ message })),
-        live.h,
-      ),
+    popoverAt('below', Snippet.popover),
+    undefined,
+    [
+      { name: 'below', title: 'Below', draw: popoverAt('below', Snippet.popover) },
+      {
+        name: 'top-start',
+        title: 'Top start',
+        draw: popoverAt('top-start', Snippet.popoverTopStart),
+      },
+      {
+        name: 'no-arrow',
+        title: 'No arrow',
+        draw: popoverAt('no-arrow', Snippet.popover),
+        pins: { arrow: 'none' },
+      },
+      {
+        name: 'clipped',
+        title: 'In a clipped card',
+        draw: popoverAt('clipped', Snippet.popoverClipped),
+      },
+    ],
   ),
   fixed(
     {
@@ -1727,13 +1874,12 @@ export const showcases: ReadonlyArray<Showcase> = [
       file: 'tooltip',
       contract: 'TooltipSlots',
     },
-    live =>
-      Snippet.tooltip(
-        Snippet.TooltipStyle,
-        live.widgets.tooltip,
-        message => live.onWidget(Widgets.Message.GotTooltip({ message })),
-        live.h,
-      ),
+    tooltipAt('above', Snippet.tooltip),
+    [
+      { name: 'above', title: 'Above', draw: tooltipAt('above', Snippet.tooltip) },
+      { name: 'right', title: 'Right', draw: tooltipAt('right', Snippet.tooltipRight) },
+      { name: 'edge', title: 'At the edge', draw: tooltipAt('edge', Snippet.tooltipEdge) },
+    ],
   ),
   fromRecipe(
     {

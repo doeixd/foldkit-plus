@@ -14,7 +14,7 @@ import {
   Tabs as UiTabs,
 } from '@foldkit/ui'
 import { Option } from 'effect'
-import { Calendar as DateSelection, InputCopy, Menu } from 'foldkit-mixins-ui'
+import { Calendar as DateSelection, InputCopy, Menu, Sheet } from 'foldkit-mixins-ui'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
 import { describe, expect, it } from 'vitest'
 
@@ -353,5 +353,21 @@ describe('the menu, command and toast previews', () => {
     expect(finished.widgets.toasts.promise.entries.map(entry => [entry.type, entry.title])).toEqual(
       [['success', 'Uploaded']],
     )
+  })
+})
+
+describe('the overlay previews', () => {
+  it('open and close each dialog and sheet on its own', () => {
+    const terms = send(Widgets.Message.OpenedDialogAt({ example: 'terms' }))
+    expect(terms.widgets.dialogs.terms.isOpen).toBe(true)
+    expect(terms.widgets.dialogs.form.isOpen).toBe(false)
+    const drawer = send(Widgets.Message.OpenedSheet({ example: 'drawer' }))
+    expect(Sheet.isOpen(drawer.widgets.sheets.drawer)).toBe(true)
+    expect(Sheet.isOpen(drawer.widgets.sheets.right)).toBe(false)
+    const shut = update(
+      drawer,
+      Message.GotWidget({ message: Widgets.Message.ClosedSheet({ example: 'drawer' }) }),
+    ).model
+    expect(Sheet.isOpen(shut.widgets.sheets.drawer)).toBe(false)
   })
 })

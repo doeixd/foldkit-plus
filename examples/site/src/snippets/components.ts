@@ -23,6 +23,7 @@ import * as UiSelect from '@foldkit/ui/select'
 import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import type * as UiVirtualList from '@foldkit/ui/virtualList'
+import type { AnchorConfig } from '@foldkit/ui/anchor'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import {
@@ -128,6 +129,7 @@ import {
   SelectSlots,
   Separator,
   SeparatorSlots,
+  Sheet,
   Skeleton,
   SkeletonSlots,
   Slider,
@@ -149,7 +151,7 @@ import {
   TooltipSlots,
 } from 'foldkit-mixins-ui'
 
-import { forSlots } from './theme.js'
+import { forSlots, slots } from './theme.js'
 
 // #region button-basic
 export const ButtonStyle = forSlots(ButtonSlots)(Recipes.Button({}))
@@ -1879,7 +1881,7 @@ export const slider = <Message>(
   )
 // #endregion
 
-// #region dialog
+// #region dialog-confirm
 export const DialogStyle = forSlots(DialogSlots)(Recipes.Dialog({}))
 const DangerStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' }))
 const QuietStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'ghost' }))
@@ -1999,22 +2001,253 @@ export const dialog = <Message>(
   )
 // #endregion
 
-// #region popover
+// #region dialog-terms
+const TERMS = [
+  'You keep the rights to what you make here. We keep a copy only to show it to the people you share it with.',
+  'We delete a closed account’s pages after thirty days, unless the law asks us to keep them longer.',
+  'We do not sell what we learn about you, and we tell you before a change to these terms takes effect.',
+  'A page you publish is public: anyone with its link can read it, and search engines may list it.',
+  'You may not use the service to break the law, or to send what no one asked for.',
+  'Either of us may end this agreement with notice; what you made stays yours to download for thirty days.',
+]
+
+// A body longer than the screen scrolls under the heading, its own bar
+// drawn by `Dialog.overlayBars`, while the footer's answers stay in view.
+export const dialogTerms = <Message>(
+  style: NamedStyle<typeof DialogSlots>,
+  model: UiDialog.Model,
+  messages: DialogMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      Button.view({ label: 'Read the terms', onClick: messages.onOpen, style: GroupedStyle }, h),
+      h.submodel({
+        slotId: model.id,
+        model,
+        view: UiDialog.view,
+        viewInputs: {
+          toView: Dialog.toView([style.mixin, ...Dialog.overlayBars], { h }, dialog =>
+            h.dialog(
+              dialog.dialog,
+              dialog.isVisible
+                ? [
+                    h.div(dialog.backdrop),
+                    h.div(dialog.panel, [
+                      h.h2(dialog.title, ['Terms of service']),
+                      h.div(dialog.body, [
+                        h.div(
+                          dialog.scroll,
+                          [...TERMS, ...TERMS].map(term => h.p([], [term])),
+                        ),
+                        h.div(dialog.scrollBar, [h.div(dialog.scrollThumb)]),
+                      ]),
+                      h.div(dialog.footer, [
+                        Button.view(
+                          { label: 'Cancel', onClick: messages.onClose, style: QuietStyle },
+                          h,
+                        ),
+                        Button.view(
+                          { label: 'Accept', onClick: messages.onClose, style: ButtonStyle },
+                          h,
+                        ),
+                      ]),
+                    ]),
+                  ]
+                : [],
+            ),
+          ),
+        },
+        toParentMessage: messages.toMessage,
+      }),
+    ],
+  )
+// #endregion
+
+// #region dialog-form
+// A form in the body, its submit button in the footer: `form` ties the two,
+// so Enter in a field submits it too.
+export const dialogForm = <Message>(
+  style: NamedStyle<typeof DialogSlots>,
+  model: UiDialog.Model,
+  messages: DialogMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      Button.view({ label: 'Rename page', onClick: messages.onOpen, style: GroupedStyle }, h),
+      h.submodel({
+        slotId: model.id,
+        model,
+        view: UiDialog.view,
+        viewInputs: {
+          toView: Dialog.toView([style.mixin], { h }, dialog =>
+            h.dialog(
+              dialog.dialog,
+              dialog.isVisible
+                ? [
+                    h.div(dialog.backdrop),
+                    h.div(dialog.panel, [
+                      h.button(dialog.closeButton, ['✕']),
+                      h.h2(dialog.title, ['Rename page']),
+                      h.div(dialog.body, [
+                        h.div(dialog.scroll, [
+                          h.form(
+                            [h.Id('preview-rename'), h.OnSubmit(messages.onClose)],
+                            [
+                              Input.view(
+                                {
+                                  id: 'preview-rename-title',
+                                  value: 'Quarterly plan',
+                                  style: InputStyle,
+                                  draw: (resolved, h) =>
+                                    h.div(
+                                      [],
+                                      [h.label(resolved.label, ['Title']), h.input(resolved.input)],
+                                    ),
+                                },
+                                h,
+                              ),
+                            ],
+                          ),
+                        ]),
+                      ]),
+                      h.div(dialog.footer, [
+                        Button.view(
+                          { label: 'Cancel', onClick: messages.onClose, style: QuietStyle },
+                          h,
+                        ),
+                        h.button(
+                          SlotView.buildersFor(ButtonSlots, [ButtonStyle.mixin], {
+                            input: undefined,
+                            h,
+                          }).button.attrs([h.Type('submit'), h.FormAttr('preview-rename')]),
+                          ['Rename'],
+                        ),
+                      ]),
+                    ]),
+                  ]
+                : [],
+            ),
+          ),
+        },
+        toParentMessage: messages.toMessage,
+      }),
+    ],
+  )
+// #endregion
+
+// #region dialog-nested
+/** The two dialogs, the second opened from the first. */
+export interface NestedDialogs<Message> {
+  readonly outer: UiDialog.Model
+  readonly inner: UiDialog.Model
+  readonly outerMessages: DialogMessages<Message>
+  readonly innerMessages: DialogMessages<Message>
+}
+
+// A dialog opened from another: the inner one is drawn inside the outer
+// `dialog`, beside its panel, and the outer panel steps back while it is
+// open (`covered`). Escape closes the inner one first.
+export const dialogNested = <Message>(
+  style: NamedStyle<typeof DialogSlots>,
+  dialogs: NestedDialogs<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const inner = h.submodel({
+    slotId: dialogs.inner.id,
+    model: dialogs.inner,
+    view: UiDialog.view,
+    viewInputs: {
+      toView: Dialog.toView([style.mixin], { h }, dialog =>
+        h.dialog(
+          dialog.dialog,
+          dialog.isVisible
+            ? [
+                h.div(dialog.backdrop),
+                h.div(dialog.panel, [
+                  h.h2(dialog.title, ['Invite by link']),
+                  h.p([], ['Anyone with the link joins as a viewer.']),
+                  h.div(dialog.footer, [
+                    Button.view(
+                      { label: 'Done', onClick: dialogs.innerMessages.onClose, style: ButtonStyle },
+                      h,
+                    ),
+                  ]),
+                ]),
+              ]
+            : [],
+        ),
+      ),
+    },
+    toParentMessage: dialogs.innerMessages.toMessage,
+  })
+  return h.div(
+    [],
+    [
+      Button.view(
+        { label: 'Share', onClick: dialogs.outerMessages.onOpen, style: GroupedStyle },
+        h,
+      ),
+      h.submodel({
+        slotId: dialogs.outer.id,
+        model: dialogs.outer,
+        view: UiDialog.view,
+        viewInputs: {
+          toView: Dialog.toView([style.mixin], { h, covered: dialogs.inner.isOpen }, dialog =>
+            h.dialog(
+              dialog.dialog,
+              dialog.isVisible
+                ? [
+                    h.div(dialog.backdrop),
+                    h.div(dialog.panel, [
+                      h.button(dialog.closeButton, ['✕']),
+                      h.h2(dialog.title, ['Share “Quarterly plan”']),
+                      h.p([], ['Three people can edit it.']),
+                      h.div(dialog.footer, [
+                        Button.view(
+                          {
+                            label: 'Invite by link',
+                            onClick: dialogs.innerMessages.onOpen,
+                            style: ButtonStyle,
+                          },
+                          h,
+                        ),
+                      ]),
+                    ]),
+                    inner,
+                  ]
+                : [],
+            ),
+          ),
+        },
+        toParentMessage: dialogs.outerMessages.toMessage,
+      }),
+    ],
+  )
+}
+// #endregion
+
+// #region popover-below
 export const PopoverStyle = forSlots(PopoverSlots)(Recipes.Popover({}))
 
+// In the browser's top layer, `Popover.anchor()` below its trigger by
+// default, kept inside the viewport; the arrow points back at the trigger.
 export const popover = <Message>(
   style: NamedStyle<typeof PopoverSlots>,
   model: UiPopover.Model,
   toMessage: (message: UiPopover.Message) => Message,
   h: HtmlBuilder<Message>,
+  anchor: AnchorConfig = Popover.anchor(),
 ): Html =>
   h.submodel({
     slotId: model.id,
     model,
     view: UiPopover.view,
     viewInputs: {
-      // In place: a portal moves the panel out of the page that drew it.
-      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      anchor,
       toView: Popover.toView([style.mixin], { h }, popover =>
         h.div(
           [],
@@ -2023,7 +2256,12 @@ export const popover = <Message>(
             ...(popover.isVisible
               ? [
                   h.div(popover.backdrop, []),
-                  h.div(popover.panel, [h.p([], ['Anyone with the link can view this page.'])]),
+                  h.div(popover.layer, [
+                    h.div(popover.panel, [
+                      h.div(popover.arrow, []),
+                      h.p([], ['Anyone with the link can view this page.']),
+                    ]),
+                  ]),
                 ]
               : []),
           ],
@@ -2034,27 +2272,77 @@ export const popover = <Message>(
   })
 // #endregion
 
-// #region tooltip
+// #region popover-top-start
+// Above its trigger, their start edges lined up; it flips below when there is no room.
+export const popoverTopStart = <Message>(
+  style: NamedStyle<typeof PopoverSlots>,
+  model: UiPopover.Model,
+  toMessage: (message: UiPopover.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => popover(style, model, toMessage, h, Popover.anchor({ placement: 'top-start' }))
+// #endregion
+
+// #region popover-no-arrow
+// The same panel with no arrow, drawn by `popover`.
+export const PopoverNoArrowStyle = forSlots(PopoverSlots)(Recipes.Popover({ arrow: 'none' }))
+// #endregion
+
+// #region popover-clipped
+// Its trigger in a card that clips what overflows it: the panel, in the top
+// layer, paints past the card's edge all the same.
+export const popoverClipped = <Message>(
+  style: NamedStyle<typeof PopoverSlots>,
+  model: UiPopover.Model,
+  toMessage: (message: UiPopover.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [
+      h.Style({
+        overflow: 'hidden',
+        padding: '1rem',
+        blockSize: '4.5rem',
+        border: '1px dashed currentColor',
+        borderRadius: '0.5rem',
+      }),
+    ],
+    [popover(style, model, toMessage, h)],
+  )
+// #endregion
+
+// #region tooltip-above
 export const TooltipStyle = forSlots(TooltipSlots)(Recipes.Tooltip({}))
 
+// In the top layer, `Tooltip.anchor()` above its trigger by default; the
+// arrow points at the trigger, which `toView` finds by the Tooltip's id.
 export const tooltip = <Message>(
   style: NamedStyle<typeof TooltipSlots>,
   model: UiTooltip.Model,
   toMessage: (message: UiTooltip.Message) => Message,
   h: HtmlBuilder<Message>,
+  anchor: AnchorConfig = Tooltip.anchor(),
 ): Html =>
   h.submodel({
     slotId: model.id,
     model,
     view: UiTooltip.view,
     viewInputs: {
-      anchor: { placement: 'top', gap: 6, padding: 8, portal: false },
-      toView: Tooltip.toView([style.mixin], { h, id: model.id }, ({ trigger, panel, isVisible }) =>
+      anchor,
+      toView: Tooltip.toView([style.mixin], { h, id: model.id }, tooltip =>
         h.div(
           [],
           [
-            h.button(trigger, ['Autosave']),
-            ...(isVisible ? [h.span(panel, ['Saved a second after you stop typing'])] : []),
+            h.button(tooltip.trigger, ['Autosave']),
+            ...(tooltip.isVisible
+              ? [
+                  h.div(tooltip.layer, [
+                    h.div(tooltip.panel, [
+                      h.span(tooltip.arrow, []),
+                      'Saved a second after you stop typing',
+                    ]),
+                  ]),
+                ]
+              : []),
           ],
         ),
       ),
@@ -2063,9 +2351,36 @@ export const tooltip = <Message>(
   })
 // #endregion
 
+// #region tooltip-right
+// Beside its trigger, at the end of the line.
+export const tooltipRight = <Message>(
+  style: NamedStyle<typeof TooltipSlots>,
+  model: UiTooltip.Model,
+  toMessage: (message: UiTooltip.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => tooltip(style, model, toMessage, h, Tooltip.anchor({ placement: 'right' }))
+// #endregion
+
+// #region tooltip-edge
+// A trigger at the viewport's edge: the pill shifts to stay 8px inside it,
+// and the arrow still points at the trigger.
+export const tooltipEdge = <Message>(
+  style: NamedStyle<typeof TooltipSlots>,
+  model: UiTooltip.Model,
+  toMessage: (message: UiTooltip.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', justifyContent: 'end' })],
+    [tooltip(style, model, toMessage, h)],
+  )
+// #endregion
+
 // #region hover-card
 export const HoverCardStyle = forSlots(HoverIntentSlots)(Recipes.HoverCard({}))
 
+// `anchored` gives the trigger its id and places the card against it in the
+// top layer (`HoverIntent.anchor()` unless given), its arrow at the trigger.
 export const hoverCard = <Message>(
   style: NamedStyle<typeof HoverIntentSlots>,
   model: UiHoverIntent.Model,
@@ -2077,33 +2392,27 @@ export const hoverCard = <Message>(
     model,
     view: UiHoverIntent.view,
     viewInputs: {
-      focusTriggerSelector: '#preview-hover-card-trigger',
-      toView: HoverIntent.toView([style.mixin], { h }, ({ trigger, panel, isVisible }) =>
-        h.span(
-          [],
-          [
-            h.button([...trigger, h.Id('preview-hover-card-trigger'), h.Type('button')], ['@ada']),
-            ...(isVisible
-              ? [
-                  h.div(
-                    [
-                      ...panel,
-                      h.OnMount(
-                        Anchor.Anchor({
-                          buttonId: 'preview-hover-card-trigger',
-                          anchor: { placement: 'bottom-start', gap: 8, padding: 8, portal: false },
-                        }),
-                      ),
-                    ],
-                    [
+      focusTriggerSelector: `#${HoverIntent.triggerId('preview-hover-card')}`,
+      toView: HoverIntent.toView(
+        [style.mixin],
+        // Start-aligned, so the arrow at the trigger is not the card's middle.
+        { h, anchored: { id: 'preview-hover-card', anchor: { placement: 'bottom-start' } } },
+        ({ trigger, panel, arrow, isVisible }) =>
+          h.span(
+            [],
+            [
+              h.button([...trigger, h.Type('button')], ['@ada']),
+              ...(isVisible
+                ? [
+                    h.div(panel, [
+                      h.div(arrow, []),
                       h.p([], ['Ada Lovelace']),
                       h.p([], ['Wrote the first program. 3 projects, 12 followers.']),
-                    ],
-                  ),
-                ]
-              : []),
-          ],
-        ),
+                    ]),
+                  ]
+                : []),
+            ],
+          ),
       ),
     },
     toParentMessage: toMessage,
@@ -3801,61 +4110,248 @@ export const inputCopy = <Message>(
   )
 // #endregion
 
-// #region sheet
-/**
- * The Dialog drawn with the Sheet recipe: the same Model, Messages and focus
- * trap. The handle is drawn always; the recipe shows it with `handle: 'bar'`.
- */
-export const sheet = <Message>(
+// #region sheet-drawer
+/** The application's page, stepped back behind a sheet drawn with `scalesPage`. */
+export const SheetPage = slots({ page: Recipes.sheetPage })
+
+/** The Messages that open and close a sheet, and the one that wraps its own. */
+export interface SheetMessages<Message> {
+  readonly onOpen: Message
+  readonly onClose: Message
+  readonly toMessage: (message: Sheet.Message) => Message
+}
+
+// Opens at half its height, `Sheet.init({ points: [0.5, 1] })`: its handle
+// drags it to the next point, and down past the first one away. The page
+// beside it, not around it, steps back while it is open.
+export const sheetDrawer = <Message>(
   style: NamedStyle<typeof DialogSlots>,
-  model: UiDialog.Model,
-  messages: DialogMessages<Message>,
+  model: Sheet.Model,
+  messages: SheetMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      h.div(
+        SlotView.buildersFor(SheetPage.slots, [SheetPage.style.mixin], {
+          input: undefined,
+          h,
+        }).page.attrs([h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })]),
+        [
+          h.p([], ['Twelve results near you.']),
+          Button.view({ label: 'Filters', onClick: messages.onOpen, style: GroupedStyle }, h),
+        ],
+      ),
+      Sheet.view(
+        {
+          model,
+          onMessage: messages.toMessage,
+          mixins: [style.mixin],
+          scalesPage: true,
+          draw: sheet =>
+            h.dialog(
+              sheet.dialog,
+              sheet.isVisible
+                ? [
+                    h.div(sheet.backdrop),
+                    h.div(sheet.panel, [
+                      h.div(sheet.handle),
+                      h.h2(sheet.title, ['Filters']),
+                      h.p([], ['Only what is in stock, nearest first.']),
+                      h.p([], ['Drag the handle up for every filter, or down to close.']),
+                      Button.view(
+                        { label: 'Show results', onClick: messages.onClose, style: ButtonStyle },
+                        h,
+                      ),
+                    ]),
+                  ]
+                : [],
+            ),
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region sheet-right
+// From the end edge, `Sheet.init({ side: 'right' })`, with no handle: a side panel.
+export const sheetSide = <Message>(
+  style: NamedStyle<typeof DialogSlots>,
+  model: Sheet.Model,
+  messages: SheetMessages<Message>,
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
     [],
     [
       Button.view({ label: 'Edit profile', onClick: messages.onOpen, style: GroupedStyle }, h),
-      h.submodel({
-        slotId: model.id,
-        model,
-        view: UiDialog.view,
-        viewInputs: {
+      Sheet.view(
+        {
+          model,
+          onMessage: messages.toMessage,
+          mixins: [style.mixin],
           hasDescription: true,
-          toView: Dialog.toView([style.mixin], { h }, dialog =>
+          draw: sheet =>
             h.dialog(
-              dialog.dialog,
-              dialog.isVisible
+              sheet.dialog,
+              sheet.isVisible
                 ? [
-                    h.div(dialog.backdrop),
-                    h.div(dialog.panel, [
-                      h.div(dialog.handle),
-                      h.button(dialog.closeButton, ['✕']),
-                      h.h2(dialog.title, ['Edit profile']),
-                      h.p(dialog.description, ['Changes show once you save. Escape keeps them.']),
-                      h.div(
-                        [h.Style({ display: 'flex', gap: '0.5rem', justifyContent: 'end' })],
-                        [
-                          Button.view(
-                            { label: 'Cancel', onClick: messages.onClose, style: QuietStyle },
-                            h,
-                          ),
-                          Button.view(
-                            { label: 'Save', onClick: messages.onClose, style: ButtonStyle },
-                            h,
-                          ),
-                        ],
+                    h.div(sheet.backdrop),
+                    h.div(sheet.panel, [
+                      h.button(sheet.closeButton, ['✕']),
+                      h.h2(sheet.title, ['Edit profile']),
+                      h.p(sheet.description, ['Changes show once you save. Escape keeps them.']),
+                      h.div(sheet.footer, [
+                        Button.view(
+                          { label: 'Cancel', onClick: messages.onClose, style: QuietStyle },
+                          h,
+                        ),
+                        Button.view(
+                          { label: 'Save', onClick: messages.onClose, style: ButtonStyle },
+                          h,
+                        ),
+                      ]),
+                    ]),
+                  ]
+                : [],
+            ),
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region sheet-fixed
+// `Sheet.init({ dismissible: false })`: a drag moves it between its points
+// and springs back, but never takes it away; only its button closes it.
+export const sheetFixed = <Message>(
+  style: NamedStyle<typeof DialogSlots>,
+  model: Sheet.Model,
+  messages: SheetMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      Button.view({ label: 'Start checkout', onClick: messages.onOpen, style: GroupedStyle }, h),
+      Sheet.view(
+        {
+          model,
+          onMessage: messages.toMessage,
+          mixins: [style.mixin],
+          draw: sheet =>
+            h.dialog(
+              sheet.dialog,
+              sheet.isVisible
+                ? [
+                    h.div(sheet.backdrop),
+                    h.div(sheet.panel, [
+                      h.div(sheet.handle),
+                      h.h2(sheet.title, ['Confirm your order']),
+                      h.p([], ['Two items, delivered on Thursday.']),
+                      Button.view(
+                        { label: 'Place order', onClick: messages.onClose, style: ButtonStyle },
+                        h,
                       ),
                     ]),
                   ]
                 : [],
             ),
-          ),
         },
-        toParentMessage: messages.toMessage,
-      }),
+        h,
+      ),
     ],
   )
+// #endregion
+
+// #region sheet-nested
+/** The two sheets, the second opened from the first. */
+export interface NestedSheets<Message> {
+  readonly outer: Sheet.Model
+  readonly inner: Sheet.Model
+  readonly outerMessages: SheetMessages<Message>
+  readonly innerMessages: SheetMessages<Message>
+}
+
+// A sheet opened from another: drawn inside the first one's `dialog`, beside
+// its panel, as nested dialogs are, and the first steps back while it is open
+// (`covered`).
+export const sheetNested = <Message>(
+  style: NamedStyle<typeof DialogSlots>,
+  sheets: NestedSheets<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const inner = Sheet.view(
+    {
+      model: sheets.inner,
+      onMessage: sheets.innerMessages.toMessage,
+      mixins: [style.mixin],
+      draw: sheet =>
+        h.dialog(
+          sheet.dialog,
+          sheet.isVisible
+            ? [
+                h.div(sheet.backdrop),
+                h.div(sheet.panel, [
+                  h.div(sheet.handle),
+                  h.h2(sheet.title, ['Compare plans']),
+                  h.p([], ['Starter is free; Team is $12 an editor; Business adds sign-on.']),
+                  Button.view(
+                    { label: 'Back', onClick: sheets.innerMessages.onClose, style: ButtonStyle },
+                    h,
+                  ),
+                ]),
+              ]
+            : [],
+        ),
+    },
+    h,
+  )
+  return h.div(
+    [],
+    [
+      Button.view(
+        { label: 'Choose a plan', onClick: sheets.outerMessages.onOpen, style: GroupedStyle },
+        h,
+      ),
+      Sheet.view(
+        {
+          model: sheets.outer,
+          onMessage: sheets.outerMessages.toMessage,
+          mixins: [style.mixin],
+          covered: Sheet.isOpen(sheets.inner),
+          draw: sheet =>
+            h.dialog(
+              sheet.dialog,
+              sheet.isVisible
+                ? [
+                    h.div(sheet.backdrop),
+                    h.div(sheet.panel, [
+                      h.div(sheet.handle),
+                      h.h2(sheet.title, ['Plans']),
+                      h.p([], ['Team: ten editors and every page.']),
+                      Button.view(
+                        {
+                          label: 'Compare plans',
+                          onClick: sheets.innerMessages.onOpen,
+                          style: ButtonStyle,
+                        },
+                        h,
+                      ),
+                    ]),
+                    inner,
+                  ]
+                : [],
+            ),
+        },
+        h,
+      ),
+    ],
+  )
+}
 // #endregion
 
 // #region color-picker
