@@ -439,7 +439,7 @@ decides adopt, adapt or skip.
   the APG): width matched to the input and configurable (A4); icons and
   descriptions; multiple selection with chips (TagsInput synergy); async
   loading; creatable; groups; matched text highlighted; an empty state;
-  clear; long lists through VirtualList. **Integrated**: chips, clear, empty and loading, groups, creatable, the typed text marked; `Combobox.draw` through `drawCombobox`'s `beforeInput`/`afterInput`/`afterPanel` (9ae2b484) (components fc7fb1c9…340a5273; gallery 0a4e23f4; docs 277f601f, ad07a67c, c134284c.) Long lists through VirtualList stay open (an upstream row seam).
+  clear; long lists through VirtualList. **Integrated**: chips, clear, empty and loading, groups, creatable, the typed text marked; `Combobox.draw` through `drawCombobox`'s `beforeInput`/`afterInput`/`afterPanel` (9ae2b484) (components fc7fb1c9…340a5273; gallery 0a4e23f4; docs 277f601f, ad07a67c, c134284c.) Long lists through VirtualList stay open (an upstream row seam, filed as foldkit/foldkit#1690).
 - **Dates.** Merge (A9). Typography like shadcn's and ReUI's (weights,
   tabular numbers, muted weekday labels and outside days). Edge cases: min
   and max, disabled dates, outside days, the locale's first day, week
@@ -766,13 +766,13 @@ green commit. Shared history is not rewritten.
 Needs `@foldkit/ui` (open):
 
 - [ ] A non-modal Dialog: `InitConfig.isModal?` passed to `showDialog` and
-  `AcquireResources`, skipping the scroll lock when false; it gives a non-modal Sheet.
+  `AcquireResources`, skipping the scroll lock when false; it gives a non-modal Sheet. Filed: foldkit/foldkit#1686.
 - [ ] The Tooltip's arrow: `arrowId(id)` and an `arrow` bundle in its `RenderInfo`, so
-  `PlaceArrow` and its `!important` override can go.
+  `PlaceArrow` and its `!important` override can go. Filed: foldkit/foldkit#1687.
 - [ ] Collision inside a top-layer ancestor: a `boundary`/`rootBoundary` in
-  `AnchorConfig`, or a top layer the anchor owns (foldkit/foldkit#1683).
+  `AnchorConfig`, or a top layer the anchor owns (foldkit/foldkit#1683). Filed: foldkit/foldkit#1688.
 - [ ] A modal `<dialog>` in the top layer: upstream opens it with `show()` and a z-index,
-  so a transformed ancestor captures it.
+  so a transformed ancestor captures it. Filed: foldkit/foldkit#1689 (an opt-in; `show()` is deliberate, for DevTools).
 
 ## Part D: sequence
 
