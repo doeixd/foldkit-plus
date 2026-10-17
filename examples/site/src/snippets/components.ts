@@ -151,6 +151,38 @@ import {
   ToastView,
   Tooltip,
   TooltipSlots,
+  ChatMessage,
+  ChatMessageGroupSlots,
+  ChatMessageSlots,
+  MessageScroller,
+  MessageScrollerSlots,
+  ThinkingIndicator,
+  ThinkingIndicatorSlots,
+  ThinkingSteps,
+  ThinkingStepsSlots,
+  type ThinkingStep,
+  Questionnaire,
+  QuestionnaireSlots,
+  AngleSlider,
+  AngleSliderSlots,
+  Timer,
+  TimerSlots,
+  Marquee,
+  MarqueeSlots,
+  ImageCropper,
+  ImageCropperSlots,
+  SignaturePad,
+  SignaturePadSlots,
+  QrCode,
+  QrCodeSlots,
+  Chart,
+  ChartSlots,
+  CascadeSelect,
+  CascadeSelectSlots,
+  FloatingPanel,
+  FloatingPanelSlots,
+  Tour,
+  TourSlots,
 } from 'foldkit-mixins-ui'
 
 import { forSlots, slots } from './theme.js'
@@ -5853,4 +5885,1137 @@ export const SegmentedFullStyle = forSlots(SegmentedSlots)(Recipes.Segmented({ w
 export const SegmentedUnderlineStyle = forSlots(SegmentedSlots)(
   Recipes.Segmented({ tray: 'underline' }),
 )
+// #endregion
+
+// #region chat-message-basic
+export const ChatMessageStyle = forSlots(ChatMessageSlots)(Recipes.ChatMessage({}))
+export const ChatMessageGroupStyle = forSlots(ChatMessageGroupSlots)(Recipes.ChatMessageGroup({}))
+const ChatAvatarStyle = forSlots(AvatarSlots)(Recipes.Avatar({ size: 'sm' }))
+
+/** A conversation's column, as a chat pane would give it. */
+const chatColumn = <Message>(h: HtmlBuilder<Message>, content: Html): Html =>
+  h.div([h.Style({ inlineSize: 'min(32rem, 100%)' })], [content])
+
+// A question and its answer. What each action sends is the application's:
+// copy runs a clipboard Command, and a toggle such as "Good answer" is
+// `pressed` from the Model.
+export const chatMessage = <Message>(
+  style: NamedStyle<typeof ChatMessageSlots>,
+  liked: boolean,
+  messages: { readonly onCopy: Message; readonly onLike: Message },
+  h: HtmlBuilder<Message>,
+): Html =>
+  chatColumn(
+    h,
+    ChatMessage.group(
+      {
+        items: [
+          {
+            key: 'question',
+            from: 'user',
+            content: 'Which sizes does the ladder have?',
+            time: { at: '2026-10-17T09:30', label: '9:30' },
+          },
+          {
+            key: 'answer',
+            from: 'assistant',
+            author: 'Ada',
+            avatar: Avatar.view({ name: 'Ada Lovelace', style: ChatAvatarStyle }, h),
+            content: 'Two ends, 36px and 28px, with the step knob between them.',
+            actions: [
+              { key: 'copy', label: 'Copy', onClick: messages.onCopy },
+              { key: 'like', label: 'Good answer', onClick: messages.onLike, pressed: liked },
+            ],
+            pinActions: true,
+          },
+        ],
+        style: ChatMessageGroupStyle,
+        messageStyle: style,
+      },
+      h,
+    ),
+  )
+// #endregion
+
+// #region chat-message-status
+// A message the server refused offers a retry; one still on its way says so.
+export const chatMessageStatus = <Message>(
+  style: NamedStyle<typeof ChatMessageSlots>,
+  retried: boolean,
+  onRetry: Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  chatColumn(
+    h,
+    ChatMessage.group(
+      {
+        items: [
+          { key: 'sent', from: 'user', content: 'Book the room for Friday.', status: 'sent' },
+          retried
+            ? { key: 'failed', from: 'user', content: 'And invite Grace.', status: 'sent' }
+            : {
+                key: 'failed',
+                from: 'user',
+                content: 'And invite Grace.',
+                status: 'failed',
+                onRetry,
+              },
+          { key: 'sending', from: 'user', content: 'Thanks!', status: 'sending' },
+        ],
+        style: ChatMessageGroupStyle,
+        messageStyle: style,
+      },
+      h,
+    ),
+  )
+// #endregion
+
+// #region chat-message-thread
+export const ChatThreadStyle = forSlots(ChatMessageSlots)(Recipes.ChatMessage({ layout: 'thread' }))
+
+// A channel: everyone at the start beside their picture, and a sender's next
+// messages continued under the first.
+export const chatMessageThread = <Message>(
+  style: NamedStyle<typeof ChatMessageSlots>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const person = (name: string) => Avatar.view({ name, style: ChatAvatarStyle }, h)
+  return chatColumn(
+    h,
+    ChatMessage.group(
+      {
+        items: [
+          {
+            key: 'deploy',
+            from: 'assistant',
+            author: 'Grace',
+            avatar: person('Grace Hopper'),
+            content: 'Deploy is green.',
+            time: { at: '2026-10-17T10:02', label: '10:02' },
+          },
+          {
+            key: 'noon',
+            from: 'assistant',
+            author: 'Grace',
+            avatar: person('Grace Hopper'),
+            content: 'Shipping at noon.',
+          },
+          {
+            key: 'thanks',
+            from: 'user',
+            author: 'Me',
+            avatar: person('Me'),
+            content: 'Great, thanks.',
+          },
+        ],
+        style: ChatMessageGroupStyle,
+        messageStyle: style,
+      },
+      h,
+    ),
+  )
+}
+// #endregion
+
+// #region chat-message-streaming
+export const ANSWER =
+  'The ladder has two ends, 36 pixels and 28, and the step knob moves every control between them at once, so a region set compact shrinks its buttons, fields and rows together.'.split(
+    ' ',
+  )
+
+// The same message drawn again as each word arrives: its body wraps greedily,
+// so the words already shown stay on their lines, and it is aria-busy until
+// the answer is whole. Here a press brings the next words; in an application,
+// a stream does.
+export const chatMessageStreaming = <Message>(
+  style: NamedStyle<typeof ChatMessageSlots>,
+  shown: number,
+  onMore: Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const done = shown >= ANSWER.length
+  return h.div(
+    [
+      h.Style({
+        display: 'grid',
+        gap: '0.75rem',
+        justifyItems: 'start',
+        inlineSize: 'min(32rem, 100%)',
+      }),
+    ],
+    [
+      ChatMessage.view(
+        {
+          from: 'assistant',
+          author: 'Ada',
+          content: h.p([], [ANSWER.slice(0, shown).join(' ')]),
+          streaming: !done,
+          style,
+        },
+        h,
+      ),
+      Button.view(
+        { label: done ? 'Start over' : 'Next words', onClick: onMore, style: ButtonStyle },
+        h,
+      ),
+    ],
+  )
+}
+// #endregion
+
+// #region message-scroller-basic
+export const MessageScrollerStyle = forSlots(MessageScrollerSlots)(Recipes.MessageScroller({}))
+const ConversationArea = forSlots(ScrollAreaSlots)(Recipes.ScrollArea({}))
+const ChatControlStyle = forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'outline' }),
+)
+
+/** A message of the conversation the scroller holds. */
+export const ChatEntry = Schema.Struct({
+  id: Schema.String,
+  from: Schema.Literals(['user', 'assistant']),
+  text: Schema.String,
+})
+export type ChatEntry = typeof ChatEntry.Type
+
+// Whether it follows the end is the scroller's Model, folded with
+// `MessageScroller.update`; the application sends it `Appended` when a
+// message lands at the end, and nothing when older ones load above.
+export const messageScroller = <Message>(
+  style: NamedStyle<typeof MessageScrollerSlots>,
+  model: MessageScroller.Model,
+  entries: ReadonlyArray<ChatEntry>,
+  messages: {
+    readonly onMessage: (message: MessageScroller.Message) => Message
+    readonly onSend: Message
+    readonly onLoadOlder: Message
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(32rem, 100%)' })],
+    [
+      h.div(
+        [h.Style({ blockSize: '20rem' })],
+        [
+          MessageScroller.view(
+            {
+              model,
+              label: 'Conversation with Ada',
+              content: [
+                ChatMessage.group(
+                  {
+                    items: entries.map(({ id, from, text }) => ({ key: id, from, content: text })),
+                    style: ChatMessageGroupStyle,
+                    messageStyle: ChatMessageStyle,
+                  },
+                  h,
+                ),
+              ],
+              onMessage: messages.onMessage,
+              style,
+              areaStyle: ConversationArea,
+              areaMixins: ScrollArea.overlayBars,
+            },
+            h,
+          ),
+        ],
+      ),
+      h.div(
+        [h.Style({ display: 'flex', gap: '0.5rem' })],
+        [
+          Button.view({ label: 'Send', onClick: messages.onSend, style: ButtonStyle }, h),
+          Button.view(
+            { label: 'Load older', onClick: messages.onLoadOlder, style: ChatControlStyle },
+            h,
+          ),
+        ],
+      ),
+    ],
+  )
+// #endregion
+
+// #region thinking-indicator-basic
+export const ThinkingIndicatorStyle = forSlots(ThinkingIndicatorSlots)(
+  Recipes.ThinkingIndicator({}),
+)
+
+// A polite status: three dots and shimmering words, and what it is doing.
+export const thinkingIndicator = (
+  style: NamedStyle<typeof ThinkingIndicatorSlots>,
+  h: HtmlBuilder<never>,
+): Html => ThinkingIndicator.view({ detail: 'Searching the web', style }, h)
+// #endregion
+
+// #region thinking-indicator-kinds
+export const ThinkingIndicatorKinds = [
+  { mark: 'dots', label: 'shimmer' },
+  { mark: 'pulse', label: 'plain' },
+  { mark: 'none', label: 'shimmer' },
+  { mark: 'dots', label: 'hidden' },
+] as const
+
+const thinkingKindStyles = ThinkingIndicatorKinds.map(selection =>
+  forSlots(ThinkingIndicatorSlots)(Recipes.ThinkingIndicator(selection)),
+)
+
+// Dots or a pulse beside the words, the words alone, or the dots alone with
+// the words said, not shown. Each holds still under reduced motion.
+export const thinkingIndicatorKinds = (h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '1rem', justifyItems: 'start' })],
+    thinkingKindStyles.map(style => ThinkingIndicator.view({ label: 'Thinking', style }, h)),
+  )
+// #endregion
+
+// #region thinking-indicator-accent
+// In the accent's ink: `thinkingIndicator(ThinkingAccentStyle, h)`.
+export const ThinkingAccentStyle = forSlots(ThinkingIndicatorSlots)(
+  Recipes.ThinkingIndicator({ tone: 'accent' }),
+)
+// #endregion
+
+// #region thinking-steps-basic
+export const ThinkingStepsStyle = forSlots(ThinkingStepsSlots)(Recipes.ThinkingSteps({}))
+
+export const THOUGHT: ReadonlyArray<ThinkingStep> = [
+  { id: 'plan', title: 'Planned the answer', state: 'done', duration: 900 },
+  {
+    id: 'search',
+    title: 'Searched the web',
+    state: 'done',
+    duration: 2300,
+    detail: 'Found four sources on tide tables.',
+  },
+  { id: 'read', title: 'Read the sources', state: 'done', duration: 1100 },
+]
+
+// Shut once done, saying how long it took; a press opens it. `open` is the
+// Model's: none follows the work, and the press sends what the reader asked.
+export const thinkingSteps = <Message>(
+  style: NamedStyle<typeof ThinkingStepsSlots>,
+  open: Option.Option<boolean>,
+  onToggle: (open: boolean) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
+    [ThinkingSteps.view({ id: 'preview-thought', steps: THOUGHT, open, onToggle, style }, h)],
+  )
+// #endregion
+
+// #region thinking-steps-running
+export const THINKING: ReadonlyArray<ThinkingStep> = [
+  { id: 'search', title: 'Searched the web', state: 'done', duration: 2300 },
+  { id: 'fetch', title: 'Fetching tides.example', state: 'failed', duration: 400 },
+  { id: 'read', title: 'Reading 3 sources', state: 'running' },
+  { id: 'write', title: 'Write the answer', state: 'pending' },
+]
+
+// Open while it runs, its summary the running step's title, shimmering.
+export const thinkingStepsRunning = <Message>(
+  style: NamedStyle<typeof ThinkingStepsSlots>,
+  open: Option.Option<boolean>,
+  onToggle: (open: boolean) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
+    [ThinkingSteps.view({ id: 'preview-thinking', steps: THINKING, open, onToggle, style }, h)],
+  )
+// #endregion
+
+// #region thinking-steps-tools
+export const ToolStepsStyle = forSlots(ThinkingStepsSlots)(
+  Recipes.ThinkingSteps({ variant: 'card' }),
+)
+
+const toolCall = <Message>(h: HtmlBuilder<Message>, input: string, output: string): Html =>
+  h.pre(
+    [h.Style({ margin: '0', whiteSpace: 'pre-wrap', fontSize: '0.8125rem' })],
+    [`→ ${input}`, h.br([]), `← ${output}`],
+  )
+
+/** Built per builder: a tool call's detail is markup. */
+export const toolSteps = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<ThinkingStep> => [
+  {
+    id: 'weather',
+    title: 'get_weather',
+    state: 'done',
+    duration: 640,
+    detail: toolCall(h, '{ "city": "Lisbon" }', '{ "high": 24, "sky": "clear" }'),
+  },
+  {
+    id: 'calendar',
+    title: 'list_events',
+    state: 'done',
+    duration: 1200,
+    detail: toolCall(h, '{ "day": "Saturday" }', '2 events'),
+    steps: [
+      { id: 'calendar-work', title: 'Work calendar', state: 'done', duration: 500 },
+      { id: 'calendar-home', title: 'Home calendar', state: 'done', duration: 700 },
+    ],
+  },
+]
+
+// Each tool call's input and output under its own row, which a press shows
+// and hides (`Accordion.toggled(openSteps, id, { multiple: true })`).
+export const thinkingStepsTools = <Message>(
+  style: NamedStyle<typeof ThinkingStepsSlots>,
+  open: Option.Option<boolean>,
+  onToggle: (open: boolean) => Message,
+  openSteps: ReadonlyArray<string>,
+  onToggleStep: (id: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
+    [
+      ThinkingSteps.view(
+        {
+          id: 'preview-tools',
+          steps: toolSteps(h),
+          open,
+          onToggle,
+          summary: 'Used 2 tools',
+          openSteps,
+          onToggleStep,
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region questionnaire-basic
+export const QuestionnaireStyle = forSlots(QuestionnaireSlots)(Recipes.Questionnaire({}))
+
+export const TRIP_QUESTIONS: ReadonlyArray<Questionnaire.Question> = [
+  Questionnaire.single({
+    id: 'pace',
+    prompt: 'How busy should the days be?',
+    options: [
+      { value: 'slow', label: 'Slow', description: 'One thing a day' },
+      { value: 'full', label: 'Full', description: 'Morning to night' },
+    ],
+    other: 'Something else',
+  }),
+  Questionnaire.multiple({
+    id: 'likes',
+    prompt: 'What do you enjoy?',
+    options: [
+      { value: 'food', label: 'Food' },
+      { value: 'museums', label: 'Museums' },
+      { value: 'walks', label: 'Walks' },
+    ],
+  }),
+  Questionnaire.text({ id: 'avoid', prompt: 'Anything to avoid?', optional: true }),
+]
+
+/**
+ * Its Model from `Questionnaire.init({ id: 'preview-trip', questions:
+ * TRIP_QUESTIONS })`, folded by `Questionnaire.update`, whose
+ * `OutMessage.Answered` carries every answer once the form is sent.
+ */
+export const questionnaire = <Message>(
+  style: NamedStyle<typeof QuestionnaireSlots>,
+  model: Questionnaire.Model,
+  onMessage: (message: Questionnaire.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
+    [
+      Questionnaire.view(
+        {
+          model,
+          onMessage,
+          title: 'A few questions before I plan',
+          style,
+          radioGroup: RadioGroupStyle,
+          checkboxGroup: CheckboxGroupStyle,
+          input: InputStyle,
+          textarea: TextareaStyle,
+          submitButton: ButtonStyle,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region questionnaire-paged
+export const QuestionnaireCardStyle = forSlots(QuestionnaireSlots)(
+  Recipes.Questionnaire({ variant: 'card' }),
+)
+const QuestionBackStyle = forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'outline' }),
+)
+
+/**
+ * One question at a time: its Model from `Questionnaire.init({ id:
+ * 'preview-trip-paged', questions: TRIP_QUESTIONS, layout: 'paged' })`.
+ * Next refuses a missing answer and moves the focus to the next question.
+ */
+export const questionnairePaged = <Message>(
+  style: NamedStyle<typeof QuestionnaireSlots>,
+  model: Questionnaire.Model,
+  onMessage: (message: Questionnaire.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
+    [
+      Questionnaire.view(
+        {
+          model,
+          onMessage,
+          style,
+          radioGroup: RadioGroupStyle,
+          checkboxGroup: CheckboxGroupStyle,
+          input: InputStyle,
+          button: QuestionBackStyle,
+          submitButton: ButtonStyle,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region angle-slider-basic
+export const AngleSliderStyle = forSlots(AngleSliderSlots)(Recipes.AngleSlider({}))
+
+/** What `update` and the view agree on: whole degrees, the compass points marked. */
+export const HEADING_LAYOUT: AngleSlider.AngleSliderLayout = {
+  step: 1,
+  marks: [
+    { value: 0, label: 'N' },
+    { value: 90, label: 'E' },
+    { value: 180, label: 'S' },
+    { value: 270, label: 'W' },
+  ],
+}
+
+/** The angle and the drag are the dial's Model, folded with `AngleSlider.update(HEADING_LAYOUT)`. */
+export const angleSlider = <Message>(
+  style: NamedStyle<typeof AngleSliderSlots>,
+  model: AngleSlider.Model,
+  onMessage: (message: AngleSlider.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  AngleSlider.view(
+    { ...HEADING_LAYOUT, model, onMessage, label: 'Heading', name: 'heading', style },
+    h,
+  )
+// #endregion
+
+// #region angle-slider-marks
+/** A quarter turn at a time: a drag lands on the nearest mark, and the keys go mark to mark. */
+export const ROTATION_LAYOUT: AngleSlider.AngleSliderLayout = {
+  step: 90,
+  marks: [{ value: 0 }, { value: 90 }, { value: 180 }, { value: 270 }],
+  restrictToMarks: true,
+}
+
+export const angleSliderMarks = <Message>(
+  style: NamedStyle<typeof AngleSliderSlots>,
+  model: AngleSlider.Model,
+  onMessage: (message: AngleSlider.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  AngleSlider.view(
+    {
+      ...ROTATION_LAYOUT,
+      model,
+      onMessage,
+      label: 'Rotation',
+      format: value => `${value / 90} of 4`,
+      valueText: value => `${value} degrees`,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region timer-countdown
+export const TimerStyle = forSlots(TimerSlots)(Recipes.Timer({ progress: 'bar' }))
+
+/** The time counted is the timer's Model, folded with `Timer.update`; its ticks are its Commands. */
+export const timerCountdown = <Message>(
+  style: NamedStyle<typeof TimerSlots>,
+  model: Timer.Model,
+  onMessage: (message: Timer.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html => Timer.view({ model, onMessage, label: 'Tea', units: ['minutes', 'seconds'], style }, h)
+// #endregion
+
+// #region timer-stopwatch
+/** A stopwatch whose Model ticks every 10ms (`Timer.init({ id, interval: 10 })`), so hundredths show. */
+export const timerStopwatch = <Message>(
+  style: NamedStyle<typeof TimerSlots>,
+  model: Timer.Model,
+  onMessage: (message: Timer.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Timer.view(
+    {
+      model,
+      onMessage,
+      label: 'Lap',
+      units: ['minutes', 'seconds', 'milliseconds'],
+      labels: { start: 'Go', restart: 'Again' },
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region marquee-basic
+export const MarqueeStyle = forSlots(MarqueeSlots)(Recipes.Marquee({}))
+
+const CUSTOMERS = ['Acme', 'Globex', 'Initech', 'Umbrella', 'Hooli', 'Stark']
+
+/** What it measured and whether it is paused are the marquee's Model, folded with `Marquee.update`. */
+export const marquee = <Message>(
+  style: NamedStyle<typeof MarqueeSlots>,
+  model: Marquee.Model,
+  onMessage: (message: Marquee.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Marquee.view(
+    {
+      model,
+      onMessage,
+      label: 'Our customers',
+      items: CUSTOMERS.map(name => h.strong([], [name])),
+      speed: 40,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region marquee-vertical
+export const marqueeVertical = <Message>(
+  style: NamedStyle<typeof MarqueeSlots>,
+  model: Marquee.Model,
+  onMessage: (message: Marquee.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ blockSize: '6rem' })],
+    [
+      Marquee.view(
+        {
+          model,
+          onMessage,
+          label: 'Latest news',
+          items: ['Release 1.2 is out', 'New docs site', 'Meetup on Friday'].map(line =>
+            h.span([], [line]),
+          ),
+          side: 'top',
+          speed: 20,
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region image-cropper-basic
+export const ImageCropperStyle = forSlots(ImageCropperSlots)(Recipes.ImageCropper({}))
+// The zoom is a Slider; its label is the cropper's to say.
+const ZoomStyle = forSlots(SliderSlots)(Recipes.Slider({ label: 'hidden' }))
+
+/** An 800 by 600 landscape, standing in for an upload. */
+export const LANDSCAPE = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600"><rect width="800" height="600" fill="hsl(205 70% 82%)"/><circle cx="610" cy="150" r="70" fill="hsl(45 95% 65%)"/><path d="M0 460 L230 250 L420 430 L560 320 L800 500 V600 H0 Z" fill="hsl(150 30% 45%)"/></svg>`,
+)}`
+
+/** The crop, zoom and turn are the cropper's Model, folded with `update`; the image is the page's. */
+export const imageCropper = <Message>(
+  style: NamedStyle<typeof ImageCropperSlots>,
+  model: ImageCropper.Model,
+  onMessage: (message: ImageCropper.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(32rem, 100%)' })],
+    [
+      ImageCropper.view(
+        { model, onMessage, label: 'Crop the photo', src: LANDSCAPE, style, slider: ZoomStyle },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region image-cropper-avatar
+// A round crop at an aspect of 1, in a square well: its Model from
+// `ImageCropper.init({ id, shape: 'round', aspect: 1 })`.
+export const AvatarCropStyle = forSlots(ImageCropperSlots)(
+  Recipes.ImageCropper({ viewport: 'square', handles: 'corners' }),
+)
+
+/**
+ * `RequestedExport` answers with `Exported`, a PNG of the crop as a data URL,
+ * which the page keeps to show (`url`).
+ */
+export const avatarCropper = <Message>(
+  style: NamedStyle<typeof ImageCropperSlots>,
+  model: ImageCropper.Model,
+  url: Option.Option<string>,
+  onMessage: (message: ImageCropper.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(20rem, 100%)' })],
+    [
+      ImageCropper.view(
+        {
+          model,
+          onMessage,
+          label: 'Profile picture',
+          src: LANDSCAPE,
+          controls: { rotate: false },
+          style,
+          slider: ZoomStyle,
+        },
+        h,
+      ),
+      h.div(
+        [h.Style({ display: 'flex', gap: '0.75rem', alignItems: 'center' })],
+        [
+          Button.view(
+            {
+              label: 'Use this crop',
+              onClick: onMessage(
+                ImageCropper.Message.RequestedExport({ type: 'image/png', quality: 1 }),
+              ),
+              style: ButtonStyle,
+            },
+            h,
+          ),
+          ...Option.match(url, {
+            onNone: () => [],
+            onSome: src => [
+              h.img([
+                h.Src(src),
+                h.Alt('The cropped picture'),
+                h.Style({ inlineSize: '3rem', blockSize: '3rem', borderRadius: '50%' }),
+              ]),
+            ],
+          }),
+        ],
+      ),
+    ],
+  )
+// #endregion
+
+// #region signature-pad-basic
+export const SignaturePadStyle = forSlots(SignaturePadSlots)(Recipes.SignaturePad({}))
+
+/** The strokes and the typed name are the pad's Model, folded with `update`. */
+export const signaturePad = <Message>(
+  style: NamedStyle<typeof SignaturePadSlots>,
+  model: SignaturePad.Model,
+  onMessage: (message: SignaturePad.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
+    [SignaturePad.view({ model, onMessage, label: 'Signature', style }, h)],
+  )
+// #endregion
+
+// #region qr-code-basic
+export const QrCodeStyle = forSlots(QrCodeSlots)(Recipes.QrCode({}))
+
+export const qrCode = (style: NamedStyle<typeof QrCodeSlots>, h: HtmlBuilder<never>): Html =>
+  QrCode.view({ id: 'preview-qr', value: 'https://foldkit-plus.pages.dev', style }, h)
+// #endregion
+
+// #region qr-code-logo
+const LOGO = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#4f46e5"/><path d="M10 9h12v4h-8v3h7v4h-7v6h-4z" fill="#fff"/></svg>',
+)}`
+
+// An overlay raises the error correction to H, so the code still reads under it.
+export const qrCodeLogo = (style: NamedStyle<typeof QrCodeSlots>, h: HtmlBuilder<never>): Html =>
+  QrCode.view(
+    {
+      id: 'logo-qr',
+      value: 'https://foldkit-plus.pages.dev/components',
+      label: 'QR code for the Foldkit Plus components',
+      overlay: h.img([h.Src(LOGO), h.Alt('')]),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region qr-code-download
+// The buttons send a Message; `update` answers it with `QrCode.Download`.
+export const qrCodeDownload = <Message>(
+  style: NamedStyle<typeof QrCodeSlots>,
+  onDownload: (format: QrCode.Format) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      QrCode.view({ id: 'download-qr', value: 'WIFI:T:WPA;S:Guests;P:welcome-in;;', style }, h),
+      h.div(
+        [h.Style({ display: 'flex', gap: '0.5rem' })],
+        [
+          Button.view({ label: 'Download PNG', onClick: onDownload('png'), style: ButtonStyle }, h),
+          Button.view({ label: 'Download SVG', onClick: onDownload('svg'), style: ButtonStyle }, h),
+        ],
+      ),
+    ],
+  )
+
+/** In `update`: the drawn code, saved in the colors the page shows it in. */
+export const downloadQr = (format: QrCode.Format) =>
+  QrCode.Download({ id: 'download-qr', format, filename: 'guest-wifi', pixels: 512 })
+// #endregion
+
+// #region chart-bar
+export const ChartStyle = forSlots(ChartSlots)(Recipes.Chart({}))
+
+/** A chart fills its container's width: the page gives it one. */
+const chartFrame = <Message>(h: HtmlBuilder<Message>, chart: Html): Html =>
+  h.div([h.Style({ inlineSize: 'min(36rem, 100%)' })], [chart])
+
+export const visitors = {
+  categories: ['January', 'February', 'March', 'April', 'May', 'June'],
+  series: [
+    { name: 'Desktop', values: [186, 305, 237, 73, 209, 214] },
+    { name: 'Mobile', values: [80, 200, 120, 190, 130, 140] },
+  ],
+}
+
+// The lit point is the chart's Model, folded with `Chart.update`.
+export const chartBar = <Message>(
+  style: NamedStyle<typeof ChartSlots>,
+  model: Chart.Model,
+  onMessage: (message: Chart.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  chartFrame(
+    h,
+    Chart.view(
+      {
+        id: 'preview-visitors',
+        label: 'Visitors',
+        description: 'January to June',
+        kind: 'bar',
+        ...visitors,
+        model,
+        onMessage,
+        style,
+      },
+      h,
+    ),
+  )
+// #endregion
+
+// #region chart-line
+export const chartLine = <Message>(
+  style: NamedStyle<typeof ChartSlots>,
+  model: Chart.Model,
+  onMessage: (message: Chart.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  chartFrame(
+    h,
+    Chart.view(
+      {
+        id: 'line-visitors',
+        label: 'Visitors',
+        kind: 'line',
+        ...visitors,
+        model,
+        onMessage,
+        format: value => `${value} k`,
+        style,
+      },
+      h,
+    ),
+  )
+// #endregion
+
+// #region chart-area
+export const SmallChartStyle = forSlots(ChartSlots)(Recipes.Chart({ height: 'sm', grid: 'zero' }))
+
+// One series: no legend, the title names it.
+export const chartArea = <Message>(
+  style: NamedStyle<typeof ChartSlots>,
+  model: Chart.Model,
+  onMessage: (message: Chart.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  chartFrame(
+    h,
+    Chart.view(
+      {
+        id: 'area-signups',
+        label: 'Sign-ups',
+        kind: 'area',
+        categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        series: [{ name: 'Sign-ups', values: [42, 58, 51, 77, 69, 31, 24] }],
+        model,
+        onMessage,
+        style,
+      },
+      h,
+    ),
+  )
+// #endregion
+
+// #region chart-donut
+export const chartDonut = <Message>(
+  style: NamedStyle<typeof ChartSlots>,
+  model: Chart.Model,
+  onMessage: (message: Chart.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  chartFrame(
+    h,
+    Chart.view(
+      {
+        id: 'donut-browsers',
+        label: 'Visitors by browser',
+        kind: 'donut',
+        slices: [
+          { name: 'Chrome', value: 275 },
+          { name: 'Safari', value: 200 },
+          { name: 'Firefox', value: 187 },
+          { name: 'Edge', value: 173 },
+          { name: 'Other', value: 90 },
+        ],
+        totalLabel: 'Visitors',
+        model,
+        onMessage,
+        style,
+      },
+      h,
+    ),
+  )
+// #endregion
+
+// #region chart-table
+// The table assistive technology reads, shown for every reader.
+export const chartTable = <Message>(
+  style: NamedStyle<typeof ChartSlots>,
+  model: Chart.Model,
+  onMessage: (message: Chart.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  chartFrame(
+    h,
+    Chart.view(
+      {
+        id: 'table-visitors',
+        label: 'Visitors',
+        kind: 'bar',
+        ...visitors,
+        categoryLabel: 'Month',
+        table: 'shown',
+        model,
+        onMessage,
+        style,
+      },
+      h,
+    ),
+  )
+// #endregion
+
+// #region chart-colors
+// Mobile names its color, so hiding Desktop does not repaint it.
+export const chartColors = <Message>(
+  style: NamedStyle<typeof ChartSlots>,
+  model: Chart.Model,
+  onMessage: (message: Chart.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  chartFrame(
+    h,
+    Chart.view(
+      {
+        id: 'colors-visitors',
+        label: 'Mobile visitors',
+        kind: 'bar',
+        categories: visitors.categories,
+        series: [{ name: 'Mobile', values: [80, 200, 120, 190, 130, 140], color: 2 }],
+        legend: true,
+        model,
+        onMessage,
+        style,
+      },
+      h,
+    ),
+  )
+// #endregion
+
+// #region cascade-select-columns
+export const CascadeSelectStyle = forSlots(CascadeSelectSlots)(Recipes.CascadeSelect({}))
+
+/** Folded with `CascadeSelect.update(CASCADE_PLACES)`; its Model from `CascadeSelect.init({ id })`. */
+export const CASCADE_PLACES: CascadeSelect.Config = {
+  nodes: [
+    {
+      id: 'ca',
+      label: 'Canada',
+      children: [
+        {
+          id: 'on',
+          label: 'Ontario',
+          children: [
+            { id: 'tor', label: 'Toronto' },
+            { id: 'ott', label: 'Ottawa' },
+          ],
+        },
+        { id: 'qc', label: 'Quebec', children: [{ id: 'mtl', label: 'Montreal' }] },
+      ],
+    },
+    {
+      id: 'jp',
+      label: 'Japan',
+      children: [
+        { id: 'kanto', label: 'Kantō', children: [{ id: 'tyo', label: 'Tokyo' }] },
+        { id: 'kansai', label: 'Kansai', children: [{ id: 'osa', label: 'Osaka' }] },
+      ],
+    },
+    { id: 'sg', label: 'Singapore' },
+  ],
+}
+
+// A city chosen through its country and region: a column per level, the
+// arrows within and between them, the value the path of ids.
+export const cascadeSelect = <Message>(
+  style: NamedStyle<typeof CascadeSelectSlots>,
+  model: CascadeSelect.Model,
+  onMessage: (message: CascadeSelect.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  CascadeSelect.view(
+    {
+      model,
+      config: CASCADE_PLACES,
+      onMessage,
+      label: 'City',
+      placeholder: 'Choose a city',
+      levels: ['Country', 'Region', 'City'],
+      clearable: true,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region cascade-select-drill
+// One level at a time, with a way back: a phone's width holds one column.
+export const cascadeSelectDrill = <Message>(
+  style: NamedStyle<typeof CascadeSelectSlots>,
+  model: CascadeSelect.Model,
+  onMessage: (message: CascadeSelect.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  CascadeSelect.view(
+    { model, config: CASCADE_PLACES, onMessage, label: 'City', layout: 'drill', style },
+    h,
+  )
+// #endregion
+
+// #region floating-panel-basic
+export const FloatingPanelStyle = forSlots(FloatingPanelSlots)(Recipes.FloatingPanel({}))
+
+/** The notes panel and the order the page's panels stack in. */
+export interface Panels {
+  readonly notes: FloatingPanel.Model
+  readonly order: ReadonlyArray<string>
+}
+
+// Folded with `FloatingPanel.update()`; opened with `FloatingPanel.open(model,
+// { opener })`, and its `Raised` folded into `order` with `FloatingPanel.raise`.
+export const floatingPanel = <Message>(
+  style: NamedStyle<typeof FloatingPanelSlots>,
+  panels: Panels,
+  onMessage: (message: FloatingPanel.Message) => Message,
+  opened: Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [],
+    [
+      h.button(
+        SlotView.buildersFor(ButtonSlots, [ButtonStyle.mixin], {
+          input: undefined,
+          h,
+        }).button.attrs([h.Id('preview-panel-opener'), h.Type('button'), h.OnClick(opened)]),
+        ['Open notes'],
+      ),
+      FloatingPanel.view(
+        {
+          model: panels.notes,
+          onMessage,
+          title: 'Notes',
+          content: h.p([], ['Drag the header, resize from an edge, or use the arrows.']),
+          order: panels.order,
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region tour-basic
+export const TourStyle = forSlots(TourSlots)(Recipes.Tour({}))
+
+/** Folded with `Tour.update(TOUR)`; started with `Tour.start(model, TOUR, { opener })`. */
+export const TOUR: Tour.Config = {
+  steps: [
+    { title: 'Search', description: 'Find any page by its name.', target: 'preview-tour-search' },
+    { title: 'Save', description: 'Keep your work as you go.', target: 'preview-tour-save' },
+    { title: 'That is all', description: 'Start the tour again from its button.' },
+  ],
+}
+
+// Each step beside its target, the page dimmed around it; the arrows move on
+// and back, Escape skips, and focus returns to the button that started it.
+export const tour = <Message>(
+  style: NamedStyle<typeof TourSlots>,
+  model: Tour.Model,
+  onMessage: (message: Tour.Message) => Message,
+  started: Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  // The targets need ids, so they are drawn from the Button's and Input's slots.
+  const { button } = SlotView.buildersFor(ButtonSlots, [ButtonStyle.mixin], { input: undefined, h })
+  const { input } = SlotView.buildersFor(InputSlots, [InputStyle.mixin], { input: undefined, h })
+  return h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' })],
+    [
+      h.button(button.attrs([h.Id('preview-tour-start'), h.Type('button'), h.OnClick(started)]), [
+        'Start the tour',
+      ]),
+      h.input(
+        input.attrs([
+          h.Id('preview-tour-search'),
+          h.Type('search'),
+          h.AriaLabel('Search'),
+          h.Placeholder('Search'),
+          h.Style({ inlineSize: '12rem' }),
+        ]),
+      ),
+      h.button(button.attrs([h.Id('preview-tour-save'), h.Type('button')]), ['Save']),
+      Tour.view({ model, config: TOUR, onMessage, style }, h),
+    ],
+  )
+}
 // #endregion

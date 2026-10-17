@@ -69,6 +69,21 @@ import {
   ToastSlots,
   TooltipSlots,
   TableSlots,
+  ChatMessageSlots,
+  MessageScrollerSlots,
+  ThinkingIndicatorSlots,
+  ThinkingStepsSlots,
+  QuestionnaireSlots,
+  AngleSliderSlots,
+  TimerSlots,
+  MarqueeSlots,
+  ImageCropperSlots,
+  SignaturePadSlots,
+  QrCodeSlots,
+  ChartSlots,
+  CascadeSelectSlots,
+  FloatingPanelSlots,
+  TourSlots,
   type Nav,
   type Carousel,
 } from 'foldkit-mixins-ui'
@@ -632,6 +647,137 @@ const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: L
     style,
     live.widgets.terms,
     checked => live.onWidget(Widgets.Message.ToggledTerms({ checked })),
+    live.h,
+  )
+
+const chatBasic = <Message>(style: NamedStyle<typeof ChatMessageSlots>, live: Live<Message>) =>
+  Snippet.chatMessage(
+    style,
+    live.widgets.answerLiked,
+    {
+      onCopy: live.onWidget(Widgets.Message.CopiedAnswer()),
+      onLike: live.onWidget(Widgets.Message.LikedAnswer()),
+    },
+    live.h,
+  )
+
+const scrollerBasic = <Message>(
+  style: NamedStyle<typeof MessageScrollerSlots>,
+  live: Live<Message>,
+) =>
+  Snippet.messageScroller(
+    style,
+    live.widgets.chatScroller,
+    live.widgets.chatEntries,
+    {
+      onMessage: message => live.onWidget(Widgets.Message.GotChatScroller({ message })),
+      onSend: live.onWidget(Widgets.Message.SentChat()),
+      onLoadOlder: live.onWidget(Widgets.Message.LoadedOlderChat()),
+    },
+    live.h,
+  )
+
+const thinkingBasic = (style: NamedStyle<typeof ThinkingIndicatorSlots>) =>
+  Snippet.thinkingIndicator(style, inert)
+
+const thoughtSteps = <Message>(style: NamedStyle<typeof ThinkingStepsSlots>, live: Live<Message>) =>
+  Snippet.thinkingSteps(
+    style,
+    live.widgets.thought,
+    open => live.onWidget(Widgets.Message.ToggledThought({ open })),
+    live.h,
+  )
+
+const tripAll = <Message>(style: NamedStyle<typeof QuestionnaireSlots>, live: Live<Message>) =>
+  Snippet.questionnaire(
+    style,
+    live.widgets.tripQuestions,
+    message => live.onWidget(Widgets.Message.GotTripQuestions({ message })),
+    live.h,
+  )
+
+const angleBasic = <Message>(style: NamedStyle<typeof AngleSliderSlots>, live: Live<Message>) =>
+  Snippet.angleSlider(
+    style,
+    live.widgets.heading,
+    message => live.onWidget(Widgets.Message.GotHeading({ message })),
+    live.h,
+  )
+
+const timerCountdown = <Message>(style: NamedStyle<typeof TimerSlots>, live: Live<Message>) =>
+  Snippet.timerCountdown(
+    style,
+    live.widgets.tea,
+    message => live.onWidget(Widgets.Message.GotTea({ message })),
+    live.h,
+  )
+
+const marqueeBasic = <Message>(style: NamedStyle<typeof MarqueeSlots>, live: Live<Message>) =>
+  Snippet.marquee(
+    style,
+    live.widgets.customers,
+    message => live.onWidget(Widgets.Message.GotCustomers({ message })),
+    live.h,
+  )
+
+const cropperBasic = <Message>(style: NamedStyle<typeof ImageCropperSlots>, live: Live<Message>) =>
+  Snippet.imageCropper(
+    style,
+    live.widgets.photo,
+    message => live.onWidget(Widgets.Message.GotPhoto({ message })),
+    live.h,
+  )
+
+const signatureBasic = <Message>(
+  style: NamedStyle<typeof SignaturePadSlots>,
+  live: Live<Message>,
+) =>
+  Snippet.signaturePad(
+    style,
+    live.widgets.signature,
+    message => live.onWidget(Widgets.Message.GotSignature({ message })),
+    live.h,
+  )
+
+const qrBasic = (style: NamedStyle<typeof QrCodeSlots>) => Snippet.qrCode(style, inert)
+
+/** A chart example on its own lit point of the widgets' Model. */
+const chartOf =
+  (example: Widgets.ChartExample, draw: typeof Snippet.chartBar) =>
+  <Message>(style: NamedStyle<typeof ChartSlots>, live: Live<Message>) =>
+    draw(
+      style,
+      live.widgets.charts[example],
+      message => live.onWidget(Widgets.Message.GotChart({ example, message })),
+      live.h,
+    )
+
+const cascadeColumns = <Message>(
+  style: NamedStyle<typeof CascadeSelectSlots>,
+  live: Live<Message>,
+) =>
+  Snippet.cascadeSelect(
+    style,
+    live.widgets.cascade,
+    message => live.onWidget(Widgets.Message.GotCascade({ message })),
+    live.h,
+  )
+
+const panelBasic = <Message>(style: NamedStyle<typeof FloatingPanelSlots>, live: Live<Message>) =>
+  Snippet.floatingPanel(
+    style,
+    live.widgets.panels,
+    message => live.onWidget(Widgets.Message.GotPanel({ message })),
+    live.onWidget(Widgets.Message.OpenedPanel()),
+    live.h,
+  )
+
+const tourBasic = <Message>(style: NamedStyle<typeof TourSlots>, live: Live<Message>) =>
+  Snippet.tour(
+    style,
+    live.widgets.tour,
+    message => live.onWidget(Widgets.Message.GotTour({ message })),
+    live.onWidget(Widgets.Message.StartedTour()),
     live.h,
   )
 
@@ -2705,6 +2851,419 @@ export const showcases: ReadonlyArray<Showcase> = [
           ),
       },
     ],
+  ),
+  fromRecipe(
+    {
+      slug: 'chat-message',
+      title: 'Chat message',
+      summary:
+        'A message with its sender, time, status and actions: the user’s in a bubble, an answer as text, a sender’s run grouped, and a streamed body that never re-wraps.',
+      recipe: 'ChatMessage',
+      file: 'chatMessage',
+      contract: 'ChatMessageSlots',
+    },
+    ChatMessageSlots,
+    Recipes.ChatMessage,
+    chatBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: chatBasic },
+      {
+        name: 'status',
+        title: 'Status and retry',
+        draw: (style, live) =>
+          Snippet.chatMessageStatus(
+            style,
+            live.widgets.chatRetried,
+            live.onWidget(Widgets.Message.RetriedChat()),
+            live.h,
+          ),
+      },
+      {
+        name: 'thread',
+        title: 'A thread',
+        draw: (style, live) => Snippet.chatMessageThread(style, live.h),
+        pins: { layout: 'thread' },
+      },
+      {
+        name: 'streaming',
+        title: 'Streaming',
+        draw: (style, live) =>
+          Snippet.chatMessageStreaming(
+            style,
+            live.widgets.streamed,
+            live.onWidget(Widgets.Message.StreamedWords()),
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'message-scroller',
+      title: 'Message scroller',
+      summary:
+        'A conversation that follows the newest message while you are at the end, stops when you scroll up, counts what arrives, and holds its place as older messages load.',
+      recipe: 'MessageScroller',
+      file: 'messageScroller',
+      contract: 'MessageScrollerSlots',
+    },
+    MessageScrollerSlots,
+    Recipes.MessageScroller,
+    scrollerBasic,
+    undefined,
+    [{ name: 'basic', title: 'Basic', draw: scrollerBasic }],
+  ),
+  fromRecipe(
+    {
+      slug: 'thinking-indicator',
+      title: 'Thinking indicator',
+      summary:
+        'An assistant at work, announced politely: dots, a pulse or an icon beside words a band of light sweeps.',
+      recipe: 'ThinkingIndicator',
+      file: 'thinkingIndicator',
+      contract: 'ThinkingIndicatorSlots',
+    },
+    ThinkingIndicatorSlots,
+    Recipes.ThinkingIndicator,
+    thinkingBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: thinkingBasic },
+      { name: 'kinds', title: 'Kinds', draw: () => Snippet.thinkingIndicatorKinds(inert) },
+      { name: 'accent', title: 'Accent', draw: thinkingBasic, pins: { tone: 'accent' } },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'thinking-steps',
+      title: 'Thinking steps',
+      summary:
+        'An assistant’s reasoning and tool calls as a trace that opens while it runs and says how long it took.',
+      recipe: 'ThinkingSteps',
+      file: 'thinkingSteps',
+      contract: 'ThinkingStepsSlots',
+    },
+    ThinkingStepsSlots,
+    Recipes.ThinkingSteps,
+    thoughtSteps,
+    undefined,
+    [
+      { name: 'basic', title: 'Done', draw: thoughtSteps },
+      {
+        name: 'running',
+        title: 'Running',
+        draw: (style, live) =>
+          Snippet.thinkingStepsRunning(
+            style,
+            live.widgets.thinking,
+            open => live.onWidget(Widgets.Message.ToggledThinking({ open })),
+            live.h,
+          ),
+      },
+      {
+        name: 'tools',
+        title: 'Tool calls',
+        pins: { variant: 'card' },
+        draw: (style, live) =>
+          Snippet.thinkingStepsTools(
+            style,
+            live.widgets.toolsOpen,
+            open => live.onWidget(Widgets.Message.ToggledTools({ open })),
+            live.widgets.toolSteps,
+            id => live.onWidget(Widgets.Message.ToggledToolStep({ id })),
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'questionnaire',
+      title: 'Questionnaire',
+      summary: 'An assistant’s questions, answered in the chat and sent as one Message.',
+      recipe: 'Questionnaire',
+      file: 'questionnaire',
+      contract: 'QuestionnaireSlots',
+    },
+    QuestionnaireSlots,
+    Recipes.Questionnaire,
+    tripAll,
+    undefined,
+    [
+      { name: 'basic', title: 'All at once', draw: tripAll },
+      {
+        name: 'paged',
+        title: 'One at a time, in a card',
+        pins: { variant: 'card' },
+        draw: (style, live) =>
+          Snippet.questionnairePaged(
+            style,
+            live.widgets.tripQuestionsPaged,
+            message => live.onWidget(Widgets.Message.GotTripQuestionsPaged({ message })),
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'angle-slider',
+      title: 'Angle slider',
+      summary: 'An angle in degrees from a dial, dragged round or stepped by the keys, with marks.',
+      recipe: 'AngleSlider',
+      file: 'angleSlider',
+      contract: 'AngleSliderSlots',
+    },
+    AngleSliderSlots,
+    Recipes.AngleSlider,
+    angleBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: angleBasic },
+      {
+        name: 'marks',
+        title: 'Kept to marks',
+        draw: (style, live) =>
+          Snippet.angleSliderMarks(
+            style,
+            live.widgets.rotation,
+            message => live.onWidget(Widgets.Message.GotRotation({ message })),
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'timer',
+      title: 'Timer',
+      summary:
+        'A countdown or a stopwatch, started, paused, resumed and reset, each unit its own part.',
+      recipe: 'Timer',
+      file: 'timer',
+      contract: 'TimerSlots',
+    },
+    TimerSlots,
+    Recipes.Timer,
+    timerCountdown,
+    undefined,
+    [
+      { name: 'countdown', title: 'Countdown', draw: timerCountdown },
+      {
+        name: 'stopwatch',
+        title: 'Stopwatch',
+        draw: (style, live) =>
+          Snippet.timerStopwatch(
+            style,
+            live.widgets.lap,
+            message => live.onWidget(Widgets.Message.GotLap({ message })),
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'marquee',
+      title: 'Marquee',
+      summary:
+        'Content that scrolls on without a seam, held by a pointer, by focus or by its press.',
+      recipe: 'Marquee',
+      file: 'marquee',
+      contract: 'MarqueeSlots',
+    },
+    MarqueeSlots,
+    Recipes.Marquee,
+    marqueeBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: marqueeBasic },
+      {
+        name: 'vertical',
+        title: 'Vertical',
+        draw: (style, live) =>
+          Snippet.marqueeVertical(
+            style,
+            live.widgets.news,
+            message => live.onWidget(Widgets.Message.GotNews({ message })),
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'image-cropper',
+      title: 'Image cropper',
+      summary:
+        'A crop of an image dragged and resized by handles and keys, zoomed, turned, locked to an aspect or round, and exported from a canvas.',
+      recipe: 'ImageCropper',
+      file: 'imageCropper',
+      contract: 'ImageCropperSlots',
+    },
+    ImageCropperSlots,
+    Recipes.ImageCropper,
+    cropperBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Free crop', draw: cropperBasic },
+      {
+        name: 'avatar',
+        title: 'Round, square, exported',
+        pins: { viewport: 'square', handles: 'corners' },
+        draw: (style, live) =>
+          Snippet.avatarCropper(
+            style,
+            live.widgets.avatarCrop,
+            live.widgets.avatarUrl,
+            message => live.onWidget(Widgets.Message.GotAvatarCrop({ message })),
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'signature-pad',
+      title: 'Signature pad',
+      summary:
+        'Strokes drawn with a pointer or a pen and its pressure, smoothed, undone and cleared, with a typed name for whoever cannot draw.',
+      recipe: 'SignaturePad',
+      file: 'signaturePad',
+      contract: 'SignaturePadSlots',
+    },
+    SignaturePadSlots,
+    Recipes.SignaturePad,
+    signatureBasic,
+    undefined,
+    [{ name: 'basic', title: 'Draw or type', draw: signatureBasic }],
+  ),
+  fromRecipe(
+    {
+      slug: 'qr-code',
+      title: 'QR code',
+      summary:
+        'Text as a QR code: one SVG path in a quiet zone, a logo over its centre, saved as a PNG or an SVG.',
+      recipe: 'QrCode',
+      file: 'qrCode',
+      contract: 'QrCodeSlots',
+    },
+    QrCodeSlots,
+    Recipes.QrCode,
+    qrBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: qrBasic },
+      {
+        name: 'logo',
+        title: 'A logo over the centre',
+        draw: style => Snippet.qrCodeLogo(style, inert),
+      },
+      {
+        name: 'download',
+        title: 'Saved as a PNG or an SVG',
+        draw: (style, live) =>
+          Snippet.qrCodeDownload(
+            style,
+            format => live.onWidget(Widgets.Message.PressedQrDownload({ format })),
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'chart',
+      title: 'Chart',
+      summary:
+        'Bars, a line, an area or a donut drawn to scale, with a tooltip, a legend, keys through the points and its data as a table.',
+      recipe: 'Chart',
+      file: 'chart',
+      contract: 'ChartSlots',
+    },
+    ChartSlots,
+    Recipes.Chart,
+    chartOf('bar', Snippet.chartBar),
+    undefined,
+    [
+      { name: 'bar', title: 'Bars', draw: chartOf('bar', Snippet.chartBar) },
+      { name: 'line', title: 'A line', draw: chartOf('line', Snippet.chartLine) },
+      {
+        name: 'area',
+        title: 'An area',
+        draw: chartOf('area', Snippet.chartArea),
+        pins: { height: 'sm', grid: 'zero' },
+      },
+      { name: 'donut', title: 'A donut', draw: chartOf('donut', Snippet.chartDonut) },
+      { name: 'table', title: 'Its data, shown', draw: chartOf('table', Snippet.chartTable) },
+      {
+        name: 'colors',
+        title: 'A series keeps its color',
+        draw: chartOf('colors', Snippet.chartColors),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'cascade-select',
+      title: 'Cascade select',
+      summary:
+        'One value chosen as a path through nested options, from a column per level or one level at a time, by the pointer or the arrows.',
+      recipe: 'CascadeSelect',
+      file: 'cascadeSelect',
+      contract: 'CascadeSelectSlots',
+    },
+    CascadeSelectSlots,
+    Recipes.CascadeSelect,
+    cascadeColumns,
+    undefined,
+    [
+      { name: 'columns', title: 'Columns', draw: cascadeColumns },
+      {
+        name: 'drill',
+        title: 'One level at a time',
+        draw: (style, live) =>
+          Snippet.cascadeSelectDrill(
+            style,
+            live.widgets.cascadeDrill,
+            message => live.onWidget(Widgets.Message.GotCascadeDrill({ message })),
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'floating-panel',
+      title: 'Floating panel',
+      summary:
+        'A window over the page that its header drags and its edges resize, kept within the viewport, minimized, maximized, and stacked among others.',
+      recipe: 'FloatingPanel',
+      file: 'floatingPanel',
+      contract: 'FloatingPanelSlots',
+    },
+    FloatingPanelSlots,
+    Recipes.FloatingPanel,
+    panelBasic,
+    undefined,
+    [{ name: 'basic', title: 'Notes', draw: panelBasic }],
+  ),
+  fromRecipe(
+    {
+      slug: 'tour',
+      title: 'Tour',
+      summary:
+        'A guided walk through steps beside the elements they explain, the page dimmed around each, with its place, next, back and skip.',
+      recipe: 'Tour',
+      file: 'tour',
+      contract: 'TourSlots',
+    },
+    TourSlots,
+    Recipes.Tour,
+    tourBasic,
+    undefined,
+    [{ name: 'basic', title: 'Basic', draw: tourBasic }],
   ),
 ]
 

@@ -14,10 +14,19 @@ import {
   Tabs as UiTabs,
 } from '@foldkit/ui'
 import { Option } from 'effect'
-import { Calendar as DateSelection, InputCopy, Menu, Sheet } from 'foldkit-mixins-ui'
+import {
+  Calendar as DateSelection,
+  Chart,
+  ImageCropper,
+  InputCopy,
+  Menu,
+  MessageScroller,
+  Sheet,
+} from 'foldkit-mixins-ui'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
 import { describe, expect, it } from 'vitest'
 
+import * as Snippet from '../src/snippets/components.js'
 import * as Widgets from '../src/gallery/widgets.js'
 import { Message, initial, update } from '../src/main.js'
 
@@ -424,5 +433,76 @@ describe('the date previews', () => {
     expect(picked.widgets.twoMonths.range).toEqual(preset)
     const months = picked.widgets.twoMonths
     expect(shown(months.second)).toBe(shown(months.first) + 1)
+  })
+})
+
+describe('the chat and long-tail previews', () => {
+  const after = (...messages: ReadonlyArray<Widgets.Message>) =>
+    messages.reduce(
+      (model, message) => update(model, Message.GotWidget({ message })).model,
+      initial,
+    ).widgets
+
+  it('count what is sent while the reader has scrolled up, and nothing loaded above', () => {
+    const away = after(
+      Widgets.Message.GotChatScroller({ message: MessageScroller.Message.LeftEnd() }),
+    )
+    const sent = after(
+      Widgets.Message.GotChatScroller({ message: MessageScroller.Message.LeftEnd() }),
+      Widgets.Message.SentChat(),
+      Widgets.Message.LoadedOlderChat(),
+    )
+    expect(away.chatScroller.unseen).toBe(0)
+    expect(sent.chatScroller.unseen).toBe(2)
+    expect(sent.chatEntries).toHaveLength(initial.widgets.chatEntries.length + 6)
+    expect(sent.chatEntries[0]?.id).toBe('older-1-0')
+    expect(sent.chatEntries.at(-1)?.id).toBe('reply-1')
+    expect(new Set(sent.chatEntries.map(entry => entry.id)).size).toBe(sent.chatEntries.length)
+  })
+
+  it('stream the answer to its end, then start over', () => {
+    const whole = after(...Array.from({ length: 7 }, () => Widgets.Message.StreamedWords()))
+    expect(whole.streamed).toBe(Snippet.ANSWER.length)
+    expect(after(Widgets.Message.StreamedWords()).streamed).toBe(10)
+    const again = update(
+      { ...initial, widgets: whole },
+      Message.GotWidget({ message: Widgets.Message.StreamedWords() }),
+    ).model.widgets
+    expect(again.streamed).toBe(3)
+  })
+
+  it('send a failed message again once, and keep the Model on a second retry', () => {
+    const retried = update(
+      initial,
+      Message.GotWidget({ message: Widgets.Message.RetriedChat() }),
+    ).model
+    expect(retried.widgets.chatRetried).toBe(true)
+    expect(
+      update(retried, Message.GotWidget({ message: Widgets.Message.RetriedChat() })).model.widgets,
+    ).toBe(retried.widgets)
+  })
+
+  it('light one chart’s point, and keep the Model when it is lit already', () => {
+    const point = Widgets.Message.GotChart({
+      example: 'line',
+      message: Chart.Message.Pointed({ point: 2 }),
+    })
+    const lit = update(initial, Message.GotWidget({ message: point })).model
+    expect(lit.widgets.charts.line.point).toEqual(Option.some(2))
+    expect(lit.widgets.charts.bar.point).toEqual(Option.none())
+    expect(update(lit, Message.GotWidget({ message: point })).model.widgets).toBe(lit.widgets)
+  })
+
+  it('keep the avatar crop’s export to show beside it', () => {
+    const exported = after(
+      Widgets.Message.GotAvatarCrop({
+        message: ImageCropper.Message.Exported({
+          url: 'data:image/png;base64,AA',
+          width: 1,
+          height: 1,
+        }),
+      }),
+    )
+    expect(exported.avatarUrl).toEqual(Option.some('data:image/png;base64,AA'))
   })
 })

@@ -40,6 +40,18 @@ import {
   Sheet,
   Command as CommandMenu,
   Toast,
+  MessageScroller,
+  Questionnaire,
+  AngleSlider,
+  Timer,
+  Marquee,
+  ImageCropper,
+  SignaturePad,
+  QrCode,
+  Chart,
+  CascadeSelect,
+  FloatingPanel,
+  Tour,
 } from 'foldkit-mixins-ui'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
@@ -85,7 +97,31 @@ import {
   Section,
   SectionTabs,
   Toppings,
+  ANSWER,
+  ChatEntry,
+  TRIP_QUESTIONS,
+  HEADING_LAYOUT,
+  ROTATION_LAYOUT,
+  CASCADE_PLACES,
+  TOUR,
+  downloadQr,
 } from '../snippets/components.js'
+
+/** The chart examples, each lighting a point of its own. */
+export const ChartExample = Schema.Literals(['bar', 'line', 'area', 'donut', 'table', 'colors'])
+export type ChartExample = typeof ChartExample.Type
+
+/** The conversation's first messages; `Send` and `Load older` add to either end. */
+const CHAT: ReadonlyArray<ChatEntry> = [
+  'What is a recipe?',
+  'Pieces of style for each slot of a component, picked by its axes.',
+  'And a slot?',
+  'A named part of the component, which a style or a Mixin reaches.',
+  'Can I change one?',
+  'Extend the recipe, or add a rule in your app layer.',
+  'Which layer wins?',
+  'The app layer, after components and variants.',
+].map((text, at) => ({ id: `chat-${at}`, from: at % 2 === 0 ? 'user' : 'assistant', text }))
 
 /** The pagination examples, each on a page of its own. */
 export const PaginationExample = Schema.Literals([
@@ -324,6 +360,40 @@ export const Model = Schema.Struct({
   plan: Schema.String,
   /** The rating's stars, none before any are given. */
   stay: Schema.Option(Schema.Number),
+  /** The chat previews: the answer liked, the failed message retried, the words streamed. */
+  answerLiked: Schema.Boolean,
+  chatRetried: Schema.Boolean,
+  streamed: Schema.Number,
+  /** The conversation, whether it follows its end, and how many were sent and loaded. */
+  chatScroller: MessageScroller.Model,
+  chatEntries: Schema.Array(ChatEntry),
+  chatSent: Schema.Number,
+  chatLoaded: Schema.Number,
+  /** Thinking Steps' openness: none follows the work. */
+  thought: Schema.Option(Schema.Boolean),
+  thinking: Schema.Option(Schema.Boolean),
+  toolsOpen: Schema.Option(Schema.Boolean),
+  /** The tool calls whose input and output are open. */
+  toolSteps: Schema.Array(Schema.String),
+  tripQuestions: Questionnaire.Model,
+  tripQuestionsPaged: Questionnaire.Model,
+  heading: AngleSlider.Model,
+  rotation: AngleSlider.Model,
+  tea: Timer.Model,
+  lap: Timer.Model,
+  customers: Marquee.Model,
+  news: Marquee.Model,
+  photo: ImageCropper.Model,
+  avatarCrop: ImageCropper.Model,
+  /** The avatar cropper's last export, shown beside it. */
+  avatarUrl: Schema.Option(Schema.String),
+  signature: SignaturePad.Model,
+  charts: Schema.Record(ChartExample, Chart.Model),
+  cascade: CascadeSelect.Model,
+  cascadeDrill: CascadeSelect.Model,
+  /** The notes panel and the order the page's panels stack in. */
+  panels: Schema.Struct({ notes: FloatingPanel.Model, order: Schema.Array(Schema.String) }),
+  tour: Tour.Model,
 })
 export type Model = typeof Model.Type
 
@@ -446,6 +516,37 @@ export const Message = defineMessageUnion({
   ReadCapsLock: { reading: Schema.Option(Schema.Boolean) },
   GotInputCopy: { message: InputCopy.Message },
   ChosePlan: { plan: Schema.String },
+  CopiedAnswer: {},
+  LikedAnswer: {},
+  RetriedChat: {},
+  StreamedWords: {},
+  GotChatScroller: { message: MessageScroller.Message },
+  SentChat: {},
+  LoadedOlderChat: {},
+  ToggledThought: { open: Schema.Boolean },
+  ToggledThinking: { open: Schema.Boolean },
+  ToggledTools: { open: Schema.Boolean },
+  ToggledToolStep: { id: Schema.String },
+  GotTripQuestions: { message: Questionnaire.Message },
+  GotTripQuestionsPaged: { message: Questionnaire.Message },
+  GotHeading: { message: AngleSlider.Message },
+  GotRotation: { message: AngleSlider.Message },
+  GotTea: { message: Timer.Message },
+  GotLap: { message: Timer.Message },
+  GotCustomers: { message: Marquee.Message },
+  GotNews: { message: Marquee.Message },
+  GotPhoto: { message: ImageCropper.Message },
+  GotAvatarCrop: { message: ImageCropper.Message },
+  GotSignature: { message: SignaturePad.Message },
+  GotChart: { example: ChartExample, message: Chart.Message },
+  PressedQrDownload: { format: QrCode.Format },
+  GotQrDownload: { message: QrCode.Message },
+  GotCascade: { message: CascadeSelect.Message },
+  GotCascadeDrill: { message: CascadeSelect.Message },
+  GotPanel: { message: FloatingPanel.Message },
+  OpenedPanel: {},
+  GotTour: { message: Tour.Message },
+  StartedTour: {},
 })
 export type Message = typeof Message.Type
 
@@ -688,6 +789,52 @@ export const initial: Model = {
   dropdownDay: DateSelection.empty('Single'),
   region: 'Frankfurt',
   plan: 'Team',
+  answerLiked: false,
+  chatRetried: false,
+  streamed: 6,
+  chatScroller: MessageScroller.init({ id: 'preview-chat' }),
+  chatEntries: CHAT,
+  chatSent: 0,
+  chatLoaded: 0,
+  thought: Option.none(),
+  thinking: Option.none(),
+  // Done, so shut unless the reader opened it: the gallery shows it open.
+  toolsOpen: Option.some(true),
+  toolSteps: ['weather'],
+  tripQuestions: Questionnaire.init({ id: 'preview-trip', questions: TRIP_QUESTIONS }),
+  tripQuestionsPaged: Questionnaire.init({
+    id: 'preview-trip-paged',
+    questions: TRIP_QUESTIONS,
+    layout: 'paged',
+  }),
+  heading: AngleSlider.init({ id: 'preview-heading', value: 45 }),
+  rotation: AngleSlider.init({ id: 'preview-rotation', value: 90 }),
+  tea: Timer.init({ id: 'preview-tea', countdown: true, duration: 3 * 60_000 }),
+  lap: Timer.init({ id: 'preview-lap', interval: 10 }),
+  customers: Marquee.init({ id: 'preview-customers' }),
+  news: Marquee.init({ id: 'preview-news' }),
+  photo: ImageCropper.init({ id: 'preview-photo' }),
+  avatarCrop: ImageCropper.init({ id: 'preview-avatar-crop', shape: 'round', aspect: 1 }),
+  avatarUrl: Option.none(),
+  signature: SignaturePad.init({ id: 'preview-signature' }),
+  charts: {
+    bar: Chart.init(),
+    line: Chart.init(),
+    area: Chart.init(),
+    donut: Chart.init(),
+    table: Chart.init(),
+    colors: Chart.init(),
+  },
+  cascade: CascadeSelect.init({ id: 'preview-cascade' }),
+  cascadeDrill: CascadeSelect.init({ id: 'preview-cascade-drill' }),
+  panels: {
+    notes: FloatingPanel.init({
+      id: 'preview-panel',
+      rect: { x: 80, y: 120, width: 320, height: 220 },
+    }),
+    order: ['preview-panel'],
+  },
+  tour: Tour.init({ id: 'preview-tour' }),
 }
 
 type Step = Update.Step<Model, Message>
@@ -1381,6 +1528,89 @@ const notify = Update.foldChild({
   foldOutMessage: noticesOut,
 })
 
+const foldChatScroller = Update.foldChild({
+  ...own('chatScroller', Message.GotChatScroller),
+  update: MessageScroller.update,
+})
+
+// A chat would send the answers as the user's reply; the summary drawn says them here.
+const tripOut = Questionnaire.OutMessage.match<Step>({ Answered: () => same })
+const foldTripQuestions = Update.foldChild({
+  ...own('tripQuestions', Message.GotTripQuestions),
+  update: Questionnaire.update,
+  foldOutMessage: tripOut,
+})
+const foldTripQuestionsPaged = Update.foldChild({
+  ...own('tripQuestionsPaged', Message.GotTripQuestionsPaged),
+  update: Questionnaire.update,
+  foldOutMessage: tripOut,
+})
+
+const foldHeading = Update.foldChild({
+  ...own('heading', Message.GotHeading),
+  update: AngleSlider.update(HEADING_LAYOUT),
+})
+const foldRotation = Update.foldChild({
+  ...own('rotation', Message.GotRotation),
+  update: AngleSlider.update(ROTATION_LAYOUT),
+})
+const foldTea = Update.foldChild({ ...own('tea', Message.GotTea), update: Timer.update })
+const foldLap = Update.foldChild({ ...own('lap', Message.GotLap), update: Timer.update })
+const foldCustomers = Update.foldChild({
+  ...own('customers', Message.GotCustomers),
+  update: Marquee.update,
+})
+const foldNews = Update.foldChild({ ...own('news', Message.GotNews), update: Marquee.update })
+const foldPhoto = Update.foldChild({
+  ...own('photo', Message.GotPhoto),
+  update: ImageCropper.update,
+})
+const foldAvatarCrop = Update.foldChild({
+  ...own('avatarCrop', Message.GotAvatarCrop),
+  update: ImageCropper.update,
+})
+const foldSignature = Update.foldChild({
+  ...own('signature', Message.GotSignature),
+  update: SignaturePad.update,
+})
+const foldCascade = Update.foldChild({
+  ...own('cascade', Message.GotCascade),
+  update: CascadeSelect.update(CASCADE_PLACES),
+})
+const foldCascadeDrill = Update.foldChild({
+  ...own('cascadeDrill', Message.GotCascadeDrill),
+  update: CascadeSelect.update(CASCADE_PLACES),
+})
+const tourField = own('tour', Message.GotTour)
+// An application would remember the tour was seen; the gallery starts it again on a press.
+const tourOut = (_ended: Tour.Ended): Step => same
+const foldTour = Update.foldChild({
+  ...tourField,
+  update: Tour.update(TOUR),
+  foldOutMessage: tourOut,
+})
+const startTour = Update.foldChildStep({
+  ...tourField,
+  update: (tour: Tour.Model) => Tour.start(tour, TOUR, { opener: 'preview-tour-start' }),
+  foldOutMessage: tourOut,
+})
+
+const updatePanel = FloatingPanel.update()
+/** The panel's step, its `Raised` lifting it to the top of the order. */
+const panelStep = (model: Model, step: FloatingPanel.Return): Update.Return<Model, Message> => {
+  const order = Option.match(Option.fromNullishOr(step.outMessage), {
+    onNone: () => model.panels.order,
+    onSome: ({ id }) => FloatingPanel.raise(model.panels.order, id),
+  })
+  return {
+    model:
+      step.model === model.panels.notes && order === model.panels.order
+        ? model
+        : modifyFields(model, { panels: () => ({ notes: step.model, order }) }),
+    commands: Command.mapMessages(step.commands ?? [], message => Message.GotPanel({ message })),
+  }
+}
+
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match(message, {
     GotTabs: ({ message }) => foldTabs(model, message),
@@ -1578,6 +1808,107 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       region === model.region
         ? { model }
         : { model: modifyFields(model, { region: () => region }) },
+    CopiedAnswer: () => ({
+      model,
+      commands: Command.mapMessages([InputCopy.Copy({ text: ANSWER.join(' ') })], message =>
+        Message.GotCopy({ message }),
+      ),
+    }),
+    LikedAnswer: () => ({ model: modifyFields(model, { answerLiked: liked => !liked }) }),
+    RetriedChat: () =>
+      model.chatRetried ? { model } : { model: modifyFields(model, { chatRetried: () => true }) },
+    // A few words at a time, as a stream lands; once whole, the next press starts over.
+    StreamedWords: () => ({
+      model: modifyFields(model, {
+        streamed: shown => (shown >= ANSWER.length ? 3 : Math.min(shown + 4, ANSWER.length)),
+      }),
+    }),
+    GotChatScroller: ({ message }) => foldChatScroller(model, message),
+    SentChat: () => {
+      const sent = model.chatSent + 1
+      const appended = modifyFields(model, {
+        chatSent: () => sent,
+        chatEntries: entries => [
+          ...entries,
+          { id: `sent-${sent}`, from: 'user', text: `Message ${sent}` },
+          { id: `reply-${sent}`, from: 'assistant', text: `Reply ${sent}` },
+        ],
+      })
+      return foldChatScroller(appended, MessageScroller.Message.Appended({ count: 2 }))
+    },
+    // Older messages land above: the scroller holds its place and counts nothing.
+    LoadedOlderChat: () => {
+      const loaded = model.chatLoaded + 1
+      const older = Array.from({ length: 4 }, (_, at): ChatEntry => ({
+        id: `older-${loaded}-${at}`,
+        from: at % 2 === 0 ? 'user' : 'assistant',
+        text: `An older message, ${loaded}.${at + 1}`,
+      }))
+      return {
+        model: modifyFields(model, {
+          chatLoaded: () => loaded,
+          chatEntries: entries => [...older, ...entries],
+        }),
+      }
+    },
+    ToggledThought: ({ open }) => ({
+      model: modifyFields(model, { thought: () => Option.some(open) }),
+    }),
+    ToggledThinking: ({ open }) => ({
+      model: modifyFields(model, { thinking: () => Option.some(open) }),
+    }),
+    ToggledTools: ({ open }) => ({
+      model: modifyFields(model, { toolsOpen: () => Option.some(open) }),
+    }),
+    ToggledToolStep: ({ id }) => ({
+      model: modifyFields(model, {
+        toolSteps: open => Accordion.toggled(open, id, { multiple: true }),
+      }),
+    }),
+    GotTripQuestions: ({ message }) => foldTripQuestions(model, message),
+    GotTripQuestionsPaged: ({ message }) => foldTripQuestionsPaged(model, message),
+    GotHeading: ({ message }) => foldHeading(model, message),
+    GotRotation: ({ message }) => foldRotation(model, message),
+    GotTea: ({ message }) => foldTea(model, message),
+    GotLap: ({ message }) => foldLap(model, message),
+    GotCustomers: ({ message }) => foldCustomers(model, message),
+    GotNews: ({ message }) => foldNews(model, message),
+    GotPhoto: ({ message }) => foldPhoto(model, message),
+    // The export comes back as the cropper's own Message, which the page keeps to show.
+    GotAvatarCrop: ({ message }) => {
+      const folded = foldAvatarCrop(model, message)
+      return Match.value(message).pipe(
+        Match.withReturnType<Update.Return<Model, Message>>(),
+        Match.tag('Exported', ({ url }) => ({
+          ...folded,
+          model: modifyFields(folded.model, { avatarUrl: () => Option.some(url) }),
+        })),
+        Match.orElse(() => folded),
+      )
+    },
+    GotSignature: ({ message }) => foldSignature(model, message),
+    GotChart: ({ example, message }) => {
+      const chart = Chart.update(model.charts[example], message).model
+      // The same Model when the chart's is: a pointer over the lit band changes nothing.
+      return chart === model.charts[example]
+        ? { model }
+        : { model: modifyFields(model, { charts: all => ({ ...all, [example]: chart }) }) }
+    },
+    PressedQrDownload: ({ format }) => ({
+      model,
+      commands: Command.mapMessages([downloadQr(format)], message =>
+        Message.GotQrDownload({ message }),
+      ),
+    }),
+    // A saved file needs no word from the page, and a refused one has nowhere to go here.
+    GotQrDownload: () => ({ model }),
+    GotCascade: ({ message }) => foldCascade(model, message),
+    GotCascadeDrill: ({ message }) => foldCascadeDrill(model, message),
+    GotPanel: ({ message }) => panelStep(model, updatePanel(model.panels.notes, message)),
+    OpenedPanel: () =>
+      panelStep(model, FloatingPanel.open(model.panels.notes, { opener: 'preview-panel-opener' })),
+    GotTour: ({ message }) => foldTour(model, message),
+    StartedTour: () => startTour(model),
     ChosePlan: ({ plan }) =>
       plan === model.plan ? { model } : { model: modifyFields(model, { plan: () => plan }) },
     SortedInvoices: ({ column }) => ({
