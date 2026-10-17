@@ -170,6 +170,11 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   gets nothing: native bars stay. `scroller: 'ul'` when the scroller holds another Mount. No Message.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
   `MoveEnded { completed }` with pointer capture; `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
+- **Where one pointer is in an element:** the `PointerPosition({ focus? })` Mount (`foldkit-primitives/dom`)
+  reports `PointerPressed`, `PointerMoved` (with the coalesced `points` and pressure) and `PointerReleased
+  { completed }`, each place in the element's padding box with its size, captured, moves listened to only
+  during a press; `focus` names a descendant to focus on a press. `paddingBoxOf({ rect, border })` and
+  `measurePaddingBox(element)` give the box. The color picker's area, the angle slider and the signature pad read it.
 - **Focus ring for keyboard users only:** place `InputModality` (`events`; `{ modality }` from window keydown and pointerdown)
   and attach `FocusVisible.behavior(Declared)(Slots)({ target })`, which writes `data-focus-visible` under keyboard. CSS `:focus-visible` is the floor.
 - **Dismiss on Escape or outside press:** place `DismissLayer.bundle` once (required `onOut` for `Dismiss { ids }`);
