@@ -1266,6 +1266,13 @@ of its own named a form field "fits the Catalog". Read words with
   fix when a sub-pixel resize or a transition still running makes `Measure`
   measure again anyway. Fix the fixture's width and drop its transitions, so
   only the change under test can move it.
+- **End goes to the end of a line, not of a block, and CI wraps elsewhere.**
+  The playground's e2e pressed a callout at a fixed point, then End, and
+  typed: on CI, whose fonts (DejaVu Sans) wrap the text onto more lines, the
+  caret stopped mid-text and every run failed while Windows and the
+  Playwright image passed. Put the caret at a block's end with a press past
+  its last line (`caretAtEnd` in `playground.e2e.ts`), and reproduce in the
+  Playwright image with `fonts-dejavu-core` installed.
 - **A moving element is never stable to Playwright.** `userEvent.hover` on
   a running Marquee's copy timed out ("element is not stable"), since the
   locator waits for the box to stop. Hover the still region around it.

@@ -5,7 +5,7 @@
  * the block under the pointer.
  */
 import { fileURLToPath } from 'node:url'
-import { type Browser, chromium, type Page } from 'playwright'
+import { type Browser, chromium, type Locator, type Page } from 'playwright'
 import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 
@@ -43,10 +43,22 @@ const open = async (
   return page
 }
 
+/**
+ * The caret at the end of a block's text, by a press below and right of its
+ * last line (inside a rounded corner). End reaches only the end of the line
+ * pressed, and where a block wraps depends on the fonts: CI's DejaVu Sans
+ * wrapped the callout that other fonts kept on fewer lines.
+ */
+const caretAtEnd = async (block: Locator) => {
+  await block.scrollIntoViewIfNeeded()
+  const box = await block.boundingBox()
+  if (box === null) throw new Error('The block is not drawn.')
+  await block.page().mouse.click(box.x + box.width - 24, box.y + box.height - 6)
+}
+
 /** A new empty line after the last block, with the caret on it. */
 const newLine = async (page: Page) => {
-  await page.click('[contenteditable=true] > p:last-of-type')
-  await page.keyboard.press('End')
+  await caretAtEnd(page.locator('[contenteditable=true] > p:last-of-type'))
   await page.keyboard.press('Enter')
 }
 
@@ -258,8 +270,7 @@ test('Enter in code breaks the line, and on an empty last line leaves the block'
 test('empty lines can be reached with the arrow keys, and a new callout has a line', async () => {
   const errors: Array<string> = []
   const page = await open(errors)
-  await page.click('[contenteditable=true] > p')
-  await page.keyboard.press('End')
+  await caretAtEnd(page.locator('[contenteditable=true] > p').first())
   for (let count = 0; count < 3; count++) await page.keyboard.press('Enter')
   await page.keyboard.press('ArrowUp')
   await page.keyboard.type('up')
@@ -515,8 +526,7 @@ test('Enter in a callout breaks its line, and on an empty last line leaves it', 
   const errors: Array<string> = []
   const page = await open(errors)
   const callout = page.locator('[contenteditable=true] > aside')
-  await callout.click({ position: { x: 600, y: 60 } })
-  await page.keyboard.press('End')
+  await caretAtEnd(callout)
   await page.keyboard.press('Enter')
   await page.keyboard.type('Second line')
   await expect.poll(() => callout.textContent()).toMatch(/new\.\nSecond line$/)
