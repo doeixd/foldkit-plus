@@ -9,6 +9,92 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: a custom Select, and Combobox chips, clearing and an
+  empty panel.** A select drawn over Listbox: `Listbox.parts` draws an
+  option's icon, label, description and check, and the trigger's value (or
+  its placeholder, muted) and chevron; `Recipes.Listbox` gains `check`
+  (`end`, `start`, `none`), `trigger` (`outline`, `filled`, `ghost`) and size
+  `lg`. The Combobox takes `chips` (each chosen value a chip in the field,
+  its remove button choosing it again, which a multiple combobox toggles
+  off), `clearContent` and `clearLabel` (a clear button while the field has
+  text) and `empty` (a polite panel in the list's place with nothing to list,
+  a loading line too); `Combobox.parts` draws an option with the typed text
+  marked. `ComboboxChipRender` and `ComboboxExtraInputs` are exported.
+- **`foldkit-mixins-ui`: TagsInput's `max` and refusals, PasswordInput's
+  strength and rules, InputCopy's reset.** `TagsInput.init({ max })` holds at
+  most `max` tags; a commit that adds nothing, or not all of the draft, is a
+  `Refusal` (`Repeat`, `Empty`, `Full`), said in a polite `message` slot
+  (`refusalText` words it) with a one-time shake that `travel` stills.
+  `PasswordInput` takes `strength` (a `Meter`), `requirements`
+  (`PasswordRequirement`s listed under the field, each read as met or not)
+  and `capsLock: { on, onKey }`, a polite hint while Caps Lock is on, read
+  from each key by `capsLockOf`. `InputCopy` gains a `Model` (`init({
+  resetAfter })`, default 2000ms) and `update`: `Copied` shows the value as
+  copied and starts `Reset`, which sets it back to "Copy" unless a later copy
+  came first.
+- **`foldkit-mixins/theme`: shadows tinted by `shadow-h` and `shadow-c`.**
+  `Theme.oklch({ shadow: { h, c } })` sets two knobs every shadow reads,
+  defaulting to the neutrals' hue at twice their chroma, so shadows take the
+  page's hue rather than a neutral black.
+- **`foldkit-mixins-ui`: Card, Avatar, Separator, Skeleton, Spinner, Item and
+  Empty grow their looks.** Card takes `elevation` (`0` to `3`, a step of
+  the surface ladder: lighter in a dark scheme, a contact and an ambient
+  shadow in a light one) and `lift: 'hover'` (a lift under the pointer,
+  times `travel`); `Card.overlay` is the one stretched press control a
+  pressable card or Item draws. Avatar takes `src`, `initials`, `status`
+  and `statusLabel`; `Avatar.group({ people, max, label, moreLabel })` draws
+  overlapping avatars and counts the rest as one more (`AvatarGroupSlots`,
+  `Recipes.AvatarGroup({ overlap: 'tight' | 'loose' | 'none' })`), and
+  `Recipes.Avatar` gains sizes `xs` and `xl`, `shape` (`circle`, `rounded`,
+  `square`), `color: 'name'` (a hue from the name) and `ring`. Separator
+  takes `label` and `decorative`, and the recipe `line` (`solid`, `dashed`,
+  `dotted`), `thickness`, `spacing` and `inset`. Skeleton gains `lines`,
+  `avatarRow`, `card` and `tableRow({ columns })`, and `animation` (`pulse`,
+  `shimmer`, `none`). Spinner takes `showLabel`, and the recipe `kind`
+  (`ring`, `dots`, `bars`, `pulse`, `orbit`), `size` and `tone` (`accent`,
+  `neutral`, `current`). Item is the row primitive: `press`, `label`,
+  `selected` and `disabled`, `Item.group` for a list (`ItemGroupSlots`,
+  `Recipes.ItemGroup({ layout: 'divided' | 'separated' })`), and the recipe's
+  `variant` (`plain`, `outline`, `muted`) and `media` (`plain`, `icon`,
+  `image`). Empty takes `media` (`icon`, `illustration`), `frame` (`none`,
+  `dashed`, `filled`), `tone` (`neutral`, `danger`) and `size`.
+- **`foldkit-mixins-ui`: menu check rows, groups and shortcuts; Command pages
+  and hints; a Toast component.** A Menu row may be a `CheckRow` (`check:
+  'checkbox' | 'radio'`, `checked`): choosing it sends `Selected` and leaves
+  the menu open, the application keeping `checked`. Any row may name a
+  `group` (a heading, and a separator between groups), a `shortcut` (keys
+  drawn as Kbd with `kbd`, named in `aria-keyshortcuts`) and `tone:
+  'destructive'`. A Menubar's menus take the same rows, and `Menubar.init(ids,
+  { isAnimated, isModal })` passes both to every menu. A Command row takes
+  `icon`, `description` (matched by the query) and `opensPage`; the view
+  takes `page: { trail, onBack }` (Backspace in an empty field goes back),
+  `loading`, `hints` for a footer of keys and `kbd`; `Command.hotkey(message)`
+  is ⌘K or Ctrl+K anywhere, and `Recipes.Command({ frame: 'bare' })` sits in
+  a dialog. `Toast` is now a component: `init`, `show`, `settle`, `dismiss`,
+  `update` and `view`. Toasts stack after Sonner's, spread out when held,
+  pause while the pointer or focus is on the stack or the page is hidden
+  (keeping the time left), show three at most, swipe away toward their
+  edge, and are spoken in a polite or, for an error, an assertive region.
+  `settle` turns a `loading` toast into its outcome, a promise toast; an
+  `action` sends `Acted` with its value. `Recipes.Toast({ tone: 'rich' })`
+  tints each type. `ToastView` stays for toasts that carry their own payload.
+- **`foldkit-mixins-ui`: popovers, tooltips and hover cards in the top layer,
+  and the Sheet.** `Anchor.layer` around a panel shows it in the browser's
+  top layer, above every stacking context and outside every `overflow` box,
+  with upstream's anchor placing it (the new `layer` slots), and an `arrow`
+  slot points at the trigger. `Popover.anchor()`, `Tooltip.anchor()` and
+  `HoverIntent.anchor()` are the placements: 8px off the trigger, 8px inside
+  the viewport, flipping and shifting to stay there. A Hover Card is placed
+  by `HoverIntent.toView`'s `anchored: { id, anchor? }`. The Popover and
+  Tooltip recipes take `arrow: 'none'`. The Dialog gains `body`, `scroll`,
+  `scrollBar`, `scrollThumb` and `footer` slots (a long body scrolls under a
+  footer that stays), `Dialog.overlayBars`, sizes `xl` and `full`, `covered`
+  (a dialog that another was opened from steps back) and
+  `DialogContext.attributes`. `Sheet` is a component over the Dialog: its
+  handle drags it between `points` and, unless `dismissible: false`, away,
+  with vaul's thresholds; `Sheet.view({ scalesPage })` with
+  `Recipes.sheetPage` on the page beside it steps the page back. `Swipe` is
+  in `foldkit-primitives/dom`.
 - **`foldkit-mixins-ui`: a visible press and a filled toggle on buttons, four
   badge looks, key combinations, richer breadcrumbs, pagination and steps.**
   A held button scales to 98% (the 2% multiplied by `travel`, so reduced
@@ -151,14 +237,15 @@ version changed; `pnpm` skips versions already in the registry.
   application's (`ColorPicker.Oklch`); `format`, `parse` (an `Option`) and
   `withChannel` are pure. `Patterns.ColorPicker` and a gallery page.
 - **`foldkit-mixins-ui`: `Recipes.Sheet`, the Dialog from an edge.**
-  shadcn's Sheet and vaul's Drawer as one recipe over `DialogSlots`: a `side`
-  axis (`top`, `right`, `bottom`, `left`) pins the panel to its edge and
-  slides it in from there, the fade kept under reduced motion. `handle:
-  'bar'` shows the handle, a Slot (`handle` on `DialogSlots`, `aria-hidden`,
+  shadcn's Sheet and vaul's Drawer as one recipe over `DialogSlots`: the
+  panel stands on the edge its `data-side` names (`top`, `right`, `bottom`,
+  `left`, written by `Sheet.view` from `Sheet.init({ side })`) and slides in
+  from there, the fade kept under reduced motion. `handle: 'bar'`, the
+  default, shows the handle, a Slot (`handle` on `DialogSlots`, `aria-hidden`,
   drawn as `h.div(dialog.handle)` in the panel), and rounds the inner
   corners: from the top or bottom it is the panel's last or first row, and
-  from the left or right a bar standing on the edge facing the page, so
-  `side: 'bottom', handle: 'bar'` is a drawer as on a phone. One gallery
+  from the left or right a bar standing on the edge facing the page, so a
+  bottom sheet with its handle is a drawer as on a phone. One gallery
   page.
 - **`foldkit-mixins-ui`: `InputCopy`, a value with a copy button.** A
   read-only field and a button named after its label; `InputCopy.Copy` is
@@ -254,7 +341,8 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-mixins-ui`: `Recipes.HoverCard`,** the widgets island's hover
   card as `@foldkit/ui`'s HoverIntent with a look: a trigger read as a link
   and a raised panel that fades in as it is drawn (`@starting-style`),
-  placed by the `Anchor` Mount. The delays stay HoverIntent's. A gallery
+  placed against its trigger in the top layer by `HoverIntent.toView`'s
+  `anchored`. The delays stay HoverIntent's. A gallery
   page draws it.
 - **`foldkit-mixins-ui`: `OtpField`, Input OTP,** after shadcn's input-otp
   rather than the widgets island's cell per input: one real `<input>` over
@@ -541,6 +629,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins-ui`: the Tooltip takes its id; the Toast recipe drops its
+  accent edge (breaking).** `Tooltip.toView` and `Tooltip.resolve` take the
+  Tooltip's `id`, which the arrow points from.
+- **`foldkit-mixins-ui`: Select's chevron and the display slots (breaking
+  for hand-drawn slots).** The native Select draws its own chevron and
+  mutes a chosen placeholder. `AvatarSlots` gains `status`, and the
+  avatar's root is one `role="img"` named by the person, its picture's alt
+  empty. `SeparatorSlots` gains `root` and `label`, the line a border in
+  `outline.default`. `SkeletonSlots` gains `group`, a bar a film of the
+  text. `SpinnerSlots` gains `part`, `root` and `text`, a turn about 720ms
+  times `travel`. `ItemSlots` gains `overlay`. Empty's title takes the
+  `subtitle` role and its icon is `aria-hidden`.
 - **`foldkit-mixins`, `foldkit-mixins-ui`: hovers take their surface’s paint,
   not grey.** `unfilledHover` films the state ink instead of the text: the
   theme's `--fk-state-ink` (`state.ink`), unless a surface painted in a hue
@@ -771,6 +871,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: TagsInput keeps keys typed fast out of the tag just
+  added.** Keys typed before the emptied input was drawn joined the tag
+  Enter had just added.
+- **`foldkit-mixins-ui`: display fixes in a dark scheme.** A chosen card and
+  a Card Group's highlight no longer read as sunken; a card's "New" badge
+  sits on its title's line; a Separator and a Skeleton show on a dark page.
 - **`foldkit-mixins-ui`: rows, pills and highlights follow their container's
   corner.** A menu's, listbox's or combobox's highlight and chosen marker,
   a Command's rows, a Menubar's triggers, a Segmented option's pill and
@@ -796,7 +902,7 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-mixins-ui`: a Hover Card no longer moves its trigger.** The
   Anchor writes `top` and `left` but no `position`, so an unportaled card
   stood in the line beside its trigger and the centered row shifted; the
-  recipe now takes the panel out of the flow.
+  anchored placement now takes the panel out of the flow.
 - **`foldkit-mixins-ui`: a Segmented option's words sit centered.** The
   `text-box` trim on the option ended at the hidden semibold copy after the
   words, its last line, so only their top was trimmed and they stood 2.5px
