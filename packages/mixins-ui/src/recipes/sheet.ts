@@ -51,19 +51,22 @@ const placed = {
 } as const
 
 const across = (side: Side): Declarations =>
-  side === 'top' || side === 'bottom' ? { maxBlockSize: '80%' } : { inlineSize: 'min(24rem, 75%)' }
+  side === 'top' || side === 'bottom'
+    ? { maxBlockSize: '80%' }
+    : // The Dialog's margin from the viewport's edges is no sheet's.
+      { inlineSize: 'min(24rem, 75%)', maxBlockSize: 'none' }
 
 const length = '6.25rem'
 const thickness = '0.375rem'
 
 /**
- * The handle on the panel's inner edge: a row of the panel's grid, first or
+ * The handle on the panel's inner edge: an item of the panel's column, first or
  * last whatever the view's order, from the top or bottom; a bar standing on
  * that edge, out of the flow, from the left or right.
  */
 const grabber: Record<Side, Declarations> = {
-  top: { order: '1', justifySelf: 'center', inlineSize: length, blockSize: thickness },
-  bottom: { order: '-1', justifySelf: 'center', inlineSize: length, blockSize: thickness },
+  top: { order: '1', alignSelf: 'center', inlineSize: length, blockSize: thickness },
+  bottom: { order: '-1', alignSelf: 'center', inlineSize: length, blockSize: thickness },
   right: {
     position: 'absolute',
     insetBlock: '0',

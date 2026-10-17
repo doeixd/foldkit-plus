@@ -1,6 +1,7 @@
 import type { Message as DialogMessage, RenderInfo } from '@foldkit/ui/dialog'
-import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
+import { Attr, Behavior, Capability, Event, Slot, Slots } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
+import { ScrollBars } from 'foldkit-primitives/dom'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 /**
@@ -12,6 +13,12 @@ import { resolveFor, type MixinList, type ResolveContext, type Resolved } from '
  * `dialog` owns `cancel` (the native Escape handler); `backdrop` and
  * `closeButton` own `click`. A Behavior adding its own handler to one of those
  * is a conflict, not a second silent owner.
+ *
+ * `body`, `scroll`, `scrollBar`, `scrollThumb` and `footer` are this
+ * package's, with no upstream bundle: a panel taller than the viewport
+ * scrolls its `scroll` (inside `body`, between the title and the footer)
+ * while the title and the `footer`'s answers stay in view. `overlayBars`
+ * draws the overlay bar, `scrollBar` with its `scrollThumb`, inside `body`.
  */
 export const DialogSlots = Slots.define({
   dialog: Slot.make({
@@ -35,7 +42,32 @@ export const DialogSlots = Slots.define({
    * only: the Sheet recipe hides it unless `handle: 'bar'`.
    */
   handle: Slot.make({ capability: Capability.Container }),
+  /** The part between the heading and the footer, holding `scroll` and its bar. */
+  body: Slot.make({ capability: Capability.Container }),
+  /** What scrolls when the panel would outgrow the viewport. */
+  scroll: Slot.make({ capability: Capability.Container }),
+  scrollBar: Slot.make({ capability: Capability.Container }),
+  scrollThumb: Slot.make({ capability: Capability.Container }),
+  /** The answers, below `body`, in view however far it scrolls. */
+  footer: Slot.make({ capability: Capability.Container }),
 })
+
+/**
+ * The overlay bar on the dialog's `scroll`, the popups' list shape: pass it
+ * among the mixins, and draw `scrollBar` (holding `scrollThumb`) beside
+ * `scroll` in `body`. Where the pointer is coarse the browser's bar stays.
+ */
+export const overlayBars = [
+  Behavior.forSlots(DialogSlots)<unknown, never>(
+    {
+      scroll: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => ScrollBars({}),
+      }),
+    },
+    { name: 'DialogScrollBars' },
+  ).mixin,
+] as const
 
 /** The dialog's bundles with the attached Mixins applied. */
 export type ResolvedDialog<Message> = Resolved<RenderInfo, typeof DialogSlots, Message>
@@ -48,6 +80,11 @@ export interface DialogContext<Input, Message> extends ResolveContext<Input, Mes
    * default, writes no role: the `<dialog>` element already has it.
    */
   readonly role?: 'dialog' | 'alertdialog'
+  /**
+   * Whether a dialog opened from this one is above it, as Base UI's nested
+   * dialogs: the panel carries `data-covered`, and the recipe steps it back.
+   */
+  readonly covered?: boolean
 }
 
 /** Resolves the dialog's render groups; `isVisible` passes through unchanged. */
@@ -60,6 +97,7 @@ export const resolve = <Input, Message>(
     context.role === 'alertdialog'
       ? [...render.dialog, context.h.Role('alertdialog')]
       : render.dialog
+  const { h } = context
   return resolveFor(
     DialogSlots,
     mixins,
@@ -67,7 +105,11 @@ export const resolve = <Input, Message>(
   )({
     ...render,
     dialog,
-    handle: [context.h.AriaHidden(true)],
+    panel:
+      context.covered === true ? [...render.panel, h.DataAttribute('covered', '')] : render.panel,
+    handle: [h.AriaHidden(true)],
+    // Hidden from assistive technology: the body is what a reader scrolls.
+    scrollBar: [h.DataAttribute('scroll-bar', 'block'), h.AriaHidden(true)],
   })
 }
 

@@ -1,11 +1,16 @@
 /**
  * A modal dialog: the backdrop dims the page and the panel is a raised
- * surface. `size` is the panel's maximum width.
+ * surface no taller than the viewport, whose `scroll` scrolls between its
+ * heading and its `footer`. `size` is the panel's maximum width (`full`
+ * fills the viewport less a margin). A panel `covered` by a dialog opened
+ * from it steps back, smaller.
  */
 import { Style } from 'foldkit-mixins'
 import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { DialogSlots } from '../dialog.js'
 import { component, focusRing, hover, presence, ref, variant } from './design.js'
+import { bar, overlaid, thumb } from './scrollBars.js'
 
 /** A width one notch narrower in a compact region, as Fluid Functionalism's (400px to 360px). */
 const width = (max: string) =>
@@ -48,9 +53,16 @@ export const Dialog = Style.recipeFor(DialogSlots)({
     panel: component(
       Style.self({
         position: 'relative',
-        display: 'grid',
+        display: 'flex',
+        flexDirection: 'column',
         gap: ref.space.sm,
+        // With the reset's content box, the padding and border added to the
+        // width a size allows, and a phone's panel ran past its margins.
+        boxSizing: 'border-box',
         inlineSize: '100%',
+        maxBlockSize: 'calc(100% - 2rem)',
+        // A panel drawn without `scroll` scrolls whole rather than leave the viewport.
+        overflowY: 'auto',
         marginInline: 'auto',
         padding: ref.space.lg,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
@@ -62,6 +74,39 @@ export const Dialog = Style.recipeFor(DialogSlots)({
       raise(4),
       // The largest thing that moves: the slow tier, from a little smaller.
       presence('slow', { scale: '0.97' }),
+      // Under a dialog opened from it: a step back, as Base UI's nested dialogs.
+      Style.pseudo('[data-covered]', { scale: '0.94', translate: `0 calc(-1 * ${ref.space.md})` }),
+    ),
+    body: component(
+      Style.self({
+        position: 'relative',
+        display: 'grid',
+        flex: '1 1 auto',
+        minBlockSize: '0',
+        // The panel's padding, taken back, so the bar lies at the panel's edge.
+        marginInline: `calc(-1 * ${ref.space.lg})`,
+      }),
+    ),
+    scroll: component(
+      Style.self({
+        minBlockSize: '0',
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
+        paddingInline: ref.space.lg,
+      }),
+      Utilities.scrollFade('block'),
+      overlaid,
+    ),
+    scrollBar: bar,
+    scrollThumb: thumb,
+    footer: component(
+      Style.self({
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-end',
+        gap: ref.space.xs,
+        paddingBlockStart: ref.space.xs,
+      }),
     ),
     title: component(
       Style.self({
@@ -97,6 +142,12 @@ export const Dialog = Style.recipeFor(DialogSlots)({
       sm: { panel: width('24rem') },
       md: { panel: width('32rem') },
       lg: { panel: width('48rem') },
+      xl: { panel: width('64rem') },
+      full: {
+        panel: variant(
+          Style.self({ maxInlineSize: 'calc(100% - 2rem)', blockSize: 'calc(100% - 2rem)' }),
+        ),
+      },
     },
   },
   defaults: { size: 'md' },

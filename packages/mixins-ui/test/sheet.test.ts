@@ -40,7 +40,7 @@ describe('the handle', () => {
   it('is hidden and the inner corners square without a bar', () => {
     const sheet = css(Sheet({ side: 'bottom' }))
     expect(sheet).toContain('display:none')
-    expect(sheet).not.toContain('display:block')
+    expect(sheet).not.toMatch(/@layer variants\{[^}]*display:block/)
     expect(sheet).not.toContain('--_fk-sheet-radius:')
   })
 
