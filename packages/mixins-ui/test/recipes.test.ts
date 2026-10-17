@@ -551,8 +551,9 @@ describe('Recipes', () => {
     })
 
     it('fills instead of outlining on request', () => {
-      expect(css({ variant: 'filled' })).toContain('background:var(--fk-surface-field)')
-      expect(css({ variant: 'outline' })).not.toContain('background:var(--fk-surface-field)')
+      // The colour alone, so the chevron's gradients stay.
+      expect(css({ variant: 'filled' })).toContain('background-color:var(--fk-surface-field)')
+      expect(css({ variant: 'outline' })).not.toContain('background-color:var(--fk-surface-field)')
     })
 
     it('lines an invalid control in error', () => {
