@@ -41,6 +41,59 @@ import {
 } from './popup.js'
 import { bar, thumb } from './scrollBars.js'
 
+/** An option's parts, which Listbox.parts and Combobox.parts draw; the two recipes share them. */
+export const optionParts = {
+  itemContent: component(
+    Style.self({
+      display: 'flex',
+      flex: '1',
+      alignItems: 'center',
+      gap: ladder('gap'),
+      minInlineSize: '0',
+    }),
+  ),
+  itemIcon: component(
+    Style.self({
+      display: 'inline-grid',
+      placeItems: 'center',
+      flex: 'none',
+      inlineSize: ladder('icon'),
+      blockSize: ladder('icon'),
+    }),
+  ),
+  itemText: component(Style.self({ display: 'grid', flex: '1', minInlineSize: '0' })),
+  itemLabel: component(Style.self({ overflow: 'hidden', textOverflow: 'ellipsis' })),
+  itemDescription: component(
+    Style.self({
+      // The panel's ink, quieter: muted text would not read on an inverted panel.
+      color: `color-mix(in oklab, ${ref.popup.ink} 62%, transparent)`,
+      ...role('caption'),
+    }),
+  ),
+  // Two sides of a box, turned into a check; kept in place while hidden, so
+  // the labels line up whichever row is chosen.
+  itemCheck: component(
+    Style.self({
+      flex: 'none',
+      inlineSize: '0.3em',
+      blockSize: '0.6em',
+      marginInline: '0.2em',
+      marginBlockEnd: '0.15em',
+      ...cornerSides(ref.border.thick, 'currentColor'),
+      rotate: '45deg',
+      visibility: 'hidden',
+    }),
+    Style.nest(':where([aria-selected="true"]) &', { visibility: 'visible' }),
+  ),
+} as const
+
+/** Where an option's check sits: a selection of a `check` axis. */
+export const checkAt = {
+  end: {},
+  start: { itemCheck: variant(Style.self({ order: '-1' })) },
+  none: { itemCheck: variant(Style.self({ display: 'none' })) },
+} as const
+
 export const Listbox = Style.recipeFor(ListboxSlots)({
   base: {
     wrapper: component(Style.self({ position: 'relative', display: 'inline-block' })),
@@ -80,48 +133,7 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
     indicator,
     scrollBar: bar,
     scrollThumb: thumb,
-    itemContent: component(
-      Style.self({
-        display: 'flex',
-        flex: '1',
-        alignItems: 'center',
-        gap: ladder('gap'),
-        minInlineSize: '0',
-      }),
-    ),
-    itemIcon: component(
-      Style.self({
-        display: 'inline-grid',
-        placeItems: 'center',
-        flex: 'none',
-        inlineSize: ladder('icon'),
-        blockSize: ladder('icon'),
-      }),
-    ),
-    itemText: component(Style.self({ display: 'grid', flex: '1', minInlineSize: '0' })),
-    itemLabel: component(Style.self({ overflow: 'hidden', textOverflow: 'ellipsis' })),
-    itemDescription: component(
-      Style.self({
-        // The panel's ink, quieter: muted text would not read on an inverted panel.
-        color: `color-mix(in oklab, ${ref.popup.ink} 62%, transparent)`,
-        ...role('caption'),
-      }),
-    ),
-    // Two sides of a box, turned into a check; kept in place while hidden, so
-    // the labels line up whichever row is chosen.
-    itemCheck: component(
-      Style.self({
-        flex: 'none',
-        inlineSize: '0.3em',
-        blockSize: '0.6em',
-        marginInline: '0.2em',
-        marginBlockEnd: '0.15em',
-        ...cornerSides(ref.border.thick, 'currentColor'),
-        rotate: '45deg',
-        visibility: 'hidden',
-      }),
-      Style.nest(':where([aria-selected="true"]) &', { visibility: 'visible' }),
-    ),
+    ...optionParts,
     value: component(
       Style.self({
         display: 'flex',
@@ -185,11 +197,7 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
         ),
       },
     },
-    check: {
-      end: {},
-      start: { itemCheck: variant(Style.self({ order: '-1' })) },
-      none: { itemCheck: variant(Style.self({ display: 'none' })) },
-    },
+    check: checkAt,
     width: {
       /** The panel at least as wide as the trigger, never narrower beside it. */
       trigger: { items: triggerWidth },

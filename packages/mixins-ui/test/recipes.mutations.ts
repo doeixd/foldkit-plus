@@ -235,8 +235,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/combobox.ts',
-        find: "  defaults: { width: 'trigger' },",
-        replace: "  defaults: { width: 'auto' },",
+        find: "  defaults: { width: 'trigger', check: 'end' },",
+        replace: "  defaults: { width: 'auto', check: 'end' },",
       },
     ],
     tests,
@@ -262,8 +262,8 @@ export default [
       },
       {
         file: '../src/recipes/select.ts',
-        find: 'background: ref.surface.field, borderColor',
-        replace: 'background: ref.surface.subtle, borderColor',
+        find: 'backgroundColor: ref.surface.field, borderColor',
+        replace: 'backgroundColor: ref.surface.subtle, borderColor',
       },
     ],
     tests,

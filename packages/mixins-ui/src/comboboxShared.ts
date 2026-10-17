@@ -51,10 +51,48 @@ export type ComboboxRenderInfo = Readonly<{
   scroll: ReadonlyArray<ChildAttribute> | undefined
   groups: ReadonlyArray<ComboboxGroupRender>
   hiddenInputs: ReadonlyArray<Html>
+  /** This package's: the chosen values as chips, each with a remove button, while `chips` is given. */
+  chips: ReadonlyArray<ComboboxChipRender>
+  /** This package's: the button that empties the field, while it has text and `clearContent` is given. */
+  clearButton: { key: string; attributes: ReadonlyArray<ChildAttribute>; content: Html } | undefined
+  /** This package's: the panel shown in place of the list while open with no items. */
+  empty: { key: string; attributes: ReadonlyArray<ChildAttribute>; content: Html } | undefined
+}>
+
+/** One chosen value drawn as a chip: its label, and its remove button's bundle. */
+export type ComboboxChipRender = Readonly<{
+  key: string
+  label: string
+  remove: ReadonlyArray<ChildAttribute>
+}>
+
+/** The view inputs this package adds beside upstream's. */
+export type ExtraInputs = Readonly<{
+  /**
+   * Shown, in the panel's place, while open with no items: "No results", or
+   * a loading line while the application fetches them. A polite status.
+   */
+  empty?: Html | undefined
+  /** The clear button's content; the button shows while the field has text. */
+  clearContent?: Html | undefined
+  /** The clear button's name; default `Clear`. */
+  clearLabel?: string | undefined
+  /**
+   * Draws each chosen value as a chip in the field, its remove button
+   * sending `SelectedItem` for it, which a multiple combobox toggles off.
+   */
+  chips?:
+    | {
+        readonly label?: ((value: string) => string) | undefined
+        /** Default `Remove <label>`. */
+        readonly removeLabel?: ((label: string) => string) | undefined
+      }
+    | undefined
 }>
 
 export type NormalizedInputs<Item extends string> = BaseViewInputsCommon<Item> &
-  Readonly<{ selectedValues: ReadonlyArray<Item> }>
+  Readonly<{ selectedValues: ReadonlyArray<Item> }> &
+  ExtraInputs
 
 const itemId = (id: string, index: number): string => `${id}-item-${index}`
 
@@ -110,6 +148,10 @@ export const computeRender = (
     anchor = {},
     ariaLabel,
     ariaLabelledBy,
+    empty,
+    clearContent,
+    clearLabel,
+    chips,
   } = viewInputs
 
   const resolveInputLabel = () => {
@@ -129,6 +171,7 @@ export const computeRender = (
   const isLeaving = transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
   const isVisible = isOpen || isLeaving
   const isItemsPanelVisible = isVisible && Array.isReadonlyArrayNonEmpty(items)
+  const isEmptyVisible = isVisible && !isItemsPanelVisible && empty !== undefined
   const isBackdropVisible = isItemsPanelVisible || (isVisible && model.isModal)
 
   const animationAttributes = Match.value(transitionState).pipe(
@@ -406,6 +449,44 @@ export const computeRender = (
           content: buttonContent,
         }
 
+  const chipRenders: ReadonlyArray<ComboboxChipRender> =
+    chips === undefined
+      ? []
+      : Array.map(selectedValues, value => {
+          const label = chips.label?.(value) ?? value
+          return {
+            key: `${id}-chip-${value}`,
+            label,
+            remove: childAttributes([
+              h.Type('button'),
+              h.AriaLabel(chips.removeLabel?.(label) ?? `Remove ${label}`),
+              ...(isDisabled || isReadOnly
+                ? [h.Disabled(true)]
+                : [
+                    h.OnClick(
+                      Message.SelectedItem({ item: value, displayText: label, wasSelected: true }),
+                    ),
+                  ]),
+            ]),
+          }
+        })
+
+  const clearButton =
+    clearContent === undefined || model.inputValue === '' || isDisabled || isReadOnly
+      ? undefined
+      : {
+          key: `${id}-clear`,
+          attributes: childAttributes([
+            h.Type('button'),
+            h.Tabindex(-1),
+            h.AriaLabel(clearLabel ?? 'Clear'),
+            h.OnClick(Message.UpdatedInputValue({ value: '' })),
+            // The field keeps the focus, as with the toggle.
+            h.OnMount(UpstreamCombobox.AttachComboboxPreventBlur()),
+          ]),
+          content: clearContent,
+        }
+
   if (!isVisible) {
     return {
       id,
@@ -419,6 +500,9 @@ export const computeRender = (
       scroll: undefined,
       groups: [],
       hiddenInputs: [],
+      chips: chipRenders,
+      clearButton,
+      empty: undefined,
     }
   }
 
@@ -598,6 +682,21 @@ export const computeRender = (
       })
     : []
 
+  // Anchored as the list is, which is not drawn beside it: one Mount per element.
+  const emptyPanel =
+    isEmptyVisible && empty !== undefined
+      ? {
+          key: `${id}-empty`,
+          attributes: childAttributes([
+            h.Id(`${id}-empty`),
+            h.Role('status'),
+            ...anchorAttributes,
+            ...animationAttributes,
+          ]),
+          content: empty,
+        }
+      : undefined
+
   return {
     id,
     isVisible,
@@ -610,5 +709,8 @@ export const computeRender = (
     scroll,
     groups,
     hiddenInputs,
+    chips: chipRenders,
+    clearButton,
+    empty: emptyPanel,
   }
 }

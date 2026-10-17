@@ -7,7 +7,7 @@
  * travelling (so reduced motion keeps it still), its border in the error
  * line, and the message under it says why in the error's ink.
  */
-import { Style } from 'foldkit-mixins'
+import { Style, type StyleValue } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { TagsInputSlots } from '../tagsInput.js'
 import {
@@ -34,6 +34,56 @@ const shake = (name: string) => ({
   animation: `${name} ${travelled(ref.motion.moderate)} ${ref.motion.ease}`,
   borderColor: ref.error.outline,
 })
+
+/** The chips' list, a chip (the Badge's pill without its dot), and its remove button; Combobox's chips share them. */
+export const chipList: StyleValue = component(
+  Style.self({
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.35rem',
+    margin: '0',
+    padding: '0',
+    listStyle: 'none',
+  }),
+)
+
+export const chip: StyleValue = component(
+  Style.self({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.2rem',
+    paddingBlock: '0.1rem',
+    paddingInlineStart: '0.6rem',
+    paddingInlineEnd: '0.2rem',
+    borderRadius: ref.radius.xl,
+    background: ref.surface.muted,
+    color: ref.text.default,
+    ...role('caption'),
+    fontWeight: ref.weight.medium,
+    whiteSpace: 'nowrap',
+  }),
+)
+
+export const chipRemove: StyleValue = component(
+  Style.self({
+    display: 'grid',
+    placeItems: 'center',
+    inlineSize: '1.25em',
+    blockSize: '1.25em',
+    padding: '0',
+    border: '0',
+    borderRadius: ref.radius.full,
+    background: 'transparent',
+    color: ref.text.muted,
+    font: 'inherit',
+    lineHeight: '1',
+    cursor: 'pointer',
+    ...transition('background-color, color'),
+  }),
+  Style.pseudo(':hover:not(:disabled)', { background: unfilledHover, color: ref.text.overt }),
+  focusRing,
+  disabled,
+)
 
 export const TagsInput = Style.recipeFor(TagsInputSlots)({
   base: {
@@ -66,52 +116,9 @@ export const TagsInput = Style.recipeFor(TagsInputSlots)({
       shakes.odd.style,
       Style.states({ even: shake(shakes.even.name), odd: shake(shakes.odd.name) }, 'data-refused'),
     ),
-    list: component(
-      Style.self({
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '0.35rem',
-        margin: '0',
-        padding: '0',
-        listStyle: 'none',
-      }),
-    ),
-    tag: component(
-      Style.self({
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.2rem',
-        paddingBlock: '0.1rem',
-        paddingInlineStart: '0.6rem',
-        paddingInlineEnd: '0.2rem',
-        borderRadius: ref.radius.xl,
-        background: ref.surface.muted,
-        color: ref.text.default,
-        ...role('caption'),
-        fontWeight: ref.weight.medium,
-        whiteSpace: 'nowrap',
-      }),
-    ),
-    remove: component(
-      Style.self({
-        display: 'grid',
-        placeItems: 'center',
-        inlineSize: '1.25em',
-        blockSize: '1.25em',
-        padding: '0',
-        border: '0',
-        borderRadius: ref.radius.full,
-        background: 'transparent',
-        color: ref.text.muted,
-        font: 'inherit',
-        lineHeight: '1',
-        cursor: 'pointer',
-        ...transition('background-color, color'),
-      }),
-      Style.pseudo(':hover:not(:disabled)', { background: unfilledHover, color: ref.text.overt }),
-      focusRing,
-      disabled,
-    ),
+    list: chipList,
+    tag: chip,
+    remove: chipRemove,
     input: component(
       Style.self({
         flex: '1 1 8ch',

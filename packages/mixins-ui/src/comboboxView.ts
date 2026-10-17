@@ -18,10 +18,8 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineView, type View as SubmodelView } from 'foldkit/submodel'
 import {
   computeRender,
-  type ComboboxGroupRender,
-  type ComboboxHeadingRender,
-  type ComboboxItemRender,
   type ComboboxRenderInfo,
+  type ExtraInputs,
   type NormalizedInputs,
 } from './comboboxShared.js'
 import { drawCombobox } from './popupView.js'
@@ -55,15 +53,24 @@ const makeSharedView = (
 const singleShared = makeSharedView({ ariaMultiSelectable: false })
 const multiShared = makeSharedView({ ariaMultiSelectable: true })
 
-export type { ComboboxGroupRender, ComboboxHeadingRender, ComboboxItemRender, ComboboxRenderInfo }
+export type {
+  ComboboxChipRender,
+  ComboboxGroupRender,
+  ComboboxHeadingRender,
+  ComboboxItemRender,
+  ComboboxRenderInfo,
+  ExtraInputs,
+} from './comboboxShared.js'
 
-/** Upstream single view inputs plus the seam. */
+/** Upstream single view inputs plus the seam and this package's extras. */
 export type SingleViewInputs<Item extends string> = UpstreamSingleInputs<Item> &
-  Readonly<{ toView?: (render: ComboboxRenderInfo) => Html }>
+  Readonly<{ toView?: (render: ComboboxRenderInfo) => Html }> &
+  ExtraInputs
 
-/** Upstream multi view inputs plus the seam. */
+/** Upstream multi view inputs plus the seam and this package's extras. */
 export type MultiViewInputs<Item extends string> = UpstreamCombobox.Multi.ViewInputs<Item> &
-  Readonly<{ toView?: (render: ComboboxRenderInfo) => Html }>
+  Readonly<{ toView?: (render: ComboboxRenderInfo) => Html }> &
+  ExtraInputs
 
 type MultiModel = UpstreamCombobox.Multi.Model
 

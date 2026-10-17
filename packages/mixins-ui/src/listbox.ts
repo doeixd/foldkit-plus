@@ -1,6 +1,15 @@
 import { Option } from 'effect'
-import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
-import type { Html } from 'foldkit/html'
+import {
+  Attr,
+  Behavior,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  type SlotAttributes,
+  type SlotBuilder,
+} from 'foldkit-mixins'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { FluidHover, Measure, ScrollBars } from 'foldkit-primitives/dom'
 import { scrollBarOf } from './popupScroll.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
@@ -76,6 +85,71 @@ export interface OptionContent {
   readonly icon?: Html | undefined
 }
 
+type OptionSlot =
+  | 'itemContent'
+  | 'itemIcon'
+  | 'itemText'
+  | 'itemLabel'
+  | 'itemDescription'
+  | 'itemCheck'
+
+/** `label` with each stretch that matches `query`, ignoring case, in the `match` builder's mark. */
+const marked = <Message>(
+  label: string,
+  query: string,
+  match: SlotBuilder<Message>,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Html | string> => {
+  const needle = query.trim().toLowerCase()
+  if (needle === '') return [label]
+  const hay = label.toLowerCase()
+  const out: Array<Html | string> = []
+  let from = 0
+  for (let at = hay.indexOf(needle); at !== -1; at = hay.indexOf(needle, from)) {
+    if (at > from) out.push(label.slice(from, at))
+    out.push(h.mark(match.attrs(), [label.slice(at, at + needle.length)]))
+    from = at + needle.length
+  }
+  if (from < label.length) out.push(label.slice(from))
+  return out
+}
+
+/**
+ * An option's content in the slots Listbox and Combobox share: its icon,
+ * its label (the stretches matching `query` marked, where a `match` slot is
+ * given), its description, and the check the chosen row shows.
+ */
+export const drawOption = <Message>(
+  builders: { readonly [K in OptionSlot]: SlotBuilder<Message> } & {
+    readonly match?: SlotBuilder<Message>
+  },
+  h: HtmlBuilder<Message>,
+  content: OptionContent,
+  query = '',
+): Html =>
+  h.span(builders.itemContent.attrs(), [
+    ...iconOf(builders.itemIcon, h, content.icon),
+    h.span(builders.itemText.attrs(), [
+      h.span(
+        builders.itemLabel.attrs(),
+        builders.match === undefined
+          ? [content.label]
+          : marked(content.label, query, builders.match, h),
+      ),
+      ...(content.description === undefined
+        ? []
+        : [h.span(builders.itemDescription.attrs(), [content.description])]),
+    ]),
+    // The row's `aria-selected` says it is chosen; the check is drawn for the eye.
+    h.span(builders.itemCheck.attrs([h.AriaHidden(true)]), []),
+  ])
+
+const iconOf = <Message>(
+  builder: SlotBuilder<Message>,
+  h: HtmlBuilder<Message>,
+  drawn: Html | undefined,
+) => (drawn === undefined ? [] : [h.span(builder.attrs([h.AriaHidden(true)]), [drawn])])
+
 /**
  * The parts of a select over this listbox, in its slots: `option` is an
  * item's content (`itemToConfig`), and `trigger` the button's
@@ -88,24 +162,14 @@ export const parts = <Message>(
 ) => {
   const builders = buildersOf(ListboxSlots, mixins, context)
   const { h } = context
-  const icon = (drawn: Html | undefined) =>
-    drawn === undefined ? [] : [h.span(builders.itemIcon.attrs([h.AriaHidden(true)]), [drawn])]
   return {
-    option: (content: OptionContent): Html =>
-      h.span(builders.itemContent.attrs(), [
-        ...icon(content.icon),
-        h.span(builders.itemText.attrs(), [
-          h.span(builders.itemLabel.attrs(), [content.label]),
-          ...(content.description === undefined
-            ? []
-            : [h.span(builders.itemDescription.attrs(), [content.description])]),
-        ]),
-        // The row's `aria-selected` says it is chosen; the check is drawn for the eye.
-        h.span(builders.itemCheck.attrs([h.AriaHidden(true)]), []),
-      ]),
+    option: (content: OptionContent): Html => drawOption(builders, h, content),
     trigger: (chosen: Option.Option<OptionContent>, placeholder: string): Html =>
       h.span(builders.value.attrs(), [
-        ...Option.match(chosen, { onNone: () => [], onSome: content => icon(content.icon) }),
+        ...Option.match(chosen, {
+          onNone: () => [],
+          onSome: content => iconOf(builders.itemIcon, h, content.icon),
+        }),
         h.span(
           builders.valueText.attrs([h.DataAttribute('placeholder', String(Option.isNone(chosen)))]),
           [Option.match(chosen, { onNone: () => placeholder, onSome: content => content.label })],

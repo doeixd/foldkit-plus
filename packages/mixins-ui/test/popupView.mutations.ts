@@ -60,7 +60,8 @@ export default [
   ...[
     ['menu', 'drawMenu'],
     ['listbox', 'drawListbox'],
-    ['combobox', 'drawCombobox'],
+    // Its default draws the field around popupView's drawing, as `draw`.
+    ['combobox', 'draw'],
   ].map(([name, draw]) => ({
     name: `the ${name} draws nothing without a draw`,
     edits: [

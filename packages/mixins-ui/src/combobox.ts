@@ -1,6 +1,7 @@
 import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
-import type { Html } from 'foldkit/html'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { FluidHover, Measure, ScrollBars } from 'foldkit-primitives/dom'
+import { drawOption, type OptionContent } from './listbox.js'
 import { scrollBarOf } from './popupScroll.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 import type {
@@ -24,6 +25,12 @@ import { drawCombobox } from './popupView.js'
  * an item owns `click` while interactive; the toggle owns `click` while
  * enabled. A Behavior adding its own handler to one of those is a
  * conflict, not a second silent owner.
+ *
+ * From `chips` on, the slots are this package's: the chosen values as
+ * chips in the field (the `chips` view input), the clear button
+ * (`clearContent`), the panel shown in the list's place while there are no
+ * items (`empty`), and an option's parts, which `parts` draws as Listbox's
+ * does, the typed text marked in its label (`match`).
  */
 export const ComboboxSlots = Slots.define({
   wrapper: Slot.make({ capability: Capability.Container }),
@@ -57,6 +64,26 @@ export const ComboboxSlots = Slots.define({
   indicator: Slot.make({ capability: Capability.Container }),
   scrollBar: Slot.make({ capability: Capability.Container }),
   scrollThumb: Slot.make({ capability: Capability.Container }),
+  chips: Slot.make({ capability: Capability.Container }),
+  chip: Slot.make({ capability: Capability.Container }),
+  chipRemove: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel, Attr.Disabled],
+  }),
+  clearButton: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+  }),
+  empty: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  itemContent: Slot.make({ capability: Capability.Container }),
+  itemIcon: Slot.make({ capability: Capability.Container }),
+  itemText: Slot.make({ capability: Capability.Container }),
+  itemLabel: Slot.make({ capability: Capability.Container }),
+  itemDescription: Slot.make({ capability: Capability.Container }),
+  itemCheck: Slot.make({ capability: Capability.Container }),
+  match: Slot.make({ capability: Capability.Container }),
 })
 
 export type ResolvedComboboxItem<Message> = Omit<ComboboxItemRender, 'attributes'> & {
@@ -83,10 +110,33 @@ export type ResolvedComboboxToggle<Message> = Readonly<{
   content: Html
 }>
 
+type Part<Message> = { readonly key: string; readonly attributes: SlotAttributes<Message> }
+
 export type ResolvedCombobox<Message> = Omit<
   ComboboxRenderInfo,
-  'wrapper' | 'inputWrapper' | 'input' | 'toggleButton' | 'backdrop' | 'items' | 'scroll' | 'groups'
+  | 'wrapper'
+  | 'inputWrapper'
+  | 'input'
+  | 'toggleButton'
+  | 'backdrop'
+  | 'items'
+  | 'scroll'
+  | 'groups'
+  | 'chips'
+  | 'clearButton'
+  | 'empty'
 > & {
+  /** The chips' list, while there are chips, and each chip with its remove button. */
+  readonly chips:
+    | {
+        readonly attributes: SlotAttributes<Message>
+        readonly chips: ReadonlyArray<
+          Part<Message> & { readonly label: string; readonly remove: SlotAttributes<Message> }
+        >
+      }
+    | undefined
+  readonly clearButton: (Part<Message> & { readonly content: Html }) | undefined
+  readonly empty: (Part<Message> & { readonly content: Html }) | undefined
   readonly wrapper: SlotAttributes<Message>
   readonly inputWrapper: SlotAttributes<Message>
   readonly input: SlotAttributes<Message>
@@ -186,6 +236,98 @@ export const resolve = <Input, Message>(
       })),
     })),
     hiddenInputs: render.hiddenInputs,
+    chips:
+      render.chips.length === 0
+        ? undefined
+        : {
+            attributes: builders.chips.attrs(),
+            chips: render.chips.map(chip => ({
+              key: chip.key,
+              label: chip.label,
+              attributes: builders.chip.attrs(),
+              remove: builders.chipRemove.attrs(chip.remove),
+            })),
+          },
+    clearButton:
+      render.clearButton === undefined
+        ? undefined
+        : {
+            key: render.clearButton.key,
+            attributes: builders.clearButton.attrs(render.clearButton.attributes),
+            content: render.clearButton.content,
+          },
+    empty:
+      render.empty === undefined
+        ? undefined
+        : {
+            key: render.empty.key,
+            attributes: builders.empty.attrs(render.empty.attributes),
+            content: render.empty.content,
+          },
+  }
+}
+
+/**
+ * Upstream's markup with this package's parts placed: the chips before the
+ * input and the clear button after it, in the field, and the empty panel
+ * after the list. The panel is popupView's drawing, kept whole; the field
+ * around the input is drawn here.
+ */
+export const draw = <Message>(
+  resolved: ResolvedCombobox<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const { chips, clearButton, empty, toggleButton } = resolved
+  // popupView places what it is given as `hiddenInputs` after the panel, in the wrapper.
+  const plain = drawCombobox(
+    {
+      ...resolved,
+      hiddenInputs: [
+        ...resolved.hiddenInputs,
+        ...(empty === undefined
+          ? []
+          : [h.keyed('div')(empty.key, empty.attributes, [empty.content])]),
+      ],
+    },
+    h,
+  )
+  if (chips === undefined && clearButton === undefined) return plain
+  const field = h.div(resolved.inputWrapper, [
+    ...(chips === undefined
+      ? []
+      : [
+          h.ul(
+            chips.attributes,
+            chips.chips.map(chip =>
+              h.keyed('li')(chip.key, chip.attributes, [chip.label, h.button(chip.remove, ['×'])]),
+            ),
+          ),
+        ]),
+    h.input(resolved.input),
+    ...(clearButton === undefined
+      ? []
+      : [h.keyed('button')(clearButton.key, clearButton.attributes, [clearButton.content])]),
+    ...(toggleButton === undefined
+      ? []
+      : [h.keyed('button')(toggleButton.key, toggleButton.attributes, [toggleButton.content])]),
+  ])
+  // popupView drew the field first; what follows it, the panel on, is kept as drawn.
+  return h.div(resolved.wrapper, [field, ...(plain?.children ?? []).slice(1)])
+}
+
+/**
+ * An option's content in the combobox's slots: its icon, its label with the
+ * typed `query` marked, its description, and the check the chosen row
+ * shows. Pass the mixins the combobox's `toView` gets.
+ */
+export const parts = <Message>(
+  mixins: MixinList<Message>,
+  context: ResolveContext<unknown, Message>,
+) => {
+  const builders = buildersOf(ComboboxSlots, mixins, context)
+  return {
+    option: (content: OptionContent, query: string): Html =>
+      drawOption(builders, context.h, content, query),
   }
 }
 
@@ -197,11 +339,11 @@ export const toView =
   <Message>(
     mixins: MixinList<Message>,
     context: ResolveContext<unknown, Message>,
-    draw: (resolved: ResolvedCombobox<Message>) => Html = resolved =>
-      drawCombobox(resolved, context.h),
+    drawResolved: (resolved: ResolvedCombobox<Message>) => Html = resolved =>
+      draw(resolved, context.h),
   ) =>
   (render: ComboboxRenderInfo): Html =>
-    draw(resolve(render, mixins, context))
+    drawResolved(resolve(render, mixins, context))
 
 const chosen = '[aria-selected="true"]'
 
