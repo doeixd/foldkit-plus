@@ -1,11 +1,30 @@
 /**
- * A listbox: the trigger shows the choice, the shared popup panel lists the
- * options with the chosen one tinted. `size` steps the trigger and the rows it
- * opens on the size ladder together; unset, they follow the region.
+ * A listbox, and the custom select drawn over it: the trigger shows the
+ * choice, the shared popup panel lists the options with the chosen one
+ * tinted. `size` steps the trigger and the rows it opens on the size ladder
+ * together; unset, they follow the region. With `Listbox.parts`, an option
+ * is its icon, its label over a quieter description, and a check the chosen
+ * row shows (`check`: at the row's `end`, its `start`, or `none`), and the
+ * trigger its value, muted while it is the placeholder, before a chevron
+ * that turns while open. `trigger` is the button's look: `outline`,
+ * `filled` (the field fill), or `ghost` (no box until hovered).
  */
 import { Style } from 'foldkit-mixins'
+import { ladder, role } from 'foldkit-mixins/theme'
 import { ListboxSlots } from '../listbox.js'
-import { component, disabled, focusRing, onLadder, ref, steps, transition } from './design.js'
+import {
+  component,
+  cornerSides,
+  disabled,
+  focusRing,
+  onLadder,
+  ref,
+  steps,
+  transition,
+  travelled,
+  unfilledHover,
+  variant,
+} from './design.js'
 import {
   backdrop,
   heading,
@@ -61,6 +80,87 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
     indicator,
     scrollBar: bar,
     scrollThumb: thumb,
+    itemContent: component(
+      Style.self({
+        display: 'flex',
+        flex: '1',
+        alignItems: 'center',
+        gap: ladder('gap'),
+        minInlineSize: '0',
+      }),
+    ),
+    itemIcon: component(
+      Style.self({
+        display: 'inline-grid',
+        placeItems: 'center',
+        flex: 'none',
+        inlineSize: ladder('icon'),
+        blockSize: ladder('icon'),
+      }),
+    ),
+    itemText: component(Style.self({ display: 'grid', flex: '1', minInlineSize: '0' })),
+    itemLabel: component(Style.self({ overflow: 'hidden', textOverflow: 'ellipsis' })),
+    itemDescription: component(
+      Style.self({
+        // The panel's ink, quieter: muted text would not read on an inverted panel.
+        color: `color-mix(in oklab, ${ref.popup.ink} 62%, transparent)`,
+        ...role('caption'),
+      }),
+    ),
+    // Two sides of a box, turned into a check; kept in place while hidden, so
+    // the labels line up whichever row is chosen.
+    itemCheck: component(
+      Style.self({
+        flex: 'none',
+        inlineSize: '0.3em',
+        blockSize: '0.6em',
+        marginInline: '0.2em',
+        marginBlockEnd: '0.15em',
+        ...cornerSides(ref.border.thick, 'currentColor'),
+        rotate: '45deg',
+        visibility: 'hidden',
+      }),
+      Style.nest(':where([aria-selected="true"]) &', { visibility: 'visible' }),
+    ),
+    value: component(
+      Style.self({
+        display: 'flex',
+        flex: '1',
+        alignItems: 'center',
+        gap: ladder('gap'),
+        minInlineSize: '0',
+      }),
+    ),
+    valueText: component(
+      Style.self({
+        flex: '1',
+        overflow: 'hidden',
+        textAlign: 'start',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }),
+      Style.states({ true: { color: ref.text.muted } }, 'data-placeholder'),
+    ),
+    // Two sides of a box, turned to point down, and up while the list is open.
+    chevron: component(
+      Style.self({
+        flex: 'none',
+        inlineSize: '0.45em',
+        blockSize: '0.45em',
+        marginBlockEnd: '0.2em',
+        ...cornerSides(ref.border.thick, 'currentColor'),
+        color: ref.text.muted,
+        rotate: '45deg',
+        transitionProperty: 'rotate, margin',
+        transitionDuration: travelled(ref.motion.fast),
+        transitionTimingFunction: ref.motion.settle,
+      }),
+      Style.nest(':where([aria-expanded="true"]) &', {
+        rotate: '225deg',
+        marginBlockEnd: '0',
+        marginBlockStart: '0.2em',
+      }),
+    ),
   },
   variants: {
     size: {
@@ -68,6 +168,27 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
       // and on the panel too, which upstream portals out of the wrapper by default.
       sm: { wrapper: steps.sm, items: steps.sm },
       md: { wrapper: steps.md, items: steps.md },
+      lg: { wrapper: steps.lg, items: steps.lg },
+    },
+    trigger: {
+      outline: {},
+      filled: {
+        button: variant(Style.self({ background: ref.surface.field, borderColor: 'transparent' })),
+      },
+      ghost: {
+        button: variant(
+          Style.self({ background: 'transparent', borderColor: 'transparent' }),
+          Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
+            background: unfilledHover,
+            borderColor: 'transparent',
+          }),
+        ),
+      },
+    },
+    check: {
+      end: {},
+      start: { itemCheck: variant(Style.self({ order: '-1' })) },
+      none: { itemCheck: variant(Style.self({ display: 'none' })) },
     },
     width: {
       /** The panel at least as wide as the trigger, never narrower beside it. */
@@ -75,5 +196,5 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
       auto: {},
     },
   },
-  defaults: { width: 'auto' },
+  defaults: { width: 'auto', trigger: 'outline', check: 'end' },
 })

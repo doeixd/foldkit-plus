@@ -4,15 +4,17 @@ import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as UpstreamListbox from '@foldkit/ui/listbox'
-import { Behavior, Diagnostics, Event, Style, type MixinValue } from 'foldkit-mixins'
+import { Behavior, Diagnostics, Event, SlotView, Style, type MixinValue } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 import {
   Listbox as ListboxAdapter,
   ListboxSlots,
   ListboxView,
+  Recipes,
   type ResolvedListbox,
 } from '../src/index.js'
 import type { ListboxRenderInfo } from '../src/index.js'
-import { classValue, holds } from './fixture.js'
+import { classValue, h as inertH, holds, type TestMessage } from './fixture.js'
 
 const fruits = ['apple', 'banana'] as const
 type Fruit = (typeof fruits)[number]
@@ -229,5 +231,61 @@ describe('Listbox adapter', () => {
     expect(() => runListbox([Steal.mixin], () => {}, drawDefault)).toThrow(
       Diagnostics.DiagnosticError,
     )
+  })
+})
+
+describe('Listbox.parts', () => {
+  const style = Style.forSlots(ListboxSlots)(Recipes.Listbox({}))
+  const drawn = (h: HtmlBuilder<TestMessage>) => {
+    const part = ListboxAdapter.parts([style.mixin], { h })
+    return h.div(
+      [],
+      [
+        part.option({ label: 'Apple', description: 'Crisp', icon: h.span([], []) }),
+        part.option({ label: 'Pear' }),
+        part.trigger(Option.none(), 'Pick a fruit'),
+        part.trigger(Option.some({ label: 'Apple', icon: h.span([], []) }), 'Pick a fruit'),
+      ],
+    )
+  }
+  // The application's icons are its own markup; every part of the package's is in a Slot.
+  const Drawn = SlotView.forMessages<TestMessage>().define(
+    ListboxSlots,
+    (which: 'option' | 'trigger', _, h) => {
+      const part = ListboxAdapter.parts([style.mixin], { h })
+      return which === 'option'
+        ? part.option({ label: 'Apple', description: 'Crisp' })
+        : part.trigger(Option.some({ label: 'Apple' }), 'Pick a fruit')
+    },
+  )
+
+  it.each(['option', 'trigger'] as const)('draws every element of the %s in a Slot', which => {
+    expect(Inert.unslotted(Inert.draw(Drawn, which))).toEqual([])
+  })
+
+  it('draws a description only when given, and hides the icons and the check from readers', () => {
+    const [withAll, bare, placeholder, chosen] = Inert.children(drawn(inertH))
+    expect(Inert.text(withAll)).toBe('AppleCrisp')
+    expect(Inert.text(bare)).toBe('Pear')
+    const hidden = (node: typeof withAll) =>
+      Inert.all(node).filter(each => Inert.value(each, 'aria-hidden') === 'true')
+    // The icon and the check; the bare option has only its check, the triggers their chevron.
+    expect([withAll, bare, placeholder, chosen].map(node => hidden(node).length)).toEqual([
+      2, 1, 1, 2,
+    ])
+  })
+
+  it('shows the placeholder until an option is chosen, then its label', () => {
+    const [, , placeholder, chosen] = Inert.children(drawn(inertH))
+    const text = (node: typeof placeholder) =>
+      Inert.all(node).find(each => Inert.value(each, 'data-placeholder') !== undefined)
+    expect([
+      Inert.text(text(placeholder)),
+      Inert.value(text(placeholder), 'data-placeholder'),
+    ]).toEqual(['Pick a fruit', 'true'])
+    expect([Inert.text(text(chosen)), Inert.value(text(chosen), 'data-placeholder')]).toEqual([
+      'Apple',
+      'false',
+    ])
   })
 })

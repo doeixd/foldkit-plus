@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { FluidHover, Measure, ScrollBars } from 'foldkit-primitives/dom'
@@ -23,6 +24,10 @@ import { drawListbox } from './popupView.js'
  * item owns `click` while interactive. A Behavior adding its own handler to
  * one of those is a conflict, not a second silent owner. Disabled buttons
  * and items publish no click, so the contract still lists it as allowed.
+ *
+ * The slots from `itemContent` on are the parts of a select drawn over the
+ * listbox, which `parts` draws: an option's icon, label, description and
+ * check, and the trigger's value (or placeholder) and chevron.
  */
 export const ListboxSlots = Slots.define({
   wrapper: Slot.make({ capability: Capability.Container }),
@@ -51,7 +56,64 @@ export const ListboxSlots = Slots.define({
   indicator: Slot.make({ capability: Capability.Container }),
   scrollBar: Slot.make({ capability: Capability.Container }),
   scrollThumb: Slot.make({ capability: Capability.Container }),
+  itemContent: Slot.make({ capability: Capability.Container }),
+  itemIcon: Slot.make({ capability: Capability.Container }),
+  itemText: Slot.make({ capability: Capability.Container }),
+  itemLabel: Slot.make({ capability: Capability.Container }),
+  itemDescription: Slot.make({ capability: Capability.Container }),
+  itemCheck: Slot.make({ capability: Capability.Container }),
+  value: Slot.make({ capability: Capability.Container }),
+  valueText: Slot.make({ capability: Capability.Container }),
+  chevron: Slot.make({ capability: Capability.Container }),
 })
+
+/** What an option shows, in the list and, once chosen, on the trigger. */
+export interface OptionContent {
+  readonly label: string
+  /** A line under the label, in the list only. */
+  readonly description?: string | undefined
+  /** Drawn before the label, in the list and on the trigger. */
+  readonly icon?: Html | undefined
+}
+
+/**
+ * The parts of a select over this listbox, in its slots: `option` is an
+ * item's content (`itemToConfig`), and `trigger` the button's
+ * (`buttonContent`), the chosen option's icon and label or the placeholder,
+ * then the chevron. Pass the mixins the listbox's `toView` gets.
+ */
+export const parts = <Message>(
+  mixins: MixinList<Message>,
+  context: ResolveContext<unknown, Message>,
+) => {
+  const builders = buildersOf(ListboxSlots, mixins, context)
+  const { h } = context
+  const icon = (drawn: Html | undefined) =>
+    drawn === undefined ? [] : [h.span(builders.itemIcon.attrs([h.AriaHidden(true)]), [drawn])]
+  return {
+    option: (content: OptionContent): Html =>
+      h.span(builders.itemContent.attrs(), [
+        ...icon(content.icon),
+        h.span(builders.itemText.attrs(), [
+          h.span(builders.itemLabel.attrs(), [content.label]),
+          ...(content.description === undefined
+            ? []
+            : [h.span(builders.itemDescription.attrs(), [content.description])]),
+        ]),
+        // The row's `aria-selected` says it is chosen; the check is drawn for the eye.
+        h.span(builders.itemCheck.attrs([h.AriaHidden(true)]), []),
+      ]),
+    trigger: (chosen: Option.Option<OptionContent>, placeholder: string): Html =>
+      h.span(builders.value.attrs(), [
+        ...Option.match(chosen, { onNone: () => [], onSome: content => icon(content.icon) }),
+        h.span(
+          builders.valueText.attrs([h.DataAttribute('placeholder', String(Option.isNone(chosen)))]),
+          [Option.match(chosen, { onNone: () => placeholder, onSome: content => content.label })],
+        ),
+        h.span(builders.chevron.attrs([h.AriaHidden(true)]), []),
+      ]),
+  }
+}
 
 export type ResolvedListboxItem<Message> = Omit<ListboxItemRender, 'attributes'> & {
   readonly attributes: SlotAttributes<Message>
