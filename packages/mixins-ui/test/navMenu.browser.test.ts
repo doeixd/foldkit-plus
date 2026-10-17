@@ -17,7 +17,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import * as Nav from '../src/nav.js'
 import { NavSlots } from '../src/nav.js'
 import { Nav as NavRecipe } from '../src/recipes/nav.js'
@@ -49,7 +49,8 @@ const entries: ReadonlyArray<Nav.NavEntry> = [
   { label: 'Blog', href: '#blog' },
 ]
 
-afterEach(() => {
+afterEach(async () => {
+  await page.viewport(1440, 900)
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
   document.documentElement.removeAttribute('dir')
@@ -64,6 +65,11 @@ interface Fixture {
   readonly clipped?: boolean
   /** Draws the menu in the middle of the page, with room for a panel on either side. */
   readonly centred?: boolean
+  /**
+   * Draws the menu in a box narrower than its row, on a page that lets every
+   * flex item shrink (as the gallery's does), which squeezes the entries.
+   */
+  readonly squeezed?: boolean
 }
 
 const mount = (fixture: Fixture = {}) => {
@@ -79,6 +85,11 @@ const mount = (fixture: Fixture = {}) => {
   const box = document.createElement('div')
   if (fixture.clipped === true) box.style.cssText = 'overflow: hidden; height: 3rem; width: 30rem'
   if (fixture.centred === true) box.style.cssText = 'width: 10rem; margin-inline: auto'
+  if (fixture.squeezed === true) {
+    box.style.cssText = 'width: 10rem'
+    box.classList.add('squeezed')
+    sheet.textContent += '.squeezed * { min-inline-size: 0 }'
+  }
   const container = document.createElement('div')
   container.id = 'nav-menu'
   box.append(container)
@@ -271,6 +282,39 @@ test('the hover follows the top-level row and leaves a panel’s links alone', a
     await vi.waitFor(() =>
       expect(Math.abs(rect(highlight()).left - rect(byText('Blog')).left)).toBeLessThan(1),
     )
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a trigger in a row squeezed narrower than its words keeps a square chevron', async () => {
+  const { handle } = mount({ squeezed: true })
+  try {
+    await vi.waitFor(() => expect(byText('Products')).toBeTruthy())
+    // The box before its turn: a turned box's bounds are square whatever its sides.
+    const chevron = byText('Products').querySelector<HTMLElement>('[aria-hidden="true"]')!
+    expect(chevron.offsetWidth).toBeGreaterThan(4)
+    expect(chevron.offsetWidth).toBe(chevron.offsetHeight)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("on a phone, a panel's links stay inside the panel and the screen", async () => {
+  await page.viewport(390, 800)
+  const { handle } = mount()
+  try {
+    await vi.waitFor(() => expect(byText('Products')).toBeTruthy())
+    await userEvent.click(byText('Products'))
+    await vi.waitFor(() => expect(shown()).toBe(true))
+    const box = rect(panel()!)
+    expect(box.left).toBeGreaterThanOrEqual(0)
+    expect(box.right).toBeLessThanOrEqual(window.innerWidth)
+    for (const label of ['Mixins', 'Remote', 'Sync']) {
+      const link = rect(byText(label))
+      expect(link.left).toBeGreaterThanOrEqual(box.left)
+      expect(link.right).toBeLessThanOrEqual(box.right)
+    }
   } finally {
     handle.dispose()
   }

@@ -145,6 +145,28 @@ export default [
     tests,
   },
   {
+    name: 'a squeezed row shrinks the chevron to its borders',
+    edits: [
+      {
+        file: recipe,
+        find: "        flex: 'none',\n        inlineSize: '0.4em',",
+        replace: "        inlineSize: '0.4em',",
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a panel's groups are a fixed row of 12rem columns, as before",
+    edits: [
+      {
+        file: recipe,
+        find: "display: 'flex', flexWrap: 'wrap',",
+        replace: "display: 'grid', gridAutoFlow: 'column', gridAutoColumns: 'minmax(12rem, 1fr)',",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the pill is a line',
     edits: [
       {

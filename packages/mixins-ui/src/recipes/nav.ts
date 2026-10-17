@@ -4,10 +4,11 @@
  * current one in the strong ink with a line under it (`indicator:
  * 'underline'`, beside it in a column) or a tinted pill behind it
  * (`indicator: 'pill'`). A trigger's chevron turns while its panel shows,
- * and the panel is a popup card of link columns, each link's words over a
- * muted line. Given `Nav.fluid`, the line or pill glides to the current
- * entry and a faint pill follows the pointer to the nearest one; until it
- * runs, the current entry draws its own mark.
+ * and the panel is a popup card of link columns, stacked where it has no
+ * room for them side by side, each link's words over a muted line. Given
+ * `Nav.fluid`, the line or pill glides to the current entry and a faint
+ * pill follows the pointer to the nearest one; until it runs, the current
+ * entry draws its own mark.
  */
 import { Style } from 'foldkit-mixins'
 import { NavSlots } from '../nav.js'
@@ -96,8 +97,11 @@ export const Nav = Style.recipeFor(NavSlots)({
     link: component(entry),
     trigger: component(entry),
     // A chevron drawn in CSS, down under a row and up while its panel shows.
+    // It never shrinks: a phone's row squeezed its box to its borders alone,
+    // which the turn drew as a slanted tick.
     chevron: component(
       Style.self({
+        flex: 'none',
         inlineSize: '0.4em',
         blockSize: '0.4em',
         marginBlockStart: '-0.2em',
@@ -126,16 +130,18 @@ export const Nav = Style.recipeFor(NavSlots)({
         }),
       ),
     ),
-    groups: component(
-      Style.self({
-        display: 'grid',
-        gridAutoFlow: 'column',
-        gridAutoColumns: 'minmax(12rem, 1fr)',
-        gap: ref.space.xs,
-      }),
-    ),
+    // Columns of at least 12rem side by side while the panel has room, and
+    // stacked where it has not: a fixed row of columns ran past a phone's
+    // edge, out of the panel the viewport holds.
+    groups: component(Style.self({ display: 'flex', flexWrap: 'wrap', gap: ref.space.xs })),
     group: component(
-      Style.self({ display: 'flex', flexDirection: 'column', gap: ref.space['3xs'] }),
+      Style.self({
+        display: 'flex',
+        flex: '1 1 12rem',
+        flexDirection: 'column',
+        gap: ref.space['3xs'],
+        minInlineSize: '0',
+      }),
     ),
     heading: component(
       Style.self({
