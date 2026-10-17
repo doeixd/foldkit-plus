@@ -1443,7 +1443,7 @@ export const tooltip = <Message>(
     view: UiTooltip.view,
     viewInputs: {
       anchor: { placement: 'top', gap: 6, padding: 8, portal: false },
-      toView: Tooltip.toView([style.mixin], { h }, ({ trigger, panel, isVisible }) =>
+      toView: Tooltip.toView([style.mixin], { h, id: model.id }, ({ trigger, panel, isVisible }) =>
         h.div(
           [],
           [
@@ -1633,8 +1633,13 @@ export const command = <Message>(
             {
               heading: 'Suggestions',
               items: [
-                { value: 'new-page', label: 'New page', shortcut: '⌘N' },
-                { value: 'search', label: 'Search pages', keywords: ['find'], shortcut: '⌘K' },
+                { value: 'new-page', label: 'New page', shortcut: ['⌘', 'N'] },
+                {
+                  value: 'search',
+                  label: 'Search pages',
+                  keywords: ['find'],
+                  shortcut: ['⌘', 'K'],
+                },
               ],
             },
             {
@@ -1652,6 +1657,7 @@ export const command = <Message>(
           onActive: messages.onActive,
           onRun: messages.onRun,
           style,
+          kbd: KbdStyle,
         },
         h,
       ),
@@ -2230,9 +2236,13 @@ const MenubarMenuStyle = forSlots(MenuSlots)(Recipes.MenubarMenu({}))
 
 /** The bar's menus, in the order of the Model's. */
 export const MENUBAR: ReadonlyArray<Menubar.MenubarMenu> = [
-  { label: 'File', items: ['New', 'Open', 'Save'] },
-  { label: 'Edit', items: ['Undo', 'Redo', 'Copy'], isItemDisabled: item => item === 'Redo' },
-  { label: 'View', items: ['Zoom in', 'Zoom out', 'Full screen'] },
+  { label: 'File', rows: [{ label: 'New' }, { label: 'Open' }, { label: 'Save' }] },
+  {
+    label: 'Edit',
+    rows: [{ label: 'Undo' }, { label: 'Redo' }, { label: 'Copy' }],
+    isRowDisabled: label => label === 'Redo',
+  },
+  { label: 'View', rows: [{ label: 'Zoom in' }, { label: 'Zoom out' }, { label: 'Full screen' }] },
 ]
 
 /** The open menus are the bar's; the command chosen is the Model's. */

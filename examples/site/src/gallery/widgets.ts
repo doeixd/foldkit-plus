@@ -291,7 +291,10 @@ export const initial: Model = {
   split: Resizable.init(0.35),
   sidebarOpen: ['workspace'],
   sidebarCollapsed: false,
-  menubar: Menubar.init(MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`)),
+  menubar: Menubar.init(
+    MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`),
+    { isAnimated: true },
+  ),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
   slide: 0,
