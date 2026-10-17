@@ -2,8 +2,11 @@
  * A slider in Fluid's look, one number or a range alike: a thick rounded
  * track that fills in the tone up to each thumb's far edge, so a thumb rides
  * inside the end of the fill. `track: 'thin'` is the slim bar instead, filled
- * between thumb centers, with the same ringed thumbs over it. `size` is the
- * thumb's edge, which the track and every position read.
+ * between thumb centers, with the same ringed thumbs over it. `track:
+ * 'paint'` draws a picture of the values instead of a fill, which what holds
+ * the slider sets (a color picker's hue). `label: 'hidden'` keeps the label
+ * for assistive technology only. `size` is the thumb's edge, which the track
+ * and every position read.
  *
  * Marks are dots on the track, in the fill's own ink where it covers them;
  * ticks, a dot at every step, are quieter; a mark's label sits under the
@@ -21,6 +24,7 @@
  * where the inputs overlap.
  */
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { role } from 'foldkit-mixins/theme'
 import { SliderSlots } from '../slider.js'
 import { component, ref, tones, toneVar, transition, variant } from './design.js'
@@ -267,6 +271,20 @@ export const Slider = Style.recipeFor(SliderSlots)({
     },
     track: {
       thick: {},
+      // A picture of the values instead of a fill, such as a color's hue:
+      // `--fk-slider-paint` is the track's background, and
+      // `--fk-slider-thumb-paint` the thumb's, each set by what holds the slider.
+      paint: {
+        track: variant(Style.self({ background: `var(--fk-slider-paint, ${ref.surface.muted})` })),
+        fill: variant(Style.self({ display: 'none' })),
+        thumb: variant(
+          onThumb('', {
+            background: `var(--fk-slider-thumb-paint, ${ref.surface.base})`,
+            borderColor: ref.surface.base,
+            boxShadow: ref.shadow.sm,
+          }),
+        ),
+      },
       // Between thumb centers: one thumb fills from the start of the track.
       thin: {
         track: variant(Style.self({ blockSize: `calc(${edge} * 0.375)` })),
@@ -313,6 +331,11 @@ export const Slider = Style.recipeFor(SliderSlots)({
         ),
       },
     },
+    // Hidden, the label still names the thumb, as when a picker's own words say what it is.
+    label: {
+      shown: {},
+      hidden: { header: variant(Utilities.srOnly) },
+    },
   },
-  defaults: { tone: 'accent', size: 'md', track: 'thick', value: 'above' },
+  defaults: { tone: 'accent', size: 'md', track: 'thick', value: 'above', label: 'shown' },
 })
