@@ -232,9 +232,11 @@ describe('Card recipe', () => {
   const css = (selection: Parameters<typeof Recipes.Card>[0]): string =>
     Style.forSlots(CardSlots)(Recipes.Card(selection)).css
 
-  it('stands an outlined card on the base surface, and a plain one on nothing', () => {
-    expect(css({})).toMatch(/@layer variants\{[^@]*background:var\(--fk-surface-base\)/)
-    expect(css({ surface: 'plain' })).not.toContain('background:var(--fk-surface-base)')
+  it('stands an outlined card on its level of the surface ladder, and a plain one on nothing', () => {
+    expect(css({})).toMatch(
+      /@layer variants\{[^@]*background:light-dark\(oklch\(from var\(--fk-surface-base\)/,
+    )
+    expect(css({ surface: 'plain' })).not.toContain('background:light-dark(')
     expect(css({ surface: 'plain' })).toContain('background:transparent')
   })
 

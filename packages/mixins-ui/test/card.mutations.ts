@@ -5,6 +5,7 @@
  */
 const unit = ['packages/mixins-ui/test/card.test.ts']
 const browser = ['packages/mixins-ui/test/card.browser.test.ts']
+const elevation = ['packages/mixins-ui/test/cardElevation.browser.test.ts']
 const view = '../src/card.ts'
 const recipe = '../src/recipes/card.ts'
 
@@ -14,7 +15,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: '          Style.self({\n            background: ref.surface.base,\n            border:',
+        find: '          Style.self({\n            background: raisedSurface(),\n            border:',
         replace:
           '          Style.self({\n            background: ref.surface.muted,\n            border:',
       },
@@ -26,8 +27,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "defaults: { orientation: 'stacked', surface: 'outlined', padding: 'comfortable' },",
-        replace: "defaults: { orientation: 'stacked', surface: 'outlined', padding: 'flush' },",
+        find: "    padding: 'comfortable',\n    elevation: '1',",
+        replace: "    padding: 'flush',\n    elevation: '1',",
       },
     ],
     tests: unit,
@@ -186,7 +187,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: 'Style.nest(\':where([data-dismissible="true"]) > &\', {',
+        find: 'Style.nest(\':where([data-dismissible="true"]) > &:first-child\', {',
         replace: 'Style.nest(\':where([data-dismissible="never"]) > &\', {',
       },
     ],
@@ -197,10 +198,105 @@ export default [
     edits: [
       {
         file: recipe,
-        find: '          Style.nest(selected, { background: ref.surface.muted }),\n',
+        find: "          Style.nest(selected, { background: film('transparent', '1') }),\n",
         replace: '',
       },
     ],
     tests: browser,
+  },
+  {
+    name: 'a chosen plain card is a surface step, sunken on a dark page',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest(selected, { background: film('transparent', '1') }),",
+        replace: 'Style.nest(selected, { background: ref.surface.muted }),',
+      },
+    ],
+    tests: elevation,
+  },
+  {
+    name: "the group's highlight is a surface step",
+    edits: [
+      {
+        file: recipe,
+        find: "background: film('transparent', '0.5'),",
+        replace: 'background: ref.surface.subtle,',
+      },
+    ],
+    tests: elevation,
+  },
+  {
+    name: 'an elevated card stands on the page, at every level',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.self({ background: raisedSurface(), boxShadow: 'var(--_fk-card-shadow)' }),",
+        replace:
+          "Style.self({ background: ref.surface.base, boxShadow: 'var(--_fk-card-shadow)' }),",
+      },
+    ],
+    tests: elevation,
+  },
+  {
+    name: 'every level is one above the page',
+    edits: [{ file: recipe, find: '    raise(offset),\n', replace: '    raise(1),\n' }],
+    tests: elevation,
+  },
+  {
+    name: 'an elevated card casts one layer of shadow',
+    edits: [
+      {
+        file: recipe,
+        find: "'1': { root: level(1, [ref.shadow.xs, ref.shadow.md, ref.shadow.sm, ref.shadow.lg]) },",
+        replace:
+          "'1': { root: level(1, [ref.shadow.xs, ref.shadow.xs, ref.shadow.sm, ref.shadow.lg]) },",
+      },
+    ],
+    tests: elevation,
+  },
+  {
+    name: 'a lifted card does not rise',
+    edits: [
+      {
+        file: recipe,
+        find: "translate: `0 calc(-1 * ${ref.space['3xs']} * ${ref.knob.travel})`,",
+        replace: "translate: '0 0',",
+      },
+    ],
+    tests: elevation,
+  },
+  {
+    name: 'a lifted card rises under reduced motion',
+    edits: [
+      {
+        file: recipe,
+        find: "translate: `0 calc(-1 * ${ref.space['3xs']} * ${ref.knob.travel})`,",
+        replace: "translate: `0 calc(-1 * ${ref.space['3xs']})`,",
+      },
+    ],
+    tests: elevation,
+  },
+  {
+    name: "the action's badge sits at the top of a taller box",
+    edits: [
+      {
+        file: recipe,
+        find: "        alignItems: 'center',\n        minBlockSize: role('subtitle').lineHeight,\n",
+        replace: '',
+      },
+    ],
+    tests: elevation,
+  },
+  {
+    name: 'a header below a media tile still keeps clear of the corner',
+    edits: [
+      {
+        file: recipe,
+        find: 'Style.nest(\':where([data-dismissible="true"]) > &:first-child\', {',
+        replace: 'Style.nest(\':where([data-dismissible="true"]) > &\', {',
+      },
+    ],
+    tests: elevation,
   },
 ]

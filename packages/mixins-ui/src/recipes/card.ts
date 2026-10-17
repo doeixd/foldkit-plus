@@ -5,22 +5,66 @@
  * an image can bleed to the edges by undoing it. `orientation` stacks the
  * regions or lays them in a row (the image or media leading, the footer
  * trailing); `surface` is how it stands off the page, `plain` inside a group
- * that draws the frame; `padding` is the one size. A pressable card tints on
- * hover; a selected one keeps a fill, in each surface, and a heavier title.
+ * that draws the frame; `padding` is the one size. `elevation` (0 to 3) is
+ * where an outlined or elevated card sits on the surface ladder: that many
+ * levels above what holds it (`Theme.raise`), so on a dark page it is
+ * lighter, with a shadow of two layers (a tight contact one and a soft
+ * ambient one) that deepens with the level. `lift: 'hover'` raises a
+ * pressable card under the pointer, which reduced motion stills. A pressable
+ * card tints on hover; a selected one keeps a fill, in each surface, and a
+ * heavier title.
  *
  * A group lays cards in `--fk-card-columns` columns, divided by hairlines or
  * apart, and draws the one highlight that follows the pointer between them.
  */
 import { Style } from 'foldkit-mixins'
-import { role } from 'foldkit-mixins/theme'
+import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { CardGroupSlots, CardSlots } from '../card.js'
-import { component, focusRing, glide, imageEdge, ref, transition, variant } from './design.js'
+import {
+  component,
+  focusRing,
+  glide,
+  imageEdge,
+  ref,
+  transition,
+  travelled,
+  variant,
+} from './design.js'
 
 const pad = 'var(--_fk-card-pad)'
 const gap = 'var(--_fk-card-gap)'
 const pressableHover = '&[data-pressable="true"]:not([data-disabled="true"]):hover'
 const selected = '&[data-selected="true"]'
+/** The room the dismiss button takes in the corner, less the card's own padding, and a hair. */
+const clearOfDismiss = `calc(1.5rem - ${pad} / 2 + ${ref.space['2xs']})`
+
+/**
+ * A film of the card's text over `ground`, `share` of the `state-tint` knob:
+ * darker on a light page and lighter on a dark one. A surface step is darker
+ * in both schemes, so a chosen card on a dark page read sunken.
+ */
+const film = (ground: string, share: string) =>
+  `color-mix(in oklab, ${ground}, currentColor calc(${ref.knob['state-tint']} * ${share}))`
+
+/**
+ * A level of the surface ladder, `offset` above what holds the card, and the
+ * shadows that go with it: at rest and lifted, each quiet (for an outlined
+ * card, which has its line to stand off by) and full (for an elevated one).
+ */
+const level = (
+  offset: number,
+  [quiet, full, quietLifted, fullLifted]: readonly [string, string, string, string],
+) =>
+  variant(
+    raise(offset),
+    Style.self({
+      '--_fk-card-shadow-quiet': quiet,
+      '--_fk-card-shadow': full,
+      '--_fk-card-shadow-quiet-lifted': quietLifted,
+      '--_fk-card-shadow-lifted': fullLifted,
+    }),
+  )
 
 /** The padding, and the gap between regions that goes with it. */
 const padding = (space: string, between: string) =>
@@ -72,10 +116,11 @@ export const Card = Style.recipeFor(CardSlots)({
         rowGap: ref.space['3xs'],
         alignItems: 'start',
       }),
-      // Clear of the dismiss button in the corner, action included.
-      Style.nest(':where([data-dismissible="true"]) > &', {
-        // The button's width and inset, less the card's own padding, and a hair.
-        paddingInlineEnd: `calc(1.5rem - ${pad} / 2 + ${ref.space['2xs']})`,
+      // Clear of the dismiss button in the corner, action included, where the
+      // header is at the top: below an image or a tile it was pushed in for
+      // nothing, and a badge in the action floated mid-card.
+      Style.nest(':where([data-dismissible="true"]) > &:first-child', {
+        paddingInlineEnd: clearOfDismiss,
       }),
     ),
     title: component(
@@ -99,7 +144,9 @@ export const Card = Style.recipeFor(CardSlots)({
         color: ref.text.muted,
       }),
     ),
-    // Above the overlay, so it stays pressable on a pressable card.
+    // Above the overlay, so it stays pressable on a pressable card. At least
+    // the title's line tall, its controls centred in it, so a badge sits on
+    // the title's line.
     action: component(
       Style.self({
         gridColumn: '2',
@@ -107,6 +154,8 @@ export const Card = Style.recipeFor(CardSlots)({
         position: 'relative',
         zIndex: '1',
         display: 'flex',
+        alignItems: 'center',
+        minBlockSize: role('subtitle').lineHeight,
         gap: ref.space['2xs'],
       }),
     ),
@@ -200,7 +249,13 @@ export const Card = Style.recipeFor(CardSlots)({
         media: variant(
           Style.self({ gridColumn: '1', gridRow: '1 / span 2', marginInlineEnd: gap }),
         ),
-        header: variant(Style.self({ gridColumn: '2' })),
+        // Beside a leading image or tile, the header is at the top as well.
+        header: variant(
+          Style.self({ gridColumn: '2' }),
+          Style.nest(':where([data-dismissible="true"]) > &', {
+            paddingInlineEnd: clearOfDismiss,
+          }),
+        ),
         content: variant(Style.self({ gridColumn: '2' })),
         footer: variant(
           Style.self({
@@ -216,22 +271,22 @@ export const Card = Style.recipeFor(CardSlots)({
       outlined: {
         root: variant(
           Style.self({
-            background: ref.surface.base,
+            background: raisedSurface(),
             border: `${ref.border.thin} solid ${ref.outline.subtle}`,
-            boxShadow: ref.shadow.xs,
+            boxShadow: 'var(--_fk-card-shadow-quiet)',
           }),
-          Style.nest(pressableHover, { boxShadow: ref.shadow.md }),
+          Style.nest(pressableHover, { boxShadow: 'var(--_fk-card-shadow-quiet-lifted)' }),
           Style.nest(selected, {
-            background: ref.surface.subtle,
+            background: film(raisedSurface(), '0.5'),
             borderColor: ref.outline.default,
           }),
         ),
       },
       elevated: {
         root: variant(
-          Style.self({ background: ref.surface.base, boxShadow: ref.shadow.md }),
-          Style.nest(pressableHover, { boxShadow: ref.shadow.lg }),
-          Style.nest(selected, { background: ref.surface.subtle }),
+          Style.self({ background: raisedSurface(), boxShadow: 'var(--_fk-card-shadow)' }),
+          Style.nest(pressableHover, { boxShadow: 'var(--_fk-card-shadow-lifted)' }),
+          Style.nest(selected, { background: film(raisedSurface(), '0.5') }),
         ),
       },
       filled: {
@@ -242,11 +297,11 @@ export const Card = Style.recipeFor(CardSlots)({
         ),
       },
       // A group's highlight is the hover, so a plain card draws none of its own;
-      // chosen, it keeps a fill a shade past the highlight's.
+      // chosen, it keeps a film twice the highlight's.
       plain: {
         root: variant(
           Style.self({ background: 'transparent', borderRadius: ref.radius.md }),
-          Style.nest(selected, { background: ref.surface.muted }),
+          Style.nest(selected, { background: film('transparent', '1') }),
         ),
       },
     },
@@ -256,8 +311,36 @@ export const Card = Style.recipeFor(CardSlots)({
       roomy: { root: padding(ref.space.lg, ref.space.md) },
       flush: { root: padding('0', ref.space.sm) },
     },
+    // The outlined and elevated surfaces read it; a filled or plain card is flat.
+    elevation: {
+      '0': { root: level(0, ['none', 'none', ref.shadow.xs, ref.shadow.sm]) },
+      '1': { root: level(1, [ref.shadow.xs, ref.shadow.md, ref.shadow.sm, ref.shadow.lg]) },
+      '2': { root: level(2, [ref.shadow.sm, ref.shadow.lg, ref.shadow.md, ref.shadow.xl]) },
+      '3': { root: level(3, [ref.shadow.md, ref.shadow.xl, ref.shadow.lg, ref.shadow['2xl']]) },
+    },
+    lift: {
+      none: {},
+      // The rise is a distance times `travel`, so reduced motion keeps the shadow alone.
+      hover: {
+        root: variant(
+          Style.self({
+            transitionProperty: 'background-color, box-shadow, opacity, translate',
+            transitionDuration: `${ref.motion.fast}, ${ref.motion.fast}, ${ref.motion.fast}, ${travelled(ref.motion.fast)}`,
+          }),
+          Style.nest(pressableHover, {
+            translate: `0 calc(-1 * ${ref.space['3xs']} * ${ref.knob.travel})`,
+          }),
+        ),
+      },
+    },
   },
-  defaults: { orientation: 'stacked', surface: 'outlined', padding: 'comfortable' },
+  defaults: {
+    orientation: 'stacked',
+    surface: 'outlined',
+    padding: 'comfortable',
+    elevation: '1',
+    lift: 'none',
+  },
 })
 
 const line = `${ref.border.thin} solid ${ref.outline.subtle}`
@@ -287,7 +370,9 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
         translate: 'var(--fk-card-hover-x) var(--fk-card-hover-y)',
         opacity: 'var(--fk-card-hover-shown)',
         borderRadius: ref.radius.md,
-        background: ref.surface.subtle,
+        // Half a chosen plain card's film, so it lightens a dark page as it
+        // darkens a light one; a surface step darkened both.
+        background: film('transparent', '0.5'),
         pointerEvents: 'none',
         ...glide('fast', 'var(--fk-card-hover-moving)'),
       }),
