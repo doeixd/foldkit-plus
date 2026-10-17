@@ -110,4 +110,9 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'the frame served as an HTML element',
+    edits: [{ file: source, find: '          h.svg(', replace: '          h.div(' }],
+    tests: ['packages/mixins-ui/test/qrCode.ssr.test.ts'],
+  },
 ]
