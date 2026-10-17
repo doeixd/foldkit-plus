@@ -4,6 +4,7 @@
  * that a test fails for every one.
  */
 const unit = 'packages/mixins-ui/test/passwordInput.test.ts'
+const browser = 'packages/mixins-ui/test/passwordInput.browser.test.ts'
 
 export default [
   {
@@ -60,7 +61,7 @@ export default [
     edits: [
       {
         file: '../src/passwordInput.ts',
-        find: '...(options.description === undefined ? [] : [h.AriaDescribedBy(descriptionId)]),',
+        find: '...(options.description === undefined ? [] : [descriptionId]),',
         replace: '',
       },
     ],
@@ -82,10 +83,77 @@ export default [
     edits: [
       {
         file: '../src/passwordInput.ts',
-        find: '[h.OnInput(options.onInput)]',
-        replace: '[h.OnInput(() => options.onInput(options.value))]',
+        find: 'h.OnInput(options.onInput),',
+        replace: 'h.OnInput(() => options.onInput(options.value)),',
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'Caps Lock reads the case alone, Shift or not',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: 'Option.some((key === key.toUpperCase()) !== modifiers.shiftKey)',
+        replace: 'Option.some(key === key.toUpperCase())',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a digit says Caps Lock is off',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: 'key.length === 1 && key.toLowerCase() !== key.toUpperCase()',
+        replace: 'key.length === 1',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the input does not read the requirements',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: '...(requirements === undefined || requirements.length === 0 ? [] : [requirementsId]),',
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a requirement does not say whether it is met',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: '`, ${requirement.met ? states.met : states.unmet}`',
+        replace: "''",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the Caps Lock hint appears only as it speaks',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: "builders.capsLock.attrs([h.Id(capsLockId), h.Role('status')]),",
+        replace:
+          "builders.capsLock.attrs([h.Id(capsLockId), ...(capsOn ? [h.Role('status')] : [])]),",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a met ring stays hollow',
+    edits: [
+      {
+        file: '../src/recipes/passwordInput.ts',
+        find: `Style.nest('&[data-met="true"]::before', { background: 'currentColor' }),`,
+        replace: '',
+      },
+    ],
+    tests: [browser],
   },
 ]

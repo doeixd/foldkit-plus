@@ -3,10 +3,14 @@
  * InputGroup's one bordered box, with the toggle a square at its end. The
  * toggle draws an eye from `Icons.glyph`, struck through while the password
  * shows (`aria-pressed="true"`); set `--icon` on the toggle for another.
- * `size` steps the ladder for the whole field, the toggle with it.
+ * `size` steps the ladder for the whole field, the toggle with it. Under
+ * the field, the Caps Lock hint in the warning's ink, the strength Meter,
+ * and the requirements as a quiet list, each marked with a ring, filled
+ * and in the success ink once met; the state in words is read, not seen.
  */
 import { Style } from 'foldkit-mixins'
-import { ladder } from 'foldkit-mixins/theme'
+import { ladder, role } from 'foldkit-mixins/theme'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { byAttribute, glyph } from '../icons.js'
 import { PasswordInputSlots } from '../passwordInput.js'
 import { Input, InputGroup } from './field.js'
@@ -60,6 +64,43 @@ export const PasswordInput = Style.recipeFor(PasswordInputSlots)({
       }),
       disabled,
     ),
+    capsLock: component(
+      Style.self({
+        margin: '0',
+        marginBlockStart: ref.space['2xs'],
+        color: ref.warning.ink,
+        ...role('caption'),
+      }),
+    ),
+    strength: component(Style.self({ marginBlockStart: ref.space.xs })),
+    requirements: component(
+      Style.self({
+        display: 'grid',
+        gap: ref.space['3xs'],
+        margin: '0',
+        marginBlockStart: ref.space.xs,
+        padding: '0',
+        listStyle: 'none',
+        color: ref.text.muted,
+        ...role('caption'),
+      }),
+    ),
+    requirement: component(
+      Style.self({ display: 'flex', alignItems: 'center', gap: ref.space['2xs'] }),
+      Style.pseudo('::before', {
+        content: '""',
+        flexShrink: '0',
+        inlineSize: '0.75em',
+        blockSize: '0.75em',
+        boxSizing: 'border-box',
+        border: `${ref.border.thin} solid currentColor`,
+        borderRadius: ref.radius.full,
+        ...transition('background-color, border-color'),
+      }),
+      Style.states({ true: { color: ref.success.ink } }, 'data-met'),
+      Style.nest('&[data-met="true"]::before', { background: 'currentColor' }),
+    ),
+    requirementState: component(Utilities.srOnly),
   },
   variants: {
     size: { sm: { root: steps.sm }, md: { root: steps.md }, lg: { root: steps.lg } },
