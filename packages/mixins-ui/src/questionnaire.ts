@@ -44,6 +44,8 @@ export const QuestionnaireSlots = Slots.define({
   field: Slot.make({ capability: Capability.Container }),
   /** The free-text field under a choice question's options. */
   other: Slot.make({ capability: Capability.Container }),
+  /** The other field's words, inside its label: one more option's, not a question's. */
+  otherLabel: Slot.make({ capability: Capability.Container }),
   error: Slot.make({ capability: Capability.Container }),
   actions: Slot.make({ capability: Capability.Container }),
   /** The answers, once sent, in place of the form. */
@@ -505,7 +507,7 @@ export const view = <Outer>(options: QuestionnaireView<Outer>, h: HtmlBuilder<Ou
   // A one-line field, its label above it.
   const line = (
     field: { readonly id: string; readonly value: string; readonly question: string },
-    label: string,
+    label: Html | string,
     more: { readonly invalid?: boolean; readonly placeholder?: string | undefined },
     after: ReadonlyArray<Html>,
   ) =>
@@ -535,7 +537,8 @@ export const view = <Outer>(options: QuestionnaireView<Outer>, h: HtmlBuilder<Ou
         h.div(builders.other.attrs(), [
           line(
             { id: `${id}-other`, value: answerOf(model, question.id).text, question: question.id },
-            label,
+            // The Input's label is a question's, as a text answer's is; the words inside are an option's.
+            h.span(builders.otherLabel.attrs(), [label]),
             {},
             [],
           ),

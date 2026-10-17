@@ -208,3 +208,32 @@ test('the buttons sit at the end, or the start; what is missing is in the error 
     start.dispose()
   }
 })
+
+test('the other field’s words read as one more option, not as a question', async () => {
+  const withOther = [
+    single({
+      id: 'tone',
+      prompt: 'Which tone?',
+      options: [{ value: 'plain', label: 'Plain' }],
+      other: 'Something else',
+    }),
+  ]
+  const { dispose } = mount(init({ id: 'other', questions: withOther }))
+  try {
+    await ready()
+    // The innermost element holding the words, which sets their look.
+    const drawn = (words: string) =>
+      Array.from(document.querySelectorAll('p, span')).find(
+        each => each.textContent === words && each.children.length === 0,
+      )!
+    const look = (words: string) => {
+      const { fontSize, fontWeight, color } = getComputedStyle(drawn(words))
+      return { fontSize, fontWeight, color }
+    }
+    expect(look('Something else')).toEqual(look('Plain'))
+    // The prompt's weight is its own, so matching the option is not matching it.
+    expect(look('Which tone?').fontWeight).not.toBe(look('Plain').fontWeight)
+  } finally {
+    dispose()
+  }
+})

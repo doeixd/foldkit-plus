@@ -287,4 +287,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'the other field’s words are styled as the question’s',
+    edits: [
+      {
+        file: recipe,
+        find: 'otherLabel: component(Style.self({ color: ref.text.default, fontWeight: ref.weight.normal })),',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
 ]

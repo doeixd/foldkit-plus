@@ -37,6 +37,8 @@ export const Questionnaire = Style.recipeFor(QuestionnaireSlots)({
     words: component(Style.self({ display: 'grid' })),
     field: component(Style.self({ display: 'grid', gap: ref.space['2xs'] })),
     other: component(Style.self({ paddingBlockStart: ref.space['2xs'] })),
+    // As the options' labels above it: in the body's ink and weight, not the prompt's.
+    otherLabel: component(Style.self({ color: ref.text.default, fontWeight: ref.weight.normal })),
     error: component(Style.self({ margin: '0', color: ref.error.ink, ...role('caption') })),
     actions: component(
       Style.self({ display: 'flex', flexWrap: 'wrap', gap: ladder('gap'), justifyContent: 'end' }),

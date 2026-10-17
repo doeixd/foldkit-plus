@@ -1034,6 +1034,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: the Questionnaire's "Other" label reads as an
+  option.** The other field's label was the Input's, which a text answer's
+  question also uses, so it looked like a question heading. Its words are now
+  in a new `otherLabel` Slot, which the recipe draws as the options' labels.
 - **`foldkit-mixins-ui`: Cascade Select's columns stay on a phone's screen.**
   At 390px the popup's columns ran past the window's edge. When the popup
   opens, `PlaceCascade` measures whether a column per level of the deepest
