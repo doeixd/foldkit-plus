@@ -285,8 +285,12 @@ export const InputCopy = A11y.pattern({
 export const ColorPicker = A11y.pattern({
   root: { capability: Capability.Container, attributes: [Attr.Role] },
   label: { capability: Capability.Container },
-  channelLabel: { capability: Capability.Container },
-  slider: { capability: Capability.Focusable, events: [Event.Input] },
+  areaThumb: {
+    capability: Capability.Focusable,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel],
+  },
+  input: { capability: Capability.TextInput, events: [Event.Input, Event.Change] },
   preset: {
     capability: Capability.Interactive,
     events: [Event.Change],
@@ -555,8 +559,8 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'color-picker',
     ColorPicker,
     ColorPickerSlots,
-    'stateless',
-    ['group', 'slider', 'radiogroup', 'radio'],
+    'stateful',
+    ['group', 'slider', 'textbox', 'combobox', 'button', 'radiogroup', 'radio'],
     ['native-control'],
   ),
   entry(

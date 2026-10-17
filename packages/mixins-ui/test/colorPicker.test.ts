@@ -8,9 +8,9 @@
  */
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { A11y, Attr, Capability, Event, SlotView, Style } from 'foldkit-mixins'
+import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { ColorPicker, ColorPickerSlots, Recipes } from '../src/index.js'
+import { ColorPicker, ColorPickerSlots, Patterns, Recipes } from '../src/index.js'
 import { message, type TestMessage } from './fixture.js'
 
 const style = Style.forSlots(ColorPickerSlots)(Recipes.ColorPicker({}))
@@ -51,30 +51,9 @@ const ranges = (picker: ReturnType<typeof drawn>) =>
 const step = (from: ColorPicker.Model, sent: ColorPicker.Message) =>
   ColorPicker.update(from, sent).model
 
-/**
- * The slots Patterns.ColorPicker should name once the hand-off lands there:
- * the area's thumb and the text field replace the three channel ranges.
- */
-const pattern = A11y.pattern({
-  root: { capability: Capability.Container, attributes: [Attr.Role] },
-  label: { capability: Capability.Container },
-  areaThumb: {
-    capability: Capability.Focusable,
-    events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
-  },
-  input: { capability: Capability.TextInput, events: [Event.Input, Event.Change] },
-  preset: {
-    capability: Capability.Interactive,
-    events: [Event.Change],
-    attributes: [Attr.AriaLabel],
-    optional: true,
-  },
-})
-
 describe('ColorPicker.view', () => {
   it('meets the color picker pattern', () => {
-    expect(A11y.validate(pattern, ColorPickerSlots)).toEqual([])
+    expect(A11y.validate(Patterns.ColorPicker, ColorPickerSlots)).toEqual([])
   })
 
   it('is a group named by its label, its area one slider saying both values', () => {
