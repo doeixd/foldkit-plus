@@ -430,11 +430,11 @@ decides adopt, adapt or skip.
   application sets (`InputCopy.Reset` after `ms`, as a Command). **Integrated**: `InputCopy.Model` and `Reset` after `resetAfter` (components fc7fb1c9…340a5273; gallery 0a4e23f4; docs 277f601f, ad07a67c, c134284c.)
 - **Slider / Range Slider.** Merge (A9); Fluid's look: a thick rounded
   track, the value inside or above the thumb, marks and ticks, steps,
-  vertical.
+  vertical. **Integrated**: vertical again, ticks, labelled marks, the value at the end, a painted track (components dedd95dd, 79571688, cd27fb6e, a2542684, 6f0d5b11; gallery f1cd9125; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 - **Color Picker.** Rebuild after ReUI's: a 2D saturation and brightness
   area, hue and alpha sliders (the merged Slider), an eyedropper where
   supported, a format switch (hex, rgb, hsl, oklch) with an input, swatches,
-  and a popover trigger.
+  and a popover trigger. **Integrated**: the area, hue and alpha Sliders, the eyedropper, four formats, swatches and a popover, its Model folded with `update` (components dedd95dd, 79571688, cd27fb6e, a2542684, 6f0d5b11; gallery f1cd9125; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 - **Combobox.** A research brief first (ReUI, shadcn, Fluid, Base UI, Zag,
   the APG): width matched to the input and configurable (A4); icons and
   descriptions; multiple selection with chips (TagsInput synergy); async
@@ -445,29 +445,29 @@ decides adopt, adapt or skip.
   and max, disabled dates, outside days, the locale's first day, week
   numbers, RTL, today. Month and year choosing: dropdowns, a grid of months
   and of years, a caption layout. Presets ("Last 7 days"), two months, a
-  hover preview of a range.
+  hover preview of a range. **Integrated**: week numbers, a label or selects for the caption, two months side by side, presets, a range preview, `localeOf`, outside days hidden (components dedd95dd, 79571688, cd27fb6e, a2542684, 6f0d5b11; gallery f1cd9125; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 
 ### Navigation
 
 - **Breadcrumb.** **Checked**: separators (chevron, slash, dot, custom), a maximum with the middle folded into an ellipsis (`collapse`), icons.
 - **Pagination.** **Checked**: simple, numbered with ellipses, siblings and boundaries, "1–10 of 97", compact (wraps), first and last. A page size select stays open.
 - **Tabs.** Examples: underline, pill, vertical, with icons and counts,
-  scrolling overflow, closable.
+  scrolling overflow, closable. **Integrated**: underline, pill, vertical, icons and counts, scrolling, closable (components 028bc35c, 7af6e895, 76e93241, bb898c1a, 54487b5e; gallery 5f06ac19; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 - **Segmented.** Fix (A2, A7); examples: icons, sizes, full width, tray and
-  underline.
+  underline. **Integrated**: icons (alone too), sizes, full width, underline (components 028bc35c, 7af6e895, 76e93241, bb898c1a, 54487b5e; gallery 5f06ac19; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 - **Navigation menu.** Dropdown panels (a mega menu), the indicator styles
-  (pill, underline), vertical.
+  (pill, underline), vertical. **Integrated**: dropdown panels in the top layer with the APG keys, pill and underline, a column (components 028bc35c, 7af6e895, 76e93241, bb898c1a, 54487b5e; gallery 5f06ac19; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 - **Sidebar.** Fix (A3), then after Fluid's sidebar: header and footer
   slots, groups, counts and badges, icons, nested items, a gliding active
   marker, collapse to an icon rail with tooltips, a resizable width (the
-  Resizable handle), a sheet on a phone, the collapsed state remembered.
-- **Steps.** **Checked**: icons per step, vertical with content. Markers on the Badge and Avatar sizes, and the connector as a Progress, stay open.
+  Resizable handle), a sheet on a phone, the collapsed state remembered. **Integrated**: a Model, header and footer, groups, icons and counts, branches, a gliding marker, an icon rail with Tooltips, a phone Sheet, a resizable width (components 028bc35c, 7af6e895, 76e93241, bb898c1a, 54487b5e; gallery 5f06ac19; docs 6fc547d4, ebfc4c98, 7d75f8f5.) Group actions, a shortcut and floating variants stay open.
+- **Steps.** **Checked**: icons per step, vertical with content. Markers on the Badge and Avatar sizes, and the connector as a Progress, stay open. **Integrated**: markers on the Avatar's sizes, dots, a progress connector (components 54c3a9ba, ab718afb, fbf7b563, 4b81129e, 45fb79b3, 87296ff2, 2abae422; gallery 6a7e09a2; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 - **Carousel.** Fix (B); dots after Fluid's
   [carousel dots](https://www.fluidfunctionalism.com/docs/carousel-dots),
   thumbnails, several per view, the swipe reported back (a `scrollend`
-  Mount), autoplay with pause and a stop control.
+  Mount), autoplay with pause and a stop control. **Integrated**: Fluid's dots, thumbnails, several per view, the swipe reported back by `ScrollSettle`, autoplay with a stop control (components 54c3a9ba, ab718afb, fbf7b563, 4b81129e, 45fb79b3, 87296ff2, 2abae422; gallery 6a7e09a2; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 - **Tree View.** Fix (A3); icons, guide lines, checkboxes, drag to reorder
-  later.
+  later. **Integrated**: icons, guide lines, tri-state checkboxes (components 54c3a9ba, ab718afb, fbf7b563, 4b81129e, 45fb79b3, 87296ff2, 2abae422; gallery 6a7e09a2; docs 6fc547d4, ebfc4c98, 7d75f8f5.) Drag to reorder stays later.
 
 ### Overlays and menus
 
@@ -498,17 +498,17 @@ decides adopt, adapt or skip.
   with `aria-sort`, striped, density, a sticky header, row selection with
   checkboxes, an empty state, an expandable row), and filtering, column
   reordering, resizing and virtualized rows point to `foldkit-data-grid`.
-  Examples for each.
+  Examples for each. **Integrated**: sortable headings, row selection, expandable rows, an empty state, striped, density, a sticky header (components c7a94883, b7cb520b, 8a137386, 708cb4bb, 00bcb55d; gallery 3ccd4f37; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 - **VirtualList.** Fix (B); use the project's pieces: ScrollArea and the
   scroll fades (A5), `ListNavigation` and Selection for a selectable list.
 - **Progress.** Examples: a label with the value, segmented and stacked,
   buffered, striped and moving (travel-aware), the ring with the value
-  inside, an upload list, steps as progress; tones shared with Meter.
+  inside, an upload list, steps as progress; tones shared with Meter. **Integrated**: its value, stacked, buffered, striped and moving, the ring with its value, steps, tones (components c7a94883, b7cb520b, 8a137386, 708cb4bb, 00bcb55d; gallery 3ccd4f37; docs 6fc547d4, ebfc4c98, 7d75f8f5.) An upload list stays a gallery idea.
 - **Rating.** A brief (Zag, MUI, Mantine): a fractional read-only value
   (4.3 drawn as a partial star by a clip), half stars, other glyphs
-  (hearts), sizes, a label per value, clearing, Home and End.
+  (hearts), sizes, a label per value, clearing, Home and End. **Integrated**: fractions, half stars, hearts and circles, a word per value, clearing, Home and End; a read-only one takes no `onChange` (components c7a94883, b7cb520b, 8a137386, 708cb4bb, 00bcb55d; gallery 3ccd4f37; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 - **Resizable.** A nicer handle (grip dots, an accent line on hover),
-  vertical, nested both ways, collapsible panels.
+  vertical, nested both ways, collapsible panels. **Integrated**: a grip and an accent line, collapsible panels, nested both ways (components c7a94883, b7cb520b, 8a137386, 708cb4bb, 00bcb55d; gallery 3ccd4f37; docs 6fc547d4, ebfc4c98, 7d75f8f5.)
 
 ## Part E: review of the first pass (2026-10-16)
 
@@ -676,12 +676,13 @@ green commit. Shared history is not rewritten.
   (Button), `Kbd.combo`, Breadcrumb's separators, collapse and icons,
   Pagination's ends, range, siblings and compact, Steps' icons and vertical
   content. **Done**: 1662fb24, 09b04462.
-- [ ] Breadcrumb: twice the space after a separator as before
+- [x] Breadcrumb: twice the space after a separator as before
   (`breadcrumb.ts:33`); the "…" should open a menu (the plan, shadcn), not
-  expand in place. **Partly**: the spacing (3bfe90a2); the "…" still expands in place.
+  expand in place. **Done**: the spacing (3bfe90a2); the "…" opens a Menu
+  (76e93241), on the gallery in 5f06ac19.
 - [x] Pagination: the page-size select; compact mode hides the total. **Done**: 8fb1105b.
-- [ ] Steps: vertical connectors do not reach the markers; Badge/Avatar
-  markers and a Progress connector are open. **Partly**: the vertical line reaches both markers (b41a6fba); the Badge/Avatar markers and a Progress connector stay open.
+- [x] Steps: vertical connectors do not reach the markers; Badge/Avatar
+  markers and a Progress connector are open. **Done**: the vertical line reaches both markers (b41a6fba); markers on the Avatar's sizes and a progress connector (45fb79b3).
 - [x] Select: no dropdown arrow (`appearance: none`, nothing drawn) and a
   placeholder that `::placeholder` cannot mute; and it was narrowed to the
   native control and marked Checked, while Fluid's select is a custom
@@ -740,6 +741,9 @@ green commit. Shared history is not rewritten.
   with widgets state of its own. **Done**: 25974388, 0a4e23f4, 81abe761, 990d9579.
 - [x] CHANGELOG, the mixins-ui README (its opening claim of no component state too) and
   the skill. **Done**: 277f601f, ad07a67c, c134284c.
+- [x] The rest of the hand-offs: dates and colour, navigation, carousel, tree and steps, data
+  (galleries f1cd9125, 5f06ac19, 6a7e09a2, 3ccd4f37; the Carousel's `slide` and the Sheet's
+  `point`, fields a Surface's ModelRef would refuse, 2abae422, 2326b3bc).
 - [ ] Screenshots of every changed gallery page at 390 and 1280, light and dark.
 - [ ] A Dialog's `initialFocus` on a `Button.view`: the view takes no attributes, so the
   alert example cannot spread it on Cancel.
