@@ -352,7 +352,10 @@ the kinds a tokenizer names (`syntax-keyword` is `--fk-syntax-keyword`, as
 `foldkit-richtext-code` and its Shiki adapter name them): `keyword`, `function` and `type` in
 the accent, secondary and tertiary hues, `string`, `number` and `property` in the success,
 warning and info hues, all at one lightness per scheme and the `syntaxChroma` knob's chroma, and
-`operator`, `punctuation` and `comment` in the text's own grey. The `popup` group is a menu's
+`operator`, `punctuation` and `comment` in the text's own grey. The `chart` group is a chart's
+series colors, `chart-1` to `chart-5` as shadcn names them: the dataviz reference palette's first
+five slots in its order, so neighbors stay apart under protan and deutan vision, each a fixed turn
+of hue from the `chart-h` knob at a lightness and chroma set for that hue in each scheme. The `popup` group is a menu's
 panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `highlight-ink`): `menu: { accent:
 'bold' }` lights the row in the accent's fill, and `menu: { color }` draws the panel `inverted`
 (the other scheme's surface and text) or `translucent` over a blur, as shadcn's menu options do.
