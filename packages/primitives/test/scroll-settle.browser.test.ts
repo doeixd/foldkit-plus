@@ -12,7 +12,7 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-/** A 200px scroller of five 200px items, mandatory snapping, `dir` as given. */
+/** A 200px scroller of five 200px items, each a snap stop no scroll passes, `dir` as given. */
 const scroller = (dir: 'ltr' | 'rtl' = 'ltr') => {
   const element = document.createElement('div')
   element.dir = dir
@@ -20,7 +20,8 @@ const scroller = (dir: 'ltr' | 'rtl' = 'ltr') => {
     'display: flex; width: 200px; overflow-x: auto; scroll-snap-type: x mandatory'
   for (const index of [0, 1, 2, 3, 4]) {
     const child = document.createElement('div')
-    child.style.cssText = 'flex: 0 0 200px; height: 40px; scroll-snap-align: start'
+    child.style.cssText =
+      'flex: 0 0 200px; height: 40px; scroll-snap-align: start; scroll-snap-stop: always'
     child.textContent = String(index)
     element.appendChild(child)
   }
