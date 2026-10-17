@@ -1,7 +1,7 @@
 import { Effect, Match, Option, Schema, Stream } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
-import { PointerPosition, type PointerFact } from 'foldkit-primitives/dom'
-import { Resize, type Resized } from 'foldkit-primitives/observers'
+import { measurePaddingBox, PointerPosition, type PointerFact } from 'foldkit-primitives/dom'
+import { Resize, Resized } from 'foldkit-primitives/observers'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -435,14 +435,24 @@ const inkAt = PointerPosition({})
 const inkSize = Resize()
 
 /**
- * Drawing on the control, as one Mount (an element holds one): its content
+ * Drawing on the control, as one Mount (an element holds one): its padding
  * box's size when drawn and when it changes, and one pointer's press, every
- * place it passes with its pressure, and its release.
+ * place it passes with its pressure, and its release. The size is the box
+ * the places are read in and the strokes are laid out against, not the
+ * content box `Resize` reports, which padding would make smaller.
  */
 const ink: Mount.MountAction<PointerFact | Resized> = {
   name: 'SignaturePadInk',
   f: (element, viewStateChanges) =>
-    Stream.merge(inkAt.f(element, viewStateChanges), inkSize.f(element, viewStateChanges)),
+    Stream.merge(
+      inkAt.f(element, viewStateChanges),
+      inkSize.f(element, viewStateChanges).pipe(
+        Stream.map(() => {
+          const { width, height } = measurePaddingBox(element)
+          return Resized.make({ width, height })
+        }),
+      ),
+    ),
 }
 
 // ---------------------------------------------------------------- the view

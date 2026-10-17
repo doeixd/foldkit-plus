@@ -1,11 +1,12 @@
 /**
  * The color picker in a real browser: a press on the area picks the point
  * under it and focuses the thumb, a drag follows the pointer, the thumb sits
- * on the color, its keys step from the color before them however fast they
- * come, the text commits on Enter and goes back to the color when it names
- * none, each track runs from its minimum's side (the right one right to
- * left), alpha shows over a checkerboard, and the popover opens the picker
- * from a swatch of the color.
+ * on the color and under the pointer whatever padding the area has, its
+ * keys step from the color before them however fast they come, the text
+ * commits on Enter and goes back to the color when it names none, each
+ * track runs from its minimum's side (the right one right to left), alpha
+ * shows over a checkerboard, and the popover opens the picker from a swatch
+ * of the color.
  */
 import * as UiPopover from '@foldkit/ui/popover'
 import { Schema } from 'effect'
@@ -38,7 +39,14 @@ afterEach(() => {
   document.documentElement.removeAttribute('dir')
 })
 
-const mount = (options: { readonly dir?: 'rtl'; readonly inPopover?: boolean } = {}) => {
+const mount = (
+  options: {
+    readonly dir?: 'rtl'
+    readonly inPopover?: boolean
+    /** Added after the recipes, unlayered, so it wins: a stylist's own rule. */
+    readonly css?: string
+  } = {},
+) => {
   if (options.dir !== undefined) document.documentElement.dir = options.dir
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -50,7 +58,8 @@ const mount = (options: { readonly dir?: 'rtl'; readonly inPopover?: boolean } =
     ) +
     style.css +
     slider.css +
-    popoverStyle.css
+    popoverStyle.css +
+    (options.css ?? '')
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'color-picker-browser'
@@ -147,6 +156,38 @@ test('a press picks the point under it and focuses the thumb, and a drag follows
     const center = thumb().getBoundingClientRect()
     expect(center.left + center.width / 2).toBeCloseTo(box.left + box.width * 0.9, 0)
     expect(center.top + center.height / 2).toBeCloseTo(box.top + box.height * 0.1, 0)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('padding a stylist adds to the area leaves the thumb under the pointer', async () => {
+  const handle = mount({ css: ':has(> #accent-area) { padding: 12px 40px }' })
+  try {
+    await vi.waitFor(() => expect(document.getElementById('accent-area')).not.toBeNull())
+    // The padding box, inside any border: where the thumb is laid out.
+    const { left, top } = area().getBoundingClientRect()
+    const box = {
+      left: left + area().clientLeft,
+      top: top + area().clientTop,
+      width: area().clientWidth,
+      height: area().clientHeight,
+    }
+    area().dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        pointerId: 7,
+        button: 0,
+        clientX: box.left + box.width * 0.2,
+        clientY: box.top + box.height * 0.3,
+      }),
+    )
+    await vi.waitFor(() =>
+      expect(thumb().getAttribute('aria-valuetext')).toBe('Saturation 20%, Brightness 70%'),
+    )
+    const center = thumb().getBoundingClientRect()
+    expect(center.left + center.width / 2).toBeCloseTo(box.left + box.width * 0.2, 0)
+    expect(center.top + center.height / 2).toBeCloseTo(box.top + box.height * 0.3, 0)
   } finally {
     handle.dispose()
   }

@@ -112,8 +112,24 @@ export default [
     edits: [
       {
         file: source,
-        find: 'Stream.merge(inkAt.f(element, viewStateChanges), inkSize.f(element, viewStateChanges))',
-        replace: 'inkAt.f(element, viewStateChanges)',
+        find: 'inkSize.f(element, viewStateChanges).pipe(',
+        replace: 'Stream.empty.pipe(',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the pad is measured in its content box, not where its places are read',
+    edits: [
+      {
+        file: source,
+        find: 'Stream.map(() => {',
+        replace: 'Stream.map(resized => {',
+      },
+      {
+        file: source,
+        find: 'const { width, height } = measurePaddingBox(element)',
+        replace: 'const { width, height } = resized',
       },
     ],
     tests: [browser],

@@ -1,8 +1,8 @@
 /**
  * The signature pad in a real browser: a drag draws a stroke under the
- * pointer, a pen pressed hard draws wider than one pressed lightly, the line
- * and "Sign here" are where a signer looks and the words go once something
- * is signed, a typed name sits on the line, undo and clear take strokes
+ * pointer, padding or not, a pen pressed hard draws wider than one pressed
+ * lightly, the line and "Sign here" are where a signer looks and the words
+ * go once something is signed, a typed name sits on the line, undo and clear take strokes
  * away, and the PNG export draws what the pad shows.
  */
 import { Option, Schema } from 'effect'
@@ -34,7 +34,8 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = () => {
+/** `css` is added after the recipe, unlayered, so it wins: a stylist's own rule. */
+const mount = (css = '') => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -42,7 +43,9 @@ const mount = () => {
       Layers.standard.declare,
       Layers.standard.in('reset', Defaults.reset),
       Layers.standard.in('theme', Theme.root(theme)),
-    ) + style.css
+    ) +
+    style.css +
+    css
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'signature-pad-browser'
@@ -185,6 +188,23 @@ test('a drag draws a stroke under the pointer, and the page does not take it', a
     expect(ink.top - pad.top).toBeGreaterThan(54)
     expect(ink.bottom - pad.top).toBeLessThan(66)
     expect(control()!.getAttribute('aria-label')).toBe('Signature: signed, 1 stroke')
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('padding a stylist adds to the pad leaves the stroke under the pointer', async () => {
+  const mounted = mount('#sign-control { padding: 10px 40px }')
+  try {
+    await ready()
+    draw(across(60))
+    await vi.waitFor(() => expect(paths()).toHaveLength(1))
+    const pad = inner()
+    const ink = paths()[0]!.getBoundingClientRect()
+    expect(ink.left - pad.left).toBeCloseTo(18, 0)
+    expect(ink.right - pad.left).toBeGreaterThan(205)
+    expect(ink.right - pad.left).toBeLessThan(226)
+    expect((ink.top + ink.bottom) / 2 - pad.top).toBeCloseTo(60, 0)
   } finally {
     mounted.dispose()
   }

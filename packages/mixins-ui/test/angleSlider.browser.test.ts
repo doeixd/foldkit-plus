@@ -1,9 +1,10 @@
 /**
  * The angle slider in a real browser: a press turns the dial to the pointer
- * and focuses the thumb, a drag follows until the release, the thumb sits on
- * the ring at the angle, the keys step from the value before them however
- * fast they come and keep the page still, the dial turns the same way right
- * to left, and a marker the arc covers is filled.
+ * and focuses the thumb, a drag follows until the release, whatever padding
+ * the dial has, the thumb sits on the ring at the angle, the keys step from
+ * the value before them however fast they come and keep the page still, the
+ * dial turns the same way right to left, and a marker the arc covers is
+ * filled.
  */
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
@@ -28,7 +29,14 @@ afterEach(() => {
   document.documentElement.removeAttribute('dir')
 })
 
-const mount = (options: { readonly dir?: 'rtl' | undefined; readonly value?: number } = {}) => {
+const mount = (
+  options: {
+    readonly dir?: 'rtl' | undefined
+    readonly value?: number
+    /** Added after the recipe, unlayered, so it wins: a stylist's own rule. */
+    readonly css?: string
+  } = {},
+) => {
   if (options.dir !== undefined) document.documentElement.dir = options.dir
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -37,7 +45,9 @@ const mount = (options: { readonly dir?: 'rtl' | undefined; readonly value?: num
       Layers.standard.declare,
       Layers.standard.in('reset', Defaults.reset),
       Layers.standard.in('theme', Theme.root(theme)),
-    ) + style.css
+    ) +
+    style.css +
+    (options.css ?? '')
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'angle-slider-browser'
@@ -128,6 +138,20 @@ test.each([0, 90, 225])('the thumb sits on the ring at %s degrees', async degree
     // On the ring: inside the dial, nearer its edge than its center.
     expect(Math.hypot(dx, dy)).toBeGreaterThan(box.width / 4)
     expect(Math.hypot(dx, dy)).toBeLessThan(box.width / 2)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('padding a stylist adds to one side of the dial leaves the angle the pointer points to', async () => {
+  // The thumb rides the padding box's center; the content box's sits 20px to its right.
+  const handle = mount({ value: 90, css: ':has(> #heading-thumb) { padding-left: 40px }' })
+  try {
+    await ready()
+    pointer('pointerdown', 0)
+    await vi.waitFor(() => expect(valueOf()).toBe('0'))
+    pointer('pointermove', 315)
+    await vi.waitFor(() => expect(valueOf()).toBe('315'))
   } finally {
     handle.dispose()
   }
