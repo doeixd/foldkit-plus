@@ -622,6 +622,15 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   and the input never took focus; its unit tests read only the markup. Let
   presses through (`pointer-events: none`) or raise the overlay, and test with
   a real click at the covered spot (`otpField.browser.test.ts`).
+- **A zero-duration animation filled `forwards` shows its last frame.** The
+  Marquee filled forwards, so with the `motion` knob at 0 every copy stood
+  one length on and the copy in view was an `inert` clone; a finite round
+  ended the same way. With no fill, a round of no duration, or one that
+  ended, shows its first frame.
+- **`color-scheme: normal` resolves `light-dark()` to its light half.** A
+  mutation of the QR code's `colorScheme: 'light'` to `'normal'` survived on
+  a dark page; only deleting the declaration let the code follow the page.
+  Mutate such a declaration by deleting it.
 - **`text-box` trims a block container's lines, and nothing else.** On the
   `inline-flex` Button it did nothing (a 20px line stayed 20px; on a block it
   was 10px), and it does not inherit into the anonymous box holding the
@@ -639,6 +648,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   disabled upstream's anchor there, and the panel stayed `visibility: hidden`
   with no error. Give a Mount of your own an element of your own (the popups'
   `rows` slot), and check a slot's upstream bundle for an `OnMount` first.
+- **Two Slots' attributes on one element keep one class.** Foldkit's `Class`
+  (and `Style`) sets the vnode's data outright (`setModuleData`,
+  `foldkit/dist/html/index.js`), so the later list wins:
+  `h.label([...option.card, ...builders.choice.attrs()])` dropped the
+  RadioGroup's `card` class, and the Questionnaire's choice rows lost their
+  layout while the unit tests and `Inert.unslotted` passed. Give each Slot
+  an element of its own, and assert the layout in a browser.
 - **Mount args are captured at insert, never refreshed.** A Mount that should
   follow the Model (focus the next OTP cell after a fill) ran once with the
   initial args and never again: `OnMount` binds `insert` and `destroy` only,
@@ -1245,6 +1261,9 @@ of its own named a form field "fits the Catalog". Read words with
   fix when a sub-pixel resize or a transition still running makes `Measure`
   measure again anyway. Fix the fixture's width and drop its transitions, so
   only the change under test can move it.
+- **A moving element is never stable to Playwright.** `userEvent.hover` on
+  a running Marquee's copy timed out ("element is not stable"), since the
+  locator waits for the box to stop. Hover the still region around it.
 
 **Claims about the repository**
 
