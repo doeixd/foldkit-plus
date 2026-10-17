@@ -101,8 +101,8 @@ export default [
     edits: [
       {
         file: '../src/comboboxShared.ts',
-        find: 'const isEmptyVisible = isVisible && !isItemsPanelVisible && empty !== undefined',
-        replace: 'const isEmptyVisible = isVisible && empty !== undefined',
+        find: 'isVisible && !isItemsPanelVisible && empty !== undefined',
+        replace: 'isVisible && empty !== undefined',
       },
     ],
     tests: [view],

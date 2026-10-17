@@ -171,7 +171,6 @@ export const computeRender = (
   const isLeaving = transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
   const isVisible = isOpen || isLeaving
   const isItemsPanelVisible = isVisible && Array.isReadonlyArrayNonEmpty(items)
-  const isEmptyVisible = isVisible && !isItemsPanelVisible && empty !== undefined
   const isBackdropVisible = isItemsPanelVisible || (isVisible && model.isModal)
 
   const animationAttributes = Match.value(transitionState).pipe(
@@ -684,7 +683,7 @@ export const computeRender = (
 
   // Anchored as the list is, which is not drawn beside it: one Mount per element.
   const emptyPanel =
-    isEmptyVisible && empty !== undefined
+    isVisible && !isItemsPanelVisible && empty !== undefined
       ? {
           key: `${id}-empty`,
           attributes: childAttributes([
