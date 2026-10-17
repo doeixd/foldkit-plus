@@ -6,8 +6,8 @@
  * edge, the points it rests at, which one it rests at, and the drag running.
  *
  * ```text
- * handle: Swipe -> Grabbed / Dragged / Released -> update -> at, or close
- * view: at -> --fk-sheet-snap; a drag -> --fk-sheet-offset -> the recipe's translate
+ * handle: Swipe -> Grabbed / Dragged / Released -> update -> point, or close
+ * view: point -> --fk-sheet-snap; a drag -> --fk-sheet-offset -> the recipe's translate
  * ```
  *
  * A point is how much of the panel shows, from 0 to 1, so a point is a share
@@ -44,8 +44,11 @@ export const Model = Schema.Struct({
   side: Side,
   /** How much of the panel shows at each point it rests at, ascending, each above 0 and at most 1. */
   points: Schema.Array(Schema.Number),
-  /** The point it rests at, an index into `points`. */
-  at: Schema.Number,
+  /**
+   * The point it rests at, an index into `points`. Not `at`, a name a
+   * Surface's ModelRef reserves, so the Model can stand in any application's.
+   */
+  point: Schema.Number,
   /** The point it opens at. */
   opensAt: Schema.Number,
   /** Whether a drag may take it away; Escape and the backdrop are the Dialog's. */
@@ -108,7 +111,7 @@ export const init = (config: InitConfig): Model => {
     dialog: UiDialog.init({ id: config.id, isAnimated: config.isAnimated ?? true }),
     side: config.side ?? 'bottom',
     points,
-    at: opensAt,
+    point: opensAt,
     opensAt,
     dismissible: config.dismissible ?? true,
     drag: Option.none(),
@@ -121,15 +124,15 @@ export type Return = ReturnWithOutMessage<Model, Message, UiDialog.OutMessage>
 const dialogStep = (
   model: Model,
   next: ReturnWithOutMessage<UiDialog.Model, UiDialog.Message, UiDialog.OutMessage>,
-  fields: { readonly at?: number } = {},
+  fields: { readonly point?: number } = {},
 ): Return => ({
   model:
-    next.model === model.dialog && Option.isNone(model.drag) && fields.at === undefined
+    next.model === model.dialog && Option.isNone(model.drag) && fields.point === undefined
       ? model
       : modifyFields(model, {
           dialog: () => next.model,
           drag: () => Option.none(),
-          at: at => fields.at ?? at,
+          point: point => fields.point ?? point,
         }),
   commands: Command.mapMessages(next.commands, message => Message.GotDialog({ message })),
   ...(next.outMessage === undefined ? {} : { outMessage: next.outMessage }),
@@ -137,7 +140,7 @@ const dialogStep = (
 
 /** Opens the Sheet at its `opensAt` point. */
 export const open = (model: Model): Return =>
-  dialogStep(model, UiDialog.open(model.dialog), { at: model.opensAt })
+  dialogStep(model, UiDialog.open(model.dialog), { point: model.opensAt })
 
 /** Closes the Sheet; a no-op when it is closed. */
 export const close = (model: Model): Return => dialogStep(model, UiDialog.close(model.dialog))
@@ -202,15 +205,15 @@ export const update = (model: Model, message: Message): Return =>
           const resting = modifyFields(model, { drag: () => Option.none() })
           if (!completed) return { model: resting }
           if (Math.abs(delta) < PRESS_SLOP && Math.abs(velocity) <= FLICK_SPEED) {
-            const next = (model.at + 1) % model.points.length
+            const next = (model.point + 1) % model.points.length
             return {
-              model: next === model.at ? resting : modifyFields(resting, { at: () => next }),
+              model: next === model.point ? resting : modifyFields(resting, { point: () => next }),
             }
           }
-          return Option.match(settle({ ...model, size, delta, velocity }), {
+          return Option.match(settle({ ...model, at: model.point, size, delta, velocity }), {
             onNone: () => close(resting),
             onSome: at => ({
-              model: at === model.at ? resting : modifyFields(resting, { at: () => at }),
+              model: at === model.point ? resting : modifyFields(resting, { point: () => at }),
             }),
           })
         },
@@ -234,7 +237,7 @@ const toward: Record<Side, { readonly axis: 'x' | 'y'; readonly sign: 1 | -1 }> 
  * the sheet gives a little and resists.
  */
 export const dragged = (model: Model, drag: { readonly size: number; readonly delta: number }) => {
-  const shown = hiddenAt(model.points, model.at, drag.size) + drag.delta
+  const shown = hiddenAt(model.points, model.point, drag.size) + drag.delta
   return shown >= 0 ? shown : -Math.max(0, 8 * (Math.log(1 - shown) - 2))
 }
 
@@ -305,7 +308,7 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
               panel: [
                 h.DataAttribute('sheet', model.side),
                 ...(options.scalesPage === true ? [h.DataAttribute('scales-page', '')] : []),
-                h.Style({ '--fk-sheet-snap': String(model.points[model.at] ?? 1) }),
+                h.Style({ '--fk-sheet-snap': String(model.points[model.point] ?? 1) }),
                 ...place,
               ],
               // The browser's own pan would take the press away from the drag.

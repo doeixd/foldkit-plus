@@ -1302,11 +1302,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     (style, live) =>
       Snippet.sidebar(
         style,
-        { open: live.widgets.sidebarOpen, collapsed: live.widgets.sidebarCollapsed },
-        {
-          onToggleSection: id => live.onWidget(Widgets.Message.ToggledSidebarSection({ id })),
-          onToggleCollapsed: live.onWidget(Widgets.Message.ToggledSidebar()),
-        },
+        live.widgets.sidebar,
+        message => live.onWidget(Widgets.Message.GotSidebar({ message })),
         live.h,
       ),
   ),

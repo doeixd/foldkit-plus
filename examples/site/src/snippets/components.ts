@@ -3606,48 +3606,34 @@ export const resizable = <Message>(
 // #region sidebar
 export const SidebarStyle = forSlots(SidebarSlots)(Recipes.Sidebar({}))
 
-export interface SidebarMessages<Message> {
-  readonly onToggleSection: (id: string) => Message
-  readonly onToggleCollapsed: Message
-}
+export const SIDEBAR_GROUPS: ReadonlyArray<Sidebar.SidebarGroup> = [
+  {
+    id: 'workspace',
+    title: 'Workspace',
+    rows: [
+      { id: 'inbox', label: 'Inbox', href: '#', current: true },
+      { id: 'projects', label: 'Projects', href: '#' },
+      { id: 'calendar', label: 'Calendar', href: '#' },
+    ],
+  },
+  {
+    id: 'settings',
+    title: 'Settings',
+    rows: [
+      { id: 'members', label: 'Members', href: '#' },
+      { id: 'billing', label: 'Billing', href: '#' },
+    ],
+  },
+]
 
+// Which groups are open and whether it is collapsed are the sidebar's Model,
+// `Sidebar.init({ id, rows })`, folded with `Sidebar.update`.
 export const sidebar = <Message>(
   style: NamedStyle<typeof SidebarSlots>,
-  state: { readonly open: ReadonlyArray<string>; readonly collapsed: boolean },
-  messages: SidebarMessages<Message>,
+  model: Sidebar.Model,
+  onMessage: (message: Sidebar.Message) => Message,
   h: HtmlBuilder<Message>,
-): Html =>
-  Sidebar.view(
-    {
-      id: 'app-sidebar',
-      label: 'Workspace',
-      sections: [
-        {
-          id: 'workspace',
-          title: 'Workspace',
-          links: [
-            { label: 'Inbox', href: '#', current: true },
-            { label: 'Projects', href: '#' },
-            { label: 'Calendar', href: '#' },
-          ],
-        },
-        {
-          id: 'settings',
-          title: 'Settings',
-          links: [
-            { label: 'Members', href: '#' },
-            { label: 'Billing', href: '#' },
-          ],
-        },
-      ],
-      open: state.open,
-      onToggleSection: messages.onToggleSection,
-      collapsed: state.collapsed,
-      onToggleCollapsed: messages.onToggleCollapsed,
-      style,
-    },
-    h,
-  )
+): Html => Sidebar.view({ model, onMessage, label: 'Workspace', groups: SIDEBAR_GROUPS, style }, h)
 // #endregion
 
 // #region menubar

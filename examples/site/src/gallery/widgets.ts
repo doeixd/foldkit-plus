@@ -57,6 +57,7 @@ import {
   FrequencyBox,
   MENUBAR,
   PAGE_MENU,
+  SIDEBAR_GROUPS,
   ViewOptions,
   viewRows,
   cities,
@@ -189,9 +190,8 @@ export const Model = Schema.Struct({
   commandRan: Schema.Option(Schema.String),
   /** The resizable split. */
   split: Resizable.Model,
-  /** The sidebar's open sections, and whether it is collapsed. */
-  sidebarOpen: Schema.Array(Schema.String),
-  sidebarCollapsed: Schema.Boolean,
+  /** The sidebar's open groups, whether it is collapsed, its tooltips and phone Sheet. */
+  sidebar: Sidebar.Model,
   /** The menu bar's menus, and the command last chosen from it. */
   menubar: Menubar.Model,
   menubarChoice: Schema.Option(Schema.String),
@@ -293,8 +293,7 @@ export const Message = defineMessageUnion({
   HighlightedCommand: { value: Schema.String },
   RanCommand: { value: Schema.String },
   GotSplit: { message: Resizable.Message },
-  ToggledSidebarSection: { id: Schema.String },
-  ToggledSidebar: {},
+  GotSidebar: { message: Sidebar.Message },
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
   GotCarousel: { message: Carousel.Message },
@@ -439,8 +438,11 @@ export const initial: Model = {
   commandActive: Option.none(),
   commandRan: Option.none(),
   split: Resizable.init(0.35),
-  sidebarOpen: ['workspace'],
-  sidebarCollapsed: false,
+  sidebar: Sidebar.init({
+    id: 'app-sidebar',
+    rows: SIDEBAR_GROUPS.flatMap(group => group.rows.map(row => row.id)),
+    open: ['workspace'],
+  }),
   menubar: Menubar.init(
     MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`),
     { isAnimated: true },
@@ -807,6 +809,11 @@ const foldCarousel = Update.foldChild({
   update: Carousel.update(CAROUSEL_LAYOUT),
 })
 
+const foldSidebar = Update.foldChild({
+  ...own('sidebar', Message.GotSidebar),
+  update: Sidebar.update,
+})
+
 const foldTagsMax = Update.foldChild({
   ...own('tagsMax', Message.GotTagsMax),
   update: TagsInput.update,
@@ -1053,12 +1060,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     HighlightedCommand: ({ value }) => ({
       model: modifyFields(model, { commandActive: () => Option.some(value) }),
     }),
-    ToggledSidebarSection: ({ id }) => ({
-      model: modifyFields(model, { sidebarOpen: () => Sidebar.toggled(model.sidebarOpen, id) }),
-    }),
-    ToggledSidebar: () => ({
-      model: modifyFields(model, { sidebarCollapsed: () => !model.sidebarCollapsed }),
-    }),
+    GotSidebar: ({ message }) => foldSidebar(model, message),
     GotSplit: ({ message }) => {
       const split = Resizable.update(model.split, message, { min: 0.2, max: 0.8 })
       return split === model.split

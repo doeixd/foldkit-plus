@@ -58,7 +58,7 @@ const grabbed = () => Sheet.update(opened(), Sheet.Message.Grabbed({ size: 400 }
 describe('update', () => {
   it('opens at its opening point', () => {
     const model = Sheet.init({ id: 's', points: [0.25, 0.5, 1], opensAt: 2 })
-    expect(Sheet.open(model).model.at).toBe(2)
+    expect(Sheet.open(model).model.point).toBe(2)
     expect(Sheet.isOpen(Sheet.open(model).model)).toBe(true)
   })
 
@@ -67,8 +67,8 @@ describe('update', () => {
       grabbed(),
       Sheet.Message.Released({ delta: 0, velocity: 0, completed: true }),
     ).model
-    expect(stepped.at).toBe(1)
-    expect(Sheet.open(Sheet.close(stepped).model).model.at).toBe(0)
+    expect(stepped.point).toBe(1)
+    expect(Sheet.open(Sheet.close(stepped).model).model.point).toBe(0)
   })
 
   it('a drag records the panel’s size and follows the delta; the same delta is a no-op', () => {
@@ -88,9 +88,9 @@ describe('update', () => {
   it('a press that barely moves steps to the next point, round to the first', () => {
     const press = Sheet.Message.Released({ delta: 2, velocity: 0, completed: true })
     const up = Sheet.update(grabbed(), press).model
-    expect([up.at, Option.isNone(up.drag)]).toEqual([1, true])
+    expect([up.point, Option.isNone(up.drag)]).toEqual([1, true])
     const round = Sheet.update(Sheet.update(up, Sheet.Message.Grabbed({ size: 400 })).model, press)
-    expect(round.model.at).toBe(0)
+    expect(round.model.point).toBe(0)
   })
 
   it('a cancelled drag comes back to where it rested', () => {
@@ -99,7 +99,7 @@ describe('update', () => {
       model,
       Sheet.Message.Released({ delta: 300, velocity: 2, completed: false }),
     )
-    expect([next.model.at, Option.isNone(next.model.drag), Sheet.isOpen(next.model)]).toEqual([
+    expect([next.model.point, Option.isNone(next.model.drag), Sheet.isOpen(next.model)]).toEqual([
       0,
       true,
       true,
