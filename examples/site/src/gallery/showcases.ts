@@ -1591,7 +1591,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'color-picker',
       title: 'Color picker',
-      summary: 'An OKLCH color from three sliders, with its swatch, its text and preset swatches.',
+      summary:
+        'A color from a saturation and brightness area, hue and alpha tracks, typed in hex, rgb, hsl or oklch, or picked from the screen.',
       recipe: 'ColorPicker',
       file: 'colorPicker',
       contract: 'ColorPickerSlots',
@@ -1602,7 +1603,7 @@ export const showcases: ReadonlyArray<Showcase> = [
       Snippet.colorPicker(
         style,
         live.widgets.accent,
-        value => live.onWidget(Widgets.Message.PickedAccent({ value })),
+        message => live.onWidget(Widgets.Message.GotAccent({ message })),
         live.h,
       ),
   ),
@@ -1642,8 +1643,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     (style, live) =>
       Snippet.carousel(
         style,
-        live.widgets.slide,
-        index => live.onWidget(Widgets.Message.ChoseSlide({ index })),
+        live.widgets.carousels.places,
+        message => live.onWidget(Widgets.Message.GotCarousel({ message })),
         live.h,
       ),
   ),

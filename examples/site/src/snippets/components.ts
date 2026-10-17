@@ -457,7 +457,7 @@ export const cardLink = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<nev
       media: sparkle(h),
       title: 'Read the changelog',
       description: 'Everything that shipped this month.',
-      press: { href: '#changelog' },
+      press: { href: 'https://github.com/doeixd/foldkit-plus/blob/main/CHANGELOG.md' },
       style,
     },
     h,
@@ -1590,10 +1590,11 @@ export const itemSettings = (style: NamedStyle<typeof ItemSlots>, h: HtmlBuilder
     {
       label: 'Settings',
       items: [
-        { key: 'profile', title: 'Profile', description: 'Name, photo and email' },
-        { key: 'security', title: 'Security', description: 'Passkeys and sessions' },
-        { key: 'billing', title: 'Billing', description: 'Plan and invoices' },
-      ].map(row => ({ ...row, media: sparkle(h), press: { href: `#${row.key}` } })),
+        // Pages of this site, standing in for an application's settings pages.
+        { key: 'avatar', title: 'Profile', description: 'Name, photo and email' },
+        { key: 'password-input', title: 'Security', description: 'Passkeys and sessions' },
+        { key: 'pagination', title: 'Billing', description: 'Plan and invoices' },
+      ].map(row => ({ ...row, media: sparkle(h), press: { href: `/components/${row.key}` } })),
       style: SettingsListStyle,
       itemStyle: style,
     },
@@ -4356,26 +4357,31 @@ export const sheetNested = <Message>(
 
 // #region color-picker
 export const ColorPickerStyle = forSlots(ColorPickerSlots)(Recipes.ColorPicker({}))
+export const ColorSliderStyle = forSlots(SliderSlots)(
+  Recipes.Slider({ track: 'paint', label: 'hidden' }),
+)
 
+// The color, its format and a draft being typed are the picker's Model; the
+// application keeps it and folds it with `ColorPicker.update`.
 export const colorPicker = <Message>(
   style: NamedStyle<typeof ColorPickerSlots>,
-  value: ColorPicker.Oklch,
-  onChange: (value: ColorPicker.Oklch) => Message,
+  model: ColorPicker.Model,
+  onMessage: (message: ColorPicker.Message) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
   ColorPicker.view(
     {
-      id: 'preview-accent',
+      model,
+      onMessage,
       label: 'Accent',
-      value,
-      onChange,
       presets: [
-        { label: 'Blue', value: { l: 62.5, c: 0.15, h: 250 } },
-        { label: 'Teal', value: { l: 70, c: 0.12, h: 190 } },
-        { label: 'Amber', value: { l: 80, c: 0.16, h: 80 } },
-        { label: 'Rose', value: { l: 65, c: 0.2, h: 10 } },
+        { label: 'Blue', value: ColorPicker.color('#3b82f6') },
+        { label: 'Teal', value: ColorPicker.color('#14b8a6') },
+        { label: 'Amber', value: ColorPicker.color('#f59e0b') },
+        { label: 'Rose', value: ColorPicker.color('#f43f5e') },
       ],
       style,
+      slider: ColorSliderStyle,
     },
     h,
   )
@@ -4436,10 +4442,15 @@ export const CarouselStyle = forSlots(CarouselSlots)(Recipes.Carousel({}))
 
 const PLACES = ['Dunes', 'Coast', 'Ridge', 'Valley']
 
+/** The slides `Carousel.update` steps through: the same count the view draws. */
+export const CAROUSEL_LAYOUT: Carousel.CarouselLayout = { count: PLACES.length }
+
+// The slide shown is the carousel's Model, folded with `Carousel.update(layout)`,
+// which hears a swipe settle as well as the buttons.
 export const carousel = <Message>(
   style: NamedStyle<typeof CarouselSlots>,
-  index: number,
-  onIndex: (index: number) => Message,
+  model: Carousel.Model,
+  onMessage: (message: Carousel.Message) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
@@ -4447,8 +4458,9 @@ export const carousel = <Message>(
     [
       Carousel.view(
         {
-          id: 'preview-carousel',
           label: 'Places',
+          model,
+          onMessage,
           slides: PLACES.map(place =>
             h.div(
               [
@@ -4463,8 +4475,6 @@ export const carousel = <Message>(
               [place],
             ),
           ),
-          index,
-          onIndex,
           style,
         },
         h,

@@ -46,6 +46,7 @@ import { ClipboardMessage } from 'foldkit-primitives/dom'
 import {
   Billing,
   BillingGroup,
+  CAROUSEL_LAYOUT,
   CityBox,
   CityTags,
   Fruit,
@@ -77,6 +78,10 @@ export const PaginationExample = Schema.Literals([
   'compact',
 ])
 export type PaginationExample = typeof PaginationExample.Type
+
+/** The carousel examples. */
+export const CarouselExample = Schema.Literals(['places'])
+export type CarouselExample = typeof CarouselExample.Type
 
 /** The custom select examples, each with a list and a fruit of its own. */
 export const SelectExample = Schema.Literals([
@@ -192,14 +197,18 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
-  /** The carousel's slide. */
-  slide: Schema.Number,
+  /**
+   * The carousel's slide and rotation, by example. A Record, not a field of
+   * its own: the site's Surface walks every struct field, and refuses the
+   * Carousel Model's `index`, a name its ModelRef reserves.
+   */
+  carousels: Schema.Record(CarouselExample, Carousel.Model),
   /** The range slider's price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
   /** The file tree's open, current and chosen rows. */
   treeView: TreeView.Model,
-  /** The color picker's accent, in OKLCH. */
-  accent: ColorPicker.Oklch,
+  /** The color picker's accent, its format and its draft. */
+  accent: ColorPicker.Model,
   /** The trip calendar, and the range picked on it. */
   trip: UiCalendar.Model,
   tripDates: DateSelection.Selection,
@@ -292,11 +301,10 @@ export const Message = defineMessageUnion({
   ToggledSidebar: {},
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
-  ChoseSlide: { index: Schema.Number },
-  ShowedSlide: {},
+  GotCarousel: { message: Carousel.Message },
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotTreeView: { message: TreeView.Message },
-  PickedAccent: { value: ColorPicker.Oklch },
+  GotAccent: { message: ColorPicker.Message },
   GotTripCalendar: { message: UiCalendar.Message },
   GotSheet: { example: SheetExample, message: Sheet.Message },
   OpenedSheet: { example: SheetExample },
@@ -443,10 +451,10 @@ export const initial: Model = {
   ),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
-  slide: 0,
+  carousels: { places: Carousel.init({ id: 'preview-carousel' }) },
   priceRange: { low: 100, high: 350 },
   treeView: TreeView.init({ id: 'preview-tree', open: ['src'] }),
-  accent: { l: 62.5, c: 0.15, h: 250 },
+  accent: ColorPicker.init({ id: 'preview-accent', color: ColorPicker.color('#3b82f6') }),
   trip: UiCalendar.init({ id: 'preview-trip', today }),
   tripDates: DateSelection.empty('Range'),
   inputCopy: InputCopy.init({ resetAfter: 2000 }),
@@ -790,6 +798,19 @@ const foldCityTags = Update.foldChild({
   }),
 })
 
+const foldAccent = Update.foldChild({
+  ...own('accent', Message.GotAccent),
+  update: ColorPicker.update,
+})
+
+const foldCarousel = Update.foldChild({
+  read: (model: Model) => Option.some(model.carousels.places),
+  write: (model, places) =>
+    modifyFields(model, { carousels: carousels => ({ ...carousels, places }) }),
+  toParentMessage: message => Message.GotCarousel({ message }),
+  update: Carousel.update(CAROUSEL_LAYOUT),
+})
+
 const foldTagsMax = Update.foldChild({
   ...own('tagsMax', Message.GotTagsMax),
   update: TagsInput.update,
@@ -1054,22 +1075,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotPageMenu: ({ message }) => foldPageMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
-    ChoseSlide: ({ index }) => ({
-      model: index === model.slide ? model : modifyFields(model, { slide: () => index }),
-      commands: Command.mapMessages([Carousel.ShowSlide({ id: 'preview-carousel', index })], () =>
-        Message.ShowedSlide(),
-      ),
-    }),
-    ShowedSlide: () => ({ model }),
+    GotCarousel: ({ message }) => foldCarousel(model, message),
     MovedPriceRange: ({ value }) =>
       value.low === model.priceRange.low && value.high === model.priceRange.high
         ? { model }
         : { model: modifyFields(model, { priceRange: () => value }) },
     GotTreeView: ({ message }) => foldTreeView(model, message),
-    PickedAccent: ({ value }) =>
-      value.l === model.accent.l && value.c === model.accent.c && value.h === model.accent.h
-        ? { model }
-        : { model: modifyFields(model, { accent: () => value }) },
+    GotAccent: ({ message }) => foldAccent(model, message),
     GotTripCalendar: ({ message }) => foldTripCalendar(model, message),
     PressedCopy: ({ text }) => ({
       model,
