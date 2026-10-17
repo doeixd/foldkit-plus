@@ -1,4 +1,11 @@
-import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Capability,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+  type SlotAttributes,
+} from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { FLUID_PRESS_ATTRIBUTE, FluidHover, fluidHovered } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
@@ -77,6 +84,53 @@ export interface CardView<Message> {
 
 const flag = (on: boolean | undefined) => (on === true ? 'true' : 'false')
 
+/**
+ * The one control stretched over a pressable surface (a card, an item),
+ * named by `name`: a link that goes nowhere while disabled and says when it
+ * opens a new tab, or a button that is pressed while chosen.
+ */
+export const overlay = <Message>(
+  h: HtmlBuilder<Message>,
+  attrs: (attributes: ReadonlyArray<Attribute<Message>>) => SlotAttributes<Message>,
+  press: CardPress<Message>,
+  state: {
+    readonly name: string
+    readonly selected: boolean | undefined
+    readonly disabled: boolean
+  },
+): Html => {
+  const shared: ReadonlyArray<Attribute<Message>> = [
+    h.AriaLabel(state.name),
+    h.Attribute(FLUID_PRESS_ATTRIBUTE, ''),
+  ]
+  if ('href' in press) {
+    const external = press.external === true
+    return h.a(
+      attrs([
+        ...shared,
+        ...(state.disabled
+          ? [h.AriaDisabled(true)]
+          : [
+              h.Href(press.href),
+              ...(external ? [h.Target('_blank'), h.Rel('noopener noreferrer')] : []),
+            ]),
+        ...(state.selected === true ? [h.AriaCurrent('true')] : []),
+        ...(external ? [h.AriaDescription('Opens in a new tab')] : []),
+      ]),
+      [],
+    )
+  }
+  return h.button(
+    attrs([
+      ...shared,
+      h.Type('button'),
+      ...(state.selected === undefined ? [] : [h.AriaPressed(flag(state.selected))]),
+      ...(state.disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),
+    ]),
+    [],
+  )
+}
+
 export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message>): Html => {
   const builders = SlotView.buildersFor(
     CardSlots,
@@ -89,38 +143,6 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
     throw new Error('Card: a pressable card needs a `label` when it has no `title` to be named by')
   }
   const disabled = options.disabled === true
-  const overlay = (press: CardPress<Message>, name: string): Html => {
-    const shared: ReadonlyArray<Attribute<Message>> = [
-      h.AriaLabel(name),
-      h.Attribute(FLUID_PRESS_ATTRIBUTE, ''),
-    ]
-    if ('href' in press) {
-      const external = press.external === true
-      return h.a(
-        builders.overlay.attrs([
-          ...shared,
-          ...(disabled
-            ? [h.AriaDisabled(true)]
-            : [
-                h.Href(press.href),
-                ...(external ? [h.Target('_blank'), h.Rel('noopener noreferrer')] : []),
-              ]),
-          ...(options.selected === true ? [h.AriaCurrent('true')] : []),
-          ...(external ? [h.AriaDescription('Opens in a new tab')] : []),
-        ]),
-        [],
-      )
-    }
-    return h.button(
-      builders.overlay.attrs([
-        ...shared,
-        h.Type('button'),
-        ...(options.selected === undefined ? [] : [h.AriaPressed(flag(options.selected))]),
-        ...(disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),
-      ]),
-      [],
-    )
-  }
   const dismiss = options.dismiss
   const hasHeader =
     options.title !== undefined || options.description !== undefined || options.action !== undefined
@@ -158,7 +180,15 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
         ? []
         : [h.div(builders.content.attrs(), [options.content])]),
       ...(options.footer === undefined ? [] : [h.div(builders.footer.attrs(), [options.footer])]),
-      ...(press === undefined || name === undefined ? [] : [overlay(press, name)]),
+      ...(press === undefined || name === undefined
+        ? []
+        : [
+            overlay(h, builders.overlay.attrs, press, {
+              name,
+              selected: options.selected,
+              disabled,
+            }),
+          ]),
       ...(dismiss === undefined
         ? []
         : [
