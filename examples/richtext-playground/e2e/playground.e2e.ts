@@ -92,7 +92,7 @@ test('a slash command chosen with Enter inserts its block where the line was', a
   await page.keyboard.type('First cell')
   const tables = page.locator('[contenteditable=true] > table')
   await expect.poll(() => tables.count()).toBe(2)
-  expect(await tables.last().locator('td').first().textContent()).toBe('First cell')
+  await expect.poll(() => tables.last().locator('td').first().textContent()).toBe('First cell')
   // The query is gone, and the blank line stays below the table to type on.
   expect(await page.locator('[contenteditable=true] > :last-child').evaluate(e => e.tagName)).toBe(
     'P',
