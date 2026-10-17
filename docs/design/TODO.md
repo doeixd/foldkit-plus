@@ -805,9 +805,10 @@ while keeping the best of what this project already has:
   `data-label`: Card writes its title there, an application its segmented
   options'. The `weight` axes for optical size wait for a theme with Inter
   (its `opsz`); with Geist or the system font they would set nothing.
-- [ ] **Chat's streamed text unwrapped.** The reset gives every `p`
-  `text-wrap: pretty`, which re-wraps earlier lines as words arrive; parity 7's
-  message slot sets `text-wrap: wrap`.
+- [x] **Chat's streamed text unwrapped.** The reset gives every `p`
+  `text-wrap: pretty`, which re-wraps earlier lines as words arrive;
+  `ChatMessage`'s body sets `text-wrap: wrap`, and a browser test streams 30
+  words and checks every earlier line stays.
 - [x] **Systems 4, state tints and concentric radii.** A `state` group (hover,
   tint, tint-hover, edge) of the element's own text color, `Theme.nested`, and
   an image edge. `selected` and `pressed` wait for a recipe that reads them
@@ -882,11 +883,39 @@ while keeping the best of what this project already has:
 - [ ] **Carousel dots** after Fluid Functionalism's
   ([carousel-dots](https://www.fluidfunctionalism.com/docs/carousel-dots)).
   [ui-polish-DESIGN.md](./ui-polish-DESIGN.md) Part C, Carousel
-- [ ] **Parity 7, chat.** Message, Message Scroller, Thinking Indicator,
-  Thinking Steps and a Questionnaire.
-- [ ] **Parity 8, Zag's long tail.** Angle Slider, Cascade Select, Image
-  Cropper, Signature Pad, QR Code, Tour, Floating Panel, Marquee, a Timer
-  view and Chart.
+- [x] **Parity 7, chat.** `ChatMessage` (with `ChatMessage.group`),
+  `MessageScroller`, `ThinkingIndicator`, `ThinkingSteps` and
+  `Questionnaire`, exported, in the catalog and on the site. Skipped, each
+  recorded in its brief: branches (n of m), attachments and editing in
+  place of a message; incomplete-Markdown repair while streaming; a
+  scroller's "load older on reaching the top"; approval as a Thinking Steps
+  state (it is a Questionnaire question); a questionnaire's skip and its
+  min/max selections. The site's chat page has no Markdown example: it
+  would bring `foldkit-richtext-dom` (with its `foldkit-form` peer) and
+  `foldkit-richtext-markdown`'s parser into the site's bundle for one
+  example.
+- [x] **Parity 8, Zag's long tail.** Angle Slider, Cascade Select, Image
+  Cropper, Signature Pad, QR Code, Tour, Floating Panel, Marquee, Timer and
+  Chart, exported, in the catalog and on the site; the color area, the dial
+  and the pad read the pointer through `PointerPosition`. Skipped, each
+  recorded in its brief: the Image Cropper's pinch zoom (a two-pointer
+  primitive), flip and fixed crop area; a Signature Pad's redo and hidden
+  input; the QR code's `boostEcc` and an overlay in the downloaded file;
+  stacked bars and areas, horizontal bars, radar and radial charts, a brush
+  and zoom; a Cascade Select's `multiple` and its fluid hover; a Floating
+  Panel's aspect lock, `absolute` strategy and double-click to maximize; a
+  Tour's wait steps, focus trap and dots; a Marquee's round-end events.
+- [ ] **Follow-ups from parity 7 and 8.** Seen in the gallery's
+  screenshots: the Image Cropper's image never shows (its recipe hides it
+  under `:not([data-ready]) &`, which any ancestor without the attribute
+  matches, `body` included); the Angle Slider's needle crosses its value
+  shown inside; a Cascade Select's columns run past a phone's width (its
+  drill layout is the narrow one, chosen by the application). Spotlight as
+  a primitive: `Tour.Spotlight` follows an element named by its
+  `data-target` and writes its box as custom properties, which a coach mark
+  or a measuring overlay would reuse from `foldkit-primitives/dom`. The
+  Sidebar's and Tree View's chevrons could draw the recipes' shared
+  `turningChevron` too.
 
 ## React
 
