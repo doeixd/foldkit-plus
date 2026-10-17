@@ -644,6 +644,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   initial args and never again: `OnMount` binds `insert` and `destroy` only,
   there is no update hook. Drive Model-caused DOM effects from the Message
   that updated the Model, as a Command — the platform's own prescribed path.
+- **A Mount that sends no Message must not be on by default.** A Scene test
+  resolves every Mount a view draws with a Message, and one that sends none
+  (`ScrollBars`, `FluidHover`, `ReadingKeys`, `FollowDirection`) cannot be
+  resolved, so a component drawing it by default fails the Scene tests of
+  every application page that draws the component. Ship such a Mount as a
+  mixin passed beside the style (`Tabs.fluid`, `X.overlayBars`,
+  `X.readingKeys`).
 - **A view input may hold no nested function.** `h.submodel` throws on a
   function below the top level of `viewInputs`. The plan's sketch made each
   word that takes a value a function, and the Builder's words, a nested
@@ -1214,6 +1221,17 @@ of its own named a form field "fits the Catalog". Read words with
   committed view reading the optimistic value: nothing notified between persist
   and exchange, so the wrong read was never evaluated. Force a transition
   between the two states the test tells apart.
+- **Emulate a coarse pointer through the browser, not a stubbed
+  `matchMedia`.** A cast `matchMedia` answers the one query it was written
+  for and nothing else; `cdp().send('Emulation.setTouchEmulationEnabled',
+  { enabled: true, maxTouchPoints: 5 })` makes `(hover: hover) and (pointer:
+  fine)` fail for real, as `lists.browser.test.ts` does for `ScrollBars`.
+  Turn it off in a `finally`: the browser tests share one page's settings.
+- **An indicator test can pass by an accidental re-measure.** A test that
+  flips `dir` and reads that the indicator moved also passes without the
+  fix when a sub-pixel resize or a transition still running makes `Measure`
+  measure again anyway. Fix the fixture's width and drop its transitions, so
+  only the change under test can move it.
 
 **Claims about the repository**
 
@@ -1374,6 +1392,10 @@ of its own named a form field "fits the Catalog". Read words with
   `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
   and a demo line that passed under `tsx` failed its test for no reason in the
   change. `npx vitest run examples/remote` from the root tests the source.
+- **`pnpm mutate`'s browser baseline sometimes fails on its first run.** It
+  can stop at "Failed to fetch dynamically imported module", before any
+  mutation runs, and pass when run again unchanged. Rerun once before reading it as a
+  red baseline; a second failure is real.
 - **Vitest 5 caches transformed modules on disk, keyed without the environment.**
   `fsModuleCache` is on by default in 5.0.4 (5.0.1 ran without it), so a
   plugin whose output depends on an environment variable (`pnpm mutate`'s
