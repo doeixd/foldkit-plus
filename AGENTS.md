@@ -1266,6 +1266,14 @@ of its own named a form field "fits the Catalog". Read words with
   fix when a sub-pixel resize or a transition still running makes `Measure`
   measure again anyway. Fix the fixture's width and drop its transitions, so
   only the change under test can move it.
+- **A sleep between synthetic events stretches past what reads their times.**
+  The Sheet reads a flick's speed from `event.timeStamp` over the last 100ms;
+  on a loaded CI runner even `setTimeout(1)` between press and move ran
+  past that, and every flick read as a rest. Space such events with a
+  busy-wait in one synchronous run (`flick` in `sheet.browser.test.ts`),
+  first prove the Mount is listening (a press it reports), and wait for the
+  outcome itself, not for a mark (`data-dragging`) a synchronous run may
+  never draw.
 - **End goes to the end of a line, not of a block, and CI wraps elsewhere.**
   The playground's e2e pressed a callout at a fixed point, then End, and
   typed: on CI, whose fonts (DejaVu Sans) wrap the text onto more lines, the

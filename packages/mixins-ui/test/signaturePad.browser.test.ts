@@ -187,7 +187,10 @@ test('a drag draws a stroke under the pointer, and the page does not take it', a
     expect(ink.right - pad.left).toBeLessThan(226)
     expect(ink.top - pad.top).toBeGreaterThan(54)
     expect(ink.bottom - pad.top).toBeLessThan(66)
-    expect(control()!.getAttribute('aria-label')).toBe('Signature: signed, 1 stroke')
+    // The label follows the Message the stroke's end sends, which may land after its ink.
+    await vi.waitFor(() =>
+      expect(control()!.getAttribute('aria-label')).toBe('Signature: signed, 1 stroke'),
+    )
   } finally {
     mounted.dispose()
   }

@@ -96,12 +96,15 @@ const open = async (
       ],
     )
   const opened = Sheet.open(Sheet.init({ id: 'edge', ...config }))
+  // Releases the Sheet has handled, for a test to know its drag has landed.
+  let releases = 0
   const handle = Runtime.embed(
     Runtime.makeElement({
       Model: Sheet.Model,
       container,
       init: () => ({ model: opened.model, commands: opened.commands ?? [] }),
       update: (model: Sheet.Model, message: Sheet.Message) => {
+        if (message._tag === 'Released') releases++
         const next = Sheet.update(model, message)
         return { model: next.model, commands: next.commands ?? [] }
       },
@@ -116,11 +119,19 @@ const open = async (
     return found!
   })
   await settled(panel)
-  return {
-    panel,
-    grabber: panel.firstElementChild as HTMLElement,
-    dispose: () => handle.dispose(),
-  }
+  const grabber = panel.firstElementChild as HTMLElement
+  // The handle's Swipe listens once its Mount has run, which a loaded machine
+  // can leave until after the panel is drawn, and a press sent before is lost:
+  // press until the drag shows, then cancel it, which moves nothing.
+  const at = touchOn(grabber)
+  await vi.waitFor(() => {
+    at('pointerdown', 0)
+    expect(panel.hasAttribute('data-dragging')).toBe(true)
+  })
+  at('pointercancel', 0)
+  await vi.waitFor(() => expect(panel.hasAttribute('data-dragging')).toBe(false))
+  await settled(panel)
+  return { panel, grabber, releases: () => releases, dispose: () => handle.dispose() }
 }
 
 /** Once nothing on the panel is still moving. */
@@ -129,27 +140,12 @@ const settled = (element: Element) =>
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-/**
- * A flick: one move a moment after the press. The speed is read from the
- * events' times, and a pause stretched by a loaded machine slowed a flick
- * made of several moves below `FLICK_SPEED`; one 1ms pause stays well above
- * it even stretched tens of times.
- */
-const FLICK = { steps: 1, pause: 1 }
-
-/**
- * Presses the handle at its middle, moves it `by` pixels down in `steps`
- * moves `pause` milliseconds apart, rests `rest`, and lets go.
- */
-const drag = async (
-  grabber: HTMLElement,
-  by: number,
-  { steps = 8, pause = 16, rest = 0 }: { steps?: number; pause?: number; rest?: number } = {},
-) => {
+/** Sends a touch pointer event `dy` pixels below the handle's middle. */
+const touchOn = (grabber: HTMLElement) => {
   const box = grabber.getBoundingClientRect()
   const x = box.left + box.width / 2
   const y = box.top + box.height / 2
-  const at = (type: string, dy: number) =>
+  return (type: string, dy: number) =>
     grabber.dispatchEvent(
       new PointerEvent(type, {
         bubbles: true,
@@ -160,6 +156,38 @@ const drag = async (
         clientY: y + dy,
       }),
     )
+}
+
+/**
+ * Flicks the handle `by` pixels down in 8ms. The speed is read from the
+ * events' times over the last 100ms, so the waits between them spin rather
+ * than sleep: a loaded CI machine stretched even a 1ms `setTimeout` past
+ * that window, and the flick read as a rest.
+ */
+const flick = (grabber: HTMLElement, by: number) => {
+  const at = touchOn(grabber)
+  const spin = (ms: number) => {
+    const until = performance.now() + ms
+    while (performance.now() < until) {}
+  }
+  at('pointerdown', 0)
+  spin(4)
+  at('pointermove', by / 2)
+  spin(4)
+  at('pointermove', by)
+  at('pointerup', by)
+}
+
+/**
+ * Presses the handle at its middle, moves it `by` pixels down in `steps`
+ * moves `pause` milliseconds apart, rests `rest`, and lets go.
+ */
+const drag = async (
+  grabber: HTMLElement,
+  by: number,
+  { steps = 8, pause = 16, rest = 0 }: { steps?: number; pause?: number; rest?: number } = {},
+) => {
+  const at = touchOn(grabber)
   at('pointerdown', 0)
   for (let step = 1; step <= steps; step++) {
     if (pause > 0) await wait(pause)
@@ -287,7 +315,7 @@ test('a slow drag past a quarter of the panel takes it away', async () => {
 test('a flick takes it away though it moved only a little', async () => {
   const { grabber, dispose } = await open({ side: 'bottom', isAnimated: false }, {}, { lines: 8 })
   try {
-    await drag(grabber, 40, FLICK)
+    flick(grabber, 40)
     await vi.waitFor(() => expect(document.getElementById('edge-panel')).toBeNull())
   } finally {
     dispose()
@@ -295,14 +323,19 @@ test('a flick takes it away though it moved only a little', async () => {
 })
 
 test('a sheet that may not be dismissed comes back from any drag', async () => {
-  const { panel, grabber, dispose } = await open(
+  const { panel, grabber, releases, dispose } = await open(
     { side: 'bottom', isAnimated: false, dismissible: false },
     {},
     { lines: 8 },
   )
   try {
-    await drag(grabber, 60, FLICK)
-    await vi.waitFor(() => expect(panel.hasAttribute('data-dragging')).toBe(false))
+    const before = releases()
+    flick(grabber, 60)
+    await vi.waitFor(() => expect(releases()).toBe(before + 1))
+    // Drawn after the release: a dismissed panel would be gone by now.
+    await new Promise(requestAnimationFrame)
+    await new Promise(requestAnimationFrame)
+    expect(panel.isConnected).toBe(true)
     expect(document.getElementById('edge-panel')).not.toBeNull()
   } finally {
     dispose()
@@ -321,8 +354,9 @@ test('with points it opens at the lowest; a press steps up, a flick down rests a
     expect(shown()).toBeCloseTo(window.innerHeight / 2, 0)
     await drag(grabber, 0, { steps: 1, pause: 0 })
     await vi.waitFor(() => expect(shown()).toBeCloseTo(window.innerHeight, 0))
-    await drag(grabber, 60, FLICK)
-    await vi.waitFor(() => expect(panel.hasAttribute('data-dragging')).toBe(false))
+    flick(grabber, 60)
+    // The flick lands within a frame or two, and the panel slides down from full.
+    await vi.waitFor(() => expect(shown()).toBeCloseTo(window.innerHeight / 2, 0))
     await settled(panel)
     expect(shown()).toBeCloseTo(window.innerHeight / 2, 0)
   } finally {

@@ -64,6 +64,10 @@ const mount = (isAnimated = false) => {
           },
           h,
         ),
+        // Where the pointer is put, well below the bar and its menus: every test
+        // file shares the pointer, and one resting on a trigger switches an
+        // open menu to its own.
+        h.div([h.Id('away'), h.Style({ height: '40px', marginBlockStart: '300px' })], []),
       ],
     )
   return Runtime.embed(
@@ -109,6 +113,7 @@ test("an animated bar's menu stays drawn while it leaves, marked for its fade", 
       expect(found).not.toBeNull()
       return found!
     })
+    await userEvent.hover(document.getElementById('away')!)
     trigger.focus()
     await userEvent.keyboard('{Enter}')
     const panel = await vi.waitFor(() => {

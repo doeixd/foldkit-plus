@@ -290,9 +290,12 @@ test('the handle turns to a thicker accent line under the pointer', async () => 
     probe.style.background = 'var(--fk-accent-default)'
     document.body.append(probe)
     await userEvent.hover(document.body, { position: { x: 1000, y: 700 } })
-    const resting = getComputedStyle(outer)
-    expect(resting.backgroundColor).not.toBe(getComputedStyle(probe).backgroundColor)
-    expect(resting.boxShadow).toBe('none')
+    // At rest once a hover the shared pointer left on it (another file's) has faded.
+    await vi.waitFor(() => {
+      const resting = getComputedStyle(outer)
+      expect(resting.backgroundColor).not.toBe(getComputedStyle(probe).backgroundColor)
+      expect(resting.boxShadow).toBe('none')
+    })
     // On the line, by a point of the page: a pixel-wide box reads as hidden to
     // the locator. Above the middle, where the inner split's handle meets it.
     const line = outer.getBoundingClientRect()
