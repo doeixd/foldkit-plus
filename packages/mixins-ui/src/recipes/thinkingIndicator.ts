@@ -35,23 +35,26 @@ const sweep = Style.keyframes({
 
 /**
  * Words a band of `--_fk-thinking-glint` sweeps across, in `--_fk-thinking-ink`:
- * a gradient clipped to the text. Shared with the Thinking Steps' summary.
+ * a gradient clipped to the text, on the elements `where` selects (`&`, or a
+ * state of it). Shared with the Thinking Steps' summary, which shimmers only
+ * while running.
  */
-export const shimmer: StyleValue = Style.compose(
-  Style.self({
-    color: 'transparent',
-    backgroundImage: `linear-gradient(90deg, ${ink} 40%, ${glint} 50%, ${ink} 60%)`,
-    backgroundSize: '250% 100%',
-    backgroundRepeat: 'no-repeat',
-    backgroundClip: 'text',
-    WebkitBackgroundClip: 'text',
-    // About two seconds at the default motion.
-    animation: `${sweep.name} ${travelled(`calc(${ref.motion.slow} * 8)`)} linear infinite`,
-  }),
-  sweep.style,
-  Style.nest('&:dir(rtl)', { animationDirection: 'reverse' }),
-  still,
-)
+export const shimmer = (where = '&'): StyleValue =>
+  Style.compose(
+    Style.nest(where, {
+      color: 'transparent',
+      backgroundImage: `linear-gradient(90deg, ${ink} 40%, ${glint} 50%, ${ink} 60%)`,
+      backgroundSize: '250% 100%',
+      backgroundRepeat: 'no-repeat',
+      backgroundClip: 'text',
+      WebkitBackgroundClip: 'text',
+      // About two seconds at the default motion.
+      animation: `${sweep.name} ${travelled(`calc(${ref.motion.slow} * 8)`)} linear infinite`,
+    }),
+    sweep.style,
+    Style.nest(`${where}:dir(rtl)`, { animationDirection: 'reverse' }),
+    Style.at('@media (prefers-reduced-motion: reduce)', Style.nest(where, { animation: 'none' })),
+  )
 
 /** A dot's rise: about three quarters of a second a cycle. */
 const cycle = travelled(`calc(${ref.motion.slow} * 3)`)
@@ -130,7 +133,7 @@ export const ThinkingIndicator = Style.recipeFor(ThinkingIndicatorSlots)({
       none: { mark: variant(hidden) },
     },
     label: {
-      shimmer: { label: variant(shimmer) },
+      shimmer: { label: variant(shimmer()) },
       plain: {},
       hidden: { label: variant(Utilities.srOnly) },
     },

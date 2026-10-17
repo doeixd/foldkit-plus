@@ -70,8 +70,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "  Style.nest('&:dir(rtl)', { animationDirection: 'reverse' }),\n  still,\n)",
-        replace: "  Style.nest('&:dir(rtl)', { animationDirection: 'reverse' }),\n)",
+        find: "    Style.at('@media (prefers-reduced-motion: reduce)', Style.nest(where, { animation: 'none' })),\n",
+        replace: '',
       },
     ],
     tests: [...unit, ...browser],
@@ -81,7 +81,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "  Style.nest('&:dir(rtl)', { animationDirection: 'reverse' }),\n",
+        find: "    Style.nest(`${where}:dir(rtl)`, { animationDirection: 'reverse' }),\n",
         replace: '',
       },
     ],
@@ -102,9 +102,9 @@ export default [
       },
       {
         file: recipe,
-        find: "    backgroundRepeat: 'no-repeat',\n    backgroundClip",
+        find: "      backgroundRepeat: 'no-repeat',\n      backgroundClip",
         replace:
-          "    backgroundRepeat: 'no-repeat',\n    backgroundPosition: '60% 0',\n    backgroundClip",
+          "      backgroundRepeat: 'no-repeat',\n      backgroundPosition: '60% 0',\n      backgroundClip",
       },
     ],
     tests: browser,
