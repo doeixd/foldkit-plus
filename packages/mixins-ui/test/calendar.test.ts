@@ -98,7 +98,7 @@ describe('Calendar adapter', () => {
     for (const child of base.root) expect(holds(resolved.root, child)).toBe(true)
     for (const child of base.grid) expect(holds(resolved.grid, child)).toBe(true)
     for (const child of base.previousMonthButton) {
-      expect(holds(resolved.previousMonthButton, child)).toBe(true)
+      expect(holds(Option.getOrThrow(resolved.previousMonthButton), child)).toBe(true)
     }
     for (const child of base.headerRow) expect(holds(resolved.headerRow, child)).toBe(true)
     for (const child of base.columnHeaders[0]!.attributes) {
