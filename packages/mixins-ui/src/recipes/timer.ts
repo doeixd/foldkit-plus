@@ -48,7 +48,6 @@ export const Timer = Style.recipeFor(TimerSlots)({
       Style.nest('[data-state="paused"] > &', { color: ref.text.muted }),
       Style.nest('[data-state="done"] > &', { color: ref.error.ink }),
     ),
-    item: component(Style.self({})),
     separator: component(Style.self({ color: ref.text.muted })),
     controls: component(Style.self({ display: 'flex', gap: ref.space.xs })),
     action: component(
