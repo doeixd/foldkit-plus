@@ -179,6 +179,13 @@ describe('CascadeSelect.update', () => {
     expect(update(empty, Message.Cleared()).model).toBe(empty)
   })
 
+  it('keeps what the placing measured, and is the same Model when it is unchanged', () => {
+    const cramped = update(open(), Message.Placed({ cramped: true })).model
+    expect(cramped.cramped).toBe(true)
+    expect(update(cramped, Message.Placed({ cramped: true })).model).toBe(cramped)
+    expect(update(cramped, Message.Placed({ cramped: false })).model.cramped).toBe(false)
+  })
+
   it('reads the labels along a path that names options', () => {
     expect(CascadeSelect.labelsOf(nodes, ['ca', 'on', 'tor'])).toEqual(
       Option.some(['Canada', 'Ontario', 'Toronto']),
@@ -208,7 +215,8 @@ const scene = (
     ...steps,
   )
 
-const placed = () => Scene.Mount.resolve(CascadeSelect.PlaceCascade, Message.Placed())
+const placed = () =>
+  Scene.Mount.resolve(CascadeSelect.PlaceCascade, Message.Placed({ cramped: false }))
 const revealed = () =>
   Scene.Command.resolve(CascadeSelect.RevealItem, Message.CompletedRevealItem())
 const trigger = Scene.role('combobox')

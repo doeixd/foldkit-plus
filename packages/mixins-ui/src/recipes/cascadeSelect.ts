@@ -7,7 +7,8 @@
  * the chosen option, in the panel's ink with a quiet tint while it is a
  * branch on the open path. A row with children ends in a chevron toward
  * the inline end, which points the other way right to left. Drilled in
- * (`layout: 'drill'`), one column shows, under a back row.
+ * (`layout: 'drill'`, or columns too wide for the window), one column
+ * shows, under a back row. The panel is never wider than the window.
  *
  * `size` steps the trigger and the rows together, on the root and the
  * panel both; `trigger` is the button's look, as the Listbox's.
@@ -134,7 +135,18 @@ export const CascadeSelect = Style.recipeFor(CascadeSelectSlots)({
     input: component(Style.self({ display: 'none' })),
     layer: component(Style.self({})),
     backdrop,
-    panel: component(panel, Style.self({ display: 'flex', alignItems: 'stretch', padding: '0' })),
+    panel: component(
+      panel,
+      Style.self({
+        display: 'flex',
+        alignItems: 'stretch',
+        padding: '0',
+        // Columns that would not fit drill in when the popup opens; a window narrowed
+        // while it is open scrolls the panel rather than running it off the screen.
+        maxInlineSize: `calc(100vw - 2 * ${ref.space.xs})`,
+        overflowX: 'auto',
+      }),
+    ),
     column: component(
       listScroll,
       Style.self({

@@ -91,6 +91,8 @@ export const Model = Schema.Struct({
   value: Schema.Option(Schema.Array(Schema.String)),
   /** The path the keys or the pointer are on while open, its last the active row; empty while closed. */
   highlighted: Schema.Array(Schema.String),
+  /** Whether the columns were too wide for the window when the popup last opened; the view then drills in. */
+  cramped: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
@@ -109,8 +111,8 @@ export const Message = defineMessageUnion({
   /** Focus left the open panel, by Tab or a press elsewhere. */
   Left: {},
   Cleared: {},
-  /** The panel was shown and placed. */
-  Placed: {},
+  /** The panel was shown and placed, and whether a column per level would fit the window. */
+  Placed: { cramped: Schema.Boolean },
   CompletedFocusTrigger: {},
   CompletedRevealItem: {},
 })
@@ -135,6 +137,7 @@ export const init = (options: {
   open: false,
   value: Option.fromNullishOr(options.value),
   highlighted: [],
+  cramped: false,
 })
 
 export const triggerId = (id: string): string => `${id}-trigger`
@@ -182,6 +185,10 @@ export const labelsOf = (nodes: ReadonlyArray<Node>, path: ReadonlyArray<string>
     : Option.none()
 }
 
+/** The most levels a path through `nodes` opens. */
+const depthOf = (nodes: ReadonlyArray<Node>): number =>
+  nodes.reduce((deepest, node) => Math.max(deepest, 1 + depthOf(node.children ?? [])), 0)
+
 /** Focuses the trigger once the closed popup is drawn away. */
 export const FocusTrigger = Command.define('CascadeSelect.FocusTrigger', {
   args: { id: Schema.String },
@@ -212,27 +219,41 @@ export const RevealItem = Command.define('CascadeSelect.RevealItem', {
  * Shows its element in the top layer and places the panel inside it under
  * the trigger, focusing the panel once placed: the anchor hides the panel
  * until its first position, and focus does not land on a hidden element.
+ * It answers whether a column per level would fit the window.
  */
 export const PlaceCascade = Mount.define('CascadeSelect.Place', {
-  args: { buttonId: Schema.String, anchor: AnchorConfig },
+  args: { buttonId: Schema.String, anchor: AnchorConfig, levels: Schema.Number },
   messages: [Message.Placed],
-  execute: ({ element, buttonId, anchor }) =>
+  execute: ({ element, buttonId, anchor, levels }) =>
     Effect.gen(function* () {
       const panel = element.querySelector('[role="tree"]')
-      if (panel !== null) {
-        yield* Effect.acquireRelease(
-          Effect.sync(() =>
-            anchorSetup(panel, {
-              buttonId,
-              anchor,
-              interceptTab: false,
-              focusAfterPosition: true,
-            }),
-          ),
-          release => Effect.sync(release),
-        )
-      }
-      return Message.Placed()
+      if (panel === null) return Message.Placed({ cramped: false })
+      yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          anchorSetup(panel, {
+            buttonId,
+            anchor,
+            interceptTab: false,
+            focusAfterPosition: true,
+          }),
+        ),
+        release => Effect.sync(release),
+      )
+      // A column per level of the deepest path, each as wide as the widest drawn now,
+      // against the window less the anchor's margins. Measured once a popup opens: the
+      // panel is capped to the window, so a window narrowed while open scrolls it.
+      const widest = Math.max(
+        ...Array.from(
+          panel.querySelectorAll(':scope > [role="group"]'),
+          column => column.getBoundingClientRect().width,
+        ),
+      )
+      const padding = anchor.padding ?? 0
+      const margins =
+        typeof padding === 'number' ? 2 * padding : (padding.left ?? 0) + (padding.right ?? 0)
+      return Message.Placed({
+        cramped: levels * widest > document.documentElement.clientWidth - margins,
+      })
     }),
 })
 
@@ -408,7 +429,10 @@ export const update = (config: Config) => {
               // The clear button goes with the value, and would take focus with it.
               commands: [FocusTrigger({ id: model.id })],
             },
-      Placed: () => ({ model }),
+      Placed: ({ cramped }) =>
+        cramped === model.cramped
+          ? { model }
+          : { model: modifyFields(model, { cramped: () => cramped }) },
       CompletedFocusTrigger: () => ({ model }),
       CompletedRevealItem: () => ({ model }),
     })
@@ -439,7 +463,10 @@ export interface CascadeSelectView<ParentMessage> {
   readonly placeholder?: string | undefined
   /** Between the labels of the chosen path on the trigger; default ` / `. */
   readonly separator?: string | undefined
-  /** One column per level (default), or one level at a time with a way back. */
+  /**
+   * One column per level (default), or one level at a time with a way back.
+   * Columns drill in by themselves when the window is too narrow for them.
+   */
   readonly layout?: 'columns' | 'drill' | undefined
   /** Whether the pointer resting on a row opens its children, or only a press; default `click`. */
   readonly expandOn?: 'click' | 'hover' | undefined
@@ -482,7 +509,8 @@ export const view = <ParentMessage>(
   const value = Option.getOrElse(model.value, () => [])
   const shown = Option.flatMap(model.value, path => labelsOf(config.nodes, path))
   const disabled = options.disabled === true
-  const drill = options.layout === 'drill'
+  // Columns too wide for the window drill in instead, as the Mount that placed the panel measured.
+  const drill = options.layout === 'drill' || model.cramped
   const path = model.highlighted
   const levels = levelsOf(config.nodes, path)
   const places = levels
@@ -629,6 +657,7 @@ export const view = <ParentMessage>(
                       ...options.anchor,
                       portal: false,
                     },
+                    levels: depthOf(config.nodes),
                   }),
                   send,
                 ),

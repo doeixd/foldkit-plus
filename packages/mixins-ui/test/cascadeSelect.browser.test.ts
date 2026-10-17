@@ -2,14 +2,15 @@
  * Cascade Select in a real browser: the open panel shows in the top layer
  * under its trigger and takes focus, its columns stand side by side (the
  * other way right to left), the keys choose a path and give focus back to
- * the trigger, and Escape, a press outside and Tab close it.
+ * the trigger, and Escape, a press outside and Tab close it. A window too
+ * narrow for the columns drills in, and the panel stays on the screen.
  */
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 // From the modules, not the index: the test reads nothing else.
 import * as CascadeSelect from '../src/cascadeSelect.js'
 import { CascadeSelectSlots, type Node } from '../src/cascadeSelect.js'
@@ -38,7 +39,8 @@ const nodes: ReadonlyArray<Node> = [
 ]
 const config = { nodes }
 
-afterEach(() => {
+afterEach(async () => {
+  await page.viewport(1440, 900)
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
   document.documentElement.removeAttribute('dir')
@@ -191,6 +193,50 @@ test('Tab moves on and closes the panel behind it', async () => {
     await userEvent.keyboard('{Tab}')
     await vi.waitFor(() => expect(tree()).toBeNull())
     expect(document.activeElement).not.toBe(trigger())
+  } finally {
+    mounted.dispose()
+  }
+})
+
+/** The open panel's box against the window's: inside it, on both sides. */
+const onScreen = () => {
+  const panel = tree()!.getBoundingClientRect()
+  expect(panel.left).toBeGreaterThanOrEqual(0)
+  expect(panel.right).toBeLessThanOrEqual(document.documentElement.clientWidth)
+}
+
+test.each([
+  [390, 'drill', 1],
+  [1280, 'columns', 3],
+] as const)('at %ipx the columns %s in, %i shown, on the screen', async (width, layout, shown) => {
+  await page.viewport(width, 800)
+  const mounted = mount()
+  try {
+    await opened()
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+    await vi.waitFor(() =>
+      expect(tree()!.getAttribute('aria-activedescendant')).toBe('place-item-0-0-0'),
+    )
+    await vi.waitFor(() => expect(tree()!.dataset['layout']).toBe(layout))
+    expect(columns()).toHaveLength(shown)
+    onScreen()
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('a window narrowed while the columns are open keeps the panel on the screen', async () => {
+  await page.viewport(1280, 800)
+  const mounted = mount()
+  try {
+    await opened()
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+    await vi.waitFor(() => expect(columns()).toHaveLength(3))
+    await page.viewport(390, 800)
+    await vi.waitFor(onScreen)
+    // Measured when it opened, so still the columns: the panel scrolls them.
+    expect(tree()!.dataset['layout']).toBe('columns')
+    expect(tree()!.scrollWidth).toBeGreaterThan(tree()!.clientWidth)
   } finally {
     mounted.dispose()
   }

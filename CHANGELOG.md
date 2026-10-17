@@ -1034,6 +1034,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: Cascade Select's columns stay on a phone's screen.**
+  At 390px the popup's columns ran past the window's edge. When the popup
+  opens, `PlaceCascade` measures whether a column per level of the deepest
+  path fits the window, and the columns layout drills in when it does not
+  (the Model's new `cramped`, sent as `Placed({ cramped })`). The panel is
+  capped to the window too, so one narrowed while open scrolls its columns.
 - **`foldkit-mixins-ui`: the Angle Slider's needle clears the value in the
   middle.** It ran from the center to the thumb, straight through "45°" or
   "1 of 4"; it now stops 2em of the value's type short of the center, and

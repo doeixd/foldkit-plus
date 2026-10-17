@@ -214,10 +214,46 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "Style.self({ display: 'flex', alignItems: 'stretch', padding: '0' })",
-        replace: "Style.self({ display: 'block', alignItems: 'stretch', padding: '0' })",
+        find: `display: 'flex',
+        alignItems: 'stretch',`,
+        replace: `display: 'block',
+        alignItems: 'stretch',`,
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'columns too wide for the window never drill in',
+    edits: [
+      {
+        file,
+        find: 'cramped: levels * widest > document.documentElement.clientWidth - margins,',
+        replace: 'cramped: false,',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the view ignores the measure',
+    edits: [
+      {
+        file,
+        find: "const drill = options.layout === 'drill' || model.cramped",
+        replace: "const drill = options.layout === 'drill'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the panel may be wider than the window',
+    edits: [
+      { file: recipe, find: 'maxInlineSize: `calc(100vw - 2 * ${ref.space.xs})`,', replace: '' },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'an unchanged measure makes a new Model',
+    edits: [{ file, find: 'cramped === model.cramped', replace: 'false' }],
+    tests: [unit],
   },
 ]
