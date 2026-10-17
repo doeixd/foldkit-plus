@@ -73,4 +73,12 @@ export default [
     ],
     tests: [`packages/mixins-ui/test/${name}.test.ts`],
   })),
+  {
+    name: "a combobox drops the adapter's parts",
+    edits: [
+      { file: view, find: '      ...(combobox.afterInput ?? []),\n', replace: '' },
+      { file: view, find: '    ...(combobox.afterPanel ?? []),\n', replace: '' },
+    ],
+    tests: ['packages/mixins-ui/test/popupView.test.ts'],
+  },
 ]

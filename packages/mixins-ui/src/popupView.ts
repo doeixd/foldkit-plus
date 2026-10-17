@@ -115,6 +115,12 @@ export const drawListbox = <Message>(
     ...drawPanel(listbox, h),
   ])
 
+/**
+ * A combobox: its field (the input, its toggle) and its panel, then its form
+ * inputs. The adapter's own parts go where `beforeInput`, `afterInput` and
+ * `afterPanel` place them: chips, a clear button, a panel of its own beside
+ * the list. Upstream's markup has none.
+ */
 export const drawCombobox = <Message>(
   combobox: PopupPanel<Message> & {
     readonly wrapper: SlotAttributes<Message>
@@ -122,12 +128,20 @@ export const drawCombobox = <Message>(
     readonly input: SlotAttributes<Message>
     readonly toggleButton: (Part<Message> & { readonly content: Html }) | undefined
     readonly hiddenInputs: ReadonlyArray<Html>
+    /** In the field, before the input. */
+    readonly beforeInput?: ReadonlyArray<Html> | undefined
+    /** In the field, after the input and before the toggle. */
+    readonly afterInput?: ReadonlyArray<Html> | undefined
+    /** After the panel, before the form inputs. */
+    readonly afterPanel?: ReadonlyArray<Html> | undefined
   },
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(combobox.wrapper, [
     h.div(combobox.inputWrapper, [
+      ...(combobox.beforeInput ?? []),
       h.input(combobox.input),
+      ...(combobox.afterInput ?? []),
       ...(combobox.toggleButton === undefined
         ? []
         : [
@@ -137,5 +151,6 @@ export const drawCombobox = <Message>(
           ]),
     ]),
     ...drawPanel(combobox, h),
+    ...(combobox.afterPanel ?? []),
     ...combobox.hiddenInputs,
   ])
