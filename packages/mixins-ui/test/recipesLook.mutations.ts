@@ -54,8 +54,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/tabs.ts',
-        find: 'Style.nest(marked, { background: ref.accent.subtle }),',
-        replace: 'Style.nest(marked, { background: ref.surface.base }),',
+        find: 'Style.nest(markedIn(unlit), { background: ref.accent.subtle }),',
+        replace: 'Style.nest(markedIn(unlit), { background: ref.surface.base }),',
       },
     ],
     tests,

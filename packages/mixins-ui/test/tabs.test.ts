@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Scene } from 'foldkit/test'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -96,5 +97,37 @@ describe('Tabs adapter', () => {
       runTabs([Steal.mixin], () => {})
     })
     expect(diagnostic?.code).toBe('mixins:event-conflict')
+  })
+})
+
+describe('Tabs.closing', () => {
+  const tabs = ['a', 'b', 'c'] as const
+  it.each([
+    // closed, chosen before, tabs left, chosen after, focused index
+    ['b', 'b', ['a', 'c'], Option.some('c'), Option.some(1)],
+    ['c', 'c', ['a', 'b'], Option.some('b'), Option.some(1)],
+    ['a', 'c', ['b', 'c'], Option.some('c'), Option.some(0)],
+    ['c', 'a', ['a', 'b'], Option.some('a'), Option.some(1)],
+  ] as const)('closing %s with %s chosen', (value, selected, left, chosen, focus) => {
+    expect(Tabs.closing<string>(tabs, selected, value)).toEqual({
+      tabs: left,
+      selected: chosen,
+      focus,
+    })
+  })
+
+  it('leaves nothing chosen and nothing to focus once the last tab goes', () => {
+    expect(Tabs.closing(['a'], 'a', 'a')).toEqual({
+      tabs: [],
+      selected: Option.none(),
+      focus: Option.none(),
+    })
+  })
+
+  it('changes nothing for a value it does not hold', () => {
+    const result = Tabs.closing<string>(tabs, 'a', 'z')
+    expect(result.tabs).toBe(tabs)
+    expect(result.selected).toEqual(Option.some('a'))
+    expect(result.focus).toEqual(Option.none())
   })
 })

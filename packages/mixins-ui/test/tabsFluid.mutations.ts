@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: 'const marked = `:where(:not([data-fluid-hover])) > &${selected}`',
-        replace: 'const marked = `&${selected}`',
+        find: 'const unlit = \'[role="tablist"]:not([data-fluid-hover])\'',
+        replace: 'const unlit = \'[role="tablist"]\'',
       },
     ],
     tests,
