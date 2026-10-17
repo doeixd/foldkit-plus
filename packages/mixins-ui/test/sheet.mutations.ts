@@ -1,5 +1,5 @@
 /**
- * The Sheet recipe and its handle, broken in turn:
+ * The Sheet, its drag and its recipe, broken in turn:
  * `pnpm mutate packages/mixins-ui/test/sheet.mutations.ts` checks that a
  * test fails for every one.
  */
@@ -16,14 +16,7 @@ export default [
         replace: "right: 'stretch center',",
       },
     ],
-    tests: [unit, browser],
-  },
-  {
-    name: 'a closed bottom sheet waits above the page',
-    edits: [
-      { file: '../src/recipes/sheet.ts', find: "bottom: '0 100%'", replace: "bottom: '0 -100%'" },
-    ],
-    tests: [unit],
+    tests: [browser],
   },
   {
     name: 'every edge is bordered',
@@ -34,7 +27,7 @@ export default [
         replace: 'true ? ref.border.thin : ',
       },
     ],
-    tests: [unit, browser],
+    tests: [browser],
   },
   {
     name: 'every corner takes the radius',
@@ -45,104 +38,159 @@ export default [
         replace: 'true ? radius : ',
       },
     ],
-    tests: [unit, browser],
+    tests: [browser],
   },
   {
     name: "the Dialog's centering margin stays",
-    edits: [{ file: '../src/recipes/sheet.ts', find: "      margin: '0',\n", replace: '' }],
+    edits: [{ file: '../src/recipes/sheet.ts', find: "          margin: '0',\n", replace: '' }],
     tests: [browser],
   },
   {
-    name: 'the padding adds to the width',
-    edits: [
-      { file: '../src/recipes/sheet.ts', find: "      boxSizing: 'border-box',\n", replace: '' },
-    ],
-    tests: [browser],
-  },
-  {
-    name: 'a side sheet spans the page',
+    name: 'the panel does not follow the drag',
     edits: [
       {
         file: '../src/recipes/sheet.ts',
-        find: "{ inlineSize: 'min(24rem, 75%)' }",
-        replace: "{ inlineSize: '100%' }",
+        find: "const travel = 'var(--fk-sheet-offset, calc((1 - var(--fk-sheet-snap, 1)) * 100%))'",
+        replace: "const travel = 'calc((1 - var(--fk-sheet-snap, 1)) * 100%)'",
       },
     ],
     tests: [browser],
   },
   {
-    name: 'the bar squares the inner corners',
+    name: 'the panel rests fully open at every point',
     edits: [
       {
         file: '../src/recipes/sheet.ts',
-        find: "panel: variant(Style.self({ '--_fk-sheet-radius': ref.radius.lg })),",
-        replace: 'panel: variant(Style.self({})),',
+        find: "const travel = 'var(--fk-sheet-offset, calc((1 - var(--fk-sheet-snap, 1)) * 100%))'",
+        replace: "const travel = 'var(--fk-sheet-offset, 0px)'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a drag eases after the pointer',
+    edits: [
+      {
+        file: '../src/recipes/sheet.ts',
+        find: "        Style.pseudo('[data-dragging]', { transitionDuration: '0s' }),\n",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the handle is only as large as its bar',
+    edits: [
+      {
+        file: '../src/recipes/sheet.ts',
+        find: "Style.nest('&::after', {",
+        replace: "Style.nest('&::backdrop', {",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the page steps back behind every sheet, closed ones too',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: "...(options.scalesPage === true ? [h.DataAttribute('scales-page', '')] : []),",
+        replace: "h.DataAttribute('scales-page', ''),",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a drag down is read as one up',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: "bottom: { axis: 'y', sign: 1 },",
+        replace: "bottom: { axis: 'y', sign: -1 },",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a flick is read as a slow release',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'velocity: along(velocityX, velocityY),',
+        replace: 'velocity: 0,',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a slow drag never takes it away',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'export const CLOSE_SHARE = 0.25',
+        replace: 'export const CLOSE_SHARE = 1',
       },
     ],
     tests: [unit, browser],
   },
   {
-    name: 'the handle shows without a bar',
+    name: 'a sheet that may not be dismissed is taken away by a flick',
     edits: [
       {
-        file: '../src/recipes/sheet.ts',
-        find: "display: 'none',",
-        replace: "display: 'block',",
+        file: '../src/sheet.ts',
+        find: 'Option.some(next) : dismissible ? Option.none() : Option.some(0)',
+        replace: 'Option.some(next) : Option.none()',
       },
     ],
     tests: [unit, browser],
   },
   {
-    name: 'the bar leaves the handle hidden',
+    name: 'a drag past fully open is not damped',
     edits: [
       {
-        file: '../src/recipes/sheet.ts',
-        find: "handle: variant(Style.self({ display: 'block' })),",
-        replace: 'handle: variant(Style.self({})),',
+        file: '../src/sheet.ts',
+        find: 'return shown >= 0 ? shown : ',
+        replace: 'return true ? shown : ',
       },
     ],
     tests: [unit, browser],
   },
   {
-    name: "a bottom sheet's handle is its last row",
+    name: 'a press on the handle stays where it is',
     edits: [
       {
-        file: '../src/recipes/sheet.ts',
-        find: "bottom: { order: '-1',",
-        replace: "bottom: { order: '1',",
+        file: '../src/sheet.ts',
+        find: 'const next = (model.at + 1) % model.points.length',
+        replace: 'const next = model.at',
       },
     ],
     tests: [unit, browser],
   },
   {
-    name: "a top sheet's handle keeps the view's order",
+    name: 'the drag is read against the handle, not the panel',
+    edits: [
+      { file: '../src/sheet.ts', find: "Swipe({ measure: '[data-sheet]' })", replace: 'Swipe({})' },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'it opens again where it last rested',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'dialogStep(model, UiDialog.open(model.dialog), { at: model.opensAt })',
+        replace: 'dialogStep(model, UiDialog.open(model.dialog))',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a covered bottom sheet stays on its edge',
     edits: [
       {
         file: '../src/recipes/sheet.ts',
-        find: "top: { order: '1',",
-        replace: "top: { order: '0',",
-      },
-    ],
-    tests: [unit, browser],
-  },
-  {
-    name: "a right sheet's handle stands on its outer edge",
-    edits: [
-      {
-        file: '../src/recipes/sheet.ts',
-        find: '    left: ref.space.xs,',
-        replace: '    right: ref.space.xs,',
-      },
-    ],
-    tests: [unit, browser],
-  },
-  {
-    name: 'the handle is announced',
-    edits: [
-      {
-        file: '../src/dialog.ts',
-        find: 'handle: [context.h.AriaHidden(true)]',
-        replace: 'handle: []',
+        find: "side === 'bottom' ? `calc(${travel} - ${ref.space.md})` : travel",
+        replace: 'travel',
       },
     ],
     tests: [browser],
