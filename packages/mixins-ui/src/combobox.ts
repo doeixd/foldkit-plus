@@ -270,49 +270,39 @@ export const resolve = <Input, Message>(
 /**
  * Upstream's markup with this package's parts placed: the chips before the
  * input and the clear button after it, in the field, and the empty panel
- * after the list. The panel is popupView's drawing, kept whole; the field
- * around the input is drawn here.
+ * after the list.
  */
 export const draw = <Message>(
   resolved: ResolvedCombobox<Message>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const { chips, clearButton, empty, toggleButton } = resolved
-  // popupView places what it is given as `hiddenInputs` after the panel, in the wrapper.
-  const plain = drawCombobox(
+  const { chips, clearButton, empty } = resolved
+  return drawCombobox(
     {
       ...resolved,
-      hiddenInputs: [
-        ...resolved.hiddenInputs,
-        ...(empty === undefined
+      beforeInput:
+        chips === undefined
           ? []
-          : [h.keyed('div')(empty.key, empty.attributes, [empty.content])]),
-      ],
+          : [
+              h.ul(
+                chips.attributes,
+                chips.chips.map(chip =>
+                  h.keyed('li')(chip.key, chip.attributes, [
+                    chip.label,
+                    h.button(chip.remove, ['×']),
+                  ]),
+                ),
+              ),
+            ],
+      afterInput:
+        clearButton === undefined
+          ? []
+          : [h.keyed('button')(clearButton.key, clearButton.attributes, [clearButton.content])],
+      afterPanel:
+        empty === undefined ? [] : [h.keyed('div')(empty.key, empty.attributes, [empty.content])],
     },
     h,
   )
-  if (chips === undefined && clearButton === undefined) return plain
-  const field = h.div(resolved.inputWrapper, [
-    ...(chips === undefined
-      ? []
-      : [
-          h.ul(
-            chips.attributes,
-            chips.chips.map(chip =>
-              h.keyed('li')(chip.key, chip.attributes, [chip.label, h.button(chip.remove, ['×'])]),
-            ),
-          ),
-        ]),
-    h.input(resolved.input),
-    ...(clearButton === undefined
-      ? []
-      : [h.keyed('button')(clearButton.key, clearButton.attributes, [clearButton.content])]),
-    ...(toggleButton === undefined
-      ? []
-      : [h.keyed('button')(toggleButton.key, toggleButton.attributes, [toggleButton.content])]),
-  ])
-  // popupView drew the field first; what follows it, the panel on, is kept as drawn.
-  return h.div(resolved.wrapper, [field, ...(plain?.children ?? []).slice(1)])
 }
 
 /**

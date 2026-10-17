@@ -119,12 +119,23 @@ export default [
     tests: [browser],
   },
   {
-    name: 'the chips sit outside the field',
+    name: 'the chips are not drawn',
     edits: [
       {
         file: '../src/combobox.ts',
-        find: 'if (chips === undefined && clearButton === undefined) return plain',
-        replace: 'if (true) return plain',
+        find: 'beforeInput:\n        chips === undefined',
+        replace: 'beforeInput:\n        true',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the clear button is not drawn',
+    edits: [
+      {
+        file: '../src/combobox.ts',
+        find: 'afterInput:\n        clearButton === undefined',
+        replace: 'afterInput:\n        true',
       },
     ],
     tests: [browser],
@@ -134,13 +145,8 @@ export default [
     edits: [
       {
         file: '../src/combobox.ts',
-        find: 'hiddenInputs: [\n        ...resolved.hiddenInputs,',
-        replace: 'hiddenInputs: [\n        ...resolved.hiddenInputs, ...[],',
-      },
-      {
-        file: '../src/combobox.ts',
-        find: ": [h.keyed('div')(empty.key, empty.attributes, [empty.content])]),",
-        replace: ': []),',
+        find: 'afterPanel:\n        empty === undefined',
+        replace: 'afterPanel:\n        true',
       },
     ],
     tests: [browser],
