@@ -11,18 +11,15 @@ import * as Runtime from 'foldkit/runtime'
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-// From their modules: the group is not yet exported from the index.
-import * as Avatar from '../src/avatar.js'
-import { AvatarGroupSlots, AvatarSlots } from '../src/avatar.js'
-import { Avatar as AvatarRecipe, AvatarGroup } from '../src/recipes/avatar.js'
+import { Avatar, AvatarGroupSlots, AvatarSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
 const L = Layers.standard
 const Model = Schema.Struct({})
 
-const named = Style.forSlots(AvatarSlots)(AvatarRecipe({ color: 'name' }))
-const square = Style.forSlots(AvatarSlots)(AvatarRecipe({ shape: 'square', size: 'lg' }))
-const group = Style.forSlots(AvatarGroupSlots)(AvatarGroup({}))
+const named = Style.forSlots(AvatarSlots)(Recipes.Avatar({ color: 'name' }))
+const square = Style.forSlots(AvatarSlots)(Recipes.Avatar({ shape: 'square', size: 'lg' }))
+const group = Style.forSlots(AvatarGroupSlots)(Recipes.AvatarGroup({}))
 const pixel = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4"><rect width="4" height="4" fill="teal"/></svg>')}`
 
 afterEach(() => {

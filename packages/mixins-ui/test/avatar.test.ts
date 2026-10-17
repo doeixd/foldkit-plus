@@ -8,11 +8,10 @@ import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { AvatarGroupSlots, AvatarSlots, group, view } from '../src/avatar.js'
 import { Recipes } from '../src/index.js'
-import { AvatarGroup } from '../src/recipes/avatar.js'
 
 const h = SlotView.inertBuilder<never>()
 const style = Style.forSlots(AvatarSlots)(Recipes.Avatar({}))
-const groupStyle = Style.forSlots(AvatarGroupSlots)(AvatarGroup({}))
+const groupStyle = Style.forSlots(AvatarGroupSlots)(Recipes.AvatarGroup({}))
 const hueOf = (drawn: ReturnType<typeof view>) => Inert.style(drawn)['--fk-avatar-hue']
 
 describe('AvatarSlots', () => {

@@ -13,10 +13,7 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-// From its module: the group is not yet exported from the index.
-import * as Item from '../src/item.js'
-import { ItemGroupSlots, ItemSlots } from '../src/item.js'
-import { Item as ItemRecipe, ItemGroup } from '../src/recipes/item.js'
+import { Item, ItemGroupSlots, ItemSlots, Recipes } from '../src/index.js'
 
 const Message = defineMessageUnion({ Pressed: { key: Schema.String }, Acted: {} })
 type Message = typeof Message.Type
@@ -25,8 +22,8 @@ type Model = typeof Model.Type
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
 const L = Layers.standard
-const rowStyle = Style.forSlots(ItemSlots)(ItemRecipe({ media: 'icon' }))
-const listStyle = Style.forSlots(ItemGroupSlots)(ItemGroup({}))
+const rowStyle = Style.forSlots(ItemSlots)(Recipes.Item({ media: 'icon' }))
+const listStyle = Style.forSlots(ItemGroupSlots)(Recipes.ItemGroup({}))
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())

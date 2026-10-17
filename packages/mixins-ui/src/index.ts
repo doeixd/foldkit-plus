@@ -63,6 +63,7 @@ export * as RadioGroup from './radioGroup.js'
 export * as Recipes from './recipes/index.js'
 export * as Select from './select.js'
 export * as Separator from './separator.js'
+export * as Sheet from './sheet.js'
 export * as Segmented from './segmented.js'
 export * as Skeleton from './skeleton.js'
 export * as Slider from './slider.js'
@@ -81,7 +82,8 @@ export * as ScrollArea from './scrollArea.js'
 export { AlertSlots } from './alert.js'
 export type { AlertAction, AlertView, BannerAlert, InlineAlert } from './alert.js'
 export { AspectRatioSlots } from './aspectRatio.js'
-export { AvatarSlots } from './avatar.js'
+export { AvatarGroupSlots, AvatarSlots } from './avatar.js'
+export type { AvatarGroupView, AvatarStatus } from './avatar.js'
 export { BadgeSlots } from './badge.js'
 export { BreadcrumbSlots } from './breadcrumb.js'
 export { ButtonSlots } from './button.js'
@@ -104,6 +106,7 @@ export type { InputCopyView } from './inputCopy.js'
 export { TagsInputSlots } from './tagsInput.js'
 export type { TagsInputView } from './tagsInput.js'
 export { PasswordInputSlots } from './passwordInput.js'
+export type { Requirement as PasswordRequirement } from './passwordInput.js'
 export { RatingSlots } from './rating.js'
 export { StepsSlots } from './steps.js'
 export type { Step, StepsView } from './steps.js'
@@ -120,7 +123,7 @@ export type { OtpFieldView } from './otpField.js'
 export type { NumberFieldView } from './numberField.js'
 export { CheckboxGroupSlots } from './checkboxGroup.js'
 export { CommandSlots } from './command.js'
-export type { CommandGroup, CommandItem, CommandView } from './command.js'
+export type { CommandGroup, CommandHint, CommandItem, CommandPage, CommandView } from './command.js'
 export type { CheckboxGroupOption, CheckboxGroupView } from './checkboxGroup.js'
 export { CheckboxSlots } from './checkbox.js'
 export { CodeBlockSlots } from './codeBlock.js'
@@ -134,7 +137,8 @@ export { FileDropSlots } from './fileDrop.js'
 export { HoverIntentSlots } from './hoverIntent.js'
 export { IconSlots } from './icon.js'
 export { InputSlots } from './input.js'
-export { ItemSlots } from './item.js'
+export { ItemGroupSlots, ItemSlots } from './item.js'
+export type { ItemGroupView } from './item.js'
 export { KbdSlots } from './kbd.js'
 export { LabelSlots } from './label.js'
 export { ListboxSlots } from './listbox.js'
@@ -146,6 +150,7 @@ export { SeparatorSlots } from './separator.js'
 export { SegmentedSlots } from './segmented.js'
 export type { SegmentedOption, SegmentedView } from './segmented.js'
 export { SkeletonSlots } from './skeleton.js'
+export type { SkeletonLinesView, SkeletonTableRowView } from './skeleton.js'
 export { SliderSlots } from './slider.js'
 export type { SliderView } from './slider.js'
 export { SpinnerSlots } from './spinner.js'
@@ -171,10 +176,12 @@ export type {
   ResolvedComboboxToggle,
 } from './combobox.js'
 export type {
+  ComboboxChipRender,
   ComboboxGroupRender,
   ComboboxHeadingRender,
   ComboboxItemRender,
   ComboboxRenderInfo,
+  ExtraInputs as ComboboxExtraInputs,
   MultiBundle as ComboboxMultiBundle,
   MultiViewInputs as ComboboxMultiViewInputs,
   SingleBundle as ComboboxSingleBundle,
@@ -186,7 +193,7 @@ export type { DialogContext, ResolvedDialog } from './dialog.js'
 export type { ResolvedDisclosure } from './disclosure.js'
 export type { ResolvedFieldset } from './fieldset.js'
 export type { ResolvedFileDrop } from './fileDrop.js'
-export type { ResolvedHoverIntent } from './hoverIntent.js'
+export type { HoverIntentContext, ResolvedHoverIntent } from './hoverIntent.js'
 export type { InputField, InputView, ResolvedInput } from './input.js'
 export type {
   ResolvedListbox,
@@ -226,7 +233,7 @@ export type { ResolvedTab, ResolvedTabs } from './tabs.js'
 export type { ResolvedTextarea, TextareaField, TextareaView } from './textarea.js'
 export type { ResolvedToast, ResolvedToastEntry } from './toast.js'
 export type { ToastEntryRender, ToastRenderInfo } from './toastView.js'
-export type { ResolvedTooltip } from './tooltip.js'
+export type { ResolvedTooltip, TooltipContext } from './tooltip.js'
 export type {
   ResolvedCalendar,
   ResolvedColumnHeader,

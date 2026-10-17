@@ -9,7 +9,6 @@ import { Capability, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { ItemGroupSlots, ItemSlots, group, view as drawItem, type ItemView } from '../src/item.js'
 import { Recipes } from '../src/index.js'
-import { ItemGroup } from '../src/recipes/item.js'
 import { h, message, type TestMessage } from './fixture.js'
 
 // Slots are found by the mark a style writes, so every row is drawn styled, as an app draws it.
@@ -79,7 +78,7 @@ describe('Item group', () => {
       {
         label: 'Notifications',
         items: ['a', 'b'].map(key => ({ key, title: `Row ${key}` })),
-        style: Style.forSlots(ItemGroupSlots)(ItemGroup({})),
+        style: Style.forSlots(ItemGroupSlots)(Recipes.ItemGroup({})),
         itemStyle: style,
       },
       h,

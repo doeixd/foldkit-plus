@@ -21,6 +21,7 @@ import {
   ButtonSlots,
   PaginationSlots,
   ButtonGroupSlots,
+  AvatarGroupSlots,
   AvatarSlots,
   TypographySlots,
   ScrollAreaSlots,
@@ -32,6 +33,7 @@ import {
   IconSlots,
   SeparatorSlots,
   SkeletonSlots,
+  ItemGroupSlots,
   ItemSlots,
   EmptySlots,
   SpinnerSlots,
@@ -94,6 +96,9 @@ const defined = new Set([
   // Published by a padded container with `Theme.nests`, read by `Theme.nested()`.
   'outer-radius',
   'inset',
+  // Written on a sheet's panel by `Sheet.view`: the point it rests at and the drag.
+  'sheet-snap',
+  'sheet-offset',
   // Written on a slider's control, marks and shown values by `Slider.view`.
   ...['low', 'high', 'at'].map(part => `slider-${part}`),
 ])
@@ -182,6 +187,9 @@ const compiled = {
   Avatar: selections(Recipes.Avatar.def.variants).map(
     selection => Style.forSlots(AvatarSlots)(Recipes.Avatar(selection)).css,
   ),
+  AvatarGroup: selections(Recipes.AvatarGroup.def.variants).map(
+    selection => Style.forSlots(AvatarGroupSlots)(Recipes.AvatarGroup(selection)).css,
+  ),
   Table: selections(Recipes.Table.def.variants).map(
     selection => Style.forSlots(TableSlots)(Recipes.Table(selection)).css,
   ),
@@ -202,6 +210,9 @@ const compiled = {
   ),
   Item: selections(Recipes.Item.def.variants).map(
     selection => Style.forSlots(ItemSlots)(Recipes.Item(selection)).css,
+  ),
+  ItemGroup: selections(Recipes.ItemGroup.def.variants).map(
+    selection => Style.forSlots(ItemGroupSlots)(Recipes.ItemGroup(selection)).css,
   ),
   Skeleton: selections(Recipes.Skeleton.def.variants).map(
     selection => Style.forSlots(SkeletonSlots)(Recipes.Skeleton(selection)).css,
@@ -238,6 +249,9 @@ const compiled = {
   ),
   Dialog: selections(Recipes.Dialog.def.variants).map(
     selection => Style.forSlots(DialogSlots)(Recipes.Dialog(selection)).css,
+  ),
+  Sheet: selections(Recipes.Sheet.def.variants).map(
+    selection => Style.forSlots(DialogSlots)(Recipes.Sheet(selection)).css,
   ),
   Tabs: selections(Recipes.Tabs.def.variants).map(
     selection => Style.forSlots(TabsSlots)(Recipes.Tabs(selection)).css,
