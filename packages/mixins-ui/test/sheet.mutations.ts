@@ -195,4 +195,26 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'every Dialog Message drops the drag',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'drag: drag => (ends ? Option.none() : drag),',
+        replace: 'drag: () => Option.none(),',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'a drag outlives the Sheet closing',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'drag: drag => (ends ? Option.none() : drag),',
+        replace: 'drag: drag => drag,',
+      },
+    ],
+    tests: [unit],
+  },
 ]

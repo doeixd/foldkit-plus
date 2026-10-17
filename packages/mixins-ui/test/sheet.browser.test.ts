@@ -119,21 +119,12 @@ const open = async (
     return found!
   })
   await settled(panel)
-  const grabber = panel.firstElementChild as HTMLElement
-  // The handle's Swipe listens once its Mount has run, which a loaded machine
-  // can leave until after the panel is drawn, and a press sent before is lost:
-  // press until the drag shows, then cancel it, which moves nothing.
-  const at = touchOn(grabber)
-  // CI's runners have taken over the default second to start it.
-  const startup = { timeout: 10_000 }
-  await vi.waitFor(() => {
-    at('pointerdown', 0)
-    expect(panel.hasAttribute('data-dragging')).toBe(true)
-  }, startup)
-  at('pointercancel', 0)
-  await vi.waitFor(() => expect(panel.hasAttribute('data-dragging')).toBe(false), startup)
-  await settled(panel)
-  return { panel, grabber, releases: () => releases, dispose: () => handle.dispose() }
+  return {
+    panel,
+    grabber: panel.firstElementChild as HTMLElement,
+    releases: () => releases,
+    dispose: () => handle.dispose(),
+  }
 }
 
 /** Once nothing on the panel is still moving. */

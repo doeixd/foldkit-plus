@@ -125,18 +125,23 @@ const dialogStep = (
   model: Model,
   next: ReturnWithOutMessage<UiDialog.Model, UiDialog.Message, UiDialog.OutMessage>,
   fields: { readonly point?: number } = {},
-): Return => ({
-  model:
-    next.model === model.dialog && Option.isNone(model.drag) && fields.point === undefined
-      ? model
-      : modifyFields(model, {
-          dialog: () => next.model,
-          drag: () => Option.none(),
-          point: point => fields.point ?? point,
-        }),
-  commands: Command.mapMessages(next.commands, message => Message.GotDialog({ message })),
-  ...(next.outMessage === undefined ? {} : { outMessage: next.outMessage }),
-})
+): Return => {
+  // A drag ends with the Dialog opening or closing, and outlives the rest of its Messages:
+  // grabbed as the panel slid in, it met the animation's end, which dropped it.
+  const ends = next.model.isOpen !== model.dialog.isOpen || fields.point !== undefined
+  return {
+    model:
+      next.model === model.dialog && fields.point === undefined
+        ? model
+        : modifyFields(model, {
+            dialog: () => next.model,
+            drag: drag => (ends ? Option.none() : drag),
+            point: point => fields.point ?? point,
+          }),
+    commands: Command.mapMessages(next.commands, message => Message.GotDialog({ message })),
+    ...(next.outMessage === undefined ? {} : { outMessage: next.outMessage }),
+  }
+}
 
 /** Opens the Sheet at its `opensAt` point. */
 export const open = (model: Model): Return =>

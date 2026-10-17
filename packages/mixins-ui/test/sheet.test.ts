@@ -10,6 +10,8 @@ import { describe, expect, it } from 'vitest'
 import { DialogSlots } from '../src/dialog.js'
 import { Sheet as SheetRecipe } from '../src/recipes/sheet.js'
 import * as Sheet from '../src/sheet.js'
+import * as Animation from '@foldkit/ui/animation'
+import * as UiDialog from '@foldkit/ui/dialog'
 
 const css = Style.forSlots(DialogSlots)(SheetRecipe({})).css
 
@@ -113,6 +115,27 @@ describe('update', () => {
     )
     expect(Sheet.isOpen(next.model)).toBe(false)
     expect(next.outMessage?._tag).toBe('Closed')
+  })
+
+  // A finger that grabs the panel as it slides in meets the Dialog's own Messages, an
+  // animation ending among them: the drag was dropped, and the Swipe, still holding the
+  // pointer, took no new press until it was let go.
+  it('a drag outlives a Dialog Message that leaves it open, and not its closing', () => {
+    const before = grabbed()
+    const painted = UiDialog.Message.GotAnimationMessage({
+      message: Animation.Message.CompletedWaitForPaint({
+        generation: before.dialog.animation.transitionGeneration,
+      }),
+    })
+    const kept = Sheet.update(before, Sheet.Message.GotDialog({ message: painted })).model
+    // The Dialog moved on, open: what the drag must outlive.
+    expect(kept.dialog).not.toBe(before.dialog)
+    expect(Option.isSome(kept.drag)).toBe(true)
+    const closed = Sheet.update(
+      kept,
+      Sheet.Message.GotDialog({ message: UiDialog.Message.RequestedClose() }),
+    ).model
+    expect([Sheet.isOpen(closed), Option.isNone(closed.drag)]).toEqual([false, true])
   })
 })
 
