@@ -21,6 +21,7 @@ wraps.
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
+| `PointerPosition({ focus? })` | Mount | `PointerPressed`, `PointerMoved`, `PointerReleased` | `focus`: a selector |
 | `keepScroll(options?)` | entry | nothing | |
 | `pointedLinks()` | stream | `Url` | |
 | `applyMask(value, pattern)` | function | `{ value, raw }` | |
@@ -215,6 +216,70 @@ stays. How the thumb rests, widens and fades is the style's;
 field with approximate caret restore, and emits `Input { value, raw }` with
 the masked and unmasked text. The parent owns the value, like any controlled
 input. `applyMask(value, pattern)` is the pure rule.
+
+## `PointerPosition`: where the pointer is inside an element
+
+For a surface the pointer points into or draws on: a color area, a dial, a
+signature pad. A primary press, each move until the release, and the release
+reach the parent as Messages, each place in CSS pixels from the top left of
+the element's **content box** (inside its border and padding) with the box's
+size at that event, so a share across is `point.x / width`.
+
+```ts
+import { Match, Schema } from 'effect'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Mount from 'foldkit/mount'
+import { PointerPosition } from 'foldkit-primitives/dom'
+
+const Message = defineMessageUnion({
+  /** The pointer is `share` of the way across the track, 0 to 1, left to right. */
+  Pointed: { share: Schema.Number },
+  Released: {},
+})
+
+const shareOf = (x: number, width: number) =>
+  width === 0 ? 0 : Math.min(1, Math.max(0, x / width))
+
+const track = (h: HtmlBuilder<typeof Message.Type>): Html =>
+  h.div(
+    [
+      h.OnMount(
+        Mount.mapMessage(PointerPosition({ focus: '[role="slider"]' }), fact =>
+          Match.valueTags(fact, {
+            PointerPressed: ({ point, width }) =>
+              Message.Pointed({ share: shareOf(point.x, width) }),
+            PointerMoved: ({ point, width }) => Message.Pointed({ share: shareOf(point.x, width) }),
+            PointerReleased: () => Message.Released(),
+          }),
+        ),
+      ),
+    ],
+    [h.div([h.Role('slider'), h.Tabindex(0)], [])],
+  )
+```
+
+- **`PointerPressed { point, width, height, pointerType }`**: a primary
+  press. It keeps the browser's own focus and text selection away, and
+  focuses the descendant `focus` selects, if any, so the keys go on from
+  where the pointer left it.
+- **`PointerMoved { point, width, height, points }`**: `points` is every place
+  the browser coalesced into this move, ending with `point`, for a stroke that
+  should keep its curve.
+- **`PointerReleased { completed }`**: `false` for a cancel, a lost capture, or
+  the same pointer pressed again after a release nothing heard.
+
+A `point` is `{ x, y, pressure }`. The pointer is captured from press to
+release, so a drag that leaves the element is still heard, and a captured
+place may lie outside the box (negative, or past `width`): clamping is the
+parent's. Coordinates are raw, left to right whatever the direction, so a
+right-to-left reading is the parent's too. The moves and the release are
+listened to only during a press; a second pointer meanwhile is ignored. The
+box is measured at each event, never kept. `contentBoxOf` is the arithmetic.
+
+It is not `Move`, which reports how far the pointer went from where it went
+down and nothing about where in the element that is, nor `PointerDrag`, which
+says which marked element is under the pointer.
 
 ## `keepScroll`: the window's scroll across navigations
 

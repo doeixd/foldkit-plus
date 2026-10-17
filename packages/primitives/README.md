@@ -156,6 +156,7 @@ const copy = (model: NoteModel): Update.Return<NoteModel, NoteMessage> => ({
 | Move with arrow keys through a toolbar, list, grid or tree | `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation` | [interaction](./interaction/README.md) |
 | Close a popup on Escape or an outside press | `DismissLayer`, `Overlay` | [interaction](./interaction/README.md) |
 | Press, long-press or drag | `Press`, `LongPress`, `Move`, `PointerDrag` | [interaction](./interaction/README.md) |
+| Read where the pointer is inside an element (a color area, a dial, a pad drawn on) | `PointerPosition` | [dom](./dom/README.md) |
 | Edit text in place | `EditableText` | [interaction](./interaction/README.md) |
 | Tell a screen reader what changed | `LiveAnnounce` | [interaction](./interaction/README.md) |
 | Know whether the browser is online, or talk over a socket | `Online`, `websocket`, `sse` | [net](./net/README.md) |
@@ -184,7 +185,7 @@ reference: every Model shape, Message, argument, and failure rule.
 | [`device`](./device/README.md) | hardware | `Geolocation`, `mediaDevices`, `mediaStream`, `permissions`, fullscreen |
 | [`events`](./events/README.md) | raw window events | `Visibility`, `WindowSize`, `Idle`, `InputModality`, `keyboardEvents`, `pointerEvents`, `scrollEvents`, `activeElementEvents`, `matchHotkey` |
 | [`observers`](./observers/README.md) | element observers | `Resize`, `Intersection`, `Mutation`, `Bounds` |
-| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FluidHover`, `ScrollBars`, `FocusScope`, `FollowTabStop`, `ScrollLock`, `HideOutside`, `copyText`, `readText`, `share`, `loadScript`, `keepScroll`, `pointedLinks` |
+| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FluidHover`, `ScrollBars`, `PointerPosition`, `FocusScope`, `FollowTabStop`, `ScrollLock`, `HideOutside`, `copyText`, `readText`, `share`, `loadScript`, `keepScroll`, `pointedLinks` |
 
 ## Rules every primitive keeps
 
