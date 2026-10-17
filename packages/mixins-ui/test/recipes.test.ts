@@ -60,6 +60,19 @@ import {
   TextareaSlots,
   ToastSlots,
   TooltipSlots,
+  ChatMessageSlots,
+  ChatMessageGroupSlots,
+  MessageScrollerSlots,
+  ThinkingIndicatorSlots,
+  ThinkingStepsSlots,
+  QuestionnaireSlots,
+  AngleSliderSlots,
+  TimerSlots,
+  MarqueeSlots,
+  ImageCropperSlots,
+  SignaturePadSlots,
+  QrCodeSlots,
+  ChartSlots,
 } from '../src/index.js'
 import { attributeOf, h, message, type TestMessage } from './fixture.js'
 
@@ -102,6 +115,19 @@ const defined = new Set([
   // Written on a slider's control, marks and shown values by `Slider.view`, and its
   // track's length and paint by a holder such as the color picker.
   ...['low', 'high', 'at', 'length', 'paint', 'thumb-paint'].map(part => `slider-${part}`),
+  // Prose's own knobs, each read with a fallback and set by `Prose.style(options)`.
+  ...['measure', 'leading', 'paragraph', 'heading', 'list', 'figure'].map(part => `prose-${part}`),
+  // Written by the views: the dial's angle and each marker's, the timer's share counted,
+  // the marquee's measured timing, the cropper's geometry.
+  'angle',
+  'angle-marker',
+  'timer-progress',
+  ...['duration', 'delay', 'loop-count'].map(part => `marquee-${part}`),
+  ...['x', 'y', 'w', 'h', 'rotation'].map(part => `cropper-${part}`),
+  ...['x', 'y', 'w', 'h'].map(part => `cropper-image-${part}`),
+  ...['w', 'h'].map(part => `cropper-natural-${part}`),
+  // The signature pad's typed-name face: the recipe sets its default, an application its own.
+  'signature-font',
 ])
 
 /** Every selection of a recipe: the defaults, then each value of each axis. */
@@ -167,6 +193,33 @@ const allPieces = [
   ...selections(Recipes.DatePicker.def.variants).map(selection => Recipes.DatePicker(selection)),
   ...selections(Recipes.Popover.def.variants).map(selection => Recipes.Popover(selection)),
   ...selections(Recipes.Tooltip.def.variants).map(selection => Recipes.Tooltip(selection)),
+  ...selections(Recipes.ChatMessage.def.variants).map(selection => Recipes.ChatMessage(selection)),
+  ...selections(Recipes.ChatMessageGroup.def.variants).map(selection =>
+    Recipes.ChatMessageGroup(selection),
+  ),
+  ...selections(Recipes.MessageScroller.def.variants).map(selection =>
+    Recipes.MessageScroller(selection),
+  ),
+  ...selections(Recipes.ThinkingIndicator.def.variants).map(selection =>
+    Recipes.ThinkingIndicator(selection),
+  ),
+  ...selections(Recipes.ThinkingSteps.def.variants).map(selection =>
+    Recipes.ThinkingSteps(selection),
+  ),
+  ...selections(Recipes.Questionnaire.def.variants).map(selection =>
+    Recipes.Questionnaire(selection),
+  ),
+  ...selections(Recipes.AngleSlider.def.variants).map(selection => Recipes.AngleSlider(selection)),
+  ...selections(Recipes.Timer.def.variants).map(selection => Recipes.Timer(selection)),
+  ...selections(Recipes.Marquee.def.variants).map(selection => Recipes.Marquee(selection)),
+  ...selections(Recipes.ImageCropper.def.variants).map(selection =>
+    Recipes.ImageCropper(selection),
+  ),
+  ...selections(Recipes.SignaturePad.def.variants).map(selection =>
+    Recipes.SignaturePad(selection),
+  ),
+  ...selections(Recipes.QrCode.def.variants).map(selection => Recipes.QrCode(selection)),
+  ...selections(Recipes.Chart.def.variants).map(selection => Recipes.Chart(selection)),
 ].flatMap(pieces => Object.values(pieces))
 
 const compiled = {
@@ -295,6 +348,45 @@ const compiled = {
   ),
   Tooltip: selections(Recipes.Tooltip.def.variants).map(
     selection => Style.forSlots(TooltipSlots)(Recipes.Tooltip(selection)).css,
+  ),
+  ChatMessage: selections(Recipes.ChatMessage.def.variants).map(
+    selection => Style.forSlots(ChatMessageSlots)(Recipes.ChatMessage(selection)).css,
+  ),
+  ChatMessageGroup: selections(Recipes.ChatMessageGroup.def.variants).map(
+    selection => Style.forSlots(ChatMessageGroupSlots)(Recipes.ChatMessageGroup(selection)).css,
+  ),
+  MessageScroller: selections(Recipes.MessageScroller.def.variants).map(
+    selection => Style.forSlots(MessageScrollerSlots)(Recipes.MessageScroller(selection)).css,
+  ),
+  ThinkingIndicator: selections(Recipes.ThinkingIndicator.def.variants).map(
+    selection => Style.forSlots(ThinkingIndicatorSlots)(Recipes.ThinkingIndicator(selection)).css,
+  ),
+  ThinkingSteps: selections(Recipes.ThinkingSteps.def.variants).map(
+    selection => Style.forSlots(ThinkingStepsSlots)(Recipes.ThinkingSteps(selection)).css,
+  ),
+  Questionnaire: selections(Recipes.Questionnaire.def.variants).map(
+    selection => Style.forSlots(QuestionnaireSlots)(Recipes.Questionnaire(selection)).css,
+  ),
+  AngleSlider: selections(Recipes.AngleSlider.def.variants).map(
+    selection => Style.forSlots(AngleSliderSlots)(Recipes.AngleSlider(selection)).css,
+  ),
+  Timer: selections(Recipes.Timer.def.variants).map(
+    selection => Style.forSlots(TimerSlots)(Recipes.Timer(selection)).css,
+  ),
+  Marquee: selections(Recipes.Marquee.def.variants).map(
+    selection => Style.forSlots(MarqueeSlots)(Recipes.Marquee(selection)).css,
+  ),
+  ImageCropper: selections(Recipes.ImageCropper.def.variants).map(
+    selection => Style.forSlots(ImageCropperSlots)(Recipes.ImageCropper(selection)).css,
+  ),
+  SignaturePad: selections(Recipes.SignaturePad.def.variants).map(
+    selection => Style.forSlots(SignaturePadSlots)(Recipes.SignaturePad(selection)).css,
+  ),
+  QrCode: selections(Recipes.QrCode.def.variants).map(
+    selection => Style.forSlots(QrCodeSlots)(Recipes.QrCode(selection)).css,
+  ),
+  Chart: selections(Recipes.Chart.def.variants).map(
+    selection => Style.forSlots(ChartSlots)(Recipes.Chart(selection)).css,
   ),
 }
 

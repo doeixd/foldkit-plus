@@ -54,6 +54,18 @@ import { SwitchSlots } from './switch.js'
 import { TabsSlots } from './tabs.js'
 import { TextareaSlots } from './textarea.js'
 import { TooltipSlots } from './tooltip.js'
+import { ChatMessageSlots } from './chatMessage.js'
+import { MessageScrollerSlots } from './messageScroller.js'
+import { ThinkingIndicatorSlots } from './thinkingIndicator.js'
+import { ThinkingStepsSlots } from './thinkingSteps.js'
+import { QuestionnaireSlots } from './questionnaire.js'
+import { AngleSliderSlots } from './angleSlider.js'
+import { TimerSlots } from './timer.js'
+import { MarqueeSlots } from './marquee.js'
+import { ImageCropperSlots } from './imageCropper.js'
+import { SignaturePadSlots } from './signaturePad.js'
+import { QrCodeSlots } from './qrCode.js'
+import { ChartSlots } from './chart.js'
 
 /** Whether the widget keeps state of its own (a Submodel) or only decorates. */
 export type Tier = 'stateful' | 'stateless'
@@ -477,6 +489,126 @@ export const Menu = A11y.pattern({
   },
 })
 
+/** A message's body, its retry when sending failed, and its actions, each named. */
+export const ChatMessage = A11y.pattern({
+  root: { capability: Capability.Container },
+  body: { capability: Capability.Container },
+  retry: { capability: Capability.Interactive, events: [Event.Click], optional: true },
+  action: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+    optional: true,
+  },
+})
+
+/** A named log, and a press that jumps to its end. */
+export const MessageScroller = A11y.pattern({
+  log: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  jump: { capability: Capability.Interactive, events: [Event.Click], attributes: [Attr.AriaLabel] },
+})
+
+/** A status the words fill; the mark is hidden. */
+export const ThinkingIndicator = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role] },
+  label: { capability: Capability.Container },
+})
+
+/** A disclosure over a list of steps, each saying its state in words. */
+export const ThinkingSteps = A11y.pattern({
+  trigger: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded],
+  },
+  list: { capability: Capability.Container },
+  state: { capability: Capability.Container },
+})
+
+/** A form of questions; the controls are the RadioGroup's, CheckboxGroup's, Input's and Textarea's. */
+export const Questionnaire = A11y.pattern({
+  root: { capability: Capability.Container },
+  question: { capability: Capability.Container },
+  error: { capability: Capability.Container },
+})
+
+/** A named group around one slider thumb. */
+export const AngleSlider = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role] },
+  label: { capability: Capability.Container },
+  thumb: {
+    capability: Capability.Focusable,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel],
+  },
+})
+
+/** A named group, a timer, and its presses. */
+export const Timer = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role] },
+  label: { capability: Capability.Container },
+  area: { capability: Capability.Container, attributes: [Attr.Role] },
+  action: { capability: Capability.Interactive, events: [Event.Click], optional: true },
+})
+
+/** A named region, and a press to hold it. */
+export const Marquee = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  viewport: { capability: Capability.Container },
+  pause: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+    optional: true,
+  },
+})
+
+/** A named group around a selection that is a two-dimensional slider. */
+export const ImageCropper = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role] },
+  label: { capability: Capability.Container },
+  selection: {
+    capability: Capability.Focusable,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel],
+  },
+  rotate: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+    optional: true,
+  },
+})
+
+/** A named group around an image of what is drawn, its clear press, and a typed name instead. */
+export const SignaturePad = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role] },
+  label: { capability: Capability.Container },
+  control: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  clear: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+  },
+  input: { capability: Capability.TextInput, events: [Event.Input], optional: true },
+})
+
+/** One image named by what it encodes. */
+export const QrCode = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+})
+
+/** A tab stop the arrows step through, a status that says each point, and the data as a table. */
+export const Chart = A11y.pattern({
+  plot: {
+    capability: Capability.Focusable,
+    events: [Event.KeyDown, Event.Focus, Event.Blur],
+    attributes: [Attr.Role],
+  },
+  status: { capability: Capability.Container, attributes: [Attr.Role] },
+  table: { capability: Capability.Container },
+})
+
 export interface Entry {
   readonly name: string
   readonly pattern: A11y.Pattern
@@ -674,4 +806,45 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['menu', 'menuitem', 'button'],
     ['top-layer', 'backdrop', 'native-control'],
   ),
+  entry('chat-message', ChatMessage, ChatMessageSlots, 'stateless', ['group', 'button']),
+  entry('message-scroller', MessageScroller, MessageScrollerSlots, 'stateful', ['log', 'button']),
+  entry('thinking-indicator', ThinkingIndicator, ThinkingIndicatorSlots, 'stateless', ['status']),
+  entry('thinking-steps', ThinkingSteps, ThinkingStepsSlots, 'stateless', [
+    'button',
+    'list',
+    'listitem',
+  ]),
+  entry(
+    'questionnaire',
+    Questionnaire,
+    QuestionnaireSlots,
+    'stateful',
+    ['form', 'radiogroup', 'radio', 'group', 'checkbox', 'textbox', 'button'],
+    ['native-control', 'form-submission'],
+  ),
+  entry(
+    'angle-slider',
+    AngleSlider,
+    AngleSliderSlots,
+    'stateful',
+    ['group', 'slider'],
+    ['form-submission'],
+  ),
+  entry('timer', Timer, TimerSlots, 'stateful', ['group', 'timer', 'button']),
+  entry('marquee', Marquee, MarqueeSlots, 'stateful', ['region', 'button']),
+  entry('image-cropper', ImageCropper, ImageCropperSlots, 'stateful', [
+    'group',
+    'slider',
+    'button',
+  ]),
+  entry(
+    'signature-pad',
+    SignaturePad,
+    SignaturePadSlots,
+    'stateful',
+    ['group', 'img', 'button', 'textbox'],
+    ['native-control'],
+  ),
+  entry('qr-code', QrCode, QrCodeSlots, 'stateless', ['img']),
+  entry('chart', Chart, ChartSlots, 'stateful', ['figure', 'group', 'status', 'table']),
 ])
