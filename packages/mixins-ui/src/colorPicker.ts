@@ -1,6 +1,7 @@
 import type { RenderInfo } from '@foldkit/ui/popover'
-import { Effect, Option, Queue, Schema, Stream } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { PointerMoved, PointerPosition, PointerPressed } from 'foldkit-primitives/dom'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -457,81 +458,25 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
 
 // ---------------------------------------------------------------- the area's pointer
 
-const Pointed = Schema.TaggedStruct('Pointed', { x: Schema.Number, y: Schema.Number })
-
-type Capturing = Element & {
-  setPointerCapture?: (pointerId: number) => void
-  releasePointerCapture?: (pointerId: number) => void
-}
+const areaPosition = PointerPosition({ focus: '[tabindex]' })
 
 /**
- * Where the pointer is in the element, 0 to 1 across and down, as a Mount:
- * on a primary press, and at each move until it is released, the pointer
- * captured meanwhile. Measured at each event, so a resized area is followed.
- * A press also focuses the element's first focusable child (the thumb), so
- * the keys go on from where the pointer left it.
+ * Where the pointer is in the area, 0 to 1 across and down, at a press and
+ * at each move until it is released. A press focuses the thumb, so the keys
+ * go on from where the pointer left it. The release itself is dropped: the
+ * color is already where the pointer let go of it.
  */
-const AreaPointer = Mount.defineStream('ColorPickerArea', {
-  messages: [Pointed],
-  execute: ({ element }) =>
-    Stream.callback<typeof Pointed.Type>(queue =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          const target: Capturing = element
-          let pointer: number | undefined
-          const report = (event: PointerEvent) => {
-            const box = element.getBoundingClientRect()
-            Queue.offerUnsafe(
-              queue,
-              Pointed.make({
-                x: box.width === 0 ? 0 : clamp((event.clientX - box.left) / box.width),
-                y: box.height === 0 ? 0 : clamp((event.clientY - box.top) / box.height),
-              }),
-            )
-          }
-          const down = (event: Event) => {
-            if (!(event instanceof PointerEvent) || event.button !== 0) return
-            pointer = event.pointerId
-            try {
-              target.setPointerCapture?.(event.pointerId)
-            } catch {
-              // A pointer the browser no longer tracks cannot be captured; its moves still come here.
-            }
-            // Kept from the browser's own focus and text selection on a press.
-            event.preventDefault()
-            const thumb = element.querySelector('[tabindex]')
-            if (thumb instanceof HTMLElement) thumb.focus()
-            report(event)
-          }
-          const move = (event: Event) => {
-            if (event instanceof PointerEvent && event.pointerId === pointer) report(event)
-          }
-          const up = (event: Event) => {
-            if (!(event instanceof PointerEvent) || event.pointerId !== pointer) return
-            pointer = undefined
-            try {
-              target.releasePointerCapture?.(event.pointerId)
-            } catch {
-              // Capture may already be gone with the pointer.
-            }
-          }
-          const listeners: ReadonlyArray<readonly [string, (event: Event) => void]> = [
-            ['pointerdown', down],
-            ['pointermove', move],
-            ['pointerup', up],
-            ['pointercancel', up],
-            ['lostpointercapture', up],
-          ]
-          for (const [type, listener] of listeners) element.addEventListener(type, listener)
-          return listeners
-        }),
-        listeners =>
-          Effect.sync(() => {
-            for (const [type, listener] of listeners) element.removeEventListener(type, listener)
-          }),
-      ),
+const areaPointer: Mount.MountAction<{ readonly x: number; readonly y: number }> = {
+  ...areaPosition,
+  f: (element, viewStateChanges) =>
+    areaPosition.f(element, viewStateChanges).pipe(
+      Stream.filter(Schema.is(Schema.Union([PointerPressed, PointerMoved]))),
+      Stream.map(({ point, width, height }) => ({
+        x: width === 0 ? 0 : clamp(point.x / width),
+        y: height === 0 ? 0 : clamp(point.y / height),
+      })),
     ),
-})
+}
 
 // ---------------------------------------------------------------- the view
 
@@ -645,9 +590,7 @@ export const view = <Outer>(options: ColorPickerView<Outer>, h: HtmlBuilder<Oute
             ? []
             : [
                 h.OnMount(
-                  Mount.mapMessage(AreaPointer(), ({ x, y }) =>
-                    lift(Message.PointedArea({ x, y })),
-                  ),
+                  Mount.mapMessage(areaPointer, ({ x, y }) => lift(Message.PointedArea({ x, y }))),
                 ),
               ],
         ),

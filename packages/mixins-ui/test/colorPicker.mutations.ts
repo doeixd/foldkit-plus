@@ -34,19 +34,19 @@ export default [
     edits: [
       {
         file: '../src/colorPicker.ts',
-        find: 'if (thumb instanceof HTMLElement) thumb.focus()',
-        replace: '',
+        find: "PointerPosition({ focus: '[tabindex]' })",
+        replace: 'PointerPosition({})',
       },
     ],
     tests: [browser],
   },
   {
-    name: 'the area follows the pointer after it is released',
+    name: 'the area reads across by its height',
     edits: [
       {
         file: '../src/colorPicker.ts',
-        find: '            pointer = undefined\n',
-        replace: '',
+        find: 'x: width === 0 ? 0 : clamp(point.x / width),',
+        replace: 'x: width === 0 ? 0 : clamp(point.x / height),',
       },
     ],
     tests: [browser],
