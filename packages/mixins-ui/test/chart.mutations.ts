@@ -141,15 +141,15 @@ export default [
   one(
     'focus lights nothing',
     source,
-    'h.OnFocus(send(Message.Focused({ count }))),',
-    'h.OnFocus(send(Message.Cleared())),',
+    'h.OnFocus(onMessage(Message.Focused({ count }))),',
+    'h.OnFocus(onMessage(Message.Cleared())),',
     browser,
   ),
   one(
     'a blur leaves the keys lit point lit',
     source,
-    'h.OnBlur(send(Message.Cleared())),',
-    'h.OnBlur(send(Message.Left())),',
+    'h.OnBlur(onMessage(Message.Cleared())),',
+    'h.OnBlur(onMessage(Message.Left())),',
     browser,
   ),
   one(
