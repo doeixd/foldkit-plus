@@ -829,9 +829,9 @@ package cannot wrap, so their panels go in the top layer another way:
 an element drawn around the panel that shows itself as a popover, and the
 panel inside keeps upstream's anchor (`Popover.anchor()` and
 `Tooltip.anchor()` give `portal: false` and the placement: 12px and 8px
-off the trigger, 8px inside the viewport, flipping and shifting). A Hover Card's
-panel is anchored in the top layer by `HoverIntent.toView(mixins, { h,
-anchored: { id, anchor? } }, draw)`, which gives the trigger
+off the trigger, 8px inside the viewport, flipping and shifting). A Hover
+Card's panel is anchored in the top layer by `HoverIntent.toView(mixins, {
+h, anchored: { id, anchor? } }, draw)`, which gives the trigger
 `HoverIntent.triggerId(id)`. Each draws an `arrow` slot in its panel that
 points at the trigger. The DatePicker's panel and modal dialogs are not in
 the top layer.

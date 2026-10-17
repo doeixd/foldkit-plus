@@ -748,15 +748,18 @@ green commit. Shared history is not rewritten.
   popups, dialogs, sheets, toasts and ⌘K opened. **Done**: the gallery's own faults fixed in
   a87abff0 (axes with no fallback forced on, the terms' paragraphs, boxes to fill). Seen in
   components, open:
-- [ ] Steps at 390: a step's title runs into the next marker (Payment, Shipped, Upload under
-  the progress connector), and the dots' connectors sit below the dots.
-- [ ] Navigation menu at 390: the trigger's chevron draws as a diagonal tick, and a panel wider
-  than the viewport is cut at its edge rather than shifted inside it.
-- [ ] Segmented trays are as wide as their options now, so the CMS Builder's inspector choices
+- [x] Steps at 390: a step's title runs into the next marker (Payment, Shipped, Upload under
+  the progress connector), and the dots' connectors sit below the dots. **Done**: 4fcd0631.
+- [x] Navigation menu at 390: the trigger's chevron draws as a diagonal tick, and a panel wider
+  than the viewport is cut at its edge rather than shifted inside it. **Done**: c24b0c96 (the panel
+  fitted; its row of columns ran past it).
+- [x] Segmented trays are as wide as their options now, so the CMS Builder's inspector choices
   and narrow panel tabs (`examples/cms/src/styles/builderStyle.ts:365, 437, 442`, options
   `flex: 1`) and `examples/design-system/src/style.ts:614` no longer fill their row: give
-  those trays `width: 'fill'` or `inlineSize: 'auto'`.
-- [ ] Popover: no arrow could be seen on the open panel in the screenshots.
+  those trays `width: 'fill'` or `inlineSize: 'auto'`. **Done**: 6a6a434a (the viewports never filled
+  their flex row, so they stay).
+- [x] Popover: no arrow could be seen on the open panel in the screenshots. **Done**: 1b6f463a (it
+  was drawn, too small to see; now larger, the panel 12px off).
 - [ ] A Dialog's `initialFocus` on a `Button.view`: the view takes no attributes, so the
   alert example cannot spread it on Cancel.
 

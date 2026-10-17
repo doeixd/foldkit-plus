@@ -941,6 +941,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: Steps and the Navigation menu at a phone's width.**
+  In a narrow Steps row the current title ran over the next connector; it
+  is now cut with an ellipsis, and the connectors shorten so a short word
+  stays whole. A dot marker's dot sat above its connector, pushed up by the
+  hidden number's row. A Navigation menu trigger's chevron, squeezed in a
+  narrow row, drew as a slanted tick; it keeps its size. A panel's groups,
+  a fixed row of 12rem columns, ran off a phone's screen; they wrap.
 - **`foldkit-mixins-ui`: the Popover's arrow can be seen.** It was drawn,
   but as an 8px square in the panel's own fill and faint line, half of it
   showing in the gap: a nub too slight to see. The Popover's arrow is now
