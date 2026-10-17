@@ -9,7 +9,7 @@ export default [
   {
     name: 'a field keeps its small text on a touch screen',
     edits: [{ file: '../src/recipes/field.ts', find: '  touchText,\n)', replace: ')' }],
-    tests: ['packages/mixins-ui/test/type.browser.test.ts'],
+    tests: ['packages/mixins-ui/test/type.touch.browser.test.ts'],
   },
   {
     name: 'the touch size is the role, not 16px',
@@ -20,7 +20,7 @@ export default [
         replace: "fontSize: Theme.role('body').fontSize,",
       },
     ],
-    tests: ['packages/mixins-ui/test/type.browser.test.ts'],
+    tests: ['packages/mixins-ui/test/type.touch.browser.test.ts'],
   },
   {
     name: 'a role keeps the leading the element had',

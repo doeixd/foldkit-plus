@@ -130,6 +130,14 @@ const settled = (element: Element) =>
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
+ * A flick: one move a moment after the press. The speed is read from the
+ * events' times, and a pause stretched by a loaded machine slowed a flick
+ * made of several moves below `FLICK_SPEED`; one 1ms pause stays well above
+ * it even stretched tens of times.
+ */
+const FLICK = { steps: 1, pause: 1 }
+
+/**
  * Presses the handle at its middle, moves it `by` pixels down in `steps`
  * moves `pause` milliseconds apart, rests `rest`, and lets go.
  */
@@ -279,7 +287,7 @@ test('a slow drag past a quarter of the panel takes it away', async () => {
 test('a flick takes it away though it moved only a little', async () => {
   const { grabber, dispose } = await open({ side: 'bottom', isAnimated: false }, {}, { lines: 8 })
   try {
-    await drag(grabber, 40, { steps: 4, pause: 8 })
+    await drag(grabber, 40, FLICK)
     await vi.waitFor(() => expect(document.getElementById('edge-panel')).toBeNull())
   } finally {
     dispose()
@@ -293,7 +301,7 @@ test('a sheet that may not be dismissed comes back from any drag', async () => {
     { lines: 8 },
   )
   try {
-    await drag(grabber, 60, { steps: 4, pause: 8 })
+    await drag(grabber, 60, FLICK)
     await vi.waitFor(() => expect(panel.hasAttribute('data-dragging')).toBe(false))
     expect(document.getElementById('edge-panel')).not.toBeNull()
   } finally {
@@ -313,7 +321,7 @@ test('with points it opens at the lowest; a press steps up, a flick down rests a
     expect(shown()).toBeCloseTo(window.innerHeight / 2, 0)
     await drag(grabber, 0, { steps: 1, pause: 0 })
     await vi.waitFor(() => expect(shown()).toBeCloseTo(window.innerHeight, 0))
-    await drag(grabber, 60, { steps: 4, pause: 8 })
+    await drag(grabber, 60, FLICK)
     await vi.waitFor(() => expect(panel.hasAttribute('data-dragging')).toBe(false))
     await settled(panel)
     expect(shown()).toBeCloseTo(window.innerHeight / 2, 0)

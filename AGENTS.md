@@ -1254,8 +1254,13 @@ of its own named a form field "fits the Catalog". Read words with
   `matchMedia`.** A cast `matchMedia` answers the one query it was written
   for and nothing else; `cdp().send('Emulation.setTouchEmulationEnabled',
   { enabled: true, maxTouchPoints: 5 })` makes `(hover: hover) and (pointer:
-  fine)` fail for real, as `lists.browser.test.ts` does for `ScrollBars`.
-  Turn it off in a `finally`: the browser tests share one page's settings.
+  fine)` fail for real. But it cannot be undone in a page: on Linux, Chromium
+  turned off again reports `pointer: none`, so on CI every later file in that
+  page lost its fine pointer (the overlay bars never drew, a Sheet's flick did
+  not dismiss) while Windows, with a real mouse, came back `fine`. A coarse
+  test is a `*.touch.browser.test.ts`, run by the `browser-touch` project,
+  whose page is a touch screen from the start (`hasTouch`). Reproduce a
+  CI-only browser failure in `mcr.microsoft.com/playwright` under Docker.
 - **An indicator test can pass by an accidental re-measure.** A test that
   flips `dir` and reads that the indicator moved also passes without the
   fix when a sub-pixel resize or a transition still running makes `Measure`

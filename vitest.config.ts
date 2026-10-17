@@ -14,6 +14,20 @@ const browserTests = [
   'examples/*/test/**/*.browser.test.ts',
   'examples/foldkit/*/test/**/*.browser.test.ts',
 ]
+/**
+ * Tests of a coarse pointer, on a page that is a touch screen from the start.
+ * Touch emulation cannot be undone in a page: on Linux, Chromium turned off
+ * again reports `pointer: none`, and every later file in that page lost its
+ * fine pointer.
+ */
+const touchTests = browserTests.map(pattern => pattern.replace('.browser.', '.touch.browser.'))
+
+const browser = (contextOptions: { readonly hasTouch: boolean }) => ({
+  enabled: true,
+  headless: true,
+  provider: playwright({ contextOptions }),
+  instances: [{ browser: 'chromium' as const, viewport: { width: 1440, height: 900 } }],
+})
 
 /**
  * Workers by the memory free when the run starts, not by cores alone. On a
@@ -44,14 +58,18 @@ export default defineConfig({
         test: {
           name: 'browser',
           include: browserTests,
+          exclude: [...touchTests, '**/node_modules/**'],
           // The benchmarks measure Node; several cannot load in a page at all.
           benchmark: { include: [] },
-          browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright(),
-            instances: [{ browser: 'chromium', viewport: { width: 1440, height: 900 } }],
-          },
+          browser: browser({ hasTouch: false }),
+        },
+      }),
+      mergeConfig(inBrowser, {
+        test: {
+          name: 'browser-touch',
+          include: touchTests,
+          benchmark: { include: [] },
+          browser: browser({ hasTouch: true }),
         },
       }),
     ],

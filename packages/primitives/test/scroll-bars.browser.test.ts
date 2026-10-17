@@ -7,6 +7,7 @@
 import { Effect, Fiber, Stream } from 'effect'
 import { liveViewStateChanges } from 'foldkit/mount'
 import { afterEach, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { ScrollBars, scrollThumb } from '../src/dom/scroll-bars.js'
 
 afterEach(() => {
@@ -39,7 +40,12 @@ const mount = async (options: { readonly idle?: number; readonly dir?: 'rtl' } =
   const block = bar('block')
   const inline = bar('inline')
   area.append(scroller, block, inline)
-  document.body.append(area)
+  // The real pointer is shared with every test file: rest it beside the box,
+  // where Chrome's hover events for a box drawn under it cannot show the bars.
+  const away = document.createElement('div')
+  away.style.cssText = 'height: 40px'
+  document.body.append(away, area)
+  await userEvent.hover(away)
   const fiber = Effect.runFork(
     Stream.runDrain(
       ScrollBars(options.idle === undefined ? {} : { idle: options.idle }).f(

@@ -58,7 +58,7 @@ export default [
         replace: "if (typeof matchMedia !== 'function') {",
       },
     ],
-    tests,
+    tests: ['packages/mixins-ui/test/lists.touch.browser.test.ts'],
   },
   {
     name: 'a VirtualList takes its width from the rows drawn',
