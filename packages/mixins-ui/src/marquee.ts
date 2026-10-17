@@ -130,7 +130,7 @@ export interface MarqueeView<Message> {
 }
 
 /** How many copies draw: enough to cover the viewport and one more, never fewer than `repeat`. */
-export const copiesOf = (
+const copiesOf = (
   model: Model,
   options: { readonly autoFill?: boolean | undefined; readonly repeat?: number | undefined } = {},
 ): number => {
