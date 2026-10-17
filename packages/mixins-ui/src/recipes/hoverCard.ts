@@ -1,16 +1,15 @@
 /**
  * A hover card over `@foldkit/ui`'s HoverIntent: a trigger read as a link to
  * something more, and a raised panel two levels above what holds it, as a
- * popover is, fading in on the fast tier as it is drawn. Place the panel
- * with the `Anchor` Mount; this styles it, takes it out of the flow (the
- * Anchor's absolute strategy writes `top` and `left` but no `position`, so
- * an unportaled card stood in the line and moved its trigger), and leaves
- * `top` and `left` alone.
+ * popover is, fading in on the fast tier as it is drawn, with an arrow at
+ * the trigger (`arrow: 'none'` hides it). `HoverIntent`'s `anchored` places
+ * the panel, out of the flow; this styles it and leaves its place alone.
  */
 import { Style } from 'foldkit-mixins'
 import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { HoverIntentSlots } from '../hoverIntent.js'
-import { component, focusRing, ref, transition, travelled } from './design.js'
+import { component, focusRing, ref, transition, travelled, variant } from './design.js'
+import { arrow } from './popover.js'
 
 export const HoverCard = Style.recipeFor(HoverIntentSlots)({
   base: {
@@ -31,9 +30,10 @@ export const HoverCard = Style.recipeFor(HoverIntentSlots)({
     ),
     panel: component(
       Style.self({
-        position: 'absolute',
         // Out of the flow at the trigger's edge it would shrink to its narrowest word.
         inlineSize: 'max-content',
+        // A popover scrolls by default, which would clip the arrow half outside it.
+        overflow: 'visible',
         maxInlineSize: '20rem',
         padding: ref.space.md,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
@@ -51,5 +51,13 @@ export const HoverCard = Style.recipeFor(HoverIntentSlots)({
       Style.enter({ opacity: '0', translate: '0 4px' }),
       raise(2),
     ),
+    arrow: arrow({ fill: raisedSurface(), line: ref.outline.subtle, corner: ref.radius.lg }),
   },
+  variants: {
+    arrow: {
+      shown: {},
+      none: { arrow: variant(Style.self({ display: 'none' })) },
+    },
+  },
+  defaults: { arrow: 'shown' },
 })

@@ -1,7 +1,8 @@
 /**
  * A hover card on a real runtime, over `@foldkit/ui`'s HoverIntent: focus on
  * its trigger opens the card at once, raised as a popover is, and leaving
- * closes it.
+ * closes it. Anchored, the card draws in the top layer below its trigger,
+ * outside the box that clips it, its arrow pointing at the trigger.
  */
 import { Schema } from 'effect'
 import { HoverIntent as UiHoverIntent } from '@foldkit/ui'
@@ -12,15 +13,19 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { HoverIntent, HoverIntentSlots, Recipes } from '../src/index.js'
+// Not the index: a test loads only what it tests.
+import * as HoverIntent from '../src/hoverIntent.js'
+import { HoverIntentSlots } from '../src/hoverIntent.js'
+import { HoverCard } from '../src/recipes/hoverCard.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
-const style = Style.forSlots(HoverIntentSlots)(Recipes.HoverCard({}))
+const style = Style.forSlots(HoverIntentSlots)(HoverCard({}))
 const Model = Schema.Struct({ card: UiHoverIntent.Model })
 type Model = typeof Model.Type
 type Message = { readonly _tag: 'Got'; readonly message: UiHoverIntent.Message }
 
 afterEach(() => {
+  window.scrollTo(0, 0)
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
 })
@@ -44,16 +49,30 @@ const mount = () => {
       model: model.card,
       view: UiHoverIntent.view,
       viewInputs: {
-        toView: HoverIntent.toView([style.mixin], { h }, ({ trigger, panel, isVisible }) =>
-          // Centred in a row, so a card standing in the flow beside the
-          // trigger would push it aside: at the left edge, it would not.
-          h.div(
-            [h.Style({ display: 'flex', justifyContent: 'center' })],
-            [
-              h.button([...trigger, h.Type('button')], ['@ada']),
-              ...(isVisible ? [h.div([...panel, h.AriaLabel('card')], ['Ada Lovelace'])] : []),
-            ],
-          ),
+        toView: HoverIntent.toView(
+          [style.mixin],
+          // Start-aligned, so the arrow at the trigger is not the card's middle.
+          { h, anchored: { id: 'ada', anchor: { placement: 'bottom-start' } } },
+          ({ trigger, panel, arrow, isVisible }) =>
+            // Centred in a short clipping row, so a card standing in the flow
+            // beside the trigger would push it aside (at the left edge it
+            // would not), and one not in the top layer would be cut off.
+            h.div(
+              [
+                h.Style({
+                  display: 'flex',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  contain: 'paint',
+                }),
+              ],
+              [
+                h.button([...trigger, h.Type('button')], ['@ada']),
+                ...(isVisible
+                  ? [h.div([...panel, h.AriaLabel('card')], [h.div(arrow, []), 'Ada Lovelace'])]
+                  : []),
+              ],
+            ),
         ),
       },
       toParentMessage: (message: UiHoverIntent.Message): Message => ({ _tag: 'Got', message }),
@@ -80,6 +99,46 @@ const mount = () => {
 
 const away = () => document.body.lastElementChild!
 const card = () => document.querySelector<HTMLElement>('[aria-label="card"]')
+
+test('the open card shows below its trigger, outside the row that clips it, its arrow at the trigger', async () => {
+  const handle = mount()
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = document.getElementById(HoverIntent.triggerId('ada'))
+      expect(found).not.toBeNull()
+      return found!
+    })
+    await userEvent.hover(away())
+    // A scrolled page: the anchor's coordinates are the document's, so the
+    // card must be placed as the document's, not the viewport's.
+    const above = document.createElement('div')
+    above.style.blockSize = '300px'
+    document.body.prepend(above)
+    away().setAttribute('style', 'block-size: 2000px')
+    window.scrollTo(0, 120)
+    trigger.focus({ preventScroll: true })
+    const open = await vi.waitFor(() => {
+      expect(card()).not.toBeNull()
+      expect(getComputedStyle(card()!).visibility).toBe('visible')
+      return card()!
+    })
+    // It slides in 4px as it fades: measure where it comes to rest.
+    await vi.waitFor(() => expect(open.getAnimations()).toEqual([]))
+    const from = trigger.getBoundingClientRect()
+    const box = open.getBoundingClientRect()
+    expect(box.top - from.bottom).toBeCloseTo(8, 0)
+    const row = trigger.parentElement!.getBoundingClientRect()
+    expect(box.bottom).toBeGreaterThan(row.bottom + 4)
+    expect(open.contains(document.elementFromPoint(box.left + 8, box.bottom - 4))).toBe(true)
+    const arrow = open.firstElementChild!.getBoundingClientRect()
+    expect(Math.abs(arrow.left + arrow.width / 2 - (from.left + from.width / 2))).toBeLessThan(1.5)
+    expect(Math.abs(arrow.top + arrow.height / 2 - box.top)).toBeLessThan(1.5)
+    // Nothing clips the half outside.
+    expect(getComputedStyle(open).overflowY).toBe('visible')
+  } finally {
+    handle.dispose()
+  }
+})
 
 test('the open card stands outside the flow: its trigger stays where it was', async () => {
   const handle = mount()
