@@ -19,8 +19,10 @@ const style = Style.forSlots(SliderSlots)(Recipe({}))
 interface More {
   readonly disabled?: boolean
   readonly name?: string
-  readonly marks?: ReadonlyArray<number>
+  readonly marks?: ReadonlyArray<number | Slider.Mark>
+  readonly ticks?: boolean
   readonly showValue?: boolean
+  readonly orientation?: 'horizontal' | 'vertical'
 }
 
 const shared = {
@@ -178,6 +180,71 @@ describe('Slider.view', () => {
     it('draws none unless asked', () => {
       expect(Inert.bySlot(one(100), 'mark')).toEqual([])
     })
+
+    it('writes a label under a mark that has one, placed and filled as its dot', () => {
+      const shown = one(100, {
+        marks: [{ value: 0, label: 'Free' }, 100, { value: 150, label: 'Most' }],
+      })
+      const labels = Inert.bySlot(shown, 'markLabel')
+      expect(labels.map(label => Inert.text(label))).toEqual(['Free', 'Most'])
+      expect(labels.map(label => Inert.style(label)['--fk-slider-at'])).toEqual(['0', '0.75'])
+      expect(labels.map(label => Inert.value(label, 'data-filled') !== undefined)).toEqual([
+        true,
+        false,
+      ])
+      expect(labels.map(label => Inert.value(label, 'aria-hidden'))).toEqual(['true', 'true'])
+      expect(Inert.value(Inert.bySlot(shown, 'control')[0], 'data-labels')).toBe('')
+      expect(
+        Inert.value(Inert.bySlot(one(100, { marks: [0] }), 'control')[0], 'data-labels'),
+      ).toBeUndefined()
+    })
+
+    it('keeps a label over a bare repeat of its value, in order of value', () => {
+      const shown = one(100, { marks: [150, { value: 50, label: 'Half' }, 50] })
+      expect(Inert.bySlot(shown, 'mark').map(mark => Inert.style(mark)['--fk-slider-at'])).toEqual([
+        '0.25',
+        '0.75',
+      ])
+      expect(Inert.bySlot(shown, 'markLabel').map(label => Inert.text(label))).toEqual(['Half'])
+    })
+
+    it('ticks every step, quieter where no mark is', () => {
+      const shown = one(100, { ticks: true, marks: [100] })
+      const marks = Inert.bySlot(shown, 'mark')
+      // 0 to 200 by 10.
+      expect(marks).toHaveLength(21)
+      expect(
+        marks
+          .filter(mark => Inert.value(mark, 'data-tick') === undefined)
+          .map(mark => Inert.style(mark)['--fk-slider-at']),
+      ).toEqual(['0.5'])
+    })
+
+    it('ticks by count, not by sum, so a fractional step lands on its last value', () => {
+      const Fine = SlotView.forMessages<TestMessage>().define(SliderSlots, (_: undefined, __, h) =>
+        Slider.view({ ...shared, max: 0.3, step: 0.1, value: 0, ticks: true }, h),
+      )
+      const ticks = Inert.bySlot(Inert.draw(Fine, undefined), 'mark')
+      expect(ticks.map(mark => Inert.style(mark)['--fk-slider-at']).at(-1)).toBe('1')
+      expect(ticks).toHaveLength(4)
+    })
+  })
+
+  describe('orientation', () => {
+    it('says vertical on the root, the control and each thumb', () => {
+      const shown = drawn({ low: 50, high: 150 }, { orientation: 'vertical' })
+      expect(Inert.value(Inert.bySlot(shown, 'root')[0], 'data-orientation')).toBe('vertical')
+      expect(Inert.value(Inert.bySlot(shown, 'control')[0], 'data-orientation')).toBe('vertical')
+      expect(
+        Inert.byTag(shown, 'input').map(thumb => Inert.value(thumb, 'aria-orientation')),
+      ).toEqual(['vertical', 'vertical'])
+    })
+
+    it('says nothing when horizontal, the browser’s default', () => {
+      const [thumb] = Inert.byTag(one(40), 'input')
+      expect(Inert.value(thumb, 'aria-orientation')).toBeUndefined()
+      expect(Inert.value(Inert.bySlot(one(40), 'control')[0], 'data-orientation')).toBeUndefined()
+    })
   })
 
   describe('a shown value', () => {
@@ -189,6 +256,14 @@ describe('Slider.view', () => {
       expect(values.map(value => Inert.style(value)['--fk-slider-at'])).toEqual(['0.25', '0.75'])
       expect(Inert.value(Inert.bySlot(shown, 'control')[0], 'data-values')).toBe('')
       expect(Inert.fixedInline(shown)).toEqual([])
+    })
+
+    it('also says them at the end of the header, hidden, the range joined by a dash', () => {
+      const [output] = Inert.bySlot(drawn({ low: 50, high: 150 }, { showValue: true }), 'output')
+      expect(Inert.text(output)).toBe('$50 – $150')
+      expect(Inert.value(output, 'aria-hidden')).toBe('true')
+      expect(Inert.text(Inert.bySlot(one(40, { showValue: true }), 'output')[0])).toBe('$40')
+      expect(Inert.bySlot(one(40), 'output')).toEqual([])
     })
 
     it('is drawn only when asked', () => {

@@ -219,3 +219,180 @@ test('met at the top, the low thumb is the one the pointer reaches', async () =>
     handle.dispose()
   }
 })
+
+/** One slider of `options`, its number in the Model, in a box of its own. */
+const mountOne = (
+  options: Partial<Slider.SliderView<Message, number>>,
+  recipe: Parameters<typeof Recipe>[0] = {},
+) => {
+  const look = Style.forSlots(SliderSlots)(Recipe(recipe))
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in('reset', Defaults.reset),
+      Layers.standard.in('theme', Theme.root(theme)),
+    ) + look.css
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'slider-one'
+  document.body.appendChild(container)
+  const One = Schema.Struct({ volume: Schema.Number })
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model: One,
+      container,
+      init: () => ({ model: { volume: 40 } }),
+      update: (model: typeof One.Type, message: Message) =>
+        message._tag === 'Turned' && message.value !== model.volume
+          ? { model: { volume: message.value } }
+          : { model },
+      view: (model: typeof One.Type, h: HtmlBuilder<Message>) =>
+        h.div(
+          [h.Style({ inlineSize: '20rem', padding: '3rem' })],
+          [
+            Slider.view(
+              {
+                id: 'one',
+                label: 'Level',
+                value: model.volume,
+                step: 10,
+                onChange: Turned,
+                ...options,
+                style: look,
+              },
+              h,
+            ),
+          ],
+        ),
+    }),
+  )
+}
+
+test('vertical, the track stands upright and the thumb climbs from the bottom', async () => {
+  const handle = mountOne({ orientation: 'vertical' })
+  try {
+    await vi.waitFor(() => expect(thumb('one-value')).not.toBeNull())
+    const control = controlOf('one-value').getBoundingClientRect()
+    const track = controlOf('one-value').firstElementChild!.getBoundingClientRect()
+    expect(track.height).toBeGreaterThan(track.width * 4)
+    expect(track.width).toBeCloseTo(control.width, 0)
+    // The fill runs from the bottom to the far edge of the thumb at 40%.
+    const fill =
+      controlOf('one-value').firstElementChild!.firstElementChild!.getBoundingClientRect()
+    expect(fill.bottom).toBeCloseTo(track.bottom, 0)
+    const edge = control.width
+    expect(fill.height).toBeCloseTo(edge + (track.height - edge) * 0.4, 0)
+    // A press near the top is near the maximum, which a left-to-right reading would not give.
+    await userEvent.click(thumb('one-value')!, {
+      position: { x: edge / 2, y: edge / 2 + (track.height - edge) * 0.1 },
+    })
+    await vi.waitFor(() => expect(thumb('one-value')!.getAttribute('aria-valuetext')).toBe('90'))
+    thumb('one-value')!.focus()
+    await userEvent.keyboard('{ArrowUp}')
+    await vi.waitFor(() => expect(thumb('one-value')!.getAttribute('aria-valuetext')).toBe('100'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a mark’s label sits under its dot, and a shown value at the end stays upright', async () => {
+  const handle = mountOne(
+    {
+      orientation: 'horizontal',
+      marks: [{ value: 0, label: 'Off' }, 50, { value: 100, label: 'Max' }],
+      ticks: true,
+      showValue: true,
+      format: value => `${value}%`,
+    },
+    { value: 'end' },
+  )
+  try {
+    await vi.waitFor(() => expect(thumb('one-value')).not.toBeNull())
+    const control = controlOf('one-value')
+    const dots = Array.from(control.querySelectorAll<HTMLElement>('[data-tick], [aria-hidden]'))
+    const marks = dots.filter(dot => dot.textContent === '' && dot.tagName === 'SPAN')
+    expect(marks).toHaveLength(11)
+    const labels = dots.filter(dot => dot.textContent === 'Off' || dot.textContent === 'Max')
+    const [off, max] = labels.map(label => label.getBoundingClientRect())
+    const first = marks[0]!.getBoundingClientRect()
+    const last = marks[10]!.getBoundingClientRect()
+    expect(off!.top).toBeGreaterThanOrEqual(control.getBoundingClientRect().bottom)
+    expect(off!.left + off!.width / 2).toBeCloseTo(first.left + first.width / 2, 0)
+    expect(max!.left + max!.width / 2).toBeCloseTo(last.left + last.width / 2, 0)
+    // The value is the header's, after the label, and not drawn by the thumb.
+    const output = control.previousElementSibling!.lastElementChild!
+    expect(output.textContent).toBe('40%')
+    expect(output.getBoundingClientRect().width).toBeGreaterThan(0)
+    const byThumb = Array.from(control.querySelectorAll('span')).find(
+      span => span.textContent === '40%',
+    )!
+    expect(getComputedStyle(byThumb).display).toBe('none')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('vertical, a shown value above the thumb reads upright beside it', async () => {
+  const handle = mountOne({
+    orientation: 'vertical',
+    showValue: true,
+    format: value => `${value} dB`,
+  })
+  try {
+    await vi.waitFor(() => expect(thumb('one-value')).not.toBeNull())
+    const control = controlOf('one-value')
+    const value = Array.from(control.querySelectorAll('span')).find(
+      span => span.textContent === '40 dB',
+    )!
+    // The words' own box: the span is of no height, so they overflow it evenly.
+    const words = document.createRange()
+    words.selectNodeContents(value)
+    const box = words.getBoundingClientRect()
+    expect(box.width).toBeGreaterThan(box.height * 1.5)
+    expect(box.right).toBeLessThanOrEqual(control.getBoundingClientRect().left)
+    const track = control.firstElementChild!.getBoundingClientRect()
+    const edge = control.getBoundingClientRect().width
+    // Level with the thumb's center, 40% of the way up.
+    const center = track.bottom - edge / 2 - (track.height - edge) * 0.4
+    expect(box.top + box.height / 2).toBeCloseTo(center, 0)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test.each(['ltr', 'rtl'] as const)(
+  '%s: a vertical slider climbs from the bottom, its labels upright on its far side',
+  async direction => {
+    document.documentElement.dir = direction
+    const handle = mountOne({
+      orientation: 'vertical',
+      marks: [
+        { value: 0, label: 'Min' },
+        { value: 100, label: 'Max' },
+      ],
+    })
+    try {
+      await vi.waitFor(() => expect(thumb('one-value')).not.toBeNull())
+      const control = controlOf('one-value')
+      const box = control.getBoundingClientRect()
+      const [min, max] = ['Min', 'Max'].map(text => {
+        const label = Array.from(control.querySelectorAll('span')).find(
+          span => span.textContent === text,
+        )!
+        const words = document.createRange()
+        words.selectNodeContents(label)
+        return words.getBoundingClientRect()
+      })
+      expect(min!.left).toBeGreaterThanOrEqual(box.right)
+      expect(min!.width).toBeGreaterThan(min!.height)
+      // The minimum at the bottom, a half thumb up; the maximum as far down from the top.
+      expect(min!.top + min!.height / 2).toBeCloseTo(box.bottom - box.width / 2, 0)
+      expect(max!.top + max!.height / 2).toBeCloseTo(box.top + box.width / 2, 0)
+    } finally {
+      handle.dispose()
+      document.documentElement.removeAttribute('dir')
+    }
+  },
+)

@@ -90,7 +90,99 @@ export default [
     edits: [
       {
         file: '../src/slider.ts',
-        find: '                    h.AriaHidden(true),\n',
+        find: 'h.Key(`value-${drawn.key}`),\n                    h.AriaHidden(true),',
+        replace: 'h.Key(`value-${drawn.key}`),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a vertical control keeps the page’s writing mode',
+    edits: [{ file: '../src/recipes/slider.ts', find: "writingMode: 'vertical-lr',", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'a vertical slider climbs from the top',
+    edits: [{ file: '../src/recipes/slider.ts', find: "direction: 'rtl',", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'words on a vertical track lie on their side',
+    edits: [
+      {
+        file: '../src/recipes/slider.ts',
+        find: "const upright: Declarations = { writingMode: 'horizontal-tb' }",
+        replace: 'const upright: Declarations = {}',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a vertical value sits on the labels’ side',
+    edits: [
+      {
+        file: '../src/recipes/slider.ts',
+        find: 'uprightAt({ right: `calc(100% + ${gap})` })',
+        replace: 'uprightAt({ left: `calc(100% + ${gap})` })',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a vertical value keeps its height and centers off the thumb',
+    edits: [
+      {
+        file: '../src/recipes/slider.ts',
+        find: "Style.nest(vertical, { inlineSize: 'auto', blockSize: '0' }),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the value at the end stays hidden',
+    edits: [
+      {
+        file: '../src/recipes/slider.ts',
+        find: "output: variant(Style.self({ display: 'inline' })),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'ticks are added up, and a fractional step loses its last',
+    edits: [{ file: '../src/slider.ts', find: ' + 1e-9)', replace: ')' }],
+    tests: [unit],
+  },
+  {
+    name: 'a bare repeat of a value drops its label',
+    edits: [
+      {
+        file: '../src/slider.ts',
+        find: 'else if (!labels.has(mark)) labels.set(mark, Option.none())',
+        replace: 'else labels.set(mark, Option.none())',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a marked step is drawn as a quiet tick',
+    edits: [
+      {
+        file: '../src/slider.ts',
+        find: "...(labels.has(at) ? [] : [h.DataAttribute('tick', '')]),",
+        replace: "...[h.DataAttribute('tick', '')],",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a vertical thumb says nothing of its orientation',
+    edits: [
+      {
+        file: '../src/slider.ts',
+        find: "...(vertical ? [h.AriaOrientation('vertical')] : []),",
         replace: '',
       },
     ],

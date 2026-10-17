@@ -1,4 +1,5 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Option } from 'effect'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { settled } from './numberField.js'
 import type { MixinList } from './resolve.js'
@@ -31,18 +32,27 @@ import type { MixinList } from './resolve.js'
  * could not do: an unchanged Model draws nothing, and the input would keep its
  * own value.
  *
- * `marks` and the shown value (`showValue`) are drawn beside the thumbs,
- * hidden from assistive technology: each thumb already says its value through
- * `aria-valuetext`. Each is placed by its share of the track,
- * `--fk-slider-at`.
+ * `marks`, `ticks` and the shown value (`showValue`) are drawn beside the
+ * thumbs, hidden from assistive technology: each thumb already says its value
+ * through `aria-valuetext`. Each is placed by its share of the track,
+ * `--fk-slider-at`. A shown value is drawn twice, by each thumb (`value`) and
+ * at the end of the `header` (`output`), so the recipe's `value` axis picks a
+ * place with no change to the view.
+ *
+ * Vertical (`orientation: 'vertical'`) is the same native inputs in a
+ * vertical writing mode, read bottom to top: the browser turns their keys and
+ * drag, and every logical inset the recipe places with turns with them.
  */
 export const SliderSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  header: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
+  output: Slot.make({ capability: Capability.Base }),
   control: Slot.make({ capability: Capability.Container }),
   track: Slot.make({ capability: Capability.Base }),
   fill: Slot.make({ capability: Capability.Base }),
   mark: Slot.make({ capability: Capability.Base }),
+  markLabel: Slot.make({ capability: Capability.Base }),
   value: Slot.make({ capability: Capability.Base }),
   thumb: Slot.make({
     capability: Capability.Interactive,
@@ -54,6 +64,12 @@ export const SliderSlots = Slots.define({
 export interface Range {
   readonly low: number
   readonly high: number
+}
+
+/** A mark with words under it, such as `{ value: 0, label: 'Off' }`. */
+export interface Mark {
+  readonly value: number
+  readonly label: string
 }
 
 export interface Bounds {
@@ -80,8 +96,15 @@ export interface SliderView<Message, Value extends number | Range> extends Bound
   readonly thumbLabels?: Value extends Range
     ? { readonly low: string; readonly high: string } | undefined
     : never
-  /** Values marked on the track, each drawn with `data-filled` when the fill covers it. */
-  readonly marks?: ReadonlyArray<number> | undefined
+  /**
+   * Values marked on the track, each drawn with `data-filled` when the fill
+   * covers it; a `Mark` also writes its label under the track.
+   */
+  readonly marks?: ReadonlyArray<number | Mark> | undefined
+  /** A dot at every step, as `marks` would draw each (`data-tick`); for a few steps, not hundreds. */
+  readonly ticks?: boolean | undefined
+  /** Default `horizontal`. Vertical runs from the bottom up. */
+  readonly orientation?: 'horizontal' | 'vertical' | undefined
   /** Draws each thumb's value, formatted, beside it; the recipe's `value` axis places it. */
   readonly showValue?: boolean | undefined
   /** Submits the value under this name; a range submits both, low first. */
@@ -114,6 +137,14 @@ export const moved = (
 
 const share = (value: number, min: number, max: number): number =>
   max <= min ? 0 : Math.min(1, Math.max(0, (value - min) / (max - min)))
+
+/** Every step from `min` to `max`, counted rather than added so no float error builds up. */
+const stepsOf = (min: number, max: number, step: number): ReadonlyArray<number> =>
+  step <= 0 || max <= min
+    ? []
+    : Array.from({ length: Math.floor((max - min) / step + 1e-9) + 1 }, (_, index) =>
+        Number((min + index * step).toFixed(10)),
+      )
 
 const isRange = <Message>(
   options: SliderView<Message, number> | SliderView<Message, Range>,
@@ -188,6 +219,8 @@ export function view<Message>(
   const labelId = `${options.id}-label`
   const ranged = isRange(options)
   const thumbs = thumbsOf(options, labelId, h)
+  const vertical = options.orientation === 'vertical'
+  const orientation = vertical ? [h.DataAttribute('orientation', 'vertical')] : []
   // One thumb fills from the start of the track; a range from its low thumb.
   const low = isRange(options) ? options.value.low : min
   const high = isRange(options) ? options.value.high : options.value
@@ -204,6 +237,7 @@ export function view<Message>(
         h.Value(String(drawn.value)),
         drawn.naming,
         h.AriaValuetext(format(drawn.value)),
+        ...(vertical ? [h.AriaOrientation('vertical')] : []),
         h.DataAttribute('thumb', drawn.key),
         // An attribute, not `h.Name`'s client-only property, so server markup submits too.
         ...(options.name === undefined ? [] : [h.Attribute('name', options.name)]),
@@ -212,15 +246,35 @@ export function view<Message>(
     )
 
   const placed = (at: number) => h.Style({ '--fk-slider-at': String(share(at, min, max)) })
+  const filled = (at: number) => (at >= low && at <= high ? [h.DataAttribute('filled', '')] : [])
+  // Each value marked once, a label kept over a bare repeat of its value.
+  const labels = new Map<number, Option.Option<string>>()
+  for (const mark of options.marks ?? []) {
+    if (typeof mark !== 'number') labels.set(mark.value, Option.some(mark.label))
+    else if (!labels.has(mark)) labels.set(mark, Option.none())
+  }
+  const ticks = options.ticks === true ? stepsOf(min, max, options.step ?? 1) : []
+  const marks = [...new Set([...ticks, ...labels.keys()])].sort((left, right) => left - right)
+  const labelOf = (at: number) => labels.get(at) ?? Option.none()
 
   return h.div(
     builders.root.attrs([
       ...(ranged ? [h.Role('group'), h.AriaLabelledBy(labelId)] : []),
       ...(disabled ? [h.DataAttribute('disabled', '')] : []),
       ...(ranged && disabled ? [h.AriaDisabled(true)] : []),
+      ...orientation,
     ]),
     [
-      h.span(builders.label.attrs([h.Id(labelId)]), [options.label]),
+      h.div(builders.header.attrs(), [
+        h.span(builders.label.attrs([h.Id(labelId)]), [options.label]),
+        ...(options.showValue === true
+          ? [
+              h.span(builders.output.attrs([h.AriaHidden(true)]), [
+                thumbs.map(drawn => format(drawn.value)).join(' – '),
+              ]),
+            ]
+          : []),
+      ]),
       h.div(
         builders.control.attrs([
           h.Style({
@@ -228,22 +282,42 @@ export function view<Message>(
             '--fk-slider-high': String(share(high, min, max)),
           }),
           ...(ranged ? [h.DataAttribute('range', '')] : []),
+          ...orientation,
           ...(options.showValue === true ? [h.DataAttribute('values', '')] : []),
+          ...([...labels.values()].some(Option.isSome) ? [h.DataAttribute('labels', '')] : []),
           // Met at the top, the high thumb cannot move and would cover the low one, which can.
           ...(ranged && high >= max ? [h.DataAttribute('raised', 'low')] : []),
         ]),
         [
           h.div(builders.track.attrs(), [h.div(builders.fill.attrs(), [])]),
-          ...[...new Set(options.marks)].map(at =>
+          ...marks.map(at =>
             h.span(
               builders.mark.attrs([
                 h.Key(`mark-${at}`),
                 h.AriaHidden(true),
                 placed(at),
-                ...(at >= low && at <= high ? [h.DataAttribute('filled', '')] : []),
+                ...filled(at),
+                // A step no one marked is a tick, drawn quieter.
+                ...(labels.has(at) ? [] : [h.DataAttribute('tick', '')]),
               ]),
               [],
             ),
+          ),
+          ...marks.flatMap(at =>
+            Option.match(labelOf(at), {
+              onNone: () => [],
+              onSome: text => [
+                h.span(
+                  builders.markLabel.attrs([
+                    h.Key(`label-${at}`),
+                    h.AriaHidden(true),
+                    placed(at),
+                    ...filled(at),
+                  ]),
+                  [text],
+                ),
+              ],
+            }),
           ),
           ...thumbs.map(thumb),
           ...(options.showValue === true

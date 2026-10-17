@@ -5,11 +5,15 @@
  * between thumb centers, with the same ringed thumbs over it. `size` is the
  * thumb's edge, which the track and every position read.
  *
- * Marks are dots on the track, in the fill's own ink where it covers them. A
- * shown value sits above its thumb (`value: 'above'`, the control making room
- * for it) or inside it (`'inside'`, which widens the thumb into a pill; it
- * reads best at `md` or `lg`). Both are placed by logical insets, so they
- * mirror right to left with the native thumbs.
+ * Marks are dots on the track, in the fill's own ink where it covers them;
+ * ticks, a dot at every step, are quieter; a mark's label sits under the
+ * track. A shown value sits above its thumb (`value: 'above'`, the control
+ * making room for it), inside it (`'inside'`, which widens the thumb into a
+ * pill; it reads best at `md` or `lg`), or at the end of the label's row
+ * (`'end'`, as shadcn and Fluid show it). All are placed by logical insets,
+ * so they mirror right to left with the native thumbs, and turn with a
+ * vertical slider, whose control runs bottom to top in a vertical writing
+ * mode; its words stay upright.
  *
  * Each thumb is a native range input with its own look removed. One thumb
  * spans the whole track and takes a press anywhere on it; a range's two take
@@ -37,6 +41,25 @@ const high = 'var(--fk-slider-high)'
 // Where a mark or a shown value lies: the center of a thumb at its share.
 const at = `calc(${thumbSize} / 2 + ${travel} * var(--fk-slider-at))`
 const markSize = `calc(${edge} * 0.25)`
+// Centered across the track in either orientation, where a physical translate would not turn.
+const acrossCenter: Declarations = { insetBlock: '0', marginBlock: 'auto' }
+// Words in a vertical control would otherwise lie on their side.
+const upright: Declarations = { writingMode: 'horizontal-tb' }
+const vertical = '[data-orientation="vertical"] > &'
+/**
+ * Upright words on a vertical track, placed in their own terms, since an
+ * element's logical insets follow its own writing mode (and the track's
+ * `direction: rtl`): `at` up from the bottom, and `beside` the track in
+ * physical sides, which `vertical-lr` fixes in every direction (its block
+ * start is the left).
+ */
+const uprightAt = (beside: Declarations): Declarations => ({
+  insetInline: 'auto',
+  insetBlockStart: 'auto',
+  insetBlockEnd: at,
+  ...beside,
+})
+const gap = ref.space['2xs']
 
 /**
  * A rule on the thumb in both engines. One selector list would do nothing,
@@ -74,6 +97,15 @@ export const Slider = Style.recipeFor(SliderSlots)({
     root: component(
       Style.self({ display: 'grid', gap: ref.space['2xs'], minInlineSize: '12rem' }),
       Style.pseudo('[data-disabled]', { opacity: '0.5' }),
+      Style.pseudo('[data-orientation="vertical"]', { minInlineSize: '0', justifyItems: 'start' }),
+    ),
+    header: component(
+      Style.self({
+        display: 'flex',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+        gap: ref.space.xs,
+      }),
     ),
     label: component(
       Style.self({
@@ -83,14 +115,37 @@ export const Slider = Style.recipeFor(SliderSlots)({
         fontWeight: ref.weight.medium,
       }),
     ),
-    control: component(Style.self({ position: 'relative', blockSize: edge })),
+    // Shown only by `value: 'end'`.
+    output: component(
+      Style.self({
+        display: 'none',
+        color: ref.text.muted,
+        ...role('body'),
+        fontVariantNumeric: 'tabular-nums',
+      }),
+    ),
+    control: component(
+      Style.self({ position: 'relative', blockSize: edge }),
+      Style.pseudo('[data-labels]', {
+        marginBlockEnd: `calc(${role('caption').lineHeight} + ${gap})`,
+      }),
+      // Beside a vertical track, words take their width rather than a line.
+      Style.pseudo('[data-labels][data-orientation="vertical"]', {
+        marginBlockEnd: ref.space['2xl'],
+      }),
+      // Bottom to top: a vertical writing mode, its inline start at the bottom.
+      Style.pseudo('[data-orientation="vertical"]', {
+        writingMode: 'vertical-lr',
+        direction: 'rtl',
+        inlineSize: 'var(--fk-slider-length, 10rem)',
+      }),
+    ),
     track: component(
       Style.self({
         position: 'absolute',
         insetInlineStart: '0',
         insetInlineEnd: '0',
-        insetBlockStart: '50%',
-        translate: '0 -50%',
+        ...acrossCenter,
         blockSize: edge,
         borderRadius: ref.radius.full,
         background: ref.surface.muted,
@@ -115,19 +170,40 @@ export const Slider = Style.recipeFor(SliderSlots)({
     mark: component(
       Style.self({
         ...overlay,
-        insetBlockStart: '50%',
+        ...acrossCenter,
         insetInlineStart: at,
         marginInlineStart: `calc(${markSize} / -2)`,
-        translate: '0 -50%',
         blockSize: markSize,
         inlineSize: markSize,
         borderRadius: ref.radius.full,
         background: ref.text.muted,
       }),
       Style.pseudo('[data-filled]', { background: toneVar('on-fill') }),
+      Style.pseudo('[data-tick]', { opacity: '0.5' }),
+    ),
+    markLabel: component(
+      Style.self({
+        ...centeredAt,
+        ...upright,
+        insetBlockStart: `calc(100% + ${gap})`,
+        color: ref.text.muted,
+        ...role('caption'),
+      }),
+      Style.nest(vertical, {
+        inlineSize: 'auto',
+        blockSize: '0',
+        ...uprightAt({ left: `calc(100% + ${gap})` }),
+      }),
     ),
     value: component(
-      Style.self({ ...centeredAt, color: ref.text.muted, fontWeight: ref.weight.medium }),
+      Style.self({
+        ...centeredAt,
+        ...upright,
+        color: ref.text.muted,
+        fontWeight: ref.weight.medium,
+      }),
+      // Of no height on a vertical track, so its words center on the thumb there too.
+      Style.nest(vertical, { inlineSize: 'auto', blockSize: '0' }),
     ),
     thumb: component(
       Style.self({
@@ -207,12 +283,20 @@ export const Slider = Style.recipeFor(SliderSlots)({
       above: {
         control: variant(
           Style.pseudo('[data-values]', {
-            marginBlockStart: `calc(${role('caption').lineHeight} + ${ref.space['2xs']})`,
+            marginBlockStart: `calc(${role('caption').lineHeight} + ${gap})`,
+          }),
+          Style.pseudo('[data-values][data-orientation="vertical"]', {
+            marginBlockStart: ref.space['2xl'],
           }),
         ),
         value: variant(
-          Style.self({ insetBlockEnd: `calc(100% + ${ref.space['2xs']})`, ...role('caption') }),
+          Style.self({ insetBlockEnd: `calc(100% + ${gap})`, ...role('caption') }),
+          Style.nest(vertical, uprightAt({ right: `calc(100% + ${gap})` })),
         ),
+      },
+      end: {
+        output: variant(Style.self({ display: 'inline' })),
+        value: variant(Style.self({ display: 'none' })),
       },
       inside: {
         control: variant(
@@ -225,6 +309,7 @@ export const Slider = Style.recipeFor(SliderSlots)({
             color: ref.text.overt,
             ...role('micro'),
           }),
+          Style.nest(vertical, uprightAt({ left: '0', right: '0' })),
         ),
       },
     },
