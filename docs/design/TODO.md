@@ -914,8 +914,8 @@ while keeping the best of what this project already has:
   a primitive: `Tour.Spotlight` follows an element named by its
   `data-target` and writes its box as custom properties, which a coach mark
   or a measuring overlay would reuse from `foldkit-primitives/dom`. The
-  Sidebar's and Tree View's chevrons could draw the recipes' shared
-  `turningChevron` too.
+  Sidebar's and Tree View's chevrons draw the recipes' shared
+  `turningChevron` (done 2026-10-17).
 
 ## React
 

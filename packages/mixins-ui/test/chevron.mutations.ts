@@ -18,24 +18,12 @@ export default [
     tests: [browser],
   },
   {
-    name: "the sidebar's chevron has no right to left turn",
+    name: "the sidebar's chevron is not the shared one's size",
     edits: [
       {
         file: '../src/recipes/sidebar.ts',
-        find: "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),\n",
-        replace: '',
-      },
-    ],
-    tests: [browser],
-  },
-  {
-    name: "the sidebar's right to left turn beats its open one",
-    edits: [
-      {
-        file: '../src/recipes/sidebar.ts',
-        find: "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),\n      Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),",
-        replace:
-          "      Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),\n      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),",
+        find: "turningChevron(open, '0.4em')",
+        replace: "turningChevron(open, '0.5em')",
       },
     ],
     tests: [browser],
@@ -52,12 +40,23 @@ export default [
     tests: [browser],
   },
   {
-    name: "the tree's chevron has no right to left turn",
+    name: 'the shared chevron, open right to left, points along the row',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: "    Style.nest(`:where(${open}) > &:where(:dir(rtl))`, { rotate: '45deg' }),\n",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "the tree's chevron opens with its row, not with the item above it",
     edits: [
       {
         file: '../src/recipes/treeView.ts',
-        find: "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),\n",
-        replace: '',
+        find: 'turningChevron(\'[aria-expanded="true"] > *\', chevronSize)',
+        replace: 'turningChevron(\'[aria-expanded="true"]\', chevronSize)',
       },
     ],
     tests: [browser],
@@ -84,21 +83,15 @@ export default [
     ],
     tests: [browser],
   },
-  ...(
-    [
-      ['design', "    Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
-      ['sidebar', "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
-      ['treeView', "      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),"],
-    ] as const
-  ).map(([recipe, find]) => ({
-    name: `the ${recipe} chevron turns under any right-to-left ancestor`,
+  {
+    name: 'the shared chevron turns under any right-to-left ancestor',
     edits: [
       {
-        file: `../src/recipes/${recipe}.ts`,
-        find,
-        replace: find.replace('&:where(:dir(rtl))', ':where([dir="rtl"]) &'),
+        file: '../src/recipes/design.ts',
+        find: "    Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),",
+        replace: "    Style.nest(':where([dir=\"rtl\"]) &', { rotate: '135deg' }),",
       },
     ],
     tests: [browser],
-  })),
+  },
 ]

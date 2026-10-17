@@ -21,7 +21,7 @@ import {
   ref,
   rowOnLadder,
   transition,
-  travelled,
+  turningChevron,
   unfilledHover,
   variant,
 } from './design.js'
@@ -64,22 +64,11 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
       }),
       Style.nest(':is([aria-disabled="true"]) > &', { opacity: '0.5', cursor: 'not-allowed' }),
     ),
-    // A right angle drawn in CSS, pointing along the row shut and down open.
     chevron: component(
-      Style.self({
-        flexShrink: '0',
-        inlineSize: chevronSize,
-        blockSize: chevronSize,
-        ...cornerSides(ref.border.thick, 'currentColor'),
-        rotate: '-45deg',
-        transitionProperty: 'rotate',
-        transitionDuration: travelled(ref.motion.fast),
-        transitionTimingFunction: ref.motion.settle,
-      }),
+      // Its row is the expanded item's child, so the item opens it from one level up.
+      turningChevron('[aria-expanded="true"] > *', chevronSize),
       // A leaf keeps the chevron's room, so its label lines up with its siblings'.
       Style.nest(':where(:not([aria-expanded])) > * > &', { visibility: 'hidden' }),
-      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),
-      Style.nest(':where([aria-expanded="true"]) > * > &', { rotate: '45deg' }),
     ),
     checkbox: component(
       Style.self({

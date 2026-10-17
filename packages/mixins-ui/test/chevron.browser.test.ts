@@ -184,3 +184,16 @@ test('a complete step draws the same check in either direction', () => {
     )
   expect(check('rtl')).toBe(check('ltr'))
 })
+
+test.each([
+  ['Sidebar', () => classOf(SidebarSlots, Recipes.Sidebar({}), 'chevron')],
+  ['Tree View', () => classOf(TreeViewSlots, Recipes.TreeView({}), 'chevron')],
+] as const)("the %s chevron is the shared one's size, four tenths of its text", (_, chevron) => {
+  const holder = draw(
+    'ltr',
+    `<div aria-expanded="false" style="font-size: 20px"><div><span class="${chevron()}"></span></div></div>`,
+  )
+  const style = getComputedStyle(holder.querySelector('span')!)
+  expect([style.width, style.height, style.borderRightWidth]).toEqual(['8px', '8px', '2px'])
+  expect(style.transitionProperty).toBe('rotate')
+})

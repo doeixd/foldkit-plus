@@ -19,7 +19,6 @@ import { ladder, role, Theme } from 'foldkit-mixins/theme'
 import { SidebarSlots } from '../sidebar.js'
 import {
   component,
-  cornerSides,
   focusRing,
   glide,
   opensBelow,
@@ -27,6 +26,7 @@ import {
   rowOnLadder,
   transition,
   travelled,
+  turningChevron,
   unfilledHover,
   variant,
 } from './design.js'
@@ -208,20 +208,8 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       Style.nest(railed, { display: 'none' }),
     ),
     chevron: component(
-      Style.self({
-        flexShrink: '0',
-        inlineSize: '0.4em',
-        blockSize: '0.4em',
-        marginInlineStart: 'auto',
-        ...cornerSides(ref.border.thick, 'currentColor'),
-        rotate: '-45deg',
-        transitionProperty: 'rotate',
-        transitionDuration: travelled(ref.motion.fast),
-        transitionTimingFunction: ref.motion.settle,
-      }),
-      // Right to left, along the row is the other way; open is down either way.
-      Style.nest('&:where(:dir(rtl))', { rotate: '135deg' }),
-      Style.nest(`:where(${open}) > &`, { rotate: '45deg' }),
+      turningChevron(open, '0.4em'),
+      Style.self({ marginInlineStart: 'auto' }),
       Style.nest(railed, { display: 'none' }),
     ),
     // The one grid row, opened on the section's (or the branch's) `0fr` to `1fr`, clipped here.
