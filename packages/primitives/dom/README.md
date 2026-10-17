@@ -16,6 +16,7 @@ wraps.
 | `InputMask({ pattern })` | Mount | `Input { value, raw }` | `#`, `A`, `*` placeholders |
 | `KeepInView({ selector })` | Mount | nothing | |
 | `Measure({ targets })` | Mount | nothing; writes custom properties | |
+| `TrackBox({ name, radius? })` | Mount | `TrackedTarget { target, found }`; writes custom properties | the target's id in `data-target` |
 | `FluidHover({ name, item, axis, gapClick, gapReach?, follows?, from? })` | Mount | nothing; writes custom properties | `axis`: `x`, `y`, `xy` |
 | `ScrollBars({ idle?, scroller? })` | Mount | nothing; writes custom properties and marks | `idle` in ms, default 600 |
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
@@ -124,6 +125,74 @@ most once a frame, when the element scrolls, when it or a target changes size,
 when the window resizes, when an image or a font inside loads, and on each
 frame of a transition or animation inside. Anything else that moves a target
 without resizing it (a stylesheet added) is seen at the next of these.
+
+**`TrackBox({ name: 'mark', radius: true })`** follows another element's box,
+for an overlay fixed over something outside it: a tour's cutout, a coach
+mark's ring. The element followed is the one whose id is the mounted
+element's `data-target` (`TRACK_TARGET_ATTRIBUTE`), and its box in viewport
+pixels is written on the mounted element as `--fk-mark-x`, `-y`, `-w` and
+`-h`; with `radius`, its top left corner as `--fk-mark-radius`, in pixels
+(`cornerRadius` is the arithmetic: a percentage of the width, at most half
+the shorter side). `trackedBox('mark')` names them. While nothing is followed
+they are removed, so a stylist's fallbacks apply.
+
+```ts
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Mount from 'foldkit/mount'
+import { Schema } from 'effect'
+import { TRACK_TARGET_ATTRIBUTE, TrackBox } from 'foldkit-primitives/dom'
+
+const Message = defineMessageUnion({
+  /** The element marked is `found` on the page, or not. */
+  Marked: { found: Schema.Boolean },
+})
+
+// A ring 4px outside the element whose id is `target`, wherever it scrolls.
+const ring = (target: string, h: HtmlBuilder<typeof Message.Type>): Html =>
+  h.div(
+    [
+      h.Attribute(TRACK_TARGET_ATTRIBUTE, target),
+      h.OnMount(
+        Mount.mapMessage(TrackBox({ name: 'mark', radius: true }), ({ found }) =>
+          Message.Marked({ found }),
+        ),
+      ),
+    ],
+    [
+      h.div(
+        [
+          h.Style({
+            position: 'fixed',
+            left: 'calc(var(--fk-mark-x) - 4px)',
+            top: 'calc(var(--fk-mark-y) - 4px)',
+            width: 'calc(var(--fk-mark-w) + 8px)',
+            height: 'calc(var(--fk-mark-h) + 8px)',
+            borderRadius: 'calc(var(--fk-mark-radius) + 4px)',
+            outline: '2px solid',
+            pointerEvents: 'none',
+          }),
+        ],
+        [],
+      ),
+    ],
+  )
+```
+
+It reads the box again on a scroll anywhere (in any scroller, heard on the
+way down), a window resize, the target's own resize, and any change to the
+document's elements, which is how a target drawn anew under the same id, or
+drawn late, is found. `data-target` is read again whenever it changes, so
+one element glides from target to target, which args, read once, could not
+do; anything else that moves the target (a stylesheet added) is seen at the
+next of these. Whether the target is on the page is the parent's to act on,
+so each change of target, or of whether it is found, sends `TrackedTarget {
+target, found }`, the first at insert; an empty `data-target` follows
+nothing and sends nothing. Since it sends a Message, a component may draw it
+by default, and a Scene test resolves it with what the parent maps it to.
+Unlike `Measure`, which places an overlay inside its own scroll box over
+an element in it, the target here can be anywhere on the page, and the box
+is the viewport's. `foldkit-mixins-ui`'s Tour draws its cutout with it.
 
 **`FluidHover({ name: 'hover', item: '[data-item]', axis: 'y', gapClick: true })`**
 moves one highlight across a container's items: the item nearest the pointer is
