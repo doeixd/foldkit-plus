@@ -87,7 +87,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/command.ts',
-        find: "        direction: 'ltr',\n        unicodeBidi: 'isolate',\n",
+        find: "Style.nest('& > *', { direction: 'ltr', unicodeBidi: 'isolate' }),",
         replace: '',
       },
     ],

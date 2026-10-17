@@ -62,7 +62,7 @@ export default [
     edits: [
       {
         file: '../src/menu.ts',
-        find: 'item: \'[role="menuitem"]\',',
+        find: 'item: \'[role^="menuitem"]\',',
         replace: 'item: \'[role="none"]\',',
       },
     ],

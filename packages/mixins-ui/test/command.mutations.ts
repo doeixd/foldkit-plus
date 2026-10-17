@@ -176,15 +176,4 @@ export default [
     edits: [{ file, find: '[keys(hint.keys), hint.label]', replace: '[keys(hint.keys)]' }],
     tests: [browser],
   },
-  {
-    name: "a shortcut's keys take the row's direction",
-    edits: [
-      {
-        file: recipe,
-        find: "Style.nest('& > *', { direction: 'ltr', unicodeBidi: 'isolate' }),",
-        replace: '',
-      },
-    ],
-    tests: ['packages/mixins-ui/test/lists.browser.test.ts'],
-  },
 ]
