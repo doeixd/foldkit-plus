@@ -1,6 +1,6 @@
 /**
  * `PointerPosition` on a real element with a border and padding: places are
- * read in its content box, a real drag that leaves the element is still
+ * read in its padding box, where a positioned thumb is laid out, a real drag that leaves the element is still
  * heard through the capture, the moves and the release are listened to only
  * during a press, and a Mount ended mid-press lets go of what it held.
  */
@@ -18,8 +18,9 @@ afterEach(() => {
 const DURING = ['pointermove', 'pointerup', 'pointercancel', 'lostpointercapture']
 
 /**
- * A 200 by 100 content box behind a 3px border and 10px by 20px of padding,
- * at 50, 40, with a thumb inside and an empty place below it.
+ * A 240 by 120 padding box (a 200 by 100 content box in 10px by 20px of
+ * padding) behind a 3px border at 50, 40, with a thumb inside and an empty
+ * place below it.
  */
 const mount = async (focus?: string) => {
   const element = document.createElement('div')
@@ -55,7 +56,7 @@ const mount = async (focus?: string) => {
   }
 }
 
-/** A pointer event at `x`, `y` of the content box at 73, 53; returns whether it was cancelled. */
+/** A pointer event at `x`, `y` of the padding box at 53, 43; returns whether it was cancelled. */
 const fire = (element: Element, type: string, init: PointerEventInit & { x: number; y: number }) =>
   !element.dispatchEvent(
     new PointerEvent(type, {
@@ -65,12 +66,12 @@ const fire = (element: Element, type: string, init: PointerEventInit & { x: numb
       button: 0,
       pressure: 0.5,
       ...init,
-      clientX: 73 + init.x,
-      clientY: 53 + init.y,
+      clientX: 53 + init.x,
+      clientY: 43 + init.y,
     }),
   )
 
-it('reads places in the content box, inside the border and the padding', async () => {
+it('reads places in the padding box, inside the border and over the padding', async () => {
   const { element, heard, stop } = await mount()
   try {
     const cancelled = fire(element, 'pointerdown', { x: 15, y: 7, pointerType: 'pen' })
@@ -81,15 +82,15 @@ it('reads places in the content box, inside the border and the padding', async (
       .toEqual([
         {
           _tag: 'PointerPressed',
-          width: 200,
-          height: 100,
+          width: 240,
+          height: 120,
           point: { x: 15, y: 7, pressure: 0.5 },
           pointerType: 'pen',
         },
         {
           _tag: 'PointerMoved',
-          width: 200,
-          height: 100,
+          width: 240,
+          height: 120,
           point: { x: 150, y: 90, pressure: 0.25 },
           points: [{ x: 150, y: 90, pressure: 0.25 }],
         },
@@ -102,7 +103,7 @@ it('reads places in the content box, inside the border and the padding', async (
   }
 })
 
-it("reports a move's coalesced places, in the content box", async () => {
+it("reports a move's coalesced places, in the padding box", async () => {
   const { element, heard, stop } = await mount()
   try {
     fire(element, 'pointerdown', { x: 0, y: 0 })
@@ -110,8 +111,8 @@ it("reports a move's coalesced places, in the content box", async () => {
       at =>
         new PointerEvent('pointermove', {
           pointerId: 7,
-          clientX: 73 + at,
-          clientY: 53 + at,
+          clientX: 53 + at,
+          clientY: 43 + at,
           pressure: at / 80,
         }),
     )
@@ -136,7 +137,7 @@ it('hears a real drag that leaves the element, through the capture', async () =>
     await userEvent.dragAndDrop(element, elsewhere)
     await expect.poll(() => heard.at(-1)).toEqual({ _tag: 'PointerReleased', completed: true })
     const moves = heard.filter(Schema.is(PointerMoved)).map(fact => fact.point)
-    // Over `elsewhere`, far to the right of and below the content box.
+    // Over `elsewhere`, far to the right of and below the padding box.
     expect(moves.at(-1)?.x).toBeGreaterThan(300)
     expect(moves.at(-1)?.y).toBeGreaterThan(200)
   } finally {

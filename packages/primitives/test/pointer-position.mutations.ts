@@ -8,29 +8,23 @@ const browser = 'packages/primitives/test/pointer-position.browser.test.ts'
 
 export default [
   {
-    name: 'the content box starts at the border, not inside it',
+    name: 'the padding box starts at the border, not inside it',
+    edits: [{ file: source, find: 'left: rect.left + border.left,', replace: 'left: rect.left,' }],
+    tests: [unit, browser],
+  },
+  {
+    name: "the padding box's width keeps the border",
     edits: [
       {
         file: source,
-        find: 'left: rect.left + border.left + padding.left,',
-        replace: 'left: rect.left + padding.left,',
+        find: 'width: Math.max(0, rect.width - border.left - border.right),',
+        replace: 'width: Math.max(0, rect.width),',
       },
     ],
     tests: [unit, browser],
   },
   {
-    name: "the content box's width keeps the padding",
-    edits: [
-      {
-        file: source,
-        find: 'rect.width - border.left - border.right - padding.left - padding.right',
-        replace: 'rect.width - border.left - border.right',
-      },
-    ],
-    tests: [unit, browser],
-  },
-  {
-    name: 'a box narrower than its sides is negative',
+    name: 'a box narrower than its border is negative',
     edits: [
       {
         file: source,
@@ -45,12 +39,31 @@ export default [
     edits: [
       {
         file: source,
-        find: 'border: sidesOf(style, side => `border-${side}-width`),',
-        replace: 'border: { top: 0, right: 0, bottom: 0, left: 0 },',
+        find: 'border: borderOf(getComputedStyle(element))',
+        replace: 'border: { top: 0, right: 0, bottom: 0, left: 0 }',
       },
     ],
     // The signature pad's 1px border once offset every stroke.
     tests: [browser, 'packages/mixins-ui/test/signaturePad.browser.test.ts'],
+  },
+  {
+    // What it read before: a thumb or a stroke laid out against the padding
+    // box then sat off the pointer by the padding.
+    name: 'places are read in the content box',
+    edits: [
+      {
+        file: source,
+        find: 'border: borderOf(getComputedStyle(element)),',
+        replace:
+          'border: ((style, border) => ({ top: border.top + parseFloat(style.paddingTop), right: border.right + parseFloat(style.paddingRight), bottom: border.bottom + parseFloat(style.paddingBottom), left: border.left + parseFloat(style.paddingLeft) }))(getComputedStyle(element), borderOf(getComputedStyle(element))),',
+      },
+    ],
+    tests: [
+      browser,
+      'packages/mixins-ui/test/colorPicker.browser.test.ts',
+      'packages/mixins-ui/test/angleSlider.browser.test.ts',
+      'packages/mixins-ui/test/signaturePad.browser.test.ts',
+    ],
   },
   {
     name: 'the pressure is not the pointer’s',

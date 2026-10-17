@@ -222,8 +222,10 @@ input. `applyMask(value, pattern)` is the pure rule.
 For a surface the pointer points into or draws on: a color area, a dial, a
 signature pad. A primary press, each move until the release, and the release
 reach the parent as Messages, each place in CSS pixels from the top left of
-the element's **content box** (inside its border and padding) with the box's
-size at that event, so a share across is `point.x / width`.
+the element's **padding box** (inside its border, padding included) with the
+box's size at that event, so a share across is `point.x / width`. That is the
+box an absolutely positioned thumb or stroke is laid out against, so a place
+read here is where such a child sits, whatever padding a stylist adds.
 
 ```ts
 import { Match, Schema } from 'effect'
@@ -275,7 +277,10 @@ place may lie outside the box (negative, or past `width`): clamping is the
 parent's. Coordinates are raw, left to right whatever the direction, so a
 right-to-left reading is the parent's too. The moves and the release are
 listened to only during a press; a second pointer meanwhile is ignored. The
-box is measured at each event, never kept. `contentBoxOf` is the arithmetic.
+box is measured at each event, never kept. `paddingBoxOf` is the arithmetic,
+and `measurePaddingBox(element)` the same measure, for a size kept beside the
+places (a `ResizeObserver` reports the content box, which padding makes
+smaller).
 
 It is not `Move`, which reports how far the pointer went from where it went
 down and nothing about where in the element that is, nor `PointerDrag`, which

@@ -2,7 +2,7 @@ import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 
 /**
- * A place in an element's content box, in CSS pixels from its top left
+ * A place in an element's padding box, in CSS pixels from its top left
  * corner, and the pointer's pressure there (0 to 1; a mouse reads 0.5 while
  * a button is down). A captured pointer can be outside the box, so `x` and
  * `y` can be negative or past its size.
@@ -14,7 +14,7 @@ export const PointerPoint = Schema.Struct({
 })
 export type PointerPoint = typeof PointerPoint.Type
 
-/** The content box's size at the event, in CSS pixels. */
+/** The padding box's size at the event, in CSS pixels. */
 const Size = { width: Schema.Number, height: Schema.Number }
 
 export const PointerPressed = Schema.TaggedStruct('PointerPressed', {
@@ -53,7 +53,7 @@ interface Sides {
   readonly left: number
 }
 
-export interface ContentBox {
+export interface Rect {
   readonly left: number
   readonly top: number
   readonly width: number
@@ -61,42 +61,42 @@ export interface ContentBox {
 }
 
 /**
- * The content box of an element whose border box is `rect`: inside its
- * border and its padding, where what it draws in flow is laid out.
+ * The padding box of an element whose border box is `rect`: inside its
+ * border, padding included. An absolutely positioned child (a thumb, a
+ * stroke) is laid out against it, so a place read here is where that child
+ * sits, whatever padding a stylist adds.
  */
-export const contentBoxOf = (layout: {
-  readonly rect: ContentBox
-  readonly border: Sides
-  readonly padding: Sides
-}): ContentBox => {
-  const { rect, border, padding } = layout
+export const paddingBoxOf = (layout: { readonly rect: Rect; readonly border: Sides }): Rect => {
+  const { rect, border } = layout
   return {
-    left: rect.left + border.left + padding.left,
-    top: rect.top + border.top + padding.top,
-    width: Math.max(0, rect.width - border.left - border.right - padding.left - padding.right),
-    height: Math.max(0, rect.height - border.top - border.bottom - padding.top - padding.bottom),
+    left: rect.left + border.left,
+    top: rect.top + border.top,
+    width: Math.max(0, rect.width - border.left - border.right),
+    height: Math.max(0, rect.height - border.top - border.bottom),
   }
 }
 
-const sidesOf = (style: CSSStyleDeclaration, property: (side: string) => string): Sides => ({
-  top: parseFloat(style.getPropertyValue(property('top'))),
-  right: parseFloat(style.getPropertyValue(property('right'))),
-  bottom: parseFloat(style.getPropertyValue(property('bottom'))),
-  left: parseFloat(style.getPropertyValue(property('left'))),
+const borderOf = (style: CSSStyleDeclaration): Sides => ({
+  top: parseFloat(style.borderTopWidth),
+  right: parseFloat(style.borderRightWidth),
+  bottom: parseFloat(style.borderBottomWidth),
+  left: parseFloat(style.borderLeftWidth),
 })
 
-// From the bounding rectangle and the computed sides rather than
-// `clientWidth`, which rounds to whole pixels.
-const measure = (element: Element): ContentBox => {
-  const style = getComputedStyle(element)
-  return contentBoxOf({
+/**
+ * An element's padding box now, in the viewport, as `PointerPosition`
+ * measures it: for a size kept beside its places, which a `ResizeObserver`'s
+ * content box does not match once the element has padding. Read from the
+ * bounding rectangle and the computed border, since `clientWidth` and
+ * `clientLeft` round to whole pixels.
+ */
+export const measurePaddingBox = (element: Element): Rect =>
+  paddingBoxOf({
     rect: element.getBoundingClientRect(),
-    border: sidesOf(style, side => `border-${side}-width`),
-    padding: sidesOf(style, side => `padding-${side}`),
+    border: borderOf(getComputedStyle(element)),
   })
-}
 
-const pointIn = (box: ContentBox, event: PointerEvent): PointerPoint => ({
+const pointIn = (box: Rect, event: PointerEvent): PointerPoint => ({
   x: event.clientX - box.left,
   y: event.clientY - box.top,
   pressure: event.pressure,
@@ -106,7 +106,7 @@ const pointIn = (box: ContentBox, event: PointerEvent): PointerPoint => ({
  * Where one pointer is inside an element, as a Mount, for a surface the
  * pointer draws on or points into (a color area, a dial, a signature pad): a
  * primary press, each move until the release, and the release, each with
- * the place in the element's content box and the box's size. The box is
+ * the place in the element's padding box and the box's size. The box is
  * measured at each event, so an element that moved or resized is followed.
  * Coordinates are raw, left to right and top down whatever the direction:
  * what a place means (a share, an angle, a reading direction) is the parent's.
@@ -152,7 +152,7 @@ export const PointerPosition = Mount.defineStream('PointerPosition', {
           }
           const move = (event: Event) => {
             if (!ours(event)) return
-            const box = measure(element)
+            const box = measurePaddingBox(element)
             const point = pointIn(box, event)
             // Safari coalesces none and has no method for it.
             const coalesced = event.getCoalescedEvents?.() ?? []
@@ -193,7 +193,7 @@ export const PointerPosition = Mount.defineStream('PointerPosition', {
               const into = element.querySelector(focus)
               if (into instanceof HTMLElement) into.focus()
             }
-            const box = measure(element)
+            const box = measurePaddingBox(element)
             offer(
               PointerPressed.make({
                 width: box.width,
