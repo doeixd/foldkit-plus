@@ -13,6 +13,9 @@ import type { MixinList } from './resolve.js'
  * step ahead never is, since reaching it is the form's job, not the list's.
  * A step's `icon` stands in the marker for its number, and its `content`
  * follows it in the item, beside the connector in a vertical stepper.
+ * `progress`, how far the current step has gone, is the root's
+ * `--fk-steps-progress`, which the recipe's `connector: 'progress'` fills
+ * the current step's connector by.
  */
 export const StepsSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, attributes: [Attr.AriaLabel] }),
@@ -47,6 +50,8 @@ export interface StepsView<Message> {
   readonly current: number
   /** Makes each completed step a button that sends this with its index. */
   readonly onSelect?: ((index: number) => NoInfer<Message>) | undefined
+  /** How far the current step has gone, 0 to 1; outside that, the nearest end. */
+  readonly progress?: number | undefined
   /** A style of `StepsSlots`, for the look. */
   readonly style?: NamedStyle<typeof StepsSlots> | undefined
   /** Mixins beside the style. */
@@ -66,8 +71,14 @@ export const view = <Message>(options: StepsView<Message>, h: HtmlBuilder<Messag
   )
   const last = options.steps.length - 1
   const onSelect = options.onSelect
+  const progress = options.progress
   return h.ol(
-    builders.root.attrs([h.AriaLabel(options.label)]),
+    builders.root.attrs([
+      h.AriaLabel(options.label),
+      ...(progress === undefined
+        ? []
+        : [h.Style({ '--fk-steps-progress': String(Math.min(1, Math.max(0, progress))) })]),
+    ]),
     options.steps.map((step, index) => {
       const state = stateOf(index, options.current)
       const marked = h.DataAttribute('state', state)

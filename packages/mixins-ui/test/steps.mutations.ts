@@ -131,4 +131,71 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a marker of the md size is not the md Avatar',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "md: marker('2.5rem'",
+        replace: "md: marker('1.75rem'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "a step's content takes the size of the page",
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "Style.self({ minInlineSize: '0', ...role('body'), color: ref.text.muted })",
+        replace: "Style.self({ minInlineSize: '0', color: ref.text.muted })",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the current step fills its connector whatever its progress',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "'--_fk-steps-fill': 'var(--fk-steps-progress, 0)'",
+        replace: "'--_fk-steps-fill': '1'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a complete step leaves its connector empty',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "'--_fk-steps-fill': '1'",
+        replace: "'--_fk-steps-fill': '0'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the Progress connector is as thin as a line',
+    edits: [{ file: '../src/recipes/steps.ts', find: "'--_fk-steps-line': track,", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'a dot marker draws no dot',
+    edits: [
+      { file: '../src/recipes/steps.ts', find: 'inlineSize: dot,', replace: "inlineSize: '0'," },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'progress past the end is drawn past it',
+    edits: [
+      {
+        file: '../src/steps.ts',
+        find: 'String(Math.min(1, Math.max(0, progress)))',
+        replace: 'String(progress)',
+      },
+    ],
+    tests: [unit],
+  },
 ]

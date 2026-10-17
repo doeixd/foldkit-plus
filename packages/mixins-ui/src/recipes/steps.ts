@@ -6,11 +6,19 @@
  * the steps in a row as wide as its container, the lines stretching between
  * them, and below 32rem only the current step's label shows;
  * `orientation: 'vertical'` stacks them, each line running down from under
- * its marker beside the step's content. The states fade on the fast tier;
- * nothing moves. `size` sets the marker on the Avatar's steps: `sm` 1.5rem,
- * `md` 1.75rem (the default), `lg` 2.5rem. A step's icon in the marker is
- * hidden under the check once the step is complete. The horizontal row
- * draws no step's `content`, having no room under each step for it.
+ * its marker beside the step's content, in the body's size under its
+ * title. The states fade on the fast tier; nothing moves. A step's icon in
+ * the marker is hidden under the check once the step is complete. The
+ * horizontal row draws no step's `content`, having no room under each step
+ * for it.
+ *
+ * `size` sets the marker on the Avatar's sizes, so an avatar or its
+ * initials fit one: `xs` 1.25rem, `sm` 1.5rem, `md` 2.5rem, `lg` 3.5rem;
+ * unset, it is 1.75rem. `marker: 'dot'` draws each marker as the Badge's
+ * dot, no number, the current one ringed. `connector: 'progress'` draws the
+ * connectors as the Progress bar's track, filled after a complete step and,
+ * after the current one, by the view's `progress`; the fill grows on the
+ * moderate tier, and only where motion travels.
  */
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
@@ -21,6 +29,7 @@ import {
   focusRing,
   ref,
   transition,
+  travelled,
   unfilledHover,
   variant,
 } from './design.js'
@@ -30,6 +39,12 @@ const current = '[data-state="current"]'
 const upcoming = '[data-state="upcoming"]'
 
 const markerSize = 'var(--_fk-steps-marker)'
+// The Progress bar's track.
+const track = '0.5rem'
+// The Badge's dot, a touch larger to stand as a marker.
+const dot = '0.5rem'
+const fill = 'var(--_fk-steps-fill, 0)'
+const line = `var(--_fk-steps-line, ${ref.border.thick})`
 
 const marker = (size: string, fontSize: string) => ({
   root: variant(Style.self({ '--_fk-steps-marker': size, '--_fk-steps-marker-text': fontSize })),
@@ -132,7 +147,8 @@ export const Steps = Style.recipeFor(StepsSlots)({
       Style.pseudo(current, { color: ref.text.overt, fontWeight: ref.weight.medium }),
     ),
     description: component(Style.self({ ...role('caption'), color: ref.text.muted })),
-    content: component(Style.self({ minInlineSize: '0', color: ref.text.default })),
+    // Under the title and no larger: a body's size, muted, so the title leads.
+    content: component(Style.self({ minInlineSize: '0', ...role('body'), color: ref.text.muted })),
     connector: component(
       Style.self({ background: ref.outline.subtle, ...transition('background-color') }),
       Style.pseudo(complete, { background: ref.accent.default }),
@@ -179,13 +195,21 @@ export const Steps = Style.recipeFor(StepsSlots)({
           ),
         ),
         content: variant(Style.self({ display: 'none' })),
-        // On the markers' middle line, wherever the text below them ends.
+        // On the markers' middle line, wherever the text below them ends; as
+        // thick as the line, or as the Progress track.
         connector: variant(
           Style.self({
             flex: '1',
             minInlineSize: ref.space.md,
-            blockSize: ref.border.thick,
-            marginBlockStart: `calc((${markerSize} - ${ref.border.thick}) / 2)`,
+            blockSize: line,
+            marginBlockStart: `calc((${markerSize} - ${line}) / 2)`,
+          }),
+          Style.nest('&::before', {
+            blockSize: '100%',
+            inlineSize: `calc(${fill} * 100%)`,
+            transitionProperty: 'inline-size',
+            transitionDuration: travelled(ref.motion.moderate),
+            transitionTimingFunction: ref.motion.settle,
           }),
         ),
       },
@@ -218,17 +242,81 @@ export const Steps = Style.recipeFor(StepsSlots)({
             gridColumn: '1',
             gridRow: '1 / 3',
             justifySelf: 'center',
-            inlineSize: ref.border.thick,
+            inlineSize: line,
             minBlockSize: ref.space.lg,
             marginBlockStart: markerSize,
+          }),
+          Style.nest('&::before', {
+            inlineSize: '100%',
+            blockSize: `calc(${fill} * 100%)`,
+            transitionProperty: 'block-size',
+            transitionDuration: travelled(ref.motion.moderate),
+            transitionTimingFunction: ref.motion.settle,
           }),
         ),
       },
     },
+    // The Avatar's sizes and their text.
     size: {
+      xs: marker('1.25rem', `calc(${ref.size.xs} * 0.75)`),
       sm: marker('1.5rem', ref.size.xs),
-      md: marker('1.75rem', role('caption').fontSize),
-      lg: marker('2.5rem', ref.size.sm),
+      md: marker('2.5rem', ref.size.sm),
+      lg: marker('3.5rem', role('subtitle').fontSize),
+    },
+    marker: {
+      number: {},
+      // The Badge's dot, centred in a box of the marker's size, so titles and lines keep their places.
+      dot: {
+        marker: variant(
+          Style.self({
+            border: '0',
+            background: 'transparent',
+            color: 'transparent',
+          }),
+          Style.nest('&::before', {
+            content: '""',
+            inlineSize: dot,
+            blockSize: dot,
+            borderRadius: ref.radius.full,
+            background: ref.outline.default,
+            ...transition('background-color, box-shadow'),
+          }),
+          Style.nest('& > *', { display: 'none' }),
+          Style.nest(`&:is(${complete}, ${current})::before`, { background: ref.accent.default }),
+          Style.nest(`&${current}::before`, {
+            boxShadow: `0 0 0 0.25rem ${ref.accent.subtle}`,
+          }),
+          Style.nest(`&${complete}::after`, { display: 'none' }),
+          Style.pseudo(`:is(${complete}, ${current})`, {
+            background: 'transparent',
+            color: 'transparent',
+          }),
+        ),
+      },
+    },
+    connector: {
+      line: {},
+      progress: {
+        connector: variant(
+          Style.self({
+            position: 'relative',
+            overflow: 'hidden',
+            borderRadius: ref.radius.full,
+            background: ref.outline.subtle,
+            '--_fk-steps-line': track,
+          }),
+          Style.pseudo(complete, { background: ref.outline.subtle, '--_fk-steps-fill': '1' }),
+          Style.pseudo(current, { '--_fk-steps-fill': 'var(--fk-steps-progress, 0)' }),
+          Style.nest('&::before', {
+            content: '""',
+            position: 'absolute',
+            insetInlineStart: '0',
+            insetBlockStart: '0',
+            borderRadius: ref.radius.full,
+            background: ref.accent.default,
+          }),
+        ),
+      },
     },
   },
   defaults: { orientation: 'horizontal' },

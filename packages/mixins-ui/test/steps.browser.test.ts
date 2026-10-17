@@ -2,7 +2,10 @@
  * Steps laid out by a real browser: a vertical stepper's line runs from a
  * marker's foot to the next marker's top, however tall the words beside it,
  * and a row in a phone-wide container shows only the current step's label,
- * clear of its neighbours' markers.
+ * clear of its neighbours' markers; a marker of each size is the Avatar of
+ * that size; a step's content is no larger than its title; the Progress
+ * connector fills after a complete step and, after the current one, by the
+ * share done; and a dot marker is the Badge's dot.
  */
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -10,7 +13,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { Recipes, Steps, StepsSlots } from '../src/index.js'
+import { Avatar, AvatarSlots, Recipes, Steps, StepsSlots } from '../src/index.js'
 
 const Model = Schema.Struct({})
 
@@ -26,15 +29,29 @@ const steps = [
   { title: 'Done' },
 ]
 
-const mount = (orientation: 'horizontal' | 'vertical', width: string) => {
-  const style = Style.forSlots(StepsSlots)(Recipes.Steps({ orientation }))
+type Selection = Parameters<typeof Recipes.Steps>[0]
+
+const mount = (
+  orientation: 'horizontal' | 'vertical',
+  width: string,
+  more: {
+    readonly selection?: Selection
+    readonly progress?: number
+    readonly steps?: (h: HtmlBuilder<never>) => ReadonlyArray<Steps.Step>
+    readonly avatar?: 'xs' | 'sm' | 'md' | 'lg'
+  } = {},
+) => {
+  const style = Style.forSlots(StepsSlots)(Recipes.Steps({ orientation, ...more.selection }))
+  const avatar = Style.forSlots(AvatarSlots)(Recipes.Avatar({ size: more.avatar ?? 'md' }))
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
     Style.stylesheet(
       Layers.standard.declare,
       Layers.standard.in('theme', Theme.root(Theme.tokens)),
-    ) + style.css
+    ) +
+    style.css +
+    avatar.css
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'steps-browser'
@@ -48,7 +65,21 @@ const mount = (orientation: 'horizontal' | 'vertical', width: string) => {
       view: (_: unknown, h: HtmlBuilder<never>) =>
         h.div(
           [h.Style({ inlineSize: width })],
-          [Steps.view({ label: 'Sign up', steps, current: 1, style }, h)],
+          [
+            Steps.view(
+              {
+                label: 'Sign up',
+                steps: more.steps?.(h) ?? steps,
+                current: 1,
+                progress: more.progress,
+                style,
+              },
+              h,
+            ),
+            ...(more.avatar === undefined
+              ? []
+              : [Avatar.view({ name: 'Ada Lovelace', style: avatar }, h)]),
+          ],
         ),
     }),
   )
@@ -92,6 +123,81 @@ test('a phone-wide row shows the current label alone, clear of the markers besid
     expect(ink.getClientRects()).toHaveLength(1)
     expect(words.right).toBeLessThanOrEqual(markers()[2]!.getBoundingClientRect().left)
     expect(words.left).toBeGreaterThanOrEqual(markers()[1]!.getBoundingClientRect().right)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test.each(['xs', 'sm', 'md', 'lg'] as const)(
+  'a %s marker is the Avatar of that size',
+  async size => {
+    const handle = mount('horizontal', '40rem', { selection: { size }, avatar: size })
+    try {
+      await vi.waitFor(() => expect(markers()).toHaveLength(4))
+      const disc = document.querySelector('[role="img"]')
+      if (!(disc instanceof HTMLElement)) throw new Error('no avatar')
+      const marker = markers()[0]!.getBoundingClientRect()
+      expect(marker.width).toBeCloseTo(disc.getBoundingClientRect().width, 1)
+      expect(marker.height).toBeCloseTo(disc.getBoundingClientRect().height, 1)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+test('the content of a vertical step is no larger than its title', async () => {
+  const handle = mount('vertical', '24rem', {
+    steps: h => [
+      { title: 'Account', content: h.p([], ['Your name and your email.']) },
+      { title: 'Plan', content: h.p([], ['Pick a tier.']) },
+    ],
+  })
+  try {
+    await vi.waitFor(() => expect(markers()).toHaveLength(2))
+    const title = all('li [data-state][aria-hidden] + span > span')[0]!
+    const content = all('li > div[data-state]')[0]!
+    expect(content.textContent).toBe('Your name and your email.')
+    expect(parseFloat(getComputedStyle(content).fontSize)).toBeLessThanOrEqual(
+      parseFloat(getComputedStyle(title).fontSize),
+    )
+  } finally {
+    handle.dispose()
+  }
+})
+
+test.each(['horizontal', 'vertical'] as const)(
+  'a %s Progress connector fills after a complete step, and by the share done after the current one',
+  async orientation => {
+    const handle = mount(orientation, '32rem', {
+      selection: { connector: 'progress' },
+      progress: 0.5,
+    })
+    try {
+      await vi.waitFor(() => expect(markers()).toHaveLength(4))
+      const lines = all('li > span[aria-hidden="true"]')
+      const along = orientation === 'horizontal' ? 'width' : 'height'
+      const across = orientation === 'horizontal' ? 'height' : 'width'
+      // The Progress bar's track, thicker than a line.
+      expect(lines[0]!.getBoundingClientRect()[across]).toBeCloseTo(8, 0)
+      const share = (line: HTMLElement) =>
+        parseFloat(getComputedStyle(line, '::before')[along]) / line.getBoundingClientRect()[along]
+      await vi.waitFor(() => expect(share(lines[0]!)).toBeCloseTo(1, 2))
+      expect(share(lines[1]!)).toBeCloseTo(0.5, 2)
+      expect(share(lines[2]!)).toBe(0)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+test('a dot marker is the dot of a Badge, its number hidden', async () => {
+  const handle = mount('horizontal', '40rem', { selection: { marker: 'dot' } })
+  try {
+    await vi.waitFor(() => expect(markers()).toHaveLength(4))
+    const dot = getComputedStyle(markers()[2]!, '::before')
+    expect(dot.width).toBe('8px')
+    expect(dot.height).toBe('8px')
+    expect(getComputedStyle(markers()[2]!).color).toBe('rgba(0, 0, 0, 0)')
   } finally {
     handle.dispose()
   }

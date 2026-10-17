@@ -43,6 +43,22 @@ describe('Steps.view', () => {
     expect(Inert.text(items[0])).toBe('1AccountYour details')
   })
 
+  it('carries the current step’s progress, held between 0 and 1, only when given', () => {
+    const progress = (value: number | undefined) =>
+      Inert.style(
+        Inert.byTag(
+          Steps.view({ label: 'Checkout', steps, current: 2, progress: value, style }, h),
+          'ol',
+        )[0],
+      )['--fk-steps-progress']
+    expect([progress(0.3), progress(1.5), progress(-1), progress(undefined)]).toEqual([
+      '0.3',
+      '1',
+      '0',
+      undefined,
+    ])
+  })
+
   it('hides the number, which the list position already says', () => {
     const drawn = Steps.view({ label: 'Checkout', steps, current: 2, style }, h)
     const markers = Inert.byTag(drawn, 'span').filter(span => Inert.text(span) === '1')
@@ -117,12 +133,6 @@ describe('Steps.view', () => {
 describe('Steps recipe', () => {
   const css = (selection: Parameters<typeof Recipes.Steps>[0]) =>
     Style.forSlots(StepsSlots)(Recipes.Steps(selection)).css
-
-  it('sizes the marker on the Avatar’s steps', () => {
-    expect(css({})).toContain('--_fk-steps-marker:1.75rem')
-    expect(css({ size: 'sm' })).toContain('--_fk-steps-marker:1.5rem')
-    expect(css({ size: 'lg' })).toContain('--_fk-steps-marker:2.5rem')
-  })
 
   it('hides an icon under the check once its step is complete', () => {
     expect(css({})).toMatch(/\[data-state="complete"\] > \*\{visibility:hidden/)
