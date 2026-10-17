@@ -5,6 +5,8 @@
  * is the `separator` axis (`slash`, `chevron`, `dot`), and a separator the
  * view draws itself (`data-separator="custom"` on the list) stands in its
  * place. The chevron is drawn in CSS and points the other way right to left.
+ * The ellipsis of a folded trail looks the same whether it expands the
+ * trail or opens a Menu of the hidden steps.
  */
 import { Style, type Declarations } from 'foldkit-mixins'
 import { BreadcrumbSlots } from '../breadcrumb.js'
@@ -69,12 +71,14 @@ export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
     separator: component(
       Style.self({ display: 'inline-flex', alignItems: 'center', color: ref.text.muted }),
     ),
-    ellipsis: component(
+    // In the variants layer: as a Menu's trigger, it stands over the Menu style's own button.
+    ellipsis: variant(
       Style.self({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         minInlineSize: '1.5rem',
+        minBlockSize: '0',
         padding: `0 ${ref.space['3xs']}`,
         border: '0',
         borderRadius: ref.radius.sm,

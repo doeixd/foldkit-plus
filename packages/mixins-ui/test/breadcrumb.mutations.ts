@@ -5,6 +5,8 @@
  */
 const tests = ['packages/mixins-ui/test/breadcrumb.test.ts']
 
+const menu = 'packages/mixins-ui/test/breadcrumbMenu.browser.test.ts'
+
 export default [
   {
     name: 'the current page links onward',
@@ -55,8 +57,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: 'h.OnClick(collapse.onExpand),',
-        replace: '',
+        find: ', h.OnClick(collapse.onExpand)]',
+        replace: ']',
       },
     ],
     tests,
@@ -120,5 +122,60 @@ export default [
     name: 'a maximum of NaN folds the trail into itself',
     edits: [{ file: '../src/breadcrumb.ts', find: 'Number.isNaN(kept) || ', replace: '' }],
     tests,
+  },
+  {
+    name: 'the Menu holds every step',
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: 'collapsedOf(steps, max).hidden.map(step => ({ label: step.label }))',
+        replace: 'steps.map(step => ({ label: step.label }))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a chosen row stands for no step',
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: 'step.label === value',
+        replace: 'step.label !== value',
+      },
+    ],
+    tests: [...tests, menu],
+  },
+  {
+    name: 'the Menu draws no rows',
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: 'rows: hidden.map(step => ({ label: step.label })),',
+        replace: 'rows: [],',
+      },
+    ],
+    tests: [menu],
+  },
+  {
+    name: "the Menu's trigger goes unnamed",
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: 'attributes: () => builders.ellipsis.attrs([h.AriaLabel(label)]),',
+        replace: 'attributes: () => builders.ellipsis.attrs(),',
+      },
+    ],
+    tests: [menu],
+  },
+  {
+    name: "the ellipsis loses to the Menu style's trigger",
+    edits: [
+      {
+        file: '../src/recipes/breadcrumb.ts',
+        find: 'ellipsis: variant(',
+        replace: 'ellipsis: component(',
+      },
+    ],
+    tests: [menu],
   },
 ]

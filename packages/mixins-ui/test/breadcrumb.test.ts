@@ -5,10 +5,11 @@
  * separator of the application's own; and a recipe whose `separator` axis
  * picks the divider drawn between steps.
  */
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { BreadcrumbSlots, collapsedOf, view } from '../src/breadcrumb.js'
+import { BreadcrumbSlots, chosen, collapsedOf, menuRows, view } from '../src/breadcrumb.js'
 import { Recipes } from '../src/index.js'
 import { h as messaging, message } from './fixture.js'
 
@@ -35,8 +36,9 @@ describe('BreadcrumbSlots', () => {
       'icon',
       'separator',
       'ellipsis',
+      'dots',
     ])
-    for (const name of ['root', 'list', 'item', 'current', 'icon', 'separator'] as const) {
+    for (const name of ['root', 'list', 'item', 'current', 'icon', 'separator', 'dots'] as const) {
       expect(BreadcrumbSlots[name]?.capability).toBe(Capability.Container)
     }
     expect(BreadcrumbSlots.link?.capability).toBe(Capability.Interactive)
@@ -72,6 +74,23 @@ describe('collapsedOf', () => {
     const { before, after } = collapsedOf(long, 0)
     expect(labels(before)).toEqual(['Home'])
     expect(labels(after)).toEqual(['Sizes'])
+  })
+})
+
+describe('the Menu of the hidden steps', () => {
+  it('has a row for each hidden step, in order', () => {
+    expect(menuRows(long, 3)).toEqual([
+      { label: 'Docs' },
+      { label: 'Guides' },
+      { label: 'Overlays' },
+    ])
+    expect(menuRows(long, 6)).toEqual([])
+  })
+
+  it('finds the hidden step a chosen row stands for, and none outside the fold', () => {
+    expect(chosen(long, 3, 'Guides')).toEqual(Option.some({ label: 'Guides', href: '/Guides' }))
+    expect(chosen(long, 3, 'Dialog')).toEqual(Option.none())
+    expect(chosen(long, 3, 'Nowhere')).toEqual(Option.none())
   })
 })
 
