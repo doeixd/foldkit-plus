@@ -11,7 +11,10 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { Recipes, Table, TableSlots } from '../src/index.js'
+// From the modules, not the index: the test reads nothing else.
+import * as Recipes from '../src/recipes/table.js'
+import * as Table from '../src/table.js'
+import { TableSlots } from '../src/table.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
 const style = Style.forSlots(TableSlots)(Recipes.Table({}))
