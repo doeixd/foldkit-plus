@@ -70,12 +70,13 @@ export const ScrollSettle = Mount.defineStream('ScrollSettle', {
           if (start > 0 && first !== undefined) {
             const by = offsetOf(first)
             const rtl = axis === 'inline' && getComputedStyle(element).direction === 'rtl'
-            // Positive `left` moves the content toward the start either way, so right to left
-            // the way to an item's start is the other sign.
-            element.scrollBy(
+            // A larger `scrollLeft` moves the content toward the start either way, so right to
+            // left the way to an item's start is the other sign. To a position, not by a
+            // distance: a relative scroll stops at every `scroll-snap-stop: always` on the way.
+            element.scrollTo(
               axis === 'block'
-                ? { top: by, behavior: 'instant' }
-                : { left: rtl ? -by : by, behavior: 'instant' },
+                ? { top: element.scrollTop + by, behavior: 'instant' }
+                : { left: element.scrollLeft + (rtl ? -by : by), behavior: 'instant' },
             )
           }
           // A scroll just made reports itself when it ends; one that moved nothing never ends.
