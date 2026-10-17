@@ -28,4 +28,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: "the bar's menus are never animated",
+    edits: [
+      {
+        file: '../src/menubar.ts',
+        find: 'isAnimated: options.isAnimated ?? false,',
+        replace: 'isAnimated: false,',
+      },
+    ],
+    tests,
+  },
 ]

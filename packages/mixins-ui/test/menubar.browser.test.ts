@@ -1,7 +1,8 @@
 /**
  * A menubar in a real browser: right to left, its menus run from the right,
  * ArrowLeft moves the tab stop toward the inline end and ArrowRight moves it
- * back.
+ * back. Animated, a menu's panel stays drawn while it leaves, marked for the
+ * recipe's fade.
  */
 import { Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
@@ -27,7 +28,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = () => {
+const mount = (isAnimated = false) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -69,7 +70,7 @@ const mount = () => {
     Runtime.makeElement({
       Model,
       container,
-      init: () => ({ model: { bar: Menubar.init(['file', 'edit', 'view']) } }),
+      init: () => ({ model: { bar: Menubar.init(['file', 'edit', 'view'], { isAnimated }) } }),
       update: (model: Model, message: Message) => {
         const next = Menubar.update(model.bar, message.message)
         return {
@@ -95,6 +96,35 @@ test('right to left, ArrowLeft moves toward the end and ArrowRight moves back', 
     await vi.waitFor(() => expect(document.activeElement?.id).toBe('edit-button'))
     await userEvent.keyboard('{ArrowRight}')
     await vi.waitFor(() => expect(document.activeElement?.id).toBe('file-button'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("an animated bar's menu stays drawn while it leaves, marked for its fade", async () => {
+  const handle = mount(true)
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = document.getElementById('file-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    trigger.focus()
+    await userEvent.keyboard('{Enter}')
+    const panel = await vi.waitFor(() => {
+      const found = document.getElementById('file-items')
+      expect(document.activeElement).toBe(found)
+      return found!
+    })
+    const states: Array<string> = []
+    const observer = new MutationObserver(() =>
+      states.push(['closed', 'leave'].filter(mark => panel.hasAttribute(`data-${mark}`)).join(' ')),
+    )
+    observer.observe(panel, { attributes: true })
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(document.getElementById('file-items')).toBeNull())
+    observer.disconnect()
+    expect(states).toContain('closed leave')
   } finally {
     handle.dispose()
   }

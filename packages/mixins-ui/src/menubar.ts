@@ -13,6 +13,7 @@ import {
   grouping,
   toView as menuToView,
   withRows,
+  type InitOptions,
   type LeafRow,
 } from './menu.js'
 import type { KbdSlots } from './kbd.js'
@@ -76,9 +77,18 @@ export const OutMessage = defineMessageUnion({
 })
 export type OutMessage = typeof OutMessage.Type
 
-/** One shut menu per id, the first trigger the tab stop. */
-export const init = (ids: ReadonlyArray<string>): Model => ({
-  menus: ids.map(id => UiMenu.init({ id })),
+/**
+ * One shut menu per id, the first trigger the tab stop. `options` reach
+ * every menu, as `Menu.init`'s do: animated, each panel carries upstream's
+ * transition marks and stays drawn while it leaves, so a recipe's fade runs.
+ * Modal, the rest of the page, the bar's other triggers among it, is inert
+ * while a menu is open: the pointer no longer moves between menus, the
+ * arrows still do.
+ */
+export const init = (ids: ReadonlyArray<string>, options: InitOptions = {}): Model => ({
+  menus: ids.map(id =>
+    UiMenu.init({ id, isAnimated: options.isAnimated ?? false, isModal: options.isModal ?? false }),
+  ),
   stop: 0,
 })
 
