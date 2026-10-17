@@ -1,8 +1,9 @@
 /**
  * A popover: a trigger opening a card anchored against it, with a click-away
- * behind it. `size` is the panel's maximum width.
+ * behind it and an arrow at the trigger. `size` is the panel's maximum width;
+ * `arrow: 'none'` hides the arrow.
  */
-import { Style } from 'foldkit-mixins'
+import { Style, type StyleValue } from 'foldkit-mixins'
 import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { PopoverSlots } from '../popover.js'
 import {
@@ -17,6 +18,51 @@ import {
 } from './design.js'
 
 const width = (max: string) => variant(Style.self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
+
+/** The arrow's square, whose turned corner shows past the panel's edge. */
+const arrowSize = ref.space.xs
+
+/** Where the arrow stands on each side the anchor placed the panel: the edge facing the trigger. */
+const facing = {
+  bottom: { edge: 'top', along: 'left', turn: '45deg' },
+  top: { edge: 'bottom', along: 'left', turn: '225deg' },
+  right: { edge: 'left', along: 'top', turn: '-45deg' },
+  left: { edge: 'right', along: 'top', turn: '135deg' },
+} as const
+
+/**
+ * An arrow drawn as a floating panel's child, for Popover, Tooltip and Hover
+ * Card: a square turned so one corner points at the trigger, half past the
+ * panel's edge, in the panel's `fill` with its `line` on the two sides that
+ * show. It stands where `--arrow-x` or `--arrow-y` says (upstream's anchor
+ * writes them on the panel, `Anchor.PlaceArrow` on the arrow), centred
+ * until either is known, and never nearer a corner than the panel's
+ * `corner` radius. Physical sides, as the anchor's pixels are.
+ */
+export const arrow = (look: {
+  readonly fill: string
+  readonly line: string
+  readonly corner: string
+}): StyleValue =>
+  component(
+    Style.self({
+      position: 'absolute',
+      inlineSize: arrowSize,
+      blockSize: arrowSize,
+      boxSizing: 'border-box',
+      background: look.fill,
+      borderTop: `${ref.border.thin} solid ${look.line}`,
+      borderLeft: `${ref.border.thin} solid ${look.line}`,
+      pointerEvents: 'none',
+    }),
+    ...Object.entries(facing).map(([side, { edge, along, turn }]) =>
+      Style.nest(`:where([data-placement="${side}"]) > &`, {
+        [edge]: `calc(${arrowSize} / -2 - ${ref.border.thin} / 2)`,
+        [along]: `clamp(${look.corner}, var(--arrow-${along === 'left' ? 'x' : 'y'}, calc(50% - ${arrowSize} / 2)), calc(100% - ${look.corner} - ${arrowSize}))`,
+        rotate: turn,
+      }),
+    ),
+  )
 
 export const Popover = Style.recipeFor(PopoverSlots)({
   base: {
@@ -54,15 +100,11 @@ export const Popover = Style.recipeFor(PopoverSlots)({
       raise(2),
     ),
     backdrop: component(Style.self({ position: 'fixed', inset: '0' })),
-    arrow: component(
-      Style.self({
-        inlineSize: '0.75rem',
-        blockSize: '0.75rem',
-        background: ref.surface.base,
-        borderBlockStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
-        borderInlineStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
-      }),
-    ),
+    arrow: arrow({
+      fill: raisedSurface(),
+      line: ref.outline.subtle,
+      corner: ref.radius.lg,
+    }),
   },
   variants: {
     size: {
@@ -70,6 +112,10 @@ export const Popover = Style.recipeFor(PopoverSlots)({
       md: { panel: width('24rem') },
       lg: { panel: width('32rem') },
     },
+    arrow: {
+      shown: {},
+      none: { arrow: variant(Style.self({ display: 'none' })) },
+    },
   },
-  defaults: { size: 'sm' },
+  defaults: { size: 'sm', arrow: 'shown' },
 })

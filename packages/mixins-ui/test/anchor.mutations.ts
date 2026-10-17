@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file: '../src/anchor.ts',
-        find: '            element.showPopover()\n            shown.add(element)',
+        find: '        element.showPopover()\n        shown.add(element)',
         replace: '',
       },
     ],
@@ -33,7 +33,7 @@ export default [
     edits: [
       {
         file: '../src/anchor.ts',
-        find: '              shown.delete(element)\n              element.hidePopover()',
+        find: '          shown.delete(element)\n          element.hidePopover()',
         replace: '',
       },
     ],
@@ -55,8 +55,8 @@ export default [
     edits: [
       {
         file: '../src/anchor.ts',
-        find: ').pipe(Effect.as(action.f(element, viewStateChanges))),',
-        replace: ').pipe(Effect.as(Stream.empty)),',
+        find: 'heldInTopLayer(element).pipe(Effect.as(action.f(element, viewStateChanges)))',
+        replace: 'heldInTopLayer(element).pipe(Effect.as(Stream.empty))',
       },
     ],
     tests: unit,
