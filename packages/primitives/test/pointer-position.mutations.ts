@@ -49,7 +49,8 @@ export default [
         replace: 'border: { top: 0, right: 0, bottom: 0, left: 0 },',
       },
     ],
-    tests: [browser],
+    // The signature pad's 1px border once offset every stroke.
+    tests: [browser, 'packages/mixins-ui/test/signaturePad.browser.test.ts'],
   },
   {
     name: 'the pressure is not the pointer’s',
