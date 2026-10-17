@@ -8,7 +8,7 @@ import * as Mount from 'foldkit/mount'
 import * as Render from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
-import { topLayer } from './anchor.js'
+import { layerBox, topLayer } from './anchor.js'
 import { readingKey } from './direction.js'
 import type { MixinList } from './resolve.js'
 
@@ -616,21 +616,7 @@ export const view = <ParentMessage>(
     ? [
         h.div(
           builders.layer.attrs([
-            h.Attribute('popover', 'manual'),
-            // The viewport's corner and width, and no height: the anchor places the panel in
-            // viewport coordinates, and the box covers nothing a press could land on.
-            h.Style({
-              position: 'fixed',
-              inset: '0 0 auto 0',
-              inlineSize: 'auto',
-              maxInlineSize: 'none',
-              margin: '0',
-              padding: '0',
-              border: '0',
-              background: 'transparent',
-              color: 'inherit',
-              overflow: 'visible',
-            }),
+            ...layerBox(h),
             h.OnMount(
               topLayer(
                 Mount.mapMessage(

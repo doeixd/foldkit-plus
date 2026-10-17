@@ -139,8 +139,10 @@ export default [
     tests: [browser],
   },
   {
-    name: 'the layer is no popover',
-    edits: [{ file, find: "h.Attribute('popover', 'manual'),", replace: '' }],
+    name: 'the layer is no top-layer box',
+    edits: [
+      { file, find: "...layerBox(h, { '--fk-tour-padding': `${padding}px` }),", replace: '' },
+    ],
     tests: [browser],
   },
   {

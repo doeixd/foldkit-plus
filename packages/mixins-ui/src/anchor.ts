@@ -152,6 +152,20 @@ export const TopLayer = Mount.defineStream('TopLayer', {
  * around a panel, whatever a theme does.
  */
 export const layer = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<Attribute<Message>> => [
+  ...layerBox(h),
+  h.OnMount(TopLayer()),
+]
+
+/**
+ * The `layer` box without its Mount, for a box whose own Mount shows it
+ * (`topLayer` around one that sends Messages, which a Scene can resolve
+ * where `TopLayer` sends none). `style` joins the box's inline style, since
+ * a second `h.Style` on the element would replace it.
+ */
+export const layerBox = <Message>(
+  h: HtmlBuilder<Message>,
+  style: Readonly<Record<string, string>> = {},
+): ReadonlyArray<Attribute<Message>> => [
   h.Attribute('popover', 'manual'),
   h.Style({
     position: 'fixed',
@@ -164,8 +178,8 @@ export const layer = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<Attribute
     background: 'transparent',
     color: 'inherit',
     overflow: 'visible',
+    ...style,
   }),
-  h.OnMount(TopLayer()),
 ]
 
 /**
