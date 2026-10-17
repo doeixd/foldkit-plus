@@ -1034,6 +1034,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: the Image Cropper shows its image.** The recipe hid
+  the image under any ancestor without `data-ready`, `body` included, so it
+  stayed hidden after loading; the image now carries the mark itself.
 - **`foldkit-mixins-ui`: Steps and the Navigation menu at a phone's width.**
   In a narrow Steps row the current title ran over the next connector; it
   is now cut with an ellipsis, and the connectors shorten so a short word

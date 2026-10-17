@@ -220,6 +220,27 @@ test('measures an image that loads after it is drawn', async () => {
   }
 })
 
+test('the image shows once it has loaded, and not before', async () => {
+  const visibility = () => getComputedStyle(document.getElementById('photo-image')!).visibility
+  // An image that never decodes is never placed.
+  const unplaced = mount({ id: 'photo' }, 'data:image/png;base64,AAAA')
+  try {
+    await vi.waitFor(() => expect(document.getElementById('photo-image')).not.toBeNull())
+    await frame()
+    expect(visibility()).toBe('hidden')
+  } finally {
+    unplaced.dispose()
+  }
+  document.body.replaceChildren()
+  const placed = mount()
+  try {
+    await settled()
+    expect(visibility()).toBe('visible')
+  } finally {
+    placed.dispose()
+  }
+})
+
 test('a drag on a handle resizes, and on the selection moves it', async () => {
   const handleMount = mount()
   try {

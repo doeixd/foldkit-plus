@@ -948,6 +948,7 @@ export const view = <Outer>(options: ImageCropperView<Outer>, h: HtmlBuilder<Out
                     h.Src(options.src),
                     h.Alt(''),
                     h.Draggable(false),
+                    ...(ready ? [h.DataAttribute('ready', '')] : []),
                     ...(options.crossOrigin === undefined
                       ? []
                       : [h.Attribute('crossorigin', options.crossOrigin)]),

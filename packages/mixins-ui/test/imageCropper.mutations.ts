@@ -167,4 +167,26 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'the image is hidden by any ancestor without the ready mark',
+    edits: [
+      {
+        file: '../src/recipes/imageCropper.ts',
+        find: "Style.pseudo(':not([data-ready])', { visibility: 'hidden' }),",
+        replace: "Style.nest(':not([data-ready]) &', { visibility: 'hidden' }),",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'an unplaced image is drawn',
+    edits: [
+      {
+        file: '../src/recipes/imageCropper.ts',
+        find: "Style.pseudo(':not([data-ready])', { visibility: 'hidden' }),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
 ]

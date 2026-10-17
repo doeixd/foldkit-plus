@@ -129,8 +129,9 @@ export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
         ...glides('width, height, rotate'),
       }),
       still,
-      // Unplaced, it is drawn only to load.
-      Style.nest(':not([data-ready]) &', { visibility: 'hidden' }),
+      // Unplaced, it is drawn only to load. The image says so itself: a rule reading the
+      // root from below matched any ancestor without the mark, `body` included.
+      Style.pseudo(':not([data-ready])', { visibility: 'hidden' }),
     ),
     selection: component(
       Style.self({
