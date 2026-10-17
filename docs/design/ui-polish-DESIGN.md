@@ -173,16 +173,17 @@ ancestor (a Chromium probe), so no upstream fix was needed for the core. Our
 `portal: false`: it shows the panel around the Mount's own acquire and hides it
 once that Mount releases (a `WeakSet` of shown elements, a no-op where the
 popover API is missing), keeping the Mount's name, args and Messages so Scene
-tests still match. Menu, Listbox and Combobox draw such in-place panels with
-`popover="manual"` and the wrapped Mount; a menu opened inside an `overflow:
+tests still match. Menu (its submenus too), Menubar, Listbox and Combobox draw such in-place
+panels with `popover="manual"`, `inset: auto` and the wrapped Mount (E1); a menu opened inside an `overflow:
 hidden` box paints past it (a browser test hits the panel below the box).
 Panels that still relocate through an upstream portal keep upstream's behavior:
 relocating a shown popover hides it again, so the wrapper deliberately stays
 off there. `sameWidth` is a width axis on Combobox (default `trigger`) and
 Listbox (default `auto`): `min-inline-size: var(--button-width, 14rem)`, the
-`--button-width` upstream's `size` middleware publishes. Collision was already
+`--button-width` upstream's `size` middleware publishes, replacing the
+panel's 14rem minimum. Collision was already
 upstream's defaults (flip, shift, `size` with a viewport cap).
-**Deferred to upstream support:** submenu and menubar panels, Popover,
+**Deferred to upstream support:** Popover,
 Tooltip, Hover Card, the DatePicker panel and Select render through upstream
 views, whose Mounts attach inside upstream code a wrapper cannot reach (one
 Mount per element; bundle attributes are opaque). Same for modal `<dialog>`
@@ -203,11 +204,12 @@ on touch, with fades at the edges that have more.
 6px on hover, idle fade; native on a coarse pointer); the look is
 `recipes/scrollBars.ts`; `Utilities.scrollDivider`/`scrollTimeline` draw
 the edge hairline where `timeline-scope` exists. Wired, opt-in
-(`overlayBars`), in ScrollArea (markup gains a `root`), Command,
+(`X.overlayBars`, a mixin list beside the style, E6), in ScrollArea (markup gains a `root`), Command,
 VirtualList, and Menu, Listbox and Combobox. Open: Table and Sidebar have
 no scrolling element yet; Dialog's body and Sheet need a wrapper with bar
-slots; nested and Menubar submenus; a gallery showing. Decide whether it
-should default on.
+slots; nested and Menubar submenus. The gallery's Scroll area page shows it.
+Decided: off by default, since its Mount sends no Message and a Scene test
+of every page drawing it would have to resolve it.
 
 **Plan.** This is systems 6b, now with a brief. A `ScrollBars` Mount draws an
 overlay thumb (rest 4px, hover 6px, idle fade after a pause, travel-aware),
@@ -222,7 +224,9 @@ Sheet) uses the same pieces.
 **Open again (review, 2026-10-16).** The status below claimed more than a
 fresh build shows: indicators, Color Picker tracks, the Calendar's arrows
 and keys, Command's shortcuts, and the arrow keys of Tabs and a horizontal
-Radio Group are still wrong right to left. See Part E, E3.
+Radio Group are still wrong right to left. See Part E, E3, where all but
+the Calendar's month buttons and a browser RTL test per component are now
+done.
 
 **Partly done.** Keys: one `readingKey` helper
 (`packages/mixins-ui/src/direction.ts`) and a `direction?: 'ltr' | 'rtl'
@@ -273,7 +277,8 @@ examples (`Showcase.examples`), each drawn with the picked style, with its own
 snippet region (`${slug}-${name}` in `snippets/components.ts`) and a link to it
 (`#${name}`). The recipe axes stay switchable over all of them: the page
 holds one toolbar and renders one section per example (title, self-link,
-preview, code). Showcases without examples keep the old single-preview page,
+preview, code). An example may pin an axis value (`pins`), which the toolbar then leaves
+alone for it. Showcases without examples keep the old single-preview page,
 so Part C migrates them one by one. The site build prerenders every page and
 fails on a missing region; a unit test pins each example's region and the
 uniqueness of its fragment. Migrated: alert (inline, banner), badge (tinted,
@@ -291,7 +296,7 @@ gallery page with the variants as examples.
 | `Recipes.Sheet`, `Recipes.Drawer` | `Sheet` with `side` and a `handle`, plus drag (C, Sheet) | one recipe, one page. **Checked**: `Recipes.Sheet({ side, handle: 'none' \| 'bar' })`, the handle a `handle` Slot on `DialogSlots`; `Recipes.Drawer` removed; the gallery's Drawer page folded into Sheet. Drag and snap points stay in Part C |
 | Calendar, DatePicker, DateRange | one date system: `selection: single \| range \| multiple`, inline or in a popover | DateRange's `picked` becomes the range mode; the DatePicker stays open in range mode with our own update over the Calendar. **Checked**: `Calendar.Selection` (`Single`/`Range`/`Multiple`) with `empty`/`picked`/`isComplete`/`selectedDate`/`toView`; `DatePicker.update(selection)` keeps the popover open while the pick leaves it unfinished; `DateRange` removed; Calendar page shows one day and a range |
 | Slider, RangeSlider | Slider with a `number` or a `{ low, high }` value | one recipe in Fluid's [slider](https://www.fluidfunctionalism.com/docs/slider) look. **Checked**: `Slider.view` overloaded on the value, both kinds native range inputs (the upstream adapter dropped: it draws one thumb), `marks` and `showValue`, `Recipes.Slider` with `track: thick \| thin` and `value: above \| inside`; RangeSlider removed. Vertical, mark labels and ColorPicker on it stay in Part C |
-| Menu, ContextMenu, NestedMenu | one Menu page: a button, a point or a row opens it | shared panel recipe, submenus available to all three. **Checked**: `Menu.init(id, rows)`, `Menu.update`, `Menu.view({ ..., opensAt?: 'button' \| 'point', ... })` with `Menu.target`; `NestedMenu`/`ContextMenu` removed; one gallery page |
+| Menu, ContextMenu, NestedMenu | one Menu page: a button, a point or a row opens it | shared panel recipe, submenus available to all three. **Checked**: `Menu.init(id, rows, { isAnimated?, isModal? })`, `Menu.update`, `Menu.view({ ..., opensAt?: 'button' \| 'point', ... })` with `Menu.target`; a typed `@foldkit/ui` Menu opens at a point through the adapter (`Menu.drawAtPoint`, `Menu.pointTarget`); `NestedMenu`/`ContextMenu` (never released) gone; one gallery page |
 
 ## Part B: bugs
 
@@ -361,7 +366,7 @@ decides adopt, adapt or skip.
   a stacked group with overlap and a "+3", a status dot, a ring, initials
   with a colour from the name, shapes, an avatar with name and caption, an
   avatar inside a badge.
-- **Kbd.** **Checked**: `Kbd.combo({ keys, joiner? })`. The keycap look (inner shadow) stays open.
+- **Kbd.** **Checked**: `Kbd.combo({ keys, joiner? })`, and the keycap look (a heavier lower edge and a lit top, measured in `kbd.browser.test.ts`).
 - **Separator.** Examples: horizontal and vertical, a label in the middle,
   spacing and inset options, dashed, thickness.
 - **Skeleton.** Fix (B), then: a shimmer wave option (travel-aware), text
@@ -518,84 +523,84 @@ green commit. Shared history is not rewritten.
 
 ### E1. CI and blockers
 
-- [ ] `examples/site/test/components.mutations.ts:193`: the anchor lost two
+- [x] `examples/site/test/components.mutations.ts:193`: the anchor lost two
   spaces of indentation when 1fe1dad4 re-indented the radio snippet
   (`snippets/components.ts:957-958`), so the spec refuses to run and
-  `mutate:check` and `pnpm check` are red. Re-anchor, run `--only`.
-- [ ] Gallery example sections are unnamed: `view/components.ts:204-205`
+  `mutate:check` and `pnpm check` are red. Re-anchor, run `--only`. **Done**: 4276d1ab.
+- [x] Gallery example sections are unnamed: `view/components.ts:204-205`
   labels each by `example-${name}` while its heading's id is `${name}`.
-  Fix and add the name check to the prerender test.
-- [ ] Top-layer panels open at the wrong side right to left: a shown
+  Fix and add the name check to the prerender test. **Done**: d01a6fce (the prerender test refuses a dangling `aria-labelledby`).
+- [x] Top-layer panels open at the wrong side right to left: a shown
   popover keeps the browser's `inset: 0`, the anchor writes only
   `left`/`top`, so `right: 0` wins under `<html dir="rtl">`
   (`menuView.ts:307`, `listboxShared.ts:353`, `comboboxShared.ts:332`).
   `inset: auto`; a browser test that sets `dir` on `documentElement` (the
   current one sets it on a wrapper, where the bug does not show). Decide
-  whether to reset the UA popover border, padding and `Canvas` background.
+  whether to reset the UA popover border, padding and `Canvas` background. **Done**: 5de3153b (`inset: auto`; a browser test sets `dir` on the document; the UA border, padding and fill stay, since every recipe replaces them).
 - [ ] The richtext specs' four rotted anchors (`richtext/test/deleteAcross`,
   `table`, `richtext-dom/test/hint` ×2) predate this work; leave them to the
   richtext session, but list them so `mutate:check` red is explained.
 
 ### E2. State colour and hovers
 
-- [ ] The default (subtle) Alert's actions and dismiss have no visible
+- [x] The default (subtle) Alert's actions and dismiss have no visible
   hover: on the band, `--fk-state-ink` is the band's tint, so the film is
   the band over itself (`recipes/alert.ts:184`). Use the band's ink; a
-  browser test for the subtle case.
-- [ ] `stateHue: 'accent'` does not reach neutral and ink tones: they set
+  browser test for the subtle case. **Done**: c07731dc (`stateInk.browser.test.ts`).
+- [x] `stateHue: 'accent'` does not reach neutral and ink tones: they set
   `--fk-state-ink: currentColor` on the element, overriding the root
   (`recipes/design.ts:273, 286`), so neutral ghost/outline Buttons, Radio,
   Slider and Toggle still hover grey; the claim "one override changes every
   component" (plan, CHANGELOG, skill) is false. Split the names
   (`--_fk-state-ink` local, `--fk-state-ink` the theme's); a browser test
-  of a neutral ghost button in accent mode.
-- [ ] Pressed toggles (`recipes/button.ts:55, 117, 174`): an outline,
+  of a neutral ghost button in accent mode. **Done**: c07731dc (`--_fk-state-ink` local, `--fk-state-ink` the theme's; `stateInk.browser.test.ts`).
+- [x] Pressed toggles (`recipes/button.ts:55, 117, 174`): an outline,
   ghost or icon toggle pressed and held without hover gets a 16% tint with
   on-fill text, so the label vanishes; a pressed icon toggle's glyph
   changes colour on hover; a pressed solid toggle looks unpressed on hover.
   Fix, and test with computed style under `CSS.forcePseudoState`, not CSS
-  text.
+  text. **Done**: 90d44648 (`toggleButtons.browser.test.ts`, forced pseudo-states).
 
 ### E3. Right to left (A6, reopened)
 
-- [ ] Segmented, Tabs and Navigation Menu indicators are measured only on
+- [x] Segmented, Tabs and Navigation Menu indicators are measured only on
   draw or resize and stay put after a direction change
   (`recipes/segmented.ts:26-31`, `tabs.ts:40, 116, 145`, `nav.ts:21-24`):
   remeasure on a direction change (key by direction as `resizable.ts:172`
-  does, or observe `dir`); a test that flips `dir` after mount.
-- [ ] Color Picker tracks run `to right` while the thumbs mirror
-  (`recipes/colorPicker.ts:27-30`): mirror under `:dir(rtl)`.
+  does, or observe `dir`); a test that flips `dir` after mount. **Done**: f702f16b (`FollowDirection`; browser tests flip `dir` after mount).
+- [x] Color Picker tracks run `to right` while the thumbs mirror
+  (`recipes/colorPicker.ts:27-30`): mirror under `:dir(rtl)`. **Done**: 4272d931 (`colorPicker.browser.test.ts`).
 - [ ] Calendar: ArrowLeft moves to the previous day, drawn to the right;
-  the month buttons swap sides but keep `‹`/`›` (`calendar.ts:216, 248`).
-- [ ] Command shortcuts render "N⌘" (`command.ts:89`):
-  `direction: ltr; unicode-bidi: isolate` on the shortcut slot.
-- [ ] Tabs and a horizontal Radio Group do not mirror their arrow keys
-  (only the five components with a `direction` option do).
-- [ ] A `direction` option swaps keys but no view draws `dir`: each view
+  the month buttons swap sides but keep `‹`/`›` (`calendar.ts:216, 248`). **Partly**: the arrows (e18fba0d, `Calendar.readingKeys`); the month buttons still draw `‹`/`›`.
+- [x] Command shortcuts render "N⌘" (`command.ts:89`):
+  `direction: ltr; unicode-bidi: isolate` on the shortcut slot. **Done**: e8598620.
+- [x] Tabs and a horizontal Radio Group do not mirror their arrow keys
+  (only the five components with a `direction` option do). **Done**: e18fba0d (`readingKeys`, opt-in; `readingKeys.browser.test.ts`).
+- [x] A `direction` option swaps keys but no view draws `dir`: each view
   with the option draws `h.Dir(direction)` on its root, so keys and CSS
   agree (the Resizable README/skill sentence is false without it; a Menu
-  with `direction: 'rtl'` opens its submenu left with a right chevron).
-- [ ] One way to detect RTL: `:dir(rtl)` everywhere, not
+  with `direction: 'rtl'` opens its submenu left with a right chevron). **Done**: dc7e751c, 0e68be1c.
+- [x] One way to detect RTL: `:dir(rtl)` everywhere, not
   `:where([dir="rtl"]) &` (accordion, sidebar, treeView, menu), which
-  matches an LTR island in an RTL page.
+  matches an LTR island in an RTL page. **Done**: no `[dir="rtl"]` selector is left in `packages/mixins-ui/src`.
 - [ ] A browser RTL test per component that has a direction-dependent
   part, setting `dir` on `documentElement`.
 
 ### E4. Tests that cannot fail, and claims marked without proof
 
-- [ ] Hover Card's "trigger stays put" passes with a static card (the
-  fixture is left-aligned): centre the trigger so a card in flow moves it.
-- [ ] InputCopy's corner test is a regex over CSS that passes a wrong
+- [x] Hover Card's "trigger stays put" passes with a static card (the
+  fixture is left-aligned): centre the trigger so a card in flow moves it. **Done**: 2b2d5956.
+- [x] InputCopy's corner test is a regex over CSS that passes a wrong
   radius: measure computed radii; use `nested()` (A2) instead of a
-  hard-coded `radius.md`.
+  hard-coded `radius.md`. **Done**: 8c250261.
 - [ ] Steps' narrow layout test reads CSS text and passes with
   `containerType` removed: measure at a narrow width.
-- [ ] da1acf5b replaced the browser test "a held button keeps its size
+- [x] da1acf5b replaced the browser test "a held button keeps its size
   under reduced motion" with a regex; restore it with
-  `CSS.forcePseudoState` (AGENTS.md).
-- [ ] The checkbox browser test asserts a rotation every mark has; test
-  that a checked box shows its check and an unchecked one does not.
-- [ ] Command search's `.toLowerCase()` is untested.
+  `CSS.forcePseudoState` (AGENTS.md). **Done**: 66bf877f.
+- [x] The checkbox browser test asserts a rotation every mark has; test
+  that a checked box shows its check and an unchecked one does not. **Done**: ca42af48.
+- [x] Command search's `.toLowerCase()` is untested. **Done**: 581f6468.
 - [ ] 50a7ef0f flipped about 30 rows to "Checked" with no browser test:
   Switch RTL, Kbd, Checkbox and Segmented ink centring (use the audit's
   `ink.mjs` method), Alert and Pagination at 390px, VirtualList. Each gets
@@ -603,74 +608,74 @@ green commit. Shared history is not rewritten.
 - [ ] A3's test covers TreeView only and skips "never taller than its
   final height" and "the first label's x never moves": add both, and
   Sidebar.
-- [ ] `test/menu.mutations.ts:55` removes `topLayer` but keeps
+- [x] `test/menu.mutations.ts:55` removes `topLayer` but keeps
   `popover="manual"`, hiding the panel; remove both so only the overflow
-  test kills it.
+  test kills it. **Done**: 816cff40.
 - [ ] The radio "press" test checks `label.control`; press it.
 - [ ] Badge, kbd, buttonLook and checkbox-recipe mutation specs re-read the
-  CSS line they change: replace with behaviour or computed-style tests.
+  CSS line they change: replace with behaviour or computed-style tests. **Partly**: badge and kbd (24e850c9), buttonLook (90d44648); the checkbox recipe's spec is left.
 
 ### E5. Merges and their docs
 
-- [ ] `Menu.init(id, rows)` never passes `isAnimated`, so every Menu snaps
+- [x] `Menu.init(id, rows)` never passes `isAnimated`, so every Menu snaps
   (the fade at `recipes/popup.ts:42` never runs; the gallery's menus were
   animated before): `Menu.init(id, rows, { isAnimated?, isModal? })` for the
-  menu and its submenus, a `data-closed` browser test, the gallery set.
-- [ ] `Menu.view` has no `style` option, yet the README, skill and
-  CHANGELOG document one (the snippet fails with TS2353): remove it there.
-- [ ] Calendar Range and Multiple mark many cells `aria-selected` but the
-  grid has no `aria-multiselectable="true"` (`calendar.ts:393`).
-- [ ] `DatePicker.update(selection)` (range in a popover) is untested in a
+  menu and its submenus, a `data-closed` browser test, the gallery set. **Done**: 46836818 (browser tests watch `data-closed`/`data-leave`), 05de987c (the gallery).
+- [x] `Menu.view` has no `style` option, yet the README, skill and
+  CHANGELOG document one (the snippet fails with TS2353): remove it there. **Done**: 45b7267a, 8e4037de, ee069277.
+- [x] Calendar Range and Multiple mark many cells `aria-selected` but the
+  grid has no `aria-multiselectable="true"` (`calendar.ts:393`). **Done**: 33fe1287 (`calendarSelection.test.ts`).
+- [x] `DatePicker.update(selection)` (range in a popover) is untested in a
   browser, in no example, and undocumented in README and skill; for a range,
   `triggerContent` gets nothing and the hidden `name` input submits
   nothing. A range picker on the Calendar page, a browser test, the limits
-  documented.
-- [ ] Two capabilities left with the merges and are not recorded: the
+  documented. **Done**: 3e823368 (`datePicker.browser.test.ts`), 6005f701 (the gallery), 45b7267a and 8e4037de (documented).
+- [x] Two capabilities left with the merges and are not recorded: the
   Slider's vertical orientation, and opening any typed Menu at a point (now
   only the string-row component can). Restore a point mode on
-  `Menu.toView`, or record both.
-- [ ] Describe the Menu once, truly: `MenuView` is still the fork, `Menu.resolve`
+  `Menu.toView`, or record both. **Done**: 3b97f055 restores a point for a typed Menu (`menu.browser.test.ts`); the Slider's vertical orientation is recorded in the CHANGELOG.
+- [x] Describe the Menu once, truly: `MenuView` is still the fork, `Menu.resolve`
   /`toView` adapt it (Menubar uses that), and the component is built on
-  top (`README.md:821-837`, skill `mixins.md:300`, `menu.ts:5`).
-- [ ] A single date is passed twice (the selection and upstream's
-  `maybeSelectedDate`, `calendar.ts:427`): derive one from the other.
-- [ ] `gallery/widgets.ts:550, 171`: an orphaned comment and a stray blank
-  line.
+  top (`README.md:821-837`, skill `mixins.md:300`, `menu.ts:5`). **Done**: 01180a80 (`menu.ts`), 45b7267a (README), 8e4037de (skill).
+- [x] A single date is passed twice (the selection and upstream's
+  `maybeSelectedDate`, `calendar.ts:427`): derive one from the other. **Done**: 33fe1287 (`Calendar.inputs`).
+- [x] `gallery/widgets.ts:550, 171`: an orphaned comment and a stray blank
+  line. **Done**: 05de987c.
 
 ### E6. Systems' loose ends
 
 - [ ] Overlay bars have two API shapes (a boolean `overlayBars` on
   ScrollArea, Command and VirtualList; an `X.overlayBars` mixin list on the
   popups): pick one; browser tests for VirtualList and a popup; a gallery
-  example; decide whether they default on.
-- [ ] ScrollBars re-observes the scroller and every child on any child
+  example; decide whether they default on. **Partly**: one shape, off by default (245fdb20), browser tests for Command and VirtualList (e8598620), a gallery example (1662fb24); a popup's bar has no browser test yet.
+- [x] ScrollBars re-observes the scroller and every child on any child
   change (`scroll-bars.ts:254-258`), once a frame while a VirtualList
-  scrolls: observe one content box.
-- [ ] `Anchor.topLayer` throws on an element without `popover`: guard.
-- [ ] `triggerWidth` is a selection built with `component()` (`popup.ts:57`):
-  `variant()`, and its doc says floor where it replaces.
-- [ ] Wrong comments: `nested()` "outside any such container it is square"
+  scrolls: observe one content box. **Done**: 50fc5b3d (`scroll-bars.browser.test.ts` counts observations).
+- [x] `Anchor.topLayer` throws on an element without `popover`: guard. **Done**: 355a2d94.
+- [x] `triggerWidth` is a selection built with `component()` (`popup.ts:57`):
+  `variant()`, and its doc says floor where it replaces. **Done**: 43b3fe8a.
+- [x] Wrong comments: `nested()` "outside any such container it is square"
   (`tokens.ts:194`; values inherit); `anchor.ts:6-7` says the anchor writes
-  `position`.
-- [ ] `theme.browser.test.ts:173` tests the browser's `var()`: delete.
-- [ ] Casts in `anchor.test.ts` (`Stream.never as …`): remove.
-- [ ] The skill misses top-layer panels, `Anchor.topLayer` and the popups'
-  `width` axis (Combobox `trigger`, Listbox `auto`).
-- [ ] VirtualList's width still changes while scrolling in a content-sized
-  container (132.6 → 127.7px); only the demo's fixed width hides it.
+  `position`. **Done**: 83e7ae07, 355a2d94.
+- [x] `theme.browser.test.ts:173` tests the browser's `var()`: delete. **Done**: 83e7ae07.
+- [x] Casts in `anchor.test.ts` (`Stream.never as …`): remove. **Done**: 355a2d94.
+- [x] The skill misses top-layer panels, `Anchor.topLayer` and the popups'
+  `width` axis (Combobox `trigger`, Listbox `auto`). **Done**: 8e4037de.
+- [x] VirtualList's width still changes while scrolling in a content-sized
+  container (132.6 → 127.7px); only the demo's fixed width hides it. **Done**: e8598620 (`lists.browser.test.ts`).
 
 ### E7. Part C, finished properly
 
-- [ ] The gallery shows little of 04fa1bdb: examples for pressed toggles
+- [x] The gallery shows little of 04fa1bdb: examples for pressed toggles
   (Button), `Kbd.combo`, Breadcrumb's separators, collapse and icons,
   Pagination's ends, range, siblings and compact, Steps' icons and vertical
-  content.
+  content. **Done**: 1662fb24, 09b04462.
 - [ ] Breadcrumb: twice the space after a separator as before
   (`breadcrumb.ts:33`); the "…" should open a menu (the plan, shadcn), not
-  expand in place.
-- [ ] Pagination: the page-size select; compact mode hides the total.
+  expand in place. **Partly**: the spacing (3bfe90a2); the "…" still expands in place.
+- [x] Pagination: the page-size select; compact mode hides the total. **Done**: 8fb1105b.
 - [ ] Steps: vertical connectors do not reach the markers; Badge/Avatar
-  markers and a Progress connector are open.
+  markers and a Progress connector are open. **Partly**: the vertical line reaches both markers (b41a6fba); the Badge/Avatar markers and a Progress connector stay open.
 - [ ] Select: no dropdown arrow (`appearance: none`, nothing drawn) and a
   placeholder that `::placeholder` cannot mute; and it was narrowed to the
   native control and marked Checked, while Fluid's select is a custom
@@ -680,38 +685,38 @@ green commit. Shared history is not rewritten.
   spacing; the disabled label not dimmed; select-all outside the group above
   the legend; the invalid example errors while boxes are checked; the three
   gallery checkbox examples share one state; "indeterminate" can never be
-  plainly unchecked.
-- [ ] Radio cards style the application's own `label`s, not a Slot, and the
+  plainly unchecked. **Partly**: `setEnabled(options, checked, on)` keeps a locked box and the group draws its select-all (46abbe48), each example holds its own state and the invalid one errors only while nothing is checked (e3b30b24, 1662fb24); the spacing, the dimmed disabled label and a plainly unchecked indeterminate box are not confirmed.
+- [x] Radio cards style the application's own `label`s, not a Slot, and the
   selected card nearly vanishes in dark; the Cards snippet should show
-  `Recipes.RadioGroup({ variant: 'card' })`.
-- [ ] Badge's four example snippets have identical bodies.
-- [ ] Kbd's plan entry says the keycap is open; it shipped.
+  `Recipes.RadioGroup({ variant: 'card' })`. **Done**: b3582ce7, 6005f701, 09b04462.
+- [x] Badge's four example snippets have identical bodies. **Done**: 1662fb24.
+- [x] Kbd's plan entry says the keycap is open; it shipped. **Done**: the entry in Part C now says it shipped.
 
 ### E8. Docs and tooling
 
-- [ ] The CHANGELOG logs never-released components (NestedMenu,
+- [x] The CHANGELOG logs never-released components (NestedMenu,
   ContextMenu, DateRange, Recipes.Drawer, RangeSlider, Banner) as breaking
   removals under Unreleased (`CHANGELOG.md:552-555, 565-566, 607-616`):
   rewrite the Unreleased entries instead; drop the duplicate Sheet entry;
-  "Nested Menu" at 755-759 and 790.
-- [ ] The button press is described as both a 2% shrink and exactly 1px a
+  "Nested Menu" at 755-759 and 790. **Done**: ee069277.
+- [x] The button press is described as both a 2% shrink and exactly 1px a
   side (CHANGELOG 14 vs 287-293): describe the code (a 2% scale, a 1px
-  border cleared on solid buttons).
-- [ ] The top-layer scope in CHANGELOG:539 and §A4 says submenus and the
+  border cleared on solid buttons). **Done**: ee069277, 45b7267a.
+- [x] The top-layer scope in CHANGELOG:539 and §A4 says submenus and the
   Menubar stay on portals; they are drawn `portal: false` and are in the
-  top layer.
-- [ ] README and skill rows say Breadcrumb and Pagination have no axis
-  (`separator`, `compact` exist).
-- [ ] `docs/mixins.md` lists Toast, FileDrop, VirtualList, Anchor and
-  HoverIntent as not covered.
-- [ ] `scripts/workspace-paths.mjs` and `packages/plus/scripts/generate.ts`
+  top layer. **Done**: ee069277, and §A4.
+- [x] README and skill rows say Breadcrumb and Pagination have no axis
+  (`separator`, `compact` exist). **Done**: 45b7267a, 8e4037de.
+- [x] `docs/mixins.md` lists Toast, FileDrop, VirtualList, Anchor and
+  HoverIntent as not covered. **Done**: fc11fdd7.
+- [x] `scripts/workspace-paths.mjs` and `packages/plus/scripts/generate.ts`
   still format with prettier and `.prettierrc.json`: use oxfmt's `format()`,
   drop the duplicate config. `.prettierignore`'s comment, AGENTS.md's and
   CONTRIBUTING.md's sentence that bare `oxfmt` ignores the config (it reads
   it, and formats html/mjs/jsonc outside the glob), the pipe-status trap's
   incident (prettier, not oxfmt), and kitchen-sink's missing
   `foldkit-primitives` mapping (the ScrollBars README snippet was never
-  compiled). Add the reformat commit 573d4529 to `.git-blame-ignore-revs`.
+  compiled). Add the reformat commit 573d4529 to `.git-blame-ignore-revs`. **Done**: 4b6ae0c3.
 
 ## Part D: sequence
 

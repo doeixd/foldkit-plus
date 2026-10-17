@@ -870,8 +870,15 @@ while keeping the best of what this project already has:
   triggers, the scrollbars), broken pages (Input OTP, Hover Card, Nested
   Menu, Radio Group's labels, Skeleton, the Switch in RTL), pairs to merge
   (Alert and Banner, the dialogs, Sheet and Drawer, the dates, the sliders,
-  the menus), and depth per component. Phase 0 runs the untested backlog and
-  screenshots every page first. [ui-polish-DESIGN.md](./ui-polish-DESIGN.md)
+  the menus), and depth per component. Phases 0–5 and the merges have
+  landed; a review of that pass (Part E) found claims without proof and
+  docs ahead of the code, and most of it is now fixed and ticked there.
+  Still open in Part E: the Calendar's month buttons right to left, an RTL
+  browser test per component, the measuring tests 50a7ef0f skipped, A3's and
+  the radio press tests, the checkbox recipe's mutation spec, a popup's
+  overlay-bar browser test, the breadcrumb "…" menu, Steps' markers, the
+  custom Select, and the rest of Checkbox Group.
+  [ui-polish-DESIGN.md](./ui-polish-DESIGN.md)
 - [ ] **Carousel dots** after Fluid Functionalism's
   ([carousel-dots](https://www.fluidfunctionalism.com/docs/carousel-dots)).
   [ui-polish-DESIGN.md](./ui-polish-DESIGN.md) Part C, Carousel
