@@ -1,28 +1,49 @@
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
 
 /**
  * An avatar publishes its regions as slots; it owns no state, messages, or
- * bundles. The picture stacks over the fallback initials: a loaded image
- * covers them, a missing one leaves its alt text, and the initials show
- * through while loading. The browser owns loading; this owns layout.
+ * bundles. The picture stacks over the fallback initials, so the initials
+ * show while it loads and where it fails; the browser owns loading. The root
+ * is one image named by the person (and their status), so a screen reader
+ * hears the name once, not the initials. It carries the name's hue as
+ * `--fk-avatar-hue` (0 to 359, the same for the same name everywhere), for a
+ * style that colours the initials by who they are. The status dot carries
+ * `data-status`.
  */
 export const AvatarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   fallback: Slot.make({ capability: Capability.Container }),
   image: Slot.make({ capability: Capability.Container }),
+  status: Slot.make({ capability: Capability.Container }),
 })
 
+/** Whether someone is there, shown as a dot at the avatar's lower end. */
+export type AvatarStatus = 'online' | 'away' | 'busy' | 'offline'
+
+const statusWords: Readonly<Record<AvatarStatus, string>> = {
+  online: 'Online',
+  away: 'Away',
+  busy: 'Busy',
+  offline: 'Offline',
+}
+
 /**
- * An avatar in one call: who it pictures, where the picture lives, a style
- * for its slots, and mixins beside the style. No upstream component stands
- * behind it.
+ * An avatar in one call: who it pictures, the picture if there is one, a
+ * style for its slots, and mixins beside the style. No upstream component
+ * stands behind it.
  */
 export interface AvatarView<Message = never> {
-  /** Who the picture shows, read when it does not load. */
+  /** Who the avatar shows: its accessible name, its initials and its hue. */
   readonly name: string
-  readonly src: string
+  /** The picture; without one the initials stand alone. */
+  readonly src?: string | undefined
+  /** What the disc says in place of initials taken from the name (a group's `+3`). */
+  readonly initials?: string | undefined
+  readonly status?: AvatarStatus | undefined
+  /** The status as read aloud; the English word when omitted. */
+  readonly statusLabel?: string | undefined
   /** A style of `AvatarSlots`, for the avatar's look. */
   readonly style?: NamedStyle<typeof AvatarSlots> | undefined
   /** Mixins beside the style. */
@@ -38,17 +59,118 @@ const initialsOf = (name: string): string =>
     .join('')
     .toLocaleUpperCase()
 
-export const view = <Message = never>(
+/** A hue from the name's characters (FNV-1a), so one person keeps one colour on every page and server. */
+const hueOf = (name: string): number => {
+  let hash = 0x811c9dc5
+  for (const character of name) {
+    hash ^= character.codePointAt(0) ?? 0
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return hash % 360
+}
+
+const draw = <Message>(
   options: AvatarView<Message>,
   h: HtmlBuilder<Message>,
+  rest: ReadonlyArray<Attribute<Message>>,
 ): Html => {
   const builders = SlotView.buildersFor(
     AvatarSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
-  return h.div(builders.root.attrs(), [
-    h.div(builders.fallback.attrs([]), [initialsOf(options.name)]),
-    h.img(builders.image.attrs([h.Src(options.src), h.Alt(options.name)])),
-  ])
+  const status =
+    options.status === undefined ? undefined : (options.statusLabel ?? statusWords[options.status])
+  return h.div(
+    builders.root.attrs([
+      h.Role('img'),
+      h.AriaLabel(status === undefined ? options.name : `${options.name}, ${status}`),
+      h.Style({ '--fk-avatar-hue': String(hueOf(options.name)) }),
+      ...rest,
+    ]),
+    [
+      h.div(builders.fallback.attrs([h.AriaHidden(true)]), [
+        options.initials ?? initialsOf(options.name),
+      ]),
+      // Unnamed: the root says who it is, and a picture that fails shows the initials, not its alt text.
+      ...(options.src === undefined
+        ? []
+        : [h.img(builders.image.attrs([h.Src(options.src), h.Alt('')]))]),
+      ...(options.status === undefined
+        ? []
+        : [h.span(builders.status.attrs([h.DataAttribute('status', options.status)]), [])]),
+    ],
+  )
+}
+
+export const view = <Message = never>(
+  options: AvatarView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => draw(options, h, [])
+
+/**
+ * A group publishes its frame; each avatar in it is an `AvatarSlots`
+ * avatar, and the count of those left out is one more, so it takes the same
+ * size and shape. The `+N`'s root carries `data-rest`, so a style can keep
+ * it out of a colour by name.
+ */
+export const AvatarGroupSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+})
+
+/** Avatars overlapping in a row, at most `max` of them and a `+N` for the rest. */
+export interface AvatarGroupView<Message = never> {
+  readonly people: ReadonlyArray<Omit<AvatarView<Message>, 'style' | 'mixins'>>
+  /** How many to draw before the `+N`; every one when omitted. */
+  readonly max?: number | undefined
+  /** The group's accessible name, such as "Editors". */
+  readonly label?: string | undefined
+  /** How the `+N` is read: `N more` when omitted. */
+  readonly moreLabel?: ((count: number) => string) | undefined
+  /** A style of `AvatarGroupSlots`, for the overlap. */
+  readonly style?: NamedStyle<typeof AvatarGroupSlots> | undefined
+  /** A style of `AvatarSlots` for every avatar in it, the `+N` included. */
+  readonly avatarStyle?: NamedStyle<typeof AvatarSlots> | undefined
+  /** Mixins beside the style. */
+  readonly mixins?: MixinList<Message> | undefined
+}
+
+export const group = <Message = never>(
+  options: AvatarGroupView<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const builders = SlotView.buildersFor(
+    AvatarGroupSlots,
+    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
+    { input: undefined, h },
+  )
+  const max = options.max ?? options.people.length
+  if (!Number.isInteger(max) || max < 1) {
+    throw new Error(`Avatar.group: max must be a whole number from 1, not ${max}`)
+  }
+  const shown = options.people.slice(0, max)
+  const rest = options.people.length - shown.length
+  const avatarStyle = options.avatarStyle
+  return h.div(
+    builders.root.attrs([
+      h.Role('group'),
+      ...(options.label === undefined ? [] : [h.AriaLabel(options.label)]),
+    ]),
+    [
+      ...shown.map(person => view({ ...person, style: avatarStyle }, h)),
+      ...(rest > 0
+        ? [
+            draw(
+              {
+                name: (options.moreLabel ?? (count => `${count} more`))(rest),
+                initials: `+${rest}`,
+                style: avatarStyle,
+              },
+              h,
+              [h.DataAttribute('rest', String(rest))],
+            ),
+          ]
+        : []),
+    ],
+  )
 }

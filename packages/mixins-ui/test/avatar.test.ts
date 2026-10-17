@@ -1,18 +1,24 @@
 /**
- * Avatar: three Container slots with no state behind them, a view stacking
- * the picture over derived initials, and a recipe sizing the disc.
+ * Avatar: one image named by the person, the picture stacked over initials,
+ * a status dot that says the status aloud, a hue that follows the name, and
+ * a group that draws at most `max` and counts the rest as one more avatar.
  */
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { AvatarSlots, view } from '../src/avatar.js'
+import { AvatarGroupSlots, AvatarSlots, group, view } from '../src/avatar.js'
 import { Recipes } from '../src/index.js'
+import { AvatarGroup } from '../src/recipes/avatar.js'
 
 const h = SlotView.inertBuilder<never>()
+const style = Style.forSlots(AvatarSlots)(Recipes.Avatar({}))
+const groupStyle = Style.forSlots(AvatarGroupSlots)(AvatarGroup({}))
+const hueOf = (drawn: ReturnType<typeof view>) =>
+  Inert.style(drawn)['--fk-avatar-hue']
 
 describe('AvatarSlots', () => {
-  it('publishes three containers and nothing stateful', () => {
-    expect(Object.keys(AvatarSlots)).toEqual(['root', 'fallback', 'image'])
+  it('publishes four containers and nothing stateful', () => {
+    expect(Object.keys(AvatarSlots)).toEqual(['root', 'fallback', 'image', 'status'])
     for (const slot of Object.values(AvatarSlots)) {
       expect(slot.capability).toBe(Capability.Container)
     }
@@ -20,19 +26,88 @@ describe('AvatarSlots', () => {
 })
 
 describe('Avatar view', () => {
-  it('stacks the picture over the initials with its name', () => {
-    const face = view(
+  it('is one image named by the person, the picture over hidden initials', () => {
+    const face = view({ name: 'Ada Augusta King', src: 'https://example.com/ada.jpg', style }, h)
+    expect(Inert.value(face, 'role')).toBe('img')
+    expect(Inert.value(face, 'aria-label')).toBe('Ada Augusta King')
+    const [image] = Inert.byTag(face, 'img')
+    expect(Inert.value(image, 'src')).toBe('https://example.com/ada.jpg')
+    // Unnamed, so a picture that fails shows the initials rather than its alt text.
+    expect(Inert.value(image, 'alt')).toBe('')
+    expect(Inert.text(face)).toBe('AA')
+    const fallback = Inert.children(face)[0]
+    expect(Inert.value(fallback, 'aria-hidden')).toBe('true')
+  })
+
+  it('draws initials alone without a picture, or the ones it is given', () => {
+    expect(Inert.byTag(view({ name: 'Grace Hopper', style }, h), 'img')).toHaveLength(0)
+    expect(Inert.text(view({ name: 'Grace Hopper', initials: 'G', style }, h))).toBe('G')
+  })
+
+  it('says the status in the name and marks the dot with it', () => {
+    const face = view({ name: 'Alan Turing', status: 'away', style }, h)
+    expect(Inert.value(face, 'aria-label')).toBe('Alan Turing, Away')
+    const dot = Inert.all(face).find(node => Inert.value(node, 'data-status') !== undefined)
+    expect(Inert.value(dot, 'data-status')).toBe('away')
+    const spoken = view({ name: 'Alan Turing', status: 'busy', statusLabel: 'Occupé', style }, h)
+    expect(Inert.value(spoken, 'aria-label')).toBe('Alan Turing, Occupé')
+  })
+
+  it('gives a name one hue, and different names different ones', () => {
+    const hues = ['Ada Lovelace', 'Grace Hopper', 'Alan Turing', 'Ada Lovelace'].map(name =>
+      hueOf(view({ name, style }, h)),
+    )
+    expect(hues[0]).toBe(hues[3])
+    expect(new Set(hues).size).toBe(3)
+    for (const hue of hues) expect(Number(hue)).toBeLessThan(360)
+  })
+})
+
+describe('Avatar group', () => {
+  const people = [
+    'Ada Lovelace',
+    'Grace Hopper',
+    'Alan Turing',
+    'Edsger Dijkstra',
+    'Barbara Liskov',
+  ]
+  const drawn = (max?: number) =>
+    group(
       {
-        name: 'Ada Augusta King',
-        src: 'https://example.com/ada.jpg',
-        style: Style.forSlots(AvatarSlots)(Recipes.Avatar({})),
+        people: people.map(name => ({ name })),
+        max,
+        label: 'Editors',
+        style: groupStyle,
+        avatarStyle: style,
       },
       h,
     )
-    expect(Inert.byTag(face, 'img')).toHaveLength(1)
-    expect(Inert.value(Inert.byTag(face, 'img')[0], 'alt')).toBe('Ada Augusta King')
-    expect(Inert.value(Inert.byTag(face, 'img')[0], 'src')).toBe('https://example.com/ada.jpg')
-    expect(Inert.text(face)).toBe('AA')
+
+  it('draws at most `max`, then one more avatar that counts the rest', () => {
+    const avatars = Inert.children(drawn(3))
+    expect(avatars.map(avatar => Inert.value(avatar, 'aria-label'))).toEqual([
+      'Ada Lovelace',
+      'Grace Hopper',
+      'Alan Turing',
+      '2 more',
+    ])
+    expect(Inert.text(avatars[3]!)).toBe('+2')
+    expect(Inert.value(avatars[3], 'data-rest')).toBe('2')
+    expect(Inert.value(avatars[0], 'data-rest')).toBeUndefined()
+  })
+
+  it('draws everyone with no `max`, and no count', () => {
+    expect(Inert.children(drawn())).toHaveLength(5)
+    expect(Inert.text(drawn())).not.toContain('+')
+  })
+
+  it('is a named group', () => {
+    expect(Inert.value(drawn(), 'role')).toBe('group')
+    expect(Inert.value(drawn(), 'aria-label')).toBe('Editors')
+  })
+
+  it('refuses a max below one', () => {
+    expect(() => drawn(0)).toThrow(/max must be a whole number/)
   })
 })
 
@@ -40,14 +115,14 @@ describe('Avatar recipe', () => {
   const css = (selection: Parameters<typeof Recipes.Avatar>[0]): string =>
     Style.forSlots(AvatarSlots)(Recipes.Avatar(selection)).css
 
-  it('clips a covering picture into the disc', () => {
-    const sheet = css({})
-    expect(sheet).toContain('border-radius:calc(50% * min(var(--fk-knob-radius-factor), 1))')
-    expect(sheet).toContain('object-fit:cover')
+  it('covers the disc with the picture', () => {
+    expect(css({})).toContain('border-radius:calc(50% * min(var(--fk-knob-radius-factor), 1))')
+    expect(css({})).toContain('object-fit:cover')
   })
 
   it('sizes the disc per selection', () => {
     expect(css({})).toContain('2.5rem')
     expect(css({ size: 'lg' })).toContain('3.5rem')
+    expect(css({ size: 'xl' })).toContain('5rem')
   })
 })
