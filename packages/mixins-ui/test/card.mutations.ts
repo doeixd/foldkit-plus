@@ -82,7 +82,7 @@ export default [
     edits: [
       {
         file: view,
-        find: '...(disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),',
+        find: '...(state.disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),',
         replace: '...[h.OnClick(press.onClick)],',
       },
     ],
@@ -93,8 +93,8 @@ export default [
     edits: [
       {
         file: view,
-        find: '...(disabled\n            ? [h.AriaDisabled(true)]\n            : [',
-        replace: '...(false\n            ? [h.AriaDisabled(true)]\n            : [',
+        find: '...(state.disabled\n          ? [h.AriaDisabled(true)]\n          : [',
+        replace: '...(false\n          ? [h.AriaDisabled(true)]\n          : [',
       },
     ],
     tests: unit,
@@ -134,7 +134,7 @@ export default [
   },
   {
     name: 'a chosen button is not pressed',
-    edits: [{ file: view, find: '[h.AriaPressed(flag(options.selected))]', replace: '[]' }],
+    edits: [{ file: view, find: '[h.AriaPressed(flag(state.selected))]', replace: '[]' }],
     tests: unit,
   },
   {

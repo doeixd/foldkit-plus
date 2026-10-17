@@ -26,8 +26,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/avatar.ts',
-        find: "borderRadius: `calc(50% * min(${ref.knob['radius-factor']}, 1))`,",
-        replace: "borderRadius: '50%',",
+        find: "Style.self({ borderRadius: `calc(50% * min(${ref.knob['radius-factor']}, 1))` }),",
+        replace: "Style.self({ borderRadius: '50%' }),",
       },
     ],
     tests: radius,
