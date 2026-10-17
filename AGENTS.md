@@ -664,12 +664,14 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   anything imported from `foldkit-ssr`; import `foldkit-ssr/client` in the
   browser. Check the bundle's size after adding an import from a package that
   also runs on a server.
-- **Some Foldkit attribute builders are client-only properties.** `h.Name`
-  writes the `name` property and marks it client-only, so a server-rendered
-  form has no `name` until it hydrates; a WebMCP form tool's fields, read from
-  the markup, would be nameless. Write an attribute that must be in the markup
-  with `h.Attribute('name', …)`, and check a builder's vnode (`data.props`
-  versus `data.attrs`) before relying on it in server output.
+- **Check whether a Foldkit builder reaches server markup; do not assume.**
+  A Foldkit property marked client-only is left out of a server render, and a
+  form tool reading the markup would miss it. `h.Name` was once believed to be
+  one; in Foldkit 0.168 it writes through `setDataProp`, which unmarks it, and
+  the serializer emits `name` (`datePickerView.ssr.test.ts` renders a hidden
+  input to a string, parses it back, and goes red with the name dropped). A
+  property a generic write sets (`Prop`, a custom element's) is still
+  client-only. Test server output by rendering it to a string.
 - **Foldkit's `string` route segment neither encodes nor decodes.** Built with
   a slug `a/b` it gives `/site/a/b`, which parses as `a` plus a stray segment,
   and a browser's `a%20b` reads back as `a%20b`, not `a b`. The CMS's hand-written
@@ -788,6 +790,17 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `pnpm dev` showed a blank page for a week: every test mounts its own
   container. Only an e2e test runs the real entry.
 
+- **A Surface's ModelRef reserves field names.** `Schema`, `optic`,
+  `dependency`, `key`, `read`, `get`, `set`, `at`, `index` and `select` name
+  its own members, so a Model holding a field so named throws "Model field
+  "index" is reserved by ModelRef" when any Surface reads it, at any depth.
+  The Carousel's `index` and the Sheet's `at` broke the site, whose Model a
+  Surface reads, and a component's Model would break any such application.
+  Name a component's Model fields outside that set (`slide`, `point`).
+- **`scrollBy` stops at every `scroll-snap-stop: always`.** A carousel drawn
+  at its third slide landed on its second: the scroll halted at the first
+  snap on the way. Scroll to a position (`scrollTo`, `scrollIntoView`) to
+  pass them.
 - **Probe, do not assume, what a library type means.** `Schema.Struct({})` is
   not an empty-object schema: it accepts `{foo:1}`, `[]` and `"str"` even with
   `onExcessProperty: 'error'`. Use `Schema.Record(Schema.String, Schema.Never)`.
@@ -1402,7 +1415,12 @@ of its own named a form field "fits the Catalog". Read words with
   edits) is skipped on a cached module: the fixture's mutations all read "not
   applied", and a mutated run was served an earlier run's transform without
   the plugin seeing it. `scripts/mutate.mjs` passes `--fsModuleCache=false`;
-  any other env-driven transform must too.
+  any other env-driven transform must too. The cache also served a stale
+  transform for a browser test file whose imports had changed: every test in
+  it failed with "Failed to fetch dynamically imported module" while a
+  renamed copy passed. Run browser tests with `--fsModuleCache=false`, and
+  the `unit` and `browser` projects in separate runs (`--project`): one run
+  given a file of each failed to load the browser one.
 - **Read `Test Files`, not only `Tests`.** A file that fails to load, from a
   module-level `window` read in a node test or the machine running out of
   memory under a wide run ("22 failed" with every test passing), counts no
