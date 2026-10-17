@@ -1260,6 +1260,7 @@ const TooltipDemo = (model: Pick<Model, 'tooltip'>, h: HtmlBuilder<Message>): Ht
         const { trigger, panel, isVisible } = Tooltip.resolve(attributes, [TooltipStyle.mixin], {
           input: undefined,
           h,
+          id: model.tooltip.id,
         })
         return h.div(
           [],

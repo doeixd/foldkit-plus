@@ -86,6 +86,7 @@
     { "path": "./examples/foldkit/ssg" },
     { "path": "./examples/site" },
     { "path": "./examples/foldkit/ssr" },
-    { "path": "./examples/pages" }
+    { "path": "./examples/pages" },
+    { "path": "./examples/design-system" }
   ]
 }
