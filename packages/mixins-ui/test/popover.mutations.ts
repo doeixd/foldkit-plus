@@ -19,13 +19,15 @@ export default [
   },
   {
     name: 'the panel may touch the viewport’s edge',
-    edits: [{ file: '../src/popover.ts', find: '  gap: 8,\n  padding: 8,', replace: '  gap: 8,' }],
+    edits: [
+      { file: '../src/popover.ts', find: '  gap: 12,\n  padding: 8,', replace: '  gap: 12,' },
+    ],
     tests: browser,
   },
   {
     name: 'the panel touches its trigger',
     edits: [
-      { file: '../src/popover.ts', find: '  gap: 8,\n  padding: 8,', replace: '  padding: 8,' },
+      { file: '../src/popover.ts', find: '  gap: 12,\n  padding: 8,', replace: '  padding: 8,' },
     ],
     tests: browser,
   },
@@ -49,6 +51,11 @@ export default [
         replace: '[edge]: `0px`,',
       },
     ],
+    tests: browser,
+  },
+  {
+    name: 'the popover’s arrow is the tooltip’s small one',
+    edits: [{ file: '../src/recipes/popover.ts', find: 'size: ref.space.sm,', replace: '' }],
     tests: browser,
   },
 ]

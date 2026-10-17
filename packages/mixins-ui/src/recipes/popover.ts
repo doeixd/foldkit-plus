@@ -20,7 +20,7 @@ import {
 const width = (max: string) => variant(Style.self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
 
 /** The arrow's square, whose turned corner shows past the panel's edge. */
-const arrowSize = ref.space.xs
+const smallArrow = ref.space.xs
 
 /** Where the arrow stands on each side the anchor placed the panel: the edge facing the trigger. */
 const facing = {
@@ -37,14 +37,18 @@ const facing = {
  * show. It stands where `--arrow-x` or `--arrow-y` says (upstream's anchor
  * writes them on the panel, `Anchor.PlaceArrow` on the arrow), centred
  * until either is known, and never nearer a corner than the panel's
- * `corner` radius. Physical sides, as the anchor's pixels are.
+ * `corner` radius. Physical sides, as the anchor's pixels are. `size` is
+ * the square's side, `space.xs` unless given; half its diagonal shows, so it
+ * suits a gap to the trigger a little wider than that.
  */
 export const arrow = (look: {
   readonly fill: string
   readonly line: string
   readonly corner: string
-}): StyleValue =>
-  component(
+  readonly size?: string
+}): StyleValue => {
+  const arrowSize = look.size ?? smallArrow
+  return component(
     Style.self({
       position: 'absolute',
       inlineSize: arrowSize,
@@ -63,6 +67,7 @@ export const arrow = (look: {
       }),
     ),
   )
+}
 
 export const Popover = Style.recipeFor(PopoverSlots)({
   base: {
@@ -100,10 +105,13 @@ export const Popover = Style.recipeFor(PopoverSlots)({
       raise(2),
     ),
     backdrop: component(Style.self({ position: 'fixed', inset: '0' })),
+    // Larger than a tooltip's: in the panel's own light fill and faint line, the
+    // small one was a nub too slight to see against the page.
     arrow: arrow({
       fill: raisedSurface(),
       line: ref.outline.subtle,
       corner: ref.radius.lg,
+      size: ref.space.sm,
     }),
   },
   variants: {

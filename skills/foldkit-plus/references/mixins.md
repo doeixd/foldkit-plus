@@ -327,7 +327,7 @@ Menu (submenus too), Menubar, Listbox and Combobox panels drawn with `portal: fa
 shows it around the Mount and hides it on release (a no-op without the popover API or attribute); an
 unstyled panel keeps the browser's popover border, padding and `Canvas` fill. Popover and Tooltip draw
 their `layer` slot (`Anchor.layer(h)`) around the panel, which keeps upstream's anchor (`Popover.anchor()`,
-`Tooltip.anchor()`: `portal: false`, 8px off, flip and shift); a Hover Card is anchored in the top layer by
+`Tooltip.anchor()`: `portal: false`, 12px and 8px off, flip and shift); a Hover Card is anchored in the top layer by
 `HoverIntent.toView(mixins, { h, anchored: { id, anchor? } }, draw)`; each draws an `arrow` in its panel, and
 `Tooltip.toView` takes `{ h, id: model.id }`. The DatePicker panel and modal dialogs are not in the top layer. The popup recipes' `width` axis: `trigger` (Combobox's default)
 replaces the panel's 14rem minimum with the trigger's width (`--button-width`), `auto` (Listbox's) keeps it.

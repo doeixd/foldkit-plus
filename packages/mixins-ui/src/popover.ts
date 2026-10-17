@@ -32,13 +32,13 @@ export const PopoverSlots = Slots.define({
 
 /**
  * The popover's placement, for the view's `anchor`: below its trigger and
- * centred on it, 8px off, kept 8px inside the viewport, where it flips to
- * the other side and shifts along it rather than leave, and caps its height
- * to the room there. Kept in place for `layer`. `config` overrides any of it.
+ * centred on it, 12px off for the arrow between, kept 8px inside the
+ * viewport, where it flips to the other side and shifts along it rather
+ * than leave, and caps its height to the room there. Kept in place for `layer`. `config` overrides any of it.
  */
 export const anchor = (config: AnchorConfig = {}): AnchorConfig => ({
   placement: 'bottom',
-  gap: 8,
+  gap: 12,
   padding: 8,
   portal: false,
   ...config,

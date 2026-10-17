@@ -135,7 +135,7 @@ test('the panel paints outside the box that clips its trigger, above any z-index
   })
   try {
     const box = panel.getBoundingClientRect()
-    expect(box.top - trigger.bottom).toBeCloseTo(8, 0)
+    expect(box.top - trigger.bottom).toBeCloseTo(12, 0)
     expect(box.bottom - 4).toBeGreaterThan(clip.bottom)
     // A later layer of the page's own, raised as high as z-index goes.
     const cover = document.createElement('div')
@@ -172,7 +172,7 @@ test('with no room below, the panel flips above its trigger', async () => {
   })
   try {
     expect(panel.dataset['placement']).toBe('top')
-    expect(trigger.top - panel.getBoundingClientRect().bottom).toBeCloseTo(8, 0)
+    expect(trigger.top - panel.getBoundingClientRect().bottom).toBeCloseTo(12, 0)
   } finally {
     dispose()
   }
@@ -193,6 +193,28 @@ test('the arrow points at the trigger’s middle from the panel’s facing edge,
     ).toBeLessThan(1.5)
     // Centred on the top edge, half past it, the corner pointing up at the trigger.
     expect(Math.abs(arrow.top + arrow.height / 2 - box.top)).toBeLessThan(1.5)
+  } finally {
+    dispose()
+  }
+})
+
+test('the arrow shows across more than half the gap to the trigger, in the panel’s fill, short of touching it', async () => {
+  const { panel, trigger, dispose } = await open({
+    top: '80px',
+    left: '400px',
+    width: '120px',
+    height: '48px',
+  })
+  try {
+    const arrow = panel.firstElementChild!
+    // A turned box's bounds are where it is painted.
+    const drawn = arrow.getBoundingClientRect()
+    const box = panel.getBoundingClientRect()
+    const gap = box.top - trigger.bottom
+    expect(box.top - drawn.top).toBeGreaterThan(gap / 2)
+    expect(drawn.top).toBeGreaterThan(trigger.bottom)
+    expect(drawn.left + drawn.width / 2).toBeCloseTo(trigger.left + trigger.width / 2, 0)
+    expect(getComputedStyle(arrow).backgroundColor).toBe(getComputedStyle(panel).backgroundColor)
   } finally {
     dispose()
   }

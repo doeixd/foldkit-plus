@@ -124,8 +124,9 @@ version changed; `pnpm` skips versions already in the registry.
   top layer, above every stacking context and outside every `overflow` box,
   with upstream's anchor placing it (the new `layer` slots), and an `arrow`
   slot points at the trigger. `Popover.anchor()`, `Tooltip.anchor()` and
-  `HoverIntent.anchor()` are the placements: 8px off the trigger, 8px inside
-  the viewport, flipping and shifting to stay there. A Hover Card is placed
+  `HoverIntent.anchor()` are the placements: off the trigger (the Popover
+  12px, room for its larger arrow; the others 8px), 8px inside the viewport,
+  flipping and shifting to stay there. A Hover Card is placed
   by `HoverIntent.toView`'s `anchored: { id, anchor? }`. The Popover and
   Tooltip recipes take `arrow: 'none'`. The Dialog gains `body`, `scroll`,
   `scrollBar`, `scrollThumb` and `footer` slots (a long body scrolls under a
@@ -940,6 +941,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: the Popover's arrow can be seen.** It was drawn,
+  but as an 8px square in the panel's own fill and faint line, half of it
+  showing in the gap: a nub too slight to see. The Popover's arrow is now
+  `space.sm` across (`arrow`'s new `size`) and its panel 12px off the
+  trigger, so the arrow crosses most of the gap.
 - **`foldkit-mixins-ui`: TagsInput keeps keys typed fast out of the tag just
   added.** Keys typed before the emptied input was drawn joined the tag
   Enter had just added.
