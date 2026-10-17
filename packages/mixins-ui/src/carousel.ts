@@ -248,7 +248,8 @@ export const update = (layout: CarouselLayout) => {
           ? { model: modifyFields(model, { rotation: () => 'Stopped', counting: () => false }) }
           : { model },
       Elapsed: ({ turn }) => {
-        if (turn !== model.turn || !model.counting || !running(model)) return { model }
+        // Every pause and stop ends the count, so only the latest wait of a running carousel counts.
+        if (turn !== model.turn || !model.counting) return { model }
         const last = places - 1
         if (model.index >= last && !loop) {
           return {

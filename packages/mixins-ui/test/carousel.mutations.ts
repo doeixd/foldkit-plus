@@ -83,8 +83,8 @@ export default [
     edits: [
       {
         file: '../src/carousel.ts',
-        find: 'if (turn !== model.turn || !model.counting || !running(model)) return { model }',
-        replace: 'if (!model.counting || !running(model)) return { model }',
+        find: 'if (turn !== model.turn || !model.counting) return { model }',
+        replace: 'if (!model.counting) return { model }',
       },
     ],
     tests: [unit],
