@@ -5,7 +5,33 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.22.0
+
+A component library worth building on, and a richer rich-text editor.
+`foldkit-mixins-ui` 0.11.0 grows from the parity components to the whole UI
+plan: the polish pass over every component (state colour, concentric corners,
+the top layer, overlay scroll bars, right to left), the merges into one Alert,
+Dialog, Sheet, Menu, Slider and date system, and chat (ChatMessage,
+MessageScroller, Thinking Indicator, Thinking Steps, Questionnaire) and Zag's
+long tail (Angle Slider, Timer, Marquee, Image Cropper, Signature Pad, QR Code,
+Chart, Cascade Select, Floating Panel, Tour). `foldkit-mixins` 0.12.0 for the
+state ink, `nests`/`nested()`, `surface.field`, the shadow and chart tokens;
+`foldkit-primitives` 0.11.0 for `ScrollBars`, `Swipe`, `ScrollSettle`,
+`PointerPosition` and `TrackBox`; `foldkit-richtext` 0.4.0,
+`foldkit-richtext-dom` 0.5.0, `foldkit-mixins-richtext` 0.4.0 and
+`foldkit-richtext-markdown` 0.3.0 for the editor's changes below;
+`foldkit-remote-server` 0.15.0 for `RemoteServer.memory`'s entities and
+optional principal; `foldkit-auth` 0.1.1 and `foldkit-ssr` 0.7.1 for Fetch
+Metadata on a request with no `Origin`; `foldkit-mixins-data-grid` 0.2.3 for
+the motion tiers; and `foldkit-plus` 0.4.0. Every package that pins one of
+them republishes with a patch to re-pin: `foldkit-builder` 0.3.3,
+`foldkit-cms` 0.7.3, `foldkit-cms-drizzle` 0.6.6, `foldkit-mixins-builder`
+0.3.3, `foldkit-mixins-crud` 0.7.3, `foldkit-mixins-form` 0.6.2,
+`foldkit-remote-drizzle` 0.12.3, `foldkit-richtext-code` 0.2.1,
+`foldkit-richtext-code-shiki` 0.2.1 and `foldkit-site` 0.4.1.
+
+Changes that can break code written for 0.21 are marked "Breaking" in the
+entries below; most are in `foldkit-mixins-ui` and the rich-text packages.
 
 ### Added
 
