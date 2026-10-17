@@ -412,3 +412,17 @@ describe('the data previews', () => {
     ])
   })
 })
+
+describe('the date previews', () => {
+  it('keep the second month beside the first, and a preset in the first', () => {
+    const shown = (month: { readonly viewYear: number; readonly viewMonth: number }) =>
+      month.viewYear * 12 + month.viewMonth
+    const { first, second } = initial.widgets.twoMonths
+    expect(shown(second)).toBe(shown(first) + 1)
+    const preset = DateSelection.lastDays(initial.widgets.twoMonths.first.today, 30)
+    const picked = send(Widgets.Message.PickedTripPreset({ selection: preset }))
+    expect(picked.widgets.twoMonths.range).toEqual(preset)
+    const months = picked.widgets.twoMonths
+    expect(shown(months.second)).toBe(shown(months.first) + 1)
+  })
+})

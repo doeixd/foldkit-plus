@@ -4,7 +4,7 @@
  * and its previews call the function the region defines with the style the
  * reader selected, so the code on the page is the code that drew it.
  */
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Calendar as FoldkitCalendar } from 'foldkit'
 import * as FoldkitCommand from 'foldkit/command'
 import { modifyFields } from 'foldkit/struct'
@@ -2206,7 +2206,7 @@ export const RadioGroupCardStyle = forSlots(RadioGroupSlots)(
 )
 // #endregion
 
-// #region slider
+// #region slider-basic
 export const SliderStyle = forSlots(SliderSlots)(Recipes.Slider({}))
 
 /** Both values are the Model's: one number, and a range of two. */
@@ -2259,6 +2259,66 @@ export const slider = <Message>(
         h,
       ),
     ],
+  )
+// #endregion
+
+// #region slider-vertical
+/** A level on a vertical track, a dot at every step and words at the ends. */
+export const sliderVertical = <Message>(
+  style: NamedStyle<typeof SliderSlots>,
+  level: number,
+  onLevel: (value: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Slider.view(
+    {
+      id: 'preview-level',
+      label: 'Level',
+      value: level,
+      onChange: onLevel,
+      orientation: 'vertical',
+      step: 10,
+      ticks: true,
+      marks: [
+        { value: 0, label: 'Off' },
+        { value: 100, label: 'Max' },
+      ],
+      showValue: true,
+      format: value => `${value}%`,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region slider-marks
+/** A range with labelled marks, its values at the end of the label's row. */
+export const sliderMarks = <Message>(
+  style: NamedStyle<typeof SliderSlots>,
+  price: Slider.Range,
+  onPrice: (value: Slider.Range) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Slider.view(
+    {
+      id: 'preview-budget',
+      label: 'Budget',
+      value: price,
+      onChange: onPrice,
+      max: 500,
+      step: 50,
+      ticks: true,
+      marks: [
+        { value: 0, label: '$0' },
+        { value: 250, label: '$250' },
+        { value: 500, label: '$500' },
+      ],
+      showValue: true,
+      format: amount => `$${amount}`,
+      thumbLabels: { low: 'Minimum budget', high: 'Maximum budget' },
+      style,
+    },
+    h,
   )
 // #endregion
 
@@ -3448,7 +3508,7 @@ export const comboboxCreatable = <Message>(
 }
 // #endregion
 
-// #region calendar
+// #region calendar-single-range
 export const CalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({}))
 
 /** Each month shown and focused day are the component's; each selection is the Model's. */
@@ -3488,6 +3548,99 @@ export const calendar = <Message>(
     ],
   )
 }
+// #endregion
+
+// #region calendar-two-months
+/** Two months side by side, a range previewed under the pointer, and presets beside them. */
+export interface TwoMonthsState {
+  readonly first: UiCalendar.Model
+  readonly second: UiCalendar.Model
+  readonly range: Calendar.Selection
+  readonly preview: Option.Option<FoldkitCalendar.CalendarDate>
+}
+
+export interface TwoMonthsMessages<Message> {
+  readonly onFirst: (message: UiCalendar.Message) => Message
+  readonly onSecond: (message: UiCalendar.Message) => Message
+  readonly onPreview: (date: Option.Option<FoldkitCalendar.CalendarDate>) => Message
+  readonly onPreset: (selection: Calendar.Selection) => Message
+}
+
+/** The day the page was loaded, as the other calendars take it. */
+export const TODAY = Effect.runSync(FoldkitCalendar.today.local)
+
+export const TRIP_PRESETS: ReadonlyArray<Calendar.Preset> = [
+  { label: 'Last 7 days', selection: Calendar.lastDays(TODAY, 7) },
+  { label: 'Last 30 days', selection: Calendar.lastDays(TODAY, 30) },
+  { label: 'This month', selection: Calendar.monthOf(TODAY) },
+  { label: 'Last month', selection: Calendar.monthOf(TODAY, -1) },
+]
+
+export const calendarTwoMonths = <Message>(
+  style: NamedStyle<typeof CalendarSlots>,
+  state: TwoMonthsState,
+  messages: TwoMonthsMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const month = (
+    model: UiCalendar.Model,
+    paging: 'previous' | 'next',
+    toParentMessage: (message: UiCalendar.Message) => Message,
+  ) =>
+    h.submodel({
+      slotId: model.id,
+      model,
+      view: UiCalendar.view,
+      viewInputs: Calendar.inputs(
+        state.range,
+        [style.mixin, Calendar.readingKeys],
+        { h },
+        {
+          paging,
+          caption: 'label',
+          preview: { date: state.preview, onPreview: messages.onPreview },
+        },
+      ),
+      toParentMessage,
+    })
+  return h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'start' })],
+    [
+      Calendar.presetsView(
+        { presets: TRIP_PRESETS, selection: state.range, onPick: messages.onPreset, style },
+        h,
+      ),
+      month(state.first, 'previous', messages.onFirst),
+      month(state.second, 'next', messages.onSecond),
+    ],
+  )
+}
+// #endregion
+
+// #region calendar-dropdowns
+/** Months and years chosen from selects, and the weeks numbered. */
+export const calendarDropdowns = <Message>(
+  style: NamedStyle<typeof CalendarSlots>,
+  state: { readonly calendar: UiCalendar.Model; readonly selection: Calendar.Selection },
+  toMessage: (message: UiCalendar.Message) => Message,
+  onShow: (shown: Calendar.Shown) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.calendar.id,
+    model: state.calendar,
+    view: UiCalendar.view,
+    viewInputs: Calendar.inputs(
+      state.selection,
+      [style.mixin, Calendar.readingKeys],
+      { h },
+      {
+        weekNumbers: true,
+        dropdowns: { model: state.calendar, onShow },
+      },
+    ),
+    toParentMessage: toMessage,
+  })
 // #endregion
 
 // #region date-picker-single
@@ -5173,14 +5326,21 @@ export const sheetNested = <Message>(
 }
 // #endregion
 
-// #region color-picker
+// #region color-picker-inline
 export const ColorPickerStyle = forSlots(ColorPickerSlots)(Recipes.ColorPicker({}))
-export const ColorSliderStyle = forSlots(SliderSlots)(
-  Recipes.Slider({ track: 'paint', label: 'hidden' }),
-)
+// The hue and alpha tracks are Sliders, painted from the color.
+const ChannelStyle = forSlots(SliderSlots)(Recipes.Slider({ track: 'paint', label: 'hidden' }))
 
-// The color, its format and a draft being typed are the picker's Model; the
-// application keeps it and folds it with `ColorPicker.update`.
+/** The colors one press away. */
+export const ACCENTS: ReadonlyArray<ColorPicker.ColorPickerPreset> = [
+  { label: 'Blue', value: ColorPicker.color('#3b82f6') },
+  { label: 'Teal', value: ColorPicker.color('#14b8a6') },
+  { label: 'Amber', value: ColorPicker.color('#f59e0b') },
+  { label: 'Rose', value: ColorPicker.color('#f43f5e') },
+  { label: 'Glass', value: ColorPicker.color('#3b82f680') },
+]
+
+/** The color, its format and the text being typed are the picker's Model, folded with `update`. */
 export const colorPicker = <Message>(
   style: NamedStyle<typeof ColorPickerSlots>,
   model: ColorPicker.Model,
@@ -5188,21 +5348,43 @@ export const colorPicker = <Message>(
   h: HtmlBuilder<Message>,
 ): Html =>
   ColorPicker.view(
-    {
-      model,
-      onMessage,
-      label: 'Accent',
-      presets: [
-        { label: 'Blue', value: ColorPicker.color('#3b82f6') },
-        { label: 'Teal', value: ColorPicker.color('#14b8a6') },
-        { label: 'Amber', value: ColorPicker.color('#f59e0b') },
-        { label: 'Rose', value: ColorPicker.color('#f43f5e') },
-      ],
-      style,
-      slider: ColorSliderStyle,
-    },
+    { model, onMessage, label: 'Accent', presets: ACCENTS, style, slider: ChannelStyle },
     h,
   )
+// #endregion
+
+// #region color-picker-popover
+const PickerPopoverStyle = forSlots(PopoverSlots)(Recipes.Popover({}))
+
+/** The picker behind a swatch of its color: the popover's open state is its Submodel's. */
+export const colorPickerPopover = <Message>(
+  style: NamedStyle<typeof ColorPickerSlots>,
+  state: { readonly picker: ColorPicker.Model; readonly popover: UiPopover.Model },
+  onMessage: (message: ColorPicker.Message) => Message,
+  onPopover: (message: UiPopover.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: state.popover.id,
+    model: state.popover,
+    view: UiPopover.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+      toView: ColorPicker.popover(
+        {
+          model: state.picker,
+          onMessage,
+          label: 'Brand color',
+          presets: ACCENTS,
+          style,
+          slider: ChannelStyle,
+          popover: [PickerPopoverStyle.mixin],
+        },
+        h,
+      ),
+    },
+    toParentMessage: onPopover,
+  })
 // #endregion
 
 // #region tree-view-basic

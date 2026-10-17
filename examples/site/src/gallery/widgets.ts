@@ -53,6 +53,8 @@ import {
   THUMBNAILS_LAYOUT,
   PER_VIEW_LAYOUT,
   TREE_ICONS,
+  TODAY,
+  type TwoMonthsState,
   CityBox,
   CityTags,
   Fruit,
@@ -301,6 +303,22 @@ export const Model = Schema.Struct({
   collapsibleSplit: Resizable.Model,
   outerSplit: Resizable.Model,
   innerSplit: Resizable.Model,
+  /** The vertical slider's level and the marked one's budget. */
+  level: Schema.Number,
+  budget: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
+  /** The color picker in a popover, and the popover. */
+  brand: ColorPicker.Model,
+  brandPopover: UiPopover.Model,
+  /** Two months side by side, their range and the day under the pointer. */
+  twoMonths: Schema.Struct({
+    first: UiCalendar.Model,
+    second: UiCalendar.Model,
+    range: DateSelection.Selection,
+    preview: Schema.Option(Calendar.CalendarDate),
+  }),
+  /** The calendar with selects and week numbers, and its day. */
+  dropdownCalendar: UiCalendar.Model,
+  dropdownDay: DateSelection.Selection,
   /** The region chosen in the card grid, and the plan chosen in the item list. */
   region: Schema.String,
   plan: Schema.String,
@@ -384,6 +402,16 @@ export const Message = defineMessageUnion({
   ToggledPassword: {},
   RatedStay: { value: Schema.Number },
   ChoseRegion: { region: Schema.String },
+  TurnedLevel: { value: Schema.Number },
+  MovedBudget: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
+  GotBrand: { message: ColorPicker.Message },
+  GotBrandPopover: { message: UiPopover.Message },
+  GotTripFirst: { message: UiCalendar.Message },
+  GotTripSecond: { message: UiCalendar.Message },
+  PreviewedTrip: { date: Schema.Option(Calendar.CalendarDate) },
+  PickedTripPreset: { selection: DateSelection.Selection },
+  GotDropdownCalendar: { message: UiCalendar.Message },
+  ShowedCalendar: { shown: DateSelection.Shown },
   SortedInvoices: { column: Schema.String },
   ChoseInvoice: { id: Schema.String, selected: Schema.Boolean },
   ChoseInvoices: { ids: Schema.Array(Schema.String) },
@@ -420,6 +448,20 @@ export const Message = defineMessageUnion({
   ChosePlan: { plan: Schema.String },
 })
 export type Message = typeof Message.Type
+
+function twoMonthsInit(): TwoMonthsState {
+  const first = UiCalendar.init({ id: 'preview-trip-first', today: TODAY })
+  return {
+    first,
+    second: DateSelection.alongside(
+      UiCalendar.init({ id: 'preview-trip-second', today: TODAY }),
+      first,
+      1,
+    ),
+    range: DateSelection.empty('Range'),
+    preview: Option.none(),
+  }
+}
 
 const fruitState = (example: SelectExample, fruit: Option.Option<Fruit>) => ({
   listbox: UiListbox.init({ id: `preview-select-${example}`, isAnimated: true }),
@@ -633,6 +675,17 @@ export const initial: Model = {
   collapsibleSplit: Resizable.init(0.3),
   outerSplit: Resizable.init(0.3),
   innerSplit: Resizable.init(0.6),
+  level: 40,
+  budget: { low: 100, high: 350 },
+  brand: ColorPicker.init({
+    id: 'preview-brand',
+    color: ColorPicker.color('#14b8a6'),
+    format: 'oklch',
+  }),
+  brandPopover: UiPopover.init({ id: 'preview-brand-popover' }),
+  twoMonths: twoMonthsInit(),
+  dropdownCalendar: UiCalendar.init({ id: 'preview-calendar-selects', today }),
+  dropdownDay: DateSelection.empty('Single'),
   region: 'Frankfurt',
   plan: 'Team',
 }
@@ -1041,6 +1094,80 @@ const foldTrailMenu = Update.foldChild({
 /** `ids` with `id` in or out; the same array when it already is. */
 const including = (ids: ReadonlyArray<string>, id: string, on: boolean): ReadonlyArray<string> =>
   ids.includes(id) === on ? ids : on ? [...ids, id] : ids.filter(each => each !== id)
+
+const foldBrand = Update.foldChild({
+  ...own('brand', Message.GotBrand),
+  update: ColorPicker.update,
+})
+
+const foldBrandPopover = Update.foldChild({
+  ...own('brandPopover', Message.GotBrandPopover),
+  update: UiPopover.update,
+  foldOutMessage: UiPopover.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
+})
+
+/** The range after a month's OutMessage: a day picked joins it. */
+const pickedFrom = (
+  range: DateSelection.Selection,
+  out: UiCalendar.OutMessage | undefined,
+): DateSelection.Selection =>
+  Option.match(Option.fromNullishOr(out), {
+    onNone: () => range,
+    onSome: UiCalendar.OutMessage.match<DateSelection.Selection>({
+      SelectedDate: ({ date }) => DateSelection.picked(range, date),
+      ChangedViewMonth: () => range,
+    }),
+  })
+
+/**
+ * One of the two months stepped by its Message: the other is kept beside it
+ * (`Calendar.alongside`), a month after or before.
+ */
+const stepMonth = (
+  model: Model,
+  which: 'first' | 'second',
+  message: UiCalendar.Message,
+): Update.Return<Model, Message> => {
+  const months = model.twoMonths
+  const next = UiCalendar.update(months[which], message)
+  const twoMonths: TwoMonthsState =
+    which === 'first'
+      ? {
+          ...months,
+          first: next.model,
+          second: DateSelection.alongside(months.second, next.model, 1),
+          range: pickedFrom(months.range, next.outMessage),
+        }
+      : {
+          ...months,
+          second: next.model,
+          first: DateSelection.alongside(months.first, next.model, -1),
+          range: pickedFrom(months.range, next.outMessage),
+        }
+  return {
+    model: modifyFields(model, { twoMonths: () => twoMonths }),
+    commands: Command.mapMessages(next.commands ?? [], inner =>
+      which === 'first'
+        ? Message.GotTripFirst({ message: inner })
+        : Message.GotTripSecond({ message: inner }),
+    ),
+  }
+}
+
+const foldDropdownCalendar = Update.foldChild({
+  ...own('dropdownCalendar', Message.GotDropdownCalendar),
+  update: UiCalendar.update,
+  foldOutMessage: UiCalendar.OutMessage.match<Step>({
+    SelectedDate:
+      ({ date }) =>
+      model => ({
+        model: modifyFields(model, {
+          dropdownDay: () => DateSelection.picked(model.dropdownDay, date),
+        }),
+      }),
+    ChangedViewMonth: () => same,
+  }),
+})
 
 const foldTagsMax = Update.foldChild({
   ...own('tagsMax', Message.GotTagsMax),
@@ -1503,6 +1630,44 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { innerSplit: () => split }) }
     },
+    TurnedLevel: ({ value }) =>
+      value === model.level ? { model } : { model: modifyFields(model, { level: () => value }) },
+    MovedBudget: ({ value }) =>
+      value.low === model.budget.low && value.high === model.budget.high
+        ? { model }
+        : { model: modifyFields(model, { budget: () => value }) },
+    GotBrand: ({ message }) => foldBrand(model, message),
+    GotBrandPopover: ({ message }) => foldBrandPopover(model, message),
+    GotTripFirst: ({ message }) => stepMonth(model, 'first', message),
+    GotTripSecond: ({ message }) => stepMonth(model, 'second', message),
+    PreviewedTrip: ({ date }) => ({
+      model: modifyFields(model, { twoMonths: months => ({ ...months, preview: date }) }),
+    }),
+    // A preset shows its first day in the first month, the second beside it.
+    PickedTripPreset: ({ selection }) => {
+      const months = model.twoMonths
+      const first = Option.match(DateSelection.firstDate(selection), {
+        onNone: () => months.first,
+        onSome: date => UiCalendar.focusDate(months.first, date),
+      })
+      return {
+        model: modifyFields(model, {
+          twoMonths: () => ({
+            ...months,
+            range: selection,
+            preview: Option.none(),
+            first,
+            second: DateSelection.alongside(months.second, first, 1),
+          }),
+        }),
+      }
+    },
+    GotDropdownCalendar: ({ message }) => foldDropdownCalendar(model, message),
+    ShowedCalendar: ({ shown }) => ({
+      model: modifyFields(model, {
+        dropdownCalendar: calendar => DateSelection.show(calendar, shown),
+      }),
+    }),
     GotListbox: ({ message }) => foldListbox(model, message),
     GotCombobox: ({ message }) => foldCombobox(model, message),
     GotCalendar: ({ message }) => foldCalendar(model, message),

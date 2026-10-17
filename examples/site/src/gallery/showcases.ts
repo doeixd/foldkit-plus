@@ -580,6 +580,39 @@ const resizableBasic = <Message>(style: NamedStyle<typeof ResizableSlots>, live:
     live.h,
   )
 
+const sliderBasic = <Message>(style: NamedStyle<typeof SliderSlots>, live: Live<Message>) =>
+  Snippet.slider(
+    style,
+    { volume: live.widgets.volume, price: live.widgets.priceRange },
+    {
+      onVolume: value => live.onWidget(Widgets.Message.TurnedVolume({ value })),
+      onPrice: value => live.onWidget(Widgets.Message.MovedPriceRange({ value })),
+    },
+    live.h,
+  )
+
+const calendarBasic = <Message>(style: NamedStyle<typeof CalendarSlots>, live: Live<Message>) =>
+  Snippet.calendar(
+    style,
+    {
+      calendar: live.widgets.calendar,
+      selection: live.widgets.selection,
+      trip: live.widgets.trip,
+      tripDates: live.widgets.tripDates,
+    },
+    message => live.onWidget(Widgets.Message.GotCalendar({ message })),
+    message => live.onWidget(Widgets.Message.GotTripCalendar({ message })),
+    live.h,
+  )
+
+const colorInline = <Message>(style: NamedStyle<typeof ColorPickerSlots>, live: Live<Message>) =>
+  Snippet.colorPicker(
+    style,
+    live.widgets.accent,
+    message => live.onWidget(Widgets.Message.GotAccent({ message })),
+    live.h,
+  )
+
 // Each checkbox example holds its own state: one press toggles one box.
 const checkboxBasic = <Message>(style: NamedStyle<typeof CheckboxSlots>, live: Live<Message>) =>
   Snippet.checkbox(
@@ -1913,13 +1946,23 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     ColorPickerSlots,
     Recipes.ColorPicker,
-    (style, live) =>
-      Snippet.colorPicker(
-        style,
-        live.widgets.accent,
-        message => live.onWidget(Widgets.Message.GotAccent({ message })),
-        live.h,
-      ),
+    colorInline,
+    undefined,
+    [
+      { name: 'inline', title: 'Inline', draw: colorInline },
+      {
+        name: 'popover',
+        title: 'In a popover',
+        draw: (style, live) =>
+          Snippet.colorPickerPopover(
+            style,
+            { picker: live.widgets.brand, popover: live.widgets.brandPopover },
+            message => live.onWidget(Widgets.Message.GotBrand({ message })),
+            message => live.onWidget(Widgets.Message.GotBrandPopover({ message })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -2205,16 +2248,34 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     SliderSlots,
     Recipes.Slider,
-    (style, live) =>
-      Snippet.slider(
-        style,
-        { volume: live.widgets.volume, price: live.widgets.priceRange },
-        {
-          onVolume: value => live.onWidget(Widgets.Message.TurnedVolume({ value })),
-          onPrice: value => live.onWidget(Widgets.Message.MovedPriceRange({ value })),
-        },
-        live.h,
-      ),
+    sliderBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'A number and a range', draw: sliderBasic },
+      {
+        name: 'vertical',
+        title: 'Vertical',
+        draw: (style, live) =>
+          Snippet.sliderVertical(
+            style,
+            live.widgets.level,
+            value => live.onWidget(Widgets.Message.TurnedLevel({ value })),
+            live.h,
+          ),
+      },
+      {
+        name: 'marks',
+        title: 'Marks and ticks',
+        pins: { value: 'end' },
+        draw: (style, live) =>
+          Snippet.sliderMarks(
+            style,
+            live.widgets.budget,
+            value => live.onWidget(Widgets.Message.MovedBudget({ value })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -2472,6 +2533,38 @@ export const showcases: ReadonlyArray<Showcase> = [
         message => live.onWidget(Widgets.Message.GotTripCalendar({ message })),
         live.h,
       ),
+    undefined,
+    [
+      { name: 'single-range', title: 'A day and a range', draw: calendarBasic },
+      {
+        name: 'two-months',
+        title: 'Two months and presets',
+        draw: (style, live) =>
+          Snippet.calendarTwoMonths(
+            style,
+            live.widgets.twoMonths,
+            {
+              onFirst: message => live.onWidget(Widgets.Message.GotTripFirst({ message })),
+              onSecond: message => live.onWidget(Widgets.Message.GotTripSecond({ message })),
+              onPreview: date => live.onWidget(Widgets.Message.PreviewedTrip({ date })),
+              onPreset: selection => live.onWidget(Widgets.Message.PickedTripPreset({ selection })),
+            },
+            live.h,
+          ),
+      },
+      {
+        name: 'dropdowns',
+        title: 'Month and year selects, week numbers',
+        draw: (style, live) =>
+          Snippet.calendarDropdowns(
+            style,
+            { calendar: live.widgets.dropdownCalendar, selection: live.widgets.dropdownDay },
+            message => live.onWidget(Widgets.Message.GotDropdownCalendar({ message })),
+            shown => live.onWidget(Widgets.Message.ShowedCalendar({ shown })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
