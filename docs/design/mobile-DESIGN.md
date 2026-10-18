@@ -136,6 +136,10 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **A7 and A9: done**: the stylesheet adds `-webkit-user-select` beside `user-select`; every
+  recipe rule with `touch-action: none` sets `-webkit-touch-callout: none` (a test over the
+  compiled recipes); `touchText` on the OTP input and the colour picker's fields, 16px for the
+  grid's editor. The grid's resize and fill handles get theirs with C2.
 - **B1: done** for the Dialog and the bottom Sheet: `KeyboardInset` (primitives/dom) and the
   opt-in `Dialog.keyboard` mixin (it sends no Message, so it is not on by default), with
   browser tests and mutations. The Anchor re-placing popups on `visualViewport` changes, and

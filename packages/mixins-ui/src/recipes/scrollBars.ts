@@ -44,6 +44,7 @@ export const bar: StyleValue = component(
     zIndex: '1',
     touchAction: 'none',
     userSelect: 'none',
+    WebkitTouchCallout: 'none',
     opacity: '0',
     transitionProperty: 'opacity',
     transitionDuration: ref.motion['moderate-exit'],

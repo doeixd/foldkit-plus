@@ -190,6 +190,8 @@ export const Sheet = Style.recipeFor(DialogSlots)({
           borderRadius: ref.radius.full,
           background: ref.outline.default,
           cursor: 'grab',
+          // No callout of iOS's own for a press held while dragging.
+          WebkitTouchCallout: 'none',
         }),
         // A target a thumb can find, larger than the bar it draws.
         Style.nest('&::after', {

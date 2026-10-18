@@ -27,6 +27,7 @@ import {
   unfilledHover,
   variant,
   controlHeight,
+  touchText,
 } from './design.js'
 
 const box = (length: string) => variant(Style.self({ '--_fk-color-picker-size': length }))
@@ -93,6 +94,8 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
         background: 'var(--fk-color-area)',
         // The pointer drags the color, never the page.
         touchAction: 'none',
+        // No callout of iOS's own for a press held while dragging.
+        WebkitTouchCallout: 'none',
         cursor: 'crosshair',
         ...imageEdge,
       }),
@@ -161,11 +164,13 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
     fields: component(Style.self({ display: 'flex', gap: ref.space.xs })),
     format: component(
       Style.self({ ...field, flex: 'none', cursor: 'pointer' }),
+      touchText,
       focusRing,
       disabled,
     ),
     input: component(
       Style.self({ ...field, flex: '1', minInlineSize: '0', fontVariantNumeric: 'tabular-nums' }),
+      touchText,
       Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
       focusRing,
       disabled,

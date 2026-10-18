@@ -68,6 +68,8 @@ export const SignaturePad = Style.recipeFor(SignaturePadSlots)({
         color: ref.text.overt,
         // The pointer draws; it never scrolls or zooms the page.
         touchAction: 'none',
+        // No callout of iOS's own for a press held while dragging.
+        WebkitTouchCallout: 'none',
         userSelect: 'none',
         cursor: 'crosshair',
       }),

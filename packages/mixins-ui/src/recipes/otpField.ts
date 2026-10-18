@@ -7,7 +7,7 @@
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { OtpFieldSlots } from '../otpField.js'
-import { component, ref } from './design.js'
+import { component, ref, touchText } from './design.js'
 
 const blink = Style.keyframes({ '0%, 100%': { opacity: '1' }, '50%': { opacity: '0' } })
 const focused = ':where(:focus-within) > :where([aria-hidden]) > &[data-next]'
@@ -37,6 +37,8 @@ export const OtpField = Style.recipeFor(OtpFieldSlots)({
         outline: 'none',
         cursor: 'text',
       }),
+      // Its text is clear, but iOS zooms into any focused field under 16px all the same.
+      touchText,
       Style.pseudo('::selection', { background: 'transparent' }),
     ),
     // The cells are positioned, so they paint over the input: presses pass through them to it.

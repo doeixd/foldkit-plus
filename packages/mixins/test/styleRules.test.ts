@@ -306,6 +306,23 @@ describe('selector lists', () => {
     expect(css).toBe(expected(c))
   })
 
+  // iOS Safari reads only the prefixed property, so a long press selected a drag surface's text.
+  it.each([
+    [
+      'user-select gains the prefixed twin Safari reads',
+      Style.self({ userSelect: 'none' }),
+      (c: string) => `${c}{-webkit-user-select:none;user-select:none}`,
+    ],
+    [
+      'a twin written by hand stays',
+      Style.self({ userSelect: 'none', WebkitUserSelect: 'text' }),
+      (c: string) => `${c}{-webkit-user-select:text;user-select:none}`,
+    ],
+  ])('%s', (_name, piece, expected) => {
+    const { css, c } = cssOf(piece)
+    expect(css).toBe(expected(c))
+  })
+
   it('splits only top-level commas', () => {
     expect(Rules.selectorList(':is(a, b), [x=","], c')).toEqual([':is(a, b)', '[x=","]', 'c'])
   })

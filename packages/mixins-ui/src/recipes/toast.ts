@@ -236,6 +236,8 @@ export const Toast = Style.recipeFor(ToastSlots)({
         gap: ref.space['3xs'],
         // A swipe starts here: the page does not scroll along its axis.
         touchAction: 'none',
+        // No callout of iOS's own for a press held while dragging.
+        WebkitTouchCallout: 'none',
         userSelect: 'none',
       }),
     ),

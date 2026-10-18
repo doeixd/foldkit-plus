@@ -97,6 +97,8 @@ export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
         background: ref.surface.muted,
         // The pointer drags the crop, never the page.
         touchAction: 'none',
+        // No callout of iOS's own for a press held while dragging.
+        WebkitTouchCallout: 'none',
         userSelect: 'none',
         ...imageEdge,
       }),

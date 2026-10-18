@@ -38,6 +38,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins`: `user-select` is written with `-webkit-user-select` beside it, which iOS
+  Safari still reads alone, so a long press on a drag surface no longer selects its text there.
+  The recipes' drag surfaces (sliders' dials, the colour area, the cropper, the signature pad,
+  splitters, the toast's body, the Sheet's handle, the FloatingPanel's grips) also set
+  `-webkit-touch-callout: none`.
+- `foldkit-mixins-ui`, `foldkit-mixins-data-grid`: the OTP input, the colour picker's fields
+  and the grid's cell editor are 16px or more on a touch screen, where iOS zoomed the page into
+  them.
 - `foldkit-mixins-ui`: on a touch screen the recipes' controls are as large as a finger
   needs, 44px: `Defaults.reset` sets `--fk-touch-floor` where the pointer is coarse, and a
   control's height on the size ladder is at least that (buttons, icon buttons square, fields,

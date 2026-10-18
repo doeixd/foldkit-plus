@@ -69,6 +69,8 @@ export const AngleSlider = Style.recipeFor(AngleSliderSlots)({
         blockSize: size,
         borderRadius: ref.radius.full,
         touchAction: 'none',
+        // No callout of iOS's own for a press held while dragging.
+        WebkitTouchCallout: 'none',
         userSelect: 'none',
         cursor: 'pointer',
       }),

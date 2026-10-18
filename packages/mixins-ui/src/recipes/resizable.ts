@@ -46,6 +46,8 @@ export const Resizable = Style.recipeFor(ResizableSlots)({
         background: ref.outline.default,
         cursor: 'col-resize',
         touchAction: 'none',
+        // No callout of iOS's own for a press held while dragging.
+        WebkitTouchCallout: 'none',
         ...transition('background-color, box-shadow'),
       }),
       // A grip wider than the line, so the press need not land on a pixel.

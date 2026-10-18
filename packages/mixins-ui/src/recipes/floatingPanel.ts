@@ -126,6 +126,8 @@ export const FloatingPanel = Style.recipeFor(FloatingPanelSlots)({
         alignSelf: 'stretch',
         borderRadius: ref.radius.sm,
         cursor: 'grab',
+        // No callout of iOS's own for a press held while dragging.
+        WebkitTouchCallout: 'none',
         userSelect: 'none',
       }),
       Style.nest(':where([data-dragging]) &', { cursor: 'grabbing' }),
@@ -160,7 +162,7 @@ export const FloatingPanel = Style.recipeFor(FloatingPanelSlots)({
       Style.self({ flex: '1', minBlockSize: '0', overflow: 'auto', padding: ref.space.sm }),
     ),
     handle: component(
-      Style.self({ position: 'absolute', zIndex: '1' }),
+      Style.self({ position: 'absolute', zIndex: '1', WebkitTouchCallout: 'none' }),
       ...edges.map(([edge, place]) => Style.pseudo(`[data-edge="${edge}"]`, place)),
       // The corner the keys resize from shows a grip, so it reads as a place to take hold.
       Style.pseudo('[tabindex]', {

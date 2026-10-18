@@ -30,16 +30,20 @@ const padlock = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/sv
 
 // The field an edit is typed in fills its cell, the cell lifted off the grid
 // (below), so an edit does not look like a cell that only has focus.
-const field = Style.self({
-  background: ref.surface.base,
-  border: 'none',
-  caretColor: ref.outline.focus,
-  color: 'inherit',
-  font: 'inherit',
-  outline: `${ref.border.thick} solid ${ref.outline.focus}`,
-  outlineOffset: `calc(-1 * ${ref.border.thick})`,
-  paddingInline: ref.space.sm,
-})
+const field = Style.compose(
+  Style.self({
+    background: ref.surface.base,
+    border: 'none',
+    caretColor: ref.outline.focus,
+    color: 'inherit',
+    font: 'inherit',
+    outline: `${ref.border.thick} solid ${ref.outline.focus}`,
+    outlineOffset: `calc(-1 * ${ref.border.thick})`,
+    paddingInline: ref.space.sm,
+  }),
+  // At least 16px on a touch screen, where iOS zooms into any smaller focused field.
+  Style.media('(pointer: coarse)', { fontSize: 'max(1rem, 1em)' }),
+)
 // A draft the column refuses: the field in the error colour.
 const refused = Style.nest('&[aria-invalid="true"]', {
   outlineColor: ref.error.default,

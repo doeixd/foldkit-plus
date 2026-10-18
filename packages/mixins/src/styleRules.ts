@@ -204,10 +204,22 @@ const guarded = (
   ]
 }
 
+/**
+ * The declarations as written out, with the prefixed twin a browser still needs beside an
+ * unprefixed property: iOS Safari reads only `-webkit-user-select`, so a drag surface's
+ * `user-select: none` let a long press select its text there. A twin written by hand stays.
+ */
+const prefixed = (
+  declarations: Readonly<Record<string, string>>,
+): Readonly<Record<string, string>> =>
+  declarations['userSelect'] === undefined || declarations['WebkitUserSelect'] !== undefined
+    ? declarations
+    : { ...declarations, WebkitUserSelect: declarations['userSelect'] }
+
 export const css = (generated: string, rules: ReadonlyArray<StyleRule>): string =>
   rules
     .map(entry => {
-      const body = `{${declarationsText(entry.declarations)}}`
+      const body = `{${declarationsText(prefixed(entry.declarations))}}`
       const selectors = selectorList(selectorFor(generated, entry.selector))
       return guarded(selectors, body)
         .map(({ media, text }) => {

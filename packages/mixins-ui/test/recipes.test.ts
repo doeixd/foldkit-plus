@@ -67,6 +67,8 @@ import {
   ThinkingStepsSlots,
   QuestionnaireSlots,
   AngleSliderSlots,
+  ResizableSlots,
+  ColorPickerSlots,
   TimerSlots,
   MarqueeSlots,
   ImageCropperSlots,
@@ -88,6 +90,8 @@ const defined = new Set([
   'ink',
   // Set by `Defaults.reset` where the pointer is coarse; read with a fallback of 0.
   'touch-floor',
+  // Written on the picker by its view, from the colour it holds.
+  ...['', '-opaque', '-hue', '-area', '-hues', '-x', '-y'].map(part => `color${part}`),
   // Written on a dialog's panel by `Dialog.keyboard`; read with a fallback of 0.
   'keyboard-inset',
   // Written on the element by the card group's view and its FluidHover, not by a theme.
@@ -389,6 +393,12 @@ const compiled = {
   AngleSlider: selections(Recipes.AngleSlider.def.variants).map(
     selection => Style.forSlots(AngleSliderSlots)(Recipes.AngleSlider(selection)).css,
   ),
+  ColorPicker: selections(Recipes.ColorPicker.def.variants).map(
+    selection => Style.forSlots(ColorPickerSlots)(Recipes.ColorPicker(selection)).css,
+  ),
+  Resizable: selections(Recipes.Resizable.def.variants).map(
+    selection => Style.forSlots(ResizableSlots)(Recipes.Resizable(selection)).css,
+  ),
   Timer: selections(Recipes.Timer.def.variants).map(
     selection => Style.forSlots(TimerSlots)(Recipes.Timer(selection)).css,
   ),
@@ -421,6 +431,15 @@ const compiled = {
 describe('Recipes', () => {
   it.each(Object.entries(compiled))('%s compiles every selection to CSS', (_, sheets) => {
     for (const css of sheets) expect(css.length).toBeGreaterThan(0)
+  })
+
+  // A press held on a drag surface opened iOS's callout menu over the drag.
+  it.each(Object.entries(compiled))('%s holds no callout where it takes the press', (_, sheets) => {
+    for (const css of sheets) {
+      for (const [, body] of css.matchAll(/\{([^{}]*touch-action:none[^{}]*)\}/g)) {
+        expect(body).toContain('-webkit-touch-callout:none')
+      }
+    }
   })
 
   it.each(Object.entries(compiled))('%s references only defined tokens', (_, sheets) => {
