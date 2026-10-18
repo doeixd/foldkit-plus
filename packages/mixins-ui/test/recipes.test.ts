@@ -86,6 +86,8 @@ const defined = new Set([
   ),
   // Set by a container drawn in its own color, not by a theme.
   'ink',
+  // Set by `Defaults.reset` where the pointer is coarse; read with a fallback of 0.
+  'touch-floor',
   // Written on the element by the card group's view and its FluidHover, not by a theme.
   'card-columns',
   // Written by the views: an avatar's hue from its name, a table row skeleton's column count.
@@ -536,9 +538,11 @@ describe('Recipes', () => {
     const css = Style.forSlots(ButtonSlots)(
       Recipes.Button({ tone: 'neutral', variant: 'icon', size: null }),
     ).css
-    // A square one rung of the size ladder tall, beside the buttons it sits with.
-    expect(css).toContain(`inline-size:${Theme.ladder('height')}`)
-    expect(css).toContain(`block-size:${Theme.ladder('height')}`)
+    // A square one rung of the size ladder tall, beside the buttons it sits with, and as
+    // large as a finger needs on a touch screen.
+    const side = `max(${Theme.ladder('height')}, var(--fk-touch-floor, 0px))`
+    expect(css).toContain(`inline-size:${side}`)
+    expect(css).toContain(`block-size:${side}`)
     expect(css).toContain('padding:0')
     expect(css).toContain('font-size:0')
     // No gap beside the hidden words, which pushed the glyph off center.

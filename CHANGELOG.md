@@ -33,6 +33,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: on a touch screen the recipes' controls are as large as a finger
+  needs, 44px: `Defaults.reset` sets `--fk-touch-floor` where the pointer is coarse, and a
+  control's height on the size ladder is at least that (buttons, icon buttons square, fields,
+  selects, tabs, segmented items, menu and list rows, accordion triggers, calendar days,
+  carousel, alert and chat actions). A desktop keeps the ladder's density, and a region that
+  must stay dense sets the floor to `0px`.
 - `foldkit-mixins-ui`: Toast stacks and Dialog panels keep clear of the notch and the home
   indicator: each edge a stack sits at is held off by the screen's inset there, and a panel's
   margins and largest size leave every inset out.

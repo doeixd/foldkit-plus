@@ -36,6 +36,7 @@ import {
   turningChevron,
   unfilledHover,
   variant,
+  controlHeight,
 } from './design.js'
 
 const open = '[data-state="open"]'
@@ -83,7 +84,7 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
         justifyContent: 'space-between',
         gap: ladder('gap'),
         inlineSize: '100%',
-        minBlockSize: ladder('height'),
+        minBlockSize: controlHeight,
         paddingBlock: ladder('row-pad'),
         paddingInline: inset,
         border: '0',

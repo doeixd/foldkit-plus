@@ -136,6 +136,10 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **A6: done.** `--fk-touch-floor` (the reset, coarse pointers only) and `controlHeight` in
+  `design.ts`, for the ladder's controls and rows and the square icon controls
+  (`touchTarget.touch.browser.test.ts`, with mutations). Thumbs, grips and handles that must
+  not grow visibly still need their `::before` hit areas (Part C).
 - **A8 and B3: done** for the tokens, Toast and Dialog (`safeArea.browser.test.ts`, under
   Chrome's emulated insets, with mutations); the FloatingPanel, Banner and a body helper are
   left. The examples keep their viewport meta: `viewport-fit=cover` lets the page's own

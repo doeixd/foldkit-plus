@@ -18,7 +18,7 @@
  */
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { CalendarSlots } from '../calendar.js'
-import { ladder, role } from 'foldkit-mixins/theme'
+import { role } from 'foldkit-mixins/theme'
 import {
   component,
   disabled,
@@ -29,10 +29,11 @@ import {
   transition,
   unfilledHover,
   variant,
+  controlHeight,
 } from './design.js'
 
 // Read on each cell, so a cell steps with the calendar's size or the region's.
-const cell = ladder('height')
+const cell = controlHeight
 
 const quiet: StyleValue = component(
   Style.self({

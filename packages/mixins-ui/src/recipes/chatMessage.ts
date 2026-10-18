@@ -32,6 +32,7 @@ import {
   travelled,
   unfilledHover,
   variant,
+  controlHeight,
 } from './design.js'
 
 const user = '&[data-from="user"]'
@@ -149,8 +150,8 @@ export const ChatMessage = Style.recipeFor(ChatMessageSlots)({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        minInlineSize: ladder('height'),
-        blockSize: ladder('height'),
+        minInlineSize: controlHeight,
+        blockSize: controlHeight,
         paddingInline: ref.space['2xs'],
         margin: '0',
         border: '0',

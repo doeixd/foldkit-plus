@@ -23,6 +23,10 @@ export const reset: StyleValue = global(
     // zoom, so a quick press on a stepper or a pager does not wait for one.
     ':where(:root){-webkit-tap-highlight-color:transparent}',
     ':where(:is(a,button,input,select,textarea,summary,label,[role=button],[role=tab],[role=option],[role=menuitem])){touch-action:manipulation}',
+    // What a finger needs, 44px, as the platforms advise: the recipes' controls are at least
+    // this tall where the pointer is coarse, and keep their density elsewhere. A region that
+    // must stay dense sets it to 0.
+    '@media (pointer:coarse){:where(:root){--fk-touch-floor:2.75rem}}',
     ':where(:is(img,picture,video,canvas,svg)){display:block;max-inline-size:100%;block-size:auto}',
     ':where(:is(input,button,textarea,select)){font:inherit;color:inherit}',
     ':where(textarea){field-sizing:content;min-block-size:2lh}',

@@ -13,7 +13,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "const cell = ladder('height')",
+        find: 'const cell = controlHeight',
         replace: "const cell = '2rem'",
       },
     ],

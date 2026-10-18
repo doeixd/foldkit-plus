@@ -26,6 +26,7 @@ import {
   transition,
   unfilledHover,
   variant,
+  controlHeight,
 } from './design.js'
 
 const box = (length: string) => variant(Style.self({ '--_fk-color-picker-size': length }))
@@ -119,8 +120,8 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
         display: 'inline-grid',
         placeItems: 'center',
         flex: 'none',
-        inlineSize: ladder('height'),
-        blockSize: ladder('height'),
+        inlineSize: controlHeight,
+        blockSize: controlHeight,
         padding: '0',
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.md,

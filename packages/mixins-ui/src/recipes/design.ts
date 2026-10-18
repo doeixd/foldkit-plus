@@ -26,11 +26,18 @@ export const variant = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
   Layers.standard.in('variants', Style.compose(...pieces))
 
 /**
+ * A control's height on the size ladder, and on a touch screen at least the 44px a finger
+ * needs: `Defaults.reset` sets `--fk-touch-floor` only where the pointer is coarse, so a
+ * desktop keeps its density, and a region that must stay dense sets it to 0.
+ */
+export const controlHeight = `max(${Theme.ladder('height')}, var(--fk-touch-floor, 0px))`
+
+/**
  * A bounded control on the size ladder: its height, padding, gap and text
  * follow the `step` knob, so a region set compact shrinks it whole.
  */
 export const onLadder: Declarations = {
-  minBlockSize: Theme.ladder('height'),
+  minBlockSize: controlHeight,
   paddingBlock: '0',
   paddingInline: Theme.ladder('pad'),
   gap: Theme.ladder('gap'),

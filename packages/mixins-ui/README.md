@@ -892,9 +892,12 @@ direction explicitly:
 ## Mechanisms
 
 `Touch` and `Icons` are style mechanisms, not components: no slots, no views.
-Compose them into your own slots. `Touch.target` floors one control at 44px
-where the pointer is coarse; `Touch.targets` floors every boxed control a
-region draws. `Icons.glyph(size)` draws the icon in `--icon` before the
+Compose them into your own slots. The recipes' own controls already stand
+44px tall where the pointer is coarse: `Defaults.reset` sets
+`--fk-touch-floor` there, and a control's height on the size ladder is at
+least that (a region that must stay dense sets it to `0px`). For your own
+slots, `Touch.target` floors one control at 44px where the pointer is coarse;
+`Touch.targets` floors every boxed control a region draws. `Icons.glyph(size)` draws the icon in `--icon` before the
 element's words, and `Icons.byAttribute(attribute, icons)` sets `--icon` from
 an attribute's value, where `icons` maps each value to its resolved `url(…)`:
 

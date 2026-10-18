@@ -17,7 +17,6 @@
  * track's whole width.
  */
 import { Style } from 'foldkit-mixins'
-import { ladder } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { CarouselSlots } from '../carousel.js'
 import {
@@ -31,6 +30,7 @@ import {
   travelled,
   unfilledHover,
   variant,
+  controlHeight,
 } from './design.js'
 
 const gap = ref.space.sm
@@ -75,8 +75,8 @@ const arrow = (turn: string, nudge: string) =>
       display: 'grid',
       placeItems: 'center',
       flexShrink: '0',
-      inlineSize: ladder('height'),
-      blockSize: ladder('height'),
+      inlineSize: controlHeight,
+      blockSize: controlHeight,
       padding: '0',
       border: `${ref.border.thin} solid ${ref.outline.default}`,
       borderRadius: ref.radius.full,
@@ -106,8 +106,8 @@ export const Carousel = Style.recipeFor(CarouselSlots)({
         zIndex: '1',
         display: 'grid',
         placeItems: 'center',
-        inlineSize: ladder('height'),
-        blockSize: ladder('height'),
+        inlineSize: controlHeight,
+        blockSize: controlHeight,
         padding: '0',
         border: '0',
         borderRadius: ref.radius.full,

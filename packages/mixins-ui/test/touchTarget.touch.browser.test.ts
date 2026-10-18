@@ -1,0 +1,89 @@
+/**
+ * On a touch screen, in the `browser-touch` project, a control is as large as a finger
+ * needs, 44px, and a region set compact stays so; with a mouse they keep the ladder's 36px
+ * (`ladder.browser.test.ts`).
+ */
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import * as Runtime from 'foldkit/runtime'
+import { Layers, SlotView, Style } from 'foldkit-mixins'
+import { Defaults } from 'foldkit-mixins/defaults'
+import { Theme } from 'foldkit-mixins/theme'
+import { afterEach, expect, it, vi } from 'vitest'
+import { ButtonSlots, InputSlots, Recipes } from '../src/index.js'
+
+const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const button = Style.forSlots(ButtonSlots)(Recipes.Button({}))
+const icon = Style.forSlots(ButtonSlots)(Recipes.Button({ variant: 'icon' }))
+const input = Style.forSlots(InputSlots)(Recipes.Input({}))
+const Model = Schema.Struct({})
+
+afterEach(() => {
+  document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+  document.body.replaceChildren()
+})
+
+const mount = (floor: 'kept' | 'none') => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in('reset', Defaults.reset),
+      Layers.standard.in('theme', Theme.root(theme)),
+    ) +
+    button.css +
+    icon.css +
+    input.css
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'touch-target'
+  document.body.appendChild(container)
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: {} }),
+      update: (model: typeof Model.Type) => ({ model }),
+      view: (_: unknown, h: HtmlBuilder<never>) => {
+        const b = SlotView.buildersFor(ButtonSlots, [button.mixin], { input: undefined, h })
+        const g = SlotView.buildersFor(ButtonSlots, [icon.mixin], { input: undefined, h })
+        const i = SlotView.buildersFor(InputSlots, [input.mixin], { input: undefined, h })
+        return h.div(
+          [h.Style(floor === 'none' ? { '--fk-touch-floor': '0px' } : {})],
+          [
+            h.button(b.button.attrs([h.Id('save')]), ['Save']),
+            h.button(g.button.attrs([h.Id('close'), h.AriaLabel('Close')]), ['×']),
+            h.input(i.input.attrs([h.Id('name'), h.AriaLabel('Name')])),
+          ],
+        )
+      },
+    }),
+  )
+}
+
+const box = (id: string) => document.getElementById(id)!.getBoundingClientRect()
+
+it('draws a control a finger can hit, an icon one square', async () => {
+  expect(matchMedia('(pointer: coarse)').matches).toBe(true)
+  const handle = mount('kept')
+  try {
+    await vi.waitFor(() => expect(document.getElementById('name')).not.toBeNull())
+    expect(box('save').height).toBe(44)
+    expect(box('name').height).toBe(44)
+    expect([box('close').width, box('close').height]).toEqual([44, 44])
+  } finally {
+    handle.dispose()
+  }
+})
+
+it('keeps the ladder in a region that sets the floor to 0', async () => {
+  const handle = mount('none')
+  try {
+    await vi.waitFor(() => expect(document.getElementById('name')).not.toBeNull())
+    expect(box('save').height).toBe(36)
+    expect([box('close').width, box('close').height]).toEqual([36, 36])
+  } finally {
+    handle.dispose()
+  }
+})

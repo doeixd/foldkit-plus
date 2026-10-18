@@ -23,6 +23,7 @@ import {
   transition,
   unfilledHover,
   variant,
+  controlHeight,
 } from './design.js'
 
 const toned = (tone: AlertTone): StyleValue =>
@@ -149,11 +150,11 @@ export const Alert = Style.recipeFor(AlertSlots)({
         gridColumn: '3',
         gridRow: '1',
         marginInlineStart: ref.space.sm,
-        marginBlock: `calc((1lh - ${ladder('height')}) / 2)`,
+        marginBlock: `calc((1lh - ${controlHeight}) / 2)`,
         display: 'grid',
         placeItems: 'center',
-        inlineSize: ladder('height'),
-        blockSize: ladder('height'),
+        inlineSize: controlHeight,
+        blockSize: controlHeight,
         padding: '0',
       }),
       Style.nest(inBanner, {

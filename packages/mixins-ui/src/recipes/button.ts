@@ -7,7 +7,6 @@
  */
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { ButtonSlots } from '../button.js'
-import { ladder } from 'foldkit-mixins/theme'
 import {
   component,
   disabled,
@@ -22,6 +21,7 @@ import {
   trimmed,
   unfilledHover,
   variant,
+  controlHeight,
 } from './design.js'
 
 /**
@@ -175,8 +175,8 @@ export const Button = Style.recipeFor(ButtonSlots)({
           Style.self({
             background: 'transparent',
             color: ref.text.muted,
-            inlineSize: ladder('height'),
-            blockSize: ladder('height'),
+            inlineSize: controlHeight,
+            blockSize: controlHeight,
             padding: '0',
             fontSize: '0',
             // The words are hidden, not gone: a gap beside them pushed the icon off center.
