@@ -481,7 +481,8 @@ describe('the generated site', () => {
     expect(pressed('#theme-panes')).toEqual(['Iris'])
     expect(create.getElementById('knob-hue')).toBeNull()
     const canvas = create.querySelector('[data-size="canvas"]')
-    expect(canvas?.getAttribute('style')).toContain('--fk-knob-accent-h: 264')
+    // The default theme is the preview's own rule: nothing to override inline.
+    expect(canvas?.getAttribute('style')).toBe('color-scheme: light dark')
     expect(create.querySelector('main figure pre code')?.textContent).toBe(codeOf(defaults))
   })
 

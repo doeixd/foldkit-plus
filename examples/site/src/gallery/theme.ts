@@ -589,12 +589,16 @@ export const themeOf = (knobs: Knobs) => Theme.compose(Theme.tokens, paletteOf(k
 const declarationsOf = (
   theme: Readonly<Record<string, Readonly<Record<string, string>>>>,
   groups?: ReadonlySet<string>,
+  /** Leave out each token that already has this value here. */
+  unlike?: Readonly<Record<`--${string}`, string>>,
 ): Record<`--${string}`, string> => {
   const declared: Record<`--${string}`, string> = {}
   for (const [group, names] of Object.entries(theme)) {
     if (groups !== undefined && !groups.has(group)) continue
-    for (const [name, value] of Object.entries(names))
-      declared[`${VAR_PREFIX}-${group}-${name}`] = value
+    for (const [name, value] of Object.entries(names)) {
+      const property = `${VAR_PREFIX}-${group}-${name}` as const
+      if (unlike?.[property] !== value) declared[property] = value
+    }
   }
   return declared
 }
@@ -621,11 +625,15 @@ let last:
   | { readonly knobs: Knobs; readonly scheme: Scheme; readonly style: Record<string, string> }
   | undefined
 
-/** The inline overrides that turn the default preview into `knobs`. */
+/**
+ * The inline overrides that turn the default preview into `knobs`: only the
+ * tokens that differ from what the preview's rule declares, since every
+ * preview on a page carries them (the gallery draws dozens).
+ */
 export const knobStyleOf = (knobs: Knobs, scheme: Scheme): Record<string, string> => {
   if (last !== undefined && last.knobs === knobs && last.scheme === scheme) return last.style
   const style = {
-    ...declarationsOf(themeOf(knobs), KNOB_GROUPS),
+    ...declarationsOf(themeOf(knobs), KNOB_GROUPS, declared),
     colorScheme: scheme === 'system' ? 'light dark' : scheme,
   }
   last = { knobs, scheme, style }

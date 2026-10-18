@@ -58,7 +58,11 @@ describe('the theme creator', () => {
     expect(style['--fk-knob-accent-h']).toBe('12')
     expect(style['--fk-knob-density']).toBe('0.8')
     expect(style['colorScheme']).toBe('dark')
-    expect(knobStyleOf(defaults, 'system')['colorScheme']).toBe('light dark')
+    expect(knobStyleOf(defaults, 'system')).toEqual({ colorScheme: 'light dark' })
+    // A knob moved back to its default is the preview's own declaration again.
+    expect(Object.keys(knobStyleOf({ ...defaults, hue: 12, density: 1 }, 'light'))).not.toContain(
+      '--fk-knob-density',
+    )
     const custom = Object.keys(style).filter(name => name.startsWith('--'))
     expect(custom.filter(name => !(name in declared))).toEqual([])
     expect(custom.every(name => /^--fk-(knob|font|motion|border|shadow|state)-/.test(name))).toBe(
@@ -104,14 +108,14 @@ describe('the theme creator', () => {
     expect(style['--fk-knob-popup-bold']).toBe('1')
     expect(style['--fk-motion-ease']).toBe('var(--fk-motion-spring)')
     // The accent's hue, by default, which follows the accent knob.
-    expect(knobStyleOf(defaults, 'light')['--fk-knob-neutral-h']).toBe('var(--fk-hue-accent)')
+    expect(declared['--fk-knob-neutral-h']).toBe('var(--fk-hue-accent)')
   })
 
   it('writes compact as the ladder step, in the code and the preview, and nothing by default', () => {
     expect(codeOf(defaults)).not.toContain('step:')
     expect(codeOf({ ...defaults, size: 'compact' })).toContain("    step: '1',")
     expect(knobStyleOf({ ...defaults, size: 'compact' }, 'light')['--fk-knob-step']).toBe('1')
-    expect(knobStyleOf(defaults, 'light')['--fk-knob-step']).toBe('0')
+    expect(declared['--fk-knob-step']).toBe('0')
   })
 
   it('tells a style by its shape and knobs by every choice', () => {
@@ -152,7 +156,7 @@ describe('the theme creator', () => {
     expect(knobStyleOf({ ...defaults, hover: 'accent' }, 'light')['--fk-state-ink']).toBe(
       'var(--fk-accent-ink)',
     )
-    expect(knobStyleOf(defaults, 'light')['--fk-shadow-md']).toMatch(/^0 4px 6px/)
+    expect(declared['--fk-shadow-md']).toMatch(/^0 4px 6px/)
   })
 
   it('tells a preset by its knobs, whichever way the preview reads', () => {

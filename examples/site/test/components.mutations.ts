@@ -199,6 +199,17 @@ export default [
     tests: unit,
   },
   {
+    name: 'every preview carries every override, default or not',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: '...declarationsOf(themeOf(knobs), KNOB_GROUPS, declared),',
+        replace: '...declarationsOf(themeOf(knobs), KNOB_GROUPS),',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: 'hard shadows are never drawn',
     edits: [
       {
