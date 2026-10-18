@@ -102,9 +102,17 @@ export const focusWithin: StyleValue = Style.pseudo(':focus-within', {
   outlineOffset: '2px',
 })
 
-/** One capped scroll region for popup lists, in the `components` layer. */
+/**
+ * One capped scroll region for popup lists, in the `components` layer: at most 16rem, and
+ * no more than 40% of the screen a keyboard leaves on a phone. Scrolled to its end, a swipe
+ * stays in it rather than moving the page behind.
+ */
 export const listScroll: StyleValue = component(
-  Style.self({ maxBlockSize: '16rem', overflowY: 'auto' }),
+  Style.self({
+    maxBlockSize: 'min(16rem, 40dvh)',
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+  }),
   Utilities.scrollFade('block'),
 )
 

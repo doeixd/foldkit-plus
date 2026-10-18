@@ -38,6 +38,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Table always stands in its `frame`, which scrolls sideways when the
+  table is wider than the screen (the default static header; a sticky one keeps sticking to
+  the application's scroller). Breaking for markup: a Table without `fluid` is now wrapped
+  in the frame's `div`.
+- `foldkit-mixins-ui`: scrolled to its end, a swipe on a Dialog or Sheet panel, a popup list,
+  the Command list or the Sidebar's nav no longer moves the page behind
+  (`overscroll-behavior: contain`); a popup list is at most 40% of the screen a phone's
+  keyboard leaves; menu, listbox and HoverCard panels are never wider than the screen.
 - `foldkit-mixins`: `user-select` is written with `-webkit-user-select` beside it, which iOS
   Safari still reads alone, so a long press on a drag surface no longer selects its text there.
   The recipes' drag surfaces (sliders' dials, the colour area, the cropper, the signature pad,

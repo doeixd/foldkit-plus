@@ -176,6 +176,7 @@ export const Sheet = Style.recipeFor(DialogSlots)({
           // grid item would beat the placement above.
           margin: '0',
           overflowY: 'auto',
+          overscrollBehavior: 'contain',
         }),
         ...allSides.map(panelOn),
         // It follows the pointer; the release slides on the Dialog's transition.

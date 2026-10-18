@@ -29,6 +29,8 @@ export const panel: StyleValue = component(
   Style.self({
     marginBlockStart: ref.space['2xs'],
     minInlineSize: '14rem',
+    // On a phone, never wider than the screen less a margin.
+    maxInlineSize: `calc(100vw - 2 * ${ref.space.xs})`,
     padding: ref.space['2xs'],
     border: `${ref.border.thin} solid ${line}`,
     borderRadius: ref.radius.xl,

@@ -34,7 +34,7 @@ export const HoverCard = Style.recipeFor(HoverIntentSlots)({
         inlineSize: 'max-content',
         // A popover scrolls by default, which would clip the arrow half outside it.
         overflow: 'visible',
-        maxInlineSize: '20rem',
+        maxInlineSize: `min(20rem, calc(100vw - 2 * ${ref.space.xs}))`,
         padding: ref.space.md,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,

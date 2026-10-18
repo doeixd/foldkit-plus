@@ -14,9 +14,10 @@ import type { MixinList } from './resolve.js'
  * filtering, reordering and resizing columns, editing cells, moving between
  * them with the keys, and virtualized rows belong there, not here.
  *
- * Drawn with `fluid`, it stands in a `frame` with one `highlight` behind the
- * rows, which follows the pointer to the nearest one: a highlight cannot be
- * a child of a `tbody`, so it is the frame's. An open row's detail and the
+ * It stands in a `frame`, which the recipe scrolls sideways when the table is wider than
+ * the screen. Drawn with `fluid`, the frame holds one `highlight` behind the rows, which
+ * follows the pointer to the nearest one: a highlight cannot be a child of a `tbody`, so it
+ * is the frame's. An open row's detail and the
  * empty state are rows of their own, which the highlight passes over.
  */
 export const TableSlots = Slots.define({
@@ -328,5 +329,5 @@ export const view = <Row, Message = never>(
         ]),
         [h.div(builders.highlight.attrs([h.AriaHidden(true)]), []), table],
       )
-    : table
+    : h.div(builders.frame.attrs(), [table])
 }

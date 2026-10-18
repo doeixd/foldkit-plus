@@ -144,6 +144,27 @@ test('a static heading scrolls away', async () => {
   }
 })
 
+test('a table wider than its box scrolls in its frame, not the page', async () => {
+  const wide = Array.from({ length: 12 }, (_, index) => ({
+    header: `Measured quantity ${index + 1}`,
+    value: (run: Run) => run.minutes,
+  }))
+  const style = Style.forSlots(TableSlots)(Recipes.Table({}))
+  const mounted = mount(style.css, h =>
+    Table.view<Run, Pressed>({ columns: wide, rows: runs, rowKey: run => run.name, style }, h),
+  )
+  try {
+    await vi.waitFor(() => expect(bodyRows()).toHaveLength(12))
+    const frame = document.querySelector('table')!.parentElement!
+    expect(frame.clientWidth).toBeLessThanOrEqual(400)
+    expect(frame.scrollWidth).toBeGreaterThan(frame.clientWidth)
+    // The 400px box around it, and so the page, are as wide as they were.
+    expect(frame.parentElement!.scrollWidth).toBeLessThanOrEqual(400)
+  } finally {
+    mounted.dispose()
+  }
+})
+
 const transparent = 'rgba(0, 0, 0, 0)'
 const fill = (element: Element) => getComputedStyle(element).backgroundColor
 const alpha = (color: string) => {

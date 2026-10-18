@@ -136,6 +136,11 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **D2, B5 and B8: done**: the Table's frame (always drawn now) scrolls inline under a static
+  header (browser test, mutation); `overscroll-behavior: contain` on the Dialog and Sheet
+  panels, popup lists, the Command list and the Sidebar nav (unit, each slot alone); popup
+  lists at most `40dvh`; popup and HoverCard panels capped at the screen. A submenu drilling
+  in on a phone is left.
 - **A7 and A9: done**: the stylesheet adds `-webkit-user-select` beside `user-select`; every
   recipe rule with `touch-action: none` sets `-webkit-touch-callout: none` (a test over the
   compiled recipes); `touchText` on the OTP input and the colour picker's fields, 16px for the

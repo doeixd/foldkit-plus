@@ -162,6 +162,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         minBlockSize: '0',
         overflowX: 'hidden',
         overflowY: 'auto',
+        overscrollBehavior: 'contain',
         transitionProperty: 'inline-size, opacity',
         transitionDuration: `${travelled(ref.motion.slow)}, ${ref.motion.slow}`,
         transitionTimingFunction: ref.motion.spring,

@@ -211,4 +211,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a wide table pushes the page wider',
+    edits: [
+      {
+        file: recipe,
+        find: "frame: variant(Style.self({ overflowX: 'auto', maxInlineSize: '100%' })),",
+        replace: 'frame: variant(Style.self({})),',
+      },
+    ],
+    tests: browser,
+  },
 ]

@@ -232,7 +232,11 @@ export const Table = Style.recipeFor(TableSlots)({
       comfortable: { root: steps.lg },
     },
     header: {
-      static: {},
+      // Wider than the screen, the table scrolls in its frame, not the page. Not under a
+      // sticky header, whose headings stick to the nearest scroller: the application's.
+      static: {
+        frame: variant(Style.self({ overflowX: 'auto', maxInlineSize: '100%' })),
+      },
       // The row's line belongs to the row, which does not stick: each heading draws its own.
       sticky: {
         headerCell: variant(

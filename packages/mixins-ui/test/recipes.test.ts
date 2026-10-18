@@ -13,6 +13,7 @@ import {
   Slots,
   Style,
   type SlotAttributes,
+  type StyleValue,
   type StyleValues,
 } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
@@ -69,6 +70,7 @@ import {
   AngleSliderSlots,
   ResizableSlots,
   ColorPickerSlots,
+  CommandSlots,
   TimerSlots,
   MarqueeSlots,
   ImageCropperSlots,
@@ -79,6 +81,7 @@ import {
   FloatingPanelSlots,
   TourSlots,
 } from '../src/index.js'
+import * as Popup from '../src/recipes/popup.js'
 import { attributeOf, h, message, type TestMessage } from './fixture.js'
 
 const palette = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
@@ -431,6 +434,26 @@ const compiled = {
 describe('Recipes', () => {
   it.each(Object.entries(compiled))('%s compiles every selection to CSS', (_, sheets) => {
     for (const css of sheets) expect(css.length).toBeGreaterThan(0)
+  })
+
+  // Scrolled to its end, a swipe on a panel moved the page behind it.
+  // Each slot alone, so another slot's rule cannot stand in for the one named.
+  const panelOf = (piece: StyleValue | undefined) =>
+    piece === undefined ? '' : Style.forSlots(DialogSlots)({ panel: piece }).css
+  const list = Recipes.Command({}).list
+  it.each([
+    ['a Dialog panel', panelOf(Recipes.Dialog({}).panel)],
+    ['a Sheet panel', panelOf(Recipes.Sheet({}).panel)],
+    ['a Command list', list === undefined ? '' : Style.forSlots(CommandSlots)({ list }).css],
+    ['a popup list', panelOf(Popup.scroll)],
+  ])('%s keeps a swipe to itself', (_, css) => {
+    expect(css).toMatch(/\{[^{}]*overflow-y:auto[^{}]*overscroll-behavior:contain/)
+  })
+
+  it('caps a popup panel at the screen, less a margin', () => {
+    expect(Style.forSlots(MenuSlots)(Recipes.Menu({})).css).toContain(
+      'max-inline-size:calc(100vw - 2 * var(--fk-space-xs))',
+    )
   })
 
   // A press held on a drag surface opened iOS's callout menu over the drag.

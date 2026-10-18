@@ -75,6 +75,7 @@ export const Command = Style.recipeFor(CommandSlots)({
         Style.self({
           maxBlockSize: '20rem',
           overflowY: 'auto',
+          overscrollBehavior: 'contain',
           padding: ref.space['2xs'],
           ...nests(ref.radius.xl, ref.space['2xs'], ref.border.thin),
         }),

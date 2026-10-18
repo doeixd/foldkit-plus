@@ -73,6 +73,8 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         maxBlockSize: `calc(${room.block})`,
         // A panel drawn without `scroll` scrolls whole rather than leave the viewport.
         overflowY: 'auto',
+        // Scrolled to its end, a swipe stays in it rather than moving the page behind.
+        overscrollBehavior: 'contain',
         // Held off each screen edge by what it takes there, and centered by the dialog's
         // grid in what is left. Physical, as the screen's insets are.
         marginTop: ref.safe.top,
