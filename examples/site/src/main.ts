@@ -25,14 +25,15 @@ import { showcaseOf } from './gallery/showcases.js'
 import * as Widgets from './gallery/widgets.js'
 import {
   Direction,
-  Font,
   Knob,
   Knobs,
   Scheme,
+  Section,
   defaults as defaultKnobs,
   fit,
   ranges,
   sameKnobs,
+  shuffled,
 } from './gallery/theme.js'
 import { COPY_ATTRIBUTE, type Library } from './library.js'
 import { Body } from './view/layout.js'
@@ -77,6 +78,10 @@ export const Model = Schema.Struct({
   /** The previews with state of their own: tabs, a dialog, a slider and the rest. */
   widgets: Widgets.Model,
   knobs: Knobs,
+  /** The pane of knobs `/create` shows. */
+  section: Section,
+  /** Whether `/create`'s knobs stand open over the preview on a phone. */
+  drawerOpen: Schema.Boolean,
   scheme: Scheme,
   pageScheme: PageScheme,
   ...Dark.fields,
@@ -102,7 +107,9 @@ export const Message = defineMessageUnion({
   GotWidget: { message: Widgets.Message },
   ChosePreset: { knobs: Knobs },
   MovedKnob: { knob: Knob, value: Schema.Number },
-  ChoseFont: { font: Font },
+  PressedShuffle: {},
+  ChoseSection: { section: Section },
+  ToggledDrawer: {},
   ChoseScheme: { scheme: Scheme },
   ChoseDirection: { direction: Direction },
   ChosePageScheme: { scheme: PageScheme },
@@ -169,6 +176,14 @@ const ReadPageScheme = Command.define('ReadPageScheme', {
   execute: Effect.sync(() => Message.FoundPageScheme({ scheme: currentScheme() })),
 })
 
+/** Knobs drawn at random, in the direction the preview reads. */
+const Shuffle = Command.define('Shuffle', {
+  args: { direction: Direction },
+  messages: [Message.ChosePreset],
+  execute: ({ direction }) =>
+    Effect.sync(() => Message.ChosePreset({ knobs: shuffled(Math.random, direction) })),
+})
+
 // UPDATE
 
 type UpdateReturn = Update.Return<Model, Message>
@@ -228,7 +243,16 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         ? { model }
         : withKnobs(model, { ...model.knobs, [knob]: fit(range, value) })
     },
-    ChoseFont: ({ font }) => withKnobs(model, { ...model.knobs, font }),
+    PressedShuffle: () => ({
+      model,
+      commands: [Shuffle({ direction: model.knobs.direction })],
+    }),
+    // A pane chosen on a phone opens the drawer to show it.
+    ChoseSection: ({ section }) =>
+      section === model.section && model.drawerOpen
+        ? { model }
+        : { model: modifyFields(model, { section: () => section, drawerOpen: () => true }) },
+    ToggledDrawer: () => ({ model: modifyFields(model, { drawerOpen: open => !open }) }),
     ChoseDirection: ({ direction }) => withKnobs(model, { ...model.knobs, direction }),
     ChoseScheme: ({ scheme }) =>
       scheme === model.scheme
@@ -299,6 +323,8 @@ export const initial: Model = placements.initial({
   cardDismissed: false,
   widgets: Widgets.initial,
   knobs: defaultKnobs,
+  section: 'theme',
+  drawerOpen: true,
   scheme: 'system',
   pageScheme: 'system',
 }).model

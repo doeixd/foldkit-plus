@@ -14,11 +14,15 @@ import {
   fit,
   inLook,
   Knob,
+  KNOB_GROUPS,
   knobStyleOf,
   looks,
+  presetKnobs,
   presets,
+  rangeOf,
   sameKnobs,
   ranges,
+  shuffled,
   themeOf,
   type Knobs,
 } from '../src/gallery/theme.js'
@@ -27,9 +31,7 @@ const snippet = readFileSync(join(import.meta.dirname, '../src/snippets/theme.ts
 
 /** The theme's tokens outside the groups a knob sets. */
 const derived = (knobs: Knobs) =>
-  Object.fromEntries(
-    Object.entries(themeOf(knobs)).filter(([group]) => group !== 'knob' && group !== 'font'),
-  )
+  Object.fromEntries(Object.entries(themeOf(knobs)).filter(([group]) => !KNOB_GROUPS.has(group)))
 
 describe('the theme creator', () => {
   it('hands out, for the defaults, the code the typecheck compiles', () => {
@@ -44,7 +46,7 @@ describe('the theme creator', () => {
     expect(code).toContain('ui-serif')
   })
 
-  it.each(presets.map(preset => [preset.name, preset.knobs] as const))(
+  it.each(presets.map(preset => [preset.name, presetKnobs(preset, 'ltr')] as const))(
     '%s differs from the defaults only in the knobs it overrides inline',
     (_, knobs) => {
       expect(derived(knobs)).toEqual(derived(defaults))
@@ -59,7 +61,9 @@ describe('the theme creator', () => {
     expect(knobStyleOf(defaults, 'system')['colorScheme']).toBe('light dark')
     const custom = Object.keys(style).filter(name => name.startsWith('--'))
     expect(custom.filter(name => !(name in declared))).toEqual([])
-    expect(custom.every(name => /^--fk-(knob|font|motion)-/.test(name))).toBe(true)
+    expect(custom.every(name => /^--fk-(knob|font|motion|border|shadow|state)-/.test(name))).toBe(
+      true,
+    )
   })
 
   it('declares on the preview the derived tokens its knobs feed', () => {
@@ -118,6 +122,69 @@ describe('the theme creator', () => {
     expect({ ...defaults, ...lyra.shape }.hue).toBe(defaults.hue)
     expect(sameKnobs(defaults, { ...defaults, menuColor: 'translucent' })).toBe(false)
     expect(sameKnobs(defaults, { ...defaults })).toBe(true)
+  })
+
+  it('writes hard shadows, borders, the page lightness and the hover into the code', () => {
+    expect(codeOf(defaults)).not.toMatch(/hardShadows|border: {|'base-l'|stateHue/)
+    const code = codeOf({
+      ...defaults,
+      shadowStyle: 'hard',
+      border: 2,
+      surfaceLightness: 80,
+      hover: 'accent',
+    })
+    expect(code).toContain('    Theme.compose(\n      Theme.hardShadows,\n      Theme.oklch({')
+    expect(code).toContain("  border: { thin: '2px', thick: '3px', heavy: '4px' },")
+    expect(code).toContain("    'base-l': '80%',")
+    expect(code).toContain("  stateHue: 'accent',")
+  })
+
+  it('draws hard shadows, borders, the page lightness and the hover through the preview', () => {
+    const style = knobStyleOf(
+      { ...defaults, shadowStyle: 'hard', border: 3, surfaceLightness: 80, hover: 'neutral' },
+      'light',
+    )
+    expect(style['--fk-shadow-md']).toMatch(/^3px 3px 0 0 /)
+    expect(style['--fk-border-thin']).toBe('3px')
+    expect(style['--fk-border-heavy']).toBe('5px')
+    expect(style['--fk-knob-base-l']).toBe('80%')
+    expect(style['--fk-knob-surface-ink']).toBe('0')
+    expect(knobStyleOf({ ...defaults, hover: 'accent' }, 'light')['--fk-state-ink']).toBe(
+      'var(--fk-accent-ink)',
+    )
+    expect(knobStyleOf(defaults, 'light')['--fk-shadow-md']).toMatch(/^0 4px 6px/)
+  })
+
+  it('tells a preset by its knobs, whichever way the preview reads', () => {
+    const win = presets.find(preset => preset.name === 'Windows 95')!
+    expect(
+      sameKnobs(presetKnobs(win, 'rtl'), { ...presetKnobs(win, 'ltr'), direction: 'rtl' }),
+    ).toBe(true)
+    expect(new Set(presets.map(preset => preset.name)).size).toBe(presets.length)
+    // No two presets are the same theme.
+    expect(new Set(presets.map(preset => JSON.stringify(preset.knobs))).size).toBe(presets.length)
+  })
+
+  it('shuffles knobs each a slider can show, and every choice it can make', () => {
+    let seed = 1
+    const random = () => {
+      seed = (seed * 16807) % 2147483647
+      return (seed - 1) / 2147483646
+    }
+    const fonts = new Set<string>()
+    for (let draw = 0; draw < 200; draw++) {
+      const knobs = shuffled(random, 'rtl')
+      expect(knobs.direction).toBe('rtl')
+      for (const range of ranges) expect(fit(range, knobs[range.knob])).toBe(knobs[range.knob])
+      fonts.add(knobs.font)
+    }
+    expect(fonts.size).toBe(6)
+    // Even at the ends of what `random` returns.
+    for (const end of [0, 0.9999999]) {
+      const knobs = shuffled(() => end, 'ltr')
+      for (const range of ranges) expect(fit(range, knobs[range.knob])).toBe(knobs[range.knob])
+    }
+    expect(shuffled(() => 0, 'ltr').lightness).toBeGreaterThanOrEqual(rangeOf('lightness').min)
   })
 
   it('keeps a slider value in its range and on its step', () => {

@@ -159,7 +159,7 @@ export default [
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: '      menu: { accent: knobs.menuAccent, color: knobs.menuColor },',
+        find: '    menu: { accent: knobs.menuAccent, color: knobs.menuColor },',
         replace: '',
       },
     ],
@@ -181,8 +181,8 @@ export default [
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: '    knob => knobs[knob] === look.shape[knob],',
-        replace: '    () => true,',
+        find: 'Struct.keys(look.shape).every(knob => knobs[knob] === look.shape[knob])',
+        replace: 'Struct.keys(look.shape).every(() => true)',
       },
     ],
     tests: unit,
@@ -192,8 +192,71 @@ export default [
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: '  choiceKnobs.every(knob => left[knob] === right[knob])',
-        replace: '  left.font === right.font',
+        find: 'export const sameKnobs = Schema.toEquivalence(Knobs)',
+        replace: 'export const sameKnobs = (left: Knobs, right: Knobs) => left.font === right.font',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'hard shadows are never drawn',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: "knobs.shadowStyle === 'hard'\n      ? Theme.compose(Theme.hardShadows, surfacesOf(knobs))",
+        replace: 'false\n      ? Theme.compose(Theme.hardShadows, surfacesOf(knobs))',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the border knob is drawn nowhere',
+    edits: [
+      { file: '../src/gallery/theme.ts', find: '      border: bordersOf(knobs),', replace: '' },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the page lightness is drawn nowhere',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: "        'base-l': percent(knobs.surfaceLightness),",
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the hover is drawn nowhere',
+    edits: [{ file: '../src/gallery/theme.ts', find: '    stateHue: knobs.hover,', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: "the preview keeps the default hover's ink",
+    edits: [
+      { file: '../src/gallery/theme.ts', find: "  'shadow',\n  'state',", replace: "  'shadow'," },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a shuffle forgets the direction',
+    edits: [
+      {
+        file: '../src/main.ts',
+        find: 'commands: [Shuffle({ direction: model.knobs.direction })],',
+        replace: "commands: [Shuffle({ direction: 'ltr' })],",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a pane chosen leaves the drawer closed',
+    edits: [
+      {
+        file: '../src/main.ts',
+        find: 'modifyFields(model, { section: () => section, drawerOpen: () => true })',
+        replace: 'modifyFields(model, { section: () => section })',
       },
     ],
     tests: unit,

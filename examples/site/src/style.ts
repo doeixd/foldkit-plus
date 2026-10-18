@@ -870,7 +870,7 @@ export const SiteStyle = slots(
       // `/create`'s: every component at once, in columns.
       Style.nest('&[data-size="canvas"]', {
         display: 'block',
-        columns: '2 17rem',
+        columns: '2 15rem',
         columnGap: t.space.lg,
         padding: t.space.lg,
       }),
@@ -950,12 +950,15 @@ export const SiteStyle = slots(
     studio: [
       {
         display: 'grid',
-        gridTemplateColumns: 'minmax(15rem, 19rem) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(18rem, 22rem) minmax(0, 1fr)',
         alignItems: 'start',
         gap: t.space.xl,
       },
-      Style.media(ONE_COLUMN, { gridTemplateColumns: 'minmax(0, 1fr)' }),
+      Style.media(ONE_COLUMN, { display: 'flex', flexDirection: 'column', alignItems: 'stretch' }),
     ],
+    // Beside the preview, a column that scrolls on its own; narrower, a
+    // drawer held to the bottom of the screen while the preview is in view,
+    // which comes to rest under it once the reader scrolls past.
     knobs: [
       {
         position: 'sticky',
@@ -963,11 +966,85 @@ export const SiteStyle = slots(
         display: 'flex',
         flexDirection: 'column',
         gap: t.space.md,
+        boxSizing: 'border-box',
+        maxBlockSize: `calc(100dvh - 2 * ${t.space.lg})`,
         padding: t.space.lg,
         border: rule,
         borderRadius: t.radius.lg,
+        background: t.surface.base,
       },
-      Style.media(ONE_COLUMN, { position: 'static' }),
+      Style.media(ONE_COLUMN, {
+        order: '1',
+        top: 'auto',
+        bottom: '0',
+        zIndex: '20',
+        maxBlockSize: '55dvh',
+        gap: t.space.sm,
+        padding: `${t.space.xs} ${t.space.md} calc(${t.space.sm} + env(safe-area-inset-bottom, 0px))`,
+        borderBlockEnd: '0',
+        borderEndStartRadius: '0',
+        borderEndEndRadius: '0',
+        boxShadow: `0 -12px 32px -16px ${t.shadow.color}`,
+      }),
+    ],
+    // A grab bar with its words for a screen reader, on the drawer alone.
+    drawerHandle: Style.slot({ capability: Capability.Interactive }, [
+      {
+        display: 'none',
+        position: 'relative',
+        alignSelf: 'stretch',
+        blockSize: '1.5rem',
+        padding: '0',
+        border: '0',
+        background: 'transparent',
+        color: 'transparent',
+        fontSize: '0',
+        cursor: 'pointer',
+      },
+      Style.pseudo('::before', {
+        content: '""',
+        position: 'absolute',
+        insetBlockStart: '50%',
+        insetInlineStart: '50%',
+        inlineSize: '2.5rem',
+        blockSize: '0.25rem',
+        borderRadius: '999px',
+        background: t.outline.overt,
+        transform: 'translate(-50%, -50%)',
+      }),
+      Style.media(ONE_COLUMN, { display: 'block' }),
+      focus,
+    ]),
+    // The panes' names: a row that scrolls sideways rather than wrapping on a phone.
+    sections: [
+      {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '2px',
+        padding: '2px',
+        border: rule,
+        borderRadius: t.radius.md,
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+        flexShrink: '0',
+      },
+      Style.nest('& > button', { flex: '1 0 auto', whiteSpace: 'nowrap' }),
+      Style.media(ONE_COLUMN, { flexWrap: 'nowrap' }),
+    ],
+    panes: [
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.md,
+        minBlockSize: '0',
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
+        scrollbarWidth: 'thin',
+        // Room for a focus ring at the edges of what scrolls.
+        padding: '3px',
+        margin: '-3px',
+      },
+      Style.at(`@media ${ONE_COLUMN}`, Style.nest('[data-open="false"] > &', { display: 'none' })),
     ],
     knob: { display: 'flex', flexDirection: 'column', gap: t.space['2xs'] },
     knobHead: {
@@ -977,9 +1054,17 @@ export const SiteStyle = slots(
       fontSize: '0.8125rem',
       color: t.text.default,
     },
-    knobValue: { ...mono, color: t.text.subtle },
+    knobValue: { ...mono, color: t.text.subtle, fontVariantNumeric: 'tabular-nums' },
     slider: Style.slot({ capability: Capability.Interactive }, [
-      { width: '100%', margin: '0', accentColor: t.text.overt, cursor: 'pointer' },
+      {
+        inlineSize: '100%',
+        blockSize: '1.5rem',
+        margin: '0',
+        accentColor: t.text.overt,
+        cursor: 'pointer',
+      },
+      // A finger's height, so a drag that starts a little off the track still takes it.
+      Style.media('(pointer: coarse)', { blockSize: '2.75rem' }),
       focus,
     ]),
     presets: { display: 'flex', flexWrap: 'wrap', gap: t.space['2xs'] },
@@ -997,10 +1082,20 @@ export const SiteStyle = slots(
         color: t.text.default,
         cursor: 'pointer',
       },
+      Style.media('(pointer: coarse)', { minBlockSize: '2.75rem', paddingInline: '0.75rem' }),
       Style.pseudo(':hover', { borderColor: t.text.muted }),
       Style.nest('&[aria-pressed="true"]', { borderColor: t.text.overt, color: t.text.overt }),
       focus,
     ]),
+    canvasColumn: { display: 'flex', flexDirection: 'column', gap: t.space.sm, minInlineSize: '0' },
+    // The preview's own settings: how it reads, not what the theme is.
+    previewBar: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'flex-end',
+      gap: `${t.space.sm} ${t.space.lg}`,
+    },
+    toCode: quiet(t.text.muted, { ...mono, marginInlineStart: 'auto', paddingBlock: '0.375rem' }),
     swatch: {
       display: 'inline-block',
       inlineSize: '0.75rem',

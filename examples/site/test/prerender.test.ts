@@ -472,9 +472,14 @@ describe('the generated site', () => {
 
   test('the theme creator draws its knobs, a preview in them, and the code they make', () => {
     const create = page('/create')
-    const hue = create.getElementById('knob-hue')
-    expect([hue?.getAttribute('min'), hue?.getAttribute('max')]).toEqual(['0', '360'])
-    expect(create.querySelector('label[for="knob-hue"]')?.textContent).toBe('Hue')
+    const pressed = (selector: string) =>
+      Array.from(create.querySelectorAll(`${selector} [aria-pressed="true"]`), button =>
+        button.textContent?.trim(),
+      )
+    // The themes pane first, with the default theme chosen and no style that differs from it.
+    expect(pressed('[aria-label="Knobs"]')).toEqual(['Themes'])
+    expect(pressed('#theme-panes')).toEqual(['Iris'])
+    expect(create.getElementById('knob-hue')).toBeNull()
     const canvas = create.querySelector('[data-size="canvas"]')
     expect(canvas?.getAttribute('style')).toContain('--fk-knob-accent-h: 264')
     expect(create.querySelector('main figure pre code')?.textContent).toBe(codeOf(defaults))

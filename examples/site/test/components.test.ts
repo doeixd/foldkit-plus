@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { defaults, presets } from '../src/gallery/theme.js'
+import { defaults, presetKnobs, presets } from '../src/gallery/theme.js'
 import { Message, initial, update, type Model } from '../src/main.js'
 
 const after = (model: Model, ...messages: ReadonlyArray<Message>): Model =>
@@ -52,8 +52,32 @@ describe('the component pages', () => {
   it('mark the copied code stale once a knob moves', () => {
     const copied = after(initial, Message.CopiedText())
     expect(copied.copied).toBe(true)
-    expect(after(copied, Message.ChosePreset({ knobs: presets[1]!.knobs })).copied).toBe(false)
-    expect(after(copied, Message.ChoseFont({ font: 'serif' })).copied).toBe(false)
+    expect(
+      after(copied, Message.ChosePreset({ knobs: presetKnobs(presets[1]!, 'ltr') })).copied,
+    ).toBe(false)
+    expect(after(copied, Message.MovedKnob({ knob: 'border', value: 2 })).copied).toBe(false)
     expect(after(copied, Message.ChoseScheme({ scheme: 'dark' })).copied).toBe(true)
+  })
+
+  it('open the drawer on the pane chosen, and hand back the Model for the one open', () => {
+    const closed = after(initial, Message.ToggledDrawer())
+    expect(closed.drawerOpen).toBe(false)
+    const color = after(closed, Message.ChoseSection({ section: 'color' }))
+    expect(color.section).toBe('color')
+    expect(color.drawerOpen).toBe(true)
+    // The pane already shown, in a closed drawer, opens it all the same.
+    expect(
+      after(after(color, Message.ToggledDrawer()), Message.ChoseSection({ section: 'color' }))
+        .drawerOpen,
+    ).toBe(true)
+    expect(update(color, Message.ChoseSection({ section: 'color' })).model).toBe(color)
+  })
+
+  it('shuffle through a Command, in the direction the preview reads', () => {
+    const rtl = after(initial, Message.ChoseDirection({ direction: 'rtl' }))
+    const shuffled = update(rtl, Message.PressedShuffle())
+    expect(shuffled.model).toBe(rtl)
+    expect(shuffled.commands?.map(command => command.name)).toEqual(['Shuffle'])
+    expect(shuffled.commands?.[0]?.args).toEqual({ direction: 'rtl' })
   })
 })

@@ -3,6 +3,11 @@
  * theme module they make. Each knob is a CSS variable set on the preview, so
  * moving one re-derives the theme in the browser; the code below it is the
  * same knobs written as an application's `AppStyle.make`.
+ *
+ * The knobs sit in panes. Beside the preview they are a column of their own;
+ * on a narrower screen they are a drawer held to the bottom of the screen,
+ * over the preview rather than above it, so a knob turned shows its effect
+ * without a scroll. The drawer is not modal: the preview stays live under it.
  */
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
@@ -11,28 +16,34 @@ import { CodeBlock } from 'foldkit-mixins-ui'
 import { showcaseOf, type Selection } from '../gallery/showcases.js'
 import {
   Base,
-  Direction,
   Easing,
   Font,
   HeadingFont,
+  Hover,
   MenuAccent,
   MenuColor,
+  Section,
+  ShadowStyle,
   Size,
   bases,
   codeOf,
+  defaults,
   fontLabels,
   inLook,
   looks,
+  presetKnobs,
   presets,
-  ranges,
+  rangeOf,
   sameKnobs,
+  sectionLabels,
+  type Knob,
   type Knobs,
-  type Range,
+  type Preset,
 } from '../gallery/theme.js'
 import { COMPONENTS } from '../library.js'
 import { Message, type Model } from '../main.js'
 import { CodeStyle } from '../style.js'
-import { choices, liveOf, preview, schemeChoice } from './components.js'
+import { choices, directionChoice, liveOf, preview, schemeChoice } from './components.js'
 import type { H, Slots } from './layout.js'
 
 /** What the preview shows, in order, and the variant each is drawn in. */
@@ -59,12 +70,24 @@ const tiles: ReadonlyArray<{ readonly slug: string; readonly selection: Selectio
   { slug: 'menu', selection: {} },
 ]
 
-/** The accent a set of knobs makes, in a light scheme, for a preset's dot. */
-const accentOf = (knobs: Knobs) => `oklch(${knobs.lightness}% ${knobs.chroma} ${knobs.hue})`
+const PANES_ID = 'theme-panes'
+const CODE_ID = 'theme-code'
 
-const slider = (model: Model, range: Range, slots: Slots, h: H): Html => {
-  const id = `knob-${range.knob}`
-  const value = model.knobs[range.knob]
+/**
+ * A theme's accent over its page, in a light scheme, for a preset's swatch:
+ * the page's grey is as much of Windows 95 as its navy.
+ */
+const swatchOf = (knobs: Preset['knobs']) => {
+  const neutral = knobs.base === 'accent' ? knobs.hue : bases[knobs.base].h
+  const accent = `oklch(${knobs.lightness}% ${knobs.chroma} ${knobs.hue})`
+  const page = `oklch(${knobs.surfaceLightness}% ${knobs.surfaceSaturation * 2} ${neutral})`
+  return `linear-gradient(135deg, ${accent} 50%, ${page} 50%)`
+}
+
+const slider = (model: Model, knob: Knob, slots: Slots, h: H): Html => {
+  const range = rangeOf(knob)
+  const id = `knob-${knob}`
+  const value = model.knobs[knob]
   return h.div(slots.knob.attrs(), [
     h.div(slots.knobHead.attrs(), [
       h.label([h.Attribute('for', id)], [range.label]),
@@ -78,7 +101,7 @@ const slider = (model: Model, range: Range, slots: Slots, h: H): Html => {
         h.Attribute('max', String(range.max)),
         h.Attribute('step', String(range.step)),
         h.Value(String(value)),
-        h.OnInput(moved => Message.MovedKnob({ knob: range.knob, value: Number(moved) })),
+        h.OnInput(moved => Message.MovedKnob({ knob, value: Number(moved) })),
       ]),
     ),
   ])
@@ -89,30 +112,92 @@ const words = <A extends string>(values: ReadonlyArray<A>, label: (value: A) => 
   values.map(value => ({ value, label: label(value) }))
 const capital = (value: string) => value[0]!.toUpperCase() + value.slice(1).replaceAll('-', ' ')
 
-/** Knobs with one choice changed, as a whole set `ChosePreset` installs. */
+/** Knobs with some changed, as a whole set `ChosePreset` installs. */
 const choose = (model: Model, change: Partial<Knobs>) =>
   Message.ChosePreset({ knobs: { ...model.knobs, ...change } })
 
-const shape = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+/** A row of buttons, each pressed while the knobs are its own. */
+const buttons = <A>(
+  slots: Slots,
+  h: H,
+  name: string,
+  items: ReadonlyArray<A>,
+  item: (value: A) => {
+    readonly label: ReadonlyArray<Html | string>
+    readonly title: string
+    readonly pressed: boolean
+    readonly message: Message
+  },
+): Html =>
   h.fieldset(slots.axis.attrs(), [
-    h.legend(slots.axisName.attrs(), ['style']),
+    h.legend(slots.axisName.attrs(), [name]),
     h.div(
       slots.presets.attrs(),
-      looks.map(look =>
-        h.button(
+      items.map(value => {
+        const { label, title, pressed, message } = item(value)
+        return h.button(
           slots.preset.attrs([
             h.Type('button'),
-            h.AriaPressed(String(inLook(model.knobs, look))),
-            h.Title(look.description),
-            h.OnClick(choose(model, look.shape)),
+            h.AriaPressed(String(pressed)),
+            h.Title(title),
+            h.OnClick(message),
           ]),
-          [look.name],
-        ),
-      ),
+          label,
+        )
+      }),
     ),
+  ])
+
+const themesPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  buttons(slots, h, 'theme', presets, preset => {
+    const knobs = presetKnobs(preset, model.knobs.direction)
+    return {
+      label: [
+        h.span(
+          slots.swatch.attrs([h.AriaHidden(true), h.Style({ background: swatchOf(preset.knobs) })]),
+          [],
+        ),
+        preset.name,
+      ],
+      title: preset.description,
+      pressed: sameKnobs(model.knobs, knobs),
+      message: Message.ChosePreset({ knobs }),
+    }
+  }),
+  buttons(slots, h, 'style, keeping the colors', looks, look => ({
+    label: [look.name],
+    title: look.description,
+    pressed: inLook(model.knobs, look),
+    message: choose(model, look.shape),
+  })),
+  h.div(slots.actions.attrs(), [
+    h.button(
+      slots.preset.attrs([
+        h.Type('button'),
+        h.OnClick(
+          Message.ChosePreset({ knobs: { ...defaults, direction: model.knobs.direction } }),
+        ),
+      ]),
+      ['Reset'],
+    ),
+    h.button(slots.preset.attrs([h.Type('button'), h.OnClick(Message.PressedShuffle())]), [
+      'Shuffle',
+    ]),
   ]),
+]
+
+const colorPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  slider(model, 'hue', slots, h),
+  slider(model, 'chroma', slots, h),
+  slider(model, 'lightness', slots, h),
   choices(slots, h, 'base color', words(Base.literals), model.knobs.base, base =>
     choose(model, base === 'accent' ? { base } : { base, surfaceSaturation: bases[base].c }),
+  ),
+  slider(model, 'surfaceSaturation', slots, h),
+  slider(model, 'surfaceLightness', slots, h),
+  slider(model, 'surfaceContrast', slots, h),
+  choices(slots, h, 'hover', words(Hover.literals), model.knobs.hover, hover =>
+    choose(model, { hover }),
   ),
   choices(slots, h, 'menu accent', words(MenuAccent.literals), model.knobs.menuAccent, menuAccent =>
     choose(model, { menuAccent }),
@@ -120,11 +205,34 @@ const shape = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   choices(slots, h, 'menu color', words(MenuColor.literals), model.knobs.menuColor, menuColor =>
     choose(model, { menuColor }),
   ),
+]
+
+const shapePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  slider(model, 'radius', slots, h),
+  slider(model, 'density', slots, h),
   choices(slots, h, 'size', words(Size.literals), model.knobs.size, size =>
     choose(model, { size }),
   ),
-  choices(slots, h, 'motion', words(Easing.literals), model.knobs.easing, easing =>
-    choose(model, { easing, ...(model.knobs.motion === 0 ? { motion: 1 } : {}) }),
+  slider(model, 'border', slots, h),
+  slider(model, 'shadow', slots, h),
+  choices(
+    slots,
+    h,
+    'shadow style',
+    words(ShadowStyle.literals),
+    model.knobs.shadowStyle,
+    shadowStyle => choose(model, { shadowStyle }),
+  ),
+]
+
+const typePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  choices(
+    slots,
+    h,
+    'font',
+    words(Font.literals, font => fontLabels[font]),
+    model.knobs.font,
+    font => choose(model, { font }),
   ),
   choices(
     slots,
@@ -134,78 +242,85 @@ const shape = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
     model.knobs.headingFont,
     headingFont => choose(model, { headingFont }),
   ),
-  choices(
-    slots,
-    h,
-    'direction',
-    words(Direction.literals, direction => direction.toUpperCase()),
-    model.knobs.direction,
-    direction => choose(model, { direction }),
+]
+
+const motionPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  slider(model, 'motion', slots, h),
+  choices(slots, h, 'easing', words(Easing.literals), model.knobs.easing, easing =>
+    choose(model, { easing, ...(model.knobs.motion === 0 ? { motion: 1 } : {}) }),
   ),
 ]
 
+const panes: Readonly<Record<Section, (model: Model, slots: Slots, h: H) => ReadonlyArray<Html>>> =
+  {
+    theme: themesPane,
+    color: colorPane,
+    shape: shapePane,
+    type: typePane,
+    motion: motionPane,
+  }
+
 const controls = (model: Model, slots: Slots, h: H): Html =>
-  h.aside(slots.knobs.attrs([h.AriaLabel('Theme')]), [
-    h.fieldset(slots.axis.attrs(), [
-      h.legend(slots.axisName.attrs(), ['preset']),
+  h.aside(
+    slots.knobs.attrs([h.AriaLabel('Theme'), h.DataAttribute('open', String(model.drawerOpen))]),
+    [
+      // Drawn only where the knobs are a drawer.
+      h.button(
+        slots.drawerHandle.attrs([
+          h.Type('button'),
+          h.AriaExpanded(model.drawerOpen),
+          h.AriaControls(PANES_ID),
+          h.OnClick(Message.ToggledDrawer()),
+        ]),
+        [model.drawerOpen ? 'Hide the knobs' : 'Show the knobs'],
+      ),
       h.div(
-        slots.presets.attrs(),
-        presets.map(preset =>
+        slots.sections.attrs([h.AriaLabel('Knobs')]),
+        Section.literals.map(section =>
           h.button(
-            slots.preset.attrs([
+            slots.choice.attrs([
               h.Type('button'),
-              h.AriaPressed(String(sameKnobs(model.knobs, preset.knobs))),
-              h.OnClick(Message.ChosePreset({ knobs: preset.knobs })),
+              h.AriaPressed(String(section === model.section)),
+              h.AriaControls(PANES_ID),
+              h.OnClick(Message.ChoseSection({ section })),
             ]),
-            [
-              h.span(
-                slots.swatch.attrs([
-                  h.AriaHidden(true),
-                  h.Style({ background: accentOf(preset.knobs) }),
-                ]),
-                [],
-              ),
-              preset.name,
-            ],
+            [sectionLabels[section]],
           ),
         ),
       ),
-    ]),
-    schemeChoice(model, slots, h),
-    ...ranges.map(range => slider(model, range, slots, h)),
-    choices(
-      slots,
-      h,
-      'font',
-      Font.literals.map(font => ({ value: font, label: fontLabels[font] })),
-      model.knobs.font,
-      font => Message.ChoseFont({ font }),
-    ),
-    ...shape(model, slots, h),
-  ])
+      h.div(slots.panes.attrs([h.Id(PANES_ID)]), panes[model.section](model, slots, h)),
+    ],
+  )
 
 const canvas = (model: Model, slots: Slots, h: H): Html => {
   const live = liveOf(model, h)
-  return preview(
-    model,
-    'canvas',
-    slots,
-    h,
-    tiles.flatMap(({ slug, selection }) =>
-      showcaseOf(slug).pipe(
-        Option.match({
-          onNone: () => [],
-          onSome: showcase => [
-            h.div(slots.tile.attrs(), [
-              h.a(slots.tileName.attrs([h.Href(`${COMPONENTS}/${slug}`)]), [showcase.title]),
-              // A block of its own, so a button keeps its width in the column.
-              h.div([], [showcase.preview(selection, live)]),
-            ]),
-          ],
-        }),
+  return h.div(slots.canvasColumn.attrs(), [
+    h.div(slots.previewBar.attrs(), [
+      schemeChoice(model, slots, h),
+      directionChoice(model, slots, h),
+      h.a(slots.toCode.attrs([h.Href(`#${CODE_ID}`)]), ['Get the code']),
+    ]),
+    preview(
+      model,
+      'canvas',
+      slots,
+      h,
+      tiles.flatMap(({ slug, selection }) =>
+        showcaseOf(slug).pipe(
+          Option.match({
+            onNone: () => [],
+            onSome: showcase => [
+              h.div(slots.tile.attrs(), [
+                h.a(slots.tileName.attrs([h.Href(`${COMPONENTS}/${slug}`)]), [showcase.title]),
+                // A block of its own, so a button keeps its width in the column.
+                h.div([], [showcase.preview(selection, live)]),
+              ]),
+            ],
+          }),
+        ),
       ),
     ),
-  )
+  ])
 }
 
 export const createPage = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
@@ -219,12 +334,12 @@ export const createPage = (model: Model, slots: Slots, h: H): ReadonlyArray<Html
       h.p(slots.lede.attrs(), [
         'A ',
         h.code([], ['foldkit-mixins']),
-        ' theme is a handful of knobs; every color, space, corner and shadow is a CSS expression over them. Turn one and the components below follow, then copy the theme into your application.',
+        ' theme is a handful of knobs; every color, space, corner and shadow is a CSS expression over them. Start from a theme, turn a knob and the components follow, then copy the theme into your application.',
       ]),
     ]),
     h.div(slots.studio.attrs(), [controls(model, slots, h), canvas(model, slots, h)]),
-    h.section(slots.section.attrs([h.AriaLabelledBy('theme-code')]), [
-      h.h2(slots.sectionTitle.attrs([h.Id('theme-code')]), ['Your theme']),
+    h.section(slots.section.attrs([h.AriaLabelledBy(CODE_ID)]), [
+      h.h2(slots.sectionTitle.attrs([h.Id(CODE_ID)]), ['Your theme']),
       h.p(slots.rowText.attrs(), [
         'Your application’s style module. Its ',
         h.code([], ['forSlots']),

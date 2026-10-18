@@ -9,14 +9,14 @@
  * (`knobStyleOf`), where every token re-derives from them. The site's own
  * look, on `:root`, is never touched.
  */
-import { Schema } from 'effect'
+import { Schema, Struct } from 'effect'
 import { Theme, VAR_PREFIX } from 'foldkit-mixins/theme'
 
 /** `system` follows the reader's color scheme. */
 export const Scheme = Schema.Literals(['system', 'light', 'dark'])
 export type Scheme = typeof Scheme.Type
 
-export const Font = Schema.Literals(['system', 'geist', 'serif', 'mono'])
+export const Font = Schema.Literals(['system', 'geist', 'serif', 'mono', 'rounded', 'classic'])
 export type Font = typeof Font.Type
 
 /** The neutrals' hue: the accent's, or one of shadcn's base colors. */
@@ -39,12 +39,24 @@ export const MenuColor = Schema.Literals([
   'translucent',
   'inverted-translucent',
 ])
+/** What a hover is mixed from, as `Theme.oklch`'s `stateHue`. */
+export const Hover = Schema.Literals(['surface', 'neutral', 'accent'])
 /** How a transition moves: eased, or on the spring. Not at all is the motion knob at 0. */
 export const Easing = Schema.Literals(['ease', 'spring'])
-export const HeadingFont = Schema.Literals(['inherit', 'system', 'geist', 'serif', 'mono'])
+export const HeadingFont = Schema.Literals([
+  'inherit',
+  'system',
+  'geist',
+  'serif',
+  'mono',
+  'rounded',
+  'classic',
+])
 export const Direction = Schema.Literals(['ltr', 'rtl'])
 /** The size ladder's step: 36px controls, or Fluid Functionalism's compact 28px. */
 export const Size = Schema.Literals(['default', 'compact'])
+/** Shadows that diffuse, or solid offset copies (`Theme.hardShadows`). */
+export const ShadowStyle = Schema.Literals(['soft', 'hard'])
 
 /** What `/create` adjusts; every field is one knob of the palette or the scales. */
 export const Knobs = Schema.Struct({
@@ -55,14 +67,20 @@ export const Knobs = Schema.Struct({
   surfaceSaturation: Schema.Number,
   /** How far apart the surface steps are, as a percentage. */
   surfaceContrast: Schema.Number,
+  /** The page's lightness in a light scheme, as a percentage. */
+  surfaceLightness: Schema.Number,
   radius: Schema.Number,
   density: Schema.Number,
+  /** The thinnest border, in pixels; the thicker two keep their steps above it. */
+  border: Schema.Number,
   size: Size,
   motion: Schema.Number,
   /** As a percentage. */
   shadow: Schema.Number,
+  shadowStyle: ShadowStyle,
   font: Font,
   base: Base,
+  hover: Hover,
   menuAccent: MenuAccent,
   menuColor: MenuColor,
   easing: Easing,
@@ -79,12 +97,26 @@ export const Knob = Schema.Literals([
   'lightness',
   'surfaceSaturation',
   'surfaceContrast',
+  'surfaceLightness',
   'radius',
   'density',
+  'border',
   'motion',
   'shadow',
 ])
 export type Knob = typeof Knob.Type
+
+/** The panes `/create` groups its knobs into. */
+export const Section = Schema.Literals(['theme', 'color', 'shape', 'type', 'motion'])
+export type Section = typeof Section.Type
+
+export const sectionLabels: Readonly<Record<Section, string>> = {
+  theme: 'Themes',
+  color: 'Color',
+  shape: 'Shape',
+  type: 'Type',
+  motion: 'Motion',
+}
 
 /** A slider's range and step, and how its value reads. */
 export interface Range {
@@ -96,17 +128,28 @@ export interface Range {
   readonly unit: string
 }
 
+const range = (
+  knob: Knob,
+  label: string,
+  [min, max, step]: readonly [number, number, number],
+  unit: string,
+): Range => ({ knob, label, min, max, step, unit })
+
 export const ranges: ReadonlyArray<Range> = [
-  { knob: 'hue', label: 'Hue', min: 0, max: 360, step: 1, unit: '°' },
-  { knob: 'chroma', label: 'Chroma', min: 0, max: 0.3, step: 0.005, unit: '' },
-  { knob: 'lightness', label: 'Lightness', min: 25, max: 75, step: 1, unit: '%' },
-  { knob: 'surfaceSaturation', label: 'Surface tint', min: 0, max: 0.04, step: 0.001, unit: '' },
-  { knob: 'surfaceContrast', label: 'Surface contrast', min: 0, max: 100, step: 1, unit: '%' },
-  { knob: 'radius', label: 'Radius', min: 0, max: 2.5, step: 0.05, unit: '×' },
-  { knob: 'density', label: 'Density', min: 0.75, max: 1.3, step: 0.05, unit: '×' },
-  { knob: 'motion', label: 'Motion', min: 0, max: 2, step: 0.1, unit: '×' },
-  { knob: 'shadow', label: 'Shadow', min: 0, max: 100, step: 1, unit: '%' },
+  range('hue', 'Hue', [0, 360, 1], '°'),
+  range('chroma', 'Chroma', [0, 0.3, 0.005], ''),
+  range('lightness', 'Lightness', [25, 90, 1], '%'),
+  range('surfaceSaturation', 'Surface tint', [0, 0.04, 0.001], ''),
+  range('surfaceLightness', 'Surface lightness', [75, 100, 0.5], '%'),
+  range('surfaceContrast', 'Surface contrast', [0, 100, 1], '%'),
+  range('radius', 'Radius', [0, 2.5, 0.05], '×'),
+  range('density', 'Density', [0.75, 1.3, 0.05], '×'),
+  range('border', 'Border', [1, 3, 1], 'px'),
+  range('shadow', 'Shadow', [0, 100, 1], '%'),
+  range('motion', 'Motion', [0, 2, 0.1], '×'),
 ]
+
+export const rangeOf = (knob: Knob): Range => ranges.find(each => each.knob === knob)!
 
 /** A value a slider can show: clamped to its range and rounded to its step, without float noise. */
 export const fit = (range: Range, value: number): number => {
@@ -120,6 +163,8 @@ const fonts: Readonly<Record<Font, string>> = {
   geist: '"Geist", ui-sans-serif, system-ui, sans-serif',
   serif: 'ui-serif, Georgia, "Times New Roman", serif',
   mono: '"Geist Mono", ui-monospace, monospace',
+  rounded: 'ui-rounded, "SF Pro Rounded", Nunito, system-ui, sans-serif',
+  classic: '"MS Sans Serif", "Microsoft Sans Serif", Tahoma, Verdana, sans-serif',
 }
 
 /**
@@ -144,7 +189,12 @@ export const fontLabels: Readonly<Record<Font, string>> = {
   geist: 'Geist',
   serif: 'Serif',
   mono: 'Mono',
+  rounded: 'Rounded',
+  classic: 'Classic',
 }
+
+/** `Theme.oklch`'s own page lightness, which the code leaves unsaid. */
+const SURFACE_LIGHTNESS = 97.5
 
 export const defaults: Knobs = {
   hue: 264,
@@ -152,13 +202,17 @@ export const defaults: Knobs = {
   lightness: 52,
   surfaceSaturation: 0.006,
   surfaceContrast: 24,
+  surfaceLightness: SURFACE_LIGHTNESS,
   radius: 1.4,
   density: 1,
+  border: 1,
   size: 'default',
   motion: 1,
   shadow: 100,
+  shadowStyle: 'soft',
   font: 'geist',
   base: 'accent',
+  hover: 'surface',
   menuAccent: 'subtle',
   menuColor: 'default',
   easing: 'ease',
@@ -166,20 +220,7 @@ export const defaults: Knobs = {
   direction: 'ltr',
 }
 
-const choiceKnobs = [
-  'size',
-  'font',
-  'base',
-  'menuAccent',
-  'menuColor',
-  'easing',
-  'headingFont',
-  'direction',
-] as const
-
-export const sameKnobs = (left: Knobs, right: Knobs): boolean =>
-  Knob.literals.every(knob => left[knob] === right[knob]) &&
-  choiceKnobs.every(knob => left[knob] === right[knob])
+export const sameKnobs = Schema.toEquivalence(Knobs)
 
 /** A style, as shadcn's: the shape knobs it moves, the colors left as they are. */
 export interface Look {
@@ -287,37 +328,149 @@ export const looks: ReadonlyArray<Look> = [
 
 /** Whether `knobs` are in `look`'s shape. */
 export const inLook = (knobs: Knobs, look: Look): boolean =>
-  (Object.keys(look.shape) as ReadonlyArray<keyof Look['shape']>).every(
-    knob => knobs[knob] === look.shape[knob],
-  )
+  Struct.keys(look.shape).every(knob => knobs[knob] === look.shape[knob])
 
+/** A whole theme: every knob but the preview's direction. */
 export interface Preset {
   readonly name: string
-  readonly knobs: Knobs
+  readonly description: string
+  readonly knobs: Omit<Knobs, 'direction'>
 }
 
+const { direction: _, ...iris } = defaults
+
 export const presets: ReadonlyArray<Preset> = [
-  { name: 'Iris', knobs: defaults },
+  { name: 'Iris', description: 'The default: violet-blue on a cool page', knobs: iris },
   {
-    name: 'Zinc',
-    knobs: { ...defaults, hue: 286, chroma: 0, lightness: 21, surfaceSaturation: 0.002 },
+    name: 'shadcn',
+    description: 'Zinc neutrals and a near-black accent, after shadcn/ui',
+    knobs: {
+      ...iris,
+      hue: 286,
+      chroma: 0,
+      lightness: 21,
+      base: 'zinc',
+      surfaceSaturation: 0.004,
+      surfaceLightness: 99.5,
+      radius: 1,
+      shadow: 60,
+      hover: 'neutral',
+    },
+  },
+  {
+    name: 'Material',
+    description: 'Tonal surfaces, pill corners and an accent hover, after Material 3',
+    knobs: {
+      ...iris,
+      hue: 293,
+      chroma: 0.13,
+      lightness: 44,
+      surfaceSaturation: 0.02,
+      surfaceContrast: 18,
+      surfaceLightness: 98,
+      radius: 2.5,
+      density: 1.1,
+      shadow: 70,
+      font: 'system',
+      hover: 'accent',
+      easing: 'spring',
+    },
+  },
+  {
+    name: 'Windows 95',
+    description: 'Silver grey, navy, square corners and hard shadows',
+    knobs: {
+      ...iris,
+      hue: 264,
+      chroma: 0.19,
+      lightness: 30,
+      base: 'neutral',
+      surfaceSaturation: 0,
+      surfaceContrast: 44,
+      surfaceLightness: 80,
+      radius: 0,
+      density: 0.9,
+      border: 2,
+      size: 'compact',
+      shadow: 100,
+      shadowStyle: 'hard',
+      motion: 0,
+      font: 'classic',
+      hover: 'neutral',
+    },
+  },
+  {
+    name: 'Brutalist',
+    description: 'Thick lines, hard shadows and a loud yellow',
+    knobs: {
+      ...iris,
+      hue: 100,
+      chroma: 0.19,
+      lightness: 88,
+      base: 'neutral',
+      surfaceSaturation: 0,
+      surfaceContrast: 34,
+      surfaceLightness: 99,
+      radius: 0.3,
+      border: 3,
+      shadow: 100,
+      shadowStyle: 'hard',
+      headingFont: 'mono',
+      hover: 'neutral',
+    },
+  },
+  {
+    name: 'Solarized',
+    description: 'Warm cream and blue, after Ethan Schoonover’s palette',
+    knobs: {
+      ...iris,
+      hue: 245,
+      chroma: 0.14,
+      lightness: 60,
+      base: 'stone',
+      surfaceSaturation: 0.026,
+      surfaceLightness: 96.5,
+      radius: 0.8,
+      shadow: 40,
+      font: 'system',
+    },
+  },
+  {
+    name: 'Nord',
+    description: 'Frost blues on a snow-storm page, after Nord',
+    knobs: {
+      ...iris,
+      hue: 255,
+      chroma: 0.08,
+      lightness: 57,
+      surfaceSaturation: 0.012,
+      surfaceContrast: 20,
+      surfaceLightness: 95.5,
+      radius: 1,
+      shadow: 50,
+      font: 'rounded',
+    },
   },
   {
     name: 'Ocean',
-    knobs: { ...defaults, hue: 232, chroma: 0.14, lightness: 50, surfaceSaturation: 0.014 },
+    description: 'A deep blue on blue-tinted surfaces',
+    knobs: { ...iris, hue: 232, chroma: 0.14, lightness: 50, surfaceSaturation: 0.014 },
   },
   {
     name: 'Forest',
-    knobs: { ...defaults, hue: 152, chroma: 0.12, lightness: 48, radius: 0.8 },
+    description: 'Leaf green, a little squarer',
+    knobs: { ...iris, hue: 152, chroma: 0.12, lightness: 48, radius: 0.8 },
   },
   {
     name: 'Ember',
-    knobs: { ...defaults, hue: 38, chroma: 0.17, lightness: 60, radius: 0.6, density: 0.9 },
+    description: 'Warm orange, tighter',
+    knobs: { ...iris, hue: 38, chroma: 0.17, lightness: 60, radius: 0.6, density: 0.9 },
   },
   {
     name: 'Orchid',
+    description: 'Pink, round and serif',
     knobs: {
-      ...defaults,
+      ...iris,
       hue: 328,
       chroma: 0.16,
       lightness: 56,
@@ -328,8 +481,9 @@ export const presets: ReadonlyArray<Preset> = [
   },
   {
     name: 'Terminal',
+    description: 'Green on mono, sharp and still',
     knobs: {
-      ...defaults,
+      ...iris,
       hue: 145,
       chroma: 0.2,
       lightness: 55,
@@ -341,30 +495,65 @@ export const presets: ReadonlyArray<Preset> = [
   },
 ]
 
+/** `preset`'s knobs, drawn in the direction the preview already reads. */
+export const presetKnobs = (preset: Preset, direction: Knobs['direction']): Knobs => ({
+  ...preset.knobs,
+  direction,
+})
+
+/**
+ * Knobs drawn at random, for a theme to start from: every choice, and each
+ * slider within the part of its range that keeps text readable.
+ */
+export const shuffled = (random: () => number, direction: Knobs['direction']): Knobs => {
+  const pick = <A>(values: ReadonlyArray<A>): A =>
+    values[Math.min(values.length - 1, Math.floor(random() * values.length))]!
+  const between = (knob: Knob, low: number, high: number) =>
+    fit(rangeOf(knob), low + random() * (high - low))
+  const across = (knob: Knob) => between(knob, rangeOf(knob).min, rangeOf(knob).max)
+  return {
+    hue: across('hue'),
+    chroma: between('chroma', 0.06, 0.24),
+    lightness: between('lightness', 40, 65),
+    surfaceSaturation: across('surfaceSaturation'),
+    surfaceContrast: between('surfaceContrast', 10, 40),
+    surfaceLightness: between('surfaceLightness', 94, 100),
+    radius: across('radius'),
+    density: across('density'),
+    border: pick([1, 1, 1, 2]),
+    size: pick(Size.literals),
+    motion: 1,
+    shadow: across('shadow'),
+    shadowStyle: pick(['soft', 'soft', 'soft', 'hard'] as const),
+    font: pick(Font.literals),
+    base: pick(Base.literals),
+    hover: pick(Hover.literals),
+    menuAccent: pick(MenuAccent.literals),
+    menuColor: pick(MenuColor.literals),
+    easing: pick(Easing.literals),
+    headingFont: pick(HeadingFont.literals),
+    direction,
+  }
+}
+
 const percent = (value: number) => `${value}%`
 
-/** The palette `knobs` describe, as an application writes it (`codeOf`). */
-export const paletteOf = (knobs: Knobs) =>
-  Theme.compose(
-    Theme.oklch({
-      accent: { h: knobs.hue, c: knobs.chroma, l: percent(knobs.lightness) },
-      ...(knobs.base === 'accent' ? {} : { neutral: { h: bases[knobs.base].h } }),
-      surfaceSaturation: knobs.surfaceSaturation,
-      surfaceContrast: percent(knobs.surfaceContrast),
-      menu: { accent: knobs.menuAccent, color: knobs.menuColor },
-    }),
-    Theme.define({
-      knob: {
-        'radius-factor': String(knobs.radius),
-        density: String(knobs.density),
-        step: knobs.size === 'compact' ? '1' : '0',
-        motion: String(knobs.motion),
-        'shadow-strength': percent(knobs.shadow),
-      },
-      font: { body: fonts[knobs.font], heading: headingOf(knobs) },
-      motion: { ease: easeOf(knobs) },
-    }),
-  )
+const surfacesOf = (knobs: Knobs) =>
+  Theme.oklch({
+    accent: { h: knobs.hue, c: knobs.chroma, l: percent(knobs.lightness) },
+    ...(knobs.base === 'accent' ? {} : { neutral: { h: bases[knobs.base].h } }),
+    surfaceSaturation: knobs.surfaceSaturation,
+    surfaceContrast: percent(knobs.surfaceContrast),
+    menu: { accent: knobs.menuAccent, color: knobs.menuColor },
+    stateHue: knobs.hover,
+  })
+
+/** The shipped borders' 1, 2 and 3px, moved up together. */
+const bordersOf = (knobs: Knobs) => ({
+  thin: `${knobs.border}px`,
+  thick: `${knobs.border + 1}px`,
+  heavy: `${knobs.border + 2}px`,
+})
 
 const headingOf = (knobs: Knobs) =>
   knobs.headingFont === 'inherit' ? 'inherit' : fonts[knobs.headingFont]
@@ -372,6 +561,27 @@ const headingOf = (knobs: Knobs) =>
 /** On the spring, every recipe's eased transition springs: the token reads the shipped curve. */
 const easeOf = (knobs: Knobs) =>
   knobs.easing === 'spring' ? `var(${VAR_PREFIX}-motion-spring)` : 'ease-out'
+
+/** The palette `knobs` describe, as an application writes it (`codeOf`). */
+export const paletteOf = (knobs: Knobs) =>
+  Theme.compose(
+    knobs.shadowStyle === 'hard'
+      ? Theme.compose(Theme.hardShadows, surfacesOf(knobs))
+      : surfacesOf(knobs),
+    Theme.define({
+      knob: {
+        'radius-factor': String(knobs.radius),
+        density: String(knobs.density),
+        step: knobs.size === 'compact' ? '1' : '0',
+        motion: String(knobs.motion),
+        'shadow-strength': percent(knobs.shadow),
+        'base-l': percent(knobs.surfaceLightness),
+      },
+      font: { body: fonts[knobs.font], heading: headingOf(knobs) },
+      motion: { ease: easeOf(knobs) },
+      border: bordersOf(knobs),
+    }),
+  )
 
 /** The whole theme a preview declares: the shipped scales with the palette over them. */
 export const themeOf = (knobs: Knobs) => Theme.compose(Theme.tokens, paletteOf(knobs))
@@ -395,8 +605,16 @@ export const declared = declarationsOf(themeOf(defaults))
 /**
  * The groups `knobs` reach. Every other token is an expression over these, so
  * overriding them on the element that declares the rest re-derives the theme.
+ * `state` is among them for its `ink`, which `stateHue` writes outright.
  */
-const KNOB_GROUPS: ReadonlySet<string> = new Set(['knob', 'font', 'motion'])
+export const KNOB_GROUPS: ReadonlySet<string> = new Set([
+  'knob',
+  'font',
+  'motion',
+  'border',
+  'shadow',
+  'state',
+])
 
 /** The last overrides made: every preview on a page asks for the same ones, render after render. */
 let last:
@@ -422,7 +640,7 @@ const indent = (text: string, by: string) =>
 
 /** The palette `knobs` describe, as source an application pastes into its style module. */
 export const codeOf = (knobs: Knobs): string => {
-  const palette = [
+  const surfaces = [
     'Theme.oklch({',
     `  accent: { h: ${knobs.hue}, c: ${knobs.chroma}, l: '${percent(knobs.lightness)}' },`,
     `  surfaceSaturation: ${knobs.surfaceSaturation},`,
@@ -431,7 +649,14 @@ export const codeOf = (knobs: Knobs): string => {
     ...(knobs.menuAccent === 'subtle' && knobs.menuColor === 'default'
       ? []
       : [`  menu: { accent: '${knobs.menuAccent}', color: '${knobs.menuColor}' },`]),
+    ...(knobs.hover === 'surface' ? [] : [`  stateHue: '${knobs.hover}',`]),
     '}),',
+  ].join('\n')
+  const borders = bordersOf(knobs)
+  const palette = [
+    knobs.shadowStyle === 'hard'
+      ? ['Theme.compose(', '  Theme.hardShadows,', indent(surfaces, '  '), '),'].join('\n')
+      : surfaces,
     'Theme.define({',
     '  knob: {',
     `    'radius-factor': '${knobs.radius}',`,
@@ -439,9 +664,17 @@ export const codeOf = (knobs: Knobs): string => {
     ...(knobs.size === 'compact' ? ["    step: '1',"] : []),
     `    motion: '${knobs.motion}',`,
     `    'shadow-strength': '${percent(knobs.shadow)}',`,
+    ...(knobs.surfaceLightness === SURFACE_LIGHTNESS
+      ? []
+      : [`    'base-l': '${percent(knobs.surfaceLightness)}',`]),
     '  },',
     `  font: { body: '${fonts[knobs.font]}', heading: '${headingOf(knobs)}' },`,
     ...(knobs.easing === 'spring' ? ["  motion: { ease: 'var(--fk-motion-spring)' },"] : []),
+    ...(knobs.border === 1
+      ? []
+      : [
+          `  border: { thin: '${borders.thin}', thick: '${borders.thick}', heavy: '${borders.heavy}' },`,
+        ]),
     '}),',
   ].join('\n')
   return [
