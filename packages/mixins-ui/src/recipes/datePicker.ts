@@ -20,6 +20,7 @@ export const DatePicker = Style.recipeFor(DatePickerSlots)({
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.md,
         background: ref.surface.base,
+        boxShadow: ref.shadow.field,
         color: ref.text.default,
         font: 'inherit',
         cursor: 'pointer',

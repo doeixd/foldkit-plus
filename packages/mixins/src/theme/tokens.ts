@@ -21,6 +21,8 @@ const radius = (px: number) => `calc(${px}px * var(--fk-knob-radius-factor))`
 const duration = (ms: number) => `calc(${ms}ms * var(--fk-knob-motion))`
 const shade = 'var(--fk-shadow-color, oklch(0% 0 0 / 0.12))'
 const strength = 'var(--fk-knob-shadow-strength, 100%)'
+/** No shadow, as a shadow: one a transition can interpolate from, unlike `none`. */
+const FLAT = '0 0 #0000'
 const shadow = (...layers: ReadonlyArray<string>) =>
   layers.map(layer => `${layer} color-mix(in oklch, ${shade} ${strength}, transparent)`).join(', ')
 
@@ -153,6 +155,12 @@ export const tokens = define({
     xl: shadow('0 24px 48px -12px', '0 8px 16px -8px'),
     '2xl': shadow('0 32px 64px -16px', '0 12px 24px -12px'),
     inset: shadow('inset 0 2px 4px 0'),
+    // A control's relief: a button standing off the page (`raised`), pressed
+    // into it while held or on (`pressed`), and a field's well (`field`).
+    // Flat here; `relief` holds themes that give controls depth.
+    raised: FLAT,
+    pressed: FLAT,
+    field: FLAT,
   },
   breakpoint: {
     sm: '(min-width: 40rem)',
@@ -247,6 +255,41 @@ export const hardShadows = define({
     inset: `inset ${hard(2)}`,
   },
 })
+
+/** An edge of a bevel: `color` faded by `shadow-strength`, as every shadow is. */
+const edge = (color: string) => `color-mix(in oklch, ${color} ${strength}, transparent)`
+/** Lit from the top left: white, dimmer in a dark scheme, where white would glare. */
+const lit = (alpha: number, darkAlpha: number) =>
+  edge(`light-dark(oklch(100% 0 0 / ${alpha}), oklch(100% 0 0 / ${darkAlpha}))`)
+const shaded = (alpha: number) => edge(`oklch(from ${shade} l c h / ${alpha})`)
+/** Two rings of inset edges, the outer lit at `-1` and shaded at `1`, flipped when pressed in. */
+const bevel = (sign: 1 | -1) =>
+  [
+    `inset ${-sign}px ${-sign}px 0 0 ${shaded(0.9)}`,
+    `inset ${sign}px ${sign}px 0 0 ${lit(1, 0.3)}`,
+    `inset ${-2 * sign}px ${-2 * sign}px 0 0 ${shaded(0.4)}`,
+    `inset ${2 * sign}px ${2 * sign}px 0 0 ${lit(0.5, 0.12)}`,
+  ].join(', ')
+
+/**
+ * How controls stand off the page, as token sets over `tokens`: a button's
+ * resting shadow (`raised`), the one it takes held or on (`pressed`), and a
+ * field's well (`field`). The shipped scales are flat. `soft` lifts buttons
+ * a hair and sinks fields a hair; `hard` drops solid offset copies, as
+ * `hardShadows` does for surfaces; `bevel` draws lit and shaded edges, the
+ * raised and sunken chrome of a 1990s desktop. `shadow-strength` fades each.
+ */
+export const relief = {
+  soft: define({
+    shadow: {
+      raised: shadow('0 1px 2px 0'),
+      pressed: shadow('inset 0 1px 2px 0'),
+      field: shadow('inset 0 1px 2px 0'),
+    },
+  }),
+  hard: define({ shadow: { raised: hard(2), pressed: hard(1), field: hard(2) } }),
+  bevel: define({ shadow: { raised: bevel(1), pressed: bevel(-1), field: bevel(-1) } }),
+} as const
 
 /** A role of the type scale. */
 export type Role = 'display' | 'title' | 'subtitle' | 'body' | 'caption' | 'micro'

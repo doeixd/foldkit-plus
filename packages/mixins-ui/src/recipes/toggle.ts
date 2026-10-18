@@ -53,6 +53,7 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         border: `${ref.border.thin} solid ${ref.outline.overt}`,
         borderRadius: ref.radius.sm,
         background: ref.surface.base,
+        boxShadow: ref.shadow.field,
         cursor: 'pointer',
         ...transition('background-color, border-color'),
       }),

@@ -12,6 +12,13 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-mixins/theme`'s `Theme.hardShadows`: the shadow scale drawn as solid offset copies
   with no blur, for retro and brutalist themes. Compose it over `Theme.tokens`;
   `shadow-strength` still fades it.
+- A control's relief: `Theme.tokens` gains `shadow-raised`, `shadow-pressed` and
+  `shadow-field`, flat by default, and `foldkit-mixins/theme`'s `Theme.relief` gives them depth
+  (`soft`, `hard`, or `bevel`'s lit and shaded edges). In `foldkit-mixins-ui`, a solid, outline
+  or primary Button stands out by `raised` and is pressed in by `pressed` while held or on; ghost
+  and icon buttons stay flat; and every field's chrome (Input, Textarea, Select, Listbox,
+  Combobox, DatePicker, NumberField, TagsInput, OtpField, CascadeSelect, InputCopy, the
+  pagination's page size, Checkbox and RadioGroup) sinks by `field`.
 
 ## 0.23.0
 

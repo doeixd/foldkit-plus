@@ -53,6 +53,7 @@ export const OtpField = Style.recipeFor(OtpFieldSlots)({
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         marginInlineStart: `calc(-1 * ${ref.border.thin})`,
         background: ref.surface.base,
+        boxShadow: ref.shadow.field,
         color: ref.text.overt,
         ...role('subtitle'),
         fontVariantNumeric: 'tabular-nums',

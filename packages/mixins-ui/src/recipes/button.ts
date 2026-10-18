@@ -47,6 +47,17 @@ const onHovered = '[aria-pressed="true"]:hover:not(:active, [aria-disabled="true
 const onHeld = '[aria-pressed="true"]:active:not([aria-disabled="true"], :disabled)'
 
 /**
+ * A button with a face of its own (solid, outline, primary) stands off the
+ * page by the theme's relief, and is pressed into it while held or on. Flat
+ * unless the theme gives its controls relief (`Theme.relief`); the unfilled
+ * ghost and icon buttons stay flat, as text on the page does.
+ */
+const raised: ReadonlyArray<StyleValue> = [
+  Style.self({ boxShadow: ref.shadow.raised }),
+  Style.pseudo(`:is(${held}, [aria-pressed="true"])`, { boxShadow: ref.shadow.pressed }),
+]
+
+/**
  * On, an unfilled toggle is filled with its tone, as a solid button is, and
  * keeps a fill and the text on it when hovered (the tone's hover fill) and
  * when held (its active fill): the plain hover and held films would
@@ -100,7 +111,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
         // A link drawn as a button (`Anchor`) is not underlined like one in running text.
         textDecoration: 'none',
         cursor: 'pointer',
-        ...transition('background-color, border-color, color, scale'),
+        ...transition('background-color, border-color, color, scale, box-shadow'),
       }),
       // Held, every variant gives a little. The scale is the motion: reduced
       // motion zeroes `travel`, and the button holds its size.
@@ -121,6 +132,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
           Style.self({ background: toneVar('fill'), color: toneVar('on-fill') }),
           hover({ background: toneVar('fill-hover') }),
           ...press(toneVar('fill'), toneVar('fill-hover'), toneVar('fill-active')),
+          ...raised,
           // On, a solid toggle rests on the active fill, and keeps it hovered:
           // the hover fill, a step from the resting one, read as off. Held,
           // the press applies.
@@ -138,6 +150,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
           hover({ background: unfilledHover }),
           unfilledActive,
           ...unfilledOn,
+          ...raised,
         ),
       },
       ghost: {
@@ -163,6 +176,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
             `color-mix(in oklch, ${ref.text.overt} 85%, ${ref.surface.base})`,
             `color-mix(in oklch, ${ref.text.overt} 72%, ${ref.surface.base})`,
           ),
+          ...raised,
         ),
       },
       /**

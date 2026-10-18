@@ -31,6 +31,7 @@ export const InputCopy = Style.recipeFor(InputCopySlots)({
         borderRadius: ref.radius.md,
         ...nests(ref.radius.md, '0px', ref.border.thin),
         background: ref.surface.base,
+        boxShadow: ref.shadow.field,
         overflow: 'hidden',
       }),
     ),

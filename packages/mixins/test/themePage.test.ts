@@ -98,8 +98,11 @@ describe('Theme.tokens', () => {
   })
 
   it('draws every shadow in the one color a palette sets, dimmed by the strength knob', () => {
-    const steps = Object.values(Theme.tokens.shadow)
+    const { raised, pressed, field, ...elevation } = Theme.tokens.shadow
+    const steps = Object.values(elevation)
     expect(steps).toHaveLength(7)
+    // A control's relief is flat until a theme gives it some (`Theme.relief`).
+    expect([raised, pressed, field]).toEqual(['0 0 #0000', '0 0 #0000', '0 0 #0000'])
     for (const step of steps) {
       expect(step).toContain('var(--fk-shadow-color, oklch(0% 0 0 / 0.12))')
       expect(step).toContain('var(--fk-knob-shadow-strength, 100%)')

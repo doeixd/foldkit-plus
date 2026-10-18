@@ -46,6 +46,7 @@ export const NumberField = Style.recipeFor(NumberFieldSlots)({
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.md,
         background: ref.surface.base,
+        boxShadow: ref.shadow.field,
         overflow: 'hidden',
         ...transition('border-color'),
       }),

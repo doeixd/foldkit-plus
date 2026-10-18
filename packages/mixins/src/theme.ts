@@ -17,6 +17,7 @@ import {
   ladder,
   nested,
   nests,
+  relief,
   role,
   tokens,
 } from './theme/tokens.js'
@@ -32,6 +33,7 @@ export {
   ladder,
   nested,
   nests,
+  relief,
   role,
   tokens,
 } from './theme/tokens.js'
@@ -48,6 +50,7 @@ export const Theme = {
   scoped,
   tokens,
   hardShadows,
+  relief,
   ladder,
   role,
   nested,

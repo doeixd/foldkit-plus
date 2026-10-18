@@ -106,6 +106,7 @@ export const TagsInput = Style.recipeFor(TagsInputSlots)({
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.md,
         background: ref.surface.base,
+        boxShadow: ref.shadow.field,
         cursor: 'text',
         ...transition('border-color'),
       }),

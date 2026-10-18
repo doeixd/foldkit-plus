@@ -71,6 +71,7 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
         border: `${ref.border.thin} solid ${ref.outline.overt}`,
         borderRadius: ref.radius.full,
         background: ref.surface.base,
+        boxShadow: ref.shadow.field,
         cursor: 'pointer',
         ...transition('background-color, border-color'),
       }),

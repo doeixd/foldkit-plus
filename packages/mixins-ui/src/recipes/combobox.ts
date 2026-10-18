@@ -52,6 +52,7 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.md,
         background: ref.surface.base,
+        boxShadow: ref.shadow.field,
         ...transition('border-color, background-color'),
       }),
       Style.pseudo(':hover:not(:focus-within)', { borderColor: ref.outline.overt }),

@@ -47,6 +47,7 @@ export const Select = Style.recipeFor(SelectSlots)({
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.md,
         backgroundColor: ref.surface.base,
+        boxShadow: ref.shadow.field,
         color: ref.text.default,
         font: 'inherit',
         appearance: 'none',
