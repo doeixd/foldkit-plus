@@ -5,7 +5,19 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.23.0
+
+Mobile and touch: hover that no longer sticks after a tap, a pressed state for every control,
+44px targets on a touch screen, safe areas, the on-screen keyboard, holds and pinches, and
+fixes for the Sheet's drag and the editor's caret keys. `foldkit-mixins` 0.13.0,
+`foldkit-mixins-ui` 0.12.0, `foldkit-primitives` 0.12.0, `foldkit-richtext-dom` 0.6.0 and
+`foldkit-mixins-form` 0.7.0 change; `foldkit-mixins-data-grid` 0.2.4 is fixes. Packages that
+pin one of them republish with a patch to re-pin (`foldkit-builder`, `foldkit-cms`,
+`foldkit-cms-drizzle`, `foldkit-mixins-builder`, `foldkit-mixins-crud`,
+`foldkit-mixins-richtext`), and `foldkit-plus` is 0.5.0. Changes that can break code written
+for 0.22: a Table without `fluid` is wrapped in its frame; the ImageCropper's zoom Mount is
+`ImageCropperZoom`; the Menu's and the Toast's Models gain fields; and an editor edit that
+changes nothing returns a `RichText.answer` Command, which a Scene test resolves.
 
 ### Added
 
