@@ -110,3 +110,19 @@ it('keeps a toast stack and a full Dialog off each edge the screen takes', async
     handle.dispose()
   }
 })
+
+it('stands a full Dialog above the on-screen keyboard Dialog.keyboard measures', async () => {
+  const handle = mount()
+  try {
+    const panel = await vi.waitFor(() => {
+      const found = document.getElementById('panel')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    panel.style.setProperty('--fk-keyboard-inset', '300px')
+    expect(clearance('#panel').bottom).toBeGreaterThanOrEqual(300)
+    expect(clearance('#panel').top).toBeGreaterThanOrEqual(0)
+  } finally {
+    handle.dispose()
+  }
+})

@@ -43,8 +43,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/dialog.ts',
-        find: 'block: `100% - 2rem - ${ref.safe.top} - ${ref.safe.bottom}`,',
-        replace: "block: '100% - 2rem',",
+        find: 'block: `100% - 2rem - ${ref.safe.top} - ${ref.safe.bottom} - var(--fk-keyboard-inset, 0px)`,',
+        replace: "block: '100% - 2rem - var(--fk-keyboard-inset, 0px)',",
       },
     ],
     tests,

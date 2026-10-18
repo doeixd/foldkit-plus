@@ -357,6 +357,18 @@ test('with points it opens at the lowest; a press steps up, a flick down rests a
   }
 })
 
+test('a bottom sheet stands on the on-screen keyboard Dialog.keyboard measures', async () => {
+  const { panel, dispose } = await open({ side: 'bottom', isAnimated: false }, {}, { lines: 2 })
+  try {
+    const resting = panel.getBoundingClientRect().bottom
+    expect(resting).toBeCloseTo(window.innerHeight, 0)
+    panel.style.setProperty('--fk-keyboard-inset', '200px')
+    expect(panel.getBoundingClientRect().bottom).toBeCloseTo(window.innerHeight - 200, 0)
+  } finally {
+    dispose()
+  }
+})
+
 test('a drag past fully open gives only a little', async () => {
   const { panel, grabber, dispose } = await open(
     { side: 'bottom', isAnimated: false },

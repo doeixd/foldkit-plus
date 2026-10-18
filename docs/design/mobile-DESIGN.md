@@ -136,6 +136,10 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **B1: done** for the Dialog and the bottom Sheet: `KeyboardInset` (primitives/dom) and the
+  opt-in `Dialog.keyboard` mixin (it sends no Message, so it is not on by default), with
+  browser tests and mutations. The Anchor re-placing popups on `visualViewport` changes, and
+  documenting `interactive-widget=resizes-content`, are left.
 - **A6: done.** `--fk-touch-floor` (the reset, coarse pointers only) and `controlHeight` in
   `design.ts`, for the ladder's controls and rows and the square icon controls
   (`touchTarget.touch.browser.test.ts`, with mutations). Thumbs, grips and handles that must

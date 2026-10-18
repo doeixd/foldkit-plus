@@ -88,6 +88,8 @@ const defined = new Set([
   'ink',
   // Set by `Defaults.reset` where the pointer is coarse; read with a fallback of 0.
   'touch-floor',
+  // Written on a dialog's panel by `Dialog.keyboard`; read with a fallback of 0.
+  'keyboard-inset',
   // Written on the element by the card group's view and its FluidHover, not by a theme.
   'card-columns',
   // Written by the views: an avatar's hue from its name, a table row skeleton's column count.

@@ -14,6 +14,11 @@ version changed; `pnpm` skips versions already in the registry.
   `RichText.answer` Command. A Scene test that sends an edit which changes nothing now
   resolves that Command, and an application that replaces the editor's `RichText.patch`
   with its own runs its patch before the editor's other Commands.
+- `foldkit-primitives/dom`'s `KeyboardInset` Mount (and `keyboardInset`, `KEYBOARD_INSET`): the
+  on-screen keyboard's height as `--fk-keyboard-inset` on its element, from the visual
+  viewport. `foldkit-mixins-ui`'s `Dialog.keyboard` mixin runs it on a dialog's or sheet's
+  panel, and the Dialog and Sheet recipes keep the panel above the keys: iOS Safari, and
+  Chrome on Android, leave a fixed panel under them when a field in it takes focus.
 - `foldkit-mixins`: a `safe` token group, `Theme.ref.safe.top` / `right` / `bottom` / `left`:
   what a notch, rounded corners or the home indicator take from each screen edge
   (`env(safe-area-inset-*)`, 0 unless the page's viewport meta says `viewport-fit=cover`).

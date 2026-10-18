@@ -18,7 +18,8 @@ import { bar, overlaid, thumb } from './scrollBars.js'
  * corner or the home indicator takes from each side (0 unless the page covers the screen).
  */
 const room = {
-  block: `100% - 2rem - ${ref.safe.top} - ${ref.safe.bottom}`,
+  // Less the on-screen keyboard, which `Dialog.keyboard` measures on the panel.
+  block: `100% - 2rem - ${ref.safe.top} - ${ref.safe.bottom} - var(--fk-keyboard-inset, 0px)`,
   inline: `100% - 2rem - ${ref.safe.left} - ${ref.safe.right}`,
 }
 
@@ -76,7 +77,7 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         // grid in what is left. Physical, as the screen's insets are.
         marginTop: ref.safe.top,
         marginRight: ref.safe.right,
-        marginBottom: ref.safe.bottom,
+        marginBottom: `calc(${ref.safe.bottom} + var(--fk-keyboard-inset, 0px))`,
         marginLeft: ref.safe.left,
         padding: ref.space.lg,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,

@@ -138,6 +138,8 @@ const panelOn = (side: Side): StyleValue =>
       ...across(side),
       ...clear(side),
       translate: moved(side, travel),
+      // A bottom sheet stands on the on-screen keyboard, which `Dialog.keyboard` measures.
+      ...(side === 'bottom' ? { marginBottom: 'var(--fk-keyboard-inset, 0px)' } : {}),
     }),
     // A slide replaces the Dialog's growth; the fade stays.
     Style.nest(`${onSide(side)}[data-closed]`, { scale: 'none', translate: moved(side, '100%') }),

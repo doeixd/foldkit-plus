@@ -1,7 +1,7 @@
 import type { Message as DialogMessage, RenderInfo } from '@foldkit/ui/dialog'
 import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
-import { ScrollBars } from 'foldkit-primitives/dom'
+import { KeyboardInset, ScrollBars } from 'foldkit-primitives/dom'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 /**
@@ -66,6 +66,24 @@ export const overlayBars = [
       }),
     },
     { name: 'DialogScrollBars' },
+  ).mixin,
+] as const
+
+/**
+ * The on-screen keyboard's height on the `panel` (`--fk-keyboard-inset`), which the Dialog
+ * and Sheet recipes keep the panel above: iOS Safari, and Chrome on Android unless the page
+ * asks otherwise, leave a fixed panel under the keys when a field in it takes focus. Pass it
+ * among the mixins of a dialog or sheet that holds a field. Opt in, as it sends no Message.
+ */
+export const keyboard = [
+  Behavior.forSlots(DialogSlots)<unknown, never>(
+    {
+      panel: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => KeyboardInset({}),
+      }),
+    },
+    { name: 'DialogKeyboard' },
   ).mixin,
 ] as const
 
