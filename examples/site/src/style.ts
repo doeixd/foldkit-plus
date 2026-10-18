@@ -6,7 +6,7 @@
  * article, a sidebar) is reached through its container's slot by element.
  */
 import { Capability, Style, type Piece } from 'foldkit-mixins'
-import { CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
+import { CodeBlockSlots, DrawerSlots, Recipes } from 'foldkit-mixins-ui'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
@@ -39,8 +39,15 @@ export { stylesheet }
 /** The site's code: the shipped recipe, colored from the theme's `syntax` group. */
 export const CodeStyle = Style.forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
 
-/** Below this width `/create` stacks its knobs over the preview. */
-const ONE_COLUMN = '(max-width: 72rem)'
+/**
+ * Below this width `/create` stacks its preview and docks its knobs to the
+ * bottom of the screen: the Drawer recipe's `below-xl`, read the same way.
+ */
+const ONE_COLUMN = '(max-width: 79.99rem)'
+/** At and above it, the knobs are a column beside the preview. */
+const COLUMNS = '(min-width: 80rem)'
+/** What of the docked drawer shows peeking: its handle and the pane names. */
+const DRAWER_PEEK = '6.5rem'
 
 /** Below this width the rail becomes a bar over the page. */
 const NARROW = '(max-width: 56rem)'
@@ -958,88 +965,23 @@ export const SiteStyle = slots(
       },
       Style.media(ONE_COLUMN, { display: 'flex', flexDirection: 'column', alignItems: 'stretch' }),
     ],
-    // Beside the preview, a column that scrolls on its own; narrower, a
-    // drawer held to the bottom of the screen while the preview is in view,
-    // which comes to rest under it once the reader scrolls past.
-    knobs: [
-      {
-        position: 'sticky',
-        top: t.space.lg,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: t.space.md,
-        boxSizing: 'border-box',
-        maxBlockSize: `calc(100dvh - 2 * ${t.space.lg})`,
-        padding: t.space.lg,
-        border: rule,
-        borderRadius: t.radius.lg,
-        background: t.surface.base,
-      },
-      Style.media(ONE_COLUMN, {
-        order: '1',
-        top: 'auto',
-        bottom: '0',
-        zIndex: '20',
-        maxBlockSize: '55dvh',
-        gap: t.space.sm,
-        padding: `${t.space.xs} ${t.space.md} calc(${t.space.sm} + env(safe-area-inset-bottom, 0px))`,
-        borderBlockEnd: '0',
-        borderEndStartRadius: '0',
-        borderEndEndRadius: '0',
-        boxShadow: `0 -12px 32px -16px ${t.shadow.color}`,
-      }),
-    ],
-    // A grab bar with its words for a screen reader, on the drawer alone.
-    drawerHandle: Style.slot({ capability: Capability.Interactive }, [
-      {
-        display: 'none',
-        position: 'relative',
-        alignSelf: 'stretch',
-        blockSize: '1.5rem',
-        padding: '0',
-        border: '0',
-        background: 'transparent',
-        color: 'transparent',
-        fontSize: '0',
-        cursor: 'pointer',
-      },
-      Style.pseudo('::before', {
-        content: '""',
-        position: 'absolute',
-        insetBlockStart: '50%',
-        insetInlineStart: '50%',
-        inlineSize: '2.5rem',
-        blockSize: '0.25rem',
-        borderRadius: '999px',
-        background: t.outline.overt,
-        transform: 'translate(-50%, -50%)',
-      }),
-      Style.media(ONE_COLUMN, { display: 'block' }),
-      focus,
-    ]),
     // The tabs over the chosen pane, which scrolls on its own below them.
     sections: [
       {
         display: 'flex',
+        flex: '1',
         flexDirection: 'column',
         gap: t.space.md,
         minBlockSize: '0',
       },
       Style.media(ONE_COLUMN, { gap: t.space.sm }),
     ],
-    pane: { display: 'flex', flexDirection: 'column', gap: t.space.md },
-    panes: [
-      {
-        minBlockSize: '0',
-        overflowY: 'auto',
-        overscrollBehavior: 'contain',
-        scrollbarWidth: 'thin',
-        // Room for a focus ring at the edges of what scrolls.
-        padding: '3px',
-        margin: '-3px',
-      },
-      Style.at(`@media ${ONE_COLUMN}`, Style.nest('[data-open="false"] > &', { display: 'none' })),
+    // Room at the page's end for the docked drawer's peek, so nothing ends under it.
+    drawerRoom: [
+      { display: 'none' },
+      Style.media(ONE_COLUMN, { display: 'block', blockSize: DRAWER_PEEK }),
     ],
+    pane: { display: 'flex', flexDirection: 'column', gap: t.space.md },
     knob: { display: 'flex', flexDirection: 'column', gap: t.space['2xs'] },
     presets: { display: 'flex', flexWrap: 'wrap', gap: t.space['2xs'] },
     canvasColumn: { display: 'flex', flexDirection: 'column', gap: t.space.sm, minInlineSize: '0' },
@@ -1182,4 +1124,53 @@ export const SiteStyle = slots(
     ],
   },
   { name: 'SiteStyle' },
+)
+
+/**
+ * `/create`'s knobs: the Drawer recipe, docked below xl, and beside the
+ * preview a column of its own that scrolls on its own, its pane scrolling
+ * under the pane names.
+ */
+export const StudioDrawerStyle = Style.forSlots(DrawerSlots)(
+  Recipes.Drawer.extend({
+    base: {
+      // Wide only: the site's rules sit above the recipe's docked ones, so
+      // a sticky column written for every width would undock the drawer.
+      panel: Style.compose(
+        Style.self({ '--fk-drawer-peek': DRAWER_PEEK, '--fk-drawer-height': '62dvh' }),
+        Style.at(
+          `@media ${COLUMNS}`,
+          Style.self({
+            position: 'sticky',
+            top: t.space.lg,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: t.space.md,
+            boxSizing: 'border-box',
+            maxBlockSize: `calc(100dvh - 2 * ${t.space.lg})`,
+            padding: t.space.lg,
+            border: rule,
+            borderRadius: t.radius.lg,
+            background: t.surface.base,
+          }),
+        ),
+        // Docked, the pane names sit a little in from the edges under the handle.
+        Style.media(ONE_COLUMN, {
+          gap: t.space.sm,
+          paddingInline: t.space.md,
+          paddingBlockStart: t.space['2xs'],
+        }),
+      ),
+      body: Style.self({
+        flex: '1',
+        minBlockSize: '0',
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
+        scrollbarWidth: 'thin',
+        // Room for a focus ring at the edges of what scrolls.
+        padding: '3px',
+        margin: '-3px',
+      }),
+    },
+  })({ dock: 'below-xl' }),
 )

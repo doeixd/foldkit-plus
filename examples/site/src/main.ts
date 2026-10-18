@@ -21,6 +21,7 @@ import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { Listbox as UiListbox, Tabs as UiTabs } from '@foldkit/ui'
+import { Drawer } from 'foldkit-mixins-ui'
 
 import { allSubsites } from './catalog.js'
 import { showcaseOf } from './gallery/showcases.js'
@@ -107,8 +108,8 @@ export const Model = Schema.Struct({
   /** What `/create`'s preview shows, and the tabs that pick it. */
   canvas: Canvas,
   canvasTabs: UiTabs.Model,
-  /** Whether `/create`'s knobs stand open over the preview on a phone. */
-  drawerOpen: Schema.Boolean,
+  /** `/create`'s knobs, which a narrow screen docks to its bottom. */
+  drawer: Drawer.Model,
   scheme: Scheme,
   pageScheme: PageScheme,
   ...Dark.fields,
@@ -142,7 +143,7 @@ export const Message = defineMessageUnion({
   GotSectionTabs: { message: UiTabs.Message },
   GotCanvasTabs: { message: UiTabs.Message },
   GotPicker: { picker: Picker, message: UiListbox.Message },
-  ToggledDrawer: {},
+  GotDrawer: { message: Drawer.Message },
   ChoseScheme: { scheme: Scheme },
   ChoseDirection: { direction: Direction },
   ChosePageScheme: { scheme: PageScheme },
@@ -268,9 +269,14 @@ const foldSectionTabs = Update.foldChild({
     Selected:
       ({ value }) =>
       model =>
-        value === model.section && model.drawerOpen
+        value === model.section && model.drawer.open
           ? { model }
-          : { model: modifyFields(model, { section: () => value, drawerOpen: () => true }) },
+          : {
+              model: modifyFields(model, {
+                section: () => value,
+                drawer: drawer => Drawer.open(drawer),
+              }),
+            },
   }),
 })
 
@@ -397,7 +403,12 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
     GotSectionTabs: ({ message }) => foldSectionTabs(model, message),
     GotCanvasTabs: ({ message }) => foldCanvasTabs(model, message),
     GotPicker: ({ picker, message }) => foldPicker(model, picker, message),
-    ToggledDrawer: () => ({ model: modifyFields(model, { drawerOpen: open => !open }) }),
+    GotDrawer: ({ message }) => {
+      const drawer = Drawer.update(model.drawer, message)
+      return {
+        model: drawer === model.drawer ? model : modifyFields(model, { drawer: () => drawer }),
+      }
+    },
     ChoseDirection: ({ direction }) => withKnobs(model, { ...model.knobs, direction }),
     ChoseScheme: ({ scheme }) =>
       scheme === model.scheme
@@ -522,7 +533,7 @@ export const initial: Model = placements.initial({
   pickers: initialPickers,
   canvas: 'components',
   canvasTabs: initialCanvasTabs,
-  drawerOpen: true,
+  drawer: Drawer.init({ id: 'theme-panes' }),
   scheme: 'system',
   pageScheme: 'system',
 }).model

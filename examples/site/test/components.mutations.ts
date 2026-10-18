@@ -310,8 +310,8 @@ export default [
     edits: [
       {
         file: '../src/main.ts',
-        find: 'modifyFields(model, { section: () => value, drawerOpen: () => true })',
-        replace: 'modifyFields(model, { section: () => value })',
+        find: '                drawer: drawer => Drawer.open(drawer),',
+        replace: '',
       },
     ],
     tests: unit,

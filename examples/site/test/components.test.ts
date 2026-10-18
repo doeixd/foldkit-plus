@@ -63,11 +63,11 @@ describe('the component pages', () => {
   it('open the drawer on the pane its tabs choose', () => {
     const tab = (index: number, value: string) =>
       Message.GotSectionTabs({ message: UiTabs.Message.SelectedTab({ index, value }) })
-    const closed = after(initial, Message.ToggledDrawer())
-    expect(closed.drawerOpen).toBe(false)
+    const closed = initial
+    expect(closed.drawer.open).toBe(false)
     const color = after(closed, tab(1, 'color'))
     expect(color.section).toBe('color')
-    expect(color.drawerOpen).toBe(true)
+    expect(color.drawer.open).toBe(true)
   })
 
   it('install a choice a picker makes, and refuse one that is no choice of it', () => {
