@@ -220,8 +220,9 @@ const Fields = FormView.fields(PriceForm, {
     total: Style.forSlots(FieldSlots)({ root: Style.class('total') }),
   },
   attrs: {
-    // What one key's element takes: an email type, a placeholder, textarea rows.
-    email: { type: 'email' },
+    // What one key's element takes: an email type, a placeholder, textarea rows,
+    // and what a phone's keyboard and autofill offer.
+    email: { type: 'email', autocomplete: 'email' },
   },
 })
 ```
@@ -240,8 +241,13 @@ Fields.field(control, formModel, control.key, h, (input, draw) =>
 A override receives the control, its field, id, validity, errors, element
 attrs, and the `changed`/`blurred` Messages, so a custom layout reconstructs
 no form plumbing. A renderer reads the attrs that fit its element — `type` and
-`placeholder` on a text input, `placeholder` and `rows` on a textarea — and
-ignores the rest. Nested keys and Bundle-backed keys draw only through `view`
+`placeholder` on a text input, `placeholder` and `rows` on a textarea, and on
+both, and a number, `autocomplete`, `inputMode`, `enterKeyHint`,
+`autocapitalize` and `spellcheck` — and ignores the rest. An `email`, `tel` or
+`url` type turns capitalizing and spellchecking off unless the attrs say
+otherwise, and a number's keypad is `decimal` unless `inputMode` names another
+(`numeric` for whole numbers; `text` where a minus is needed, which iOS's
+decimal pad lacks). Nested keys and Bundle-backed keys draw only through `view`
 (or a override); `field` without one refuses them, naming the key.
 
 A number is a text input because its draft is text: `"4."` is a fine thing to

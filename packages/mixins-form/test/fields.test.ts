@@ -153,6 +153,42 @@ describe('FormView.fields', () => {
     expect(byId(root, 'Note-body')?.data?.attrs).toMatchObject({ rows: '8' })
   })
 
+  it('asks a phone’s keyboard and autofill for what a key says, an address uncorrected', () => {
+    const Fields = FormView.fields(NoteForm, {
+      attrs: {
+        email: { type: 'email', autocomplete: 'email', enterKeyHint: 'next' },
+        body: { enterKeyHint: 'send', spellcheck: true },
+      },
+    })
+    const root = renderView(Fields.view)
+    expect(byId(root, 'Note-email')?.data?.attrs).toMatchObject({
+      autocomplete: 'email',
+      enterkeyhint: 'next',
+      autocapitalize: 'none',
+      spellcheck: 'false',
+    })
+    expect(byId(root, 'Note-body')?.data?.attrs).toMatchObject({
+      enterkeyhint: 'send',
+      spellcheck: 'true',
+    })
+    // A plain text key is the keyboard's own.
+    const title = byId(root, 'Note-title')?.data?.attrs ?? {}
+    expect(['autocapitalize', 'spellcheck', 'autocomplete'].filter(name => name in title)).toEqual(
+      [],
+    )
+  })
+
+  it('lets a key say its email-like type may be capitalized after all', () => {
+    const Fields = FormView.fields(NoteForm, {
+      attrs: { email: { type: 'email', autocapitalize: 'words', spellcheck: true } },
+    })
+    const root = renderView(Fields.view)
+    expect(byId(root, 'Note-email')?.data?.attrs).toMatchObject({
+      autocapitalize: 'words',
+      spellcheck: 'true',
+    })
+  })
+
   it('leaves what does not fit an element out', () => {
     const Fields = FormView.fields(NoteForm, {
       attrs: {

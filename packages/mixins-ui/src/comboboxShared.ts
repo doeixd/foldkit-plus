@@ -340,6 +340,12 @@ export const computeRender = (
     h.Attribute('aria-haspopup', 'listbox'),
     ...inputLabelAttributes,
     h.Autocomplete('off'),
+    // What is typed filters: a phone's keyboard capitalizing and correcting it filters
+    // on a word nobody typed, and its Enter key says it searches.
+    h.Attribute('autocapitalize', 'none'),
+    h.Attribute('autocorrect', 'off'),
+    h.Attribute('spellcheck', 'false'),
+    h.Attribute('enterkeyhint', 'search'),
     h.Value(model.inputValue),
     ...(isItemsPanelVisible ? maybeActiveDescendant : []),
     ...(inputPlaceholder ? [h.Placeholder(inputPlaceholder)] : []),

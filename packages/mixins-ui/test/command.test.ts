@@ -86,6 +86,15 @@ describe('Command.view', () => {
     expect(A11y.validate(Patterns.Command, CommandSlots)).toEqual([])
   })
 
+  it('keeps a phone keyboard from correcting the query, its Enter key a search', () => {
+    const field = input('', Option.none())
+    expect(
+      ['autocapitalize', 'autocorrect', 'spellcheck', 'enterkeyhint'].map(name =>
+        Inert.value(field, name),
+      ),
+    ).toEqual(['none', 'off', 'false', 'search'])
+  })
+
   it('points the field at the highlighted row', () => {
     expect(Inert.value(input('', Option.some('find')), 'aria-activedescendant')).toBe(
       'palette-find',

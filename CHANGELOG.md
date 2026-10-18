@@ -19,6 +19,9 @@ version changed; `pnpm` skips versions already in the registry.
   viewport. `foldkit-mixins-ui`'s `Dialog.keyboard` mixin runs it on a dialog's or sheet's
   panel, and the Dialog and Sheet recipes keep the panel above the keys: iOS Safari, and
   Chrome on Android, leave a fixed panel under them when a field in it takes focus.
+- `foldkit-mixins-form`: `FieldAttrs` takes `autocomplete`, `inputMode`, `enterKeyHint`,
+  `autocapitalize` and `spellcheck`, for text, multiline and number fields; an `email`, `tel` or
+  `url` type turns capitalizing and spellchecking off by default.
 - `foldkit-mixins`: a `safe` token group, `Theme.ref.safe.top` / `right` / `bottom` / `left`:
   what a notch, rounded corners or the home indicator take from each screen edge
   (`env(safe-area-inset-*)`, 0 unless the page's viewport meta says `viewport-fit=cover`).
@@ -38,6 +41,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Combobox's and the Command's field ask a phone's keyboard not to
+  capitalize or correct what filters, and to show a search key (`autocapitalize`,
+  `autocorrect`, `spellcheck`, `enterkeyhint`).
 - `foldkit-mixins-ui`: a Table always stands in its `frame`, which scrolls sideways when the
   table is wider than the screen (the default static header; a sticky one keeps sticking to
   the application's scroller). Breaking for markup: a Table without `fluid` is now wrapped

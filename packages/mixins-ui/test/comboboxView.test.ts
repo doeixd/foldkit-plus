@@ -313,6 +313,24 @@ describe('forked combobox seam', () => {
     )
   })
 
+  it('keeps a phone keyboard from correcting what filters, its Enter key a search', () => {
+    Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
+      {
+        update: upstreamSingle.update,
+        view: (current, h) => forkSingle.view(current, singleInputs(h), h),
+      },
+      Scene.given(singleModel()),
+      Scene.Mount.resolve(
+        UpstreamCombobox.AttachComboboxPreventBlur,
+        UpstreamCombobox.Message.CompletedAttachComboboxPreventBlur(),
+      ),
+      Scene.expect(Scene.selector(input)).toHaveAttr('autocapitalize', 'none'),
+      Scene.expect(Scene.selector(input)).toHaveAttr('autocorrect', 'off'),
+      Scene.expect(Scene.selector(input)).toHaveAttr('spellcheck', 'false'),
+      Scene.expect(Scene.selector(input)).toHaveAttr('enterkeyhint', 'search'),
+    )
+  })
+
   it('single enter-select closes with the value', () => {
     Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
       {

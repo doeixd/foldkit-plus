@@ -295,6 +295,12 @@ export const view = <Value extends string, Message>(
         h.AriaLabel(options.label),
         ...(trail.length === 0 ? [] : [h.AriaDescribedBy(crumbsId)]),
         h.Autocomplete('off'),
+        // What is typed filters: a phone's keyboard capitalizing and correcting it filters
+        // on a word nobody typed, and its Enter key says it searches.
+        h.Attribute('autocapitalize', 'none'),
+        h.Attribute('autocorrect', 'off'),
+        h.Attribute('spellcheck', 'false'),
+        h.Attribute('enterkeyhint', 'search'),
         ...(options.placeholder === undefined ? [] : [h.Placeholder(options.placeholder)]),
         ...Option.match(current, {
           onNone: () => [],

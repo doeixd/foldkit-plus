@@ -136,6 +136,8 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **D1 and D3: done**: `FieldAttrs`' keyboard and autofill keys (and D4's override, through
+  `inputMode`); the Combobox and Command fields' keyboard attributes.
 - **D2, B5 and B8: done**: the Table's frame (always drawn now) scrolls inline under a static
   header (browser test, mutation); `overscroll-behavior: contain` on the Dialog and Sheet
   panels, popup lists, the Command list and the Sidebar nav (unit, each slot alone); popup

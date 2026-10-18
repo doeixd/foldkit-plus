@@ -445,11 +445,37 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
         ]),
       ),
     ])
+  /** What a phone's keyboard and the browser's autofill should offer, from the key's attrs. */
+  const keyboard = <M>({
+    attrs,
+    h,
+  }: {
+    readonly attrs: FieldAttrs
+    readonly h: HtmlBuilder<M>
+  }) => {
+    const literal = attrs.type !== undefined && LITERAL_TYPES.has(attrs.type)
+    const capitalize = attrs.autocapitalize ?? (literal ? 'none' : undefined)
+    const spellcheck = attrs.spellcheck ?? (literal ? false : undefined)
+    return [
+      ...(attrs.autocomplete === undefined
+        ? []
+        : [h.Attribute('autocomplete', attrs.autocomplete)]),
+      ...(attrs.enterKeyHint === undefined
+        ? []
+        : [h.Attribute('enterkeyhint', attrs.enterKeyHint)]),
+      ...(capitalize === undefined ? [] : [h.Attribute('autocapitalize', capitalize)]),
+      ...(spellcheck === undefined ? [] : [h.Attribute('spellcheck', String(spellcheck))]),
+    ]
+  }
   return {
     [Input.Text.kind]: context =>
       context.h.input(
         context.slots.text.attrs([
           ...typed(context),
+          ...keyboard(context),
+          ...(context.attrs.inputMode === undefined
+            ? []
+            : [context.h.InputMode(context.attrs.inputMode)]),
           context.h.Type(context.attrs.type ?? 'text'),
           ...(context.attrs.placeholder === undefined
             ? []
@@ -462,6 +488,7 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
       context.h.textarea(
         context.slots.multiline.attrs([
           ...typed(context),
+          ...keyboard(context),
           ...(context.attrs.placeholder === undefined
             ? []
             : [context.h.Placeholder(context.attrs.placeholder)]),
@@ -476,8 +503,11 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
       context.h.input(
         context.slots.number.attrs([
           ...typed(context),
+          ...keyboard(context),
           context.h.Type('text'),
-          context.h.InputMode('decimal'),
+          // `decimal` has no minus on iOS: a field that takes negatives says `text`, and one of
+          // whole numbers `numeric`.
+          context.h.InputMode(context.attrs.inputMode ?? 'decimal'),
           ...(context.attrs.placeholder === undefined
             ? []
             : [context.h.Placeholder(context.attrs.placeholder)]),
@@ -564,14 +594,28 @@ export type FieldOverride<Key extends string = string, Changed = unknown, Messag
 
 /**
  * What one key's element takes beyond the base field view: an HTML input
- * type, a placeholder, a textarea's rows. A renderer reads what fits its
- * element and ignores the rest.
+ * type, a placeholder, a textarea's rows, and what a phone's keyboard and the
+ * browser's autofill should offer. A renderer reads what fits its element and
+ * ignores the rest.
  */
 export interface FieldAttrs {
   readonly type?: string | undefined
   readonly placeholder?: string | undefined
   readonly rows?: number | undefined
+  /** What the browser may fill in: `email`, `name`, `street-address`, `one-time-code`, `off`. */
+  readonly autocomplete?: string | undefined
+  /** The keypad a phone shows: `numeric`, `decimal`, `tel`, `email`, `url`, `search`, `text`. A number field is `decimal` unless this says otherwise. */
+  readonly inputMode?: string | undefined
+  /** What a phone keyboard's Enter key says: `next`, `done`, `go`, `search`, `send`. */
+  readonly enterKeyHint?: string | undefined
+  /** `none`, `sentences`, `words`, `characters`. Off by default for an `email`, `tel` or `url` type. */
+  readonly autocapitalize?: string | undefined
+  /** Off by default for an `email`, `tel` or `url` type, where a correction is a wrong address. */
+  readonly spellcheck?: boolean | undefined
 }
+
+/** Types whose text is an address or a number, which a keyboard must not capitalize or correct. */
+const LITERAL_TYPES: ReadonlySet<string> = new Set(['email', 'tel', 'url'])
 
 /**
  * Per-key overrides for `FormView.fields`. `overrides` draw through the
