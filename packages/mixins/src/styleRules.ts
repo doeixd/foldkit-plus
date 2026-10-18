@@ -150,14 +150,70 @@ const selectorFor = (generated: string, selector: string): string =>
     )
     .join(', ')
 
+/** A `:hover` that is the pseudo-class itself, not the start of a longer name. */
+const HOVER = /:hover(?![\w-])/g
+
+/**
+ * Matches nothing, with the specificity of `:hover`: what a hover selector becomes where
+ * nothing can hover, so the rest of it (`:is(:hover, :focus-within)`'s second branch, a
+ * `:not(:hover)`) still means what it says there.
+ */
+const UNHOVERABLE = ':not(:hover, :not(:hover))'
+
+/**
+ * Whether `selector` matches only while something hovers: a `:hover` outside every
+ * parenthesis, so no other branch can match without it.
+ */
+const needsHover = (selector: string): boolean => {
+  let depth = 0
+  for (let index = 0; index < selector.length; index++) {
+    const char = selector[index]
+    if (char === '(') depth++
+    else if (char === ')') depth--
+    else if (depth === 0 && selector.startsWith(':hover', index)) {
+      const next = selector[index + 6]
+      if (next === undefined || !/[\w-]/.test(next)) return true
+    }
+  }
+  return false
+}
+
+/**
+ * A rule's selectors as written out: as authored where nothing hovers in them; a hover one
+ * as authored where the primary pointer can hover, and without its hover where it cannot. A
+ * touch screen keeps `:hover` on the last element tapped, so an unguarded hover fill stuck
+ * there after the finger left.
+ */
+const guarded = (
+  selectors: ReadonlyArray<string>,
+  body: string,
+): ReadonlyArray<{ readonly media?: string; readonly text: string }> => {
+  const plain = selectors.filter(selector => !selector.match(HOVER))
+  const hovering = selectors.filter(selector => selector.match(HOVER))
+  const untouched = hovering
+    .filter(selector => !needsHover(selector))
+    .map(selector => selector.replace(HOVER, UNHOVERABLE))
+  return [
+    ...(plain.length === 0 ? [] : [{ text: `${plain.join(', ')}${body}` }]),
+    ...(hovering.length === 0
+      ? []
+      : [{ media: '@media (hover: hover)', text: `${hovering.join(', ')}${body}` }]),
+    ...(untouched.length === 0
+      ? []
+      : [{ media: '@media (hover: none)', text: `${untouched.join(', ')}${body}` }]),
+  ]
+}
+
 export const css = (generated: string, rules: ReadonlyArray<StyleRule>): string =>
   rules
     .map(entry => {
       const body = `{${declarationsText(entry.declarations)}}`
-      const selector = `${selectorFor(generated, entry.selector)}${body}`
-      return inLayerText(
-        entry.layer,
-        entry.at === undefined ? selector : `${entry.at}{${selector}}`,
-      )
+      const selectors = selectorList(selectorFor(generated, entry.selector))
+      return guarded(selectors, body)
+        .map(({ media, text }) => {
+          const scoped = entry.at === undefined ? text : `${entry.at}{${text}}`
+          return inLayerText(entry.layer, media === undefined ? scoped : `${media}{${scoped}}`)
+        })
+        .join('')
     })
     .join('')

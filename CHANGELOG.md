@@ -15,6 +15,19 @@ version changed; `pnpm` skips versions already in the registry.
   resolves that Command, and an application that replaces the editor's `RichText.patch`
   with its own runs its patch before the editor's other Commands.
 
+### Changed
+
+- `foldkit-mixins`: a rule whose selector hovers is written for a pointer that can hover
+  (`@media (hover: hover)`), with a copy for one that cannot that keeps every other branch
+  (`:is(:hover, :focus-within)` still shows on focus there). A touch screen keeps `:hover` on
+  what was tapped last, so a hover fill stayed behind after the finger left. Class names do
+  not change.
+- `foldkit-mixins`: `Defaults.reset` draws no tap highlight of the browser's own, sets
+  `touch-action: manipulation` on interactive elements (a second quick tap is not a zoom),
+  and `text-size-adjust: 100%` in place of `none`, which also turned off the reader's own
+  text size. `Defaults.links` and `Defaults.controls` hover only where the pointer can, and
+  show `:active`.
+
 ### Fixed
 
 - `foldkit-mixins-ui`: a Sheet grabbed while its Dialog was still opening (an animation

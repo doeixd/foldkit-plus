@@ -39,7 +39,7 @@ root classes: card style-yow16s
 root style: {"display":"grid","gap":"0.5rem"}
 status classes: archived
 archive aria-disabled: true
-stylesheet: .style-yow16s:hover{box-shadow:0 1px 2px}
+stylesheet: @media (hover: hover){.style-yow16s:hover{box-shadow:0 1px 2px}}
 ```
 
 Read it as: the Surface decides what the card may observe (`project`,

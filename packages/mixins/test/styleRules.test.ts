@@ -26,7 +26,7 @@ describe('Style rule compiler', () => {
     const builders = SlotView.buildersFor(RuleSlots, [Hover.mixin], { input: undefined, h })
     const generated = classValue(builders.root.attrs())
     expect(generated).toMatch(/^style-[a-z0-9]+$/)
-    expect(Hover.css).toBe(`.${generated}:hover{color:red}`)
+    expect(Hover.css).toBe(`@media (hover: hover){.${generated}:hover{color:red}}`)
   })
 
   it('self is a rule on the generated class itself, which a layer can hold', () => {
@@ -167,7 +167,9 @@ describe('Style rule compiler', () => {
     expect(Base.globalCss).toBe('@layer base{}')
     const builders = SlotView.buildersFor(RuleSlots, [Base.mixin], { input: undefined, h })
     const generated = classValue(builders.root.attrs())
-    expect(Style.stylesheet(Base)).toBe(`@layer base{}.${generated}:hover{color:red}`)
+    expect(Style.stylesheet(Base)).toBe(
+      `@layer base{}@media (hover: hover){.${generated}:hover{color:red}}`,
+    )
   })
 
   it('keeps top-level rule CSS when the style also has an input condition', () => {
@@ -249,12 +251,13 @@ describe('selector lists', () => {
     [
       'nest scopes every selector of a list',
       Style.nest(':hover > .x, .y', { opacity: '1' }),
-      (c: string) => `${c} :hover > .x, ${c} .y{opacity:1}`,
+      // A hover selector goes where something can hover, the rest stays as it is.
+      (c: string) => `${c} .y{opacity:1}@media (hover: hover){${c} :hover > .x{opacity:1}}`,
     ],
     [
       'pseudo scopes every selector of a list',
       Style.pseudo(':hover, :focus-visible', { color: 'red' }),
-      (c: string) => `${c}:hover, ${c}:focus-visible{color:red}`,
+      (c: string) => `${c}:focus-visible{color:red}@media (hover: hover){${c}:hover{color:red}}`,
     ],
     [
       'a comma inside :is() or an attribute value does not split',
@@ -265,6 +268,38 @@ describe('selector lists', () => {
       'a selector that writes & places the class itself',
       Style.nest('[data-open] &, > span', { color: 'red' }),
       (c: string) => `[data-open] ${c}, ${c} > span{color:red}`,
+    ],
+  ])('%s', (_name, piece, expected) => {
+    const { css, c } = cssOf(piece)
+    expect(css).toBe(expected(c))
+  })
+
+  // A touch screen keeps `:hover` on what was tapped last, so a hover selector is written
+  // where the pointer can hover, and without its hover where it cannot.
+  it.each([
+    [
+      'a branch beside hover still matches where nothing hovers',
+      Style.nest(':is(:hover, :focus-within) > &', { opacity: '1' }),
+      (c: string) =>
+        `@media (hover: hover){:is(:hover, :focus-within) > ${c}{opacity:1}}` +
+        `@media (hover: none){:is(:not(:hover, :not(:hover)), :focus-within) > ${c}{opacity:1}}`,
+    ],
+    [
+      'not hovered is always so where nothing hovers',
+      Style.pseudo(':not(:hover)', { opacity: '0.5' }),
+      (c: string) =>
+        `@media (hover: hover){${c}:not(:hover){opacity:0.5}}` +
+        `@media (hover: none){${c}:not(:not(:hover, :not(:hover))){opacity:0.5}}`,
+    ],
+    [
+      'a rule in an at-rule keeps it inside the hover media',
+      Style.at('@container (min-width: 1px)', Style.pseudo(':hover', { color: 'red' })),
+      (c: string) => `@media (hover: hover){@container (min-width: 1px){${c}:hover{color:red}}}`,
+    ],
+    [
+      'a longer name that starts with hover is not hover',
+      Style.pseudo(':hover-ish, [data-hover]', { color: 'red' }),
+      (c: string) => `${c}:hover-ish, ${c}[data-hover]{color:red}`,
     ],
   ])('%s', (_name, piece, expected) => {
     const { css, c } = cssOf(piece)

@@ -60,7 +60,9 @@ describe('Layers', () => {
     )
     expect(piece.style).toEqual({ color: 'red' })
     const Named = Style.forSlots(RootSlots)({ root: piece })
-    expect(Named.css).toMatch(/^@layer components\{\.style-[a-z0-9]+:hover\{color:blue\}\}$/)
+    expect(Named.css).toMatch(
+      /^@layer components\{@media \(hover: hover\)\{\.style-[a-z0-9]+:hover\{color:blue\}\}\}$/,
+    )
   })
 
   it('in wraps global CSS and rules under a condition', () => {
@@ -173,7 +175,9 @@ describe('Layers.in', () => {
       { layer: L.layer('app') },
     )
     expectTypeOf(layered).toEqualTypeOf<NamedStyle<typeof RootSlots>>()
-    expect(layered.css).toMatch(/^@layer app\{\.style-[a-z0-9]+:hover\{color:blue\}\}$/)
+    expect(layered.css).toMatch(
+      /^@layer app\{@media \(hover: hover\)\{\.style-[a-z0-9]+:hover\{color:blue\}\}\}$/,
+    )
     const className = layered.rules[0]?.className
     const root = SlotView.buildersFor(RootSlots, [layered.mixin], { input: undefined, h }).root
     expect(Attributes.find(root.attrs(), 'Class')?.value).toBe(`card ${className}`)

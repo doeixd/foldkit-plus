@@ -15,7 +15,14 @@ const v = (name: string, fallback: string): string => `var(--fk-${name}, ${fallb
 export const reset: StyleValue = global(
   [
     '*,*::before,*::after{box-sizing:border-box;margin:0;min-width:0}',
-    ':where(html){text-size-adjust:none;-webkit-text-size-adjust:none;tab-size:4;font-synthesis:none;text-rendering:optimizeLegibility}',
+    // 100%, not none: none stops a phone enlarging text in landscape, and also the
+    // reader's own text size, where a browser applies it through this property.
+    ':where(html){text-size-adjust:100%;-webkit-text-size-adjust:100%;tab-size:4;font-synthesis:none;text-rendering:optimizeLegibility}',
+    // A tap draws no grey square of the browser's own: what was pressed shows its own
+    // `:active` state (Defaults.controls, the recipes). And a second tap is a tap, not a
+    // zoom, so a quick press on a stepper or a pager does not wait for one.
+    ':where(:root){-webkit-tap-highlight-color:transparent}',
+    ':where(:is(a,button,input,select,textarea,summary,label,[role=button],[role=tab],[role=option],[role=menuitem])){touch-action:manipulation}',
     ':where(:is(img,picture,video,canvas,svg)){display:block;max-inline-size:100%;block-size:auto}',
     ':where(:is(input,button,textarea,select)){font:inherit;color:inherit}',
     ':where(textarea){field-sizing:content;min-block-size:2lh}',
@@ -60,7 +67,9 @@ export const headings: StyleValue = global(
 export const links: StyleValue = global(
   [
     `:where(a){color:${v('text-link', 'LinkText')};text-decoration-thickness:from-font;text-underline-offset:0.15em}`,
-    `:where(a:hover){color:${v('text-link-hover', 'LinkText')}}`,
+    // Only where something hovers: a touch screen keeps `:hover` on the link tapped last.
+    `@media (hover:hover){:where(a:hover){color:${v('text-link-hover', 'LinkText')}}}`,
+    `:where(a:active){color:${v('text-link-hover', 'LinkText')}}`,
     `:where(:is(a,button,input,select,textarea,summary,[tabindex]):focus-visible){outline:${v('border-thick', '2px')} solid ${v('outline-focus', 'Highlight')};outline-offset:2px}`,
   ].join(''),
 )
@@ -83,7 +92,8 @@ export const controls: StyleValue = global(
     `:where(:is(input,select,textarea):focus-visible){border-color:${v('accent-default', 'Highlight')}}`,
     `:where(:is(input,select,textarea)[aria-invalid=true]){border-color:${v('error-default', 'red')}}`,
     `:where(button,[type=button],[type=submit],[type=reset]){padding:${v('space-xs', '0.5rem')} ${v('space-md', '1rem')};border:${v('border-thin', '1px')} solid ${v('outline-default', 'ButtonBorder')};border-radius:${v('radius-md', '6px')};background:${v('surface-subtle', 'ButtonFace')};color:${v('text-default', 'ButtonText')};cursor:pointer;transition:background ${v('motion-fast', '150ms')} ${v('motion-ease', 'ease-out')}}`,
-    `:where(button,[type=button],[type=submit],[type=reset]):hover{background:${v('surface-muted', 'ButtonFace')}}`,
+    `@media (hover:hover){:where(button,[type=button],[type=submit],[type=reset]):hover{background:${v('surface-muted', 'ButtonFace')}}}`,
+    `:where(button,[type=button],[type=submit],[type=reset]):active{background:${v('surface-muted', 'ButtonFace')}}`,
     `:where(:is(button,input,select,textarea):disabled){opacity:0.5;cursor:not-allowed}`,
     `:where(:is(input,select,textarea,button)::placeholder){color:${v('text-muted', 'GrayText')}}`,
   ].join(''),

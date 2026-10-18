@@ -24,7 +24,11 @@ describe('foldkit-mixins example', () => {
   })
 
   it('prints the compiled stylesheet', () => {
-    expect(matching(/^stylesheet: \.style-[a-z0-9]+:hover\{box-shadow:0 1px 2px\}$/)).toBeDefined()
+    expect(
+      matching(
+        /^stylesheet: @media \(hover: hover\)\{\.style-[a-z0-9]+:hover\{box-shadow:0 1px 2px\}\}$/,
+      ),
+    ).toBeDefined()
   })
 
   it('describes the surface and slots for docs and tooling', () => {
