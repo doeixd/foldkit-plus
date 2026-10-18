@@ -38,4 +38,22 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a toast’s close button is only as large as it is drawn',
+    edits: [
+      { file: '../src/recipes/toast.ts', find: "      fingerTarget('-10px'),\n", replace: '' },
+    ],
+    tests,
+  },
+  {
+    name: 'a control’s words are selected by a double tap',
+    edits: [
+      {
+        file: '../../mixins/src/defaults.ts',
+        find: '{-webkit-user-select:none;user-select:none}',
+        replace: '{}',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/selection.browser.test.ts'],
+  },
 ]

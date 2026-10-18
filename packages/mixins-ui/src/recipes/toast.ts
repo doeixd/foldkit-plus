@@ -100,6 +100,16 @@ const fromEdge = {
   inline: `calc(${ref.space.lg} + max(${ref.safe.left}, ${ref.safe.right}))`,
 }
 
+/**
+ * Where the pointer is coarse, a target a finger can find around a button drawn smaller,
+ * reaching `inset` past its edges: the close button's 24px and the action's caption line.
+ */
+const fingerTarget = (inset: string): StyleValue =>
+  Style.at(
+    '@media (pointer: coarse)',
+    Style.nest('&::after', { content: '""', position: 'absolute', inset }),
+  )
+
 export const Toast = Style.recipeFor(ToastSlots)({
   base: {
     container: component(
@@ -264,7 +274,9 @@ export const Toast = Style.recipeFor(ToastSlots)({
         ...role('caption'),
         fontWeight: ref.weight.medium,
         cursor: 'pointer',
+        position: 'relative',
       }),
+      fingerTarget('-10px -4px'),
       focusRing,
     ),
     close: component(
@@ -279,8 +291,10 @@ export const Toast = Style.recipeFor(ToastSlots)({
         background: 'transparent',
         color: ref.text.muted,
         cursor: 'pointer',
+        position: 'relative',
       }),
       Style.nest('&::before', drawn(marks.close)),
+      fingerTarget('-10px'),
       hover({ background: unfilledHover, color: ref.text.default }),
       focusRing,
     ),

@@ -27,6 +27,11 @@ export const reset: StyleValue = global(
     // this tall where the pointer is coarse, and keep their density elsewhere. A region that
     // must stay dense sets it to 0.
     '@media (pointer:coarse){:where(:root){--fk-touch-floor:2.75rem}}',
+    // A control's words are its name, not text to select: a long press on a button, a tab or
+    // a menu row selected them on a phone and offered to copy, and a double tap selected a
+    // word. Prefixed by hand, as iOS Safari reads only the prefixed one. Not a tree's rows or
+    // a grid's cells, whose text may be edited or copied.
+    ':where(:is(button,summary,[role=button],[role=tab],[role=option],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=switch],[role=checkbox],[role=radio])){-webkit-user-select:none;user-select:none}',
     ':where(:is(img,picture,video,canvas,svg)){display:block;max-inline-size:100%;block-size:auto}',
     ':where(:is(input,button,textarea,select)){font:inherit;color:inherit}',
     ':where(textarea){field-sizing:content;min-block-size:2lh}',

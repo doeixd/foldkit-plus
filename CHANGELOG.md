@@ -41,6 +41,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins`: a control's words are no text to select: `Defaults.reset` sets
+  `user-select: none` on buttons, `summary`, and the button, tab, option, menu item, switch,
+  checkbox and radio roles, so a long press on one no longer selects its label and offers to
+  copy it on a phone, nor a double tap a word of it. A tree's rows and a grid's cells keep
+  theirs.
+- `foldkit-mixins-ui`: a Toast stack under a finger holds its countdown without spreading out
+  (a new `touch` holder in its Model): a stack spread as a tap landed, or as a swipe began,
+  moved what the finger was on, and the focus Android gives a tapped action spread it too. Its
+  close and action buttons have a finger's target where the pointer is coarse.
 - `foldkit-mixins-ui`: an ImageCropper zooms by two fingers, spread or pinched (`Pinched`): its
   viewport took the page's own pinch away and gave none back. Its zoom Mount is now
   `ImageCropperZoom`, for the wheel and the fingers both.

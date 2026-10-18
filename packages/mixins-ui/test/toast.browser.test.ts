@@ -219,6 +219,39 @@ test('the pointer holds the countdown, and letting go goes on from what was left
   }
 })
 
+test('a finger holds the countdown without spreading the stack, and a tap’s focus spreads nothing', async () => {
+  const { handle, send } = mount(
+    { duration: 600 },
+    { s0: show('Saved', { action: { label: 'Undo', value: 'undo' } }) },
+  )
+  try {
+    await away()
+    await send('s0')
+    const undo = await vi.waitFor(() => {
+      const found = card(0)?.querySelector('button')
+      expect(found).toBeTruthy()
+      return found!
+    })
+    const stack = card(0)!.closest('[data-position]')!
+    const finger = { bubbles: false, pointerType: 'touch', pointerId: 3, isPrimary: true }
+    stack.dispatchEvent(new PointerEvent('pointerenter', finger))
+    await sleep(900)
+    // Held, it stayed past its 600ms, and stayed as it was drawn.
+    expect(card(0)).not.toBeNull()
+    expect(stack.hasAttribute('data-expanded')).toBe(false)
+    // A tap on its action: the press, then the focus a browser may give the button.
+    undo.dispatchEvent(new PointerEvent('pointerdown', { ...finger, bubbles: true }))
+    undo.focus()
+    await sleep(50)
+    expect(stack.hasAttribute('data-expanded')).toBe(false)
+    undo.blur()
+    stack.dispatchEvent(new PointerEvent('pointerleave', finger))
+    await vi.waitFor(() => expect(card(0)).toBeNull(), { timeout: 3000 })
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('focus in the stack holds it, and so does a hidden page', async () => {
   const { handle, send } = mount(
     { duration: 400 },

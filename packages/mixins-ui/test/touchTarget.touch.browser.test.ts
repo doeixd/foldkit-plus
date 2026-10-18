@@ -10,12 +10,13 @@ import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, it, vi } from 'vitest'
-import { ButtonSlots, InputSlots, Recipes } from '../src/index.js'
+import { ButtonSlots, InputSlots, Recipes, ToastSlots } from '../src/index.js'
 
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
 const button = Style.forSlots(ButtonSlots)(Recipes.Button({}))
 const icon = Style.forSlots(ButtonSlots)(Recipes.Button({ variant: 'icon' }))
 const input = Style.forSlots(InputSlots)(Recipes.Input({}))
+const toast = Style.forSlots(ToastSlots)(Recipes.Toast({}))
 const Model = Schema.Struct({})
 
 afterEach(() => {
@@ -34,7 +35,8 @@ const mount = (floor: 'kept' | 'none') => {
     ) +
     button.css +
     icon.css +
-    input.css
+    input.css +
+    toast.css
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'touch-target'
@@ -49,12 +51,17 @@ const mount = (floor: 'kept' | 'none') => {
         const b = SlotView.buildersFor(ButtonSlots, [button.mixin], { input: undefined, h })
         const g = SlotView.buildersFor(ButtonSlots, [icon.mixin], { input: undefined, h })
         const i = SlotView.buildersFor(InputSlots, [input.mixin], { input: undefined, h })
+        const t = SlotView.buildersFor(ToastSlots, [toast.mixin], { input: undefined, h })
         return h.div(
           [h.Style(floor === 'none' ? { '--fk-touch-floor': '0px' } : {})],
           [
             h.button(b.button.attrs([h.Id('save')]), ['Save']),
             h.button(g.button.attrs([h.Id('close'), h.AriaLabel('Close')]), ['×']),
             h.input(i.input.attrs([h.Id('name'), h.AriaLabel('Name')])),
+            h.div(
+              [h.Style({ padding: '40px' })],
+              [h.button(t.close.attrs([h.Id('dismiss'), h.AriaLabel('Dismiss')]), [])],
+            ),
           ],
         )
       },
@@ -72,6 +79,21 @@ it('draws a control a finger can hit, an icon one square', async () => {
     expect(box('save').height).toBe(44)
     expect(box('name').height).toBe(44)
     expect([box('close').width, box('close').height]).toEqual([44, 44])
+  } finally {
+    handle.dispose()
+  }
+})
+
+it('lets a finger find a toast’s small close button past its edges', async () => {
+  const handle = mount('kept')
+  try {
+    await vi.waitFor(() => expect(document.getElementById('dismiss')).not.toBeNull())
+    const close = box('dismiss')
+    // It is drawn 24px; 18px from its center is outside it, and still on it.
+    expect(close.width).toBe(24)
+    const x = close.left + close.width / 2 + 18
+    const y = close.top + close.height / 2
+    expect(document.elementFromPoint(x, y)?.id).toBe('dismiss')
   } finally {
     handle.dispose()
   }

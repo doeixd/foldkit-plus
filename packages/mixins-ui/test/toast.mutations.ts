@@ -60,7 +60,7 @@ export default [
     edits: [
       {
         file,
-        find: 'if (model.pointer || model.focus || model.hidden) return new Set()',
+        find: 'if (model.pointer || model.touch || model.focus || model.hidden) return new Set()',
         replace: '',
       },
     ],
@@ -128,7 +128,13 @@ export default [
   },
   {
     name: 'focus in the stack holds nothing',
-    edits: [{ file, find: "[element, 'focusin', () => offer('focus', true)],", replace: '' }],
+    edits: [
+      {
+        file,
+        find: "if (event.timeStamp - touchedAt > TAP_FOCUS_MS) offer('focus', true)",
+        replace: 'void 0',
+      },
+    ],
     tests: browser,
   },
   {

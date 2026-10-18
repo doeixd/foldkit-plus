@@ -194,15 +194,20 @@ export const Model = Schema.Struct({
   /** Newest first. */
   entries: Schema.Array(Entry),
   next: Schema.Number,
-  /** What holds the stack: the pointer on it, focus in it, the page hidden. */
+  /**
+   * What holds the stack: the mouse on it, a finger or a pen on it, focus in it, the page
+   * hidden. A finger holds the countdown and does not spread the stack: one spread as a tap
+   * landed moved what it was tapping on.
+   */
   pointer: Schema.Boolean,
+  touch: Schema.Boolean,
   focus: Schema.Boolean,
   hidden: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
 /** A fact about what holds the stack, from `Hold`. */
-const Holder = Schema.Literals(['pointer', 'focus', 'hidden'])
+const Holder = Schema.Literals(['pointer', 'touch', 'focus', 'hidden'])
 const HeldFact = Schema.TaggedStruct('HeldFact', {
   by: Holder,
   on: Schema.Boolean,
@@ -252,6 +257,7 @@ export const init = (id: string, options: InitOptions = {}): Model => ({
   entries: [],
   next: 0,
   pointer: false,
+  touch: false,
   focus: false,
   hidden: false,
 })
@@ -317,7 +323,7 @@ const ofAnimation = (id: string, commands: ReadonlyArray<Command.Command<Animati
 
 /** The ones counting down: shown among the first `max`, with a duration, while nothing holds the stack. */
 const counting = (model: Model): ReadonlySet<string> => {
-  if (model.pointer || model.focus || model.hidden) return new Set()
+  if (model.pointer || model.touch || model.focus || model.hidden) return new Set()
   const shown = model.entries.filter(entry => !isLeaving(entry)).slice(0, model.max)
   return new Set(shown.filter(entry => Option.isSome(entry.duration)).map(entry => entry.id))
 }
@@ -565,6 +571,7 @@ export const update = (model: Model, message: Message): Return =>
           : {
               model: Match.value(by).pipe(
                 Match.when('pointer', () => modifyFields(model, { pointer: () => on })),
+                Match.when('touch', () => modifyFields(model, { touch: () => on })),
                 Match.when('focus', () => modifyFields(model, { focus: () => on })),
                 Match.when('hidden', () => modifyFields(model, { hidden: () => on })),
                 Match.exhaustive,
@@ -656,10 +663,13 @@ export const update = (model: Model, message: Message): Return =>
     }),
   )
 
+/** How soon after a finger's press a focus coming into the stack is that press's own. */
+const TAP_FOCUS_MS = 1000
+
 /**
- * What holds the stack, as a Mount on its container: the pointer entering
- * and leaving it, focus coming into it and going out of it, and the page
- * hidden and shown. Opened on a hidden page, it says so at once.
+ * What holds the stack, as a Mount on its container: the mouse, or a finger or a pen,
+ * entering and leaving it, focus coming into it (not a tap's) and going out of it, and the
+ * page hidden and shown. Opened on a hidden page, it says so at once.
  */
 export const Hold = Mount.defineStream('ToastHold', {
   messages: [HeldFact],
@@ -670,12 +680,30 @@ export const Hold = Mount.defineStream('ToastHold', {
           const owner = element.ownerDocument
           const offer = (by: (typeof HeldFact.Type)['by'], on: boolean) =>
             Queue.offerUnsafe(queue, HeldFact.make({ by, on }))
+          const pointer = (event: globalThis.Event) =>
+            event instanceof PointerEvent && event.pointerType !== 'mouse' ? 'touch' : 'pointer'
+          // When a finger last pressed in it: the focus a tap gives a button (Android does) is
+          // the tap's, and spreading the stack then moved the button from under the finger.
+          let touchedAt = Number.NEGATIVE_INFINITY
           const listeners: ReadonlyArray<
             readonly [EventTarget, string, (event: globalThis.Event) => void]
           > = [
-            [element, 'pointerenter', () => offer('pointer', true)],
-            [element, 'pointerleave', () => offer('pointer', false)],
-            [element, 'focusin', () => offer('focus', true)],
+            [
+              element,
+              'pointerdown',
+              event => {
+                if (pointer(event) === 'touch') touchedAt = event.timeStamp
+              },
+            ],
+            [element, 'pointerenter', event => offer(pointer(event), true)],
+            [element, 'pointerleave', event => offer(pointer(event), false)],
+            [
+              element,
+              'focusin',
+              event => {
+                if (event.timeStamp - touchedAt > TAP_FOCUS_MS) offer('focus', true)
+              },
+            ],
             [
               element,
               'focusout',
