@@ -37,7 +37,7 @@ export const liveOf = (model: Model, h: H): Live<Message> => ({
 /** A frame in the component theme, with the reader's knobs and scheme over it. */
 export const preview = (
   model: Model,
-  size: 'page' | 'thumb' | 'canvas',
+  size: 'page' | 'thumb' | 'canvas' | 'specimen',
   slots: Slots,
   h: H,
   children: ReadonlyArray<Html>,

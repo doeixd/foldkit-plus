@@ -93,8 +93,8 @@ export default [
     edits: [
       {
         file: '../src/main.ts',
-        find: 'knobs: () => knobs, copied: () => false',
-        replace: 'knobs: () => knobs',
+        find: '          copied: () => false,\n          linkCopied',
+        replace: '          linkCopied',
       },
     ],
     tests: unit,

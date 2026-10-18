@@ -12,6 +12,7 @@ import {
   declared,
   defaults,
   fit,
+  Font,
   inLook,
   Knob,
   KNOB_GROUPS,
@@ -174,6 +175,47 @@ describe('the theme creator', () => {
     expect(knobStyleOf(defaults, 'light')['--fk-shadow-raised']).toBeUndefined()
   })
 
+  it('writes the type, the button shape and the outlines into the code, and none by default', () => {
+    expect(codeOf(defaults)).not.toMatch(
+      /text-scale|heading-scale|leading:|control-round|weight:|tracking:|outline:|base-l-dark/,
+    )
+    const code = codeOf({
+      ...defaults,
+      textScale: 1.1,
+      headingScale: 1.3,
+      leading: 1.1,
+      headingWeight: 800,
+      tracking: -0.03,
+      controlShape: 'pill',
+      outlines: 'ink',
+      surfaceLightnessDark: 12,
+    })
+    for (const line of [
+      "    'text-scale': '1.1',",
+      "    'heading-scale': '1.3',",
+      "    leading: '1.1',",
+      "    'control-round': '1',",
+      "    'base-l-dark': '12%',",
+      "  weight: { heading: '800' },",
+      "  tracking: { heading: '-0.03em' },",
+    ])
+      expect(code).toContain(line)
+    expect(code).toMatch(/ {2}outline: \{ subtle: 'color-mix\(in oklch, var\(--fk-text-overt\) 45%/)
+  })
+
+  it('draws the type, the button shape and the outlines through the preview', () => {
+    const style = knobStyleOf(
+      { ...defaults, headingWeight: 400, tracking: 0, controlShape: 'pill', outlines: 'strong' },
+      'light',
+    )
+    expect(style['--fk-weight-heading']).toBe('400')
+    expect(style['--fk-tracking-heading']).toBe('0em')
+    expect(style['--fk-knob-control-round']).toBe('1')
+    expect(style['--fk-outline-default']).toContain('var(--fk-text-overt) 48%')
+    // The focus ring keeps the accent, whatever the outlines.
+    expect(style['--fk-outline-focus']).toBeUndefined()
+  })
+
   it('tells a preset by its knobs, whichever way the preview reads', () => {
     const win = presets.find(preset => preset.name === 'Windows 95')!
     expect(
@@ -197,7 +239,7 @@ describe('the theme creator', () => {
       for (const range of ranges) expect(fit(range, knobs[range.knob])).toBe(knobs[range.knob])
       fonts.add(knobs.font)
     }
-    expect(fonts.size).toBe(6)
+    expect(fonts.size).toBe(Font.literals.length)
     // Even at the ends of what `random` returns.
     for (const end of [0, 0.9999999]) {
       const knobs = shuffled(() => end, 'ltr')

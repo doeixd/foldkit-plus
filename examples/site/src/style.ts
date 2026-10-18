@@ -868,6 +868,8 @@ export const SiteStyle = slots(
         overflow: 'hidden',
       }),
       // `/create`'s: every component at once, in columns.
+      // `/create`'s type, palette and screen: one column, read down the page.
+      Style.nest('&[data-size="specimen"]', { display: 'block', padding: t.space.xl }),
       Style.nest('&[data-size="canvas"]', {
         display: 'block',
         columns: '2 15rem',
@@ -1023,12 +1025,6 @@ export const SiteStyle = slots(
         gap: t.space.md,
         minBlockSize: '0',
       },
-      // A phone's row of tabs scrolls sideways rather than wrapping.
-      Style.nest('& > [role="tablist"]', {
-        flexShrink: '0',
-        overflowX: 'auto',
-        scrollbarWidth: 'none',
-      }),
       Style.media(ONE_COLUMN, { gap: t.space.sm }),
     ],
     pane: { display: 'flex', flexDirection: 'column', gap: t.space.md },
@@ -1054,7 +1050,15 @@ export const SiteStyle = slots(
       alignItems: 'flex-end',
       gap: `${t.space.sm} ${t.space.lg}`,
     },
-    toCode: quiet(t.text.muted, { ...mono, marginInlineStart: 'auto', paddingBlock: '0.375rem' }),
+    toCode: quiet(t.text.muted, { ...mono, paddingBlock: '0.375rem' }),
+    // At the end of the preview's bar: the code, and the two ways to take the theme away.
+    previewActions: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: t.space.xs,
+      marginInlineStart: 'auto',
+    },
     swatch: {
       display: 'inline-block',
       inlineSize: '0.75rem',
@@ -1075,6 +1079,95 @@ export const SiteStyle = slots(
       color: t.text.muted,
       textDecoration: 'none',
     },
+    // `/create`'s other previews: the type, the palette and an application's screen.
+    specimen: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space.xl,
+      minInlineSize: '0',
+    },
+    specimenGroup: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space.sm,
+      minInlineSize: '0',
+    },
+    specimenHeading: {
+      ...mono,
+      margin: '0',
+      color: t.text.muted,
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+      fontWeight: t.weight.normal,
+    },
+    specimenRow: [
+      {
+        display: 'grid',
+        gridTemplateColumns: '6rem minmax(0, 1fr)',
+        alignItems: 'baseline',
+        gap: t.space.md,
+      },
+      Style.media(PHONE, { gridTemplateColumns: 'minmax(0, 1fr)', gap: t.space['3xs'] }),
+    ],
+    specimenName: { ...mono, color: t.text.muted, overflowWrap: 'anywhere' },
+    swatchGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(8.5rem, 1fr))',
+      gap: t.space.sm,
+    },
+    swatchTile: [
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space['2xs'],
+        margin: '0',
+        minInlineSize: '0',
+      },
+    ],
+    // Each sample draws its token the way the token is used.
+    swatchSample: [
+      {
+        display: 'grid',
+        placeItems: 'center',
+        blockSize: '3.5rem',
+        border: `1px solid ${t.outline.subtle}`,
+        borderRadius: t.radius.md,
+        background: t.surface.base,
+        fontSize: '1.5rem',
+        fontWeight: t.weight.semibold,
+      },
+      Style.nest(':where([data-draw="line"]) > &', { borderWidth: t.border.thick }),
+      Style.nest(':where([data-draw="shadow"]) > &', {
+        borderColor: 'transparent',
+        background: t.surface.default,
+      }),
+      Style.nest(':where([data-draw="corner"]) > &', {
+        borderColor: t.outline.overt,
+        borderWidth: t.border.thick,
+        background: t.surface.subtle,
+      }),
+    ],
+    swatchName: {
+      display: 'flex',
+      flexDirection: 'column',
+      fontSize: '0.8125rem',
+      color: t.text.default,
+      minInlineSize: '0',
+    },
+    appHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: t.space.md,
+    },
+    appGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(16rem, 100%), 1fr))',
+      alignItems: 'start',
+      gap: t.space.lg,
+    },
+    appForm: { display: 'flex', flexDirection: 'column', gap: t.space.md },
+    appActions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: t.space.xs },
     themeCode: [
       { display: 'flex', flexDirection: 'column', gap: t.space.sm, minWidth: '0' },
       Style.nest('pre', { overflowX: 'auto' }),

@@ -81,6 +81,32 @@ describe('the component pages', () => {
     expect(after(initial, pick('base', 'serif')).knobs).toBe(initial.knobs)
   })
 
+  it('choose a theme by name, in its own scheme when it has one, and ignore a name of none', () => {
+    const nord = after(initial, Message.ChoseTheme({ name: 'Nord' }))
+    expect(nord.scheme).toBe('dark')
+    expect(nord.knobs.hue).toBe(presets.find(preset => preset.name === 'Nord')!.knobs.hue)
+    // A theme known in no scheme leaves the reader's.
+    expect(after(nord, Message.ChoseTheme({ name: 'Ocean' })).scheme).toBe('dark')
+    expect(update(nord, Message.ChoseTheme({ name: 'Nordic' })).model).toBe(nord)
+    // The preview's direction stays.
+    const rtl = after(
+      initial,
+      Message.ChoseDirection({ direction: 'rtl' }),
+      Message.ChoseTheme({ name: 'Material' }),
+    )
+    expect(rtl.knobs.direction).toBe('rtl')
+  })
+
+  it('show the preview its tabs choose', () => {
+    const palette = after(
+      initial,
+      Message.GotCanvasTabs({
+        message: UiTabs.Message.SelectedTab({ index: 2, value: 'palette' }),
+      }),
+    )
+    expect(palette.canvas).toBe('palette')
+  })
+
   it('shuffle through a Command, in the direction the preview reads', () => {
     const rtl = after(initial, Message.ChoseDirection({ direction: 'rtl' }))
     const shuffled = update(rtl, Message.PressedShuffle())

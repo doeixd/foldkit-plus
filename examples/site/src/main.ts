@@ -7,7 +7,7 @@
  * the Primitives overview runs in the page, and what a reader sets on the
  * component pages: a variant, a preview's state, and `/create`'s knobs.
  */
-import { Effect, Match, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema, Stream } from 'effect'
 import { Command, Dom, Subscription, Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -25,10 +25,13 @@ import { Listbox as UiListbox, Tabs as UiTabs } from '@foldkit/ui'
 import { allSubsites } from './catalog.js'
 import { showcaseOf } from './gallery/showcases.js'
 import {
+  Canvas,
+  CanvasTabs,
   Picker,
   PickerBox,
   Pickers,
   SectionTabs,
+  initialCanvasTabs,
   initialPickers,
   initialTabs,
   pickedKnobs,
@@ -42,11 +45,14 @@ import {
   Section,
   defaults as defaultKnobs,
   fit,
+  presetKnobs,
+  presets,
   ranges,
   sameKnobs,
   shuffled,
 } from './gallery/theme.js'
-import { COPY_ATTRIBUTE, type Library } from './library.js'
+import { addressOf, queryOf } from './gallery/themeUrl.js'
+import { COPY_ATTRIBUTE, CREATE, type Library } from './library.js'
 import { Body } from './view/layout.js'
 
 // MODEL
@@ -79,6 +85,10 @@ export const Model = Schema.Struct({
   menuOpen: Schema.Boolean,
   example: Example,
   copied: Schema.Boolean,
+  /** Whether a link to the theme was copied since the knobs last moved. */
+  linkCopied: Schema.Boolean,
+  /** Whether `/create` has read its address, before which it writes none. */
+  addressRead: Schema.Boolean,
   /** The variant picked on a component's page, by axis. */
   selection: Schema.Record(Schema.String, Schema.String),
   /** What the previews' own controls hold. */
@@ -94,6 +104,9 @@ export const Model = Schema.Struct({
   sectionTabs: UiTabs.Model,
   /** The Listboxes of the knobs chosen from a list. */
   pickers: Pickers,
+  /** What `/create`'s preview shows, and the tabs that pick it. */
+  canvas: Canvas,
+  canvasTabs: UiTabs.Model,
   /** Whether `/create`'s knobs stand open over the preview on a phone. */
   drawerOpen: Schema.Boolean,
   scheme: Scheme,
@@ -110,6 +123,9 @@ export const Message = defineMessageUnion({
   ChoseExample: { example: Example },
   PressedCopy: { text: Schema.String },
   CopiedText: {},
+  PressedCopyLink: {},
+  CopiedLink: {},
+  FoundThemeAddress: { query: Schema.String },
   PressedCodeCopy: { index: Schema.Number },
   CopiedCode: {},
   FailedToCopy: {},
@@ -120,9 +136,11 @@ export const Message = defineMessageUnion({
   RestoredCard: {},
   GotWidget: { message: Widgets.Message },
   ChosePreset: { knobs: Knobs },
+  ChoseTheme: { name: Schema.String },
   MovedKnob: { knob: Knob, value: Schema.Number },
   PressedShuffle: {},
   GotSectionTabs: { message: UiTabs.Message },
+  GotCanvasTabs: { message: UiTabs.Message },
   GotPicker: { picker: Picker, message: UiListbox.Message },
   ToggledDrawer: {},
   ChoseScheme: { scheme: Scheme },
@@ -191,6 +209,23 @@ const ReadPageScheme = Command.define('ReadPageScheme', {
   execute: Effect.sync(() => Message.FoundPageScheme({ scheme: currentScheme() })),
 })
 
+/** The address the page was opened at, for `/create` to read its theme from. */
+const ReadThemeAddress = Command.define('ReadThemeAddress', {
+  messages: [Message.FoundThemeAddress],
+  execute: Effect.sync(() => Message.FoundThemeAddress({ query: window.location.search })),
+})
+
+/** A link to `/create` with the theme `query` names in it, on the clipboard. */
+const CopyLink = Command.define('CopyLink', {
+  args: { query: Schema.String },
+  messages: [Message.CopiedLink, Message.FailedToCopy],
+  execute: ({ query }) =>
+    writeClipboard(`${window.location.origin}${CREATE}${query === '' ? '' : `?${query}`}`).pipe(
+      Effect.as(Message.CopiedLink()),
+      Effect.orElseSucceed(() => Message.FailedToCopy()),
+    ),
+})
+
 /** Knobs drawn at random, in the direction the preview reads. */
 const Shuffle = Command.define('Shuffle', {
   args: { direction: Direction },
@@ -210,7 +245,13 @@ type OwnMessage = Bundle.OwnMessage<Message, typeof placements.placements>
 const withKnobs = (model: Model, knobs: Knobs): UpdateReturn =>
   sameKnobs(model.knobs, knobs)
     ? { model }
-    : { model: modifyFields(model, { knobs: () => knobs, copied: () => false }) }
+    : {
+        model: modifyFields(model, {
+          knobs: () => knobs,
+          copied: () => false,
+          linkCopied: () => false,
+        }),
+      }
 
 type Step = Update.Step<Model, Message>
 
@@ -230,6 +271,22 @@ const foldSectionTabs = Update.foldChild({
         value === model.section && model.drawerOpen
           ? { model }
           : { model: modifyFields(model, { section: () => value, drawerOpen: () => true }) },
+  }),
+})
+
+const foldCanvasTabs = Update.foldChild({
+  read: (model: Model) => Option.some(model.canvasTabs),
+  write: (model: Model, canvasTabs: UiTabs.Model) =>
+    canvasTabs === model.canvasTabs ? model : modifyFields(model, { canvasTabs: () => canvasTabs }),
+  toParentMessage: (message: UiTabs.Message) => Message.GotCanvasTabs({ message }),
+  update: CanvasTabs.update,
+  foldOutMessage: UiTabs.OutMessage.match<Step, UiTabs.OutMessage<Canvas>>({
+    Selected:
+      ({ value }) =>
+      model =>
+        value === model.canvas
+          ? { model }
+          : { model: modifyFields(model, { canvas: () => value }) },
   }),
 })
 
@@ -269,6 +326,25 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         : { model: modifyFields(model, { example: () => example }) },
     PressedCopy: ({ text }) => ({ model, commands: [CopyText({ text })] }),
     CopiedText: () => ({ model: modifyFields(model, { copied: () => true }) }),
+    PressedCopyLink: () => ({
+      model,
+      commands: [CopyLink({ query: queryOf(addressIn(model)) })],
+    }),
+    CopiedLink: () => ({ model: modifyFields(model, { linkCopied: () => true }) }),
+    // Read once, on `/create` only: the knobs it names, then the address is
+    // the Model's to write.
+    FoundThemeAddress: ({ query }) => {
+      if (!onCreate(model.page) || model.addressRead) return { model }
+      const address = addressOf(query)
+      return {
+        model: modifyFields(model, {
+          knobs: () => address.knobs,
+          scheme: () => address.scheme,
+          canvas: () => address.canvas,
+          addressRead: () => true,
+        }),
+      }
+    },
     PressedCodeCopy: ({ index }) => ({ model, commands: [CopyCode({ index })] }),
     CopiedCode: () => ({ model }),
     FailedToCopy: () => ({ model }),
@@ -292,6 +368,22 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         : { model },
     GotWidget: ({ message }) => foldWidget(model, message),
     ChosePreset: ({ knobs }) => withKnobs(model, knobs),
+    // A preset by its name, in the direction the preview reads, and in its
+    // own scheme when it is known in one; a name of none is ignored.
+    ChoseTheme: ({ name }) =>
+      Option.fromNullishOr(presets.find(preset => preset.name === name)).pipe(
+        Option.match({
+          onNone: () => ({ model }),
+          onSome: preset => {
+            const chosen = withKnobs(model, presetKnobs(preset, model.knobs.direction)).model
+            const scheme = preset.scheme ?? chosen.scheme
+            return {
+              model:
+                scheme === chosen.scheme ? chosen : modifyFields(chosen, { scheme: () => scheme }),
+            }
+          },
+        }),
+      ),
     MovedKnob: ({ knob, value }) => {
       const range = ranges.find(each => each.knob === knob)
       return range === undefined || !Number.isFinite(value)
@@ -303,6 +395,7 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       commands: [Shuffle({ direction: model.knobs.direction })],
     }),
     GotSectionTabs: ({ message }) => foldSectionTabs(model, message),
+    GotCanvasTabs: ({ message }) => foldCanvasTabs(model, message),
     GotPicker: ({ picker, message }) => foldPicker(model, picker, message),
     ToggledDrawer: () => ({ model: modifyFields(model, { drawerOpen: open => !open }) }),
     ChoseDirection: ({ direction }) => withKnobs(model, { ...model.knobs, direction }),
@@ -337,10 +430,57 @@ export const codeCopyOf = (event: MouseEvent): Option.Option<Message> => {
   return index === -1 ? Option.none() : Option.some(Message.PressedCodeCopy({ index }))
 }
 
+const onCreate = (page: Page): boolean => page._tag === 'Create'
+
+/** What of the Model `/create`'s address holds. */
+export const addressIn = (model: Model) => ({
+  knobs: model.knobs,
+  scheme: model.scheme,
+  canvas: model.canvas,
+})
+
+/** Writes `query` as the page's, in place: a new entry per knob would fill the history. */
+const writeThemeAddress = (query: string) =>
+  Effect.sync(() => {
+    const search = query === '' ? '' : `?${query}`
+    if (window.location.search === search) return
+    try {
+      history.replaceState(
+        history.state,
+        '',
+        `${window.location.pathname}${search}${window.location.hash}`,
+      )
+    } catch {
+      // Refused (too many writes): the next change writes it.
+    }
+  })
+
 /** A code block's copy button, answered for the static region that drew it without a handler. */
 export const subscriptions = placements.subscriptions(
   Subscription.aggregate(
-    Subscription.make<Model, Message>()(() => ({
+    Subscription.make<Model, Message>()(entry => ({
+      // `/create`'s theme in its address, once it has read the one it was
+      // opened at; a quarter second after the knobs stop, so a slider's drag
+      // writes it once (Safari refuses more than 100 writes in 10 seconds).
+      themeAddress: entry(
+        { query: Schema.Option(Schema.String) },
+        {
+          modelToDependencies: model => ({
+            query:
+              onCreate(model.page) && model.addressRead
+                ? Option.some(queryOf(addressIn(model)))
+                : Option.none(),
+          }),
+          dependenciesToStream: ({ query }) =>
+            Option.match(query, {
+              onNone: () => Stream.empty,
+              onSome: query =>
+                Stream.fromEffect(
+                  Effect.sleep('250 millis').pipe(Effect.andThen(writeThemeAddress(query))),
+                ).pipe(Stream.drain),
+            }),
+        },
+      ),
       codeCopy: Subscription.persistentEntry(
         Dom.streamFromEventFilterMap({
           target: () => document,
@@ -369,6 +509,8 @@ export const initial: Model = placements.initial({
   menuOpen: false,
   example: 'view',
   copied: false,
+  linkCopied: false,
+  addressRead: false,
   selection: {},
   switched: false,
   chosenCard: 'team',
@@ -378,6 +520,8 @@ export const initial: Model = placements.initial({
   section: 'theme',
   sectionTabs: initialTabs,
   pickers: initialPickers,
+  canvas: 'components',
+  canvasTabs: initialCanvasTabs,
   drawerOpen: true,
   scheme: 'system',
   pageScheme: 'system',
@@ -436,7 +580,8 @@ const planOf = (withMeta: boolean) =>
       App.model.ticks,
     ],
     // The server cannot know a reader's scheme; the head script applied it.
-    boot: () => [ReadPageScheme()],
+    // `/create` also reads its theme from its address.
+    boot: model => [ReadPageScheme(), ...(onCreate(model.page) ? [ReadThemeAddress()] : [])],
     ...(withMeta ? { meta: (model: Model) => ({ description: descriptionOf(model.page) }) } : {}),
   })
 

@@ -17,6 +17,7 @@ import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { SlotView, Style } from 'foldkit-mixins'
 import {
+  Button,
   ButtonSlots,
   CodeBlock,
   Listbox,
@@ -31,15 +32,25 @@ import {
 } from 'foldkit-mixins-ui'
 
 import { showcaseOf, type Selection } from '../gallery/showcases.js'
-import { PickerBox, SectionTabs, pickerId, type Picker } from '../gallery/studio.js'
+import * as Specimens from '../gallery/specimens.js'
+import {
+  Canvas,
+  CanvasTabs,
+  PickerBox,
+  SectionTabs,
+  pickerId,
+  type Picker,
+} from '../gallery/studio.js'
 import {
   Base,
+  ControlShape,
   Easing,
   Font,
   HeadingFont,
   Hover,
   MenuAccent,
   MenuColor,
+  Outlines,
   Relief,
   Section,
   ShadowStyle,
@@ -103,6 +114,7 @@ const ChoiceStyle = Style.forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
 )
 const BarStyle = Style.forSlots(SegmentedSlots)(Recipes.Segmented({ size: 'sm' }))
+const CanvasTabsStyle = Style.forSlots(TabsSlots)(Recipes.Tabs({ overflow: 'scroll' }))
 const ActionStyle = Style.forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
 )
@@ -260,7 +272,7 @@ const themesPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
         ],
         title: preset.description,
         pressed: sameKnobs(model.knobs, knobs),
-        message: Message.ChosePreset({ knobs }),
+        message: Message.ChoseTheme({ name: preset.name }),
       }
     }),
     chips(slots, h, 'Style, keeping the colors', looks, look => ({
@@ -293,6 +305,7 @@ const colorPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   picker(model, slots, h, 'base', 'Base color', words(Base.literals), model.knobs.base),
   slider(model, 'surfaceSaturation', h),
   slider(model, 'surfaceLightness', h),
+  slider(model, 'surfaceLightnessDark', h),
   slider(model, 'surfaceContrast', h),
   row(slots, h, 'Hover', words(Hover.literals), model.knobs.hover, hover =>
     choose(model, { hover }),
@@ -315,7 +328,13 @@ const shapePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   slider(model, 'radius', h),
   slider(model, 'density', h),
   row(slots, h, 'Size', words(Size.literals), model.knobs.size, size => choose(model, { size })),
+  row(slots, h, 'Buttons', words(ControlShape.literals), model.knobs.controlShape, controlShape =>
+    choose(model, { controlShape }),
+  ),
   slider(model, 'border', h),
+  row(slots, h, 'Outlines', words(Outlines.literals), model.knobs.outlines, outlines =>
+    choose(model, { outlines }),
+  ),
   slider(model, 'shadow', h),
   row(slots, h, 'Shadows', words(ShadowStyle.literals), model.knobs.shadowStyle, shadowStyle =>
     choose(model, { shadowStyle }),
@@ -344,6 +363,11 @@ const typePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
     words(HeadingFont.literals, font => (font === 'inherit' ? 'Body' : fontLabels[font])),
     model.knobs.headingFont,
   ),
+  slider(model, 'textScale', h),
+  slider(model, 'headingScale', h),
+  slider(model, 'headingWeight', h),
+  slider(model, 'tracking', h),
+  slider(model, 'leading', h),
 ]
 
 const motionPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
@@ -418,8 +442,43 @@ const controls = (model: Model, slots: Slots, h: H): Html =>
 const schemes = words(['system', 'light', 'dark'] as const)
 const directions = words(['ltr', 'rtl'] as const, direction => direction.toUpperCase())
 
-const canvas = (model: Model, slots: Slots, h: H): Html => {
+const canvasLabels: Readonly<Record<Canvas, string>> = {
+  components: 'Components',
+  typography: 'Typography',
+  palette: 'Palette',
+  app: 'In an app',
+}
+
+/** Every component, each in its first example, in columns. */
+const components = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
   const live = liveOf(model, h)
+  return tiles.flatMap(({ slug, selection }) =>
+    showcaseOf(slug).pipe(
+      Option.match({
+        onNone: () => [],
+        onSome: showcase => [
+          h.div(slots.tile.attrs(), [
+            h.a(slots.tileName.attrs([h.Href(`${COMPONENTS}/${slug}`)]), [showcase.title]),
+            // A block of its own, so a button keeps its width in the column.
+            h.div([], [showcase.preview(selection, live)]),
+          ]),
+        ],
+      }),
+    ),
+  )
+}
+
+/** What each tab of the preview draws inside it. */
+const canvases: Readonly<
+  Record<Canvas, (model: Model, slots: Slots, h: H) => ReadonlyArray<Html>>
+> = {
+  components,
+  typography: (_, slots, h) => [Specimens.typography(slots, h)],
+  palette: (_, slots, h) => [Specimens.palette(slots, h)],
+  app: (_, slots, h) => [Specimens.app(slots, h)],
+}
+
+const canvas = (model: Model, slots: Slots, h: H): Html => {
   const bar = <A extends string>(
     label: string,
     options: ReadonlyArray<{ readonly value: A; readonly label: string }>,
@@ -436,28 +495,64 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
       bar('Preview direction', directions, model.knobs.direction, direction =>
         Message.ChoseDirection({ direction }),
       ),
-      h.a(slots.toCode.attrs([h.Href(`#${CODE_ID}`)]), ['Get the code']),
-    ]),
-    preview(
-      model,
-      'canvas',
-      slots,
-      h,
-      tiles.flatMap(({ slug, selection }) =>
-        showcaseOf(slug).pipe(
-          Option.match({
-            onNone: () => [],
-            onSome: showcase => [
-              h.div(slots.tile.attrs(), [
-                h.a(slots.tileName.attrs([h.Href(`${COMPONENTS}/${slug}`)]), [showcase.title]),
-                // A block of its own, so a button keeps its width in the column.
-                h.div([], [showcase.preview(selection, live)]),
-              ]),
-            ],
-          }),
+      h.div(slots.previewActions.attrs(), [
+        h.a(slots.toCode.attrs([h.Href(`#${CODE_ID}`)]), ['Get the code']),
+        // The theme as the application's style module, or a link back to these knobs.
+        Button.view(
+          {
+            label: model.copied ? 'Copied' : 'Copy theme',
+            onClick: Message.PressedCopy({ text: codeOf(model.knobs) }),
+            style: ActionStyle,
+          },
+          h,
         ),
-      ),
-    ),
+        Button.view(
+          {
+            label: model.linkCopied ? 'Link copied' : 'Copy link',
+            onClick: Message.PressedCopyLink(),
+            style: ActionStyle,
+          },
+          h,
+        ),
+      ]),
+    ]),
+    h.submodel({
+      slotId: model.canvasTabs.id,
+      model: model.canvasTabs,
+      view: CanvasTabs.view,
+      viewInputs: {
+        tabs: Canvas.literals,
+        selectedValue: model.canvas,
+        ariaLabel: 'Preview',
+        toView: Tabs.toView<Canvas, Message>(
+          [CanvasTabsStyle.mixin, ...Tabs.fluid],
+          { h },
+          ({ tablist, indicator, highlight, label, tabs, activeIndex }) =>
+            h.div(slots.canvasColumn.attrs(), [
+              h.div(tablist, [
+                h.div(indicator),
+                h.div(highlight),
+                ...tabs.map(tab => h.button(tab.tab, [h.span(label, [canvasLabels[tab.value]])])),
+              ]),
+              ...tabs
+                .filter(tab => tab.index === activeIndex)
+                .map(tab =>
+                  h.div(tab.panel, [
+                    // The components in columns; a specimen reads down the page.
+                    preview(
+                      model,
+                      tab.value === 'components' ? 'canvas' : 'specimen',
+                      slots,
+                      h,
+                      canvases[tab.value](model, slots, h),
+                    ),
+                  ]),
+                ),
+            ]),
+        ),
+      },
+      toParentMessage: message => Message.GotCanvasTabs({ message }),
+    }),
   ])
 }
 

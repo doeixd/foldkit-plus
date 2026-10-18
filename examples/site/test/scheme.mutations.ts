@@ -19,7 +19,9 @@ export default [
   },
   {
     name: 'nothing reads the scheme back at boot',
-    edits: [{ file: main, find: '    boot: () => [ReadPageScheme()],\n', replace: '' }],
+    edits: [
+      { file: main, find: 'boot: model => [ReadPageScheme(), ', replace: 'boot: model => [' },
+    ],
     tests,
   },
   {
