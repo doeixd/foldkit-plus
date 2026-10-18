@@ -136,6 +136,9 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **B2: done** in the Menu component's Model (`TouchedTarget`, a `Menu.hold` Command, the
+  slop, Android's `contextmenu` spending the hold), not `LongPress`, whose Bundle is too much
+  for a target's attributes; unit tests and mutations. C7 stays for C1.
 - **C2, C5 and C6: done**: the grid's fill handle and resize grip (CSS, unit); the
   Carousel's pause by pointer type (browser test); the rich-text handle's 5px threshold, and no
   drop for a press that never moved (unit, both guards mutated). Header reorder and range

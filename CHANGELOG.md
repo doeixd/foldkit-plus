@@ -41,6 +41,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a context menu opens on a touch screen. A finger or a pen held on
+  `Menu.target`'s area for `Menu.HOLD_MS` (500ms) opens it under the finger, since iOS fires
+  no `contextmenu`, while a finger that moves 10px is a scroll and opens nothing; Android's
+  own `contextmenu` for the hold opens it once, under the finger, as `pointTarget` now records a
+  finger's press. The Menu's Model gains `holding` and `hold`.
 - `foldkit-mixins-data-grid`: the fill handle takes its drag on a touch screen (`touch-action:
   none`), where a finger panned the grid instead, and it and the column resize grip have a
   finger's target there (44px and 24px) around what they draw.

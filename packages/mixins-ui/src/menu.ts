@@ -568,11 +568,20 @@ export const pointTarget = <Message>(
   options: PointTargetOptions<Message>,
   h: HtmlBuilder<Message>,
 ): ReadonlyArray<Attribute<Message>> => [
-  h.OnPointerDown((_type, button, _screenX, _screenY, _time, clientX, clientY) =>
-    button === 2 ? Option.some(options.onPress({ x: clientX, y: clientY })) : Option.none(),
+  // A touch's press too: Android's `contextmenu` for a held finger opens it under the finger.
+  h.OnPointerDown((type, button, _screenX, _screenY, _time, clientX, clientY) =>
+    button === 2 || (button === 0 && type !== 'mouse')
+      ? Option.some(options.onPress({ x: clientX, y: clientY }))
+      : Option.none(),
   ),
   h.OnContextMenu(options.onOpen),
 ]
+
+/** How long a finger is held on the `target` area before the menu opens there. */
+export const HOLD_MS = 500
+
+/** How far, in CSS pixels, a held finger may wander and still be holding. */
+const HOLD_SLOP = 10
 
 const Submenu = Schema.Struct({
   /** The index of the row it opens from. */
@@ -591,6 +600,10 @@ export const Model = Schema.Struct({
   point: Schema.Option(Point),
   /** A right press waiting for the `contextmenu` that follows it. */
   press: Schema.Option(Point),
+  /** A finger held on the `target` area, from where on the screen it went down. */
+  holding: Schema.Option(Point),
+  /** Counts the holds, so a `HOLD_MS` that ran out for an earlier one does nothing. */
+  hold: Schema.Number,
 })
 export type Model = typeof Model.Type
 
@@ -612,6 +625,14 @@ export const Message = defineMessageUnion({
   CompletedHoverDelay: { hover: Schema.Number, row: Schema.Number },
   /** A right press on the `target` area, at its point. */
   PressedTarget: { point: Point },
+  /** A finger or a pen down on the `target` area: its point, and where on the screen it is. */
+  TouchedTarget: { point: Point, screen: Point },
+  /** The finger moved, to where on the screen it is. */
+  MovedOnTarget: { screen: Point },
+  /** The finger lifted, or the browser took it for a scroll. */
+  LiftedFromTarget: {},
+  /** `HOLD_MS` ran out for the hold it counts. */
+  HeldTarget: { hold: Schema.Number },
   /** A checkbox or radio row chosen, which leaves the menu open: its words. */
   ChoseCheck: { value: Schema.String },
   /** The `target` area's `contextmenu`: a right press, Shift+F10 or the ContextMenu key. */
@@ -660,6 +681,8 @@ export const init = (id: string, rows: ReadonlyArray<Row>, options: InitOptions 
     hover: 0,
     point: Option.none(),
     press: Option.none(),
+    holding: Option.none(),
+    hold: 0,
   }
 }
 
@@ -711,11 +734,15 @@ const written = (model: Model, parts: Partial<Model>): Model => {
   const hover = parts.hover ?? model.hover
   const point = parts.point ?? model.point
   const press = parts.press ?? model.press
+  const holding = parts.holding ?? model.holding
+  const hold = parts.hold ?? model.hold
   return menu === model.menu &&
     submenus === model.submenus &&
     hover === model.hover &&
     point === model.point &&
-    press === model.press
+    press === model.press &&
+    holding === model.holding &&
+    hold === model.hold
     ? model
     : modifyFields(model, {
         menu: () => menu,
@@ -723,6 +750,8 @@ const written = (model: Model, parts: Partial<Model>): Model => {
         hover: () => hover,
         point: () => point,
         press: () => press,
+        holding: () => holding,
+        hold: () => hold,
       })
 }
 
@@ -932,6 +961,36 @@ export const update = (model: Model, message: Message): Return =>
       })
     },
     PressedTarget: ({ point }) => ({ model: written(model, { press: Option.some(point) }) }),
+    // A held finger opens it, as a right press does: iOS fires no `contextmenu` for one.
+    TouchedTarget: ({ point, screen }) => {
+      const hold = model.hold + 1
+      return {
+        model: written(model, { press: Option.some(point), holding: Option.some(screen), hold }),
+        commands: [
+          {
+            name: 'Menu.hold',
+            args: { hold },
+            effect: Effect.as(Effect.sleep(HOLD_MS), Message.HeldTarget({ hold })),
+          },
+        ],
+      }
+    },
+    MovedOnTarget: ({ screen }) =>
+      Option.match(model.holding, {
+        onNone: () => ({ model }),
+        onSome: from =>
+          Math.hypot(screen.x - from.x, screen.y - from.y) < HOLD_SLOP
+            ? { model }
+            : { model: written(model, { holding: Option.none() }) },
+      }),
+    LiftedFromTarget: () => ({ model: written(model, { holding: Option.none() }) }),
+    HeldTarget: ({ hold }) =>
+      Option.isSome(model.holding) && hold === model.hold
+        ? plain(
+            written(model, { point: model.press, press: Option.none(), holding: Option.none() }),
+            UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(0) }),
+          )
+        : { model },
     ChoseCheck: ({ value }) => ({
       model,
       outMessage: OutMessage.Selected({ value, submenu: Option.none() }),
@@ -940,26 +999,46 @@ export const update = (model: Model, message: Message): Return =>
     // at the area. Its first row active, as a key opening a Menu leaves it.
     RequestedContextMenu: () =>
       plain(
-        written(model, { point: model.press, press: Option.none() }),
+        written(model, { point: model.press, press: Option.none(), holding: Option.none() }),
         UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(0) }),
       ),
   })
 
 /**
- * The attributes of the area a menu with `opensAt: 'point'` opens in: a
- * right press records its point, and its `contextmenu` opens the menu.
+ * The attributes of the area a menu with `opensAt: 'point'` opens in: a right press records
+ * its point, and its `contextmenu` opens the menu; a finger or a pen held there `HOLD_MS`
+ * opens it too, as iOS fires no `contextmenu` for one. Give the area
+ * `-webkit-touch-callout: none` and `user-select: none`, or iOS shows its own callout over it.
  */
 export const target = <ParentMessage>(
   onMessage: (message: Message) => ParentMessage,
   h: HtmlBuilder<ParentMessage>,
-): ReadonlyArray<Attribute<ParentMessage>> =>
-  pointTarget(
-    {
-      onPress: point => onMessage(Message.PressedTarget({ point })),
-      onOpen: onMessage(Message.RequestedContextMenu()),
-    },
-    h,
-  )
+): ReadonlyArray<Attribute<ParentMessage>> => {
+  const finger = (type: string) => type !== 'mouse'
+  return [
+    h.OnPointerDown((type, button, screenX, screenY, _time, clientX, clientY) => {
+      const point = { x: clientX, y: clientY }
+      if (button === 2) return Option.some(onMessage(Message.PressedTarget({ point })))
+      if (button !== 0 || !finger(type)) return Option.none()
+      return Option.some(
+        onMessage(Message.TouchedTarget({ point, screen: { x: screenX, y: screenY } })),
+      )
+    }),
+    h.OnPointerMove((screenX, screenY, type) =>
+      finger(type)
+        ? Option.some(onMessage(Message.MovedOnTarget({ screen: { x: screenX, y: screenY } })))
+        : Option.none(),
+    ),
+    h.OnPointerUp((_x, _y, type) =>
+      finger(type) ? Option.some(onMessage(Message.LiftedFromTarget())) : Option.none(),
+    ),
+    // After a `pointercancel` too, when the browser took the finger for a scroll.
+    h.OnPointerLeave(type =>
+      finger(type) ? Option.some(onMessage(Message.LiftedFromTarget())) : Option.none(),
+    ),
+    h.OnContextMenu(onMessage(Message.RequestedContextMenu())),
+  ]
+}
 
 export interface MenuViewOptions<ParentMessage> {
   readonly model: Model

@@ -142,7 +142,7 @@ export default [
   },
   {
     name: 'a left press records the point, not a right one',
-    edits: [{ file, find: 'button === 2', replace: 'button === 0' }],
+    edits: [{ file, find: 'button === 2 ||', replace: 'button === 0 ||' }],
     tests: [browser],
   },
   {
@@ -172,8 +172,9 @@ export default [
     edits: [
       {
         file,
-        find: 'written(model, { point: model.press, press: Option.none() })',
-        replace: 'written(model, { point: model.press })',
+        find: 'RequestedContextMenu: () =>\n      plain(\n        written(model, { point: model.press, press: Option.none(), holding: Option.none() }),',
+        replace:
+          'RequestedContextMenu: () =>\n      plain(\n        written(model, { point: model.press, holding: Option.none() }),',
       },
     ],
     tests: [unit],

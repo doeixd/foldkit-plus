@@ -11,6 +11,8 @@ import { Menu as UiMenu } from '@foldkit/ui'
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Menu } from '../src/index.js'
+import { SlotView } from 'foldkit-mixins'
+import { attributeOf } from './fixture.js'
 
 // Two submenus, so opening one has another to leave shut.
 const ROWS: ReadonlyArray<Menu.Row> = [
@@ -279,6 +281,72 @@ describe('Menu.update', () => {
       expect(closed.menu.isOpen).toBe(false)
       expect(closed.point).toEqual(Option.some(POINT))
       expect(requested(closed).model.point).toEqual(Option.none())
+    })
+
+    // iOS fires no contextmenu for a held finger, so the hold itself opens it.
+    describe('held by a finger', () => {
+      const SCREEN = { x: 500, y: 300 }
+      const touched = (model: Menu.Model) =>
+        Menu.update(model, Menu.Message.TouchedTarget({ point: POINT, screen: SCREEN }))
+      const held = (model: Menu.Model, hold = model.hold) =>
+        Menu.update(model, Menu.Message.HeldTarget({ hold }))
+      const moved = (model: Menu.Model, by: number) =>
+        Menu.update(
+          model,
+          Menu.Message.MovedOnTarget({ screen: { x: SCREEN.x + by, y: SCREEN.y } }),
+        ).model
+
+      it('starts a hold that opens it at the finger', () => {
+        const down = touched(shut)
+        expect(down.model.menu.isOpen).toBe(false)
+        expect(names(down)).toEqual(['Menu.hold'])
+        const result = held(down.model)
+        expect(result.model.menu.isOpen).toBe(true)
+        expect(result.model.point).toEqual(Option.some(POINT))
+        expect(result.model.holding).toEqual(Option.none())
+      })
+
+      it('wanders a little and still holds; moves further, and is a scroll, opening nothing', () => {
+        const down = touched(shut).model
+        const still = moved(down, 9)
+        expect(still).toBe(down)
+        expect(held(still).model.menu.isOpen).toBe(true)
+        const away = moved(down, 12)
+        expect(held(away).model.menu.isOpen).toBe(false)
+      })
+
+      it('lifted before the hold ends, opens nothing', () => {
+        const down = touched(shut).model
+        const lifted = Menu.update(down, Menu.Message.LiftedFromTarget()).model
+        expect(held(lifted).model.menu.isOpen).toBe(false)
+      })
+
+      it('an earlier hold running out does nothing to the next', () => {
+        const first = touched(shut).model
+        const lifted = Menu.update(first, Menu.Message.LiftedFromTarget()).model
+        const second = touched(lifted).model
+        expect(held(second, first.hold).model).toBe(second)
+        expect(held(second).model.menu.isOpen).toBe(true)
+      })
+
+      it('Android’s own contextmenu for the hold spends it, so it opens once', () => {
+        const opened = requested(touched(shut).model).model
+        expect(opened.menu.isOpen).toBe(true)
+        expect(opened.point).toEqual(Option.some(POINT))
+        expect(held(opened).model).toBe(opened)
+      })
+    })
+
+    it('pointTarget records a finger’s press, so Android’s contextmenu opens under it', () => {
+      // The press's point is the Message, so the test reads where it was recorded.
+      const h = SlotView.inertBuilder<{ readonly x: number; readonly y: number }>()
+      const attrs = Menu.pointTarget({ onPress: point => point, onOpen: POINT }, h)
+      const down = attributeOf(attrs, 'OnPointerDown')!
+      const at = (type: string, button: number) => down.f(type, button, 0, 0, 0, 7, 9, 1, null)
+      expect([at('touch', 0), at('pen', 0), at('mouse', 2)]).toEqual(
+        [1, 2, 3].map(() => Option.some({ x: 7, y: 9 })),
+      )
+      expect(at('mouse', 0)).toEqual(Option.none())
     })
 
     it('opens its submenus as a menu under a button does', () => {
