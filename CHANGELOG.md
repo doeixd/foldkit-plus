@@ -5,6 +5,14 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- `foldkit-mixins/theme`'s `Theme.hardShadows`: the shadow scale drawn as solid offset copies
+  with no blur, for retro and brutalist themes. Compose it over `Theme.tokens`;
+  `shadow-strength` still fades it.
+
 ## 0.23.0
 
 Mobile and touch: hover that no longer sticks after a tap, a pressed state for every control,

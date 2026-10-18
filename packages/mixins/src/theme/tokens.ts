@@ -227,6 +227,27 @@ export const nests = (
   '--fk-inset': inset,
 })
 
+/** A step of `hardShadows`: the shadow's color, nearly opaque, offset with no blur. */
+const hard = (offset: number) =>
+  `${offset}px ${offset}px 0 0 color-mix(in oklch, oklch(from ${shade} l c h / 0.9) ${strength}, transparent)`
+
+/**
+ * The shadow scale drawn hard, as retro and brutalist interfaces draw it:
+ * each step a solid offset copy, deeper the higher it sits. Compose it over
+ * `tokens`; `shadow-strength` still fades it, and 0 takes it away.
+ */
+export const hardShadows = define({
+  shadow: {
+    xs: hard(1),
+    sm: hard(2),
+    md: hard(3),
+    lg: hard(4),
+    xl: hard(6),
+    '2xl': hard(8),
+    inset: `inset ${hard(2)}`,
+  },
+})
+
 /** A role of the type scale. */
 export type Role = 'display' | 'title' | 'subtitle' | 'body' | 'caption' | 'micro'
 

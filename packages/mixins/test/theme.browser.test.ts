@@ -355,3 +355,36 @@ test.each([
     })
   },
 )
+
+test.each(['light', 'dark'] as const)(
+  'in a %s scheme, a hard shadow is a solid offset copy, faded only by its strength',
+  scheme => {
+    const style = document.createElement('style')
+    style.dataset['test'] = ''
+    style.textContent = Style.stylesheet(
+      L.declare,
+      L.in(
+        'tokens',
+        Theme.root(Theme.compose(theme, Theme.hardShadows), {
+          colorScheme: scheme,
+        }),
+      ),
+    )
+    document.head.append(style)
+    const raised = (strength: string) => {
+      const box = document.createElement('div')
+      box.style.boxShadow = 'var(--fk-shadow-md)'
+      // On the root, where the token is declared and so resolved.
+      document.documentElement.style.setProperty('--fk-knob-shadow-strength', strength)
+      document.body.append(box)
+      const shadow = getComputedStyle(box).boxShadow
+      document.documentElement.style.removeProperty('--fk-knob-shadow-strength')
+      return shadow
+    }
+    const full = raised('100%')
+    // The color, then x, y, blur and spread: offset 3px, and no blur at all.
+    expect(full).toMatch(/\) 3px 3px 0px 0px$/)
+    expect(Number(/\/ ([\d.]+)\)/.exec(full)?.[1] ?? '1')).toBeGreaterThan(0.8)
+    expect(raised('0%')).toMatch(/\/ 0\)|transparent|rgba\(0, 0, 0, 0\)/)
+  },
+)

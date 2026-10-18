@@ -4,6 +4,33 @@
  */
 export default [
   {
+    name: 'a hard shadow blurs',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: '`${offset}px ${offset}px 0 0 color-mix',
+        replace: '`${offset}px ${offset}px 4px 0 color-mix',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'a hard shadow keeps the faint color of a soft one',
+    edits: [{ file: '../src/theme/tokens.ts', find: ' l c h / 0.9)', replace: ' l c h)' }],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'a hard shadow ignores its strength',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: 'l c h / 0.9) ${strength}, transparent)`',
+        replace: 'l c h / 0.9) 100%, transparent)`',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
     name: 'a shadow ignores the hue it is given',
     edits: [
       {
