@@ -403,6 +403,16 @@ describe('DataGridView', () => {
     expect(Style.stylesheet(GridStyle)).toContain('[data-pinned]')
   })
 
+  // A finger panned the grid instead of dragging the fill, and could not find an 8px grip.
+  test('gives the fill handle and the resize grip a finger’s target, the fill its own drag', () => {
+    const css = Style.stylesheet(GridStyle)
+    expect(css).toMatch(/\{[^{}]*touch-action:none[^{}]*width:7px/)
+    expect(css).toMatch(/@media \(pointer: coarse\)\{[^{}]*::before\{[^{}]*inset:-18px/)
+    expect(css).toMatch(
+      /@media \(pointer: coarse\)\{[^{}]*::before\{[^{}]*inset-inline-start:-12px/,
+    )
+  })
+
   test('takes the height the application gives the scroll container', () => {
     const Tall = View.pipe(
       Style.attach(Style.forSlots(GridSlots)({ root: Style.inline({ height: '24rem' }) })),

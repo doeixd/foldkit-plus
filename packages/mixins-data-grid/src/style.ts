@@ -210,19 +210,41 @@ export const GridStyle = Style.forSlots(GridSlots)(
     resizeHandle: Style.compose(
       Style.self({
         background: `linear-gradient(to right, transparent calc(100% - 1px), color-mix(in oklch, ${ref.outline.subtle} 70%, transparent) calc(100% - 1px))`,
+        WebkitTouchCallout: 'none',
       }),
       Style.pseudo(':hover', {
         background: `linear-gradient(to right, transparent calc(100% - 2px), ${ref.outline.focus} calc(100% - 2px))`,
       }),
+      // A finger needs more than the 8px a pointer takes: 24px, the line still at its end.
+      Style.at(
+        '@media (pointer: coarse)',
+        Style.nest('&::before', {
+          content: '""',
+          position: 'absolute',
+          insetBlock: '0',
+          insetInlineStart: '-12px',
+          insetInlineEnd: '-4px',
+        }),
+      ),
     ),
-    fillHandle: Style.self({
-      width: '7px',
-      height: '7px',
-      background: ref.outline.focus,
-      border: `1px solid ${ref.surface.base}`,
-      cursor: 'crosshair',
-      zIndex: '3',
-    }),
+    fillHandle: Style.compose(
+      Style.self({
+        width: '7px',
+        height: '7px',
+        background: ref.outline.focus,
+        border: `1px solid ${ref.surface.base}`,
+        cursor: 'crosshair',
+        zIndex: '3',
+        // The drag is the fill's, not a pan of the grid, and a held press no callout of iOS's.
+        touchAction: 'none',
+        WebkitTouchCallout: 'none',
+      }),
+      // On a touch screen, a 44px target around the 7px square it draws.
+      Style.at(
+        '@media (pointer: coarse)',
+        Style.nest('&::before', { content: '""', position: 'absolute', inset: '-18px' }),
+      ),
+    ),
     menuButton: Style.compose(
       Style.self({
         background: 'none',

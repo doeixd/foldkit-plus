@@ -139,6 +139,29 @@ describe('dragging a block by its handle', () => {
     expect(line()).toBeNull()
   })
 
+  // A finger's tap wanders, and a tap on the handle dropped the block where the wander ended.
+  it('takes a press that moves less than the threshold for a tap, dropping nothing', () => {
+    handle().dispatchEvent(at('pointerdown', { clientX: 20, clientY: 30 }))
+    document.dispatchEvent(at('pointermove', { clientX: 22, clientY: 33 }))
+    expect(line()).toBeNull()
+    expect(document.querySelector('[data-richtext-dragging]')).toBeNull()
+    document.dispatchEvent(at('pointerup', { clientX: 22, clientY: 33 }))
+    expect(dropped).toEqual([])
+    // Nor does one the page scrolled under, still in a fling: the blocks moved, the finger did not.
+    handle().dispatchEvent(at('pointerdown', { clientX: 20, clientY: 30 }))
+    scrolled = 60
+    document.dispatchEvent(new Event('scroll'))
+    document.dispatchEvent(at('pointerup', { clientX: 20, clientY: 30 }))
+    expect(dropped).toEqual([])
+    scrolled = 0
+    // Past it, the same press is a drag.
+    handle().dispatchEvent(at('pointerdown', { clientX: 20, clientY: 30 }))
+    document.dispatchEvent(at('pointermove', { clientX: 20, clientY: 75 }))
+    expect(line()).not.toBeNull()
+    document.dispatchEvent(at('pointerup', { clientX: 20, clientY: 75 }))
+    expect(dropped).toHaveLength(1)
+  })
+
   it('marks the dragged block once the pointer moves, and unmarks it when the drag ends', () => {
     const dragged = () =>
       Array.from(document.querySelectorAll('[data-richtext-dragging]')).map(element =>

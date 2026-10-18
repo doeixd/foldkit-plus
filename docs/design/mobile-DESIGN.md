@@ -136,6 +136,10 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **C2, C5 and C6: done**: the grid's fill handle and resize grip (CSS, unit); the
+  Carousel's pause by pointer type (browser test); the rich-text handle's 5px threshold, and no
+  drop for a press that never moved (unit, both guards mutated). Header reorder and range
+  selection by a held press are left for C1's long-press path.
 - **D1 and D3: done**: `FieldAttrs`' keyboard and autofill keys (and D4's override, through
   `inputMode`); the Combobox and Command fields' keyboard attributes.
 - **D2, B5 and B8: done**: the Table's frame (always drawn now) scrolls inline under a static

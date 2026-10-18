@@ -41,6 +41,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-data-grid`: the fill handle takes its drag on a touch screen (`touch-action:
+  none`), where a finger panned the grid instead, and it and the column resize grip have a
+  finger's target there (44px and 24px) around what they draw.
+- `foldkit-mixins-ui`: a Carousel's autoplay pauses while a finger is on it and goes on when
+  it lifts; a tap's emulated `mouseenter` held it paused until something else was tapped.
+- `foldkit-richtext-dom`: a press on a block's handle is a drag only once it moves 5px
+  (`DRAG_THRESHOLD`): a tap's wander, or the page scrolling under a still finger, dropped the
+  block.
 - `foldkit-mixins-ui`: a Combobox's and the Command's field ask a phone's keyboard not to
   capitalize or correct what filters, and to show a search key (`autocapitalize`,
   `autocorrect`, `spellcheck`, `enterkeyhint`).

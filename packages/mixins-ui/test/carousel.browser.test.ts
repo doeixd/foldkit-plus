@@ -194,6 +194,27 @@ test('rotating, it moves on by itself and its dot fills; the pointer holds both'
   }
 })
 
+test('a finger holds it while down, and a tap leaves it rotating', async () => {
+  const handle = mount(Carousel.init({ id: 'trip', autoplay: true, delay: 60_000 }), { loop: true })
+  try {
+    await vi.waitFor(() => element('#trip-slide-3'))
+    await userEvent.hover(element('#away'))
+    const root = element('#trip')
+    await vi.waitFor(() => expect(root.dataset['rotation']).toBe('rotating'))
+    const touch = { bubbles: true, pointerType: 'touch', pointerId: 2, isPrimary: true }
+    element('#trip-track').dispatchEvent(new PointerEvent('pointerdown', touch))
+    await vi.waitFor(() => expect(root.dataset['rotation']).toBe('paused'))
+    // Lifted: a touch pointer leaves, and the browser's emulated mouse enters after it.
+    root.dispatchEvent(new PointerEvent('pointerleave', { ...touch, bubbles: false }))
+    root.dispatchEvent(new MouseEvent('mouseenter'))
+    await vi.waitFor(() => expect(root.dataset['rotation']).toBe('rotating'))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(root.dataset['rotation']).toBe('rotating')
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('focus arriving by the keys stops it, and its button starts it again', async () => {
   const handle = mount(Carousel.init({ id: 'trip', autoplay: true, delay: 60_000 }))
   try {

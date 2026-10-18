@@ -76,6 +76,9 @@ const placesOf = (
   return into
 }
 
+/** How far, in CSS pixels, a press on the handle moves before it is a drag rather than a tap. */
+export const DRAG_THRESHOLD = 5
+
 /** How near the window's top or bottom a dragging pointer scrolls the page, in pixels. */
 const SCROLL_EDGE = 48
 /** How far a frame scrolls with the pointer at the very edge; less the further in it is. */
@@ -95,6 +98,7 @@ export const edgeScroll = (y: number, height: number): number => {
 }
 
 interface Pointed extends Event {
+  readonly clientX?: number
   readonly clientY?: number
   readonly buttons?: number
   readonly pointerId?: number
@@ -131,6 +135,9 @@ export const dragBlock = (
   let marked = false
   // Where the pointer last was, for a scroll that moves the blocks under a still pointer.
   let lastY = 0
+  // Where it went down: until it has moved `DRAG_THRESHOLD` from there, the press is a tap.
+  let startX = 0
+  let startY = 0
   const { style } = handle as Element & ElementCSSInlineStyle
   const touchAction = style.getPropertyValue('touch-action')
   style.setProperty('touch-action', 'none')
@@ -181,6 +188,10 @@ export const dragBlock = (
     // A move with the button up is a release this page never heard: over a frame, say.
     if (((pointed.buttons ?? 1) & 1) === 0) return end(false)
     if (!marked) {
+      // A finger's tap wanders a pixel or two; only a move past that is a drag.
+      const x = (pointed.clientX ?? startX) - startX
+      const y = (pointed.clientY ?? startY) - startY
+      if (Math.hypot(x, y) < DRAG_THRESHOLD) return
       moving?.setAttribute('data-richtext-dragging', '')
       owner.documentElement.setAttribute('data-richtext-drag', '')
       marked = true
@@ -224,6 +235,8 @@ export const dragBlock = (
       'pointerup',
       event => {
         if (!ours(event)) return
+        // A press that never became a drag drops nothing: it was a tap on the handle.
+        if (!marked) return end(false)
         // The place is the release's own, not the last move's: the page may have scrolled.
         place((event as Pointed).clientY ?? lastY)
         end(true)
@@ -251,6 +264,8 @@ export const dragBlock = (
     pressed = true
     pointer = pointed.pointerId
     lastY = pointed.clientY ?? 0
+    startX = pointed.clientX ?? 0
+    startY = lastY
     const host = owner.getElementById(hostId)
     const dom = host === null ? undefined : attachmentIn(host)?.current()
     if (dom !== undefined) {

@@ -1,4 +1,4 @@
-import { Duration, Effect, Schema } from 'effect'
+import { Duration, Effect, Option, Schema } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import { ScrollSettle } from 'foldkit-primitives/dom'
 import * as Command from 'foldkit/command'
@@ -388,8 +388,22 @@ export const view = <ParentMessage>(
         '--fk-carousel-per-view': String(perView),
         '--fk-carousel-delay': `${model.delay}ms`,
       }),
-      h.OnMouseEnter(onMessage(Message.PointerEntered())),
-      h.OnMouseLeave(onMessage(Message.PointerLeft())),
+      // A pointer holds it: a mouse while it is over the carousel, a finger or a pen while it
+      // is down (a touch leaves on lifting). A tap's emulated mouseenter came after its leave,
+      // and held it paused until something else was tapped.
+      h.OnPointerMove((_x, _y, pointerType) =>
+        pointerType === 'mouse' && !model.hovered
+          ? Option.some(onMessage(Message.PointerEntered()))
+          : Option.none(),
+      ),
+      h.OnPointerDown(pointerType =>
+        pointerType === 'mouse' || model.hovered
+          ? Option.none()
+          : Option.some(onMessage(Message.PointerEntered())),
+      ),
+      h.OnPointerLeave(() =>
+        model.hovered ? Option.some(onMessage(Message.PointerLeft())) : Option.none(),
+      ),
       h.OnFocusEnter(onMessage(Message.FocusEntered())),
     ]),
     [
