@@ -180,7 +180,7 @@ export const Table = Style.recipeFor(TableSlots)({
         color: ref.text.muted,
         ...transition('color, background-color'),
       }),
-      Style.pseudo(':hover', { color: ref.text.overt, background: ref.state.hover }),
+      Style.pseudo(':is(:hover, :active)', { color: ref.text.overt, background: ref.state.hover }),
       focusRing,
     ),
     // Pointing along the row shut, down open.

@@ -30,6 +30,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a tap shows. The recipes' hover is also their pressed state
+  (`:is(:hover, :active)`), as are the hover fills of menu, listbox and tree rows, nav and
+  sidebar items, accordion triggers, table sort buttons, steppers, tag removers and pressable
+  cards and items: with hover written only where a pointer can, a finger on one of them
+  shows it, and lifting takes it away.
 - `foldkit-mixins-ui`: a Sheet grabbed while its Dialog was still opening (an animation
   ending, a `SucceededShowDialog`) lost the drag, and its handle took no new press until the
   pointer was let go. A drag now ends only when the Dialog opens or closes. (#186)

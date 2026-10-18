@@ -23,6 +23,17 @@ export default [
     tests,
   },
   {
+    name: 'the recipes’ hover is no pressed state',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: 'Style.pseudo(\':is(:hover, :active):not([aria-disabled="true"], :disabled)\', declarations)',
+        replace: 'Style.pseudo(\':hover:not([aria-disabled="true"], :disabled)\', declarations)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the touch copy still hovers',
     edits: [
       {

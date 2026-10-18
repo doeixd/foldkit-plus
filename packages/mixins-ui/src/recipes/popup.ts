@@ -116,7 +116,7 @@ export const item: StyleValue = component(
   }),
   // The row the keys or the pointer are on (upstream marks it `data-active`),
   // until a fluid highlight runs in the panel and lights it instead.
-  Style.nest(`${unlit}:hover:not([aria-disabled="true"], :disabled)`, lighted),
+  Style.nest(`${unlit}:is(:hover, :active):not([aria-disabled="true"], :disabled)`, lighted),
   Style.nest(`${unlit}[data-active]`, lighted),
   // Under a fluid highlight the highlight is the fill; the row keeps its ink.
   Style.nest(`:where([data-fluid-hover]) &[data-active]`, { color: ref.popup['highlight-ink'] }),

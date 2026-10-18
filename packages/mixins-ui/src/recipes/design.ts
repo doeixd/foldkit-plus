@@ -72,9 +72,13 @@ export const steps = {
   lg: variant(Style.self({ '--fk-knob-step': '-0.5' })),
 } as const
 
-/** A hover rule that skips a disabled element. */
+/**
+ * A hover rule that skips a disabled element, and is the pressed state too: on a touch
+ * screen, where nothing hovers (the stylesheet writes hover only where a pointer can), a
+ * finger on the control shows it, and lifting takes it away.
+ */
 export const hover = (declarations: Declarations): StyleValue =>
-  Style.pseudo(':hover:not([aria-disabled="true"], :disabled)', declarations)
+  Style.pseudo(':is(:hover, :active):not([aria-disabled="true"], :disabled)', declarations)
 
 export const focusRing: StyleValue = Style.pseudo(':focus-visible', {
   outline: `${ref.border.thick} solid ${ref.outline.focus}`,

@@ -66,7 +66,7 @@ const entry = Style.compose(
   Style.pseudo(':hover', { color: ref.text.overt }),
   Style.pseudo(current, { color: ref.text.overt }),
   // Without `fluid`, the current entry draws its own line and the hover its fill.
-  Style.nest(unlit(':hover'), { background: unfilledHover }),
+  Style.nest(unlit(':is(:hover, :active)'), { background: unfilledHover }),
   Style.nest(unlit(current), {
     boxShadow: `inset 0 calc(-1 * ${ref.border.thick}) 0 ${ref.accent.default}`,
   }),
@@ -150,7 +150,7 @@ export const Nav = Style.recipeFor(NavSlots)({
         textDecoration: 'none',
         ...transition('background-color'),
       }),
-      Style.pseudo(':hover', { background: unfilledHover }),
+      Style.pseudo(':is(:hover, :active)', { background: unfilledHover }),
       Style.pseudo('[aria-current="page"]', {
         background: ref.accent.subtle,
         color: ref.accent.ink,

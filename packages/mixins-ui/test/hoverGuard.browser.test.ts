@@ -26,3 +26,13 @@ it('fills on hover and shows the mark for hover or focus', async () => {
   page.button.focus()
   expect(page.marked()).toBe(true)
 })
+
+it('lights a control pressed through the recipes’ hover under the pointer', async () => {
+  const page = drawn()
+  remove = page.remove
+  const pressed = await nodeOf('#pressable')
+  expect(page.lit()).toBe(false)
+  await force(pressed, ['hover'])
+  expect(page.lit()).toBe(true)
+  await force(pressed, [])
+})

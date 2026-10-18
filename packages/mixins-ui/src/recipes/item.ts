@@ -34,7 +34,7 @@ export const Item = Style.recipeFor(ItemSlots)({
         color: ref.text.default,
         ...transition('background-color, opacity'),
       }),
-      Style.nest('&[data-pressable="true"]:not([data-disabled="true"]):hover', {
+      Style.nest('&[data-pressable="true"]:not([data-disabled="true"]):is(:hover, :active)', {
         backgroundImage: `linear-gradient(${film('0.5')}, ${film('0.5')})`,
       }),
       // An image layer, so it lays over whatever fill the variant gives the row.

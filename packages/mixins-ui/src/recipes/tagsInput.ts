@@ -80,7 +80,10 @@ export const chipRemove: StyleValue = component(
     cursor: 'pointer',
     ...transition('background-color, color'),
   }),
-  Style.pseudo(':hover:not(:disabled)', { background: unfilledHover, color: ref.text.overt }),
+  Style.pseudo(':is(:hover, :active):not(:disabled)', {
+    background: unfilledHover,
+    color: ref.text.overt,
+  }),
   focusRing,
   disabled,
 )

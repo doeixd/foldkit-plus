@@ -61,7 +61,7 @@ const handle = Style.compose(
     cursor: 'pointer',
     ...transition('background-color, color'),
   }),
-  Style.pseudo(':hover', { backgroundColor: unfilledHover, color: ref.text.overt }),
+  Style.pseudo(':is(:hover, :active)', { backgroundColor: unfilledHover, color: ref.text.overt }),
   focusRing,
 )
 
@@ -83,7 +83,7 @@ const row = Style.compose(
     cursor: 'pointer',
     ...transition('background-color, color'),
   }),
-  Style.nest(`${unlit}:hover`, { background: unfilledHover }),
+  Style.nest(`${unlit}:is(:hover, :active)`, { background: unfilledHover }),
   Style.pseudo(':hover', { color: ref.text.overt }),
   Style.pseudo('[aria-current="page"]', { color: ref.accent.ink, fontWeight: ref.weight.medium }),
   Style.nest(`${unlit}[aria-current="page"]`, { background: ref.accent.subtle }),
@@ -191,7 +191,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         cursor: 'pointer',
         ...transition('background-color, color'),
       }),
-      Style.pseudo(':hover', { background: unfilledHover, color: ref.text.overt }),
+      Style.pseudo(':is(:hover, :active)', { background: unfilledHover, color: ref.text.overt }),
       Style.nest(railed, { display: 'none' }),
       focusRing,
     ),

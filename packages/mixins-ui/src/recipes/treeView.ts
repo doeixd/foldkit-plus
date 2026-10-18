@@ -51,7 +51,7 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
         userSelect: 'none',
         ...transition('background-color, color'),
       }),
-      Style.pseudo(':hover', { background: unfilledHover, color: ref.text.overt }),
+      Style.pseudo(':is(:hover, :active)', { background: unfilledHover, color: ref.text.overt }),
       // `:is`, not `:where`, so a chosen or disabled row keeps its look under the pointer.
       Style.nest(':is([aria-selected="true"]) > &', {
         background: ref.accent.subtle,

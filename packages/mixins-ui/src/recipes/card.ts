@@ -34,7 +34,7 @@ import {
 
 const pad = 'var(--_fk-card-pad)'
 const gap = 'var(--_fk-card-gap)'
-const pressableHover = '&[data-pressable="true"]:not([data-disabled="true"]):hover'
+const pressableHover = '&[data-pressable="true"]:not([data-disabled="true"]):is(:hover, :active)'
 const selected = '&[data-selected="true"]'
 /** The room the dismiss button takes in the corner, less the card's own padding, and a hair. */
 const clearOfDismiss = `calc(1.5rem - ${pad} / 2 + ${ref.space['2xs']})`

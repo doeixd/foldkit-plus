@@ -32,9 +32,10 @@ foundations, overlays, gestures, forms and layout) found the items below. Each i
 4. **Double-tap zoom on fast taps** (low). **Done:** `touch-action: manipulation` on
    interactive elements in the reset.
 5. **Pressed feedback only on Button** (med). Menu, listbox and tree rows, tabs, segmented,
-   toggle, accordion trigger, pagination show nothing on a tap once hover is guarded. Add a
-   `pressed()` piece beside `hover()` in `recipes/design.ts` (`:active:not([aria-disabled="true"],
-   :disabled)`), and use it where `hover()` is.
+   toggle, accordion trigger, pagination showed nothing on a tap once hover is guarded.
+   **Done:** the recipes' `hover()` is `:is(:hover, :active)`, and so are the raw hover fills of
+   rows and pressable parts; under the guard a touch screen keeps only the `:active` branch.
+   Field borders keep hover alone (a press there is a focus, which has its own ring).
 6. **Controls under 44px on touch** (med). Control heights are 28 to 40px (`tokens.ts:99`), and
    `Touch.target` is used by no recipe. Add a `control.touch` floor token, 2.75rem under
    `(pointer: coarse)`, and make the ladder's `minBlockSize` `max(height, floor)`, so every
@@ -135,6 +136,7 @@ below `md`; compact Pagination.
 
 ## Status
 
-- **A1 to A4: done** (this change).
-- Next, in order: A5 and A6 (pressed state, touch floor), A8 with B3 (safe areas), B1 (keyboard),
+- **A1 to A5: done.** (`tagsInput.browser.test.ts`'s burst test fails now and then under a
+  wide run, before and after; alone it passes.)
+- Next, in order: A6 (pressed state, touch floor), A8 with B3 (safe areas), B1 (keyboard),
   A9 with C1 to C3 (gestures), B2 (long-press menu), D1 to D3, then the rest by severity.

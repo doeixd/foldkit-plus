@@ -174,7 +174,7 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
       ghost: {
         button: variant(
           Style.self({ background: 'transparent', borderColor: 'transparent' }),
-          Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
+          Style.pseudo(':is(:hover, :active):not(:disabled, [aria-disabled="true"])', {
             background: unfilledHover,
             borderColor: 'transparent',
           }),

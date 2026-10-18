@@ -527,7 +527,7 @@ describe('Recipes', () => {
         Recipes.Button({ tone: 'neutral', variant, size: null }),
       ).css
       expect(css).toMatch(
-        /:hover:not\(\[aria-disabled="true"\], :disabled\)\{[^}]*background:color-mix\(in oklab, var\(--_fk-state-ink, var\(--fk-state-ink\)\) var\(--fk-knob-state-hover\), transparent\)/,
+        /:is\(:hover, :active\):not\(\[aria-disabled="true"\], :disabled\)\{[^}]*background:color-mix\(in oklab, var\(--_fk-state-ink, var\(--fk-state-ink\)\) var\(--fk-knob-state-hover\), transparent\)/,
       )
     },
   )
