@@ -25,6 +25,11 @@ version changed; `pnpm` skips versions already in the registry.
   as before. `foldkit-mixins-ui`'s Typography headings and interface roles, the Dialog's title and
   the Empty title now read `font-heading`, `weight-heading` and `tracking-heading`, so a theme's
   heading font reaches them.
+- `foldkit-mixins-ui`'s `Drawer` and `Recipes.Drawer`: a panel docked to the bottom of the
+  screen that peeks or opens beside the page, not over it, as a tool tray. Its handle drags it
+  (a flick or a quarter of the way settles it) and a click or Enter toggles it; the handle's bar
+  bends into a chevron pointing up as it goes down, with the finger while dragged. `dock: 'always'`,
+  or `below-lg` / `below-xl`, above which it is the column it sits in.
 - `radius-control` and the `control-round` knob: a Button and a Segmented tray round to a pill at
   1, whatever the radius factor, while fields keep `radius-md`.
 

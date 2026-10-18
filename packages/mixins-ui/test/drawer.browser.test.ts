@@ -1,0 +1,216 @@
+/// <reference types="@vitest/browser-playwright" />
+/**
+ * The Drawer on a real page: docked, it peeks with its handle showing and
+ * opens to its height; the handle's bar bends into a chevron going down; a
+ * drag follows the finger and lets go open or down, and the click a browser
+ * sends after a drag toggles nothing; peeking, its body is hidden.
+ */
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import * as Runtime from 'foldkit/runtime'
+import { Layers, Style } from 'foldkit-mixins'
+import { Defaults } from 'foldkit-mixins/defaults'
+import { Theme } from 'foldkit-mixins/theme'
+import { afterEach, expect, test, vi } from 'vitest'
+import { page } from 'vitest/browser'
+
+import * as Drawer from '../src/drawer.js'
+import { Drawer as DrawerRecipe } from '../src/recipes/drawer.js'
+
+const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const style = Style.forSlots(Drawer.DrawerSlots)(DrawerRecipe({}))
+const belowLg = Style.forSlots(Drawer.DrawerSlots)(DrawerRecipe({ dock: 'below-lg' }))
+const Model = Schema.Struct({ drawer: Drawer.Model })
+type Model = typeof Model.Type
+
+afterEach(() => {
+  document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+  document.body.replaceChildren()
+})
+
+const mount = (open: boolean, drawn = style) => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in('reset', Defaults.reset),
+      Layers.standard.in('theme', Theme.root(theme)),
+    ) + drawn.css
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'drawer-browser'
+  document.body.append(container)
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: { drawer: Drawer.init({ id: 'drawer-body', open }) } }),
+      update: (model: Model, message: Drawer.Message) => ({
+        model: { drawer: Drawer.update(model.drawer, message) },
+      }),
+      view: (model: Model, h: HtmlBuilder<Drawer.Message>) =>
+        Drawer.view(
+          {
+            model: model.drawer,
+            onMessage: message => message,
+            labels: { open: 'Hide the tools', closed: 'Show the tools' },
+            style: drawn,
+            // The sizes on a wrapper: the panel's own style is the drag's.
+            draw: ({ panel, handle, body }) =>
+              h.div(
+                [h.Style({ '--fk-drawer-height': '400px', '--fk-drawer-peek': '80px' })],
+                [h.aside(panel, [h.button(handle, []), h.div(body, [h.button([], ['A tool'])])])],
+              ),
+          },
+          h,
+        ),
+    }),
+  )
+}
+
+const panel = () =>
+  vi.waitFor(() => {
+    const found = document.querySelector<HTMLElement>('[data-drawer]')
+    expect(found).not.toBeNull()
+    return found!
+  })
+const settled = (element: Element) =>
+  vi.waitFor(() => expect(element.getAnimations({ subtree: true })).toEqual([]))
+/** How far down the panel is drawn: its translate's y. */
+const down = (element: Element) => new DOMMatrix(getComputedStyle(element).transform).m42
+const bend = (handle: Element) => getComputedStyle(handle, '::before').rotate
+const body = (element: Element) => getComputedStyle(element.querySelector('#drawer-body')!)
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+/** A touch pointer on the handle's middle, `dy` pixels below it. */
+const touch = (handle: HTMLElement) => {
+  const box = handle.getBoundingClientRect()
+  return (type: string, dy: number) =>
+    handle.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        pointerId: 9,
+        button: 0,
+        pointerType: 'touch',
+        clientX: box.left + box.width / 2,
+        clientY: box.top + box.height / 2 + dy,
+      }),
+    )
+}
+
+/** Moves the handle `by` pixels down in eight steps `pause` apart, and lets go. */
+const drag = async (handle: HTMLElement, by: number, pause = 16) => {
+  const at = touch(handle)
+  at('pointerdown', 0)
+  for (let step = 1; step <= 8; step++) {
+    await wait(pause)
+    at('pointermove', (by * step) / 8)
+  }
+  await wait(pause)
+  at('pointerup', by)
+}
+
+test('peeks with its handle showing, and opens to its height on a press', async () => {
+  const runtime = mount(false)
+  try {
+    const element = await panel()
+    await settled(element)
+    // Down by all of it but the 80px that peek.
+    expect(down(element)).toBe(320)
+    const handle = element.querySelector<HTMLElement>('button')!
+    expect(body(element).visibility).toBe('hidden')
+    expect(handle.getAttribute('aria-label')).toBe('Show the tools')
+    handle.click()
+    await vi.waitFor(() => expect(element.dataset['open']).toBe('true'))
+    await settled(element)
+    expect(down(element)).toBe(0)
+    expect(body(element).visibility).toBe('visible')
+    expect(handle.getAttribute('aria-expanded')).toBe('true')
+  } finally {
+    runtime.dispose()
+  }
+})
+
+test('bends its handle into a chevron going down, and flat when open', async () => {
+  const runtime = mount(false)
+  try {
+    const element = await panel()
+    const handle = element.querySelector<HTMLElement>('button')!
+    await settled(element)
+    expect(bend(handle)).toBe('-22deg')
+    handle.click()
+    await vi.waitFor(() => expect(element.dataset['open']).toBe('true'))
+    await settled(element)
+    expect(bend(handle)).toBe('0deg')
+  } finally {
+    runtime.dispose()
+  }
+})
+
+test('follows a drag, lets go down past a quarter of it, and the click after toggles nothing', async () => {
+  const runtime = mount(true)
+  try {
+    const element = await panel()
+    const handle = element.querySelector<HTMLElement>('button')!
+    await settled(element)
+    const at = touch(handle)
+    at('pointerdown', 0)
+    await wait(20)
+    at('pointermove', 200)
+    // Where the finger is, and the bar bent by the share of the panel it came.
+    await vi.waitFor(() => expect(down(element)).toBe(200))
+    expect(Number.parseFloat(bend(handle))).toBeCloseTo(-11, 0)
+    // Still before letting go, so it reads as a slow release, not a flick.
+    await wait(150)
+    at('pointerup', 200)
+    await vi.waitFor(() => expect(element.dataset['open']).toBe('false'))
+    // The click a browser sends after the drag is no press.
+    handle.click()
+    await wait(50)
+    expect(element.dataset['open']).toBe('false')
+    // The next press is one.
+    handle.click()
+    await vi.waitFor(() => expect(element.dataset['open']).toBe('true'))
+  } finally {
+    runtime.dispose()
+  }
+})
+
+test('a short slow drag rests where it was; dragged up from the peek, it opens', async () => {
+  const runtime = mount(false)
+  try {
+    const element = await panel()
+    const handle = element.querySelector<HTMLElement>('button')!
+    await settled(element)
+    await drag(handle, -40, 40)
+    await settled(element)
+    expect(element.dataset['open']).toBe('false')
+    // What a browser sends after that drag.
+    handle.click()
+    await drag(handle, -200, 30)
+    await vi.waitFor(() => expect(element.dataset['open']).toBe('true'))
+  } finally {
+    runtime.dispose()
+  }
+})
+
+test('docked below lg only: wider, it is the column it sits in, its body shown though down', async () => {
+  await page.viewport(1200, 800)
+  const runtime = mount(false, belowLg)
+  try {
+    const element = await panel()
+    const handle = element.querySelector<HTMLElement>('button')!
+    expect(getComputedStyle(element).position).toBe('static')
+    expect(getComputedStyle(handle).display).toBe('none')
+    expect(body(element).visibility).toBe('visible')
+    await page.viewport(400, 800)
+    await vi.waitFor(() => expect(getComputedStyle(element).position).toBe('fixed'))
+    expect(getComputedStyle(handle).display).toBe('block')
+    expect(body(element).visibility).toBe('hidden')
+  } finally {
+    runtime.dispose()
+    await page.viewport(414, 896)
+  }
+})
