@@ -41,6 +41,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-primitives`: `PointerDrag` drags by touch. A finger's press is a drag once held
+  still `HOLD_TO_DRAG_MS` (400ms), and one that moves `HOLD_SLOP` (8px) first is a scroll, so a
+  list of draggable rows still scrolls; once the drag is on, the page is kept still and
+  Android's own menu shut. Before, the browser took every finger's drag for a scroll and
+  cancelled it, so the Builder's palette, layers and canvas could not be dragged on a phone.
 - `foldkit-mixins-ui`: a context menu opens on a touch screen. A finger or a pen held on
   `Menu.target`'s area for `Menu.HOLD_MS` (500ms) opens it under the finger, since iOS fires
   no `contextmenu`, while a finger that moves 10px is a scroll and opens nothing; Android's

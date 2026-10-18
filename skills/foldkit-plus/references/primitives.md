@@ -127,8 +127,10 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   (Mount `PointerDrag({ attribute })` in `/dom`): `DragStarted { id }` past a 4px
   threshold, `DraggedOver { over: { id, zone: 'before' | 'inside' | 'after' } | null }`,
   `DragDropped { id, over }`, `DragCancelled { id }` (Escape, `pointercancel`, a
-  button found released). One pointer; touch and pen work by position (give the
-  marked elements `touch-action: none`). No roles or keys: give the keyboard
+  button found released). One pointer; touch and pen work by position. A finger's
+  press is a drag once held still `HOLD_TO_DRAG_MS` (400ms); one that moves `HOLD_SLOP`
+  (8px) first is a scroll, so leave the marked elements' `touch-action` alone and a list of
+  them still scrolls. No roles or keys: give the keyboard
   its own way. Swallows the click a drop ends with. Onto another region (a palette onto a
   page): `targets: { attribute, within: selector }`, so `over` is one of those; `within` is
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`

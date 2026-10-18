@@ -15,6 +15,8 @@ import {
   type DragPlace,
   DragStarted,
   DraggedOver,
+  HOLD_SLOP,
+  HOLD_TO_DRAG_MS,
   PointerDrag,
   boxOf,
   zoneOf,
@@ -112,6 +114,66 @@ describe('PointerDrag', () => {
         DraggedOver.make({ over: null }),
       ])
     }))
+
+  // A touch that moves is a scroll, so a list of rows still scrolls under a finger: a finger's
+  // press is a drag only once held still.
+  describe('by a finger', () => {
+    const touch = { button: 0, pointerType: 'touch', pointerId: 5 }
+    /** `act` with time in it: the hold is measured on the real clock. */
+    const runHeld = (list: HTMLElement, count: number, act: () => Promise<void>) =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(
+              PointerDrag({ attribute: 'data-row' }).f(list, Mount.liveViewStateChanges),
+              count,
+            ),
+          )
+          for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+          yield* Effect.promise(act)
+          return yield* Fiber.join(fiber)
+        }),
+      )
+    const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+    it('held still, starts a drag, keeps the page from scrolling, and drops', () =>
+      withList(async ({ list, a, c }) => {
+        let scrolled: Event | undefined
+        let menu: Event | undefined
+        const facts = await runHeld(list, 3, async () => {
+          fire(a, 'pointerdown', { ...touch, clientX: 10, clientY: 10 })
+          // Android's own menu for a held finger stays shut.
+          menu = fire(a, 'contextmenu')
+          fire(a, 'pointermove', { ...touch, clientX: 13, clientY: 12 })
+          await wait(HOLD_TO_DRAG_MS + 50)
+          scrolled = fire(document, 'touchmove')
+          fire(c, 'pointermove', { ...touch, clientX: 10, clientY: 85 })
+          fire(c, 'pointerup', { ...touch })
+        })
+        expect(facts).toEqual([
+          DragStarted.make({ id: 'a' }),
+          DraggedOver.make({ over: { id: 'c', zone: 'after' } }),
+          DragDropped.make({ id: 'a', over: { id: 'c', zone: 'after' } }),
+        ])
+        expect([menu?.defaultPrevented, scrolled?.defaultPrevented]).toEqual([true, true])
+      }))
+
+    it('moved before the hold is up, is a scroll that drags nothing, the page left to it', () =>
+      withList(async ({ list, a, b, c }) => {
+        let scrolled: Event | undefined
+        const facts = await runHeld(list, 1, async () => {
+          fire(a, 'pointerdown', { ...touch, clientX: 10, clientY: 10 })
+          fire(a, 'pointermove', { ...touch, clientX: 10, clientY: 10 + HOLD_SLOP + 1 })
+          scrolled = fire(document, 'touchmove')
+          await wait(HOLD_TO_DRAG_MS + 50)
+          // The next drag, by a mouse, is the first one reported.
+          fire(b, 'pointerdown', { button: 0, clientX: 10, clientY: 40 })
+          fire(c, 'pointermove', { clientX: 10, clientY: 85 })
+        })
+        expect(facts).toEqual([DragStarted.make({ id: 'b' })])
+        expect(scrolled?.defaultPrevented).toBe(false)
+      }))
+  })
 
   it('drops where the pointer is, and swallows the click the release makes', () =>
     withList(async ({ list, a, c }) => {

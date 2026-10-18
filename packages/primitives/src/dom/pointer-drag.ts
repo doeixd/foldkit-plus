@@ -51,6 +51,15 @@ export type DragFact = DragStarted | DraggedOver | DragDropped | DragCancelled
 /** How far, in CSS pixels, a press moves before it is a drag rather than a click. */
 export const DRAG_THRESHOLD = 4
 
+/**
+ * How long a finger is held still before its press is a drag. A touch that moves first is a
+ * scroll, so a list of draggable rows still scrolls under a finger.
+ */
+export const HOLD_TO_DRAG_MS = 400
+
+/** How far, in CSS pixels, a held finger may wander before the hold is a scroll. */
+export const HOLD_SLOP = 8
+
 interface Box {
   readonly top: number
   readonly height: number
@@ -80,14 +89,16 @@ type Positioned = Event & {
   readonly button?: number
   readonly buttons?: number
   readonly pointerId?: number
+  readonly pointerType?: string
   readonly key?: string
 }
 
 /**
  * Dragging one marked descendant of an element onto another, as a Mount. A
  * descendant is marked by an attribute whose value is its id, as `Targets`
- * marks them; a press on one that then moves past a threshold starts a drag,
- * and the pointer's place over another marked descendant is reported with the
+ * marks them; a press on one that then moves past a threshold starts a drag (a
+ * finger's, held still for `HOLD_TO_DRAG_MS`, as a touch that moves first scrolls), and
+ * the pointer's place over another marked descendant is reported with the
  * zone of it the pointer is in: its first third (`before`), its middle
  * (`inside`), or its last third (`after`). Releasing drops, and Escape or a
  * cancelled pointer ends the drag with nothing dropped.
@@ -148,7 +159,15 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             readonly pointer: number | undefined
             readonly x: number
             readonly y: number
+            /** A finger's: a drag once held still, a scroll if it moves first. */
+            readonly touch: boolean
           } | null = null
+          let holding: ReturnType<typeof setTimeout> | undefined
+          const begin = (id: string) => {
+            dragging = id
+            owner.getSelection()?.removeAllRanges()
+            Queue.offerUnsafe(queue, DragStarted.make({ id }))
+          }
           let dragging: string | null = null
           let over: DragPlace | null = null
           let inRegion = false
@@ -185,6 +204,8 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           // where the pointer was let go, not where it was last seen. A
           // release with no position of its own keeps the last move's answer.
           const end = (dropped: boolean, at?: Positioned, inside = false) => {
+            clearTimeout(holding)
+            holding = undefined
             const id = dragging
             if (id !== null && at?.clientX !== undefined && at.clientY !== undefined) {
               const { place, region } = placeAt(at)
@@ -222,10 +243,10 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                     (positioned.clientX ?? 0) - pressed.x,
                     (positioned.clientY ?? 0) - pressed.y,
                   )
+                  // A finger that moves before its hold is up is scrolling, not dragging.
+                  if (pressed.touch) return moved < HOLD_SLOP ? undefined : end(false)
                   if (moved < DRAG_THRESHOLD) return
-                  dragging = pressed.id
-                  owner.getSelection()?.removeAllRanges()
-                  Queue.offerUnsafe(queue, DragStarted.make({ id: dragging }))
+                  begin(pressed.id)
                 }
                 const { place, region } = placeAt(positioned)
                 if (
@@ -268,6 +289,15 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             event.stopPropagation()
             end(false)
           }
+          // Once a finger's drag is under way, the browser must not take its moves for a scroll,
+          // and a held finger opens no menu of its own (Android's `contextmenu`). Not passive:
+          // only a listener that may cancel can keep the page still.
+          const heldStill = (event: Event) => {
+            if (dragging !== null) event.preventDefault()
+          }
+          const noMenu = (event: Event) => {
+            if (pressed?.touch === true) event.preventDefault()
+          }
           // The document is listened to only while a press is under way.
           let listening = false
           const listen = () => {
@@ -275,12 +305,16 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             listening = true
             for (const [type, listener] of onDocument) owner.addEventListener(type, listener)
             owner.addEventListener('keydown', onEscape, true)
+            owner.addEventListener('touchmove', heldStill, { passive: false })
+            owner.addEventListener('contextmenu', noMenu)
           }
           const release = () => {
             if (!listening) return
             listening = false
             for (const [type, listener] of onDocument) owner.removeEventListener(type, listener)
             owner.removeEventListener('keydown', onEscape, true)
+            owner.removeEventListener('touchmove', heldStill)
+            owner.removeEventListener('contextmenu', noMenu)
           }
 
           const onElement: ReadonlyArray<readonly [string, (event: Event) => void, boolean]> = [
@@ -301,13 +335,21 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                   return
                 const id = targetOf(element, event.target, attribute)
                 if (id === null) return
+                const touch = positioned.pointerType === 'touch'
                 pressed = {
                   id,
                   pointer: positioned.pointerId,
                   x: positioned.clientX ?? 0,
                   y: positioned.clientY ?? 0,
+                  touch,
                 }
                 listen()
+                if (touch) {
+                  holding = setTimeout(() => {
+                    holding = undefined
+                    if (pressed !== null && dragging === null) begin(pressed.id)
+                  }, HOLD_TO_DRAG_MS)
+                }
               },
               false,
             ],
@@ -326,13 +368,30 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           ]
           for (const [type, listener, capture] of onElement)
             element.addEventListener(type, listener, capture)
-          return { onElement, release }
+          // No callout of iOS's own over a finger held to drag, on anything inside (inherited).
+          const callout =
+            element instanceof HTMLElement
+              ? element.style.getPropertyValue('-webkit-touch-callout')
+              : undefined
+          if (element instanceof HTMLElement) {
+            element.style.setProperty('-webkit-touch-callout', 'none')
+          }
+          // Ended mid-hold: the hold must not start a drag after it.
+          const stop = () => {
+            clearTimeout(holding)
+            release()
+            if (!(element instanceof HTMLElement)) return
+            if (callout === undefined || callout === '') {
+              element.style.removeProperty('-webkit-touch-callout')
+            } else element.style.setProperty('-webkit-touch-callout', callout)
+          }
+          return { onElement, stop }
         }),
-        ({ onElement, release }) =>
+        ({ onElement, stop }) =>
           Effect.sync(() => {
             for (const [type, listener, capture] of onElement)
               element.removeEventListener(type, listener, capture)
-            release()
+            stop()
           }),
       ),
     ),

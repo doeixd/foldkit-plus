@@ -136,6 +136,9 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **C1: done** in `PointerDrag` itself (`HOLD_TO_DRAG_MS`, `HOLD_SLOP`, a non-passive
+  `touchmove` only while a press is under way, `contextmenu` shut during a finger's press,
+  `-webkit-touch-callout` on the element), so the Builder needs nothing; unit tests, mutations.
 - **B2: done** in the Menu component's Model (`TouchedTarget`, a `Menu.hold` Command, the
   slop, Android's `contextmenu` spending the hold), not `LongPress`, whose Bundle is too much
   for a target's attributes; unit tests and mutations. C7 stays for C1.
