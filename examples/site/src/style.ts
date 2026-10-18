@@ -1117,6 +1117,16 @@ export const SiteStyle = slots(
       gap: t.space.lg,
     },
     screenWide: { gridColumn: '1 / -1', minInlineSize: '0' },
+    // A panel as wide as what it holds beside one taking the rest; stacked on a phone.
+    screenSplit: [
+      {
+        display: 'grid',
+        gridTemplateColumns: 'auto minmax(0, 1fr)',
+        alignItems: 'start',
+        gap: t.space.lg,
+      },
+      Style.media(PHONE, { gridTemplateColumns: 'minmax(0, 1fr)' }),
+    ],
     appActions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: t.space.xs },
     themeCode: [
       { display: 'flex', flexDirection: 'column', gap: t.space.sm, minWidth: '0' },

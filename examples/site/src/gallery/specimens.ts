@@ -5,6 +5,7 @@
  * Nothing in them takes state: the screen's fields and buttons are for
  * looking at.
  */
+import { Calendar as UiCalendar } from '@foldkit/ui'
 import * as UiSelect from '@foldkit/ui/select'
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
@@ -15,7 +16,9 @@ import {
   Badge,
   Button,
   ButtonSlots,
+  Calendar,
   Card,
+  Chart,
   Input,
   Recipes,
   Select,
@@ -29,13 +32,16 @@ import {
   AvatarStyle,
   BadgeStyle,
   ButtonStyle,
+  CalendarStyle,
   CardStyle,
+  ChartStyle,
   InputStyle,
   SelectStyle,
   TableStyle,
 } from '../snippets/components.js'
 import { forSlots } from '../snippets/theme.js'
 import { showcaseOf, type Live } from './showcases.js'
+import * as Widgets from './widgets.js'
 import type { Message } from '../main.js'
 import type { H, Slots } from '../view/layout.js'
 
@@ -356,6 +362,16 @@ export const settings = (slots: Slots, h: H): Html =>
     ),
   ])
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** A chart's state: the model of the gallery's example of its kind, and its Messages. */
+const charted = (live: Live<Message>, example: Widgets.ChartExample) => ({
+  model: live.widgets.charts[example],
+  onMessage: (message: Chart.Message) =>
+    live.onWidget(Widgets.Message.GotChart({ example, message })),
+  style: ChartStyle,
+})
+
 /** A showcase's named example, drawn as its page draws it. */
 const example = (live: Live<Message>, slug: string, name: string): Html =>
   Option.match(
@@ -399,15 +415,69 @@ export const dashboard = (slots: Slots, h: H, live: Live<Message>): Html =>
       slots,
       h,
       'Analytics',
-      'Sales and signups across every store, this quarter.',
+      'Sales and sign-ups across every store, this quarter.',
       example(live, 'avatar', 'group'),
     ),
     h.div(slots.screenGrid.attrs(), [
       example(live, 'card', 'stat'),
       panel(slots, h, 'Quota', 'Of the quarter’s target.', [example(live, 'progress', 'ring')]),
-      panel(slots, h, 'Revenue', 'By month, in thousands.', [example(live, 'chart', 'area')], true),
-      panel(slots, h, 'By region', 'Orders this week.', [example(live, 'chart', 'bar')]),
-      panel(slots, h, 'Channels', 'Where signups came from.', [example(live, 'chart', 'donut')]),
+      // The charts drawn here, not as the gallery frames them: a panel's width, not a preview's.
+      panel(
+        slots,
+        h,
+        'Revenue',
+        'By month, in thousands.',
+        [
+          Chart.view(
+            {
+              ...charted(live, 'area'),
+              id: 'dash-revenue',
+              label: 'Revenue',
+              kind: 'area',
+              categories: MONTHS,
+              series: [
+                { name: 'Revenue', values: [32, 38, 35, 44, 49, 47, 56, 61, 58, 66, 72, 81] },
+              ],
+            },
+            live.h,
+          ),
+        ],
+        true,
+      ),
+      panel(slots, h, 'By region', 'Orders this quarter.', [
+        Chart.view(
+          {
+            ...charted(live, 'bar'),
+            id: 'dash-regions',
+            label: 'Orders',
+            kind: 'bar',
+            categories: ['Europe', 'Americas', 'Asia', 'Africa', 'Oceania'],
+            series: [
+              { name: 'Online', values: [412, 538, 371, 96, 128] },
+              { name: 'In store', values: [180, 244, 210, 62, 71] },
+            ],
+          },
+          live.h,
+        ),
+      ]),
+      panel(slots, h, 'Channels', 'Where sign-ups came from.', [
+        Chart.view(
+          {
+            ...charted(live, 'donut'),
+            id: 'dash-channels',
+            label: 'Sign-ups',
+            kind: 'donut',
+            slices: [
+              { name: 'Search', value: 380 },
+              { name: 'Social', value: 210 },
+              { name: 'Referral', value: 160 },
+              { name: 'Email', value: 110 },
+              { name: 'Direct', value: 65 },
+            ],
+          },
+          live.h,
+        ),
+      ]),
       panel(
         slots,
         h,
@@ -465,11 +535,25 @@ export const booking = (slots: Slots, h: H, live: Live<Message>): Html =>
       [example(live, 'steps', 'basic')],
       true,
     ),
-    h.div(slots.screenGrid.attrs(), [
+    // The month as wide as itself, the rooms the rest.
+    h.div(slots.screenSplit.attrs(), [
       panel(slots, h, 'Dates', 'Check in and check out.', [
-        example(live, 'calendar', 'single-range'),
+        // One month, the trip's range on it.
+        live.h.submodel({
+          slotId: live.widgets.trip.id,
+          model: live.widgets.trip,
+          view: UiCalendar.view,
+          viewInputs: Calendar.inputs(
+            live.widgets.tripDates,
+            [CalendarStyle.mixin, Calendar.readingKeys],
+            {
+              h: live.h,
+            },
+          ),
+          toParentMessage: message => live.onWidget(Widgets.Message.GotTripCalendar({ message })),
+        }),
       ]),
       panel(slots, h, 'Room', 'Each with breakfast.', [example(live, 'radio-group', 'cards')]),
-      panel(slots, h, 'Budget', 'A night, before taxes.', [example(live, 'slider', 'marks')], true),
     ]),
+    panel(slots, h, 'Budget', 'A night, before taxes.', [example(live, 'slider', 'marks')], true),
   ])

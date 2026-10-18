@@ -76,8 +76,8 @@ export default [
     edits: [
       {
         file: '../src/gallery/specimens.ts',
-        find: "[example(live, 'chart', 'area')]",
-        replace: "[example(live, 'chart', 'areas')]",
+        find: "[example(live, 'progress', 'ring')]",
+        replace: "[example(live, 'progress', 'rings')]",
       },
     ],
     tests: ['examples/site/test/screens.test.ts'],
