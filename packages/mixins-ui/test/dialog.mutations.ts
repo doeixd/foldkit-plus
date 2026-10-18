@@ -52,7 +52,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/dialog.ts',
-        find: "        maxBlockSize: 'calc(100% - 2rem)',\n",
+        find: '        maxBlockSize: `calc(${room.block})`,\n',
         replace: '',
       },
     ],
@@ -74,7 +74,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/dialog.ts',
-        find: ", blockSize: 'calc(100% - 2rem)' }",
+        find: ', blockSize: `calc(${room.block})` }',
         replace: ' }',
       },
     ],

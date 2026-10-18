@@ -38,8 +38,8 @@ export default [
     edits: [
       {
         file: popup,
-        find: 'Style.nest(`${unlit}:hover:not([aria-disabled="true"], :disabled)`',
-        replace: 'Style.nest(\'&:hover:not([aria-disabled="true"], :disabled)\'',
+        find: 'Style.nest(`${unlit}:is(:hover, :active):not([aria-disabled="true"], :disabled)`',
+        replace: 'Style.nest(\'&:is(:hover, :active):not([aria-disabled="true"], :disabled)\'',
       },
     ],
     tests,

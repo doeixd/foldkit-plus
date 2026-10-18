@@ -160,6 +160,15 @@ export const tokens = define({
     lg: '(min-width: 64rem)',
     xl: '(min-width: 80rem)',
   },
+  // What a notch, a rounded corner or the home indicator takes from each edge of the
+  // screen: 0 on a desktop, and everywhere unless the page's viewport meta says
+  // `viewport-fit=cover`. Physical, as the screen is; a fixed bar pads the edge it touches.
+  safe: {
+    top: 'env(safe-area-inset-top, 0px)',
+    right: 'env(safe-area-inset-right, 0px)',
+    bottom: 'env(safe-area-inset-bottom, 0px)',
+    left: 'env(safe-area-inset-left, 0px)',
+  },
 })
 
 export type Tokens = typeof tokens

@@ -14,6 +14,9 @@ version changed; `pnpm` skips versions already in the registry.
   `RichText.answer` Command. A Scene test that sends an edit which changes nothing now
   resolves that Command, and an application that replaces the editor's `RichText.patch`
   with its own runs its patch before the editor's other Commands.
+- `foldkit-mixins`: a `safe` token group, `Theme.ref.safe.top` / `right` / `bottom` / `left`:
+  what a notch, rounded corners or the home indicator take from each screen edge
+  (`env(safe-area-inset-*)`, 0 unless the page's viewport meta says `viewport-fit=cover`).
 
 ### Changed
 
@@ -30,6 +33,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: Toast stacks and Dialog panels keep clear of the notch and the home
+  indicator: each edge a stack sits at is held off by the screen's inset there, and a panel's
+  margins and largest size leave every inset out.
 - `foldkit-mixins-ui`: a tap shows. The recipes' hover is also their pressed state
   (`:is(:hover, :active)`), as are the hover fills of menu, listbox and tree rows, nav and
   sidebar items, accordion triggers, table sort buttons, steppers, tag removers and pressable

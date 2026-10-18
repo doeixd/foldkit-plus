@@ -136,6 +136,10 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **A8 and B3: done** for the tokens, Toast and Dialog (`safeArea.browser.test.ts`, under
+  Chrome's emulated insets, with mutations); the FloatingPanel, Banner and a body helper are
+  left. The examples keep their viewport meta: `viewport-fit=cover` lets the page's own
+  content run under the notch too, so an application opts in once its layout pads by `safe`.
 - **A1 to A5: done.** (`tagsInput.browser.test.ts`'s burst test fails now and then under a
   wide run, before and after; alone it passes.)
 - Next, in order: A6 (pressed state, touch floor), A8 with B3 (safe areas), B1 (keyboard),

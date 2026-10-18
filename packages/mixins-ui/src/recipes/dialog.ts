@@ -13,10 +13,19 @@ import { component, focusRing, hover, presence, ref, variant } from './design.js
 import { bar, overlaid, thumb } from './scrollBars.js'
 
 /** A width one notch narrower in a compact region, as Fluid Functionalism's (400px to 360px). */
+/**
+ * What the screen leaves a panel: the viewport less a margin and what a notch, a rounded
+ * corner or the home indicator takes from each side (0 unless the page covers the screen).
+ */
+const room = {
+  block: `100% - 2rem - ${ref.safe.top} - ${ref.safe.bottom}`,
+  inline: `100% - 2rem - ${ref.safe.left} - ${ref.safe.right}`,
+}
+
 const width = (max: string) =>
   variant(
     Style.self({
-      maxInlineSize: `min(calc(${max} * (1 - 0.1 * ${ref.knob.step})), 100% - 2rem)`,
+      maxInlineSize: `min(calc(${max} * (1 - 0.1 * ${ref.knob.step})), ${room.inline})`,
     }),
   )
 
@@ -60,10 +69,15 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         // width a size allows, and a phone's panel ran past its margins.
         boxSizing: 'border-box',
         inlineSize: '100%',
-        maxBlockSize: 'calc(100% - 2rem)',
+        maxBlockSize: `calc(${room.block})`,
         // A panel drawn without `scroll` scrolls whole rather than leave the viewport.
         overflowY: 'auto',
-        marginInline: 'auto',
+        // Held off each screen edge by what it takes there, and centered by the dialog's
+        // grid in what is left. Physical, as the screen's insets are.
+        marginTop: ref.safe.top,
+        marginRight: ref.safe.right,
+        marginBottom: ref.safe.bottom,
+        marginLeft: ref.safe.left,
         padding: ref.space.lg,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,
@@ -145,7 +159,7 @@ export const Dialog = Style.recipeFor(DialogSlots)({
       xl: { panel: width('64rem') },
       full: {
         panel: variant(
-          Style.self({ maxInlineSize: 'calc(100% - 2rem)', blockSize: 'calc(100% - 2rem)' }),
+          Style.self({ maxInlineSize: `calc(${room.inline})`, blockSize: `calc(${room.block})` }),
         ),
       },
     },

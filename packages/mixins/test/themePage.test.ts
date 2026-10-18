@@ -93,6 +93,7 @@ describe('Theme.tokens', () => {
       'border',
       'shadow',
       'breakpoint',
+      'safe',
     ])
   })
 

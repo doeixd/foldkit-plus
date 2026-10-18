@@ -110,7 +110,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "Style.pseudo(':hover:not(:disabled)', { background: unfilledHover }),",
+        find: "Style.pseudo(':is(:hover, :active):not(:disabled)', { background: unfilledHover }),",
         replace: '',
       },
     ],

@@ -89,25 +89,36 @@ const rich = (type: keyof typeof inks, subtle: string, outline: string): StyleVa
     color: inks[type],
   })
 
+/**
+ * The stack's distance from each screen edge it sits at: past what a notch or the home
+ * indicator takes there. Inline edges flip with the direction while the screen's insets do
+ * not, so they keep clear of the larger side.
+ */
+const fromEdge = {
+  top: `calc(${ref.space.lg} + ${ref.safe.top})`,
+  bottom: `calc(${ref.space.lg} + ${ref.safe.bottom})`,
+  inline: `calc(${ref.space.lg} + max(${ref.safe.left}, ${ref.safe.right}))`,
+}
+
 export const Toast = Style.recipeFor(ToastSlots)({
   base: {
     container: component(
       Style.self({
         position: 'fixed',
-        insetBlockEnd: ref.space.lg,
-        insetInlineEnd: ref.space.lg,
+        insetBlockEnd: fromEdge.bottom,
+        insetInlineEnd: fromEdge.inline,
         display: 'grid',
         gap: ref.space.sm,
-        inlineSize: 'min(22rem, calc(100vw - 2rem))',
+        inlineSize: `min(22rem, calc(100% - 2rem - ${ref.safe.left} - ${ref.safe.right}))`,
         zIndex: '50',
       }),
       Style.pseudo('[data-position^="top"]', {
-        insetBlockStart: ref.space.lg,
+        insetBlockStart: fromEdge.top,
         insetBlockEnd: 'auto',
         '--_fk-toast-dir': '1',
       }),
       Style.pseudo('[data-position$="-start"]', {
-        insetInlineStart: ref.space.lg,
+        insetInlineStart: fromEdge.inline,
         insetInlineEnd: 'auto',
       }),
       Style.pseudo('[data-position$="-center"]', { insetInline: '0', marginInline: 'auto' }),
