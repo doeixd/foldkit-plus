@@ -28,6 +28,11 @@ version changed; `pnpm` skips versions already in the registry.
 - `radius-control` and the `control-round` knob: a Button and a Segmented tray round to a pill at
   1, whatever the radius factor, while fields keep `radius-md`.
 
+### Fixed
+
+- `foldkit-mixins`: an element holding several Mounts no longer logs "unhandled failure" for each
+  as it is removed; a Mount that ends interrupted is torn down, not failing.
+
 ## 0.23.0
 
 Mobile and touch: hover that no longer sticks after a tap, a pressed state for every control,

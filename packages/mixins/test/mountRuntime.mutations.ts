@@ -28,4 +28,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'an interrupted mount is reported as a failure',
+    edits: [
+      {
+        file: '../src/resolver.ts',
+        find: 'if (!Cause.hasInterruptsOnly(cause))',
+        replace: 'if (cause !== undefined)',
+      },
+    ],
+    tests: ['packages/mixins/test/mountRuntime.test.ts'],
+  },
 ]

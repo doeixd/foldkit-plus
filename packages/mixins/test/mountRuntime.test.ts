@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Effect, Fiber, Stream } from 'effect'
+import { Cause, Effect, Fiber, Stream } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { liveViewStateChanges, type MountAction } from 'foldkit/mount'
@@ -72,6 +72,24 @@ describe('Mount composition at runtime', () => {
       )
       await Effect.runPromise(Effect.yieldNow)
       await Effect.runPromise(Fiber.interrupt(fiber))
+      expect(errors).not.toHaveBeenCalled()
+    } finally {
+      errors.mockRestore()
+    }
+  })
+
+  // A Mount whose element is removed ends interrupted from inside, as a page
+  // that drops a component's elements shows; that is a teardown, not a fault.
+  it('reports nothing for a mount that ends interrupted', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const interrupted: MountAction<TestMessage> = {
+        name: 'Interrupted',
+        f: () => Stream.failCause(Cause.interrupt()),
+      }
+      expect(
+        await collect(composed([interrupted, emitA]).f(element, liveViewStateChanges)),
+      ).toEqual([{ _tag: 'GotA' }])
       expect(errors).not.toHaveBeenCalled()
     } finally {
       errors.mockRestore()

@@ -5,7 +5,7 @@
  * one `OnMount`. Conflicts throw a `DiagnosticError` before Foldkit could
  * silently chain or replace.
  */
-import { Stream } from 'effect'
+import { Cause, Stream } from 'effect'
 import type { Attribute, ChildAttribute } from 'foldkit/html'
 import type { MountAction } from 'foldkit/mount'
 import {
@@ -292,9 +292,11 @@ const composeMounts = <Message>(
         mounts.map(mount =>
           // A merge ends every stream in it when one fails, so each fails alone,
           // reported as Foldkit reports a Mount of its own, and the rest go on.
+          // One that ends interrupted is being torn down with its element: no fault.
           mount.f(element, viewStateChanges).pipe(
             Stream.catchCause(cause => {
-              console.error(`[OnMount ${mount.name}] unhandled failure`, cause)
+              if (!Cause.hasInterruptsOnly(cause))
+                console.error(`[OnMount ${mount.name}] unhandled failure`, cause)
               return Stream.empty
             }),
           ),
