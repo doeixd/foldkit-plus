@@ -214,8 +214,52 @@ export default [
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: "knobs.shadowStyle === 'hard'\n      ? Theme.compose(Theme.hardShadows, surfacesOf(knobs))",
-        replace: 'false\n      ? Theme.compose(Theme.hardShadows, surfacesOf(knobs))',
+        find: "knobs.shadowStyle === 'hard' ? Theme.hardShadows : Theme.define({})",
+        replace: 'Theme.define({})',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the relief is drawn nowhere',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: "knobs.relief === 'flat' ? scale : Theme.compose(scale, Theme.relief[knobs.relief])",
+        replace: 'scale',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the code leaves the relief out',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: "...(knobs.relief === 'flat' ? [] : [`Theme.relief.${knobs.relief},`]),",
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a picker installs a value that is none of its choices',
+    edits: [
+      {
+        file: '../src/gallery/studio.ts',
+        find: 'Schema.decodeUnknownOption(Base)(value).pipe(',
+        replace: 'Option.some(value).pipe(Option.filter((base): base is Base => true),',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a base color leaves the surface tint',
+    edits: [
+      {
+        file: '../src/gallery/studio.ts',
+        find: "...(base === 'accent' ? {} : { surfaceSaturation: bases[base].c }),",
+        replace: '',
       },
     ],
     tests: unit,
@@ -266,8 +310,8 @@ export default [
     edits: [
       {
         file: '../src/main.ts',
-        find: 'modifyFields(model, { section: () => section, drawerOpen: () => true })',
-        replace: 'modifyFields(model, { section: () => section })',
+        find: 'modifyFields(model, { section: () => value, drawerOpen: () => true })',
+        replace: 'modifyFields(model, { section: () => value })',
       },
     ],
     tests: unit,

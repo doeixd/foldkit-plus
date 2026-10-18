@@ -159,6 +159,21 @@ describe('the theme creator', () => {
     expect(declared['--fk-shadow-md']).toMatch(/^0 4px 6px/)
   })
 
+  it('writes and draws the controls’ relief over the shadow scale', () => {
+    expect(codeOf(defaults)).not.toContain('Theme.relief')
+    expect(codeOf({ ...defaults, relief: 'soft' })).toContain(
+      '    Theme.compose(\n      Theme.relief.soft,\n      Theme.oklch({',
+    )
+    // Hard shadows outermost, then the relief, then the palette.
+    expect(codeOf({ ...defaults, shadowStyle: 'hard', relief: 'bevel' })).toContain(
+      '      Theme.hardShadows,\n      Theme.compose(\n        Theme.relief.bevel,\n',
+    )
+    const bevel = knobStyleOf({ ...defaults, relief: 'bevel' }, 'light')
+    expect(bevel['--fk-shadow-raised']).toMatch(/^inset -1px -1px 0 0 /)
+    expect(bevel['--fk-shadow-field']).toMatch(/^inset 1px 1px 0 0 /)
+    expect(knobStyleOf(defaults, 'light')['--fk-shadow-raised']).toBeUndefined()
+  })
+
   it('tells a preset by its knobs, whichever way the preview reads', () => {
     const win = presets.find(preset => preset.name === 'Windows 95')!
     expect(

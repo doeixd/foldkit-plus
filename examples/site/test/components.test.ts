@@ -2,6 +2,7 @@
  * What a reader sets on the component pages, through `update`: a no-op hands
  * back the Model it was given, and a knob is kept to its slider's range.
  */
+import { Listbox as UiListbox, Tabs as UiTabs } from '@foldkit/ui'
 import { describe, expect, it } from 'vitest'
 
 import { defaults, presetKnobs, presets } from '../src/gallery/theme.js'
@@ -59,18 +60,25 @@ describe('the component pages', () => {
     expect(after(copied, Message.ChoseScheme({ scheme: 'dark' })).copied).toBe(true)
   })
 
-  it('open the drawer on the pane chosen, and hand back the Model for the one open', () => {
+  it('open the drawer on the pane its tabs choose', () => {
+    const tab = (index: number, value: string) =>
+      Message.GotSectionTabs({ message: UiTabs.Message.SelectedTab({ index, value }) })
     const closed = after(initial, Message.ToggledDrawer())
     expect(closed.drawerOpen).toBe(false)
-    const color = after(closed, Message.ChoseSection({ section: 'color' }))
+    const color = after(closed, tab(1, 'color'))
     expect(color.section).toBe('color')
     expect(color.drawerOpen).toBe(true)
-    // The pane already shown, in a closed drawer, opens it all the same.
-    expect(
-      after(after(color, Message.ToggledDrawer()), Message.ChoseSection({ section: 'color' }))
-        .drawerOpen,
-    ).toBe(true)
-    expect(update(color, Message.ChoseSection({ section: 'color' })).model).toBe(color)
+  })
+
+  it('install a choice a picker makes, and refuse one that is no choice of it', () => {
+    const pick = (picker: 'font' | 'base', item: string) =>
+      Message.GotPicker({ picker, message: UiListbox.Message.SelectedItem({ item }) })
+    expect(after(initial, pick('font', 'serif')).knobs.font).toBe('serif')
+    // A base color brings its surface tint.
+    const stone = after(initial, pick('base', 'stone')).knobs
+    expect([stone.base, stone.surfaceSaturation]).toEqual(['stone', 0.004])
+    // A font is not a base color, though both are words.
+    expect(after(initial, pick('base', 'serif')).knobs).toBe(initial.knobs)
   })
 
   it('shuffle through a Command, in the direction the preview reads', () => {

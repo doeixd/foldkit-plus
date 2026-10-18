@@ -477,7 +477,12 @@ describe('the generated site', () => {
         button.textContent?.trim(),
       )
     // The themes pane first, with the default theme chosen and no style that differs from it.
-    expect(pressed('[aria-label="Knobs"]')).toEqual(['Themes'])
+    expect(
+      Array.from(
+        create.querySelectorAll('[aria-label="Knobs"] [role="tab"][aria-selected="true"]'),
+        tab => tab.textContent?.trim(),
+      ),
+    ).toEqual(['Themes'])
     expect(pressed('#theme-panes')).toEqual(['Iris'])
     expect(create.getElementById('knob-hue')).toBeNull()
     const canvas = create.querySelector('[data-size="canvas"]')

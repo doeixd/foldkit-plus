@@ -20,8 +20,19 @@ import { Timer } from 'foldkit-primitives/time'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
+import { Listbox as UiListbox, Tabs as UiTabs } from '@foldkit/ui'
+
 import { allSubsites } from './catalog.js'
 import { showcaseOf } from './gallery/showcases.js'
+import {
+  Picker,
+  PickerBox,
+  Pickers,
+  SectionTabs,
+  initialPickers,
+  initialTabs,
+  pickedKnobs,
+} from './gallery/studio.js'
 import * as Widgets from './gallery/widgets.js'
 import {
   Direction,
@@ -78,8 +89,11 @@ export const Model = Schema.Struct({
   /** The previews with state of their own: tabs, a dialog, a slider and the rest. */
   widgets: Widgets.Model,
   knobs: Knobs,
-  /** The pane of knobs `/create` shows. */
+  /** The pane of knobs `/create` shows, and the tabs that pick it. */
   section: Section,
+  sectionTabs: UiTabs.Model,
+  /** The Listboxes of the knobs chosen from a list. */
+  pickers: Pickers,
   /** Whether `/create`'s knobs stand open over the preview on a phone. */
   drawerOpen: Schema.Boolean,
   scheme: Scheme,
@@ -108,7 +122,8 @@ export const Message = defineMessageUnion({
   ChosePreset: { knobs: Knobs },
   MovedKnob: { knob: Knob, value: Schema.Number },
   PressedShuffle: {},
-  ChoseSection: { section: Section },
+  GotSectionTabs: { message: UiTabs.Message },
+  GotPicker: { picker: Picker, message: UiListbox.Message },
   ToggledDrawer: {},
   ChoseScheme: { scheme: Scheme },
   ChoseDirection: { direction: Direction },
@@ -197,6 +212,46 @@ const withKnobs = (model: Model, knobs: Knobs): UpdateReturn =>
     ? { model }
     : { model: modifyFields(model, { knobs: () => knobs, copied: () => false }) }
 
+type Step = Update.Step<Model, Message>
+
+const foldSectionTabs = Update.foldChild({
+  read: (model: Model) => Option.some(model.sectionTabs),
+  write: (model: Model, sectionTabs: UiTabs.Model) =>
+    sectionTabs === model.sectionTabs
+      ? model
+      : modifyFields(model, { sectionTabs: () => sectionTabs }),
+  toParentMessage: (message: UiTabs.Message) => Message.GotSectionTabs({ message }),
+  update: SectionTabs.update,
+  // A pane chosen on a phone opens the drawer to show it.
+  foldOutMessage: UiTabs.OutMessage.match<Step, UiTabs.OutMessage<Section>>({
+    Selected:
+      ({ value }) =>
+      model =>
+        value === model.section && model.drawerOpen
+          ? { model }
+          : { model: modifyFields(model, { section: () => value, drawerOpen: () => true }) },
+  }),
+})
+
+const foldPicker = Update.foldChildAt({
+  update: PickerBox.update,
+  readAt: (model: Model, picker: Picker) => Option.some(model.pickers[picker]),
+  writeAt: (model, picker, listbox) =>
+    listbox === model.pickers[picker]
+      ? model
+      : modifyFields(model, { pickers: pickers => ({ ...pickers, [picker]: listbox }) }),
+  toParentMessage: (picker, message) => Message.GotPicker({ picker, message }),
+  foldOutMessage: picker =>
+    UiListbox.OutMessage.match<Step, UiListbox.OutMessage<string>>({
+      Selected:
+        ({ value }) =>
+        model =>
+          pickedKnobs(model.knobs, picker, value).pipe(
+            Option.match({ onNone: () => ({ model }), onSome: knobs => withKnobs(model, knobs) }),
+          ),
+    }),
+})
+
 const foldWidget = Update.foldChild({
   read: (model: Model) => Option.some(model.widgets),
   write: (model: Model, widgets: Widgets.Model) =>
@@ -247,11 +302,8 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       model,
       commands: [Shuffle({ direction: model.knobs.direction })],
     }),
-    // A pane chosen on a phone opens the drawer to show it.
-    ChoseSection: ({ section }) =>
-      section === model.section && model.drawerOpen
-        ? { model }
-        : { model: modifyFields(model, { section: () => section, drawerOpen: () => true }) },
+    GotSectionTabs: ({ message }) => foldSectionTabs(model, message),
+    GotPicker: ({ picker, message }) => foldPicker(model, picker, message),
     ToggledDrawer: () => ({ model: modifyFields(model, { drawerOpen: open => !open }) }),
     ChoseDirection: ({ direction }) => withKnobs(model, { ...model.knobs, direction }),
     ChoseScheme: ({ scheme }) =>
@@ -324,6 +376,8 @@ export const initial: Model = placements.initial({
   widgets: Widgets.initial,
   knobs: defaultKnobs,
   section: 'theme',
+  sectionTabs: initialTabs,
+  pickers: initialPickers,
   drawerOpen: true,
   scheme: 'system',
   pageScheme: 'system',

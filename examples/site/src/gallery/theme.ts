@@ -57,6 +57,8 @@ export const Direction = Schema.Literals(['ltr', 'rtl'])
 export const Size = Schema.Literals(['default', 'compact'])
 /** Shadows that diffuse, or solid offset copies (`Theme.hardShadows`). */
 export const ShadowStyle = Schema.Literals(['soft', 'hard'])
+/** How buttons stand off the page and fields sink into it: flat, or one of `Theme.relief`. */
+export const Relief = Schema.Literals(['flat', 'soft', 'hard', 'bevel'])
 
 /** What `/create` adjusts; every field is one knob of the palette or the scales. */
 export const Knobs = Schema.Struct({
@@ -78,6 +80,7 @@ export const Knobs = Schema.Struct({
   /** As a percentage. */
   shadow: Schema.Number,
   shadowStyle: ShadowStyle,
+  relief: Relief,
   font: Font,
   base: Base,
   hover: Hover,
@@ -210,6 +213,7 @@ export const defaults: Knobs = {
   motion: 1,
   shadow: 100,
   shadowStyle: 'soft',
+  relief: 'flat',
   font: 'geist',
   base: 'accent',
   hover: 'surface',
@@ -354,6 +358,7 @@ export const presets: ReadonlyArray<Preset> = [
       surfaceLightness: 99.5,
       radius: 1,
       shadow: 60,
+      relief: 'soft',
       hover: 'neutral',
     },
   },
@@ -371,6 +376,7 @@ export const presets: ReadonlyArray<Preset> = [
       radius: 2.5,
       density: 1.1,
       shadow: 70,
+      relief: 'soft',
       font: 'system',
       hover: 'accent',
       easing: 'spring',
@@ -378,7 +384,7 @@ export const presets: ReadonlyArray<Preset> = [
   },
   {
     name: 'Windows 95',
-    description: 'Silver grey, navy, square corners and hard shadows',
+    description: 'Silver grey, navy, square corners and beveled controls',
     knobs: {
       ...iris,
       hue: 264,
@@ -390,10 +396,10 @@ export const presets: ReadonlyArray<Preset> = [
       surfaceLightness: 80,
       radius: 0,
       density: 0.9,
-      border: 2,
       size: 'compact',
       shadow: 100,
       shadowStyle: 'hard',
+      relief: 'bevel',
       motion: 0,
       font: 'classic',
       hover: 'neutral',
@@ -415,6 +421,7 @@ export const presets: ReadonlyArray<Preset> = [
       border: 3,
       shadow: 100,
       shadowStyle: 'hard',
+      relief: 'hard',
       headingFont: 'mono',
       hover: 'neutral',
     },
@@ -525,6 +532,7 @@ export const shuffled = (random: () => number, direction: Knobs['direction']): K
     motion: 1,
     shadow: across('shadow'),
     shadowStyle: pick(['soft', 'soft', 'soft', 'hard'] as const),
+    relief: pick(Relief.literals),
     font: pick(Font.literals),
     base: pick(Base.literals),
     hover: pick(Hover.literals),
@@ -562,12 +570,16 @@ const headingOf = (knobs: Knobs) =>
 const easeOf = (knobs: Knobs) =>
   knobs.easing === 'spring' ? `var(${VAR_PREFIX}-motion-spring)` : 'ease-out'
 
+/** The shadow scale and the controls' relief `knobs` ask for, over the shipped ones. */
+const shadowsOf = (knobs: Knobs) => {
+  const scale = knobs.shadowStyle === 'hard' ? Theme.hardShadows : Theme.define({})
+  return knobs.relief === 'flat' ? scale : Theme.compose(scale, Theme.relief[knobs.relief])
+}
+
 /** The palette `knobs` describe, as an application writes it (`codeOf`). */
 export const paletteOf = (knobs: Knobs) =>
   Theme.compose(
-    knobs.shadowStyle === 'hard'
-      ? Theme.compose(Theme.hardShadows, surfacesOf(knobs))
-      : surfacesOf(knobs),
+    Theme.compose(shadowsOf(knobs), surfacesOf(knobs)),
     Theme.define({
       knob: {
         'radius-factor': String(knobs.radius),
@@ -661,10 +673,16 @@ export const codeOf = (knobs: Knobs): string => {
     '}),',
   ].join('\n')
   const borders = bordersOf(knobs)
+  // Each token set over the surfaces, one compose apiece: compose takes two.
+  const over = [
+    ...(knobs.shadowStyle === 'hard' ? ['Theme.hardShadows,'] : []),
+    ...(knobs.relief === 'flat' ? [] : [`Theme.relief.${knobs.relief},`]),
+  ]
   const palette = [
-    knobs.shadowStyle === 'hard'
-      ? ['Theme.compose(', '  Theme.hardShadows,', indent(surfaces, '  '), '),'].join('\n')
-      : surfaces,
+    over.reduceRight(
+      (inner, set) => ['Theme.compose(', `  ${set}`, indent(inner, '  '), '),'].join('\n'),
+      surfaces,
+    ),
     'Theme.define({',
     '  knob: {',
     `    'radius-factor': '${knobs.radius}',`,

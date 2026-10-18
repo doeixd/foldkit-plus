@@ -1015,27 +1015,25 @@ export const SiteStyle = slots(
       Style.media(ONE_COLUMN, { display: 'block' }),
       focus,
     ]),
-    // The panes' names: a row that scrolls sideways rather than wrapping on a phone.
+    // The tabs over the chosen pane, which scrolls on its own below them.
     sections: [
-      {
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '2px',
-        padding: '2px',
-        border: rule,
-        borderRadius: t.radius.md,
-        overflowX: 'auto',
-        scrollbarWidth: 'none',
-        flexShrink: '0',
-      },
-      Style.nest('& > button', { flex: '1 0 auto', whiteSpace: 'nowrap' }),
-      Style.media(ONE_COLUMN, { flexWrap: 'nowrap' }),
-    ],
-    panes: [
       {
         display: 'flex',
         flexDirection: 'column',
         gap: t.space.md,
+        minBlockSize: '0',
+      },
+      // A phone's row of tabs scrolls sideways rather than wrapping.
+      Style.nest('& > [role="tablist"]', {
+        flexShrink: '0',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+      }),
+      Style.media(ONE_COLUMN, { gap: t.space.sm }),
+    ],
+    pane: { display: 'flex', flexDirection: 'column', gap: t.space.md },
+    panes: [
+      {
         minBlockSize: '0',
         overflowY: 'auto',
         overscrollBehavior: 'contain',
@@ -1047,46 +1045,7 @@ export const SiteStyle = slots(
       Style.at(`@media ${ONE_COLUMN}`, Style.nest('[data-open="false"] > &', { display: 'none' })),
     ],
     knob: { display: 'flex', flexDirection: 'column', gap: t.space['2xs'] },
-    knobHead: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      gap: t.space.sm,
-      fontSize: '0.8125rem',
-      color: t.text.default,
-    },
-    knobValue: { ...mono, color: t.text.subtle, fontVariantNumeric: 'tabular-nums' },
-    slider: Style.slot({ capability: Capability.Interactive }, [
-      {
-        inlineSize: '100%',
-        blockSize: '1.5rem',
-        margin: '0',
-        accentColor: t.text.overt,
-        cursor: 'pointer',
-      },
-      // A finger's height, so a drag that starts a little off the track still takes it.
-      Style.media('(pointer: coarse)', { blockSize: '2.75rem' }),
-      focus,
-    ]),
     presets: { display: 'flex', flexWrap: 'wrap', gap: t.space['2xs'] },
-    preset: Style.slot({ capability: Capability.Interactive }, [
-      {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: t.space['2xs'],
-        font: 'inherit',
-        fontSize: '0.8125rem',
-        padding: `0.25rem 0.5rem`,
-        border: rule,
-        borderRadius: t.radius.md,
-        background: 'transparent',
-        color: t.text.default,
-        cursor: 'pointer',
-      },
-      Style.media('(pointer: coarse)', { minBlockSize: '2.75rem', paddingInline: '0.75rem' }),
-      Style.pseudo(':hover', { borderColor: t.text.muted }),
-      Style.nest('&[aria-pressed="true"]', { borderColor: t.text.overt, color: t.text.overt }),
-      focus,
-    ]),
     canvasColumn: { display: 'flex', flexDirection: 'column', gap: t.space.sm, minInlineSize: '0' },
     // The preview's own settings: how it reads, not what the theme is.
     previewBar: {
