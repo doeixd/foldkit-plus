@@ -239,6 +239,9 @@ describe('ImageCropper.update', () => {
     expect(plus.zoom).toBe(1.1)
     expect(step(plus, Message.PressedKey({ key: '-', shift: false, alt: false })).zoom).toBe(1)
     expect(step(ready, Message.Wheeled({ deltaY: -100 })).zoom).toBeGreaterThan(1)
+    // Two fingers spread to twice their distance: twice the zoom, as far as it goes.
+    expect(step(ready, Message.Pinched({ ratio: 2 })).zoom).toBe(2)
+    expect(step(ready, Message.Pinched({ ratio: 9 })).zoom).toBe(3)
   })
 
   it('does not zoom before the image is placed', () => {

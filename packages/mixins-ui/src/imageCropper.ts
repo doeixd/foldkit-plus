@@ -358,6 +358,8 @@ export const Message = defineMessageUnion({
   Dragged: { part: Part, deltaX: Schema.Number, deltaY: Schema.Number },
   EndedDrag: {},
   Wheeled: { deltaY: Schema.Number },
+  /** Two fingers spread or brought together: their distance now over the last one's. */
+  Pinched: { ratio: Schema.Number },
   /** A key on the selection; `update` decides what it does, from the crop it holds. */
   PressedKey: { key: Schema.String, shift: Schema.Boolean, alt: Schema.Boolean },
   ChangedZoom: { zoom: Schema.Number },
@@ -643,6 +645,7 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
     EndedDrag: () =>
       just(Option.isNone(model.drag) ? model : modifyFields(model, { drag: () => Option.none() })),
     Wheeled: ({ deltaY }) => just(zoomed(model, model.zoom * Math.exp(-deltaY * 0.002))),
+    Pinched: ({ ratio }) => just(zoomed(model, model.zoom * ratio)),
     PressedKey: ({ key, shift, alt }) => {
       if (key === '+' || key === '=') return just(zoomed(model, model.zoom + ZOOM_STEP))
       if (key === '-' || key === '_') return just(zoomed(model, model.zoom - ZOOM_STEP))
@@ -761,12 +764,17 @@ const ImageLoad = Mount.defineStream('ImageCropperImage', {
 })
 
 const Wheel = Schema.TaggedStruct('Wheel', { deltaY: Schema.Number })
+const Pinch = Schema.TaggedStruct('Pinch', { ratio: Schema.Number })
 
-/** The wheel over the element, in pixels, kept from scrolling the page. */
-const WheelZoom = Mount.defineStream('ImageCropperWheel', {
-  messages: [Wheel],
+/**
+ * What zooms over the element: the wheel, in pixels, kept from scrolling the page, and two
+ * fingers, their spread over the last move's. The element takes `touch-action: none` from
+ * the recipe, so the browser's own pinch of the page leaves it to this.
+ */
+const ZoomGestures = Mount.defineStream('ImageCropperZoom', {
+  messages: [Wheel, Pinch],
   execute: ({ element }) =>
-    Stream.callback<typeof Wheel.Type>(queue =>
+    Stream.callback<typeof Wheel.Type | typeof Pinch.Type>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const wheeled = (event: Event) => {
@@ -776,9 +784,44 @@ const WheelZoom = Mount.defineStream('ImageCropperWheel', {
             const unit = [1, 16, 400][event.deltaMode] ?? 1
             Queue.offerUnsafe(queue, Wheel.make({ deltaY: event.deltaY * unit }))
           }
+          // The fingers down, where each is now: a pinch is two of them.
+          const fingers = new Map<number, { readonly x: number; readonly y: number }>()
+          const spread = () => {
+            const [first, second] = [...fingers.values()]
+            return first === undefined || second === undefined
+              ? 0
+              : Math.hypot(first.x - second.x, first.y - second.y)
+          }
+          const down = (event: Event) => {
+            if (!(event instanceof PointerEvent) || event.pointerType !== 'touch') return
+            fingers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+          }
+          const moved = (event: Event) => {
+            if (!(event instanceof PointerEvent) || !fingers.has(event.pointerId)) return
+            const before = spread()
+            fingers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+            const after = spread()
+            // From fingers at one point there is no ratio to take: the next move gives one.
+            if (before > 0 && after !== before) {
+              Queue.offerUnsafe(queue, Pinch.make({ ratio: after / before }))
+            }
+          }
+          const lifted = (event: Event) => {
+            if (event instanceof PointerEvent) fingers.delete(event.pointerId)
+          }
+          const listeners: ReadonlyArray<readonly [string, (event: Event) => void]> = [
+            ['pointerdown', down],
+            ['pointermove', moved],
+            ['pointerup', lifted],
+            ['pointercancel', lifted],
+          ]
           // Not passive, so it may keep the page from scrolling.
           element.addEventListener('wheel', wheeled, { passive: false })
-          return () => element.removeEventListener('wheel', wheeled)
+          for (const [type, listener] of listeners) element.addEventListener(type, listener)
+          return () => {
+            element.removeEventListener('wheel', wheeled)
+            for (const [type, listener] of listeners) element.removeEventListener(type, listener)
+          }
         }),
         stop => Effect.sync(stop),
       ),
@@ -932,8 +975,13 @@ export const view = <Outer>(options: ImageCropperView<Outer>, h: HtmlBuilder<Out
                 ? []
                 : [
                     h.OnMount(
-                      Mount.mapMessage(WheelZoom(), ({ deltaY }) =>
-                        lift(Message.Wheeled({ deltaY })),
+                      Mount.mapMessage(ZoomGestures(), gesture =>
+                        lift(
+                          Match.valueTags(gesture, {
+                            Wheel: ({ deltaY }) => Message.Wheeled({ deltaY }),
+                            Pinch: ({ ratio }) => Message.Pinched({ ratio }),
+                          }),
+                        ),
                       ),
                     ),
                   ],

@@ -41,6 +41,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: an ImageCropper zooms by two fingers, spread or pinched (`Pinched`): its
+  viewport took the page's own pinch away and gave none back. Its zoom Mount is now
+  `ImageCropperZoom`, for the wheel and the fingers both.
 - `foldkit-primitives`: `PointerDrag` drags by touch. A finger's press is a drag once held
   still `HOLD_TO_DRAG_MS` (400ms), and one that moves `HOLD_SLOP` (8px) first is a scroll, so a
   list of draggable rows still scrolls; once the drag is on, the page is kept still and

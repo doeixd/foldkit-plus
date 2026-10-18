@@ -136,6 +136,8 @@ below `md`; compact Pagination.
 
 ## Status
 
+- **C3: done**: two fingers zoom the ImageCropper through `zoomed()` (browser test with real
+  touch pointers, mutations); the first finger still pans, as a map's does.
 - **C1: done** in `PointerDrag` itself (`HOLD_TO_DRAG_MS`, `HOLD_SLOP`, a non-passive
   `touchmove` only while a press is under way, `contextmenu` shut during a finger's press,
   `-webkit-touch-callout` on the element), so the Builder needs nothing; unit tests, mutations.

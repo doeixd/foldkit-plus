@@ -189,4 +189,26 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a pinch zooms against the fingers',
+    edits: [
+      {
+        file: source,
+        find: 'Pinch.make({ ratio: after / before })',
+        replace: 'Pinch.make({ ratio: before / after })',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'fingers from one point zoom all the way',
+    edits: [
+      {
+        file: source,
+        find: 'if (before > 0 && after !== before) {',
+        replace: 'if (after !== before) {',
+      },
+    ],
+    tests: [browser],
+  },
 ]

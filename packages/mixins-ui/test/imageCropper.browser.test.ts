@@ -298,6 +298,41 @@ test('the wheel zooms, and does not scroll the page', async () => {
   }
 })
 
+test('two fingers spread zoom it, and one alone does not', async () => {
+  const handleMount = mount()
+  try {
+    await settled()
+    const finger = (type: string, pointerId: number, clientX: number) =>
+      selection()!.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          pointerType: 'touch',
+          pointerId,
+          clientX,
+          clientY: 100,
+        }),
+      )
+    finger('pointerdown', 1, 100)
+    finger('pointermove', 1, 140)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(zoomed()).toBe('100')
+    finger('pointerdown', 2, 200)
+    // From 60px apart to 120px: twice.
+    finger('pointermove', 2, 260)
+    await vi.waitFor(() => expect(zoomed()).toBe('200'))
+    finger('pointerup', 2, 260)
+    finger('pointerup', 1, 140)
+    // Two fingers landing on one point have no spread to compare yet: no jump to the most.
+    finger('pointerdown', 3, 150)
+    finger('pointerdown', 4, 150)
+    finger('pointermove', 4, 170)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(zoomed()).toBe('200')
+  } finally {
+    handleMount.dispose()
+  }
+})
+
 test('exports the crop of the image as turned', async () => {
   const handleMount = mount({ id: 'photo', crop: { x: 0, y: 0, width: 800, height: 300 } })
   try {
