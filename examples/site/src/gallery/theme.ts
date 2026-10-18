@@ -603,11 +603,13 @@ export const shuffled = (random: () => number, direction: Knobs['direction']): K
   const between = (knob: Knob, low: number, high: number) =>
     fit(rangeOf(knob), low + random() * (high - low))
   const across = (knob: Knob) => between(knob, rangeOf(knob).min, rangeOf(knob).max)
+  // A base color brings its own tint, as choosing one does: Neutral is grey.
+  const base = pick(Base.literals)
   return {
     hue: across('hue'),
     chroma: between('chroma', 0.06, 0.24),
     lightness: between('lightness', 40, 65),
-    surfaceSaturation: across('surfaceSaturation'),
+    surfaceSaturation: base === 'accent' ? across('surfaceSaturation') : bases[base].c,
     surfaceContrast: between('surfaceContrast', 10, 40),
     surfaceLightness: between('surfaceLightness', 94, 100),
     surfaceLightnessDark: between('surfaceLightnessDark', 14, 28),
@@ -620,9 +622,10 @@ export const shuffled = (random: () => number, direction: Knobs['direction']): K
     motion: 1,
     shadow: across('shadow'),
     shadowStyle: pick(['soft', 'soft', 'soft', 'hard'] as const),
-    relief: pick(Relief.literals),
+    // Mostly flat or soft: a bevel or a hard edge on every other shuffle reads as noise.
+    relief: pick(['flat', 'flat', 'soft', 'soft', 'hard', 'bevel'] as const),
     font: pick(Font.literals),
-    base: pick(Base.literals),
+    base,
     hover: pick(Hover.literals),
     menuAccent: pick(MenuAccent.literals),
     menuColor: pick(MenuColor.literals),

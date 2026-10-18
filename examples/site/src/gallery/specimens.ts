@@ -6,6 +6,7 @@
  * looking at.
  */
 import * as UiSelect from '@foldkit/ui/select'
+import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import {
@@ -34,6 +35,7 @@ import {
   TableStyle,
 } from '../snippets/components.js'
 import { forSlots } from '../snippets/theme.js'
+import { showcaseOf, type Live } from './showcases.js'
 import type { Message } from '../main.js'
 import type { H, Slots } from '../view/layout.js'
 
@@ -239,7 +241,7 @@ const members: ReadonlyArray<Member> = [
 ]
 
 /** A workspace's settings: what a theme looks like on a screen people use. */
-export const app = (slots: Slots, h: H): Html =>
+export const settings = (slots: Slots, h: H): Html =>
   h.div(slots.specimen.attrs(), [
     h.header(slots.appHeader.attrs(), [
       h.div(
@@ -352,4 +354,122 @@ export const app = (slots: Slots, h: H): Html =>
       },
       h,
     ),
+  ])
+
+/** A showcase's named example, drawn as its page draws it. */
+const example = (live: Live<Message>, slug: string, name: string): Html =>
+  Option.match(
+    Option.flatMap(showcaseOf(slug), showcase =>
+      Option.fromNullishOr(showcase.examples.find(each => each.name === name)),
+    ),
+    {
+      onNone: () => {
+        throw new Error(`No example ${slug}#${name}`)
+      },
+      onSome: found => found.render({}, live),
+    },
+  )
+
+/** A screen's panel: a Card holding examples, the whole row wide when `wide`. */
+const panel = (
+  slots: Slots,
+  h: H,
+  title: string,
+  description: string,
+  content: ReadonlyArray<Html>,
+  wide = false,
+): Html =>
+  h.div(wide ? slots.screenWide.attrs() : [], [
+    Card.view(
+      { title, description, content: h.div(slots.appForm.attrs(), content), style: CardStyle },
+      h,
+    ),
+  ])
+
+const screenHeader = (slots: Slots, h: H, title: string, line: string, aside: Html): Html =>
+  h.header(slots.appHeader.attrs(), [
+    h.div([], [set(h, 'h3', title), set(h, 'muted', line)]),
+    aside,
+  ])
+
+/** An analytics dashboard: figures, charts and the rows behind them. */
+export const dashboard = (slots: Slots, h: H, live: Live<Message>): Html =>
+  h.div(slots.specimen.attrs(), [
+    screenHeader(
+      slots,
+      h,
+      'Analytics',
+      'Sales and signups across every store, this quarter.',
+      example(live, 'avatar', 'group'),
+    ),
+    h.div(slots.screenGrid.attrs(), [
+      example(live, 'card', 'stat'),
+      panel(slots, h, 'Quota', 'Of the quarter’s target.', [example(live, 'progress', 'ring')]),
+      panel(slots, h, 'Revenue', 'By month, in thousands.', [example(live, 'chart', 'area')], true),
+      panel(slots, h, 'By region', 'Orders this week.', [example(live, 'chart', 'bar')]),
+      panel(slots, h, 'Channels', 'Where signups came from.', [example(live, 'chart', 'donut')]),
+      panel(
+        slots,
+        h,
+        'Invoices',
+        'The latest, by amount.',
+        [example(live, 'table', 'sortable')],
+        true,
+      ),
+    ]),
+  ])
+
+/** An assistant at work: a thread, its reasoning and the answer arriving. */
+export const assistant = (slots: Slots, h: H, live: Live<Message>): Html =>
+  h.div(slots.specimen.attrs(), [
+    screenHeader(
+      slots,
+      h,
+      'Assistant',
+      'Ask about your workspace; it shows its work.',
+      example(live, 'thinking-indicator', 'basic'),
+    ),
+    h.div(slots.screenGrid.attrs(), [
+      panel(slots, h, 'Conversation', 'With the release notes open.', [
+        example(live, 'chat-message', 'thread'),
+      ]),
+      panel(slots, h, 'Working', 'Each step it takes, as it takes it.', [
+        example(live, 'thinking-steps', 'tools'),
+      ]),
+      panel(
+        slots,
+        h,
+        'Answering',
+        'Streamed as it is written.',
+        [example(live, 'chat-message', 'streaming')],
+        true,
+      ),
+    ]),
+  ])
+
+/** A booking flow: a plan, the dates, and how it went. */
+export const booking = (slots: Slots, h: H, live: Live<Message>): Html =>
+  h.div(slots.specimen.attrs(), [
+    screenHeader(
+      slots,
+      h,
+      'Book a stay',
+      'Three steps, and the cabin is yours.',
+      example(live, 'rating', 'basic'),
+    ),
+    panel(
+      slots,
+      h,
+      'Progress',
+      'Plan, dates, then payment.',
+      [example(live, 'steps', 'basic')],
+      true,
+    ),
+    h.div(slots.screenGrid.attrs(), [
+      panel(slots, h, 'Dates', 'Check in and check out.', [
+        example(live, 'calendar', 'single-range'),
+      ]),
+      panel(slots, h, 'Room', 'Each with breakfast.', [example(live, 'radio-group', 'cards')]),
+      panel(slots, h, 'Budget', 'A night, before taxes.', [example(live, 'slider', 'marks')], true),
+    ]),
   ])

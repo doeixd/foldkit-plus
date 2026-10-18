@@ -446,7 +446,10 @@ const canvasLabels: Readonly<Record<Canvas, string>> = {
   components: 'Components',
   typography: 'Typography',
   palette: 'Palette',
-  app: 'In an app',
+  dashboard: 'Dashboard',
+  assistant: 'Assistant',
+  booking: 'Booking',
+  settings: 'Settings',
 }
 
 /** Every component, each in its first example, in columns. */
@@ -475,7 +478,10 @@ const canvases: Readonly<
   components,
   typography: (_, slots, h) => [Specimens.typography(slots, h)],
   palette: (_, slots, h) => [Specimens.palette(slots, h)],
-  app: (_, slots, h) => [Specimens.app(slots, h)],
+  dashboard: (model, slots, h) => [Specimens.dashboard(slots, h, liveOf(model, h))],
+  assistant: (model, slots, h) => [Specimens.assistant(slots, h, liveOf(model, h))],
+  booking: (model, slots, h) => [Specimens.booking(slots, h, liveOf(model, h))],
+  settings: (_, slots, h) => [Specimens.settings(slots, h)],
 }
 
 const canvas = (model: Model, slots: Slots, h: H): Html => {

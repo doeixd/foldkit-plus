@@ -40,9 +40,17 @@ export const initialTabs = UiTabs.init({ id: 'theme-sections' })
 
 /**
  * What the preview shows: every component, the type set in the theme, the
- * palette's tokens, or an application's screen drawn in it.
+ * palette's tokens, or one of four application screens drawn in it.
  */
-export const Canvas = Schema.Literals(['components', 'typography', 'palette', 'app'])
+export const Canvas = Schema.Literals([
+  'components',
+  'typography',
+  'palette',
+  'dashboard',
+  'assistant',
+  'booking',
+  'settings',
+])
 export type Canvas = typeof Canvas.Type
 export const CanvasTabs: ReturnType<typeof UiTabs.create<Canvas>> = UiTabs.create<Canvas>()
 export const initialCanvasTabs = UiTabs.init({ id: 'theme-canvas' })

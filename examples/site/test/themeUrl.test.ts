@@ -26,7 +26,7 @@ describe("/create's address", () => {
       const address = {
         knobs: presetKnobs(preset, 'rtl'),
         scheme: preset.scheme ?? 'system',
-        canvas: 'app',
+        canvas: 'dashboard',
       } as const
       expect(addressOf(queryOf(address))).toEqual(address)
     },

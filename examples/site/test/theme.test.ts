@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  bases,
   codeOf,
   declared,
   defaults,
@@ -240,6 +241,11 @@ describe('the theme creator', () => {
       fonts.add(knobs.font)
     }
     expect(fonts.size).toBe(Font.literals.length)
+    // A base color carries its own tint, as the picker sets it.
+    for (let draw = 0; draw < 100; draw++) {
+      const knobs = shuffled(random, 'ltr')
+      if (knobs.base !== 'accent') expect(knobs.surfaceSaturation).toBe(bases[knobs.base].c)
+    }
     // Even at the ends of what `random` returns.
     for (const end of [0, 0.9999999]) {
       const knobs = shuffled(() => end, 'ltr')

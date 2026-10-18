@@ -60,4 +60,26 @@ export default [
     edits: [{ file: '../src/main.ts', find: '          linkCopied: () => false,\n', replace: '' }],
     tests,
   },
+  {
+    name: 'a shuffled base color draws a tint of its own',
+    edits: [
+      {
+        file: '../src/gallery/theme.ts',
+        find: "base === 'accent' ? across('surfaceSaturation') : bases[base].c",
+        replace: "across('surfaceSaturation')",
+      },
+    ],
+    tests: ['examples/site/test/theme.test.ts'],
+  },
+  {
+    name: 'a screen draws an example its showcase does not have',
+    edits: [
+      {
+        file: '../src/gallery/specimens.ts',
+        find: "[example(live, 'chart', 'area')]",
+        replace: "[example(live, 'chart', 'areas')]",
+      },
+    ],
+    tests: ['examples/site/test/screens.test.ts'],
+  },
 ]

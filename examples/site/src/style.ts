@@ -1166,7 +1166,15 @@ export const SiteStyle = slots(
       alignItems: 'start',
       gap: t.space.lg,
     },
-    appForm: { display: 'flex', flexDirection: 'column', gap: t.space.md },
+    appForm: { display: 'flex', flexDirection: 'column', gap: t.space.md, minInlineSize: '0' },
+    // A screen's panels: two across where there is room, a wide one across both.
+    screenGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(22rem, 100%), 1fr))',
+      alignItems: 'start',
+      gap: t.space.lg,
+    },
+    screenWide: { gridColumn: '1 / -1', minInlineSize: '0' },
     appActions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: t.space.xs },
     themeCode: [
       { display: 'flex', flexDirection: 'column', gap: t.space.sm, minWidth: '0' },
