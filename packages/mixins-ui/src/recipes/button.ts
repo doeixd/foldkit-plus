@@ -105,7 +105,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
         justifyContent: 'center',
         ...onLadder,
         border: `${ref.border.thin} solid transparent`,
-        borderRadius: ref.radius.md,
+        borderRadius: ref.radius.control,
         font: 'inherit',
         fontWeight: ref.weight.medium,
         // A link drawn as a button (`Anchor`) is not underlined like one in running text.

@@ -19,6 +19,14 @@ version changed; `pnpm` skips versions already in the registry.
   and icon buttons stay flat; and every field's chrome (Input, Textarea, Select, Listbox,
   Combobox, DatePicker, NumberField, TagsInput, OtpField, CascadeSelect, InputCopy, the
   pagination's page size, Checkbox and RadioGroup) sinks by `field`.
+- Type knobs in `Theme.tokens`: `text-scale` scales every size of the type scale,
+  `heading-scale` how far the headings stand above the body, and `leading` the line heights;
+  `weight-heading` and `tracking-heading` set what a heading is drawn in. The shipped values draw
+  as before. `foldkit-mixins-ui`'s Typography headings and interface roles, the Dialog's title and
+  the Empty title now read `font-heading`, `weight-heading` and `tracking-heading`, so a theme's
+  heading font reaches them.
+- `radius-control` and the `control-round` knob: a Button and a Segmented tray round to a pill at
+  1, whatever the radius factor, while fields keep `radius-md`.
 
 ## 0.23.0
 

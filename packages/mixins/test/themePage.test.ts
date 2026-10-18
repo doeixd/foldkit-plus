@@ -60,6 +60,10 @@ describe('Theme.tokens', () => {
       travel: '1',
       step: '0',
       'shadow-strength': '100%',
+      'text-scale': '1',
+      'heading-scale': '1',
+      leading: '1',
+      'control-round': '0',
     })
     expect(Theme.tokens.space.md).toBe('calc(1rem * var(--fk-knob-density))')
     expect(Theme.tokens.radius.md).toBe('calc(6px * var(--fk-knob-radius-factor))')
@@ -87,6 +91,7 @@ describe('Theme.tokens', () => {
       'size',
       'leading',
       'weight',
+      'tracking',
       'motion',
       'control',
       'type',

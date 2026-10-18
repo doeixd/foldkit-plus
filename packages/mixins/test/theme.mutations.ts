@@ -4,6 +4,39 @@
  */
 export default [
   {
+    name: 'headings ignore heading-scale',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: 'rem * var(--fk-knob-heading-scale, 1)) * ${textScale})`',
+        replace: 'rem) * ${textScale})`',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'the line height ignores its knob',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: 'const leading = (ratio: number) => `calc(${ratio} * var(--fk-knob-leading, 1))`',
+        replace: 'const leading = (ratio: number) => String(ratio)',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'text ignores text-scale',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: "const textScale = 'var(--fk-knob-text-scale, 1)'",
+        replace: "const textScale = '1'",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
     name: 'a hard shadow blurs',
     edits: [
       {

@@ -135,10 +135,11 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
             // As wide as its options, as an inline control: a block's width left the tray running on.
             inlineSize: 'fit-content',
             background: ref.surface.muted,
-            borderRadius: ref.radius.md,
+            // A pressable control's corner, so a pill theme rounds the tray too.
+            borderRadius: ref.radius.control,
             gap: '2px',
             padding: 'var(--_fk-segmented-inset)',
-            ...nests(ref.radius.md, 'var(--_fk-segmented-inset)'),
+            ...nests(ref.radius.control, 'var(--_fk-segmented-inset)'),
           }),
         ),
       },

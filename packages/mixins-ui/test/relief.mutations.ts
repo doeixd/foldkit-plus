@@ -70,4 +70,37 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a button keeps the field corner in a pill theme',
+    edits: [
+      {
+        file: '../src/recipes/button.ts',
+        find: 'borderRadius: ref.radius.control,',
+        replace: 'borderRadius: ref.radius.md,',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the control corner ignores control-round',
+    edits: [
+      {
+        file: tokens,
+        find: "control: 'calc(var(--fk-radius-md) + var(--fk-knob-control-round, 0) * 9999px)',",
+        replace: "control: 'var(--fk-radius-md)',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a heading is set in the body font',
+    edits: [
+      {
+        file: '../src/recipes/typography.ts',
+        find: '      fontFamily: ref.font.heading,\n      fontSize: size,',
+        replace: '      fontSize: size,',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/typography.test.ts'],
+  },
 ]

@@ -35,7 +35,8 @@ export const Empty = Style.recipeFor(EmptySlots)({
       Style.self({
         margin: '0',
         ...role('subtitle'),
-        fontWeight: ref.weight.semibold,
+        fontFamily: ref.font.heading,
+        fontWeight: ref.weight.heading,
         color: ref.text.overt,
       }),
     ),

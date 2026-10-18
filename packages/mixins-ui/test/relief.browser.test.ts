@@ -117,3 +117,20 @@ test('hard, a faced button and a field drop a solid copy, and a press brings it 
   expect(offsets(await shadowOf('field'))).toEqual(['2 2'])
   expect(await shadowOf('ghost')).toMatch(FLAT)
 })
+
+test('control-round rounds a button to a pill, and only a button: a field keeps its corner', async () => {
+  mount(palette)
+  const radius = async (id: string) => {
+    await shadowOf(id)
+    return Number.parseFloat(getComputedStyle(document.getElementById(id)!).borderTopLeftRadius)
+  }
+  expect(await radius('solid')).toBe(6)
+  // On the root, where the radius tokens are declared and resolved.
+  document.documentElement.style.setProperty('--fk-knob-control-round', '1')
+  try {
+    expect(await radius('solid')).toBeGreaterThan(1000)
+    expect(await radius('field')).toBe(6)
+  } finally {
+    document.documentElement.style.removeProperty('--fk-knob-control-round')
+  }
+})

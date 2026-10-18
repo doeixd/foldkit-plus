@@ -46,10 +46,10 @@ describe('Empty view', () => {
 })
 
 describe('Empty recipe', () => {
-  it('centers muted content with a semibold title', () => {
+  it('centers muted content with a title in the heading weight', () => {
     const sheet = Style.forSlots(EmptySlots)(Recipes.Empty({})).css
     expect(sheet).toContain('justify-items:center')
     expect(sheet).toContain('text-align:center')
-    expect(sheet).toContain('font-weight:var(--fk-weight-semibold)')
+    expect(sheet).toContain('font-weight:var(--fk-weight-heading)')
   })
 })

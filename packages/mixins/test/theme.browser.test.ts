@@ -388,3 +388,41 @@ test.each(['light', 'dark'] as const)(
     expect(raised('0%')).toMatch(/\/ 0\)|transparent|rgba\(0, 0, 0, 0\)/)
   },
 )
+
+test('the type knobs scale the text, spread the headings and open the lines', () => {
+  const style = document.createElement('style')
+  style.dataset['test'] = ''
+  style.textContent = Style.stylesheet(L.declare, L.in('tokens', Theme.root(Theme.tokens)))
+  document.head.append(style)
+  /** A token as the browser computes it, in pixels, under `knobs` set on the root. */
+  const measured = (token: string, knobs: Readonly<Record<string, string>>) => {
+    const root = document.documentElement.style
+    for (const [name, value] of Object.entries(knobs)) root.setProperty(`--fk-knob-${name}`, value)
+    const box = document.createElement('div')
+    box.style.fontSize = 'var(--fk-size-4xl)'
+    box.style.lineHeight = token === 'leading' ? 'var(--fk-leading-normal)' : 'normal'
+    box.style.inlineSize = token === 'size-md' ? 'var(--fk-size-md)' : 'auto'
+    document.body.append(box)
+    const computed = getComputedStyle(box)
+    const value = Number.parseFloat(
+      token === 'leading'
+        ? computed.lineHeight
+        : token === 'size-md'
+          ? computed.width
+          : computed.fontSize,
+    )
+    box.remove()
+    for (const name of Object.keys(knobs)) root.removeProperty(`--fk-knob-${name}`)
+    return value
+  }
+  // The shipped sizes, unchanged.
+  expect(measured('size-4xl', {})).toBe(36)
+  expect(measured('size-4xl', { 'text-scale': '1.25' })).toBe(45)
+  // A heading at 0 stands no higher than the body; the body itself does not move.
+  expect(measured('size-4xl', { 'heading-scale': '0' })).toBe(16)
+  expect(measured('size-4xl', { 'heading-scale': '2' })).toBe(56)
+  expect(measured('size-md', { 'heading-scale': '2' })).toBe(16)
+  // 1.5 lines of 36px, then 1.8.
+  expect(measured('leading', {})).toBe(54)
+  expect(measured('leading', { leading: '1.2' })).toBeCloseTo(64.8, 1)
+})

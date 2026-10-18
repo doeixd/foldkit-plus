@@ -131,7 +131,7 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         color: ref.text.overt,
         fontFamily: ref.font.heading,
         ...role('title'),
-        fontWeight: ref.weight.semibold,
+        fontWeight: ref.weight.heading,
       }),
     ),
     description: component(Style.self({ margin: '0', color: ref.text.muted })),

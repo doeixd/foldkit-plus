@@ -19,6 +19,17 @@ import { define } from './core.js'
 const space = (rem: number) => `calc(${rem}rem * var(--fk-knob-density))`
 const radius = (px: number) => `calc(${px}px * var(--fk-knob-radius-factor))`
 const duration = (ms: number) => `calc(${ms}ms * var(--fk-knob-motion))`
+const textScale = 'var(--fk-knob-text-scale, 1)'
+/**
+ * A step of the type scale: at or below the body size it scales with the
+ * text alone; above it, its distance from the body size also scales with
+ * `heading-scale`, so headings can stand further off the text or closer.
+ */
+const text = (rem: number) =>
+  rem <= 1
+    ? `calc(${rem}rem * ${textScale})`
+    : `calc((1rem + ${Number((rem - 1).toFixed(4))}rem * var(--fk-knob-heading-scale, 1)) * ${textScale})`
+const leading = (ratio: number) => `calc(${ratio} * var(--fk-knob-leading, 1))`
 const shade = 'var(--fk-shadow-color, oklch(0% 0 0 / 0.12))'
 const strength = 'var(--fk-knob-shadow-strength, 100%)'
 /** No shadow, as a shadow: one a transition can interpolate from, unlike `none`. */
@@ -35,6 +46,15 @@ export const tokens = define({
     // The size ladder's step: 0 default, 1 compact; `ladder` reads it.
     step: '0',
     'shadow-strength': '100%',
+    // The reading type: every size of the scale (`text-scale`), how far the
+    // headings stand above the body (`heading-scale`), and the line height
+    // (`leading`), each a multiplier.
+    'text-scale': '1',
+    'heading-scale': '1',
+    leading: '1',
+    // 1 rounds a pressable control (a button, a segmented tray) to a pill,
+    // whatever the radius factor; 0 keeps `radius-md`.
+    'control-round': '0',
   },
   space: {
     '3xs': space(0.125),
@@ -55,20 +75,30 @@ export const tokens = define({
     xl: radius(12),
     // A pill, which squares off only where the knob is 0, as a boxy theme's are.
     full: 'calc(9999px * min(var(--fk-knob-radius-factor), 1))',
+    // A pressable control's corner: `md`, or a pill when `control-round` is 1.
+    control: 'calc(var(--fk-radius-md) + var(--fk-knob-control-round, 0) * 9999px)',
   },
   font: { body: 'system-ui, sans-serif', heading: 'inherit', mono: 'ui-monospace, monospace' },
   size: {
-    xs: '0.75rem',
-    sm: '0.875rem',
-    md: '1rem',
-    lg: '1.125rem',
-    xl: '1.25rem',
-    '2xl': '1.5rem',
-    '3xl': '1.875rem',
-    '4xl': '2.25rem',
+    xs: text(0.75),
+    sm: text(0.875),
+    md: text(1),
+    lg: text(1.125),
+    xl: text(1.25),
+    '2xl': text(1.5),
+    '3xl': text(1.875),
+    '4xl': text(2.25),
   },
-  leading: { tight: '1.2', snug: '1.375', normal: '1.5', relaxed: '1.6' },
-  weight: { normal: '400', medium: '500', semibold: '600', bold: '700' },
+  leading: {
+    tight: leading(1.2),
+    snug: leading(1.375),
+    normal: leading(1.5),
+    relaxed: leading(1.6),
+  },
+  // `heading` is what a heading or a title is set in.
+  weight: { normal: '400', medium: '500', semibold: '600', bold: '700', heading: '600' },
+  // A heading's letter spacing: set large, type reads better a little tighter.
+  tracking: { heading: '-0.01em' },
   // Three tiers, as Fluid Functionalism's springs: the bigger the thing that
   // moves, the slower its tier. Hover, fades and focus rings are `fast`;
   // popups, tabs and short travel `moderate`; dialogs and large surfaces

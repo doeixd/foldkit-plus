@@ -15,10 +15,11 @@ const heading = (size: string): ReturnType<typeof variant> =>
   variant(
     Style.self({
       margin: '0',
+      fontFamily: ref.font.heading,
       fontSize: size,
-      fontWeight: ref.weight.semibold,
+      fontWeight: ref.weight.heading,
       lineHeight: ref.leading.tight,
-      letterSpacing: '-0.01em',
+      letterSpacing: ref.tracking.heading,
       color: ref.text.overt,
     }),
   )
@@ -65,10 +66,35 @@ export const Typography = Style.recipeFor(TypographySlots)({
           }),
         ),
       },
-      display: { text: variant(Style.self({ ...role('display'), fontWeight: ref.weight.bold })) },
-      title: { text: variant(Style.self({ ...role('title'), fontWeight: ref.weight.semibold })) },
+      // The interface's headings are set as the reading ones are: the heading
+      // font, its weight (display a step bolder) and its tracking.
+      display: {
+        text: variant(
+          Style.self({
+            ...role('display'),
+            fontFamily: ref.font.heading,
+            fontWeight: `calc(${ref.weight.heading} + 100)`,
+            letterSpacing: ref.tracking.heading,
+          }),
+        ),
+      },
+      title: {
+        text: variant(
+          Style.self({
+            ...role('title'),
+            fontFamily: ref.font.heading,
+            fontWeight: ref.weight.heading,
+          }),
+        ),
+      },
       subtitle: {
-        text: variant(Style.self({ ...role('subtitle'), fontWeight: ref.weight.semibold })),
+        text: variant(
+          Style.self({
+            ...role('subtitle'),
+            fontFamily: ref.font.heading,
+            fontWeight: ref.weight.heading,
+          }),
+        ),
       },
       caption: { text: variant(Style.self({ ...role('caption'), color: ref.text.muted })) },
       micro: { text: variant(Style.self(role('micro'))) },

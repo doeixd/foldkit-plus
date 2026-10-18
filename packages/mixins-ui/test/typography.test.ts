@@ -44,10 +44,16 @@ describe('Typography recipe', () => {
   const css = (selection: Parameters<typeof Recipes.Typography>[0]): string =>
     Style.forSlots(TypographySlots)(Recipes.Typography(selection)).css
 
-  it('steps headings down the scale with tight semibold lines', () => {
+  it('steps headings down the scale, in the theme’s heading font, weight and tracking', () => {
     expect(css({ level: 'h1' })).toContain('font-size:var(--fk-size-4xl)')
     expect(css({ level: 'h4' })).toContain('font-size:var(--fk-size-xl)')
-    expect(css({ level: 'h1' })).toContain('font-weight:var(--fk-weight-semibold)')
+    for (const level of ['h1', 'display', 'title', 'subtitle'] as const) {
+      expect(css({ level }), level).toContain('font-family:var(--fk-font-heading)')
+    }
+    expect(css({ level: 'h1' })).toContain('font-weight:var(--fk-weight-heading)')
+    expect(css({ level: 'h1' })).toContain('letter-spacing:var(--fk-tracking-heading)')
+    // Display a step bolder than the other headings, whatever their weight.
+    expect(css({ level: 'display' })).toContain('font-weight:calc(var(--fk-weight-heading) + 100)')
   })
 
   it('quiets asides and sets code apart', () => {
