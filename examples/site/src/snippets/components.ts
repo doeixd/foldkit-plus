@@ -28,6 +28,7 @@ import type * as UiVirtualList from '@foldkit/ui/virtualList'
 import type { AnchorConfig } from '@foldkit/ui/anchor'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Utilities } from 'foldkit-mixins/utilities'
 import {
   Accordion,
   AccordionSlots,
@@ -3076,7 +3077,15 @@ export const command = <Message>(
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
-    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      h.Style({
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr)',
+        gap: '0.75rem',
+        justifyItems: 'start',
+        inlineSize: 'min(32rem, 100%)',
+      }),
+    ],
     [
       Command.view(
         {
@@ -3087,21 +3096,85 @@ export const command = <Message>(
             {
               heading: 'Suggestions',
               items: [
-                { value: 'new-page', label: 'New page', shortcut: ['⌘', 'N'] },
                 {
-                  value: 'search',
-                  label: 'Search pages',
-                  keywords: ['find'],
-                  shortcut: ['⌘', 'K'],
+                  value: 'calendar',
+                  label: 'Calendar',
+                  icon: outline(h, 'M2 4h12v10H2zM2 7h12M5 2v3M11 2v3'),
+                },
+                {
+                  value: 'emoji',
+                  label: 'Search emoji',
+                  keywords: ['smiley'],
+                  icon: outline(
+                    h,
+                    'M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM5.5 9.5s1 1.5 2.5 1.5 2.5-1.5 2.5-1.5M6 6h.01M10 6h.01',
+                  ),
+                },
+                {
+                  value: 'calculator',
+                  label: 'Calculator',
+                  disabled: true,
+                  icon: outline(
+                    h,
+                    'M3 1.5h10v13H3zM5 4h6v2.5H5zM5.5 9.5h.01M8 9.5h.01M10.5 9.5h.01M5.5 12h.01M8 12h.01M10.5 12h.01',
+                  ),
                 },
               ],
             },
             {
               heading: 'Settings',
               items: [
-                { value: 'theme', label: 'Change theme', keywords: ['dark', 'light'] },
-                { value: 'billing', label: 'Billing', disabled: true },
-                { value: 'members', label: 'Invite members', keywords: ['team'] },
+                {
+                  value: 'profile',
+                  label: 'Profile',
+                  shortcut: ['⌘', 'P'],
+                  icon: outline(
+                    h,
+                    'M8 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 14c0-2.8 2.2-5 5-5s5 2.2 5 5',
+                  ),
+                },
+                {
+                  value: 'billing',
+                  label: 'Billing',
+                  shortcut: ['⌘', 'B'],
+                  icon: outline(h, 'M1.5 3.5h13v9h-13zM1.5 6.5h13M4 10h2'),
+                },
+                {
+                  value: 'settings',
+                  label: 'Settings',
+                  keywords: ['preferences'],
+                  shortcut: ['⌘', 'S'],
+                  icon: outline(h, 'M2 4h6M11 4h3M2 12h2M7 12h7M9.5 2.5v3M5.5 10.5v3'),
+                },
+              ],
+            },
+            {
+              heading: 'Help',
+              items: [
+                {
+                  value: 'shortcuts',
+                  label: 'Keyboard shortcuts',
+                  shortcut: ['⌘', '/'],
+                  icon: outline(
+                    h,
+                    'M1.5 4h13v8h-13zM4 6.5h.01M6.5 6.5h.01M9 6.5h.01M11.5 6.5h.01M5 9.5h6',
+                  ),
+                },
+                {
+                  value: 'docs',
+                  label: 'Documentation',
+                  keywords: ['guide'],
+                  icon: outline(
+                    h,
+                    'M2 3h4a2 2 0 0 1 2 2v9a1.5 1.5 0 0 0-1.5-1.5H2zM14 3h-4a2 2 0 0 0-2 2v9a1.5 1.5 0 0 1 1.5-1.5H14z',
+                  ),
+                },
+                {
+                  value: 'support',
+                  label: 'Contact support',
+                  keywords: ['help'],
+                  icon: outline(h, 'M2 3h12v8H6l-3 3v-3H2z'),
+                },
               ],
             },
           ],
@@ -3110,6 +3183,11 @@ export const command = <Message>(
           active: state.active,
           onActive: messages.onActive,
           onRun: messages.onRun,
+          empty: 'No commands found.',
+          hints: [
+            { keys: ['↑', '↓'], label: 'to navigate' },
+            { keys: ['↵'], label: 'to select' },
+          ],
           style,
           kbd: KbdStyle,
         },
@@ -3129,25 +3207,42 @@ export const command = <Message>(
 // #endregion
 
 // #region command-dialog
-export const PaletteDialogStyle = forSlots(DialogSlots)(Recipes.Dialog({}))
+// The menu meets the panel's edges, and its title is for assistive technology alone.
+export const PaletteDialogStyle = forSlots(DialogSlots)(
+  Recipes.Dialog.extend({
+    base: { panel: { padding: '0', gap: '0' }, title: Utilities.srOnly },
+  })({}),
+)
 
-const PALETTE: ReadonlyArray<CommandGroup<string>> = [
+const palette = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<CommandGroup<string>> => [
   {
     heading: 'Pages',
     items: [
-      { value: 'new-page', label: 'New page', shortcut: ['⌘', 'N'] },
+      {
+        value: 'new-page',
+        label: 'New page',
+        shortcut: ['⌘', 'N'],
+        icon: outline(h, 'M3 1h7l3 3v11H3zM8 7v5M5.5 9.5h5'),
+      },
       {
         value: 'search',
         label: 'Search pages',
         description: 'Titles and text',
         keywords: ['find'],
+        icon: outline(h, 'M7 12.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM14.5 14.5l-3.6-3.6'),
       },
     ],
   },
   {
     heading: 'Settings',
     items: [
-      { value: 'theme', label: 'Change theme', keywords: ['dark', 'light'], opensPage: true },
+      {
+        value: 'theme',
+        label: 'Change theme',
+        keywords: ['dark', 'light'],
+        opensPage: true,
+        icon: outline(h, 'M8 14.5a6.5 6.5 0 0 1 0-13zM8 1.5a6.5 6.5 0 0 1 0 13'),
+      },
     ],
   },
 ]
@@ -3218,7 +3313,7 @@ export const commandDialog = <Message>(
                           id: 'preview-palette',
                           label: 'Search commands',
                           placeholder: 'Type a command or search…',
-                          groups: state.pages.length === 0 ? PALETTE : THEMES,
+                          groups: state.pages.length === 0 ? palette(h) : THEMES,
                           query: state.query,
                           onQuery: messages.onQuery,
                           active: state.active,
@@ -3226,8 +3321,9 @@ export const commandDialog = <Message>(
                           onRun: messages.onRun,
                           page: { trail: state.pages, onBack: messages.onBack },
                           hints: [
-                            { keys: ['↑', '↓'], label: 'to move' },
-                            { keys: ['↵'], label: 'to run' },
+                            { keys: ['↑', '↓'], label: 'to navigate' },
+                            { keys: ['↵'], label: 'to select' },
+                            { keys: ['esc'], label: 'to close' },
                           ],
                           style,
                           kbd: KbdStyle,
