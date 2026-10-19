@@ -2,8 +2,9 @@
 /**
  * Thinking indicators in a real browser over the shipped palette: the dots
  * rise in turn on the words' line, the band sweeps the words for a travel's
- * time and none with no travel, the other way right to left; reduced motion
- * holds every movement and leaves the words in their ink; a pulse is one dot,
+ * time and none with no travel, the other way right to left; held, by a
+ * still theme or reduced motion, it shows its dots as a fading trail and its
+ * band resting across the words, not its first frame; a pulse is one dot,
  * hidden words are still in the page, and the detail takes a line of its own.
  */
 import { Schema } from 'effect'
@@ -145,7 +146,29 @@ test('the band sweeps the words for a travel’s time, none with no travel, reve
   }
 })
 
-test('under reduced motion every movement holds, the band past the words’ end', async () => {
+/** What a held indicator shows: its dots' trail and where its band rests. */
+const heldLook = (id: string) => {
+  const { label, dots } = partsOf(id)
+  return {
+    dots: dots.map(dot => Number(getComputedStyle(dot).opacity)),
+    band: getComputedStyle(label).backgroundPositionX,
+  }
+}
+
+test('in a still theme it still reads as at work: its dots a fading trail, its band across the words', async () => {
+  // The durations resolve where the root declares them: still the theme there.
+  document.documentElement.style.setProperty('--fk-knob-motion', '0')
+  const handle = await mount()
+  try {
+    expect(seconds(partsOf('dots').label)).toBe(0)
+    expect(heldLook('dots')).toEqual({ dots: [1, 0.7, 0.4], band: '50%' })
+  } finally {
+    handle.dispose()
+    document.documentElement.style.removeProperty('--fk-knob-motion')
+  }
+})
+
+test('under reduced motion every movement holds, held as a still theme is', async () => {
   await reduce('reduce')
   const handle = await mount()
   try {
@@ -153,7 +176,7 @@ test('under reduced motion every movement holds, the band past the words’ end'
     expect(getComputedStyle(label).animationName).toBe('none')
     for (const dot of [...dots, ...partsOf('pulse').dots])
       expect(getComputedStyle(dot).animationName).toBe('none')
-    expect(getComputedStyle(label).backgroundPosition).toBe('0% 0%')
+    expect(heldLook('dots')).toEqual({ dots: [1, 0.7, 0.4], band: '50%' })
   } finally {
     handle.dispose()
   }

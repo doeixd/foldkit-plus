@@ -88,36 +88,8 @@ export default [
     tests: [...unit, ...browser],
   },
   {
-    name: 'held, the band rests on the words',
-    edits: [
-      {
-        file: recipe,
-        find: "  to: { backgroundPosition: '0% 0' },",
-        replace: "  to: { backgroundPosition: '60% 0' },",
-      },
-      {
-        file: recipe,
-        find: "  from: { backgroundPosition: '100% 0' },",
-        replace: "  from: { backgroundPosition: '60% 0' },",
-      },
-      {
-        file: recipe,
-        find: "      backgroundRepeat: 'no-repeat',\n      backgroundClip",
-        replace:
-          "      backgroundRepeat: 'no-repeat',\n      backgroundPosition: '60% 0',\n      backgroundClip",
-      },
-    ],
-    tests: browser,
-  },
-  {
     name: 'the dots rise together',
-    edits: [
-      {
-        file: recipe,
-        find: "          Style.nest('&:nth-child(2)', { animationDelay: `calc(${cycle} / 6)` }),\n",
-        replace: '',
-      },
-    ],
+    edits: [{ file: recipe, find: 'animationDelay: `calc(${cycle} / 6)`,', replace: '' }],
     tests: browser,
   },
   {
@@ -136,9 +108,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "          Style.nest('&:nth-child(3)', { animationDelay: `calc(${cycle} / 3)` }),\n          still,",
-        replace:
-          "          Style.nest('&:nth-child(3)', { animationDelay: `calc(${cycle} / 3)` }),",
+        find: "            '--_fk-thinking-rest': '0.4',\n          }),\n          still,",
+        replace: "            '--_fk-thinking-rest': '0.4',\n          }),",
       },
     ],
     tests: [...unit, ...browser],
@@ -193,5 +164,38 @@ export default [
       },
     ],
     tests: browser,
+  },
+  {
+    name: 'held dots all stand faint',
+    edits: [
+      {
+        file: '../src/recipes/thinkingIndicator.ts',
+        find: "opacity: 'var(--_fk-thinking-rest, 1)',",
+        replace: "opacity: '0.4',",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/thinkingIndicator.browser.test.ts'],
+  },
+  {
+    name: 'held dots stand level',
+    edits: [
+      {
+        file: '../src/recipes/thinkingIndicator.ts',
+        find: "'--_fk-thinking-rest': '0.7',",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/thinkingIndicator.browser.test.ts'],
+  },
+  {
+    name: 'a held band rests past the words',
+    edits: [
+      {
+        file: '../src/recipes/thinkingIndicator.ts',
+        find: "backgroundPosition: '50% 0',",
+        replace: "backgroundPosition: '100% 0',",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/thinkingIndicator.browser.test.ts'],
   },
 ]

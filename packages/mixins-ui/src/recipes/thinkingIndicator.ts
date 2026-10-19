@@ -3,8 +3,10 @@
  * of light sweeps across, as ChatGPT's and Claude's "Thinking…". Every
  * movement's duration is a travel's, so a still theme stills it, and reduced
  * motion holds it (the reset runs every animation for 0.01ms there, so a
- * sweep left running would flicker). Held, the band rests past the words'
- * end and they read in their own ink.
+ * sweep left running would flicker). Held, it still reads as at work: the
+ * dots stand as a fading trail and the band rests across the middle of the
+ * words, where a still animation would show its first frame, faint dots and
+ * plain words that read as stopped.
  *
  * The axes:
  *
@@ -45,6 +47,9 @@ export const shimmer = (where = '&'): StyleValue =>
       color: 'transparent',
       backgroundImage: `linear-gradient(90deg, ${ink} 40%, ${glint} 50%, ${ink} 60%)`,
       backgroundSize: '250% 100%',
+      // At rest, which a running sweep overrides: the band across the middle,
+      // so a still theme's words still read as at work.
+      backgroundPosition: '50% 0',
       backgroundRepeat: 'no-repeat',
       backgroundClip: 'text',
       WebkitBackgroundClip: 'text',
@@ -111,10 +116,20 @@ export const ThinkingIndicator = Style.recipeFor(ThinkingIndicatorSlots)({
     mark: {
       dots: {
         dot: variant(
-          Style.self({ animation: `${rise.name} ${cycle} ease-in-out infinite` }),
+          // At rest, which the rise overrides: a fading trail, one dot to the next.
+          Style.self({
+            animation: `${rise.name} ${cycle} ease-in-out infinite`,
+            opacity: 'var(--_fk-thinking-rest, 1)',
+          }),
           rise.style,
-          Style.nest('&:nth-child(2)', { animationDelay: `calc(${cycle} / 6)` }),
-          Style.nest('&:nth-child(3)', { animationDelay: `calc(${cycle} / 3)` }),
+          Style.nest('&:nth-child(2)', {
+            animationDelay: `calc(${cycle} / 6)`,
+            '--_fk-thinking-rest': '0.7',
+          }),
+          Style.nest('&:nth-child(3)', {
+            animationDelay: `calc(${cycle} / 3)`,
+            '--_fk-thinking-rest': '0.4',
+          }),
           still,
         ),
       },
