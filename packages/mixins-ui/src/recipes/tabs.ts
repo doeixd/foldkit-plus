@@ -260,6 +260,8 @@ export const Tabs = Style.recipeFor(TabsSlots)({
             overscrollBehaviorInline: 'contain',
             scrollbarWidth: 'none',
           }),
+          // A mouse has no swipe to scroll by: it gets a thin bar to drag.
+          Style.media('(hover: hover) and (pointer: fine)', { scrollbarWidth: 'thin' }),
           Utilities.scrollFade('inline'),
         ),
       },

@@ -75,6 +75,7 @@ import { COMPONENTS } from '../library.js'
 import { Message, type Model } from '../main.js'
 import { CodeStyle, StudioDrawerStyle, StudioTabsStyle } from '../style.js'
 import { liveOf, preview } from './components.js'
+import { tsTokens } from './tsTokens.js'
 import type { H, Slots } from './layout.js'
 
 /** What the preview shows, in order, and the variant each is drawn in. */
@@ -595,6 +596,7 @@ export const createPage = (model: Model, slots: Slots, h: H): ReadonlyArray<Html
         CodeBlock.view(
           {
             code,
+            tokens: tsTokens(code),
             language: 'ts',
             copy: { onCopy: text => Message.PressedCopy({ text }), copied: model.copied },
             style: CodeStyle,
