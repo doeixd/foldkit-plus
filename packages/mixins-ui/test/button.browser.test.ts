@@ -2,7 +2,7 @@
  * The Button's icon in a real browser: the icon variant hides the words by a
  * font size of zero, and the icon still stands at the ladder's icon size in
  * the middle of its square, an SVG with no size of its own and a glyph
- * drawn as text alike.
+ * drawn as text alike; `shape: 'square'` draws an outlined one the same way.
  */
 import { Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -16,6 +16,9 @@ const L = Layers.standard
 const Model = Schema.Struct({})
 const iconOnly = Style.forSlots(ButtonSlots)(Recipes.Button({ variant: 'icon' }))
 const worded = Style.forSlots(ButtonSlots)(Recipes.Button({}))
+const squared = Style.forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'outline', shape: 'square' }),
+)
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
@@ -34,6 +37,7 @@ const view = (_: unknown, h: HtmlBuilder<never>): Html =>
     [
       h.div([h.Id('alone')], [Button.view({ label: 'Save', icon: glyph(h), style: iconOnly }, h)]),
       h.div([h.Id('beside')], [Button.view({ label: 'Save', icon: glyph(h), style: worded }, h)]),
+      h.div([h.Id('square')], [Button.view({ label: 'Save', icon: glyph(h), style: squared }, h)]),
       h.div(
         [h.Id('text')],
         [Button.view({ label: 'More', icon: h.span([], ['⋯']), style: iconOnly }, h)],
@@ -46,7 +50,7 @@ const mount = async () => {
   sheet.dataset['test'] = ''
   sheet.textContent =
     Style.stylesheet(L.declare, L.in('tokens', Theme.root(Theme.tokens))) +
-    [iconOnly, worded].map(style => style.css).join('')
+    [iconOnly, worded, squared].map(style => style.css).join('')
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'button-icon'
@@ -100,6 +104,22 @@ test('a glyph drawn as text shows in an icon-only button too', async () => {
     const words = document.createRange()
     words.selectNodeContents(document.getElementById('text')!.querySelector('button span span')!)
     expect(words.getBoundingClientRect().width).toBeGreaterThan(8)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a square outlined button keeps its border and shows its icon alone, centred', async () => {
+  const handle = await mount()
+  try {
+    const [button, icon] = parts('square')
+    expect(button!.width).toBe(button!.height)
+    expect(icon!.left - button!.left).toBe(button!.right - icon!.right)
+    const face = document.getElementById('square')!.querySelector('button')!
+    expect(getComputedStyle(face).borderInlineStartWidth).toBe('1px')
+    const words = document.createRange()
+    words.selectNodeContents(face.lastChild!)
+    expect(words.getBoundingClientRect().width).toBe(0)
   } finally {
     handle.dispose()
   }

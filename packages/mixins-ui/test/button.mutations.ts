@@ -34,4 +34,15 @@ export default [
     ],
     tests: unit,
   },
+  {
+    name: 'a square button keeps its words',
+    edits: [
+      {
+        file: recipe,
+        find: 'square: { button: variant(Style.self(square)) },',
+        replace: 'square: { button: variant(Style.self({})) },',
+      },
+    ],
+    tests: browser,
+  },
 ]

@@ -4,6 +4,7 @@
  * and variant are independent because a tone only sets the private custom
  * properties the variants read — except `primary`, which is ink by
  * definition, and `icon`, a square one rung of the ladder on a side.
+ * `shape: 'square'` draws any variant as that square, its icon alone.
  */
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { ladder } from 'foldkit-mixins/theme'
@@ -75,6 +76,20 @@ const unfilledOn: ReadonlyArray<StyleValue> = [
 const unfilledActive = Style.pseudo(held, {
   background: `color-mix(in oklab, ${toneVar('ink')} 16%, transparent)`,
 })
+
+/**
+ * A square that centers the icon and hides the words, which stay the
+ * accessible name: the icon variant's shape, and `shape: 'square'` for one
+ * with a face (an outlined icon button in a toolbar).
+ */
+const square: Declarations = {
+  inlineSize: controlHeight,
+  blockSize: controlHeight,
+  padding: '0',
+  fontSize: '0',
+  // The words are hidden, not gone: a gap beside them pushed the icon off center.
+  gap: '0',
+}
 
 /**
  * A press that shrinks a fill by exactly 1px a side, as Fluid
@@ -203,16 +218,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
        */
       icon: {
         button: variant(
-          Style.self({
-            background: 'transparent',
-            color: ref.text.muted,
-            inlineSize: controlHeight,
-            blockSize: controlHeight,
-            padding: '0',
-            fontSize: '0',
-            // The words are hidden, not gone: a gap beside them pushed the icon off center.
-            gap: '0',
-          }),
+          Style.self({ background: 'transparent', color: ref.text.muted, ...square }),
           hover({ background: unfilledHover, color: ref.text.overt }),
           unfilledActive,
           ...unfilledOn,
@@ -223,6 +229,9 @@ export const Button = Style.recipeFor(ButtonSlots)({
       sm: { button: steps.sm },
       md: { button: steps.md },
       lg: { button: steps.lg },
+    },
+    shape: {
+      square: { button: variant(Style.self(square)) },
     },
   },
   defaults: { tone: 'accent', variant: 'solid' },
