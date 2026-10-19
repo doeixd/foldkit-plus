@@ -5111,12 +5111,414 @@ export const sidebarResizable = <Message>(
           style: SidebarStyle,
           mixins: Sidebar.fluid,
           tooltip: [TooltipStyle.mixin],
+          sheet: [SidebarSheetStyle.mixin],
         },
         h,
       ),
       h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['The page.']),
     ],
   )
+// #endregion
+
+// #region sidebar-floating
+export const SidebarFloatingStyle = forSlots(SidebarSlots)(Recipes.Sidebar({ variant: 'floating' }))
+
+export const floatingSidebar = Sidebar.init({
+  id: 'app-sidebar-floating',
+  rows: [],
+  open: ['projects'],
+})
+
+const hash = 'M6.5 3L5 13M11 3l-1.5 10M3 6.5h10M3 9.5h10'
+
+// A group's action adds to it; a row's takes the place of its count under the pointer.
+const projects = <Message>(
+  h: HtmlBuilder<Message>,
+  acted: (what: string) => Message,
+): ReadonlyArray<Sidebar.SidebarGroup<Message>> => {
+  const more = (name: string) => ({
+    label: `More for ${name}`,
+    icon: outline(
+      h,
+      'M3 8a.5.5 0 101 0 .5.5 0 00-1 0zM7.5 8a.5.5 0 101 0 .5.5 0 00-1 0zM12 8a.5.5 0 101 0 .5.5 0 00-1 0z',
+    ),
+    message: acted(`More for ${name}`),
+  })
+  return [
+    {
+      id: 'main',
+      rows: [
+        {
+          id: 'home',
+          label: 'Home',
+          href: '#',
+          current: true,
+          icon: outline(h, 'M2 7l6-5 6 5v7H2zM6 14V9h4v5'),
+        },
+        {
+          id: 'inbox',
+          label: 'Inbox',
+          href: '#',
+          badge: '4',
+          icon: outline(h, 'M2 9h3l1 2h4l1-2h3M2 9l2-6h8l2 6v4H2z'),
+        },
+      ],
+    },
+    {
+      id: 'projects',
+      title: 'Projects',
+      action: {
+        label: 'New project',
+        icon: outline(h, 'M8 3v10M3 8h10'),
+        message: acted('New project'),
+      },
+      rows: [
+        {
+          id: 'design',
+          label: 'Design engineering',
+          href: '#',
+          badge: '8',
+          icon: outline(h, hash),
+          action: more('Design engineering'),
+        },
+        {
+          id: 'sales',
+          label: 'Sales and marketing',
+          href: '#',
+          icon: outline(h, hash),
+          action: more('Sales and marketing'),
+        },
+        {
+          id: 'travel',
+          label: 'Travel',
+          href: '#',
+          badge: '2',
+          icon: outline(h, hash),
+          action: more('Travel'),
+        },
+      ],
+    },
+  ]
+}
+
+// Lifted off the page's edge as a card; on a phone its opener shows it in a Sheet.
+export const sidebarFloating = <Message>(
+  model: Sidebar.Model,
+  onMessage: (message: Sidebar.Message) => Message,
+  acted: { readonly last: Option.Option<string>; readonly toMessage: (what: string) => Message },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', blockSize: '100%' })],
+    [
+      Sidebar.view(
+        {
+          model,
+          onMessage,
+          label: 'Projects',
+          groups: projects(h, acted.toMessage),
+          style: SidebarFloatingStyle,
+          mixins: Sidebar.fluid,
+          sheet: [SidebarSheetStyle.mixin],
+        },
+        h,
+      ),
+      h.p(
+        [h.Style({ margin: '0', padding: '1rem' })],
+        [Option.getOrElse(acted.last, () => 'Hover a project for its actions.')],
+      ),
+    ],
+  )
+// #endregion
+
+// #region sidebar-inset
+export const SidebarInsetStyle = forSlots(SidebarSlots)(Recipes.Sidebar({ variant: 'inset' }))
+
+export const insetSidebar = Sidebar.init({ id: 'app-sidebar-inset', rows: [], open: ['settings'] })
+
+/** The theme's tokens by name; the palette is built only for its names, so the page's own applies. */
+const token = Theme.ref(
+  Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } })),
+)
+
+// Borderless on the frame's muted surface; the page beside it is the card.
+export const sidebarInset = <Message>(
+  model: Sidebar.Model,
+  onMessage: (message: Sidebar.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [
+      h.Style({
+        display: 'flex',
+        blockSize: '100%',
+        boxSizing: 'border-box',
+        padding: token.space.xs,
+        gap: token.space['2xs'],
+        background: token.surface.muted,
+        borderRadius: token.radius.lg,
+      }),
+    ],
+    [
+      Sidebar.view(
+        {
+          model,
+          onMessage,
+          label: 'Workspace',
+          groups: workspace(h),
+          style: SidebarInsetStyle,
+          mixins: Sidebar.fluid,
+          sheet: [SidebarSheetStyle.mixin],
+        },
+        h,
+      ),
+      h.div(
+        // A grid, so the card stands the frame's full height.
+        [h.Style({ display: 'grid', flex: '1 1 0', minInlineSize: '0' })],
+        [
+          Card.view(
+            {
+              title: 'Inbox',
+              description: '12 unread, 3 flagged',
+              content: h.p([h.Style({ margin: '0' })], ['The page stands on a card of its own.']),
+              style: CardStyle,
+            },
+            h,
+          ),
+        ],
+      ),
+    ],
+  )
+// #endregion
+
+// #region sidebar-sections
+export const sectionsSidebar = Sidebar.init({
+  id: 'app-sidebar-sections',
+  rows: [],
+  open: ['start', 'build', 'routing'],
+})
+
+/** A name over a quieter line, each cut short with an ellipsis. */
+const twoLines = <Message>(h: HtmlBuilder<Message>, first: string, second: string) =>
+  h.span(
+    [h.Style({ display: 'grid', minInlineSize: '0', lineHeight: '1.25' })],
+    [
+      h.strong([h.Style({ overflow: 'hidden', textOverflow: 'ellipsis' })], [first]),
+      h.small(
+        [h.Style({ overflow: 'hidden', textOverflow: 'ellipsis', color: token.text.muted })],
+        [second],
+      ),
+    ],
+  )
+
+const guide = (label: string, current = false) => ({ label, href: '#', current })
+
+// Each heading opens and shuts its group, several at once; a branch nests its pages.
+const docSections = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<Sidebar.SidebarGroup> => [
+  {
+    id: 'start',
+    title: 'Getting started',
+    rows: [
+      {
+        id: 'install',
+        label: 'Installation',
+        href: '#',
+        icon: outline(h, 'M8 2v8M5 7l3 3 3-3M3 13h10'),
+      },
+      {
+        id: 'structure',
+        label: 'Project structure',
+        href: '#',
+        icon: outline(h, 'M2 8l6 3 6-3M2 11l6 3 6-3M8 2l6 3-6 3-6-3z'),
+      },
+    ],
+  },
+  {
+    id: 'build',
+    title: 'Building your app',
+    rows: [
+      {
+        id: 'routing',
+        label: 'Routing',
+        icon: outline(
+          h,
+          'M4 13a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM12 6a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM5.5 11.5H8a2.5 2.5 0 002.5-2.5V5.5',
+        ),
+        items: [guide('Defining routes'), guide('Pages and layouts', true), guide('Linking')],
+      },
+      {
+        id: 'data',
+        label: 'Data fetching',
+        icon: outline(
+          h,
+          'M2.5 4c0-1 2.5-2 5.5-2s5.5 1 5.5 2-2.5 2-5.5 2-5.5-1-5.5-2zM2.5 4v8c0 1 2.5 2 5.5 2s5.5-1 5.5-2V4M2.5 8c0 1 2.5 2 5.5 2s5.5-1 5.5-2',
+        ),
+        items: [guide('Fetching'), guide('Caching'), guide('Revalidating')],
+      },
+      {
+        id: 'styling',
+        label: 'Styling',
+        href: '#',
+        badge: 'New',
+        icon: outline(h, 'M3 13l1-3 7-7 2 2-7 7zM9.5 4.5l2 2'),
+      },
+    ],
+  },
+  {
+    id: 'reference',
+    title: 'API reference',
+    rows: [
+      {
+        id: 'components',
+        label: 'Components',
+        href: '#',
+        icon: outline(h, 'M5 4L1 8l4 4M11 4l4 4-4 4'),
+      },
+      {
+        id: 'config',
+        label: 'Configuration',
+        href: '#',
+        icon: outline(h, 'M2 4h8M12 4h2M2 12h2M6 12h8M10 2v4M4 10v4'),
+      },
+    ],
+  },
+]
+
+export const sidebarSections = <Message>(
+  model: Sidebar.Model,
+  onMessage: (message: Sidebar.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', blockSize: '100%' })],
+    [
+      Sidebar.view(
+        {
+          model,
+          onMessage,
+          label: 'Documentation',
+          groups: docSections(h),
+          header: {
+            mark: Avatar.view({ name: 'Docs', initials: 'D', style: SidebarLogoStyle }, h),
+            content: twoLines(h, 'Documentation', 'v1.0.1'),
+          },
+          style: SidebarStyle,
+          mixins: Sidebar.fluid,
+          sheet: [SidebarSheetStyle.mixin],
+        },
+        h,
+      ),
+      h.p([h.Style({ margin: '0', padding: '1rem' })], ['Pages and layouts']),
+    ],
+  )
+// #endregion
+
+// #region sidebar-switcher
+export const switcherSidebar = Sidebar.init({
+  id: 'app-sidebar-switcher',
+  rows: ['inbox', 'projects', 'calendar', 'members', 'billing'],
+})
+
+export const TEAMS: ReadonlyArray<Menu.Row> = [
+  { label: 'Acme Inc' },
+  { label: 'Acme Corp.' },
+  { label: 'Evil Corp.' },
+]
+export const ACCOUNT: ReadonlyArray<Menu.Row> = [
+  { label: 'Account' },
+  { label: 'Notifications' },
+  { label: 'Log out' },
+]
+
+// A menu whose trigger is the whole end beside its mark, as wide as the column.
+const EndMenuStyle = forSlots(MenuSlots)(
+  Recipes.Menu.extend({
+    base: {
+      wrapper: { display: 'block', inlineSize: '100%' },
+      button: {
+        inlineSize: '100%',
+        justifyContent: 'space-between',
+        gap: token.space.xs,
+        paddingInline: token.space.xs,
+        border: '0',
+        textAlign: 'start',
+        fontWeight: 'inherit',
+      },
+    },
+  })({}),
+)
+
+/** The team chosen, and the menus at the column's two ends. */
+export interface SwitcherState {
+  readonly team: string
+  readonly teamMenu: Menu.Model
+  readonly userMenu: Menu.Model
+}
+
+// The header switches teams and the footer opens the account's menu; a rail keeps their marks.
+export const sidebarSwitcher = <Message>(
+  model: Sidebar.Model,
+  state: SwitcherState,
+  messages: {
+    readonly onSidebar: (message: Sidebar.Message) => Message
+    readonly onTeamMenu: (message: Menu.Message) => Message
+    readonly onUserMenu: (message: Menu.Message) => Message
+  },
+  h: HtmlBuilder<Message>,
+): Html => {
+  const upDown = outline(h, 'M5 6l3-3 3 3M5 10l3 3 3-3')
+  return h.div(
+    [h.Style({ display: 'flex', blockSize: '100%' })],
+    [
+      Sidebar.view(
+        {
+          model,
+          onMessage: messages.onSidebar,
+          label: 'Workspace',
+          groups: workspace(h),
+          header: {
+            mark: Avatar.view({ name: state.team, style: SidebarLogoStyle }, h),
+            content: Menu.view(
+              {
+                model: state.teamMenu,
+                rows: TEAMS,
+                buttonContent: h.span(
+                  [h.Style({ display: 'contents' })],
+                  [twoLines(h, state.team, 'Enterprise'), upDown],
+                ),
+                onMessage: messages.onTeamMenu,
+                mixins: [EndMenuStyle.mixin, ...Menu.fluid],
+              },
+              h,
+            ),
+          },
+          footer: {
+            mark: Avatar.view({ name: 'Ada Lovelace', style: SidebarAvatarStyle }, h),
+            content: Menu.view(
+              {
+                model: state.userMenu,
+                rows: ACCOUNT,
+                buttonContent: h.span(
+                  [h.Style({ display: 'contents' })],
+                  [twoLines(h, 'Ada Lovelace', 'ada@acme.dev'), upDown],
+                ),
+                onMessage: messages.onUserMenu,
+                mixins: [EndMenuStyle.mixin, ...Menu.fluid],
+              },
+              h,
+            ),
+          },
+          collapse: 'icons',
+          style: SidebarStyle,
+          mixins: Sidebar.fluid,
+          tooltip: [TooltipStyle.mixin],
+        },
+        h,
+      ),
+      h.p([h.Style({ margin: '0', padding: '1rem' })], [`The ${state.team} inbox.`]),
+    ],
+  )
+}
 // #endregion
 
 // #region menubar
@@ -5870,7 +6272,6 @@ export const sheetDrawer = <Message>(
                       h.div(sheet.handle),
                       h.h2(sheet.title, ['Filters']),
                       h.p([], ['Only what is in stock, nearest first.']),
-          sheet: [SidebarSheetStyle.mixin],
                       h.p([], ['Drag the handle up for every filter, or down to close.']),
                       Button.view(
                         { label: 'Show results', onClick: messages.onClose, style: ButtonStyle },
@@ -5879,407 +6280,6 @@ export const sheetDrawer = <Message>(
                     ]),
                   ]
                 : [],
-// #region sidebar-floating
-export const SidebarFloatingStyle = forSlots(SidebarSlots)(Recipes.Sidebar({ variant: 'floating' }))
-
-export const floatingSidebar = Sidebar.init({
-  id: 'app-sidebar-floating',
-  rows: [],
-  open: ['projects'],
-})
-
-const hash = 'M6.5 3L5 13M11 3l-1.5 10M3 6.5h10M3 9.5h10'
-
-// A group's action adds to it; a row's takes the place of its count under the pointer.
-const projects = <Message>(
-  h: HtmlBuilder<Message>,
-  acted: (what: string) => Message,
-): ReadonlyArray<Sidebar.SidebarGroup<Message>> => {
-  const more = (name: string) => ({
-    label: `More for ${name}`,
-    icon: outline(
-      h,
-      'M3 8a.5.5 0 101 0 .5.5 0 00-1 0zM7.5 8a.5.5 0 101 0 .5.5 0 00-1 0zM12 8a.5.5 0 101 0 .5.5 0 00-1 0z',
-    ),
-    message: acted(`More for ${name}`),
-  })
-  return [
-    {
-      id: 'main',
-      rows: [
-        {
-          id: 'home',
-          label: 'Home',
-          href: '#',
-          current: true,
-          icon: outline(h, 'M2 7l6-5 6 5v7H2zM6 14V9h4v5'),
-        },
-        {
-          id: 'inbox',
-          label: 'Inbox',
-          href: '#',
-          badge: '4',
-          icon: outline(h, 'M2 9h3l1 2h4l1-2h3M2 9l2-6h8l2 6v4H2z'),
-        },
-      ],
-    },
-    {
-      id: 'projects',
-      title: 'Projects',
-      action: {
-        label: 'New project',
-        icon: outline(h, 'M8 3v10M3 8h10'),
-        message: acted('New project'),
-      },
-      rows: [
-        {
-          id: 'design',
-          label: 'Design engineering',
-          href: '#',
-          badge: '8',
-          icon: outline(h, hash),
-          action: more('Design engineering'),
-        },
-        {
-          id: 'sales',
-          label: 'Sales and marketing',
-          href: '#',
-          icon: outline(h, hash),
-          action: more('Sales and marketing'),
-        },
-        {
-          id: 'travel',
-          label: 'Travel',
-          href: '#',
-          badge: '2',
-          icon: outline(h, hash),
-          action: more('Travel'),
-        },
-      ],
-    },
-  ]
-}
-
-// Lifted off the page's edge as a card; on a phone its opener shows it in a Sheet.
-export const sidebarFloating = <Message>(
-  model: Sidebar.Model,
-  onMessage: (message: Sidebar.Message) => Message,
-  acted: { readonly last: Option.Option<string>; readonly toMessage: (what: string) => Message },
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'flex', blockSize: '100%' })],
-    [
-      Sidebar.view(
-        {
-          model,
-          onMessage,
-          label: 'Projects',
-          groups: projects(h, acted.toMessage),
-          style: SidebarFloatingStyle,
-          mixins: Sidebar.fluid,
-          sheet: [SidebarSheetStyle.mixin],
-        },
-        h,
-      ),
-      h.p(
-        [h.Style({ margin: '0', padding: '1rem' })],
-        [Option.getOrElse(acted.last, () => 'Hover a project for its actions.')],
-      ),
-    ],
-  )
-// #endregion
-
-// #region sidebar-inset
-export const SidebarInsetStyle = forSlots(SidebarSlots)(Recipes.Sidebar({ variant: 'inset' }))
-
-export const insetSidebar = Sidebar.init({ id: 'app-sidebar-inset', rows: [], open: ['settings'] })
-
-/** The theme's tokens by name; the palette is built only for its names, so the page's own applies. */
-const token = Theme.ref(
-  Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } })),
-)
-
-// Borderless on the frame's muted surface; the page beside it is the card.
-export const sidebarInset = <Message>(
-  model: Sidebar.Model,
-  onMessage: (message: Sidebar.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [
-      h.Style({
-        display: 'flex',
-        blockSize: '100%',
-        boxSizing: 'border-box',
-        padding: token.space.xs,
-        gap: token.space['2xs'],
-        background: token.surface.muted,
-        borderRadius: token.radius.lg,
-      }),
-    ],
-    [
-      Sidebar.view(
-        {
-          model,
-          onMessage,
-          label: 'Workspace',
-          groups: workspace(h),
-          style: SidebarInsetStyle,
-          mixins: Sidebar.fluid,
-          sheet: [SidebarSheetStyle.mixin],
-        },
-        h,
-      ),
-      h.div(
-        // A grid, so the card stands the frame's full height.
-        [h.Style({ display: 'grid', flex: '1 1 0', minInlineSize: '0' })],
-        [
-          Card.view(
-            {
-              title: 'Inbox',
-              description: '12 unread, 3 flagged',
-              content: h.p([h.Style({ margin: '0' })], ['The page stands on a card of its own.']),
-              style: CardStyle,
-            },
-            h,
-          ),
-        ],
-      ),
-    ],
-  )
-// #endregion
-
-// #region sidebar-sections
-export const sectionsSidebar = Sidebar.init({
-  id: 'app-sidebar-sections',
-  rows: [],
-  open: ['start', 'build', 'routing'],
-})
-
-/** A name over a quieter line, each cut short with an ellipsis. */
-const twoLines = <Message>(h: HtmlBuilder<Message>, first: string, second: string) =>
-  h.span(
-    [h.Style({ display: 'grid', minInlineSize: '0', lineHeight: '1.25' })],
-    [
-      h.strong([h.Style({ overflow: 'hidden', textOverflow: 'ellipsis' })], [first]),
-      h.small(
-        [h.Style({ overflow: 'hidden', textOverflow: 'ellipsis', color: token.text.muted })],
-        [second],
-      ),
-    ],
-  )
-
-const guide = (label: string, current = false) => ({ label, href: '#', current })
-
-// Each heading opens and shuts its group, several at once; a branch nests its pages.
-const docSections = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<Sidebar.SidebarGroup> => [
-  {
-    id: 'start',
-    title: 'Getting started',
-    rows: [
-      {
-        id: 'install',
-        label: 'Installation',
-        href: '#',
-        icon: outline(h, 'M8 2v8M5 7l3 3 3-3M3 13h10'),
-      },
-      {
-        id: 'structure',
-        label: 'Project structure',
-        href: '#',
-        icon: outline(h, 'M2 8l6 3 6-3M2 11l6 3 6-3M8 2l6 3-6 3-6-3z'),
-      },
-    ],
-  },
-  {
-    id: 'build',
-    title: 'Building your app',
-    rows: [
-      {
-        id: 'routing',
-        label: 'Routing',
-        icon: outline(
-          h,
-          'M4 13a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM12 6a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM5.5 11.5H8a2.5 2.5 0 002.5-2.5V5.5',
-        ),
-        items: [guide('Defining routes'), guide('Pages and layouts', true), guide('Linking')],
-      },
-      {
-        id: 'data',
-        label: 'Data fetching',
-        icon: outline(
-          h,
-          'M2.5 4c0-1 2.5-2 5.5-2s5.5 1 5.5 2-2.5 2-5.5 2-5.5-1-5.5-2zM2.5 4v8c0 1 2.5 2 5.5 2s5.5-1 5.5-2V4M2.5 8c0 1 2.5 2 5.5 2s5.5-1 5.5-2',
-        ),
-        items: [guide('Fetching'), guide('Caching'), guide('Revalidating')],
-      },
-      {
-        id: 'styling',
-        label: 'Styling',
-        href: '#',
-        badge: 'New',
-        icon: outline(h, 'M3 13l1-3 7-7 2 2-7 7zM9.5 4.5l2 2'),
-      },
-    ],
-  },
-  {
-    id: 'reference',
-    title: 'API reference',
-    rows: [
-      {
-        id: 'components',
-        label: 'Components',
-        href: '#',
-        icon: outline(h, 'M5 4L1 8l4 4M11 4l4 4-4 4'),
-      },
-      {
-        id: 'config',
-        label: 'Configuration',
-        href: '#',
-        icon: outline(h, 'M2 4h8M12 4h2M2 12h2M6 12h8M10 2v4M4 10v4'),
-      },
-    ],
-  },
-]
-
-export const sidebarSections = <Message>(
-  model: Sidebar.Model,
-  onMessage: (message: Sidebar.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'flex', blockSize: '100%' })],
-    [
-      Sidebar.view(
-        {
-          model,
-          onMessage,
-          label: 'Documentation',
-          groups: docSections(h),
-          header: {
-            mark: Avatar.view({ name: 'Docs', initials: 'D', style: SidebarLogoStyle }, h),
-            content: twoLines(h, 'Documentation', 'v1.0.1'),
-          },
-          style: SidebarStyle,
-          mixins: Sidebar.fluid,
-          sheet: [SidebarSheetStyle.mixin],
-        },
-        h,
-      ),
-      h.p([h.Style({ margin: '0', padding: '1rem' })], ['Pages and layouts']),
-    ],
-  )
-// #endregion
-
-// #region sidebar-switcher
-export const switcherSidebar = Sidebar.init({
-  id: 'app-sidebar-switcher',
-  rows: ['inbox', 'projects', 'calendar', 'members', 'billing'],
-})
-
-export const TEAMS: ReadonlyArray<Menu.Row> = [
-  { label: 'Acme Inc' },
-  { label: 'Acme Corp.' },
-  { label: 'Evil Corp.' },
-]
-export const ACCOUNT: ReadonlyArray<Menu.Row> = [
-  { label: 'Account' },
-  { label: 'Notifications' },
-  { label: 'Log out' },
-]
-
-// A menu whose trigger is the whole end beside its mark, as wide as the column.
-const EndMenuStyle = forSlots(MenuSlots)(
-  Recipes.Menu.extend({
-    base: {
-      wrapper: { display: 'block', inlineSize: '100%' },
-      button: {
-        inlineSize: '100%',
-        justifyContent: 'space-between',
-        gap: token.space.xs,
-        paddingInline: token.space.xs,
-        border: '0',
-        textAlign: 'start',
-        fontWeight: 'inherit',
-      },
-    },
-  })({}),
-)
-
-/** The team chosen, and the menus at the column's two ends. */
-export interface SwitcherState {
-  readonly team: string
-  readonly teamMenu: Menu.Model
-  readonly userMenu: Menu.Model
-}
-
-// The header switches teams and the footer opens the account's menu; a rail keeps their marks.
-export const sidebarSwitcher = <Message>(
-  model: Sidebar.Model,
-  state: SwitcherState,
-  messages: {
-    readonly onSidebar: (message: Sidebar.Message) => Message
-    readonly onTeamMenu: (message: Menu.Message) => Message
-    readonly onUserMenu: (message: Menu.Message) => Message
-  },
-  h: HtmlBuilder<Message>,
-): Html => {
-  const upDown = outline(h, 'M5 6l3-3 3 3M5 10l3 3 3-3')
-  return h.div(
-    [h.Style({ display: 'flex', blockSize: '100%' })],
-    [
-      Sidebar.view(
-        {
-          model,
-          onMessage: messages.onSidebar,
-          label: 'Workspace',
-          groups: workspace(h),
-          header: {
-            mark: Avatar.view({ name: state.team, style: SidebarLogoStyle }, h),
-            content: Menu.view(
-              {
-                model: state.teamMenu,
-                rows: TEAMS,
-                buttonContent: h.span(
-                  [h.Style({ display: 'contents' })],
-                  [twoLines(h, state.team, 'Enterprise'), upDown],
-                ),
-                onMessage: messages.onTeamMenu,
-                mixins: [EndMenuStyle.mixin, ...Menu.fluid],
-              },
-              h,
-            ),
-          },
-          footer: {
-            mark: Avatar.view({ name: 'Ada Lovelace', style: SidebarAvatarStyle }, h),
-            content: Menu.view(
-              {
-                model: state.userMenu,
-                rows: ACCOUNT,
-                buttonContent: h.span(
-                  [h.Style({ display: 'contents' })],
-                  [twoLines(h, 'Ada Lovelace', 'ada@acme.dev'), upDown],
-                ),
-                onMessage: messages.onUserMenu,
-                mixins: [EndMenuStyle.mixin, ...Menu.fluid],
-              },
-              h,
-            ),
-          },
-          collapse: 'icons',
-          style: SidebarStyle,
-          mixins: Sidebar.fluid,
-          tooltip: [TooltipStyle.mixin],
-        },
-        h,
-      ),
-      h.p([h.Style({ margin: '0', padding: '1rem' })], [`The ${state.team} inbox.`]),
-    ],
-  )
-}
-// #endregion
-
             ),
         },
         h,

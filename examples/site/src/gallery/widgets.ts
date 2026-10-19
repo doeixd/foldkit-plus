@@ -78,16 +78,16 @@ import {
   FrequencyBox,
   MENUBAR,
   PAGE_MENU,
-  appSidebar,
   ACCOUNT,
-  sidebarResizableModel,
-  FileTabs,
+  appSidebar,
   floatingSidebar,
   insetSidebar,
   sectionsSidebar,
-  InboxTabs,
+  sidebarResizableModel,
   switcherSidebar,
   TEAMS,
+  FileTabs,
+  InboxTabs,
   type InboxState,
   OpenFiles,
   TRAIL_MAX,
@@ -147,9 +147,6 @@ export const InboxExample = Schema.Literals(['icons', 'vertical'])
 export type InboxExample = typeof InboxExample.Type
 export const FilesExample = Schema.Literals(['closable', 'scrolling'])
 export type FilesExample = typeof FilesExample.Type
-export const NavExample = Schema.Literals(['panels', 'pill', 'vertical'])
-export type NavExample = typeof NavExample.Type
-
 /** The Sidebar page's examples beyond its first, each with a sidebar of its own. */
 export const SidebarExample = Schema.Literals([
   'resizable',
@@ -159,6 +156,9 @@ export const SidebarExample = Schema.Literals([
   'switcher',
 ])
 export type SidebarExample = typeof SidebarExample.Type
+
+export const NavExample = Schema.Literals(['panels', 'pill', 'vertical'])
+export type NavExample = typeof NavExample.Type
 
 const InboxModel = Schema.Struct({ tabs: UiTabs.Model, folder: Inbox })
 
@@ -1220,23 +1220,6 @@ const foldSidebar = Update.foldChild({
 
 const foldSidebarOf = Update.foldChildAt({
   update: Sidebar.update,
-})
-
-const foldPillTabs = Update.foldChild({
-  read: (model: Model) => Option.some(model.pillTabs.tabs),
-  write: (model, tabs) => modifyFields(model, { pillTabs: pill => ({ ...pill, tabs }) }),
-  toParentMessage: message => Message.GotPillTabs({ message }),
-  update: SectionTabs.update,
-  foldOutMessage: UiTabs.OutMessage.match<Step, UiTabs.OutMessage<Section>>({
-    Selected:
-      ({ value }) =>
-      model =>
-        value === model.pillTabs.section
-          ? { model }
-          : { model: modifyFields(model, { pillTabs: pill => ({ ...pill, section: value }) }) },
-  }),
-})
-
   readAt: (model: Model, example: SidebarExample) => Option.some(model.sidebars[example]),
   writeAt: (model, example, sidebar) =>
     modifyFields(model, { sidebars: sidebars => ({ ...sidebars, [example]: sidebar }) }),
@@ -1258,6 +1241,23 @@ const foldUserMenu = Update.foldChild({
   ...own('userMenu', Message.GotUserMenu),
   update: Menu.update,
   foldOutMessage: Menu.OutMessage.match<Step>({ Selected: () => same }),
+})
+
+const foldPillTabs = Update.foldChild({
+  read: (model: Model) => Option.some(model.pillTabs.tabs),
+  write: (model, tabs) => modifyFields(model, { pillTabs: pill => ({ ...pill, tabs }) }),
+  toParentMessage: message => Message.GotPillTabs({ message }),
+  update: SectionTabs.update,
+  foldOutMessage: UiTabs.OutMessage.match<Step, UiTabs.OutMessage<Section>>({
+    Selected:
+      ({ value }) =>
+      model =>
+        value === model.pillTabs.section
+          ? { model }
+          : { model: modifyFields(model, { pillTabs: pill => ({ ...pill, section: value }) }) },
+  }),
+})
+
 const foldInboxTabs = Update.foldChildAt({
   update: InboxTabs.update,
   readAt: (model: Model, example: InboxExample) => Option.some(model.inboxes[example].tabs),
