@@ -1,5 +1,5 @@
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema, Stream } from 'effect'
 import {
   Attr,
   Behavior,
@@ -15,10 +15,12 @@ import {
 import * as Command from 'foldkit/command'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
-import { FluidHover, Measure } from 'foldkit-primitives/dom'
+import { FluidHover, Measure, Move } from 'foldkit-primitives/dom'
 import { flipped } from './choices.js'
+import { readingKey } from './direction.js'
 import type { ResolvedDialog } from './dialog.js'
 import type { MixinList } from './resolve.js'
 import * as Sheet from './sheet.js'
@@ -42,8 +44,13 @@ import * as Tooltip from './tooltip.js'
  *
  * `indicator` and `highlight`, drawn in the navigation, are the current
  * link's marker and the hover that follows the pointer, which `fluid` moves,
- * as Tabs' do. A resizable width is the Resizable component's: draw the
- * sidebar as its `first` panel with `width: 'fill'`.
+ * as Tabs' do.
+ *
+ * Initialised with a `width`, the column is resizable, and its width is the
+ * Model's too: a `resize` handle on its edge drags it within the bounds, and
+ * dragged below half the least width it collapses, as one gesture, keeping
+ * the width it had to come back to. One Model holds both, so a collapse
+ * never leaves the dragged width behind.
  */
 export const SidebarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -91,6 +98,12 @@ export const SidebarSlots = Slots.define({
   tip: Slot.make({ capability: Capability.Container }),
   indicator: Slot.make({ capability: Capability.Container }),
   highlight: Slot.make({ capability: Capability.Container }),
+  /** A resizable column's handle on its inline-end edge, a `separator`. */
+  resize: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel],
+  }),
 })
 
 /** What a row may carry beside its words. */
@@ -149,9 +162,16 @@ const isBranch = (row: SidebarRow): row is SidebarBranch => row.items !== undefi
 
 const Tip = Schema.Struct({ row: Schema.String, tooltip: UiTooltip.Model })
 
+/** A resizable column's width, in CSS pixels, and the bounds a drag or a key keeps it in. */
+const Width = Schema.Struct({ size: Schema.Number, min: Schema.Number, max: Schema.Number })
+
 export const Model = Schema.Struct({
   id: Schema.String,
   collapsed: Schema.Boolean,
+  /** The expanded column's width, when it is resizable; kept while collapsed. */
+  width: Schema.Option(Width),
+  /** While a drag runs: the width the column showed at the press, and its expanded width then. */
+  drag: Schema.Option(Schema.Struct({ from: Schema.Number, size: Schema.Number })),
   /** The ids of the open groups and branches. */
   open: Schema.Array(Schema.String),
   /** A Tooltip per row, by its id, which an icon rail shows its name in. */
@@ -172,8 +192,17 @@ export const Message = defineMessageUnion({
   OpenedSheet: {},
   /** A link followed in the Sheet, which closes it. */
   FollowedInSheet: {},
+  /** The resize handle pressed, over a column `from` pixels wide. */
+  ResizeStarted: { from: Schema.Number },
+  /** The press moved `delta` pixels toward the inline end. */
+  Resized: { delta: Schema.Number },
+  ResizeEnded: {},
+  /** The handle's keys: the column expanded, `size` pixels wide within the bounds. */
+  SetWidth: { size: Schema.Number },
 })
 export type Message = typeof Message.Type
+
+const clamp = (size: number, min: number, max: number) => Math.min(max, Math.max(min, size))
 
 export interface InitConfig {
   /** Prefixes every id the sidebar draws, unique on the page. */
@@ -185,12 +214,29 @@ export interface InitConfig {
   readonly open?: ReadonlyArray<string> | undefined
   /** The side the phone's Sheet comes from; default `left`. */
   readonly side?: 'left' | 'right' | undefined
+  /**
+   * Given, the column is resizable: `size` wide at first (default 240, the
+   * recipe's 15rem), within `min` and `max` (default 192 and 384), in CSS pixels.
+   */
+  readonly width?:
+    | {
+        readonly size?: number | undefined
+        readonly min?: number | undefined
+        readonly max?: number | undefined
+      }
+    | undefined
 }
 
 /** A sidebar, expanded unless `collapsed`, with a Tooltip for each of `rows`. */
 export const init = (config: InitConfig): Model => ({
   id: config.id,
   collapsed: config.collapsed ?? false,
+  width: Option.map(Option.fromNullishOr(config.width), ({ size, min = 192, max = 384 }) => ({
+    size: clamp(size ?? 240, min, max),
+    min,
+    max,
+  })),
+  drag: Option.none(),
   open: config.open ?? [],
   tips: config.rows.map(row => ({
     row,
@@ -202,6 +248,19 @@ export const init = (config: InitConfig): Model => ({
 /** The open groups after `id` is pressed: several stay open, a press flips one. */
 export const toggled = (open: ReadonlyArray<string>, id: string): ReadonlyArray<string> =>
   flipped(open, id)
+
+/** The Model with the column `collapsed` and `size` wide expanded; the same Model if neither moved. */
+const resized = (model: Model, collapsed: boolean, size: number): Model =>
+  Option.match(model.width, {
+    onNone: () => model,
+    onSome: width =>
+      collapsed === model.collapsed && size === width.size
+        ? model
+        : modifyFields(model, {
+            collapsed: () => collapsed,
+            width: () => Option.some({ ...width, size }),
+          }),
+  })
 
 const sheetStep = (model: Model, step: Sheet.Return): Return<Model, Message> => ({
   model: step.model === model.sheet ? model : modifyFields(model, { sheet: () => step.model }),
@@ -244,6 +303,34 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
     GotSheet: ({ message }) => sheetStep(model, Sheet.update(model.sheet, message)),
     OpenedSheet: () => sheetStep(model, Sheet.open(model.sheet)),
     FollowedInSheet: () => sheetStep(model, Sheet.close(model.sheet)),
+    ResizeStarted: ({ from }) =>
+      Option.match(model.width, {
+        onNone: () => ({ model }),
+        onSome: ({ size }) => ({
+          model: modifyFields(model, { drag: () => Option.some({ from, size }) }),
+        }),
+      }),
+    // Below half the least width the column collapses, and keeps the width the drag began at.
+    Resized: ({ delta }) => ({
+      model: Option.match(Option.all([model.width, model.drag]), {
+        onNone: () => model,
+        onSome: ([{ min, max }, { from, size }]) => {
+          const wanted = from + delta
+          return wanted < min / 2
+            ? resized(model, true, size)
+            : resized(model, false, clamp(wanted, min, max))
+        },
+      }),
+    }),
+    ResizeEnded: () => ({
+      model: Option.isNone(model.drag) ? model : modifyFields(model, { drag: () => Option.none() }),
+    }),
+    SetWidth: ({ size }) => ({
+      model: Option.match(model.width, {
+        onNone: () => model,
+        onSome: ({ min, max }) => resized(model, false, clamp(size, min, max)),
+      }),
+    }),
   })
 
 const current = '[aria-current="page"]'
@@ -282,6 +369,38 @@ export const fluid = [
     { name: 'SidebarHover' },
   ).mixin,
 ] as const
+
+/**
+ * The resize handle's drag, from the Move Mount: the width the column shows
+ * at the press, read from the navigation the handle controls, then each
+ * move's distance toward the inline end, which is the left under `rtl`.
+ */
+const Widen = Mount.defineStream('SidebarWiden', {
+  messages: [Message],
+  execute: ({ element, viewStateChanges }) => {
+    let across = 1
+    return Move()
+      .f(element, viewStateChanges)
+      .pipe(
+        Stream.map(fact =>
+          Match.valueTags(fact, {
+            MoveStarted: () => {
+              across = element.matches(':dir(rtl)') ? -1 : 1
+              const nav = element.ownerDocument.getElementById(
+                element.getAttribute('aria-controls') ?? '',
+              )
+              return Message.ResizeStarted({ from: nav?.getBoundingClientRect().width ?? 0 })
+            },
+            Moved: ({ deltaX }) => Message.Resized({ delta: deltaX * across }),
+            MoveEnded: () => Message.ResizeEnded(),
+          }),
+        ),
+      )
+  },
+})
+
+/** What an arrow key on the resize handle moves the width by, in CSS pixels. */
+const STEP = 16
 
 export interface SidebarView<Message> {
   readonly model: Model
@@ -347,6 +466,12 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
       ...(options.direction === undefined ? [] : [h.Dir(options.direction)]),
       // A phone shows only the opener of a sidebar that has a Sheet to open.
       ...(options.sheet === undefined ? [] : [h.DataAttribute('opens-sheet', '')]),
+      ...Option.match(model.width, {
+        onNone: () => [],
+        onSome: ({ size }) => [h.Style({ '--_fk-sidebar-width': `${size}px` })],
+      }),
+      // While dragged, the column follows the pointer at once; otherwise it eases.
+      ...(Option.isSome(model.drag) ? [h.DataAttribute('resizing', '')] : []),
     ]),
     [
       h.button(
@@ -425,6 +550,38 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
         ],
       ),
       ...end(builders.footer, options.footer, [collapsed]),
+      ...Option.match(model.width, {
+        onNone: () => [],
+        onSome: ({ size, min, max }) => [
+          h.div(
+            builders.resize.attrs([
+              h.Role('separator'),
+              h.AriaOrientation('vertical'),
+              h.AriaLabel(`Resize ${options.label}`),
+              h.AriaControls(navId),
+              // Collapsed is the handle's least place, below the bounds a drag keeps.
+              h.AriaValuemin(0),
+              h.AriaValuemax(max),
+              h.AriaValuenow(model.collapsed ? 0 : size),
+              h.Tabindex(0),
+              h.OnKeyDownSelfPreventDefault(pressed => {
+                const key = readingKey(pressed, options.direction)
+                const to = (width: number) =>
+                  Option.some(onMessage(Message.SetWidth({ size: width })))
+                if (key === 'Home') return to(min)
+                if (key === 'End') return to(max)
+                if (key === 'ArrowLeft') return to(size - STEP)
+                if (key === 'ArrowRight') return to(size + STEP)
+                if (key === 'Enter') return Option.some(onMessage(Message.ToggledCollapsed()))
+                return Option.none()
+              }),
+              h.OnDoubleClick(onMessage(Message.ToggledCollapsed())),
+              h.OnMount(Mount.mapMessage(Widen(), onMessage)),
+            ]),
+            [],
+          ),
+        ],
+      }),
       ...(options.sheet === undefined
         ? []
         : [

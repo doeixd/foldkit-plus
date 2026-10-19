@@ -4662,40 +4662,37 @@ export const sidebar = <Message>(
 // #endregion
 
 // #region sidebar-resizable
-export const SidebarFillStyle = forSlots(SidebarSlots)(Recipes.Sidebar({ width: 'fill' }))
+// Its width is the sidebar's Model: drag the edge, or below half the least width it collapses.
+export const sidebarResizableModel = Sidebar.init({
+  id: 'app-sidebar-resizable',
+  rows: ['inbox', 'projects', 'calendar', 'members', 'billing'],
+  open: ['settings'],
+  width: { size: 224, min: 176, max: 320 },
+})
 
-// The sidebar as a Resizable's first panel, filling it; the split is the Resizable's Model.
 export const sidebarResizable = <Message>(
   model: Sidebar.Model,
-  split: Resizable.Model,
-  messages: {
-    readonly onSidebar: (message: Sidebar.Message) => Message
-    readonly onSplit: (message: Resizable.Message) => Message
-  },
+  onMessage: (message: Sidebar.Message) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
-  Resizable.view(
-    {
-      model: split,
-      onMessage: messages.onSplit,
-      label: 'Sidebar width',
-      min: 0.2,
-      max: 0.5,
-      first: Sidebar.view(
+  h.div(
+    [h.Style({ display: 'flex', blockSize: '100%' })],
+    [
+      Sidebar.view(
         {
           model,
-          onMessage: messages.onSidebar,
+          onMessage,
           label: 'Workspace',
           groups: workspace(h),
-          style: SidebarFillStyle,
+          collapse: 'icons',
+          style: SidebarStyle,
           mixins: Sidebar.fluid,
+          tooltip: [TooltipStyle.mixin],
         },
         h,
       ),
-      second: h.p([], ['The page.']),
-      style: ResizableStyle,
-    },
-    h,
+      h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['The page.']),
+    ],
   )
 // #endregion
 

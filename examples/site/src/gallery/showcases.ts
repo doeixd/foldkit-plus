@@ -1776,12 +1776,7 @@ export const showcases: ReadonlyArray<Showcase> = [
             [
               Snippet.sidebarResizable(
                 live.widgets.sidebarResizable,
-                live.widgets.sidebarSplit,
-                {
-                  onSidebar: message =>
-                    live.onWidget(Widgets.Message.GotSidebarResizable({ message })),
-                  onSplit: message => live.onWidget(Widgets.Message.GotSidebarSplit({ message })),
-                },
+                message => live.onWidget(Widgets.Message.GotSidebarResizable({ message })),
                 live.h,
               ),
             ],

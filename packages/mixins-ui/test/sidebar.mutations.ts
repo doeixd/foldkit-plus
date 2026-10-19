@@ -151,9 +151,74 @@ export default [
     tests: browser,
   },
   {
-    name: "a fill's navigation keeps its own width",
+    name: 'a drag never collapses the column',
+    edits: [{ file, find: 'return wanted < min / 2', replace: 'return false' }],
+    tests: unit,
+  },
+  {
+    name: 'a collapse by drag keeps the width it was dragged to',
     edits: [
-      { file: recipe, find: "Style.self({ inlineSize: 'auto' }),", replace: 'Style.self({}),' },
+      {
+        file,
+        find: '? resized(model, true, size)',
+        replace: '? resized(model, true, clamp(wanted, min, max))',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a drag starts from the expanded width, not the one shown',
+    edits: [{ file, find: 'const wanted = from + delta', replace: 'const wanted = size + delta' }],
+    tests: unit,
+  },
+  {
+    name: 'the keys ignore the bounds',
+    edits: [
+      {
+        file,
+        find: 'onSome: ({ min, max }) => resized(model, false, clamp(size, min, max)),',
+        replace: 'onSome: () => resized(model, false, size),',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a collapsed handle reads its expanded width',
+    edits: [
+      {
+        file,
+        find: 'h.AriaValuenow(model.collapsed ? 0 : size),',
+        replace: 'h.AriaValuenow(size),',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a drag reads left to right under rtl',
+    edits: [
+      { file, find: "across = element.matches(':dir(rtl)') ? -1 : 1", replace: 'across = 1' },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the column ignores its width',
+    edits: [
+      {
+        file: recipe,
+        find: "inlineSize: 'var(--_fk-sidebar-width, 15rem)',",
+        replace: "inlineSize: '15rem',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the handle sits inside the column',
+    edits: [
+      {
+        file: recipe,
+        find: "insetInlineEnd: `calc(-1 * (${ref.space['2xs']} + ${ref.border.thin} / 2))`,",
+        replace: "insetInlineEnd: '0',",
+      },
     ],
     tests: browser,
   },

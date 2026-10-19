@@ -2,9 +2,10 @@
  * The sidebar on a real runtime: a branch opens its links beneath it; under
  * `Sidebar.fluid` the marker sits behind the current link and glides to a
  * new one; collapsed it leaves the page or shrinks to a rail of icons, where
- * a row's name shows in a tooltip beside it; `width: 'fill'` takes what
- * holds it; and on a phone only its opener shows, which opens the navigation
- * in a Sheet that a link followed closes.
+ * a row's name shows in a tooltip beside it; a resizable column follows a
+ * drag of its edge, either way, and collapses dragged below half its least
+ * width, giving the page its room; and on a phone only its opener shows,
+ * which opens the navigation in a Sheet that a link followed closes.
  */
 import { Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
@@ -80,6 +81,7 @@ interface Fixture {
   readonly collapsed?: boolean
   readonly direction?: 'ltr' | 'rtl'
   readonly recipe?: Parameters<typeof SidebarRecipe>[0]
+  readonly resizable?: Sidebar.InitConfig['width']
   /** The width of the box around it, centred on the page so a tooltip has room on either side. */
   readonly width?: string
 }
@@ -119,6 +121,7 @@ const mount = (fixture: Fixture = {}) => {
             rows: ['inbox', 'calendar', 'projects'],
             collapsed: fixture.collapsed ?? false,
             open: ['work'],
+            width: fixture.resizable,
           }),
           page: 'Inbox',
         },
@@ -138,8 +141,9 @@ const mount = (fixture: Fixture = {}) => {
           Went: ({ page }) => ({ model: modifyFields(model, { page: () => page }) }),
         }),
       view: (model: Model, h: HtmlBuilder<Message>) =>
+        // A row, as a page beside a sidebar: the column takes only its own width.
         h.div(
-          [],
+          [h.Style({ display: 'flex', alignItems: 'flex-start' })],
           [
             Sidebar.view(
               {
@@ -291,16 +295,63 @@ test('a branch pressed in a rail expands the sidebar with it open', async () => 
   }
 })
 
-test("width: 'fill' takes the width of what holds it", async () => {
-  const handle = mount({ recipe: { width: 'fill' }, width: '25rem' })
-  try {
-    await vi.waitFor(() => expect(nav()).toBeTruthy())
-    expect(Math.abs(rect(nav().parentElement!).width - 400)).toBeLessThan(1)
-    expect(rect(nav()).width).toBeGreaterThan(300)
-  } finally {
-    handle.dispose()
-  }
-})
+const resizeHandle = () => document.querySelector<HTMLElement>('[role="separator"]')!
+
+/** Drags the resize handle by `dx` pixels, as a pointer would. */
+const drag = (dx: number) => {
+  const { left, top } = rect(resizeHandle())
+  const at = (type: string, x: number) =>
+    resizeHandle().dispatchEvent(
+      new PointerEvent(type, { bubbles: true, pointerId: 1, button: 0, clientX: x, clientY: top }),
+    )
+  at('pointerdown', left)
+  at('pointermove', left + dx)
+  at('pointerup', left + dx)
+}
+
+test.each([
+  ['ltr', 40],
+  ['rtl', -40],
+] as const)(
+  '%s, a drag of %ipx widens the column, its edge under the handle',
+  async (direction, dx) => {
+    const handle = mount({ direction, resizable: { size: 240, min: 200, max: 400 } })
+    try {
+      await vi.waitFor(() => expect(Math.round(rect(nav()).width)).toBe(240))
+      drag(dx)
+      await vi.waitFor(() => expect(Math.round(rect(nav()).width)).toBe(280))
+      const column = rect(nav().parentElement!)
+      const edge = direction === 'ltr' ? column.right : column.left
+      const line = rect(resizeHandle())
+      expect(Math.abs((line.left + line.right) / 2 - edge)).toBeLessThan(1)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+test.each(['icons', 'offcanvas'] as const)(
+  'dragged below half its least width, the column collapses (%s) and gives the page its room, and the toggle brings its width back',
+  async collapse => {
+    const handle = mount({ collapse, resizable: { size: 300, min: 200, max: 400 } })
+    try {
+      await vi.waitFor(() => expect(Math.round(rect(nav()).width)).toBe(300))
+      const page = () => rect(button('Go to Calendar')).left
+      drag(-60)
+      await vi.waitFor(() => expect(Math.round(rect(nav()).width)).toBe(240))
+      drag(-200)
+      await vi.waitFor(() => expect(rect(nav()).width).toBeLessThan(50))
+      // The page beside it moves in: no column is left at the dragged width.
+      expect(page()).toBeLessThan(60)
+      // Back at the width that drag began at.
+      await userEvent.click(button('Show Workspace'))
+      await vi.waitFor(() => expect(Math.round(rect(nav()).width)).toBe(240))
+      expect(page()).toBeGreaterThan(240)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
 
 test('on a phone only the opener shows, and it opens the navigation in a Sheet', async () => {
   await page.viewport(390, 800)

@@ -9,10 +9,12 @@
  * whose words stay for their names, on the slow tier (a whole column moving
  * is the largest thing it animates, as Fluid Functionalism's), and its toggle
  * stays. Below the theme's `md` breakpoint, a sidebar drawn with a Sheet
- * shows only its opener. `width: 'fill'` takes the width of what holds it,
- * a Resizable's panel. Given `Sidebar.fluid`, a pill glides to the current
- * link and a hover follows the pointer; until it runs, the current link
- * fills itself.
+ * shows only its opener. A resizable column's width is the view's
+ * `--_fk-sidebar-width`, and its handle a hit area across its edge that
+ * shows an accent line under the pointer, while dragged and when focused; a
+ * drag moves the column at once. Given `Sidebar.fluid`, a pill glides to the
+ * current link and a hover follows the pointer; until it runs, the current
+ * link fills itself.
  */
 import { Style } from 'foldkit-mixins'
 import { ladder, role, Theme } from 'foldkit-mixins/theme'
@@ -64,6 +66,9 @@ const handle = Style.compose(
   Style.pseudo(':is(:hover, :active)', { backgroundColor: unfilledHover, color: ref.text.overt }),
   focusRing,
 )
+
+/** The resize handle's line, an accent a pixel thicker than the column's edge. */
+const edgeLine = { background: ref.accent.default }
 
 /** A rail's header or footer: its mark alone, centred over the icons. */
 const railEnd = { inlineSize: ladder('height'), justifyContent: 'center', overflow: 'hidden' }
@@ -119,6 +124,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
   base: {
     root: component(
       Style.self({
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         gap: ladder('gap'),
@@ -126,12 +132,20 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         background: ref.surface.muted,
         borderInlineEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,
       }),
+      Style.pseudo('[data-resizing]', { cursor: 'col-resize', userSelect: 'none' }),
     ),
     toggle: component(handle, onPhone(besideSheet, { display: 'none' })),
     // Only on a phone, where it stands for the column.
     opener: component(handle, Style.self({ display: 'none' }), onPhone('&', { display: 'block' })),
+    // Neither end widens the column: its width is the navigation's.
     header: component(
-      Style.self({ display: 'flex', alignItems: 'center', gap: ladder('gap'), minInlineSize: '0' }),
+      Style.self({
+        display: 'flex',
+        alignItems: 'center',
+        gap: ladder('gap'),
+        minInlineSize: '0',
+        contain: 'inline-size',
+      }),
       onPhone(besideSheet, { display: 'none' }),
       Style.pseudo(`:where([data-collapse="offcanvas"]) > &${collapsed}`, { display: 'none' }),
       Style.nest(`:where([data-collapse="icons"]) > &${collapsed}`, railEnd),
@@ -143,6 +157,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         gap: ladder('gap'),
         minInlineSize: '0',
         marginBlockStart: 'auto',
+        contain: 'inline-size',
       }),
       onPhone(besideSheet, { display: 'none' }),
       Style.pseudo(`:where([data-collapse="offcanvas"]) > &${collapsed}`, { display: 'none' }),
@@ -155,7 +170,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         display: 'flex',
         flexDirection: 'column',
         gap: ref.space['3xs'],
-        inlineSize: '15rem',
+        inlineSize: 'var(--_fk-sidebar-width, 15rem)',
         minBlockSize: '0',
         overflowX: 'hidden',
         overflowY: 'auto',
@@ -169,6 +184,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         inlineSize: ladder('height'),
         opacity: '1',
       }),
+      Style.nest(':where([data-resizing]) > &', { transitionDuration: '0s' }),
       onPhone(besideSheet, { display: 'none' }),
     ),
     section: component(opensBelow(open)),
@@ -306,22 +322,33 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       }),
       Style.nest(lit, { display: 'block' }),
     ),
-  },
-  variants: {
-    width: {
-      // As wide as what holds it, a Resizable's panel: the column and its navigation fill it.
-      fill: {
-        root: variant(
-          Style.self({ boxSizing: 'border-box', inlineSize: '100%', blockSize: '100%' }),
-        ),
-        nav: variant(
-          Style.self({ inlineSize: 'auto' }),
-          Style.pseudo(collapsed, { inlineSize: '0' }),
-          Style.nest(`:where([data-collapse="icons"]) > &${collapsed}`, {
-            inlineSize: ladder('height'),
-          }),
-        ),
-      },
-    },
+    // A hit area centred on the column's border, so the press need not land on its pixel.
+    resize: component(
+      Style.self({
+        position: 'absolute',
+        insetBlock: '0',
+        insetInlineEnd: `calc(-1 * (${ref.space['2xs']} + ${ref.border.thin} / 2))`,
+        zIndex: '1',
+        inlineSize: ref.space.xs,
+        cursor: 'col-resize',
+        touchAction: 'none',
+        // No callout of iOS's own for a press held while dragging.
+        WebkitTouchCallout: 'none',
+      }),
+      Style.pseudo('::after', {
+        content: '""',
+        position: 'absolute',
+        insetBlock: '0',
+        insetInlineStart: '50%',
+        inlineSize: ref.border.thick,
+        marginInlineStart: `calc(${ref.border.thick} / -2)`,
+        background: 'transparent',
+        ...transition('background-color'),
+      }),
+      Style.pseudo(':is(:hover, :focus-visible)::after', edgeLine),
+      Style.nest(':where([data-resizing]) > &::after', edgeLine),
+      Style.pseudo(':focus-visible', { outline: 'none' }),
+      onPhone(besideSheet, { display: 'none' }),
+    ),
   },
 })

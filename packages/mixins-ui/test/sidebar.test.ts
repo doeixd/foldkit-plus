@@ -3,9 +3,12 @@
  * names it and says whether it shows; groups whose headings name their rows,
  * or stand as labels; branches that show and hide the links under them; a
  * shut group's rows and a collapsed navigation kept but inert, except a
- * rail's, whose icons are the navigation; the current page marked; and an
- * `update` that opens, shuts, collapses and opens the phone's Sheet.
+ * rail's, whose icons are the navigation; the current page marked; a
+ * resizable column's handle, a separator with its width; and an `update`
+ * that opens, shuts, collapses, opens the phone's Sheet, and resizes,
+ * collapsing a column dragged below half its least width.
  */
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { modifyFields } from 'foldkit/struct'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -60,6 +63,7 @@ const drawn = (
   )
 
 const collapsed = modifyFields(model, { collapsed: () => true })
+const resizable = Sidebar.init({ id: 'side', rows: [], width: {} })
 const byLabel = (html: ReturnType<typeof drawn>, label: string) => Inert.byLabel(html, label)[0]
 
 describe('Sidebar.view', () => {
@@ -150,6 +154,17 @@ describe('Sidebar.view', () => {
     expect(byLabel(drawn(), 'Open Workspace')).toBeUndefined()
     expect(Inert.byTag(drawn(), 'dialog')).toEqual([])
   })
+
+  it('draws a resize handle only for a resizable column, a separator with its width', () => {
+    expect(byLabel(drawn(), 'Resize Workspace')).toBeUndefined()
+    const handle = byLabel(drawn(resizable), 'Resize Workspace')
+    expect(Inert.value(handle, 'role')).toBe('separator')
+    expect(Inert.value(handle, 'aria-controls')).toBe('side-nav')
+    expect(Inert.value(handle, 'aria-valuenow')).toBe('240')
+    expect(Inert.value(handle, 'aria-valuemax')).toBe('384')
+    const shut = modifyFields(resizable, { collapsed: () => true })
+    expect(Inert.value(byLabel(drawn(shut), 'Resize Workspace'), 'aria-valuenow')).toBe('0')
+  })
 })
 
 describe('Sidebar.update', () => {
@@ -184,6 +199,70 @@ describe('Sidebar.update', () => {
     expect(
       step(model, Sidebar.Message.GotTip({ row: 'nowhere', message: { _tag: 'EnteredTrigger' } })),
     ).toBe(model)
+  })
+
+  describe('a resizable column', () => {
+    const narrow = Sidebar.init({ id: 'side', rows: [], width: { size: 300, min: 200, max: 400 } })
+    const sizeOf = (state: Sidebar.Model) => Option.map(state.width, width => width.size)
+    const dragged = (state: Sidebar.Model, from: number, ...deltas: ReadonlyArray<number>) =>
+      deltas.reduce(
+        (each, delta) => step(each, Sidebar.Message.Resized({ delta })),
+        step(state, Sidebar.Message.ResizeStarted({ from })),
+      )
+
+    it('starts within its bounds', () => {
+      expect(model.width).toEqual(Option.none())
+      expect(resizable.width).toEqual(Option.some({ size: 240, min: 192, max: 384 }))
+      const wide = Sidebar.init({ id: 'side', rows: [], width: { size: 999, max: 320 } })
+      expect(sizeOf(wide)).toEqual(Option.some(320))
+    })
+
+    it('follows a drag from the width it showed at the press, within the bounds', () => {
+      expect(sizeOf(dragged(narrow, 300, 40))).toEqual(Option.some(340))
+      expect(sizeOf(dragged(narrow, 300, 400))).toEqual(Option.some(400))
+      expect(sizeOf(dragged(narrow, 300, -150))).toEqual(Option.some(200))
+    })
+
+    it('collapses below half its least width, keeping the width the drag began at', () => {
+      const snapped = dragged(narrow, 300, -60, -201)
+      expect(snapped.collapsed).toBe(true)
+      expect(sizeOf(snapped)).toEqual(Option.some(300))
+      // The toggle brings that width back.
+      const back = step(
+        step(snapped, Sidebar.Message.ResizeEnded()),
+        Sidebar.Message.ToggledCollapsed(),
+      )
+      expect(back.collapsed).toBe(false)
+      expect(sizeOf(back)).toEqual(Option.some(300))
+    })
+
+    it('expands when dragged out of its collapse', () => {
+      const shut = modifyFields(narrow, { collapsed: () => true })
+      expect(dragged(shut, 36, 50).collapsed).toBe(true)
+      const out = dragged(shut, 36, 260)
+      expect(out.collapsed).toBe(false)
+      expect(sizeOf(out)).toEqual(Option.some(296))
+    })
+
+    it('ends a drag, and ignores moves outside one', () => {
+      const ended = step(dragged(narrow, 300, 40), Sidebar.Message.ResizeEnded())
+      expect(ended.drag).toEqual(Option.none())
+      expect(step(ended, Sidebar.Message.Resized({ delta: 50 }))).toBe(ended)
+      expect(step(ended, Sidebar.Message.ResizeEnded())).toBe(ended)
+    })
+
+    it('takes a width from the keys within its bounds, expanding', () => {
+      const shut = modifyFields(narrow, { collapsed: () => true })
+      const set = step(shut, Sidebar.Message.SetWidth({ size: 999 }))
+      expect(set.collapsed).toBe(false)
+      expect(sizeOf(set)).toEqual(Option.some(400))
+      expect(step(narrow, Sidebar.Message.SetWidth({ size: 300 }))).toBe(narrow)
+    })
+
+    it('ignores resizing when it is not resizable', () => {
+      expect(dragged(model, 240, 40)).toBe(model)
+      expect(step(model, Sidebar.Message.SetWidth({ size: 300 }))).toBe(model)
+    })
   })
 
   it('opens the Sheet, and closes it when a link in it is followed', () => {

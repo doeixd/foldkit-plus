@@ -78,6 +78,7 @@ import {
   MENUBAR,
   PAGE_MENU,
   appSidebar,
+  sidebarResizableModel,
   FileTabs,
   InboxTabs,
   type InboxState,
@@ -278,9 +279,8 @@ export const Model = Schema.Struct({
   split: Resizable.Model,
   /** The sidebar's open groups, whether it is collapsed, its tooltips and phone Sheet. */
   sidebar: Sidebar.Model,
-  /** The resizable sidebar's own Model, and its split. */
+  /** The resizable sidebar's Model, its width among it. */
   sidebarResizable: Sidebar.Model,
-  sidebarSplit: Resizable.Model,
   /** The pill tabs' own tabs and section. */
   pillTabs: Schema.Struct({ tabs: UiTabs.Model, section: Section }),
   inboxes: Schema.Record(InboxExample, InboxModel),
@@ -467,7 +467,6 @@ export const Message = defineMessageUnion({
   GotSplit: { message: Resizable.Message },
   GotSidebar: { message: Sidebar.Message },
   GotSidebarResizable: { message: Sidebar.Message },
-  GotSidebarSplit: { message: Resizable.Message },
   GotPillTabs: { message: UiTabs.Message },
   GotInboxTabs: { example: InboxExample, message: UiTabs.Message },
   GotFileTabs: { example: FilesExample, message: UiTabs.Message },
@@ -697,12 +696,7 @@ export const initial: Model = {
   commandRan: Option.none(),
   split: Resizable.init(0.35),
   sidebar: appSidebar,
-  sidebarResizable: Sidebar.init({
-    id: 'app-sidebar-resizable',
-    rows: ['inbox', 'projects', 'calendar', 'members', 'billing'],
-    open: ['settings'],
-  }),
-  sidebarSplit: Resizable.init(0.3),
+  sidebarResizable: sidebarResizableModel,
   pillTabs: { tabs: UiTabs.init({ id: 'preview-tabs-pill' }), section: 'overview' },
   inboxes: {
     icons: { tabs: UiTabs.init({ id: 'preview-inbox' }), folder: 'inbox' },
@@ -1673,12 +1667,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     }),
     GotSidebar: ({ message }) => foldSidebar(model, message),
     GotSidebarResizable: ({ message }) => foldSidebarResizable(model, message),
-    GotSidebarSplit: ({ message }) => {
-      const split = Resizable.update(model.sidebarSplit, message, { min: 0.2, max: 0.5 })
-      return split === model.sidebarSplit
-        ? { model }
-        : { model: modifyFields(model, { sidebarSplit: () => split }) }
-    },
     GotPillTabs: ({ message }) => foldPillTabs(model, message),
     GotInboxTabs: ({ example, message }) => foldInboxTabs(model, example, message),
     GotFileTabs: ({ example, message }) => foldFileTabs(model, example, message),

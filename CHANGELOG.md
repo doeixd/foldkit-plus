@@ -112,6 +112,16 @@ version changed; `pnpm` skips versions already in the registry.
   now `{ content, mark? }`; a rail shows the `mark` (a logo, an avatar) centred over the icons,
   in the new `mark` slot, and hides the `content`, in `detail`. It showed the start of the words,
   clipped (`Acm`).
+- `foldkit-mixins-ui`: a resizable Sidebar collapses. Drawn as a Resizable's `first` panel with
+  `width: 'fill'`, a collapsed sidebar emptied its navigation and left the panel at its dragged
+  width, an empty 192px column that every later drag kept, since the split and the sidebar each
+  held a width. The width is the sidebar's own now:
+  `Sidebar.init({ width: { size?, min?, max? } })` draws a `resize` handle (a `separator`) on
+  the column's edge, dragged, stepped by the arrows, Home and End, and collapsed by Enter or a
+  double-click; dragged below half `min` it collapses (to its rail with `collapse: 'icons'`),
+  and expanding brings back the width the drag began at. The Model holds it (`width`, `drag`;
+  Messages `ResizeStarted`, `Resized`, `ResizeEnded`, `SetWidth`). The recipe's `width: 'fill'`
+  is gone.
 - `foldkit-mixins-ui`: a dismissed Toast fades in place while the cards behind it come forward
   at once; they waited until it had gone, then moved, about a third of a second in all. A
   card's `--fk-toast-index` is its place among the toasts staying. The stack restacks on the
