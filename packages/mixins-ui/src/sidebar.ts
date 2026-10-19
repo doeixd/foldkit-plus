@@ -13,7 +13,7 @@ import {
   type SlotBuilders,
 } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
@@ -79,6 +79,10 @@ export const SidebarSlots = Slots.define({
     attributes: [Attr.AriaExpanded],
   }),
   icon: Slot.make({ capability: Capability.Container }),
+  /** What leads the header or footer (a logo, an avatar): all a rail shows of it. */
+  mark: Slot.make({ capability: Capability.Container }),
+  /** The rest of the header or footer, beside its mark; a rail hides it. */
+  detail: Slot.make({ capability: Capability.Container }),
   /** A row's words; in an icon rail, kept for its name and hidden. */
   label: Slot.make({ capability: Capability.Container }),
   /** A row's count, at its end. */
@@ -123,6 +127,13 @@ export interface SidebarBranch extends RowParts {
 }
 
 export type SidebarRow = SidebarLink | SidebarBranch
+
+/** The header or the footer: a mark, which a rail keeps centred, and what follows it. */
+export interface SidebarEnd {
+  readonly content: Html
+  /** A logo or an avatar, drawn first; without one a rail shows nothing of this end. */
+  readonly mark?: Html | undefined
+}
 
 export interface SidebarGroup {
   /** Names the group in the Model's `open`, unique in the sidebar. */
@@ -278,10 +289,10 @@ export interface SidebarView<Message> {
   /** The navigation landmark's name. */
   readonly label: string
   readonly groups: ReadonlyArray<SidebarGroup>
-  /** Above the navigation: a workspace's name, a switcher. */
-  readonly header?: Html | undefined
+  /** Above the navigation: a workspace's logo and name, a switcher. */
+  readonly header?: SidebarEnd | undefined
   /** Below it: the person signed in, settings. */
-  readonly footer?: Html | undefined
+  readonly footer?: SidebarEnd | undefined
   /**
    * Under `'rtl'` a rail's tooltips show on its left, the side the page runs
    * to. Given, it is drawn as the root's `dir`.
@@ -316,6 +327,19 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
   const collapsed = h.DataAttribute('collapsed', String(model.collapsed))
   const tips = new Map(model.tips.map(tip => [tip.row, tip.tooltip]))
   const drawn = groupsOf(options, builders, h)
+  const end = (
+    slot: typeof builders.header,
+    given: SidebarEnd | undefined,
+    attributes: ReadonlyArray<Attribute<Message>>,
+  ): ReadonlyArray<Html> =>
+    given === undefined
+      ? []
+      : [
+          h.div(slot.attrs(attributes), [
+            ...(given.mark === undefined ? [] : [h.span(builders.mark.attrs(), [given.mark])]),
+            h.div(builders.detail.attrs(), [given.content]),
+          ]),
+        ]
   return h.div(
     builders.root.attrs([
       collapsed,
@@ -349,9 +373,7 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
               [],
             ),
           ]),
-      ...(options.header === undefined
-        ? []
-        : [h.div(builders.header.attrs([collapsed]), [options.header])]),
+      ...end(builders.header, options.header, [collapsed]),
       h.nav(
         builders.nav.attrs([
           h.Id(navId),
@@ -402,9 +424,7 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
           }),
         ],
       ),
-      ...(options.footer === undefined
-        ? []
-        : [h.div(builders.footer.attrs([collapsed]), [options.footer])]),
+      ...end(builders.footer, options.footer, [collapsed]),
       ...(options.sheet === undefined
         ? []
         : [
@@ -421,9 +441,7 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
                           h.div(dialog.backdrop),
                           h.div(dialog.panel, [
                             h.h2(dialog.title, [options.label]),
-                            ...(options.header === undefined
-                              ? []
-                              : [h.div(builders.header.attrs(), [options.header])]),
+                            ...end(builders.header, options.header, []),
                             h.nav(builders.nav.attrs([h.AriaLabel(options.label)]), [
                               h.div(builders.indicator.attrs([h.AriaHidden(true)]), []),
                               h.div(builders.highlight.attrs([h.AriaHidden(true)]), []),
@@ -434,9 +452,7 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
                                 tip: (_, link) => link([]),
                               }),
                             ]),
-                            ...(options.footer === undefined
-                              ? []
-                              : [h.div(builders.footer.attrs(), [options.footer])]),
+                            ...end(builders.footer, options.footer, []),
                           ]),
                         ]
                       : [],

@@ -50,7 +50,7 @@ const groupsAt = (
       label,
       href: `#${label.toLowerCase()}`,
       current: label === current,
-      icon: h.span([], ['•']),
+      icon: h.span([h.Class('icon')], ['•']),
     })),
   },
   {
@@ -98,7 +98,8 @@ const mount = (fixture: Fixture = {}) => {
     tooltip.css +
     sheet.css +
     // Nothing that would measure again, so only the change under test moves anything.
-    '* { transition: none !important; }'
+    '* { transition: none !important; }' +
+    '.mark { display: block; width: 24px; height: 24px }'
   document.head.append(css)
   const box = document.createElement('div')
   if (fixture.width !== undefined)
@@ -148,6 +149,8 @@ const mount = (fixture: Fixture = {}) => {
                 groups: groupsAt(model.page, h),
                 ...(fixture.collapse === undefined ? {} : { collapse: fixture.collapse }),
                 ...(fixture.direction === undefined ? {} : { direction: fixture.direction }),
+                header: { mark: h.span([h.Class('mark')], []), content: h.strong([], ['Acme']) },
+                footer: { mark: h.span([h.Class('mark')], []), content: h.span([], ['ada@acme']) },
                 style,
                 mixins: Sidebar.fluid,
                 tooltip: [tooltip.mixin],
@@ -247,6 +250,29 @@ test.each(['ltr', 'rtl'] as const)(
     } finally {
       handle.dispose()
       document.documentElement.removeAttribute('dir')
+    }
+  },
+)
+
+test.each(['ltr', 'rtl'] as const)(
+  'collapsed to a rail (%s), its icons and the marks of its ends sit centred, and an end shows only its mark',
+  async direction => {
+    const handle = mount({ collapsed: true, collapse: 'icons', direction })
+    try {
+      await vi.waitFor(() => expect(link('Inbox')).toBeTruthy())
+      const centre = (element: Element) => (rect(element).left + rect(element).right) / 2
+      const rail = centre(nav())
+      // The slots that hold what the application drew.
+      const centred = Array.from(
+        document.querySelectorAll('.icon, .mark'),
+        each => each.parentElement!,
+      )
+      expect(centred).toHaveLength(4)
+      for (const each of [...centred, button('Show Workspace')])
+        expect(Math.abs(centre(each) - rail)).toBeLessThan(0.5)
+      expect(rect(document.querySelector('strong')!).width).toBe(0)
+    } finally {
+      handle.dispose()
     }
   },
 )

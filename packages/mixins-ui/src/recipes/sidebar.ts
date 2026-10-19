@@ -65,6 +65,9 @@ const handle = Style.compose(
   focusRing,
 )
 
+/** A rail's header or footer: its mark alone, centred over the icons. */
+const railEnd = { inlineSize: ladder('height'), justifyContent: 'center', overflow: 'hidden' }
+
 /** A row: a link or a branch, its icon, words and count in a line. */
 const row = Style.compose(
   Style.self({
@@ -131,10 +134,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       Style.self({ display: 'flex', alignItems: 'center', gap: ladder('gap'), minInlineSize: '0' }),
       onPhone(besideSheet, { display: 'none' }),
       Style.pseudo(`:where([data-collapse="offcanvas"]) > &${collapsed}`, { display: 'none' }),
-      Style.nest(`:where([data-collapse="icons"]) > &${collapsed}`, {
-        inlineSize: ladder('height'),
-        overflow: 'hidden',
-      }),
+      Style.nest(`:where([data-collapse="icons"]) > &${collapsed}`, railEnd),
     ),
     footer: component(
       Style.self({
@@ -146,10 +146,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       }),
       onPhone(besideSheet, { display: 'none' }),
       Style.pseudo(`:where([data-collapse="offcanvas"]) > &${collapsed}`, { display: 'none' }),
-      Style.nest(`:where([data-collapse="icons"]) > &${collapsed}`, {
-        inlineSize: ladder('height'),
-        overflow: 'hidden',
-      }),
+      Style.nest(`:where([data-collapse="icons"]) > &${collapsed}`, railEnd),
     ),
     nav: component(
       Style.self({
@@ -232,6 +229,24 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         borderInlineStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
       }),
       Style.nest(`${railed}[data-nested]`, { display: 'none' }),
+    ),
+    mark: component(
+      Style.self({
+        display: 'inline-flex',
+        flexShrink: '0',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }),
+    ),
+    detail: component(
+      Style.self({
+        display: 'flex',
+        flex: '1 1 auto',
+        alignItems: 'center',
+        gap: ladder('gap'),
+        minInlineSize: '0',
+      }),
+      Style.nest(railed, { display: 'none' }),
     ),
     // A row over the branch's links, which open beneath it as a section's do.
     item: component(opensBelow(open)),

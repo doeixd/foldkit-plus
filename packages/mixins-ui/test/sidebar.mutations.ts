@@ -158,6 +158,28 @@ export default [
     tests: browser,
   },
   {
+    name: "a rail's ends keep their content at the start",
+    edits: [
+      {
+        file: recipe,
+        find: "inlineSize: ladder('height'), justifyContent: 'center',",
+        replace: "inlineSize: ladder('height'),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: "a rail shows an end's detail",
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest(railed, { display: 'none' }),\n    ),\n    // A row over",
+        replace: '),\n    // A row over',
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'a phone shows no opener',
     edits: [
       { file: recipe, find: "onPhone('&', { display: 'block' })", replace: 'Style.self({})' },

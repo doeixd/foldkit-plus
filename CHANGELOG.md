@@ -31,6 +31,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Sidebar's rail centres its header and footer. `header` and `footer` are
+  now `{ content, mark? }`; a rail shows the `mark` (a logo, an avatar) centred over the icons,
+  in the new `mark` slot, and hides the `content`, in `detail`. It showed the start of the words,
+  clipped (`Acm`).
 - `foldkit-mixins-ui`: a vertical Marquee is no taller than a container with a height; it kept
   its 16rem and stood out past a shorter one. Its fade takes at most a quarter of each end, so a
   short one keeps its middle in full.

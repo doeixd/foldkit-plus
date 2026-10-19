@@ -4300,6 +4300,10 @@ export const resizableNested = <Message>(
 // #region sidebar-rail
 export const SidebarStyle = forSlots(SidebarSlots)(Recipes.Sidebar({}))
 export const SidebarSheetStyle = forSlots(DialogSlots)(Recipes.Sheet({}))
+const SidebarLogoStyle = forSlots(AvatarSlots)(
+  Recipes.Avatar({ size: 'sm', shape: 'rounded', color: 'name' }),
+)
+const SidebarAvatarStyle = forSlots(AvatarSlots)(Recipes.Avatar({ size: 'sm', color: 'name' }))
 
 export const appSidebar = Sidebar.init({
   id: 'app-sidebar',
@@ -4365,8 +4369,15 @@ export const sidebar = <Message>(
       onMessage,
       label: 'Workspace',
       groups: workspace(h),
-      header: h.strong([], ['Acme']),
-      footer: h.span([], ['ada@acme.dev']),
+      // A rail keeps each end's mark, centred over the icons.
+      header: {
+        mark: Avatar.view({ name: 'Acme', style: SidebarLogoStyle }, h),
+        content: h.strong([], ['Acme']),
+      },
+      footer: {
+        mark: Avatar.view({ name: 'Ada Lovelace', style: SidebarAvatarStyle }, h),
+        content: h.span([], ['ada@acme.dev']),
+      },
       collapse: 'icons',
       style,
       mixins: Sidebar.fluid,
