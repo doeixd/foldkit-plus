@@ -194,6 +194,12 @@ export type ToastExample = typeof ToastExample.Type
 export const AlertsExample = Schema.Literals(['alerts', 'described', 'select-all', 'invalid'])
 export type AlertsExample = typeof AlertsExample.Type
 
+/** A menu drawn open from the start, its enter already over: the gallery shows its rows unasked. */
+const shownMenu = (menu: Menu.Model): Menu.Model => ({
+  ...menu,
+  menu: { ...menu.menu, isOpen: true, animation: { ...menu.menu.animation, isShowing: true } },
+})
+
 export const Model = Schema.Struct({
   tabs: UiTabs.Model,
   section: Section,
@@ -665,7 +671,7 @@ export const initial: Model = {
   servings: 4,
   code: '',
   hoverCard: UiHoverIntent.init(),
-  fileMenu: Menu.init('preview-file-menu', FILE_MENU, { isAnimated: true }),
+  fileMenu: shownMenu(Menu.init('preview-file-menu', FILE_MENU, { isAnimated: true })),
   fileChoice: Option.none(),
   commandQuery: '',
   commandActive: Option.none(),

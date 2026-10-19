@@ -260,8 +260,17 @@ export const Tabs = Style.recipeFor(TabsSlots)({
             overscrollBehaviorInline: 'contain',
             scrollbarWidth: 'none',
           }),
-          // A mouse has no swipe to scroll by: it gets a thin bar to drag.
-          Style.media('(hover: hover) and (pointer: fine)', { scrollbarWidth: 'thin' }),
+          // A mouse has no swipe to scroll by: a thin bar to drag, its room kept
+          // so nothing moves, and its thumb shown only while the row is hovered or focused.
+          Style.at(
+            '@media (hover: hover) and (pointer: fine)',
+            Style.compose(
+              Style.self({ scrollbarWidth: 'thin', scrollbarColor: 'transparent transparent' }),
+              Style.pseudo(':is(:hover, :focus-within)', {
+                scrollbarColor: `${ref.outline.default} transparent`,
+              }),
+            ),
+          ),
           Utilities.scrollFade('inline'),
         ),
       },
