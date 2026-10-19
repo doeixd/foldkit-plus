@@ -10,9 +10,9 @@ export const measured = (name: string) =>
     h: `--fk-${name}-h`,
     display: `--fk-${name}-display`,
     /**
-     * `1` once the mark has moved to another element, `0` while the element
-     * measured is the one measured last (the layout moved or resized it) or
-     * the first one found: an overlay that glides to a new mark scales its
+     * `1` for the measure that finds the mark on another element than the
+     * last, `0` for any other (the layout moved or resized the same one, or
+     * it is the first found): an overlay that glides to a new mark scales its
      * duration by it, so it keeps to its element as the layout settles.
      */
     moving: `--fk-${name}-moving`,
