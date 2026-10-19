@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: a Textarea grows with its text. The recipe's `resize` is `auto` (the
+  default: from `rows` lines, two unless given, to the view's new `maxRows`, then it scrolls, by
+  CSS `field-sizing`), `vertical` (stays `rows` lines, dragged) or `none`. `rows` had no effect
+  before: the reset's `field-sizing: content` sized every textarea by its text, without a limit.
+  `Textarea.view` and `Textarea.field` take a `maxLength`, and a `count` drawn in the new `count`
+  slot (`Textarea.countOf`), describing the textarea and carrying `data-limit` (`under`, `near`,
+  `at`), which the recipe inks; `field` counts by default with a `maxLength`. `field`'s `footer`
+  draws the field as one box (`frame`) with a row of controls under the text (`footer`), and its
+  count shares a row (`meta`) with the description. `view` takes `readOnly` and `name` too.
 - `foldkit-mixins-ui`: `Button.view` takes an `icon`, drawn before the label in the new `icon` slot
   of `ButtonSlots` at the ladder's icon size. The recipe's `icon` variant showed nothing before:
   the view had no way to draw an icon, and the variant's zero font size hid any drawn in `em`.
@@ -42,6 +51,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Card group's grid wraps. `columns` is now the most it lays, and the
+  recipe's new `minColumn` (`none`, `sm`, `md` default, `lg`) the narrowest a column may be, so
+  a phone shows one column where it showed two cramped ones; in a centred box the group keeps
+  room for its columns. Divided cards draw their hairlines between cards wherever the row
+  wraps, and items no longer carry `data-row` and `data-column`; `--fk-card-columns` is on the
+  root, beside the new `data-card-fluid`. Between separated cards the highlight shows half the
+  gap around the card, where under an opaque card it showed nothing; an outlined card's hover
+  also darkens its border, and a plain card outside a group with a highlight tints on hover.
 - `foldkit-mixins-ui`: a Popover's, Tooltip's or Hover Card's arrow stands in the middle of a
   side too short to keep clear of both corners. Beside its trigger, a one-line Tooltip with
   rounder corners drew it below the middle, on the rounded corner.
