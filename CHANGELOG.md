@@ -14,6 +14,11 @@ version changed; `pnpm` skips versions already in the registry.
   `Knobs.standard`, which the tokens read: every choice writes the CSS its variables hold, so
   each switches at runtime as a number does. `Theme.relief.*` and `Theme.hardShadows` are those
   options as token sets. Step 2 of `docs/theme-knobs.md`.
+- `foldkit-mixins-ui`: `TreeView.fluid`, the fluid hover the menus, listbox, tabs and sidebar
+  have: one `highlight`, a new slot drawn first in the tree, glides to the showing row nearest
+  the pointer and to the row the keys focus, in place of each row's own hover. `FluidHover`
+  (`foldkit-primitives`) takes `focused`, the selector of the item a focused element that is no
+  item lights, since a focused `treeitem` holds its row and the rows beneath it.
 - `foldkit-mixins-ui`: a Textarea grows with its text. The recipe's `resize` is `auto` (the
   default: from `rows` lines, two unless given, to the view's new `maxRows`, then it scrolls, by
   CSS `field-sizing`), `vertical` (stays `rows` lines, dragged) or `none`. `rows` had no effect
@@ -26,11 +31,6 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-mixins-ui`: `Button.view` takes an `icon`, drawn before the label in the new `icon` slot
   of `ButtonSlots` at the ladder's icon size. The recipe's `icon` variant showed nothing before:
   the view had no way to draw an icon, and the variant's zero font size hid any drawn in `em`.
-- `foldkit-mixins-ui`: `TreeView.fluid`, the fluid hover the menus, listbox, tabs and sidebar
-  have: one `highlight`, a new slot drawn first in the tree, glides to the showing row nearest
-  the pointer and to the row the keys focus, in place of each row's own hover. `FluidHover`
-  (`foldkit-primitives`) takes `focused`, the selector of the item a focused element that is no
-  item lights, since a focused `treeitem` holds its row and the rows beneath it.
 - `foldkit-mixins`: a theme as typed knob values. `Theme.make({ shape: { radius: 1.8 } })` checks
   each value against `Knobs.standard` (grouped: `accent`, `surface`, `shape`, `type`, `motion`,
   `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`); a misspelt knob or a choice outside
@@ -68,6 +68,11 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-primitives`: `Measure` measures a change of size as it is observed, in the frame it is
   drawn in; it waited a frame, and a popup whose width settled as it opened showed its marker at
   the old width for that frame, past its edge.
+- `foldkit-mixins-ui`: a Popover's, Tooltip's or Hover Card's arrow stands in the middle of a
+  side too short to keep clear of both corners. Beside its trigger, a one-line Tooltip with
+  rounder corners drew it below the middle, on the rounded corner.
+- `foldkit-mixins-ui`: a Cascade Select's column fills a panel wider than it. Drilled in, one
+  11rem column stood in the panel's 14rem and left an empty strip at the end.
 - `foldkit-mixins-ui`: a Card group's grid wraps. `columns` is now the most it lays, and the
   recipe's new `minColumn` (`none`, `sm`, `md` default, `lg`) the narrowest a column may be, so
   a phone shows one column where it showed two cramped ones; in a centred box the group keeps
@@ -76,23 +81,23 @@ version changed; `pnpm` skips versions already in the registry.
   root, beside the new `data-card-fluid`. Between separated cards the highlight shows half the
   gap around the card, where under an opaque card it showed nothing; an outlined card's hover
   also darkens its border, and a plain card outside a group with a highlight tints on hover.
-- `foldkit-mixins-ui`: a Popover's, Tooltip's or Hover Card's arrow stands in the middle of a
-  side too short to keep clear of both corners. Beside its trigger, a one-line Tooltip with
-  rounder corners drew it below the middle, on the rounded corner.
-- `foldkit-mixins-ui`: a Cascade Select's column fills a panel wider than it. Drilled in, one
-  11rem column stood in the panel's 14rem and left an empty strip at the end.
-- `foldkit-mixins-ui`: a custom select (`Listbox.fluid`, `width: 'trigger'`) no longer scrolls
-  sideways as it opens. The panel is 14rem wide until its anchor reads the trigger, and the
-  chosen row's marker glided from that width down to the row's, wider than the panel; it now
 - `foldkit-mixins-ui`: the Command card is 32rem wide unless its parent is narrower; in a
   parent that shrinks to its content it shrank to its longest row. Its field is led by a
   magnifier (set `--icon` on the `search` slot for another), a hairline parts two groups, and a
   row's icon takes the ladder's icon size whatever size it was drawn at.
+- `foldkit-mixins-ui`: a custom select (`Listbox.fluid`, `width: 'trigger'`) no longer scrolls
+  sideways as it opens. The panel is 14rem wide until its anchor reads the trigger, and the
+  chosen row's marker glided from that width down to the row's, wider than the panel; it now
   glides only to a new choice (the Combobox's marker too).
 - `foldkit-mixins-ui`: a Sidebar's rail centres its header and footer. `header` and `footer` are
   now `{ content, mark? }`; a rail shows the `mark` (a logo, an avatar) centred over the icons,
   in the new `mark` slot, and hides the `content`, in `detail`. It showed the start of the words,
   clipped (`Acm`).
+- `foldkit-mixins-ui`: a dismissed Toast fades in place while the cards behind it come forward
+  at once; they waited until it had gone, then moved, about a third of a second in all. A
+  card's `--fk-toast-index` is its place among the toasts staying. The stack restacks on the
+  `moderate` duration and `settle` curve, and a card enters on the `slow` `spring`; every
+  movement was `slow` and `ease-out`.
 - `foldkit-mixins-ui`: a vertical Marquee is no taller than a container with a height; it kept
   its 16rem and stood out past a shorter one. Its fade takes at most a quarter of each end, so a
   short one keeps its middle in full.
