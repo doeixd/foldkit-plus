@@ -26,6 +26,14 @@ export const variant = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
   Layers.standard.in('variants', Style.compose(...pieces))
 
 /**
+ * A control's corner: `md`, and inside a container that `nests` (a card, a
+ * dialog) concentric with its corner, though never sharper than `sm`.
+ */
+export const controlCorner = Theme.concentric({ min: ref.radius.sm, max: ref.radius.md })
+/** A pressable control's corner (a button, a segmented tray), a pill when `control-round` is 1. */
+export const pressCorner = `calc(${controlCorner} + ${ref.knob['control-round']} * 9999px)`
+
+/**
  * A control's height on the size ladder, and on a touch screen at least the 44px a finger
  * needs: `Defaults.reset` sets `--fk-touch-floor` only where the pointer is coarse, so a
  * desktop keeps its density, and a region that must stay dense sets it to 0.

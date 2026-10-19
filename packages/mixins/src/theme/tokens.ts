@@ -53,7 +53,8 @@ export const tokens = define({
     'heading-scale': '1',
     leading: '1',
     // 1 rounds a pressable control (a button, a segmented tray) to a pill,
-    // whatever the radius factor; 0 keeps `radius-md`.
+    // whatever the radius factor; 0 keeps its corner (`radius-md`, or
+    // concentric inside a card: `concentric`).
     'control-round': '0',
   },
   space: {
@@ -251,19 +252,40 @@ export function nested(outer?: string, inset?: string, border = '0px'): string {
 }
 
 /**
- * What a container that pads its children publishes for `nested()`: its
- * corner inside its border, and the inset to them. Spread it beside the
- * container's own radius and padding. The values are read on each child, so
- * a container deeper in that `nests` again publishes its own.
+ * What a container that pads its children publishes for `nested()` and
+ * `concentric()`: its corner inside its border, the inset to them, and the
+ * corner a control there takes. Spread it beside the container's own radius
+ * and padding. The values are read on each child, so a container deeper in
+ * that `nests` again publishes its own.
  */
 export const nests = (
   radius: string,
   inset: string,
   border = '0px',
-): { readonly '--fk-outer-radius': string; readonly '--fk-inset': string } => ({
+): {
+  readonly '--fk-outer-radius': string
+  readonly '--fk-inset': string
+  readonly '--fk-control-corner': string
+} => ({
   '--fk-outer-radius': `calc(${radius} - ${border})`,
   '--fk-inset': inset,
+  '--fk-control-corner': `calc(${radius} - ${border} - ${inset})`,
 })
+
+/**
+ * A control's corner, concentric with the nearest container that `nests`
+ * (a card, a dialog, a toast) and kept between `min` and `max`: a deep
+ * inset would square it off, and a wide corner round it past what a
+ * control is drawn with. Outside every such container it is `max`. Like
+ * `nested()`, it reads what that ancestor published, so it is written in the
+ * control's own rule; as a token it would resolve once, at the root.
+ *
+ * A control that `nests` its own parts (a segmented tray) reads this and
+ * publishes from it on one element, a cycle that voids both: after `nests`,
+ * it sets `'--fk-control-corner': 'inherit'`, passing its container's on.
+ */
+export const concentric = (bounds: { readonly min: string; readonly max: string }): string =>
+  `clamp(${bounds.min}, var(--fk-control-corner, 9999px), ${bounds.max})`
 
 /** A step of `hardShadows`: the shadow's color, nearly opaque, offset with no blur. */
 const hard = (offset: number) =>

@@ -120,9 +120,10 @@ const defined = new Set([
   // Written on each overlay scroll bar by `ScrollBars`.
   'scroll-thumb-offset',
   'scroll-thumb-size',
-  // Published by a padded container with `Theme.nests`, read by `Theme.nested()`.
+  // Published by a padded container with `Theme.nests`, read by `Theme.nested()` and `Theme.concentric`.
   'outer-radius',
   'inset',
+  'control-corner',
   // Written on a sheet's panel by `Sheet.view`: the point it rests at and the drag.
   'sheet-snap',
   'sheet-offset',

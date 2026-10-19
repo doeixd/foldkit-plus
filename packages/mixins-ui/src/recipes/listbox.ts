@@ -14,6 +14,7 @@ import { ladder, role } from 'foldkit-mixins/theme'
 import { ListboxSlots } from '../listbox.js'
 import {
   component,
+  controlCorner,
   cornerSides,
   disabled,
   focusRing,
@@ -105,7 +106,7 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
         inlineSize: '100%',
         ...onLadder,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: ref.radius.md,
+        borderRadius: controlCorner,
         background: ref.surface.base,
         boxShadow: ref.shadow.field,
         color: ref.text.default,

@@ -19,6 +19,7 @@ import {
   glide,
   hover,
   onLadder,
+  pressCorner,
   ref,
   steps,
   trimmed,
@@ -136,10 +137,12 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
             inlineSize: 'fit-content',
             background: ref.surface.muted,
             // A pressable control's corner, so a pill theme rounds the tray too.
-            borderRadius: ref.radius.control,
+            borderRadius: pressCorner,
             gap: '2px',
             padding: 'var(--_fk-segmented-inset)',
-            ...nests(ref.radius.control, 'var(--_fk-segmented-inset)'),
+            ...nests(pressCorner, 'var(--_fk-segmented-inset)'),
+            // Its own corner reads the container's: publishing one from it would be a cycle.
+            '--fk-control-corner': 'inherit',
           }),
         ),
       },

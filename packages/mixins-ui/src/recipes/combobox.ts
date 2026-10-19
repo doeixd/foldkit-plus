@@ -11,6 +11,7 @@ import { ComboboxSlots } from '../combobox.js'
 import { ladder, role } from 'foldkit-mixins/theme'
 import {
   component,
+  controlCorner,
   disabled,
   focusRing,
   focusWithin,
@@ -50,7 +51,7 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
         alignItems: 'center',
         gap: ref.space['2xs'],
         border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: ref.radius.md,
+        borderRadius: controlCorner,
         background: ref.surface.base,
         boxShadow: ref.shadow.field,
         ...transition('border-color, background-color'),

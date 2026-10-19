@@ -371,7 +371,11 @@ border?)` is the radius of a surface inset in another, so their corners are conc
 container that pads its children can publish that instead: spread `Theme.nests(radius, inset,
 border?)` beside its own radius and padding, and `Theme.nested()` with no arguments on any
 descendant (a row, a pill, a highlight, a focus ring) reads it. Outside such a container it is
-square.
+square. `Theme.concentric({ min, max })` is a control's corner read the same way, the container's
+corner less its inset kept between `min` and `max`, and `max` outside any: `foldkit-mixins-ui`'s
+buttons and fields take `concentric({ min: sm, max: md })`, and its Card, Dialog, Toast and Alert
+`nests`, so a button in a card rounds with the card. A control that `nests` its own parts sets
+`'--fk-control-corner': 'inherit'` after `nests`, or it reads the corner it publishes.
 `Theme.raise(offset)` lifts an element `offset` levels above the raised element holding it (or the
 page, level 1), capped at 8, and `Theme.raisedSurface()` is its background at that level: a popover
 opened in a dialog lands above the dialog with nothing passed. In a light scheme the first two

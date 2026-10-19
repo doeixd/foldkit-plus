@@ -12,6 +12,7 @@ import { SelectSlots } from '../select.js'
 import { ladder, role } from 'foldkit-mixins/theme'
 import {
   component,
+  controlCorner,
   disabled,
   focusRing,
   onLadder,
@@ -45,7 +46,7 @@ export const Select = Style.recipeFor(SelectSlots)({
         // Room for the native arrow at the end.
         paddingInline: `${ladder('pad')} 2rem`,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: ref.radius.md,
+        borderRadius: controlCorner,
         backgroundColor: ref.surface.base,
         boxShadow: ref.shadow.field,
         color: ref.text.default,

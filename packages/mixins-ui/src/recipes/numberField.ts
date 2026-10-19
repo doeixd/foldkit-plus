@@ -7,7 +7,15 @@
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { NumberFieldSlots } from '../numberField.js'
-import { component, disabled, ref, touchText, transition, unfilledHover } from './design.js'
+import {
+  component,
+  controlCorner,
+  disabled,
+  ref,
+  touchText,
+  transition,
+  unfilledHover,
+} from './design.js'
 
 const stepper = component(
   Style.self({
@@ -44,7 +52,7 @@ export const NumberField = Style.recipeFor(NumberFieldSlots)({
         inlineSize: 'fit-content',
         minBlockSize: ladder('height'),
         border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: ref.radius.md,
+        borderRadius: controlCorner,
         background: ref.surface.base,
         boxShadow: ref.shadow.field,
         overflow: 'hidden',

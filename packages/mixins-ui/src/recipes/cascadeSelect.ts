@@ -18,6 +18,7 @@ import { ladder } from 'foldkit-mixins/theme'
 import { CascadeSelectSlots } from '../cascadeSelect.js'
 import {
   component,
+  controlCorner,
   cornerSides,
   disabled,
   focusRing,
@@ -65,7 +66,7 @@ export const CascadeSelect = Style.recipeFor(CascadeSelectSlots)({
         minInlineSize: '12rem',
         ...onLadder,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: ref.radius.md,
+        borderRadius: controlCorner,
         background: ref.surface.base,
         boxShadow: ref.shadow.field,
         color: ref.text.default,

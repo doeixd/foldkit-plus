@@ -8,7 +8,16 @@
 import { Style } from 'foldkit-mixins'
 import { raise, raisedSurface } from 'foldkit-mixins/theme'
 import { DatePickerSlots } from '../datePicker.js'
-import { component, disabled, focusRing, onLadder, ref, steps, transition } from './design.js'
+import {
+  component,
+  controlCorner,
+  disabled,
+  focusRing,
+  onLadder,
+  ref,
+  steps,
+  transition,
+} from './design.js'
 
 export const DatePicker = Style.recipeFor(DatePickerSlots)({
   base: {
@@ -18,7 +27,7 @@ export const DatePicker = Style.recipeFor(DatePickerSlots)({
         alignItems: 'center',
         ...onLadder,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: ref.radius.md,
+        borderRadius: controlCorner,
         background: ref.surface.base,
         boxShadow: ref.shadow.field,
         color: ref.text.default,

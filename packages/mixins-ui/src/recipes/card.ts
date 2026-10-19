@@ -18,7 +18,7 @@
  * apart, and draws the one highlight that follows the pointer between them.
  */
 import { Style } from 'foldkit-mixins'
-import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
+import { nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { CardGroupSlots, CardSlots } from '../card.js'
 import {
@@ -78,6 +78,8 @@ export const Card = Style.recipeFor(CardSlots)({
         padding: pad,
         gap,
         borderRadius: ref.radius.lg,
+        // A button or a field in it takes a corner concentric with the card's.
+        ...nests(ref.radius.lg, pad),
         color: ref.text.default,
         overflow: 'clip',
         ...transition('background-color, box-shadow, opacity'),

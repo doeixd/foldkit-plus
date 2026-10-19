@@ -12,6 +12,7 @@ import { ladder, role } from 'foldkit-mixins/theme'
 import { TagsInputSlots } from '../tagsInput.js'
 import {
   component,
+  controlCorner,
   disabled,
   focusRing,
   ref,
@@ -104,7 +105,7 @@ export const TagsInput = Style.recipeFor(TagsInputSlots)({
         paddingBlock: '0.25rem',
         paddingInline: ladder('pad'),
         border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: ref.radius.md,
+        borderRadius: controlCorner,
         background: ref.surface.base,
         boxShadow: ref.shadow.field,
         cursor: 'text',

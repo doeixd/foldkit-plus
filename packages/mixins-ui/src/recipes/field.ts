@@ -8,6 +8,7 @@ import { TextareaSlots } from '../textarea.js'
 import { ladder, role } from 'foldkit-mixins/theme'
 import {
   component,
+  controlCorner,
   disabled,
   focusRing,
   focusWithin,
@@ -24,7 +25,7 @@ const control = component(
     display: 'block',
     inlineSize: '100%',
     border: `${ref.border.thin} solid ${ref.outline.default}`,
-    borderRadius: ref.radius.md,
+    borderRadius: controlCorner,
     background: ref.surface.base,
     boxShadow: ref.shadow.field,
     color: ref.text.default,
@@ -112,7 +113,7 @@ export const InputGroup: {
       display: 'flex',
       alignItems: 'center',
       border: `${ref.border.thin} solid ${ref.outline.default}`,
-      borderRadius: ref.radius.md,
+      borderRadius: controlCorner,
       background: ref.surface.base,
       boxShadow: ref.shadow.field,
       ...transition('border-color'),

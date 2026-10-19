@@ -134,8 +134,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/inputCopy.ts',
-        find: "...nests(ref.radius.md, '0px', ref.border.thin),",
-        replace: "...nests(ref.radius.md, '0px'),",
+        find: "...nests(controlCorner, '0px', ref.border.thin),",
+        replace: "...nests(controlCorner, '0px'),",
       },
     ],
     tests: [browser],

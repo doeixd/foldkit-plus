@@ -8,7 +8,16 @@
  */
 import { Style } from 'foldkit-mixins'
 import { PaginationSlots } from '../pagination.js'
-import { component, disabled, focusRing, hover, ref, unfilledHover, variant } from './design.js'
+import {
+  component,
+  controlCorner,
+  disabled,
+  focusRing,
+  hover,
+  ref,
+  unfilledHover,
+  variant,
+} from './design.js'
 
 // The window, not the row: the row shrinks to its stops, so it cannot be the container it asks about.
 const narrow = '@media (max-width: 30rem)'
@@ -24,7 +33,7 @@ const stop = component(
     minBlockSize: '2rem',
     paddingInline: ref.space['2xs'],
     border: `${ref.border.thin} solid transparent`,
-    borderRadius: ref.radius.md,
+    borderRadius: controlCorner,
     background: 'transparent',
     color: ref.text.default,
     font: 'inherit',
@@ -103,7 +112,7 @@ export const Pagination = Style.recipeFor(PaginationSlots)({
         minBlockSize: '2rem',
         paddingInline: ref.space.xs,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: ref.radius.md,
+        borderRadius: controlCorner,
         background: ref.surface.base,
         boxShadow: ref.shadow.field,
         color: ref.text.default,

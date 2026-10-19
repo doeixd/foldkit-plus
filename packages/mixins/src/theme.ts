@@ -12,6 +12,7 @@ import { chooseScheme, currentScheme, schemeScript } from './theme/scheme.js'
 import { raise, raisedSurface } from './theme/raise.js'
 import {
   breakpointWidths,
+  concentric,
   hardShadows,
   inContainer,
   ladder,
@@ -28,6 +29,7 @@ export { root, scoped } from './theme/root.js'
 export type { Overrides, RootOptions } from './theme/root.js'
 export {
   breakpointWidths,
+  concentric,
   hardShadows,
   inContainer,
   ladder,
@@ -55,6 +57,7 @@ export const Theme = {
   role,
   nested,
   nests,
+  concentric,
   raise,
   raisedSurface,
   breakpointWidths,

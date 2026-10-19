@@ -12,7 +12,7 @@
  * fork's) lays out in a plain column.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
+import { nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { ToastSlots } from '../toast.js'
 import {
   component,
@@ -159,6 +159,8 @@ export const Toast = Style.recipeFor(ToastSlots)({
         padding: ref.space.md,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,
+        // Its action takes a corner concentric with the toast's.
+        ...nests(ref.radius.lg, ref.space.md, ref.border.thin),
         background: raisedSurface(),
         color: ref.text.default,
         boxShadow: ref.shadow.lg,

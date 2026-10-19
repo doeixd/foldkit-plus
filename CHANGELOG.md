@@ -5,6 +5,39 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- `foldkit-mixins/theme`'s `Theme.concentric({ min, max })`: a control's corner, concentric with
+  the nearest container that `nests` (its corner less its inset), kept between `min` and `max`,
+  and `max` outside any. `Theme.nests` now also publishes `--fk-control-corner` for it.
+- In `foldkit-mixins-ui`, buttons, the segmented tray and every field's chrome take
+  `concentric({ min: sm, max: md })`, and the Card, Dialog panel, Toast and Alert `nests`, so the
+  buttons and fields in them round with their corner (`sm` where the padding is deeper than the
+  corner, as in the default theme's cards). `control-round` still makes a button a pill.
+
+- `foldkit-mixins-ui`'s Drawer has a `grip` slot: more of the panel to drag it by, such as its
+  row of tabs, where a vertical swipe drags and a sideways one still scrolls. A drag that starts
+  there ends with no click to pass over, so the next press on the handle toggles it.
+
+### Changed
+
+- A button or a field inside a Card, Dialog, Toast or Alert is drawn with a corner concentric with
+  the container's instead of `radius-md`: with the shipped scale, `radius-sm`.
+- The Drawer's handle is a 44px target, drawn tight to its bar by negative margins, and the
+  peek stays above a phone's home indicator (`safe-bottom`).
+- A Slider's mark labels at either end sit flush with the track's ends instead of centered on
+  their dots, hanging half past the track.
+- A horizontal Steps row narrower than 17rem draws the current step's title and description on
+  a line of their own under the markers, the lines between them even, instead of squeezing them
+  beside the current marker.
+
+### Fixed
+
+- A Calendar's month in a container narrower than seven cells shrinks its days, which stay round,
+  instead of spilling past the container.
+
 ## 0.24.0
 
 Themes: hard shadows and a relief for buttons and fields (`Theme.hardShadows`, `Theme.relief`),

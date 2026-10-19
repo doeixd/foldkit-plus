@@ -75,7 +75,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/button.ts',
-        find: 'borderRadius: ref.radius.control,',
+        find: 'borderRadius: pressCorner,',
         replace: 'borderRadius: ref.radius.md,',
       },
     ],

@@ -6,7 +6,7 @@
  * from it steps back, smaller.
  */
 import { Style } from 'foldkit-mixins'
-import { raise, raisedSurface, role } from 'foldkit-mixins/theme'
+import { nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { DialogSlots } from '../dialog.js'
 import { component, focusRing, hover, presence, ref, variant } from './design.js'
@@ -84,6 +84,8 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         padding: ref.space.lg,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,
+        // Its buttons and fields take a corner concentric with the panel's.
+        ...nests(ref.radius.lg, ref.space.lg, ref.border.thin),
         background: raisedSurface(),
         boxShadow: ref.shadow['2xl'],
       }),

@@ -13,7 +13,7 @@
  * deepens the band instead of laying a grey film over it.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { ladder, role } from 'foldkit-mixins/theme'
+import { ladder, nests, role } from 'foldkit-mixins/theme'
 import { AlertSlots, type AlertTone } from '../alert.js'
 import {
   component,
@@ -73,6 +73,8 @@ export const Alert = Style.recipeFor(AlertSlots)({
         alignItems: 'start',
         padding: ref.space.md,
         borderRadius: ref.radius.md,
+        // Its action buttons take a corner concentric with the alert's.
+        ...nests(ref.radius.md, ref.space.md),
         ...role('body'),
       }),
       Style.pseudo(banner, {

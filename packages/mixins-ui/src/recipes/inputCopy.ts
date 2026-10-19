@@ -8,7 +8,15 @@ import { Style } from 'foldkit-mixins'
 import { ladder, nested, nests, role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { InputCopySlots } from '../inputCopy.js'
-import { component, focusRing, ref, touchText, transition, unfilledHover } from './design.js'
+import {
+  component,
+  controlCorner,
+  focusRing,
+  ref,
+  touchText,
+  transition,
+  unfilledHover,
+} from './design.js'
 
 // The group's corner inside its border, which it publishes with no inset: the
 // input and button round their outer corners to it, so a ring drawn inset
@@ -28,8 +36,10 @@ export const InputCopy = Style.recipeFor(InputCopySlots)({
         inlineSize: 'min(24rem, 100%)',
         minBlockSize: ladder('height'),
         border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: ref.radius.md,
-        ...nests(ref.radius.md, '0px', ref.border.thin),
+        borderRadius: controlCorner,
+        ...nests(controlCorner, '0px', ref.border.thin),
+        // Its own corner reads the container's: publishing one from it would be a cycle.
+        '--fk-control-corner': 'inherit',
         background: ref.surface.base,
         boxShadow: ref.shadow.field,
         overflow: 'hidden',
