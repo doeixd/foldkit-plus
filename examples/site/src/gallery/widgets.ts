@@ -56,6 +56,7 @@ import {
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
+import * as Calendars from './calendars.js'
 
 import {
   Billing,
@@ -399,6 +400,8 @@ export const Model = Schema.Struct({
   /** The calendar with selects and week numbers, and its day. */
   dropdownCalendar: UiCalendar.Model,
   dropdownDay: DateSelection.Selection,
+  /** The Calendar page's further examples: unavailable days, prices, events and more. */
+  calendars: Calendars.Model,
   /** The region chosen in the card grid, and the plan chosen in the item list. */
   region: Schema.String,
   plan: Schema.String,
@@ -531,6 +534,7 @@ export const Message = defineMessageUnion({
   PickedTripPreset: { selection: DateSelection.Selection },
   GotDropdownCalendar: { message: UiCalendar.Message },
   ShowedCalendar: { shown: DateSelection.Shown },
+  GotCalendars: { message: Calendars.Message },
   SortedInvoices: { column: Schema.String },
   ChoseInvoice: { id: Schema.String, selected: Schema.Boolean },
   ChoseInvoices: { ids: Schema.Array(Schema.String) },
@@ -841,6 +845,7 @@ export const initial: Model = {
   twoMonths: twoMonthsInit(),
   dropdownCalendar: UiCalendar.init({ id: 'preview-calendar-selects', today }),
   dropdownDay: DateSelection.empty('Single'),
+  calendars: Calendars.init(),
   region: 'Frankfurt',
   plan: 'Team',
   notes: { grow: '', count: 'Arriving Thursday, two nights.', reply: '' },
@@ -2072,6 +2077,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }
     },
     GotDropdownCalendar: ({ message }) => foldDropdownCalendar(model, message),
+    GotCalendars: ({ message }) => {
+      const next = Calendars.update(model.calendars, message)
+      return {
+        model: modifyFields(model, { calendars: () => next.model }),
+        commands: Command.mapMessages(next.commands ?? [], inner =>
+          Message.GotCalendars({ message: inner }),
+        ),
+      }
+    },
     ShowedCalendar: ({ shown }) => ({
       model: modifyFields(model, {
         dropdownCalendar: calendar => DateSelection.show(calendar, shown),

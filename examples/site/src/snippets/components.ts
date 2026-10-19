@@ -3949,6 +3949,428 @@ export const calendarDropdowns = <Message>(
   })
 // #endregion
 
+// #region calendar-unavailable
+/** The theme's scales by name, for the notes beside the calendars below. */
+const calendarRef = Theme.ref(
+  Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } })),
+)
+
+const note = <Message>(h: HtmlBuilder<Message>, text: string): Html =>
+  h.p(
+    [
+      h.Style({
+        margin: '0',
+        color: calendarRef.text.muted,
+        fontSize: calendarRef.size.sm,
+        maxInlineSize: '18rem',
+      }),
+    ],
+    [text],
+  )
+
+/** Days already taken, from the day the page was loaded. */
+export const BOOKED: ReadonlyArray<FoldkitCalendar.CalendarDate> = [1, 2, 8, 9, 15, 22].map(days =>
+  FoldkitCalendar.addDays(TODAY, days),
+)
+
+// The bounds and the closed days are the calendar's own: upstream draws them disabled and skips them.
+export const unavailableCalendar = (id: string): UiCalendar.Model =>
+  UiCalendar.init({
+    id,
+    today: TODAY,
+    minDate: TODAY,
+    maxDate: FoldkitCalendar.addDays(TODAY, 60),
+    disabledDaysOfWeek: ['Saturday', 'Sunday'],
+    disabledDates: BOOKED,
+  })
+
+export const calendarUnavailable = <Message>(
+  style: NamedStyle<typeof CalendarSlots>,
+  state: { readonly calendar: UiCalendar.Model; readonly day: Calendar.Selection },
+  toMessage: (message: UiCalendar.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'center' })],
+    [
+      h.submodel({
+        slotId: state.calendar.id,
+        model: state.calendar,
+        view: UiCalendar.view,
+        viewInputs: Calendar.inputs(state.day, [style.mixin, Calendar.readingKeys], { h }),
+        toParentMessage: toMessage,
+      }),
+      note(
+        h,
+        Option.match(Calendar.firstDate(state.day), {
+          onNone: () => 'Weekends and booked days are closed; book up to two months ahead.',
+          onSome: date => `Delivery on ${FoldkitCalendar.formatLong(date, state.calendar.locale)}.`,
+        }),
+      ),
+    ],
+  )
+// #endregion
+
+// #region calendar-several
+export const SeveralClearStyle = forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
+)
+
+/** Any number of days: each press adds a day or takes it away again. */
+export const calendarSeveral = <Message>(
+  style: NamedStyle<typeof CalendarSlots>,
+  state: { readonly calendar: UiCalendar.Model; readonly days: Calendar.Selection },
+  messages: {
+    readonly onCalendar: (message: UiCalendar.Message) => Message
+    readonly onClear: Message
+  },
+  h: HtmlBuilder<Message>,
+): Html => {
+  const count = Calendar.Selection.match(state.days, {
+    Single: ({ date }) => (Option.isSome(date) ? 1 : 0),
+    Range: () => 0,
+    Multiple: ({ dates }) => dates.length,
+  })
+  return h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'center' })],
+    [
+      h.submodel({
+        slotId: state.calendar.id,
+        model: state.calendar,
+        view: UiCalendar.view,
+        viewInputs: Calendar.inputs(state.days, [style.mixin, Calendar.readingKeys], { h }),
+        toParentMessage: messages.onCalendar,
+      }),
+      h.div(
+        [
+          h.Style({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            inlineSize: '100%',
+          }),
+        ],
+        [
+          note(h, count === 1 ? '1 day chosen' : `${count} days chosen`),
+          Button.view(
+            {
+              label: 'Clear',
+              disabled: count === 0,
+              onClick: messages.onClear,
+              style: SeveralClearStyle,
+            },
+            h,
+          ),
+        ],
+      ),
+    ],
+  )
+}
+// #endregion
+
+// #region calendar-prices
+// Pinned: `Recipes.Calendar({ detail: 'text' })`, a taller cell for the price under each number.
+
+/** A night's price: dearer at the weekend, and varying through the month. */
+export const priceOf = (date: FoldkitCalendar.CalendarDate): number => {
+  const weekend = ['Friday', 'Saturday'].includes(FoldkitCalendar.dayOfWeek(date))
+  return 89 + (weekend ? 40 : 0) + ((date.day * 7) % 5) * 6
+}
+
+export interface PricesState {
+  readonly calendar: UiCalendar.Model
+  readonly stay: Calendar.Selection
+  readonly preview: Option.Option<FoldkitCalendar.CalendarDate>
+}
+
+/** The nights from check-in to check-out, and what they cost together. */
+const stayOf = (stay: Calendar.Selection): Option.Option<{ nights: number; total: number }> =>
+  Calendar.Selection.match(stay, {
+    Single: () => Option.none(),
+    Multiple: () => Option.none(),
+    Range: ({ start, end }) =>
+      Option.map(Option.all({ start, end }), ({ start, end }) => {
+        const nights = Math.max(1, FoldkitCalendar.daysUntil(start, end))
+        const total = Array.from({ length: nights }, (_, night) =>
+          priceOf(FoldkitCalendar.addDays(start, night)),
+        ).reduce((sum, price) => sum + price, 0)
+        return { nights, total }
+      }),
+  })
+
+export const calendarPrices = <Message>(
+  style: NamedStyle<typeof CalendarSlots>,
+  state: PricesState,
+  messages: {
+    readonly onCalendar: (message: UiCalendar.Message) => Message
+    readonly onPreview: (date: Option.Option<FoldkitCalendar.CalendarDate>) => Message
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'center' })],
+    [
+      h.submodel({
+        slotId: state.calendar.id,
+        model: state.calendar,
+        view: UiCalendar.view,
+        viewInputs: Calendar.inputs(
+          state.stay,
+          [style.mixin, Calendar.readingKeys],
+          { h },
+          {
+            caption: 'label',
+            preview: { date: state.preview, onPreview: messages.onPreview },
+            // A day that can be booked shows its night's price; the past shows none.
+            detail: date =>
+              Option.liftPredicate(date, () => !FoldkitCalendar.isBefore(date, TODAY)).pipe(
+                Option.map(night => `$${priceOf(night)}`),
+              ),
+          },
+        ),
+        toParentMessage: messages.onCalendar,
+      }),
+      note(
+        h,
+        Option.match(stayOf(state.stay), {
+          onNone: () => 'Pick a check-in day, then a check-out day.',
+          onSome: ({ nights, total }) =>
+            `${nights} ${nights === 1 ? 'night' : 'nights'} · $${total} in all`,
+        }),
+      ),
+    ],
+  )
+// #endregion
+
+// #region calendar-events
+// Pinned: `Recipes.Calendar({ detail: 'dot' })`, the day's events a dot under its number.
+export const EventRowStyle = forSlots(ItemSlots)(Recipes.Item({ density: 'compact' }))
+export const TodayStyle = forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
+)
+
+export interface CalendarEvent {
+  readonly title: string
+  readonly time: string
+}
+
+/** A few events, days from the day the page was loaded. */
+const EVENTS: ReadonlyArray<{ readonly in: number; readonly event: CalendarEvent }> = [
+  { in: 0, event: { title: 'Design review', time: '10:00 – 11:00' } },
+  { in: 0, event: { title: 'Lunch with Sam', time: '12:30' } },
+  { in: 2, event: { title: 'Sprint planning', time: '09:30 – 10:30' } },
+  { in: 5, event: { title: 'Dentist', time: '16:00' } },
+  { in: 9, event: { title: 'Team offsite', time: 'All day' } },
+  { in: 9, event: { title: 'Dinner', time: '19:00' } },
+  { in: 13, event: { title: 'Release', time: '15:00' } },
+]
+
+export const eventsOn = (date: FoldkitCalendar.CalendarDate): ReadonlyArray<CalendarEvent> =>
+  EVENTS.filter(each => FoldkitCalendar.isEqual(FoldkitCalendar.addDays(TODAY, each.in), date)).map(
+    each => each.event,
+  )
+
+export const calendarEvents = <Message>(
+  style: NamedStyle<typeof CalendarSlots>,
+  state: { readonly calendar: UiCalendar.Model; readonly day: Calendar.Selection },
+  messages: {
+    readonly onCalendar: (message: UiCalendar.Message) => Message
+    readonly onToday: Message
+  },
+  h: HtmlBuilder<Message>,
+): Html => {
+  const day = Option.getOrElse(Calendar.firstDate(state.day), () => TODAY)
+  const events = eventsOn(day)
+  return h.div(
+    [
+      h.Style({
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '1.5rem',
+        alignItems: 'start',
+        inlineSize: '100%',
+        maxInlineSize: '40rem',
+      }),
+    ],
+    [
+      h.div(
+        [h.Style({ display: 'grid', gap: '0.5rem', justifyItems: 'center' })],
+        [
+          h.submodel({
+            slotId: state.calendar.id,
+            model: state.calendar,
+            view: UiCalendar.view,
+            viewInputs: Calendar.inputs(
+              state.day,
+              [style.mixin, Calendar.readingKeys],
+              { h },
+              {
+                detail: date => {
+                  const count = eventsOn(date).length
+                  return Option.liftPredicate(
+                    count === 1 ? '1 event' : `${count} events`,
+                    () => count > 0,
+                  )
+                },
+              },
+            ),
+            toParentMessage: messages.onCalendar,
+          }),
+          Button.view({ label: 'Today', onClick: messages.onToday, style: TodayStyle }, h),
+        ],
+      ),
+      h.section(
+        [
+          h.AriaLabel('Events'),
+          h.Style({ display: 'grid', gap: '0.25rem', flex: '1 1 14rem', minInlineSize: '0' }),
+        ],
+        [
+          h.h3(
+            [
+              h.Style({
+                margin: '0',
+                fontSize: calendarRef.size.sm,
+                fontWeight: calendarRef.weight.semibold,
+              }),
+            ],
+            [FoldkitCalendar.formatLong(day, state.calendar.locale)],
+          ),
+          ...(events.length === 0
+            ? [note(h, 'Nothing planned.')]
+            : events.map(event =>
+                Item.view(
+                  {
+                    media: h.span(
+                      [
+                        h.AriaHidden(true),
+                        h.Style({
+                          display: 'block',
+                          inlineSize: '0.25rem',
+                          blockSize: '1.75rem',
+                          borderRadius: calendarRef.radius.full,
+                          background: calendarRef.accent.default,
+                        }),
+                      ],
+                      [],
+                    ),
+                    title: event.title,
+                    description: event.time,
+                    style: EventRowStyle,
+                  },
+                  h,
+                ),
+              )),
+        ],
+      ),
+    ],
+  )
+}
+// #endregion
+
+// #region calendar-appointment
+export const SlotStyle = forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
+)
+
+export const TIMES = [
+  '09:00',
+  '09:30',
+  '10:00',
+  '10:30',
+  '11:00',
+  '13:00',
+  '13:30',
+  '14:00',
+  '15:30',
+  '16:00',
+]
+
+/** The times already taken on `date`: a few, and different from day to day. */
+export const takenOn = (date: FoldkitCalendar.CalendarDate): ReadonlyArray<string> =>
+  TIMES.filter((_, index) => (date.day + index * 3) % 4 === 0)
+
+export const appointmentCalendar = (id: string): UiCalendar.Model =>
+  UiCalendar.init({
+    id,
+    today: TODAY,
+    minDate: TODAY,
+    disabledDaysOfWeek: ['Saturday', 'Sunday'],
+  })
+
+export interface AppointmentState {
+  readonly calendar: UiCalendar.Model
+  readonly day: Calendar.Selection
+  /** The time chosen; a day that has it taken clears it. */
+  readonly time: Option.Option<string>
+}
+
+export const calendarAppointment = <Message>(
+  style: NamedStyle<typeof CalendarSlots>,
+  state: AppointmentState,
+  messages: {
+    readonly onCalendar: (message: UiCalendar.Message) => Message
+    readonly onTime: (time: string) => Message
+  },
+  h: HtmlBuilder<Message>,
+): Html => {
+  const day = Calendar.firstDate(state.day)
+  const taken = Option.match(day, { onNone: () => TIMES, onSome: takenOn })
+  return h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    [
+      h.div(
+        [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'start' })],
+        [
+          h.submodel({
+            slotId: state.calendar.id,
+            model: state.calendar,
+            view: UiCalendar.view,
+            viewInputs: Calendar.inputs(state.day, [style.mixin, Calendar.readingKeys], { h }),
+            toParentMessage: messages.onCalendar,
+          }),
+          h.div(
+            [
+              h.Role('group'),
+              h.AriaLabel('Time'),
+              h.Style({
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(5rem, 1fr))',
+                gap: '0.375rem',
+                alignContent: 'start',
+                flex: '1 1 11rem',
+                maxInlineSize: '16rem',
+              }),
+            ],
+            TIMES.map(time =>
+              Button.view(
+                {
+                  label: time,
+                  pressed: Option.exists(state.time, chosen => chosen === time),
+                  disabled: taken.includes(time),
+                  onClick: messages.onTime(time),
+                  style: SlotStyle,
+                },
+                h,
+              ),
+            ),
+          ),
+        ],
+      ),
+      note(
+        h,
+        Option.match(Option.all({ day, time: state.time }), {
+          onNone: () =>
+            Option.isNone(day) ? 'Pick a weekday, then a time.' : 'Now pick a time that is free.',
+          onSome: ({ day, time }) =>
+            `Booked for ${FoldkitCalendar.formatLong(day, state.calendar.locale)} at ${time}.`,
+        }),
+      ),
+    ],
+  )
+}
+// #endregion
+
 // #region date-picker-single
 export const DatePickerStyle = forSlots(DatePickerSlots)(Recipes.DatePicker({}))
 const PanelCalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({ size: 'sm' }))

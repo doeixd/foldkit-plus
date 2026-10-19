@@ -92,6 +92,7 @@ import {
 import * as Snippet from '../snippets/components.js'
 import { forSlots } from '../snippets/theme.js'
 import * as Widgets from './widgets.js'
+import * as Calendars from './calendars.js'
 
 /** One variant axis of a recipe, and the value it takes when none is picked. */
 export interface Axis {
@@ -659,6 +660,10 @@ const sliderBasic = <Message>(style: NamedStyle<typeof SliderSlots>, live: Live<
     },
     live.h,
   )
+
+/** A Message of the Calendar page's further examples, as the page sends it. */
+const calendars = <Message>(live: Live<Message>, message: Calendars.Message): Message =>
+  live.onWidget(Widgets.Message.GotCalendars({ message }))
 
 const calendarBasic = <Message>(style: NamedStyle<typeof CalendarSlots>, live: Live<Message>) =>
   Snippet.calendar(
@@ -2858,6 +2863,75 @@ export const showcases: ReadonlyArray<Showcase> = [
             { calendar: live.widgets.dropdownCalendar, selection: live.widgets.dropdownDay },
             message => live.onWidget(Widgets.Message.GotDropdownCalendar({ message })),
             shown => live.onWidget(Widgets.Message.ShowedCalendar({ shown })),
+            live.h,
+          ),
+      },
+      {
+        name: 'unavailable',
+        title: 'Weekends, booked days and bounds',
+        draw: (style, live) =>
+          Snippet.calendarUnavailable(
+            style,
+            live.widgets.calendars.unavailable,
+            message => calendars(live, Calendars.Message.GotUnavailable({ message })),
+            live.h,
+          ),
+      },
+      {
+        name: 'several',
+        title: 'Several days',
+        draw: (style, live) =>
+          Snippet.calendarSeveral(
+            style,
+            live.widgets.calendars.several,
+            {
+              onCalendar: message => calendars(live, Calendars.Message.GotSeveral({ message })),
+              onClear: calendars(live, Calendars.Message.ClearedSeveral()),
+            },
+            live.h,
+          ),
+      },
+      {
+        name: 'prices',
+        title: 'A price on each day',
+        pins: { detail: 'text' },
+        draw: (style, live) =>
+          Snippet.calendarPrices(
+            style,
+            live.widgets.calendars.prices,
+            {
+              onCalendar: message => calendars(live, Calendars.Message.GotPrices({ message })),
+              onPreview: date => calendars(live, Calendars.Message.PreviewedPrices({ date })),
+            },
+            live.h,
+          ),
+      },
+      {
+        name: 'events',
+        title: 'Events and a Today button',
+        pins: { detail: 'dot' },
+        draw: (style, live) =>
+          Snippet.calendarEvents(
+            style,
+            live.widgets.calendars.events,
+            {
+              onCalendar: message => calendars(live, Calendars.Message.GotEvents({ message })),
+              onToday: calendars(live, Calendars.Message.ShowedToday()),
+            },
+            live.h,
+          ),
+      },
+      {
+        name: 'appointment',
+        title: 'A day and a time',
+        draw: (style, live) =>
+          Snippet.calendarAppointment(
+            style,
+            live.widgets.calendars.appointment,
+            {
+              onCalendar: message => calendars(live, Calendars.Message.GotAppointment({ message })),
+              onTime: time => calendars(live, Calendars.Message.PickedTime({ time })),
+            },
             live.h,
           ),
       },
