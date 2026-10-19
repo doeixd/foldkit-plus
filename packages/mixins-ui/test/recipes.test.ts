@@ -114,7 +114,7 @@ const defined = new Set([
   ...['x', 'y', 'w', 'h', 'display'].map(part => `segmented-chosen-${part}`),
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `segmented-hover-${part}`),
   // Written on an open popup's panel by its `fluid`.
-  ...['x', 'y', 'w', 'h', 'display'].map(part => `popup-chosen-${part}`),
+  ...['x', 'y', 'w', 'h', 'display', 'moving'].map(part => `popup-chosen-${part}`),
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `popup-hover-${part}`),
   // Written on a toast stack's list and toasts by its view and `Toast.Stack`.
   ...['front', 'total', 'count', 'offset', 'index', 'swipe-x', 'swipe-y'].map(
