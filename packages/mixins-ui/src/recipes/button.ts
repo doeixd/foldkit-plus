@@ -6,6 +6,7 @@
  * definition, and `icon`, a square one rung of the ladder on a side.
  */
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
+import { ladder } from 'foldkit-mixins/theme'
 import { ButtonSlots } from '../button.js'
 import {
   component,
@@ -119,6 +120,21 @@ export const Button = Style.recipeFor(ButtonSlots)({
       Style.pseudo(held, { scale: `calc(1 - 0.02 * ${ref.knob.travel})` }),
       focusRing,
       disabled,
+    ),
+    // On the size ladder, as an Icon is. Its own font size keeps a glyph
+    // drawn in `em` (or as text) at that size inside the icon variant, whose
+    // font size is zero to hide the words.
+    icon: component(
+      Style.self({
+        display: 'inline-flex',
+        flex: 'none',
+        alignItems: 'center',
+        justifyContent: 'center',
+        inlineSize: ladder('icon'),
+        blockSize: ladder('icon'),
+        fontSize: ladder('icon'),
+        lineHeight: '1',
+      }),
     ),
   },
   variants: {

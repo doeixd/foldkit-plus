@@ -191,8 +191,37 @@ import { forSlots, slots } from './theme.js'
 // #region button-basic
 export const ButtonStyle = forSlots(ButtonSlots)(Recipes.Button({}))
 
+// An `icon` stands before the label; the `icon` variant shows it alone,
+// the label staying its name.
 export const button = (style: NamedStyle<typeof ButtonSlots>, h: HtmlBuilder<never>): Html =>
-  Button.view({ label: 'Save changes', style }, h)
+  Button.view({ label: 'Save changes', icon: outline(h, 'M3 8.5l3 3 7-7'), style }, h)
+// #endregion
+
+// #region button-icon
+// Pinned: `Recipes.Button({ tone: 'neutral', variant: 'icon' })`. A row of
+// actions with no words in sight: each label is the button's name.
+export const iconButtons = (style: NamedStyle<typeof ButtonSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Role('group'), h.AriaLabel('Message'), h.Style({ display: 'flex', gap: '0.25rem' })],
+    [
+      Button.view(
+        { label: 'Reply', icon: outline(h, 'M6.5 4L2.5 8l4 4M3 8h6.5a4 4 0 0 1 4 4'), style },
+        h,
+      ),
+      Button.view(
+        { label: 'Copy', icon: outline(h, 'M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3'), style },
+        h,
+      ),
+      Button.view(
+        {
+          label: 'Delete',
+          icon: outline(h, 'M2.5 4.5h11M6 4.5v-2h4v2M4 4.5l.75 9h6.5l.75-9'),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
 // #endregion
 
 // #region button-toggle

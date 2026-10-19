@@ -524,22 +524,28 @@ describe('Recipes', () => {
     ).toBe(true)
     expect(layered.some(block => /^@layer app\{.*background:red/.test(block))).toBe(true)
 
-    // Both classes land on the element and nothing is inline, so the cascade decides.
+    // Both classes land on the element (or the icon's, for the recipe's icon
+    // rule) and nothing is inline, so the cascade decides.
     let resolved: SlotAttributes<TestMessage> = []
+    let icon: SlotAttributes<TestMessage> = []
     buttonView<TestMessage>(
       {
         onClick: message('Clicked'),
         toView: attributes => {
-          resolved = Button.resolve(attributes, [Danger.mixin, Override.mixin], {
+          const slots = Button.resolve(attributes, [Danger.mixin, Override.mixin], {
             input: undefined,
             h,
-          }).button
+          })
+          resolved = slots.button
+          icon = slots.icon
           return h.button(resolved, [])
         },
       },
       h,
     )
-    const classes = attributeOf(resolved, 'Class')?.value.split(' ') ?? []
+    const classes = [resolved, icon].flatMap(
+      attributes => attributeOf(attributes, 'Class')?.value.split(' ') ?? [],
+    )
     for (const rule of [...Danger.rules, ...Override.rules]) {
       expect(classes).toContain(rule.className)
     }

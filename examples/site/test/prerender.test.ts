@@ -277,7 +277,9 @@ describe('the generated site', () => {
     ])
     expect(button.querySelector('[data-size="page"] button')?.textContent).toBe('Save changes')
     const code = button.querySelector('main figure pre code')
-    expect(code?.textContent).toContain("Button.view({ label: 'Save changes', style }, h)")
+    expect(code?.textContent).toContain(
+      "Button.view({ label: 'Save changes', icon: outline(h, 'M3 8.5l3 3 7-7'), style }, h)",
+    )
     expect(code?.querySelector('[data-kind="syntax-keyword"]')?.textContent).toBe('export')
   })
 
@@ -327,7 +329,12 @@ describe('the generated site', () => {
       [
         'button',
         [
-          ['basic', 'Basic', "Button.view({ label: 'Save changes', style }, h)"],
+          [
+            'basic',
+            'Basic',
+            "Button.view({ label: 'Save changes', icon: outline(h, 'M3 8.5l3 3 7-7'), style }, h)",
+          ],
+          ['icon', 'Icon only', "label: 'Reply'"],
           ['toggle', 'Toggle', 'pressed: pressed.includes(format)'],
         ],
       ],

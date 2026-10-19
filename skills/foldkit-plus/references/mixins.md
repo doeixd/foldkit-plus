@@ -357,7 +357,7 @@ value-to-tone map (`Badge({ attribute: 'data-state', tones: { Published: 'succes
 because one style serves badges in every state and every tone is present at once.
 `Recipes.InputGroup` (`group`, `affix`, `control`) draws a prefixed or suffixed field as one
 box; a `Segmented` pressed option is the accent's flat tint (`Segmented.fluid`, with its `indicator` and `highlight`
-slots drawn first in the group, slides it as a pill; `Segmented.view` and `Segmented.toggled(pressed, value, { multiple, optional })` draw and step it, `multiple` being a toggle group; a toggle button is `Button.view({ pressed })`, which rests on its tone's fill, keeps its text on it hovered and held, and deepens held); a held button scales to 98% (by `travel`), a solid or primary one also deepening to its `active` fill and clearing its 1px border. An unfilled button's
+slots drawn first in the group, slides it as a pill; `Segmented.view` and `Segmented.toggled(pressed, value, { multiple, optional })` draw and step it, `multiple` being a toggle group; `Button.view({ icon })` draws an icon (an `svg`, `aria-hidden`) in its `icon` slot before the label, which the `icon` variant hides so the icon stands alone, the label still its name; a toggle button is `Button.view({ pressed })`, which rests on its tone's fill, keeps its text on it hovered and held, and deepens held); a held button scales to 98% (by `travel`), a solid or primary one also deepening to its `active` fill and clearing its 1px border. An unfilled button's
 hover (outline, ghost, icon) is a faint film of the state ink, so it reads on a colored band. The
 body defaults color scrollbars with `outline.overt`. `Touch`
 (`target`, `targets`) and `Icons` (`glyph(size)`, `byAttribute(attribute, icons)`) are style

@@ -233,6 +233,10 @@ const saveButton = (disabled: boolean, h: HtmlBuilder<Message>) =>
   )
 ```
 
+An `icon` (an `svg`) draws before the label in the `icon` slot, hidden from
+assistive technology; `Recipes.Button({ variant: 'icon' })` shows the icon
+alone, the label still the button's name.
+
 A toggle button, shadcn's Toggle, is a Button with `pressed`: it writes
 `aria-pressed`, and each variant has its on look.
 

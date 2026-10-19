@@ -798,6 +798,12 @@ export const showcases: ReadonlyArray<Showcase> = [
     [
       { name: 'basic', title: 'Basic', draw: style => Snippet.button(style, inert) },
       {
+        name: 'icon',
+        title: 'Icon only',
+        draw: style => Snippet.iconButtons(style, inert),
+        pins: { tone: 'neutral', variant: 'icon' },
+      },
+      {
         name: 'toggle',
         title: 'Toggle',
         draw: (style, live) =>
