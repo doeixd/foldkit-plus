@@ -61,7 +61,10 @@ describe('Steps.view', () => {
 
   it('hides the number, which the list position already says', () => {
     const drawn = Steps.view({ label: 'Checkout', steps, current: 2, style }, h)
-    const markers = Inert.byTag(drawn, 'span').filter(span => Inert.text(span) === '1')
+    // The marker, not the number inside it, which the marker hides with it.
+    const markers = Inert.byTag(drawn, 'span').filter(
+      span => Inert.text(span) === '1' && Inert.value(span, 'data-number') === undefined,
+    )
     expect(markers.map(marker => Inert.value(marker, 'aria-hidden'))).toEqual(['true'])
   })
 

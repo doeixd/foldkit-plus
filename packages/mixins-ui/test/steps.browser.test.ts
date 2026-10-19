@@ -358,3 +358,41 @@ test.each(
     handle.dispose()
   }
 })
+
+test.each(['Georgia, serif', 'system-ui, sans-serif'])(
+  'in %s, a number sits in the middle of its marker, trimmed to its figure',
+  async font => {
+    const handle = mount('horizontal', '40rem', { selection: { size: 'md' } })
+    document.body.style.fontFamily = font
+    try {
+      await vi.waitFor(() => expect(markers()).toHaveLength(4))
+      const marker = markers()[2]!
+      const number = marker.querySelector<HTMLElement>('[data-number]')!
+      const box = number.getBoundingClientRect()
+      const around = marker.getBoundingClientRect()
+      expect(box.top + box.height / 2).toBeCloseTo(around.top + around.height / 2, 0)
+      // The box is the figure's own height, so centering it centers the ink.
+      const context = document.createElement('canvas').getContext('2d')!
+      // From its parts: the computed shorthand can come back empty.
+      const face = getComputedStyle(number)
+      context.font = `${face.fontWeight} ${face.fontSize} ${face.fontFamily}`
+      const ink = context.measureText(number.textContent!)
+      expect(box.height).toBeCloseTo(ink.actualBoundingBoxAscent + ink.actualBoundingBoxDescent, 0)
+    } finally {
+      handle.dispose()
+      document.body.style.removeProperty('font-family')
+    }
+  },
+)
+
+test.each(['sm', 'lg'] as const)('a %s marker draws its check to its size', async size => {
+  const handle = mount('horizontal', '40rem', { selection: { size } })
+  try {
+    await vi.waitFor(() => expect(markers()).toHaveLength(4))
+    const marker = markers()[0]!
+    const check = getComputedStyle(marker, '::after')
+    expect(parseFloat(check.height)).toBeCloseTo(marker.getBoundingClientRect().height * 0.4, 0)
+  } finally {
+    handle.dispose()
+  }
+})

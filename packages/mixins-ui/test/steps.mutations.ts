@@ -287,4 +287,37 @@ export default [
     ],
     tests: ['packages/mixins-ui/test/steps.browser.test.ts'],
   },
+  {
+    name: 'a number centers the font line, not its figure',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "Style.self({ display: 'block', lineHeight: '1', ...trimmed })",
+        replace: "Style.self({ display: 'block', lineHeight: '1' })",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a check keeps one size in every marker',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: 'blockSize: `calc(${markerSize} * 0.4)`,',
+        replace: "blockSize: '0.6rem',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a number is sized as an icon',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "Style.nest('& > :not([data-number])', {",
+        replace: "Style.nest('& > *', {",
+      },
+    ],
+    tests: [browser],
+  },
 ]

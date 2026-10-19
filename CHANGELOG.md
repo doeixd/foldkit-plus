@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: Steps' `number` slot, the figure in a marker, trimmed to its digits so it
+  sits in the middle of its marker in any face; it sat low in a serif one. A complete marker's
+  check grows with the marker.
 - `foldkit-mixins`: `Theme.oklch` ships seven color scales, `red`, `orange`, `yellow`, `green`,
   `teal`, `blue` and `purple`: steps `1` (near white) to `10` (near black) on one lightness
   ladder for every hue, so a step means the same contrast in each, and `wash-1` to `wash-4`, step
@@ -19,6 +22,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Thinking Indicator held by a still theme or reduced motion still reads
+  as at work, its dots a fading trail and its band resting across the words; a zero-length loop
+  showed three faint dots and plain words.
 - `foldkit-mixins-ui`: a ring Progress and a ring or orbit Spinner stay round in a square
   theme (radius factor 0); they spun as squares.
 - `foldkit-mixins-ui`: a Skeleton's bones are the palette's `state.tint`, the text's film at the

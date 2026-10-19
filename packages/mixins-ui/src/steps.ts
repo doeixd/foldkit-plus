@@ -23,6 +23,8 @@ export const StepsSlots = Slots.define({
   step: Slot.make({ capability: Capability.Container }),
   trigger: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   marker: Slot.make({ capability: Capability.Container }),
+  /** The step's number in its marker, where no `icon` stands in for it. */
+  number: Slot.make({ capability: Capability.Container }),
   text: Slot.make({ capability: Capability.Container }),
   title: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container }),
@@ -84,7 +86,8 @@ export const view = <Message>(options: StepsView<Message>, h: HtmlBuilder<Messag
       const marked = h.DataAttribute('state', state)
       const content = [
         h.span(builders.marker.attrs([marked, h.AriaHidden(true)]), [
-          step.icon ?? String(index + 1),
+          step.icon ??
+            h.span(builders.number.attrs([h.DataAttribute('number', '')]), [String(index + 1)]),
         ]),
         h.span(builders.text.attrs(), [
           h.span(builders.title.attrs([marked]), [step.title]),

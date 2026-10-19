@@ -32,6 +32,7 @@ import {
   ref,
   transition,
   travelled,
+  trimmed,
   unfilledHover,
   variant,
 } from './design.js'
@@ -117,7 +118,7 @@ export const Steps = Style.recipeFor(StepsSlots)({
         ...transition('background-color, border-color, color'),
       }),
       // An icon a step draws, sized to the marker's text as a glyph is.
-      Style.nest('& > *', { inlineSize: '1.15em', blockSize: '1.15em' }),
+      Style.nest('& > :not([data-number])', { inlineSize: '1.15em', blockSize: '1.15em' }),
       Style.nest(`&${complete} > *`, { visibility: 'hidden' }),
       Style.pseudo(upcoming, { color: ref.text.muted }),
       Style.pseudo(current, {
@@ -134,13 +135,18 @@ export const Steps = Style.recipeFor(StepsSlots)({
       Style.nest(`&${complete}::after`, {
         content: '""',
         position: 'absolute',
-        inlineSize: '0.3rem',
-        blockSize: '0.6rem',
+        // As the marker grows: a fixed check sat small in a large one.
+        inlineSize: `calc(${markerSize} * 0.2)`,
+        blockSize: `calc(${markerSize} * 0.4)`,
         ...cornerSides(ref.border.thick, ref.accent['on-fill']),
         rotate: '45deg',
         translate: '0 -10%',
       }),
     ),
+    // Trimmed to its digits, from the cap height to the baseline, so the
+    // marker's grid centers the figure itself rather than the font's line,
+    // whose space above and below differs from face to face.
+    number: component(Style.self({ display: 'block', lineHeight: '1', ...trimmed })),
     text: component(Style.self({ display: 'grid', minInlineSize: '0' })),
     title: component(
       Style.self({
