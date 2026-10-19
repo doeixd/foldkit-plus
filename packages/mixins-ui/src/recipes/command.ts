@@ -1,10 +1,12 @@
 /**
- * A command menu: a raised panel with the search field across its top, the
- * crumbs of the page it is on before the field, a line under it, and the
- * rows below in their groups, each a rung of the size ladder: a picture, the
- * words with a quieter description under them, the shortcut muted at the
- * end and a chevron for a row that opens a page; the highlighted row lit as
- * a menu's is. The list scrolls past a cap, fading at an edge with more
+ * A command menu: a raised panel with the search field across its top, led
+ * by a magnifier (`Icons.glyph`; set `--icon` on the `search` slot for
+ * another), the crumbs of the page it is on before the field, a hairline
+ * under it, and the rows below in their groups, a hairline between two,
+ * each a rung of the size ladder: a picture at the icon size, the words
+ * with a quieter description under them, the shortcut muted at the end and
+ * a chevron for a row that opens a page; the highlighted row lit as a
+ * menu's is. The list scrolls past a cap, fading at an edge with more
  * beyond, under the overlay bar of `scrollBars.ts` where
  * `Command.overlayBars` runs. A footer strip names the keys. `frame: 'bare'`
  * drops the panel's own edge and shadow, for a Dialog's panel to hold it.
@@ -13,8 +15,14 @@ import { Style } from 'foldkit-mixins'
 import { ladder, nested, nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { CommandSlots } from '../command.js'
+import { glyph } from '../icons.js'
 import { component, cornerSides, ref, rowOnLadder, touchText, variant } from './design.js'
 import { bar, overlaid, thumb } from './scrollBars.js'
+
+/** A magnifier, a 24-unit stroked drawing as a mask: only its alpha counts. */
+const magnifier = `url("data:image/svg+xml,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/></svg>",
+)}")`
 
 export const Command = Style.recipeFor(CommandSlots)({
   base: {
@@ -22,7 +30,12 @@ export const Command = Style.recipeFor(CommandSlots)({
       Style.self({
         display: 'flex',
         flexDirection: 'column',
-        inlineSize: 'min(32rem, 100%)',
+        // A width of its own, which a narrower parent caps: a parent that
+        // shrinks to its content would otherwise squeeze it to its longest row.
+        // The border inside it, or a capped card runs past its parent.
+        boxSizing: 'border-box',
+        inlineSize: '32rem',
+        maxInlineSize: '100%',
         overflow: 'hidden',
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.xl,
@@ -36,10 +49,13 @@ export const Command = Style.recipeFor(CommandSlots)({
       Style.self({
         display: 'flex',
         alignItems: 'center',
-        gap: ref.space.xs,
+        gap: ladder('gap'),
         paddingInlineStart: ladder('pad'),
         borderBlockEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,
+        color: ref.text.muted,
+        '--icon': magnifier,
       }),
+      glyph(ladder('icon')),
     ),
     crumbs: component(Style.self({ display: 'flex', flex: 'none', gap: ref.space['2xs'] })),
     crumb: component(
@@ -87,10 +103,21 @@ export const Command = Style.recipeFor(CommandSlots)({
     frame: component(Style.self({ position: 'relative', display: 'grid', minBlockSize: '0' })),
     bar,
     thumb,
-    group: component(Style.self({})),
+    // A hairline between two groups, across the list's padding to its edges.
+    group: component(
+      Style.self({}),
+      Style.pseudo(':not(:first-child)', {
+        marginBlockStart: ref.space['2xs'],
+        marginInline: `calc(-1 * ${ref.space['2xs']})`,
+        paddingBlockStart: ref.space['2xs'],
+        paddingInline: ref.space['2xs'],
+        borderBlockStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
+      }),
+    ),
     heading: component(
       Style.self({
-        paddingBlock: ref.space['2xs'],
+        paddingBlockStart: ref.space.xs,
+        paddingBlockEnd: ref.space['2xs'],
         paddingInline: ladder('row-pad'),
         color: ref.text.muted,
         ...role('caption'),
@@ -112,7 +139,11 @@ export const Command = Style.recipeFor(CommandSlots)({
       }),
       Style.pseudo('[aria-disabled="true"]', { opacity: '0.5', cursor: 'not-allowed' }),
     ),
-    icon: component(Style.self({ display: 'inline-flex', flex: 'none', color: ref.text.muted })),
+    // A drawing given at any size takes the ladder's icon size.
+    icon: component(
+      Style.self({ display: 'inline-flex', flex: 'none', color: ref.text.muted }),
+      Style.nest('& > svg', { inlineSize: ladder('icon'), blockSize: ladder('icon') }),
+    ),
     text: component(
       Style.self({ display: 'grid', flex: '1', minInlineSize: '0', gap: ref.space['3xs'] }),
     ),

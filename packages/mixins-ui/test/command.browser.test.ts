@@ -285,3 +285,101 @@ test('the footer names its keys, each pair in a row', async () => {
     handle.dispose()
   }
 })
+
+const cardStyle = Style.forSlots(CommandSlots)(Recipes.Command({}))
+
+const GROUPS: ReadonlyArray<CommandGroup<string>> = [
+  { heading: 'Suggestions', items: [{ value: 'calendar', label: 'Calendar' }] },
+  { heading: 'Settings', items: [{ value: 'profile', label: 'Profile' }] },
+]
+
+/** The menu as a card, alone, in a holder that shrinks to its content or is `width` wide. */
+const drawCard = (width?: string) => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme))) +
+    cardStyle.css
+  document.head.append(sheet)
+  const holder = document.createElement('div')
+  holder.style.display = 'inline-block'
+  if (width !== undefined) holder.style.width = width
+  const container = document.createElement('div')
+  container.id = 'command-card'
+  holder.append(container)
+  document.body.appendChild(holder)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({
+        model: {
+          dialog: UiDialog.init({ id: 'card-dialog' }),
+          query: '',
+          active: Option.none(),
+          pages: [],
+          loading: false,
+        },
+      }),
+      update,
+      view: (model: Model, h: HtmlBuilder<Message>) =>
+        Command.view<string, Message>(
+          {
+            id: 'card',
+            label: 'Search commands',
+            groups: GROUPS,
+            query: model.query,
+            onQuery: query => ({ _tag: 'Typed', query }),
+            active: model.active,
+            onActive: value => ({ _tag: 'Moved', value }),
+            onRun: value => ({ _tag: 'Ran', value }),
+            style: cardStyle,
+          },
+          h,
+        ),
+    }),
+  )
+  return { handle, holder }
+}
+
+/** The drawn card: `embed` puts it in place of its container. */
+const card = async (holder: HTMLElement) => {
+  await vi.waitFor(() => expect(holder.querySelector('[role="listbox"]')).not.toBeNull())
+  return holder.firstElementChild!
+}
+
+test('a card keeps its width in a parent that shrinks to its content, and a narrower parent caps it', async () => {
+  const wide = drawCard()
+  try {
+    const root = await card(wide.holder)
+    expect(root.getBoundingClientRect().width).toBeCloseTo(32 * 16, 0)
+  } finally {
+    wide.handle.dispose()
+  }
+  document.body.replaceChildren()
+  const narrow = drawCard('300px')
+  try {
+    const root = await card(narrow.holder)
+    expect(root.getBoundingClientRect().width).toBeCloseTo(300, 0)
+  } finally {
+    narrow.handle.dispose()
+  }
+})
+
+test('the field is led by a magnifier, and a hairline parts two groups across the list', async () => {
+  const { handle, holder } = drawCard()
+  try {
+    const root = await card(holder)
+    const search = field()!.parentElement!
+    const glyph = getComputedStyle(search, '::before')
+    expect(glyph.maskImage).toContain('data:image/svg+xml')
+    expect(parseFloat(glyph.width)).toBeGreaterThan(0)
+    const [first, second] = [...root.querySelectorAll('[role="group"]')]
+    expect(parseFloat(getComputedStyle(first!).borderTopWidth)).toBe(0)
+    expect(parseFloat(getComputedStyle(second!).borderTopWidth)).toBeGreaterThan(0)
+    const list = root.querySelector('[role="listbox"]')!
+    expect(second!.getBoundingClientRect().width).toBeCloseTo(list.clientWidth, 0)
+  } finally {
+    handle.dispose()
+  }
+})

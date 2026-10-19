@@ -176,4 +176,40 @@ export default [
     edits: [{ file, find: '[keys(hint.keys), hint.label]', replace: '[keys(hint.keys)]' }],
     tests: [browser],
   },
+  {
+    name: 'the card shrinks to its rows',
+    edits: [{ file: recipe, find: "inlineSize: '32rem',", replace: "inlineSize: 'auto'," }],
+    tests: [browser],
+  },
+  {
+    name: 'a narrower parent does not cap the card',
+    edits: [{ file: recipe, find: "maxInlineSize: '100%',", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: "the card's border lies outside its width",
+    edits: [{ file: recipe, find: "boxSizing: 'border-box',", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'the field has no magnifier',
+    edits: [{ file: recipe, find: "'--icon': magnifier,", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'no hairline parts two groups',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo(':not(:first-child)', {",
+        replace: "Style.pseudo(':not(*)', {",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "the hairline stops at the list's padding",
+    edits: [{ file: recipe, find: "marginInline: `calc(-1 * ${ref.space['2xs']})`,", replace: '' }],
+    tests: [browser],
+  },
 ]
