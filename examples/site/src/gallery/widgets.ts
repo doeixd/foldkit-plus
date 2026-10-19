@@ -193,6 +193,8 @@ export type ToastExample = typeof ToastExample.Type
 /** The checkbox group examples, each with alerts of its own. */
 export const AlertsExample = Schema.Literals(['alerts', 'described', 'select-all', 'invalid'])
 export type AlertsExample = typeof AlertsExample.Type
+export const NotesExample = Schema.Literals(['grow', 'count', 'reply'])
+export type NotesExample = typeof NotesExample.Type
 
 /**
  * Whether `message` closes a menu only because the reader looked away: a
@@ -378,6 +380,8 @@ export const Model = Schema.Struct({
   /** The region chosen in the card grid, and the plan chosen in the item list. */
   region: Schema.String,
   plan: Schema.String,
+  /** What each textarea example holds. */
+  notes: Schema.Record(NotesExample, Schema.String),
   /** The rating's stars, none before any are given. */
   stay: Schema.Option(Schema.Number),
   /** The chat previews: the answer liked, the failed message retried, the words streamed. */
@@ -492,6 +496,7 @@ export const Message = defineMessageUnion({
   ToggledPassword: {},
   RatedStay: { value: Schema.Number },
   ChoseRegion: { region: Schema.String },
+  TypedNote: { example: NotesExample, value: Schema.String },
   TurnedLevel: { value: Schema.Number },
   MovedBudget: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotBrand: { message: ColorPicker.Message },
@@ -809,6 +814,7 @@ export const initial: Model = {
   dropdownDay: DateSelection.empty('Single'),
   region: 'Frankfurt',
   plan: 'Team',
+  notes: { grow: '', count: 'Arriving Thursday, two nights.', reply: '' },
   answerLiked: false,
   chatRetried: false,
   streamed: 6,
@@ -1828,6 +1834,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       region === model.region
         ? { model }
         : { model: modifyFields(model, { region: () => region }) },
+    TypedNote: ({ example, value }) =>
+      model.notes[example] === value
+        ? { model }
+        : { model: modifyFields(model, { notes: notes => ({ ...notes, [example]: value }) }) },
     CopiedAnswer: () => ({
       model,
       commands: Command.mapMessages([InputCopy.Copy({ text: ANSWER.join(' ') })], message =>

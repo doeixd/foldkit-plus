@@ -313,6 +313,37 @@ const cardBasic = <Message>(style: NamedStyle<typeof CardSlots>, live: Live<Mess
 const cardPlans = <Message>(style: NamedStyle<typeof CardGroupSlots>, live: Live<Message>) =>
   Snippet.cardGroup(style, { chosen: live.chosen, onChoose: live.onChoose }, live.h)
 
+const noteSnippets = {
+  grow: Snippet.textareaGrow,
+  count: Snippet.textareaCount,
+  reply: Snippet.textareaFooter,
+} as const
+
+/**
+ * A textarea in a column of its own: one that grows with its text takes its
+ * width from the text too where nothing gives it one, as the centring stage does not.
+ */
+const textareaColumn = <Message>(h: HtmlBuilder<Message>, field: Html) =>
+  h.div([h.Style({ inlineSize: 'min(100%, 24rem)' })], [field])
+
+/** A textarea example drawn over the text the widgets keep for it. */
+const textareaNote = <Message>(
+  style: NamedStyle<typeof TextareaSlots>,
+  live: Live<Message>,
+  example: Widgets.NotesExample,
+) =>
+  textareaColumn(
+    live.h,
+    noteSnippets[example](
+      style,
+      {
+        value: live.widgets.notes[example],
+        onType: value => live.onWidget(Widgets.Message.TypedNote({ example, value })),
+      },
+      live.h,
+    ),
+  )
+
 type FruitDraw = <Message>(
   style: NamedStyle<typeof ListboxSlots>,
   state: Snippet.FruitState,
@@ -959,14 +990,39 @@ export const showcases: ReadonlyArray<Showcase> = [
     {
       slug: 'textarea',
       title: 'Textarea',
-      summary: 'A field for more than one line.',
+      summary:
+        'A field for more than one line: it grows with its text up to a number of lines, counts toward a limit, and holds a row of controls.',
       recipe: 'Textarea',
       file: 'field',
       contract: 'TextareaSlots',
     },
     TextareaSlots,
     Recipes.Textarea,
-    style => Snippet.textarea(style, inert),
+    style => textareaColumn(inert, Snippet.textarea(style, inert)),
+    undefined,
+    [
+      {
+        name: 'grow',
+        title: 'Grows with its text',
+        draw: (style, live) => textareaNote(style, live, 'grow'),
+      },
+      {
+        name: 'fixed',
+        title: 'A fixed height',
+        draw: style => Snippet.textareaFixed(style, inert),
+        pins: { resize: 'vertical' },
+      },
+      {
+        name: 'count',
+        title: 'A character count',
+        draw: (style, live) => textareaNote(style, live, 'count'),
+      },
+      {
+        name: 'footer',
+        title: 'With a footer',
+        draw: (style, live) => textareaNote(style, live, 'reply'),
+      },
+    ],
   ),
   fromRecipe(
     {
