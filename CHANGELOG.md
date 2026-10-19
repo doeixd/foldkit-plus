@@ -122,6 +122,15 @@ version changed; `pnpm` skips versions already in the registry.
   now `{ content, mark? }`; a rail shows the `mark` (a logo, an avatar) centred over the icons,
   in the new `mark` slot, and hides the `content`, in `detail`. It showed the start of the words,
   clipped (`Acm`).
+- `foldkit-mixins-ui`: Sidebar actions and variants, after shadcn's sidebar blocks. A link and
+  a titled group take an `action` (`SidebarAction`: `{ label, icon, message }`), a button drawn
+  in the new `action` slot: a link's beside it, taking its badge's place while the row is hovered
+  or holds focus (a touch screen shows both), a group's at its heading's end. The recipe's
+  `variant` axis draws the column flush with the page's edge (`sidebar`, the default), lifted off
+  it as a card (`floating`), or with no edge on the surface it stands on (`inset`), for a page
+  drawn as a card beside it. On a phone a sidebar with a Sheet is its opener alone, where it was
+  a full-height strip of the column's surface. `SidebarLink`, `SidebarRow` and `SidebarGroup`
+  take the Message their actions send (default `never`).
 - `foldkit-mixins-ui`: a resizable Sidebar collapses. Drawn as a Resizable's `first` panel with
   `width: 'fill'`, a collapsed sidebar emptied its navigation and left the panel at its dragged
   width, an empty 192px column that every later drag kept, since the split and the sidebar each
@@ -133,15 +142,6 @@ version changed; `pnpm` skips versions already in the registry.
   Messages `ResizeStarted`, `Resized`, `ResizeEnded`, `SetWidth`). The recipe's `width: 'fill'`
   is gone.
 - `foldkit-mixins-ui`: a dismissed Toast fades in place while the cards behind it come forward
-- `foldkit-mixins-ui`: Sidebar actions and variants, after shadcn's sidebar blocks. A link and
-  a titled group take an `action` (`SidebarAction`: `{ label, icon, message }`), a button drawn
-  in the new `action` slot: a link's beside it, taking its badge's place while the row is hovered
-  or holds focus (a touch screen shows both), a group's at its heading's end. The recipe's
-  `variant` axis draws the column flush with the page's edge (`sidebar`, the default), lifted off
-  it as a card (`floating`), or with no edge on the surface it stands on (`inset`), for a page
-  drawn as a card beside it. On a phone a sidebar with a Sheet is its opener alone, where it was
-  a full-height strip of the column's surface. `SidebarLink`, `SidebarRow` and `SidebarGroup`
-  take the Message their actions send (default `never`).
   at once; they waited until it had gone, then moved, about a third of a second in all. A
   card's `--fk-toast-index` is its place among the toasts staying. The stack restacks on the
   `moderate` duration and `settle` curve, and a card enters on the `slow` `spring`; every
