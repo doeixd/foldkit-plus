@@ -37,6 +37,10 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-mixins-ui`: a custom select (`Listbox.fluid`, `width: 'trigger'`) no longer scrolls
   sideways as it opens. The panel is 14rem wide until its anchor reads the trigger, and the
   chosen row's marker glided from that width down to the row's, wider than the panel; it now
+- `foldkit-mixins-ui`: the Command card is 32rem wide unless its parent is narrower; in a
+  parent that shrinks to its content it shrank to its longest row. Its field is led by a
+  magnifier (set `--icon` on the `search` slot for another), a hairline parts two groups, and a
+  row's icon takes the ladder's icon size whatever size it was drawn at.
   glides only to a new choice (the Combobox's marker too).
 - `foldkit-mixins-ui`: a Sidebar's rail centres its header and footer. `header` and `footer` are
   now `{ content, mark? }`; a rail shows the `mark` (a logo, an avatar) centred over the icons,
