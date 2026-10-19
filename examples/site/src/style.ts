@@ -1027,7 +1027,16 @@ export const SiteStyle = slots(
       },
       // A menu shown open in a tile keeps room under its button for its rows,
       // so what follows in the tile moves down rather than hide behind it.
-      Style.nest('[aria-haspopup="menu"][aria-expanded="true"]', { marginBlockEnd: '10.5rem' }),
+      // Its button only: a row that opens a submenu is a menu button too.
+      Style.nest(':not([role="menuitem"])[aria-haspopup="menu"][aria-expanded="true"]', {
+        marginBlockEnd: '10.5rem',
+      }),
+      // The gallery's menu stays shown until answered, so the backdrop its
+      // menu draws to catch a press elsewhere would cover the page for good:
+      // presses go through it while that menu is shown.
+      Style.global(
+        '@layer app { :root:has([id^="preview-page-menu"][aria-expanded="true"]) #foldkit-portal-root > * { pointer-events: none } }',
+      ),
     ],
     scaleGrid: {
       display: 'grid',
