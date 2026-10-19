@@ -590,6 +590,37 @@ export const presets: ReadonlyArray<Preset> = [
       hover: 'accent',
     },
   },
+  {
+    name: 'Cobalt',
+    description:
+      'A vivid blue on pure greys: round, roomy and flat, bold headings, menus inverted, on the spring',
+    knobs: {
+      ...iris,
+      hue: 235,
+      chroma: 0.225,
+      lightness: 55,
+      base: 'neutral',
+      surfaceSaturation: 0,
+      surfaceContrast: 24,
+      surfaceLightness: 97,
+      surfaceLightnessDark: 24.5,
+      menuAccent: 'subtle',
+      menuColor: 'inverted',
+      radius: 1.8,
+      density: 1.1,
+      motion: 0.5,
+      shadow: 0,
+      textScale: 1.025,
+      headingScale: 1.2,
+      leading: 1.05,
+      scaleChroma: 1.1,
+      font: 'geist',
+      headingFont: 'inherit',
+      easing: 'spring',
+      headingWeight: 700,
+      tracking: -0.025,
+    },
+  },
 ]
 
 /** `preset`'s knobs, drawn in the direction the preview already reads. */
