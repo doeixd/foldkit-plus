@@ -29,7 +29,7 @@ afterEach(() => {
 })
 
 /** A tooltip whose trigger sits in a small clipping box placed by `where`, shown by keyboard focus. */
-const show = async (where: Record<string, string>) => {
+const show = async (where: Record<string, string>, anchor = Tooltip.anchor()) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -51,7 +51,7 @@ const show = async (where: Record<string, string>) => {
           model: model.tooltip,
           view: UiTooltip.view,
           viewInputs: {
-            anchor: Tooltip.anchor(),
+            anchor,
             toView: Tooltip.toView([style.mixin], { h, id: model.tooltip.id }, tooltip =>
               h.div(
                 [],
@@ -156,6 +156,26 @@ test('near the viewport’s left edge the pill stays 8px in, and its arrow still
     // Nothing clips the half outside: upstream's anchor makes a panel it knows no arrow of scroll.
     expect(getComputedStyle(panel).overflowY).toBe('visible')
   } finally {
+    dispose()
+  }
+})
+
+test('beside its trigger, a one-line pill rounder than it is tall points its arrow from its middle', async () => {
+  // Corners of 10px on a pill about 20px tall: no room between them for the arrow.
+  document.documentElement.style.setProperty('--fk-knob-radius-factor', '1.7')
+  const { trigger, panel, dispose } = await show(
+    { top: '120px', left: '400px', width: '80px', height: '40px' },
+    Tooltip.anchor({ placement: 'right' }),
+  )
+  try {
+    expect(panel.dataset['placement']).toBe('right')
+    const box = panel.getBoundingClientRect()
+    const arrow = panel.firstElementChild!.getBoundingClientRect()
+    const middle = (rect: DOMRect) => rect.top + rect.height / 2
+    expect(Math.abs(middle(arrow) - middle(box))).toBeLessThan(0.5)
+    expect(Math.abs(middle(arrow) - middle(trigger))).toBeLessThan(0.5)
+  } finally {
+    document.documentElement.style.removeProperty('--fk-knob-radius-factor')
     dispose()
   }
 })

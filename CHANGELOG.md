@@ -9,9 +9,6 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
-- `foldkit-mixins-ui`: `Button.view` takes an `icon`, drawn before the label in the new `icon` slot
-  of `ButtonSlots` at the ladder's icon size. The recipe's `icon` variant showed nothing before:
-  the view had no way to draw an icon, and the variant's zero font size hid any drawn in `em`.
 - `foldkit-mixins-ui`: `TreeView.fluid`, the fluid hover the menus, listbox, tabs and sidebar
   have: one `highlight`, a new slot drawn first in the tree, glides to the showing row nearest
   the pointer and to the row the keys focus, in place of each row's own hover. `FluidHover`
@@ -42,6 +39,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Popover's, Tooltip's or Hover Card's arrow stands in the middle of a
+  side too short to keep clear of both corners. Beside its trigger, a one-line Tooltip with
+  rounder corners drew it below the middle, on the rounded corner.
 - `foldkit-mixins-ui`: a Cascade Select's column fills a panel wider than it. Drilled in, one
   11rem column stood in the panel's 14rem and left an empty strip at the end.
 - `foldkit-mixins-ui`: a custom select (`Listbox.fluid`, `width: 'trigger'`) no longer scrolls

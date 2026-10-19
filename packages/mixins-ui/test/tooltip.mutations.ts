@@ -44,4 +44,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: "a short side's arrow keeps clear of corners it has no room between",
+    edits: [
+      {
+        file: '../src/recipes/popover.ts',
+        find: 'min(${look.corner}, ${middle})',
+        replace: '${look.corner}',
+      },
+    ],
+    tests: browser,
+  },
 ]

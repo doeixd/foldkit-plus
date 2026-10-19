@@ -37,7 +37,9 @@ const facing = {
  * show. It stands where `--arrow-x` or `--arrow-y` says (upstream's anchor
  * writes them on the panel, `Anchor.PlaceArrow` on the arrow), centred
  * until either is known, and never nearer a corner than the panel's
- * `corner` radius. Physical sides, as the anchor's pixels are. `size` is
+ * `corner` radius, unless the side is too short for that: then it stands in
+ * the middle, as beside a one-line tooltip, rather than below it on the
+ * rounded corner. Physical sides, as the anchor's pixels are. `size` is
  * the square's side, `space.xs` unless given; half its diagonal shows, so it
  * suits a gap to the trigger a little wider than that.
  */
@@ -48,6 +50,7 @@ export const arrow = (look: {
   readonly size?: string
 }): StyleValue => {
   const arrowSize = look.size ?? smallArrow
+  const middle = `50% - ${arrowSize} / 2`
   return component(
     Style.self({
       position: 'absolute',
@@ -62,7 +65,9 @@ export const arrow = (look: {
     ...Object.entries(facing).map(([side, { edge, along, turn }]) =>
       Style.nest(`:where([data-placement="${side}"]) > &`, {
         [edge]: `calc(${arrowSize} / -2 - ${ref.border.thin} / 2)`,
-        [along]: `clamp(${look.corner}, var(--arrow-${along === 'left' ? 'x' : 'y'}, calc(50% - ${arrowSize} / 2)), calc(100% - ${look.corner} - ${arrowSize}))`,
+        // A side shorter than both corners and the arrow would make the clamp's least
+        // more than its most, which clamp resolves to the least: past the middle.
+        [along]: `clamp(min(${look.corner}, ${middle}), var(--arrow-${along === 'left' ? 'x' : 'y'}, calc(${middle})), max(100% - ${look.corner} - ${arrowSize}, ${middle}))`,
         rotate: turn,
       }),
     ),
