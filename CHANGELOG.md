@@ -5,7 +5,17 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.25.0
+
+Concentric corners: buttons and fields round with the Card, Dialog, Toast or Alert holding them
+(`Theme.concentric`), the Drawer gains a `grip` to drag it by, and a Calendar, a Slider and
+Steps no longer spill a phone's card. `foldkit-mixins` 0.15.0 and `foldkit-mixins-ui` 0.14.0
+change, and `foldkit-plus` is 0.7.0. Packages that pin one of them, or a package that does,
+republish with a patch so their ranges cover the new versions (`foldkit-builder`, `foldkit-cms`,
+`foldkit-cms-drizzle`, `foldkit-composition`, `foldkit-mixins-builder`, `foldkit-mixins-crud`,
+`foldkit-mixins-data-grid`, `foldkit-mixins-form`, `foldkit-mixins-richtext`,
+`foldkit-mixins-surface`, `foldkit-primitives`). Nothing written for 0.24 needs changing; a
+control in a card is drawn with a smaller corner (below).
 
 ### Added
 
