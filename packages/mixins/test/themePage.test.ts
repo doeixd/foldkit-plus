@@ -176,7 +176,7 @@ describe('Theme.oklch', () => {
       match[2] ?? '',
     ])
 
-  it('has the seventeen groups', () => {
+  it('has the twenty-four groups', () => {
     expect(Object.keys(brand)).toEqual([
       'knob',
       'hue',
@@ -194,8 +194,37 @@ describe('Theme.oklch', () => {
       'error',
       'info',
       'chart',
+      'red',
+      'orange',
+      'yellow',
+      'green',
+      'teal',
+      'blue',
+      'purple',
       'syntax',
     ])
+  })
+
+  it('steps every color scale down one lightness ladder, and washes step 6 into the page', () => {
+    const names = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple'] as const
+    const lightness = (value: string) => Number(value.match(/^oklch\(([\d.]+)%/)?.[1])
+    const ladder = (name: (typeof names)[number]) =>
+      (['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] as const).map(step =>
+        lightness(brand[name][step]),
+      )
+    const first = ladder('red')
+    // Near white to near black, each step darker than the last.
+    expect(first[0]).toBeGreaterThan(95)
+    expect(first.at(-1)).toBeLessThan(25)
+    first.slice(1).forEach((value, index) => expect(value).toBeLessThan(first[index]!))
+    // The same ladder in every hue, each on its own hue knob.
+    for (const name of names) {
+      expect(ladder(name)).toEqual(first)
+      expect(brand[name]['6']).toContain(`var(--fk-knob-${name}-h)`)
+      expect(brand[name]['wash-1']).toBe(
+        `color-mix(in oklab, var(--fk-${name}-6) 8%, var(--fk-surface-base))`,
+      )
+    }
   })
 
   it('sets the shadow color per scheme, denser on a dark surface', () => {
