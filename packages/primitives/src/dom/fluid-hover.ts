@@ -62,7 +62,10 @@ const isDisabled = (item: Element) =>
  * vertically (a list), on `x` horizontally (a strip), on `xy` both (a grid). A
  * disabled item (`aria-disabled="true"`, `data-disabled`, `:disabled`) is never
  * highlighted. An item reached by the keyboard (`:focus-visible`) is
- * highlighted too; a touch highlights nothing, since there is no pointer to
+ * highlighted too, and with `focused`, the item that selector finds from a
+ * focused element that is no item (a tree's row, from its focused
+ * `treeitem`, which also holds the rows beneath it); a touch highlights
+ * nothing, since there is no pointer to
  * follow before the press.
  *
  * The container gets `--fk-<name>-x`, `-y`, `-w` and `-h` in pixels, relative
@@ -101,8 +104,10 @@ export const FluidHover = Mount.defineStream('FluidHover', {
     follows: Schema.optional(Schema.String),
     /** The selector of the item a fresh highlight grows out of. */
     from: Schema.optional(Schema.String),
+    /** The selector, run from a focused element outside any item, of the item it lights. */
+    focused: Schema.optional(Schema.String),
   },
-  execute: ({ element, name, item: selector, axis, gapClick, gapReach, follows, from }) =>
+  execute: ({ element, name, item: selector, axis, gapClick, gapReach, follows, from, focused }) =>
     Stream.callback<never>(() =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -211,7 +216,9 @@ export const FluidHover = Mount.defineStream('FluidHover', {
             if (!(event.target instanceof Element) || !event.target.matches(':focus-visible')) {
               return
             }
-            const owner = event.target.closest(selector)
+            const owner =
+              event.target.closest(selector) ??
+              (focused === undefined ? null : event.target.querySelector(focused))
             if (owner !== null && container.contains(owner) && !isDisabled(owner)) show(owner)
           }
           const blur = (event: FocusEvent) => {

@@ -5565,7 +5565,19 @@ export const treeView = <Message>(
   h.div(
     [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: '16rem' })],
     [
-      TreeView.view({ label: 'Files', model, nodes: TREE_FILES, onMessage, direction, style }, h),
+      // `TreeView.fluid` glides one hover from row to row, after the pointer and the keys.
+      TreeView.view(
+        {
+          label: 'Files',
+          model,
+          nodes: TREE_FILES,
+          onMessage,
+          direction,
+          style,
+          mixins: TreeView.fluid,
+        },
+        h,
+      ),
       h.p(
         [],
         [
@@ -5633,7 +5645,14 @@ export const treeViewIcons = <Message>(
     [h.Style({ inlineSize: '16rem' })],
     [
       TreeView.view(
-        { label: 'Files', model, nodes: withIcons(h, TREE_ICONS), onMessage, style },
+        {
+          label: 'Files',
+          model,
+          nodes: withIcons(h, TREE_ICONS),
+          onMessage,
+          style,
+          mixins: TreeView.fluid,
+        },
         h,
       ),
     ],
@@ -5652,7 +5671,15 @@ export const treeViewCheckboxes = <Message>(
     [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: '16rem' })],
     [
       TreeView.view(
-        { label: 'Files to commit', model, nodes: TREE_ICONS, onMessage, checkable: true, style },
+        {
+          label: 'Files to commit',
+          model,
+          nodes: TREE_ICONS,
+          onMessage,
+          checkable: true,
+          style,
+          mixins: TreeView.fluid,
+        },
         h,
       ),
       // `checked` holds the files alone; a folder reads checked or mixed from them.

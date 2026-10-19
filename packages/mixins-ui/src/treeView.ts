@@ -1,5 +1,15 @@
 import { Effect, Match, Option, Schema } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Attr,
+  Behavior,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
+import { FluidHover } from 'foldkit-primitives/dom'
 import { RovingTabindex, TreeNavigation, Typeahead } from 'foldkit-primitives/interaction'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
@@ -35,6 +45,9 @@ import type { MixinList } from './resolve.js'
  * the box checks its row, and Enter and a press on the row still choose.
  * What is checked is the Model's `checked`, the ids of the rows holding no
  * rows; a disabled row keeps what it was given.
+ *
+ * `highlight`, drawn first in the root, is the hover that follows the pointer
+ * from row to row, which `fluid` moves.
  */
 export const TreeViewSlots = Slots.define({
   root: Slot.make({
@@ -54,7 +67,37 @@ export const TreeViewSlots = Slots.define({
   icon: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
   group: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  highlight: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
 })
+
+// A row showing: its item neither disabled nor in a shut group, whose rows stay drawn.
+const shownRow = '[role="treeitem"]:not([aria-disabled="true"], [inert] *) > :first-child'
+
+/**
+ * What moves the `highlight`: on the root, one highlight follows the pointer
+ * to the nearest showing row, and to the row the keys focus, at its own
+ * indentation. Pass it beside the style; until it runs, each row marks its
+ * own hover and the drawn highlight shows nothing.
+ */
+export const fluid = [
+  Behavior.forSlots(TreeViewSlots)<unknown, never>(
+    {
+      root: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () =>
+          FluidHover({
+            name: 'tree-hover',
+            item: shownRow,
+            axis: 'y',
+            gapClick: true,
+            // The focused `treeitem` holds its row and the rows beneath it.
+            focused: ':scope:not([aria-disabled="true"]) > :first-child',
+          }),
+      }),
+    },
+    { name: 'TreeViewHover' },
+  ).mixin,
+] as const
 
 /** A row of the tree, and the rows it holds. */
 export interface TreeNode {
@@ -420,6 +463,9 @@ export const view = <ParentMessage>(
           : Option.none()
       }),
     ]),
-    draw(options.nodes, 1),
+    [
+      h.li(builders.highlight.attrs([h.Role('none'), h.AriaHidden(true)]), []),
+      ...draw(options.nodes, 1),
+    ],
   )
 }

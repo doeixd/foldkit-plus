@@ -28,4 +28,59 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the fluid highlight reaches the rows of a shut group',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: ':not([aria-disabled="true"], [inert] *) > :first-child',
+        replace: ':not([aria-disabled="true"]) > :first-child',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the fluid highlight ignores a row the keys focus',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'focused: \':scope:not([aria-disabled="true"]) > :first-child\',',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row keeps its own hover under the fluid highlight',
+    edits: [
+      {
+        file: '../src/recipes/treeView.ts',
+        find: 'Style.nest(`${unlit}:is(:hover, :active)`',
+        replace: "Style.nest('&:is(:hover, :active)'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the fluid highlight is never drawn',
+    edits: [
+      {
+        file: '../src/recipes/treeView.ts',
+        find: "Style.nest(':where([data-fluid-hover]) > &', { display: 'block' }),",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'FluidHover lights nothing from a focused element that is no item',
+    edits: [
+      {
+        file: '../../primitives/src/dom/fluid-hover.ts',
+        find: '(focused === undefined ? null : event.target.querySelector(focused))',
+        replace: 'null',
+      },
+    ],
+    tests,
+  },
 ]

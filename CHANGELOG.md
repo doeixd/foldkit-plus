@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `TreeView.fluid`, the fluid hover the menus, listbox, tabs and sidebar
+  have: one `highlight`, a new slot drawn first in the tree, glides to the showing row nearest
+  the pointer and to the row the keys focus, in place of each row's own hover. `FluidHover`
+  (`foldkit-primitives`) takes `focused`, the selector of the item a focused element that is no
+  item lights, since a focused `treeitem` holds its row and the rows beneath it.
 - `foldkit-mixins`: a theme as typed knob values. `Theme.make({ shape: { radius: 1.8 } })` checks
   each value against `Knobs.standard` (grouped: `accent`, `surface`, `shape`, `type`, `motion`,
   `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`); a misspelt knob or a choice outside

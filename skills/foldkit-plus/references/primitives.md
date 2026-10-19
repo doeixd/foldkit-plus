@@ -167,7 +167,7 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   Mount writes `--fk-<name>-x/-y/-w/-h/-shown/-moving` for the item nearest the pointer (gaps included;
   `axis` `y` list, `x` strip, `xy` grid), skipping disabled items, following `:focus-visible`, ignoring touch.
   `gapClick` presses the highlighted item's `data-fluid-press` descendant, within `gapReach` pixels if given. `follows: '[data-active]'` lights the
-  item the keys marked while the pointer is away; `from` is the item a fresh highlight grows out of and returns to.
+  item the keys marked while the pointer is away; `from` is the item a fresh highlight grows out of and returns to. `focused` finds the item to light from a focused element that is none (`':scope > :first-child'`, a tree's row from its `treeitem`).
   The container carries `data-fluid-hover="<name>"` while it runs; style the highlight under it. The lit item carries `data-fluid-lit`.
   No Message.
 - **An overlay scrollbar:** the `ScrollBars({ idle?, scroller? })` Mount on a scroller drives the bars drawn

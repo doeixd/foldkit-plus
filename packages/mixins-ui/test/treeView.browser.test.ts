@@ -4,7 +4,9 @@
  * a frame all land, a click focuses and chooses a row, a row sits a step
  * further in per level, and a shut group takes no height; a press on a
  * row's box checks it and chooses nothing; and a guide line runs down an
- * open group under its row's chevron.
+ * open group under its row's chevron; and under `TreeView.fluid` one
+ * highlight sits on the row the pointer or the keys reach, never on a row
+ * in a shut group.
  */
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
@@ -39,7 +41,11 @@ afterEach(async () => {
 const mount = (
   motion = '0',
   direction: 'ltr' | 'rtl' = 'ltr',
-  more: { readonly checkable?: boolean; readonly guides?: 'none' | 'lines' } = {},
+  more: {
+    readonly checkable?: boolean
+    readonly guides?: 'none' | 'lines'
+    readonly fluid?: boolean
+  } = {},
 ) => {
   const style = Style.forSlots(TreeViewSlots)(Recipes.TreeView({ guides: more.guides ?? 'none' }))
   const sheet = document.createElement('style')
@@ -73,6 +79,7 @@ const mount = (
             direction,
             checkable: more.checkable,
             style,
+            mixins: more.fluid === true ? TreeView.fluid : [],
           },
           h,
         ),
@@ -250,6 +257,45 @@ test('a guide line runs down an open group, under the chevron of its row', async
     const left = group.getBoundingClientRect().left + parseFloat(line.left)
     expect(left).toBeCloseTo(chevron.left + chevron.width / 2, 0)
     expect(parseFloat(line.height)).toBeCloseTo(group.getBoundingClientRect().height, 0)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('under TreeView.fluid the highlight sits on the row the pointer or the keys reach', async () => {
+  const { handle, before } = mount('0', 'ltr', { fluid: true })
+  try {
+    const tree = await vi.waitFor(() => {
+      const found = document.querySelector<HTMLElement>('[role="tree"][data-fluid-hover]')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    const highlight = tree.firstElementChild as HTMLElement
+    const on = (id: string) => {
+      const over = highlight.getBoundingClientRect()
+      const under = row(id).getBoundingClientRect()
+      return (
+        getComputedStyle(highlight).opacity === '1' &&
+        Math.abs(over.left - under.left) < 0.5 &&
+        Math.abs(over.top - under.top) < 0.5 &&
+        Math.abs(over.width - under.width) < 0.5 &&
+        Math.abs(over.height - under.height) < 0.5
+      )
+    }
+    // Just inside its top edge, where the rows of the shut group above it are drawn, clipped.
+    const top = row('readme').getBoundingClientRect()
+    await userEvent.hover(row('readme'), { position: { x: top.width / 2, y: 2 } })
+    await vi.waitFor(() => expect(on('readme')).toBe(true))
+    // The highlight is the hover: the row draws none of its own.
+    expect(getComputedStyle(row('readme')).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    await userEvent.hover(before)
+    await vi.waitFor(() => expect(getComputedStyle(highlight).opacity).toBe('0'))
+    before.focus()
+    await userEvent.tab()
+    await vi.waitFor(() => expect(on('src')).toBe(true))
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+    await vi.waitFor(() => expect(focusedId()).toBe('files-item-components'))
+    await vi.waitFor(() => expect(on('components')).toBe(true))
   } finally {
     handle.dispose()
   }

@@ -7,6 +7,9 @@
  * and a glyph's size; a checkable row's box fills in the accent with a
  * check, or a dash while mixed.
  *
+ * Given `TreeView.fluid`, one highlight follows the pointer and the keys
+ * from row to row in place of each row's own hover.
+ *
  * `guides: 'lines'` draws a hairline down each open group under its row's
  * chevron, Zag's indent guide, so a deep tree's levels read at a glance;
  * `guides: 'none'` (the default) draws none.
@@ -17,6 +20,7 @@ import { TreeViewSlots } from '../treeView.js'
 import {
   component,
   cornerSides,
+  glide,
   opensBelow,
   ref,
   rowOnLadder,
@@ -28,6 +32,9 @@ import {
 
 const list = { margin: '0', padding: '0', listStyle: 'none' }
 const open = '[data-state="open"]'
+/** A row no fluid highlight runs over, which marks its own hover. */
+const unlit = '&:not([data-fluid-hover] *)'
+const hovered = (part: 'x' | 'y' | 'w' | 'h' | 'shown' | 'moving') => `var(--fk-tree-hover-${part})`
 
 const indent = ref.space.md
 const chevronSize = '0.4em'
@@ -36,7 +43,34 @@ const rowStart = `calc(${ladder('row-pad')} + (var(--fk-tree-level, 1) - 1) * ${
 
 export const TreeView = Style.recipeFor(TreeViewSlots)({
   base: {
-    root: component(Style.self({ ...list, display: 'grid', gap: ref.space['3xs'] })),
+    root: component(
+      Style.self({
+        ...list,
+        position: 'relative',
+        isolation: 'isolate',
+        display: 'grid',
+        gap: ref.space['3xs'],
+      }),
+    ),
+    highlight: component(
+      Style.self({
+        position: 'absolute',
+        // Physical: the Mount measures from the left, in either direction.
+        top: '0',
+        left: '0',
+        zIndex: '-1',
+        display: 'none',
+        inlineSize: hovered('w'),
+        blockSize: hovered('h'),
+        translate: `${hovered('x')} ${hovered('y')}`,
+        opacity: hovered('shown'),
+        borderRadius: ref.radius.md,
+        background: unfilledHover,
+        pointerEvents: 'none',
+        ...glide('fast', hovered('moving')),
+      }),
+      Style.nest(':where([data-fluid-hover]) > &', { display: 'block' }),
+    ),
     item: component(opensBelow(open), Style.self({ outline: 'none' })),
     row: component(
       Style.self({
@@ -51,7 +85,8 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
         userSelect: 'none',
         ...transition('background-color, color'),
       }),
-      Style.pseudo(':is(:hover, :active)', { background: unfilledHover, color: ref.text.overt }),
+      Style.nest(`${unlit}:is(:hover, :active)`, { background: unfilledHover }),
+      Style.pseudo(':is(:hover, :active, [data-fluid-lit])', { color: ref.text.overt }),
       // `:is`, not `:where`, so a chosen or disabled row keeps its look under the pointer.
       Style.nest(':is([aria-selected="true"]) > &', {
         background: ref.accent.subtle,
