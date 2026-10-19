@@ -99,6 +99,9 @@ const defined = new Set([
   'keyboard-inset',
   // Written on the element by the card group's view and its FluidHover, not by a theme.
   'card-columns',
+  // Written on a textarea by its view, from `rows` and `maxRows`.
+  'textarea-rows',
+  'textarea-max-rows',
   // Written by the views: an avatar's hue from its name, a table row skeleton's column count.
   'avatar-hue',
   'skeleton-columns',

@@ -10,7 +10,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Input, Textarea, type FieldParts } from '../src/index.js'
+import { Input, Textarea, type FieldParts, type TextareaField } from '../src/index.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -244,6 +244,86 @@ describe('Textarea.field specifics', () => {
         expect(document.querySelector('textarea')?.getAttribute('rows')).toBe('5'),
       )
       expect(document.querySelector('textarea')?.getAttribute('placeholder')).toBe('A few words')
+    } finally {
+      handle.dispose()
+    }
+  })
+})
+
+describe('Textarea.field count and footer', () => {
+  const textarea =
+    (extra: Partial<TextareaField<Message>>): View =>
+    (model, h) =>
+      Textarea.field({ id: 'bio', label: 'Bio', field: model.field, changed, ...extra }, h)
+  const countText = () => document.getElementById('bio-count')?.textContent
+
+  it('counts against its maxLength under the field, beside the description', async () => {
+    const invalid = FieldValidation.Invalid({ value: 'abc', errors: ['Too short'] })
+    const handle = show(textarea({ maxLength: 10 }), 'textarea-count', invalid)
+    try {
+      await vi.waitFor(() => expect(countText()).toBe('3 / 10'))
+      const count = document.getElementById('bio-count')!
+      const description = document.getElementById('bio-description')!
+      // One row under the field holds both.
+      expect(count.parentElement).toBe(description.parentElement)
+      expect(count.parentElement?.previousElementSibling?.tagName).toBe('TEXTAREA')
+      expect(document.querySelector('textarea')?.maxLength).toBe(10)
+    } finally {
+      handle.dispose()
+    }
+  })
+
+  it('draws no count without a maxLength unless asked', async () => {
+    const quiet = show(
+      textarea({}),
+      'textarea-uncounted',
+      FieldValidation.NotValidated({ value: 'ab' }),
+    )
+    try {
+      await vi.waitFor(() => expect(document.querySelector('textarea')).not.toBeNull())
+      expect(countText()).toBeUndefined()
+    } finally {
+      quiet.dispose()
+    }
+    document.body.innerHTML = ''
+    const asked = show(
+      textarea({ count: true }),
+      'textarea-counted',
+      FieldValidation.NotValidated({ value: 'ab' }),
+    )
+    try {
+      await vi.waitFor(() => expect(countText()).toBe('2'))
+    } finally {
+      asked.dispose()
+    }
+  })
+
+  it('holds the text and a footer in one frame, the count at the footer end', async () => {
+    const handle = show(
+      (model, h) =>
+        Textarea.field(
+          {
+            id: 'bio',
+            label: 'Bio',
+            field: model.field,
+            changed,
+            maxLength: 10,
+            footer: [h.button([h.Type('button')], ['Send'])],
+          },
+          h,
+        ),
+      'textarea-footer',
+      FieldValidation.NotValidated({ value: 'hi' }),
+    )
+    try {
+      await vi.waitFor(() => expect(countText()).toBe('2 / 10'))
+      const frame = document.querySelector('[data-textarea-frame]')!
+      const [text, footer] = Array.from(frame.children)
+      expect(text?.tagName).toBe('TEXTAREA')
+      expect(Array.from(footer!.children).map(child => child.textContent)).toEqual([
+        'Send',
+        '2 / 10',
+      ])
     } finally {
       handle.dispose()
     }
