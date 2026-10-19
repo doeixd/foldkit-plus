@@ -226,11 +226,32 @@ const ReadPageScheme = Command.define('ReadPageScheme', {
   execute: Effect.sync(() => Message.FoundPageScheme({ scheme: currentScheme() })),
 })
 
-/** The address the page was opened at, for `/create` to read its theme from. */
+/** Where the reader's theme is kept between pages: the query `/create` writes. */
+const THEME_KEY = 'foldkit-site-theme'
+
+/**
+ * The theme the page's previews are drawn in: the address's when it names
+ * one (a shared link), the one the reader last made otherwise.
+ */
 const ReadThemeAddress = Command.define('ReadThemeAddress', {
   messages: [Message.FoundThemeAddress],
-  execute: Effect.sync(() => Message.FoundThemeAddress({ query: window.location.search })),
+  execute: Effect.sync(() =>
+    Message.FoundThemeAddress({ query: openedTheme(window.location.search, storedTheme) }),
+  ),
 })
+
+/** The address's query when it names anything, else the one kept: read only then. */
+export const openedTheme = (search: string, stored: () => string): string =>
+  search === '' ? stored() : search
+
+const storedTheme = (): string => {
+  try {
+    return localStorage.getItem(THEME_KEY) ?? ''
+  } catch {
+    // Storage refused (a private window): every page starts at the default.
+    return ''
+  }
+}
 
 /** A link to `/create` with the theme `query` names in it, on the clipboard. */
 const CopyLink = Command.define('CopyLink', {
@@ -398,10 +419,10 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       commands: [CopyLink({ query: queryOf(addressIn(model)) })],
     }),
     CopiedLink: () => ({ model: modifyFields(model, { linkCopied: () => true }) }),
-    // Read once, on `/create` only: the knobs it names, then the address is
-    // the Model's to write.
+    // Read once, on whichever page was opened: the knobs it names, then the
+    // address is the Model's to write, so a theme follows the reader around.
     FoundThemeAddress: ({ query }) => {
-      if (!onCreate(model.page) || model.addressRead) return { model }
+      if (model.addressRead) return { model }
       const address = addressOf(query)
       return {
         model: modifyFields(model, {
@@ -505,13 +526,24 @@ export const codeCopyOf = (event: MouseEvent): Option.Option<Message> => {
 
 const onCreate = (page: Page): boolean => page._tag === 'Create'
 
-/** What of the Model `/create`'s address holds. */
+/** What of the Model the address holds; which canvas `/create` shows, only there. */
 export const addressIn = (model: Model) => ({
   values: model.theme,
   scheme: model.scheme,
-  canvas: model.canvas,
+  canvas: onCreate(model.page) ? model.canvas : ('components' as const),
   direction: model.direction,
 })
+
+/** Keeps `query` for the next page; the default theme keeps nothing. */
+const rememberTheme = (query: string) =>
+  Effect.sync(() => {
+    try {
+      if (query === '') localStorage.removeItem(THEME_KEY)
+      else localStorage.setItem(THEME_KEY, query)
+    } catch {
+      // Storage refused: the theme lasts as long as this page.
+    }
+  })
 
 /** Writes `query` as the page's, in place: a new entry per knob would fill the history. */
 const writeThemeAddress = (query: string) =>
@@ -533,24 +565,27 @@ const writeThemeAddress = (query: string) =>
 export const subscriptions = placements.subscriptions(
   Subscription.aggregate(
     Subscription.make<Model, Message>()(entry => ({
-      // `/create`'s theme in its address, once it has read the one it was
-      // opened at; a quarter second after the knobs stop, so a slider's drag
-      // writes it once (Safari refuses more than 100 writes in 10 seconds).
+      // The reader's theme, once the page has read the one it was opened at:
+      // kept for the next page, every link being a page load of its own, and
+      // on `/create` in its address too, the link a reader shares. A quarter
+      // second after the knobs stop, so a slider's drag writes it once (Safari
+      // refuses more than 100 address writes in 10 seconds).
       themeAddress: entry(
-        { query: Schema.Option(Schema.String) },
+        { query: Schema.Option(Schema.String), create: Schema.Boolean },
         {
           modelToDependencies: model => ({
-            query:
-              onCreate(model.page) && model.addressRead
-                ? Option.some(queryOf(addressIn(model)))
-                : Option.none(),
+            query: model.addressRead ? Option.some(queryOf(addressIn(model))) : Option.none(),
+            create: onCreate(model.page),
           }),
-          dependenciesToStream: ({ query }) =>
+          dependenciesToStream: ({ query, create }) =>
             Option.match(query, {
               onNone: () => Stream.empty,
               onSome: query =>
                 Stream.fromEffect(
-                  Effect.sleep('250 millis').pipe(Effect.andThen(writeThemeAddress(query))),
+                  Effect.sleep('250 millis').pipe(
+                    Effect.andThen(rememberTheme(query)),
+                    Effect.andThen(create ? writeThemeAddress(query) : Effect.void),
+                  ),
                 ).pipe(Stream.drain),
             }),
         },
@@ -657,8 +692,8 @@ const planOf = (withMeta: boolean) =>
       App.model.ticks,
     ],
     // The server cannot know a reader's scheme; the head script applied it.
-    // `/create` also reads its theme from its address.
-    boot: model => [ReadPageScheme(), ...(onCreate(model.page) ? [ReadThemeAddress()] : [])],
+    // Nor the theme a link carries, which every page's previews are drawn in.
+    boot: () => [ReadPageScheme(), ReadThemeAddress()],
     ...(withMeta ? { meta: (model: Model) => ({ description: descriptionOf(model.page) }) } : {}),
   })
 

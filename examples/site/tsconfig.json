@@ -52,7 +52,7 @@
       "foldkit-sync/remote": ["../../packages/sync/src/remote.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
+  "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
   "references": [
     {
       "path": "../../packages/bundle/tsconfig.build.json"

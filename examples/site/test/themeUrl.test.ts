@@ -10,7 +10,16 @@ import { Theme } from 'foldkit-mixins/theme'
 
 import { defaults, presets, sameTheme, valueAt, withValue } from '../src/gallery/theme.js'
 import { addressOf, queryOf } from '../src/gallery/themeUrl.js'
-import { Message, Page, initial, plan, update, type Model } from '../src/main.js'
+import {
+  Message,
+  Page,
+  addressIn,
+  initial,
+  openedTheme,
+  plan,
+  update,
+  type Model,
+} from '../src/main.js'
 
 const home = { values: defaults, scheme: 'system', canvas: 'components', direction: 'ltr' } as const
 
@@ -78,13 +87,24 @@ describe("/create's address", () => {
 describe("/create's Model and its address", () => {
   const create: Model = modifyFields(initial, { page: () => Page.Create() })
 
-  it('reads its address as the browser takes /create over, and no other page', () => {
+  it('reads the theme as the browser takes any page over', () => {
     const names = (model: Model) => (plan.boot?.(model) ?? []).map(command => command.name)
     expect(names(create)).toContain('ReadThemeAddress')
-    expect(names(initial)).not.toContain('ReadThemeAddress')
+    expect(names(initial)).toContain('ReadThemeAddress')
   })
 
-  it('takes the theme the page was opened at, once, and on /create only', () => {
+  it('takes the address’s theme when it names one, and the one kept only otherwise', () => {
+    let reads = 0
+    const kept = () => {
+      reads += 1
+      return 'type.body=mono'
+    }
+    expect(openedTheme('?type.body=serif', kept)).toBe('?type.body=serif')
+    expect(reads).toBe(0)
+    expect(openedTheme('', kept)).toBe('type.body=mono')
+  })
+
+  it('takes the theme the page was opened at, once, on any page', () => {
     const opened = update(
       create,
       Message.FoundThemeAddress({ query: '?type.body=serif&view=palette' }),
@@ -98,9 +118,15 @@ describe("/create's Model and its address", () => {
     expect(update(opened, Message.FoundThemeAddress({ query: '?type.body=mono' })).model).toBe(
       opened,
     )
-    expect(update(initial, Message.FoundThemeAddress({ query: '?type.body=serif' })).model).toBe(
+    // Any page draws its previews in the theme it was opened with; which
+    // canvas `/create` shows goes into no other page's address.
+    const home = update(
       initial,
-    )
+      Message.FoundThemeAddress({ query: '?type.body=serif&view=palette' }),
+    ).model
+    expect(valueAt(home.theme, 'type.body')).toBe(Theme.fonts.serif)
+    expect(queryOf(addressIn(home))).toBe('type.body=serif')
+    expect(queryOf(addressIn(opened))).toBe('type.body=serif&view=palette')
   })
 
   it('copies a link holding the theme shown', () => {

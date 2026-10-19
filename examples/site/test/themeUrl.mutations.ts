@@ -1,5 +1,5 @@
 /**
- * `/create`'s address, broken in turn:
+ * The theme's address, and the theme kept between pages, broken in turn:
  * `pnpm mutate examples/site/test/themeUrl.mutations.ts` checks that a test fails for every one.
  */
 const tests = ['examples/site/test/themeUrl.test.ts']
@@ -36,12 +36,12 @@ export default [
     tests: ['examples/site/test/themeUrl.test.ts'],
   },
   {
-    name: 'the address is read on every page',
+    name: 'the theme is read on /create only',
     edits: [
       {
         file: '../src/main.ts',
-        find: 'if (!onCreate(model.page) || model.addressRead) return { model }',
-        replace: 'if (model.addressRead) return { model }',
+        find: 'if (model.addressRead) return { model }',
+        replace: 'if (!onCreate(model.page) || model.addressRead) return { model }',
       },
     ],
     tests,
@@ -51,8 +51,45 @@ export default [
     edits: [
       {
         file: '../src/main.ts',
-        find: 'if (!onCreate(model.page) || model.addressRead) return { model }',
-        replace: 'if (!onCreate(model.page)) return { model }',
+        find: 'if (model.addressRead) return { model }',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'only /create reads a theme as the browser takes it over',
+    edits: [
+      {
+        file: '../src/main.ts',
+        find: 'boot: () => [ReadPageScheme(), ReadThemeAddress()],',
+        replace:
+          'boot: model => [ReadPageScheme(), ...(onCreate(model.page) ? [ReadThemeAddress()] : [])],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the kept theme is never read',
+    edits: [
+      { file: '../src/main.ts', find: "search === '' ? stored() : search", replace: 'search' },
+    ],
+    tests,
+  },
+  {
+    name: 'the kept theme wins over a shared link',
+    edits: [
+      { file: '../src/main.ts', find: "search === '' ? stored() : search", replace: 'stored()' },
+    ],
+    tests,
+  },
+  {
+    name: "/create's canvas goes into every page's address",
+    edits: [
+      {
+        file: '../src/main.ts',
+        find: "canvas: onCreate(model.page) ? model.canvas : ('components' as const),",
+        replace: 'canvas: model.canvas,',
       },
     ],
     tests,

@@ -27,6 +27,6 @@ describe("the page's scheme", () => {
   })
 
   it('is read back when the browser takes the page over, which the server cannot know', () => {
-    expect((plan.boot?.(initial) ?? []).map(command => command.name)).toEqual(['ReadPageScheme'])
+    expect((plan.boot?.(initial) ?? []).map(command => command.name)).toContain('ReadPageScheme')
   })
 })

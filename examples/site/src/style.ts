@@ -387,6 +387,33 @@ export const SiteStyle = slots(
       gap: t.space.xs,
     },
     setupLabel: { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
+    // Above previews drawn in a theme the reader made, with the way back.
+    themeNotice: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: `${t.space.xs} ${t.space.md}`,
+      padding: `${t.space.xs} ${t.space.sm}`,
+      borderRadius: t.radius.md,
+      background: t.surface.muted,
+      color: t.text.muted,
+      fontSize: '0.875rem',
+    },
+    themeNoticeText: { margin: '0', marginInlineEnd: 'auto' },
+    themeAction: Style.slot({ capability: Capability.Focusable }, [
+      {
+        padding: '0',
+        border: 'none',
+        background: 'none',
+        color: t.text.overt,
+        font: 'inherit',
+        fontWeight: t.weight.medium,
+        textDecoration: 'underline',
+        textUnderlineOffset: '0.2em',
+        cursor: 'pointer',
+      },
+      focus,
+    ]),
     // Primitives running in the page, between an article and its pager.
     live: {
       ...codeBox,
