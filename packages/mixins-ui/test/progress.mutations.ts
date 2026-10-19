@@ -350,4 +350,9 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a ring takes the theme corner',
+    edits: [{ file: '../src/recipes/progress.ts', find: "borderRadius: '50%',", replace: '' }],
+    tests: ['packages/mixins-ui/test/progress.browser.test.ts'],
+  },
 ]

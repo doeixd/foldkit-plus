@@ -106,7 +106,9 @@ test.each(['light', 'dark'] as const)('in a %s scheme, a bar stands off the page
     }
     const page = paint('transparent')
     const bar = paint(getComputedStyle(inside('wide')).backgroundColor)
-    expect(Math.abs(bar - page)).toBeGreaterThan(10)
+    // The dark scheme's own, denser tint: the light one's share left a bar
+    // barely off a dark page.
+    expect(Math.abs(bar - page)).toBeGreaterThan(scheme === 'dark' ? 35 : 10)
   } finally {
     handle.dispose()
   }

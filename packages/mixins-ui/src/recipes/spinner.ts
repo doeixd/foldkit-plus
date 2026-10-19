@@ -47,6 +47,10 @@ const kind = (wheel: ReadonlyArray<StyleValue>, part: ReadonlyArray<StyleValue>)
 
 const hidden = Style.self({ display: 'none' })
 
+// A ring's and an orbit's corner: a circle by its shape, not the theme's
+// corner; at radius 0 they turned as boxes.
+const round = '50%'
+
 export const Spinner = Style.recipeFor(SpinnerSlots)({
   base: {
     wheel: component(
@@ -76,9 +80,8 @@ export const Spinner = Style.recipeFor(SpinnerSlots)({
     kind: {
       ring: kind(
         [
-          // A circle by its shape, not the theme's corner: square, it turns as a box.
           Style.self({
-            borderRadius: '50%',
+            borderRadius: round,
             border: `${ref.border.thick} solid ${track}`,
             borderTopColor: ink,
           }),
@@ -126,7 +129,7 @@ export const Spinner = Style.recipeFor(SpinnerSlots)({
         [
           Style.self({
             position: 'relative',
-            borderRadius: '50%',
+            borderRadius: round,
             border: `${ref.border.thick} solid ${track}`,
           }),
           turning(period),

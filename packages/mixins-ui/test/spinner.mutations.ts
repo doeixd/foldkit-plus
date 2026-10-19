@@ -128,4 +128,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a ring and an orbit take the theme corner',
+    edits: [
+      {
+        file: '../src/recipes/spinner.ts',
+        find: "const round = '50%'",
+        replace: 'const round = ref.radius.full',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/spinner.browser.test.ts'],
+  },
 ]

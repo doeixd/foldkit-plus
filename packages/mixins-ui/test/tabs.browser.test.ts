@@ -26,12 +26,12 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (fluid: boolean, direction: 'ltr' | 'rtl' = 'ltr') => {
+const mount = (fluid: boolean, direction: 'ltr' | 'rtl' = 'ltr', look = style) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
     Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme))) +
-    style.css
+    look.css
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'tabs-browser'
@@ -45,7 +45,7 @@ const mount = (fluid: boolean, direction: 'ltr' | 'rtl' = 'ltr') => {
         selectedValue: model.value,
         ariaLabel: 'Project',
         toView: Tabs.toView(
-          [style.mixin, ...(fluid ? Tabs.fluid : [])],
+          [look.mixin, ...(fluid ? Tabs.fluid : [])],
           { h },
           ({ tablist, indicator, highlight, tabs }) =>
             h.div(tablist, [
@@ -172,5 +172,31 @@ test('when the page turns right to left, the indicator follows the chosen tab', 
   } finally {
     handle.dispose()
     document.documentElement.removeAttribute('dir')
+  }
+})
+
+test('a scrolling row draws its rule above its bar, and shows a mouse the thumb only while hovered', async () => {
+  const runtime = mount(
+    false,
+    'ltr',
+    Style.forSlots(TabsSlots)(Recipes.Tabs({ overflow: 'scroll' })),
+  )
+  try {
+    await vi.waitFor(() => expect(document.querySelector('[role="tablist"]')).not.toBeNull())
+    const list = document.querySelector<HTMLElement>('[role="tablist"]')!
+    await userEvent.hover(document.body, { position: { x: 600, y: 400 } })
+    const row = getComputedStyle(list)
+    // A background at the foot of the padding box, which ends above a scrollbar;
+    // an inset shadow is drawn at the border, under the bar.
+    expect(row.backgroundImage).toContain('linear-gradient')
+    expect(row.backgroundOrigin).toBe('padding-box')
+    expect(row.backgroundPositionY).toBe('100%')
+    expect(row.boxShadow).toBe('none')
+    const thumb = () => getComputedStyle(list).scrollbarColor.split(/\s(?![^(]*\))/)[0]
+    expect(thumb()).toBe('rgba(0, 0, 0, 0)')
+    await userEvent.hover(list)
+    await vi.waitFor(() => expect(thumb()).not.toBe('rgba(0, 0, 0, 0)'))
+  } finally {
+    runtime.dispose()
   }
 })

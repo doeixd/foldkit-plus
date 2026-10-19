@@ -24,8 +24,9 @@ const sweep = Style.keyframes({
   to: { backgroundPosition: '-50% 0' },
 })
 
-// The palette's muted step, so the bones follow its tint, contrast and scheme.
-const fill = ref.surface.muted
+// The palette's see-through tint of the text: its knob per scheme, where a
+// fixed share of the light one nearly vanished on a dark page.
+const fill = ref.state.tint
 const band = `color-mix(in oklab, ${ref.surface.base} 60%, transparent)`
 /** A bar on its own: a frame lays out its own bars, whatever shape the lone one takes. */
 const lone = '&:not([aria-hidden="true"])'

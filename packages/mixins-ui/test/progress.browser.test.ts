@@ -412,3 +412,17 @@ test.each(['ltr', 'rtl'] as const)(
     }
   },
 )
+
+test('a ring stays round in a square theme', async () => {
+  // The radius tokens resolve where the root declares them: set the knob there.
+  document.documentElement.style.setProperty('--fk-knob-radius-factor', '0')
+  const mounted = show({ shape: 'ring' }, {})
+  try {
+    const { rest } = await drawn()
+    const track = rest.at(-1)!
+    expect(getComputedStyle(track).borderTopLeftRadius).toBe('50%')
+  } finally {
+    mounted.dispose()
+    document.documentElement.style.removeProperty('--fk-knob-radius-factor')
+  }
+})

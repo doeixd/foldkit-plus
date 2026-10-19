@@ -183,3 +183,16 @@ test.each(['light', 'dark'] as const)(
     }
   },
 )
+
+test('a ring and an orbit stay round in a square theme', async () => {
+  // The radius tokens resolve where the root declares them: set the knob there.
+  document.documentElement.style.setProperty('--fk-knob-radius-factor', '0')
+  const handle = await mount('light')
+  try {
+    for (const kind of ['ring', 'orbit'] as const)
+      expect(getComputedStyle(wheel(kind)).borderTopLeftRadius).toBe('50%')
+  } finally {
+    handle.dispose()
+    document.documentElement.style.removeProperty('--fk-knob-radius-factor')
+  }
+})

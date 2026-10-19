@@ -133,4 +133,16 @@ export default [
     ],
     tests: unit,
   },
+  {
+    name: 'a bar takes the light scheme tint in both schemes',
+    edits: [
+      {
+        file: '../src/recipes/skeleton.ts',
+        find: 'const fill = ref.state.tint',
+        replace:
+          "const fill = `color-mix(in oklab, currentColor ${ref.knob['state-tint']}, transparent)`",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/skeleton.browser.test.ts'],
+  },
 ]
