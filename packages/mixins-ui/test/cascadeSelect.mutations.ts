@@ -252,6 +252,11 @@ export default [
     tests: [browser],
   },
   {
+    name: 'a column alone leaves a strip of the panel empty',
+    edits: [{ file: recipe, find: "flexGrow: '1',", replace: '' }],
+    tests: [browser],
+  },
+  {
     name: 'an unchanged measure makes a new Model',
     edits: [{ file, find: 'cramped === model.cramped', replace: 'false' }],
     tests: [unit],

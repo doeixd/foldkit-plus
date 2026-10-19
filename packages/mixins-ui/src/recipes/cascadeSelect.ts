@@ -141,6 +141,9 @@ export const CascadeSelect = Style.recipeFor(CascadeSelectSlots)({
     column: component(
       listScroll,
       Style.self({
+        // Grown into a panel wider than its columns (its own least width, or a trigger's),
+        // so one column drawn alone leaves no empty strip at the end.
+        flexGrow: '1',
         minInlineSize: '11rem',
         maxBlockSize: '18rem',
         overflowY: 'auto',

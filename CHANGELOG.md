@@ -34,6 +34,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Cascade Select's column fills a panel wider than it. Drilled in, one
+  11rem column stood in the panel's 14rem and left an empty strip at the end.
 - `foldkit-mixins-ui`: a custom select (`Listbox.fluid`, `width: 'trigger'`) no longer scrolls
   sideways as it opens. The panel is 14rem wide until its anchor reads the trigger, and the
   chosen row's marker glided from that width down to the row's, wider than the panel; it now

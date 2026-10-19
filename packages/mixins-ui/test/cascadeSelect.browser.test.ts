@@ -46,7 +46,7 @@ afterEach(async () => {
   document.documentElement.removeAttribute('dir')
 })
 
-const mount = (direction: 'ltr' | 'rtl' = 'ltr') => {
+const mount = (direction: 'ltr' | 'rtl' = 'ltr', layout: 'columns' | 'drill' = 'columns') => {
   document.documentElement.dir = direction
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -69,7 +69,15 @@ const mount = (direction: 'ltr' | 'rtl' = 'ltr') => {
           [h.Style({ padding: '40px', display: 'flex', gap: '16px' })],
           [
             CascadeSelect.view(
-              { model, config, onMessage: message => message, label: 'Place', direction, style },
+              {
+                model,
+                config,
+                onMessage: message => message,
+                label: 'Place',
+                direction,
+                layout,
+                style,
+              },
               h,
             ),
             h.button([h.Id('after')], ['After']),
@@ -193,6 +201,19 @@ test('Tab moves on and closes the panel behind it', async () => {
     await userEvent.keyboard('{Tab}')
     await vi.waitFor(() => expect(tree()).toBeNull())
     expect(document.activeElement).not.toBe(trigger())
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('a drilled panel, wider than its one column, gives the column its width', async () => {
+  const mounted = mount('ltr', 'drill')
+  try {
+    await opened()
+    const [column] = columns()
+    // The panel's least width is more than a column's: the column fills it, leaving no strip.
+    expect(columns()).toHaveLength(1)
+    expect(column!.getBoundingClientRect().width).toBeCloseTo(tree()!.clientWidth, 0)
   } finally {
     mounted.dispose()
   }
