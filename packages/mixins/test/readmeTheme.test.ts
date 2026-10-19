@@ -1,5 +1,5 @@
 /**
- * "Theme from a few knobs" from this package's README, run as written so
+ * "What the palette derives" from this package's README, run as written so
  * the documented page sheet cannot drift from the API.
  */
 import { describe, expect, it } from 'vitest'
@@ -7,7 +7,7 @@ import { Capability, Layers, Slot, Slots, Style } from '../src/index.js'
 import { Theme } from '../src/theme.js'
 
 const L = Layers.standard
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } }))
 const t = Theme.ref(theme) // t.surface.base is 'var(--fk-surface-base)'; a missing name is a type error
 
 const PageSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
@@ -17,20 +17,13 @@ const PageStyle = Style.forSlots(PageSlots)(
   { layer: L.layer('app') },
 )
 
-const sheet = Style.stylesheet(
-  L.declare,
-  L.in('tokens', Theme.root(Theme.tokens)),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
-  L.in('theme', Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
-  PageStyle,
-)
+const sheet = Style.stylesheet(L.declare, L.in('theme', Theme.root(theme)), PageStyle)
 
-describe('README: Theme from a few knobs', () => {
-  it('declares the order, the scales once, the palette, and the override', () => {
+describe('README: What the palette derives', () => {
+  it('declares the order, and every token once at the theme’s knobs', () => {
     expect(sheet.startsWith('@layer reset, tokens, theme,')).toBe(true)
     expect(sheet.match(/--fk-space-md:/g)).toHaveLength(1)
-    expect(sheet).toContain('@layer theme{:root{--fk-knob-accent-h:280;')
-    expect(sheet).toContain('@layer theme{:root[data-theme="ocean"]{--fk-knob-accent-h:215}}')
+    expect(sheet.match(/--fk-knob-accent-h:[^;]*/g)).toEqual(['--fk-knob-accent-h:280'])
   })
 
   it('ships the class the page view renders, in the app layer', () => {

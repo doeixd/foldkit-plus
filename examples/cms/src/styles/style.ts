@@ -13,11 +13,10 @@ import { Recipes, Touch } from 'foldkit-mixins-ui'
 import { Cms, type StateTag } from 'foldkit-cms'
 import { Theme } from 'foldkit-mixins/theme'
 
-export const theme = Theme.compose(
-  Theme.tokens,
-  Theme.oklch({
-    accent: { h: 265, c: 0.16, l: '52%', dark: { l: '72%', c: 0.13 } },
-    surfaceSaturation: 0.012,
+export const theme = Theme.standard(
+  Theme.make({
+    accent: { hue: 265, chroma: { light: 0.16, dark: 0.13 }, lightness: { dark: 72 } },
+    surface: { saturation: 0.012 },
   }),
 )
 /** Every token as a typed `var(--fk-…)` reference: the admin's and the site's styles read these. */

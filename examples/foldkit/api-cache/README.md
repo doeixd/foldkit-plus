@@ -41,7 +41,7 @@ npx vitest run examples/foldkit/api-cache   # from the repository root
 | Forgetting what no tab reads | Remote's `retain` entry, with a five-minute `grace` |
 | Loading, refreshing, stale and failed states | `RemoteData.render`, whose `Stale` freshness keeps the last good value under the error |
 | The fake server: 700 ms latency, a post whose page fails every other read, random stats | `foldkit-remote-server`: `RemoteServer.make` with an entity Source per entity and a query Source, served in process by `Remote.clientLayer` |
-| Look | `foldkit-mixins`: Slots and Styles in `src/style.ts`, a `Theme.oklch` palette, `Layout` pieces, and the `foldkit-mixins-ui` Button and Tabs recipes over `@foldkit/ui` |
+| Look | `foldkit-mixins`: Slots and Styles in `src/style.ts`, a `Theme.make` palette, `Layout` pieces, and the `foldkit-mixins-ui` Button and Tabs recipes over `@foldkit/ui` |
 | Tabs, the open post | plain Foldkit: `@foldkit/ui` Tabs as a Submodel, and `maybeSelectedPostId` in the Model |
 
 ## Differences from upstream

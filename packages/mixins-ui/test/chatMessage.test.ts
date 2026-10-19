@@ -219,10 +219,7 @@ describe('ChatMessage recipe', () => {
   })
 
   it('reads only tokens the theme declares', () => {
-    const theme = Theme.compose(
-      Theme.tokens,
-      Theme.oklch({ accent: { h: 260, c: 0.15, l: '55%' } }),
-    )
+    const theme = Theme.standard(Theme.make({ accent: { hue: 260, chroma: 0.15, lightness: 55 } }))
     const tree = view({
       from: 'user',
       author: 'Me',

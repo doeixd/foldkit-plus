@@ -18,7 +18,7 @@ import { Utilities as U } from 'foldkit-mixins/utilities'
  * as upstream's is.
  */
 const { t, L, slots, stylesheet } = AppStyle.make({
-  palette: Theme.oklch({ accent: { h: 0, c: 0, l: '12%' } }),
+  theme: Theme.make({ accent: { hue: 0, chroma: 0, lightness: 12 } }),
   colorScheme: 'light',
 })
 

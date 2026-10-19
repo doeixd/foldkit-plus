@@ -6,7 +6,7 @@
  * computes both and they are compared.
  */
 import { expect, test } from 'vitest'
-import { Theme, Themes } from 'foldkit-mixins/theme'
+import { Theme } from 'foldkit-mixins/theme'
 import { declared, knobStyleOf, presets } from '../src/gallery/theme.js'
 
 type Declarations = Readonly<Record<string, string>>
@@ -54,12 +54,7 @@ const paint = (declarations: Declarations, scheme: 'light' | 'dark') => {
 test.each(presets.map(preset => [preset.name, preset] as const))(
   '%s drawn by its knobs over the default paints as its own theme does',
   (_, preset) => {
-    const own = declarationsOf(
-      Theme.compose(
-        Theme.tokens,
-        Themes.make({ preset: Theme.make(preset.values) }, { initial: 'preset' }).palette,
-      ),
-    )
+    const own = declarationsOf(Theme.standard(Theme.make(preset.values)))
     for (const scheme of ['light', 'dark'] as const) {
       const { colorScheme: _, ...overrides } = knobStyleOf(preset.values, scheme)
       const drawn = paint({ ...declared, ...overrides }, scheme)

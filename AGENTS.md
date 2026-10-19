@@ -465,22 +465,23 @@ tokens -> ref -> pieces -> slots -> sheet
 
 **Tokens are the only values.** `Theme.tokens` (`packages/mixins/src/theme/tokens.ts`)
 is the shipped scales (space, radius, size, leading, weight, motion, width,
-border, shadow, breakpoint, and `safe`, the screen's safe-area insets); `Theme.oklch` derives a whole palette from a few knobs;
-`Theme.compose` joins them. Read every value through `Theme.ref` — a group or
+border, shadow, breakpoint, and `safe`, the screen's safe-area insets); the palette derives
+every color from knobs; `Theme.standard(Theme.make({ … }))` is both, with a theme's knob values.
+Read every value through `Theme.ref` — a group or
 name the theme lacks is a type error, and it reads names, never values, so a
 test or probe sees `var(--fk-…)` rather than a color. Never copy a literal out
 of a theme into a style; add or override a token instead.
 
-**Knobs are tokens too.** `density`, `radius-factor`, `motion`,
-`shadow-strength` (and the palette's `accent-h`, `surface-contrast`, …) live
-in the `knob` group, and the scales derive from them: space multiplies by
+**Knobs are typed values.** A theme is `Theme.make({ shape: { density: 1.1 } })`, checked
+against `Knobs.standard`; each knob writes variables of the `knob` group (`density`,
+`radius-factor`, `motion`, `shadow-strength`, `accent-h`, …), and the scales derive from them: space multiplies by
 density, radius by radius-factor, durations by motion (`motion: '0'` stills
 every recipe transition). A duration of something that moves or resizes also
 multiplies by `travel`, which the reset zeroes under reduced motion so fades
 stay: write it so, or a transform keeps sliding for a user who asked it not
-to. A still/compact/rounder theme is one override, via
-`Theme.scoped` (a selector the Model selects) or an inline variable — never a
-second set of sizes. There is no `knob` helper to look for.
+to. A still/compact/rounder theme is one `Theme.make`, installed by name with
+`Themes.make` (the Model selects it) — never a second set of sizes, and never a
+knob string in `Theme.define({ knob })`.
 
 **Install order is the cascade.** `Layers.standard` is
 `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`
@@ -490,15 +491,15 @@ second set of sizes. There is no `knob` helper to look for.
 Style.stylesheet(
   L.declare,
   L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens)),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
+  L.in('theme', Theme.root(theme)),
   L.in('defaults', Defaults.body),
   ...slotStyles,
 )
 ```
 
-`Theme.root` is unlayered, so place it with `L.in`; `omit` ships shared scales
-once. `Style.stylesheet` refuses an unlayered rule — it would beat `app`. A
+`theme` is `Theme.standard` of the app's theme, composed with its own tokens. `Theme.root` is
+unlayered, so place it with `L.in`. Do not split it with `omit: Theme.tokens`: `omit` matches by
+name, and `Theme.tokens` names knobs too, so a theme's own `density` would be dropped. `Style.stylesheet` refuses an unlayered rule — it would beat `app`. A
 page without `Theme.root` has no tokens: pieces that must stand alone (see
 `prose.ts`) read `var(--fk-x, <fallback>)`, and the `missingTokens` gate
 (`packages/mixins/src/testing.ts`) treats every `var(--fk-…)` read, fallback

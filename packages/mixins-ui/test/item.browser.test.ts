@@ -20,7 +20,7 @@ type Message = typeof Message.Type
 const Model = Schema.Struct({ log: Schema.Array(Schema.String) })
 type Model = typeof Model.Type
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const L = Layers.standard
 const rowStyle = Style.forSlots(ItemSlots)(Recipes.Item({ media: 'icon' }))
 const listStyle = Style.forSlots(ItemGroupSlots)(Recipes.ItemGroup({}))

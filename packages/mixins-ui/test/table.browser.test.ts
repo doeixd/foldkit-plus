@@ -21,7 +21,7 @@ import { Checkbox } from '../src/recipes/toggle.js'
 import * as Table from '../src/table.js'
 import { TableSlots, type TableView } from '../src/table.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const checkbox = Style.forSlots(CheckboxSlots)(Checkbox({}))
 const Model = Schema.Struct({})
 // The presses are the Scene tests'; here a press changes nothing.

@@ -17,7 +17,7 @@ import { Tooltip as TooltipRecipe } from '../src/recipes/tooltip.js'
 import * as Tooltip from '../src/tooltip.js'
 import { TooltipSlots } from '../src/tooltip.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(TooltipSlots)(TooltipRecipe({}))
 const Model = Schema.Struct({ tooltip: UiTooltip.Model })
 type Model = typeof Model.Type

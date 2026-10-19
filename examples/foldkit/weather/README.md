@@ -63,7 +63,7 @@ It calls the real Open-Meteo API, which needs no key.
   Upstream turns a missing `admin1` into `region: ''`. Here the field is
   `maybeRegion: Option<string>`, and the view writes the comma only when there
   is a region. The Model is never stored, so it keeps the `Option`.
-- **The colours are derived, not Tailwind's.** One `Theme.oklch` accent at
+- **The colours are derived, not Tailwind's.** One `Theme.make` accent at
   blue-500 gives the button, the numbers and the background gradient; the
   card is the theme's base surface, a near-white.
 

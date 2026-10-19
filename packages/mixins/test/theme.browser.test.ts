@@ -5,13 +5,10 @@
  */
 import { afterEach, describe, expect, test } from 'vitest'
 import { Layers, Style } from '../src/index.js'
-import { Theme } from '../src/theme.js'
+import { Theme, type Standard, type Values } from '../src/theme.js'
 
-const theme = Theme.compose(
-  Theme.tokens,
-  // A base tinted toward the accent's blue, as the CMS's is: a mix in OKLCH
-  // took its hue (about 248°) whatever the tone.
-  Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' }, surfaceSaturation: 0.008 }),
+const theme = Theme.standard(
+  Theme.make({ accent: { hue: 265, chroma: 0.16 }, surface: { saturation: 0.008 } }),
 )
 const L = Layers.standard
 
@@ -170,9 +167,8 @@ test('the error fill keeps light text in a dark scheme', () => {
 })
 
 test('in accent mode the state ink defaults to the accent’s ink', () => {
-  const loud = Theme.compose(
-    Theme.tokens,
-    Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' }, stateHue: 'accent' }),
+  const loud = Theme.standard(
+    Theme.make({ accent: { hue: 265, chroma: 0.16 }, surface: { hover: 'accent' } }),
   )
   const style = document.createElement('style')
   style.dataset['test'] = ''
@@ -203,69 +199,59 @@ test.each(['light', 'dark'] as const)(
 )
 
 test('the neutrals take a hue of their own, or the accent’s and follow it', () => {
-  const sheet = (palette: ReturnType<typeof Theme.oklch>, knobs = '') => {
+  const sheet = (values: Values<Standard>, knobs = '') => {
     const style = document.createElement('style')
     style.dataset['test'] = ''
     style.textContent =
       Style.stylesheet(
         L.declare,
-        L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-        L.in('theme', Theme.root(palette, { omit: Theme.tokens, colorScheme: 'light' })),
+        L.in('theme', Theme.root(Theme.standard(Theme.make(values)), { colorScheme: 'light' })),
       ) + (knobs === '' ? '' : `:root{${knobs}}`)
     document.head.append(style)
   }
-  const accent = { h: 265, c: 0.16, l: '52%' }
-  sheet(Theme.oklch({ accent, neutral: { h: 60 }, surfaceSaturation: 0.02 }))
+  const accent = { hue: 265, chroma: 0.16 }
+  sheet({ accent, surface: { hue: 60, saturation: 0.02 } })
   expect(distance(hueOf(computed('surface-base')), 60)).toBeLessThan(10)
   expect(distance(hueOf(computed('accent-default')), 265)).toBeLessThan(10)
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   // No neutral hue: the accent's, and a moved accent knob moves it.
-  sheet(Theme.oklch({ accent, surfaceSaturation: 0.02 }), '--fk-knob-accent-h:150;')
+  sheet({ accent, surface: { saturation: 0.02 } }, '--fk-knob-accent-h:150;')
   expect(distance(hueOf(computed('surface-base')), 150)).toBeLessThan(10)
 })
 
 test.each(['light', 'dark'] as const)(
   'in a %s scheme, a shadow takes the hue it is given, and the neutrals’ without one',
   scheme => {
-    const sheet = (palette: ReturnType<typeof Theme.oklch>) => {
+    const sheet = (values: Values<Standard>) => {
       const style = document.createElement('style')
       style.dataset['test'] = ''
       style.textContent = Style.stylesheet(
         L.declare,
-        L.in('tokens', Theme.root(Theme.tokens, { colorScheme: scheme })),
-        L.in('theme', Theme.root(palette, { omit: Theme.tokens, colorScheme: scheme })),
+        L.in('theme', Theme.root(Theme.standard(Theme.make(values)), { colorScheme: scheme })),
       )
       document.head.append(style)
     }
-    const accent = { h: 265, c: 0.16, l: '52%' }
-    sheet(Theme.oklch({ accent, neutral: { h: 200 }, shadow: { h: 40, c: 0.06 } }))
+    const accent = { hue: 265, chroma: 0.16 }
+    sheet({ accent, surface: { hue: 200 }, shadow: { hue: 40, chroma: 0.06 } })
     expect(distance(hueOf(computed('shadow-color')), 40)).toBeLessThan(5)
     expect(chromaOf(computed('shadow-color'))).toBeGreaterThan(0.05)
     document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
-    sheet(Theme.oklch({ accent, neutral: { h: 200 }, surfaceSaturation: 0.03 }))
+    sheet({ accent, surface: { hue: 200, saturation: 0.03 } })
     expect(distance(hueOf(computed('shadow-color')), 200)).toBeLessThan(5)
   },
 )
 
 describe('a menu panel', () => {
-  const install = (menu: Parameters<typeof Theme.oklch>[0]['menu']) => {
+  const install = (menu: NonNullable<Values<Standard>['menu']>) => {
     const style = document.createElement('style')
     style.dataset['test'] = ''
     style.textContent = Style.stylesheet(
       L.declare,
-      L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
       L.in(
         'theme',
-        Theme.root(
-          Theme.oklch({
-            accent: { h: 265, c: 0.16, l: '52%' },
-            ...(menu === undefined ? {} : { menu }),
-          }),
-          {
-            omit: Theme.tokens,
-            colorScheme: 'light',
-          },
-        ),
+        Theme.root(Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 }, menu })), {
+          colorScheme: 'light',
+        }),
       ),
     )
     document.head.append(style)
@@ -282,26 +268,26 @@ describe('a menu panel', () => {
     (chromaOf(b) < 0.02 || distance(hueOf(a), hueOf(b)) < 2)
 
   test('is the page’s surface and text, its lit row a faint tint, by default', () => {
-    install(undefined)
+    install({})
     expect(same(computed('popup-surface'), computed('surface-base'))).toBe(true)
     expect(same(computed('popup-ink'), computed('text-default'))).toBe(true)
     expect(alphaOf(computed('popup-highlight'))).toBeLessThan(0.2)
   })
 
   test('lights its row in the accent when bold', () => {
-    install({ accent: 'bold' })
+    install({ highlight: 'bold' })
     expect(same(computed('popup-highlight'), computed('accent-default'))).toBe(true)
     expect(same(computed('popup-highlight-ink'), computed('accent-on-fill'))).toBe(true)
   })
 
   test('takes the other scheme’s surface and text when inverted', () => {
-    install({ color: 'inverted' })
+    install({ panel: 'inverted' })
     expect(lightnessOf(computed('popup-surface'))).toBeLessThan(0.4)
     expect(lightnessOf(computed('popup-ink'))).toBeGreaterThan(0.8)
   })
 
   test('shows the page through a blur when translucent', () => {
-    install({ color: 'translucent' })
+    install({ panel: 'translucent' })
     expect(alphaOf(computed('popup-surface'))).toBeCloseTo(0.8, 2)
     const swatch = document.createElement('div')
     swatch.style.backdropFilter = 'blur(var(--fk-popup-blur))'
@@ -365,7 +351,7 @@ test.each(['light', 'dark'] as const)(
       L.declare,
       L.in(
         'tokens',
-        Theme.root(Theme.compose(theme, Theme.hardShadows), {
+        Theme.root(Theme.standard(Theme.make({ shadow: { style: 'hard' } })), {
           colorScheme: scheme,
         }),
       ),

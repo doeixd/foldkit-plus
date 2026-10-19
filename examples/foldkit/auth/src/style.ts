@@ -19,13 +19,10 @@ import * as FieldValidation from 'foldkit/fieldValidation'
  * A white base, so the cards stand out from the page's `surface.muted`.
  */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(
-    Theme.oklch({
-      accent: { h: 260, c: 0.21, l: '62%' },
-      surfaceSaturation: 0.003,
-    }),
-    Theme.define({ knob: { 'base-l': '100%' } }),
-  ),
+  theme: Theme.make({
+    accent: { hue: 260, chroma: 0.21, lightness: 62 },
+    surface: { saturation: 0.003, lightness: 100 },
+  }),
   colorScheme: 'light',
 })
 

@@ -13,7 +13,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { CheckboxGroup, CheckboxGroupSlots, Recipes } from '../src/index.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const list = Style.forSlots(CheckboxGroupSlots)(Recipes.CheckboxGroup({ variant: 'list' }))
 const horizontal = Style.forSlots(CheckboxGroupSlots)(
   Recipes.CheckboxGroup({ orientation: 'horizontal' }),

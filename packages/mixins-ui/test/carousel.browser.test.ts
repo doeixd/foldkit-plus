@@ -21,7 +21,7 @@ import * as Carousel from '../src/carousel.js'
 import { CarouselSlots } from '../src/carousel.js'
 import { Carousel as CarouselRecipe } from '../src/recipes/carousel.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(CarouselSlots)(CarouselRecipe({}))
 
 const Model = Schema.Struct({ carousel: Carousel.Model })

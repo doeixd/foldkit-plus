@@ -1,6 +1,6 @@
 /// <reference types="@vitest/browser-playwright" />
 /**
- * A theme's relief on real controls: flat by default; with `Theme.relief`, a
+ * A theme's relief on real controls: flat by default; with a `shadow.relief`, a
  * faced button stands off the page, a held or toggled-on one is pressed in, a
  * ghost button stays flat as text does, and a field sinks into the page.
  */
@@ -14,7 +14,10 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { ButtonSlots, InputSlots, Recipes } from '../src/index.js'
 import { force, nodeOf } from './pseudoState.js'
 
-const palette = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const accent = { hue: 265, chroma: 0.16 }
+const palette = Theme.standard(Theme.make({ accent }))
+const relieved = (relief: 'bevel' | 'hard') =>
+  Theme.standard(Theme.make({ accent, shadow: { relief } }))
 const solid = Style.forSlots(ButtonSlots)(Recipes.Button({}))
 const ghost = Style.forSlots(ButtonSlots)(Recipes.Button({ variant: 'ghost' }))
 const input = Style.forSlots(InputSlots)(Recipes.Input({}))
@@ -95,7 +98,7 @@ test('by default every control is flat', async () => {
 })
 
 test('beveled, a faced button stands out, pressed in when held or on, and a field sinks', async () => {
-  mount(Theme.compose(palette, Theme.relief.bevel))
+  mount(relieved('bevel'))
   // Raised, the outer ring lies outside the border, which carries the fill.
   const out = ['1 1', '-1 -1', 'inset -1 -1', 'inset 1 1']
   const sunk = ['inset 1 1', 'inset -1 -1', 'inset 2 2', 'inset -2 -2']
@@ -112,7 +115,7 @@ test('beveled, a faced button stands out, pressed in when held or on, and a fiel
 })
 
 test('hard, a faced button and a field drop a solid copy, and a press brings it closer', async () => {
-  mount(Theme.compose(palette, Theme.relief.hard))
+  mount(relieved('hard'))
   expect(offsets(await shadowOf('solid'))).toEqual(['2 2'])
   expect(offsets(await shadowOf('on'))).toEqual(['1 1'])
   expect(offsets(await shadowOf('field'))).toEqual(['2 2'])

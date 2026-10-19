@@ -19,7 +19,7 @@ import * as Dialog from '../src/dialog.js'
 import { DialogSlots } from '../src/dialog.js'
 import { Dialog as DialogRecipe } from '../src/recipes/dialog.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const L = Layers.standard
 
 const Model = Schema.Struct({ outer: UiDialog.Model, inner: UiDialog.Model })

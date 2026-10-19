@@ -1,7 +1,7 @@
 /**
  * `foldkit-mixins/utilities`: one-idea pieces over the shipped scales, so
  * `Utilities.p('md')` is `padding: var(--fk-space-md)`. A step is a token name
- * of `Theme.tokens` (and a color a token name of `Theme.oklch`), so a step the
+ * of `Theme.tokens` (and a color a token name of the palette), so a step the
  * scale lacks is a type error and the value still follows the `density` knob
  * and a theme's overrides: the theme stays the one source of truth for sizes.
  *
@@ -21,7 +21,7 @@ import {
   type StyleValue,
 } from './styleValue.js'
 import { ref, VAR_PREFIX } from './theme/core.js'
-import type { OklchTheme } from './theme/oklch.js'
+import type { Palette as Colors } from './theme/oklch.js'
 import { tokens, type Tokens } from './theme/tokens.js'
 
 const t = ref(tokens)
@@ -31,8 +31,8 @@ export type Space = (keyof Tokens['space'] & string) | '0'
 /** A margin step: a space step, or `auto`. */
 export type Margin = Space | 'auto'
 
-type Palette = Omit<OklchTheme, 'knob' | 'hue'>
-/** A `Theme.oklch` color as `group.name`: `'surface.base'`, `'text.muted'`, `'accent.on-fill'`. */
+type Palette = Omit<Colors, 'knob' | 'hue'>
+/** A palette color as `group.name`: `'surface.base'`, `'text.muted'`, `'accent.on-fill'`. */
 export type ColorName = {
   readonly [G in keyof Palette & string]: `${G}.${keyof Palette[G] & string}`
 }[keyof Palette & string]

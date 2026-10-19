@@ -316,9 +316,8 @@ describe('Chart.view, bars', () => {
     for (const kind of ['bar', 'line', 'area'] as const) {
       const chart = drawn({ kind, model: lit(1) })
       expect(Inert.unslotted(chart)).toEqual([])
-      const theme = Theme.compose(
-        Theme.tokens,
-        Theme.oklch({ accent: { h: 260, c: 0.15, l: '55%' } }),
+      const theme = Theme.standard(
+        Theme.make({ accent: { hue: 260, chroma: 0.15, lightness: 55 } }),
       )
       expect(Inert.missingTokens(chart, Style.stylesheet(Theme.root(theme)))).toEqual([])
     }

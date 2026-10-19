@@ -14,7 +14,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Recipes, Tabs, TabsSlots } from '../src/index.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(TabsSlots)(Recipes.Tabs({}))
 const Model = Schema.Struct({ tabs: UiTabs.Model, value: Schema.String })
 type Model = typeof Model.Type

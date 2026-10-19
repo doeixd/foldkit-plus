@@ -92,7 +92,7 @@ Any email with the password `password` signs in.
   what styles it, in place of upstream's conditional class.
 - Titles are one exhaustive `AppRoute.match` in place of an `orElse` that
   printed the tag; the strings are upstream's.
-- The look is approximated with a `Theme.oklch` blue palette, not Tailwind;
+- The look is approximated with a `Theme.make` blue palette, not Tailwind;
   the hint box uses the theme's `info` tone.
 
 ## Tests

@@ -1,6 +1,6 @@
 /**
  * The page's one stylesheet, composed rather than configured: the layer order
- * first, then the scales, the palette, the element defaults, and every slot
+ * first, then the theme's tokens, the element defaults, and every slot
  * style in `style.ts`, each compiled to a class named by a hash of its rule so
  * the server and the browser agree. `client.ts` injects it once.
  *
@@ -33,8 +33,7 @@ const L = Layers.standard
 export const stylesheet = Style.stylesheet(
   L.declare,
   L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens)),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
+  L.in('theme', Theme.root(theme)),
   L.in('defaults', Defaults.body),
   PageStyle,
   HeaderStyle,

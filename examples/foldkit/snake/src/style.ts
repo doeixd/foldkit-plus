@@ -22,19 +22,17 @@ import type { Cell } from './main.js'
  * upstream's page is black in any browser.
  */
 const { t, L, slots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(
-    Theme.oklch({ accent: { h: 0, c: 0, l: '50%' }, surfaceSaturation: 0 }),
-    Theme.define({
-      game: {
-        page: 'oklch(0% 0 0)',
-        head: 'oklch(52.7% 0.154 150.069)',
-        body: 'oklch(72.3% 0.219 149.579)',
-        apple: 'oklch(63.7% 0.237 25.331)',
-        empty: 'oklch(27.8% 0.033 256.848)',
-        edge: 'oklch(44.6% 0.03 256.802)',
-      },
-    }),
-  ),
+  theme: Theme.make({ accent: { hue: 0, chroma: 0, lightness: 50 }, surface: { saturation: 0 } }),
+  tokens: Theme.define({
+    game: {
+      page: 'oklch(0% 0 0)',
+      head: 'oklch(52.7% 0.154 150.069)',
+      body: 'oklch(72.3% 0.219 149.579)',
+      apple: 'oklch(63.7% 0.237 25.331)',
+      empty: 'oklch(27.8% 0.033 256.848)',
+      edge: 'oklch(44.6% 0.03 256.802)',
+    },
+  }),
   colorScheme: 'dark',
 })
 

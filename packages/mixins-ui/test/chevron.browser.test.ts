@@ -24,7 +24,7 @@ import {
 } from '../src/index.js'
 
 // A palette too: a side drawn in a color the page lacks is invalid, and draws nothing.
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())

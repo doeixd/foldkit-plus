@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { Diagnostics, Layers, Style } from '../src/index.js'
 import { Theme } from '../src/theme.js'
+import { palette as colors } from '../src/theme/oklch.js'
 
 const cssOf = (piece: { readonly globalCss?: ReadonlyArray<string> }) =>
   (piece.globalCss ?? []).join('')
@@ -44,7 +45,9 @@ describe('Theme.root', () => {
 
 describe('Theme.scoped', () => {
   it('writes the overrides under the selector, unlayered', () => {
-    const palette = Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } })
+    const palette = Theme.standard(
+      Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } }),
+    )
     expect(
       cssOf(Theme.scoped(palette, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
     ).toBe(':root[data-theme="ocean"]{--fk-knob-accent-h:215}')
@@ -193,8 +196,10 @@ describe('Theme.breakpointWidths', () => {
   })
 })
 
-describe('Theme.oklch', () => {
-  const brand = Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } })
+describe('the palette', () => {
+  const brand = colors
+  const hovered = (hover: 'neutral' | 'accent') =>
+    Theme.standard(Theme.make({ surface: { hover } }))
 
   const references = (value: string): ReadonlyArray<readonly [string, string]> =>
     [...value.matchAll(/var\(--fk-([a-z]+)-([a-z0-9-]+)\)/g)].map(match => [
@@ -265,38 +270,32 @@ describe('Theme.oklch', () => {
     // The state ink is the knob the hover choice writes.
     expect(brand.state.ink).toBe('var(--fk-knob-state-ink)')
     expect(brand.knob['state-ink']).toBe('currentColor')
-    const knobs = { accent: { h: 280, c: 0.15, l: '60%' } } as const
-    expect(Theme.oklch({ ...knobs, stateHue: 'neutral' }).knob['state-ink']).toBe('currentColor')
-    expect(Theme.oklch({ ...knobs, stateHue: 'accent' }).knob['state-ink']).toBe(
-      'var(--fk-accent-ink)',
-    )
+    expect(hovered('neutral').knob['state-ink']).toBe('currentColor')
+    expect(hovered('accent').knob['state-ink']).toBe('var(--fk-accent-ink)')
   })
 
   it('lets painted surfaces name their ink except in neutral', () => {
     expect(brand.knob['surface-ink']).toBe('1')
-    const knobs = { accent: { h: 280, c: 0.15, l: '60%' } } as const
-    expect(Theme.oklch({ ...knobs, stateHue: 'neutral' }).knob['surface-ink']).toBe('0')
-    expect(Theme.oklch({ ...knobs, stateHue: 'accent' }).knob['surface-ink']).toBe('1')
+    expect(hovered('neutral').knob['surface-ink']).toBe('0')
+    expect(hovered('accent').knob['surface-ink']).toBe('1')
   })
 
   it('names a separate field ground on the default step', () => {
     expect(brand.surface.field).toBe('var(--fk-surface-default)')
   })
 
-  it('records the knobs as literals, with defaults filled', () => {
-    expect(brand.knob['accent-h']).toBe('280')
-    expect(brand.knob['accent-l']).toBe('60%')
-    expect(brand.knob['accent-l-dark']).toBe('70%')
-    expect(brand.knob['accent-c-dark']).toBe('0.18')
-    expect(brand.knob['surface-contrast']).toBe('26%')
-    expect(brand.knob['success-h']).toBe('145')
-  })
-
-  it('writes computed knobs without float noise', () => {
-    expect(brand.knob['surface-c-dark']).toBe('0.02')
-    const loud = Theme.oklch({ accent: { h: 0, c: 0.27, l: '60%' }, surfaceSaturation: 0.02 })
-    expect(loud.knob['accent-c-dark']).toBe('0.3')
-    expect(loud.knob['surface-c-dark']).toBe('0.0267')
+  it('declares a theme’s knobs over the defaults, a dark half following its light one', () => {
+    const knob = Theme.standard(
+      Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } }),
+    ).knob
+    expect(knob['accent-h']).toBe('280')
+    expect(knob['accent-l']).toBe('60%')
+    expect(knob['accent-l-dark']).toBe('70%')
+    expect(knob['accent-c-dark']).toBe('min(0.4, calc(var(--fk-knob-accent-c) + 0.03))')
+    expect(knob['surface-contrast']).toBe('26%')
+    expect(knob['success-h']).toBe('145')
+    const set = Theme.standard(Theme.make({ accent: { chroma: { light: 0.27, dark: 0.3 } } }))
+    expect(set.knob['accent-c-dark']).toBe('0.3')
   })
 
   it('every value outside knob is a reference expression over tokens that exist', () => {
@@ -327,7 +326,8 @@ describe('Theme.oklch', () => {
   })
 
   it('is deterministic', () => {
-    expect(Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } })).toEqual(brand)
+    const values = { accent: { hue: 280, chroma: 0.15, lightness: 60 } }
+    expect(Theme.standard(Theme.make(values))).toEqual(Theme.standard(Theme.make(values)))
     expect(cssOf(Theme.root(brand))).toBe(cssOf(Theme.root(brand)))
   })
 
@@ -378,7 +378,7 @@ describe('Theme.oklch', () => {
     const after = cssOf(Theme.root(ocean)).split(';')
     expect(after.length).toBe(before.length)
     const changed = before.filter((line, index) => line !== after[index])
-    expect(changed).toEqual([':root{--fk-knob-accent-h:280'])
+    expect(changed).toEqual([':root{--fk-knob-accent-h:264'])
   })
 
   it('is a concrete type: a known token autocompletes, an unknown one is refused', () => {
@@ -391,10 +391,7 @@ describe('Theme.oklch', () => {
 describe('the page sheet', () => {
   it('composes layers, tokens, a theme, a scoped override, and a page style', () => {
     const L = Layers.standard
-    const theme = Theme.compose(
-      Theme.tokens,
-      Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }),
-    )
+    const theme = Theme.standard(Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } }))
     const page = Style.compose(
       Style.class('page'),
       Style.pseudo(':focus-within', {

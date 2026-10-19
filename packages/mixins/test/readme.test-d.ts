@@ -114,7 +114,7 @@ void Rows
 // "An application's own look".
 {
   const { t, slots, forSlots, stylesheet } = AppStyle.make({
-    palette: Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' } }),
+    theme: Theme.make({ accent: { hue: 260, chroma: 0.21, lightness: 62 } }),
     colorScheme: 'light',
   })
   const Page = slots({
@@ -145,7 +145,7 @@ export const themesReadme = () => {
 
   const sheet = Style.stylesheet(
     Layers.standard.declare,
-    Layers.standard.in('theme', Theme.root(Theme.tokensOf(cobaltDense))),
+    Layers.standard.in('theme', Theme.root(Theme.standard(cobaltDense))),
   )
   // Installed by name.
   const themes = Themes.make({ cobalt, cobaltDense }, { initial: 'cobalt' })

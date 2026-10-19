@@ -19,7 +19,7 @@ import * as Popover from '../src/popover.js'
 import { PopoverSlots } from '../src/popover.js'
 import { Popover as PopoverRecipe } from '../src/recipes/popover.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(PopoverSlots)(PopoverRecipe({}))
 const Model = Schema.Struct({ popover: UiPopover.Model })
 type Model = typeof Model.Type

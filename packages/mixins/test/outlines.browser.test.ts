@@ -16,13 +16,7 @@ const lightness = (scheme: 'light' | 'dark', color: string) => {
     Layers.standard.declare,
     Layers.standard.in(
       'theme',
-      Theme.root(
-        Theme.compose(
-          Theme.tokens,
-          Themes.make({ theme: Theme.make({}) }, { initial: 'theme' }).palette,
-        ),
-        { colorScheme: scheme },
-      ),
+      Theme.root(Theme.standard(Theme.make({})), { colorScheme: scheme }),
     ),
   )
   document.head.append(sheet)

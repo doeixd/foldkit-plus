@@ -4288,9 +4288,7 @@ export const calendarDropdowns = <Message>(
 
 // #region calendar-unavailable
 /** The theme's scales by name, for the notes beside the calendars below. */
-const calendarRef = Theme.ref(
-  Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } })),
-)
+const calendarRef = Theme.ref(Theme.standard())
 
 const note = <Message>(h: HtmlBuilder<Message>, text: string): Html =>
   h.p(
@@ -5574,9 +5572,7 @@ export const SidebarInsetStyle = forSlots(SidebarSlots)(Recipes.Sidebar({ varian
 export const insetSidebar = Sidebar.init({ id: 'app-sidebar-inset', rows: [], open: ['settings'] })
 
 /** The theme's tokens by name; the palette is built only for its names, so the page's own applies. */
-const token = Theme.ref(
-  Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } })),
-)
+const token = Theme.ref(Theme.standard())
 
 // Borderless on the frame's muted surface; the page beside it is the card.
 export const sidebarInset = <Message>(

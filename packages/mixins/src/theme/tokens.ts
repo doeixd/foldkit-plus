@@ -5,7 +5,7 @@
  * (`motion: '0'` stills every recipe transition). `travel` multiplies only
  * the durations of things that move or resize: the reset sets it to 0 under
  * `prefers-reduced-motion`, so objects stop travelling and fades stay. `shadow` is drawn in `shadow.color`,
- * which a palette sets (`Theme.oklch` does, stronger in a dark scheme, where
+ * which the palette sets (stronger in a dark scheme, where
  * a shadow mixed from the text would glow); alone it falls back to black.
  * Every layer is mixed toward transparent by the `shadow-strength` knob, so
  * one override dims the whole elevation system without touching its shapes.
@@ -317,26 +317,6 @@ export const nests = (
  */
 export const concentric = (bounds: { readonly min: string; readonly max: string }): string =>
   `clamp(${bounds.min}, var(--fk-control-corner, 9999px), ${bounds.max})`
-
-/**
- * The shadow scale drawn hard, as retro and brutalist interfaces draw it:
- * the `shadow.style` knob's `hard` option as a token set to compose over
- * `tokens`; `shadow-strength` still fades it, and 0 takes it away.
- */
-export const hardShadows = define({ knob: asVariables('shadow', elevation.hard) })
-
-/**
- * How controls stand off the page, as token sets over `tokens`: the
- * `shadow.relief` knob's options. `soft` lifts buttons a hair and sinks
- * fields a hair; `hard` drops solid offset copies; `bevel` draws lit and
- * shaded edges, the raised and sunken chrome of a 1990s desktop.
- * `shadow-strength` fades each.
- */
-export const relief = {
-  soft: define({ knob: asVariables('relief', reliefs.soft) }),
-  hard: define({ knob: asVariables('relief', reliefs.hard) }),
-  bevel: define({ knob: asVariables('relief', reliefs.bevel) }),
-} as const
 
 /** A role of the type scale. */
 export type Role = 'display' | 'title' | 'subtitle' | 'body' | 'caption' | 'micro'

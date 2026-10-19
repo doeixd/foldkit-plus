@@ -17,7 +17,7 @@ import * as QrCode from '../src/qrCode.js'
 import { QrCodeSlots } from '../src/qrCode.js'
 import { QrCode as Recipe } from '../src/recipes/qrCode.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const Model = Schema.Struct({})
 const value = 'https://example.com/menu?table=12'
 

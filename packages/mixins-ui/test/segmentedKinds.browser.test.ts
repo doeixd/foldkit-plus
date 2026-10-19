@@ -16,7 +16,7 @@ import * as Segmented from '../src/segmented.js'
 import { SegmentedSlots } from '../src/segmented.js'
 import { Segmented as SegmentedRecipe } from '../src/recipes/segmented.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const Model = Schema.Struct({ pressed: Schema.String })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ Pressed: { value: Schema.String } })

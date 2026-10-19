@@ -12,7 +12,6 @@ import { Schema } from 'effect'
 import {
   Knobs,
   Theme,
-  Themes,
   VAR_PREFIX,
   type Control,
   type KnobAt,
@@ -492,7 +491,7 @@ export const shuffled = (random: () => number): ThemeValues => {
 }
 
 /** The palette's derivations with the default theme's knobs: what every preview declares. */
-const theme = Theme.compose(Theme.tokens, Themes.make({ iris }, { initial: 'iris' }).palette)
+const theme = Theme.standard(iris)
 
 const declarationsOf = (
   tokens: Readonly<Record<string, Readonly<Record<string, string>>>>,
@@ -536,12 +535,10 @@ export const knobStyleOf = (values: ThemeValues, scheme: Scheme): Record<string,
 export const codeOf = (values: ThemeValues): string =>
   [
     "import { AppStyle } from 'foldkit-mixins/app'",
-    "import { Theme, Themes } from 'foldkit-mixins/theme'",
+    "import { Theme } from 'foldkit-mixins/theme'",
     '',
     `const theme = ${Theme.print(Theme.make(values))}`,
     '',
-    'export const { t, slots, forSlots, stylesheet } = AppStyle.make({',
-    "  themes: Themes.make({ theme }, { initial: 'theme' }),",
-    '})',
+    'export const { t, slots, forSlots, stylesheet } = AppStyle.make({ theme })',
     '',
   ].join('\n')

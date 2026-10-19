@@ -16,7 +16,7 @@ import * as CascadeSelect from '../src/cascadeSelect.js'
 import { CascadeSelectSlots, type Node } from '../src/cascadeSelect.js'
 import * as Recipes from '../src/recipes/cascadeSelect.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(CascadeSelectSlots)(Recipes.CascadeSelect({}))
 
 const nodes: ReadonlyArray<Node> = [

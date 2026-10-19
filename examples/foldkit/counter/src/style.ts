@@ -18,7 +18,7 @@ import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
  * upstream's; `colorScheme: 'light'` keeps the page white in a dark browser.
  */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.oklch({ accent: { h: 0, c: 0, l: '12%' } }),
+  theme: Theme.make({ accent: { hue: 0, chroma: 0, lightness: 12 } }),
   colorScheme: 'light',
 })
 

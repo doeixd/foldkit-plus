@@ -19,10 +19,12 @@ import { force, nodeOf } from './pseudoState.js'
 
 type Message = { readonly _tag: 'Dismissed' }
 
-const themeOf = (stateHue?: 'accent') =>
-  Theme.compose(
-    Theme.tokens,
-    Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' }, ...(stateHue && { stateHue }) }),
+const themeOf = (hover?: 'accent') =>
+  Theme.standard(
+    Theme.make({
+      accent: { hue: 265, chroma: 0.16 },
+      surface: hover === undefined ? {} : { hover },
+    }),
   )
 const alertOf = (emphasis: 'subtle' | 'bold') =>
   Style.forSlots(AlertSlots)(Recipes.Alert({ tone: 'error', emphasis }))

@@ -139,12 +139,13 @@ describe('the todo app', () => {
     expect(stylesheet).toBe(stylesheet.trim())
   })
 
-  it('ships the layer order, the scales, and the palette in one sheet', () => {
+  it('ships the layer order and the theme’s tokens in one sheet', () => {
     expect(stylesheet.startsWith('@layer reset, tokens, theme, defaults,')).toBe(true)
-    expect(stylesheet).toContain('@layer tokens{:root{')
-    expect(stylesheet).toContain('@layer theme{:root{--fk-knob-accent-h:277;')
+    expect(stylesheet).toContain('@layer theme{:root{')
+    expect(stylesheet).toContain('--fk-knob-accent-h:277;')
     expect(stylesheet).toContain('--fk-text-done:')
-    // Each scale is declared once, in the tokens layer, not again with the palette.
+    // Each token is declared once, and each knob once, at the theme's value.
     expect(stylesheet.match(/--fk-space-md:/g)).toHaveLength(1)
+    expect(stylesheet.match(/--fk-knob-accent-h:/g)).toHaveLength(1)
   })
 })

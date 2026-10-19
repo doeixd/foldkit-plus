@@ -96,41 +96,39 @@ describe('Style.slots', () => {
 })
 
 describe('AppStyle', () => {
-  const palette = Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' } })
+  const theme = Theme.make({ accent: { hue: 260, chroma: 0.21, lightness: 62 } })
 
   it('writes the page stylesheet every application wrote by hand', () => {
-    const app = AppStyle.make({ palette, colorScheme: 'light' })
+    const app = AppStyle.make({ theme, colorScheme: 'light' })
     expect(app.stylesheet).toBe(
       Style.stylesheet(
         L.declare,
         L.in('reset', Defaults.reset),
-        L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-        L.in('theme', Theme.root(palette, { omit: Theme.tokens, colorScheme: 'light' })),
+        L.in('theme', Theme.root(Theme.standard(theme), { colorScheme: 'light' })),
         L.in('defaults', Defaults.body),
       ),
     )
   })
 
-  it('lets the palette override a shipped token, in the later layer', () => {
-    const app = AppStyle.make({
-      palette: Theme.compose(palette, Theme.define({ knob: { density: '0.8' } })),
-    })
-    const theme = app.stylesheet.slice(app.stylesheet.indexOf('@layer theme{'))
-    expect(theme).toContain('--fk-knob-density:0.8')
+  it('declares the theme’s own knob values in the theme layer', () => {
+    const app = AppStyle.make({ theme: theme.pipe(Theme.set({ shape: { density: 0.8 } })) })
+    const layer = app.stylesheet.slice(app.stylesheet.indexOf('@layer theme{'))
+    expect(layer).toContain('--fk-knob-density:0.8')
+    expect(layer.match(/--fk-knob-density:/g)).toHaveLength(1)
     expect(app.theme.knob.density).toBe('0.8')
     expect(app.t.surface.base).toBe('var(--fk-surface-base)')
     expect(app.stylesheet).toContain('color-scheme:light dark')
   })
 
   it('adds global pieces to the defaults layer, after the body', () => {
-    const app = AppStyle.make({ palette, global: [Defaults.headings] })
+    const app = AppStyle.make({ theme, global: [Defaults.headings] })
     const defaults = app.stylesheet.slice(app.stylesheet.indexOf('@layer defaults{'))
     expect(defaults.indexOf(':where(body)')).toBeGreaterThan(-1)
     expect(defaults.indexOf(':where(h1)')).toBeGreaterThan(defaults.indexOf(':where(body)'))
   })
 
   it('compiles every style it makes in the app layer', () => {
-    const app = AppStyle.make({ palette })
+    const app = AppStyle.make({ theme })
     const Page = app.slots({ root: { color: app.t.text.muted } }, { name: 'Page' })
     const Field = app.forSlots(FieldSlots)({ root: { color: 'red' } })
     expect(Page.style.name).toBe('Page')
@@ -168,7 +166,9 @@ describe('Utilities', () => {
   })
 
   it('names only tokens the shipped theme defines', () => {
-    const app = AppStyle.make({ palette: Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } }) })
+    const app = AppStyle.make({
+      theme: Theme.make({ accent: { hue: 0, chroma: 0, lightness: 50 } }),
+    })
     const read = css([U.p('3xs'), U.text('xs'), U.rounded('xl'), U.bg('error.subtle')]).match(
       /--fk-[\w-]+/g,
     )

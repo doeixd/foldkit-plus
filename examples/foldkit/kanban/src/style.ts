@@ -19,13 +19,10 @@ import { ButtonSlots, InputSlots, Recipes } from 'foldkit-mixins-ui'
  * A white base, for the header and the cards, over the page's `surface.muted`.
  */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(
-    Theme.oklch({
-      accent: { h: 260, c: 0.214, l: '62.3%' },
-      surfaceSaturation: 0.003,
-    }),
-    Theme.define({ knob: { 'base-l': '100%' } }),
-  ),
+  theme: Theme.make({
+    accent: { hue: 260, chroma: 0.214, lightness: 62.3 },
+    surface: { saturation: 0.003, lightness: 100 },
+  }),
   colorScheme: 'light',
 })
 

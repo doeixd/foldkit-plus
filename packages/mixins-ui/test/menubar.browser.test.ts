@@ -15,7 +15,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Menubar, MenubarSlots, MenuSlots, Recipes } from '../src/index.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const barStyle = Style.forSlots(MenubarSlots)(Recipes.Menubar({}))
 const menuStyle = Style.forSlots(MenuSlots)(Recipes.Menu({}))
 const Model = Schema.Struct({ bar: Menubar.Model })

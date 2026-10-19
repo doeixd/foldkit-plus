@@ -63,7 +63,7 @@ test('each mark draws as itself, over the grid’s plain dot', async () => {
   css.id = 'marks-css'
   // As an application writes its sheet: the theme, then the grid, then the marks.
   css.textContent = Style.stylesheet(
-    Theme.root(Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 250, c: 0.1, l: '50%' } }))),
+    Theme.root(Theme.standard(Theme.make({ accent: { hue: 250, chroma: 0.1, lightness: 50 } }))),
     GridStyle,
     GridMarkStyle,
   )

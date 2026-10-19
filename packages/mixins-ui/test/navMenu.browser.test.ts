@@ -22,7 +22,7 @@ import * as Nav from '../src/nav.js'
 import { NavSlots } from '../src/nav.js'
 import { Nav as NavRecipe } from '../src/recipes/nav.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const Model = Schema.Struct({ nav: Nav.Model })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ GotNav: { message: Nav.Message } })

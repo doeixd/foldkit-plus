@@ -237,7 +237,7 @@ says otherwise, so it shows only what is published.
   `Input.relationOne(Post)`; the page app reads the published posts and gives
   them to the Builder as the picker's choices (`builderInputs`).
 - **There is no CSS file, and no list of styles.** `style.ts` holds the theme
-  (one accent color, `Theme.oklch`) and the Slots the views publish, styled.
+  (one accent color, `Theme.make`) and the Slots the views publish, styled.
   A Style's rules arrive when a view draws it, so `sheet.ts` holds only what
   no Slot draws: the layer order, the reset, the tokens and the theme.
   `vite.config.ts` writes it into the HTML, so a page's first paint already

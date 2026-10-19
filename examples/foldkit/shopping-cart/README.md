@@ -73,7 +73,7 @@ pnpm --filter foldkit-example-foldkit-shopping-cart dev
   input instead of three positional arguments. Prices and totals share
   `page/price.ts` instead of repeating the sum and format in each page.
 - Kept as upstream: once an order is placed Checkout shows the receipt for good.
-- The look is approximated with a `Theme.oklch` blue palette and the shipped
+- The look is approximated with a `Theme.make` blue palette and the shipped
   recipes, not Tailwind.
 
 ## Tests

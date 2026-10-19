@@ -17,7 +17,7 @@ import { userEvent } from 'vitest/browser'
 import { Button, ButtonSlots, Recipes, Segmented, SegmentedSlots } from '../src/index.js'
 import { force, nodeOf } from './pseudoState.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const variants = ['ghost', 'outline', 'icon', 'solid'] as const
 const tones = ['accent', 'neutral'] as const
 const cases = variants.flatMap(variant =>

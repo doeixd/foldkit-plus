@@ -38,7 +38,7 @@ import {
 } from '../src/questionnaire.js'
 import { Questionnaire } from '../src/recipes/questionnaire.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const parts = {
   radioGroup: Style.forSlots(RadioGroupSlots)(Recipes.RadioGroup({})),
   checkboxGroup: Style.forSlots(CheckboxGroupSlots)(Recipes.CheckboxGroup({})),

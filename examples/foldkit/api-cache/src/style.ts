@@ -15,7 +15,10 @@ import { ButtonSlots, Recipes, TabsSlots } from 'foldkit-mixins-ui'
 
 /** Indigo accent over near-neutral slate surfaces, like upstream's palette. */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.oklch({ accent: { h: 277, c: 0.2, l: '51%' }, surfaceSaturation: 0.01 }),
+  theme: Theme.make({
+    accent: { hue: 277, chroma: 0.2, lightness: 51 },
+    surface: { saturation: 0.01 },
+  }),
   colorScheme: 'light',
 })
 

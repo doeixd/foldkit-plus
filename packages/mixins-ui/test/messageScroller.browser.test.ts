@@ -27,7 +27,7 @@ import { MessageScroller as ScrollerRecipe } from '../src/recipes/messageScrolle
 import { ScrollArea as AreaRecipe } from '../src/recipes/scrollArea.js'
 import { overlayBars, ScrollAreaSlots } from '../src/scrollArea.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const L = Layers.standard
 const scrollerStyle = Style.forSlots(MessageScrollerSlots)(ScrollerRecipe({}))
 const areaStyle = Style.forSlots(ScrollAreaSlots)(AreaRecipe({}))

@@ -15,15 +15,15 @@ import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { DialogSlots } from 'foldkit-mixins-ui'
 
-/** Indigo, as upstream's `accent-600` (`#4f46e5`) is. */
-const palette = Theme.oklch({
-  accent: { h: 277, c: 0.24, l: '51%' },
-  surfaceSaturation: 0.004,
-})
-
-/** A white base, as upstream's `bg-white` page is, with Tailwind's gray steps around it. */
+/**
+ * Indigo, as upstream's `accent-600` (`#4f46e5`) is, on a white base, as
+ * upstream's `bg-white` page is, with Tailwind's gray steps around it.
+ */
 const { t, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(palette, Theme.define({ knob: { 'base-l': '100%' } })),
+  theme: Theme.make({
+    accent: { hue: 277, chroma: 0.24, lightness: 51 },
+    surface: { saturation: 0.004, lightness: 100 },
+  }),
   colorScheme: 'light',
 })
 

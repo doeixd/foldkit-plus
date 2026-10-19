@@ -22,9 +22,9 @@ import {
 } from 'foldkit-mixins-richtext'
 
 export const A = AppStyle.make({
-  palette: Theme.oklch({
-    accent: { h: 285, c: 0.17, l: '52%', dark: { l: '72%', c: 0.14 } },
-    surfaceSaturation: 0.006,
+  theme: Theme.make({
+    accent: { hue: 285, chroma: { dark: 0.14 }, lightness: { dark: 72 } },
+    surface: { saturation: 0.006 },
   }),
 })
 const { t } = A

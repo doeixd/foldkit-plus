@@ -8,9 +8,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { GridSlots } from './slots.js'
 
 /** The tokens the grid's styles draw with; the marks' too (`marks.ts`). */
-export const ref = Theme.ref(
-  Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } })),
-)
+export const ref = Theme.ref(Theme.standard())
 
 const line = `${ref.border.thin} solid ${ref.outline.subtle}`
 // Between columns: barely there, so rows read across and columns still part.

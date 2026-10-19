@@ -164,10 +164,7 @@ describe('CodeBlock recipe', () => {
   })
 
   it('reads only tokens the theme declares', () => {
-    const theme = Theme.compose(
-      Theme.tokens,
-      Theme.oklch({ accent: { h: 260, c: 0.15, l: '55%' } }),
-    )
+    const theme = Theme.standard(Theme.make({ accent: { hue: 260, chroma: 0.15, lightness: 55 } }))
     const style = Style.forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
     const block = view({ code, tokens, title: 'a.ts', copy: {}, lineNumbers: true, style }, h)
     expect(Inert.css([block]).length).toBeGreaterThan(0)

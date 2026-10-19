@@ -89,6 +89,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-mixins`: a theme is its knob values alone. `Theme.standard(theme)` is every shipped
+  token with a theme's knobs, for `Theme.root`, and `AppStyle.make({ theme })` takes one theme
+  (`Theme.make({ … })`), with `tokens` for an application's own groups; `Themes.make(…).root`
+  replaces `.palette`. `Theme.oklch`, its config object and `OklchKnobs` are removed: write
+  `Theme.make({ accent: { hue, chroma, lightness }, surface: { hue, saturation, contrast } })`.
+  `Theme.relief.*` and `Theme.hardShadows` are removed for the `shadow.relief` and `shadow.style`
+  knobs, and a knob string (`Theme.define({ knob: { 'base-l': '100%' } })`) for its knob
+  (`surface: { lightness: 100 }`). The accent's lightness reaches 5 to 98, for a black or white
+  accent. Step 5 of `docs/theme-knobs.md`.
 - `foldkit-mixins-ui`: `Recipes.Separator` has no `orientation` axis. The view writes
   `data-orientation` on the rule and a label's frame, and the recipe reads it, so one style draws
   a separator either way and the style and the view can no longer disagree: drop `orientation`

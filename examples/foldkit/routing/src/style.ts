@@ -20,10 +20,10 @@ import { ButtonSlots, InputSlots, Recipes } from 'foldkit-mixins-ui'
  * `colorScheme: 'light'` keeps the page light in a dark browser, as upstream's is.
  */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(
-    Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' } }),
-    Theme.define({ knob: { 'base-l': '100%' } }),
-  ),
+  theme: Theme.make({
+    accent: { hue: 260, chroma: 0.21, lightness: 62 },
+    surface: { lightness: 100 },
+  }),
   colorScheme: 'light',
 })
 

@@ -109,7 +109,7 @@ npx vitest run examples/foldkit/job-application   # from the repository root
   label attributes on an empty `<input>`, which leaves the radio unnamed.
 - **The pronoun and graduation-year lists share one look**, an accent wash on
   the active option and a check on the chosen one; upstream's differ slightly.
-- The look is approximated with a `Theme.oklch` indigo palette, not Tailwind.
+- The look is approximated with a `Theme.make` indigo palette, not Tailwind.
   Textareas keep their `rows` (the reset sizes them to their content), and the
   file inputs are hidden from the drop zone, since the `sr-only` class
   `@foldkit/ui` gives them names a Tailwind utility.

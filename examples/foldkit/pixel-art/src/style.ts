@@ -22,27 +22,28 @@ import { THUMBNAIL_CELL_SIZE } from './constant.js'
  * any browser, since upstream's page is `gray-900` everywhere.
  */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(
-    Theme.oklch({ accent: { h: 277, c: 0.262, l: '51.1%' }, surfaceSaturation: 0.03 }),
-    Theme.define({
-      forge: {
-        page: 'oklch(21% 0.034 264.665)',
-        raised: 'oklch(27.8% 0.033 256.848)',
-        hover: 'oklch(37.3% 0.034 259.733)',
-        text: 'oklch(96.7% 0.003 264.542)',
-        soft: 'oklch(92.8% 0.006 264.531)',
-        dim: 'oklch(87.2% 0.01 258.338)',
-        muted: 'oklch(70.7% 0.022 261.325)',
-        faint: 'oklch(55.1% 0.027 264.364)',
-        accent: 'oklch(51.1% 0.262 276.966)',
-        'on-accent': 'oklch(100% 0 0)',
-        danger: 'oklch(57.7% 0.245 27.325)',
-        'danger-hover': 'oklch(63.7% 0.237 25.331)',
-        'danger-ink': 'oklch(70.4% 0.191 22.216)',
-        backdrop: 'oklch(0% 0 0 / 60%)',
-      },
-    }),
-  ),
+  theme: Theme.make({
+    accent: { hue: 277, chroma: 0.262, lightness: 51.1 },
+    surface: { saturation: 0.03 },
+  }),
+  tokens: Theme.define({
+    forge: {
+      page: 'oklch(21% 0.034 264.665)',
+      raised: 'oklch(27.8% 0.033 256.848)',
+      hover: 'oklch(37.3% 0.034 259.733)',
+      text: 'oklch(96.7% 0.003 264.542)',
+      soft: 'oklch(92.8% 0.006 264.531)',
+      dim: 'oklch(87.2% 0.01 258.338)',
+      muted: 'oklch(70.7% 0.022 261.325)',
+      faint: 'oklch(55.1% 0.027 264.364)',
+      accent: 'oklch(51.1% 0.262 276.966)',
+      'on-accent': 'oklch(100% 0 0)',
+      danger: 'oklch(57.7% 0.245 27.325)',
+      'danger-hover': 'oklch(63.7% 0.237 25.331)',
+      'danger-ink': 'oklch(70.4% 0.191 22.216)',
+      backdrop: 'oklch(0% 0 0 / 60%)',
+    },
+  }),
   colorScheme: 'dark',
 })
 

@@ -73,7 +73,7 @@ pnpm --filter foldkit-example-foldkit-routing dev
 - Titles and the active nav section are read off the Site
   (`Site.titleOf`, `Site.sectionOf`), in place of two `AppRoute.match`
   tables; the strings are upstream's.
-- The look is approximated with a `Theme.oklch` blue palette, not Tailwind.
+- The look is approximated with a `Theme.make` blue palette, not Tailwind.
 
 ## Tests
 

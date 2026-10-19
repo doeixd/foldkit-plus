@@ -12,8 +12,8 @@
  * - **Behavior**: interaction attached to a slot, built from the view's input
  *   and its builder, so it can only emit Messages the view may emit.
  *
- * - **Theme and layout**: the palette is derived from one accent color by
- *   `Theme.oklch`, and rows, toolbars and the page are `Layout` pieces.
+ * - **Theme and layout**: the palette is derived from a few knobs of
+ *   `Theme.make`, and rows, toolbars and the page are `Layout` pieces.
  *   `sheet.ts` ships them in cascade layers, with every style here in `app`,
  *   so an application rule wins over the layouts and the recipe it composes.
  *
@@ -44,22 +44,24 @@ import type { BoardMessage } from './surface.js'
  * Every color is derived in the browser from these knobs with relative color
  * syntax and `light-dark()`, so the dark scheme needs no override of its own.
  */
-const palette = Theme.oklch({
-  accent: { h: 277, c: 0.23, l: '51%', dark: { l: '68%', c: 0.18 } },
+const knobs = Theme.make({
+  accent: { hue: 277, chroma: { light: 0.23, dark: 0.18 }, lightness: { light: 51, dark: 68 } },
   feedback: { info: 220 },
   // Near-neutral surfaces, as the hand-picked grays were.
-  surfaceSaturation: 0.006,
+  surface: { saturation: 0.006 },
 })
+
+/** Every shipped token, with this app's knobs. */
+const shipped = Theme.standard(knobs)
+const shippedRef = Theme.ref(shipped)
 
 /** What only this app names, derived from the palette so it follows the scheme too. */
 const own = Theme.define({
   radius: { card: '16px', control: '10px' },
-  text: {
-    done: `color-mix(in oklch, ${Theme.ref(palette).text.muted} 60%, ${Theme.ref(palette).surface.base})`,
-  },
+  text: { done: `color-mix(in oklch, ${shippedRef.text.muted} 60%, ${shippedRef.surface.base})` },
 })
 
-export const theme = Theme.compose(Theme.compose(Theme.tokens, palette), own)
+export const theme = Theme.compose(shipped, own)
 
 /** `t.accent.default` is `var(--fk-accent-default)`; a name the theme lacks is a type error. */
 export const t = Theme.ref(theme)

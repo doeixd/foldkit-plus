@@ -1,6 +1,6 @@
 /**
  * Every control that draws a field's chrome reads the theme's field relief,
- * and every faced button its raised one, so one token set (`Theme.relief`)
+ * and every faced button its raised one, so one knob (`shadow.relief`)
  * gives a whole form its depth. The browser test shows how it draws.
  */
 import { Style } from 'foldkit-mixins'

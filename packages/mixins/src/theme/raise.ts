@@ -44,7 +44,7 @@ export const raise = (offset: number): StyleValue =>
   compose(depthRules, classPiece(MARK), self({ '--_fk-raise': String(offset) }))
 
 /**
- * The background of a raised element at its level, from `Theme.oklch`'s base
+ * The background of a raised element at its level, from the palette's base
  * surface. In a light scheme the first two steps go toward white and the rest
  * stay there, so shadow alone carries elevation; in a dark scheme each level
  * is an even step lighter (`knob.raise-dark`). Written as an expression, not

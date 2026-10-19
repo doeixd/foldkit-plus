@@ -18,7 +18,7 @@ import * as Chart from '../src/chart.js'
 import { ChartSlots } from '../src/chart.js'
 import { Chart as Recipe } from '../src/recipes/chart.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(ChartSlots)(Recipe({}))
 const categories = ['January', 'February', 'March', 'April', 'May', 'June']
 const series = [

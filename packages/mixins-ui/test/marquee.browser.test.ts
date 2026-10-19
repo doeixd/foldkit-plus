@@ -17,7 +17,7 @@ import * as Marquee from '../src/marquee.js'
 import { MarqueeSlots } from '../src/marquee.js'
 import { Marquee as Recipe } from '../src/recipes/marquee.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(MarqueeSlots)(Recipe({}))
 
 const reduce = (value: 'reduce' | 'no-preference') =>

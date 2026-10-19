@@ -18,7 +18,7 @@ import * as AngleSlider from '../src/angleSlider.js'
 import { AngleSliderSlots } from '../src/angleSlider.js'
 import { AngleSlider as Recipe } from '../src/recipes/angleSlider.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(AngleSliderSlots)(Recipe({ size: 'lg' }))
 const layout = { step: 1, marks: [{ value: 0 }, { value: 90 }, { value: 180 }, { value: 270 }] }
 const fold = AngleSlider.update(layout)

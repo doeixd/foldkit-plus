@@ -17,7 +17,7 @@ import { page, userEvent } from 'vitest/browser'
 import * as Drawer from '../src/drawer.js'
 import { Drawer as DrawerRecipe } from '../src/recipes/drawer.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(Drawer.DrawerSlots)(DrawerRecipe({}))
 const belowLg = Style.forSlots(Drawer.DrawerSlots)(DrawerRecipe({ dock: 'below-lg' }))
 const Model = Schema.Struct({ drawer: Drawer.Model })

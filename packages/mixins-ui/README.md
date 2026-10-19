@@ -574,12 +574,11 @@ const DeleteStyle = Style.forSlots(ButtonSlots)(
 )
 
 const L = Layers.standard
-const palette = Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } })
+const theme = Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } })
 
 export const sheet = Style.stylesheet(
   L.declare,
-  L.in('tokens', Theme.root(Theme.tokens)),
-  L.in('theme', Theme.root(palette)),
+  L.in('theme', Theme.root(Theme.standard(theme))),
   DeleteStyle,
 )
 ```
@@ -589,8 +588,8 @@ export const sheet = Style.stylesheet(
 What a recipe assumes and does:
 
 - **The page ships the tokens.** Every value is a `var(--fk-…)` reference to
-  `Theme.tokens` or a `Theme.oklch` palette, so a scoped theme or a knob
-  override restyles every recipe with no new CSS.
+  the shipped tokens (`Theme.standard`), so another theme's knobs restyle
+  every recipe with no new CSS.
 - **Bases sit in `components`, variants in `variants`** of `Layers.standard`,
   so an application's `app` layer overrides both without specificity fights.
   Every declaration is a layered rule and none is inline style, since inline
@@ -703,7 +702,7 @@ const EntryStyle = Style.forSlots(EntrySlots)(
 )
 ```
 
-Like the variant recipes it reads `Theme.tokens` and `Theme.oklch` tokens and
+Like the variant recipes it reads the shipped tokens and
 keeps the base in `components` with each tone in `variants`. A toned pill is
 grounded on its tone's `subtle`, which keeps the tone's hue over a tinted page.
 

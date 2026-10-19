@@ -21,7 +21,7 @@ import { userEvent } from 'vitest/browser'
 import { ColorPicker, ColorPickerSlots, PopoverSlots, Recipes, SliderSlots } from '../src/index.js'
 
 // A palette, which the checkerboard and the rings read.
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(ColorPickerSlots)(Recipes.ColorPicker({}))
 const slider = Style.forSlots(SliderSlots)(Recipes.Slider({ track: 'paint', label: 'hidden' }))
 const popoverStyle = Style.forSlots(PopoverSlots)(Recipes.Popover({}))

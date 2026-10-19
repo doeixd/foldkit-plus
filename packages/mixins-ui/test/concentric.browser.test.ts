@@ -24,7 +24,7 @@ import {
   ToastSlots,
 } from '../src/index.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const button = Style.forSlots(ButtonSlots)(Recipes.Button({}))
 const input = Style.forSlots(InputSlots)(Recipes.Input({}))
 const card = Style.forSlots(CardSlots)(Recipes.Card({}))

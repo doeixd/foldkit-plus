@@ -52,7 +52,7 @@ const onHeld = '[aria-pressed="true"]:active:not([aria-disabled="true"], :disabl
 /**
  * A button with a face of its own (solid, outline, primary) stands off the
  * page by the theme's relief, and is pressed into it while held or on. Flat
- * unless the theme gives its controls relief (`Theme.relief`); the unfilled
+ * unless the theme gives its controls relief (the `shadow.relief` knob); the unfilled
  * ghost and icon buttons stay flat, as text on the page does.
  */
 const raised: ReadonlyArray<StyleValue> = [

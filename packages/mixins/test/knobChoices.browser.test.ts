@@ -21,13 +21,7 @@ const drawn = (values: Values<Standard>, property: string, value: string) => {
     Layers.standard.declare,
     Layers.standard.in(
       'theme',
-      Theme.root(
-        Theme.compose(
-          Theme.tokens,
-          Themes.make({ theme: Theme.make(values) }, { initial: 'theme' }).palette,
-        ),
-        { colorScheme: 'light' },
-      ),
+      Theme.root(Theme.standard(Theme.make(values)), { colorScheme: 'light' }),
     ),
   )
   document.head.append(sheet)

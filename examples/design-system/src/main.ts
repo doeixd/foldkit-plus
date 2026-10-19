@@ -1392,10 +1392,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   const slots = SlotView.buildersFor(PageSlots, [PageStyle.style.mixin], { input: model, h })
   const rootOverride = rootOverrideOf(model)
   const tokensCode = [
-    'palette = Theme.oklch((',
-    '  accent: { h: 222, c: 0.09, l: 52% },',
-    '  surfaceSaturation: 0.003,',
-    ')) with radius-factor 1.4',
+    'theme = Theme.make((',
+    '  accent: { hue: 222, chroma: 0.09 },',
+    '  surface: { saturation: 0.003, contrast: 24 },',
+    '  shape: { radius: 1.4 },',
+    '))',
     '',
     'Default     -> Button variant primary',
     'Secondary   -> tone neutral, solid',
@@ -1418,7 +1419,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           h.p(slots.eyebrow.attrs(), ['Foldkit Plus · Design system']),
           h.h1(slots.title.attrs(), ['Components in a shadcn skin']),
           h.p(slots.lede.attrs(), [
-            'Every control below draws through a shipped foldkit-mixins-ui recipe over Theme.oklch tokens. The shadcn look is two decisions: near-zero surfaceSaturation with a larger radius-factor, and one recipe selection per intent.',
+            'Every control below draws through a shipped foldkit-mixins-ui recipe over the shipped tokens. The shadcn look is two decisions: near-zero surface saturation with a larger radius, and one recipe selection per intent.',
           ]),
         ]),
         h.div(slots.controls.attrs(), [

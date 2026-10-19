@@ -10,15 +10,29 @@
 import { Effect, Schema } from 'effect'
 import { global, type StyleValue } from '../styleValue.js'
 import { compose, VAR_PREFIX, type ThemeTokens } from './core.js'
-import { tokensOf, variables, type KnobSet, type KnobTheme, type Standard } from './knobs.js'
-import { oklch } from './oklch.js'
-import { tokens } from './tokens.js'
+import {
+  make as makeTheme,
+  tokensOf,
+  variables,
+  type KnobSet,
+  type KnobTheme,
+  type Standard,
+} from './knobs.js'
+import { palette, type Palette } from './oklch.js'
+import { tokens, type Tokens } from './tokens.js'
+
+/** Every shipped token: the scales, the palette, and the knobs they read. */
+export type StandardTokens = ReturnType<typeof compose<Tokens, Palette>>
+
+const shipped = compose(tokens, palette)
 
 /**
- * The palette's derivations every standard theme shares. Its own knob
- * values are a theme's to replace: a theme declares every knob variable.
+ * Every shipped token with `theme`'s knob values, for a page's root: the
+ * derivations are the same for every theme, so only the knobs differ. With
+ * no theme, every knob at its default.
  */
-export const palette = oklch({ accent: { h: 264, c: 0.17, l: '52%' } })
+export const standardOf = (theme: KnobTheme<Standard> = makeTheme({})): StandardTokens =>
+  compose(shipped, tokensOf(theme))
 
 const declarations = (theme: ThemeTokens) =>
   Object.entries(theme)
@@ -41,10 +55,8 @@ export interface Themes<Name extends string> {
   /** The root element's attribute that names the active theme. */
   readonly attribute: string
   readonly theme: (name: Name) => KnobTheme<Standard>
-  /** The palette with the initial theme's knobs: what the root declares, and what `t` reads. */
-  readonly palette: ReturnType<
-    typeof compose<typeof palette, ReturnType<typeof tokensOf<Standard>>>
-  >
+  /** Every token with the initial theme's knobs: what the root declares, and what `t` reads. */
+  readonly root: StandardTokens
   /** Each other theme's knobs, under its attribute on the root element, for the `theme` layer. */
   readonly scoped: StyleValue
 }
@@ -67,7 +79,7 @@ export const make = <const Record extends { readonly [name: string]: KnobTheme<S
     initial: options.initial,
     attribute,
     theme,
-    palette: compose(palette, tokensOf(theme(options.initial))),
+    root: standardOf(theme(options.initial)),
     scoped: global(
       names
         .filter(name => name !== options.initial)
@@ -94,6 +106,6 @@ export const apply = <Name extends string>(themes: Themes<Name>, name: Name): Ef
  * alone under a subtree would change nothing derived from them there.
  */
 export const scope = (theme: KnobTheme<Standard>, selector: string): StyleValue => {
-  const { knob: _knob, ...derived } = compose(tokens, palette)
+  const { knob: _knob, ...derived } = shipped
   return global(`${selector}{${declarations(derived)}}${knobRule(selector, theme)}`)
 }

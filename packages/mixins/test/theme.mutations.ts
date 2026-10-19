@@ -68,8 +68,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: "'shadow-h': knobs.shadow?.h === undefined ? v('hue', 'neutral') : String(knobs.shadow.h),",
-        replace: "'shadow-h': v('hue', 'neutral'),",
+        find: "${v('knob', 'shadow-h')} / 0.14)`",
+        replace: "${v('hue', 'neutral')} / 0.14)`",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -178,8 +178,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: '      focus: accent,',
-        replace: '      focus: shift(accent, -0.1, 0.1),',
+        find: '    focus: accent,',
+        replace: '    focus: shift(accent, -0.1, 0.1),',
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -244,8 +244,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: "knobs.neutral === undefined ? v('hue', 'accent') : String(knobs.neutral.h)",
-        replace: "v('hue', 'accent')",
+        find: "    neutral: v('knob', 'neutral-h'),",
+        replace: "    neutral: v('hue', 'accent'),",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -254,9 +254,9 @@ export default [
     name: 'the neutrals keep the accent hue they started with',
     edits: [
       {
-        file: '../src/theme/oklch.ts',
-        find: "knobs.neutral === undefined ? v('hue', 'accent') : String(knobs.neutral.h)",
-        replace: 'String(knobs.neutral?.h ?? knobs.accent.h)',
+        file: '../src/theme/knobs.ts',
+        find: "follows: ref('hue', 'accent'),",
+        replace: '',
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -276,9 +276,9 @@ export default [
     name: 'a translucent panel is opaque',
     edits: [
       {
-        file: '../src/theme/oklch.ts',
-        find: "'popup-alpha': knobs.menu?.color?.endsWith('translucent') === true ? '0.8' : '1',",
-        replace: "'popup-alpha': '1',",
+        file: '../src/theme/knobs.ts',
+        find: "translucent: { 'popup-invert': '0', 'popup-alpha': '0.8', 'popup-blur': '12px' },",
+        replace: "translucent: { 'popup-invert': '0', 'popup-alpha': '1', 'popup-blur': '12px' },",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -317,8 +317,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: "      field: v('surface', 'default'),",
-        replace: "      field: v('surface', 'base'),",
+        find: "    field: v('surface', 'default'),",
+        replace: "    field: v('surface', 'base'),",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts', 'packages/mixins/test/themePage.test.ts'],

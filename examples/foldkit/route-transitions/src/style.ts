@@ -24,14 +24,11 @@ const lg = '(min-width: 64rem)'
  * `colorScheme: 'light'` keeps the page light in a dark browser, as upstream's is.
  */
 const { t, L, slots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(
-    Theme.oklch({
-      accent: { h: 277, c: 0.24, l: '51%' },
-      secondaryHueShift: 16,
-      feedback: { success: 163 },
-    }),
-    Theme.define({ knob: { 'base-l': '100%' } }),
-  ),
+  theme: Theme.make({
+    accent: { hue: 277, chroma: 0.24, lightness: 51, secondaryShift: 16 },
+    feedback: { success: 163 },
+    surface: { lightness: 100 },
+  }),
   colorScheme: 'light',
 })
 

@@ -253,10 +253,7 @@ describe('QrCode.view', () => {
   it('draws nothing outside its slots, and reads only tokens the theme declares', () => {
     const code = drawn({ overlay: h.span([], ['logo']) })
     expect(Inert.unslotted(code, { inside: ['overlay'] })).toEqual([])
-    const theme = Theme.compose(
-      Theme.tokens,
-      Theme.oklch({ accent: { h: 260, c: 0.15, l: '55%' } }),
-    )
+    const theme = Theme.standard(Theme.make({ accent: { hue: 260, chroma: 0.15, lightness: 55 } }))
     expect(Inert.css([code]).length).toBeGreaterThan(0)
     expect(Inert.missingTokens(code, Style.stylesheet(Theme.root(theme)))).toEqual([])
   })

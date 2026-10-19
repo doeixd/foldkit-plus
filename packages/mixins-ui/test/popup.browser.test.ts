@@ -12,8 +12,8 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { MenuSlots, Recipes } from '../src/index.js'
 
-const accent = { h: 265, c: 0.16, l: '52%' } as const
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent }))
+const accent = { hue: 265, chroma: 0.16 }
+const theme = Theme.standard(Theme.make({ accent }))
 const style = Style.forSlots(MenuSlots)(Recipes.Menu({}))
 const Model = Schema.Struct({})
 
@@ -85,10 +85,7 @@ test('the active row is marked, and the focused panel draws no ring', async () =
 
 test('a bold menu accent fills the active row with the accent, and an inverted panel is dark', async () => {
   const handle = await mount(
-    Theme.compose(
-      Theme.tokens,
-      Theme.oklch({ accent, menu: { accent: 'bold', color: 'inverted' } }),
-    ),
+    Theme.standard(Theme.make({ accent, menu: { highlight: 'bold', panel: 'inverted' } })),
   )
   try {
     // The accent at 52% lightness, its text near white, on a panel of the dark scheme's base.

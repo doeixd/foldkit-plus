@@ -41,8 +41,8 @@ export default [
     edits: [
       {
         file,
-        find: 'palette: compose(palette, tokensOf(theme(options.initial))),',
-        replace: 'palette: compose(palette, tokensOf(theme(names[0]!))),',
+        find: 'root: standardOf(theme(options.initial)),',
+        replace: 'root: standardOf(theme(names[0]!)),',
       },
     ],
     tests: unit,

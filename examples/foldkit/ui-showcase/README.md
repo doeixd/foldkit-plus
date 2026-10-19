@@ -71,7 +71,7 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
   unchanged.** Upstream closes the menu on every URL change, and closing a
   closed dialog copies its Model, which redrew the page.
 - The look approximates upstream's Tailwind indigo and grays with a
-  `Theme.oklch` palette.
+  `Theme.make` palette.
 
 ## Foldkit Plus gaps met
 

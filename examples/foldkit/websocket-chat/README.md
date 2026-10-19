@@ -81,7 +81,7 @@ It talks to Postman's public echo server, as upstream does.
 - **Binary frames are read as text.** Upstream put `event.data` straight into
   the Model, so a `Blob` frame would have been stored as a `Blob` under a
   `string` type; the bundle decodes `Blob` and `ArrayBuffer` frames to text.
-- **The colours are derived, not Tailwind's.** One `Theme.oklch` accent at
+- **The colours are derived, not Tailwind's.** One `Theme.make` accent at
   blue-500; the status dot uses the theme's success, warning and error colours.
 
 ## Tests

@@ -1,8 +1,8 @@
 /**
  * `foldkit-mixins/theme`: the root export's `Theme` plus the page-level
  * pieces. `root` and `scoped` turn tokens into unlayered `:root` and
- * selector rules for `Style.stylesheet`; `tokens` is the shipped set of
- * non-color scales; `oklch` derives a whole palette from a few knobs;
+ * selector rules for `Style.stylesheet`; `make` is a theme of typed knob
+ * values, and `standard` every shipped token with a theme's knobs;
  * `schemeScript` and `chooseScheme` keep a reader's light or dark choice.
  */
 import * as Core from './theme/core.js'
@@ -23,19 +23,16 @@ import {
   withValue,
 } from './theme/knobs.js'
 import * as ThemeSet from './theme/themes.js'
-import { oklch } from './theme/oklch.js'
 import { root, scoped } from './theme/root.js'
 import { chooseScheme, currentScheme, schemeScript } from './theme/scheme.js'
 import { raise, raisedSurface } from './theme/raise.js'
 import {
   breakpointWidths,
   concentric,
-  hardShadows,
   inContainer,
   ladder,
   nested,
   nests,
-  relief,
   role,
   tokens,
 } from './theme/tokens.js'
@@ -47,17 +44,14 @@ export type { Overrides, RootOptions } from './theme/root.js'
 export {
   breakpointWidths,
   concentric,
-  hardShadows,
   inContainer,
   ladder,
   nested,
   nests,
-  relief,
   role,
   tokens,
 } from './theme/tokens.js'
 export type { Role, Rung, Tokens } from './theme/tokens.js'
-export { oklch } from './theme/oklch.js'
 export { Knob }
 export type {
   KnobAt,
@@ -75,9 +69,9 @@ export const Knobs = { standard, schema: schemaOf, paths, at, valueAt, withValue
 
 /** Themes installed by name: `Themes.make({ iris, cobalt }, { initial: 'iris' })`, `Themes.apply`. */
 export const Themes = { make: ThemeSet.make, apply: ThemeSet.apply } as const
-export type { Themes as ThemesOf } from './theme/themes.js'
+export type { StandardTokens, Themes as ThemesOf } from './theme/themes.js'
 export { raise, raisedSurface } from './theme/raise.js'
-export type { OklchKnobs, OklchTheme } from './theme/oklch.js'
+export type { Palette } from './theme/oklch.js'
 export { chooseScheme, currentScheme, SCHEME_KEY, schemeScript } from './theme/scheme.js'
 export type { Scheme } from './theme/scheme.js'
 
@@ -86,8 +80,7 @@ export const Theme = {
   root,
   scoped,
   tokens,
-  hardShadows,
-  relief,
+  standard: ThemeSet.standardOf,
   ladder,
   role,
   nested,
@@ -97,7 +90,6 @@ export const Theme = {
   raisedSurface,
   breakpointWidths,
   inContainer,
-  oklch,
   make,
   set,
   describe,

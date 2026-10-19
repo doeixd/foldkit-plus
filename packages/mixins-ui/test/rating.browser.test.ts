@@ -20,7 +20,7 @@ import * as Rating from '../src/rating.js'
 import { RatingSlots, type RatingInput } from '../src/rating.js'
 import * as Recipes from '../src/recipes/rating.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const Model = Schema.Struct({ value: Schema.Option(Schema.Number) })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ Rated: { value: Schema.Number }, Cleared: {} })

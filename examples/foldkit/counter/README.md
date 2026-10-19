@@ -42,7 +42,7 @@ pnpm --filter foldkit-example-foldkit-counter dev
   `Button.view`, its attributes resolved against `ButtonSlots` by
   `foldkit-mixins-ui` so `ButtonStyle` applies.
 - `src/style.ts` holds the appearance as data. `AppStyle.make` fixes the
-  palette (`Theme.oklch` with a colorless, near-black accent, so the recipe's
+  palette (`Theme.make` with a colorless, near-black accent, so the recipe's
   solid button is black on white), the `app` layer and the page stylesheet
   once; `slots` declares the page's Slots by their style, written with
   `Utilities` and plain declarations. Every slot style is compiled into the

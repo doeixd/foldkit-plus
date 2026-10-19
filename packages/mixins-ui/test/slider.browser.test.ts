@@ -19,7 +19,7 @@ import { Slider as Recipe } from '../src/recipes/slider.js'
 import * as Slider from '../src/slider.js'
 import { SliderSlots } from '../src/slider.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(SliderSlots)(Recipe({}))
 const Model = Schema.Struct({
   volume: Schema.Number,

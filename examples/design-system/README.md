@@ -11,7 +11,7 @@ pnpm --filter foldkit-example-design-system dev
 
 What it shows:
 
-- **Colors** — every `Theme.oklch` token family as swatches, with a hue picker
+- **Colors** — every palette token family as swatches, with a hue picker
   that re-derives the accent live, Faint/Soft/Full presets for the
   `shadow-strength` knob, plus a light/dark switch.
 - **Buttons** — the shadcn mapping (`primary` = Default, `neutral` solid =

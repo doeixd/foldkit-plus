@@ -55,7 +55,7 @@ type Model = typeof Model.Type
 
 /** A group of two cards on a real runtime, Yearly chosen, in a `scheme` page. */
 const cards = (scheme: 'light' | 'dark') => {
-  const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+  const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
   const style = Style.forSlots(RadioGroupSlots)(Recipes.RadioGroup({ variant: 'card' }))
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''

@@ -1,21 +1,18 @@
 /**
  * What every recipe shares: typed token references, the layer each piece is
  * emitted in, and the focus and disabled treatments. The recipes assume a page
- * that ships `Theme.root` of `Theme.tokens` and a `Theme.oklch` palette from
- * `foldkit-mixins/theme`; a token name either lacks is a type error here.
+ * that ships `Theme.root` of `Theme.standard(theme)` from `foldkit-mixins/theme`;
+ * a token name it lacks is a type error here.
  */
 import { Layers, Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 
 /**
- * `var(--fk-group-name)` for every token the shipped scales and palette
- * define. The palette is built only for its names: `Theme.ref` never reads a
- * value, so the accent here is irrelevant and the page's own palette applies.
+ * `var(--fk-group-name)` for every shipped token. `Theme.ref` reads names,
+ * never values, so the page's own theme applies.
  */
-export const ref = Theme.ref(
-  Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } })),
-)
+export const ref = Theme.ref(Theme.standard())
 
 /** The base of a recipe, in the `components` layer. */
 export const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>

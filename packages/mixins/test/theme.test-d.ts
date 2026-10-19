@@ -5,7 +5,7 @@
 import { describe, it } from 'vitest'
 import { Theme } from '../src/theme.js'
 
-const palette = Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } })
+const palette = Theme.standard(Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } }))
 
 describe('Theme.scoped', () => {
   it('accepts the theme’s own groups and names', () => {

@@ -72,17 +72,18 @@ export const standard = {
         title: 'Lightness',
         variable: 'accent-l',
         default: 52,
-        min: 15,
-        max: 90,
+        min: 5,
+        max: 98,
         step: 1,
-        description: 'How light the accent is in the light scheme.',
+        description:
+          'How light the accent is in the light scheme: near 10 a black accent, as shadcn’s.',
       }),
       Knob.percent({
         title: 'Lightness, dark',
         variable: 'accent-l-dark',
         default: 70,
-        min: 15,
-        max: 90,
+        min: 5,
+        max: 98,
         step: 1,
         description: 'How light the accent is in the dark scheme.',
       }),
@@ -533,6 +534,21 @@ export const variables = <S extends KnobSet>(self: KnobTheme<S>): Knob.Variables
     }
   return declared
 }
+
+type Intersected<U> = (U extends unknown ? (union: U) => void : never) extends (
+  meet: infer I,
+) => void
+  ? I
+  : never
+
+/** What every knob of `knobs` writes unset, under its variables' own names. */
+export const unsetOf = <S extends KnobSet>(
+  knobs: S,
+): Intersected<{ [G in keyof S]: { [K in keyof S[G]]: S[G][K]['unset'] }[keyof S[G]] }[keyof S]> =>
+  Object.assign(
+    {},
+    ...Object.values(knobs).flatMap(group => Object.values(group).map(knob => knob.unset)),
+  )
 
 /** `self`'s knob variables as tokens, for `Theme.root` and `Theme.scoped`. */
 export const tokensOf = <S extends KnobSet>(self: KnobTheme<S>) => define({ knob: variables(self) })

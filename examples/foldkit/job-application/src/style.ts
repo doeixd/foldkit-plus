@@ -26,15 +26,16 @@ import * as FieldValidation from 'foldkit/fieldValidation'
 
 // THEME
 
-/** Indigo, as upstream's Tailwind `indigo-600`, over grey surfaces. */
-const oklchPalette = Theme.oklch({
-  accent: { h: 277, c: 0.24, l: '51%' },
-  surfaceSaturation: 0.004,
-})
+/**
+ * Indigo, as upstream's Tailwind `indigo-600`, over grey surfaces, and a
+ * white base, so the cards stand out from the page's `surface.muted`.
+ */
 
-/** A white base, so the cards stand out from the page's `surface.muted`. */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(oklchPalette, Theme.define({ knob: { 'base-l': '100%' } })),
+  theme: Theme.make({
+    accent: { hue: 277, chroma: 0.24, lightness: 51 },
+    surface: { saturation: 0.004, lightness: 100 },
+  }),
   colorScheme: 'light',
 })
 

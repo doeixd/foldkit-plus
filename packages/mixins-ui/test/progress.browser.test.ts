@@ -22,7 +22,7 @@ import * as Progress from '../src/progress.js'
 import { ProgressSlots, type ProgressView } from '../src/progress.js'
 import * as Recipes from '../src/recipes/progress.js'
 
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(ProgressSlots)(Recipes.Progress({}))
 const Model = Schema.Struct({})
 type Model = typeof Model.Type

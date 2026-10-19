@@ -1,9 +1,9 @@
 /**
  * `foldkit-mixins/app`: an application's style setup, fixed once. Every
- * application on the standard layers writes the same preamble: a theme over
- * `Theme.tokens`, its references, the `app` layer passed to each style, and a
- * page stylesheet of the layer order, the reset, the tokens, the palette and
- * the body defaults. `AppStyle.make` is that preamble as a value.
+ * application on the standard layers writes the same preamble: its theme's
+ * tokens, their references, the `app` layer passed to each style, and a page
+ * stylesheet of the layer order, the reset, the tokens and the body defaults.
+ * `AppStyle.make` is that preamble as a value.
  */
 import { body, reset } from './defaults.js'
 import { standard } from './layers.js'
@@ -19,13 +19,16 @@ import {
 } from './style.js'
 import { compose, type StyleValue } from './styleValue.js'
 import { compose as composeThemes, ref, type Refs, type ThemeTokens } from './theme/core.js'
+import type { KnobTheme, Standard } from './theme/knobs.js'
 import { root, type RootOptions } from './theme/root.js'
-import type { Themes } from './theme/themes.js'
-import { tokens, type Tokens } from './theme/tokens.js'
+import { standardOf, type StandardTokens, type Themes } from './theme/themes.js'
 
-export interface AppStyleOptions<Palette extends ThemeTokens> {
-  /** The application's own tokens, usually `Theme.oklch(…)`, laid over `Theme.tokens`. */
-  readonly palette: Palette
+interface Common<Own extends ThemeTokens> {
+  /**
+   * Tokens of the application's own, laid over the shipped ones:
+   * `Theme.define({ game: { … } })`, read through `t` beside them.
+   */
+  readonly tokens?: Own
   /** The page's `color-scheme`; `'light'` keeps a light page light in a dark browser. Default `'light dark'`. */
   readonly colorScheme?: NonNullable<RootOptions['colorScheme']>
   /**
@@ -35,26 +38,31 @@ export interface AppStyleOptions<Palette extends ThemeTokens> {
   readonly global?: ReadonlyArray<StyleValue>
 }
 
+export interface AppStyleOptions<Own extends ThemeTokens> extends Common<Own> {
+  /** The application's one theme: `Theme.make({ … })`. */
+  readonly theme: KnobTheme<Standard>
+}
+
 /**
- * The options with a set of named themes in place of a palette: the root
- * declares the initial theme, and each other is drawn where the Model names
- * it (`Themes.apply`).
+ * The options with a set of named themes in place of one: the root declares
+ * the initial theme, and each other is drawn where the Model names it
+ * (`Themes.apply`).
  */
-export type AppStyleThemesOptions<Name extends string> = Omit<
-  AppStyleOptions<ThemeTokens>,
-  'palette'
-> & {
+export interface AppStyleThemesOptions<
+  Name extends string,
+  Own extends ThemeTokens,
+> extends Common<Own> {
   readonly themes: Themes<Name>
 }
 
 /** A style's options with its layer fixed to the application's. */
 export type AppStyleOptionsFor = Omit<StyleOptions, 'layer'>
 
-export interface AppStyle<Palette extends ThemeTokens> {
-  /** `Theme.tokens` with the palette over it. */
-  readonly theme: ReturnType<typeof composeThemes<Tokens, Palette>>
+export interface AppStyle<Own extends ThemeTokens> {
+  /** Every shipped token with the theme's knobs, and the application's own over them. */
+  readonly theme: ReturnType<typeof composeThemes<StandardTokens, Own>>
   /** Every token of `theme` as a typed `var(--fk-…)` reference. */
-  readonly t: Refs<ReturnType<typeof composeThemes<Tokens, Palette>>>
+  readonly t: Refs<ReturnType<typeof composeThemes<StandardTokens, Own>>>
   /** The layer order the stylesheet declares, for placing a layout or recipe (`L.in('layouts', …)`). */
   readonly L: typeof standard
   /** `Style.slots` in the `app` layer: the application's own Slots, declared by their style. */
@@ -63,29 +71,29 @@ export interface AppStyle<Palette extends ThemeTokens> {
   readonly forSlots: <Slots>(
     contract: Slots,
   ) => (pieces: StylePieces<Slots>, options?: AppStyleOptionsFor) => NamedStyle<Slots>
-  /** The page sheet: the layer order, reset, tokens, palette, `Defaults.body` and `global`. */
+  /** The page sheet: the layer order, reset, tokens, `Defaults.body` and `global`. */
   readonly stylesheet: string
 }
 
 const app = standard.layer('app')
 
 /**
- * The application's theme, layer and page stylesheet:
- * `const { t, slots, stylesheet } = AppStyle.make({ palette: Theme.oklch({ … }) })`.
+ * The application's tokens, layer and page stylesheet:
+ * `const { t, slots, stylesheet } = AppStyle.make({ theme: Theme.make({ … }) })`.
  * Slot styles are no longer in the stylesheet: a Slot injects its classes' CSS
  * when it first draws them.
  */
-export function make<Name extends string>(
-  options: AppStyleThemesOptions<Name>,
-): AppStyle<Themes<Name>['palette']>
-export function make<Palette extends ThemeTokens>(
-  options: AppStyleOptions<Palette>,
-): AppStyle<Palette>
+export function make<Name extends string, Own extends ThemeTokens = Record<never, never>>(
+  options: AppStyleThemesOptions<Name, Own>,
+): AppStyle<Own>
+export function make<Own extends ThemeTokens = Record<never, never>>(
+  options: AppStyleOptions<Own>,
+): AppStyle<Own>
 export function make(
-  options: AppStyleOptions<ThemeTokens> | AppStyleThemesOptions<string>,
+  options: AppStyleOptions<ThemeTokens> | AppStyleThemesOptions<string, ThemeTokens>,
 ): AppStyle<ThemeTokens> {
-  const palette = 'themes' in options ? options.themes.palette : options.palette
-  const theme = composeThemes(tokens, palette)
+  const shipped = 'themes' in options ? options.themes.root : standardOf(options.theme)
+  const theme = composeThemes(shipped, options.tokens ?? {})
   const scheme = options.colorScheme === undefined ? {} : { colorScheme: options.colorScheme }
   return Object.freeze({
     theme,
@@ -100,8 +108,7 @@ export function make(
     stylesheet: stylesheet(
       standard.declare,
       standard.in('reset', reset),
-      standard.in('tokens', root(tokens, scheme)),
-      standard.in('theme', root(palette, scheme)),
+      standard.in('theme', root(theme, scheme)),
       ...('themes' in options ? [standard.in('theme', options.themes.scoped)] : []),
       standard.in('defaults', compose(body, ...(options.global ?? []))),
     ),

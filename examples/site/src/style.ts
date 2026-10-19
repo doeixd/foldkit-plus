@@ -15,23 +15,17 @@ import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
 import { declared } from './gallery/theme.js'
 
 const { t, slots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(
-    Theme.oklch({
-      accent: { h: 270, c: 0, l: '14%', dark: { l: '96%', c: 0 } },
-      surfaceSaturation: 0,
-    }),
-    Theme.define({
-      // A white page, and a near-black one, as plain as the content.
-      knob: { 'base-l': '100%', 'base-l-dark': '14%' },
-      // Grey that steps back: the second half of a heading, a label's number.
-      site: { faint: Theme.lightDark('oklch(66% 0 0)', 'oklch(52% 0 0)') },
-      font: {
-        body: '"Geist", ui-sans-serif, system-ui, sans-serif',
-        heading: 'inherit',
-        mono: '"Geist Mono", ui-monospace, "SF Mono", Menlo, monospace',
-      },
-    }),
-  ),
+  theme: Theme.make({
+    accent: { hue: 270, chroma: { light: 0, dark: 0 }, lightness: { light: 14, dark: 96 } },
+    // A white page, and a near-black one, as plain as the content.
+    surface: { saturation: 0, lightness: { light: 100, dark: 14 } },
+    type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif' },
+  }),
+  tokens: Theme.define({
+    // Grey that steps back: the second half of a heading, a label's number.
+    site: { faint: Theme.lightDark('oklch(66% 0 0)', 'oklch(52% 0 0)') },
+    font: { mono: '"Geist Mono", ui-monospace, "SF Mono", Menlo, monospace' },
+  }),
 })
 
 export { stylesheet }

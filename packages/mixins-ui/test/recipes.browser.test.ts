@@ -8,9 +8,8 @@ import { Layers, Style, type StyleValue } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { ButtonSlots, CheckboxSlots, Recipes, SwitchSlots, TabsSlots } from '../src/index.js'
 
-const theme = Theme.compose(
-  Theme.tokens,
-  Theme.oklch({ accent: { h: 265, c: 0.16, l: '52%' }, surfaceSaturation: 0.012 }),
+const theme = Theme.standard(
+  Theme.make({ accent: { hue: 265, chroma: 0.16 }, surface: { saturation: 0.012 } }),
 )
 const L = Layers.standard
 

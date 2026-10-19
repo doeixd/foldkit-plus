@@ -3,7 +3,7 @@
  * `pnpm mutate packages/mixins/test/knobs.mutations.ts`.
  */
 const unit = ['packages/mixins/test/knobs.test.ts']
-const golden = ['packages/mixins/test/knobsGolden.browser.test.ts']
+const page = ['packages/mixins/test/themePage.test.ts']
 const kinds = '../src/theme/knob.ts'
 const knobs = '../src/theme/knobs.ts'
 
@@ -50,7 +50,7 @@ export default [
         replace: 'unset: one(options.variable, `${num(options.default)}${unit}`),',
       },
     ],
-    tests: [...unit, ...golden],
+    tests: [...unit, ...page],
   },
   {
     name: 'a knob the group lacks is taken',
@@ -83,7 +83,7 @@ export default [
         replace: 'Object.assign(declared, knob.unset)',
       },
     ],
-    tests: [...unit, ...golden],
+    tests: [...unit, ...page],
   },
   {
     name: 'the dark accent chroma follows nothing',
@@ -94,7 +94,7 @@ export default [
         replace: '',
       },
     ],
-    tests: golden,
+    tests: page,
   },
   {
     name: 'an outline ignores the ink the outlines choice gives it',

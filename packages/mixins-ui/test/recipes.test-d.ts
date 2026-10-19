@@ -104,11 +104,10 @@ const DeleteStyle = Style.forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'danger', variant: 'outline', size: 'sm' }),
 )
 const L = Layers.standard
-const palette = Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } })
+const theme = Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } })
 const _sheet: string = Style.stylesheet(
   L.declare,
-  L.in('tokens', Theme.root(Theme.tokens)),
-  L.in('theme', Theme.root(palette)),
+  L.in('theme', Theme.root(Theme.standard(theme))),
   DeleteStyle,
 )
 void _sheet

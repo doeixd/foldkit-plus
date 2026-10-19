@@ -84,7 +84,7 @@ import {
 import * as Popup from '../src/recipes/popup.js'
 import { attributeOf, h, message, type TestMessage } from './fixture.js'
 
-const palette = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
+const palette = Theme.standard(Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } }))
 const defined = new Set([
   ...Object.entries(palette).flatMap(([group, names]) =>
     Object.keys(names).map(name => `${group}-${name}`),

@@ -14,7 +14,10 @@ import { startDevice } from './device.js'
 // read: the demos' shared accent and the faint tint of its hue in the greys.
 Style.install(
   AppStyle.make({
-    palette: Theme.oklch({ accent: { h: 270, c: 0.15, l: '54%' }, surfaceSaturation: 0.004 }),
+    theme: Theme.make({
+      accent: { hue: 270, chroma: 0.15, lightness: 54 },
+      surface: { saturation: 0.004 },
+    }),
   }).stylesheet,
 )
 

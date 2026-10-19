@@ -38,7 +38,7 @@ const corner = (parent: HTMLElement = document.body) => {
 }
 
 test('the root shows the initial theme, and the theme the Model chooses', async () => {
-  install(Theme.root(Theme.compose(Theme.tokens, themes.palette)), themes.scoped)
+  install(Theme.root(themes.root), themes.scoped)
   expect(corner()).toBe(12)
   await Effect.runPromise(Themes.apply(themes, 'square'))
   expect(document.documentElement.getAttribute('data-theme')).toBe('square')
@@ -49,10 +49,7 @@ test('the root shows the initial theme, and the theme the Model chooses', async 
 })
 
 test('a theme scoped to a subtree re-derives its tokens there', () => {
-  install(
-    Theme.root(Theme.compose(Theme.tokens, themes.palette)),
-    Theme.scope(square, '.square-region'),
-  )
+  install(Theme.root(themes.root), Theme.scope(square, '.square-region'))
   const region = document.createElement('section')
   region.className = 'square-region'
   document.body.append(region)
@@ -62,7 +59,7 @@ test('a theme scoped to a subtree re-derives its tokens there', () => {
 })
 
 test('a knob alone under a subtree changes nothing derived from it, as Theme.scope says', () => {
-  install(Theme.root(Theme.compose(Theme.tokens, themes.palette)))
+  install(Theme.root(themes.root))
   const region = document.createElement('section')
   region.style.setProperty('--fk-knob-radius-factor', '0')
   document.body.append(region)

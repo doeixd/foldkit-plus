@@ -60,16 +60,13 @@ const hoverBridge = (padding: string) =>
  * here too. Island slots are each widget's own anatomy, so a Button recipe
  * does not fit them; the chrome below reads these tokens instead.
  */
-const palette = Theme.compose(
-  Theme.oklch({
-    accent: { h: 222, c: 0.09, l: '52%', dark: { l: '70%', c: 0.1 } },
-    surfaceSaturation: 0.003,
-    surfaceContrast: '24%',
-  }),
-  Theme.define({ knob: { 'radius-factor': '1.4' } }),
-)
+const theme = Theme.make({
+  accent: { hue: 222, chroma: { light: 0.09, dark: 0.1 } },
+  surface: { saturation: 0.003, contrast: 24 },
+  shape: { radius: 1.4 },
+})
 
-const app = AppStyle.make({ palette })
+const app = AppStyle.make({ theme })
 
 /** Reset, token layer, palette, and body defaults. `entry.ts` installs it. */
 export const pageStylesheet = app.stylesheet

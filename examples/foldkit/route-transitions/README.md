@@ -76,7 +76,7 @@ pnpm --filter foldkit-example-foldkit-route-transitions dev
 - `PaintingStatus` is read through its exhaustive `match` in place of `_tag`
   comparisons, and the page title through `AppRoute.match` in place of
   `Match.orElse`; the strings are upstream's.
-- The look is approximated with a `Theme.oklch` indigo palette, not Tailwind.
+- The look is approximated with a `Theme.make` indigo palette, not Tailwind.
 
 ## Tests
 

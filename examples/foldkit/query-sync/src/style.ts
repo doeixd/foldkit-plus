@@ -21,16 +21,11 @@ import { ButtonSlots, InputSlots } from 'foldkit-mixins-ui'
  * `surface.subtle`.
  */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.compose(
-    Theme.oklch({
-      accent: { h: 163, c: 0.145, l: '59.6%' },
-      secondaryHueShift: 67,
-      tertiaryHueShift: 140,
-      surfaceSaturation: 0.003,
-      feedback: { info: 50 },
-    }),
-    Theme.define({ knob: { 'base-l': '100%' } }),
-  ),
+  theme: Theme.make({
+    accent: { hue: 163, chroma: 0.145, lightness: 59.6, secondaryShift: 67, tertiaryShift: 140 },
+    surface: { saturation: 0.003, lightness: 100 },
+    feedback: { info: 50 },
+  }),
   colorScheme: 'light',
 })
 

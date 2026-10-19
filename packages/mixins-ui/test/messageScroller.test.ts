@@ -123,10 +123,7 @@ describe('MessageScroller view', () => {
   })
 
   it('reads only tokens the theme declares', () => {
-    const theme = Theme.compose(
-      Theme.tokens,
-      Theme.oklch({ accent: { h: 260, c: 0.15, l: '55%' } }),
-    )
+    const theme = Theme.standard(Theme.make({ accent: { hue: 260, chroma: 0.15, lightness: 55 } }))
     const tree = view(options(fold(away, Message.Appended({ count: 2 }))), h)
     expect(Inert.css([tree]).length).toBeGreaterThan(0)
     expect(Inert.missingTokens(tree, Style.stylesheet(Theme.root(theme)))).toEqual([])

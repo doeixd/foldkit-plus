@@ -276,10 +276,8 @@ one.
 | `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
 | `Theme.root(theme, { omit?, colorScheme? })` / `Theme.scoped(theme, selector, overrides)` | from `foldkit-mixins/theme`: tokens as `:root` custom properties, or as overrides under a selector; unlayered global pieces for `Style.stylesheet` |
 | `Theme.schemeScript(key?)` / `Theme.chooseScheme(scheme, key?)` / `Theme.currentScheme()` | from `foldkit-mixins/theme`: a head script applying a kept `light` or `dark` before the first paint; a Command's Effect that applies and keeps a choice; the scheme applied now |
-| `Theme.tokens` / `Theme.oklch(knobs)` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, radius, motion, width, border, shadow and breakpoint scales, and `safe` (what a notch or the home indicator takes from each screen edge, `env(safe-area-inset-*)`, 0 unless the viewport meta says `viewport-fit=cover`); a whole palette derived from an accent and a few knobs (including the shadow color, denser in a dark scheme); the breakpoints as pixel widths for `foldkit-primitives/media` |
-| `Theme.hardShadows` | from `foldkit-mixins/theme`: the shadow scale as solid offset copies with no blur, for a retro or brutalist look; compose it over `Theme.tokens`, and `shadow-strength` still fades it |
-| Type and shape knobs | `Theme.tokens`' `knob` group also holds `text-scale` (every type size), `heading-scale` (how far headings stand above the body), `leading` (line heights) and `control-round` (1 rounds buttons and segmented trays to a pill through `radius-control`); `weight-heading` and `tracking-heading` set the headings' weight and letter spacing |
-| `Theme.relief.soft` / `.hard` / `.bevel` | from `foldkit-mixins/theme`: how controls stand off the page, as the `shadow-raised` (a faced button), `shadow-pressed` (held or on) and `shadow-field` (a field's well) tokens, which `Theme.tokens` ships flat; compose one over `Theme.tokens` and every `foldkit-mixins-ui` button and field follows |
+| `Theme.make(values)` / `Theme.standard(theme?)` | from `foldkit-mixins/theme`: a theme, the typed knob values it changes (`Knobs.standard`); every shipped token with a theme's knobs, for `Theme.root` |
+| `Theme.tokens` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, radius, motion, width, border, shadow and breakpoint scales, and `safe` (what a notch or the home indicator takes from each screen edge, `env(safe-area-inset-*)`, 0 unless the viewport meta says `viewport-fit=cover`); the breakpoints as pixel widths for `foldkit-primitives/media` |
 | `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece), `in(name, piece)` (a piece's unlayered rules and global CSS inside that layer; what is already layered keeps its layer; a piece wholly in another layer is `style:relayered`) and `layer(name)` (the placement `Style.forSlots(S)(pieces, { layer })` takes, so a slot style is compiled in that layer). A name outside the order is a type error. `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
 | `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated. Once an order is declared, a rule outside it is `style:unlayered-rule`, since it would beat every layer; keyframes, font faces and `@property` pass |
 
@@ -334,12 +332,73 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
   scoped to the class (`:is(a, b)` is not split), and a selector that writes `&` places the class
   itself (`nest('[data-open] &')`).
 
-### Theme from a few knobs
+### Themes as typed knobs
 
-`foldkit-mixins/theme` extends the root `Theme` with the pieces a page ships. `Theme.oklch` takes
-an accent color and a few knobs (hue shifts, a neutral hue, surface saturation and contrast, a
-contrast factor, feedback hues) and returns typed tokens for surfaces, text, outlines, and the accent, secondary,
-tertiary and feedback families. Only the `knob` group holds literals; every other value is a CSS
+`foldkit-mixins/theme` extends the root `Theme` with the pieces a page ships. A theme is a typed
+set of knob values: only what it changes, every other knob at its default.
+`Theme.make` checks each value against its knob (`Knobs.standard`, grouped by concern: `accent`,
+`surface`, `shape`, `type`, `motion`, `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`),
+so a misspelt knob or a choice outside its options is a type error and a number out of its range
+throws where the theme is made. A theme is `pipe`able: `Theme.set` changes some knobs, and
+`Theme.describe` gives it a title and a description for a list of themes.
+
+```ts
+const cobalt = Theme.make({
+  accent: { hue: 235, chroma: 0.225, lightness: 55 },
+  surface: { saturation: 0, contrast: 24 },
+  shape: { radius: 1.8, density: 1.1, controls: 'pill' },
+  menu: { panel: 'inverted' },
+}).pipe(Theme.describe({ title: 'Cobalt' }))
+
+const cobaltDense = cobalt.pipe(Theme.set({ shape: { density: 0.9 } }))
+
+const sheet = Style.stylesheet(
+  Layers.standard.declare,
+  Layers.standard.in('theme', Theme.root(Theme.standard(cobaltDense))),
+)
+```
+
+`Theme.make` writes nothing itself: `Theme.variables(theme)` is the knob variables it declares
+(the values it sets, and each unset knob's default or the expression it follows, such as the
+neutrals following the accent's hue), and `Theme.standard(theme)` is every shipped token with
+them, which `Theme.root` declares: the derivations are the same CSS for every theme, so a theme is
+only its knobs. A knob of an
+application's own is a `Knob` kind (`Knob.number`, `percent`, `length`, `angle`, `choice`,
+`font`, `schemed`), and `Theme.make(knobs, values)` takes a set of them. Every knob is a variable, choices
+too: an option is the CSS its variables hold, so `shadow.relief: 'bevel'` writes the bevelled
+shadow lists and `motion.easing: 'spring'` writes the spring curve, and each switches at runtime
+as a number does.
+Each knob carries a `title`, a `description` and its `default`, so a control can be drawn from
+it; `Knobs.schema(Knobs.standard)` is the Schema of a theme's values (a Model field, a decoded
+URL), `Theme.print(theme)` writes a theme's `Theme.make({ … })` source, only the knobs that differ
+from their defaults, and `Theme.fonts` names the font stacks a `type.body` knob may take. An editor
+reaches a knob by its path, typed by it: `Knobs.paths(knobs)` lists them, `Knobs.at(knobs,
+'shape.radius')` is the knob, and `Knobs.valueAt` and `Knobs.withValue` read and set one value of a
+theme, checked by its knob; a schemed knob's `light` and `dark` are knobs of their own, each with its
+range. `/create` is drawn this way.
+
+Themes are installed by name, the names being a record's keys:
+
+```ts
+const themes = Themes.make({ cobalt, cobaltDense }, { initial: 'cobalt' })
+const { t, stylesheet } = AppStyle.make({ themes })
+const Model = Schema.Struct({ theme: themes.Name })
+```
+
+The root declares the palette's derivations with the initial theme's knobs, and each other theme
+writes only its knobs under `:root[data-theme="name"]`, the same element, where every token
+re-derives from them. Which theme shows is the Model's fact (`themes.Name` decodes the field),
+and `Themes.apply(themes, name)` is the Command's effect that shows it. A token resolves where it
+is declared, so knobs set below the root change nothing derived from them there:
+`Theme.scope(theme, '.marketing')` declares the derivations again under the selector, which
+`Theme.scoped`'s token overrides do not. `AppStyle.make({ theme })` takes one theme, and its
+`tokens` an application's own groups beside the shipped ones. The design is in
+`docs/theme-knobs.md`.
+
+### What the palette derives
+
+`Theme.standard(theme)` holds typed tokens for surfaces, text, outlines, and the accent, secondary,
+tertiary and feedback families, derived from the theme's knobs. Only the `knob` group holds literals; every other value is a CSS
 expression over other tokens (`oklch(from …)`, `color-mix()`, `light-dark()`), so the browser does
 the derivation and one knob override recolors everything below it. Each family (`accent`,
 `secondary`, `tertiary`, `success`, `warning`, `error`, `info`) is one shape: a fill, `default`,
@@ -348,13 +407,13 @@ line in it that stands off the base; and two text colors named for where they go
 text on that fill (near white on a mid accent), and `ink` is text in the family's color on the
 base surface, dark enough to read in a light scheme and light enough in a dark one. Colored text
 is `ink`, never `default`. The surfaces are the base at a few lightnesses with its chroma, so a
-panel and a sidebar read as the page's own color, in the accent's hue unless `neutral: { h }` gives
+panel and a sidebar read as the page's own color, in the accent's hue unless `surface.hue` gives
 them one of their own (a base color: a warm stone under a blue accent); `bedrock` is the deepest of them in both
 schemes, and the focus ring, `outline.focus`, is the accent. The `syntax` group colors code by
 the kinds a tokenizer names (`syntax-keyword` is `--fk-syntax-keyword`, as
 `foldkit-richtext-code` and its Shiki adapter name them): `keyword`, `function` and `type` in
 the accent, secondary and tertiary hues, `string`, `number` and `property` in the success,
-warning and info hues, all at one lightness per scheme and the `syntaxChroma` knob's chroma, and
+warning and info hues, all at one lightness per scheme and the `code.chroma` knob's chroma, and
 `operator`, `punctuation` and `comment` in the text's own grey. The `chart` group is a chart's
 series colors, `chart-1` to `chart-5` as shadcn names them: the dataviz reference palette's first
 five slots in its order, so neighbors stay apart under protan and deutan vision, each a fixed turn
@@ -367,8 +426,8 @@ at both ends, where a vivid near-white or near-black falls out of gamut; `wash-1
 mix step 6 into `surface.base` at 8, 16, 28 and 44%, so a tinted ground follows the scheme and
 the surface knobs. Each hue is a knob (`red-h`), and `scale-c` scales every step's chroma
 (`--fk-blue-wash-2`, `ref.blue['6']`). The `popup` group is a menu's
-panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `highlight-ink`): `menu: { accent:
-'bold' }` lights the row in the accent's fill, and `menu: { color }` draws the panel `inverted`
+panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `highlight-ink`): `menu.highlight:
+'bold'` lights the row in the accent's fill, and `menu.panel` draws the panel `inverted`
 (the other scheme's surface and text) or `translucent` over a blur, as shadcn's menu options do.
 Each is a 0-or-1 knob (`popup-bold`, `popup-invert`) blended by `color-mix`, so an override
 switches it live. The `state` group is what a state lays over the surface under it, a mix of the
@@ -404,7 +463,7 @@ import { Layers, Slot, Slots, Capability, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 
 const L = Layers.standard
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } }))
 const t = Theme.ref(theme) // t.surface.base is 'var(--fk-surface-base)'; a missing name is a type error
 
 const PageSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
@@ -416,9 +475,7 @@ const PageStyle = Style.forSlots(PageSlots)(
 
 export const sheet = Style.stylesheet(
   L.declare,
-  L.in('tokens', Theme.root(Theme.tokens)),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
-  L.in('theme', Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
+  L.in('theme', Theme.root(theme)),
   PageStyle,
 )
 ```
@@ -430,10 +487,9 @@ option; a layout or recipe it composes keeps the layer it was already given. `L.
 bare pieces: a layer is part of a rule's identity, so layering a finished style would copy it
 under new class names that no view attaches.
 
-`omit` leaves out the tokens another theme already declared, so the scales go out once in
-`tokens` and the palette once in `theme`. Which theme is active is a Model fact: the view writes
-`data-theme` on the root, and `Theme.scoped` only says what the value means. A scheme the browser
-picks needs nothing, because the `light-dark()` values follow it. A scheme the user picks is a
+`Theme.root` declares every token once, at `:root`; its `omit` leaves out tokens a rule of
+another layer already declared. Which theme is active is a Model fact: `Themes.make` below names
+them. A scheme the browser picks needs nothing, because the `light-dark()` values follow it. A scheme the user picks is a
 `color-scheme` override on the root, which must be in place before the first paint or a reader
 who chose dark sees one light frame: `Theme.schemeScript(key?)` is the text of a head `<script>`
 that applies the one kept in `localStorage`, `Theme.chooseScheme(scheme, key?)` (`'light'`,
@@ -449,66 +505,6 @@ a query that is not a plain `min-width` raises `theme:unparseable-breakpoint`.
 container named `page` rather than the window: an editor's preview frame, narrow in a wide
 window, then draws a look as a narrow screen would. An element must be that container
 (`containerType: 'inline-size', containerName: 'page'`).
-
-### Themes as typed knobs
-
-A theme is a typed set of knob values: only what it changes, every other knob at its default.
-`Theme.make` checks each value against its knob (`Knobs.standard`, grouped by concern: `accent`,
-`surface`, `shape`, `type`, `motion`, `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`),
-so a misspelt knob or a choice outside its options is a type error and a number out of its range
-throws where the theme is made. A theme is `pipe`able: `Theme.set` changes some knobs, and
-`Theme.describe` gives it a title and a description for a list of themes.
-
-```ts
-const cobalt = Theme.make({
-  accent: { hue: 235, chroma: 0.225, lightness: 55 },
-  surface: { saturation: 0, contrast: 24 },
-  shape: { radius: 1.8, density: 1.1, controls: 'pill' },
-  menu: { panel: 'inverted' },
-}).pipe(Theme.describe({ title: 'Cobalt' }))
-
-const cobaltDense = cobalt.pipe(Theme.set({ shape: { density: 0.9 } }))
-
-const sheet = Style.stylesheet(
-  Layers.standard.declare,
-  Layers.standard.in('theme', Theme.root(Theme.tokensOf(cobaltDense))),
-)
-```
-
-`Theme.make` writes nothing itself: `Theme.variables(theme)` is the knob variables it declares
-(the values it sets, and each unset knob's default or the expression it follows, such as the
-neutrals following the accent's hue), and `Theme.tokensOf(theme)` is them as tokens for
-`Theme.root` and `Theme.scoped`, declared over the palette and the scales. A knob of an
-application's own is a `Knob` kind (`Knob.number`, `percent`, `length`, `angle`, `choice`,
-`font`, `schemed`), and `Theme.make(knobs, values)` takes a set of them. Every knob is a variable, choices
-too: an option is the CSS its variables hold, so `shadow.relief: 'bevel'` writes the bevelled
-shadow lists and `motion.easing: 'spring'` writes the spring curve, and each switches at runtime
-as a number does. `Theme.relief.*` and `Theme.hardShadows` are those options as token sets.
-Each knob carries a `title`, a `description` and its `default`, so a control can be drawn from
-it; `Knobs.schema(Knobs.standard)` is the Schema of a theme's values (a Model field, a decoded
-URL), `Theme.print(theme)` writes a theme's `Theme.make({ … })` source, only the knobs that differ
-from their defaults, and `Theme.fonts` names the font stacks a `type.body` knob may take. An editor
-reaches a knob by its path, typed by it: `Knobs.paths(knobs)` lists them, `Knobs.at(knobs,
-'shape.radius')` is the knob, and `Knobs.valueAt` and `Knobs.withValue` read and set one value of a
-theme, checked by its knob; a schemed knob's `light` and `dark` are knobs of their own, each with its
-range. `/create` is drawn this way.
-
-Themes are installed by name, the names being a record's keys:
-
-```ts
-const themes = Themes.make({ cobalt, cobaltDense }, { initial: 'cobalt' })
-const { t, stylesheet } = AppStyle.make({ themes })
-const Model = Schema.Struct({ theme: themes.Name })
-```
-
-The root declares the palette's derivations with the initial theme's knobs, and each other theme
-writes only its knobs under `:root[data-theme="name"]`, the same element, where every token
-re-derives from them. Which theme shows is the Model's fact (`themes.Name` decodes the field),
-and `Themes.apply(themes, name)` is the Command's effect that shows it. A token resolves where it
-is declared, so knobs set below the root change nothing derived from them there:
-`Theme.scope(theme, '.marketing')` declares the derivations again under the selector, which
-`Theme.scoped`'s token overrides do not. This replaces the knob strings an application writes
-today; the rest of the move is in `docs/theme-knobs.md`.
 
 ### Layout
 
@@ -590,9 +586,9 @@ import { AppStyle } from 'foldkit-mixins/app'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 
-// The theme over Theme.tokens, its references, the app layer and the page sheet.
+// The theme's tokens, their references, the app layer and the page sheet.
 const { t, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' } }),
+  theme: Theme.make({ accent: { hue: 260, chroma: 0.21, lightness: 62 } }),
   colorScheme: 'light',
 })
 
@@ -636,7 +632,7 @@ What each call does, and does not do:
 `Utilities` are one-idea pieces whose steps are the shipped scales' token names, so an invalid
 step is a type error and the value still follows the `density` knob and theme overrides:
 `p`, `px`, `py`, `m`, `mx`, `my`, `gap` (a `space` step or `'0'`; margins also `'auto'`), `text`
-(`size`), `font` (`weight`), `leading`, `rounded` (`radius`), `color` and `bg` (a `Theme.oklch`
+(`size`), `font` (`weight`), `leading`, `rounded` (`radius`), `color` and `bg` (a palette
 color as `'group.name'`), `items` and `justify` (`'between'` is `space-between`), and the
 constants `flex`, `column`, `grid`, `block`, `hidden`, `wFull`, `textCenter`, `uppercase`,
 `truncate`, `pointer` and `selectNone`, and `scrollFade(axis)`, a scroller's content dissolving
@@ -649,7 +645,7 @@ label at a heavier weight, read from the element's `data-label`, so turning bold
 beside it. Each is a `Style.self` rule, unlayered, so it takes the
 layer of the style it is composed into, and a plain declaration after it wins per property. A
 value off the scale is a plain declaration (`{ fontSize: '3.75rem' }`); a color outside
-`Theme.oklch`'s groups is read through `t`.
+the palette's groups is read through `t`.
 
 ## Behavior: reusable element-level interaction
 

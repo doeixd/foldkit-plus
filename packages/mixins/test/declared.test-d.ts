@@ -5,7 +5,7 @@
 import { Capability, Event, Style, type SlotsContract } from '../src/index.js'
 import type { Slot as NamedSlot } from '../src/slot.js'
 import { AppStyle } from '../src/app.js'
-import { Theme } from '../src/theme.js'
+import { Theme, Themes } from '../src/theme.js'
 import { Utilities as U } from '../src/utilities.js'
 import { FieldSlots } from './fixture.js'
 
@@ -63,7 +63,7 @@ Style.slot({ hidden: true })
 Style.slot({ event: [Event.Submit] })
 
 // AppStyle: references typed by the theme; the layer is the application's.
-const app = AppStyle.make({ palette: Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } }) })
+const app = AppStyle.make({ theme: Theme.make({ accent: { hue: 0, chroma: 0, lightness: 50 } }) })
 app.t.space.md
 app.t.surface.base
 // @ts-expect-error a token the theme lacks.
@@ -77,7 +77,30 @@ app.forSlots(FieldSlots)({ root: {} }, { layer: app.L.layer('components') })
 // @ts-expect-error a slot the contract lacks.
 app.forSlots(FieldSlots)({ missing: {} })
 // @ts-expect-error a color scheme `Theme.root` does not write.
-AppStyle.make({ palette: {}, colorScheme: 'dark light' })
+AppStyle.make({ theme: Theme.make({}), colorScheme: 'dark light' })
+// The knob group is typed by the knobs' own names.
+app.t.knob['accent-h']
+// @ts-expect-error a knob no standard knob writes.
+app.t.knob['accent-hh']
+// @ts-expect-error a palette is no option: a theme is its knob values.
+AppStyle.make({ palette: Theme.standard() })
+
+// An application's own tokens, read beside the shipped ones.
+const game = AppStyle.make({
+  theme: Theme.make({}),
+  tokens: Theme.define({ game: { ink: 'red' } }),
+})
+game.t.game.ink
+game.t.surface.base
+// @ts-expect-error a token its own group lacks.
+game.t.game.paper
+const named = AppStyle.make({
+  themes: Themes.make({ plain: Theme.make({}) }, { initial: 'plain' }),
+  tokens: Theme.define({ game: { ink: 'red' } }),
+})
+named.t.game.ink
+// @ts-expect-error a group neither the shipped tokens nor its own have.
+named.t.gaem
 
 // Utilities: a step is a token name of the shipped scales.
 U.p('md')

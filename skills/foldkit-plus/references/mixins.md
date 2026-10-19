@@ -50,8 +50,8 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   an item redraws when an arg changes or what Mixins give its Slots changes (a static Style by
   identity). The memo is one per `drawRow`, shared by every view drawing it.
 - `hidden: true` slots are omitted from public Style/Behavior spec keys.
-- **Styling pipeline:** `tokens -> ref -> pieces -> slots -> sheet`. `Theme.tokens`
-  (+ an `oklch` palette, joined by `Theme.compose`) are the only values; read them
+- **Styling pipeline:** `tokens -> ref -> pieces -> slots -> sheet`. `Theme.standard(theme)`
+  (the scales and the palette, at a theme's knob values) is the only source of values; read them
   through `Theme.ref` — a misspelled group/name is a type error, and it emits
   `var(--fk-…)`, never a literal. `Style.self` is a rule on a generated class
   (layerable, overridable); `Style.inline` sits outside every layer and beats
@@ -159,7 +159,7 @@ import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 
 const { t, slots, forSlots, stylesheet } = AppStyle.make({
-  palette: Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' } }),
+  theme: Theme.make({ accent: { hue: 260, chroma: 0.21, lightness: 62 } }),
   colorScheme: 'light',
 })
 export const Page = slots({
@@ -345,10 +345,10 @@ input (`FormData.getAll(name)` is `[start, end]`). Result types: `ResolvedButton
 `Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | Carousel | CheckboxGroup | CodeBlock | ColorPicker | Command | Empty | HoverCard | Icon | InputCopy | Item | Kbd | Label | Menubar | MenubarMenu | Meter | Nav | NumberField | OtpField | Pagination | PasswordInput | Progress | Rating | Resizable | ScrollArea | Separator | Sheet | Drawer | Sidebar | Skeleton | Spinner | Steps | Table | TagsInput | TreeView | Typography | VirtualList | ChatMessage | ChatMessageGroup | MessageScroller | ThinkingIndicator | ThinkingSteps | Questionnaire | AngleSlider | Timer | Marquee | ImageCropper | SignaturePad | QrCode | Chart | CascadeSelect | FloatingPanel | Tour` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
-`Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`; compose `Theme.relief.soft`,
-`.hard` or `.bevel` over them to raise every faced button and sink every field; a theme as typed knob values is
+the shipped tokens (`Theme.root(Theme.standard(theme))` ships them; a theme is typed knob values,
 `Theme.make({ shape: { radius: 1.8 }, menu: { panel: 'inverted' } })` over `Knobs.standard`, pipeable with
-`Theme.set` and `Theme.describe`, its variables `Theme.tokensOf(theme)` for `Theme.root`; every knob is a
+`Theme.set` and `Theme.describe`, and `shadow: { relief: 'bevel' }` raises every faced button and sinks every
+field; every knob is a
 variable, choices too: `shape.border`, `type.body`, `type.headingWeight`, `motion.easing`, `shadow.style`, `shadow.relief`,
 `shape.outlines` and `surface.hover` each write the CSS their option holds, so they switch at runtime;
 `Themes.make({ iris, cobalt }, { initial: 'iris' })` installs themes by name for `AppStyle.make({ themes })`,
@@ -460,13 +460,12 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 
 const L = Layers.standard
-const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
+const theme = Theme.standard(Theme.make({ accent: { hue: 280, chroma: 0.15, lightness: 60 } }))
 
 export const stylesheet: string = Style.stylesheet(
   L.declare,
   L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens)),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
+  L.in('theme', Theme.root(theme)),
   L.in('defaults', Defaults.body),
 )
 ```
@@ -536,12 +535,11 @@ export const stylesheet: string = Style.stylesheet(
   scales (`knob` density/radius-factor/motion/travel/step/shadow-strength, `space`, `radius`, `font`, `size`, `leading`, `weight`,
   `motion` (tiers `fast`/`moderate`/`slow` at 80/160/240ms, each with a quicker `-exit`, and the `settle`/`spring` easings; a duration of
   something that moves multiplies by `knob.travel`, which the reset zeroes under reduced motion while fades keep theirs), `type` (six roles, `display`/`title`/`subtitle`/`body`/`caption`/`micro`, each a size and leading at both steps, read through `Theme.role(name)`), `control` (the size ladder's two ends, 36px and 28px, read through `Theme.ladder(name)`, which blends them by `knob.step` on the element that uses it: `--fk-knob-step: 1` on a region makes its controls compact, and the popups they open while those stay in the page (`portal: false`); a recipe's `size` sets the step on its own element, a popup's on its panel too; unset, the default, follows the region), `border`, `shadow`, `breakpoint`, `safe` (`top`/`right`/`bottom`/`left`: the screen's safe-area insets, which a fixed bar pads the edge it touches by; 0 unless the page's viewport meta has `viewport-fit=cover`); `shadow.xs`…`2xl`/`inset` draw in `shadow.color`
-  (which `Theme.oklch` sets per scheme), dimmed by the `shadow-strength` knob). `Theme.oklch({ accent: { h, c, l }, … })` derives the
-  palette (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,
+  (which the palette sets per scheme), dimmed by the `shadow-strength` knob). The palette, derived from the knobs, is (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,
   `error`, `info`; each family has a fill `default` with `hover`/`active`, a tint `subtle`, a line `outline`,
-  `on-fill` for text on it, and `ink` for colored text on the base surface: colored text is `ink`, never `default`; `syntax`, code colors named as tokenizers name kinds, `syntax-keyword` reading `--fk-syntax-keyword`; `chart`, series colors `chart-1` to `chart-5`, which a chart assigns in order, turned by the `chart-h` knob; and seven color scales, `red` `orange` `yellow` `green` `teal` `blue` `purple`, each steps `1` (near white) to `10` (near black) on one lightness ladder shared by every hue, plus `wash-1` to `wash-4`, step 6 mixed into `surface.base`, for colors no role names; their hues are knobs (`red-h`) and `scale-c` scales their chroma); only `knob` holds literals, so overriding `knob.accent-h` under a
-  `Theme.scoped` selector recolors everything; `neutral: { h }` gives the neutrals a hue apart from the accent's (a base color), and `menu: { accent: 'bold', color: 'inverted' | 'translucent' | … }` sets the `popup` tokens menus, listboxes and comboboxes draw in; `state` (`hover`, `tint`, `tint-hover`, `edge`) is a mix of the element's own text color, so a hover reads on any surface, and `unfilledHover` films the state ink: the theme's `--fk-state-ink` (`state.ink`) unless a surface painted in a hue names its paint in the local `--_fk-state-ink` (the accent and danger tones their fill, a subtle alert band its ink, a bold one its fill; the neutral and ink tones name the theme's back) — so `OklchKnobs.stateHue` (`neutral`, `surface`, `accent`) switches every component; and `Theme.nested(outer, inset, border?)` gives a concentric inner radius (or a padded container spreads `Theme.nests(radius, inset, border?)` and its descendants read `Theme.nested()`; `Theme.concentric({ min, max })` is a control's corner from the same container, clamped, so buttons and fields in a Card, Dialog, Toast or Alert round with it); `Theme.raise(offset)` lifts an element `offset` levels above the raised element holding it, and `Theme.raisedSurface()` paints its level (popups 2, dialogs 4). Emit `Theme.root(theme, { omit: Theme.tokens })`
-  after `Theme.root(Theme.tokens)` to avoid duplicates. The active theme is a Model field written
+  `on-fill` for text on it, and `ink` for colored text on the base surface: colored text is `ink`, never `default`; `syntax`, code colors named as tokenizers name kinds, `syntax-keyword` reading `--fk-syntax-keyword`; `chart`, series colors `chart-1` to `chart-5`, which a chart assigns in order, turned by the `chart-h` knob; and seven color scales, `red` `orange` `yellow` `green` `teal` `blue` `purple`, each steps `1` (near white) to `10` (near black) on one lightness ladder shared by every hue, plus `wash-1` to `wash-4`, step 6 mixed into `surface.base`, for colors no role names; their hues are knobs (`red-h`) and `scale-c` scales their chroma); only `knob` holds literals, so a theme of other knobs
+  under `Themes.make` recolors everything; `surface: { hue }` gives the neutrals a hue apart from the accent's (a base color), and `menu: { highlight: 'bold', panel: 'inverted' | 'translucent' | … }` sets the `popup` tokens menus, listboxes and comboboxes draw in; `state` (`hover`, `tint`, `tint-hover`, `edge`) is a mix of the element's own text color, so a hover reads on any surface, and `unfilledHover` films the state ink: the theme's `--fk-state-ink` (`state.ink`) unless a surface painted in a hue names its paint in the local `--_fk-state-ink` (the accent and danger tones their fill, a subtle alert band its ink, a bold one its fill; the neutral and ink tones name the theme's back) — so the `surface.hover` knob (`neutral`, `surface`, `accent`) switches every component; and `Theme.nested(outer, inset, border?)` gives a concentric inner radius (or a padded container spreads `Theme.nests(radius, inset, border?)` and its descendants read `Theme.nested()`; `Theme.concentric({ min, max })` is a control's corner from the same container, clamped, so buttons and fields in a Card, Dialog, Toast or Alert round with it); `Theme.raise(offset)` lifts an element `offset` levels above the raised element holding it, and `Theme.raisedSurface()` paints its level (popups 2, dialogs 4). `Theme.root(Theme.standard(theme))` declares every
+  token once; never split it with `omit: Theme.tokens`, which names knobs too. The active theme is a Model field written
   as `data-theme` on the root. `Theme.breakpointWidths(Theme.tokens)` feeds the `Breakpoints`
   bundle (`theme:unparseable-breakpoint` for a non-`min-width` query).
   `Theme.inContainer('page', Theme.tokens.breakpoint)` gives the breakpoints as

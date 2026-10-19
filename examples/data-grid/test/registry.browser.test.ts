@@ -21,7 +21,8 @@ test('100,000 products scroll to the last one, drawing a window, the UPC pinned'
   // Narrower than the columns' 830px, so the grid scrolls sideways.
   await page.viewport(640, 800)
   Style.install(
-    AppStyle.make({ palette: Theme.oklch({ accent: { h: 250, c: 0.12, l: '55%' } }) }).stylesheet,
+    AppStyle.make({ theme: Theme.make({ accent: { hue: 250, chroma: 0.12, lightness: 55 } }) })
+      .stylesheet,
   )
   const container = document.createElement('div')
   container.id = 'root'

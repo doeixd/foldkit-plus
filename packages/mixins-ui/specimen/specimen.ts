@@ -1,5 +1,5 @@
 /**
- * A specimen of the shipped defaults: `Theme.oklch`'s palette and surfaces,
+ * A specimen of the shipped defaults: the palette and surfaces,
  * plain HTML under `Defaults`, and every recipe in every variant and state,
  * on one static page, for looking at the design whole while changing it:
  * `pnpm --filter foldkit-mixins-ui specimen <out.html> [hue]`, then open the
@@ -34,10 +34,7 @@ import {
 } from '../src/index.js'
 
 const [, , out = 'specimen.html', hue = '265'] = process.argv
-const theme = Theme.compose(
-  Theme.tokens,
-  Theme.oklch({ accent: { h: Number(hue), c: 0.16, l: '52%' } }),
-)
+const theme = Theme.standard(Theme.make({ accent: { hue: Number(hue), chroma: 0.16 } }))
 const sheets: Array<string> = []
 
 /** The classes of each slot of a recipe's pieces; their CSS is kept for the page. */
@@ -93,7 +90,7 @@ const plain = section(
   'Plain HTML under Defaults',
   `<h1>Heading one</h1><h2>Heading two</h2><h3>Heading three</h3><h4>Heading four</h4>
   <p>Running text with <a href="#">a link</a>, <code>inline code</code>, <kbd>Ctrl</kbd> and <strong>strong</strong> words. A paragraph long enough to wrap shows the measure and the leading of body text as a reader meets it.</p>
-  <pre><code>const theme = Theme.oklch({ accent: { h: 265 } })</code></pre>
+  <pre><code>const theme = Theme.make({ accent: { hue: 265 } })</code></pre>
   ${row('<input placeholder="A text input">', '<select><option>A select</option></select>', '<button>A button</button>', '<button disabled>Disabled</button>')}
   <textarea placeholder="A textarea"></textarea>`,
 )

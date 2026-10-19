@@ -8,7 +8,10 @@ import { Message, Model, init, savedLayout, update, view } from './main.js'
 // The theme's tokens, which the grid's default style reads.
 Style.install(
   AppStyle.make({
-    palette: Theme.oklch({ accent: { h: 270, c: 0.15, l: '54%' }, surfaceSaturation: 0.004 }),
+    theme: Theme.make({
+      accent: { hue: 270, chroma: 0.15, lightness: 54 },
+      surface: { saturation: 0.004 },
+    }),
   }).stylesheet,
 )
 
