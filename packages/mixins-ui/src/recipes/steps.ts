@@ -138,7 +138,7 @@ export const Steps = Style.recipeFor(StepsSlots)({
         // As the marker grows: a fixed check sat small in a large one.
         inlineSize: `calc(${markerSize} * 0.2)`,
         blockSize: `calc(${markerSize} * 0.4)`,
-        ...cornerSides(ref.border.thick, ref.accent['on-fill']),
+        ...cornerSides(ref.border.glyph, ref.accent['on-fill']),
         rotate: '45deg',
         translate: '0 -10%',
       }),

@@ -174,7 +174,9 @@ export const tokens = define({
     'micro-leading': '0.875rem',
     'micro-leading-compact': '0.75rem',
   },
-  border: { thin: '1px', thick: '2px', heavy: '3px' },
+  // `glyph` strokes what a recipe draws in CSS as an icon (a check, a
+  // chevron): apart from the borders, so thicker borders do not blot them.
+  border: { thin: '1px', thick: '2px', heavy: '3px', glyph: '2px' },
   // Raised a little to a lot: a pressed control, a lifted cell, a menu, a
   // dialog. Each step is a tight contact layer plus a wide ambient one, so
   // large surfaces diffuse instead of ringing; `2xl` is the modal step.
@@ -314,14 +316,24 @@ const edge = (color: string) => `color-mix(in oklch, ${color} ${strength}, trans
 const lit = (alpha: number, darkAlpha: number) =>
   edge(`light-dark(oklch(100% 0 0 / ${alpha}), oklch(100% 0 0 / ${darkAlpha}))`)
 const shaded = (alpha: number) => edge(`oklch(from ${shade} l c h / ${alpha})`)
-/** Two rings of inset edges, the outer lit at `-1` and shaded at `1`, flipped when pressed in. */
-const bevel = (sign: 1 | -1) =>
-  [
-    `inset ${-sign}px ${-sign}px 0 0 ${shaded(0.9)}`,
-    `inset ${sign}px ${sign}px 0 0 ${lit(1, 0.3)}`,
-    `inset ${-2 * sign}px ${-2 * sign}px 0 0 ${shaded(0.4)}`,
-    `inset ${2 * sign}px ${2 * sign}px 0 0 ${lit(0.5, 0.12)}`,
-  ].join(', ')
+/**
+ * Two rings of edges, lit at the top left and shaded at the bottom right,
+ * flipped when sunken. Raised, the outer ring is drawn outside the
+ * border: a button's border carries its fill, and an inset ring lay inside
+ * it, so its darkest edge sat within a line of the button's own color.
+ */
+const raisedBevel = [
+  `1px 1px 0 0 ${shaded(0.9)}`,
+  `-1px -1px 0 0 ${lit(1, 0.3)}`,
+  `inset -1px -1px 0 0 ${shaded(0.4)}`,
+  `inset 1px 1px 0 0 ${lit(0.5, 0.12)}`,
+].join(', ')
+const sunkenBevel = [
+  `inset 1px 1px 0 0 ${shaded(0.9)}`,
+  `inset -1px -1px 0 0 ${lit(1, 0.3)}`,
+  `inset 2px 2px 0 0 ${shaded(0.4)}`,
+  `inset -2px -2px 0 0 ${lit(0.5, 0.12)}`,
+].join(', ')
 
 /**
  * How controls stand off the page, as token sets over `tokens`: a button's
@@ -340,7 +352,7 @@ export const relief = {
     },
   }),
   hard: define({ shadow: { raised: hard(2), pressed: hard(1), field: hard(2) } }),
-  bevel: define({ shadow: { raised: bevel(1), pressed: bevel(-1), field: bevel(-1) } }),
+  bevel: define({ shadow: { raised: raisedBevel, pressed: sunkenBevel, field: sunkenBevel } }),
 } as const
 
 /** A role of the type scale. */

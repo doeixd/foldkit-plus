@@ -64,7 +64,7 @@ const chevron = (turn: string, nudge: string) =>
     content: '""',
     inlineSize: '0.45rem',
     blockSize: '0.45rem',
-    ...cornerSides(ref.border.thick, 'currentColor'),
+    ...cornerSides(ref.border.glyph, 'currentColor'),
     rotate: turn,
     translate: nudge,
   })

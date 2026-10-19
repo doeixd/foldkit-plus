@@ -71,7 +71,7 @@ export const MessageScroller = Style.recipeFor(MessageScrollerSlots)({
         content: '""',
         inlineSize: '0.45em',
         blockSize: '0.45em',
-        ...cornerSides(ref.border.thick, 'currentColor'),
+        ...cornerSides(ref.border.glyph, 'currentColor'),
         rotate: '45deg',
         translate: '0 -0.15em',
       }),

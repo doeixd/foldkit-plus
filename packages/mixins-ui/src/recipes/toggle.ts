@@ -75,7 +75,7 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         left: '32%',
         inlineSize: '32%',
         blockSize: '56%',
-        ...cornerSides(ref.border.thick, toneVar('on-fill')),
+        ...cornerSides(ref.border.glyph, toneVar('on-fill')),
         rotate: '45deg',
         clipPath: 'inset(0 100% 100% 0)',
         transitionProperty: 'clip-path',

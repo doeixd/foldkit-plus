@@ -396,3 +396,19 @@ test.each(['sm', 'lg'] as const)('a %s marker draws its check to its size', asyn
     handle.dispose()
   }
 })
+
+test('a check keeps its stroke when the borders thicken', async () => {
+  // The border scale is declared at the root: thicken it there. This sheet
+  // has no palette, so the check's ink is given too, or its border is invalid.
+  document.documentElement.style.setProperty('--fk-border-thick', '4px')
+  document.documentElement.style.setProperty('--fk-accent-on-fill', 'white')
+  const handle = mount('horizontal', '40rem')
+  try {
+    await vi.waitFor(() => expect(markers()).toHaveLength(4))
+    expect(getComputedStyle(markers()[0]!, '::after').borderRightWidth).toBe('2px')
+  } finally {
+    handle.dispose()
+    document.documentElement.style.removeProperty('--fk-border-thick')
+    document.documentElement.style.removeProperty('--fk-accent-on-fill')
+  }
+})

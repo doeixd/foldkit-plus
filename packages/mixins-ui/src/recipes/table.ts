@@ -49,7 +49,7 @@ const bare = {
 const chevron = {
   inlineSize: '0.4em',
   blockSize: '0.4em',
-  ...cornerSides(ref.border.thick, 'currentColor'),
+  ...cornerSides(ref.border.glyph, 'currentColor'),
   transitionProperty: 'rotate, opacity',
   transitionDuration: `${travelled(ref.motion.fast)}, ${ref.motion.fast}`,
   transitionTimingFunction: ref.motion.settle,

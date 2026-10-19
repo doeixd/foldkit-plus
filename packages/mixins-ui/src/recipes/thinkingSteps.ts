@@ -131,7 +131,7 @@ export const ThinkingSteps = Style.recipeFor(ThinkingStepsSlots)({
         inlineSize: '30%',
         blockSize: '55%',
         marginBlockEnd: '15%',
-        ...cornerSides(ref.border.thick, 'currentColor'),
+        ...cornerSides(ref.border.glyph, 'currentColor'),
         rotate: '45deg',
       }),
       Style.nest(state('done'), { color: ref.success.ink }),

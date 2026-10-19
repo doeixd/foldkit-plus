@@ -320,4 +320,15 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a check strokes with the borders',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: 'cornerSides(ref.border.glyph,',
+        replace: 'cornerSides(ref.border.thick,',
+      },
+    ],
+    tests: [browser],
+  },
 ]

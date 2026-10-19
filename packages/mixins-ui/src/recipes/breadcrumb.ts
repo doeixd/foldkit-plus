@@ -100,7 +100,7 @@ export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
             content: '""',
             inlineSize: '0.35em',
             blockSize: '0.35em',
-            ...cornerSides(ref.border.thick, 'currentColor'),
+            ...cornerSides(ref.border.glyph, 'currentColor'),
             rotate: '-45deg',
           }),
           Style.nest('&:dir(rtl) > li + li::before', { rotate: '135deg' }),

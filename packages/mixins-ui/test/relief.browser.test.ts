@@ -96,7 +96,8 @@ test('by default every control is flat', async () => {
 
 test('beveled, a faced button stands out, pressed in when held or on, and a field sinks', async () => {
   mount(Theme.compose(palette, Theme.relief.bevel))
-  const out = ['inset -1 -1', 'inset 1 1', 'inset -2 -2', 'inset 2 2']
+  // Raised, the outer ring lies outside the border, which carries the fill.
+  const out = ['1 1', '-1 -1', 'inset -1 -1', 'inset 1 1']
   const sunk = ['inset 1 1', 'inset -1 -1', 'inset 2 2', 'inset -2 -2']
   expect(offsets(await shadowOf('solid'))).toEqual(out)
   expect(offsets(await shadowOf('on'))).toEqual(sunk)
@@ -118,7 +119,7 @@ test('hard, a faced button and a field drop a solid copy, and a press brings it 
   expect(await shadowOf('ghost')).toMatch(FLAT)
 })
 
-test('control-round rounds a button to a pill, and only a button: a field keeps its corner', async () => {
+test('control-round rounds a button and the control token to a pill; a field keeps its corner', async () => {
   mount(palette)
   const radius = async (id: string) => {
     await shadowOf(id)
@@ -127,10 +128,16 @@ test('control-round rounds a button to a pill, and only a button: a field keeps 
   expect(await radius('solid')).toBe(6)
   // On the root, where the radius tokens are declared and resolved.
   document.documentElement.style.setProperty('--fk-knob-control-round', '1')
+  // An application's own control drawn on the token rounds with the buttons.
+  const own = document.createElement('div')
+  own.style.borderRadius = 'var(--fk-radius-control)'
+  document.body.append(own)
   try {
     expect(await radius('solid')).toBeGreaterThan(1000)
     expect(await radius('field')).toBe(6)
+    expect(Number.parseFloat(getComputedStyle(own).borderTopLeftRadius)).toBeGreaterThan(1000)
   } finally {
+    own.remove()
     document.documentElement.style.removeProperty('--fk-knob-control-round')
   }
 })

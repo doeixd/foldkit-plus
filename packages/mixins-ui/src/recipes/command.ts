@@ -146,7 +146,7 @@ export const Command = Style.recipeFor(CommandSlots)({
         flex: 'none',
         inlineSize: '0.4em',
         blockSize: '0.4em',
-        ...cornerSides(ref.border.thick, 'currentColor'),
+        ...cornerSides(ref.border.glyph, 'currentColor'),
         color: ref.text.muted,
         rotate: '-45deg',
       }),

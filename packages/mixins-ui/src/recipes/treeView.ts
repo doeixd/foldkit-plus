@@ -92,7 +92,7 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
         content: '""',
         inlineSize: '0.28em',
         blockSize: '0.55em',
-        ...cornerSides(ref.border.thick, ref.accent['on-fill']),
+        ...cornerSides(ref.border.glyph, ref.accent['on-fill']),
         rotate: '45deg',
         translate: '0 -10%',
       }),

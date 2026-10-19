@@ -55,7 +55,7 @@ export default [
   },
   {
     name: 'a bevel pressed in stands out',
-    edits: [{ file: tokens, find: 'pressed: bevel(-1)', replace: 'pressed: bevel(1)' }],
+    edits: [{ file: tokens, find: 'pressed: sunkenBevel', replace: 'pressed: raisedBevel' }],
     tests: browser,
   },
   {
@@ -102,5 +102,16 @@ export default [
       },
     ],
     tests: ['packages/mixins-ui/test/typography.test.ts'],
+  },
+  {
+    name: 'a raised bevel draws its outer ring inside the border',
+    edits: [
+      {
+        file: '../../mixins/src/theme/tokens.ts',
+        find: '  `1px 1px 0 0 ${shaded(0.9)}`,',
+        replace: '  `inset -1px -1px 0 0 ${shaded(0.9)}`,',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/relief.browser.test.ts'],
   },
 ]

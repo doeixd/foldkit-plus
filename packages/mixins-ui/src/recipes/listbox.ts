@@ -80,7 +80,7 @@ export const optionParts = {
       blockSize: '0.6em',
       marginInline: '0.2em',
       marginBlockEnd: '0.15em',
-      ...cornerSides(ref.border.thick, 'currentColor'),
+      ...cornerSides(ref.border.glyph, 'currentColor'),
       rotate: '45deg',
       visibility: 'hidden',
     }),

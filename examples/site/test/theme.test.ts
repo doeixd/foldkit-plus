@@ -171,7 +171,8 @@ describe('the theme creator', () => {
       '      Theme.hardShadows,\n      Theme.compose(\n        Theme.relief.bevel,\n',
     )
     const bevel = knobStyleOf({ ...defaults, relief: 'bevel' }, 'light')
-    expect(bevel['--fk-shadow-raised']).toMatch(/^inset -1px -1px 0 0 /)
+    // Raised, its outer ring lies outside the border; sunken, inside.
+    expect(bevel['--fk-shadow-raised']).toMatch(/^1px 1px 0 0 /)
     expect(bevel['--fk-shadow-field']).toMatch(/^inset 1px 1px 0 0 /)
     expect(knobStyleOf(defaults, 'light')['--fk-shadow-raised']).toBeUndefined()
   })

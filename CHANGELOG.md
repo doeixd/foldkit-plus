@@ -9,6 +9,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `border.glyph` (2px), the stroke of what a recipe draws in CSS as an icon.
+  Checks, chevrons and the Accordion's plus read it, so thicker borders no longer blot them.
 - `foldkit-mixins-ui`: Steps' `number` slot, the figure in a marker, trimmed to its digits so it
   sits in the middle of its marker in any face; it sat low in a serif one. A complete marker's
   check grows with the marker.
@@ -22,6 +24,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins`: `Theme.relief.bevel` draws a raised control's outer ring outside its border.
+  A button's border carries its fill, and the ring lay inside it, so its darkest edge sat within
+  a line of the button's own color.
 - `foldkit-mixins-ui`: a Thinking Indicator held by a still theme or reduced motion still reads
   as at work, its dots a fading trail and its band resting across the words; a zero-length loop
   showed three faint dots and plain words.
