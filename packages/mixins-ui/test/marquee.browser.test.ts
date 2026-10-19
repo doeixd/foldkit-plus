@@ -39,7 +39,7 @@ interface Options {
   /** Set on the marquee's wrapper, as a theme would. */
   readonly knobs?: Readonly<Record<string, string>>
   /** The height of a box drawn around the marquee. */
-  readonly within?: string
+  readonly within?: string | undefined
 }
 
 const mount = (options: Options = {}) => {

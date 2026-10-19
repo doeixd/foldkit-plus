@@ -846,7 +846,15 @@ export const view = <ParentMessage>(
       onNone: () => [],
       onSome: entry => [spoken(entry)],
     })
-  const toast = (entry: Entry, index: number) => {
+  // A card's place among those staying: one leaving keeps its place while it fades, and the
+  // cards behind move up at once rather than once it has gone.
+  let ahead = 0
+  const placed = model.entries.map(entry => {
+    const place = ahead
+    if (!isLeaving(entry)) ahead += 1
+    return { entry, place }
+  })
+  const toast = ({ entry, place }: (typeof placed)[number]) => {
     const swipe = Option.getOrElse(entry.swipe, () => ({ axis: 'none' as const, x: 0, y: 0 }))
     const waiting = !isLeaving(entry) && !shown.has(entry.id)
     const icon = options.icons?.[entry.type]
@@ -856,7 +864,7 @@ export const view = <ParentMessage>(
         h.Id(entry.id),
         h.DataAttribute('type', entry.type),
         h.Style({
-          '--fk-toast-index': String(index),
+          '--fk-toast-index': String(place),
           '--fk-toast-swipe-x': `${swipe.x}px`,
           '--fk-toast-swipe-y': `${swipe.y}px`,
         }),
@@ -947,7 +955,7 @@ export const view = <ParentMessage>(
           h.Style({ '--fk-toast-count': String(Math.min(staying.length, model.max)) }),
           h.OnMount(Stack()),
         ]),
-        model.entries.map(toast),
+        placed.map(toast),
       ),
       // Always drawn, so the regions are in the page before what they announce.
       h.div(builders.status.attrs([h.Role('status'), h.Style(unseen)]), newest(true)),

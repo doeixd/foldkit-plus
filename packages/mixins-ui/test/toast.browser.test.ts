@@ -2,7 +2,8 @@
  * The Toast component on a real runtime. Collapsed, the toasts behind the
  * front one peek out above it, smaller, and pointing at the stack spreads
  * them out, none over another; past `max` the oldest waits, unseen and out
- * of reach. A toast counts down only while nothing holds the stack: the
+ * of reach. A card leaving fades in place while the one behind it comes
+ * forward at once. A toast counts down only while nothing holds the stack: the
  * pointer, focus or a hidden page holds it, and letting go goes on from
  * what was left. A swipe toward the edge past the threshold dismisses, a
  * short one springs back; Escape inside a toast and its close button
@@ -174,6 +175,44 @@ test('collapsed the toasts peek out above the front one, smaller; held they spre
     expect(Math.abs(box(1).width - box(2).width)).toBeLessThan(1)
     // Spread out, Second shows its whole height.
     expect(box(1).height).toBeGreaterThan(box(2).height + 4)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a card leaving fades in place while the one behind comes forward at once', async () => {
+  const { handle, send } = mount(
+    { duration: 60_000 },
+    {
+      s0: show('First'),
+      s1: show('Second'),
+      s2: show('Third'),
+      d2: { _tag: 'Got', message: Toast.Message.Dismissed({ id: 'toasts-2' }) },
+    },
+  )
+  try {
+    await away()
+    await send('s0')
+    await send('s1')
+    await send('s2')
+    await vi.waitFor(() => expect(card(2)).not.toBeNull())
+    await settled()
+    const front = box(2)
+    await send('d2')
+    await vi.waitFor(() => expect(card(2)?.hasAttribute('data-leave')).toBe(true))
+    await frame()
+    await frame()
+    // Third is still fading, and Second is already on its way to the front, its words showing.
+    expect(card(2)).not.toBeNull()
+    const moving = card(1)!
+      .getAnimations()
+      .map(animation => (animation instanceof CSSTransition ? animation.transitionProperty : ''))
+    expect(moving).toContain('translate')
+    expect(Number(getComputedStyle(card(1)!.firstElementChild!).opacity)).toBeGreaterThan(0)
+    await vi.waitFor(() => expect(card(2)).toBeNull())
+    await settled()
+    expect(box(1).bottom).toBeCloseTo(front.bottom, 0)
+    expect(box(1).width).toBeCloseTo(front.width, 0)
   } finally {
     handle.dispose()
   }

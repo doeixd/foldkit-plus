@@ -153,15 +153,26 @@ export default [
     edits: [
       {
         file: recipe,
-        find: 'transitionDuration: `${travelled(ref.motion.slow)}, ${travelled(ref.motion.slow)}',
-        replace: 'transitionDuration: `${ref.motion.slow}, ${travelled(ref.motion.slow)}',
+        find: 'transitionDuration: `${travelled(ref.motion.moderate)}, ${travelled(ref.motion.moderate)}, ${ref.motion.fast}',
+        replace:
+          'transitionDuration: `${ref.motion.moderate}, ${travelled(ref.motion.moderate)}, ${ref.motion.fast}',
       },
     ],
     tests: browser,
   },
   {
+    name: 'a card leaving keeps the others in their places until it has gone',
+    edits: [{ file, find: 'if (!isLeaving(entry)) ahead += 1', replace: 'ahead += 1' }],
+    tests: browser,
+  },
+  {
+    name: 'a card leaving in front hides the words of the one taking its place',
+    edits: [{ file: recipe, find: ':not([data-leave]) ~ &', replace: '* + &' }],
+    tests: browser,
+  },
+  {
     name: 'a card behind keeps its own height',
-    edits: [{ file: recipe, find: "blockSize: 'var(--fk-toast-front)',", replace: '' }],
+    edits: [{ file: recipe, find: "{ blockSize: 'var(--fk-toast-front)' }", replace: '{}' }],
     tests: browser,
   },
   {

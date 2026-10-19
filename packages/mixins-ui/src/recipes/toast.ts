@@ -3,9 +3,11 @@
  * the newest in front. Collapsed, the ones behind peek out a step under the
  * front one, each smaller and clipped to its height; held (`data-expanded`)
  * they spread out, each above the last at its measured height
- * (`Toast.Stack`'s properties). A card enters from its edge and fades out
- * as it leaves, carrying on the way it was swiped; each movement travels,
- * so reduced motion keeps only the fades. The icon draws its type's mark in
+ * (`Toast.Stack`'s properties). A card enters from its edge on the `slow`
+ * spring and fades out as it leaves, carrying on the way it was swiped,
+ * while the cards behind restack at once on the `moderate` settle; each
+ * movement travels, so reduced motion keeps only the fades. The icon draws
+ * its type's mark in
  * the type's ink, a turning ring for `loading` (`turning`, still under
  * reduced motion); `tone: 'rich'` tints the whole card in its type, as
  * Sonner's `richColors`. A card drawn outside the component's list (the
@@ -63,6 +65,8 @@ const dir = 'var(--_fk-toast-dir, -1)'
 const index = 'var(--fk-toast-index, 0)'
 /** In the component's list, the cards are stacked; anywhere else they flow. */
 const stacked = ':where([data-stack]) > &'
+/** Behind a card that stays: not the front one, though a card leaving in front may be first. */
+const behind = ':where([data-stack]) > :not([data-leave]) ~ &'
 const held = ':where([data-expanded]) > [data-stack] > &'
 
 /** A mark drawn in the text's colour, filling its box. */
@@ -175,9 +179,10 @@ export const Toast = Style.recipeFor(ToastSlots)({
         transformOrigin: 'bottom center',
         translate: `var(--fk-toast-swipe-x) calc(${dir} * ${index} * ${peek} + var(--fk-toast-swipe-y))`,
         scale: `calc(1 - ${index} * ${shrink})`,
+        // A restack is short travel: quick, and landing without a wobble.
         transitionProperty: 'translate, scale, opacity, block-size',
-        transitionDuration: `${travelled(ref.motion.slow)}, ${travelled(ref.motion.slow)}, ${ref.motion.fast}, ${travelled(ref.motion.slow)}`,
-        transitionTimingFunction: ref.motion.ease,
+        transitionDuration: `${travelled(ref.motion.moderate)}, ${travelled(ref.motion.moderate)}, ${ref.motion.fast}, ${travelled(ref.motion.moderate)}`,
+        transitionTimingFunction: `${ref.motion.settle}, ${ref.motion.settle}, ${ref.motion.ease}, ${ref.motion.settle}`,
       }),
       Style.nest(`:where([data-position^="top"]) > [data-stack] > &`, {
         insetBlockEnd: 'auto',
@@ -185,13 +190,22 @@ export const Toast = Style.recipeFor(ToastSlots)({
         transformOrigin: 'top center',
       }),
       // Behind the front one, as tall as it: a taller card would stand out past it.
-      Style.nest(`:where([data-stack]) > &:not(:first-child)`, {
-        blockSize: 'var(--fk-toast-front)',
-      }),
+      Style.nest(behind, { blockSize: 'var(--fk-toast-front)' }),
       Style.nest(held, {
         blockSize: 'auto',
         scale: '1',
         translate: `var(--fk-toast-swipe-x) calc(${dir} * (var(--fk-toast-offset, 0px) + ${index} * ${gap}) + var(--fk-toast-swipe-y))`,
+      }),
+      // An entrance travels the card's whole height, so it takes the large surface's spring.
+      Style.nest(`${stacked}[data-enter]`, {
+        transitionDuration: `${travelled(ref.motion.slow)}, ${travelled(ref.motion.slow)}, ${ref.motion.fast}, ${travelled(ref.motion.moderate)}`,
+        transitionTimingFunction: `${ref.motion.spring}, ${ref.motion.spring}, ${ref.motion.ease}, ${ref.motion.settle}`,
+      }),
+      // Leaving, it fades over the card taking its place, a tier quicker than it came.
+      Style.nest(`${stacked}[data-leave]`, {
+        zIndex: `calc(101 - ${index})`,
+        transitionDuration: `${travelled(ref.motion.moderate)}, ${travelled(ref.motion.moderate)}, ${ref.motion['fast-exit']}, ${travelled(ref.motion.moderate)}`,
+        transitionTimingFunction: `${ref.motion.settle}, ${ref.motion.settle}, ${ref.motion['ease-exit']}, ${ref.motion.settle}`,
       }),
       // Under the finger, it follows at once.
       Style.nest(`${stacked}[data-swiping]`, { transitionDuration: '0s' }),
@@ -209,7 +223,7 @@ export const Toast = Style.recipeFor(ToastSlots)({
       }),
       Style.nest(`${stacked}[data-waiting]`, { opacity: '0', pointerEvents: 'none' }),
       // A card's words are seen once it stands in front, or the stack spreads.
-      Style.nest(`:where([data-stack]) > &:not(:first-child) > *`, {
+      Style.nest(`${behind} > *`, {
         opacity: '0',
         transition: `opacity ${ref.motion.fast}`,
       }),
