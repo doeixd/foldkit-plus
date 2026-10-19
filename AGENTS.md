@@ -464,8 +464,8 @@ tokens -> ref -> pieces -> slots -> sheet
 ```
 
 **Tokens are the only values.** `Theme.tokens` (`packages/mixins/src/theme/tokens.ts`)
-is the shipped scales (space, radius, size, leading, weight, motion, border,
-shadow, breakpoint, and `safe`, the screen's safe-area insets); `Theme.oklch` derives a whole palette from a few knobs;
+is the shipped scales (space, radius, size, leading, weight, motion, width,
+border, shadow, breakpoint, and `safe`, the screen's safe-area insets); `Theme.oklch` derives a whole palette from a few knobs;
 `Theme.compose` joins them. Read every value through `Theme.ref` — a group or
 name the theme lacks is a type error, and it reads names, never values, so a
 test or probe sees `var(--fk-…)` rather than a color. Never copy a literal out

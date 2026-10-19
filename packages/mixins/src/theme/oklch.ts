@@ -334,6 +334,9 @@ export const oklch = (knobs: OklchKnobs) => {
     // tinted page: the text is near-neutral, so the mix lost the tint.
     outline: {
       subtle: inked(ld(scale(base, -0.07, 1.3), scale(base, 0.065, 1.25)), 'subtle'),
+      // Between two parts of one surface (groups of a list, a panel's
+      // header): a step past `subtle`, which a dark page all but hides.
+      divider: inked(ld(scale(base, -0.1, 1.35), scale(base, 0.095, 1.3)), 'subtle'),
       default: inked(ld(scale(base, -0.13, 1.4), scale(base, 0.12, 1.35)), 'default'),
       overt: inked(ld(scale(base, -0.27, 1.6), scale(base, 0.23, 1.5)), 'overt'),
       // The accent as it is: darker and more saturated, the ring was the

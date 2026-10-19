@@ -104,6 +104,7 @@ describe('Theme.tokens', () => {
       'motion',
       'control',
       'type',
+      'width',
       'border',
       'shadow',
       'breakpoint',

@@ -441,9 +441,9 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
     },
     minColumn: {
       none: { root: minWidth('0px') },
-      sm: { root: minWidth('10rem') },
-      md: { root: minWidth('14rem') },
-      lg: { root: minWidth('18rem') },
+      sm: { root: minWidth(ref.width['column-sm']) },
+      md: { root: minWidth(ref.width['column-md']) },
+      lg: { root: minWidth(ref.width['column-lg']) },
     },
     border: {
       none: {},

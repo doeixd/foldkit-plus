@@ -188,6 +188,15 @@ export const tokens = define({
     'micro-leading': '0.875rem',
     'micro-leading-compact': '0.75rem',
   },
+  // The least widths content sets: `field` a text field's, so one sized by
+  // its content still has room to type in; the columns a grid of cards or
+  // tiles lays out by.
+  width: {
+    field: '20ch',
+    'column-sm': '10rem',
+    'column-md': '14rem',
+    'column-lg': '18rem',
+  },
   // `glyph` strokes what a recipe draws in CSS as an icon (a check, a
   // chevron): apart from the borders, so thicker borders do not blot them.
   border: {

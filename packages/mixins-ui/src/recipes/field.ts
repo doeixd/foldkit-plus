@@ -185,8 +185,8 @@ export const Textarea = Style.recipeFor(TextareaSlots)({
             fieldSizing: 'content',
             resize: 'none',
             // Content sizing takes the width from the text too: where nothing
-            // gives it one, at least the 20 columns a fixed textarea has.
-            minInlineSize: '20ch',
+            // gives it one, at least a field's width.
+            minInlineSize: ref.width.field,
             minBlockSize: linesTall('var(--fk-textarea-rows, 2)'),
             // With no `maxRows`, `infinity` lines: no cap, and no read of an
             // unset variable for a page's token check to refuse.

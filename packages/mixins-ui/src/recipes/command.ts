@@ -111,7 +111,7 @@ export const Command = Style.recipeFor(CommandSlots)({
         marginInline: `calc(-1 * ${ref.space['2xs']})`,
         paddingBlockStart: ref.space['2xs'],
         paddingInline: ref.space['2xs'],
-        borderBlockStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
+        borderBlockStart: `${ref.border.thin} solid ${ref.outline.divider}`,
       }),
     ),
     heading: component(

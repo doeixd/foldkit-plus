@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `outline.divider`, a line between two parts of one surface a step past
+  `subtle`, which a dark page all but hid; the Command menu parts its groups with it. `width.field`
+  (a text field's least width, the content-sized Textarea's) and `width.column-sm|md|lg` (the
+  Card group's least columns) take what those recipes wrote as literals.
 - `foldkit-mixins`: each knob carries a `title` and its `default` beside its description;
   `Knobs.schema(knobs)` is the Schema of a theme's values, `Theme.print(theme)` writes its
   `Theme.make({ … })` source (the knobs that differ from their defaults), and `Theme.fonts` names
