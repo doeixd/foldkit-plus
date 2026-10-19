@@ -372,4 +372,57 @@ export default [
     edits: [{ file: recipe, find: "aspectRatio: '1' }", replace: 'blockSize: cell }' }],
     tests: ['packages/mixins-ui/test/calendarLook.browser.test.ts'],
   },
+  {
+    name: 'every day is given a detail',
+    edits: [
+      {
+        file: adapter,
+        find: 'const detailOf = options.detail ?? (() => Option.none())',
+        replace: "const detailOf = () => Option.some('detail')",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/calendarOptions.test.ts'],
+  },
+  {
+    name: 'a detail is drawn outside its day’s button',
+    edits: [
+      {
+        file: adapter,
+        find: 'h.button(cell.buttonAttributes, [\n                    cell.label,\n',
+        replace: 'h.button(cell.buttonAttributes, [cell.label]),\n                  h.span([], [\n',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/calendarOptions.test.ts'],
+  },
+  {
+    name: 'a day with a detail is not described by it',
+    edits: [{ file: adapter, find: ', context.h.AriaDescribedBy(id)]', replace: ']' }],
+    tests: ['packages/mixins-ui/test/calendarOptions.test.ts'],
+  },
+  {
+    name: 'a detail stands beside its number',
+    edits: [
+      {
+        file: recipe,
+        find: "            display: 'grid',\n            justifyItems: 'center',\n",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/calendarLook.browser.test.ts'],
+  },
+  {
+    name: 'a priced day keeps a round cell',
+    edits: [{ file: recipe, find: 'blockSize: `calc(${cell} * 1.5)`,', replace: '' }],
+    tests: ['packages/mixins-ui/test/calendarLook.browser.test.ts'],
+  },
+  {
+    name: 'a dot shows its words',
+    edits: [{ file: recipe, find: "            fontSize: '0',\n", replace: '' }],
+    tests: ['packages/mixins-ui/test/calendarLook.browser.test.ts'],
+  },
+  {
+    name: 'a dot sits off center',
+    edits: [{ file: recipe, find: "            marginInline: 'auto',\n", replace: '' }],
+    tests: ['packages/mixins-ui/test/calendarLook.browser.test.ts'],
+  },
 ]

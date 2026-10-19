@@ -4,8 +4,9 @@
  * chosen day and a quiet fill for today), week numbers in a column of their
  * own, paging arrows that point the other way right to left, month and year
  * selects centered between them that move the month, other months' days left
- * blank, a hover preview of a range under the real pointer, and two months
- * side by side that page together.
+ * blank, a hover preview of a range under the real pointer, two months
+ * side by side that page together, and a day's detail as a line under its
+ * number or as a dot.
  */
 import * as UiCalendar from '@foldkit/ui/calendar'
 import { Option, Schema } from 'effect'
@@ -45,6 +46,8 @@ interface Setup {
   readonly two?: boolean
   readonly dir?: 'rtl'
   readonly width?: string
+  /** The recipe's `detail` axis, with the 12th of each month given one. */
+  readonly detail?: 'text' | 'dot'
 }
 
 afterEach(() => {
@@ -65,7 +68,10 @@ const picked = (model: Model, out: UiCalendar.OutMessage | undefined): Calendar.
 const mount = (setup: Setup = {}) => {
   if (setup.dir !== undefined) document.documentElement.dir = setup.dir
   const style = Style.forSlots(CalendarSlots)(
-    Recipes.Calendar({ outside: setup.outside ?? 'shown' }),
+    Recipes.Calendar({
+      outside: setup.outside ?? 'shown',
+      ...(setup.detail === undefined ? {} : { detail: setup.detail }),
+    }),
   )
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -93,6 +99,10 @@ const mount = (setup: Setup = {}) => {
         {
           weekNumbers: setup.weekNumbers === true,
           paging,
+          detail:
+            setup.detail === undefined
+              ? undefined
+              : date => Option.liftPredicate('$120', () => date.day === 12),
           preview: {
             date: model.preview,
             onPreview: (date): Message => ({ _tag: 'Previewed', date }),
@@ -373,6 +383,55 @@ test('a month narrower than seven cells shrinks its days, which stay round', asy
     const box = dayOf('first', 11).getBoundingClientRect()
     expect(grid.right).toBeLessThanOrEqual(edge + 0.5)
     expect(box.width * 7).toBeLessThanOrEqual(grid.width + 0.5)
+    expect(box.height).toBeCloseTo(box.width, 0)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a detail stands under its day’s number, in a taller cell, and stays inside it', async () => {
+  const handle = mount({ detail: 'text' })
+  try {
+    await ready()
+    const button = dayOf('first', 12)
+    const detail = button.querySelector('span')!
+    const box = button.getBoundingClientRect()
+    const line = detail.getBoundingClientRect()
+    expect(detail.textContent).toBe('$120')
+    // Under the number, not beside it: the number takes the line above, both centered.
+    const number = document.createRange()
+    number.selectNodeContents(button.firstChild!)
+    const digits = number.getBoundingClientRect()
+    expect(digits.bottom).toBeLessThanOrEqual(line.top + 0.5)
+    expect(digits.left + digits.width / 2).toBeCloseTo(line.left + line.width / 2, 0)
+    expect(line.left).toBeGreaterThanOrEqual(box.left)
+    expect(line.right).toBeLessThanOrEqual(box.right + 0.5)
+    expect(line.bottom).toBeLessThanOrEqual(box.bottom + 0.5)
+    // Every day is as tall, so the rows do not jump where a day has none.
+    expect(dayOf('first', 13).getBoundingClientRect().height).toBeCloseTo(box.height, 0)
+    expect(box.height).toBeGreaterThan(box.width)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a detail drawn as a dot is a small mark centered under the number, its words unseen', async () => {
+  const handle = mount({ detail: 'dot' })
+  try {
+    await ready()
+    const button = dayOf('first', 12)
+    const dot = button.querySelector('span')!
+    const box = button.getBoundingClientRect()
+    const mark = dot.getBoundingClientRect()
+    expect(mark.width).toBeLessThan(8)
+    expect(mark.height).toBeCloseTo(mark.width, 0)
+    expect(mark.left + mark.width / 2).toBeCloseTo(box.left + box.width / 2, 0)
+    expect(mark.top).toBeGreaterThan(box.top + box.height / 2)
+    expect(mark.bottom).toBeLessThanOrEqual(box.bottom)
+    expect(getComputedStyle(dot).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+    // Its words take no room, so none spill out of the dot.
+    expect(dot.scrollWidth).toBeLessThanOrEqual(dot.clientWidth)
+    // The day stays round, as one without a dot.
     expect(box.height).toBeCloseTo(box.width, 0)
   } finally {
     handle.dispose()

@@ -40,8 +40,9 @@ import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
  * heading and its paging buttons; `heading`, the month and year as text when
  * the caption is a label; `monthSelect` and `yearSelect`, the caption's
  * dropdowns; `weekNumberHeader` and `weekNumber`, a column of ISO week
- * numbers; and `presets` and `preset`, buttons that choose a whole selection
- * (`presetsView`).
+ * numbers; `dayDetail`, a line under a day's number, such as its price
+ * (`detail`); and `presets` and `preset`, buttons that choose a whole
+ * selection (`presetsView`).
  */
 export const CalendarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -98,6 +99,7 @@ export const CalendarSlots = Slots.define({
     events: [Event.Click],
     attributes: [Attr.Role, Attr.Disabled, Attr.AriaDisabled],
   }),
+  dayDetail: Slot.make({ capability: Capability.Container }),
   monthCell: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
   monthButton: Slot.make({
     capability: Capability.Interactive,
@@ -124,6 +126,11 @@ export type ResolvedColumnHeader<Message> = Omit<ColumnHeader, 'attributes'> & {
 export type ResolvedDayCell<Message> = Omit<DayCell, 'cellAttributes' | 'buttonAttributes'> & {
   readonly cellAttributes: SlotAttributes<Message>
   readonly buttonAttributes: SlotAttributes<Message>
+  /** The line under the day's number, when `detail` gives the day one. */
+  readonly detail: Option.Option<{
+    readonly text: string
+    readonly attributes: SlotAttributes<Message>
+  }>
 }
 export type ResolvedWeek<Message> = Omit<Week, 'attributes' | 'cells'> & {
   readonly attributes: SlotAttributes<Message>
@@ -274,6 +281,12 @@ export interface CalendarOptions<Message> {
    */
   readonly paging?: 'both' | 'previous' | 'next' | 'none' | undefined
   readonly preview?: Preview<Message> | undefined
+  /**
+   * A line under a day's number, such as its price or "2 events"; none for a
+   * day without one. A screen reader reads it after the date. Pick the
+   * recipe's `detail` axis to give it room or to draw it as a dot.
+   */
+  readonly detail?: ((date: Dates.CalendarDate) => Option.Option<string>) | undefined
 }
 
 const DAY = 86_400_000
@@ -287,6 +300,8 @@ export const isoWeek = (date: Dates.CalendarDate): number => {
   const yearStart = Date.UTC(thursday.getUTCFullYear(), 0, 1)
   return Math.floor((thursday.getTime() - yearStart) / DAY / 7) + 1
 }
+
+const dayKey = (date: Dates.CalendarDate): string => `${date.year}-${date.month}-${date.day}`
 
 const firstOf = (year: number, month: number) => Dates.make(year, month, 1)
 const lastOf = (year: number, month: number) =>
@@ -373,6 +388,7 @@ export const resolve = <Input, Message>(
               }
             : { _tag: 'Grid', headingButton: builders.headingButton.attrs(render.headingButton) }
       const numbered = options.weekNumbers === true
+      const detailOf = options.detail ?? (() => Option.none())
       return {
         _tag: 'Days',
         root,
@@ -407,11 +423,24 @@ export const resolve = <Input, Message>(
                 attributes: builders.weekNumber.attrs([context.h.AriaHidden(true)]),
               }))
             : Option.none(),
-          cells: week.cells.map(cell => ({
-            ...cell,
-            cellAttributes: builders.dayCell.attrs(cell.cellAttributes),
-            buttonAttributes: builders.dayButton.attrs(cell.buttonAttributes),
-          })),
+          cells: week.cells.map(cell => {
+            const detail = detailOf(cell.date)
+            // The button is named by its date, which hides the text inside it: the detail describes it.
+            const id = `${render.heading.id}-detail-${dayKey(cell.date)}`
+            return {
+              ...cell,
+              cellAttributes: builders.dayCell.attrs(cell.cellAttributes),
+              buttonAttributes: builders.dayButton.attrs(
+                Option.isSome(detail)
+                  ? [...cell.buttonAttributes, context.h.AriaDescribedBy(id)]
+                  : cell.buttonAttributes,
+              ),
+              detail: Option.map(detail, text => ({
+                text,
+                attributes: builders.dayDetail.attrs([context.h.Id(id)]),
+              })),
+            }
+          }),
         })),
       }
     }
@@ -502,7 +531,15 @@ export const draw = <Message>(calendar: ResolvedCalendar<Message>, h: HtmlBuilde
                 onSome: ({ number, attributes }) => [h.div(attributes, [String(number)])],
               }),
               ...week.cells.map(cell =>
-                h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.label])]),
+                h.div(cell.cellAttributes, [
+                  h.button(cell.buttonAttributes, [
+                    cell.label,
+                    ...Option.match(cell.detail, {
+                      onNone: () => [],
+                      onSome: ({ text, attributes }) => [h.span(attributes, [text])],
+                    }),
+                  ]),
+                ]),
               ),
             ]),
           ),
@@ -706,8 +743,6 @@ interface Mark<Message> {
   readonly attributes: SlotAttributes<Message>
 }
 
-const dayKey = (date: Dates.CalendarDate): string => `${date.year}-${date.month}-${date.day}`
-
 /**
  * How each day is marked. A chosen day, and a range's either end, is
  * `data-selected`, as upstream marks its one date; a range's ends are
@@ -847,8 +882,8 @@ const marked = <Message>(
  * one, they are drawn by `draw` above. A Mixin that reads the mode needs
  * `resolve`, whose `input` can be `_tag`. `inputs` gives it with the
  * `maybeSelectedDate` that agrees with it. `options` adds week numbers, a
- * caption of dropdowns or a label, hides a paging button, and previews a
- * range.
+ * caption of dropdowns or a label, hides a paging button, previews a
+ * range, and writes a detail under each day.
  */
 export const toView =
   <Message>(

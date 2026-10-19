@@ -14,7 +14,11 @@
  * button, a label, or month and year selects centered between the paging
  * buttons, whose arrows the bidi algorithm mirrors right to left. `size` is
  * the cell, on the ladder's two steps; `outside: 'hidden'` leaves the days of
- * other months blank. No card: a picker's panel or the page gives it one.
+ * other months blank. A day's detail (`Calendar.toView`'s `detail`) is a
+ * caption under its number: `detail: 'text'` makes each day a taller rounded
+ * cell to hold it, as a price calendar does, and `detail: 'dot'` draws it as a
+ * dot under the number, its words left to a screen reader. No card: a
+ * picker's panel or the page gives it one.
  */
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { CalendarSlots } from '../calendar.js'
@@ -218,6 +222,18 @@ export const Calendar = Style.recipeFor(CalendarSlots)({
     weekNumber: component(centered, Style.self({ ...small, fontVariantNumeric: 'tabular-nums' })),
     dayCell: day,
     dayButton: choice('round'),
+    dayDetail: component(
+      Style.self({
+        ...role('caption'),
+        lineHeight: '1',
+        color: ref.text.muted,
+        fontWeight: ref.weight.normal,
+        fontVariantNumeric: 'tabular-nums',
+        whiteSpace: 'nowrap',
+        pointerEvents: 'none',
+      }),
+      Style.nest('[data-selected] > * > &', { color: 'inherit', opacity: '0.85' }),
+    ),
     monthCell: centered,
     monthButton: choice('wide'),
     yearCell: centered,
@@ -250,6 +266,45 @@ export const Calendar = Style.recipeFor(CalendarSlots)({
       shown: {},
       // Blank, band and all; the grid keeps its six rows, so the size does not jump between months.
       hidden: { dayCell: variant(Style.pseudo('[data-outside-month]', { visibility: 'hidden' })) },
+    },
+    detail: {
+      // The number and its line stacked in a cell half again as tall, its corners rounded, not round.
+      text: {
+        dayButton: variant(
+          Style.self({
+            display: 'grid',
+            justifyItems: 'center',
+            aspectRatio: 'auto',
+            inlineSize: '100%',
+            blockSize: `calc(${cell} * 1.5)`,
+            alignContent: 'center',
+            gap: ref.space['3xs'],
+            borderRadius: ref.radius.md,
+          }),
+        ),
+        weekRow: variant(Style.self({ gridAutoColumns: `minmax(0, calc(${cell} * 1.25))` })),
+        headerRow: variant(Style.self({ gridAutoColumns: `minmax(0, calc(${cell} * 1.25))` })),
+      },
+      // A dot under the number; the words stay for a screen reader, which reads them as the description.
+      dot: {
+        dayButton: variant(Style.self({ position: 'relative' })),
+        dayDetail: variant(
+          Style.self({
+            position: 'absolute',
+            insetBlockEnd: '12%',
+            // Centered either way the page reads.
+            insetInline: '0',
+            marginInline: 'auto',
+            inlineSize: '0.3125rem',
+            blockSize: '0.3125rem',
+            borderRadius: ref.radius.full,
+            background: ref.accent.default,
+            // The words at no size: a screen reader still reads them, and nothing is painted.
+            fontSize: '0',
+          }),
+          Style.nest('[data-selected] > * > &', { background: ref.accent['on-fill'] }),
+        ),
+      },
     },
   },
   defaults: { outside: 'shown' },

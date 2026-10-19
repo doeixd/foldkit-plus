@@ -2,8 +2,8 @@
  * What a Calendar draws beyond upstream's grid: ISO week numbers, a caption
  * of a label or of month and year selects (`show` answering them), paging
  * buttons hidden for two months side by side (`alongside` keeping the second
- * a month on), a range's hover preview, and presets (`lastDays`, `monthOf`,
- * `presetsView`).
+ * a month on), a range's hover preview, a day's detail, and presets
+ * (`lastDays`, `monthOf`, `presetsView`).
  */
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
@@ -306,6 +306,44 @@ describe('a range’s preview', () => {
       .flatMap(week => week.cells)
       .find(each => each.date.day === 13 && each.isInViewMonth)
     expect(tagsOf(thirteenth?.buttonAttributes ?? []).includes('OnMouseEnter')).toBe(false)
+  })
+})
+
+describe('a day’s detail', () => {
+  // Only the 12th and the 20th have one, so a detail drawn for every day, or for none, fails.
+  const priced = (): Options => ({
+    detail: date =>
+      date.month === 2 && (date.day === 12 || date.day === 20)
+        ? Option.some(`$${date.day * 10}`)
+        : Option.none(),
+  })
+  const button = (date: number) => Scene.selector(`#trip-cell-2026-2-${date} button`)
+
+  it('writes the detail under the day’s number, in the day’s button', () => {
+    Scene.scene(
+      app(Calendar.empty('Single'), priced),
+      Scene.given(calendar()),
+      Scene.expect(Scene.selector('#trip-cell-2026-2-12 button span')).toHaveText('$120'),
+      Scene.expect(Scene.selector('#trip-cell-2026-2-20 button span')).toHaveText('$200'),
+      Scene.expectAll(Scene.all.selector('[role="gridcell"] button span')).toHaveCount(2),
+    )
+  })
+
+  it('describes the day’s button by it, as the button is named by its date', () => {
+    Scene.scene(
+      app(Calendar.empty('Single'), priced),
+      Scene.given(calendar()),
+      Scene.expect(button(12)).toHaveAttr('aria-describedby', 'trip-heading-detail-2026-2-12'),
+      Scene.expect(Scene.selector('#trip-heading-detail-2026-2-12')).toHaveText('$120'),
+      Scene.expect(button(13)).not.toHaveAttr('aria-describedby'),
+    )
+  })
+
+  it('draws none unless asked', () => {
+    const days = resolvedDays(Calendar.empty('Single'), {})
+    expect(days.weeks.flatMap(week => week.cells).every(cell => Option.isNone(cell.detail))).toBe(
+      true,
+    )
   })
 })
 
