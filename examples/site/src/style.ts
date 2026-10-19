@@ -47,7 +47,7 @@ const ONE_COLUMN = '(max-width: 79.99rem)'
 /** At and above it, the knobs are a column beside the preview. */
 const COLUMNS = '(min-width: 80rem)'
 /** What of the docked drawer shows peeking: its handle and the pane names. */
-const DRAWER_PEEK = '6.5rem'
+const DRAWER_PEEK = '6rem'
 
 /** Below this width the rail becomes a bar over the page. */
 const NARROW = '(max-width: 56rem)'
@@ -1096,8 +1096,10 @@ export const SiteStyle = slots(
       color: t.text.default,
       minInlineSize: '0',
     },
+    // A title, and beside it what the screen is about; below it where there is no room.
     appHeader: {
       display: 'flex',
+      flexWrap: 'wrap',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: t.space.md,

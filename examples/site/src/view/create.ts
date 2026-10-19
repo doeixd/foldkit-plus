@@ -104,7 +104,15 @@ const tiles: ReadonlyArray<{ readonly slug: string; readonly selection: Selectio
 const CODE_ID = 'theme-code'
 
 // The controls' own looks, compact to fit a column; they read the site's tokens.
-const TabsStyle = Style.forSlots(TabsSlots)(Recipes.Tabs({ variant: 'pill', size: 'sm' }))
+// The pane names across the whole drawer, each an even share of it.
+const TabsStyle = Style.forSlots(TabsSlots)(
+  Recipes.Tabs.extend({
+    base: {
+      tablist: Style.self({ inlineSize: '100%' }),
+      tab: Style.self({ flex: '1 1 0' }),
+    },
+  })({ variant: 'pill', size: 'sm' }),
+)
 const SliderStyle = Style.forSlots(SliderSlots)(Recipes.Slider({ size: 'sm', value: 'end' }))
 const SegmentedStyle = Style.forSlots(SegmentedSlots)(
   Recipes.Segmented({ size: 'sm', width: 'fill' }),
@@ -387,7 +395,13 @@ const panes: Readonly<Record<Section, (model: Model, slots: Slots, h: H) => Read
   }
 
 /** The pane names as Tabs, and the chosen pane as the tab's panel. */
-const sections = (model: Model, slots: Slots, h: H, body: SlotAttributes<Message>): Html =>
+const sections = (
+  model: Model,
+  slots: Slots,
+  h: H,
+  body: SlotAttributes<Message>,
+  grip: SlotAttributes<Message>,
+): Html =>
   h.submodel({
     slotId: model.sectionTabs.id,
     model: model.sectionTabs,
@@ -401,10 +415,13 @@ const sections = (model: Model, slots: Slots, h: H, body: SlotAttributes<Message
         { h },
         ({ tablist, indicator, highlight, label, tabs, activeIndex }) =>
           h.div(slots.sections.attrs(), [
-            h.div(tablist, [
-              h.div(indicator),
-              h.div(highlight),
-              ...tabs.map(tab => h.button(tab.tab, [h.span(label, [sectionLabels[tab.value]])])),
+            // The pane names drag the drawer too: a swipe down them, not only the bar.
+            h.div(grip, [
+              h.div(tablist, [
+                h.div(indicator),
+                h.div(highlight),
+                ...tabs.map(tab => h.button(tab.tab, [h.span(label, [sectionLabels[tab.value]])])),
+              ]),
             ]),
             // The Drawer's body: what hides when it is down, under the pane names that peek.
             h.div(
@@ -429,10 +446,10 @@ const controls = (model: Model, slots: Slots, h: H): Html =>
       onMessage: message => Message.GotDrawer({ message }),
       labels: { open: 'Hide the knobs', closed: 'Show the knobs' },
       style: StudioDrawerStyle,
-      draw: ({ panel, handle, body }) =>
+      draw: ({ panel, handle, body, grip }) =>
         h.aside(
           [...panel, h.AriaLabel('Theme')],
-          [h.button(handle, []), sections(model, slots, h, body)],
+          [h.button(handle, []), sections(model, slots, h, body, grip)],
         ),
     },
     h,
