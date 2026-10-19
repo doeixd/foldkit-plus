@@ -78,6 +78,7 @@ import {
   FrequencyBox,
   MENUBAR,
   PAGE_MENU,
+  SAVE_MENU,
   ACCOUNT,
   appSidebar,
   floatingSidebar,
@@ -139,6 +140,7 @@ export const PaginationExample = Schema.Literals([
   'range',
   'siblings',
   'compact',
+  'group',
 ])
 export type PaginationExample = typeof PaginationExample.Type
 
@@ -254,6 +256,8 @@ export const Model = Schema.Struct({
   fileChoice: Schema.Option(Schema.String),
   pageMenu: Menu.Model,
   pageChoice: Schema.Option(Schema.String),
+  /** The split button's menu, in the button group. */
+  saveMenu: Menu.Model,
   listbox: UiListbox.Model,
   frequency: Schema.Option(Frequency),
   combobox: UiCombobox.Model,
@@ -464,6 +468,7 @@ export const Message = defineMessageUnion({
   OpenedDialogAt: { example: DialogExample },
   ClosedDialogAt: { example: DialogExample },
   GotPageMenu: { message: Menu.Message },
+  GotSaveMenu: { message: Menu.Message },
   GotListbox: { message: UiListbox.Message },
   GotCombobox: { message: UiCombobox.Message },
   GotCalendar: { message: UiCalendar.Message },
@@ -679,6 +684,7 @@ export const initial: Model = {
   },
   pageMenu: shownMenu(Menu.init('preview-page-menu', PAGE_MENU, { isAnimated: true })),
   pageChoice: Option.none(),
+  saveMenu: Menu.init('preview-save-menu', SAVE_MENU, { isAnimated: true }),
   listbox: UiListbox.init({ id: 'preview-frequency', isAnimated: true }),
   frequency: Option.some('Daily'),
   combobox: UiCombobox.init({ id: 'preview-city', isAnimated: true }),
@@ -707,7 +713,7 @@ export const initial: Model = {
   teamPlan: false,
   trailExpanded: false,
   formats: ['bold'],
-  pages: { numbered: 4, simple: 2, ends: 9, range: 2, siblings: 18, compact: 5 },
+  pages: { numbered: 4, simple: 2, ends: 9, range: 2, siblings: 18, compact: 5, group: 3 },
   perPage: 10,
   alerts: {
     alerts: ['mentions', 'replies'],
@@ -1065,6 +1071,12 @@ const foldFileMenu = Update.foldChild({
       model: modifyFields(model, { fileChoice: () => chosenOf(chosen) }),
     }),
   }),
+})
+
+const foldSaveMenu = Update.foldChild({
+  ...own('saveMenu', Message.GotSaveMenu),
+  update: Menu.update,
+  foldOutMessage: Menu.OutMessage.match<Step>({ Selected: () => model => ({ model }) }),
 })
 
 const foldPageMenu = Update.foldChild({
@@ -1757,6 +1769,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       model: modifyFields(model, { commandRan: () => Option.some(value) }),
     }),
     GotPageMenu: ({ message }) => (dismisses(message) ? { model } : foldPageMenu(model, message)),
+    GotSaveMenu: ({ message }) => foldSaveMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
     GotCarousel: ({ example, message }) =>

@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: a ButtonGroup takes `orientation: 'vertical'`, stacking its items joined
+  top to bottom, and `separated`, a rule on every seam (a new `separator` slot) for solid buttons
+  whose fills meet. A string item is drawn in a new `text` box, a count or a field's prefix. The
+  recipe squares the joining corners in either orientation and on the face a wrapper holds (a
+  Menu's trigger, for a split button), lifts a hovered or focused item over its neighbour, and
+  gains `size` and `width: 'fill'` axes. `Recipes.Button({ shape: 'square' })` draws any variant
+  as the icon variant's square, the icon alone. The site's Button group page adds icon, toolbar,
+  split button, separated, input, text, vertical, sizes and pagination examples.
 - `foldkit-mixins-ui`: a Calendar day can carry a detail, `toView`'s `detail: date =>
   Option<string>`, drawn in a new `dayDetail` slot under its number and describing the day's
   button (`aria-describedby`), as a price calendar or an events calendar shows. The recipe's

@@ -263,20 +263,357 @@ export const toggleButtons = <Message>(
   )
 // #endregion
 
-// #region button-group
+// #region button-group-basic
 export const ButtonGroupStyle = forSlots(ButtonGroupSlots)(Recipes.ButtonGroup({}))
 const GroupedStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
 
+// Outlined buttons, joined: their borders overlap at each seam.
 export const buttonGroup = (
   style: NamedStyle<typeof ButtonGroupSlots>,
   h: HtmlBuilder<never>,
 ): Html =>
   ButtonGroup.view(
     {
-      label: 'Text alignment',
-      items: ['Left', 'Center', 'Right'].map(label =>
+      label: 'Message actions',
+      items: ['Archive', 'Report', 'Snooze'].map(label =>
         Button.view({ label, style: GroupedStyle }, h),
       ),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region button-group-icons
+// `shape: 'square'` shows each icon alone; its label stays the button's name.
+const SquareStyle = forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'outline', shape: 'square' }),
+)
+
+const alignments = [
+  { label: 'Align left', icon: 'M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8' },
+  { label: 'Align center', icon: 'M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8' },
+  { label: 'Align right', icon: 'M2 3.5h12M6 6.5h8M2 9.5h12M6 12.5h8' },
+  { label: 'Justify', icon: 'M2 3.5h12M2 6.5h12M2 9.5h12M2 12.5h12' },
+]
+
+export const buttonGroupIcons = (
+  style: NamedStyle<typeof ButtonGroupSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  ButtonGroup.view(
+    {
+      label: 'Text alignment',
+      items: alignments.map(({ label, icon }) =>
+        Button.view({ label, icon: outline(h, icon), style: SquareStyle }, h),
+      ),
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region button-group-toolbar
+// Groups of groups: each joins its own buttons, and a gap keeps them apart.
+const history = [
+  { label: 'Undo', icon: 'M5.5 3.5L2.5 6.5l3 3M2.5 6.5h7a3.5 3.5 0 0 1 0 7h-2' },
+  { label: 'Redo', icon: 'M10.5 3.5l3 3-3 3M13.5 6.5h-7a3.5 3.5 0 0 0 0 7h2' },
+]
+const marks = [
+  {
+    label: 'Bold',
+    icon: 'M4.5 2.5h4.25a2.75 2.75 0 0 1 0 5.5H4.5zM4.5 8h5a2.75 2.75 0 0 1 0 5.5h-5z',
+  },
+  { label: 'Italic', icon: 'M7 2.5h5M4 13.5h5M10 2.5l-4 11' },
+  { label: 'Underline', icon: 'M4.5 2.5v5a3.5 3.5 0 0 0 7 0v-5M3.5 14h9' },
+]
+
+export const buttonGroupToolbar = (
+  style: NamedStyle<typeof ButtonGroupSlots>,
+  h: HtmlBuilder<never>,
+): Html => {
+  const group = (label: string, icons: ReadonlyArray<{ label: string; icon: string }>) =>
+    ButtonGroup.view(
+      {
+        label,
+        items: icons.map(({ label, icon }) =>
+          Button.view({ label, icon: outline(h, icon), style: SquareStyle }, h),
+        ),
+        style,
+      },
+      h,
+    )
+  return h.div(
+    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' })],
+    [group('History', history), group('Marks', marks), group('Alignment', alignments.slice(0, 3))],
+  )
+}
+// #endregion
+
+// #region button-group-split
+// A split button: the action, and a Menu of the others. The Menu's trigger
+// is the group's last face, so it takes the group's end corners. Its Model
+// is the application's, as any Menu's.
+export const SAVE_MENU: ReadonlyArray<Menu.Row> = [
+  { label: 'Save as copy' },
+  { label: 'Save as template' },
+  { label: 'Save and close' },
+]
+
+export const buttonGroupSplit = <Message>(
+  style: NamedStyle<typeof ButtonGroupSlots>,
+  menu: Menu.Model,
+  toMenu: (message: Menu.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  ButtonGroup.view(
+    {
+      label: 'Save',
+      items: [
+        Button.view({ label: 'Save draft', style: GroupedStyle }, h),
+        Menu.view(
+          {
+            model: menu,
+            rows: SAVE_MENU,
+            buttonContent: h.span(
+              [h.Role('img'), h.AriaLabel('More ways to save')],
+              [outline(h, 'M4 6l4 4 4-4')],
+            ),
+            onMessage: toMenu,
+            mixins: [MenuStyle.mixin],
+          },
+          h,
+        ),
+      ],
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region button-group-separated
+// Solid buttons' fills meet edge to edge: `separated` draws a rule on every
+// seam, where outlined buttons show their borders.
+const FilledStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral' }))
+
+const clipboard = [
+  {
+    label: 'Cut',
+    icon: 'M4.5 13.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM11.5 13.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 10l6-7.5M10 10L4 2.5',
+  },
+  { label: 'Copy', icon: 'M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3' },
+  { label: 'Paste', icon: 'M5.5 2h5v2.5h-5zM5.5 3H3v11h10V3h-2.5' },
+]
+
+export const buttonGroupSeparated = (
+  style: NamedStyle<typeof ButtonGroupSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  ButtonGroup.view(
+    {
+      label: 'Clipboard',
+      items: clipboard.map(({ label, icon }) =>
+        Button.view({ label, icon: outline(h, icon), style: FilledStyle }, h),
+      ),
+      separated: true,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region button-group-input
+// Pinned: `Recipes.ButtonGroup({ width: 'fill' })`. A field joins the
+// buttons as any item does, and takes the room they leave.
+export const buttonGroupInput = (
+  style: NamedStyle<typeof ButtonGroupSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(100%, 24rem)' })],
+    [
+      ButtonGroup.view(
+        {
+          label: 'Search',
+          items: [
+            Input.view(
+              {
+                id: 'group-search',
+                type: 'search',
+                placeholder: 'Search issues',
+                style: InputStyle,
+                draw: (resolved, h) => h.input([...resolved.input, h.AriaLabel('Search issues')]),
+              },
+              h,
+            ),
+            Button.view(
+              {
+                label: 'Search',
+                icon: outline(
+                  h,
+                  'M7 12.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM14.5 14.5l-3.6-3.6',
+                ),
+                style: GroupedStyle,
+              },
+              h,
+            ),
+          ],
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region button-group-text
+// Pinned: `Recipes.ButtonGroup({ width: 'fill' })`. Words are an item too,
+// drawn in the group's `text` box: here a field's fixed prefix.
+export const buttonGroupText = (
+  style: NamedStyle<typeof ButtonGroupSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(100%, 24rem)' })],
+    [
+      ButtonGroup.view(
+        {
+          label: 'Site address',
+          items: [
+            'https://',
+            Input.view(
+              {
+                id: 'group-site',
+                placeholder: 'example.com',
+                style: InputStyle,
+                draw: (resolved, h) => h.input([...resolved.input, h.AriaLabel('Site address')]),
+              },
+              h,
+            ),
+            Button.view(
+              {
+                label: 'Copy address',
+                icon: outline(h, 'M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3'),
+                style: SquareStyle,
+              },
+              h,
+            ),
+          ],
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region button-group-vertical
+// `orientation: 'vertical'` stacks the items, joined top to bottom, each as
+// wide as the widest.
+const zoom = [
+  { label: 'Zoom in', icon: 'M8 3v10M3 8h10' },
+  { label: 'Zoom out', icon: 'M3 8h10' },
+  { label: 'Fit to screen', icon: 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10' },
+]
+
+export const buttonGroupVertical = (
+  style: NamedStyle<typeof ButtonGroupSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'flex', alignItems: 'flex-start', gap: '1.5rem' })],
+    [
+      ButtonGroup.view(
+        {
+          label: 'Zoom',
+          orientation: 'vertical',
+          items: zoom.map(({ label, icon }) =>
+            Button.view({ label, icon: outline(h, icon), style: SquareStyle }, h),
+          ),
+          style,
+        },
+        h,
+      ),
+      ButtonGroup.view(
+        {
+          label: 'Layer order',
+          orientation: 'vertical',
+          items: ['Bring forward', 'Send backward', 'Send to back'].map(label =>
+            Button.view({ label, style: GroupedStyle }, h),
+          ),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region button-group-sizes
+// The group's `size` steps every item that has no size of its own.
+const GroupSizes = (['sm', 'md', 'lg'] as const).map(size =>
+  forSlots(ButtonGroupSlots)(Recipes.ButtonGroup({ size })),
+)
+
+export const buttonGroupSizes = (h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', justifyItems: 'start', gap: '0.75rem' })],
+    GroupSizes.map(style =>
+      ButtonGroup.view(
+        {
+          label: 'Text alignment',
+          items: [
+            ...alignments
+              .slice(0, 3)
+              .map(({ label, icon }) =>
+                Button.view({ label, icon: outline(h, icon), style: SquareStyle }, h),
+              ),
+            Button.view({ label: 'More', style: GroupedStyle }, h),
+          ],
+          style,
+        },
+        h,
+      ),
+    ),
+  )
+// #endregion
+
+// #region button-group-pagination
+// A page count between two steps, drawn in the `text` box. The page is the
+// Model's; each step is disabled at its end.
+export const buttonGroupPagination = <Message>(
+  style: NamedStyle<typeof ButtonGroupSlots>,
+  page: number,
+  pages: number,
+  onPage: (page: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  ButtonGroup.view(
+    {
+      label: 'Pages',
+      items: [
+        Button.view(
+          {
+            label: 'Previous page',
+            icon: outline(h, 'M10 4L6 8l4 4'),
+            disabled: page <= 1,
+            onClick: onPage(page - 1),
+            style: SquareStyle,
+          },
+          h,
+        ),
+        `Page ${page} of ${pages}`,
+        Button.view(
+          {
+            label: 'Next page',
+            icon: outline(h, 'M6 4l4 4-4 4'),
+            disabled: page >= pages,
+            onClick: onPage(page + 1),
+            style: SquareStyle,
+          },
+          h,
+        ),
+      ],
       style,
     },
     h,
