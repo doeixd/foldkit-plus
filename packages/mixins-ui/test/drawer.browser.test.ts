@@ -12,7 +12,7 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 
 import * as Drawer from '../src/drawer.js'
 import { Drawer as DrawerRecipe } from '../src/recipes/drawer.js'
@@ -63,7 +63,7 @@ const mount = (open: boolean, drawn = style) => {
                 [
                   h.aside(panel, [
                     h.button(handle, []),
-                    h.div([...grip, h.Id('grip')], ['Tabs']),
+                    h.div([...grip, h.Id('grip')], [h.button([h.Id('in-grip')], ['Tabs'])]),
                     h.div(body, [h.button([], ['A tool'])]),
                   ]),
                 ],
@@ -233,6 +233,24 @@ test('a swipe down the grip drags it as the handle does, and a sideways one leav
     // Then a press on the handle is one, not the end of that swipe.
     element.querySelector<HTMLElement>('button')!.click()
     await vi.waitFor(() => expect(element.dataset['open']).toBe('true'))
+  } finally {
+    runtime.dispose()
+  }
+})
+
+test('a click on a control in the grip reaches it, and drags nothing', async () => {
+  const runtime = mount(true)
+  try {
+    const element = await panel()
+    await settled(element)
+    const inGrip = element.querySelector<HTMLElement>('#in-grip')!
+    const clicked = vi.fn()
+    inGrip.addEventListener('click', clicked)
+    // A real press: a capture taken on the way down would send the click to the grip.
+    await userEvent.click(inGrip)
+    expect(clicked).toHaveBeenCalledOnce()
+    expect(element.dataset['dragging']).toBeUndefined()
+    expect(element.dataset['open']).toBe('true')
   } finally {
     runtime.dispose()
   }

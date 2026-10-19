@@ -19,13 +19,16 @@ const fire = (element: Element, type: string, at: number, init: Record<string, u
 }
 
 /** Runs `gesture` on a fresh handle and collects the first `count` facts. */
-const facts = (count: number, gesture: (handle: HTMLElement) => void) => {
+const facts = (count: number, gesture: (handle: HTMLElement) => void, slop?: number) => {
   const handle = document.createElement('div')
   document.body.appendChild(handle)
   return Effect.runPromise(
     Effect.gen(function* () {
       const fiber = yield* Effect.forkChild(
-        takeMessages(Swipe({}).f(handle, Mount.liveViewStateChanges), count),
+        takeMessages(
+          Swipe(slop === undefined ? {} : { slop }).f(handle, Mount.liveViewStateChanges),
+          count,
+        ),
       )
       for (let i = 0; i < 50; i++) yield* Effect.yieldNow
       gesture(handle)
@@ -101,6 +104,33 @@ describe('Swipe', () => {
         completed: false,
       }),
     ])
+  })
+
+  it('given a slop, starts only at a move past it, and captures only then', async () => {
+    const captured: Array<number> = []
+    const seen = await facts(
+      3,
+      handle => {
+        Object.assign(handle, { setPointerCapture: (id: number) => captured.push(id) })
+        // A press that stays within the slop is a click: nothing is reported.
+        fire(handle, 'pointerdown', 0, down)
+        fire(handle, 'pointermove', 10, { pointerId: 1, clientX: 3, clientY: 103 })
+        fire(handle, 'pointerup', 20, { pointerId: 1, clientX: 3, clientY: 103 })
+        expect(captured).toEqual([])
+        fire(handle, 'pointerdown', 100, down)
+        fire(handle, 'pointermove', 110, { pointerId: 1, clientX: 0, clientY: 103 })
+        fire(handle, 'pointermove', 120, { pointerId: 1, clientX: 0, clientY: 130 })
+        fire(handle, 'pointerup', 130, { pointerId: 1, clientX: 0, clientY: 130 })
+        expect(captured).toEqual([1])
+      },
+      5,
+    )
+    // The deltas still run from where it was pressed.
+    expect(seen.slice(0, 2)).toEqual([
+      SwipeStarted.make({ pointerId: 1, pointerType: 'touch', width: 0, height: 0 }),
+      Swiped.make({ pointerId: 1, deltaX: 0, deltaY: 30 }),
+    ])
+    expect(seen[2]).toMatchObject({ _tag: 'SwipeEnded', deltaY: 30, completed: true })
   })
 })
 

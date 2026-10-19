@@ -73,7 +73,7 @@ import {
 } from '../gallery/theme.js'
 import { COMPONENTS } from '../library.js'
 import { Message, type Model } from '../main.js'
-import { CodeStyle, StudioDrawerStyle } from '../style.js'
+import { CodeStyle, StudioDrawerStyle, StudioTabsStyle } from '../style.js'
 import { liveOf, preview } from './components.js'
 import type { H, Slots } from './layout.js'
 
@@ -104,15 +104,6 @@ const tiles: ReadonlyArray<{ readonly slug: string; readonly selection: Selectio
 const CODE_ID = 'theme-code'
 
 // The controls' own looks, compact to fit a column; they read the site's tokens.
-// The pane names across the whole drawer, each an even share of it.
-const TabsStyle = Style.forSlots(TabsSlots)(
-  Recipes.Tabs.extend({
-    base: {
-      tablist: Style.self({ inlineSize: '100%' }),
-      tab: Style.self({ flex: '1 1 0' }),
-    },
-  })({ variant: 'pill', size: 'sm' }),
-)
 const SliderStyle = Style.forSlots(SliderSlots)(Recipes.Slider({ size: 'sm', value: 'end' }))
 const SegmentedStyle = Style.forSlots(SegmentedSlots)(
   Recipes.Segmented({ size: 'sm', width: 'fill' }),
@@ -411,7 +402,7 @@ const sections = (
       selectedValue: model.section,
       ariaLabel: 'Knobs',
       toView: Tabs.toView<Section, Message>(
-        [TabsStyle.mixin, ...Tabs.fluid],
+        [StudioTabsStyle.mixin, ...Tabs.fluid],
         { h },
         ({ tablist, indicator, highlight, label, tabs, activeIndex }) =>
           h.div(slots.sections.attrs(), [

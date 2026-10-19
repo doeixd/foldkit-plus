@@ -50,4 +50,20 @@ export default [
     ],
     tests: unit,
   },
+  {
+    name: 'a slop is ignored',
+    edits: [
+      {
+        file: '../src/dom/swipe.ts',
+        find: 'if (slop <= 0) begin(active)',
+        replace: 'begin(active)',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a press within the slop still ends a swipe',
+    edits: [{ file: '../src/dom/swipe.ts', find: 'if (!started) return', replace: '' }],
+    tests: unit,
+  },
 ]

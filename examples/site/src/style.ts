@@ -6,7 +6,7 @@
  * article, a sidebar) is reached through its container's slot by element.
  */
 import { Capability, Style, type Piece } from 'foldkit-mixins'
-import { CodeBlockSlots, DrawerSlots, Recipes } from 'foldkit-mixins-ui'
+import { CodeBlockSlots, DrawerSlots, Recipes, TabsSlots } from 'foldkit-mixins-ui'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
@@ -1185,4 +1185,18 @@ export const StudioDrawerStyle = Style.forSlots(DrawerSlots)(
       }),
     },
   })({ dock: 'below-xl' }),
+)
+
+/**
+ * `/create`'s pane names, across the whole knobs column and sharing what
+ * their words leave; past its width (a phone's drawer) they scroll.
+ */
+export const StudioTabsStyle = Style.forSlots(TabsSlots)(
+  Recipes.Tabs.extend({
+    base: {
+      tablist: Style.self({ inlineSize: '100%' }),
+      // The least room around each name, so five fit the column; the spare width is shared out.
+      tab: Style.self({ flexGrow: '1', paddingInline: t.space['2xs'] }),
+    },
+  })({ variant: 'pill', size: 'sm', overflow: 'scroll' }),
 )

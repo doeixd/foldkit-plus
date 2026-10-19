@@ -139,4 +139,9 @@ export default [
     edits: [{ file: recipe, find: "marginBlock: '-0.75rem',", replace: '' }],
     tests: browser,
   },
+  {
+    name: 'a grip captures the press, and takes its click',
+    edits: [{ file, find: "slop: from === 'grip' ? PRESS_SLOP : 0", replace: 'slop: 0' }],
+    tests: browser,
+  },
 ]

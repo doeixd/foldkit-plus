@@ -76,12 +76,13 @@ export const velocityOf = (samples: ReadonlyArray<Sample>): { x: number; y: numb
 /**
  * `Move` with the speed of its release, for a gesture that a flick ends
  * (a sheet dragged to dismiss, a card swiped away): a primary-button pointer
- * down captures the pointer, each move reports the delta from where it
- * started, and up reports the last delta with the velocity over the last
- * `SWIPE_WINDOW` milliseconds, by the events' own time stamps. Cancel or
- * lost capture ends it incomplete. The start reports the size of what is
- * moved, so a distance can be read as a share of it. What a delta or a speed
- * means is the parent's `update`. Capture is released with the Mount.
+ * down (or, given a `slop`, its first move past it) captures the pointer,
+ * each move reports the delta from where it was pressed, and up reports the
+ * last delta with the velocity over the last `SWIPE_WINDOW` milliseconds, by
+ * the events' own time stamps. Cancel or lost capture ends it incomplete.
+ * The start reports the size of what is moved, so a distance can be read as
+ * a share of it. What a delta or a speed means is the parent's `update`.
+ * Capture is released with the Mount.
  */
 export const Swipe = Mount.defineStream('Swipe', {
   messages: [SwipeStarted, Swiped, SwipeEnded],
@@ -92,13 +93,25 @@ export const Swipe = Mount.defineStream('Swipe', {
      * handle). Default: the element itself.
      */
     measure: Schema.optional(Schema.String),
+    /**
+     * How far, in pixels, a press must move before it is a swipe. Until
+     * then nothing is captured or reported, so a press that stays put is
+     * still a click on whatever is under it (a tab inside a drag grip).
+     * Default 0: the press itself starts the swipe.
+     */
+    slop: Schema.optional(Schema.Number),
   },
-  execute: ({ element, measure }) =>
+  execute: ({ element, measure, slop = 0 }) =>
     Stream.callback<SwipeFact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const target = element as Capturing
-          let active: { readonly pointerId: number; samples: Array<Sample> } | null = null
+          let active: {
+            readonly pointerId: number
+            readonly pointerType: string
+            samples: Array<Sample>
+            started: boolean
+          } | null = null
           const offer = (fact: SwipeFact) => Queue.offerUnsafe(queue, fact)
           const sampleOf = (event: PointerLike): Sample => ({
             at: event.timeStamp,
@@ -108,8 +121,10 @@ export const Swipe = Mount.defineStream('Swipe', {
           const end = (event: PointerLike, completed: boolean) => {
             const pointerId = event.pointerId ?? 0
             if (active === null || active.pointerId !== pointerId) return
-            const { samples } = active
+            const { samples, started } = active
             active = null
+            // A press that never moved past the slop was a click, not a swipe.
+            if (!started) return
             try {
               target.releasePointerCapture?.(pointerId)
             } catch {
@@ -131,30 +146,38 @@ export const Swipe = Mount.defineStream('Swipe', {
               }),
             )
           }
+          // Capture, and report the size of what is moved.
+          const begin = (pointer: NonNullable<typeof active>) => {
+            pointer.started = true
+            try {
+              target.setPointerCapture?.(pointer.pointerId)
+            } catch {
+              // Without capture the move still reports while over the element.
+            }
+            const moved = measure === undefined ? element : (element.closest(measure) ?? element)
+            const box = moved.getBoundingClientRect()
+            offer(
+              SwipeStarted.make({
+                pointerId: pointer.pointerId,
+                pointerType: pointer.pointerType,
+                width: box.width,
+                height: box.height,
+              }),
+            )
+          }
           const listeners: ReadonlyArray<readonly [string, (event: Event) => void]> = [
             [
               'pointerdown',
               event => {
                 const pointer = event as PointerLike
                 if ((pointer.button ?? 0) !== 0 || active !== null) return
-                const pointerId = pointer.pointerId ?? 0
-                active = { pointerId, samples: [sampleOf(pointer)] }
-                try {
-                  target.setPointerCapture?.(pointerId)
-                } catch {
-                  // Without capture the move still reports while over the element.
+                active = {
+                  pointerId: pointer.pointerId ?? 0,
+                  pointerType: pointer.pointerType ?? 'mouse',
+                  samples: [sampleOf(pointer)],
+                  started: false,
                 }
-                const moved =
-                  measure === undefined ? element : (element.closest(measure) ?? element)
-                const box = moved.getBoundingClientRect()
-                offer(
-                  SwipeStarted.make({
-                    pointerId,
-                    pointerType: pointer.pointerType ?? 'mouse',
-                    width: box.width,
-                    height: box.height,
-                  }),
-                )
+                if (slop <= 0) begin(active)
               },
             ],
             [
@@ -165,6 +188,10 @@ export const Swipe = Mount.defineStream('Swipe', {
                 if (active === null || active.pointerId !== pointerId) return
                 const sample = sampleOf(pointer)
                 const start = active.samples[0] ?? sample
+                if (!active.started) {
+                  if (Math.hypot(sample.x - start.x, sample.y - start.y) < slop) return
+                  begin(active)
+                }
                 // Only what the velocity can still read, and where it began.
                 active.samples = [
                   start,

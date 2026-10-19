@@ -5,6 +5,20 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- `foldkit-primitives`: `Swipe` takes a `slop`, the pixels a press moves before it is a swipe.
+  Until then it captures nothing and reports nothing, so a press that stays put is a click on
+  what is under it.
+
+### Fixed
+
+- `foldkit-mixins-ui`: a click on a control inside a Drawer's `grip` (a row of tabs) reaches it.
+  The grip captured the pointer on the press, so the browser sent the click to the grip; it now
+  starts a drag only once the press moves `PRESS_SLOP` pixels.
+
 ## 0.25.0
 
 Concentric corners: buttons and fields round with the Card, Dialog, Toast or Alert holding them

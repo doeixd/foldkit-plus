@@ -196,15 +196,18 @@ export const view = <Outer>(options: DrawerView<Outer>, h: HtmlBuilder<Outer>): 
     { input: undefined, h },
   )
   const swipe = (from: Origin) =>
-    Mount.mapMessage(Swipe({ measure: '[data-drawer]' }), fact =>
-      onMessage(
-        Match.valueTags(fact, {
-          SwipeStarted: ({ height }) => Message.Grabbed({ size: height, from }),
-          Swiped: ({ deltaY }) => Message.Dragged({ delta: deltaY }),
-          SwipeEnded: ({ deltaY, velocityY, completed }) =>
-            Message.Released({ delta: deltaY, velocity: velocityY, completed }),
-        }),
-      ),
+    // A grip holds controls of its own: a press that stays put is their click.
+    Mount.mapMessage(
+      Swipe({ measure: '[data-drawer]', slop: from === 'grip' ? PRESS_SLOP : 0 }),
+      fact =>
+        onMessage(
+          Match.valueTags(fact, {
+            SwipeStarted: ({ height }) => Message.Grabbed({ size: height, from }),
+            Swiped: ({ deltaY }) => Message.Dragged({ delta: deltaY }),
+            SwipeEnded: ({ deltaY, velocityY, completed }) =>
+              Message.Released({ delta: deltaY, velocity: velocityY, completed }),
+          }),
+        ),
     )
   const dragging = Option.match(model.drag, {
     onNone: () => [],
