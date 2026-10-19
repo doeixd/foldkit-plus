@@ -6813,7 +6813,7 @@ export const marqueeVertical = <Message>(
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
-    [h.Style({ blockSize: '6rem' })],
+    [h.Style({ blockSize: '8rem' })],
     [
       Marquee.view(
         {
