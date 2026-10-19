@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: a Calendar day can carry a detail, `toView`'s `detail: date =>
+  Option<string>`, drawn in a new `dayDetail` slot under its number and describing the day's
+  button (`aria-describedby`), as a price calendar or an events calendar shows. The recipe's
+  `detail` axis gives each day a taller rounded cell for it (`text`) or draws it as a dot (`dot`).
+  The site's Calendar page adds examples for closed and booked days with bounds, several days, a
+  price on each day, events with a Today button, and a day with a time.
 - `foldkit-mixins`: `outline.divider`, a line between two parts of one surface a step past
   `subtle`, which a dark page all but hid; the Command menu parts its groups with it. `width.field`
   (a text field's least width, the content-sized Textarea's) and `width.column-sm|md|lg` (the
