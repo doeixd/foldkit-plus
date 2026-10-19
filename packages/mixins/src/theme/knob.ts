@@ -32,6 +32,10 @@ export interface Knob<Value, Names extends string = string> {
   /** A method, so a knob of any value is a `Knob<unknown>`. */
   write(value: Value): Readonly<Partial<Record<Names, string>>>
   readonly unset: Variables<Names>
+  /** The value it stands at unset: a control's starting point. */
+  readonly default: Value
+  /** What the knob is called: a control's label. */
+  readonly title: string
   /** What the knob does, in a sentence: a control's tooltip. */
   readonly description: string
   readonly control: Control
@@ -49,6 +53,7 @@ interface Range<Name extends string> {
   readonly min: number
   readonly max: number
   readonly step: number
+  readonly title: string
   readonly description: string
 }
 
@@ -63,6 +68,8 @@ const ranged =
     schema: Schema.Number.check(Schema.isBetween({ minimum: options.min, maximum: options.max })),
     write: value => one(options.variable, `${num(value)}${unit}`),
     unset: one(options.variable, options.follows ?? `${num(options.default)}${unit}`),
+    default: options.default,
+    title: options.title,
     description: options.description,
     control: { kind: 'range', min: options.min, max: options.max, step: options.step, unit },
   })
@@ -105,6 +112,8 @@ export const schemed = <Light extends string, Dark extends string>(
           ...(value.dark === undefined ? {} : dark.write(value.dark)),
         }) as Readonly<Partial<Record<Light | Dark, string>>>,
   unset: { ...light.unset, ...dark.unset },
+  default: { light: light.default, dark: dark.default },
+  title: light.title,
   description: light.description,
   control: light.control,
 })
@@ -128,6 +137,7 @@ export interface Choice<O extends Options> extends Knob<keyof O & string, Writte
 export const choice = <const O extends Options>(options: {
   readonly default: keyof O & string
   readonly options: O
+  readonly title: string
   readonly description: string
 }): Choice<O> => {
   const names = Object.keys(options.options) as ReadonlyArray<keyof O & string>
@@ -136,6 +146,8 @@ export const choice = <const O extends Options>(options: {
     write: value => options.options[value]!,
     unset: options.options[options.default]!,
     options: options.options,
+    default: options.default,
+    title: options.title,
     description: options.description,
     control: { kind: 'choice', options: names },
   }
@@ -146,11 +158,14 @@ export const font = <const Name extends string>(options: {
   readonly variable: Name
   readonly default: string
   readonly follows?: string
+  readonly title: string
   readonly description: string
 }): Knob<string, Name> => ({
   schema: Schema.NonEmptyString,
   write: value => one(options.variable, value),
   unset: one(options.variable, options.follows ?? options.default),
+  default: options.default,
+  title: options.title,
   description: options.description,
   control: { kind: 'font' },
 })

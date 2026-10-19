@@ -3,10 +3,10 @@
  * and `Theme.describe` keep, and the variables a theme writes, every knob it
  * leaves unset at its default or the expression it follows.
  */
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { AppStyle } from '../src/app.js'
-import { Knob, Theme, Themes } from '../src/theme.js'
+import { Knob, Knobs, Theme, Themes } from '../src/theme.js'
 
 describe('Theme.make', () => {
   it('writes the values it sets, and every other knob unset', () => {
@@ -53,6 +53,7 @@ describe('Theme.make', () => {
       brand: {
         glow: Knob.percent({
           variable: 'brand-glow',
+          title: 'Glow',
           default: 20,
           min: 0,
           max: 100,
@@ -99,5 +100,53 @@ describe('AppStyle with themes', () => {
     expect(stylesheet).toContain('--fk-knob-radius-factor:2')
     expect(stylesheet).toContain(':root[data-theme="square"]{')
     expect(stylesheet).not.toContain(':root[data-theme="round"]')
+  })
+})
+
+describe('Theme.print', () => {
+  it('writes the knobs a theme sets that differ from their defaults, a group to a line', () => {
+    const cobalt = Theme.make({
+      accent: { hue: 235, chroma: 0.225, lightness: { light: 55, dark: 70 } },
+      // The default radius, which the source leaves out.
+      shape: { radius: 1, density: 1.1 },
+      menu: { panel: 'inverted' },
+      type: { body: Theme.fonts.geist },
+    })
+    expect(Theme.print(cobalt)).toBe(
+      [
+        'Theme.make({',
+        '  accent: { hue: 235, chroma: 0.225, lightness: { light: 55, dark: 70 } },',
+        '  shape: { density: 1.1 },',
+        `  type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif' },`,
+        "  menu: { panel: 'inverted' },",
+        '})',
+      ].join('\n'),
+    )
+    expect(Theme.print(Theme.make({ shape: { radius: 1 } }))).toBe('Theme.make({})')
+  })
+
+  it('quotes a font stack whatever it holds', () => {
+    const source = Theme.print(Theme.make({ type: { body: "Joe's Sans, sans-serif" } }))
+    expect(source).toContain(String.raw`body: 'Joe\'s Sans, sans-serif'`)
+  })
+})
+
+describe('Knobs.schema', () => {
+  it('decodes a theme’s values, and refuses one a knob does not take', () => {
+    const decode = Schema.decodeUnknownSync(Knobs.schema(Knobs.standard))
+    expect(decode({ shape: { radius: 1.8, size: 'compact' } })).toEqual({
+      shape: { radius: 1.8, size: 'compact' },
+    })
+    expect(() => decode({ shape: { radius: 9 } })).toThrow()
+    expect(() => decode({ shape: { size: 'huge' } })).toThrow()
+  })
+
+  it('names every standard knob, with a default its own schema takes', () => {
+    for (const knobs of Object.values(Knobs.standard))
+      for (const knob of Object.values(knobs)) {
+        expect(knob.title.length).toBeGreaterThan(0)
+        expect(knob.description.length).toBeGreaterThan(0)
+        expect(() => Schema.decodeUnknownSync(knob.schema)(knob.default)).not.toThrow()
+      }
   })
 })

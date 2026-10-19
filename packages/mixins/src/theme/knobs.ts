@@ -25,13 +25,18 @@ export type Values<S extends KnobSet> = {
   readonly [G in keyof S]?: { readonly [N in keyof S[G]]?: ValueOf<S[G][N]> }
 }
 
-const hue = (variable: string, value: number, description: string) =>
-  Knob.angle({ variable, default: value, min: 0, max: 360, description })
+const hue = <const Name extends string>(
+  variable: Name,
+  value: number,
+  title: string,
+  description: string,
+) => Knob.angle({ variable, default: value, min: 0, max: 360, title, description })
 const ref = (group: string, name: string) => `var(--fk-${group}-${name})`
 
 export const standard = {
   accent: {
     hue: Knob.angle({
+      title: 'Hue',
       variable: 'accent-h',
       default: 264,
       min: 0,
@@ -41,6 +46,7 @@ export const standard = {
     }),
     chroma: Knob.schemed(
       Knob.number({
+        title: 'Chroma',
         variable: 'accent-c',
         default: 0.17,
         min: 0,
@@ -50,6 +56,7 @@ export const standard = {
           'How vivid the accent is. 0 is grey; around 0.2 is as vivid as most screens show.',
       }),
       Knob.number({
+        title: 'Chroma, dark',
         variable: 'accent-c-dark',
         default: 0.2,
         // A little stronger on a dark page, where the same chroma reads duller.
@@ -62,6 +69,7 @@ export const standard = {
     ),
     lightness: Knob.schemed(
       Knob.percent({
+        title: 'Lightness',
         variable: 'accent-l',
         default: 52,
         min: 15,
@@ -70,6 +78,7 @@ export const standard = {
         description: 'How light the accent is in the light scheme.',
       }),
       Knob.percent({
+        title: 'Lightness, dark',
         variable: 'accent-l-dark',
         default: 70,
         min: 15,
@@ -79,11 +88,13 @@ export const standard = {
       }),
     ),
     secondaryShift: Knob.angle({
+      title: 'Secondary hue shift',
       variable: 'secondary-shift',
       default: 60,
       description: 'Degrees from the accent’s hue to the secondary family’s.',
     }),
     tertiaryShift: Knob.angle({
+      title: 'Tertiary hue shift',
       variable: 'tertiary-shift',
       default: -90,
       description: 'Degrees from the accent’s hue to the tertiary family’s.',
@@ -91,6 +102,7 @@ export const standard = {
   },
   surface: {
     hue: Knob.angle({
+      title: 'Neutral hue',
       variable: 'neutral-h',
       default: 264,
       follows: ref('hue', 'accent'),
@@ -101,6 +113,7 @@ export const standard = {
     }),
     saturation: Knob.schemed(
       Knob.number({
+        title: 'Surface tint',
         variable: 'surface-c',
         default: 0.015,
         min: 0,
@@ -109,6 +122,7 @@ export const standard = {
         description: 'How much the page, cards and borders lean toward their hue. 0 is pure grey.',
       }),
       Knob.number({
+        title: 'Surface tint, dark',
         variable: 'surface-c-dark',
         default: 0.02,
         follows: `calc(${ref('knob', 'surface-c')} * 4 / 3)`,
@@ -120,6 +134,7 @@ export const standard = {
     ),
     lightness: Knob.schemed(
       Knob.percent({
+        title: 'Page lightness',
         variable: 'base-l',
         default: 97.5,
         min: 75,
@@ -129,6 +144,7 @@ export const standard = {
           'How light the page is in the light scheme. Cards, fields and hovers step from it.',
       }),
       Knob.percent({
+        title: 'Page lightness, dark',
         variable: 'base-l-dark',
         default: 22,
         min: 6,
@@ -139,6 +155,7 @@ export const standard = {
       }),
     ),
     contrast: Knob.percent({
+      title: 'Surface contrast',
       variable: 'surface-contrast',
       default: 26,
       min: 0,
@@ -148,6 +165,7 @@ export const standard = {
         'How far apart the surface steps are: the page, a card on it, a field, a hover. Low is flat; high sets each apart.',
     }),
     textContrast: Knob.number({
+      title: 'Text contrast',
       variable: 'contrast-factor',
       default: 1,
       min: 0,
@@ -156,6 +174,7 @@ export const standard = {
       description: 'Multiplies the text’s chroma.',
     }),
     hover: Knob.choice({
+      title: 'Hover',
       default: 'surface',
       options: {
         surface: { 'surface-ink': '1', 'state-ink': 'currentColor' },
@@ -168,6 +187,7 @@ export const standard = {
   },
   shape: {
     radius: Knob.number({
+      title: 'Radius',
       variable: 'radius-factor',
       default: 1,
       min: 0,
@@ -177,6 +197,7 @@ export const standard = {
         'Multiplies every corner. 0 is square. A control inside a card keeps inside the card’s corner.',
     }),
     density: Knob.number({
+      title: 'Density',
       variable: 'density',
       default: 1,
       min: 0.75,
@@ -186,16 +207,19 @@ export const standard = {
         'Multiplies spacing: padding, gaps and margins. Below 1 is tighter, above 1 roomier.',
     }),
     size: Knob.choice({
+      title: 'Size',
       default: 'default',
       options: { default: { step: '0' }, compact: { step: '1' } },
       description: 'How tall controls are: 36px, or a compact 28px.',
     }),
     controls: Knob.choice({
+      title: 'Buttons',
       default: 'rounded',
       options: { rounded: { 'control-round': '0' }, pill: { 'control-round': '1' } },
       description: 'The corners of buttons: the radius’s, or fully round pills.',
     }),
     border: Knob.length('px')({
+      title: 'Border',
       variable: 'border-width',
       default: 1,
       min: 1,
@@ -206,6 +230,7 @@ export const standard = {
     // How much of the text's own ink the outlines take over the palette's
     // lines, at three strengths for subtle, default and overt.
     outlines: Knob.choice({
+      title: 'Outlines',
       default: 'soft',
       options: {
         soft: {
@@ -233,16 +258,19 @@ export const standard = {
   },
   type: {
     body: Knob.font({
+      title: 'Font',
       variable: 'font-body',
       default: 'system-ui, sans-serif',
       description: 'The typeface for body text and controls.',
     }),
     heading: Knob.font({
+      title: 'Heading font',
       variable: 'font-heading',
       default: 'inherit',
       description: 'The typeface for headings. `inherit` is the body’s.',
     }),
     headingWeight: Knob.number({
+      title: 'Heading weight',
       variable: 'heading-weight',
       default: 600,
       min: 100,
@@ -251,6 +279,7 @@ export const standard = {
       description: 'How bold headings are, from 300 (light) to 900 (black).',
     }),
     headingTracking: Knob.length('em')({
+      title: 'Heading tracking',
       variable: 'heading-tracking',
       default: -0.01,
       min: -0.05,
@@ -260,6 +289,7 @@ export const standard = {
         'Headings’ letter spacing, in em: negative draws letters together, positive spreads them.',
     }),
     scale: Knob.number({
+      title: 'Text size',
       variable: 'text-scale',
       default: 1,
       min: 0.8,
@@ -268,6 +298,7 @@ export const standard = {
       description: 'Multiplies every text size, headings and body alike.',
     }),
     headingScale: Knob.number({
+      title: 'Heading scale',
       variable: 'heading-scale',
       default: 1,
       min: 0.4,
@@ -277,6 +308,7 @@ export const standard = {
         'How far headings stand above body text: below 1 nearer its size, above 1 larger.',
     }),
     leading: Knob.number({
+      title: 'Line height',
       variable: 'leading',
       default: 1,
       min: 0.85,
@@ -287,6 +319,7 @@ export const standard = {
   },
   motion: {
     scale: Knob.number({
+      title: 'Motion',
       variable: 'motion',
       default: 1,
       min: 0,
@@ -295,6 +328,7 @@ export const standard = {
       description: 'Multiplies how long every transition takes. 0 stills them; 2 is twice as slow.',
     }),
     easing: Knob.choice({
+      title: 'Easing',
       default: 'ease',
       options: { ease: { ease: 'ease-out' }, spring: { ease: ref('motion', 'spring') } },
       description: 'How transitions move: along an easing curve, or on a spring that settles.',
@@ -302,6 +336,7 @@ export const standard = {
   },
   shadow: {
     style: Knob.choice({
+      title: 'Shadows',
       default: 'soft',
       options: {
         soft: asVariables('shadow', elevation.soft),
@@ -310,6 +345,7 @@ export const standard = {
       description: 'Shadows that diffuse softly, or hard, solid offset copies.',
     }),
     relief: Knob.choice({
+      title: 'Controls',
       default: 'flat',
       options: {
         flat: asVariables('relief', reliefs.flat),
@@ -321,6 +357,7 @@ export const standard = {
         'How buttons stand off the page and fields sink into it: flat, or a soft, hard or bevelled edge.',
     }),
     strength: Knob.percent({
+      title: 'Shadow',
       variable: 'shadow-strength',
       default: 100,
       min: 0,
@@ -329,6 +366,7 @@ export const standard = {
       description: 'How strong shadows are. 0 removes them.',
     }),
     hue: Knob.angle({
+      title: 'Shadow hue',
       variable: 'shadow-h',
       default: 264,
       follows: ref('hue', 'neutral'),
@@ -337,6 +375,7 @@ export const standard = {
       description: 'The hue every shadow is tinted with. Unset, the neutrals’.',
     }),
     chroma: Knob.number({
+      title: 'Shadow tint',
       variable: 'shadow-c',
       default: 0.03,
       follows: `calc(${ref('knob', 'surface-c')} * 2)`,
@@ -348,12 +387,14 @@ export const standard = {
   },
   menu: {
     highlight: Knob.choice({
+      title: 'Menu accent',
       default: 'subtle',
       options: { subtle: { 'popup-bold': '0' }, bold: { 'popup-bold': '1' } },
       description:
         'How the highlighted row of a menu shows: a subtle tint, or filled with the accent.',
     }),
     panel: Knob.choice({
+      title: 'Menu color',
       default: 'default',
       options: {
         default: { 'popup-invert': '0', 'popup-alpha': '1', 'popup-blur': '0px' },
@@ -366,13 +407,14 @@ export const standard = {
     }),
   },
   feedback: {
-    success: hue('success-h', 145, 'The hue of success: a saved form, a passing check.'),
-    warning: hue('warning-h', 75, 'The hue of a warning.'),
-    error: hue('error-h', 25, 'The hue of an error: a refused field, a failed save.'),
-    info: hue('info-h', 245, 'The hue of a neutral notice.'),
+    success: hue('success-h', 145, 'Success', 'The hue of success: a saved form, a passing check.'),
+    warning: hue('warning-h', 75, 'Warning', 'The hue of a warning.'),
+    error: hue('error-h', 25, 'Error', 'The hue of an error: a refused field, a failed save.'),
+    info: hue('info-h', 245, 'Info', 'The hue of a neutral notice.'),
   },
   code: {
     chroma: Knob.number({
+      title: 'Code chroma',
       variable: 'syntax-c',
       default: 0.14,
       min: 0,
@@ -385,11 +427,13 @@ export const standard = {
     hue: hue(
       'chart-h',
       255,
+      'Chart hue',
       'The first chart series’ hue; the other four keep their places around it.',
     ),
   },
   scales: {
     chroma: Knob.number({
+      title: 'Scale vividness',
       variable: 'scale-c',
       default: 1,
       min: 0,
@@ -398,13 +442,13 @@ export const standard = {
       description:
         'How vivid the seven color scales are, as a share of each step’s own. 0 turns them grey.',
     }),
-    red: hue('red-h', 25, 'The red scale’s hue.'),
-    orange: hue('orange-h', 55, 'The orange scale’s hue.'),
-    yellow: hue('yellow-h', 90, 'The yellow scale’s hue.'),
-    green: hue('green-h', 145, 'The green scale’s hue.'),
-    teal: hue('teal-h', 185, 'The teal scale’s hue.'),
-    blue: hue('blue-h', 255, 'The blue scale’s hue.'),
-    purple: hue('purple-h', 300, 'The purple scale’s hue.'),
+    red: hue('red-h', 25, 'Red', 'The red scale’s hue.'),
+    orange: hue('orange-h', 55, 'Orange', 'The orange scale’s hue.'),
+    yellow: hue('yellow-h', 90, 'Yellow', 'The yellow scale’s hue.'),
+    green: hue('green-h', 145, 'Green', 'The green scale’s hue.'),
+    teal: hue('teal-h', 185, 'Teal', 'The teal scale’s hue.'),
+    blue: hue('blue-h', 255, 'Blue', 'The blue scale’s hue.'),
+    purple: hue('purple-h', 300, 'Purple', 'The purple scale’s hue.'),
   },
 } as const satisfies KnobSet
 
@@ -492,3 +536,56 @@ export const variables = <S extends KnobSet>(self: KnobTheme<S>): Knob.Variables
 
 /** `self`'s knob variables as tokens, for `Theme.root` and `Theme.scoped`. */
 export const tokensOf = <S extends KnobSet>(self: KnobTheme<S>) => define({ knob: variables(self) })
+
+/**
+ * The Schema of a theme's values over `knobs`: each group and knob optional,
+ * each value checked by its knob, for a Model field or a decoded URL. Decode
+ * with `onExcessProperty: 'error'` where an unknown key must be refused
+ * rather than dropped.
+ */
+export const schemaOf = <S extends KnobSet>(knobs: S): Schema.Codec<Values<S>> =>
+  // Built from `knobs` group by group, so its type is `Values<S>` by construction.
+  Schema.Struct(
+    Object.fromEntries(
+      Object.entries(knobs).map(([group, names]) => [
+        group,
+        Schema.optionalKey(
+          Schema.Struct(
+            Object.fromEntries(
+              Object.entries(names).map(([name, knob]) => [name, Schema.optionalKey(knob.schema)]),
+            ),
+          ),
+        ),
+      ]),
+    ),
+  ) as unknown as Schema.Codec<Values<S>>
+
+const literal = (value: unknown): string =>
+  typeof value === 'string'
+    ? `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`
+    : typeof value === 'object' && value !== null
+      ? `{ ${Object.entries(value)
+          .map(([key, each]) => `${key}: ${literal(each)}`)
+          .join(', ')} }`
+      : String(value)
+
+const sameValue = (a: unknown, b: unknown): boolean => literal(a) === literal(b)
+
+/**
+ * The source of `self` as `Theme.make({ … })`: each knob it sets that differs
+ * from the knob's default, a group to a line, so the code an application
+ * pastes says only what makes the theme its own.
+ */
+export const print = <S extends KnobSet>(self: KnobTheme<S>): string => {
+  const groups = Object.entries(self.knobs).flatMap(([group, knobs]) => {
+    const values = (self.values[group] ?? {}) as Readonly<Record<string, unknown>>
+    const set = Object.entries(knobs).flatMap(([name, knob]) => {
+      const value = values[name]
+      return value === undefined || sameValue(value, knob.default)
+        ? []
+        : [`${name}: ${literal(value)}`]
+    })
+    return set.length === 0 ? [] : [`  ${group}: { ${set.join(', ')} },`]
+  })
+  return groups.length === 0 ? 'Theme.make({})' : ['Theme.make({', ...groups, '})'].join('\n')
+}

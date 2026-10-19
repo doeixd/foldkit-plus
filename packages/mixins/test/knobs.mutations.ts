@@ -151,4 +151,20 @@ export default [
     ],
     tests: ['examples/site/test/knobs.browser.test.ts'],
   },
+  {
+    name: 'print writes every knob a theme sets, defaults too',
+    edits: [
+      {
+        file: knobs,
+        find: 'value === undefined || sameValue(value, knob.default)',
+        replace: 'value === undefined',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a font stack is printed unescaped',
+    edits: [{ file: knobs, find: String.raw`.replaceAll("'", "\\'")`, replace: '' }],
+    tests: unit,
+  },
 ]

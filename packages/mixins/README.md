@@ -484,6 +484,10 @@ application's own is a `Knob` kind (`Knob.number`, `percent`, `length`, `angle`,
 too: an option is the CSS its variables hold, so `shadow.relief: 'bevel'` writes the bevelled
 shadow lists and `motion.easing: 'spring'` writes the spring curve, and each switches at runtime
 as a number does. `Theme.relief.*` and `Theme.hardShadows` are those options as token sets.
+Each knob carries a `title`, a `description` and its `default`, so a control can be drawn from
+it; `Knobs.schema(Knobs.standard)` is the Schema of a theme's values (a Model field, a decoded
+URL), `Theme.print(theme)` writes a theme's `Theme.make({ … })` source, only the knobs that differ
+from their defaults, and `Theme.fonts` names the font stacks a `type.body` knob may take.
 
 Themes are installed by name, the names being a record's keys:
 

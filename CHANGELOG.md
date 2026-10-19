@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: each knob carries a `title` and its `default` beside its description;
+  `Knobs.schema(knobs)` is the Schema of a theme's values, `Theme.print(theme)` writes its
+  `Theme.make({ … })` source (the knobs that differ from their defaults), and `Theme.fonts` names
+  the shipped font stacks.
 - `foldkit-mixins`: `Themes.make({ iris, cobalt }, { initial: 'iris' })` installs themes of
   typed knobs by name: the root declares the initial one, each other writes its knobs under
   `:root[data-theme="name"]`, `themes.Name` is the Schema of the Model field that holds the

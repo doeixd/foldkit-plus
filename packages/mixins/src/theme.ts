@@ -7,7 +7,17 @@
  */
 import * as Core from './theme/core.js'
 import * as Knob from './theme/knob.js'
-import { describe, make, set, standard, tokensOf, variables } from './theme/knobs.js'
+import { fonts } from './theme/fonts.js'
+import {
+  describe,
+  make,
+  print,
+  schemaOf,
+  set,
+  standard,
+  tokensOf,
+  variables,
+} from './theme/knobs.js'
 import * as ThemeSet from './theme/themes.js'
 import { oklch } from './theme/oklch.js'
 import { root, scoped } from './theme/root.js'
@@ -49,7 +59,7 @@ export type { KnobSet, KnobTheme, Standard, Values, ValueOf } from './theme/knob
 export type { Control, Knob as KnobOf, Variables } from './theme/knob.js'
 
 /** The knobs a theme sets: `Knobs.standard`, every knob the shipped tokens read. */
-export const Knobs = { standard } as const
+export const Knobs = { standard, schema: schemaOf } as const
 
 /** Themes installed by name: `Themes.make({ iris, cobalt }, { initial: 'iris' })`, `Themes.apply`. */
 export const Themes = { make: ThemeSet.make, apply: ThemeSet.apply } as const
@@ -81,6 +91,8 @@ export const Theme = {
   describe,
   variables,
   tokensOf,
+  print,
+  fonts,
   scope: ThemeSet.scope,
   schemeScript,
   chooseScheme,
