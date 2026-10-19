@@ -171,6 +171,9 @@ export const Toast = Style.recipeFor(ToastSlots)({
         overflow: 'hidden',
       }),
       raise(2),
+      // What an application draws as the card's one child fills the card,
+      // or a short payload leaves an empty strip at the end.
+      Style.nest('& > :only-child', { flex: '1', minInlineSize: '0' }),
       Style.nest(stacked, {
         position: 'absolute',
         insetInline: '0',

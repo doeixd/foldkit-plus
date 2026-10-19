@@ -4053,7 +4053,10 @@ export const datePickerRange = <Message>(
 
 // #region toast-payload
 export const ToastStyle = forSlots(ToastSlots)(Recipes.Toast({}))
-const NoticeStyle = forSlots(ItemSlots)(Recipes.Item({}))
+// The toast's card pads the notice, so the row adds none of its own.
+const NoticeStyle = forSlots(ItemSlots)(
+  Recipes.Item.extend({ variants: { density: { comfortable: { root: { padding: '0' } } } } })({}),
+)
 const DismissStyle = forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
 )

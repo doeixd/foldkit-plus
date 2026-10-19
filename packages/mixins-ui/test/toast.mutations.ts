@@ -176,6 +176,17 @@ export default [
     tests: browser,
   },
   {
+    name: "an application's one child keeps its own width",
+    edits: [
+      {
+        file: recipe,
+        find: "{ flex: '1', minInlineSize: '0' }),\n      Style.nest(stacked",
+        replace: '{}),\n      Style.nest(stacked',
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'the loading ring does not turn',
     edits: [
       {

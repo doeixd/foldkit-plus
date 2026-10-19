@@ -75,6 +75,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a toast whose card holds one child the application drew (`Toast.toView`
+  with an `entryToView`) has that child fill the card; it kept its own width, and a short notice
+  left an empty strip before the card's end.
 - `foldkit-mixins`: `Theme.scoped`'s documentation no longer offers a subtree (`.marketing`): a
   token resolves where it is declared, so a knob overridden below the root changed nothing
   derived from it there. `Theme.scope` is the subtree theme.

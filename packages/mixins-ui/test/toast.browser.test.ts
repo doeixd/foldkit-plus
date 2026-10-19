@@ -508,3 +508,33 @@ test('a loading toast’s ring turns, and holds still under reduced motion', asy
   expect(held.turns).toBe(0)
   expect(held.name).toBe('none')
 })
+
+test("an application's one child fills the card, leaving no strip at the end", async () => {
+  const { handle, send } = mount({ duration: 60_000 }, { s0: show('First') })
+  try {
+    await send('s0')
+    const drawn = await vi.waitFor(() => {
+      expect(card(0)).not.toBeNull()
+      return card(0)!
+    })
+    // The card a custom entry view draws: the entry's own class around one short child.
+    const custom = document.createElement('div')
+    custom.className = drawn.className
+    const payload = custom.appendChild(document.createElement('span'))
+    payload.textContent = 'Saved'
+    document.body.appendChild(custom)
+    const padding = parseFloat(getComputedStyle(custom).paddingInlineEnd)
+    const border = parseFloat(getComputedStyle(custom).borderInlineEndWidth)
+    expect(custom.getBoundingClientRect().width).toBeGreaterThan(200)
+    expect(
+      Math.abs(
+        custom.getBoundingClientRect().right -
+          padding -
+          border -
+          payload.getBoundingClientRect().right,
+      ),
+    ).toBeLessThan(1)
+  } finally {
+    handle.dispose()
+  }
+})
