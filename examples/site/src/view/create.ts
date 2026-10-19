@@ -12,7 +12,7 @@
  * it, so a knob turned shows its effect without a scroll. The drawer is not
  * modal: the preview stays live under it.
  */
-import { Listbox as UiListbox } from '@foldkit/ui'
+import { Listbox as UiListbox, Tooltip as UiTooltip } from '@foldkit/ui'
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { SlotView, Style, type SlotAttributes } from 'foldkit-mixins'
@@ -30,6 +30,7 @@ import {
   SliderSlots,
   Tabs,
   TabsSlots,
+  Tooltip,
 } from 'foldkit-mixins-ui'
 
 import { showcaseOf, type Selection } from '../gallery/showcases.js'
@@ -40,6 +41,7 @@ import {
   PickerBox,
   SectionTabs,
   pickerId,
+  type Hint,
   type Picker,
 } from '../gallery/studio.js'
 import {
@@ -73,7 +75,7 @@ import {
 } from '../gallery/theme.js'
 import { COMPONENTS } from '../library.js'
 import { Message, type Model } from '../main.js'
-import { CodeStyle, StudioDrawerStyle, StudioTabsStyle } from '../style.js'
+import { CodeStyle, HintStyle, StudioDrawerStyle, StudioTabsStyle } from '../style.js'
 import { liveOf, preview } from './components.js'
 import { tsTokens } from './tsTokens.js'
 import type { H, Slots } from './layout.js'
@@ -105,7 +107,10 @@ const tiles: ReadonlyArray<{ readonly slug: string; readonly selection: Selectio
 const CODE_ID = 'theme-code'
 
 // The controls' own looks, compact to fit a column; they read the site's tokens.
-const SliderStyle = Style.forSlots(SliderSlots)(Recipes.Slider({ size: 'sm', value: 'end' }))
+// The name and value are drawn above it, the name a hint's trigger; the slider's own stay for a reader.
+const SliderStyle = Style.forSlots(SliderSlots)(
+  Recipes.Slider({ size: 'sm', value: 'end', label: 'hidden' }),
+)
 const SegmentedStyle = Style.forSlots(SegmentedSlots)(
   Recipes.Segmented({ size: 'sm', width: 'fill' }),
 )
@@ -130,23 +135,103 @@ const swatchOf = (knobs: Preset['knobs']) => {
   return `linear-gradient(135deg, ${accent} 50%, ${page} 50%)`
 }
 
-const slider = (model: Model, knob: Knob, h: H): Html => {
+const slider = (model: Model, slots: Slots, knob: Knob, h: H): Html => {
   const range = rangeOf(knob)
-  return Slider.view(
-    {
-      id: `knob-${knob}`,
-      label: range.label,
-      value: model.knobs[knob],
-      onChange: value => Message.MovedKnob({ knob, value }),
-      min: range.min,
-      max: range.max,
-      step: range.step,
-      format: value => `${value}${range.unit}`,
-      showValue: true,
-      style: SliderStyle,
-    },
-    h,
-  )
+  const format = (value: number) => `${value}${range.unit}`
+  return h.div(slots.knob.attrs(), [
+    h.div(slots.knobHead.attrs(), [
+      hint(model, h, knob, range.label),
+      h.span(slots.knobValue.attrs([h.AriaHidden(true)]), [format(model.knobs[knob])]),
+    ]),
+    Slider.view(
+      {
+        id: `knob-${knob}`,
+        label: range.label,
+        value: model.knobs[knob],
+        onChange: value => Message.MovedKnob({ knob, value }),
+        min: range.min,
+        max: range.max,
+        step: range.step,
+        format,
+        style: SliderStyle,
+      },
+      h,
+    ),
+  ])
+}
+
+/**
+ * A knob's name as a Tooltip's trigger, the tooltip saying what the knob
+ * does; the name alone is often a term of art (chroma, leading, relief).
+ */
+const hint = (model: Model, h: H, which: Hint, name: string): Html =>
+  Option.match(Option.fromNullishOr(model.hints.find(each => each.hint === which)), {
+    onNone: () => h.span([], [name]),
+    onSome: ({ tooltip }) =>
+      h.submodel({
+        slotId: tooltip.id,
+        model: tooltip,
+        view: UiTooltip.view,
+        viewInputs: {
+          anchor: Tooltip.anchor({ placement: 'top-start' }),
+          toView: Tooltip.toView([HintStyle.mixin], { h, id: tooltip.id }, tip =>
+            h.span(
+              [],
+              [
+                h.button([...tip.trigger, h.Type('button')], [name]),
+                ...(tip.isVisible
+                  ? [h.div(tip.layer, [h.div(tip.panel, [h.span(tip.arrow, []), hints[which]])])]
+                  : []),
+              ],
+            ),
+          ),
+        },
+        toParentMessage: message => Message.GotHint({ hint: which, message }),
+      }),
+  })
+
+const hints: Readonly<Record<Hint, string>> = {
+  hue: 'The accent’s place on the color wheel, in degrees: about 25 is red, 145 green, 264 blue. Buttons, links, focus rings and selections take it.',
+  chroma: 'How vivid the accent is. 0 is grey; around 0.2 is as vivid as most screens show.',
+  lightness: 'How light the accent is in the light scheme.',
+  surfaceSaturation:
+    'How much the page, cards and borders lean toward the base color. 0 is pure grey.',
+  surfaceLightness:
+    'How light the page is in the light scheme. Cards, fields and hovers step from it.',
+  surfaceLightnessDark:
+    'How light the page is in the dark scheme. Cards, fields and hovers step from it.',
+  surfaceContrast:
+    'How far apart the surface steps are: the page, a card on it, a field, a hover. Low is flat; high sets each apart.',
+  radius:
+    'Multiplies every corner. 0 is square. A control inside a card keeps inside the card’s corner.',
+  density: 'Multiplies spacing: padding, gaps and margins. Below 1 is tighter, above 1 roomier.',
+  border: 'The thinnest border’s width; the thicker ones step up from it.',
+  shadow: 'How strong shadows are. 0 removes them.',
+  motion: 'Multiplies how long every transition takes. 0 stills them; 2 is twice as slow.',
+  textScale: 'Multiplies every text size, headings and body alike.',
+  headingScale: 'How far headings stand above body text: below 1 nearer its size, above 1 larger.',
+  leading: 'Multiplies line height, the space each line of text takes.',
+  headingWeight: 'How bold headings are, from 300 (light) to 900 (black).',
+  tracking:
+    'Headings’ letter spacing, in em: negative draws letters together, positive spreads them.',
+  base: 'The hue the neutrals are mixed from: the page, text and borders. Accent takes the accent’s own; the others are shadcn’s base colors.',
+  font: 'The typeface for body text and controls.',
+  headingFont: 'The typeface for headings. Body uses the body’s font.',
+  menuColor:
+    'The background of menus and popovers: the page’s, inverted (dark on a light page), or translucent, the page blurred behind it.',
+  hover:
+    'What a hovered row or button is tinted with: a step of the surface, a plain grey, or the accent.',
+  menuAccent: 'How the highlighted row of a menu shows: a subtle tint, or filled with the accent.',
+  size: 'How tall controls are: 36px, or a compact 28px.',
+  controlShape: 'The corners of buttons: the radius’s, or fully round pills.',
+  outlines:
+    'How much borders show: the palette’s soft lines, darker ones, or lines in the text’s own ink.',
+  shadowStyle: 'Shadows that diffuse softly, or hard, solid offset copies.',
+  relief:
+    'How buttons stand off the page and fields sink into it: flat, or a soft, hard or bevelled edge.',
+  easing: 'How transitions move: along an easing curve, or on a spring that settles.',
+  theme: 'Whole themes, setting every knob at once. Hover one to read about it.',
+  look: 'The shape and type of a style, leaving the colors as they are.',
 }
 
 /** Labels for a choice's values, as words. */
@@ -160,15 +245,17 @@ const choose = (model: Model, change: Partial<Knobs>) =>
 
 /** A few values in a row, one pressed: `name` shows above, and names the group. */
 const row = <A extends string>(
+  model: Model,
   slots: Slots,
   h: H,
+  which: Hint,
   name: string,
   options: ReadonlyArray<{ readonly value: A; readonly label: string }>,
   current: A,
   toMessage: (value: A) => Message,
 ): Html =>
   h.div(slots.knob.attrs(), [
-    h.span(slots.axisName.attrs([h.AriaHidden(true)]), [name]),
+    hint(model, h, which, name),
     Segmented.view(
       {
         label: name,
@@ -196,9 +283,7 @@ const picker = <A extends string>(
   const labelOf = new Map<string, string>(options.map(option => [option.value, option.label]))
   const listbox = model.pickers[which]
   return h.div(slots.knob.attrs(), [
-    h.label(slots.axisName.attrs([h.Attribute('for', UiListbox.buttonId(pickerId(which)))]), [
-      name,
-    ]),
+    hint(model, h, which, name),
     h.submodel({
       slotId: listbox.id,
       model: listbox,
@@ -222,8 +307,10 @@ const picker = <A extends string>(
 
 /** Buttons that each install a set of knobs, pressed while the knobs are its own. */
 const chips = <A>(
+  model: Model,
   slots: Slots,
   h: H,
+  which: Hint,
   name: string,
   items: ReadonlyArray<A>,
   item: (value: A) => {
@@ -235,7 +322,7 @@ const chips = <A>(
 ): Html => {
   const button = SlotView.buildersFor(ButtonSlots, [ChoiceStyle.mixin], { input: undefined, h })
   return h.fieldset(slots.axis.attrs(), [
-    h.legend(slots.axisName.attrs(), [name]),
+    h.legend(slots.axisName.attrs(), [hint(model, h, which, name)]),
     h.div(
       slots.presets.attrs(),
       items.map(value => {
@@ -257,7 +344,7 @@ const chips = <A>(
 const themesPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
   const action = SlotView.buildersFor(ButtonSlots, [ActionStyle.mixin], { input: undefined, h })
   return [
-    chips(slots, h, 'Theme', presets, preset => {
+    chips(model, slots, h, 'theme', 'Theme', presets, preset => {
       const knobs = presetKnobs(preset, model.knobs.direction)
       return {
         label: [
@@ -275,7 +362,7 @@ const themesPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
         message: Message.ChoseTheme({ name: preset.name }),
       }
     }),
-    chips(slots, h, 'Style, keeping the colors', looks, look => ({
+    chips(model, slots, h, 'look', 'Style, keeping the colors', looks, look => ({
       label: [look.name],
       title: look.description,
       pressed: inLook(model.knobs, look),
@@ -299,19 +386,26 @@ const themesPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
 }
 
 const colorPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
-  slider(model, 'hue', h),
-  slider(model, 'chroma', h),
-  slider(model, 'lightness', h),
+  slider(model, slots, 'hue', h),
+  slider(model, slots, 'chroma', h),
+  slider(model, slots, 'lightness', h),
   picker(model, slots, h, 'base', 'Base color', words(Base.literals), model.knobs.base),
-  slider(model, 'surfaceSaturation', h),
-  slider(model, 'surfaceLightness', h),
-  slider(model, 'surfaceLightnessDark', h),
-  slider(model, 'surfaceContrast', h),
-  row(slots, h, 'Hover', words(Hover.literals), model.knobs.hover, hover =>
+  slider(model, slots, 'surfaceSaturation', h),
+  slider(model, slots, 'surfaceLightness', h),
+  slider(model, slots, 'surfaceLightnessDark', h),
+  slider(model, slots, 'surfaceContrast', h),
+  row(model, slots, h, 'hover', 'Hover', words(Hover.literals), model.knobs.hover, hover =>
     choose(model, { hover }),
   ),
-  row(slots, h, 'Menu accent', words(MenuAccent.literals), model.knobs.menuAccent, menuAccent =>
-    choose(model, { menuAccent }),
+  row(
+    model,
+    slots,
+    h,
+    'menuAccent',
+    'Menu accent',
+    words(MenuAccent.literals),
+    model.knobs.menuAccent,
+    menuAccent => choose(model, { menuAccent }),
   ),
   picker(
     model,
@@ -325,21 +419,44 @@ const colorPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
 ]
 
 const shapePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
-  slider(model, 'radius', h),
-  slider(model, 'density', h),
-  row(slots, h, 'Size', words(Size.literals), model.knobs.size, size => choose(model, { size })),
-  row(slots, h, 'Buttons', words(ControlShape.literals), model.knobs.controlShape, controlShape =>
-    choose(model, { controlShape }),
+  slider(model, slots, 'radius', h),
+  slider(model, slots, 'density', h),
+  row(model, slots, h, 'size', 'Size', words(Size.literals), model.knobs.size, size =>
+    choose(model, { size }),
   ),
-  slider(model, 'border', h),
-  row(slots, h, 'Outlines', words(Outlines.literals), model.knobs.outlines, outlines =>
-    choose(model, { outlines }),
+  row(
+    model,
+    slots,
+    h,
+    'controlShape',
+    'Buttons',
+    words(ControlShape.literals),
+    model.knobs.controlShape,
+    controlShape => choose(model, { controlShape }),
   ),
-  slider(model, 'shadow', h),
-  row(slots, h, 'Shadows', words(ShadowStyle.literals), model.knobs.shadowStyle, shadowStyle =>
-    choose(model, { shadowStyle }),
+  slider(model, slots, 'border', h),
+  row(
+    model,
+    slots,
+    h,
+    'outlines',
+    'Outlines',
+    words(Outlines.literals),
+    model.knobs.outlines,
+    outlines => choose(model, { outlines }),
   ),
-  row(slots, h, 'Controls', words(Relief.literals), model.knobs.relief, relief =>
+  slider(model, slots, 'shadow', h),
+  row(
+    model,
+    slots,
+    h,
+    'shadowStyle',
+    'Shadows',
+    words(ShadowStyle.literals),
+    model.knobs.shadowStyle,
+    shadowStyle => choose(model, { shadowStyle }),
+  ),
+  row(model, slots, h, 'relief', 'Controls', words(Relief.literals), model.knobs.relief, relief =>
     choose(model, { relief }),
   ),
 ]
@@ -363,16 +480,16 @@ const typePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
     words(HeadingFont.literals, font => (font === 'inherit' ? 'Body' : fontLabels[font])),
     model.knobs.headingFont,
   ),
-  slider(model, 'textScale', h),
-  slider(model, 'headingScale', h),
-  slider(model, 'headingWeight', h),
-  slider(model, 'tracking', h),
-  slider(model, 'leading', h),
+  slider(model, slots, 'textScale', h),
+  slider(model, slots, 'headingScale', h),
+  slider(model, slots, 'headingWeight', h),
+  slider(model, slots, 'tracking', h),
+  slider(model, slots, 'leading', h),
 ]
 
 const motionPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
-  slider(model, 'motion', h),
-  row(slots, h, 'Easing', words(Easing.literals), model.knobs.easing, easing =>
+  slider(model, slots, 'motion', h),
+  row(model, slots, h, 'easing', 'Easing', words(Easing.literals), model.knobs.easing, easing =>
     choose(model, { easing, ...(model.knobs.motion === 0 ? { motion: 1 } : {}) }),
   ),
 ]

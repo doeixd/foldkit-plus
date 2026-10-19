@@ -5,10 +5,10 @@
  * choice crosses into them through `pickedKnobs`, which decodes it first.
  */
 import { Option, Schema } from 'effect'
-import { Listbox as UiListbox, Tabs as UiTabs } from '@foldkit/ui'
+import { Listbox as UiListbox, Tabs as UiTabs, Tooltip as UiTooltip } from '@foldkit/ui'
 import { ListboxView } from 'foldkit-mixins-ui'
 
-import { Base, Font, HeadingFont, MenuColor, Section, bases, type Knobs } from './theme.js'
+import { Base, Font, HeadingFont, Knob, MenuColor, Section, bases, type Knobs } from './theme.js'
 
 /** The knobs chosen from a list. */
 export const Picker = Schema.Literals(['base', 'font', 'headingFont', 'menuColor'])
@@ -37,6 +37,30 @@ export const initialPickers: Pickers = {
 }
 
 export const initialTabs = UiTabs.init({ id: 'theme-sections' })
+
+/** Everything `/create` names, each with a tooltip saying more than its name. */
+export const Hint = Schema.Literals([
+  ...Knob.literals,
+  ...Picker.literals,
+  'hover',
+  'menuAccent',
+  'size',
+  'controlShape',
+  'outlines',
+  'shadowStyle',
+  'relief',
+  'easing',
+  'theme',
+  'look',
+])
+export type Hint = typeof Hint.Type
+
+/** A hint's Tooltip, by the hint it explains. */
+export const HintTip = Schema.Struct({ hint: Hint, tooltip: UiTooltip.Model })
+export const initialHints: ReadonlyArray<typeof HintTip.Type> = Hint.literals.map(hint => ({
+  hint,
+  tooltip: UiTooltip.init({ id: `hint-${hint}` }),
+}))
 
 /**
  * What the preview shows: every component, the type set in the theme, the

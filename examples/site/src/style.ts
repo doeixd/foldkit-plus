@@ -6,7 +6,7 @@
  * article, a sidebar) is reached through its container's slot by element.
  */
 import { Capability, Style, type Piece } from 'foldkit-mixins'
-import { CodeBlockSlots, DrawerSlots, Recipes, TabsSlots } from 'foldkit-mixins-ui'
+import { CodeBlockSlots, DrawerSlots, Recipes, TabsSlots, TooltipSlots } from 'foldkit-mixins-ui'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
@@ -983,6 +983,14 @@ export const SiteStyle = slots(
     ],
     pane: { display: 'flex', flexDirection: 'column', gap: t.space.md },
     knob: { display: 'flex', flexDirection: 'column', gap: t.space['2xs'] },
+    // A slider's name and its value, on one line above its track.
+    knobHead: {
+      display: 'flex',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      gap: t.space.xs,
+    },
+    knobValue: { ...mono, color: t.text.default, fontVariantNumeric: 'tabular-nums' },
     presets: { display: 'flex', flexWrap: 'wrap', gap: t.space['2xs'] },
     canvasColumn: { display: 'flex', flexDirection: 'column', gap: t.space.sm, minInlineSize: '0' },
     // The preview's own settings: how it reads, not what the theme is.
@@ -1199,4 +1207,24 @@ export const StudioTabsStyle = Style.forSlots(TabsSlots)(
       tab: Style.self({ flexGrow: '1', paddingInline: t.space['2xs'] }),
     },
   })({ variant: 'pill', size: 'sm', overflow: 'scroll' }),
+)
+
+/**
+ * `/create`'s knob names: each a Tooltip's dotted trigger, set as the other
+ * axis names are, so a name says more when it is hovered or focused.
+ */
+export const HintStyle = Style.forSlots(TooltipSlots)(
+  Recipes.Tooltip.extend({
+    base: {
+      trigger: Style.self({
+        ...mono,
+        alignSelf: 'flex-start',
+        fontWeight: 'inherit',
+        lineHeight: 'inherit',
+        color: t.text.subtle,
+        textAlign: 'start',
+        cursor: 'help',
+      }),
+    },
+  })({}),
 )

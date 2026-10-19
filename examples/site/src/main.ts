@@ -20,7 +20,7 @@ import { Timer } from 'foldkit-primitives/time'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
-import { Listbox as UiListbox, Tabs as UiTabs } from '@foldkit/ui'
+import { Listbox as UiListbox, Tabs as UiTabs, Tooltip as UiTooltip } from '@foldkit/ui'
 import { Drawer } from 'foldkit-mixins-ui'
 
 import { allSubsites } from './catalog.js'
@@ -28,11 +28,14 @@ import { showcaseOf } from './gallery/showcases.js'
 import {
   Canvas,
   CanvasTabs,
+  Hint,
+  HintTip,
   Picker,
   PickerBox,
   Pickers,
   SectionTabs,
   initialCanvasTabs,
+  initialHints,
   initialPickers,
   initialTabs,
   pickedKnobs,
@@ -105,6 +108,8 @@ export const Model = Schema.Struct({
   sectionTabs: UiTabs.Model,
   /** The Listboxes of the knobs chosen from a list. */
   pickers: Pickers,
+  /** A Tooltip for each knob's name, saying what it does. */
+  hints: Schema.Array(HintTip),
   /** What `/create`'s preview shows, and the tabs that pick it. */
   canvas: Canvas,
   canvasTabs: UiTabs.Model,
@@ -143,6 +148,7 @@ export const Message = defineMessageUnion({
   GotSectionTabs: { message: UiTabs.Message },
   GotCanvasTabs: { message: UiTabs.Message },
   GotPicker: { picker: Picker, message: UiListbox.Message },
+  GotHint: { hint: Hint, message: UiTooltip.Message },
   GotDrawer: { message: Drawer.Message },
   ChoseScheme: { scheme: Scheme },
   ChoseDirection: { direction: Direction },
@@ -255,6 +261,7 @@ const withKnobs = (model: Model, knobs: Knobs): UpdateReturn =>
       }
 
 type Step = Update.Step<Model, Message>
+const same: Step = model => ({ model })
 
 const foldSectionTabs = Update.foldChild({
   read: (model: Model) => Option.some(model.sectionTabs),
@@ -294,6 +301,20 @@ const foldCanvasTabs = Update.foldChild({
           ? { model }
           : { model: modifyFields(model, { canvas: () => value }) },
   }),
+})
+
+const foldHint = Update.foldChildAt({
+  update: UiTooltip.update,
+  readAt: (model: Model, hint: Hint) =>
+    Option.fromNullishOr(model.hints.find(each => each.hint === hint)?.tooltip),
+  writeAt: (model, hint, tooltip) =>
+    model.hints.some(each => each.tooltip === tooltip)
+      ? model
+      : modifyFields(model, {
+          hints: hints => hints.map(each => (each.hint === hint ? { hint, tooltip } : each)),
+        }),
+  toParentMessage: (hint, message) => Message.GotHint({ hint, message }),
+  foldOutMessage: () => UiTooltip.OutMessage.match<Step>({ Shown: () => same, Hidden: () => same }),
 })
 
 const foldPicker = Update.foldChildAt({
@@ -403,6 +424,7 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
     GotSectionTabs: ({ message }) => foldSectionTabs(model, message),
     GotCanvasTabs: ({ message }) => foldCanvasTabs(model, message),
     GotPicker: ({ picker, message }) => foldPicker(model, picker, message),
+    GotHint: ({ hint, message }) => foldHint(model, hint, message),
     GotDrawer: ({ message }) => {
       const drawer = Drawer.update(model.drawer, message)
       return {
@@ -531,6 +553,7 @@ export const initial: Model = placements.initial({
   section: 'theme',
   sectionTabs: initialTabs,
   pickers: initialPickers,
+  hints: initialHints,
   canvas: 'components',
   canvasTabs: initialCanvasTabs,
   drawer: Drawer.init({ id: 'theme-panes' }),
