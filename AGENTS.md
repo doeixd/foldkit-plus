@@ -1504,6 +1504,14 @@ of its own named a form field "fits the Catalog". Read words with
   hunk (`git apply --reverse --cached`) does not keep it out, and it rode a
   Dialog test into an unrelated commit that way. Extract the foreign hunk
   from the file first (or wait), then commit.
+- **`git apply --cached --unidiff-zero` places an insertion by the wrong line.** To commit
+  only my hunks of files another session was editing too, I applied a zero-context patch
+  holding just mine; a pure insertion (`@@ -4698,0 +5460,401 @@`) landed at its new-side
+  number, past the foreign hunks left out, so 400 lines went inside `sheetDrawer` and a fold
+  split in two, and `oxfmt --check` on the working tree (which was right) saw nothing. Build
+  the staged file yourself (HEAD's blob with your hunks applied by content, `git hash-object
+  -w` and `git update-index --cacheinfo`), diff it against the working tree to see only the
+  foreign hunks remain, and parse `git show HEAD:<file>` after committing.
 - **But a pathspec that names only the new half of a rename ships both files.**
   `git mv old new` stages a rename; `git commit -- new` then commits the addition
   while the deletion of `old` stays in the index, so HEAD holds two copies and a
