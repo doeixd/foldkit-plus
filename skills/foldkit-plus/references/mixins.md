@@ -346,7 +346,9 @@ input (`FormData.getAll(name)` is `[start, end]`). Result types: `ResolvedButton
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`; compose `Theme.relief.soft`,
-`.hard` or `.bevel` over them to raise every faced button and sink every field), put bases in the
+`.hard` or `.bevel` over them to raise every faced button and sink every field; a theme as typed knob values is
+`Theme.make({ shape: { radius: 1.8 }, menu: { panel: 'inverted' } })` over `Knobs.standard`, pipeable with
+`Theme.set` and `Theme.describe`, its variables `Theme.tokensOf(theme)` for `Theme.root`), put bases in the
 `components` layer and variants in `variants` of `Layers.standard`, and style state from the
 component's own `aria-checked` / `aria-selected` / `aria-disabled`. No recipe declaration is inline
 style, so `Style.forSlots(ButtonSlots)({ button: Style.self({ … }) }, { layer: L.layer('app') })` overrides any of

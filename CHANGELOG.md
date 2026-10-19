@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: a theme as typed knob values. `Theme.make({ shape: { radius: 1.8 } })` checks
+  each value against `Knobs.standard` (grouped: `accent`, `surface`, `shape`, `type`, `motion`,
+  `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`); a misspelt knob or a choice outside
+  its options is a type error, a number out of range throws. Themes pipe (`Theme.set`,
+  `Theme.describe`); `Theme.variables` and `Theme.tokensOf` write them. `Knob.number`, `percent`,
+  `length`, `angle`, `choice`, `font` and `schemed` make knobs of an application's own. The first
+  step of `docs/theme-knobs.md`.
 - `foldkit-mixins`: `border.glyph` (2px), the stroke of what a recipe draws in CSS as an icon.
   Checks, chevrons and the Accordion's plus read it, so thicker borders no longer blot them.
 - `foldkit-mixins-ui`: Steps' `number` slot, the figure in a marker, trimmed to its digits so it

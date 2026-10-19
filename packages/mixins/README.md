@@ -450,6 +450,39 @@ container named `page` rather than the window: an editor's preview frame, narrow
 window, then draws a look as a narrow screen would. An element must be that container
 (`containerType: 'inline-size', containerName: 'page'`).
 
+### Themes as typed knobs
+
+A theme is a typed set of knob values: only what it changes, every other knob at its default.
+`Theme.make` checks each value against its knob (`Knobs.standard`, grouped by concern: `accent`,
+`surface`, `shape`, `type`, `motion`, `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`),
+so a misspelt knob or a choice outside its options is a type error and a number out of its range
+throws where the theme is made. A theme is `pipe`able: `Theme.set` changes some knobs, and
+`Theme.describe` gives it a title and a description for a list of themes.
+
+```ts
+const cobalt = Theme.make({
+  accent: { hue: 235, chroma: 0.225, lightness: 55 },
+  surface: { saturation: 0, contrast: 24 },
+  shape: { radius: 1.8, density: 1.1, controls: 'pill' },
+  menu: { panel: 'inverted' },
+}).pipe(Theme.describe({ title: 'Cobalt' }))
+
+const cobaltDense = cobalt.pipe(Theme.set({ shape: { density: 0.9 } }))
+
+const sheet = Style.stylesheet(
+  Layers.standard.declare,
+  Layers.standard.in('theme', Theme.root(Theme.tokensOf(cobaltDense))),
+)
+```
+
+`Theme.make` writes nothing itself: `Theme.variables(theme)` is the knob variables it declares
+(the values it sets, and each unset knob's default or the expression it follows, such as the
+neutrals following the accent's hue), and `Theme.tokensOf(theme)` is them as tokens for
+`Theme.root` and `Theme.scoped`, declared over the palette and the scales. A knob of an
+application's own is a `Knob` kind (`Knob.number`, `percent`, `length`, `angle`, `choice`,
+`font`, `schemed`), and `Theme.make(knobs, values)` takes a set of them. This replaces the knob
+strings an application writes today; the rest of the move is in `docs/theme-knobs.md`.
+
 ### Layout
 
 `foldkit-mixins/layout` ships the common arrangements as pieces: `Layout.stack`, `cluster`,
