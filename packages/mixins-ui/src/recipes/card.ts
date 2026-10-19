@@ -14,8 +14,11 @@
  * card tints on hover; a selected one keeps a fill, in each surface, and a
  * heavier title.
  *
- * A group lays cards in `--fk-card-columns` columns, divided by hairlines or
- * apart, and draws the one highlight that follows the pointer between them.
+ * A group lays cards in up to `--fk-card-columns` columns, fewer where a
+ * column would be narrower than `minColumn`, divided by hairlines or apart,
+ * and draws the one highlight that follows the pointer between them: under
+ * plain cards it is their hover, and between separated ones it shows in the
+ * gap around the card, which covers the rest of it.
  */
 import { Style } from 'foldkit-mixins'
 import { nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
@@ -35,6 +38,8 @@ import {
 const pad = 'var(--_fk-card-pad)'
 const gap = 'var(--_fk-card-gap)'
 const pressableHover = '&[data-pressable="true"]:not([data-disabled="true"]):is(:hover, :active)'
+/** A plain card's own hover, unless a group's highlight is its hover. */
+const plainHover = `${pressableHover}:not([data-card-fluid="true"] [data-card-item] > *)`
 const selected = '&[data-selected="true"]'
 /** The room the dismiss button takes in the corner, less the card's own padding, and a hair. */
 const clearOfDismiss = `calc(1.5rem - ${pad} / 2 + ${ref.space['2xs']})`
@@ -277,7 +282,10 @@ export const Card = Style.recipeFor(CardSlots)({
             border: `${ref.border.thin} solid ${ref.outline.subtle}`,
             boxShadow: 'var(--_fk-card-shadow-quiet)',
           }),
-          Style.nest(pressableHover, { boxShadow: 'var(--_fk-card-shadow-quiet-lifted)' }),
+          Style.nest(pressableHover, {
+            boxShadow: 'var(--_fk-card-shadow-quiet-lifted)',
+            borderColor: ref.outline.default,
+          }),
           Style.nest(selected, {
             background: film(raisedSurface(), '0.5'),
             borderColor: ref.outline.default,
@@ -298,11 +306,12 @@ export const Card = Style.recipeFor(CardSlots)({
           Style.nest(selected, { background: ref.surface.default }),
         ),
       },
-      // A group's highlight is the hover, so a plain card draws none of its own;
-      // chosen, it keeps a film twice the highlight's.
+      // In a group with a highlight, the highlight is the hover, so a plain card
+      // draws its own film only elsewhere; chosen, it keeps a film twice that.
       plain: {
         root: variant(
           Style.self({ background: 'transparent', borderRadius: ref.radius.md }),
+          Style.nest(plainHover, { background: film('transparent', '0.5') }),
           Style.nest(selected, { background: film('transparent', '1') }),
         ),
       },
@@ -346,14 +355,34 @@ export const Card = Style.recipeFor(CardSlots)({
 })
 
 const line = `${ref.border.thin} solid ${ref.outline.subtle}`
+const groupGap = 'var(--_fk-card-group-gap)'
+const minColumn = 'var(--_fk-card-min-column)'
+const columns = 'var(--fk-card-columns)'
+/** The room `columns` columns at their narrowest take, with the gaps between them and the frame around. */
+const narrowest = `calc(${columns} * ${minColumn} + (${columns} - 1) * ${groupGap} + var(--_fk-card-group-frame))`
+/** The narrowest a column may be, or none, which keeps every column at any width. */
+const minWidth = (width: string) => variant(Style.self({ '--_fk-card-min-column': width }))
 
 export const CardGroup = Style.recipeFor(CardGroupSlots)({
   base: {
-    root: component(Style.self({ position: 'relative', borderRadius: ref.radius.lg })),
+    root: component(
+      Style.self({
+        '--_fk-card-group-gap': '0px',
+        '--_fk-card-group-frame': '0px',
+        position: 'relative',
+        // As wide as its columns at their narrowest, where it can be: a group
+        // in a row or a centred box would shrink to one column otherwise.
+        minInlineSize: `min(100%, ${narrowest})`,
+        borderRadius: ref.radius.lg,
+      }),
+    ),
     list: component(
       Style.self({
         display: 'grid',
-        gridTemplateColumns: 'repeat(var(--fk-card-columns), minmax(0, 1fr))',
+        // At most `columns`, each at least a share of the row and `minColumn`
+        // (or the whole row, when that is narrower); fewer as the row narrows.
+        gridTemplateColumns: `repeat(auto-fill, minmax(max(min(100%, ${minColumn}), calc((100% - (${columns} - 1) * ${groupGap}) / ${columns})), 1fr))`,
+        gap: groupGap,
         margin: '0',
         padding: '0',
         listStyle: 'none',
@@ -367,11 +396,12 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
         // Physical: the Mounts measure from the left, in either direction.
         top: '0',
         left: '0',
-        inlineSize: 'var(--fk-card-hover-w)',
-        blockSize: 'var(--fk-card-hover-h)',
-        translate: 'var(--fk-card-hover-x) var(--fk-card-hover-y)',
+        // Half the gap past the card on every side, so between separated
+        // cards it shows around the one it is on.
+        inlineSize: `calc(var(--fk-card-hover-w) + ${groupGap})`,
+        blockSize: `calc(var(--fk-card-hover-h) + ${groupGap})`,
+        translate: `calc(var(--fk-card-hover-x) - ${groupGap} / 2) calc(var(--fk-card-hover-y) - ${groupGap} / 2)`,
         opacity: 'var(--fk-card-hover-shown)',
-        borderRadius: ref.radius.md,
         // Half a chosen plain card's film, so it lightens a dark page as it
         // darkens a light one; a surface step darkened both.
         background: film('transparent', '0.5'),
@@ -382,23 +412,52 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
   },
   variants: {
     layout: {
-      // Hairlines between the cards: above every row but the first, before every column but the first.
+      // Hairlines between the cards: every card draws one above and one before
+      // it, a line's width out, and the list clips those of the first row and
+      // column, wherever the row wraps.
       divided: {
+        list: variant(Style.self({ overflow: 'clip' })),
         item: variant(
-          Style.nest('&:not([data-row="0"])', { borderBlockStart: line }),
-          Style.nest('&:not([data-column="0"])', { borderInlineStart: line }),
+          Style.self({
+            borderBlockStart: line,
+            borderInlineStart: line,
+            marginBlockStart: `calc(-1 * ${ref.border.thin})`,
+            marginInlineStart: `calc(-1 * ${ref.border.thin})`,
+          }),
+        ),
+        highlight: variant(Style.self({ borderRadius: ref.radius.md })),
+      },
+      // Concentric with a card of the default radius, half the gap out; only
+      // the rim around the card shows, so it is twice the divided film.
+      separated: {
+        root: variant(Style.self({ '--_fk-card-group-gap': ref.space.sm })),
+        highlight: variant(
+          Style.self({
+            borderRadius: `calc(${ref.radius.lg} + ${groupGap} / 2)`,
+            background: film('transparent', '1'),
+          }),
         ),
       },
-      separated: { list: variant(Style.self({ gap: ref.space.sm })) },
+    },
+    minColumn: {
+      none: { root: minWidth('0px') },
+      sm: { root: minWidth('10rem') },
+      md: { root: minWidth('14rem') },
+      lg: { root: minWidth('18rem') },
     },
     border: {
       none: {},
       outlined: {
         root: variant(
-          Style.self({ border: line, background: ref.surface.base, padding: ref.space['2xs'] }),
+          Style.self({
+            '--_fk-card-group-frame': `calc(2 * (${ref.space['2xs']} + ${ref.border.thin}))`,
+            border: line,
+            background: ref.surface.base,
+            padding: ref.space['2xs'],
+          }),
         ),
       },
     },
   },
-  defaults: { layout: 'divided', border: 'none' },
+  defaults: { layout: 'divided', minColumn: 'md', border: 'none' },
 })

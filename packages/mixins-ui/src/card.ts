@@ -209,9 +209,10 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
 
 /**
  * A card group publishes its frame, the list of cards, each card's place in
- * it, and the one highlight that moves between the cards. The list carries
- * the column count as `--fk-card-columns`, for a style's grid, and each item
- * its `data-row` and `data-column`, for dividers between them.
+ * it, and the one highlight that moves between the cards. The root carries
+ * the most columns as `--fk-card-columns`, for a style's grid, which may lay
+ * fewer where the cards would be too narrow, and `data-card-fluid`, whether
+ * the highlight is drawn, so a card can tell whether to draw a hover of its own.
  */
 export const CardGroupSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -245,7 +246,10 @@ const resting = {
 export interface CardGroupView<Message> {
   /** Each card, keyed so a card removed or moved keeps its neighbours' DOM. */
   readonly cards: ReadonlyArray<CardView<Message> & { readonly key: string }>
-  /** How many columns; more than one reads nearness in both directions. Default 1. */
+  /**
+   * The most columns; the recipe lays fewer where a column would be narrower
+   * than its `minColumn`. More than one reads nearness in both directions. Default 1.
+   */
   readonly columns?: number | undefined
   /** One highlight following the pointer. Default true. */
   readonly fluidHover?: boolean | undefined
@@ -272,9 +276,10 @@ export const group = <Message>(options: CardGroupView<Message>, h: HtmlBuilder<M
   const fluid = options.fluidHover !== false
   return h.div(
     builders.root.attrs([
+      h.DataAttribute('card-fluid', flag(fluid)),
+      h.Style({ '--fk-card-columns': String(columns), ...(fluid ? resting : {}) }),
       ...(fluid
         ? [
-            h.Style(resting),
             h.OnMount(
               FluidHover({
                 name: CARD_HOVER,
@@ -293,17 +298,13 @@ export const group = <Message>(options: CardGroupView<Message>, h: HtmlBuilder<M
       h.ul(
         builders.list.attrs([
           h.Role('list'),
-          h.Style({ '--fk-card-columns': String(columns) }),
           ...(options.label === undefined ? [] : [h.AriaLabel(options.label)]),
         ]),
-        options.cards.map(({ key, ...card }, index) =>
+        options.cards.map(({ key, ...card }) =>
           h.keyed('li')(
             key,
             builders.item.attrs([
               h.DataAttribute('card-item', ''),
-              // Where it sits, for a style's dividers: a grid's rows are not countable in CSS.
-              h.DataAttribute('row', String(Math.floor(index / columns))),
-              h.DataAttribute('column', String(index % columns)),
               ...(card.disabled === true ? [h.AriaDisabled(true)] : []),
             ]),
             [view({ ...card, style: card.style ?? options.cardStyle }, h)],

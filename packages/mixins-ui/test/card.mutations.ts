@@ -6,6 +6,7 @@
 const unit = ['packages/mixins-ui/test/card.test.ts']
 const browser = ['packages/mixins-ui/test/card.browser.test.ts']
 const elevation = ['packages/mixins-ui/test/cardElevation.browser.test.ts']
+const group = ['packages/mixins-ui/test/cardGroup.browser.test.ts']
 const view = '../src/card.ts'
 const recipe = '../src/recipes/card.ts'
 
@@ -138,15 +139,82 @@ export default [
     tests: unit,
   },
   {
-    name: 'a group places cards by column for row',
+    name: 'a group does not say whether it draws its highlight',
+    edits: [{ file: view, find: "h.DataAttribute('card-fluid', flag(fluid)),", replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'a grid never wraps',
     edits: [
       {
-        file: view,
-        find: "h.DataAttribute('row', String(Math.floor(index / columns))),",
-        replace: "h.DataAttribute('row', String(index % columns)),",
+        file: recipe,
+        find: 'minmax(max(min(100%, ${minColumn}), calc(',
+        replace: 'minmax(max(0px, calc(',
       },
     ],
-    tests: unit,
+    tests: group,
+  },
+  {
+    name: 'a grid takes no wider than one column at its narrowest',
+    edits: [
+      { file: recipe, find: '        minInlineSize: `min(100%, ${narrowest})`,\n', replace: '' },
+    ],
+    tests: group,
+  },
+  {
+    name: "a divided grid draws its first row's and column's lines",
+    edits: [
+      {
+        file: recipe,
+        find: "        list: variant(Style.self({ overflow: 'clip' })),\n",
+        replace: '',
+      },
+    ],
+    tests: group,
+  },
+  {
+    name: 'a divided grid draws two lines between cards',
+    edits: [
+      {
+        file: recipe,
+        find: '            marginBlockStart: `calc(-1 * ${ref.border.thin})`,\n            marginInlineStart: `calc(-1 * ${ref.border.thin})`,\n',
+        replace: '',
+      },
+    ],
+    tests: group,
+  },
+  {
+    name: "the highlight is the card's size between separated cards",
+    edits: [
+      {
+        file: recipe,
+        find: 'inlineSize: `calc(var(--fk-card-hover-w) + ${groupGap})`,',
+        replace: "inlineSize: 'var(--fk-card-hover-w)',",
+      },
+    ],
+    tests: group,
+  },
+  {
+    name: 'a plain card never hovers by itself',
+    edits: [
+      {
+        file: recipe,
+        find: "          Style.nest(plainHover, { background: film('transparent', '0.5') }),\n",
+        replace: '',
+      },
+    ],
+    tests: group,
+  },
+  {
+    name: "a plain card hovers under the group's highlight too",
+    edits: [
+      {
+        file: recipe,
+        find: 'const plainHover = `${pressableHover}:not([data-card-fluid="true"] [data-card-item] > *)`',
+        replace: 'const plainHover = pressableHover',
+      },
+    ],
+    tests: group,
   },
   {
     name: 'a grid reads nearness down only',

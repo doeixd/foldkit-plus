@@ -162,18 +162,15 @@ describe('Card view', () => {
 describe('CardGroup view', () => {
   const cards = ['a', 'b', 'c'].map(key => ({ key, title: key.toUpperCase() }))
 
-  it('places each card by row and column, keyed', () => {
+  it('keys each card, and writes the most columns on the root', () => {
     const drawn = group({ cards, columns: 2 })
-    const items = itemsOf(drawn)
-    expect(items.map(item => item.key)).toEqual(['a', 'b', 'c'])
-    expect(
-      items.map(item => [Inert.value(item, 'data-row'), Inert.value(item, 'data-column')]),
-    ).toEqual([
-      ['0', '0'],
-      ['0', '1'],
-      ['1', '0'],
-    ])
-    expect(Inert.style(Inert.byTag(drawn, 'ul')[0])['--fk-card-columns']).toBe('2')
+    expect(itemsOf(drawn).map(item => item.key)).toEqual(['a', 'b', 'c'])
+    expect(Inert.style(drawn)['--fk-card-columns']).toBe('2')
+  })
+
+  it('says on the root whether its highlight is drawn', () => {
+    expect(Inert.value(group({ cards }), 'data-card-fluid')).toBe('true')
+    expect(Inert.value(group({ cards, fluidHover: false }), 'data-card-fluid')).toBe('false')
   })
 
   it('marks a disabled card disabled where the highlight looks for it', () => {
@@ -253,7 +250,8 @@ describe('Card recipe', () => {
     expect(sheet).toMatch(
       /:is\(:hover, :focus-within\) > \.[\w-]+\[data-reveal="hover"\]\{opacity:1/,
     )
-    expect(sheet).toMatch(/@media \(hover: none\)\{[^}]*\{opacity:1/)
+    // The button itself, not the hover rule the stylesheet copies for a touch screen.
+    expect(sheet).toMatch(/@media \(hover: none\)\{\.[\w-]+\{opacity:1/)
   })
 })
 
@@ -261,10 +259,11 @@ describe('CardGroup recipe', () => {
   const css = (selection: Parameters<typeof Recipes.CardGroup>[0]): string =>
     Style.forSlots(CardGroupSlots)(Recipes.CardGroup(selection)).css
 
-  it('divides cards by their place, and spaces them apart instead when separated', () => {
-    expect(css({})).toContain('[data-row="0"])')
-    expect(css({})).toContain('[data-column="0"])')
-    expect(css({ layout: 'separated' })).not.toContain('[data-row="0"])')
+  it('divides cards with lines the list clips at its edges, and spaces them apart when separated', () => {
+    expect(css({})).toContain('overflow:clip')
+    expect(css({})).toContain('border-block-start:var(--fk-border-thin) solid')
+    expect(css({ layout: 'separated' })).not.toContain('border-block-start:')
+    expect(css({ layout: 'separated' })).toContain('--_fk-card-group-gap:var(--fk-space-sm)')
   })
 
   it("springs the highlight's place, scaled by whether it is moving", () => {
