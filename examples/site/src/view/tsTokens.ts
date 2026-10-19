@@ -8,7 +8,7 @@ import type { CodeBlock } from 'foldkit-mixins-ui'
 
 const KEYWORDS = new Set(['import', 'from', 'export', 'const', 'type', 'true', 'false'])
 const LEXEME =
-  /('(?:[^'\]|\.)*'|"(?:[^"\]|\.)*")|(\/\/[^\n]*)|(\d+(?:\.\d+)?)|([A-Za-z_$][\w$]*)|([{}()[\],.:;=])/y
+  /('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")|(\/\/[^\n]*)|(\d+(?:\.\d+)?)|([A-Za-z_$][\w$]*)|([{}()[\],.:;=])/y
 
 export const tsTokens = (code: string): ReadonlyArray<CodeBlock.CodeToken> => {
   const tokens: Array<CodeBlock.CodeToken> = []
