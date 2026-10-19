@@ -45,6 +45,7 @@ import {
   OtpFieldSlots,
   ResizableSlots,
   SidebarSlots,
+  type Sidebar,
   ComboboxSlots,
   DatePickerSlots,
   DialogSlots,
@@ -589,6 +590,15 @@ const sidebarRail = <Message>(style: NamedStyle<typeof SidebarSlots>, live: Live
 
 const carouselAt =
   (
+const sidebarOf =
+  <Message>(live: Live<Message>, example: Widgets.SidebarExample) =>
+  (message: Sidebar.Message) =>
+    live.onWidget(Widgets.Message.GotSidebarOf({ example, message }))
+
+/** A box of its own size: the preview centres what it holds, which a row would shrink to nothing. */
+const sidebarBox = <Message>(live: Live<Message>, children: ReadonlyArray<Html>) =>
+  live.h.div([live.h.Style({ blockSize: '26rem', inlineSize: 'min(42rem, 100%)' })], children)
+
     example: Widgets.CarouselExample,
     draw: <Message>(
       style: NamedStyle<typeof CarouselSlots>,
@@ -1765,7 +1775,7 @@ export const showcases: ReadonlyArray<Showcase> = [
     sidebarRail,
     undefined,
     [
-      { name: 'rail', title: 'A rail of icons', draw: sidebarRail },
+      { name: 'icons', title: 'A rail of icons', draw: sidebarRail },
       {
         name: 'resizable',
         title: 'Resizable',
@@ -1775,8 +1785,8 @@ export const showcases: ReadonlyArray<Showcase> = [
             [live.h.Style({ blockSize: '24rem', inlineSize: 'min(40rem, 100%)' })],
             [
               Snippet.sidebarResizable(
-                live.widgets.sidebarResizable,
-                message => live.onWidget(Widgets.Message.GotSidebarResizable({ message })),
+                live.widgets.sidebars.resizable,
+                sidebarOf(live, 'resizable'),
                 live.h,
               ),
             ],
@@ -1848,6 +1858,63 @@ export const showcases: ReadonlyArray<Showcase> = [
         name: 'ring',
         title: 'A ring with its value',
         draw: style => Snippet.progressRing(style, inert),
+      {
+        name: 'floating',
+        title: 'Floating, with actions',
+        draw: (_style, live) =>
+          sidebarBox(live, [
+            Snippet.sidebarFloating(
+              live.widgets.sidebars.floating,
+              sidebarOf(live, 'floating'),
+              {
+                last: live.widgets.sidebarActed,
+                toMessage: action => live.onWidget(Widgets.Message.ActedInSidebar({ action })),
+              },
+              live.h,
+            ),
+          ]),
+      },
+      {
+        name: 'inset',
+        title: 'Inset',
+        draw: (_style, live) =>
+          sidebarBox(live, [
+            Snippet.sidebarInset(live.widgets.sidebars.inset, sidebarOf(live, 'inset'), live.h),
+          ]),
+      },
+      {
+        name: 'sections',
+        title: 'Collapsible sections',
+        draw: (_style, live) =>
+          sidebarBox(live, [
+            Snippet.sidebarSections(
+              live.widgets.sidebars.sections,
+              sidebarOf(live, 'sections'),
+              live.h,
+            ),
+          ]),
+      },
+      {
+        name: 'switcher',
+        title: 'Team switcher and account',
+        draw: (_style, live) =>
+          sidebarBox(live, [
+            Snippet.sidebarSwitcher(
+              live.widgets.sidebars.switcher,
+              {
+                team: live.widgets.team,
+                teamMenu: live.widgets.teamMenu,
+                userMenu: live.widgets.userMenu,
+              },
+              {
+                onSidebar: sidebarOf(live, 'switcher'),
+                onTeamMenu: message => live.onWidget(Widgets.Message.GotTeamMenu({ message })),
+                onUserMenu: message => live.onWidget(Widgets.Message.GotUserMenu({ message })),
+              },
+              live.h,
+            ),
+          ]),
+      },
         pins: { shape: 'ring', size: 'lg' },
       },
       {

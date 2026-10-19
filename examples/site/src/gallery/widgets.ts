@@ -78,9 +78,15 @@ import {
   MENUBAR,
   PAGE_MENU,
   appSidebar,
+  ACCOUNT,
   sidebarResizableModel,
   FileTabs,
+  floatingSidebar,
+  insetSidebar,
+  sectionsSidebar,
   InboxTabs,
+  switcherSidebar,
+  TEAMS,
   type InboxState,
   OpenFiles,
   TRAIL_MAX,
@@ -142,6 +148,16 @@ export const FilesExample = Schema.Literals(['closable', 'scrolling'])
 export type FilesExample = typeof FilesExample.Type
 export const NavExample = Schema.Literals(['panels', 'pill', 'vertical'])
 export type NavExample = typeof NavExample.Type
+
+/** The Sidebar page's examples beyond its first, each with a sidebar of its own. */
+export const SidebarExample = Schema.Literals([
+  'resizable',
+  'floating',
+  'inset',
+  'sections',
+  'switcher',
+])
+export type SidebarExample = typeof SidebarExample.Type
 
 const InboxModel = Schema.Struct({ tabs: UiTabs.Model, folder: Inbox })
 
@@ -279,8 +295,14 @@ export const Model = Schema.Struct({
   split: Resizable.Model,
   /** The sidebar's open groups, whether it is collapsed, its tooltips and phone Sheet. */
   sidebar: Sidebar.Model,
-  /** The resizable sidebar's Model, its width among it. */
-  sidebarResizable: Sidebar.Model,
+  /** Each further example's sidebar. */
+  sidebars: Schema.Record(SidebarExample, Sidebar.Model),
+  /** What a sidebar's action last did. */
+  sidebarActed: Schema.Option(Schema.String),
+  /** The switcher's team, and the menus at its ends. */
+  team: Schema.String,
+  teamMenu: Menu.Model,
+  userMenu: Menu.Model,
   /** The pill tabs' own tabs and section. */
   pillTabs: Schema.Struct({ tabs: UiTabs.Model, section: Section }),
   inboxes: Schema.Record(InboxExample, InboxModel),
@@ -466,7 +488,10 @@ export const Message = defineMessageUnion({
   RanCommand: { value: Schema.String },
   GotSplit: { message: Resizable.Message },
   GotSidebar: { message: Sidebar.Message },
-  GotSidebarResizable: { message: Sidebar.Message },
+  GotSidebarOf: { example: SidebarExample, message: Sidebar.Message },
+  ActedInSidebar: { action: Schema.String },
+  GotTeamMenu: { message: Menu.Message },
+  GotUserMenu: { message: Menu.Message },
   GotPillTabs: { message: UiTabs.Message },
   GotInboxTabs: { example: InboxExample, message: UiTabs.Message },
   GotFileTabs: { example: FilesExample, message: UiTabs.Message },
@@ -696,7 +721,17 @@ export const initial: Model = {
   commandRan: Option.none(),
   split: Resizable.init(0.35),
   sidebar: appSidebar,
-  sidebarResizable: sidebarResizableModel,
+  sidebars: {
+    resizable: sidebarResizableModel,
+    floating: floatingSidebar,
+    inset: insetSidebar,
+    sections: sectionsSidebar,
+    switcher: switcherSidebar,
+  },
+  sidebarActed: Option.none(),
+  team: 'Acme Inc',
+  teamMenu: Menu.init('preview-team-menu', TEAMS, { isAnimated: true }),
+  userMenu: Menu.init('preview-user-menu', ACCOUNT, { isAnimated: true }),
   pillTabs: { tabs: UiTabs.init({ id: 'preview-tabs-pill' }), section: 'overview' },
   inboxes: {
     icons: { tabs: UiTabs.init({ id: 'preview-inbox' }), folder: 'inbox' },
@@ -1178,8 +1213,7 @@ const foldSidebar = Update.foldChild({
   update: Sidebar.update,
 })
 
-const foldSidebarResizable = Update.foldChild({
-  ...own('sidebarResizable', Message.GotSidebarResizable),
+const foldSidebarOf = Update.foldChildAt({
   update: Sidebar.update,
 })
 
@@ -1198,6 +1232,27 @@ const foldPillTabs = Update.foldChild({
   }),
 })
 
+  readAt: (model: Model, example: SidebarExample) => Option.some(model.sidebars[example]),
+  writeAt: (model, example, sidebar) =>
+    modifyFields(model, { sidebars: sidebars => ({ ...sidebars, [example]: sidebar }) }),
+  toParentMessage: (example, message) => Message.GotSidebarOf({ example, message }),
+})
+
+const foldTeamMenu = Update.foldChild({
+  ...own('teamMenu', Message.GotTeamMenu),
+  update: Menu.update,
+  foldOutMessage: Menu.OutMessage.match<Step>({
+    Selected:
+      ({ value }) =>
+      model => ({ model: modifyFields(model, { team: () => value }) }),
+  }),
+})
+
+// The account's rows lead nowhere in the gallery: choosing one only closes the menu.
+const foldUserMenu = Update.foldChild({
+  ...own('userMenu', Message.GotUserMenu),
+  update: Menu.update,
+  foldOutMessage: Menu.OutMessage.match<Step>({ Selected: () => same }),
 const foldInboxTabs = Update.foldChildAt({
   update: InboxTabs.update,
   readAt: (model: Model, example: InboxExample) => Option.some(model.inboxes[example].tabs),
@@ -1666,7 +1721,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       model: modifyFields(model, { commandActive: () => Option.some(value) }),
     }),
     GotSidebar: ({ message }) => foldSidebar(model, message),
-    GotSidebarResizable: ({ message }) => foldSidebarResizable(model, message),
+    GotSidebarOf: ({ example, message }) => foldSidebarOf(model, example, message),
+    ActedInSidebar: ({ action }) => ({
+      model: modifyFields(model, { sidebarActed: () => Option.some(action) }),
+    }),
+    GotTeamMenu: ({ message }) => foldTeamMenu(model, message),
+    GotUserMenu: ({ message }) => foldUserMenu(model, message),
     GotPillTabs: ({ message }) => foldPillTabs(model, message),
     GotInboxTabs: ({ example, message }) => foldInboxTabs(model, example, message),
     GotFileTabs: ({ example, message }) => foldFileTabs(model, example, message),
