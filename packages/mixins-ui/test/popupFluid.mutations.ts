@@ -56,6 +56,17 @@ export default [
     tests,
   },
   {
+    name: 'the indicator glides as the opening panel settles',
+    edits: [
+      {
+        file: popup,
+        find: "glide('moderate', 'var(--fk-popup-chosen-moving, 1)')",
+        replace: "glide('moderate', '1')",
+      },
+    ],
+    tests,
+  },
+  {
     name: "the menu's highlight lights no row",
     survives:
       'upstream marks the row under the pointer data-active as it does the keys, and follows lights that row; nearness reads only in gaps, which menu rows have none of',

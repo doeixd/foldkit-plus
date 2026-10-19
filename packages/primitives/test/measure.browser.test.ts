@@ -63,6 +63,32 @@ it('follows the mark, a change of size, and hides when nothing is marked', async
   }
 })
 
+it('says moving for the measure that finds the mark on another element, and not after', async () => {
+  const { container, rows, read, fiber } = mount()
+  // Each write, as the overlay's transition sees it: the one that moves it decides its duration.
+  const writes: Array<string> = []
+  const record = new MutationObserver(() =>
+    writes.push(`${read('y')} ${read('h')} ${read('moving')}`),
+  )
+  record.observe(container, { attributes: true, attributeFilter: ['style'] })
+  try {
+    await vi.waitFor(() => expect(read('y')).toBe('100px'))
+    delete rows[1]!.dataset['mark']
+    rows[2]!.dataset['mark'] = ''
+    await vi.waitFor(() => expect(read('y')).toBe('200px'))
+    // The same element, resized by the layout: an overlay keeps to it rather than gliding.
+    rows[2]!.style.height = '40px'
+    await vi.waitFor(() => expect(read('h')).toBe('40px'))
+    const changes = writes.filter(
+      (write, at) => write.split(' ', 2).join() !== writes[at - 1]?.split(' ', 2).join(),
+    )
+    expect(changes).toEqual(['100px 100px 0', '200px 100px 1', '200px 40px 0'])
+  } finally {
+    record.disconnect()
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+})
+
 it('measures again when a marked element changes size with no change to the DOM', async () => {
   const { read, fiber } = mount()
   // As a stylesheet arriving does, or an image loading.

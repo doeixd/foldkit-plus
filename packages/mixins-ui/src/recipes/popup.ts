@@ -160,13 +160,18 @@ export const highlight: StyleValue = component(
   Style.nest(lit, { display: 'block' }),
 )
 
-/** The chosen row's marker under `fluid`, which glides to a new choice. */
+/**
+ * The chosen row's marker under `fluid`, which glides to a new choice and
+ * keeps to its row as the panel settles: an opening panel's width changes
+ * once the anchor reads its trigger, and a glide then ran the marker wider
+ * than the panel, which scrolled sideways.
+ */
 export const indicator: StyleValue = component(
   Style.self({
     ...overlay('chosen'),
     display: 'none',
     background: ref.accent.subtle,
-    ...glide('moderate', '1'),
+    ...glide('moderate', 'var(--fk-popup-chosen-moving, 1)'),
   }),
   Style.nest(lit, { display: 'var(--fk-popup-chosen-display, none)' }),
 )

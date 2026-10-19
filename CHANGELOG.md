@@ -28,9 +28,16 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-primitives`: `Swipe` takes a `slop`, the pixels a press moves before it is a swipe.
   Until then it captures nothing and reports nothing, so a press that stays put is a click on
   what is under it.
+- `foldkit-primitives`: `Measure` writes `--fk-<name>-moving`, `1` for the measure that finds the
+  mark on another element and `0` while it stays on one, for an overlay to glide only to a new
+  mark.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a custom select (`Listbox.fluid`, `width: 'trigger'`) no longer scrolls
+  sideways as it opens. The panel is 14rem wide until its anchor reads the trigger, and the
+  chosen row's marker glided from that width down to the row's, wider than the panel; it now
+  glides only to a new choice (the Combobox's marker too).
 - `foldkit-mixins-ui`: a Sidebar's rail centres its header and footer. `header` and `footer` are
   now `{ content, mark? }`; a rail shows the `mark` (a logo, an avatar) centred over the icons,
   in the new `mark` slot, and hides the `content`, in `detail`. It showed the start of the words,

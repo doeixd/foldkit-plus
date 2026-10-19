@@ -116,7 +116,10 @@ there is no layout (jsdom), it scrolls nothing.
 for each named target, the first element in its subtree that matches, relative
 to its scroll box, and writes `--fk-selected-x`, `-y`, `-w`, `-h` (pixels) and
 `--fk-selected-display` (`block`, or `none` while nothing matches) on the
-element; `measured('selected')` names them. A child placed absolutely from
+element, and `--fk-selected-moving`: `1` for the measure that finds the mark
+on another element, `0` while it stays on one, so an overlay that scales its
+transition by it glides to a new mark but keeps to its element as the layout
+settles; `measured('selected')` names them. A child placed absolutely from
 them, such as an editor's selection outline, sits over the target and scrolls
 with it. Where an element is, is presentation: it sends no Message and keeps
 nothing in the Model. It measures again when the subtree changes, as the

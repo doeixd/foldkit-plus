@@ -156,7 +156,9 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   scrolling list or canvas scrolls whatever newly matches `selector` into view (`nearest`); no Message.
 - **Draw over a marked element:** the `Measure({ targets: { selected: selector } })` Mount writes
   `--fk-selected-x/-y/-w/-h/-display` on its element, relative to its scroll box; place an overlay
-  absolutely from them. No Message, nothing in the Model.
+  absolutely from them. `-moving` is `1` for the measure that finds the mark on another element and
+  `0` while it stays: scale a glide's duration by it, so the overlay keeps to its element as the
+  layout settles. No Message, nothing in the Model.
 - **Draw over another element anywhere on the page:** the `TrackBox({ name, radius? })` Mount follows the
   element whose id is its own `data-target` (`TRACK_TARGET_ATTRIBUTE`, read again when it changes) and writes
   `--fk-<name>-x/-y/-w/-h` (viewport pixels) and, with `radius`, `-radius` (`trackedBox(name)`), through scrolls,

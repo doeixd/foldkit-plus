@@ -9,6 +9,13 @@ export const measured = (name: string) =>
     w: `--fk-${name}-w`,
     h: `--fk-${name}-h`,
     display: `--fk-${name}-display`,
+    /**
+     * `1` once the mark has moved to another element, `0` while the element
+     * measured is the one measured last (the layout moved or resized it) or
+     * the first one found: an overlay that glides to a new mark scales its
+     * duration by it, so it keeps to its element as the layout settles.
+     */
+    moving: `--fk-${name}-moving`,
   }) as const
 
 /**
@@ -20,7 +27,8 @@ export const measured = (name: string) =>
  * matches its selector is measured relative to the mounted element's scroll
  * box, which is what an absolutely placed child of it is laid out in. The
  * mounted element gets `--fk-<name>-x`, `-y`, `-w` and `-h` in pixels, and
- * `--fk-<name>-display`: `block` while a target is found, `none` while none is.
+ * `--fk-<name>-display`: `block` while a target is found, `none` while none is,
+ * and `--fk-<name>-moving` (see `measured`).
  *
  * It measures again when the subtree changes (a selection moves), in the
  * frame the change is drawn in; and, at most once a frame, when the mounted
@@ -43,6 +51,8 @@ export const Measure = Mount.defineStream('Measure', {
           const container = element as HTMLElement
           const names = Object.keys(targets)
           let watched: ReadonlyArray<Element> = []
+          // The element each target was last measured on, to tell a new mark from a moved layout.
+          const last = new Map<string, Element>()
           let frame: number | undefined
           // Whether a transition or an animation may be moving something, until one frame finds none.
           let animating = false
@@ -60,6 +70,8 @@ export const Measure = Mount.defineStream('Measure', {
                 continue
               }
               found.push(target)
+              const previous = last.get(name)
+              last.set(name, target)
               const rect = target.getBoundingClientRect()
               // Relative to the scroll box: where the content is, not where the viewport shows it.
               const x = rect.left - box.left - container.clientLeft + container.scrollLeft
@@ -69,6 +81,10 @@ export const Measure = Mount.defineStream('Measure', {
               container.style.setProperty(property.w, `${rect.width}px`)
               container.style.setProperty(property.h, `${rect.height}px`)
               container.style.setProperty(property.display, 'block')
+              container.style.setProperty(
+                property.moving,
+                previous === undefined || previous === target ? '0' : '1',
+              )
             }
             // A measured element that changes size, as an image loading does, is measured again.
             if (found.length !== watched.length || found.some((each, at) => each !== watched[at])) {

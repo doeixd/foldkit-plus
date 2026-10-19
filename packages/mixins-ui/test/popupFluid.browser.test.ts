@@ -33,12 +33,12 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = () => {
+const mount = (listboxStyle = style) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
     Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme))) +
-    style.css
+    listboxStyle.css
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'popup-fluid'
@@ -52,7 +52,7 @@ const mount = () => {
         maybeSelectedValue: model.value,
         itemToConfig: (frequency: string) => ({ content: h.span([], [frequency]) }),
         buttonContent: h.span([], ['Frequency']),
-        toView: Listbox.toView([style.mixin, ...Listbox.fluid], { h }),
+        toView: Listbox.toView([listboxStyle.mixin, ...Listbox.fluid], { h }),
       },
       h,
     )
@@ -118,6 +118,39 @@ test('one highlight follows the pointer and the keys, over rows that draw no fil
       expect(covers(overlay(1), active)).toBe(true)
       expect(getComputedStyle(overlay(1)).opacity).toBe('1')
     })
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("the chosen row's marker keeps to its row while a trigger-wide panel opens", async () => {
+  // Narrower than the panel's fallback width, which it has until the anchor reads the trigger.
+  const handle = mount(Style.forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger' })))
+  try {
+    await vi.waitFor(() => expect(document.querySelector('button')).toBeTruthy())
+    const wides: Array<string> = []
+    let sampling = true
+    // After each frame is drawn: what the reader saw.
+    const channel = new MessageChannel()
+    channel.port1.onmessage = () => {
+      // Upstream draws the panel only once it opens.
+      const listbox = document.querySelector<HTMLElement>('[role="listbox"]')
+      if (listbox !== null && listbox.scrollWidth > listbox.clientWidth)
+        wides.push(`${listbox.scrollWidth} > ${listbox.clientWidth}`)
+      if (sampling) requestAnimationFrame(() => channel.port2.postMessage(0))
+    }
+    requestAnimationFrame(() => channel.port2.postMessage(0))
+    await userEvent.click(document.querySelector('button')!)
+    await vi.waitFor(() => expect(getComputedStyle(row('Hourly')).visibility).toBe('visible'), 3000)
+    await vi.waitFor(() => expect(covers(overlay(0), row('Weekly'))).toBe(true))
+    await vi.waitFor(() => expect(panel().getAnimations({ subtree: true })).toEqual([]))
+    sampling = false
+    channel.port1.close()
+    expect(wides).toEqual([])
+    expect(overlay(0).getBoundingClientRect().width).toBeCloseTo(
+      row('Weekly').getBoundingClientRect().width,
+      0,
+    )
   } finally {
     handle.dispose()
   }
