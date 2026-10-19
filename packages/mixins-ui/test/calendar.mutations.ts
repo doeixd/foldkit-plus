@@ -57,9 +57,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "Style.self({ display: 'grid', gridAutoFlow: 'column', gridAutoColumns: cell }),",
-        replace:
-          "Style.self({ display: 'grid', gridAutoFlow: 'column', gridAutoColumns: cell, gap: '4px' }),",
+        find: "maxInlineSize: '100%',",
+        replace: "maxInlineSize: '100%', gap: '4px',",
       },
     ],
     tests: browser,
@@ -356,5 +355,21 @@ export default [
       },
     ],
     tests: ['packages/mixins-ui/test/calendarOptions.test.ts'],
+  },
+  {
+    name: 'a narrow month spills its week',
+    edits: [
+      {
+        file: recipe,
+        find: 'gridAutoColumns: `minmax(0, ${cell})`,',
+        replace: 'gridAutoColumns: cell,',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/calendarLook.browser.test.ts'],
+  },
+  {
+    name: 'a shrunk round day turns oval',
+    edits: [{ file: recipe, find: "aspectRatio: '1' }", replace: 'blockSize: cell }' }],
+    tests: ['packages/mixins-ui/test/calendarLook.browser.test.ts'],
   },
 ]

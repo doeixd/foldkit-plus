@@ -63,6 +63,11 @@ const stepLayout = Style.self({
 // Below this width a row of steps has no room for every label: only the
 // current step's shows, and the others stay for a screen reader.
 const narrow = '@container (max-width: 32rem)'
+// Below this one, beside four markers the current label would keep a letter
+// or two: its words take a line of their own under the row instead.
+const cramped = '@container (max-width: 17rem)'
+const titleLine = role('body').lineHeight
+const descriptionLine = role('caption').lineHeight
 
 export const Steps = Style.recipeFor(StepsSlots)({
   base: {
@@ -166,6 +171,8 @@ export const Steps = Style.recipeFor(StepsSlots)({
             gap: ref.space.xs,
             inlineSize: '100%',
             containerType: 'inline-size',
+            // What the current step's words are placed against when cramped.
+            position: 'relative',
           }),
         ),
         // Every step but the last grows, so the lines share the free width.
@@ -179,6 +186,20 @@ export const Steps = Style.recipeFor(StepsSlots)({
             Style.nest(':where([data-state]:not([aria-current="step"]))&', {
               flex: '0 0 auto',
             }),
+          ),
+          // Room under the row for the words drawn there; with no words in
+          // it, the steps share the row again, so the lines are even.
+          Style.at(
+            cramped,
+            Style.compose(
+              Style.nest(':where([data-state]:not(:last-child))&', { flex: '1 1 0' }),
+              Style.nest(':where([aria-current="step"])&', {
+                paddingBlockEnd: `calc(${ref.space.xs} + ${titleLine})`,
+              }),
+              Style.nest(':where([aria-current="step"][data-described])&', {
+                paddingBlockEnd: `calc(${ref.space.xs} + ${titleLine} + ${descriptionLine})`,
+              }),
+            ),
           ),
         ),
         // A word wider than the room a step has is cut short, not drawn over
@@ -198,7 +219,20 @@ export const Steps = Style.recipeFor(StepsSlots)({
               whiteSpace: 'nowrap',
             }),
           ),
+          Style.at(
+            cramped,
+            Style.compose(
+              Style.nest(':where([aria-current="step"]) > * > &', {
+                position: 'absolute',
+                insetInline: '0',
+                insetBlockStart: `calc(${markerSize} + ${ref.space.xs})`,
+              }),
+              Style.nest('& > *', { whiteSpace: 'nowrap' }),
+            ),
+          ),
         ),
+        // Under the row, a title starts its line rather than centering on a marker.
+        title: variant(Style.at(cramped, Style.pseudo(current, { marginBlockStart: '0' }))),
         content: variant(Style.self({ display: 'none' })),
         // On the markers' middle line, wherever the text below them ends; as
         // thick as the line, or as the Progress track.

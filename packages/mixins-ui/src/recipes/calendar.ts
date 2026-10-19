@@ -59,8 +59,10 @@ const quiet: StyleValue = component(
 const choice = (shape: 'round' | 'wide'): StyleValue =>
   component(
     Style.self({
-      inlineSize: shape === 'round' ? cell : '100%',
-      blockSize: cell,
+      // Round, a day shrinks with its column and stays a circle.
+      ...(shape === 'round'
+        ? { inlineSize: `min(100%, ${cell})`, aspectRatio: '1' }
+        : { inlineSize: '100%', blockSize: cell }),
       padding: '0',
       border: '0',
       borderRadius: shape === 'round' ? ref.radius.full : ref.radius.md,
@@ -102,8 +104,15 @@ const choice = (shape: 'round' | 'wide'): StyleValue =>
 
 const centered = component(Style.self({ display: 'grid', placeItems: 'center' }))
 // As many columns as the row has cells: seven days, and a week number before them.
+// Each a cell wide, and narrower where the month has less room than seven
+// of them (a phone's 44px touch cells in a card), so the row never spills.
 const week = component(
-  Style.self({ display: 'grid', gridAutoFlow: 'column', gridAutoColumns: cell }),
+  Style.self({
+    display: 'grid',
+    gridAutoFlow: 'column',
+    gridAutoColumns: `minmax(0, ${cell})`,
+    maxInlineSize: '100%',
+  }),
 )
 
 const band = (background: string): Declarations => ({

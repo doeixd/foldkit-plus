@@ -193,6 +193,16 @@ export const Slider = Style.recipeFor(SliderSlots)({
         color: ref.text.muted,
         ...role('caption'),
       }),
+      // Along a track, the end words keep inside it, flush with its ends.
+      Style.nest(':not([data-orientation="vertical"]) > &[data-edge="start"]', {
+        insetInlineStart: '0',
+        justifyContent: 'flex-start',
+      }),
+      Style.nest(':not([data-orientation="vertical"]) > &[data-edge="end"]', {
+        insetInlineStart: 'auto',
+        insetInlineEnd: '0',
+        justifyContent: 'flex-end',
+      }),
       Style.nest(vertical, {
         inlineSize: 'auto',
         blockSize: '0',

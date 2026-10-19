@@ -231,4 +231,53 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'a cramped row squeezes the current words beside their marker',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "const cramped = '@container (max-width: 17rem)'",
+        replace: "const cramped = '@container (max-width: 1rem)'",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/steps.browser.test.ts'],
+  },
+  {
+    name: 'a cramped row keeps no room for a description',
+    edits: [{ file: '../src/steps.ts', find: "[h.DataAttribute('described', '')]", replace: '[]' }],
+    tests: ['packages/mixins-ui/test/steps.browser.test.ts'],
+  },
+  {
+    name: 'cramped words lie over the row',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: 'insetBlockStart: `calc(${markerSize} + ${ref.space.xs})`,',
+        replace: "insetBlockStart: '0',",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/steps.browser.test.ts'],
+  },
+  {
+    name: 'cramped words wrap',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "Style.nest('& > *', { whiteSpace: 'nowrap' }),",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/steps.browser.test.ts'],
+  },
+  {
+    name: 'a cramped row keeps its lines uneven',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "Style.nest(':where([data-state]:not(:last-child))&', { flex: '1 1 0' }),",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/steps.browser.test.ts'],
+  },
 ]

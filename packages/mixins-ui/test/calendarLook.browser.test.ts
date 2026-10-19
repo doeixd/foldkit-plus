@@ -44,6 +44,7 @@ interface Setup {
   readonly outside?: 'shown' | 'hidden'
   readonly two?: boolean
   readonly dir?: 'rtl'
+  readonly width?: string
 }
 
 afterEach(() => {
@@ -173,7 +174,15 @@ const mount = (setup: Setup = {}) => {
       },
       view: (model: Model, h: HtmlBuilder<Message>) =>
         h.div(
-          [h.Style({ display: 'flex', gap: '2rem', padding: '2rem', alignItems: 'start' })],
+          [
+            h.Style({
+              display: 'flex',
+              gap: '2rem',
+              padding: '2rem',
+              alignItems: 'start',
+              ...(setup.width === undefined ? {} : { inlineSize: setup.width }),
+            }),
+          ],
           setup.two === true
             ? [month(model, 'first', h, 'previous'), month(model, 'second', h, 'next')]
             : [month(model, 'first', h, 'both')],
@@ -348,6 +357,23 @@ test('two months side by side page together, each with one arrow', async () => {
     await userEvent.click(document.querySelector<HTMLElement>('[aria-label="Previous month"]')!)
     await vi.waitFor(() => expect(dayOf('first', 11, 2)).toBeTruthy())
     expect(dayOf('second', 11, 3)).toBeTruthy()
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a month narrower than seven cells shrinks its days, which stay round', async () => {
+  const handle = mount({ width: '15rem' })
+  try {
+    await ready()
+    const room = document.body.firstElementChild!
+    const edge =
+      room.getBoundingClientRect().right - parseFloat(getComputedStyle(room).paddingRight)
+    const grid = document.querySelector<HTMLElement>('[role="grid"]')!.getBoundingClientRect()
+    const box = dayOf('first', 11).getBoundingClientRect()
+    expect(grid.right).toBeLessThanOrEqual(edge + 0.5)
+    expect(box.width * 7).toBeLessThanOrEqual(grid.width + 0.5)
+    expect(box.height).toBeCloseTo(box.width, 0)
   } finally {
     handle.dispose()
   }

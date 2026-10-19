@@ -188,4 +188,31 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'the end labels hang past the track',
+    edits: [{ file: '../src/slider.ts', find: '...edgeOf(share(at, min, max)),', replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'the last label is taken for the first',
+    edits: [
+      {
+        file: '../src/slider.ts',
+        find: "if (at === 1) return [h.DataAttribute('edge', 'end')]",
+        replace: "if (at === 1) return [h.DataAttribute('edge', 'start')]",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'an end label keeps to its physical left',
+    edits: [
+      {
+        file: '../src/recipes/slider.ts',
+        find: "        insetInlineStart: 'auto',\n        insetInlineEnd: '0',",
+        replace: "        insetInlineStart: 'auto',\n        right: '0',",
+      },
+    ],
+    tests: [browser],
+  },
 ]

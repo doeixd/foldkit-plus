@@ -94,7 +94,11 @@ export const view = <Message>(options: StepsView<Message>, h: HtmlBuilder<Messag
         ]),
       ]
       return h.li(
-        builders.item.attrs([marked, ...(state === 'current' ? [h.AriaCurrent('step')] : [])]),
+        builders.item.attrs([
+          marked,
+          ...(state === 'current' ? [h.AriaCurrent('step')] : []),
+          ...(step.description === undefined ? [] : [h.DataAttribute('described', '')]),
+        ]),
         [
           onSelect !== undefined && state === 'complete'
             ? h.button(

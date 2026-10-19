@@ -128,6 +128,52 @@ test('a phone-wide row shows the current label alone, clear of the markers besid
   }
 })
 
+test.each([
+  ['with', 'Card or invoice, and who on the team pays for it every month'],
+  ['without', undefined],
+])(
+  'a cramped row draws the current words, %s a description, on a line of their own under it',
+  async (_, description) => {
+    const handle = mount('horizontal', '15rem', {
+      selection: { size: 'md' },
+      steps: () => [
+        { title: 'Plan' },
+        { title: 'Payment', ...(description === undefined ? {} : { description }) },
+        { title: 'Dates' },
+        { title: 'Done' },
+      ],
+    })
+    try {
+      await vi.waitFor(() => expect(markers()).toHaveLength(4))
+      const row = document.querySelector('ol')!.getBoundingClientRect()
+      const text = all('li')[1]!.querySelector<HTMLElement>('[data-state] + span')!
+      const box = text.getBoundingClientRect()
+      const lowest = Math.max(...markers().map(marker => marker.getBoundingClientRect().bottom))
+      expect(box.top).toBeGreaterThan(lowest)
+      expect(box.left).toBeCloseTo(row.left, 0)
+      expect(box.width).toBeCloseTo(row.width, 0)
+      // One line each, a long one cut short.
+      for (const words of Array.from(text.children)) {
+        const ink = document.createRange()
+        ink.selectNodeContents(words)
+        expect(ink.getBoundingClientRect().height).toBeLessThan(
+          parseFloat(getComputedStyle(words).lineHeight) * 1.5,
+        )
+      }
+      const lines = all('li > span[aria-hidden="true"]').map(
+        line => line.getBoundingClientRect().width,
+      )
+      expect(lines).toHaveLength(3)
+      for (const width of lines) expect(width).toBeCloseTo(lines[0]!, 0)
+      // The row holds them, so what follows it starts below their last line.
+      expect(row.bottom).toBeGreaterThanOrEqual(box.bottom - 0.5)
+      expect(row.bottom - box.bottom).toBeLessThan(4)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
 test.each(['xs', 'sm', 'md', 'lg'] as const)(
   'a %s marker is the Avatar of that size',
   async size => {

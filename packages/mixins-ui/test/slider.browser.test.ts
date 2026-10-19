@@ -297,11 +297,24 @@ test('vertical, the track stands upright and the thumb climbs from the bottom', 
   }
 })
 
+const wordsOf = (control: Element, text: string) => {
+  const label = Array.from(control.querySelectorAll('span')).find(
+    span => span.textContent === text,
+  )!
+  const words = document.createRange()
+  words.selectNodeContents(label)
+  return words.getBoundingClientRect()
+}
+
 test('a mark’s label sits under its dot, and a shown value at the end stays upright', async () => {
   const handle = mountOne(
     {
       orientation: 'horizontal',
-      marks: [{ value: 0, label: 'Off' }, 50, { value: 100, label: 'Max' }],
+      marks: [
+        { value: 0, label: 'Off' },
+        { value: 50, label: 'Half' },
+        { value: 100, label: 'Max' },
+      ],
       ticks: true,
       showValue: true,
       format: value => `${value}%`,
@@ -314,13 +327,10 @@ test('a mark’s label sits under its dot, and a shown value at the end stays up
     const dots = Array.from(control.querySelectorAll<HTMLElement>('[data-tick], [aria-hidden]'))
     const marks = dots.filter(dot => dot.textContent === '' && dot.tagName === 'SPAN')
     expect(marks).toHaveLength(11)
-    const labels = dots.filter(dot => dot.textContent === 'Off' || dot.textContent === 'Max')
-    const [off, max] = labels.map(label => label.getBoundingClientRect())
-    const first = marks[0]!.getBoundingClientRect()
-    const last = marks[10]!.getBoundingClientRect()
-    expect(off!.top).toBeGreaterThanOrEqual(control.getBoundingClientRect().bottom)
-    expect(off!.left + off!.width / 2).toBeCloseTo(first.left + first.width / 2, 0)
-    expect(max!.left + max!.width / 2).toBeCloseTo(last.left + last.width / 2, 0)
+    const middle = marks[5]!.getBoundingClientRect()
+    const half = wordsOf(control, 'Half')
+    expect(half.top).toBeGreaterThanOrEqual(control.getBoundingClientRect().bottom)
+    expect(half.left + half.width / 2).toBeCloseTo(middle.left + middle.width / 2, 0)
     // The value is the header's, after the label, and not drawn by the thumb.
     const output = control.previousElementSibling!.lastElementChild!
     expect(output.textContent).toBe('40%')
@@ -333,6 +343,32 @@ test('a mark’s label sits under its dot, and a shown value at the end stays up
     handle.dispose()
   }
 })
+
+test.each(['ltr', 'rtl'] as const)(
+  '%s: the labels at either end keep inside the track, flush with its ends',
+  async direction => {
+    document.documentElement.dir = direction
+    const handle = mountOne({
+      orientation: 'horizontal',
+      marks: [
+        { value: 0, label: 'Minimum' },
+        { value: 100, label: 'Maximum' },
+      ],
+    })
+    try {
+      await vi.waitFor(() => expect(thumb('one-value')).not.toBeNull())
+      const control = controlOf('one-value')
+      const box = control.getBoundingClientRect()
+      const [start, end] = [wordsOf(control, 'Minimum'), wordsOf(control, 'Maximum')]
+      const [left, right] = direction === 'ltr' ? [start!, end!] : [end!, start!]
+      expect(left.left).toBeCloseTo(box.left, 0)
+      expect(right.right).toBeCloseTo(box.right, 0)
+    } finally {
+      handle.dispose()
+      document.documentElement.removeAttribute('dir')
+    }
+  },
+)
 
 test('vertical, a shown value above the thumb reads upright beside it', async () => {
   const handle = mountOne({

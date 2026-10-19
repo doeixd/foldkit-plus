@@ -245,6 +245,12 @@ export function view<Message>(
       ]),
     )
 
+  // The words at either end, which would hang half past the track centered on their mark.
+  const edgeOf = (at: number) => {
+    if (at === 0) return [h.DataAttribute('edge', 'start')]
+    if (at === 1) return [h.DataAttribute('edge', 'end')]
+    return []
+  }
   const placed = (at: number) => h.Style({ '--fk-slider-at': String(share(at, min, max)) })
   const filled = (at: number) => (at >= low && at <= high ? [h.DataAttribute('filled', '')] : [])
   // Each value marked once, a label kept over a bare repeat of its value.
@@ -313,6 +319,7 @@ export function view<Message>(
                     h.AriaHidden(true),
                     placed(at),
                     ...filled(at),
+                    ...edgeOf(share(at, min, max)),
                   ]),
                   [text],
                 ),
