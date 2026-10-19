@@ -28,4 +28,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a change of size waits a frame',
+    edits: [
+      {
+        file: '../src/dom/measure.ts',
+        find: 'const sizes = new ResizeObserver(measure)',
+        replace: 'const sizes = new ResizeObserver(soon)',
+      },
+    ],
+    tests,
+  },
 ]

@@ -30,10 +30,10 @@ export const measured = (name: string) =>
  * `--fk-<name>-display`: `block` while a target is found, `none` while none is,
  * and `--fk-<name>-moving` (see `measured`).
  *
- * It measures again when the subtree changes (a selection moves), in the
- * frame the change is drawn in; and, at most once a frame, when the mounted
- * element scrolls, the window resizes, the mounted element or a measured one
- * changes size, an image or a font inside loads, and on every frame of a
+ * It measures again when the subtree changes (a selection moves) or the
+ * mounted element or a measured one changes size, in the frame the change is
+ * drawn in; and, at most once a frame, when the mounted element scrolls, the
+ * window resizes, an image or a font inside loads, and on every frame of a
  * transition or an animation inside. What moves a target by any other way,
  * such as a stylesheet added that shifts it without resizing it, is seen at
  * the next of these.
@@ -113,8 +113,10 @@ export const Measure = Mount.defineStream('Measure', {
           const changes = new MutationObserver(measure)
           // Made, and the fonts listened to, before anything observes: where one is
           // missing (jsdom has neither a ResizeObserver nor `document.fonts`), the Mount
-          // fails with nothing attached to call `measure`.
-          const sizes = new ResizeObserver(soon)
+          // fails with nothing attached to call `measure`. A size is measured as it is
+          // observed, after layout and before paint: a frame later, a popup whose width
+          // settled as it opened showed its marker at the old width, past its edge.
+          const sizes = new ResizeObserver(measure)
           document.fonts.addEventListener('loadingdone', soon)
           // Its own properties change the container's style too, but writing the same
           // values again records nothing, so a measure that changed nothing rests.

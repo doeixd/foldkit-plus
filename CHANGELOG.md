@@ -51,6 +51,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-primitives`: `Measure` measures a change of size as it is observed, in the frame it is
+  drawn in; it waited a frame, and a popup whose width settled as it opened showed its marker at
+  the old width for that frame, past its edge.
 - `foldkit-mixins-ui`: a Card group's grid wraps. `columns` is now the most it lays, and the
   recipe's new `minColumn` (`none`, `sm`, `md` default, `lg`) the narrowest a column may be, so
   a phone shows one column where it showed two cramped ones; in a centred box the group keeps

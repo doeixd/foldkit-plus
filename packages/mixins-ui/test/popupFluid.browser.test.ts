@@ -147,9 +147,12 @@ test("the chosen row's marker keeps to its row while a trigger-wide panel opens"
     sampling = false
     channel.port1.close()
     expect(wides).toEqual([])
-    expect(overlay(0).getBoundingClientRect().width).toBeCloseTo(
-      row('Weekly').getBoundingClientRect().width,
-      0,
+    // Measured again a frame after the panel resizes, which a loaded run can draw late.
+    await vi.waitFor(() =>
+      expect(overlay(0).getBoundingClientRect().width).toBeCloseTo(
+        row('Weekly').getBoundingClientRect().width,
+        0,
+      ),
     )
   } finally {
     handle.dispose()
