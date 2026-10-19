@@ -29,6 +29,16 @@ describe('Separator view', () => {
     expect(Inert.value(Inert.byRole(stood, 'separator')[0], 'aria-orientation')).toBe('vertical')
   })
 
+  it('writes its orientation for the style on decorative and labelled ones too', () => {
+    expect(
+      Inert.value(view({ orientation: 'vertical', decorative: true }, h), 'data-orientation'),
+    ).toBe('vertical')
+    const framed = view({ orientation: 'vertical', label: 'or' }, h)
+    expect(Inert.value(framed, 'data-orientation')).toBe('vertical')
+    expect(Inert.value(Inert.children(framed)[0], 'data-orientation')).toBe('vertical')
+    expect(Inert.value(view({}, h), 'data-orientation')).toBe('horizontal')
+  })
+
   it('is drawing only when decorative', () => {
     const drawn = view({ decorative: true }, h)
     expect(Inert.byRole(drawn, 'separator')).toHaveLength(0)
@@ -51,9 +61,9 @@ describe('Separator recipe', () => {
   const css = (selection: Parameters<typeof Recipes.Separator>[0]): string =>
     Style.forSlots(SeparatorSlots)(Recipes.Separator(selection)).css
 
-  it('lays the line along the orientation axis', () => {
+  it('lays the line along the orientation the view writes', () => {
     expect(css({})).toContain('inline-size:calc(100% - 2 * var(--_fk-separator-inset, 0px))')
     expect(css({})).toContain('border-block-start:')
-    expect(css({ orientation: 'vertical' })).toContain('border-inline-start:')
+    expect(css({})).toMatch(/\[data-orientation="vertical"\]\{[^}]*border-inline-start:/)
   })
 })

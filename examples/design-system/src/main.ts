@@ -136,7 +136,6 @@ import {
   SecondaryButtonStyle,
   SelectStyle,
   SeparatorStyle,
-  SeparatorVerticalStyle,
   SkeletonCircleStyle,
   SkeletonStyle,
   SliderStyle,
@@ -1907,7 +1906,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           h.p(slots.sectionText.attrs(), ['Archived']),
           h.div(slots.row.attrs(), [
             h.span([], ['Draft']),
-            Separator.view({ orientation: 'vertical', style: SeparatorVerticalStyle }, neverH),
+            Separator.view({ orientation: 'vertical', style: SeparatorStyle }, neverH),
             h.span([], ['Live']),
           ]),
           Skeleton.view({ label: 'Loading title', style: SkeletonStyle }, neverH),

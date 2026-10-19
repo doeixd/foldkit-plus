@@ -5,8 +5,10 @@ import type { MixinList } from './resolve.js'
 /**
  * A separator publishes its rule, and for a labelled one the frame that
  * holds two rules and the label between them; it owns no state, messages,
- * or bundles. Vertical separators need their container to constrain the
- * cross axis: a bare `div` stretches, which is what makes the rule visible.
+ * or bundles. The rule and the frame say their orientation in
+ * `data-orientation`, for the style to read. A
+ * vertical rule stretches across a flex or grid row and stands at least a
+ * line tall anywhere else.
  */
 export const SeparatorSlots = Slots.define({
   rule: Slot.make({ capability: Capability.Container }),
@@ -43,19 +45,21 @@ export const view = <Message = never>(
     { input: undefined, h },
   )
   const orientation = options.orientation === 'vertical' ? 'vertical' : 'horizontal'
+  // On decorative and labelled separators too, which have no `aria-orientation`.
+  const drawn = h.DataAttribute('orientation', orientation)
   if (options.label === undefined) {
     return h.div(
       builders.rule.attrs(
         options.decorative === true
-          ? [h.Role('none')]
-          : [h.Role('separator'), h.AriaOrientation(orientation)],
+          ? [h.Role('none'), drawn]
+          : [h.Role('separator'), h.AriaOrientation(orientation), drawn],
       ),
       [],
     )
   }
   // A `separator` role makes its children presentational, which would hide the label.
-  const line = () => h.div(builders.rule.attrs([h.AriaHidden(true)]), [])
-  return h.div(builders.root.attrs(), [
+  const line = () => h.div(builders.rule.attrs([h.AriaHidden(true), drawn]), [])
+  return h.div(builders.root.attrs([drawn]), [
     line(),
     h.span(builders.label.attrs(), [options.label]),
     line(),

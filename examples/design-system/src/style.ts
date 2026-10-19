@@ -710,11 +710,6 @@ export const SeparatorStyle = app.forSlots(SeparatorSlots)(Recipes.Separator({})
   name: 'SeparatorStyle',
 })
 
-export const SeparatorVerticalStyle = app.forSlots(SeparatorSlots)(
-  Recipes.Separator({ orientation: 'vertical' }),
-  { name: 'SeparatorVerticalStyle' },
-)
-
 export const SkeletonStyle = app.forSlots(SkeletonSlots)(Recipes.Skeleton({}), {
   name: 'SkeletonStyle',
 })

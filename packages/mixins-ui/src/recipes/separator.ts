@@ -1,6 +1,7 @@
 /**
  * A thematic break: a line along the layout axis, never interactive. The
- * orientation axis mirrors the view option so the rule and the role agree.
+ * view writes its orientation (`data-orientation`) on the rule and the frame,
+ * and the recipe reads it, so one style draws both and they cannot disagree.
  * The line is a border, so `line` can dash or dot it and `thickness` thicken
  * it; it is drawn in the default outline, which a dark page still shows (the
  * subtle one all but vanished there). `spacing` is the room before and after
@@ -25,21 +26,52 @@ const set = (property: string, value: string) => ({
 // labelled frame takes neither: the frame does.
 const space = 'var(--_fk-separator-space, 0px)'
 const inset = 'var(--_fk-separator-inset, 0px)'
-const horizontal = { marginBlock: space, marginInline: inset }
-const vertical = { marginInline: space, marginBlock: inset }
-const framed = Style.nest('&[aria-hidden="true"]', { margin: '0' })
+const vertical = '&[data-orientation="vertical"]'
 
 export const Separator = Style.recipeFor(SeparatorSlots)({
   base: {
     rule: component(
-      Style.self({ border: '0', flex: 'none' }),
+      Style.self({
+        flex: 'none',
+        inlineSize: `calc(100% - 2 * ${inset})`,
+        blockSize: '0',
+        borderBlockStart: `${width} ${style} ${color}`,
+        marginBlock: space,
+        marginInline: inset,
+      }),
+      // Stood up, the rule stretches across a flex or grid row, and never
+      // shrinks below the words' size: in running text, or in a row that
+      // cannot stretch it, it stands as tall as the letters beside it,
+      // inside the line, so the line keeps its height.
+      Style.nest(vertical, {
+        display: 'inline-block',
+        verticalAlign: 'text-bottom',
+        alignSelf: 'stretch',
+        inlineSize: '0',
+        blockSize: `calc(100% - 2 * ${inset})`,
+        minBlockSize: '1em',
+        borderBlockStart: '0',
+        borderInlineStart: `${width} ${style} ${color}`,
+        marginBlock: inset,
+        marginInline: space,
+      }),
       Style.nest('&[aria-hidden="true"]', { flex: '1 1 0' }),
+      // In a labelled frame the rules share what the words leave.
+      Style.nest('&[data-orientation][aria-hidden="true"]', { margin: '0', minBlockSize: '0' }),
     ),
     root: component(
       Style.self({
         display: 'flex',
         alignItems: 'center',
         gap: ref.space.sm,
+        marginBlock: space,
+        marginInline: inset,
+      }),
+      Style.nest(vertical, {
+        flexDirection: 'column',
+        alignSelf: 'stretch',
+        marginBlock: inset,
+        marginInline: space,
       }),
     ),
     label: component(
@@ -52,33 +84,6 @@ export const Separator = Style.recipeFor(SeparatorSlots)({
     ),
   },
   variants: {
-    orientation: {
-      horizontal: {
-        rule: variant(
-          Style.self({
-            inlineSize: `calc(100% - 2 * ${inset})`,
-            blockSize: '0',
-            borderBlockStart: `${width} ${style} ${color}`,
-            ...horizontal,
-          }),
-          framed,
-        ),
-        root: variant(Style.self(horizontal)),
-      },
-      vertical: {
-        rule: variant(
-          Style.self({
-            inlineSize: '0',
-            blockSize: `calc(100% - 2 * ${inset})`,
-            alignSelf: 'stretch',
-            borderInlineStart: `${width} ${style} ${color}`,
-            ...vertical,
-          }),
-          framed,
-        ),
-        root: variant(Style.self({ flexDirection: 'column', alignSelf: 'stretch', ...vertical })),
-      },
-    },
     line: {
       solid: {},
       dashed: set('--_fk-separator-style', 'dashed'),
@@ -101,7 +106,6 @@ export const Separator = Style.recipeFor(SeparatorSlots)({
     },
   },
   defaults: {
-    orientation: 'horizontal',
     line: 'solid',
     thickness: 'thin',
     spacing: 'none',

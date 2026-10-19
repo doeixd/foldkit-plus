@@ -3,7 +3,8 @@
  * the page in both schemes (the subtle outline all but vanished on a dark
  * one); dashed, thick, spacing and inset draw what they say; a label sits
  * centred between two equal rules that take the frame's line; and a
- * vertical rule runs the height of its row.
+ * vertical rule, drawn by the same style as a horizontal one, runs the height
+ * of its row, short of it by the inset, and a line tall in running text.
  */
 import { Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -24,9 +25,8 @@ const drawn = Style.forSlots(SeparatorSlots)(
 const labelled = Style.forSlots(SeparatorSlots)(
   Recipes.Separator({ line: 'dotted', thickness: 'thick', spacing: 'lg' }),
 )
-const standing = Style.forSlots(SeparatorSlots)(
-  Recipes.Separator({ orientation: 'vertical', spacing: 'sm' }),
-)
+const standing = Style.forSlots(SeparatorSlots)(Recipes.Separator({ spacing: 'sm' }))
+const inset = Style.forSlots(SeparatorSlots)(Recipes.Separator({ spacing: 'sm', inset: 'sm' }))
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
@@ -44,12 +44,30 @@ const view = (_: unknown, h: HtmlBuilder<never>): Html =>
       box(h, 'drawn', [Separator.view({ style: drawn }, h)]),
       box(h, 'labelled', [Separator.view({ label: 'or', style: labelled }, h)]),
       h.div(
-        [h.Id('row'), h.Style({ display: 'flex', height: '40px' })],
+        [h.Id('row'), h.Style({ display: 'flex', height: '80px' })],
         [
           h.span([], ['A']),
           Separator.view({ orientation: 'vertical', style: standing }, h),
           h.span([], ['B']),
+          Separator.view({ orientation: 'vertical', label: 'or', style: standing }, h),
+          h.span([], ['C']),
         ],
+      ),
+      h.div(
+        [h.Id('toolbar'), h.Style({ display: 'flex', alignItems: 'center' })],
+        [
+          h.span([h.Style({ display: 'block', height: '32px' })], ['A']),
+          Separator.view({ orientation: 'vertical', style: inset }, h),
+          h.span([], ['B']),
+        ],
+      ),
+      h.div(
+        [h.Id('short'), h.Style({ display: 'flex', height: '40px' })],
+        [Separator.view({ orientation: 'vertical', label: 'or', style: standing }, h)],
+      ),
+      h.p(
+        [h.Id('text'), h.Style({ lineHeight: '24px' })],
+        ['Docs', Separator.view({ orientation: 'vertical', style: standing }, h), 'Blog'],
       ),
     ],
   )
@@ -59,7 +77,7 @@ const mount = async (scheme: 'light' | 'dark') => {
   sheet.dataset['test'] = ''
   sheet.textContent =
     Style.stylesheet(L.declare, L.in('theme', Theme.root(theme, { colorScheme: scheme }))) +
-    [plain, drawn, labelled, standing].map(style => style.css).join('')
+    [plain, drawn, labelled, standing, inset].map(style => style.css).join('')
   document.head.append(sheet)
   document.body.style.background = 'var(--fk-surface-base)'
   const container = document.createElement('div')
@@ -139,9 +157,67 @@ test('a vertical rule runs the height of its row', async () => {
   const handle = await mount('light')
   try {
     const rule = document.getElementById('row')!.children[1]!
-    expect(rule.getBoundingClientRect().height).toBe(40)
+    expect(rule.getBoundingClientRect().height).toBe(80)
     expect(getComputedStyle(rule).borderLeftWidth).toBe('1px')
     expect(getComputedStyle(rule).marginLeft).toBe('8px')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('in a row of no set height, a vertical rule stretches short of it by the inset', async () => {
+  const handle = await mount('light')
+  try {
+    const rule = document.getElementById('toolbar')!.children[1]!
+    expect(rule.getBoundingClientRect().height).toBe(32 - 2 * 8)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('in running text, a vertical rule stands as tall as the letters, inside the line', async () => {
+  const handle = await mount('light')
+  try {
+    const text = document.getElementById('text')!
+    const rule = text.querySelector('[role="separator"]')!
+    expect(rule.getBoundingClientRect().height).toBe(16)
+    expect(text.getBoundingClientRect().height).toBe(24)
+    // Centred on the letters, not standing on their baseline.
+    const words = document.createRange()
+    words.selectNodeContents(text.firstChild!)
+    const middle = (box: DOMRect) => box.top + box.height / 2
+    expect(
+      Math.abs(middle(rule.getBoundingClientRect()) - middle(words.getBoundingClientRect())),
+    ).toBeLessThan(1.5)
+    expect(getComputedStyle(rule).borderTopWidth).toBe('0px')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a vertical label stands between two equal upright rules', async () => {
+  const handle = await mount('light')
+  try {
+    const frame = document.getElementById('row')!.children[3]!
+    const [before, label, after] = Array.from(frame.children)
+    expect(frame.getBoundingClientRect().height).toBe(80)
+    expect(label!.getBoundingClientRect().top).toBeGreaterThan(
+      before!.getBoundingClientRect().bottom,
+    )
+    expect(before!.getBoundingClientRect().height).toBeGreaterThan(16)
+    expect(before!.getBoundingClientRect().height).toBe(after!.getBoundingClientRect().height)
+    expect(before!.getBoundingClientRect().width).toBe(1)
+    expect(getComputedStyle(before!).borderTopWidth).toBe('0px')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('in a short row, a vertical label’s rules give way to the words', async () => {
+  const handle = await mount('light')
+  try {
+    const frame = document.getElementById('short')!.firstElementChild!
+    expect(frame.scrollHeight).toBe(frame.clientHeight)
   } finally {
     handle.dispose()
   }

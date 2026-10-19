@@ -1256,15 +1256,15 @@ export const showcases: ReadonlyArray<Showcase> = [
       { name: 'label', title: 'A label', draw: style => Snippet.separatorLabel(style, inert) },
       {
         name: 'vertical',
-        title: 'Vertical',
+        title: 'In a toolbar',
         draw: style => Snippet.separatorVertical(style, inert),
-        pins: { orientation: 'vertical' },
+        pins: { spacing: 'sm', inset: 'sm' },
       },
       {
         name: 'dashed',
         title: 'Dashed',
         draw: style => Snippet.separatorDashed(style, inert),
-        pins: { line: 'dashed', thickness: 'thick', spacing: 'md', inset: 'md' },
+        pins: { line: 'dashed', thickness: 'thick', spacing: 'md' },
       },
     ],
   ),

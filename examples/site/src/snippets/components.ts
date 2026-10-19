@@ -1342,15 +1342,30 @@ export const kbdJoined = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<nev
 // #region separator-basic
 export const SeparatorStyle = forSlots(SeparatorSlots)(Recipes.Separator({}))
 
+// One style draws both: across, between sections; stood up, between links in
+// a row, where it stretches to the row's height.
 export const separator = (style: NamedStyle<typeof SeparatorSlots>, h: HtmlBuilder<never>): Html =>
   h.div(
-    [],
+    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(100%, 22rem)' })],
     [
-      h.p([], ['Account']),
+      h.div(
+        [],
+        [
+          h.p([h.Style({ fontWeight: '600' })], ['Foldkit Plus']),
+          h.p([], ['Packages for Foldkit applications.']),
+        ],
+      ),
       Separator.view({ style }, h),
-      h.p([], ['Billing']),
-      Separator.view({ style }, h),
-      h.p([], ['Members']),
+      h.div(
+        [h.Style({ display: 'flex', alignItems: 'center', gap: '0.75rem' })],
+        [
+          h.a([h.Href('#')], ['Blog']),
+          Separator.view({ orientation: 'vertical', style }, h),
+          h.a([h.Href('#')], ['Docs']),
+          Separator.view({ orientation: 'vertical', style }, h),
+          h.a([h.Href('#')], ['Source']),
+        ],
+      ),
     ],
   )
 // #endregion
@@ -1362,7 +1377,7 @@ export const separatorLabel = (
   h: HtmlBuilder<never>,
 ): Html =>
   h.div(
-    [h.Style({ display: 'grid', gap: '1rem' })],
+    [h.Style({ display: 'grid', gap: '1rem', inlineSize: 'min(100%, 20rem)' })],
     [
       Button.view({ label: 'Continue with a passkey', style: ButtonStyle }, h),
       Separator.view({ label: 'or', style }, h),
@@ -1372,37 +1387,62 @@ export const separatorLabel = (
 // #endregion
 
 // #region separator-vertical
-export const SeparatorVerticalStyle = forSlots(SeparatorSlots)(
-  Recipes.Separator({ orientation: 'vertical', spacing: 'sm' }),
+export const ToolbarButtonStyle = forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'icon', size: 'sm' }),
 )
 
-// Between items in a row; the row's height is the rule's.
+// Pinned: `Recipes.Separator({ spacing: 'sm', inset: 'sm' })`. Between groups
+// of a toolbar's buttons, the rule stops short of the row's height.
 export const separatorVertical = (
   style: NamedStyle<typeof SeparatorSlots>,
   h: HtmlBuilder<never>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'flex', alignItems: 'center', blockSize: '1.25rem' })],
+): Html => {
+  const tool = (label: string, d: string) =>
+    Button.view({ label, icon: outline(h, d), style: ToolbarButtonStyle }, h)
+  return h.div(
     [
-      h.span([], ['Docs']),
+      h.Role('group'),
+      h.AriaLabel('Formatting'),
+      h.Style({ display: 'flex', alignItems: 'center', gap: '0.25rem' }),
+    ],
+    [
+      tool('Bold', 'M4.5 2.5h4.25a2.75 2.75 0 0 1 0 5.5H4.5zM4.5 8h5a2.75 2.75 0 0 1 0 5.5h-5z'),
+      tool('Italic', 'M7 2.5h5M4 13.5h5M10 2.5l-4 11'),
       Separator.view({ orientation: 'vertical', style }, h),
-      h.span([], ['API']),
+      tool('Align left', 'M2.5 4h11M2.5 8h7M2.5 12h9'),
+      tool('Align center', 'M2.5 4h11M4.5 8h7M3.5 12h9'),
       Separator.view({ orientation: 'vertical', style }, h),
-      h.span([], ['Blog']),
+      tool(
+        'Link',
+        'M7 9a3 3 0 0 0 4.24 0l2-2a3 3 0 0 0-4.24-4.24l-.75.75M9 7a3 3 0 0 0-4.24 0l-2 2a3 3 0 0 0 4.24 4.24l.75-.75',
+      ),
     ],
   )
+}
 // #endregion
 
 // #region separator-dashed
-export const SeparatorDashedStyle = forSlots(SeparatorSlots)(
-  Recipes.Separator({ line: 'dashed', thickness: 'thick', spacing: 'md', inset: 'md' }),
-)
-
-// Dashed and thick, with room above and below, stopping short of the sides.
+// Pinned: `Recipes.Separator({ line: 'dashed', thickness: 'thick', spacing: 'md' })`.
+// Dashed and thick, with room above and below, above a receipt's total.
 export const separatorDashed = (
   style: NamedStyle<typeof SeparatorSlots>,
   h: HtmlBuilder<never>,
-): Html => h.div([], [h.p([], ['Subtotal']), Separator.view({ style }, h), h.p([], ['Total'])])
+): Html => {
+  const line = (label: string, amount: string) =>
+    h.div(
+      [h.Style({ display: 'flex', justifyContent: 'space-between' })],
+      [h.span([], [label]), h.span([], [amount])],
+    )
+  return h.div(
+    [h.Style({ inlineSize: 'min(100%, 16rem)' })],
+    [
+      line('Subtotal', '$40.00'),
+      line('Shipping', '$5.00'),
+      Separator.view({ style }, h),
+      line('Total', '$45.00'),
+    ],
+  )
+}
 // #endregion
 
 // #region skeleton-basic

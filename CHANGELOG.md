@@ -54,6 +54,15 @@ version changed; `pnpm` skips versions already in the registry.
   mark on another element and `0` while it stays on one, for an overlay to glide only to a new
   mark.
 
+### Changed
+
+- `foldkit-mixins-ui`: `Recipes.Separator` has no `orientation` axis. The view writes
+  `data-orientation` on the rule and a label's frame, and the recipe reads it, so one style draws
+  a separator either way and the style and the view can no longer disagree: drop `orientation`
+  from the recipe call and keep it on `Separator.view`. A vertical rule stands as tall as the
+  letters where nothing stretches it (running text, a block), where it was drawn with no height,
+  and a vertical label's rules give way to its words in a short row.
+
 ### Fixed
 
 - `foldkit-primitives`: `Measure` measures a change of size as it is observed, in the frame it is

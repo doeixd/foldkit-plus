@@ -22,7 +22,9 @@ export default [
   },
   {
     name: 'a decorative rule is still a separator',
-    edits: [{ file: view, find: "? [h.Role('none')]", replace: "? [h.Role('separator')]" }],
+    edits: [
+      { file: view, find: "? [h.Role('none'), drawn]", replace: "? [h.Role('separator'), drawn]" },
+    ],
     tests: unit,
   },
   {
@@ -30,8 +32,8 @@ export default [
     edits: [
       {
         file: view,
-        find: 'h.div(builders.rule.attrs([h.AriaHidden(true)]), [])',
-        replace: "h.div(builders.rule.attrs([h.Role('separator')]), [])",
+        find: 'h.div(builders.rule.attrs([h.AriaHidden(true), drawn]), [])',
+        replace: "h.div(builders.rule.attrs([h.Role('separator'), drawn]), [])",
       },
     ],
     tests: unit,
@@ -85,8 +87,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "const framed = Style.nest('&[aria-hidden=\"true\"]', { margin: '0' })",
-        replace: "const framed = Style.nest('&[data-never]', { margin: '0' })",
+        find: "Style.nest('&[data-orientation][aria-hidden=\"true\"]', { margin: '0', minBlockSize: '0' }),",
+        replace: "Style.nest('&[data-orientation][aria-hidden=\"true\"]', { minBlockSize: '0' }),",
       },
     ],
     tests: browser,
@@ -111,6 +113,48 @@ export default [
         replace: '',
       },
     ],
+    tests: browser,
+  },
+  {
+    name: 'the style draws every rule across',
+    edits: [
+      {
+        file: view,
+        find: "h.DataAttribute('orientation', orientation)",
+        replace: "h.DataAttribute('orientation', 'horizontal')",
+      },
+    ],
+    tests: [...unit, ...browser],
+  },
+  {
+    name: 'a vertical rule shrinks to nothing outside a row',
+    edits: [{ file: recipe, find: "minBlockSize: '1em',", replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'a vertical rule in running text sits on the baseline',
+    edits: [{ file: recipe, find: "verticalAlign: 'text-bottom',", replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'a vertical rule keeps the horizontal line too',
+    edits: [{ file: recipe, find: "borderBlockStart: '0',", replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'the rules of a vertical label keep a line’s height',
+    edits: [
+      {
+        file: recipe,
+        find: "{ margin: '0', minBlockSize: '0' }",
+        replace: "{ margin: '0' }",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a vertical frame lies down',
+    edits: [{ file: recipe, find: "flexDirection: 'column',", replace: '' }],
     tests: browser,
   },
 ]
