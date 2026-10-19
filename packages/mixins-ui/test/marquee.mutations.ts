@@ -144,4 +144,15 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'a vertical marquee stands taller than its container',
+    edits: [
+      {
+        file: '../src/recipes/marquee.ts',
+        find: "blockSize: '16rem', maxBlockSize: '100%'",
+        replace: "blockSize: '16rem'",
+      },
+    ],
+    tests: [browser],
+  },
 ]

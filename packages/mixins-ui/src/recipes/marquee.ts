@@ -1,7 +1,8 @@
 /**
  * Marquee: copies of the content side by side (or stacked, `top` and
- * `bottom`), each sliding by its own length and starting again, at the
- * duration the view measured, times the `motion` knob. The distance travels,
+ * `bottom`, 16rem tall or no taller than a container with a height), each
+ * sliding by its own length and starting again, at the duration the view
+ * measured, times the `motion` knob. The distance travels,
  * so a still theme or reduced motion holds it; under reduced motion the
  * viewport scrolls instead and one copy shows. The ends fade out by a mask
  * (`edges: 'fade'`), so it reads on any ground. A pointer over it, focus
@@ -40,8 +41,10 @@ const shownPress = ':is(:hover, :focus-within, [data-paused])'
 
 const spaced = (length: string) => variant(Style.self({ '--_fk-marquee-gap': length }))
 
+// At most a quarter at each end, so a short viewport keeps a middle in full.
+const fadeIn = `min(${fade}, 25%)`
 const mask = (to: string) =>
-  `linear-gradient(${to}, transparent, #000 ${fade}, #000 calc(100% - ${fade}), transparent)`
+  `linear-gradient(${to}, transparent, #000 ${fadeIn}, #000 calc(100% - ${fadeIn}), transparent)`
 
 export const Marquee = Style.recipeFor(MarqueeSlots)({
   base: {
@@ -54,7 +57,8 @@ export const Marquee = Style.recipeFor(MarqueeSlots)({
         '--_fk-marquee-way': '1',
       }),
       Style.pseudo(':dir(rtl)', { '--_fk-marquee-way': '-1' }),
-      Style.pseudo('[data-orientation="vertical"]', { blockSize: '16rem' }),
+      // Stacked, it needs a height to scroll within: its own, or no more than its container's.
+      Style.pseudo('[data-orientation="vertical"]', { blockSize: '16rem', maxBlockSize: '100%' }),
     ),
     viewport: component(
       Style.self({ display: 'flex', overflow: 'hidden', blockSize: '100%' }),

@@ -38,6 +38,8 @@ interface Options {
   readonly speed?: number
   /** Set on the marquee's wrapper, as a theme would. */
   readonly knobs?: Readonly<Record<string, string>>
+  /** The height of a box drawn around the marquee. */
+  readonly within?: string
 }
 
 const mount = (options: Options = {}) => {
@@ -69,17 +71,25 @@ const mount = (options: Options = {}) => {
           [h.Style({ inlineSize: '600px', padding: '1rem', ...options.knobs })],
           [
             h.div([h.Id('away'), h.Style({ blockSize: '40px' })], []),
-            Marquee.view(
-              {
-                model,
-                label: 'Customers',
-                items: items(h),
-                side: options.side,
-                speed: options.speed ?? 100,
-                onMessage: m => m,
-                style,
-              },
-              h,
+            h.div(
+              [
+                h.Id('box'),
+                h.Style(options.within === undefined ? {} : { blockSize: options.within }),
+              ],
+              [
+                Marquee.view(
+                  {
+                    model,
+                    label: 'Customers',
+                    items: items(h),
+                    side: options.side,
+                    speed: options.speed ?? 100,
+                    onMessage: m => m,
+                    style,
+                  },
+                  h,
+                ),
+              ],
             ),
           ],
         ),
@@ -90,6 +100,7 @@ const mount = (options: Options = {}) => {
 const region = () => document.querySelector<HTMLElement>('[aria-roledescription="marquee"]')
 const copies = () =>
   Array.from(document.querySelectorAll<HTMLElement>('[aria-roledescription] > div > div'))
+const viewport = () => document.querySelector<HTMLElement>('[aria-roledescription] > div')!
 const first = () => copies()[0]!
 const box = (element: Element) => element.getBoundingClientRect()
 const later = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -210,6 +221,22 @@ test('a vertical marquee is measured and timed down its height', async () => {
       length / 100,
       2,
     )
+  } finally {
+    handle.dispose()
+  }
+})
+
+test.each([
+  ['a box of its container', '100px', 100],
+  ['its own height in a box of none', undefined, 256],
+] as const)('a vertical marquee scrolls within %s', async (_, within, height) => {
+  const handle = mount({ side: 'top', within })
+  try {
+    await ready()
+    expect(box(region()!).height).toBeCloseTo(height, 0)
+    expect(box(viewport()).height).toBeCloseTo(height, 0)
+    expect(box(region()!).bottom).toBeCloseTo(box(document.getElementById('box')!).bottom, 0)
+    expect(getComputedStyle(viewport()).overflow).toBe('hidden')
   } finally {
     handle.dispose()
   }

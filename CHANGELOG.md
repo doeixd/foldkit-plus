@@ -24,6 +24,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a vertical Marquee is no taller than a container with a height; it kept
+  its 16rem and stood out past a shorter one. Its fade takes at most a quarter of each end, so a
+  short one keeps its middle in full.
 - `foldkit-mixins`: `Theme.relief.bevel` draws a raised control's outer ring outside its border.
   A button's border carries its fill, and the ring lay inside it, so its darkest edge sat within
   a line of the button's own color.
