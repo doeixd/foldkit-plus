@@ -274,6 +274,10 @@ write) replace token overrides the site makes today, so `border.thin`,
 
 ## Steps
 
+Steps 1 to 4 are done: the knobs, the choices as knobs, `Themes.make`, and `/create`
+drawn from the schema. Step 5, removing `Theme.oklch`'s config object and the token sets
+composed for a theme, is next.
+
 1. **Kinds and the standard schema.** `Knob` kinds, `Knobs.standard`,
    `Theme.make`, `Theme.set`, `Theme.describe`, and a function from a theme to
    its knob declarations. A golden test: for every `/create` preset,

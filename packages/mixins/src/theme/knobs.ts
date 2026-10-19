@@ -569,11 +569,18 @@ const literal = (value: unknown): string =>
           .join(', ')} }`
       : String(value)
 
-const sameValue = (a: unknown, b: unknown): boolean => literal(a) === literal(b)
+/**
+ * Whether `value` changes nothing the knob writes unset: a bare `0.17` for a
+ * schemed knob whose dark half follows is its default, though it is no
+ * `{ light, dark }`.
+ */
+const atDefault = (knob: Knob.Knob<unknown>, value: unknown): boolean =>
+  Object.entries(knob.write(value)).every(([name, css]) => knob.unset[name] === css)
 
 /**
- * The source of `self` as `Theme.make({ … })`: each knob it sets that differs
- * from the knob's default, a group to a line, so the code an application
+ * The source of `self` as `Theme.make({ … })`: each knob it sets that writes
+ * other than the knob's default does, a group to a line (a knob a line past
+ * a hundred characters), so the code an application
  * pastes says only what makes the theme its own.
  */
 export const print = <S extends KnobSet>(self: KnobTheme<S>): string => {
@@ -581,11 +588,68 @@ export const print = <S extends KnobSet>(self: KnobTheme<S>): string => {
     const values = (self.values[group] ?? {}) as Readonly<Record<string, unknown>>
     const set = Object.entries(knobs).flatMap(([name, knob]) => {
       const value = values[name]
-      return value === undefined || sameValue(value, knob.default)
-        ? []
-        : [`${name}: ${literal(value)}`]
+      return value === undefined || atDefault(knob, value) ? [] : [`${name}: ${literal(value)}`]
     })
-    return set.length === 0 ? [] : [`  ${group}: { ${set.join(', ')} },`]
+    if (set.length === 0) return []
+    const line = `  ${group}: { ${set.join(', ')} },`
+    // A group past the width a formatter keeps breaks to a knob a line, as one would.
+    return line.length <= 100
+      ? [line]
+      : [`  ${group}: {`, ...set.map(each => `    ${each},`), '  },']
   })
   return groups.length === 0 ? 'Theme.make({})' : ['Theme.make({', ...groups, '})'].join('\n')
+}
+
+/** One knob of `S`, by its group and name: `shape.radius`. */
+export type PathOf<S extends KnobSet> = {
+  readonly [G in keyof S & string]: `${G}.${keyof S[G] & string}`
+}[keyof S & string]
+
+/** The knob of `S` at `P`. */
+export type KnobAt<S extends KnobSet, P extends PathOf<S>> = P extends `${infer G}.${infer N}`
+  ? G extends keyof S
+    ? N extends keyof S[G]
+      ? S[G][N]
+      : never
+    : never
+  : never
+
+const split = (path: string): readonly [string, string] => {
+  const dot = path.indexOf('.')
+  return [path.slice(0, dot), path.slice(dot + 1)]
+}
+
+/** Every knob's path in `knobs`, in the order they are declared. */
+export const paths = <S extends KnobSet>(knobs: S): ReadonlyArray<PathOf<S>> =>
+  Object.entries(knobs).flatMap(([group, names]) =>
+    Object.keys(names).map(name => `${group}.${name}`),
+  ) as ReadonlyArray<PathOf<S>>
+
+/** The knob at `path`. */
+export const at = <S extends KnobSet, P extends PathOf<S>>(knobs: S, path: P): KnobAt<S, P> => {
+  const [group, name] = split(path)
+  return knobs[group]![name] as KnobAt<S, P>
+}
+
+/** What `values` set the knob at `path` to, or its default. */
+export const valueAt = <S extends KnobSet, P extends PathOf<S>>(
+  knobs: S,
+  values: Values<S>,
+  path: P,
+): ValueOf<KnobAt<S, P>> => {
+  const [group, name] = split(path)
+  const set = (values[group] as Readonly<Record<string, unknown>> | undefined)?.[name]
+  return (set ?? at(knobs, path).default) as ValueOf<KnobAt<S, P>>
+}
+
+/** `values` with the knob at `path` set to `value`, checked by the knob as `make` checks it. */
+export const withValue = <S extends KnobSet, P extends PathOf<S>>(
+  knobs: S,
+  values: Values<S>,
+  path: P,
+  value: ValueOf<KnobAt<S, P>>,
+): Values<S> => {
+  const [group, name] = split(path)
+  Schema.decodeUnknownSync(at(knobs, path).schema)(value)
+  return { ...values, [group]: { ...values[group], [name]: value } } as Values<S>
 }

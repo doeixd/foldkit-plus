@@ -105,18 +105,7 @@ export default [
         replace: 'transparent) 0%)`',
       },
     ],
-    tests: ['examples/site/test/knobs.browser.test.ts'],
-  },
-  {
-    name: 'an accent hover inks in the text',
-    edits: [
-      {
-        file: knobs,
-        find: "accent: { 'surface-ink': '1', 'state-ink': ref('accent', 'ink') },",
-        replace: "accent: { 'surface-ink': '1', 'state-ink': 'currentColor' },",
-      },
-    ],
-    tests: ['packages/mixins/test/themePage.test.ts'],
+    tests: ['packages/mixins/test/knobChoices.browser.test.ts'],
   },
   {
     name: 'a thick border keeps its step whatever the width',
@@ -127,7 +116,7 @@ export default [
         replace: "thick: '2px',",
       },
     ],
-    tests: ['examples/site/test/knobs.browser.test.ts'],
+    tests: ['packages/mixins/test/knobChoices.browser.test.ts'],
   },
   {
     name: 'a hard shadow style draws soft',
@@ -138,7 +127,7 @@ export default [
         replace: "hard: asVariables('shadow', elevation.soft),",
       },
     ],
-    tests: ['examples/site/test/knobs.browser.test.ts'],
+    tests: ['packages/mixins/test/knobChoices.browser.test.ts'],
   },
   {
     name: 'the spring easing eases',
@@ -149,14 +138,14 @@ export default [
         replace: "spring: { ease: 'ease-out' } },",
       },
     ],
-    tests: ['examples/site/test/knobs.browser.test.ts'],
+    tests: ['packages/mixins/test/knobChoices.browser.test.ts'],
   },
   {
     name: 'print writes every knob a theme sets, defaults too',
     edits: [
       {
         file: knobs,
-        find: 'value === undefined || sameValue(value, knob.default)',
+        find: 'value === undefined || atDefault(knob, value)',
         replace: 'value === undefined',
       },
     ],

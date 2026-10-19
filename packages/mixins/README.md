@@ -487,7 +487,11 @@ as a number does. `Theme.relief.*` and `Theme.hardShadows` are those options as 
 Each knob carries a `title`, a `description` and its `default`, so a control can be drawn from
 it; `Knobs.schema(Knobs.standard)` is the Schema of a theme's values (a Model field, a decoded
 URL), `Theme.print(theme)` writes a theme's `Theme.make({ … })` source, only the knobs that differ
-from their defaults, and `Theme.fonts` names the font stacks a `type.body` knob may take.
+from their defaults, and `Theme.fonts` names the font stacks a `type.body` knob may take. An editor
+reaches a knob by its path, typed by it: `Knobs.paths(knobs)` lists them, `Knobs.at(knobs,
+'shape.radius')` is the knob, and `Knobs.valueAt` and `Knobs.withValue` read and set one value of a
+theme, checked by its knob; a schemed knob's `light` and `dark` are knobs of their own, each with its
+range. `/create` is drawn this way.
 
 Themes are installed by name, the names being a record's keys:
 

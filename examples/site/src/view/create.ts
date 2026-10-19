@@ -16,6 +16,7 @@ import { Listbox as UiListbox, Tooltip as UiTooltip } from '@foldkit/ui'
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { SlotView, Style, type SlotAttributes } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
 import {
   Button,
   ButtonSlots,
@@ -46,32 +47,22 @@ import {
 } from '../gallery/studio.js'
 import {
   Base,
-  ControlShape,
-  Easing,
-  Font,
-  HeadingFont,
-  Hover,
-  MenuAccent,
-  MenuColor,
-  Outlines,
-  Relief,
   Section,
-  ShadowStyle,
-  Size,
-  bases,
+  baseOf,
   codeOf,
   defaults,
   fontLabels,
   inLook,
+  halfAt,
+  knobAt,
   looks,
-  presetKnobs,
   presets,
-  rangeOf,
-  sameKnobs,
+  sameTheme,
   sectionLabels,
-  type Knob,
-  type Knobs,
-  type Preset,
+  valueAt,
+  withLook,
+  type KnobPath,
+  type ThemeValues,
 } from '../gallery/theme.js'
 import { COMPONENTS } from '../library.js'
 import { Message, type Model } from '../main.js'
@@ -167,40 +158,88 @@ const iconButton = (h: H, paths: ReadonlyArray<string>, label: string, onClick: 
   ])
 }
 
+/** A number a knob stands at, light or dark: a bare schemed value is the light one. */
+const numberAt = (values: ThemeValues, path: KnobPath, dark = false): number => {
+  const value = valueAt(values, path)
+  const fallback = knobAt(path).default
+  if (typeof value === 'number')
+    return dark && typeof fallback === 'object' ? (fallback.dark ?? value) : value
+  if (typeof value === 'object') {
+    const each = dark ? value.dark : value.light
+    const otherwise =
+      typeof fallback === 'object' ? (dark ? fallback.dark : fallback.light) : undefined
+    return each ?? otherwise ?? 0
+  }
+  return 0
+}
+
 /**
  * A theme's accent over its page, in a light scheme, for a preset's swatch:
  * the page's grey is as much of Windows 95 as its navy.
  */
-const swatchOf = (knobs: Preset['knobs']) => {
-  const neutral = knobs.base === 'accent' ? knobs.hue : bases[knobs.base].h
-  const accent = `oklch(${knobs.lightness}% ${knobs.chroma} ${knobs.hue})`
-  const page = `oklch(${knobs.surfaceLightness}% ${knobs.surfaceSaturation * 2} ${neutral})`
+const swatchOf = (values: ThemeValues) => {
+  const hue = numberAt(values, 'accent.hue')
+  const neutral = values.surface?.hue ?? hue
+  const accent = `oklch(${numberAt(values, 'accent.lightness')}% ${numberAt(values, 'accent.chroma')} ${hue})`
+  const page = `oklch(${numberAt(values, 'surface.lightness')}% ${numberAt(values, 'surface.saturation') * 2} ${neutral})`
   return `linear-gradient(135deg, ${accent} 50%, ${page} 50%)`
 }
 
-const slider = (model: Model, slots: Slots, knob: Knob, h: H): Html => {
-  const range = rangeOf(knob)
-  const format = (value: number) => `${value}${range.unit}`
+/** How a slider's value reads: an angle in degrees, a multiplier with ×, else its unit. */
+const shown: Partial<Record<KnobPath, string>> = {
+  'accent.hue': '°',
+  'shape.radius': '×',
+  'shape.density': '×',
+  'type.scale': '×',
+  'type.headingScale': '×',
+  'type.leading': '×',
+  'motion.scale': '×',
+  'scales.chroma': '×',
+}
+
+const slider = (model: Model, slots: Slots, h: H, path: KnobPath, dark = false): Html => {
+  const knob = halfAt(path, dark)
+  const { control } = knob
+  if (control.kind !== 'range') return h.span([], [])
+  const { title } = knob
+  const format = (value: number) => `${value}${shown[path] ?? control.unit}`
+  const value = numberAt(model.theme, path, dark)
   return h.div(slots.knob.attrs(), [
     h.div(slots.knobHead.attrs(), [
-      hint(model, h, knob, range.label),
-      h.span(slots.knobValue.attrs([h.AriaHidden(true)]), [format(model.knobs[knob])]),
+      hint(model, h, dark && path === 'surface.lightness' ? 'surface.lightness.dark' : path, title),
+      h.span(slots.knobValue.attrs([h.AriaHidden(true)]), [format(value)]),
     ]),
     Slider.view(
       {
-        id: `knob-${knob}`,
-        label: range.label,
-        value: model.knobs[knob],
-        onChange: value => Message.MovedKnob({ knob, value }),
-        min: range.min,
-        max: range.max,
-        step: range.step,
+        id: `knob-${path.replace('.', '-')}${dark ? '-dark' : ''}`,
+        label: title,
+        value,
+        onChange: next => Message.SetKnob({ path, value: next, dark }),
+        min: control.min,
+        max: control.max,
+        step: control.step,
         format,
         style: SliderStyle,
       },
       h,
     ),
   ])
+}
+
+/** What a name means, for its tooltip: a knob's own description, or the site's words. */
+const hintText = (which: Hint): string => {
+  switch (which) {
+    case 'surface.lightness.dark':
+      return halfAt('surface.lightness', true).description
+    case 'base':
+      return 'The hue the neutrals are mixed from: the page, text and borders. Accent takes the accent’s own; the others are shadcn’s base colors.'
+    case 'theme':
+      return 'Whole themes, setting every knob at once. Hover one to read about it.'
+    case 'look':
+      return 'The shape and type of a style, leaving the colors as they are.'
+    default:
+      return knobAt(which).description
+  }
 }
 
 /**
@@ -223,7 +262,7 @@ const hint = (model: Model, h: H, which: Hint, name: string): Html =>
               [
                 h.button([...tip.trigger, h.Type('button')], [name]),
                 ...(tip.isVisible
-                  ? [h.div(tip.layer, [h.div(tip.panel, [h.span(tip.arrow, []), hints[which]])])]
+                  ? [h.div(tip.layer, [h.div(tip.panel, [h.span(tip.arrow, []), hintText(which)])])]
                   : []),
               ],
             ),
@@ -233,102 +272,60 @@ const hint = (model: Model, h: H, which: Hint, name: string): Html =>
       }),
   })
 
-const hints: Readonly<Record<Hint, string>> = {
-  hue: 'The accent’s place on the color wheel, in degrees: about 25 is red, 145 green, 264 blue. Buttons, links, focus rings and selections take it.',
-  chroma: 'How vivid the accent is. 0 is grey; around 0.2 is as vivid as most screens show.',
-  lightness: 'How light the accent is in the light scheme.',
-  surfaceSaturation:
-    'How much the page, cards and borders lean toward the base color. 0 is pure grey.',
-  surfaceLightness:
-    'How light the page is in the light scheme. Cards, fields and hovers step from it.',
-  surfaceLightnessDark:
-    'How light the page is in the dark scheme. Cards, fields and hovers step from it.',
-  surfaceContrast:
-    'How far apart the surface steps are: the page, a card on it, a field, a hover. Low is flat; high sets each apart.',
-  radius:
-    'Multiplies every corner. 0 is square. A control inside a card keeps inside the card’s corner.',
-  density: 'Multiplies spacing: padding, gaps and margins. Below 1 is tighter, above 1 roomier.',
-  scaleChroma:
-    'How vivid the seven color scales are (red to purple, on the Palette tab), as a share of each step’s own. 0 turns them grey.',
-  border: 'The thinnest border’s width; the thicker ones step up from it.',
-  shadow: 'How strong shadows are. 0 removes them.',
-  motion: 'Multiplies how long every transition takes. 0 stills them; 2 is twice as slow.',
-  textScale: 'Multiplies every text size, headings and body alike.',
-  headingScale: 'How far headings stand above body text: below 1 nearer its size, above 1 larger.',
-  leading: 'Multiplies line height, the space each line of text takes.',
-  headingWeight: 'How bold headings are, from 300 (light) to 900 (black).',
-  tracking:
-    'Headings’ letter spacing, in em: negative draws letters together, positive spreads them.',
-  base: 'The hue the neutrals are mixed from: the page, text and borders. Accent takes the accent’s own; the others are shadcn’s base colors.',
-  font: 'The typeface for body text and controls.',
-  headingFont: 'The typeface for headings. Body uses the body’s font.',
-  menuColor:
-    'The background of menus and popovers: the page’s, inverted (dark on a light page), or translucent, the page blurred behind it.',
-  hover:
-    'What a hovered row or button is tinted with: a step of the surface, a plain grey, or the accent.',
-  menuAccent: 'How the highlighted row of a menu shows: a subtle tint, or filled with the accent.',
-  size: 'How tall controls are: 36px, or a compact 28px.',
-  controlShape: 'The corners of buttons: the radius’s, or fully round pills.',
-  outlines:
-    'How much borders show: the palette’s soft lines, darker ones, or lines in the text’s own ink.',
-  shadowStyle: 'Shadows that diffuse softly, or hard, solid offset copies.',
-  relief:
-    'How buttons stand off the page and fields sink into it: flat, or a soft, hard or bevelled edge.',
-  easing: 'How transitions move: along an easing curve, or on a spring that settles.',
-  theme: 'Whole themes, setting every knob at once. Hover one to read about it.',
-  look: 'The shape and type of a style, leaving the colors as they are.',
-}
-
 /** Labels for a choice's values, as words. */
 const words = <A extends string>(values: ReadonlyArray<A>, label: (value: A) => string = capital) =>
   values.map(value => ({ value, label: label(value) }))
 const capital = (value: string) => value[0]!.toUpperCase() + value.slice(1).replaceAll('-', ' ')
 
-/** Knobs with some changed, as a whole set `ChosePreset` installs. */
-const choose = (model: Model, change: Partial<Knobs>) =>
-  Message.ChosePreset({ knobs: { ...model.knobs, ...change } })
-
-/** A few values in a row, one pressed: `name` shows above, and names the group. */
-const row = <A extends string>(
-  model: Model,
-  slots: Slots,
-  h: H,
-  which: Hint,
-  name: string,
-  options: ReadonlyArray<{ readonly value: A; readonly label: string }>,
-  current: A,
-  toMessage: (value: A) => Message,
-): Html =>
-  h.div(slots.knob.attrs(), [
-    hint(model, h, which, name),
+/** A choice knob's options in a row, one pressed: its title shows above, and names the group. */
+const row = (model: Model, slots: Slots, h: H, path: KnobPath): Html => {
+  const knob = knobAt(path)
+  const { control } = knob
+  if (control.kind !== 'choice') return h.span([], [])
+  return h.div(slots.knob.attrs(), [
+    hint(model, h, path, knob.title),
     Segmented.view(
       {
-        label: name,
-        options,
-        pressed: [current],
-        onPress: toMessage,
+        label: knob.title,
+        options: words(control.options),
+        pressed: [String(valueAt(model.theme, path))],
+        onPress: value => Message.SetKnob({ path, value, dark: false }),
         style: SegmentedStyle,
         mixins: Segmented.fluid,
       },
       h,
     ),
   ])
+}
+
+/** A font stack's name in `Theme.fonts`, or `custom` for one of its own. */
+const fontName = (stack: unknown): string =>
+  stack === 'inherit'
+    ? 'inherit'
+    : (Object.entries(Theme.fonts).find(([, each]) => each === stack)?.[0] ?? 'custom')
+const fonts = Object.keys(Theme.fonts).map(name => ({
+  value: name,
+  label: Object.entries(fontLabels).find(([key]) => key === name)?.[1] ?? capital(name),
+}))
 
 /** Many values in a Select over Listbox, labelled by `name`. */
-const picker = <A extends string>(
+const picker = (
   model: Model,
   slots: Slots,
   h: H,
   which: Picker,
   name: string,
-  options: ReadonlyArray<{ readonly value: A; readonly label: string }>,
-  current: A,
+  options: ReadonlyArray<{ readonly value: string; readonly label: string }>,
+  current: string,
 ): Html => {
   const part = Listbox.parts([PickerStyle.mixin], { h })
-  const labelOf = new Map<string, string>(options.map(option => [option.value, option.label]))
+  const labelOf = new Map<string, string>([
+    ...options.map(option => [option.value, option.label] as const),
+    ['custom', 'Custom'],
+  ])
   const listbox = model.pickers[which]
   return h.div(slots.knob.attrs(), [
-    hint(model, h, which, name),
+    hint(model, h, which === 'base' ? 'base' : pickerPath[which], name),
     h.submodel({
       slotId: listbox.id,
       model: listbox,
@@ -350,7 +347,14 @@ const picker = <A extends string>(
   ])
 }
 
-/** Buttons that each install a set of knobs, pressed while the knobs are its own. */
+/** The knob each picker but the base color's sets, for its tooltip. */
+const pickerPath: Readonly<Record<Exclude<Picker, 'base'>, KnobPath>> = {
+  font: 'type.body',
+  headingFont: 'type.heading',
+  menuColor: 'menu.panel',
+}
+
+/** Buttons that each install a theme, pressed while the theme is its own. */
 const chips = <A>(
   model: Model,
   slots: Slots,
@@ -389,37 +393,32 @@ const chips = <A>(
 const themesPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
   const action = SlotView.buildersFor(ButtonSlots, [ActionStyle.mixin], { input: undefined, h })
   return [
-    chips(model, slots, h, 'theme', 'Theme', presets, preset => {
-      const knobs = presetKnobs(preset, model.knobs.direction)
-      return {
-        label: [
-          h.span(
-            slots.swatch.attrs([
-              h.AriaHidden(true),
-              h.Style({ background: swatchOf(preset.knobs) }),
-            ]),
-            [],
-          ),
-          preset.name,
-        ],
-        title: preset.description,
-        pressed: sameKnobs(model.knobs, knobs),
-        message: Message.ChoseTheme({ name: preset.name }),
-      }
-    }),
+    chips(model, slots, h, 'theme', 'Theme', presets, preset => ({
+      label: [
+        h.span(
+          slots.swatch.attrs([
+            h.AriaHidden(true),
+            h.Style({ background: swatchOf(preset.values) }),
+          ]),
+          [],
+        ),
+        preset.name,
+      ],
+      title: preset.description,
+      pressed: sameTheme(model.theme, preset.values),
+      message: Message.ChoseTheme({ name: preset.name }),
+    })),
     chips(model, slots, h, 'look', 'Style, keeping the colors', looks, look => ({
       label: [look.name],
       title: look.description,
-      pressed: inLook(model.knobs, look),
-      message: choose(model, look.shape),
+      pressed: inLook(model.theme, look),
+      message: Message.ChoseValues({ values: withLook(model.theme, look) }),
     })),
     h.div(slots.actions.attrs(), [
       h.button(
         action.button.attrs([
           h.Type('button'),
-          h.OnClick(
-            Message.ChosePreset({ knobs: { ...defaults, direction: model.knobs.direction } }),
-          ),
+          h.OnClick(Message.ChoseValues({ values: defaults })),
         ]),
         ['Reset'],
       ),
@@ -435,80 +434,38 @@ const themesPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
 }
 
 const colorPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
-  slider(model, slots, 'hue', h),
-  slider(model, slots, 'chroma', h),
-  slider(model, slots, 'lightness', h),
-  picker(model, slots, h, 'base', 'Base color', words(Base.literals), model.knobs.base),
-  slider(model, slots, 'surfaceSaturation', h),
-  slider(model, slots, 'surfaceLightness', h),
-  slider(model, slots, 'surfaceLightnessDark', h),
-  slider(model, slots, 'surfaceContrast', h),
-  slider(model, slots, 'scaleChroma', h),
-  row(model, slots, h, 'hover', 'Hover', words(Hover.literals), model.knobs.hover, hover =>
-    choose(model, { hover }),
-  ),
-  row(
-    model,
-    slots,
-    h,
-    'menuAccent',
-    'Menu accent',
-    words(MenuAccent.literals),
-    model.knobs.menuAccent,
-    menuAccent => choose(model, { menuAccent }),
-  ),
+  slider(model, slots, h, 'accent.hue'),
+  slider(model, slots, h, 'accent.chroma'),
+  slider(model, slots, h, 'accent.lightness'),
+  picker(model, slots, h, 'base', 'Base color', words(Base.literals), baseOf(model.theme)),
+  slider(model, slots, h, 'surface.saturation'),
+  slider(model, slots, h, 'surface.lightness'),
+  slider(model, slots, h, 'surface.lightness', true),
+  slider(model, slots, h, 'surface.contrast'),
+  slider(model, slots, h, 'scales.chroma'),
+  row(model, slots, h, 'surface.hover'),
+  row(model, slots, h, 'menu.highlight'),
   picker(
     model,
     slots,
     h,
     'menuColor',
-    'Menu color',
-    words(MenuColor.literals),
-    model.knobs.menuColor,
+    knobAt('menu.panel').title,
+    words(['default', 'inverted', 'translucent', 'inverted-translucent']),
+    String(valueAt(model.theme, 'menu.panel')),
   ),
 ]
 
 const shapePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
-  slider(model, slots, 'radius', h),
-  slider(model, slots, 'density', h),
-  row(model, slots, h, 'size', 'Size', words(Size.literals), model.knobs.size, size =>
-    choose(model, { size }),
-  ),
-  row(
-    model,
-    slots,
-    h,
-    'controlShape',
-    'Buttons',
-    words(ControlShape.literals),
-    model.knobs.controlShape,
-    controlShape => choose(model, { controlShape }),
-  ),
-  slider(model, slots, 'border', h),
-  row(
-    model,
-    slots,
-    h,
-    'outlines',
-    'Outlines',
-    words(Outlines.literals),
-    model.knobs.outlines,
-    outlines => choose(model, { outlines }),
-  ),
-  slider(model, slots, 'shadow', h),
-  row(
-    model,
-    slots,
-    h,
-    'shadowStyle',
-    'Shadows',
-    words(ShadowStyle.literals),
-    model.knobs.shadowStyle,
-    shadowStyle => choose(model, { shadowStyle }),
-  ),
-  row(model, slots, h, 'relief', 'Controls', words(Relief.literals), model.knobs.relief, relief =>
-    choose(model, { relief }),
-  ),
+  slider(model, slots, h, 'shape.radius'),
+  slider(model, slots, h, 'shape.density'),
+  row(model, slots, h, 'shape.size'),
+  row(model, slots, h, 'shape.controls'),
+  slider(model, slots, h, 'shape.border'),
+  row(model, slots, h, 'shape.outlines'),
+  slider(model, slots, h, 'shadow.strength'),
+  row(model, slots, h, 'shadow.style'),
+  row(model, slots, h, 'shadow.relief'),
 ]
 
 const typePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
@@ -517,31 +474,29 @@ const typePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
     slots,
     h,
     'font',
-    'Font',
-    words(Font.literals, font => fontLabels[font]),
-    model.knobs.font,
+    knobAt('type.body').title,
+    fonts,
+    fontName(valueAt(model.theme, 'type.body')),
   ),
   picker(
     model,
     slots,
     h,
     'headingFont',
-    'Heading font',
-    words(HeadingFont.literals, font => (font === 'inherit' ? 'Body' : fontLabels[font])),
-    model.knobs.headingFont,
+    knobAt('type.heading').title,
+    [{ value: 'inherit', label: 'Body' }, ...fonts],
+    fontName(valueAt(model.theme, 'type.heading')),
   ),
-  slider(model, slots, 'textScale', h),
-  slider(model, slots, 'headingScale', h),
-  slider(model, slots, 'headingWeight', h),
-  slider(model, slots, 'tracking', h),
-  slider(model, slots, 'leading', h),
+  slider(model, slots, h, 'type.scale'),
+  slider(model, slots, h, 'type.headingScale'),
+  slider(model, slots, h, 'type.headingWeight'),
+  slider(model, slots, h, 'type.headingTracking'),
+  slider(model, slots, h, 'type.leading'),
 ]
 
 const motionPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
-  slider(model, slots, 'motion', h),
-  row(model, slots, h, 'easing', 'Easing', words(Easing.literals), model.knobs.easing, easing =>
-    choose(model, { easing, ...(model.knobs.motion === 0 ? { motion: 1 } : {}) }),
-  ),
+  slider(model, slots, h, 'motion.scale'),
+  row(model, slots, h, 'motion.easing'),
 ]
 
 const panes: Readonly<Record<Section, (model: Model, slots: Slots, h: H) => ReadonlyArray<Html>>> =
@@ -673,7 +628,7 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
   return h.div(slots.canvasColumn.attrs(), [
     h.div(slots.previewBar.attrs(), [
       bar('Preview scheme', schemes, model.scheme, scheme => Message.ChoseScheme({ scheme })),
-      bar('Preview direction', directions, model.knobs.direction, direction =>
+      bar('Preview direction', directions, model.direction, direction =>
         Message.ChoseDirection({ direction }),
       ),
       h.div(slots.previewActions.attrs(), [
@@ -683,7 +638,7 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
           h,
           model.copied ? CHECK : COPY,
           model.copied ? 'Copied' : 'Copy theme',
-          Message.PressedCopy({ text: codeOf(model.knobs) }),
+          Message.PressedCopy({ text: codeOf(model.theme) }),
         ),
         iconButton(
           h,
@@ -734,7 +689,7 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
 }
 
 export const createPage = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
-  const code = codeOf(model.knobs)
+  const code = codeOf(model.theme)
   return [
     h.section(slots.hero.attrs(), [
       h.h1(slots.heroTitle.attrs(), [

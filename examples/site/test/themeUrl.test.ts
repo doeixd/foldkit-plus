@@ -1,45 +1,77 @@
 /**
  * `/create`'s theme in its address: what it writes reads back as the same
- * theme, the defaults write nothing, and what a hand-edited or hostile link
- * names wrongly is dropped rather than drawn.
+ * theme, the default theme writes nothing, an address of the flat names it
+ * wrote before reads as the same theme, and what a hand-edited or hostile
+ * link names wrongly is dropped rather than drawn.
  */
 import { describe, expect, it } from 'vitest'
 import { modifyFields } from 'foldkit/struct'
+import { Theme } from 'foldkit-mixins/theme'
 
-import { defaults, presetKnobs, presets } from '../src/gallery/theme.js'
+import { defaults, presets, sameTheme, valueAt, withValue } from '../src/gallery/theme.js'
 import { addressOf, queryOf } from '../src/gallery/themeUrl.js'
 import { Message, Page, initial, plan, update, type Model } from '../src/main.js'
 
-const home = { knobs: defaults, scheme: 'system', canvas: 'components' } as const
+const home = { values: defaults, scheme: 'system', canvas: 'components', direction: 'ltr' } as const
 
 describe("/create's address", () => {
-  it('writes nothing for the defaults, and only what differs otherwise', () => {
+  it('writes nothing for the default theme, and only what differs otherwise', () => {
     expect(queryOf(home)).toBe('')
-    expect(
-      queryOf({ ...home, knobs: { ...defaults, hue: 145, font: 'mono' }, scheme: 'dark' }),
-    ).toBe('hue=145&font=mono&scheme=dark')
+    const values = withValue(withValue(defaults, 'accent.hue', 145), 'type.body', Theme.fonts.mono)
+    expect(queryOf({ ...home, values, scheme: 'dark' })).toBe(
+      'accent.hue=145&type.body=mono&scheme=dark',
+    )
+    // A schemed knob's dark value under a name of its own.
+    const dark = withValue(defaults, 'surface.lightness', { light: 97.5, dark: 30 })
+    expect(queryOf({ ...home, values: dark })).toBe('surface.lightness.dark=30')
   })
 
   it.each(presets.map(preset => [preset.name, preset] as const))(
     'reads %s back as it was written',
     (_, preset) => {
       const address = {
-        knobs: presetKnobs(preset, 'rtl'),
+        values: preset.values,
         scheme: preset.scheme ?? 'system',
         canvas: 'dashboard',
+        direction: 'rtl',
       } as const
-      expect(addressOf(queryOf(address))).toEqual(address)
+      const read = addressOf(queryOf(address))
+      expect(sameTheme(read.values, preset.values)).toBe(true)
+      expect([read.scheme, read.canvas, read.direction]).toEqual([
+        address.scheme,
+        'dashboard',
+        'rtl',
+      ])
     },
   )
 
   it('drops what is none of the knobs, and fits a number to its slider', () => {
     const address = addressOf(
-      '?hue=999&radius=abc&font=comic&__proto__=1&constructor=2&border=2&scheme=sepia&view=gallery&density=0.83',
+      '?accent.hue=999&shape.radius=abc&type.body=comic&motion.easing=bouncy&__proto__=1&constructor=2&shape.border=2&scheme=sepia&view=gallery&shape.density=0.83',
     )
-    expect(address.knobs).toEqual({ ...defaults, hue: 360, border: 2, density: 0.85 })
+    const expected = withValue(
+      withValue(withValue(defaults, 'accent.hue', 360), 'shape.border', 2),
+      'shape.density',
+      0.85,
+    )
+    expect(sameTheme(address.values, expected)).toBe(true)
+    // A font by its name only: a link sets no stack of its own.
+    expect(valueAt(address.values, 'type.body')).toBe(Theme.fonts.geist)
     expect(address.scheme).toBe('system')
     expect(address.canvas).toBe('components')
-    expect(Object.getPrototypeOf(address.knobs)).toBe(Object.prototype)
+    expect(Object.getPrototypeOf(address.values)).toBe(Object.prototype)
+  })
+
+  it('reads the flat names it wrote before as the same theme', () => {
+    const address = addressOf(
+      '?hue=145&font=mono&surfaceLightnessDark=30&controlShape=pill&base=stone&direction=rtl',
+    )
+    expect(valueAt(address.values, 'accent.hue')).toBe(145)
+    expect(valueAt(address.values, 'type.body')).toBe(Theme.fonts.mono)
+    expect(valueAt(address.values, 'surface.lightness')).toEqual({ light: 97.5, dark: 30 })
+    expect(valueAt(address.values, 'shape.controls')).toBe('pill')
+    expect(address.values.surface?.hue).toBe(75)
+    expect(address.direction).toBe('rtl')
   })
 })
 
@@ -55,32 +87,37 @@ describe("/create's Model and its address", () => {
   it('takes the theme the page was opened at, once, and on /create only', () => {
     const opened = update(
       create,
-      Message.FoundThemeAddress({ query: '?font=serif&view=palette' }),
+      Message.FoundThemeAddress({ query: '?type.body=serif&view=palette' }),
     ).model
-    expect([opened.knobs.font, opened.canvas, opened.addressRead]).toEqual([
-      'serif',
+    expect([valueAt(opened.theme, 'type.body'), opened.canvas, opened.addressRead]).toEqual([
+      Theme.fonts.serif,
       'palette',
       true,
     ])
     // Once read, the address is the Model's: a second read changes nothing.
-    expect(update(opened, Message.FoundThemeAddress({ query: '?font=mono' })).model).toBe(opened)
-    expect(update(initial, Message.FoundThemeAddress({ query: '?font=serif' })).model).toBe(initial)
+    expect(update(opened, Message.FoundThemeAddress({ query: '?type.body=mono' })).model).toBe(
+      opened,
+    )
+    expect(update(initial, Message.FoundThemeAddress({ query: '?type.body=serif' })).model).toBe(
+      initial,
+    )
   })
 
   it('copies a link holding the theme shown', () => {
     const serif = update(
       create,
-      Message.ChosePreset({ knobs: { ...defaults, font: 'serif' } }),
+      Message.ChoseValues({ values: withValue(defaults, 'type.body', Theme.fonts.serif) }),
     ).model
     const copied = update(serif, Message.PressedCopyLink())
     expect(copied.commands?.map(command => [command.name, command.args])).toEqual([
-      ['CopyLink', { query: 'font=serif' }],
+      ['CopyLink', { query: 'type.body=serif' }],
     ])
     const linked = update(serif, Message.CopiedLink()).model
     expect(linked.linkCopied).toBe(true)
     // Moving a knob makes the copied link stale.
-    expect(update(linked, Message.MovedKnob({ knob: 'hue', value: 10 })).model.linkCopied).toBe(
-      false,
-    )
+    expect(
+      update(linked, Message.SetKnob({ path: 'accent.hue', value: 10, dark: false })).model
+        .linkCopied,
+    ).toBe(false)
   })
 })

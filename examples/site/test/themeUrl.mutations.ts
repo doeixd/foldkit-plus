@@ -8,30 +8,32 @@ const file = '../src/gallery/themeUrl.ts'
 export default [
   {
     name: 'every knob is written, default or not',
-    edits: [{ file, find: 'if (address.knobs[knob] !== defaults[knob]) ', replace: '' }],
-    tests,
+    edits: [
+      { file: '../src/gallery/themeUrl.ts', find: 'if (same(value, base)) continue', replace: '' },
+    ],
+    tests: ['examples/site/test/themeUrl.test.ts'],
   },
   {
     name: 'a value none of the knobs takes is kept',
     edits: [
       {
-        file,
-        find: 'knobs = Option.getOrElse(decodeKnobs({ ...knobs, [name]: value }), () => knobs)',
-        replace: 'knobs = { ...knobs, [name]: value }',
+        file: '../src/gallery/themeUrl.ts',
+        find: 'Option.flatMap(Schema.decodeUnknownOption(knobAt(path).schema)),',
+        replace: '',
       },
     ],
-    tests,
+    tests: ['examples/site/test/themeUrl.test.ts'],
   },
   {
     name: 'a number is kept off its slider',
     edits: [
       {
-        file,
-        find: '(fitting, knob) => ({ ...fitting, [knob]: fit(rangeOf(knob), fitting[knob]) }),',
-        replace: '(fitting) => fitting,',
+        file: '../src/gallery/themeUrl.ts',
+        find: 'Option.some(fit(control, value))',
+        replace: 'Option.some(value)',
       },
     ],
-    tests,
+    tests: ['examples/site/test/themeUrl.test.ts'],
   },
   {
     name: 'the address is read on every page',
@@ -61,15 +63,26 @@ export default [
     tests,
   },
   {
-    name: 'a shuffled base color draws a tint of its own',
+    name: 'a link sets a font stack of its own',
     edits: [
       {
-        file: '../src/gallery/theme.ts',
-        find: "base === 'accent' ? across('surfaceSaturation') : bases[base].c",
-        replace: "across('surfaceSaturation')",
+        file: '../src/gallery/themeUrl.ts',
+        find: 'Option.fromNullishOr(Object.entries(Theme.fonts).find(([name]) => name === raw)?.[1])',
+        replace: 'Option.some(raw)',
       },
     ],
-    tests: ['examples/site/test/theme.test.ts'],
+    tests: ['examples/site/test/themeUrl.test.ts'],
+  },
+  {
+    name: 'the flat names written before are passed over',
+    edits: [
+      {
+        file: '../src/gallery/themeUrl.ts',
+        find: 'else if (Object.hasOwn(legacy, name)) {',
+        replace: 'else if (name === legacy.toString()) {',
+      },
+    ],
+    tests: ['examples/site/test/themeUrl.test.ts'],
   },
   {
     name: 'a screen draws an example its showcase does not have',

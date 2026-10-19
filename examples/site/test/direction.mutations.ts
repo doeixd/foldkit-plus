@@ -5,8 +5,8 @@ export default [
     edits: [
       {
         file: '../src/main.ts',
-        find: '    ChoseDirection: ({ direction }) => withKnobs(model, { ...model.knobs, direction }),',
-        replace: '    ChoseDirection: () => ({ model }),',
+        find: 'modifyFields(model, { direction: () => direction })',
+        replace: 'model',
       },
     ],
     tests: ['examples/site/test/components.test.ts'],

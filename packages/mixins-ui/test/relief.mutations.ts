@@ -7,6 +7,7 @@ const unit = ['packages/mixins-ui/test/relief.test.ts']
 const browser = ['packages/mixins-ui/test/relief.browser.test.ts']
 const both = [...unit, ...browser]
 const tokens = '../../mixins/src/theme/tokens.ts'
+const shadows = '../../mixins/src/theme/shadows.ts'
 
 export default [
   {
@@ -55,18 +56,22 @@ export default [
   },
   {
     name: 'a bevel pressed in stands out',
-    edits: [{ file: tokens, find: 'pressed: sunkenBevel', replace: 'pressed: raisedBevel' }],
+    edits: [{ file: shadows, find: 'pressed: sunkenBevel', replace: 'pressed: raisedBevel' }],
     tests: browser,
   },
   {
     name: 'a hard field is flat',
-    edits: [{ file: tokens, find: 'field: hard(2) }', replace: 'field: FLAT }' }],
+    edits: [{ file: shadows, find: 'field: hard(2) }', replace: 'field: FLAT }' }],
     tests: browser,
   },
   {
     name: 'the shipped controls are raised',
     edits: [
-      { file: tokens, find: '    raised: FLAT,', replace: "    raised: shadow('0 1px 2px 0')," },
+      {
+        file: shadows,
+        find: 'flat: { raised: FLAT,',
+        replace: "flat: { raised: shadow('0 1px 2px 0'),",
+      },
     ],
     tests: browser,
   },
@@ -107,7 +112,7 @@ export default [
     name: 'a raised bevel draws its outer ring inside the border',
     edits: [
       {
-        file: '../../mixins/src/theme/tokens.ts',
+        file: shadows,
         find: '  `1px 1px 0 0 ${shaded(0.9)}`,',
         replace: '  `inset -1px -1px 0 0 ${shaded(0.9)}`,',
       },

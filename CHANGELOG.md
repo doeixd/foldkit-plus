@@ -27,6 +27,11 @@ version changed; `pnpm` skips versions already in the registry.
   `subtle`, which a dark page all but hid; the Command menu parts its groups with it. `width.field`
   (a text field's least width, the content-sized Textarea's) and `width.column-sm|md|lg` (the
   Card group's least columns) take what those recipes wrote as literals.
+- `foldkit-mixins`: a knob by its path: `Knobs.paths`, `Knobs.at`, `Knobs.valueAt` and
+  `Knobs.withValue`, typed by the path; a schemed knob's `light` and `dark` are knobs of their own.
+  `Theme.print` leaves out a knob whose value writes what it writes unset, and breaks a group
+  past a hundred characters to a knob a line. Step 4 of `docs/theme-knobs.md`: `/create`'s
+  controls, tooltips, address and code are drawn from the standard knobs.
 - `foldkit-mixins`: each knob carries a `title` and its `default` beside its description;
   `Knobs.schema(knobs)` is the Schema of a theme's values, `Theme.print(theme)` writes its
   `Theme.make({ … })` source (the knobs that differ from their defaults), and `Theme.fonts` names

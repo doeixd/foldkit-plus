@@ -40,7 +40,7 @@ export default [
     name: 'a hard shadow blurs',
     edits: [
       {
-        file: '../src/theme/tokens.ts',
+        file: '../src/theme/shadows.ts',
         find: '`${offset}px ${offset}px 0 0 color-mix',
         replace: '`${offset}px ${offset}px 4px 0 color-mix',
       },
@@ -49,14 +49,14 @@ export default [
   },
   {
     name: 'a hard shadow keeps the faint color of a soft one',
-    edits: [{ file: '../src/theme/tokens.ts', find: ' l c h / 0.9)', replace: ' l c h)' }],
+    edits: [{ file: '../src/theme/shadows.ts', find: ' l c h / 0.9)', replace: ' l c h)' }],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
   {
     name: 'a hard shadow ignores its strength',
     edits: [
       {
-        file: '../src/theme/tokens.ts',
+        file: '../src/theme/shadows.ts',
         find: 'l c h / 0.9) ${strength}, transparent)`',
         replace: 'l c h / 0.9) 100%, transparent)`',
       },
@@ -123,8 +123,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: 'default: ld(scale(base, -0.13, 1.4), scale(base, 0.12, 1.35)),',
-        replace: 'default: ld(scale(base, -0.13, 1), scale(base, 0.12, 0.9)),',
+        find: 'ld(scale(base, -0.13, 1.4), scale(base, 0.12, 1.35))',
+        replace: 'ld(scale(base, -0.13, 1), scale(base, 0.12, 0.9))',
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -134,8 +134,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: 'subtle: ld(scale(base, -0.07, 1.3), scale(base, 0.065, 1.25)),',
-        replace: 'subtle: ld(scale(base, -0.07, 2.2), scale(base, 0.065, 2.2)),',
+        find: 'ld(scale(base, -0.07, 1.3), scale(base, 0.065, 1.25))',
+        replace: 'ld(scale(base, -0.07, 2.2), scale(base, 0.065, 2.2))',
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -199,7 +199,7 @@ export default [
     name: 'every shadow answers to the strength knob',
     edits: [
       {
-        file: '../src/theme/tokens.ts',
+        file: '../src/theme/shadows.ts',
         find: '`${layer} color-mix(in oklch, ${shade} ${strength}, transparent)`',
         replace: '`${layer} color-mix(in oklch, ${shade} 100%, transparent)`',
       },
@@ -210,7 +210,7 @@ export default [
     name: 'modals sink deeper than panels',
     edits: [
       {
-        file: '../src/theme/tokens.ts',
+        file: '../src/theme/shadows.ts',
         find: "    '2xl': shadow('0 32px 64px -16px', '0 12px 24px -12px'),",
         replace: "    '2xl': shadow('0 24px 48px -12px', '0 8px 16px -8px'),",
       },
@@ -294,9 +294,9 @@ export default [
     name: 'the state ink stays the text in accent mode',
     edits: [
       {
-        file: '../src/theme/oklch.ts',
-        find: "ink: knobs.stateHue === 'accent' ? v('accent', 'ink') : 'currentColor',",
-        replace: "ink: 'currentColor',",
+        file: '../src/theme/knobs.ts',
+        find: "accent: { 'surface-ink': '1', 'state-ink': ref('accent', 'ink') },",
+        replace: "accent: { 'surface-ink': '1', 'state-ink': 'currentColor' },",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts', 'packages/mixins/test/themePage.test.ts'],
@@ -305,9 +305,9 @@ export default [
     name: 'painted surfaces never name their ink',
     edits: [
       {
-        file: '../src/theme/oklch.ts',
-        find: "'surface-ink': knobs.stateHue === 'neutral' ? '0' : '1',",
-        replace: "'surface-ink': '0',",
+        file: '../src/theme/knobs.ts',
+        find: "surface: { 'surface-ink': '1', 'state-ink': 'currentColor' },",
+        replace: "surface: { 'surface-ink': '0', 'state-ink': 'currentColor' },",
       },
     ],
     tests: ['packages/mixins/test/themePage.test.ts'],

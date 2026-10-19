@@ -60,33 +60,33 @@ export default [
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: 'const clamped = Math.min(range.max, Math.max(range.min, value))',
+        find: 'const clamped = Math.min(control.max, Math.max(control.min, value))',
         replace: 'const clamped = value',
       },
     ],
-    tests: unit,
+    tests: ['examples/site/test/components.test.ts'],
   },
   {
-    name: 'a knob that is no number installed',
+    name: 'a value its knob refuses installed',
     edits: [
       {
         file: '../src/main.ts',
-        find: 'range === undefined || !Number.isFinite(value)',
-        replace: 'range === undefined',
+        find: 'return Schema.decodeUnknownOption(knob.schema)(next).pipe(',
+        replace: 'return Option.some(next).pipe(',
       },
     ],
-    tests: unit,
+    tests: ['examples/site/test/components.test.ts'],
   },
   {
-    name: 'the same knobs installed as a new Model',
+    name: 'the same theme installed as a new Model',
     edits: [
       {
         file: '../src/main.ts',
-        find: '  sameKnobs(model.knobs, knobs)\n    ? { model }',
-        replace: '  false\n    ? { model }',
+        find: 'sameTheme(model.theme, values)\n    ? { model }',
+        replace: 'false\n    ? { model }',
       },
     ],
-    tests: unit,
+    tests: ['examples/site/test/components.test.ts'],
   },
   {
     name: 'copied code left marked current after the knobs move',
@@ -100,26 +100,26 @@ export default [
     tests: unit,
   },
   {
-    name: 'the code /create hands out leaves a knob out',
+    name: 'the code /create hands out leaves its knobs out',
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: "    `    motion: '${knobs.motion}',`,\n",
-        replace: '',
+        find: '`const theme = ${Theme.print(Theme.make(values))}`',
+        replace: '`const theme = ${Theme.print(Theme.make({}))}`',
       },
     ],
-    tests: unit,
+    tests: ['examples/site/test/theme.test.ts'],
   },
   {
     name: 'the preview not told the scheme',
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: "colorScheme: scheme === 'system' ? 'light dark' : scheme,",
-        replace: "colorScheme: 'light dark',",
+        find: "colorScheme: scheme === 'system' ? 'light dark' : scheme",
+        replace: "colorScheme: 'light dark'",
       },
     ],
-    tests: unit,
+    tests: ['examples/site/test/theme.test.ts'],
   },
   {
     name: "a thumbnail's controls left in reach",
@@ -133,114 +133,48 @@ export default [
     tests: pages,
   },
   {
-    name: "the creator's preview drawn without the knobs",
-    edits: [
-      {
-        file: '../src/view/components.ts',
-        find: 'h.Style(knobStyleOf(model.knobs, model.scheme)),',
-        replace: '',
-      },
-    ],
-    tests: pages,
-  },
-  {
     name: 'a base color reaches no neutral',
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: "...(knobs.base === 'accent' ? {} : { neutral: { h: bases[knobs.base].h } }),",
-        replace: '',
+        find: 'hue: bases[base].h, saturation: bases[base].c',
+        replace: 'saturation: bases[base].c',
       },
     ],
-    tests: unit,
+    tests: ['examples/site/test/components.test.ts', 'examples/site/test/theme.test.ts'],
   },
   {
-    name: 'the menu look is left out',
+    name: 'any theme is in every style',
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: '    menu: { accent: knobs.menuAccent, color: knobs.menuColor },',
-        replace: '',
+        find: 'sameTheme(withLook(values, chosen), values)',
+        replace: 'true',
       },
     ],
-    tests: unit,
+    tests: ['examples/site/test/theme.test.ts'],
   },
   {
-    name: 'the spring is never chosen',
+    name: 'no two themes are told apart',
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: "knobs.easing === 'spring' ? `var(",
-        replace: 'false ? `var(',
+        find: 'Theme.print(Theme.make(a)) === Theme.print(Theme.make(b))',
+        replace: 'true',
       },
     ],
-    tests: unit,
+    tests: ['examples/site/test/theme.test.ts', 'examples/site/test/components.test.ts'],
   },
   {
-    name: 'any knobs are in every style',
+    name: 'every preview carries every knob, default or not',
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: 'Struct.keys(look.shape).every(knob => knobs[knob] === look.shape[knob])',
-        replace: 'Struct.keys(look.shape).every(() => true)',
+        find: 'if (declared[property] !== value) style[property] = value',
+        replace: 'style[property] = value',
       },
     ],
-    tests: unit,
-  },
-  {
-    name: 'a menu choice does not tell knobs apart',
-    edits: [
-      {
-        file: '../src/gallery/theme.ts',
-        find: 'export const sameKnobs = Schema.toEquivalence(Knobs)',
-        replace: 'export const sameKnobs = (left: Knobs, right: Knobs) => left.font === right.font',
-      },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'every preview carries every override, default or not',
-    edits: [
-      {
-        file: '../src/gallery/theme.ts',
-        find: '...declarationsOf(themeOf(knobs), KNOB_GROUPS, declared),',
-        replace: '...declarationsOf(themeOf(knobs), KNOB_GROUPS),',
-      },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'hard shadows are never drawn',
-    edits: [
-      {
-        file: '../src/gallery/theme.ts',
-        find: "knobs.shadowStyle === 'hard' ? Theme.hardShadows : Theme.define({})",
-        replace: 'Theme.define({})',
-      },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'the relief is drawn nowhere',
-    edits: [
-      {
-        file: '../src/gallery/theme.ts',
-        find: "knobs.relief === 'flat' ? scale : Theme.compose(scale, Theme.relief[knobs.relief])",
-        replace: 'scale',
-      },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'the code leaves the relief out',
-    edits: [
-      {
-        file: '../src/gallery/theme.ts',
-        find: "...(knobs.relief === 'flat' ? [] : [`Theme.relief.${knobs.relief},`]),",
-        replace: '',
-      },
-    ],
-    tests: unit,
+    tests: ['examples/site/test/theme.test.ts'],
   },
   {
     name: 'a picker installs a value that is none of its choices',
@@ -257,53 +191,12 @@ export default [
     name: 'a base color leaves the surface tint',
     edits: [
       {
-        file: '../src/gallery/studio.ts',
-        find: "...(base === 'accent' ? {} : { surfaceSaturation: bases[base].c }),",
-        replace: '',
-      },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'the border knob is drawn nowhere',
-    edits: [
-      { file: '../src/gallery/theme.ts', find: '      border: bordersOf(knobs),', replace: '' },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'the page lightness is drawn nowhere',
-    edits: [
-      {
         file: '../src/gallery/theme.ts',
-        find: "        'base-l': percent(knobs.surfaceLightness),",
-        replace: '',
+        find: 'hue: bases[base].h, saturation: bases[base].c',
+        replace: 'hue: bases[base].h',
       },
     ],
-    tests: unit,
-  },
-  {
-    name: 'the hover is drawn nowhere',
-    edits: [{ file: '../src/gallery/theme.ts', find: '    stateHue: knobs.hover,', replace: '' }],
-    tests: unit,
-  },
-  {
-    name: "the preview keeps the default hover's ink",
-    edits: [
-      { file: '../src/gallery/theme.ts', find: "  'shadow',\n  'state',", replace: "  'shadow'," },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'a shuffle forgets the direction',
-    edits: [
-      {
-        file: '../src/main.ts',
-        find: 'commands: [Shuffle({ direction: model.knobs.direction })],',
-        replace: "commands: [Shuffle({ direction: 'ltr' })],",
-      },
-    ],
-    tests: unit,
+    tests: ['examples/site/test/components.test.ts', 'examples/site/test/theme.test.ts'],
   },
   {
     name: 'a pane chosen leaves the drawer closed',
@@ -339,14 +232,14 @@ export default [
     tests: pages,
   },
   {
-    name: 'a chosen direction never lands in the knobs',
+    name: 'a chosen direction never lands in the Model',
     edits: [
       {
         file: '../src/main.ts',
-        find: '    ChoseDirection: ({ direction }) => withKnobs(model, { ...model.knobs, direction }),',
-        replace: '    ChoseDirection: () => ({ model }),',
+        find: 'modifyFields(model, { direction: () => direction })',
+        replace: 'model',
       },
     ],
-    tests: unit,
+    tests: ['examples/site/test/components.test.ts'],
   },
 ]

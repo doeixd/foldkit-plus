@@ -91,10 +91,21 @@ export const length = (unit: 'px' | 'em' | 'rem') => ranged(unit)
  * alone, the dark keeping its default (a theme's accent lightness rarely
  * suits a dark page). `dark` is the knob for the dark variable.
  */
+/** A knob per scheme, and each half as a knob of its own: its range, its title. */
+export interface Schemed<Light extends string, Dark extends string> extends Knob<
+  number | { readonly light?: number; readonly dark?: number },
+  Light | Dark
+> {
+  readonly light: Knob<number, Light>
+  readonly dark: Knob<number, Dark>
+}
+
 export const schemed = <Light extends string, Dark extends string>(
   light: Knob<number, Light>,
   dark: Knob<number, Dark>,
-): Knob<number | { readonly light?: number; readonly dark?: number }, Light | Dark> => ({
+): Schemed<Light, Dark> => ({
+  light,
+  dark,
   schema: Schema.Union([
     light.schema,
     Schema.Struct({

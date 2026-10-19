@@ -354,7 +354,8 @@ variable, choices too: `shape.border`, `type.body`, `type.headingWeight`, `motio
 `Themes.make({ iris, cobalt }, { initial: 'iris' })` installs themes by name for `AppStyle.make({ themes })`,
 `themes.Name` the Model's field and `Themes.apply(themes, name)` the Command, and `Theme.scope(theme, selector)`
 themes a subtree; `Knobs.schema(knobs)` decodes a theme's values, `Theme.print(theme)` writes its source, and each
-knob's `title`, `description` and `default` draw its control), put bases in the
+knob's `title`, `description` and `default` draw its control; `Knobs.at(knobs, path)`, `Knobs.valueAt` and
+`Knobs.withValue` reach one knob by its path, typed), put bases in the
 `components` layer and variants in `variants` of `Layers.standard`, and style state from the
 component's own `aria-checked` / `aria-selected` / `aria-disabled`. No recipe declaration is inline
 style, so `Style.forSlots(ButtonSlots)({ button: Style.self({ … }) }, { layer: L.layer('app') })` overrides any of

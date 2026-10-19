@@ -1,264 +1,130 @@
 /**
- * The knobs `/create` turns: the code it hands out is the typechecked
- * snippet for the defaults, and the inline overrides it draws re-derive
- * the same theme an application would get from that code.
+ * The themes `/create` makes: the code it hands out for the default theme is
+ * the typechecked snippet, a knob it changes reaches the code, the preview's
+ * inline overrides are only the knob variables that differ, and the presets,
+ * the styles and a shuffle are themes the knobs take.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { Schema } from 'effect'
+import { Theme } from 'foldkit-mixins/theme'
 import { describe, expect, it } from 'vitest'
 
 import {
+  ThemeValues,
   bases,
+  baseOf,
   codeOf,
   declared,
   defaults,
   fit,
-  Font,
   inLook,
-  Knob,
-  KNOB_GROUPS,
+  knobAt,
+  knobPaths,
   knobStyleOf,
   looks,
-  presetKnobs,
   presets,
-  rangeOf,
-  sameKnobs,
-  ranges,
+  sameTheme,
   shuffled,
-  themeOf,
-  type Knobs,
+  valueAt,
+  withBase,
+  withLook,
+  withValue,
 } from '../src/gallery/theme.js'
 
 const snippet = readFileSync(join(import.meta.dirname, '../src/snippets/theme.ts'), 'utf8')
 
-/** The theme's tokens outside the groups a knob sets. */
-const derived = (knobs: Knobs) =>
-  Object.fromEntries(Object.entries(themeOf(knobs)).filter(([group]) => !KNOB_GROUPS.has(group)))
-
 describe('the theme creator', () => {
-  it('hands out, for the defaults, the code the typecheck compiles', () => {
+  it('hands out, for the default theme, the code the typecheck compiles', () => {
     expect(codeOf(defaults)).toBe(snippet)
   })
 
-  it('writes every knob it changes into the code', () => {
-    const code = codeOf({ ...defaults, hue: 12, radius: 0.35, font: 'serif', shadow: 40 })
-    expect(code).toContain('h: 12,')
-    expect(code).toContain(`'radius-factor': '0.35'`)
-    expect(code).toContain(`'shadow-strength': '40%'`)
+  it('writes every knob it changes into the code, and no knob at its default', () => {
+    const values = withValue(
+      withValue(withValue(defaults, 'accent.hue', 12), 'shape.radius', 0.35),
+      'shadow.strength',
+      40,
+    )
+    const code = codeOf(withValue(values, 'type.body', Theme.fonts.serif))
+    expect(code).toContain('accent: { hue: 12 }')
+    expect(code).toContain('radius: 0.35')
+    expect(code).toContain('strength: 40')
     expect(code).toContain('ui-serif')
+    expect(codeOf(defaults)).not.toContain('hue')
   })
 
-  it.each(presets.map(preset => [preset.name, presetKnobs(preset, 'ltr')] as const))(
-    '%s differs from the defaults only in the knobs it overrides inline',
-    (_, knobs) => {
-      expect(derived(knobs)).toEqual(derived(defaults))
-    },
-  )
-
-  it('overrides on the preview every declared token the knobs reach, and only those', () => {
-    const style = knobStyleOf({ ...defaults, hue: 12, density: 0.8 }, 'dark')
-    expect(style['--fk-knob-accent-h']).toBe('12')
-    expect(style['--fk-knob-density']).toBe('0.8')
-    expect(style['colorScheme']).toBe('dark')
+  it('overrides on the preview the knob variables that differ, and nothing else', () => {
+    const style = knobStyleOf(
+      withValue(withValue(defaults, 'accent.hue', 12), 'shape.density', 0.8),
+      'dark',
+    )
+    expect(style).toEqual({
+      colorScheme: 'dark',
+      '--fk-knob-accent-h': '12',
+      '--fk-knob-density': '0.8',
+    })
     expect(knobStyleOf(defaults, 'system')).toEqual({ colorScheme: 'light dark' })
-    // A knob moved back to its default is the preview's own declaration again.
-    expect(Object.keys(knobStyleOf({ ...defaults, hue: 12, density: 1 }, 'light'))).not.toContain(
-      '--fk-knob-density',
-    )
-    const custom = Object.keys(style).filter(name => name.startsWith('--'))
-    expect(custom.filter(name => !(name in declared))).toEqual([])
-    expect(custom.every(name => /^--fk-(knob|font|motion|border|shadow|state)-/.test(name))).toBe(
-      true,
-    )
   })
 
-  it('declares on the preview the derived tokens its knobs feed', () => {
-    expect(declared['--fk-hue-accent']).toBe('var(--fk-knob-accent-h)')
-    expect(declared['--fk-space-md']).toContain('var(--fk-knob-density)')
+  it('declares on the preview every derived token, over the default theme’s knobs', () => {
+    expect(declared['--fk-radius-md']).toBe('calc(6px * var(--fk-knob-radius-factor))')
+    expect(declared['--fk-knob-radius-factor']).toBe('1.4')
+    expect(declared['--fk-accent-default']).toContain('var(--fk-knob-accent-l)')
   })
 
-  it('has a slider for every numeric knob', () => {
-    const numeric = Object.entries(defaults)
-      .filter(([, value]) => typeof value === 'number')
-      .map(([key]) => key)
-    expect(ranges.map(range => range.knob).sort()).toEqual(numeric.sort())
-    expect([...Knob.literals].sort()).toEqual(numeric.sort())
-  })
-
-  it('writes a base color, a menu look and the spring into the code, and none by default', () => {
-    expect(codeOf(defaults)).not.toMatch(/neutral: {|menu: {|motion: { ease/)
-    const code = codeOf({
-      ...defaults,
-      base: 'stone',
-      menuAccent: 'bold',
-      menuColor: 'inverted',
-      easing: 'spring',
-      headingFont: 'serif',
-    })
-    expect(code).toContain('neutral: { h: 75 },')
-    expect(code).toContain("menu: { accent: 'bold', color: 'inverted' },")
-    expect(code).toContain("motion: { ease: 'var(--fk-motion-spring)' },")
-    expect(code).toContain("heading: 'ui-serif, Georgia")
-  })
-
-  it('draws a base color, a menu look and the spring through the preview', () => {
-    const style = knobStyleOf(
-      { ...defaults, base: 'olive', menuAccent: 'bold', easing: 'spring' },
-      'light',
-    )
-    expect(style['--fk-knob-neutral-h']).toBe('106')
-    expect(style['--fk-knob-popup-bold']).toBe('1')
-    expect(style['--fk-motion-ease']).toBe('var(--fk-motion-spring)')
-    // The accent's hue, by default, which follows the accent knob.
-    expect(declared['--fk-knob-neutral-h']).toBe('var(--fk-hue-accent)')
-  })
-
-  it('writes compact as the ladder step, in the code and the preview, and nothing by default', () => {
-    expect(codeOf(defaults)).not.toContain('step:')
-    expect(codeOf({ ...defaults, size: 'compact' })).toContain("    step: '1',")
-    expect(knobStyleOf({ ...defaults, size: 'compact' }, 'light')['--fk-knob-step']).toBe('1')
-    expect(declared['--fk-knob-step']).toBe('0')
-  })
-
-  it('tells a style by its shape and knobs by every choice', () => {
-    const lyra = looks.find(look => look.name === 'Lyra')!
-    expect(inLook({ ...defaults, ...lyra.shape }, lyra)).toBe(true)
-    expect(inLook({ ...defaults, ...lyra.shape, radius: 1 }, lyra)).toBe(false)
-    // A style leaves the colors alone.
-    expect({ ...defaults, ...lyra.shape }.hue).toBe(defaults.hue)
-    expect(sameKnobs(defaults, { ...defaults, menuColor: 'translucent' })).toBe(false)
-    expect(sameKnobs(defaults, { ...defaults })).toBe(true)
-  })
-
-  it('writes hard shadows, borders, the page lightness and the hover into the code', () => {
-    expect(codeOf(defaults)).not.toMatch(/hardShadows|border: {|'base-l'|stateHue/)
-    const code = codeOf({
-      ...defaults,
-      shadowStyle: 'hard',
-      border: 2,
-      surfaceLightness: 80,
-      hover: 'accent',
-    })
-    expect(code).toContain('    Theme.compose(\n      Theme.hardShadows,\n      Theme.oklch({')
-    expect(code).toContain("  border: { thin: '2px', thick: '3px', heavy: '4px' },")
-    expect(code).toContain("    'base-l': '80%',")
-    expect(code).toContain("  stateHue: 'accent',")
-  })
-
-  it('draws hard shadows, borders, the page lightness and the hover through the preview', () => {
-    const style = knobStyleOf(
-      { ...defaults, shadowStyle: 'hard', border: 3, surfaceLightness: 80, hover: 'neutral' },
-      'light',
-    )
-    // The shadow knobs' options, written as the knob variables the tokens read.
-    expect(style['--fk-knob-shadow-md']).toMatch(/^3px 3px 0 0 /)
-    expect(style['--fk-border-thin']).toBe('3px')
-    expect(style['--fk-border-heavy']).toBe('5px')
-    expect(style['--fk-knob-base-l']).toBe('80%')
-    expect(style['--fk-knob-surface-ink']).toBe('0')
-    expect(knobStyleOf({ ...defaults, hover: 'accent' }, 'light')['--fk-knob-state-ink']).toBe(
-      'var(--fk-accent-ink)',
-    )
-    expect(declared['--fk-knob-shadow-md']).toMatch(/^0 4px 6px/)
-  })
-
-  it('writes and draws the controls’ relief over the shadow scale', () => {
-    expect(codeOf(defaults)).not.toContain('Theme.relief')
-    expect(codeOf({ ...defaults, relief: 'soft' })).toContain(
-      '    Theme.compose(\n      Theme.relief.soft,\n      Theme.oklch({',
-    )
-    // Hard shadows outermost, then the relief, then the palette.
-    expect(codeOf({ ...defaults, shadowStyle: 'hard', relief: 'bevel' })).toContain(
-      '      Theme.hardShadows,\n      Theme.compose(\n        Theme.relief.bevel,\n',
-    )
-    const bevel = knobStyleOf({ ...defaults, relief: 'bevel' }, 'light')
-    // Raised, its outer ring lies outside the border; sunken, inside.
-    expect(bevel['--fk-knob-relief-raised']).toMatch(/^1px 1px 0 0 /)
-    expect(bevel['--fk-knob-relief-field']).toMatch(/^inset 1px 1px 0 0 /)
-    expect(knobStyleOf(defaults, 'light')['--fk-knob-relief-raised']).toBeUndefined()
-  })
-
-  it('writes the type, the button shape and the outlines into the code, and none by default', () => {
-    expect(codeOf(defaults)).not.toMatch(
-      /text-scale|heading-scale|leading:|control-round|weight:|tracking:|outline:|base-l-dark/,
-    )
-    const code = codeOf({
-      ...defaults,
-      textScale: 1.1,
-      headingScale: 1.3,
-      leading: 1.1,
-      headingWeight: 800,
-      tracking: -0.03,
-      controlShape: 'pill',
-      outlines: 'ink',
-      surfaceLightnessDark: 12,
-    })
-    for (const line of [
-      "    'text-scale': '1.1',",
-      "    'heading-scale': '1.3',",
-      "    leading: '1.1',",
-      "    'control-round': '1',",
-      "    'base-l-dark': '12%',",
-      "  weight: { heading: '800' },",
-      "  tracking: { heading: '-0.03em' },",
-    ])
-      expect(code).toContain(line)
-    expect(code).toMatch(/ {2}outline: \{ subtle: 'color-mix\(in oklch, var\(--fk-text-overt\) 45%/)
-  })
-
-  it('draws the type, the button shape and the outlines through the preview', () => {
-    const style = knobStyleOf(
-      { ...defaults, headingWeight: 400, tracking: 0, controlShape: 'pill', outlines: 'strong' },
-      'light',
-    )
-    expect(style['--fk-weight-heading']).toBe('400')
-    expect(style['--fk-tracking-heading']).toBe('0em')
-    expect(style['--fk-knob-control-round']).toBe('1')
-    expect(style['--fk-outline-default']).toContain('var(--fk-text-overt) 48%')
-    // The focus ring keeps the accent, whatever the outlines.
-    expect(style['--fk-outline-focus']).toBeUndefined()
-  })
-
-  it('tells a preset by its knobs, whichever way the preview reads', () => {
-    const win = presets.find(preset => preset.name === 'Windows 95')!
-    expect(
-      sameKnobs(presetKnobs(win, 'rtl'), { ...presetKnobs(win, 'ltr'), direction: 'rtl' }),
-    ).toBe(true)
+  it('names every preset once, and no two are the same theme', () => {
     expect(new Set(presets.map(preset => preset.name)).size).toBe(presets.length)
-    // No two presets are the same theme.
-    expect(new Set(presets.map(preset => JSON.stringify(preset.knobs))).size).toBe(presets.length)
+    for (const [index, preset] of presets.entries())
+      for (const other of presets.slice(index + 1))
+        expect(sameTheme(preset.values, other.values), `${preset.name} ${other.name}`).toBe(false)
   })
 
-  it('shuffles knobs each a slider can show, and every choice it can make', () => {
+  it('tells a style by its shape, and installs it over the colors', () => {
+    const lyra = looks.find(look => look.name === 'Lyra')!
+    const styled = withLook(defaults, lyra)
+    expect(inLook(styled, lyra)).toBe(true)
+    expect(inLook(defaults, lyra)).toBe(false)
+    // The colors stay.
+    expect(valueAt(styled, 'accent.hue')).toBe(valueAt(defaults, 'accent.hue'))
+    expect(valueAt(styled, 'type.body')).toBe(Theme.fonts.mono)
+  })
+
+  it('brings a base color’s tint, and follows the accent again for none', () => {
+    const stone = withBase(defaults, 'stone')
+    expect([stone.surface?.hue, stone.surface?.saturation]).toEqual([bases.stone.h, bases.stone.c])
+    expect(baseOf(stone)).toBe('stone')
+    const back = withBase(stone, 'accent')
+    expect(back.surface?.hue).toBeUndefined()
+    expect(baseOf(back)).toBe('accent')
+  })
+
+  it('shuffles themes the knobs take, every slider on its step, and every font', () => {
     let seed = 1
     const random = () => {
       seed = (seed * 16807) % 2147483647
       return (seed - 1) / 2147483646
     }
-    const fonts = new Set<string>()
-    for (let draw = 0; draw < 200; draw++) {
-      const knobs = shuffled(random, 'rtl')
-      expect(knobs.direction).toBe('rtl')
-      for (const range of ranges) expect(fit(range, knobs[range.knob])).toBe(knobs[range.knob])
-      fonts.add(knobs.font)
+    const decode = Schema.decodeUnknownSync(ThemeValues)
+    const fonts = new Set<unknown>()
+    const sliders = knobPaths.filter(path => knobAt(path).control.kind === 'range')
+    for (const draw of [...Array.from({ length: 200 }, random), 0, 0.9999999]) {
+      const values = shuffled(typeof draw === 'number' && draw >= 0.9999 ? () => draw : random)
+      expect(() => decode(values)).not.toThrow()
+      for (const path of sliders) {
+        const value = valueAt(values, path)
+        const control = knobAt(path).control
+        if (typeof value === 'number' && control.kind === 'range')
+          expect(fit(control, value), path).toBe(value)
+      }
+      fonts.add(valueAt(values, 'type.body'))
     }
-    expect(fonts.size).toBe(Font.literals.length)
-    // A base color carries its own tint, as the picker sets it.
-    for (let draw = 0; draw < 100; draw++) {
-      const knobs = shuffled(random, 'ltr')
-      if (knobs.base !== 'accent') expect(knobs.surfaceSaturation).toBe(bases[knobs.base].c)
-    }
-    // Even at the ends of what `random` returns.
-    for (const end of [0, 0.9999999]) {
-      const knobs = shuffled(() => end, 'ltr')
-      for (const range of ranges) expect(fit(range, knobs[range.knob])).toBe(knobs[range.knob])
-    }
-    expect(shuffled(() => 0, 'ltr').lightness).toBeGreaterThanOrEqual(rangeOf('lightness').min)
+    expect(fonts.size).toBe(Object.keys(Theme.fonts).length)
   })
 
   it('keeps a slider value in its range and on its step', () => {
-    const hue = ranges.find(range => range.knob === 'hue')!
-    const chroma = ranges.find(range => range.knob === 'chroma')!
+    const hue = knobAt('accent.hue').control
+    const chroma = knobAt('accent.chroma').control
+    if (hue.kind !== 'range' || chroma.kind !== 'range') throw new Error('not sliders')
     expect(fit(hue, -4)).toBe(0)
     expect(fit(hue, 400)).toBe(360)
     expect(fit(chroma, 0.1234)).toBe(0.125)

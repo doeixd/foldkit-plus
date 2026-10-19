@@ -38,22 +38,24 @@ import {
   initialHints,
   initialPickers,
   initialTabs,
-  pickedKnobs,
+  pickedTheme,
 } from './gallery/studio.js'
 import * as Widgets from './gallery/widgets.js'
 import {
   Direction,
-  Knob,
-  Knobs,
+  KnobPath,
   Scheme,
   Section,
-  defaults as defaultKnobs,
+  ThemeValues,
+  defaults as defaultTheme,
   fit,
-  presetKnobs,
+  halfAt,
+  knobAt,
   presets,
-  ranges,
-  sameKnobs,
+  sameTheme,
   shuffled,
+  valueAt,
+  withValue,
 } from './gallery/theme.js'
 import { addressOf, queryOf } from './gallery/themeUrl.js'
 import { COPY_ATTRIBUTE, CREATE, type Library } from './library.js'
@@ -102,7 +104,10 @@ export const Model = Schema.Struct({
   cardDismissed: Schema.Boolean,
   /** The previews with state of their own: tabs, a dialog, a slider and the rest. */
   widgets: Widgets.Model,
-  knobs: Knobs,
+  /** The theme `/create` makes, as the values of the standard knobs. */
+  theme: ThemeValues,
+  /** Not the theme's: the preview's, to show the components right to left. */
+  direction: Direction,
   /** The pane of knobs `/create` shows, and the tabs that pick it. */
   section: Section,
   sectionTabs: UiTabs.Model,
@@ -141,9 +146,14 @@ export const Message = defineMessageUnion({
   DismissedCard: {},
   RestoredCard: {},
   GotWidget: { message: Widgets.Message },
-  ChosePreset: { knobs: Knobs },
+  ChoseValues: { values: ThemeValues },
   ChoseTheme: { name: Schema.String },
-  MovedKnob: { knob: Knob, value: Schema.Number },
+  /** A control moved: a knob's value, or a schemed knob's `dark` one. */
+  SetKnob: {
+    path: KnobPath,
+    value: Schema.Union([Schema.Number, Schema.String]),
+    dark: Schema.Boolean,
+  },
   PressedShuffle: {},
   GotSectionTabs: { message: UiTabs.Message },
   GotCanvasTabs: { message: UiTabs.Message },
@@ -233,12 +243,10 @@ const CopyLink = Command.define('CopyLink', {
     ),
 })
 
-/** Knobs drawn at random, in the direction the preview reads. */
+/** A theme drawn at random. */
 const Shuffle = Command.define('Shuffle', {
-  args: { direction: Direction },
-  messages: [Message.ChosePreset],
-  execute: ({ direction }) =>
-    Effect.sync(() => Message.ChosePreset({ knobs: shuffled(Math.random, direction) })),
+  messages: [Message.ChoseValues],
+  execute: Effect.sync(() => Message.ChoseValues({ values: shuffled(Math.random) })),
 })
 
 // UPDATE
@@ -248,17 +256,49 @@ type UpdateReturn = Update.Return<Model, Message>
 /** What a placement's wrapper never reaches: the placements take theirs. */
 type OwnMessage = Bundle.OwnMessage<Message, typeof placements.placements>
 
-/** `knobs` installed, unless they are the ones shown; the code copied before no longer matches them. */
-const withKnobs = (model: Model, knobs: Knobs): UpdateReturn =>
-  sameKnobs(model.knobs, knobs)
+/** `values` installed, unless they are the theme shown; the code copied before no longer matches it. */
+const withTheme = (model: Model, values: ThemeValues): UpdateReturn =>
+  sameTheme(model.theme, values)
     ? { model }
     : {
         model: modifyFields(model, {
-          knobs: () => knobs,
+          theme: () => values,
           copied: () => false,
           linkCopied: () => false,
         }),
       }
+
+/**
+ * `theme` with the control at `path` moved to `value`: a slider's fitted to
+ * its step, a schemed knob's `dark` half beside its light one, and the whole
+ * checked by the knob's schema. On the spring or eased, a still theme moves
+ * again, so choosing an easing shows it.
+ */
+const moved = (
+  theme: ThemeValues,
+  path: KnobPath,
+  value: number | string,
+  dark: boolean,
+): Option.Option<ThemeValues> => {
+  const knob = knobAt(path)
+  const { control } = halfAt(path, dark)
+  const fitted = control.kind === 'range' && typeof value === 'number' ? fit(control, value) : value
+  const current = valueAt(theme, path)
+  const next =
+    typeof current === 'object'
+      ? { ...current, [dark ? 'dark' : 'light']: fitted }
+      : dark
+        ? { light: current, dark: fitted }
+        : fitted
+  return Schema.decodeUnknownOption(knob.schema)(next).pipe(
+    Option.map(checked => withValue(theme, path, checked)),
+    Option.map(set =>
+      path === 'motion.easing' && valueAt(set, 'motion.scale') === 0
+        ? withValue(set, 'motion.scale', 1)
+        : set,
+    ),
+  )
+}
 
 type Step = Update.Step<Model, Message>
 const same: Step = model => ({ model })
@@ -330,8 +370,8 @@ const foldPicker = Update.foldChildAt({
       Selected:
         ({ value }) =>
         model =>
-          pickedKnobs(model.knobs, picker, value).pipe(
-            Option.match({ onNone: () => ({ model }), onSome: knobs => withKnobs(model, knobs) }),
+          pickedTheme(model.theme, picker, value).pipe(
+            Option.match({ onNone: () => ({ model }), onSome: values => withTheme(model, values) }),
           ),
     }),
 })
@@ -365,9 +405,10 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       const address = addressOf(query)
       return {
         model: modifyFields(model, {
-          knobs: () => address.knobs,
+          theme: () => address.values,
           scheme: () => address.scheme,
           canvas: () => address.canvas,
+          direction: () => address.direction,
           addressRead: () => true,
         }),
       }
@@ -394,15 +435,15 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         ? { model: modifyFields(model, { cardDismissed: () => false }) }
         : { model },
     GotWidget: ({ message }) => foldWidget(model, message),
-    ChosePreset: ({ knobs }) => withKnobs(model, knobs),
-    // A preset by its name, in the direction the preview reads, and in its
-    // own scheme when it is known in one; a name of none is ignored.
+    ChoseValues: ({ values }) => withTheme(model, values),
+    // A preset by its name, and in its own scheme when it is known in one; a
+    // name of none is ignored.
     ChoseTheme: ({ name }) =>
       Option.fromNullishOr(presets.find(preset => preset.name === name)).pipe(
         Option.match({
           onNone: () => ({ model }),
           onSome: preset => {
-            const chosen = withKnobs(model, presetKnobs(preset, model.knobs.direction)).model
+            const chosen = withTheme(model, preset.values).model
             const scheme = preset.scheme ?? chosen.scheme
             return {
               model:
@@ -411,16 +452,12 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
           },
         }),
       ),
-    MovedKnob: ({ knob, value }) => {
-      const range = ranges.find(each => each.knob === knob)
-      return range === undefined || !Number.isFinite(value)
-        ? { model }
-        : withKnobs(model, { ...model.knobs, [knob]: fit(range, value) })
-    },
-    PressedShuffle: () => ({
-      model,
-      commands: [Shuffle({ direction: model.knobs.direction })],
-    }),
+    SetKnob: ({ path, value, dark }) =>
+      Option.match(moved(model.theme, path, value, dark), {
+        onNone: () => ({ model }),
+        onSome: values => withTheme(model, values),
+      }),
+    PressedShuffle: () => ({ model, commands: [Shuffle()] }),
     GotSectionTabs: ({ message }) => foldSectionTabs(model, message),
     GotCanvasTabs: ({ message }) => foldCanvasTabs(model, message),
     GotPicker: ({ picker, message }) => foldPicker(model, picker, message),
@@ -431,7 +468,10 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         model: drawer === model.drawer ? model : modifyFields(model, { drawer: () => drawer }),
       }
     },
-    ChoseDirection: ({ direction }) => withKnobs(model, { ...model.knobs, direction }),
+    ChoseDirection: ({ direction }) =>
+      direction === model.direction
+        ? { model }
+        : { model: modifyFields(model, { direction: () => direction }) },
     ChoseScheme: ({ scheme }) =>
       scheme === model.scheme
         ? { model }
@@ -467,9 +507,10 @@ const onCreate = (page: Page): boolean => page._tag === 'Create'
 
 /** What of the Model `/create`'s address holds. */
 export const addressIn = (model: Model) => ({
-  knobs: model.knobs,
+  values: model.theme,
   scheme: model.scheme,
   canvas: model.canvas,
+  direction: model.direction,
 })
 
 /** Writes `query` as the page's, in place: a new entry per knob would fill the history. */
@@ -549,7 +590,8 @@ export const initial: Model = placements.initial({
   chosenCard: 'team',
   cardDismissed: false,
   widgets: Widgets.initial,
-  knobs: defaultKnobs,
+  theme: defaultTheme,
+  direction: 'ltr',
   section: 'theme',
   sectionTabs: initialTabs,
   pickers: initialPickers,
@@ -607,7 +649,8 @@ const planOf = (withMeta: boolean) =>
       App.model.chosenCard,
       App.model.cardDismissed,
       App.model.widgets,
-      App.model.knobs,
+      App.model.theme,
+      App.model.direction,
       App.model.scheme,
       App.model.pageScheme,
       App.model.dark,

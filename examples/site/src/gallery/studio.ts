@@ -1,14 +1,25 @@
 /**
  * The state `/create`'s own controls keep: the tabs that pick a pane, and a
  * Listbox for each knob with too many choices for a row. Each component owns
- * its focus and its open list; the knobs it chooses are the site's, and a
- * choice crosses into them through `pickedKnobs`, which decodes it first.
+ * its focus and its open list; the theme it chooses is the site's, and a
+ * choice crosses into it through `pickedTheme`, which decodes it first.
  */
 import { Option, Schema } from 'effect'
 import { Listbox as UiListbox, Tabs as UiTabs, Tooltip as UiTooltip } from '@foldkit/ui'
 import { ListboxView } from 'foldkit-mixins-ui'
 
-import { Base, Font, HeadingFont, Knob, MenuColor, Section, bases, type Knobs } from './theme.js'
+import { Theme } from 'foldkit-mixins/theme'
+
+import {
+  Base,
+  KnobPath,
+  knobAt,
+  knobPaths,
+  Section,
+  withBase,
+  withValue,
+  type ThemeValues,
+} from './theme.js'
 
 /** The knobs chosen from a list. */
 export const Picker = Schema.Literals(['base', 'font', 'headingFont', 'menuColor'])
@@ -38,18 +49,14 @@ export const initialPickers: Pickers = {
 
 export const initialTabs = UiTabs.init({ id: 'theme-sections' })
 
-/** Everything `/create` names, each with a tooltip saying more than its name. */
+/**
+ * Everything `/create` names, each with a tooltip saying more than its name:
+ * every knob, a schemed knob's dark half, and the choices that are no knob.
+ */
 export const Hint = Schema.Literals([
-  ...Knob.literals,
-  ...Picker.literals,
-  'hover',
-  'menuAccent',
-  'size',
-  'controlShape',
-  'outlines',
-  'shadowStyle',
-  'relief',
-  'easing',
+  ...knobPaths,
+  'surface.lightness.dark',
+  'base',
   'theme',
   'look',
 ])
@@ -79,29 +86,34 @@ export type Canvas = typeof Canvas.Type
 export const CanvasTabs: ReturnType<typeof UiTabs.create<Canvas>> = UiTabs.create<Canvas>()
 export const initialCanvasTabs = UiTabs.init({ id: 'theme-canvas' })
 
+/** The knob a picker sets, apart from the base color, which sets two. */
+const pickerKnob: Readonly<Record<Exclude<Picker, 'base'>, KnobPath>> = {
+  font: 'type.body',
+  headingFont: 'type.heading',
+  menuColor: 'menu.panel',
+}
+
+/** A font picker's value: a name of `Theme.fonts`, or `inherit` for the body's. */
+const fontOf = (value: string): Option.Option<string> =>
+  value === 'inherit'
+    ? Option.some('inherit')
+    : Option.fromNullishOr(Object.entries(Theme.fonts).find(([name]) => name === value)?.[1])
+
 /**
- * `knobs` with `value` chosen from `picker`, or nothing when the value is
+ * `values` with `value` chosen from `picker`, or nothing when the value is
  * not one of its choices. A base color brings its own surface tint.
  */
-export const pickedKnobs = (knobs: Knobs, picker: Picker, value: string): Option.Option<Knobs> => {
-  switch (picker) {
-    case 'base':
-      return Schema.decodeUnknownOption(Base)(value).pipe(
-        Option.map(base => ({
-          ...knobs,
-          base,
-          ...(base === 'accent' ? {} : { surfaceSaturation: bases[base].c }),
-        })),
-      )
-    case 'font':
-      return Schema.decodeUnknownOption(Font)(value).pipe(Option.map(font => ({ ...knobs, font })))
-    case 'headingFont':
-      return Schema.decodeUnknownOption(HeadingFont)(value).pipe(
-        Option.map(headingFont => ({ ...knobs, headingFont })),
-      )
-    case 'menuColor':
-      return Schema.decodeUnknownOption(MenuColor)(value).pipe(
-        Option.map(menuColor => ({ ...knobs, menuColor })),
-      )
-  }
+export const pickedTheme = (
+  values: ThemeValues,
+  picker: Picker,
+  value: string,
+): Option.Option<ThemeValues> => {
+  if (picker === 'base')
+    return Schema.decodeUnknownOption(Base)(value).pipe(Option.map(base => withBase(values, base)))
+  const path = pickerKnob[picker]
+  const chosen = picker === 'menuColor' ? Option.some(value) : fontOf(value)
+  return chosen.pipe(
+    Option.flatMap(Schema.decodeUnknownOption(knobAt(path).schema)),
+    Option.map(decoded => withValue(values, path, decoded)),
+  )
 }

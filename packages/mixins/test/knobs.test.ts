@@ -150,3 +150,30 @@ describe('Knobs.schema', () => {
       }
   })
 })
+
+describe('Theme.print of a long group', () => {
+  it('breaks a group past a hundred characters to a knob a line', () => {
+    const source = Theme.print(
+      Theme.make({
+        type: {
+          body: Theme.fonts.geist,
+          headingWeight: 700,
+          headingTracking: -0.025,
+          scale: 1.025,
+        },
+      }),
+    )
+    expect(source).toBe(
+      [
+        'Theme.make({',
+        '  type: {',
+        `    body: '"Geist", ui-sans-serif, system-ui, sans-serif',`,
+        '    headingWeight: 700,',
+        '    headingTracking: -0.025,',
+        '    scale: 1.025,',
+        '  },',
+        '})',
+      ].join('\n'),
+    )
+  })
+})
