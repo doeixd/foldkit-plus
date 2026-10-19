@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `Button.view` takes an `icon`, drawn before the label in the new `icon` slot
+  of `ButtonSlots` at the ladder's icon size. The recipe's `icon` variant showed nothing before:
+  the view had no way to draw an icon, and the variant's zero font size hid any drawn in `em`.
 - `foldkit-mixins-ui`: `TreeView.fluid`, the fluid hover the menus, listbox, tabs and sidebar
   have: one `highlight`, a new slot drawn first in the tree, glides to the showing row nearest
   the pointer and to the row the keys focus, in place of each row's own hover. `FluidHover`
