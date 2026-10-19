@@ -1017,13 +1017,33 @@ export const SiteStyle = slots(
       borderRadius: '999px',
     },
     // One component of `/create`'s preview, kept whole within a column.
-    tile: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: t.space.sm,
-      breakInside: 'avoid',
-      marginBlockEnd: t.space.lg,
+    tile: [
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.sm,
+        breakInside: 'avoid',
+        marginBlockEnd: t.space.lg,
+      },
+      // A menu shown open in a tile keeps room under its button for its rows,
+      // so what follows in the tile moves down rather than hide behind it.
+      Style.nest('[aria-haspopup="menu"][aria-expanded="true"]', { marginBlockEnd: '10.5rem' }),
+    ],
+    scaleGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'auto minmax(0, 10fr) minmax(0, 4fr)',
+      alignItems: 'center',
+      gap: `${t.space['2xs']} ${t.space.sm}`,
     },
+    scaleName: { ...mono, color: t.text.subtle },
+    scaleRow: {
+      display: 'grid',
+      gridAutoFlow: 'column',
+      gridAutoColumns: 'minmax(0, 1fr)',
+      gap: '2px',
+    },
+    scaleCell: { blockSize: '2rem', borderRadius: t.radius.sm },
+    scaleNote: { margin: '0', color: t.text.muted, maxInlineSize: '60ch' },
     tileName: {
       ...mono,
       margin: '0',

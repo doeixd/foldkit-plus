@@ -185,6 +185,48 @@ const feedback = (name: string, l: number, c: number, dark: number) =>
     ),
   )
 
+/** The color scales, each named for its hue (a knob, `red-h`). */
+type ScaleName = 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'purple'
+
+/**
+ * One lightness ladder for every scale, near white to near black in even
+ * steps, so step 6 of red is as light as step 6 of blue: a step number
+ * means the same contrast in any hue (after css-tags' palette).
+ */
+const scaleL = [97, 88.5, 80, 71.5, 63, 54.5, 46, 37.5, 29, 20.5]
+// Chroma swells toward the middle, where a screen can show most of it, and
+// thins at both ends, where a vivid near-white or near-black falls out of gamut.
+const scaleC = [0.02, 0.05, 0.09, 0.13, 0.16, 0.17, 0.155, 0.125, 0.09, 0.055]
+
+/**
+ * A color's ten steps, `1` the lightest, and four `wash`es: step 6 mixed
+ * into the page, so a tinted ground follows the scheme and the surface
+ * knobs as the page does.
+ */
+const colorScale = (name: ScaleName) => {
+  const hue = v('knob', `${name}-h`)
+  const step = (index: number) =>
+    `oklch(${scaleL[index]}% calc(${scaleC[index]} * ${v('knob', 'scale-c')}) ${hue})`
+  const wash = (share: number) =>
+    `color-mix(in oklab, ${v(name, '6')} ${share}%, ${v('surface', 'base')})`
+  return {
+    '1': step(0),
+    '2': step(1),
+    '3': step(2),
+    '4': step(3),
+    '5': step(4),
+    '6': step(5),
+    '7': step(6),
+    '8': step(7),
+    '9': step(8),
+    '10': step(9),
+    'wash-1': wash(8),
+    'wash-2': wash(16),
+    'wash-3': wash(28),
+    'wash-4': wash(44),
+  }
+}
+
 export const oklch = (knobs: OklchKnobs) => {
   const accent = v('accent', 'default')
   const surfaceSaturation = knobs.surfaceSaturation ?? 0.015
@@ -230,6 +272,15 @@ export const oklch = (knobs: OklchKnobs) => {
       'shadow-c': knobs.shadow?.c === undefined ? `calc(${surfaceC} * 2)` : num(knobs.shadow.c),
       // How much lighter each raised level is in a dark scheme.
       'raise-dark': '0.027',
+      // The color scales' chroma, as a share of each step's own; their hues.
+      'scale-c': '1',
+      'red-h': '25',
+      'orange-h': '55',
+      'yellow-h': '90',
+      'green-h': '145',
+      'teal-h': '185',
+      'blue-h': '255',
+      'purple-h': '300',
     },
     hue: {
       accent: v('knob', 'accent-h'),
@@ -363,6 +414,15 @@ export const oklch = (knobs: OklchKnobs) => {
       '4': chartInk(180, [0.764, 0.161], [0.67, 0.143]),
       '5': chartInk(102, [0.716, 0.141], [0.622, 0.171]),
     },
+    // Color scales of ten even steps, for what is not a role: a tag's
+    // color, an illustration, a status of the application's own.
+    red: colorScale('red'),
+    orange: colorScale('orange'),
+    yellow: colorScale('yellow'),
+    green: colorScale('green'),
+    teal: colorScale('teal'),
+    blue: colorScale('blue'),
+    purple: colorScale('purple'),
     // Code, by the kinds a tokenizer names (`syntax-keyword` is
     // `--fk-syntax-keyword`): each kind in a hue the palette already has, so
     // code follows the brand, and the quiet kinds in the text's own grey.

@@ -215,19 +215,64 @@ const palettes: ReadonlyArray<{
   },
 ]
 
+const scales = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple'] as const
+const steps = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] as const
+const washes = ['wash-1', 'wash-2', 'wash-3', 'wash-4'] as const
+
+/** Each color scale in a row: its ten steps, then its washes over the page. */
+const scaleRows = (slots: Slots, h: H): Html =>
+  h.section(slots.specimenGroup.attrs([h.AriaLabel('Scales')]), [
+    h.h3(slots.specimenHeading.attrs(), ['Scales']),
+    h.div(
+      slots.scaleGrid.attrs(),
+      scales.flatMap(name => [
+        h.span(slots.scaleName.attrs(), [name]),
+        h.div(
+          slots.scaleRow.attrs(),
+          steps.map(step =>
+            h.span(
+              slots.scaleCell.attrs([
+                h.Title(`--fk-${name}-${step}`),
+                h.Style({ background: `var(--fk-${name}-${step})` }),
+              ]),
+              [],
+            ),
+          ),
+        ),
+        h.div(
+          slots.scaleRow.attrs([h.DataAttribute('washes', '')]),
+          washes.map(wash =>
+            h.span(
+              slots.scaleCell.attrs([
+                h.Title(`--fk-${name}-${wash}`),
+                h.Style({ background: `var(--fk-${name}-${wash})` }),
+              ]),
+              [],
+            ),
+          ),
+        ),
+      ]),
+    ),
+    h.p(slots.scaleNote.attrs(), [
+      'Ten steps from near white to near black, one lightness ladder for every hue, so a step means the same contrast in each; then four washes, step 6 mixed into the page.',
+    ]),
+  ])
+
 /** The palette and shape tokens, each drawn as what it is: a fill, a text color, a line. */
 export const palette = (slots: Slots, h: H): Html =>
   h.div(
     slots.specimen.attrs(),
-    palettes.map(group =>
-      h.section(slots.specimenGroup.attrs([h.AriaLabel(group.name)]), [
-        h.h3(slots.specimenHeading.attrs(), [group.name]),
-        h.div(
-          slots.swatchGrid.attrs(),
-          group.tokens.map(token => swatch(slots, h, token, group.draw)),
-        ),
-      ]),
-    ),
+    palettes
+      .map(group =>
+        h.section(slots.specimenGroup.attrs([h.AriaLabel(group.name)]), [
+          h.h3(slots.specimenHeading.attrs(), [group.name]),
+          h.div(
+            slots.swatchGrid.attrs(),
+            group.tokens.map(token => swatch(slots, h, token, group.draw)),
+          ),
+        ]),
+      )
+      .concat([scaleRows(slots, h)]),
   )
 
 const OutlineButtonStyle = forSlots(ButtonSlots)(
