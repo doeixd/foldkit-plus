@@ -188,6 +188,8 @@ export const Progress = Style.recipeFor(ProgressSlots)({
             gridColumn: '1',
             inlineSize: ring,
             blockSize: ring,
+            // A ring whatever the theme's corner: square, the arc filled a box.
+            borderRadius: '50%',
             background: `conic-gradient(${fill} calc(var(--fk-progress, 0) * 1turn), ${ref.outline.subtle} 0)`,
             mask: `radial-gradient(farthest-side, transparent calc(100% - ${ringWidth}), black calc(100% - ${ringWidth}))`,
           }),

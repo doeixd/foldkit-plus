@@ -76,8 +76,9 @@ export const Spinner = Style.recipeFor(SpinnerSlots)({
     kind: {
       ring: kind(
         [
+          // A circle by its shape, not the theme's corner: square, it turns as a box.
           Style.self({
-            borderRadius: ref.radius.full,
+            borderRadius: '50%',
             border: `${ref.border.thick} solid ${track}`,
             borderTopColor: ink,
           }),
@@ -125,7 +126,7 @@ export const Spinner = Style.recipeFor(SpinnerSlots)({
         [
           Style.self({
             position: 'relative',
-            borderRadius: ref.radius.full,
+            borderRadius: '50%',
             border: `${ref.border.thick} solid ${track}`,
           }),
           turning(period),
