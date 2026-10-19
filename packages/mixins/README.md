@@ -358,7 +358,15 @@ warning and info hues, all at one lightness per scheme and the `syntaxChroma` kn
 `operator`, `punctuation` and `comment` in the text's own grey. The `chart` group is a chart's
 series colors, `chart-1` to `chart-5` as shadcn names them: the dataviz reference palette's first
 five slots in its order, so neighbors stay apart under protan and deutan vision, each a fixed turn
-of hue from the `chart-h` knob at a lightness and chroma set for that hue in each scheme. The `popup` group is a menu's
+of hue from the `chart-h` knob at a lightness and chroma set for that hue in each scheme. Seven
+color scales, `red`, `orange`, `yellow`, `green`, `teal`, `blue` and `purple`, are for what no
+role names (a tag's color, an illustration, a status of the application's own): steps `1` (near
+white) to `10` (near black) share one lightness ladder, so `red-6` is as light as `blue-6` and a
+step means the same contrast in every hue, with chroma swelling toward the middle and thinning
+at both ends, where a vivid near-white or near-black falls out of gamut; `wash-1` to `wash-4`
+mix step 6 into `surface.base` at 8, 16, 28 and 44%, so a tinted ground follows the scheme and
+the surface knobs. Each hue is a knob (`red-h`), and `scale-c` scales every step's chroma
+(`--fk-blue-wash-2`, `ref.blue['6']`). The `popup` group is a menu's
 panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `highlight-ink`): `menu: { accent:
 'bold' }` lights the row in the accent's fill, and `menu: { color }` draws the panel `inverted`
 (the other scheme's surface and text) or `translucent` over a blur, as shadcn's menu options do.

@@ -248,6 +248,8 @@ const hints: Readonly<Record<Hint, string>> = {
   radius:
     'Multiplies every corner. 0 is square. A control inside a card keeps inside the card’s corner.',
   density: 'Multiplies spacing: padding, gaps and margins. Below 1 is tighter, above 1 roomier.',
+  scaleChroma:
+    'How vivid the seven color scales are (red to purple, on the Palette tab), as a share of each step’s own. 0 turns them grey.',
   border: 'The thinnest border’s width; the thicker ones step up from it.',
   shadow: 'How strong shadows are. 0 removes them.',
   motion: 'Multiplies how long every transition takes. 0 stills them; 2 is twice as slow.',
@@ -441,6 +443,7 @@ const colorPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   slider(model, slots, 'surfaceLightness', h),
   slider(model, slots, 'surfaceLightnessDark', h),
   slider(model, slots, 'surfaceContrast', h),
+  slider(model, slots, 'scaleChroma', h),
   row(model, slots, h, 'hover', 'Hover', words(Hover.literals), model.knobs.hover, hover =>
     choose(model, { hover }),
   ),

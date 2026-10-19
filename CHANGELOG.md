@@ -9,12 +9,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `Theme.oklch` ships seven color scales, `red`, `orange`, `yellow`, `green`,
+  `teal`, `blue` and `purple`: steps `1` (near white) to `10` (near black) on one lightness
+  ladder for every hue, so a step means the same contrast in each, and `wash-1` to `wash-4`, step
+  6 mixed into the page. Each hue is a knob (`red-h`); `scale-c` scales their chroma.
 - `foldkit-primitives`: `Swipe` takes a `slop`, the pixels a press moves before it is a swipe.
   Until then it captures nothing and reports nothing, so a press that stays put is a click on
   what is under it.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a ring Progress and a ring or orbit Spinner stay round in a square
+  theme (radius factor 0); they spun as squares.
+- `foldkit-mixins-ui`: a Skeleton's bones are the palette's `surface.muted`, so they follow the
+  surface knobs and the dark scheme, where they had nearly vanished.
+- `foldkit-mixins-ui`: a scrolling Tabs row shows a mouse a thin bar whose thumb appears while
+  the row is hovered or focused, and a `line` row's rule meets the chosen tab's over it.
+- `foldkit-mixins-ui`: Steps too narrow for every label keep their markers evenly spaced.
 - `foldkit-mixins-ui`: a click on a control inside a Drawer's `grip` (a row of tabs) reaches it.
   The grip captured the pointer on the press, so the browser sent the click to the grip; it now
   starts a drag only once the press moves `PRESS_SLOP` pixels.

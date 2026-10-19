@@ -103,6 +103,8 @@ export const Knobs = Schema.Struct({
   headingWeight: Schema.Number,
   /** A heading's letter spacing, in em. */
   tracking: Schema.Number,
+  /** The color scales' vividness, as a share of each step's own chroma. */
+  scaleChroma: Schema.Number,
   /** Not the theme's: the preview's, to show the components right to left. */
   direction: Direction,
 })
@@ -127,6 +129,7 @@ export const Knob = Schema.Literals([
   'leading',
   'headingWeight',
   'tracking',
+  'scaleChroma',
 ])
 export type Knob = typeof Knob.Type
 
@@ -177,6 +180,7 @@ export const ranges: ReadonlyArray<Range> = [
   range('leading', 'Line height', [0.85, 1.3, 0.05], '×'),
   range('headingWeight', 'Heading weight', [300, 900, 100], ''),
   range('tracking', 'Heading tracking', [-0.05, 0.05, 0.005], 'em'),
+  range('scaleChroma', 'Scale vividness', [0, 1.5, 0.05], '×'),
 ]
 
 export const rangeOf = (knob: Knob): Range => ranges.find(each => each.knob === knob)!
@@ -262,6 +266,7 @@ export const defaults: Knobs = {
   leading: 1,
   headingWeight: HEADING_WEIGHT,
   tracking: TRACKING,
+  scaleChroma: 1,
   direction: 'ltr',
 }
 
@@ -636,6 +641,7 @@ export const shuffled = (random: () => number, direction: Knobs['direction']): K
     leading: between('leading', 0.95, 1.15),
     headingWeight: pick([400, 500, 600, 700, 800]),
     tracking: between('tracking', -0.03, 0.01),
+    scaleChroma: between('scaleChroma', 0.7, 1.2),
     direction,
   }
 }
@@ -712,6 +718,7 @@ export const paletteOf = (knobs: Knobs) =>
         'heading-scale': String(knobs.headingScale),
         leading: String(knobs.leading),
         'control-round': knobs.controlShape === 'pill' ? '1' : '0',
+        'scale-c': String(knobs.scaleChroma),
       },
       font: { body: fonts[knobs.font], heading: headingOf(knobs) },
       motion: { ease: easeOf(knobs) },
@@ -829,6 +836,7 @@ export const codeOf = (knobs: Knobs): string => {
     ...(knobs.headingScale === 1 ? [] : [`    'heading-scale': '${knobs.headingScale}',`]),
     ...(knobs.leading === 1 ? [] : [`    leading: '${knobs.leading}',`]),
     ...(knobs.controlShape === 'pill' ? ["    'control-round': '1',"] : []),
+    ...(knobs.scaleChroma === 1 ? [] : [`    'scale-c': '${knobs.scaleChroma}',`]),
     '  },',
     `  font: { body: '${fonts[knobs.font]}', heading: '${headingOf(knobs)}' },`,
     ...(knobs.easing === 'spring' ? ["  motion: { ease: 'var(--fk-motion-spring)' },"] : []),
