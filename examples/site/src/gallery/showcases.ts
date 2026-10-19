@@ -933,7 +933,8 @@ export const showcases: ReadonlyArray<Showcase> = [
           ),
       },
     ],
-  ),  fixed(
+  ),
+  fixed(
     {
       slug: 'badge',
       title: 'Badge',
