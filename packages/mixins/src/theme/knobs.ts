@@ -10,6 +10,7 @@ import { Option, Schema } from 'effect'
 import { pipeSelf, type Pipeable } from '../pipe.js'
 import { define } from './core.js'
 import * as Knob from './knob.js'
+import { asVariables, elevation, reliefs } from './shadows.js'
 
 /** Knobs grouped one level deep: `{ shape: { radius: Knob.number(...) } }`. */
 export type KnobSet = {
@@ -154,6 +155,16 @@ export const standard = {
       step: 0.05,
       description: 'Multiplies the text’s chroma.',
     }),
+    hover: Knob.choice({
+      default: 'surface',
+      options: {
+        surface: { 'surface-ink': '1', 'state-ink': 'currentColor' },
+        neutral: { 'surface-ink': '0', 'state-ink': 'currentColor' },
+        accent: { 'surface-ink': '1', 'state-ink': ref('accent', 'ink') },
+      },
+      description:
+        'What a hovered row or button is tinted with: a step of the surface, a plain grey, or the accent.',
+    }),
   },
   shape: {
     radius: Knob.number({
@@ -184,8 +195,70 @@ export const standard = {
       options: { rounded: { 'control-round': '0' }, pill: { 'control-round': '1' } },
       description: 'The corners of buttons: the radius’s, or fully round pills.',
     }),
+    border: Knob.length('px')({
+      variable: 'border-width',
+      default: 1,
+      min: 1,
+      max: 3,
+      step: 1,
+      description: 'The thinnest border’s width; the thicker ones step up from it.',
+    }),
+    // How much of the text's own ink the outlines take over the palette's
+    // lines, at three strengths for subtle, default and overt.
+    outlines: Knob.choice({
+      default: 'soft',
+      options: {
+        soft: {
+          'outline-ink': '0',
+          'outline-ink-subtle': '0%',
+          'outline-ink-default': '0%',
+          'outline-ink-overt': '0%',
+        },
+        strong: {
+          'outline-ink': '1',
+          'outline-ink-subtle': '22%',
+          'outline-ink-default': '48%',
+          'outline-ink-overt': '72%',
+        },
+        ink: {
+          'outline-ink': '1',
+          'outline-ink-subtle': '45%',
+          'outline-ink-default': '88%',
+          'outline-ink-overt': '100%',
+        },
+      },
+      description:
+        'How much borders show: the palette’s soft lines, darker ones, or lines in the text’s own ink.',
+    }),
   },
   type: {
+    body: Knob.font({
+      variable: 'font-body',
+      default: 'system-ui, sans-serif',
+      description: 'The typeface for body text and controls.',
+    }),
+    heading: Knob.font({
+      variable: 'font-heading',
+      default: 'inherit',
+      description: 'The typeface for headings. `inherit` is the body’s.',
+    }),
+    headingWeight: Knob.number({
+      variable: 'heading-weight',
+      default: 600,
+      min: 100,
+      max: 900,
+      step: 100,
+      description: 'How bold headings are, from 300 (light) to 900 (black).',
+    }),
+    headingTracking: Knob.length('em')({
+      variable: 'heading-tracking',
+      default: -0.01,
+      min: -0.05,
+      max: 0.05,
+      step: 0.005,
+      description:
+        'Headings’ letter spacing, in em: negative draws letters together, positive spreads them.',
+    }),
     scale: Knob.number({
       variable: 'text-scale',
       default: 1,
@@ -221,8 +294,32 @@ export const standard = {
       step: 0.1,
       description: 'Multiplies how long every transition takes. 0 stills them; 2 is twice as slow.',
     }),
+    easing: Knob.choice({
+      default: 'ease',
+      options: { ease: { ease: 'ease-out' }, spring: { ease: ref('motion', 'spring') } },
+      description: 'How transitions move: along an easing curve, or on a spring that settles.',
+    }),
   },
   shadow: {
+    style: Knob.choice({
+      default: 'soft',
+      options: {
+        soft: asVariables('shadow', elevation.soft),
+        hard: asVariables('shadow', elevation.hard),
+      },
+      description: 'Shadows that diffuse softly, or hard, solid offset copies.',
+    }),
+    relief: Knob.choice({
+      default: 'flat',
+      options: {
+        flat: asVariables('relief', reliefs.flat),
+        soft: asVariables('relief', reliefs.soft),
+        hard: asVariables('relief', reliefs.hard),
+        bevel: asVariables('relief', reliefs.bevel),
+      },
+      description:
+        'How buttons stand off the page and fields sink into it: flat, or a soft, hard or bevelled edge.',
+    }),
     strength: Knob.percent({
       variable: 'shadow-strength',
       default: 100,

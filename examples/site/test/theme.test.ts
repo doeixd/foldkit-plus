@@ -150,15 +150,16 @@ describe('the theme creator', () => {
       { ...defaults, shadowStyle: 'hard', border: 3, surfaceLightness: 80, hover: 'neutral' },
       'light',
     )
-    expect(style['--fk-shadow-md']).toMatch(/^3px 3px 0 0 /)
+    // The shadow knobs' options, written as the knob variables the tokens read.
+    expect(style['--fk-knob-shadow-md']).toMatch(/^3px 3px 0 0 /)
     expect(style['--fk-border-thin']).toBe('3px')
     expect(style['--fk-border-heavy']).toBe('5px')
     expect(style['--fk-knob-base-l']).toBe('80%')
     expect(style['--fk-knob-surface-ink']).toBe('0')
-    expect(knobStyleOf({ ...defaults, hover: 'accent' }, 'light')['--fk-state-ink']).toBe(
+    expect(knobStyleOf({ ...defaults, hover: 'accent' }, 'light')['--fk-knob-state-ink']).toBe(
       'var(--fk-accent-ink)',
     )
-    expect(declared['--fk-shadow-md']).toMatch(/^0 4px 6px/)
+    expect(declared['--fk-knob-shadow-md']).toMatch(/^0 4px 6px/)
   })
 
   it('writes and draws the controls’ relief over the shadow scale', () => {
@@ -172,9 +173,9 @@ describe('the theme creator', () => {
     )
     const bevel = knobStyleOf({ ...defaults, relief: 'bevel' }, 'light')
     // Raised, its outer ring lies outside the border; sunken, inside.
-    expect(bevel['--fk-shadow-raised']).toMatch(/^1px 1px 0 0 /)
-    expect(bevel['--fk-shadow-field']).toMatch(/^inset 1px 1px 0 0 /)
-    expect(knobStyleOf(defaults, 'light')['--fk-shadow-raised']).toBeUndefined()
+    expect(bevel['--fk-knob-relief-raised']).toMatch(/^1px 1px 0 0 /)
+    expect(bevel['--fk-knob-relief-field']).toMatch(/^inset 1px 1px 0 0 /)
+    expect(knobStyleOf(defaults, 'light')['--fk-knob-relief-raised']).toBeUndefined()
   })
 
   it('writes the type, the button shape and the outlines into the code, and none by default', () => {

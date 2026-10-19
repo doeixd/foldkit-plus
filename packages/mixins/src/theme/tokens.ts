@@ -15,6 +15,8 @@
  */
 import { DiagnosticError } from '../diagnostics.js'
 import { define } from './core.js'
+import { standard } from './knobs.js'
+import { asVariables, elevation, reliefs } from './shadows.js'
 
 const space = (rem: number) => `calc(${rem}rem * var(--fk-knob-density))`
 const radius = (px: number) => `calc(${px}px * var(--fk-knob-radius-factor))`
@@ -30,13 +32,6 @@ const text = (rem: number) =>
     ? `calc(${rem}rem * ${textScale})`
     : `calc((1rem + ${Number((rem - 1).toFixed(4))}rem * var(--fk-knob-heading-scale, 1)) * ${textScale})`
 const leading = (ratio: number) => `calc(${ratio} * var(--fk-knob-leading, 1))`
-const shade = 'var(--fk-shadow-color, oklch(0% 0 0 / 0.12))'
-const strength = 'var(--fk-knob-shadow-strength, 100%)'
-/** No shadow, as a shadow: one a transition can interpolate from, unlike `none`. */
-const FLAT = '0 0 #0000'
-const shadow = (...layers: ReadonlyArray<string>) =>
-  layers.map(layer => `${layer} color-mix(in oklch, ${shade} ${strength}, transparent)`).join(', ')
-
 export const tokens = define({
   knob: {
     density: '1',
@@ -56,6 +51,15 @@ export const tokens = define({
     // whatever the radius factor; 0 keeps its corner (`radius-md`, or
     // concentric inside a card: `concentric`).
     'control-round': '0',
+    // What the tokens below read, at each knob's default.
+    ...standard.shape.border.unset,
+    ...standard.type.body.unset,
+    ...standard.type.heading.unset,
+    ...standard.type.headingWeight.unset,
+    ...standard.type.headingTracking.unset,
+    ...standard.motion.easing.unset,
+    ...standard.shadow.style.unset,
+    ...standard.shadow.relief.unset,
   },
   space: {
     '3xs': space(0.125),
@@ -79,7 +83,11 @@ export const tokens = define({
     // A pressable control's corner: `md`, or a pill when `control-round` is 1.
     control: 'calc(var(--fk-radius-md) + var(--fk-knob-control-round, 0) * 9999px)',
   },
-  font: { body: 'system-ui, sans-serif', heading: 'inherit', mono: 'ui-monospace, monospace' },
+  font: {
+    body: 'var(--fk-knob-font-body)',
+    heading: 'var(--fk-knob-font-heading)',
+    mono: 'ui-monospace, monospace',
+  },
   size: {
     xs: text(0.75),
     sm: text(0.875),
@@ -97,9 +105,15 @@ export const tokens = define({
     relaxed: leading(1.6),
   },
   // `heading` is what a heading or a title is set in.
-  weight: { normal: '400', medium: '500', semibold: '600', bold: '700', heading: '600' },
+  weight: {
+    normal: '400',
+    medium: '500',
+    semibold: '600',
+    bold: '700',
+    heading: 'var(--fk-knob-heading-weight)',
+  },
   // A heading's letter spacing: set large, type reads better a little tighter.
-  tracking: { heading: '-0.01em' },
+  tracking: { heading: 'var(--fk-knob-heading-tracking)' },
   // Three tiers, as Fluid Functionalism's springs: the bigger the thing that
   // moves, the slower its tier. Hover, fades and focus rings are `fast`;
   // popups, tabs and short travel `moderate`; dialogs and large surfaces
@@ -112,7 +126,7 @@ export const tokens = define({
     'fast-exit': duration(60),
     'moderate-exit': duration(120),
     'slow-exit': duration(160),
-    ease: 'ease-out',
+    ease: 'var(--fk-knob-ease)',
     'ease-exit': 'ease-in',
     // Springs sampled as CSS easings, so they need no JavaScript and follow
     // the knobs through the duration they are paired with. `settle` is
@@ -176,24 +190,30 @@ export const tokens = define({
   },
   // `glyph` strokes what a recipe draws in CSS as an icon (a check, a
   // chevron): apart from the borders, so thicker borders do not blot them.
-  border: { thin: '1px', thick: '2px', heavy: '3px', glyph: '2px' },
+  border: {
+    thin: 'var(--fk-knob-border-width)',
+    thick: 'calc(var(--fk-knob-border-width) + 1px)',
+    heavy: 'calc(var(--fk-knob-border-width) + 2px)',
+    glyph: '2px',
+  },
   // Raised a little to a lot: a pressed control, a lifted cell, a menu, a
   // dialog. Each step is a tight contact layer plus a wide ambient one, so
   // large surfaces diffuse instead of ringing; `2xl` is the modal step.
   shadow: {
-    xs: shadow('0 1px 2px 0'),
-    sm: shadow('0 1px 3px 0', '0 1px 2px -1px'),
-    md: shadow('0 4px 6px -1px', '0 2px 4px -2px'),
-    lg: shadow('0 12px 28px -8px', '0 4px 8px -4px'),
-    xl: shadow('0 24px 48px -12px', '0 8px 16px -8px'),
-    '2xl': shadow('0 32px 64px -16px', '0 12px 24px -12px'),
-    inset: shadow('inset 0 2px 4px 0'),
+    // Soft or hard by the `shadow.style` knob.
+    xs: 'var(--fk-knob-shadow-xs)',
+    sm: 'var(--fk-knob-shadow-sm)',
+    md: 'var(--fk-knob-shadow-md)',
+    lg: 'var(--fk-knob-shadow-lg)',
+    xl: 'var(--fk-knob-shadow-xl)',
+    '2xl': 'var(--fk-knob-shadow-2xl)',
+    inset: 'var(--fk-knob-shadow-inset)',
     // A control's relief: a button standing off the page (`raised`), pressed
     // into it while held or on (`pressed`), and a field's well (`field`).
     // Flat here; `relief` holds themes that give controls depth.
-    raised: FLAT,
-    pressed: FLAT,
-    field: FLAT,
+    raised: 'var(--fk-knob-relief-raised)',
+    pressed: 'var(--fk-knob-relief-pressed)',
+    field: 'var(--fk-knob-relief-field)',
   },
   breakpoint: {
     sm: '(min-width: 40rem)',
@@ -289,70 +309,24 @@ export const nests = (
 export const concentric = (bounds: { readonly min: string; readonly max: string }): string =>
   `clamp(${bounds.min}, var(--fk-control-corner, 9999px), ${bounds.max})`
 
-/** A step of `hardShadows`: the shadow's color, nearly opaque, offset with no blur. */
-const hard = (offset: number) =>
-  `${offset}px ${offset}px 0 0 color-mix(in oklch, oklch(from ${shade} l c h / 0.9) ${strength}, transparent)`
-
 /**
  * The shadow scale drawn hard, as retro and brutalist interfaces draw it:
- * each step a solid offset copy, deeper the higher it sits. Compose it over
+ * the `shadow.style` knob's `hard` option as a token set to compose over
  * `tokens`; `shadow-strength` still fades it, and 0 takes it away.
  */
-export const hardShadows = define({
-  shadow: {
-    xs: hard(1),
-    sm: hard(2),
-    md: hard(3),
-    lg: hard(4),
-    xl: hard(6),
-    '2xl': hard(8),
-    inset: `inset ${hard(2)}`,
-  },
-})
-
-/** An edge of a bevel: `color` faded by `shadow-strength`, as every shadow is. */
-const edge = (color: string) => `color-mix(in oklch, ${color} ${strength}, transparent)`
-/** Lit from the top left: white, dimmer in a dark scheme, where white would glare. */
-const lit = (alpha: number, darkAlpha: number) =>
-  edge(`light-dark(oklch(100% 0 0 / ${alpha}), oklch(100% 0 0 / ${darkAlpha}))`)
-const shaded = (alpha: number) => edge(`oklch(from ${shade} l c h / ${alpha})`)
-/**
- * Two rings of edges, lit at the top left and shaded at the bottom right,
- * flipped when sunken. Raised, the outer ring is drawn outside the
- * border: a button's border carries its fill, and an inset ring lay inside
- * it, so its darkest edge sat within a line of the button's own color.
- */
-const raisedBevel = [
-  `1px 1px 0 0 ${shaded(0.9)}`,
-  `-1px -1px 0 0 ${lit(1, 0.3)}`,
-  `inset -1px -1px 0 0 ${shaded(0.4)}`,
-  `inset 1px 1px 0 0 ${lit(0.5, 0.12)}`,
-].join(', ')
-const sunkenBevel = [
-  `inset 1px 1px 0 0 ${shaded(0.9)}`,
-  `inset -1px -1px 0 0 ${lit(1, 0.3)}`,
-  `inset 2px 2px 0 0 ${shaded(0.4)}`,
-  `inset -2px -2px 0 0 ${lit(0.5, 0.12)}`,
-].join(', ')
+export const hardShadows = define({ knob: asVariables('shadow', elevation.hard) })
 
 /**
- * How controls stand off the page, as token sets over `tokens`: a button's
- * resting shadow (`raised`), the one it takes held or on (`pressed`), and a
- * field's well (`field`). The shipped scales are flat. `soft` lifts buttons
- * a hair and sinks fields a hair; `hard` drops solid offset copies, as
- * `hardShadows` does for surfaces; `bevel` draws lit and shaded edges, the
- * raised and sunken chrome of a 1990s desktop. `shadow-strength` fades each.
+ * How controls stand off the page, as token sets over `tokens`: the
+ * `shadow.relief` knob's options. `soft` lifts buttons a hair and sinks
+ * fields a hair; `hard` drops solid offset copies; `bevel` draws lit and
+ * shaded edges, the raised and sunken chrome of a 1990s desktop.
+ * `shadow-strength` fades each.
  */
 export const relief = {
-  soft: define({
-    shadow: {
-      raised: shadow('0 1px 2px 0'),
-      pressed: shadow('inset 0 1px 2px 0'),
-      field: shadow('inset 0 1px 2px 0'),
-    },
-  }),
-  hard: define({ shadow: { raised: hard(2), pressed: hard(1), field: hard(2) } }),
-  bevel: define({ shadow: { raised: raisedBevel, pressed: sunkenBevel, field: sunkenBevel } }),
+  soft: define({ knob: asVariables('relief', reliefs.soft) }),
+  hard: define({ knob: asVariables('relief', reliefs.hard) }),
+  bevel: define({ knob: asVariables('relief', reliefs.bevel) }),
 } as const
 
 /** A role of the type scale. */

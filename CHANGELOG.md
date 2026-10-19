@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: the border width, the body and heading fonts, the heading weight and
+  tracking, the easing, the shadow style, the relief, the outlines and the hover are knobs of
+  `Knobs.standard`, which the tokens read: every choice writes the CSS its variables hold, so
+  each switches at runtime as a number does. `Theme.relief.*` and `Theme.hardShadows` are those
+  options as token sets. Step 2 of `docs/theme-knobs.md`.
 - `foldkit-mixins-ui`: a Textarea grows with its text. The recipe's `resize` is `auto` (the
   default: from `rows` lines, two unless given, to the view's new `maxRows`, then it scrolls, by
   CSS `field-sizing`), `vertical` (stays `rows` lines, dragged) or `none`. `rows` had no effect

@@ -480,7 +480,10 @@ const sheet = Style.stylesheet(
 neutrals following the accent's hue), and `Theme.tokensOf(theme)` is them as tokens for
 `Theme.root` and `Theme.scoped`, declared over the palette and the scales. A knob of an
 application's own is a `Knob` kind (`Knob.number`, `percent`, `length`, `angle`, `choice`,
-`font`, `schemed`), and `Theme.make(knobs, values)` takes a set of them. This replaces the knob
+`font`, `schemed`), and `Theme.make(knobs, values)` takes a set of them. Every knob is a variable, choices
+too: an option is the CSS its variables hold, so `shadow.relief: 'bevel'` writes the bevelled
+shadow lists and `motion.easing: 'spring'` writes the spring curve, and each switches at runtime
+as a number does. `Theme.relief.*` and `Theme.hardShadows` are those options as token sets. This replaces the knob
 strings an application writes today; the rest of the move is in `docs/theme-knobs.md`.
 
 ### Layout

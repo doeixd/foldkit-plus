@@ -46,8 +46,8 @@ export default [
     edits: [
       {
         file: kinds,
-        find: 'unset: { [options.variable]: options.follows ?? `${num(options.default)}${unit}` },',
-        replace: 'unset: { [options.variable]: `${num(options.default)}${unit}` },',
+        find: 'unset: one(options.variable, options.follows ?? `${num(options.default)}${unit}`),',
+        replace: 'unset: one(options.variable, `${num(options.default)}${unit}`),',
       },
     ],
     tests: [...unit, ...golden],
@@ -95,5 +95,60 @@ export default [
       },
     ],
     tests: golden,
+  },
+  {
+    name: 'an outline ignores the ink the outlines choice gives it',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "transparent) calc(${v('knob', 'outline-ink')} * 100%))`",
+        replace: 'transparent) 0%)`',
+      },
+    ],
+    tests: ['examples/site/test/knobs.browser.test.ts'],
+  },
+  {
+    name: 'an accent hover inks in the text',
+    edits: [
+      {
+        file: knobs,
+        find: "accent: { 'surface-ink': '1', 'state-ink': ref('accent', 'ink') },",
+        replace: "accent: { 'surface-ink': '1', 'state-ink': 'currentColor' },",
+      },
+    ],
+    tests: ['packages/mixins/test/themePage.test.ts'],
+  },
+  {
+    name: 'a thick border keeps its step whatever the width',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: "thick: 'calc(var(--fk-knob-border-width) + 1px)',",
+        replace: "thick: '2px',",
+      },
+    ],
+    tests: ['examples/site/test/knobs.browser.test.ts'],
+  },
+  {
+    name: 'a hard shadow style draws soft',
+    edits: [
+      {
+        file: knobs,
+        find: "hard: asVariables('shadow', elevation.hard),",
+        replace: "hard: asVariables('shadow', elevation.soft),",
+      },
+    ],
+    tests: ['examples/site/test/knobs.browser.test.ts'],
+  },
+  {
+    name: 'the spring easing eases',
+    edits: [
+      {
+        file: knobs,
+        find: "spring: { ease: ref('motion', 'spring') } },",
+        replace: "spring: { ease: 'ease-out' } },",
+      },
+    ],
+    tests: ['examples/site/test/knobs.browser.test.ts'],
   },
 ]

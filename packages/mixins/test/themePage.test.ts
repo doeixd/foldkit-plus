@@ -53,7 +53,7 @@ describe('Theme.scoped', () => {
 
 describe('Theme.tokens', () => {
   it('scales space, radius, and durations by their knobs', () => {
-    expect(Theme.tokens.knob).toEqual({
+    expect(Theme.tokens.knob).toMatchObject({
       density: '1',
       'radius-factor': '1',
       motion: '1',
@@ -64,7 +64,16 @@ describe('Theme.tokens', () => {
       'heading-scale': '1',
       leading: '1',
       'control-round': '0',
+      // The standard knobs' defaults the tokens below read.
+      'border-width': '1px',
+      'font-body': 'system-ui, sans-serif',
+      'font-heading': 'inherit',
+      'heading-weight': '600',
+      'heading-tracking': '-0.01em',
+      ease: 'ease-out',
     })
+    expect(Theme.tokens.border.thick).toBe('calc(var(--fk-knob-border-width) + 1px)')
+    expect(Theme.tokens.font.body).toBe('var(--fk-knob-font-body)')
     expect(Theme.tokens.space.md).toBe('calc(1rem * var(--fk-knob-density))')
     expect(Theme.tokens.radius.md).toBe('calc(6px * var(--fk-knob-radius-factor))')
     expect(Theme.tokens.radius.full).toBe('calc(9999px * min(var(--fk-knob-radius-factor), 1))')
@@ -73,7 +82,7 @@ describe('Theme.tokens', () => {
     expect(Theme.tokens.motion.slow).toBe('calc(240ms * var(--fk-knob-motion))')
     // Each exit a tier quicker than its entrance.
     expect(Theme.tokens.motion['moderate-exit']).toBe('calc(120ms * var(--fk-knob-motion))')
-    expect(Theme.tokens.motion.ease).toBe('ease-out')
+    expect(Theme.tokens.motion.ease).toBe('var(--fk-knob-ease)')
   })
 
   it('a still theme zeroes every recipe transition through the knob', () => {
@@ -104,20 +113,36 @@ describe('Theme.tokens', () => {
 
   it('draws every shadow in the one color a palette sets, dimmed by the strength knob', () => {
     const { raised, pressed, field, ...elevation } = Theme.tokens.shadow
-    const steps = Object.values(elevation)
-    expect(steps).toHaveLength(7)
-    // A control's relief is flat until a theme gives it some (`Theme.relief`).
-    expect([raised, pressed, field]).toEqual(['0 0 #0000', '0 0 #0000', '0 0 #0000'])
-    for (const step of steps) {
-      expect(step).toContain('var(--fk-shadow-color, oklch(0% 0 0 / 0.12))')
-      expect(step).toContain('var(--fk-knob-shadow-strength, 100%)')
+    expect(Object.keys(elevation)).toHaveLength(7)
+    // Each token is what the shadow knobs chose: soft and flat by default.
+    const knob = Theme.tokens.knob
+    expect([raised, pressed, field]).toEqual([
+      'var(--fk-knob-relief-raised)',
+      'var(--fk-knob-relief-pressed)',
+      'var(--fk-knob-relief-field)',
+    ])
+    expect([knob['relief-raised'], knob['relief-pressed'], knob['relief-field']]).toEqual([
+      '0 0 #0000',
+      '0 0 #0000',
+      '0 0 #0000',
+    ])
+    for (const [step, token] of Object.entries(elevation))
+      expect(token).toBe(`var(--fk-knob-shadow-${step})`)
+    for (const list of [
+      knob['shadow-xs'],
+      knob['shadow-md'],
+      knob['shadow-2xl'],
+      knob['shadow-inset'],
+    ]) {
+      expect(list).toContain('var(--fk-shadow-color, oklch(0% 0 0 / 0.12))')
+      expect(list).toContain('var(--fk-knob-shadow-strength, 100%)')
     }
     // Each layer of a step is drawn in it, not only the first.
-    expect(Theme.tokens.shadow.md.split('var(--fk-shadow-color').length - 1).toBe(2)
+    expect(knob['shadow-md'].split('var(--fk-shadow-color').length - 1).toBe(2)
   })
 
   it('keeps a deeper step for modals', () => {
-    expect(Theme.tokens.shadow['2xl']).toContain('32px')
+    expect(Theme.tokens.knob['shadow-2xl']).toContain('32px')
   })
 
   it('breakpoint is the record Style.responsive takes', () => {
@@ -236,10 +261,14 @@ describe('Theme.oklch', () => {
   })
 
   it('names the state ink the text, or the accent’s ink', () => {
-    expect(brand.state.ink).toBe('currentColor')
+    // The state ink is the knob the hover choice writes.
+    expect(brand.state.ink).toBe('var(--fk-knob-state-ink)')
+    expect(brand.knob['state-ink']).toBe('currentColor')
     const knobs = { accent: { h: 280, c: 0.15, l: '60%' } } as const
-    expect(Theme.oklch({ ...knobs, stateHue: 'neutral' }).state.ink).toBe('currentColor')
-    expect(Theme.oklch({ ...knobs, stateHue: 'accent' }).state.ink).toBe('var(--fk-accent-ink)')
+    expect(Theme.oklch({ ...knobs, stateHue: 'neutral' }).knob['state-ink']).toBe('currentColor')
+    expect(Theme.oklch({ ...knobs, stateHue: 'accent' }).knob['state-ink']).toBe(
+      'var(--fk-accent-ink)',
+    )
   })
 
   it('lets painted surfaces name their ink except in neutral', () => {

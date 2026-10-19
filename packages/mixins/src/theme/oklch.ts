@@ -9,6 +9,7 @@
  * choice is a `color-scheme` override.
  */
 import { define } from './core.js'
+import { standard } from './knobs.js'
 
 export interface OklchKnobs {
   /** The brand color: hue in degrees, chroma 0–0.4, lightness as a percentage. */
@@ -227,6 +228,13 @@ const colorScale = (name: ScaleName) => {
   }
 }
 
+/**
+ * An outline, the palette's line until the `shape.outlines` knob gives it the
+ * text's own ink: `outline-ink` 0 is the line itself, 1 the ink at its strength.
+ */
+const inked = (line: string, strength: 'subtle' | 'default' | 'overt') =>
+  `color-mix(in oklch, ${line}, color-mix(in oklch, ${v('text', 'overt')} ${v('knob', `outline-ink-${strength}`)}, transparent) calc(${v('knob', 'outline-ink')} * 100%))`
+
 export const oklch = (knobs: OklchKnobs) => {
   const accent = v('accent', 'default')
   const surfaceSaturation = knobs.surfaceSaturation ?? 0.015
@@ -265,7 +273,8 @@ export const oklch = (knobs: OklchKnobs) => {
       'state-tint-dark': '25%',
       // Whether a painted surface names its paint as the state ink: 1,
       // unless `stateHue` is `neutral`, when every hover mixes the text.
-      'surface-ink': knobs.stateHue === 'neutral' ? '0' : '1',
+      ...standard.surface.hover.options[knobs.stateHue ?? 'surface'],
+      ...standard.shape.outlines.unset,
       'image-edge': '10%',
       // The shadow's tint: the neutrals' hue, and a little more than their chroma.
       'shadow-h': knobs.shadow?.h === undefined ? v('hue', 'neutral') : String(knobs.shadow.h),
@@ -324,9 +333,9 @@ export const oklch = (knobs: OklchKnobs) => {
     // its chroma, which a thin line needs to read as the page's color. Text mixed into the base, as they were, came out grey on a
     // tinted page: the text is near-neutral, so the mix lost the tint.
     outline: {
-      subtle: ld(scale(base, -0.07, 1.3), scale(base, 0.065, 1.25)),
-      default: ld(scale(base, -0.13, 1.4), scale(base, 0.12, 1.35)),
-      overt: ld(scale(base, -0.27, 1.6), scale(base, 0.23, 1.5)),
+      subtle: inked(ld(scale(base, -0.07, 1.3), scale(base, 0.065, 1.25)), 'subtle'),
+      default: inked(ld(scale(base, -0.13, 1.4), scale(base, 0.12, 1.35)), 'default'),
+      overt: inked(ld(scale(base, -0.27, 1.6), scale(base, 0.23, 1.5)), 'overt'),
       // The accent as it is: darker and more saturated, the ring was the
       // harshest color on the page.
       focus: accent,
@@ -373,7 +382,7 @@ export const oklch = (knobs: OklchKnobs) => {
         `color-mix(in oklab, currentColor calc(${v('knob', 'state-tint-dark')} * 0.8), transparent)`,
       ),
       edge: `color-mix(in oklab, ${v('text', 'overt')} ${v('knob', 'image-edge')}, transparent)`,
-      ink: knobs.stateHue === 'accent' ? v('accent', 'ink') : 'currentColor',
+      ink: v('knob', 'state-ink'),
     },
     // A menu's panel and its lit row, which the popup recipes read.
     popup: {

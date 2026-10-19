@@ -10,7 +10,7 @@
  * look, on `:root`, is never touched.
  */
 import { Option, Schema, Struct } from 'effect'
-import { Theme, VAR_PREFIX } from 'foldkit-mixins/theme'
+import { Theme, VAR_PREFIX, type Standard, type Values } from 'foldkit-mixins/theme'
 
 /** `system` follows the reader's color scheme. */
 export const Scheme = Schema.Literals(['system', 'light', 'dark'])
@@ -758,6 +758,39 @@ export const paletteOf = (knobs: Knobs) =>
       ...Option.match(outlineOf(knobs), { onNone: () => ({}), onSome: outline => ({ outline }) }),
     }),
   )
+
+/** `knobs` as a theme of the standard knobs: what `paletteOf` builds, as values. */
+export const valuesOf = (knobs: Knobs): Values<Standard> => ({
+  accent: { hue: knobs.hue, chroma: knobs.chroma, lightness: knobs.lightness },
+  surface: {
+    ...(knobs.base === 'accent' ? {} : { hue: bases[knobs.base].h }),
+    saturation: knobs.surfaceSaturation,
+    contrast: knobs.surfaceContrast,
+    lightness: { light: knobs.surfaceLightness, dark: knobs.surfaceLightnessDark },
+    hover: knobs.hover,
+  },
+  shape: {
+    radius: knobs.radius,
+    density: knobs.density,
+    size: knobs.size,
+    controls: knobs.controlShape,
+    border: knobs.border,
+    outlines: knobs.outlines,
+  },
+  type: {
+    body: fonts[knobs.font],
+    heading: headingOf(knobs),
+    scale: knobs.textScale,
+    headingScale: knobs.headingScale,
+    leading: knobs.leading,
+    headingWeight: knobs.headingWeight,
+    headingTracking: knobs.tracking,
+  },
+  motion: { scale: knobs.motion, easing: knobs.easing },
+  shadow: { strength: knobs.shadow, style: knobs.shadowStyle, relief: knobs.relief },
+  menu: { highlight: knobs.menuAccent, panel: knobs.menuColor },
+  scales: { chroma: knobs.scaleChroma },
+})
 
 /** The whole theme a preview declares: the shipped scales with the palette over them. */
 export const themeOf = (knobs: Knobs) => Theme.compose(Theme.tokens, paletteOf(knobs))
