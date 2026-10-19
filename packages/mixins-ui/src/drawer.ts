@@ -5,7 +5,7 @@
  * as a map's or an editor's tool tray. A modal one is the `Sheet`.
  *
  * ```text
- * handle: Swipe -> Grabbed / Dragged / Released -> update -> open or peek
+ * handle or grip: Swipe -> Grabbed / Dragged / Released -> update -> open or peek
  * handle: click or Enter -> Pressed -> update -> the other one
  * view: open -> data-open; a drag -> --fk-drawer-offset, --fk-drawer-progress
  * ```
@@ -14,7 +14,9 @@
  * slower release goes once dragged `CLOSE_SHARE` of the panel, and rests
  * where it was otherwise. A press on the handle that barely moves is a
  * click, which toggles it; the click a browser sends after a drag is no
- * press, and is passed over. The handle is the only place a drag starts.
+ * press, and is passed over. A drag starts on the handle, or on a `grip`
+ * the application gives an element of its own (its tabs' row), where a
+ * vertical swipe drags and a sideways one still scrolls.
  *
  * The recipe (`Recipes.Drawer`) docks it, below a width or always, and draws
  * the handle a bar that bends into a chevron as the drawer goes down, along
@@ -48,22 +50,28 @@ export const DrawerSlots = Slots.define({
     attributes: [Attr.AriaExpanded],
   }),
   body: Slot.make({ capability: Capability.Container }),
+  /** More of the panel to drag it by, such as a row of tabs: vertical swipes drag, sideways ones scroll. */
+  grip: Slot.make({ capability: Capability.Container }),
 })
+
+/** Where a drag began: the handle, whose click it ends with, or a grip, which has none. */
+export const Origin = Schema.Literals(['handle', 'grip'])
+export type Origin = typeof Origin.Type
 
 export const Model = Schema.Struct({
   /** The body's id, unique in the document, which the handle controls. */
   id: Schema.String,
   open: Schema.Boolean,
   /** While a drag runs: the panel's height as it began, and how far down it has come, in pixels. */
-  drag: Schema.Option(Schema.Struct({ size: Schema.Number, delta: Schema.Number })),
+  drag: Schema.Option(Schema.Struct({ size: Schema.Number, delta: Schema.Number, from: Origin })),
   /** Whether the last press on the handle dragged, so the click after it is no press. */
   dragged: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  /** The handle was pressed; `size` is the panel's height. */
-  Grabbed: { size: Schema.Number },
+  /** The handle or a grip was pressed; `size` is the panel's height. */
+  Grabbed: { size: Schema.Number, from: Origin },
   /** Down, from where the press began. */
   Dragged: { delta: Schema.Number },
   /** Let go: the last delta and its speed downward, or cancelled. */
@@ -110,8 +118,11 @@ export const settle = (release: {
 /** The Drawer after `message`; the same Model when nothing changes. */
 export const update = (model: Model, message: Message): Model =>
   Message.match(message, {
-    Grabbed: ({ size }) =>
-      modifyFields(model, { drag: () => Option.some({ size, delta: 0 }), dragged: () => false }),
+    Grabbed: ({ size, from }) =>
+      modifyFields(model, {
+        drag: () => Option.some({ size, delta: 0, from }),
+        dragged: () => false,
+      }),
     Dragged: ({ delta }) =>
       Option.match(model.drag, {
         onNone: () => model,
@@ -123,7 +134,7 @@ export const update = (model: Model, message: Message): Model =>
     Released: ({ delta, velocity, completed }) =>
       Option.match(model.drag, {
         onNone: () => model,
-        onSome: ({ size }) => {
+        onSome: ({ size, from }) => {
           // A press that barely moved is the click that follows it.
           if (!completed || Math.abs(delta) < PRESS_SLOP)
             return modifyFields(model, { drag: () => Option.none() })
@@ -131,7 +142,8 @@ export const update = (model: Model, message: Message): Model =>
           return modifyFields(model, {
             drag: () => Option.none(),
             open: () => open,
-            dragged: () => true,
+            // Only the handle has a click to pass over; a grip's drag ends with none.
+            dragged: () => from === 'handle',
           })
         },
       }),
@@ -154,6 +166,8 @@ export interface ResolvedDrawer<Message> {
   readonly panel: SlotAttributes<Message>
   readonly handle: SlotAttributes<Message>
   readonly body: SlotAttributes<Message>
+  /** For an element of the application's own that drags the panel too, such as its tabs' row. */
+  readonly grip: SlotAttributes<Message>
 }
 
 export interface DrawerView<Outer> {
@@ -181,16 +195,17 @@ export const view = <Outer>(options: DrawerView<Outer>, h: HtmlBuilder<Outer>): 
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
-  const swipe = Mount.mapMessage(Swipe({ measure: '[data-drawer]' }), fact =>
-    onMessage(
-      Match.valueTags(fact, {
-        SwipeStarted: ({ height }) => Message.Grabbed({ size: height }),
-        Swiped: ({ deltaY }) => Message.Dragged({ delta: deltaY }),
-        SwipeEnded: ({ deltaY, velocityY, completed }) =>
-          Message.Released({ delta: deltaY, velocity: velocityY, completed }),
-      }),
-    ),
-  )
+  const swipe = (from: Origin) =>
+    Mount.mapMessage(Swipe({ measure: '[data-drawer]' }), fact =>
+      onMessage(
+        Match.valueTags(fact, {
+          SwipeStarted: ({ height }) => Message.Grabbed({ size: height, from }),
+          Swiped: ({ deltaY }) => Message.Dragged({ delta: deltaY }),
+          SwipeEnded: ({ deltaY, velocityY, completed }) =>
+            Message.Released({ delta: deltaY, velocity: velocityY, completed }),
+        }),
+      ),
+    )
   const dragging = Option.match(model.drag, {
     onNone: () => [],
     onSome: drag => [
@@ -214,9 +229,11 @@ export const view = <Outer>(options: DrawerView<Outer>, h: HtmlBuilder<Outer>): 
       h.AriaLabel(model.open ? options.labels.open : options.labels.closed),
       // The browser's own pan would take the press away from the drag.
       h.Style({ touchAction: 'none' }),
-      h.OnMount(swipe),
+      h.OnMount(swipe('handle')),
       h.OnClick(onMessage(Message.Pressed())),
     ]),
     body: builders.body.attrs([h.Id(model.id)]),
+    // Sideways stays the browser's, so a row of tabs still scrolls; up and down drag.
+    grip: builders.grip.attrs([h.Style({ touchAction: 'pan-x' }), h.OnMount(swipe('grip'))]),
   })
 }

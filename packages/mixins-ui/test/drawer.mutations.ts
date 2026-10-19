@@ -108,4 +108,35 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a swipe on a grip swallows the next press',
+    edits: [{ file, find: "dragged: () => from === 'handle',", replace: 'dragged: () => true,' }],
+    tests: [...unit, ...browser],
+  },
+  {
+    name: 'a grip takes sideways swipes from its row',
+    edits: [
+      {
+        file,
+        find: "grip: builders.grip.attrs([h.Style({ touchAction: 'pan-x' }),",
+        replace: "grip: builders.grip.attrs([h.Style({ touchAction: 'none' }),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a grip drags nothing',
+    edits: [{ file, find: "h.OnMount(swipe('grip'))", replace: "h.Id('no-grip')" }],
+    tests: browser,
+  },
+  {
+    name: 'the handle is a sliver to press',
+    edits: [{ file: recipe, find: "blockSize: '2.75rem',", replace: "blockSize: '1.75rem'," }],
+    tests: browser,
+  },
+  {
+    name: 'the handle takes all its room in the column',
+    edits: [{ file: recipe, find: "marginBlock: '-0.75rem',", replace: '' }],
+    tests: browser,
+  },
 ]

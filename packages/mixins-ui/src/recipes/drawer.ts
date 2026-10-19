@@ -23,7 +23,8 @@ import { component, focusRing, ref, travelled, variant } from './design.js'
 /** Below this width, as each `below-*` dock reads it: the breakpoint's own, less a hair. */
 const widths = { 'below-lg': '63.99rem', 'below-xl': '79.99rem' } as const
 
-const travel = 'calc(100% - var(--fk-drawer-peek, 5rem))'
+/** How far it goes down: all but the peek, which shows above the home indicator. */
+const travel = `calc(100% - var(--fk-drawer-peek, 5rem) - ${ref.safe.bottom})`
 /** Where it rests: open at 0, down at its travel. */
 const rest = 'var(--_fk-drawer-rest, 0px)'
 /** How far down the handle's halves bend, in degrees at a full chevron. */
@@ -92,7 +93,11 @@ export const Drawer = Style.recipeFor(DrawerSlots)({
         position: 'relative',
         flexShrink: '0',
         alignSelf: 'stretch',
-        blockSize: '1.75rem',
+        // A finger's height to press (44px), drawn into the space around it, so
+        // the bar sits close to what follows and a press beside it still drags.
+        blockSize: '2.75rem',
+        marginBlock: '-0.75rem',
+        zIndex: '1',
         padding: '0',
         border: '0',
         background: 'transparent',

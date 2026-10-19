@@ -57,10 +57,16 @@ const mount = (open: boolean, drawn = style) => {
             labels: { open: 'Hide the tools', closed: 'Show the tools' },
             style: drawn,
             // The sizes on a wrapper: the panel's own style is the drag's.
-            draw: ({ panel, handle, body }) =>
+            draw: ({ panel, handle, body, grip }) =>
               h.div(
                 [h.Style({ '--fk-drawer-height': '400px', '--fk-drawer-peek': '80px' })],
-                [h.aside(panel, [h.button(handle, []), h.div(body, [h.button([], ['A tool'])])])],
+                [
+                  h.aside(panel, [
+                    h.button(handle, []),
+                    h.div([...grip, h.Id('grip')], ['Tabs']),
+                    h.div(body, [h.button([], ['A tool'])]),
+                  ]),
+                ],
               ),
           },
           h,
@@ -212,5 +218,36 @@ test('docked below lg only: wider, it is the column it sits in, its body shown t
   } finally {
     runtime.dispose()
     await page.viewport(414, 896)
+  }
+})
+
+test('a swipe down the grip drags it as the handle does, and a sideways one leaves it', async () => {
+  const runtime = mount(true)
+  try {
+    const element = await panel()
+    const grip = element.querySelector<HTMLElement>('#grip')!
+    await settled(element)
+    expect(getComputedStyle(grip).touchAction).toBe('pan-x')
+    await drag(grip, 200, 30)
+    await vi.waitFor(() => expect(element.dataset['open']).toBe('false'))
+    // Then a press on the handle is one, not the end of that swipe.
+    element.querySelector<HTMLElement>('button')!.click()
+    await vi.waitFor(() => expect(element.dataset['open']).toBe('true'))
+  } finally {
+    runtime.dispose()
+  }
+})
+
+test('takes a finger-sized handle, drawn into the space around it', async () => {
+  const runtime = mount(true)
+  try {
+    const element = await panel()
+    const handle = element.querySelector<HTMLElement>('button')!
+    expect(handle.getBoundingClientRect().height).toBe(44)
+    // Most of it overlaps what is above and below: it takes 20px of the column.
+    const grip = element.querySelector<HTMLElement>('#grip')!
+    expect(grip.getBoundingClientRect().top - element.getBoundingClientRect().top).toBeLessThan(40)
+  } finally {
+    runtime.dispose()
   }
 })

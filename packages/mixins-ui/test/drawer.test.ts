@@ -10,7 +10,7 @@ const after = (model: Drawer.Model, ...messages: ReadonlyArray<Drawer.Message>) 
 const down = Drawer.init({ id: 'tools' })
 const up = Drawer.init({ id: 'tools', open: true })
 const release = (delta: number, velocity = 0) => [
-  Drawer.Message.Grabbed({ size: 400 }),
+  Drawer.Message.Grabbed({ size: 400, from: 'handle' }),
   Drawer.Message.Dragged({ delta }),
   Drawer.Message.Released({ delta, velocity, completed: true }),
 ]
@@ -29,8 +29,24 @@ describe('Drawer', () => {
     expect(after(dragged, Drawer.Message.Pressed(), Drawer.Message.Pressed()).open).toBe(true)
     // A new press on the handle forgets the drag before it.
     expect(
-      after(dragged, Drawer.Message.Grabbed({ size: 400 }), Drawer.Message.Pressed()).open,
+      after(
+        dragged,
+        Drawer.Message.Grabbed({ size: 400, from: 'handle' }),
+        Drawer.Message.Pressed(),
+      ).open,
     ).toBe(true)
+  })
+
+  it('takes the next press after a swipe on a grip, which ends with no click', () => {
+    const swiped = after(
+      up,
+      Drawer.Message.Grabbed({ size: 400, from: 'grip' }),
+      Drawer.Message.Dragged({ delta: 200 }),
+      Drawer.Message.Released({ delta: 200, velocity: 0, completed: true }),
+    )
+    expect(swiped.open).toBe(false)
+    // A key or a tap on the handle next is a press, not the end of a drag.
+    expect(after(swiped, Drawer.Message.Pressed()).open).toBe(true)
   })
 
   it('leaves a press that barely moves to its click', () => {
@@ -55,7 +71,7 @@ describe('Drawer', () => {
   it('ends a cancelled drag where it began, and hands back the Model for no change', () => {
     const cancelled = after(
       up,
-      Drawer.Message.Grabbed({ size: 400 }),
+      Drawer.Message.Grabbed({ size: 400, from: 'handle' }),
       Drawer.Message.Released({ delta: 300, velocity: 0, completed: false }),
     )
     expect([cancelled.open, cancelled.drag._tag]).toEqual([true, 'None'])
