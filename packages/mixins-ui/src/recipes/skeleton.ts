@@ -24,7 +24,8 @@ const sweep = Style.keyframes({
   to: { backgroundPosition: '-50% 0' },
 })
 
-const fill = `color-mix(in oklab, currentColor calc(${ref.knob['state-tint']} * 1.25), transparent)`
+// The palette's muted step, so the bones follow its tint, contrast and scheme.
+const fill = ref.surface.muted
 const band = `color-mix(in oklab, ${ref.surface.base} 60%, transparent)`
 /** A bar on its own: a frame lays out its own bars, whatever shape the lone one takes. */
 const lone = '&:not([aria-hidden="true"])'

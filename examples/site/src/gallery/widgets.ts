@@ -1683,7 +1683,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     RanCommand: ({ value }) => ({
       model: modifyFields(model, { commandRan: () => Option.some(value) }),
     }),
-    GotPageMenu: ({ message }) => foldPageMenu(model, message),
+    // The gallery's menu stays shown until it is answered: a press elsewhere
+    // on the page, or focus leaving it, does not close it.
+    GotPageMenu: ({ message }) =>
+      message._tag === 'PressedAway' ||
+      (message._tag === 'GotMenu' && message.message._tag === 'BlurredItems')
+        ? { model }
+        : foldPageMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
     GotCarousel: ({ example, message }) =>

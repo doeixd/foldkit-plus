@@ -209,7 +209,7 @@ const slider = (model: Model, slots: Slots, knob: Knob, h: H): Html => {
  */
 const hint = (model: Model, h: H, which: Hint, name: string): Html =>
   Option.match(Option.fromNullishOr(model.hints.find(each => each.hint === which)), {
-    onNone: () => h.span([], [`${name}:`]),
+    onNone: () => h.span([], [name]),
     onSome: ({ tooltip }) =>
       h.submodel({
         slotId: tooltip.id,
@@ -221,7 +221,7 @@ const hint = (model: Model, h: H, which: Hint, name: string): Html =>
             h.span(
               [],
               [
-                h.button([...tip.trigger, h.Type('button')], [`${name}:`]),
+                h.button([...tip.trigger, h.Type('button')], [name]),
                 ...(tip.isVisible
                   ? [h.div(tip.layer, [h.div(tip.panel, [h.span(tip.arrow, []), hints[which]])])]
                   : []),
@@ -674,7 +674,7 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
         Message.ChoseDirection({ direction }),
       ),
       h.div(slots.previewActions.attrs(), [
-        h.a(slots.toCode.attrs([h.Href(`#${CODE_ID}`)]), ['Get the code']),
+        h.a(slots.toCode.attrs([h.Href(`#${CODE_ID}`)]), ['Get the code:']),
         // The theme as the application's style module, or a link back to these knobs.
         iconButton(
           h,

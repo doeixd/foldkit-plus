@@ -862,11 +862,8 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     AlertSlots,
     Recipes.Alert,
-    (style, live) =>
-      live.h.div(
-        [live.h.Style({ display: 'grid', gap: '1rem' })],
-        [Snippet.alertInline(style, inert), Snippet.alertBanner(style, inert)],
-      ),
+    // One alert in a tile; the banner has its own example.
+    style => Snippet.alertInline(style, inert),
     undefined,
     [
       {
