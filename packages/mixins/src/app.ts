@@ -20,6 +20,7 @@ import {
 import { compose, type StyleValue } from './styleValue.js'
 import { compose as composeThemes, ref, type Refs, type ThemeTokens } from './theme/core.js'
 import { root, type RootOptions } from './theme/root.js'
+import type { Themes } from './theme/themes.js'
 import { tokens, type Tokens } from './theme/tokens.js'
 
 export interface AppStyleOptions<Palette extends ThemeTokens> {
@@ -32,6 +33,18 @@ export interface AppStyleOptions<Palette extends ThemeTokens> {
    * keyframes or a font face, placed in the `defaults` layer.
    */
   readonly global?: ReadonlyArray<StyleValue>
+}
+
+/**
+ * The options with a set of named themes in place of a palette: the root
+ * declares the initial theme, and each other is drawn where the Model names
+ * it (`Themes.apply`).
+ */
+export type AppStyleThemesOptions<Name extends string> = Omit<
+  AppStyleOptions<ThemeTokens>,
+  'palette'
+> & {
+  readonly themes: Themes<Name>
 }
 
 /** A style's options with its layer fixed to the application's. */
@@ -62,10 +75,17 @@ const app = standard.layer('app')
  * Slot styles are no longer in the stylesheet: a Slot injects its classes' CSS
  * when it first draws them.
  */
-export const make = <Palette extends ThemeTokens>(
+export function make<Name extends string>(
+  options: AppStyleThemesOptions<Name>,
+): AppStyle<Themes<Name>['palette']>
+export function make<Palette extends ThemeTokens>(
   options: AppStyleOptions<Palette>,
-): AppStyle<Palette> => {
-  const theme = composeThemes(tokens, options.palette)
+): AppStyle<Palette>
+export function make(
+  options: AppStyleOptions<ThemeTokens> | AppStyleThemesOptions<string>,
+): AppStyle<ThemeTokens> {
+  const palette = 'themes' in options ? options.themes.palette : options.palette
+  const theme = composeThemes(tokens, palette)
   const scheme = options.colorScheme === undefined ? {} : { colorScheme: options.colorScheme }
   return Object.freeze({
     theme,
@@ -81,7 +101,8 @@ export const make = <Palette extends ThemeTokens>(
       standard.declare,
       standard.in('reset', reset),
       standard.in('tokens', root(tokens, scheme)),
-      standard.in('theme', root(options.palette, scheme)),
+      standard.in('theme', root(palette, scheme)),
+      ...('themes' in options ? [standard.in('theme', options.themes.scoped)] : []),
       standard.in('defaults', compose(body, ...(options.global ?? []))),
     ),
   })

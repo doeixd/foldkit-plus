@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `Themes.make({ iris, cobalt }, { initial: 'iris' })` installs themes of
+  typed knobs by name: the root declares the initial one, each other writes its knobs under
+  `:root[data-theme="name"]`, `themes.Name` is the Schema of the Model field that holds the
+  active one, and `Themes.apply` is the Command's effect that shows it. `AppStyle.make({ themes
+  })` takes them in place of a palette; `Theme.scope(theme, selector)` themes a subtree, declaring
+  the derivations again there. Step 3 of `docs/theme-knobs.md`.
 - `foldkit-mixins`: the border width, the body and heading fonts, the heading weight and
   tracking, the easing, the shadow style, the relief, the outlines and the hover are knobs of
   `Knobs.standard`, which the tokens read: every choice writes the CSS its variables hold, so
@@ -65,6 +71,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins`: `Theme.scoped`'s documentation no longer offers a subtree (`.marketing`): a
+  token resolves where it is declared, so a knob overridden below the root changed nothing
+  derived from it there. `Theme.scope` is the subtree theme.
 - `foldkit-primitives`: `Measure` measures a change of size as it is observed, in the frame it is
   drawn in; it waited a frame, and a popup whose width settled as it opened showed its marker at
   the old width for that frame, past its edge.

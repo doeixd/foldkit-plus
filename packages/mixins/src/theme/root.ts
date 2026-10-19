@@ -39,9 +39,13 @@ export type Overrides<T extends ThemeTokens> = {
 
 /**
  * Token overrides under `selector`: a named theme the Model selects with a
- * root attribute (`:root[data-theme="ocean"]`), a scheme the user chose
- * (`:root[data-color-scheme="dark"]`), or a subtree (`.marketing`). Which
- * one is active is the Model's fact; this only says what it means.
+ * root attribute (`:root[data-theme="ocean"]`), or a scheme the user chose
+ * (`:root[data-color-scheme="dark"]`). Which one is active is the Model's
+ * fact; this only says what it means. On the root element an overridden knob
+ * re-derives every token; under a subtree it changes only the tokens it
+ * overrides itself, since a token resolves where it is declared: scope a
+ * theme to a subtree with `Theme.scope`, which declares the derivations there
+ * too.
  *
  * `theme` is the theme being overridden and is read only for its type, so a
  * group or token it lacks is a type error rather than a variable nothing reads.

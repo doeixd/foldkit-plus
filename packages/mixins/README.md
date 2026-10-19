@@ -483,8 +483,24 @@ application's own is a `Knob` kind (`Knob.number`, `percent`, `length`, `angle`,
 `font`, `schemed`), and `Theme.make(knobs, values)` takes a set of them. Every knob is a variable, choices
 too: an option is the CSS its variables hold, so `shadow.relief: 'bevel'` writes the bevelled
 shadow lists and `motion.easing: 'spring'` writes the spring curve, and each switches at runtime
-as a number does. `Theme.relief.*` and `Theme.hardShadows` are those options as token sets. This replaces the knob
-strings an application writes today; the rest of the move is in `docs/theme-knobs.md`.
+as a number does. `Theme.relief.*` and `Theme.hardShadows` are those options as token sets.
+
+Themes are installed by name, the names being a record's keys:
+
+```ts
+const themes = Themes.make({ cobalt, cobaltDense }, { initial: 'cobalt' })
+const { t, stylesheet } = AppStyle.make({ themes })
+const Model = Schema.Struct({ theme: themes.Name })
+```
+
+The root declares the palette's derivations with the initial theme's knobs, and each other theme
+writes only its knobs under `:root[data-theme="name"]`, the same element, where every token
+re-derives from them. Which theme shows is the Model's fact (`themes.Name` decodes the field),
+and `Themes.apply(themes, name)` is the Command's effect that shows it. A token resolves where it
+is declared, so knobs set below the root change nothing derived from them there:
+`Theme.scope(theme, '.marketing')` declares the derivations again under the selector, which
+`Theme.scoped`'s token overrides do not. This replaces the knob strings an application writes
+today; the rest of the move is in `docs/theme-knobs.md`.
 
 ### Layout
 

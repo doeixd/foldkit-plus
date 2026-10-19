@@ -18,7 +18,7 @@ import {
 } from '../src/index.js'
 import { Inert } from '../src/testing.js'
 import { AppStyle } from '../src/app.js'
-import { Theme } from '../src/theme.js'
+import { Theme, Themes } from '../src/theme.js'
 import { Utilities as U } from '../src/utilities.js'
 
 const Message = defineMessageUnion({ ChangedValue: { value: Schema.String } })
@@ -147,5 +147,9 @@ export const themesReadme = () => {
     Layers.standard.declare,
     Layers.standard.in('theme', Theme.root(Theme.tokensOf(cobaltDense))),
   )
-  return sheet
+  // Installed by name.
+  const themes = Themes.make({ cobalt, cobaltDense }, { initial: 'cobalt' })
+  const { t: themed, stylesheet: themedSheet } = AppStyle.make({ themes })
+  const Model = Schema.Struct({ theme: themes.Name })
+  return { sheet, themes, themed, themedSheet, Model }
 }

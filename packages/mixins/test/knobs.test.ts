@@ -5,7 +5,8 @@
  */
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Knob, Theme } from '../src/theme.js'
+import { AppStyle } from '../src/app.js'
+import { Knob, Theme, Themes } from '../src/theme.js'
 
 describe('Theme.make', () => {
   it('writes the values it sets, and every other knob unset', () => {
@@ -84,5 +85,19 @@ describe('Theme.set and Theme.describe', () => {
 
   it('refuses a value out of range as make does', () => {
     expect(() => Theme.make({}).pipe(Theme.set({ motion: { scale: -1 } }))).toThrow()
+  })
+})
+
+describe('AppStyle with themes', () => {
+  it('declares the initial theme at the root, and each other under its name', () => {
+    const round = Theme.make({ shape: { radius: 2 } })
+    const square = Theme.make({ shape: { radius: 0 } })
+    const { stylesheet } = AppStyle.make({
+      // The initial one listed second, so the root's is the one named, not the first.
+      themes: Themes.make({ square, round }, { initial: 'round' }),
+    })
+    expect(stylesheet).toContain('--fk-knob-radius-factor:2')
+    expect(stylesheet).toContain(':root[data-theme="square"]{')
+    expect(stylesheet).not.toContain(':root[data-theme="round"]')
   })
 })
