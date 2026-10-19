@@ -28,8 +28,19 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "maxBlockSize: linesTall('var(--fk-textarea-max-rows)'),",
+        find: "maxBlockSize: linesTall('var(--fk-textarea-max-rows, infinity)'),",
         replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'auto without maxRows stops at a few lines',
+    edits: [
+      {
+        file: recipe,
+        find: 'var(--fk-textarea-max-rows, infinity)',
+        replace: 'var(--fk-textarea-max-rows, 3)',
       },
     ],
     tests: browser,

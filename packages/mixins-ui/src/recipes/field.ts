@@ -188,9 +188,9 @@ export const Textarea = Style.recipeFor(TextareaSlots)({
             // gives it one, at least the 20 columns a fixed textarea has.
             minInlineSize: '20ch',
             minBlockSize: linesTall('var(--fk-textarea-rows, 2)'),
-            // With no `maxRows` the variable is unset, the calc invalid, and
-            // the property its initial `none`.
-            maxBlockSize: linesTall('var(--fk-textarea-max-rows)'),
+            // With no `maxRows`, `infinity` lines: no cap, and no read of an
+            // unset variable for a page's token check to refuse.
+            maxBlockSize: linesTall('var(--fk-textarea-max-rows, infinity)'),
           }),
         ),
       },
