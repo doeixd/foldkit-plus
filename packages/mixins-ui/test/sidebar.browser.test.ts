@@ -43,20 +43,38 @@ const got = (message: Sidebar.Message) => Message.GotSidebar({ message })
 const groupsAt = (
   current: string,
   h: HtmlBuilder<Message>,
-): ReadonlyArray<Sidebar.SidebarGroup> => [
+): ReadonlyArray<Sidebar.SidebarGroup<Message>> => [
   {
     id: 'main',
-    rows: ['Inbox', 'Calendar'].map(label => ({
-      id: label.toLowerCase(),
-      label,
-      href: `#${label.toLowerCase()}`,
-      current: label === current,
-      icon: h.span([h.Class('icon')], ['•']),
-    })),
+    rows: [
+      ...['Inbox', 'Calendar'].map(label => ({
+        id: label.toLowerCase(),
+        label,
+        href: `#${label.toLowerCase()}`,
+        current: label === current,
+        icon: h.span([h.Class('icon')], ['•']),
+      })),
+      {
+        id: 'notes',
+        label: 'Notes',
+        href: '#notes',
+        badge: '2',
+        action: {
+          label: 'Open Calendar',
+          icon: h.span([], ['+']),
+          message: Message.Went({ page: 'Calendar' }),
+        },
+      },
+    ],
   },
   {
     id: 'work',
     title: 'Work',
+    action: {
+      label: 'Add to Work',
+      icon: h.span([], ['+']),
+      message: Message.Went({ page: 'Work' }),
+    },
     rows: [
       {
         id: 'projects',
@@ -347,6 +365,70 @@ test.each(['icons', 'offcanvas'] as const)(
       await userEvent.click(button('Show Workspace'))
       await vi.waitFor(() => expect(Math.round(rect(nav()).width)).toBe(240))
       expect(page()).toBeGreaterThan(240)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+const middle = (element: Element) => (rect(element).top + rect(element).bottom) / 2
+
+test("a link's action takes its count's place under the pointer, centred on its row, and sends its Message", async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(button('Open Calendar')).toBeTruthy())
+    const action = button('Open Calendar')
+    const badge = link('Notes').lastElementChild!
+    // Somewhere known first: the pointer is shared with the other files.
+    await userEvent.hover(button('Go to Calendar'))
+    await vi.waitFor(() => expect(getComputedStyle(action).opacity).toBe('0'))
+    expect(getComputedStyle(badge).opacity).toBe('1')
+    await userEvent.hover(link('Notes'))
+    await vi.waitFor(() => expect(getComputedStyle(action).opacity).toBe('1'))
+    expect(getComputedStyle(badge).opacity).toBe('0')
+    expect(Math.abs(middle(action) - middle(link('Notes')))).toBeLessThan(1)
+    expect(rect(action).right).toBeLessThanOrEqual(rect(link('Notes')).right)
+    expect(rect(action).left).toBeLessThan(rect(badge).right)
+    await userEvent.click(action)
+    await vi.waitFor(() => expect(link('Calendar').getAttribute('aria-current')).toBe('page'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("a group's action stands at its heading's end, past the chevron", async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(button('Add to Work')).toBeTruthy())
+    const trigger = button('Work')
+    const chevron = trigger.lastElementChild!
+    expect(rect(button('Add to Work')).left).toBeGreaterThanOrEqual(rect(chevron).right)
+    expect(Math.abs(middle(button('Add to Work')) - middle(trigger))).toBeLessThan(1)
+    expect(getComputedStyle(button('Add to Work')).opacity).toBe('1')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test.each([
+  ['sidebar', 'border-right-width', '1px'],
+  ['floating', 'border-top-width', '1px'],
+  ['inset', 'border-right-width', '0px'],
+] as const)(
+  "variant '%s' draws its column's edge (%s %s), and on a phone only a bare opener",
+  async (variant, side, width) => {
+    const handle = mount({ recipe: { variant } })
+    try {
+      await vi.waitFor(() => expect(nav()).toBeTruthy())
+      const root = nav().parentElement!
+      expect(getComputedStyle(root).getPropertyValue(side)).toBe(width)
+      if (variant === 'floating') expect(getComputedStyle(root).boxShadow).not.toBe('none')
+      await page.viewport(390, 800)
+      await vi.waitFor(() => expect(getComputedStyle(nav()).display).toBe('none'))
+      expect(getComputedStyle(root).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+      expect(getComputedStyle(root).boxShadow).toBe('none')
+      expect(getComputedStyle(root).borderTopWidth).toBe('0px')
+      expect(getComputedStyle(root).marginTop).toBe('0px')
     } finally {
       handle.dispose()
     }

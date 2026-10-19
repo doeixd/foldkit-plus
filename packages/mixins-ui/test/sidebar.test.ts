@@ -155,6 +155,35 @@ describe('Sidebar.view', () => {
     expect(Inert.byTag(drawn(), 'dialog')).toEqual([])
   })
 
+  it("draws a link's action beside it, not in it, and a group's only under a heading", () => {
+    const act = (label: string) => ({
+      label,
+      icon: h.span([], ['+']),
+      message: Sidebar.Message.ToggledCollapsed(),
+    })
+    const drawing = drawn(model, {
+      groups: [
+        {
+          id: 'loose',
+          action: act('Untitled'),
+          rows: [{ id: 'a', label: 'A', href: '#a', action: act('More for A') }],
+        },
+        { id: 'named', title: 'Named', action: act('Add'), rows: [] },
+      ],
+    })
+    const more = byLabel(drawing, 'More for A')
+    expect(Inert.byTag(Inert.byTag(drawing, 'a')[0], 'button')).toEqual([])
+    const [item] = Inert.byTag(drawing, 'li')
+    expect(Inert.value(item, 'data-action')).toBe('row')
+    expect(Inert.byTag(item, 'button')).toEqual([more])
+    expect(byLabel(drawing, 'Untitled')).toBeUndefined()
+    const sections = Inert.byTag(drawing, 'div').filter(
+      each => Inert.value(each, 'data-state') !== undefined,
+    )
+    expect(sections.map(each => Inert.value(each, 'data-action'))).toEqual([undefined, 'heading'])
+    expect(byLabel(drawing, 'Add')).toBeDefined()
+  })
+
   it('draws a resize handle only for a resizable column, a separator with its width', () => {
     expect(byLabel(drawn(), 'Resize Workspace')).toBeUndefined()
     const handle = byLabel(drawn(resizable), 'Resize Workspace')

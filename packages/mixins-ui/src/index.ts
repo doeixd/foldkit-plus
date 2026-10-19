@@ -142,7 +142,9 @@ export { OtpFieldSlots } from './otpField.js'
 export { ResizableSlots } from './resizable.js'
 export { SidebarSlots } from './sidebar.js'
 export type {
+  SidebarAction,
   SidebarBranch,
+  SidebarEnd,
   SidebarGroup,
   SidebarLeaf,
   SidebarLink,

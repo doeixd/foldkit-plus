@@ -94,6 +94,12 @@ export const SidebarSlots = Slots.define({
   label: Slot.make({ capability: Capability.Container }),
   /** A row's count, at its end. */
   badge: Slot.make({ capability: Capability.Container }),
+  /** A button at a link's or a group heading's end (`data-action` on its item or section). */
+  action: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+  }),
   /** What holds a rail row's control and its tooltip, laid out as the control alone. */
   tip: Slot.make({ capability: Capability.Container }),
   indicator: Slot.make({ capability: Capability.Container }),
@@ -125,11 +131,20 @@ export interface SidebarLeaf {
   readonly current?: boolean | undefined
 }
 
+/** A button beside a row or a group's heading: an icon, named by `label`, that sends `message`. */
+export interface SidebarAction<Message> {
+  readonly label: string
+  readonly icon: Html
+  readonly message: Message
+}
+
 /** A row that leads to a page. */
-export interface SidebarLink extends RowParts {
+export interface SidebarLink<Message = never> extends RowParts {
   readonly href: string
   /** Whether it leads to the page shown, `aria-current="page"`. */
   readonly current?: boolean | undefined
+  /** At the row's end, shown while the row is hovered or holds focus, in place of its badge. */
+  readonly action?: SidebarAction<Message> | undefined
   readonly items?: undefined
 }
 
@@ -137,9 +152,10 @@ export interface SidebarLink extends RowParts {
 export interface SidebarBranch extends RowParts {
   readonly items: ReadonlyArray<SidebarLeaf>
   readonly href?: undefined
+  readonly action?: undefined
 }
 
-export type SidebarRow = SidebarLink | SidebarBranch
+export type SidebarRow<Message = never> = SidebarLink<Message> | SidebarBranch
 
 /** The header or the footer: a mark, which a rail keeps centred, and what follows it. */
 export interface SidebarEnd {
@@ -148,17 +164,20 @@ export interface SidebarEnd {
   readonly mark?: Html | undefined
 }
 
-export interface SidebarGroup {
+export interface SidebarGroup<Message = never> {
   /** Names the group in the Model's `open`, unique in the sidebar. */
   readonly id: string
   /** The group's heading; without one, its rows stand alone. */
   readonly title?: string | undefined
   /** Whether the heading shows and hides the rows; default true where there is a heading. */
   readonly collapsible?: boolean | undefined
-  readonly rows: ReadonlyArray<SidebarRow>
+  /** At the heading's end, such as one that adds a row; drawn only with a `title`. */
+  readonly action?: SidebarAction<Message> | undefined
+  readonly rows: ReadonlyArray<SidebarRow<Message>>
 }
 
-const isBranch = (row: SidebarRow): row is SidebarBranch => row.items !== undefined
+const isBranch = <Message>(row: SidebarRow<Message>): row is SidebarBranch =>
+  row.items !== undefined
 
 const Tip = Schema.Struct({ row: Schema.String, tooltip: UiTooltip.Model })
 
@@ -407,7 +426,7 @@ export interface SidebarView<Message> {
   readonly onMessage: (message: typeof Message.Type) => NoInfer<Message>
   /** The navigation landmark's name. */
   readonly label: string
-  readonly groups: ReadonlyArray<SidebarGroup>
+  readonly groups: ReadonlyArray<SidebarGroup<Message>>
   /** Above the navigation: a workspace's logo and name, a switcher. */
   readonly header?: SidebarEnd | undefined
   /** Below it: the person signed in, settings. */
@@ -630,7 +649,7 @@ interface Drawing<Message> {
   /** Sent by a link followed, beside its navigation. */
   readonly followed?: Message
   /** A row's control, drawn with a Tooltip's trigger bundle in a rail. */
-  readonly tip: (row: SidebarRow, link: (trigger: SlotAttributes<Message>) => Html) => Html
+  readonly tip: (row: SidebarRow<Message>, link: (trigger: SlotAttributes<Message>) => Html) => Html
 }
 
 /** The groups drawn as sections, for the column and the Sheet alike. */
@@ -667,11 +686,29 @@ const groupsOf =
         ]),
         inner,
       )
-    const drawRow = (row: SidebarRow): Html => {
+    const actionOf = (action: SidebarAction<Message>) =>
+      h.button(
+        builders.action.attrs([
+          h.Type('button'),
+          h.AriaLabel(action.label),
+          h.OnClick(action.message),
+        ]),
+        [h.span(builders.icon.attrs([h.AriaHidden(true)]), [action.icon])],
+      )
+    const drawRow = (row: SidebarRow<Message>): Html => {
       if (!isBranch(row)) {
-        return h.keyed('li')(row.id, builders.item.attrs(), [
-          drawing.tip(row, trigger => linkOf(row, rail ? trigger : [], parts(row))),
-        ])
+        return Option.match(Option.fromNullishOr(row.action), {
+          onNone: () =>
+            h.keyed('li')(row.id, builders.item.attrs(), [
+              drawing.tip(row, trigger => linkOf(row, rail ? trigger : [], parts(row))),
+            ]),
+          // Beside the link, not in it: a button cannot sit inside a link.
+          onSome: action =>
+            h.keyed('li')(row.id, builders.item.attrs([h.DataAttribute('action', 'row')]), [
+              drawing.tip(row, trigger => linkOf(row, rail ? trigger : [], parts(row))),
+              actionOf(action),
+            ]),
+        })
       }
       const shown = open.has(row.id)
       const nestedId = `${drawing.prefix}-${row.id}-items`
@@ -712,6 +749,10 @@ const groupsOf =
       // A rail shows every group's icons: its headings are hidden, so none can shut.
       const shown = rail || !collapsible || open.has(group.id)
       const linksId = `${drawing.prefix}-${group.id}-links`
+      const action = Option.filter(
+        Option.fromNullishOr(group.action),
+        () => group.title !== undefined,
+      )
       const heading = Option.match(Option.fromNullishOr(group.title), {
         onNone: () => [],
         onSome: title =>
@@ -733,19 +774,27 @@ const groupsOf =
               ]
             : [h.div(builders.heading.attrs([h.Id(`${linksId}-heading`)]), [title])],
       })
-      return h.keyed('div')(group.id, builders.section.attrs([state(shown)]), [
-        ...heading,
-        h.ul(
-          builders.links.attrs([
-            h.Id(linksId),
-            state(shown),
-            ...(collapsible || group.title === undefined
-              ? []
-              : [h.AriaLabelledBy(`${linksId}-heading`)]),
-            ...(shown ? [] : [h.Attribute('inert', '')]),
-          ]),
-          group.rows.map(drawRow),
-        ),
-      ])
+      return h.keyed('div')(
+        group.id,
+        builders.section.attrs([
+          state(shown),
+          ...(Option.isSome(action) ? [h.DataAttribute('action', 'heading')] : []),
+        ]),
+        [
+          ...heading,
+          ...Option.match(action, { onNone: () => [], onSome: each => [actionOf(each)] }),
+          h.ul(
+            builders.links.attrs([
+              h.Id(linksId),
+              state(shown),
+              ...(collapsible || group.title === undefined
+                ? []
+                : [h.AriaLabelledBy(`${linksId}-heading`)]),
+              ...(shown ? [] : [h.Attribute('inert', '')]),
+            ]),
+            group.rows.map(drawRow),
+          ),
+        ],
+      )
     })
   }

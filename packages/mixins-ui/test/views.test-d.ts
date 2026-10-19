@@ -4,7 +4,7 @@
  * pressable card. Type-checked, not executed.
  */
 import { Behavior } from 'foldkit-mixins'
-import { Alert, Badge, BadgeSlots, Button, Card, Empty } from '../src/index.js'
+import { Alert, Badge, BadgeSlots, Button, Card, Empty, Sidebar } from '../src/index.js'
 import { h, message, type TestMessage } from './fixture.js'
 
 export const empty = Empty.view(
@@ -71,3 +71,56 @@ export const foreignAction = Alert.view(
   { layout: 'inline', title: 'Hi', actions: [{ label: 'Go', onClick: { _tag: 'Foreign' } }] },
   h,
 )
+
+// A sidebar's actions send the application's Messages, and only a link carries one.
+const sidebar = Sidebar.init({ id: 'side', rows: [] })
+const plus = h.span([], ['+'])
+export const sidebarActions = Sidebar.view(
+  {
+    model: sidebar,
+    onMessage: () => message('Other'),
+    label: 'Workspace',
+    groups: [
+      {
+        id: 'projects',
+        title: 'Projects',
+        action: { label: 'New project', icon: plus, message: message('Clicked') },
+        rows: [
+          {
+            id: 'site',
+            label: 'Site',
+            href: '#',
+            action: { label: 'More', icon: plus, message: message('Clicked') },
+          },
+        ],
+      },
+    ],
+  },
+  h,
+)
+
+export const foreignSidebarAction = Sidebar.view(
+  {
+    model: sidebar,
+    onMessage: () => message('Other'),
+    label: 'Workspace',
+    groups: [
+      {
+        id: 'projects',
+        title: 'Projects',
+        // @ts-expect-error an action sends the application's Messages, not another universe's.
+        action: { label: 'New project', icon: plus, message: { _tag: 'Foreign' } as const },
+        rows: [],
+      },
+    ],
+  },
+  h,
+)
+
+// @ts-expect-error a branch shows and hides its links: it carries no action.
+export const branchAction: Sidebar.SidebarRow<TestMessage> = {
+  id: 'projects',
+  label: 'Projects',
+  items: [],
+  action: { label: 'More', icon: plus, message: message('Clicked') },
+}

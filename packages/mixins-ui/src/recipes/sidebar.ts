@@ -14,13 +14,19 @@
  * shows an accent line under the pointer, while dragged and when focused; a
  * drag moves the column at once. Given `Sidebar.fluid`, a pill glides to the
  * current link and a hover follows the pointer; until it runs, the current
- * link fills itself.
+ * link fills itself. A link's `action` takes its badge's place while the
+ * row is hovered or holds focus (always shown on a touch screen, beside the
+ * badge); a group's sits at its heading's end. `variant` draws the column
+ * flush with the page's edge (`sidebar`), lifted off it as a card
+ * (`floating`), or borderless on the surface it stands on (`inset`), for a
+ * page drawn as a card beside it.
  */
 import { Style } from 'foldkit-mixins'
 import { ladder, role, Theme } from 'foldkit-mixins/theme'
 import { SidebarSlots } from '../sidebar.js'
 import {
   component,
+  controlHeight,
   focusRing,
   glide,
   opensBelow,
@@ -45,6 +51,8 @@ const onPhone = (selector: string, declarations: Record<string, string>) =>
   Style.at(phone, Style.nest(selector, declarations))
 /** A direct part of a sidebar drawn with a Sheet, which a phone hides. */
 const besideSheet = ':where([data-opens-sheet]) > &'
+/** A group heading with an action at its end, which keeps clear of it. */
+const headed = ':where([data-action="heading"]) > &'
 const at = (name: 'hover' | 'chosen', part: 'x' | 'y' | 'w' | 'h') =>
   `var(--fk-sidebar-${name}-${part})`
 
@@ -67,8 +75,21 @@ const handle = Style.compose(
   focusRing,
 )
 
+/** A phone's sidebar with a Sheet: its opener alone, with no column drawn around it. */
+const bareOpener = {
+  margin: '0',
+  border: '0',
+  borderRadius: '0',
+  boxShadow: 'none',
+  background: 'transparent',
+}
+
 /** The resize handle's line, an accent a pixel thicker than the column's edge. */
 const edgeLine = { background: ref.accent.default }
+
+/** A row with an action, which shows it in place of the badge under the pointer. */
+const actionRow = '[data-action="row"]'
+const lifted = `:where(${actionRow}:is(:hover, :focus-within))`
 
 /** A rail's header or footer: its mark alone, centred over the icons. */
 const railEnd = { inlineSize: ladder('height'), justifyContent: 'center', overflow: 'hidden' }
@@ -133,6 +154,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         borderInlineEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,
       }),
       Style.pseudo('[data-resizing]', { cursor: 'col-resize', userSelect: 'none' }),
+      onPhone('&[data-opens-sheet]', bareOpener),
     ),
     toggle: component(handle, onPhone(besideSheet, { display: 'none' })),
     // Only on a phone, where it stands for the column.
@@ -187,7 +209,10 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       Style.nest(':where([data-resizing]) > &', { transitionDuration: '0s' }),
       onPhone(besideSheet, { display: 'none' }),
     ),
-    section: component(opensBelow(open)),
+    section: component(
+      opensBelow(open),
+      Style.pseudo('[data-action="heading"]', { position: 'relative' }),
+    ),
     trigger: component(
       Style.self({
         display: 'flex',
@@ -207,6 +232,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       }),
       Style.pseudo(':is(:hover, :active)', { background: unfilledHover, color: ref.text.overt }),
       Style.nest(railed, { display: 'none' }),
+      Style.nest(headed, { paddingInlineEnd: controlHeight }),
       focusRing,
     ),
     title: component(Style.self({ minInlineSize: '0' })),
@@ -220,6 +246,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         fontWeight: ref.weight.medium,
       }),
       Style.nest(railed, { display: 'none' }),
+      Style.nest(headed, { paddingInlineEnd: controlHeight }),
     ),
     chevron: component(
       turningChevron(open, '0.4em'),
@@ -265,8 +292,14 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       Style.nest(railed, { display: 'none' }),
     ),
     // A row over the branch's links, which open beneath it as a section's do.
-    item: component(opensBelow(open)),
-    link: component(row),
+    item: component(opensBelow(open), Style.pseudo(actionRow, { position: 'relative' })),
+    link: component(
+      row,
+      Style.at(
+        '@media (hover: none)',
+        Style.nest(`:where(${actionRow}) > &`, { paddingInlineEnd: controlHeight }),
+      ),
+    ),
     branch: component(row),
     icon: component(
       Style.self({
@@ -304,8 +337,37 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         color: ref.text.muted,
         ...role('caption'),
         fontVariantNumeric: 'tabular-nums',
+        ...transition('opacity'),
       }),
       Style.nest(railed, { display: 'none' }),
+      // The action takes its place; a touch screen shows both.
+      Style.at('@media (hover: hover)', Style.nest(`${lifted} &`, { opacity: '0' })),
+    ),
+    action: component(
+      Style.self({
+        position: 'absolute',
+        insetBlockStart: `calc(${ref.space.xs} / 2)`,
+        insetInlineEnd: `calc(${ref.space.xs} / 2)`,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        inlineSize: `calc(${controlHeight} - ${ref.space.xs})`,
+        blockSize: `calc(${controlHeight} - ${ref.space.xs})`,
+        padding: '0',
+        border: '0',
+        borderRadius: ref.radius.sm,
+        background: 'transparent',
+        color: ref.text.muted,
+        cursor: 'pointer',
+        ...transition('opacity, background-color, color'),
+      }),
+      Style.pseudo(':is(:hover, :active)', { background: unfilledHover, color: ref.text.overt }),
+      Style.at(
+        '@media (hover: hover)',
+        Style.nest(`:where(${actionRow}:not(:hover, :focus-within)) > &`, { opacity: '0' }),
+      ),
+      Style.nest(railed, { display: 'none' }),
+      focusRing,
     ),
     tip: component(Style.self({ display: 'contents' })),
     indicator: component(
@@ -351,4 +413,27 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       onPhone(besideSheet, { display: 'none' }),
     ),
   },
+  variants: {
+    variant: {
+      sidebar: {},
+      // Lifted off the page's edge: a card of the muted surface, its border all round.
+      floating: {
+        root: variant(
+          Style.self({
+            margin: ref.space.xs,
+            border: `${ref.border.thin} solid ${ref.outline.subtle}`,
+            borderRadius: ref.radius.lg,
+            boxShadow: ref.shadow.sm,
+          }),
+          // The variant's own, since it sets what the base's phone rule takes away.
+          onPhone('&[data-opens-sheet]', bareOpener),
+        ),
+      },
+      // On the surface it stands on, with no edge of its own: the page beside it is the card.
+      inset: {
+        root: variant(Style.self({ background: 'transparent', borderInlineEnd: '0' })),
+      },
+    },
+  },
+  defaults: { variant: 'sidebar' },
 })

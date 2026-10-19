@@ -245,6 +245,100 @@ export default [
     tests: browser,
   },
   {
+    name: "a group's action shows without a heading",
+    edits: [{ file, find: '() => group.title !== undefined', replace: '() => true' }],
+    tests: unit,
+  },
+  {
+    name: "a link's item does not say it holds an action",
+    edits: [
+      { file, find: "h.DataAttribute('action', 'row')", replace: "h.DataAttribute('action', '')" },
+    ],
+    tests: browser,
+  },
+  {
+    name: "a link's action is never drawn",
+    edits: [{ file, find: '              actionOf(action),\n', replace: '' }],
+    tests: [...unit, ...browser],
+  },
+  {
+    name: "a link's action shows without the pointer",
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest(`:where(${actionRow}:not(:hover, :focus-within)) > &`, { opacity: '0' }),",
+        replace: 'Style.self({}),',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: "a badge stays under its row's action",
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest(`${lifted} &`, { opacity: '0' })",
+        replace: 'Style.self({})',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'an action stands at the top of its row',
+    edits: [
+      {
+        file: recipe,
+        find: 'insetBlockStart: `calc(${ref.space.xs} / 2)`,',
+        replace: "insetBlockStart: '0',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: "a heading's chevron runs under its action",
+    edits: [
+      {
+        file: recipe,
+        find: "      Style.nest(railed, { display: 'none' }),\n      Style.nest(headed, { paddingInlineEnd: controlHeight }),\n      focusRing,",
+        replace: "      Style.nest(railed, { display: 'none' }),\n      focusRing,",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a floating column keeps its card on a phone',
+    edits: [
+      {
+        file: recipe,
+        find: "          // The variant's own, since it sets what the base's phone rule takes away.\n          onPhone('&[data-opens-sheet]', bareOpener),\n",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a column keeps its surface on a phone',
+    edits: [
+      {
+        file: recipe,
+        find: "      Style.pseudo('[data-resizing]', { cursor: 'col-resize', userSelect: 'none' }),\n      onPhone('&[data-opens-sheet]', bareOpener),",
+        replace:
+          "      Style.pseudo('[data-resizing]', { cursor: 'col-resize', userSelect: 'none' }),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a floating column draws no edge',
+    edits: [{ file: recipe, find: '            boxShadow: ref.shadow.sm,\n', replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'an inset column keeps its edge',
+    edits: [{ file: recipe, find: ", borderInlineEnd: '0' }", replace: ' }' }],
+    tests: browser,
+  },
+  {
     name: 'a phone shows no opener',
     edits: [
       { file: recipe, find: "onPhone('&', { display: 'block' })", replace: 'Style.self({})' },
