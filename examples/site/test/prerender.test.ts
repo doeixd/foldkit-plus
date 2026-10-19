@@ -96,7 +96,9 @@ beforeAll(async () => {
     }),
   )
   read = kept
-}, 600_000)
+  // Every page of the site, built once for every test below: alone it takes a few minutes, but
+  // beside the rest of the suite (the release job's run) it took 640s and failed a 600s budget.
+}, 1_500_000)
 
 const page = (path: string): Document => {
   const found = read.get(path)
