@@ -75,6 +75,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a top or bottom Sheet with a point below 1 is its `size`'s full height
+  (`data-snaps` on the panel), so a point is a share of that. A short sheet was as tall as its
+  content, so at 0.4 a sliver showed and the button at its end stood below the screen.
 - `foldkit-mixins-ui`: a toast whose card holds one child the application drew (`Toast.toView`
   with an `entryToView`) has that child fill the card; it kept its own width, and a short notice
   left an empty strip before the card's end.

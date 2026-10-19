@@ -314,6 +314,9 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
                 h.DataAttribute('sheet', model.side),
                 ...(options.scalesPage === true ? [h.DataAttribute('scales-page', '')] : []),
                 h.Style({ '--fk-sheet-snap': String(model.points[model.point] ?? 1) }),
+                // A sheet resting partway takes its full extent, so a point is
+                // a share of that and not of a panel only as tall as its content.
+                ...(model.points.some(point => point < 1) ? [h.DataAttribute('snaps', '')] : []),
                 ...place,
               ],
               // The browser's own pan would take the press away from the drag.

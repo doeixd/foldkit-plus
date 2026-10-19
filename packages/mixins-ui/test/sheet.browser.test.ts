@@ -357,6 +357,29 @@ test('with points it opens at the lowest; a press steps up, a flick down rests a
   }
 })
 
+test('a short sheet resting partway shows that share of its full extent, its content on screen', async () => {
+  const { panel, dispose } = await open({ side: 'bottom', points: [0.4, 1], isAnimated: false })
+  try {
+    const shown = window.innerHeight - panel.getBoundingClientRect().top
+    // The `md` extent is 80% of the screen: 0.4 of that shows, not 0.4 of its content.
+    expect(shown).toBeCloseTo(window.innerHeight * 0.8 * 0.4, 0)
+    const last = panel.lastElementChild!.getBoundingClientRect()
+    expect(last.bottom).toBeLessThan(window.innerHeight)
+  } finally {
+    dispose()
+  }
+})
+
+test('a sheet with no points below full is as tall as its content', async () => {
+  const { panel, dispose } = await open({ side: 'bottom', isAnimated: false })
+  try {
+    expect(panel.getBoundingClientRect().height).toBeLessThan(window.innerHeight * 0.5)
+    expect(panel.getBoundingClientRect().bottom).toBeCloseTo(window.innerHeight, 0)
+  } finally {
+    dispose()
+  }
+})
+
 test('a bottom sheet stands on the on-screen keyboard Dialog.keyboard measures', async () => {
   const { panel, dispose } = await open({ side: 'bottom', isAnimated: false }, {}, { lines: 2 })
   try {

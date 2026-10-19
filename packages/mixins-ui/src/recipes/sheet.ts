@@ -7,7 +7,8 @@
  * the drag and the look read one value.
  *
  * The panel rests where `--fk-sheet-snap` (the share of it that shows) puts
- * it, follows `--fk-sheet-offset` while dragged, and slides in from its edge
+ * it; a top or bottom one the view marks `data-snaps`, resting partway, is
+ * its `size`'s full height, so that share is of the screen. It follows `--fk-sheet-offset` while dragged, and slides in from its edge
  * on the slow tier; the slide travels, so reduced motion keeps only the fade,
  * and a drag follows the pointer with no transition. Its padding keeps clear
  * of a phone's safe areas on the sides it touches. `size` is its extent
@@ -141,6 +142,11 @@ const panelOn = (side: Side): StyleValue =>
       // A bottom sheet stands on the on-screen keyboard, which `Dialog.keyboard` measures.
       ...(side === 'bottom' ? { marginBottom: 'var(--fk-keyboard-inset, 0px)' } : {}),
     }),
+    // Resting partway, at its full extent: a share of a panel as tall as its
+    // content showed a sliver, and the content at its end below the screen.
+    ...(side === 'top' || side === 'bottom'
+      ? [Style.nest(`${onSide(side)}[data-snaps]`, { blockSize: 'var(--_fk-sheet-block, 80%)' })]
+      : []),
     // A slide replaces the Dialog's growth; the fade stays.
     Style.nest(`${onSide(side)}[data-closed]`, { scale: 'none', translate: moved(side, '100%') }),
     // Under a sheet opened from it: smaller, and up from a bottom edge, as vaul's nested drawers.

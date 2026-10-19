@@ -217,4 +217,37 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'a sheet resting partway is not marked',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'model.points.some(point => point < 1)',
+        replace: 'false',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'every sheet is marked as resting partway',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'model.points.some(point => point < 1)',
+        replace: 'true',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a sheet resting partway is as tall as its content',
+    edits: [
+      {
+        file: '../src/recipes/sheet.ts',
+        find: "{ blockSize: 'var(--_fk-sheet-block, 80%)' }",
+        replace: '{}',
+      },
+    ],
+    tests: [browser],
+  },
 ]
