@@ -123,6 +123,49 @@ const CanvasTabsStyle = Style.forSlots(TabsSlots)(Recipes.Tabs({ overflow: 'scro
 const ActionStyle = Style.forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
 )
+const PrimaryStyle = Style.forSlots(ButtonSlots)(Recipes.Button({ size: 'sm' }))
+
+/** Lucide's strokes, at the text's size and in its color. */
+const icon = (h: H, paths: ReadonlyArray<string>): Html =>
+  h.svg(
+    [
+      h.AriaHidden(true),
+      h.ViewBox('0 0 24 24'),
+      h.Attribute('width', '1.1em'),
+      h.Attribute('height', '1.1em'),
+      h.Attribute('fill', 'none'),
+      h.Attribute('stroke', 'currentColor'),
+      h.Attribute('stroke-width', '2'),
+      h.Attribute('stroke-linecap', 'round'),
+      h.Attribute('stroke-linejoin', 'round'),
+    ],
+    paths.map(d => h.path([h.Attribute('d', d)], [])),
+  )
+const COPY = [
+  'M11 9h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z',
+  'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
+]
+const LINK = [
+  'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71',
+  'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+]
+const CHECK = ['M20 6 9 17l-5-5']
+const SHUFFLE = [
+  'm18 14 4 4-4 4',
+  'm18 2 4 4-4 4',
+  'M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-7.6a4 4 0 0 1 3.3-1.7H22',
+  'M2 6h1.972a4 4 0 0 1 3.6 2.2',
+  'M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45',
+]
+
+/** A ghost button with an icon before its words. */
+const iconButton = (h: H, paths: ReadonlyArray<string>, label: string, onClick: Message): Html => {
+  const action = SlotView.buildersFor(ButtonSlots, [ActionStyle.mixin], { input: undefined, h })
+  return h.button(action.button.attrs([h.Type('button'), h.OnClick(onClick)]), [
+    icon(h, paths),
+    label,
+  ])
+}
 
 /**
  * A theme's accent over its page, in a light scheme, for a preset's swatch:
@@ -166,7 +209,7 @@ const slider = (model: Model, slots: Slots, knob: Knob, h: H): Html => {
  */
 const hint = (model: Model, h: H, which: Hint, name: string): Html =>
   Option.match(Option.fromNullishOr(model.hints.find(each => each.hint === which)), {
-    onNone: () => h.span([], [name]),
+    onNone: () => h.span([], [`${name}:`]),
     onSome: ({ tooltip }) =>
       h.submodel({
         slotId: tooltip.id,
@@ -178,7 +221,7 @@ const hint = (model: Model, h: H, which: Hint, name: string): Html =>
             h.span(
               [],
               [
-                h.button([...tip.trigger, h.Type('button')], [name]),
+                h.button([...tip.trigger, h.Type('button')], [`${name}:`]),
                 ...(tip.isVisible
                   ? [h.div(tip.layer, [h.div(tip.panel, [h.span(tip.arrow, []), hints[which]])])]
                   : []),
@@ -378,9 +421,13 @@ const themesPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
         ]),
         ['Reset'],
       ),
-      h.button(action.button.attrs([h.Type('button'), h.OnClick(Message.PressedShuffle())]), [
-        'Shuffle',
-      ]),
+      h.button(
+        SlotView.buildersFor(ButtonSlots, [PrimaryStyle.mixin], {
+          input: undefined,
+          h,
+        }).button.attrs([h.Type('button'), h.OnClick(Message.PressedShuffle())]),
+        [icon(h, SHUFFLE), 'Shuffle'],
+      ),
     ]),
   ]
 }
@@ -629,21 +676,17 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
       h.div(slots.previewActions.attrs(), [
         h.a(slots.toCode.attrs([h.Href(`#${CODE_ID}`)]), ['Get the code']),
         // The theme as the application's style module, or a link back to these knobs.
-        Button.view(
-          {
-            label: model.copied ? 'Copied' : 'Copy theme',
-            onClick: Message.PressedCopy({ text: codeOf(model.knobs) }),
-            style: ActionStyle,
-          },
+        iconButton(
           h,
+          model.copied ? CHECK : COPY,
+          model.copied ? 'Copied' : 'Copy theme',
+          Message.PressedCopy({ text: codeOf(model.knobs) }),
         ),
-        Button.view(
-          {
-            label: model.linkCopied ? 'Link copied' : 'Copy link',
-            onClick: Message.PressedCopyLink(),
-            style: ActionStyle,
-          },
+        iconButton(
           h,
+          model.linkCopied ? CHECK : LINK,
+          model.linkCopied ? 'Link copied' : 'Copy link',
+          Message.PressedCopyLink(),
         ),
       ]),
     ]),

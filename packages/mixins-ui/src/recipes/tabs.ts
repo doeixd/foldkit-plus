@@ -165,11 +165,18 @@ export const Tabs = Style.recipeFor(TabsSlots)({
     variant: {
       line: {
         tablist: variant(
+          // A background, not an inset shadow: it lies in the padding box,
+          // so a scrolling row's bar sits under the rule, not between the
+          // rule and the chosen tab's.
           Style.self({
-            boxShadow: `inset 0 calc(-1 * ${ref.border.thin}) 0 ${ref.outline.default}`,
+            backgroundImage: `linear-gradient(${ref.outline.default}, ${ref.outline.default})`,
+            backgroundSize: `100% ${ref.border.thin}`,
+            backgroundPosition: 'bottom',
+            backgroundRepeat: 'no-repeat',
           }),
           // Upright, the rule runs down the inline end.
           Style.pseudo(upright, {
+            backgroundImage: 'none',
             boxShadow: `inset calc(-1 * ${ref.border.thin}) 0 0 ${ref.outline.default}`,
           }),
           Style.pseudo(`${upright}:dir(rtl)`, {
