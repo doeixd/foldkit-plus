@@ -2,7 +2,7 @@
  * Steps laid out by a real browser: a vertical stepper's line runs from a
  * marker's foot to the next marker's top, however tall the words beside it,
  * and a row in a phone-wide container shows only the current step's label,
- * clear of its neighbours' markers; a marker of each size is the Avatar of
+ * clear of its neighbours' markers, the markers evenly spaced; a marker of each size is the Avatar of
  * that size; a step's content is no larger than its title; the Progress
  * connector fills after a complete step and, after the current one, by the
  * share done; and a dot marker is the Badge's dot.
@@ -119,8 +119,7 @@ test('a phone-wide row shows the current label alone, clear of the markers besid
     const ink = document.createRange()
     ink.selectNodeContents(shown[0]!.firstElementChild!)
     const words = ink.getBoundingClientRect()
-    // The current step takes the room the others leave, so its title keeps one line.
-    expect(ink.getClientRects()).toHaveLength(1)
+    // The steps share the row evenly, so a title too long for its share wraps.
     expect(words.right).toBeLessThanOrEqual(markers()[2]!.getBoundingClientRect().left)
     expect(words.left).toBeGreaterThanOrEqual(markers()[1]!.getBoundingClientRect().right)
   } finally {
@@ -249,42 +248,79 @@ test('a dot marker is the dot of a Badge, its number hidden', async () => {
   }
 })
 
-// How far right a node's words are painted: their own extent, cut at their
-// element's box when it clips what overflows it.
+// How far right a node's words are painted: their own extent, cut at the box
+// of it or of each ancestor in its step that clips what overflows it.
 const paintedRight = (element: HTMLElement) => {
   const ink = document.createRange()
   ink.selectNodeContents(element)
-  const right = ink.getBoundingClientRect().right
-  return getComputedStyle(element).overflowX === 'visible'
-    ? right
-    : Math.min(right, element.getBoundingClientRect().right)
+  let right = ink.getBoundingClientRect().right
+  for (
+    let at: HTMLElement | null = element;
+    at !== null && at.tagName !== 'LI';
+    at = at.parentElement
+  )
+    if (getComputedStyle(at).overflowX !== 'visible')
+      right = Math.min(right, at.getBoundingClientRect().right)
+  return right
 }
 
 test.each([
-  ['a short title keeps its word', 'Upload'],
-  ['a long title is cut short', 'Uploading'],
-])(
-  'in a row as narrow as a phone gives it, %s and stops before its connector',
-  async (_, current) => {
-    const handle = mount('horizontal', '18rem', {
-      selection: { size: 'md', connector: 'progress' },
-      steps: () => [
-        { title: 'Choose' },
-        { title: current },
-        { title: 'Process' },
-        { title: 'Done' },
-      ],
-    })
+  ['as narrow as a phone gives it, a short title keeps its word', '18rem', 'Upload'],
+  [
+    'as narrow as a phone gives it, a title longer than its cap is cut short',
+    '18rem',
+    'Electroencephalographically',
+  ],
+  [
+    'wide enough for every label, a title longer than its share is cut short',
+    '34rem',
+    'Electroencephalographically',
+  ],
+])('in a row %s and stops before its connector', async (_, width, current) => {
+  const handle = mount('horizontal', width, {
+    selection: { size: 'md', connector: 'progress' },
+    steps: () => [{ title: 'Choose' }, { title: current }, { title: 'Process' }, { title: 'Done' }],
+  })
+  try {
+    await vi.waitFor(() => expect(markers()).toHaveLength(4))
+    const item = all('li')[1]!
+    const title = item.querySelector<HTMLElement>('[data-state] + span > span')!
+    const connector = item.querySelector<HTMLElement>(':scope > span[aria-hidden="true"]')!
+    expect(title.textContent).toBe(current)
+    expect(title.getBoundingClientRect().width).toBeGreaterThan(0)
+    expect(paintedRight(title)).toBeLessThanOrEqual(connector.getBoundingClientRect().left)
+    // A short word is whole; one longer than the cap is cut at the text's edge.
+    // Against the word's own width, set free: a clipping box reports no
+    // overflow, and its ellipsis fits the box.
+    const free = document.createElement('span')
+    free.style.font = getComputedStyle(title).font
+    free.style.position = 'absolute'
+    free.textContent = current
+    document.body.append(free)
+    const whole = free.getBoundingClientRect().width
+    free.remove()
+    const shown = Math.min(
+      title.getBoundingClientRect().width,
+      title.parentElement!.getBoundingClientRect().width,
+    )
+    expect(shown >= whole - 0.5).toBe(current === 'Upload')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test.each(['26rem', '30rem'])(
+  'in a row %s wide, the markers stay evenly spaced around the one label shown',
+  async width => {
+    const handle = mount('horizontal', width)
     try {
       await vi.waitFor(() => expect(markers()).toHaveLength(4))
-      const item = all('li')[1]!
-      const title = item.querySelector<HTMLElement>('[data-state] + span > span')!
-      const connector = item.querySelector<HTMLElement>(':scope > span[aria-hidden="true"]')!
-      expect(title.textContent).toBe(current)
-      expect(title.getBoundingClientRect().width).toBeGreaterThan(0)
-      expect(paintedRight(title)).toBeLessThanOrEqual(connector.getBoundingClientRect().left)
-      // The connectors shorten for the title shown, so a short word is whole.
-      expect(title.scrollWidth <= title.clientWidth).toBe(current === 'Upload')
+      const lefts = markers().map(marker => marker.getBoundingClientRect().left)
+      const gaps = lefts.slice(1).map((left, index) => left - lefts[index]!)
+      for (const gap of gaps) expect(gap).toBeCloseTo(gaps[0]!, 0)
+      // The row keeps inside its container.
+      const row = document.querySelector('ol')!
+      expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth)
     } finally {
       handle.dispose()
     }

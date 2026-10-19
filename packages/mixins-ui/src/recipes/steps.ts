@@ -4,8 +4,9 @@
  * filled with a check drawn in CSS over its hidden number, and the line
  * after a complete step takes the accent. `orientation: 'horizontal'` lays
  * the steps in a row as wide as its container, the lines stretching between
- * them, and below 32rem only the current step's label shows, the lines
- * shortening for it and a word still too long cut with an ellipsis;
+ * them, and below 32rem only the current step's label shows, the markers
+ * still evenly spaced, the label wrapping inside its share and a word
+ * longer than 40% of the row cut short;
  * `orientation: 'vertical'` stacks them, each line running down from under
  * its marker beside the step's content, in the body's size under its
  * title. The states fade on the fast tier; nothing moves. A step's icon in
@@ -179,20 +180,19 @@ export const Steps = Style.recipeFor(StepsSlots)({
         item: variant(
           Style.self({ flex: '1 1 0', minInlineSize: '0', alignItems: 'start', gap: ref.space.xs }),
           Style.pseudo(':last-child', { flex: '0 0 auto' }),
-          // Narrow, the current step is at least as wide as its words, and the
-          // others share the rest evenly, so the markers stay evenly spaced.
+          // Narrow, the current step is at least as wide as its longest word
+          // (no wider than the text's cap below), its words wrapping inside
+          // an even share, so the markers stay evenly spaced while they fit.
           Style.at(
             narrow,
             Style.nest(':where([aria-current="step"]:not(:last-child))&', {
-              minInlineSize: 'max-content',
+              minInlineSize: 'min-content',
             }),
           ),
-          // Room under the row for the words drawn there; with no words in
-          // it, the steps share the row again, so the lines are even.
+          // Room under the row for the words drawn there.
           Style.at(
             cramped,
             Style.compose(
-              Style.nest(':where([data-state]:not(:last-child))&', { flex: '1 1 0' }),
               Style.nest(':where([aria-current="step"])&', {
                 paddingBlockEnd: `calc(${ref.space.xs} + ${titleLine})`,
               }),
@@ -219,11 +219,26 @@ export const Steps = Style.recipeFor(StepsSlots)({
               whiteSpace: 'nowrap',
             }),
           ),
+          // A title too long for the row is capped, so its step cannot push
+          // the row wider than its container; past the cap it wraps or is cut.
+          Style.at(
+            narrow,
+            Style.compose(
+              // Clipped, not hidden: a scroll container's minimum is 0, so a
+              // hidden title gave its step no room for its longest word.
+              Style.nest(':where([aria-current="step"]) > * > &', {
+                maxInlineSize: '40cqi',
+                overflow: 'clip',
+              }),
+              Style.nest(':where([aria-current="step"]) > * > & > *', { overflow: 'clip' }),
+            ),
+          ),
           Style.at(
             cramped,
             Style.compose(
               Style.nest(':where([aria-current="step"]) > * > &', {
                 position: 'absolute',
+                maxInlineSize: 'none',
                 insetInline: '0',
                 insetBlockStart: `calc(${markerSize} + ${ref.space.xs})`,
               }),

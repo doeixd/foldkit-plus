@@ -92,12 +92,30 @@ export default [
     tests: [browser],
   },
   {
-    name: 'a narrow row still shares with steps showing no label',
+    name: 'a narrow current step takes a share beside its words',
     edits: [
       {
         file: '../src/recipes/steps.ts',
-        find: 'Style.nest(\':where([data-state]:not([aria-current="step"]))&\', {',
-        replace: "Style.nest(':where([data-none])&', {",
+        find: "minInlineSize: 'min-content',",
+        replace: "flex: '1 0 auto',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a narrow current step shrinks below its words',
+    edits: [
+      { file: '../src/recipes/steps.ts', find: "minInlineSize: 'min-content',", replace: '' },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a narrow title has no cap',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: "maxInlineSize: '40cqi',",
+        replace: '',
       },
     ],
     tests: [browser],
@@ -264,17 +282,6 @@ export default [
       {
         file: '../src/recipes/steps.ts',
         find: "Style.nest('& > *', { whiteSpace: 'nowrap' }),",
-        replace: '',
-      },
-    ],
-    tests: ['packages/mixins-ui/test/steps.browser.test.ts'],
-  },
-  {
-    name: 'a cramped row keeps its lines uneven',
-    edits: [
-      {
-        file: '../src/recipes/steps.ts',
-        find: "Style.nest(':where([data-state]:not(:last-child))&', { flex: '1 1 0' }),",
         replace: '',
       },
     ],
