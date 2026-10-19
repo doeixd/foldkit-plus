@@ -5,7 +5,21 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.26.0
+
+Themes are typed knob values: `Theme.make({ accent: { hue: 235 }, shape: { radius: 1.8 } })` is
+checked against `Knobs.standard`, every look (the relief, the fonts, the easing) is a knob that
+switches at runtime, `Themes.make` installs several by name, and `/create` is drawn from the same
+knobs. `Theme.oklch`, `Theme.relief` and `Theme.hardShadows` are removed for them, and
+`AppStyle.make` takes `theme` in place of `palette` (below: how to move). Also new: a vertical
+ButtonGroup, Calendar day details, a resizable and collapsing Sidebar, a Textarea that grows with
+its text, `TreeView.fluid`, color scales and the divider and width tokens. `foldkit-mixins` 0.16.0,
+`foldkit-mixins-ui` 0.15.0 and `foldkit-primitives` 0.13.0 change, and `foldkit-plus` is 0.8.0.
+Packages that pin one of them, or a package that does, republish with a patch so their ranges
+cover the new versions (`foldkit-builder`, `foldkit-cms`, `foldkit-cms-drizzle`,
+`foldkit-composition`, `foldkit-mixins-builder`, `foldkit-mixins-crud`,
+`foldkit-mixins-data-grid`, `foldkit-mixins-form`, `foldkit-mixins-richtext`,
+`foldkit-mixins-surface`).
 
 ### Added
 
@@ -27,26 +41,6 @@ version changed; `pnpm` skips versions already in the registry.
   `subtle`, which a dark page all but hid; the Command menu parts its groups with it. `width.field`
   (a text field's least width, the content-sized Textarea's) and `width.column-sm|md|lg` (the
   Card group's least columns) take what those recipes wrote as literals.
-- `foldkit-mixins`: a knob by its path: `Knobs.paths`, `Knobs.at`, `Knobs.valueAt` and
-  `Knobs.withValue`, typed by the path; a schemed knob's `light` and `dark` are knobs of their own.
-  `Theme.print` leaves out a knob whose value writes what it writes unset, and breaks a group
-  past a hundred characters to a knob a line. Step 4 of `docs/theme-knobs.md`: `/create`'s
-  controls, tooltips, address and code are drawn from the standard knobs.
-- `foldkit-mixins`: each knob carries a `title` and its `default` beside its description;
-  `Knobs.schema(knobs)` is the Schema of a theme's values, `Theme.print(theme)` writes its
-  `Theme.make({ … })` source (the knobs that differ from their defaults), and `Theme.fonts` names
-  the shipped font stacks.
-- `foldkit-mixins`: `Themes.make({ iris, cobalt }, { initial: 'iris' })` installs themes of
-  typed knobs by name: the root declares the initial one, each other writes its knobs under
-  `:root[data-theme="name"]`, `themes.Name` is the Schema of the Model field that holds the
-  active one, and `Themes.apply` is the Command's effect that shows it. `AppStyle.make({ themes
-  })` takes them in place of a palette; `Theme.scope(theme, selector)` themes a subtree, declaring
-  the derivations again there. Step 3 of `docs/theme-knobs.md`.
-- `foldkit-mixins`: the border width, the body and heading fonts, the heading weight and
-  tracking, the easing, the shadow style, the relief, the outlines and the hover are knobs of
-  `Knobs.standard`, which the tokens read: every choice writes the CSS its variables hold, so
-  each switches at runtime as a number does. `Theme.relief.*` and `Theme.hardShadows` are those
-  options as token sets. Step 2 of `docs/theme-knobs.md`.
 - `foldkit-mixins-ui`: `TreeView.fluid`, the fluid hover the menus, listbox, tabs and sidebar
   have: one `highlight`, a new slot drawn first in the tree, glides to the showing row nearest
   the pointer and to the row the keys focus, in place of each row's own hover. `FluidHover`
@@ -67,16 +61,26 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-mixins`: a theme as typed knob values. `Theme.make({ shape: { radius: 1.8 } })` checks
   each value against `Knobs.standard` (grouped: `accent`, `surface`, `shape`, `type`, `motion`,
   `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`); a misspelt knob or a choice outside
-  its options is a type error, a number out of range throws. Themes pipe (`Theme.set`,
-  `Theme.describe`); `Theme.variables` and `Theme.tokensOf` write them. `Knob.number`, `percent`,
-  `length`, `angle`, `choice`, `font` and `schemed` make knobs of an application's own. The first
-  step of `docs/theme-knobs.md`.
+  its options is a type error, a number out of range throws. Every look is a knob, the border
+  width, the fonts, the heading weight and tracking, the easing, the shadow style, the relief, the
+  outlines and the hover among them: a choice writes the CSS its option holds, so each switches at
+  runtime as a number does. Themes pipe (`Theme.set`, `Theme.describe`); `Theme.print` writes a
+  theme's `Theme.make({ … })` source, `Theme.fonts` names the shipped font stacks,
+  `Knobs.schema(knobs)` is the Schema of a theme's values, and `Knobs.paths`, `Knobs.at`,
+  `Knobs.valueAt` and `Knobs.withValue` reach a knob by its typed path; each knob carries a
+  `title`, a `description` and its `default`, which `/create` draws its controls from.
+  `Themes.make({ iris, cobalt }, { initial: 'iris' })` installs themes by name: the root declares
+  the initial one, each other writes its knobs under `:root[data-theme="name"]`, `themes.Name` is
+  the Schema of the Model field that holds the active one, and `Themes.apply` is the Command's
+  effect that shows it. `Theme.scope(theme, selector)` themes a subtree, declaring the derivations
+  again there. `Knob.number`, `percent`, `length`, `angle`, `choice`, `font` and `schemed` make
+  knobs of an application's own. The design is `docs/theme-knobs.md`.
 - `foldkit-mixins`: `border.glyph` (2px), the stroke of what a recipe draws in CSS as an icon.
   Checks, chevrons and the Accordion's plus read it, so thicker borders no longer blot them.
 - `foldkit-mixins-ui`: Steps' `number` slot, the figure in a marker, trimmed to its digits so it
   sits in the middle of its marker in any face; it sat low in a serif one. A complete marker's
   check grows with the marker.
-- `foldkit-mixins`: `Theme.oklch` ships seven color scales, `red`, `orange`, `yellow`, `green`,
+- `foldkit-mixins`: the palette ships seven color scales, `red`, `orange`, `yellow`, `green`,
   `teal`, `blue` and `purple`: steps `1` (near white) to `10` (near black) on one lightness
   ladder for every hue, so a step means the same contrast in each, and `wash-1` to `wash-4`, step
   6 mixed into the page. Each hue is a knob (`red-h`); `scale-c` scales their chroma.
@@ -91,13 +95,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 - `foldkit-mixins`: a theme is its knob values alone. `Theme.standard(theme)` is every shipped
   token with a theme's knobs, for `Theme.root`, and `AppStyle.make({ theme })` takes one theme
-  (`Theme.make({ … })`), with `tokens` for an application's own groups; `Themes.make(…).root`
-  replaces `.palette`. `Theme.oklch`, its config object and `OklchKnobs` are removed: write
-  `Theme.make({ accent: { hue, chroma, lightness }, surface: { hue, saturation, contrast } })`.
+  (`Theme.make({ … })`), with `tokens` for an application's own groups, in place of `palette`.
+  `Theme.oklch`, its config object and `OklchKnobs` are removed. To move,
+  `Theme.compose(Theme.tokens, Theme.oklch(config))` becomes `Theme.standard(Theme.make(values))`
+  and `AppStyle.make({ palette: Theme.oklch(config) })` becomes `AppStyle.make({ theme:
+  Theme.make(values) })`, the config's fields going to knobs: `accent: { h, c, l, dark }` to
+  `accent: { hue, chroma, lightness }` (a number, or `{ light, dark }`; `l: '52%'` is `52`),
+  `neutral.h` to `surface.hue`, `surfaceSaturation` to `surface.saturation`, `surfaceContrast:
+  '24%'` to `surface.contrast: 24`, `contrastFactor` to `surface.textContrast`, `stateHue` to
+  `surface.hover`, `secondaryHueShift` and `tertiaryHueShift` to `accent.secondaryShift` and
+  `tertiaryShift`, `shadow: { h, c }` to `shadow: { hue, chroma }`, `syntaxChroma` to
+  `code.chroma`, `menu: { accent, color }` to `menu: { highlight, panel }`, and `feedback` stays.
   `Theme.relief.*` and `Theme.hardShadows` are removed for the `shadow.relief` and `shadow.style`
-  knobs, and a knob string (`Theme.define({ knob: { 'base-l': '100%' } })`) for its knob
-  (`surface: { lightness: 100 }`). The accent's lightness reaches 5 to 98, for a black or white
-  accent. Step 5 of `docs/theme-knobs.md`.
+  knobs, and a knob string for its knob: `Theme.define({ knob: { 'base-l': '100%' } })` is
+  `surface: { lightness: 100 }`, `'radius-factor': '1.4'` is `shape: { radius: 1.4 }`. Tokens of an
+  application's own move from the palette to `AppStyle.make`'s `tokens`. The accent's lightness reaches 5 to 98, for a black or white
+  accent. A page declares `Theme.root(Theme.standard(theme))` as one rule: `omit: Theme.tokens`
+  would leave out a theme's own `density`, which `Theme.tokens` names too.
 - `foldkit-mixins-ui`: `Recipes.Separator` has no `orientation` axis. The view writes
   `data-orientation` on the rule and a label's frame, and the recipe reads it, so one style draws
   a separator either way and the style and the view can no longer disagree: drop `orientation`
@@ -171,7 +185,7 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-mixins-ui`: a vertical Marquee is no taller than a container with a height; it kept
   its 16rem and stood out past a shorter one. Its fade takes at most a quarter of each end, so a
   short one keeps its middle in full.
-- `foldkit-mixins`: `Theme.relief.bevel` draws a raised control's outer ring outside its border.
+- `foldkit-mixins`: the bevelled relief draws a raised control's outer ring outside its border.
   A button's border carries its fill, and the ring lay inside it, so its darkest edge sat within
   a line of the button's own color.
 - `foldkit-mixins-ui`: a Thinking Indicator held by a still theme or reduced motion still reads

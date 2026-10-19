@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-builder",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "The page builder drawn as accessible HTML through foldkit-mixins slots: a palette, a keyboard-driven layers tree, an inspector, and the page in edit mode.",
   "keywords": [
     "foldkit",

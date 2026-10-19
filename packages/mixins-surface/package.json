@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-surface",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Bridge foldkit-surface's projected Model and Message subset to foldkit-mixins SlotViews.",
   "keywords": [
     "foldkit",
