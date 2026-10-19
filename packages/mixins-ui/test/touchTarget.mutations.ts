@@ -32,8 +32,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/button.ts',
-        find: '            inlineSize: controlHeight,\n',
-        replace: "            inlineSize: '2.25rem',\n",
+        find: '  inlineSize: controlHeight,\n',
+        replace: "  inlineSize: '2.25rem',\n",
       },
     ],
     tests,

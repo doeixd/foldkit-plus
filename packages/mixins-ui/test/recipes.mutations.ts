@@ -18,7 +18,7 @@ export default [
   },
   {
     name: 'an icon button keeps its gap',
-    edits: [{ file: '../src/recipes/button.ts', find: "            gap: '0',\n", replace: '' }],
+    edits: [{ file: '../src/recipes/button.ts', find: "  gap: '0',\n", replace: '' }],
     tests,
   },
   {
