@@ -21,11 +21,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 - `foldkit-mixins-ui`: a ring Progress and a ring or orbit Spinner stay round in a square
   theme (radius factor 0); they spun as squares.
-- `foldkit-mixins-ui`: a Skeleton's bones are the palette's `surface.muted`, so they follow the
-  surface knobs and the dark scheme, where they had nearly vanished.
+- `foldkit-mixins-ui`: a Skeleton's bones are the palette's `state.tint`, the text's film at the
+  scheme's own `state-tint` knob; they used the light scheme's in both, and stood barely off a
+  dark page.
 - `foldkit-mixins-ui`: a scrolling Tabs row shows a mouse a thin bar whose thumb appears while
   the row is hovered or focused, and a `line` row's rule meets the chosen tab's over it.
-- `foldkit-mixins-ui`: Steps too narrow for every label keep their markers evenly spaced.
+- `foldkit-mixins-ui`: a row of Steps narrower than 32rem keeps its markers evenly spaced; the
+  one label shown wraps inside its step's share, and a word longer than 40% of the row is cut.
+  The other steps no longer shrink to nothing, which left the last marker far from the rest.
 - `foldkit-mixins-ui`: a click on a control inside a Drawer's `grip` (a row of tabs) reaches it.
   The grip captured the pointer on the press, so the browser sent the click to the grip; it now
   starts a drag only once the press moves `PRESS_SLOP` pixels.

@@ -194,6 +194,20 @@ export type ToastExample = typeof ToastExample.Type
 export const AlertsExample = Schema.Literals(['alerts', 'described', 'select-all', 'invalid'])
 export type AlertsExample = typeof AlertsExample.Type
 
+/**
+ * Whether `message` closes a menu only because the reader looked away: a
+ * press elsewhere on the page, or focus leaving its rows. The gallery's menu
+ * ignores them, so it stays shown until it is answered.
+ */
+const dismisses = (message: Menu.Message): boolean =>
+  Match.value(message).pipe(
+    Match.tags({
+      PressedAway: () => true,
+      GotMenu: ({ message: inner }) => inner._tag === 'BlurredItems',
+    }),
+    Match.orElse(() => false),
+  )
+
 /** A menu drawn open from the start, its enter already over: the gallery shows its rows unasked. */
 const shownMenu = (menu: Menu.Model): Menu.Model => ({
   ...menu,
@@ -1683,13 +1697,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     RanCommand: ({ value }) => ({
       model: modifyFields(model, { commandRan: () => Option.some(value) }),
     }),
-    // The gallery's menu stays shown until it is answered: a press elsewhere
-    // on the page, or focus leaving it, does not close it.
-    GotPageMenu: ({ message }) =>
-      message._tag === 'PressedAway' ||
-      (message._tag === 'GotMenu' && message.message._tag === 'BlurredItems')
-        ? { model }
-        : foldPageMenu(model, message),
+    GotPageMenu: ({ message }) => (dismisses(message) ? { model } : foldPageMenu(model, message)),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
     GotCarousel: ({ example, message }) =>
