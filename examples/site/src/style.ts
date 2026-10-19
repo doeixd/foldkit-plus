@@ -927,7 +927,8 @@ export const SiteStyle = slots(
       border: '0',
       minWidth: '0',
     },
-    axisName: { ...mono, padding: '0', color: t.text.subtle },
+    // A legend takes no flex gap: its room above the choices is its own padding.
+    axisName: { ...mono, padding: `0 0 ${t.space.xs}`, color: t.text.subtle },
     choices: {
       display: 'inline-flex',
       flexWrap: 'wrap',
@@ -982,7 +983,7 @@ export const SiteStyle = slots(
       Style.media(ONE_COLUMN, { display: 'block', blockSize: DRAWER_PEEK }),
     ],
     pane: { display: 'flex', flexDirection: 'column', gap: t.space.md },
-    knob: { display: 'flex', flexDirection: 'column', gap: t.space['2xs'] },
+    knob: { display: 'flex', flexDirection: 'column', gap: t.space.xs },
     // A slider's name and its value, on one line above its track.
     knobHead: {
       display: 'flex',
