@@ -5,7 +5,17 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.24.0
+
+Themes: hard shadows and a relief for buttons and fields (`Theme.hardShadows`, `Theme.relief`),
+type knobs (`text-scale`, `heading-scale`, `leading`, the heading's weight and tracking), a pill
+control corner, and a `Drawer` docked to the bottom of the screen. `foldkit-mixins` 0.14.0 and
+`foldkit-mixins-ui` 0.13.0 change, and `foldkit-plus` is 0.6.0. Packages that pin one of them, or
+peer on it, republish with a patch so their ranges cover the new versions (`foldkit-cms`,
+`foldkit-cms-drizzle`, `foldkit-composition`, `foldkit-mixins-builder`, `foldkit-mixins-crud`,
+`foldkit-mixins-data-grid`, `foldkit-mixins-form`, `foldkit-mixins-richtext`,
+`foldkit-mixins-surface`, `foldkit-primitives`). Nothing written for 0.23 needs changing; a
+Typography `display` is set a hair tighter (below).
 
 ### Added
 
@@ -21,8 +31,8 @@ version changed; `pnpm` skips versions already in the registry.
   pagination's page size, Checkbox and RadioGroup) sinks by `field`.
 - Type knobs in `Theme.tokens`: `text-scale` scales every size of the type scale,
   `heading-scale` how far the headings stand above the body, and `leading` the line heights;
-  `weight-heading` and `tracking-heading` set what a heading is drawn in. The shipped values draw
-  as before. `foldkit-mixins-ui`'s Typography headings and interface roles, the Dialog's title and
+  `weight-heading` and `tracking-heading` set what a heading is drawn in. At their shipped values
+  every size, line height and weight draws as before. `foldkit-mixins-ui`'s Typography headings and interface roles, the Dialog's title and
   the Empty title now read `font-heading`, `weight-heading` and `tracking-heading`, so a theme's
   heading font reaches them.
 - `foldkit-mixins-ui`'s `Drawer` and `Recipes.Drawer`: a panel docked to the bottom of the
@@ -33,8 +43,15 @@ version changed; `pnpm` skips versions already in the registry.
 - `radius-control` and the `control-round` knob: a Button and a Segmented tray round to a pill at
   1, whatever the radius factor, while fields keep `radius-md`.
 
+### Changed
+
+- `foldkit-mixins-ui`: Typography's `display` takes the heading tracking (`-0.01em` by default),
+  as the other headings already did.
+
 ### Fixed
 
+- `foldkit-composition` and `foldkit-mixins-surface` declared their `foldkit-mixins` peer as
+  `^0.11.0`, which no release since 0.11 satisfies; they now peer on the version they ship with.
 - `foldkit-mixins`: an element holding several Mounts no longer logs "unhandled failure" for each
   as it is removed; a Mount that ends interrupted is torn down, not failing.
 
