@@ -95,6 +95,21 @@ A provider is a plain value (`Provider.Provider`): `widths`, the `sources`
 formats offered before the `img`, the `img`'s own `fallback` encoding, and a
 `url` function answering `Option<string>`.
 
+## Preloading the largest image
+
+A page's largest image is found sooner from a preload in the head. Foldkit adds
+no head tags, so `Picture.preload(picture)` returns the `<link rel="preload">`
+for your SSR `head` function to include, from the same `Picture.derive` the view
+draws with `priority: true`:
+
+```ts
+const preloadTag = Option.map(picture, Picture.preload)
+```
+
+It names the first `source`'s candidates with its `type`, so a browser that
+cannot show that format skips the preload rather than fetch a file it will not
+use.
+
 ## Placeholders
 
 An `ImageAsset`'s `placeholder` is painted behind the image until it loads;

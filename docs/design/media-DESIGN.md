@@ -208,7 +208,7 @@ does not know the original's size.
 
 *Built: `Image.view`, `Recipes.Image`, alt as `described`/`decorative`, the
 placeholder on the `img`'s background, `data-layout`, and `data-unavailable`
-for a provider with no URL. Not yet: `Image.preload` (§7.5), `Image.reveal`
+for a provider with no URL. `Picture.preload` (§7.5) is built too. Not yet: `Image.reveal`
 (§7.4), and Avatar and Card on it (§7.6). Foldkit, not the view, keeps
 `loading` before `src`: `src` is a property, set after every attribute.*
 
@@ -306,9 +306,11 @@ browser's own fallback.
 A high-priority image is usually the page's largest paint, and the browser finds
 it sooner from a preload in the head. Foldkit fills head tags; it adds none, and
 `foldkit-ssr`'s `Head` is a function from the rendered application to a string.
-So `Image.preload(asset, provider, layout)` returns a
+So `Picture.preload(picture)` (built, in `foldkit-media`) returns a
 `<link rel="preload" as="image" imagesrcset imagesizes fetchpriority="high">`
-for the application's `head` to include. It is not added for it.
+for the application's `head` to include, from the same `Picture.derive` the
+view draws. It preloads the first `source`'s candidates with its `type`, so a
+browser that cannot show that format skips it. It is not added for the page.
 
 ### 7.6 The components that already draw images
 

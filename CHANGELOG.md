@@ -15,7 +15,8 @@ version changed; `pnpm` skips versions already in the registry.
   ladder, `sizes`, the reserved box, loading priority, and a placeholder background (a color, a
   ThumbHash, or the smallest width; none behind a transparent image). Providers: `cdnCgi`
   (Cloudflare's `/cdn-cgi/image/`), `fromFiles` (a build's variants) and `hosted` (its own server,
-  whose route `foldkit-media/server`'s `makeApi` declares with the same `Variant` Schema).
+  whose route `foldkit-media/server`'s `makeApi` declares with the same `Variant` Schema). `Picture.preload` writes
+  the page's largest image's `<link rel="preload">` for an SSR `head`.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

@@ -226,6 +226,27 @@ export default [
     tests: picture,
   },
   {
+    name: 'a preload ignores the sources',
+    edits: [
+      {
+        file: '../src/picture.ts',
+        find: 'const [first] = sources',
+        replace: 'const first = undefined as Source | undefined',
+      },
+    ],
+    tests: picture,
+  },
+  {
+    name: 'a preload drops the type',
+    edits: [{ file: '../src/picture.ts', find: "[['type', first.type] as const]", replace: '[]' }],
+    tests: picture,
+  },
+  {
+    name: 'a preload writes values raw',
+    edits: [{ file: '../src/picture.ts', find: '${escapeAttribute(value)}', replace: '${value}' }],
+    tests: picture,
+  },
+  {
     name: 'a variant may be spelled with a leading zero',
     edits: [
       {

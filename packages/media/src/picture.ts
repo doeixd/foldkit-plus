@@ -106,3 +106,27 @@ export const derive = (input: Input): Option.Option<Picture> => {
     placeholder: asset.alpha ? Option.none() : background(asset, provider),
   })
 }
+
+const escapeAttribute = (value: string): string =>
+  value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/**
+ * A `<link rel="preload">` for a page's `head`, so the browser fetches its
+ * largest image before it reaches the `img`. It names the candidates the
+ * browser will choose from: the first `source`'s, with its `type`, so a
+ * browser that cannot show that format skips the preload rather than fetching
+ * a file it will not use; the `img`'s when there is no `source`. Only for the
+ * image drawn with `priority`.
+ */
+export const preload = ({ sources, img }: Picture): string => {
+  const [first] = sources
+  const attributes: ReadonlyArray<readonly [string, string]> = [
+    ['rel', 'preload'],
+    ['as', 'image'],
+    ...(first === undefined ? [] : [['type', first.type] as const]),
+    ['imagesrcset', first === undefined ? img.srcset : first.srcset],
+    ['imagesizes', img.sizes],
+    ['fetchpriority', 'high'],
+  ]
+  return `<link ${attributes.map(([name, value]) => `${name}="${escapeAttribute(value)}"`).join(' ')}>`
+}

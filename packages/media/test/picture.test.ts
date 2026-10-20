@@ -147,3 +147,42 @@ describe('Picture.derive placeholder', () => {
     expect(placeholderOf(null)).toEqual(Option.none())
   })
 })
+
+describe('Picture.preload', () => {
+  it('preloads the first source’s candidates, typed, at the img’s sizes', () => {
+    expect(Picture.preload(derive({ priority: true }))).toBe(
+      '<link rel="preload" as="image" type="image/avif" imagesrcset="/hero-200.avif 200w, /hero-400.avif 400w" imagesizes="(min-width: 300px) 300px, 100vw" fetchpriority="high">',
+    )
+  })
+
+  it('preloads the img’s candidates when there is no source', () => {
+    const webpOnly = Provider.fromFiles([file(400, 'webp')], { sources: [], fallback: 'webp' })
+    const picture = Option.getOrThrow(
+      Picture.derive({
+        asset,
+        provider: webpOnly,
+        layout: Layout.Fixed({ width: 400 }),
+        priority: true,
+      }),
+    )
+    expect(Picture.preload(picture)).toBe(
+      '<link rel="preload" as="image" imagesrcset="/hero-400.webp 400w" imagesizes="400px" fetchpriority="high">',
+    )
+  })
+
+  it('escapes what would end an attribute', () => {
+    const quoted = Provider.fromFiles([{ width: 400, format: 'webp', url: '/a"<b>&c.webp' }], {
+      sources: [],
+      fallback: 'webp',
+    })
+    const picture = Option.getOrThrow(
+      Picture.derive({
+        asset,
+        provider: quoted,
+        layout: Layout.Fixed({ width: 400 }),
+        priority: true,
+      }),
+    )
+    expect(Picture.preload(picture)).toContain('imagesrcset="/a&quot;&lt;b&gt;&amp;c.webp 400w"')
+  })
+})
