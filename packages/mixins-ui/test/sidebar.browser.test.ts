@@ -283,14 +283,15 @@ test.each(['ltr', 'rtl'] as const)(
     try {
       await vi.waitFor(() => expect(link('Inbox')).toBeTruthy())
       const centre = (element: Element) => (rect(element).left + rect(element).right) / 2
-      const rail = centre(nav())
+      // The column with its edge, as it is seen.
+      const rail = centre(nav().parentElement!)
       // What the application drew; an icon is narrower than its slot.
       const centred = Array.from(document.querySelectorAll('.icon, .mark'))
       for (const each of document.querySelectorAll('.icon'))
         expect(rect(each).width).toBeLessThan(rect(each.parentElement!).width)
       expect(centred).toHaveLength(4)
       for (const each of [...centred, button('Show Workspace')])
-        expect(Math.abs(centre(each) - rail)).toBeLessThan(0.5)
+        expect(Math.abs(centre(each) - rail)).toBeLessThan(0.25)
       expect(rect(document.querySelector('strong')!).width).toBe(0)
     } finally {
       handle.dispose()
@@ -421,6 +422,9 @@ test.each([
       await vi.waitFor(() => expect(nav()).toBeTruthy())
       const root = nav().parentElement!
       expect(getComputedStyle(root).getPropertyValue(side)).toBe(width)
+      // Whatever its edge, the content is centred on the column with it.
+      const centre = (element: Element) => (rect(element).left + rect(element).right) / 2
+      expect(Math.abs(centre(nav()) - centre(root))).toBeLessThan(0.25)
       if (variant === 'floating') expect(getComputedStyle(root).boxShadow).not.toBe('none')
       await page.viewport(390, 800)
       await vi.waitFor(() => expect(getComputedStyle(nav()).display).toBe('none'))

@@ -335,7 +335,35 @@ export default [
   },
   {
     name: 'an inset column keeps its edge',
-    edits: [{ file: recipe, find: ", borderInlineEnd: '0' }", replace: ' }' }],
+    edits: [
+      {
+        file: recipe,
+        find: "            background: 'transparent',\n            borderInlineEnd: '0',\n",
+        replace: "            background: 'transparent',\n",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: "the column's edge takes its width from the content's side",
+    edits: [
+      {
+        file: recipe,
+        find: "paddingInlineEnd: `calc(${ref.space['2xs']} - ${ref.border.thin})`,",
+        replace: "paddingInlineEnd: ref.space['2xs'],",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a floating column keeps the edge-side padding short',
+    edits: [
+      {
+        file: recipe,
+        find: "            // An edge all round: the padding is even again.\n            paddingInlineEnd: ref.space['2xs'],\n",
+        replace: '',
+      },
+    ],
     tests: browser,
   },
   {

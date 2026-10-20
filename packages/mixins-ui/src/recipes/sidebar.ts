@@ -149,7 +149,11 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         display: 'flex',
         flexDirection: 'column',
         gap: ladder('gap'),
-        padding: ref.space['2xs'],
+        // The edge's width given back on its side, so the content is centred
+        // on the column with its edge: a rail's icons stood half a pixel short.
+        paddingBlock: ref.space['2xs'],
+        paddingInlineStart: ref.space['2xs'],
+        paddingInlineEnd: `calc(${ref.space['2xs']} - ${ref.border.thin})`,
         background: ref.surface.muted,
         borderInlineEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,
       }),
@@ -425,6 +429,8 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         root: variant(
           Style.self({
             margin: ref.space.xs,
+            // An edge all round: the padding is even again.
+            paddingInlineEnd: ref.space['2xs'],
             border: `${ref.border.thin} solid ${ref.outline.subtle}`,
             borderRadius: ref.radius.lg,
             boxShadow: ref.shadow.sm,
@@ -435,7 +441,13 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       },
       // On the surface it stands on, with no edge of its own: the page beside it is the card.
       inset: {
-        root: variant(Style.self({ background: 'transparent', borderInlineEnd: '0' })),
+        root: variant(
+          Style.self({
+            paddingInlineEnd: ref.space['2xs'],
+            background: 'transparent',
+            borderInlineEnd: '0',
+          }),
+        ),
       },
     },
   },
