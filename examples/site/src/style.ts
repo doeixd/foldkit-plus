@@ -387,18 +387,22 @@ export const SiteStyle = slots(
       gap: t.space.xs,
     },
     setupLabel: { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
-    // Above previews drawn in a theme the reader made, with the way back.
-    themeNotice: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      gap: `${t.space.xs} ${t.space.md}`,
-      padding: `${t.space.xs} ${t.space.sm}`,
-      borderRadius: t.radius.md,
-      background: t.surface.muted,
-      color: t.text.muted,
-      fontSize: '0.875rem',
-    },
+    // Above previews drawn in a theme the reader made, with the way back. In the
+    // default it keeps its place, hidden, so making or dropping a theme moves nothing.
+    themeNotice: [
+      {
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: `${t.space.xs} ${t.space.md}`,
+        padding: `${t.space.xs} ${t.space.sm}`,
+        borderRadius: t.radius.md,
+        background: t.surface.muted,
+        color: t.text.muted,
+        fontSize: '0.875rem',
+      },
+      Style.nest('&[inert]', { visibility: 'hidden' }),
+    ],
     themeNoticeText: { margin: '0', marginInlineEnd: 'auto' },
     themeAction: Style.slot({ capability: Capability.Focusable }, [
       {

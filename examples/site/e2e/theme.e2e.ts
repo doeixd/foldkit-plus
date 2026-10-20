@@ -69,8 +69,16 @@ test('a theme made on /create follows the reader to every component page', async
   await page.waitForSelector('[data-size="page"]', { timeout: 60_000 })
   await expect.poll(() => previewHue(page), { timeout: 15_000 }).toBe('30')
 
+  // The notice keeps its place once hidden, so the previews below it stay put.
+  const previewTop = () =>
+    page
+      .locator('[data-size="page"]')
+      .first()
+      .evaluate(e => e.getBoundingClientRect().top)
+  const top = await previewTop()
   await page.getByRole('button', { name: 'Use the default' }).click()
-  await expect.poll(() => page.getByText(NOTICE).count(), { timeout: 15_000 }).toBe(0)
+  await expect.poll(() => page.getByText(NOTICE).isVisible(), { timeout: 15_000 }).toBe(false)
+  expect(await previewTop()).toBe(top)
   expect(await previewHue(page)).toBe('')
 
   // The default keeps nothing, so the next page has no theme to draw.
@@ -78,7 +86,7 @@ test('a theme made on /create follows the reader to every component page', async
   await expect.poll(kept, { timeout: 15_000 }).toBe(null)
   await open(page, '/components/badge')
   expect(await kept()).toBe(null)
-  expect(await page.getByText(NOTICE).count()).toBe(0)
+  expect(await page.getByText(NOTICE).isVisible()).toBe(false)
   expect(errors).toEqual([])
   await context.close()
 })

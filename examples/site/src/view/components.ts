@@ -56,24 +56,27 @@ export const preview = (
 
 /**
  * A note that the previews below are in the reader's own theme, with a link
- * to change it and a button back to the default; nothing in the default.
+ * to change it and a button back to the default. In the default it is drawn
+ * hidden and inert, holding its place.
  */
-export const themeNotice = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> =>
-  sameTheme(model.theme, defaults)
-    ? []
-    : [
-        h.div(slots.themeNotice.attrs([h.Role('status')]), [
-          h.p(slots.themeNoticeText.attrs(), ['Previews are drawn in the theme you made.']),
-          h.a(slots.themeAction.attrs([h.Href(CREATE)]), ['Edit it']),
-          h.button(
-            slots.themeAction.attrs([
-              h.Type('button'),
-              h.OnClick(Message.ChoseValues({ values: defaults })),
-            ]),
-            ['Use the default'],
-          ),
+export const themeNotice = (model: Model, slots: Slots, h: H): Html =>
+  h.div(
+    slots.themeNotice.attrs([
+      h.Role('status'),
+      ...(sameTheme(model.theme, defaults) ? [h.Attribute('inert', '')] : []),
+    ]),
+    [
+      h.p(slots.themeNoticeText.attrs(), ['Previews are drawn in the theme you made.']),
+      h.a(slots.themeAction.attrs([h.Href(CREATE)]), ['Edit it']),
+      h.button(
+        slots.themeAction.attrs([
+          h.Type('button'),
+          h.OnClick(Message.ChoseValues({ values: defaults })),
         ]),
-      ]
+        ['Use the default'],
+      ),
+    ],
+  )
 
 /** Buttons that pick one of `values`; the picked one is pressed. */
 export const choices = <A extends string>(
@@ -169,7 +172,7 @@ export const componentsPage = (model: Model, slots: Slots, h: H): ReadonlyArray<
       h.div(slots.actions.attrs(), [
         h.a(slots.primary.attrs([h.Href(CREATE)]), ['Create a theme']),
       ]),
-      ...themeNotice(model, slots, h),
+      themeNotice(model, slots, h),
     ]),
     h.ul(
       slots.gallery.attrs(),
@@ -197,7 +200,7 @@ export const componentPage = (
     h.p(slots.eyebrow.attrs(), [h.a(slots.titleLink.attrs([h.Href(COMPONENTS)]), ['Components'])]),
     h.h1(slots.heroTitle.attrs(), [showcase.title]),
     h.p(slots.lede.attrs(), [showcase.summary]),
-    ...themeNotice(model, slots, h),
+    themeNotice(model, slots, h),
   ]),
   h.div(slots.stage.attrs(), [
     h.div(slots.toolbar.attrs(), [
