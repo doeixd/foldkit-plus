@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-richtext`: a standard `Image` may carry its `asset`, `foldkit-media`'s `ImageAsset` of
+  what its `src` names, as stored; with it, the standard rendering writes the `img`'s `width` and
+  `height` (at the drawn `width` when set), so a page holds the image's box before the file
+  arrives. Optional: a document without it is as valid as before. `foldkit-media` is a new
+  dependency.
 - `foldkit-primitives`: `decodeImage(source)` fetches and decodes a picture before it is shown,
   yielding `Decoded` or `DecodeFailed`; given candidates, the one the browser would draw.
 - `foldkit-ssr`: a static site's `emit(pages)` adds files made from the generated pages, written

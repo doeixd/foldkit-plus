@@ -3207,6 +3207,10 @@ importers:
         version: 7.0.2
 
   packages/richtext:
+    dependencies:
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../media
     devDependencies:
       effect:
         specifier: ^4.0.4

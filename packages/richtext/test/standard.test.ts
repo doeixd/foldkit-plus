@@ -8,6 +8,16 @@ import * as RichText from 'foldkit-richtext'
 
 const kit = RichText.kit({ nodes: RichText.standardNodes, marks: RichText.standardMarks })
 
+/** An image's facts as a document stores them: `null` for what it lacks. */
+const asset = {
+  key: 'a.png',
+  width: 1200,
+  height: 800,
+  alpha: false,
+  hash: null,
+  placeholder: { _tag: 'Color', value: '#123456' },
+}
+
 const container = (
   kind: string,
   id: string,
@@ -133,6 +143,14 @@ describe('the standard vocabulary', () => {
       'InvalidProps',
     ])
   })
+
+  it('takes an image’s facts as they are stored, and refuses facts that are not an image’s', () => {
+    const image = (asset: unknown) => doc([container('Image', 'img', { src: '/a.png', asset })])
+    expect(RichText.validate(image(asset), kit)).toEqual([])
+    expect(
+      RichText.validate(image({ ...asset, width: 0 }), kit).map(diagnostic => diagnostic.code),
+    ).toEqual(['InvalidProps'])
+  })
 })
 
 describe('how the standard vocabulary renders', () => {
@@ -157,6 +175,25 @@ describe('how the standard vocabulary renders', () => {
     expect(render('List', { ordered: true, start: 3 })).toEqual({
       tag: 'ol',
       attributes: { start: '3' },
+    })
+  })
+
+  it('holds an image’s box from its facts, at the width it is drawn, and none without them', () => {
+    expect(render('Image', { src: '/a.png', alt: 'a', asset }).attributes).toEqual({
+      src: '/a.png',
+      alt: 'a',
+      width: '1200',
+      height: '800',
+    })
+    expect(
+      render('Image', { src: '/a.png', alt: 'a', width: 300, asset }).attributes,
+    ).toMatchObject({
+      width: '300',
+      height: '200',
+    })
+    expect(render('Image', { src: '/a.png', alt: 'a', width: 300 }).attributes).toEqual({
+      src: '/a.png',
+      alt: 'a',
     })
   })
 

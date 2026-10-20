@@ -856,7 +856,12 @@ RichText.renderingOver(RichText.standardRendering, {
 ```
  A standard `Image` also carries an optional `caption`, a `width` in CSS
 pixels, and an `align` (`start`, `center`, `end`); the standard rendering draws the `img`
-alone, and a rendering that draws a figure reads the rest. A link's `href` and an image's `src` pass `safeUrl` again as they are
+alone, and a rendering that draws a figure reads the rest. It may carry its `asset` too:
+`foldkit-media`'s `ImageAsset`, the size, hash and placeholder of what `src` names, as stored
+(`null` for what it lacks). With it, the `img` has `width` and `height` (at the drawn `width`
+when there is one), so the page holds its box before the file arrives. HTML and Markdown
+carry no facts, so a round trip through either leaves them out; they can be read again from
+the image. A link's `href` and an image's `src` pass `safeUrl` again as they are
 rendered, and one it refuses is left out, so a `javascript:` URL that reached the document
 by decoding, sync, or `SetMark` rather than import is drawn inert.
 

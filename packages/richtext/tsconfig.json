@@ -6,7 +6,22 @@
     "emitDeclarationOnly": true,
     "composite": true,
     "noEmit": false,
-    "paths": { "foldkit-richtext": ["./src/index.ts"] }
+    "paths": {
+      "foldkit-media": ["../media/src/index.ts"],
+      "foldkit-media/client": ["../media/client.d.ts"],
+      "foldkit-media/cloudflare": ["../media/src/cloudflare/index.ts"],
+      "foldkit-media/icons": ["../media/src/icons/index.ts"],
+      "foldkit-media/server": ["../media/src/server/index.ts"],
+      "foldkit-media/sharp": ["../media/src/sharp/index.ts"],
+      "foldkit-media/unpic": ["../media/src/unpic/index.ts"],
+      "foldkit-media/vite": ["../media/src/vite/index.ts"],
+      "foldkit-richtext": ["./src/index.ts"]
+    }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "references": [
+    {
+      "path": "../media/tsconfig.build.json"
+    }
+  ]
 }

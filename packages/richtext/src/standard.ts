@@ -16,7 +16,8 @@
  * and the rest are ordinary declarations. `HardBreak` is deliberately absent: it is
  * inline content, and the model has no inline atoms yet (§116, deferred).
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
+import { ImageAsset } from 'foldkit-media'
 import { markExtent } from './command.js'
 import { blockContent, rangeStart, textContent, type Document, type Selection } from './document.js'
 import { atom, block, blocksOf, node, type NodeDefinition } from './kit.js'
@@ -102,12 +103,17 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
     // What a figure needs beside its source: a caption under it, the width it is shown at in
     // CSS pixels, and which way it sits. The standard rendering draws the `img` alone; a
     // rendering that draws a figure reads the rest (`examples/richtext-playground`).
+    // `asset` is what `src` names, its size, hash and placeholder, kept as stored (`null` for
+    // what it lacks): known where the image entered (an upload, a file a reader added), it
+    // lets a page hold the image's box before the file arrives. Optional, so a document saved
+    // without it is as valid as ever.
     Props: Schema.Struct({
       src: Schema.String,
       alt: Schema.optional(Schema.String),
       caption: Schema.optional(Schema.String),
       width: Schema.optional(Schema.Number.check(Schema.isGreaterThan(0))),
       align: Schema.optional(Schema.Literals(['start', 'center', 'end'])),
+      asset: Schema.optional(ImageAsset),
     }),
   }),
   node('Table', { children: blocksOf('TableRow') }),
@@ -127,6 +133,24 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
  * policy, but a document also arrives decoded, synchronized, or edited through `SetMark`,
  * and this is where a `javascript:` href would become live.
  */
+const decodeAsset = Schema.decodeUnknownOption(ImageAsset)
+
+/**
+ * An image's `width` and `height` from its facts, at the width it is drawn when it has one,
+ * so the page keeps the box before the file arrives; none without facts.
+ */
+const boxOf = (asset: unknown, drawn: unknown): Readonly<Record<string, string>> =>
+  Option.match(decodeAsset(asset), {
+    onNone: () => ({}),
+    onSome: ({ width, height }) => {
+      const shown = typeof drawn === 'number' && drawn > 0 ? drawn : width
+      return {
+        width: String(Math.round(shown)),
+        height: String(Math.round((shown * height) / width)),
+      }
+    },
+  })
+
 const urlAttribute = (name: string, value: unknown): Readonly<Record<string, string>> => {
   const safe = typeof value === 'string' ? safeUrl(value) : undefined
   return safe === undefined ? {} : { [name]: safe }
@@ -173,6 +197,7 @@ export const standardRendering: Rendering = rendering({
       attributes: {
         ...urlAttribute('src', block.props.src),
         alt: String(block.props.alt ?? ''),
+        ...boxOf(block.props.asset, block.props.width),
       },
     }),
     Table: { tag: 'table', attributes: {}, inner: 'tbody' },
