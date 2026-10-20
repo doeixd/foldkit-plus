@@ -2909,6 +2909,9 @@ importers:
       foldkit-guard:
         specifier: workspace:*
         version: link:../guard
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../media
       foldkit-metadata:
         specifier: workspace:*
         version: link:../metadata

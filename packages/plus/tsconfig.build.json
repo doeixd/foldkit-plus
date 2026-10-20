@@ -24,6 +24,7 @@
     { "path": "../entity/tsconfig.build.json" },
     { "path": "../form/tsconfig.build.json" },
     { "path": "../guard/tsconfig.build.json" },
+    { "path": "../media/tsconfig.build.json" },
     { "path": "../metadata/tsconfig.build.json" },
     { "path": "../mirror/tsconfig.build.json" },
     { "path": "../mixins/tsconfig.build.json" },

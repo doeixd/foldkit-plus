@@ -43,7 +43,8 @@ export const packageSource = (packageDir: string): Option.Option<PackageSource> 
   }
   const entries = Object.entries(exports).flatMap(([subpath, target]) => {
     const file = isRecord(target) ? target[sourceCondition] : undefined
-    if (typeof file !== 'string' || !file.endsWith('.ts')) return []
+    // A declaration file (`foldkit-media/client`'s ambient `?image` type) declares no module's API.
+    if (typeof file !== 'string' || !file.endsWith('.ts') || file.endsWith('.d.ts')) return []
     return [
       {
         specifier: subpath === '.' ? name : name + subpath.slice(1),

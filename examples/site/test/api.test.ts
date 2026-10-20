@@ -17,6 +17,7 @@ const fixture = {
       '.': { 'foldkit-plus:source': './src/index.ts' },
       './extra/tools': { 'foldkit-plus:source': './src/tools.ts' },
       './styles': { 'foldkit-plus:source': './src/style.css' },
+      './client': { 'foldkit-plus:source': './client.d.ts', types: './client.d.ts' },
       './package.json': './package.json',
     },
   }),

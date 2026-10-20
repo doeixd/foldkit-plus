@@ -20,10 +20,6 @@ performs no I/O.
 - **Which variant a page shows** is the browser's choice, from `srcset` and
   `sizes`. Nothing in your Model decides it.
 
-The design, including the view, the resizing server and the build step still
-to come, is in
-[docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).
-
 ## The model
 
 ```text

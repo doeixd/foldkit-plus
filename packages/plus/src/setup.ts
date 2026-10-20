@@ -120,6 +120,11 @@ export const jobs: ReadonlyArray<{
     guide: 'richtext',
   },
   { job: 'Server rendering that hands the Model over', imports: ['ssr'], guide: 'ssr' },
+  {
+    job: 'Responsive images, their variants and placeholders, and icons as data',
+    imports: ['media'],
+    guide: 'media',
+  },
   { job: 'Route topology as data: nodes, typed targets, titles', imports: ['site'], guide: 'site' },
   {
     job: 'What an AI agent may see and do, over MCP, WebMCP, A2A or Agent Native',

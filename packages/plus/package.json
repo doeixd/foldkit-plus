@@ -188,6 +188,41 @@
       "types": "./dist/guard/sync.d.mts",
       "import": "./dist/guard/sync.mjs"
     },
+    "./media": {
+      "foldkit-plus:source": "./src/media.ts",
+      "types": "./dist/media.d.mts",
+      "import": "./dist/media.mjs"
+    },
+    "./media/icons": {
+      "foldkit-plus:source": "./src/media/icons.ts",
+      "types": "./dist/media/icons.d.mts",
+      "import": "./dist/media/icons.mjs"
+    },
+    "./media/server": {
+      "foldkit-plus:source": "./src/media/server.ts",
+      "types": "./dist/media/server.d.mts",
+      "import": "./dist/media/server.mjs"
+    },
+    "./media/cloudflare": {
+      "foldkit-plus:source": "./src/media/cloudflare.ts",
+      "types": "./dist/media/cloudflare.d.mts",
+      "import": "./dist/media/cloudflare.mjs"
+    },
+    "./media/sharp": {
+      "foldkit-plus:source": "./src/media/sharp.ts",
+      "types": "./dist/media/sharp.d.mts",
+      "import": "./dist/media/sharp.mjs"
+    },
+    "./media/unpic": {
+      "foldkit-plus:source": "./src/media/unpic.ts",
+      "types": "./dist/media/unpic.d.mts",
+      "import": "./dist/media/unpic.mjs"
+    },
+    "./media/vite": {
+      "foldkit-plus:source": "./src/media/vite.ts",
+      "types": "./dist/media/vite.d.mts",
+      "import": "./dist/media/vite.mjs"
+    },
     "./metadata": {
       "foldkit-plus:source": "./src/metadata.ts",
       "types": "./dist/metadata.d.mts",
@@ -525,6 +560,7 @@
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
     "foldkit-guard": "workspace:*",
+    "foldkit-media": "workspace:*",
     "foldkit-metadata": "workspace:*",
     "foldkit-mirror": "workspace:*",
     "foldkit-mixins": "workspace:*",

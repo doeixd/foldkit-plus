@@ -241,6 +241,14 @@ export const subsites: ReadonlyArray<Subsite> = [
     shelf: 'Delivery',
     packages: ['ssr'],
   }),
+  family({
+    id: 'media',
+    title: 'Media',
+    tagline: 'Responsive images as URLs to write, and icons as data.',
+    owner: "the image's source; variants are a cache",
+    shelf: 'Delivery',
+    packages: ['media'],
+  }),
   family(
     {
       id: 'site',
@@ -304,5 +312,5 @@ export const shelves: ReadonlyArray<{ readonly shelf: Shelf; readonly about: str
   },
   { shelf: 'Data', about: 'Data owned outside the page: by a server, a log or the URL.' },
   { shelf: 'Screens', about: 'Forms, tables, content and editors.' },
-  { shelf: 'Delivery', about: 'Server rendering, routing, AI agents and React.' },
+  { shelf: 'Delivery', about: 'Server rendering, routing, images, AI agents and React.' },
 ]

@@ -35,4 +35,10 @@ export default [
     "library === 'foldkit'",
     'false',
   ),
+  edit(
+    'a declaration file re-exported as an entry point',
+    '../scripts/entries.ts',
+    "|| source.endsWith('.d.ts'))",
+    ')',
+  ),
 ]

@@ -64,7 +64,9 @@ export const included = (root: string): ReadonlyArray<Included> =>
       )
       const entries = Object.entries(manifest.exports ?? {}).flatMap(([subpath, target]) => {
         const source = isRecord(target) ? target['foldkit-plus:source'] : undefined
-        if (typeof source !== 'string' || !source.endsWith('.ts')) return []
+        // A declaration file (`foldkit-media/client`'s ambient `?image` type) is no module to re-export.
+        if (typeof source !== 'string' || !source.endsWith('.ts') || source.endsWith('.d.ts'))
+          return []
         return [
           subpath === '.'
             ? { subpath: dir, specifier: manifest.name }

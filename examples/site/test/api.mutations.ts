@@ -16,7 +16,12 @@ export default [
     "manifest['private'] === true) return",
     "manifest['private'] === 'never') return",
   ),
-  one('a stylesheet entry is read', "!file.endsWith('.ts')) return []", 'false) return []'),
+  one('a stylesheet entry is read', "!file.endsWith('.ts') ||", 'false ||'),
+  one(
+    'a declaration file is read as an entry',
+    "|| file.endsWith('.d.ts')) return []",
+    ') return []',
+  ),
   one('a link keeps no backticks', "return label === '' ? `\\`${name}\\`` : label", 'return name'),
   one('@returns lands in tags', '} else if (!ts.isJSDocReturnTag(tag)) {', '} else {'),
   one("an entry's first declaration's doc reads as the file's", "if (ownsIt) return ''", ''),
