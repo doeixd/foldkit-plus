@@ -5,7 +5,7 @@ layers; `Image` in `foldkit-mixins-ui`). Written 2026-10-20; revised the same
 day for Cloudflare as the reference deployment and for how each part sits on
 Foldkit, Foldkit Plus and Effect (§9–§13), and again after steps 1 to 4 for
 prerendering, layout stability, caching and stores, abuse limits, recipes and
-primitives (§18–§24), which reorder §16. Code in this document is a sketch against
+primitives (§18–§24) and response headers (§25), which reorder §16. Code in this document is a sketch against
 today's APIs and has not been compiled; names marked *probe* rest on library or
 platform behaviour that must be checked against the installed version before
 anything is built on it.
@@ -693,11 +693,13 @@ Steps 1 to 4 are built: the core, the hosted endpoint, the view (with
 `Picture.preload`, `Image.watchLoad` and Avatar's derived picture), and the
 server on Cloudflare. Building them, and probing Effect, `foldkit-ssr`,
 miniflare and the Images binding along the way, changed the plan from here.
-§18 to §24 hold the reasons; this is the order.
+§18 to §25 hold the reasons; this is the order.
 
-5. **Corrections to what is built** (§18). The hash-first path, the quality
-   ladder, the unavailable frame's box, the placeholder level, and the focal
-   point. Small and breaking, so before anything depends on them.
+5. **Corrections to what is built** (§18, §25). The hash-first path, the
+   quality ladder, the unavailable frame's box, the placeholder level, the
+   focal point, and the response headers (`headersFor`: a cache lifetime for
+   every error, `ETag` and 304, CORS, `nosniff`, `Server-Timing`). Small and
+   breaking, so before anything depends on them.
 6. **Stores on `KeyValueStore`** (§22). `Variants` and `Originals` over any
    Effect `KeyValueStore`, a `KeyValueStore` over R2, then the Node host: a
    sharp `Transformer`, a `Semaphore` over it, and sharing a pending transform
@@ -705,8 +707,9 @@ miniflare and the Images binding along the way, changed the plan from here.
 7. **Admission** (§23). Rate limits on misses only, through Effect's
    `RateLimiter` on Node and Cloudflare's `ratelimits` binding in the example.
 8. **Prerendering** (§19). `Image.preloadsIn` as a `Head`, an `emit` hook in
-   `foldkit-ssr`'s `staticSite` and `Media.materialize` on it, facts for images
-   named only by URL, and `Picture.ogImage`.
+   `foldkit-ssr`'s `staticSite` and `Media.materialize` on it with the
+   `_headers` rules it needs (§25.3), facts for images named only by URL, and
+   `Picture.ogImage`.
 9. **Stability, recipes and primitives** (§20, §21, §24). A layout-shift
    browser test over every guard, the recipe axes, `Figure`, the image
    preload Command, and the development audit.
@@ -1010,3 +1013,71 @@ Avatar recipe's size tokens, so an `AvatarPicture`'s width is not written twice.
   The development audit (§21) is the one consumer, through a
   `PerformanceObserver`.
 - **Breakpoints**: `Image.sizes(theme, …)` reads `breakpointWidths` (§6).
+
+## 25. Response headers
+
+Built today: a variant is sent with its `content-type` and
+`public, max-age=31536000, immutable`; an error is sent with no cache header
+at all. That leaves four gaps: an error is either cached by a browser's own
+heuristics or asked for again forever; nothing answers a revalidation with a
+304; an `img` with `crossorigin` (a canvas, the `ImageCropper`) cannot read the
+pixels; and a variant written out at build (§19.2) is served by Pages with
+`max-age=0, must-revalidate`, its default, so every return visit asks again
+for every image (the CMS sandbox's `public/_headers` exists for that reason).
+
+### 25.1 By response
+
+| Response | `Cache-Control` | Also |
+| --- | --- | --- |
+| 200, a variant | `public, max-age=31536000, immutable` | `ETag: "<hash>/<spelling>"`; the shared headers below |
+| 304, a variant revalidated | as the 200 | Answered from the `If-None-Match` alone, before `Variants` is read: the URL names the bytes |
+| 400, a URL off the ladder or malformed | `public, max-age=31536000, immutable` | It is wrong for good, so the edge may keep the refusal and spare the server |
+| 404, no original under this hash | `public, max-age=60` (edge), `no-store` to the browser | An upload may yet put it there; a short edge entry blunts a crawler |
+| 413, the original too large | `public, max-age=31536000, immutable` | The bytes are fixed, so is the answer |
+| 429, rate limited | `no-store` | `Retry-After` |
+| 502, the transform failed | `no-store` | May be transient |
+| 503, the allowance spent or the CPU queue full | `no-store` | `Retry-After` |
+| 200, a remote original's variant (allowlisted URL, no hash) | `public, max-age=86400, stale-while-revalidate=604800` | `ETag` from the upstream's `ETag` and the spelling, revalidated upstream with `If-None-Match` |
+
+The 404's two lifetimes are the case for `CDN-Cache-Control`, which a CDN
+reads in place of `Cache-Control` and a browser ignores
+(`Cloudflare-CDN-Cache-Control` for Cloudflare alone). On a Worker the edge is
+the Cache API, which `Media` fills itself, so the server writes both headers
+and the Cache API layer stores what `CDN-Cache-Control` allows.
+
+### 25.2 On every image response
+
+- `X-Content-Type-Options: nosniff`: the type comes from the format in the
+  URL, never a guess.
+- `Access-Control-Allow-Origin: *`: an image drawn with `crossorigin` (a
+  canvas, `ImageCropper`, a colour picker reading a pixel) can be read. Images
+  hold no credentials, so `*` is safe; `Vary: Origin` is not needed and would
+  split the cache.
+- `Cross-Origin-Resource-Policy: cross-origin`: a page isolated with
+  `Cross-Origin-Embedder-Policy` can still embed them.
+- `Timing-Allow-Origin: *`: the development audit (§21) and real-user
+  monitoring read an image's transfer size and timing.
+- `Server-Timing: media;desc="edge" | "kept" | "made"`: where the answer came
+  from. Tests assert caching through it instead of reading the store, and an
+  operator sees a cold cache in the browser's network panel.
+- **No `Vary`.** The format is in the URL (§7.1), so nothing varies on
+  `Accept`. A test asserts that no layer adds one.
+
+### 25.3 Static hosts
+
+`Media.materialize` (§19.2) writes files but cannot write their headers. It
+returns them as rules instead, `Media.headers()`: the lines a Pages
+`_headers` file (or a Netlify one, the same format) needs for `/_image/*`, as
+in §25.2 with the 200's `Cache-Control`. The host owns its one `_headers` file,
+so the application includes the lines; the build fails when `/_image/` files
+were written and the output's `_headers` has no rule for them. `?image` imports
+(§11) are emitted under Vite's `/assets/`, which the host's existing assets rule
+already covers.
+
+### 25.4 Where it is decided
+
+One function, `headersFor(answer)`, maps each answer of the handler (a variant
+made, kept or served from the edge; each error) to its headers, used by the
+handler, by the Cache API layer when it stores, and by `Media.headers()`. The
+table above is its test, row by row, so the server, the edge and a static host
+cannot disagree.
