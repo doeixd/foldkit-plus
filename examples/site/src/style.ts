@@ -1018,6 +1018,13 @@ export const SiteStyle = slots(
     },
     knobValue: { ...mono, color: t.text.default, fontVariantNumeric: 'tabular-nums' },
     presets: { display: 'flex', flexWrap: 'wrap', gap: t.space['2xs'] },
+    iconSpecimen: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: t.space.sm,
+      fontSize: '1.25rem',
+      color: t.text.default,
+    },
     canvasColumn: { display: 'flex', flexDirection: 'column', gap: t.space.sm, minInlineSize: '0' },
     // The preview's own settings: how it reads, not what the theme is.
     previewBar: {

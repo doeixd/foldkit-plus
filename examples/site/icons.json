@@ -1,0 +1,56 @@
+[
+  {
+    "out": "src/gallery/packs/lucide.ts",
+    "as": "pack",
+    "icons": {
+      "search": "lucide:search",
+      "eye": "lucide:eye",
+      "eye-off": "lucide:eye-off",
+      "pipette": "lucide:pipette",
+      "rotate-ccw": "lucide:rotate-ccw",
+      "rotate-cw": "lucide:rotate-cw",
+      "success": "lucide:circle-check",
+      "warning": "lucide:triangle-alert",
+      "error": "lucide:circle-x",
+      "info": "lucide:info",
+      "lock": "lucide:lock",
+      "close": "lucide:x"
+    }
+  },
+  {
+    "out": "src/gallery/packs/tabler.ts",
+    "as": "pack",
+    "icons": {
+      "search": "tabler:search",
+      "eye": "tabler:eye",
+      "eye-off": "tabler:eye-off",
+      "pipette": "tabler:color-picker",
+      "rotate-ccw": "tabler:rotate",
+      "rotate-cw": "tabler:rotate-clockwise",
+      "success": "tabler:circle-check",
+      "warning": "tabler:alert-triangle",
+      "error": "tabler:circle-x",
+      "info": "tabler:info-circle",
+      "lock": "tabler:lock",
+      "close": "tabler:x"
+    }
+  },
+  {
+    "out": "src/gallery/packs/phosphor.ts",
+    "as": "pack",
+    "icons": {
+      "search": "ph:magnifying-glass",
+      "eye": "ph:eye",
+      "eye-off": "ph:eye-slash",
+      "pipette": "ph:eyedropper",
+      "rotate-ccw": "ph:arrow-counter-clockwise",
+      "rotate-cw": "ph:arrow-clockwise",
+      "success": "ph:check-circle",
+      "warning": "ph:warning",
+      "error": "ph:x-circle",
+      "info": "ph:info",
+      "lock": "ph:lock",
+      "close": "ph:x"
+    }
+  }
+]

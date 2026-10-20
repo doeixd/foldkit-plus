@@ -15,6 +15,7 @@
 import { Listbox as UiListbox, Tooltip as UiTooltip } from '@foldkit/ui'
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
+import { Icon as MediaIcon } from 'foldkit-media'
 import { SlotView, Style, type SlotAttributes } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import {
@@ -57,6 +58,8 @@ import {
   knobAt,
   looks,
   presets,
+  packs,
+  Pack,
   sameTheme,
   sectionLabels,
   valueAt,
@@ -495,6 +498,24 @@ const typePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
 ]
 
 const iconsPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  h.div(slots.knob.attrs(), [
+    Segmented.view(
+      {
+        label: 'Icon pack',
+        options: Pack.literals.map(pack => ({ value: pack, label: packs[pack].label })),
+        pressed: [model.pack],
+        onPress: pack => Message.ChosePack({ pack }),
+        style: SegmentedStyle,
+        mixins: Segmented.fluid,
+      },
+      h,
+    ),
+    // The icons the components draw themselves, in the pack chosen.
+    h.div(
+      slots.iconSpecimen.attrs(),
+      Object.values(packs[model.pack].icons).map(icon => MediaIcon.draw(icon, h)),
+    ),
+  ]),
   slider(model, slots, h, 'icon.size'),
   slider(model, slots, h, 'icon.stroke'),
 ]
@@ -644,7 +665,7 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
           h,
           model.copied ? CHECK : COPY,
           model.copied ? 'Copied' : 'Copy theme',
-          Message.PressedCopy({ text: codeOf(model.theme) }),
+          Message.PressedCopy({ text: codeOf(model.theme, model.pack) }),
         ),
         iconButton(
           h,
@@ -695,7 +716,7 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
 }
 
 export const createPage = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
-  const code = codeOf(model.theme)
+  const code = codeOf(model.theme, model.pack)
   return [
     h.section(slots.hero.attrs(), [
       h.h1(slots.heroTitle.attrs(), [

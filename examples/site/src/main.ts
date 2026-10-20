@@ -44,6 +44,7 @@ import * as Widgets from './gallery/widgets.js'
 import {
   Direction,
   KnobPath,
+  Pack,
   Scheme,
   Section,
   ThemeValues,
@@ -86,6 +87,8 @@ export const PageScheme: Schema.Codec<ThemeScheme> = Schema.Literals(['system', 
 const Dark = Bundle.declare(PrefersDark, 'dark')
 const Ticks = Bundle.declare(Timer, 'ticks')
 
+const decodePack = Schema.decodeUnknownOption(Pack)
+
 export const Model = Schema.Struct({
   path: Schema.String,
   page: Page,
@@ -122,6 +125,8 @@ export const Model = Schema.Struct({
   /** `/create`'s knobs, which a narrow screen docks to its bottom. */
   drawer: Drawer.Model,
   scheme: Scheme,
+  /** The icon pack the previews draw the components' own icons in. */
+  pack: Pack,
   pageScheme: PageScheme,
   ...Dark.fields,
   ...Ticks.fields,
@@ -162,6 +167,8 @@ export const Message = defineMessageUnion({
   GotHint: { hint: Hint, message: UiTooltip.Message },
   GotDrawer: { message: Drawer.Message },
   ChoseScheme: { scheme: Scheme },
+  // Text, as a Segmented row hands it over; `update` reads it as a pack.
+  ChosePack: { pack: Schema.String },
   ChoseDirection: { direction: Direction },
   ChosePageScheme: { scheme: PageScheme },
   FoundPageScheme: { scheme: PageScheme },
@@ -498,6 +505,14 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       scheme === model.scheme
         ? { model }
         : { model: modifyFields(model, { scheme: () => scheme }) },
+    ChosePack: ({ pack }) =>
+      Option.match(decodePack(pack), {
+        onNone: () => ({ model }),
+        onSome: chosen =>
+          chosen === model.pack
+            ? { model }
+            : { model: modifyFields(model, { pack: () => chosen }) },
+      }),
     ChosePageScheme: ({ scheme }) =>
       scheme === model.pageScheme
         ? { model }
@@ -653,6 +668,7 @@ export const initial: Model = placements.initial({
   canvasTabs: initialCanvasTabs,
   drawer: Drawer.init({ id: 'theme-panes' }),
   scheme: 'system',
+  pack: 'lucide',
   pageScheme: 'system',
 }).model
 

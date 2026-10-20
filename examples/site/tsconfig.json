@@ -13,6 +13,15 @@
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-example-site/demos": ["./src/demos.ts"],
       "foldkit-example-site/guide": ["./src/guide.ts"],
+      "foldkit-media": ["../../packages/media/src/index.ts"],
+      "foldkit-media/browser": ["../../packages/media/src/browser/index.ts"],
+      "foldkit-media/client": ["../../packages/media/client.d.ts"],
+      "foldkit-media/cloudflare": ["../../packages/media/src/cloudflare/index.ts"],
+      "foldkit-media/icons": ["../../packages/media/src/icons/index.ts"],
+      "foldkit-media/server": ["../../packages/media/src/server/index.ts"],
+      "foldkit-media/sharp": ["../../packages/media/src/sharp/index.ts"],
+      "foldkit-media/unpic": ["../../packages/media/src/unpic/index.ts"],
+      "foldkit-media/vite": ["../../packages/media/src/vite/index.ts"],
       "foldkit-mirror": ["../../packages/mirror/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-surface": ["../../packages/mixins-surface/src/index.ts"],
@@ -56,6 +65,9 @@
   "references": [
     {
       "path": "../../packages/bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/media/tsconfig.build.json"
     },
     {
       "path": "../../packages/primitives/tsconfig.build.json"

@@ -8,7 +8,8 @@
  * every preview (`knobsPlace`), where every token re-derives from them.
  * The site's own look, on `:root`, is never touched.
  */
-import { Schema } from 'effect'
+import { Record, Schema } from 'effect'
+import { Icons } from 'foldkit-mixins-ui'
 import {
   Knobs,
   Theme,
@@ -20,6 +21,9 @@ import {
   type ValueOf,
   type Values,
 } from 'foldkit-mixins/theme'
+import * as lucide from './packs/lucide.js'
+import * as phosphor from './packs/phosphor.js'
+import * as tabler from './packs/tabler.js'
 
 /** `system` follows the reader's color scheme. */
 export const Scheme = Schema.Literals(['system', 'light', 'dark'])
@@ -523,14 +527,69 @@ export const schemeStyleOf = (scheme: Scheme): Record<string, string> => ({
   colorScheme: scheme === 'system' ? 'light dark' : scheme,
 })
 
-/** `values` as the source an application pastes into its style module. */
-export const codeOf = (values: ThemeValues): string =>
-  [
+/** The icon packs `/create` offers for the components' own icons; Lucide's are the theme's. */
+export const Pack = Schema.Literals(['lucide', 'tabler', 'phosphor'])
+export type Pack = typeof Pack.Type
+
+export const packs = {
+  lucide: { label: 'Lucide', ...lucide },
+  tabler: { label: 'Tabler', ...tabler },
+  phosphor: { label: 'Phosphor', ...phosphor },
+} as const satisfies Record<Pack, { readonly label: string }>
+
+// Made once: a pack's masks are the same on every frame.
+const packStyles = Record.map(packs, ({ icons }) =>
+  Object.fromEntries(
+    Object.entries(Icons.tokens(icons).icon).map(([name, mask]) => [
+      `${VAR_PREFIX}-icon-${name}`,
+      mask,
+    ]),
+  ),
+)
+
+/** A preview's icon variables for `pack`: none for Lucide, which the theme already holds. */
+export const packStyleOf = (pack: Pack): Readonly<Record<string, string>> =>
+  pack === 'lucide' ? {} : packStyles[pack]
+
+/** The lines that make `pack` the application's, beside its theme: none for the shipped one. */
+const packLines = (
+  pack: Pack,
+): { readonly imports: ReadonlyArray<string>; readonly tokens: string } => {
+  if (pack === 'lucide') return { imports: [], tokens: '' }
+  const entries = Object.entries(packs[pack].imports)
+  const sets = [...new Set(entries.map(([, from]) => from.set))]
+  return {
+    imports: [
+      "import { Icons } from 'foldkit-mixins-ui'",
+      ...sets.map(
+        set =>
+          `import { ${entries
+            .filter(([, from]) => from.set === set)
+            .map(([, from]) => from.name)
+            .join(', ')} } from 'virtual:foldkit-icons/${set}'`,
+      ),
+    ],
+    tokens: `, tokens: Icons.tokens({ ${entries
+      .map(([name, from]) => {
+        // Quoted only where a key cannot stand bare, as a person would write it.
+        const key = /^[A-Za-z_$][\w$]*$/.test(name) ? name : `'${name}'`
+        return name === from.name ? name : `${key}: ${from.name}`
+      })
+      .join(', ')} })`,
+  }
+}
+
+/** `values`, and the icon pack, as the source an application pastes into its style module. */
+export const codeOf = (values: ThemeValues, pack: Pack = 'lucide'): string => {
+  const icons = packLines(pack)
+  return [
     "import { AppStyle } from 'foldkit-mixins/app'",
     "import { Theme } from 'foldkit-mixins/theme'",
+    ...icons.imports,
     '',
     `const theme = ${Theme.print(Theme.make(values))}`,
     '',
-    'export const { t, slots, forSlots, stylesheet } = AppStyle.make({ theme })',
+    `export const { t, slots, forSlots, stylesheet } = AppStyle.make({ theme${icons.tokens} })`,
     '',
   ].join('\n')
+}

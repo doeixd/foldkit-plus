@@ -46,6 +46,8 @@
     "@effect/platform-browser": "^4.0.4",
     "@effect/sql-pg": "^4.0.4",
     "@iconify-json/lucide": "^1.2.147",
+    "@iconify-json/ph": "^1.2.2",
+    "@iconify-json/tabler": "^1.2.42",
     "@types/node": "^22.20.5",
     "@vitest/browser-playwright": "5.0.4",
     "drizzle-orm": "1.0.0-rc.4",

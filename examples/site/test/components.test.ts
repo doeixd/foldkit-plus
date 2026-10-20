@@ -36,6 +36,12 @@ describe('the component pages', () => {
     )
   })
 
+  it('draws the previews in an icon pack chosen, and ignores one that is no pack', () => {
+    expect(after(initial, Message.ChosePack({ pack: 'phosphor' })).pack).toBe('phosphor')
+    expect(update(initial, Message.ChosePack({ pack: initial.pack })).model).toBe(initial)
+    expect(update(initial, Message.ChosePack({ pack: 'nonsense' })).model).toBe(initial)
+  })
+
   it('turns the page right to left and back', () => {
     const rtl = after(initial, Message.ChoseDirection({ direction: 'rtl' }))
     expect(rtl.direction).toBe('rtl')

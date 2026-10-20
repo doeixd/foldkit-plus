@@ -15,7 +15,7 @@ import {
   type Live,
   type Showcase,
 } from '../gallery/showcases.js'
-import { defaults, sameTheme, schemeStyleOf, type Scheme } from '../gallery/theme.js'
+import { defaults, packStyleOf, sameTheme, schemeStyleOf, type Scheme } from '../gallery/theme.js'
 import { COMPONENTS, CREATE, type Library } from '../library.js'
 import { Message, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
@@ -45,7 +45,7 @@ export const preview = (
   h.div(
     slots.preview.attrs([
       h.DataAttribute('size', size),
-      h.Style(schemeStyleOf(model.scheme)),
+      h.Style({ ...schemeStyleOf(model.scheme), ...packStyleOf(model.pack) }),
       h.Dir(model.direction),
       // A thumbnail only shows: the card's link takes the click, and nothing
       // in it is reached by Tab.

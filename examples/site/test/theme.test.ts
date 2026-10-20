@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Schema } from 'effect'
+import { exportName } from 'foldkit-media/vite'
 import { Theme } from 'foldkit-mixins/theme'
 import { describe, expect, it } from 'vitest'
 
@@ -22,6 +23,8 @@ import {
   knobAt,
   knobPaths,
   looks,
+  packStyleOf,
+  packs,
   presets,
   sameTheme,
   schemeStyleOf,
@@ -51,6 +54,40 @@ describe('the theme creator', () => {
     expect(code).toContain('strength: 40')
     expect(code).toContain('ui-serif')
     expect(codeOf(defaults)).not.toContain('hue')
+  })
+
+  it('writes a pack beside the theme as the icons an application imports, and Lucide as nothing', () => {
+    const code = codeOf(defaults, 'tabler')
+    expect(code).toContain("import { Icons } from 'foldkit-mixins-ui'")
+    expect(code).toContain(
+      "import { search, eye, eyeOff, colorPicker, rotate, rotateClockwise, circleCheck, alertTriangle, circleX, infoCircle, lock, x } from 'virtual:foldkit-icons/tabler'",
+    )
+    expect(code).toContain(
+      "tokens: Icons.tokens({ search, eye, 'eye-off': eyeOff, pipette: colorPicker, 'rotate-ccw': rotate, 'rotate-cw': rotateClockwise, success: circleCheck, warning: alertTriangle, error: circleX, info: infoCircle, lock, close: x })",
+    )
+    expect(codeOf(defaults, 'lucide')).toBe(codeOf(defaults))
+  })
+
+  it('imports each pack icon by a name the icons plugin exports from its set', () => {
+    for (const pack of Object.values(packs)) {
+      for (const { set, name } of Object.values(pack.imports)) {
+        const icons: object = JSON.parse(
+          readFileSync(
+            join(import.meta.dirname, `../../../node_modules/@iconify-json/${set}/icons.json`),
+            'utf8',
+          ),
+        ).icons
+        expect(Object.keys(icons).map(exportName), `${set}:${name}`).toContain(name)
+      }
+    }
+  })
+
+  it('draws a pack’s icons on a preview, and none for the shipped one', () => {
+    expect(packStyleOf('lucide')).toEqual({})
+    const tabler = packStyleOf('tabler')
+    expect(Object.keys(tabler)).toHaveLength(12)
+    expect(tabler['--fk-icon-search']).toMatch(/^url\("data:image\/svg\+xml,/)
+    expect(tabler['--fk-icon-search']).not.toBe(packStyleOf('phosphor')['--fk-icon-search'])
   })
 
   it("draws a preview in the scheme chosen, or the reader's for system", () => {

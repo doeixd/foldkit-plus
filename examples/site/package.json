@@ -38,6 +38,7 @@
     "foldkit-entity": "workspace:*",
     "foldkit-mirror": "workspace:*",
     "foldkit-mixins-surface": "workspace:*",
+    "foldkit-media": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-richtext-code-shiki": "workspace:*",
