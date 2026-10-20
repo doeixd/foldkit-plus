@@ -122,12 +122,18 @@ export const hosted = (
     readonly quality?: number
   } = {},
 ): Provider => {
-  const { baseUrl = '', space = Variant.standard } = options
+  const { baseUrl: askedBaseUrl = '', space = Variant.standard } = options
   const fallback = options.fallback ?? space.formats[space.formats.length - 1]!
   const sources = options.sources ?? space.formats.slice(0, -1)
-  if (baseUrl !== '' && !/^https?:\/\/[^/?#]+$/.test(baseUrl)) {
-    throw new Error(`Provider.hosted: "${baseUrl}" is not an origin`)
+  const parsed = Option.liftThrowable((value: string) => new URL(value))(askedBaseUrl)
+  const origin = Option.filter(
+    parsed,
+    url => (url.protocol === 'http:' || url.protocol === 'https:') && askedBaseUrl === url.origin,
+  )
+  if (askedBaseUrl !== '' && Option.isNone(origin)) {
+    throw new Error(`Provider.hosted: "${askedBaseUrl}" is not an origin`)
   }
+  const baseUrl = Option.match(origin, { onNone: () => '', onSome: url => url.origin })
   for (const format of [...sources, fallback]) {
     if (!space.formats.includes(format)) {
       throw new Error(`Provider.hosted: the server's space does not make ${format}`)

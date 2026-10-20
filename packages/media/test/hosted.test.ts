@@ -92,6 +92,10 @@ describe('Provider.hosted', () => {
   it.each([
     ['an origin with a path', { baseUrl: 'https://img.example.com/x' }],
     ['an origin with a trailing slash', { baseUrl: 'https://img.example.com/' }],
+    ['an origin with an empty query', { baseUrl: 'https://img.example.com?' }],
+    ['an origin with an empty fragment', { baseUrl: 'https://img.example.com#' }],
+    ['an invalid host', { baseUrl: 'https://not a host' }],
+    ['an origin with credentials', { baseUrl: 'https://user:secret@img.example.com' }],
     ['a quality outside its space', { quality: 75 }],
     ['a source outside its space', { sources: ['png'] }],
     ['a fallback outside its space', { fallback: 'jpeg' }],
