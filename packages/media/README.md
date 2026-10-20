@@ -404,6 +404,14 @@ the inspector reads, `413` past `maxBytes` or the inspector's pixel limit, and
 not a type a browser sends to another origin without a preflight, and the
 route answers no preflight, a cookie alone cannot upload from another site.
 
+An image a page names only by URL gets its facts from the same route set:
+`GET /_media/facts?url=` reads it with `factsOf`, behind the same
+`UploadPolicy`, and answers them keyed by the URL (`200`). Only `https` on a
+host in `uploadLayer({ facts: { allow } })` is read, and `allow` is empty
+unless given, so a server names every host it fetches. An editor asks it when
+a URL is set, and stores the facts beside the URL. What cannot be read (a host
+not allowed, a missing file, no image) is a `422`, saying only that.
+
 ### Written out at build
 
 A static site needs no server for its hosted images: `materialize` makes every

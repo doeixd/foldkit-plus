@@ -1535,8 +1535,9 @@ import, an older editor) is drawn as an `img`, and a job may fill them later.
 *Built for rich text: the standard `Image`'s optional `asset`; the standard
 rendering's `width`/`height` from it, and `imageBox(props)` for a rendering
 of its own; `foldkit-media/browser`'s `inspectorBrowser`, with which the
-playground reads a dropped file's facts where it was chosen. Not built: the
-facts route, and the CMS block. The CMS's studio edits `src` as a field, so
+playground reads a dropped file's facts where it was chosen; and the facts
+route, `GET /_media/facts?url=` in `UploadApi`, behind the `UploadPolicy`,
+reading only the hosts `facts: { allow }` names. Not built: the CMS block. The CMS's studio edits `src` as a field, so
 facts stored beside it go stale on that edit: its block needs the route, and
 `SetProps` on `src` that clears or refreshes `asset` in the same change,
 before it can carry facts without lying about the box.*

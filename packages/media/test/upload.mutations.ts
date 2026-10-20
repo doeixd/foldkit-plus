@@ -10,7 +10,68 @@ const tests = ['packages/media/test/upload.test.ts']
 export default [
   {
     name: 'anyone may upload',
-    edits: [{ file: route, find: 'yield* policy.admit(request)', replace: '' }],
+    edits: [
+      {
+        file: route,
+        find: "yield* policy.admit(request)\n            if (!(request.headers['content-type']",
+        replace: "if (!(request.headers['content-type']",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'anyone may have a URL read',
+    edits: [
+      {
+        file: route,
+        find: 'yield* policy.admit(request)\n            const url = new URL',
+        replace: 'const url = new URL',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a request naming no URL is read as one',
+    edits: [
+      {
+        file: route,
+        find: 'if (url === null) return refused(',
+        replace: 'if (false) return refused(',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a server that names no host reads one all the same',
+    edits: [
+      {
+        file: route,
+        find: 'allow: options.facts?.allow ?? []',
+        replace: "allow: options.facts?.allow ?? ['images.test']",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an image’s facts are kept by a cache',
+    edits: [
+      {
+        file: headers,
+        find: "Described: (): Record<string, string> => ({ 'cache-control': 'no-store' }),",
+        replace: "Described: (): Record<string, string> => ({ 'cache-control': YEAR }),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a URL that could not be read is kept by a cache',
+    edits: [
+      {
+        file: headers,
+        find: "Unavailable: (): Record<string, string> => ({ 'cache-control': 'no-store' }),",
+        replace: "Unavailable: (): Record<string, string> => ({ 'cache-control': YEAR }),",
+      },
+    ],
     tests,
   },
   {

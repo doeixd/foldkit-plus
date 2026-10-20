@@ -38,6 +38,10 @@ export const Answer = Schema.TaggedUnion({
   Forbidden: {},
   /** An upload that is not an image the server reads. */
   Unsupported: {},
+  /** The facts of an image named by URL; the facts are the body. */
+  Described: {},
+  /** No facts could be read for that URL: a host not allowed, a read that failed, no image. */
+  Unavailable: {},
 })
 export type Answer = typeof Answer.Type
 
@@ -67,6 +71,8 @@ export const statusOf: (answer: Answer) => number = Answer.match({
   Uploaded: () => 201,
   Forbidden: () => 403,
   Unsupported: () => 415,
+  Described: () => 200,
+  Unavailable: () => 422,
 })
 
 /**
@@ -107,6 +113,8 @@ export const headersFor = (answer: Answer): Readonly<Record<string, string>> => 
     Uploaded: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
     Forbidden: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
     Unsupported: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
+    Described: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
+    Unavailable: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
   }),
 })
 

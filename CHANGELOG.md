@@ -86,7 +86,9 @@ version changed; `pnpm` skips versions already in the registry.
   `foldkit-media/server`'s upload route (`uploadLayer`, `serveUploadFetch`): `POST /_media/upload`
   takes an `image/*` body under a byte cap, keeps it by its SHA-256 in `Uploads`
   (`uploadsKeyValueStore`, `foldkit-media/cloudflare`'s `uploadsR2`), and answers its facts as an
-  `ImageAsset`; who may upload is a required `UploadPolicy`, asked before the body is read.
+  `ImageAsset`; who may upload is a required `UploadPolicy`, asked before the body is read. `GET
+  /_media/facts?url=`, behind the same policy, answers the facts of an image named by URL through
+  `factsOf`, from the hosts `facts: { allow }` names (none by default), or a `422`.
 - `foldkit-media`: `Icon.draw(icon, h, { key?, size? })` draws an `IconData` as inline SVG through
   any view builder of its shape (`SvgBuilder`; Foldkit's `h` is one), every attribute in the
   server's markup, `1em` square unless `size` is given and kept so in a squeezed flex row,

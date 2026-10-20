@@ -13,11 +13,18 @@ import { ImageAsset } from '../asset.js'
 import { describe, type Inspector } from '../describe.js'
 import { fetchOf } from './handlers.js'
 import { OriginalTooLarge } from './errors.js'
+import { factsOf, type FactsOptions } from './facts.js'
 import { Answer, headersFor, statusOf } from './headers.js'
 
-/** The upload route's API, apart from `MediaApi`, so the variant server needs none of its services. */
+/**
+ * Where an original's facts enter, apart from `MediaApi`, so the variant server needs none of
+ * its services: an upload, and the facts of an image named by URL.
+ */
 export const UploadApi = HttpApi.make('foldkit-media-upload').add(
-  HttpApiGroup.make('uploads').add(HttpApiEndpoint.post('upload', '/_media/upload')),
+  HttpApiGroup.make('uploads').add(
+    HttpApiEndpoint.post('upload', '/_media/upload'),
+    HttpApiEndpoint.get('facts', '/_media/facts'),
+  ),
 )
 
 /** Keeps an uploaded original under its content hash: the one writer of what `Originals` reads. */
@@ -54,6 +61,11 @@ const DEFAULT_MAX_BYTES = 20 * 1024 * 1024
 export interface UploadOptions {
   /** The largest upload read, in bytes; a larger one is a 413, read no further. */
   readonly maxBytes?: number
+  /**
+   * How `GET /_media/facts?url=` reads an image named by URL (`factsOf`): the hosts it may
+   * fetch from, and a cache. No hosts unless given, so a server names every host it reads.
+   */
+  readonly facts?: Omit<FactsOptions, 'allow'> & { readonly allow?: ReadonlyArray<string> }
 }
 
 const answered = (answer: Answer, body: unknown) =>
@@ -103,29 +115,47 @@ export const uploadHandlers = (options: UploadOptions = {}) => {
       const uploads = yield* Uploads
       const policy = yield* UploadPolicy
       const services = yield* Effect.context<Inspector>()
-      return group.handle('upload', ({ request }) =>
-        Effect.gen(function* () {
-          yield* policy.admit(request)
-          if (!(request.headers['content-type'] ?? '').startsWith('image/')) {
-            return refused(Answer.cases.Unsupported.make({}))
-          }
-          const bytes = yield* bodyOf(request, maxBytes)
-          const described = yield* describe('upload', bytes)
-          const hash = Option.getOrThrow(described.hash)
-          yield* uploads.put(hash, bytes)
-          return answered(Answer.cases.Uploaded.make({}), encode({ ...described, key: hash }))
-        }).pipe(
-          Effect.provide(services),
-          Effect.catchTags({
-            UploadForbidden: () => Effect.succeed(refused(Answer.cases.Forbidden.make({}))),
-            OriginalTooLarge: () => Effect.succeed(refused(Answer.cases.TooLarge.make({}))),
-            TransformFailed: () => Effect.succeed(refused(Answer.cases.Unsupported.make({}))),
-            // The body broke off or could not be read: the request's fault, not the server's.
-            HttpServerError: () => Effect.succeed(refused(Answer.cases.Malformed.make({}))),
-          }),
-          Effect.withSpan('Media.upload'),
-        ),
-      )
+      const facts = { ...options.facts, allow: options.facts?.allow ?? [] }
+      return group
+        .handle('upload', ({ request }) =>
+          Effect.gen(function* () {
+            yield* policy.admit(request)
+            if (!(request.headers['content-type'] ?? '').startsWith('image/')) {
+              return refused(Answer.cases.Unsupported.make({}))
+            }
+            const bytes = yield* bodyOf(request, maxBytes)
+            const described = yield* describe('upload', bytes)
+            const hash = Option.getOrThrow(described.hash)
+            yield* uploads.put(hash, bytes)
+            return answered(Answer.cases.Uploaded.make({}), encode({ ...described, key: hash }))
+          }).pipe(
+            Effect.provide(services),
+            Effect.catchTags({
+              UploadForbidden: () => Effect.succeed(refused(Answer.cases.Forbidden.make({}))),
+              OriginalTooLarge: () => Effect.succeed(refused(Answer.cases.TooLarge.make({}))),
+              TransformFailed: () => Effect.succeed(refused(Answer.cases.Unsupported.make({}))),
+              // The body broke off or could not be read: the request's fault, not the server's.
+              HttpServerError: () => Effect.succeed(refused(Answer.cases.Malformed.make({}))),
+            }),
+            Effect.withSpan('Media.upload'),
+          ),
+        )
+        .handle('facts', ({ request }) =>
+          Effect.gen(function* () {
+            yield* policy.admit(request)
+            const url = new URL(request.url, 'http://media.invalid').searchParams.get('url')
+            if (url === null) return refused(Answer.cases.Malformed.make({}))
+            return answered(Answer.cases.Described.make({}), encode(yield* factsOf(url, facts)))
+          }).pipe(
+            Effect.provide(services),
+            Effect.catchTags({
+              UploadForbidden: () => Effect.succeed(refused(Answer.cases.Forbidden.make({}))),
+              // Why stays in the server: a host refused, a read failed, a file that is no image.
+              FactsUnavailable: () => Effect.succeed(refused(Answer.cases.Unavailable.make({}))),
+            }),
+            Effect.withSpan('Media.facts'),
+          ),
+        )
     }),
   )
 }

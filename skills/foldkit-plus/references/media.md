@@ -109,7 +109,9 @@ Uploads: `uploadLayer({ maxBytes? })` (or `serveUploadFetch({ layer })` in a
 Worker) serves `POST /_media/upload`: an `image/*` body, read under the byte
 cap, described, kept under its SHA-256 by `Uploads` (`uploadsKeyValueStore()`,
 `uploadsR2(bucket)`, where `Originals` reads) and answered as an `ImageAsset`
-(201). `UploadPolicy` is required and asked first (`UploadForbidden`, 403);
+(201), and `GET /_media/facts?url=` answers the facts of an image named by URL through
+`factsOf`, from the hosts `uploadLayer({ facts: { allow } })` names (none by default; 422 for
+one it cannot read). `UploadPolicy` is required and asked first by both (`UploadForbidden`, 403);
 the application registers the facts in its own data.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),

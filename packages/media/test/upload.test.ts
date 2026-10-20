@@ -19,6 +19,7 @@ import {
   serveUploadFetch,
   uploadLayer,
   uploadsKeyValueStore,
+  type UploadOptions,
   variantsKeyValueStore,
 } from 'foldkit-media/server'
 import { inspectorSharp, transformerSharp } from 'foldkit-media/sharp'
@@ -40,7 +41,7 @@ const policy = () => {
   return { asked, service }
 }
 
-const server = () => {
+const server = (facts: UploadOptions['facts'] = {}) => {
   const allowed = policy()
   const kept = new Map<string, Uint8Array>()
   // One memory store under both routes, watched so a test sees what was kept.
@@ -64,7 +65,7 @@ const server = () => {
     }),
   ).pipe(Layer.provide(KeyValueStore.layerMemory))
   const { handler } = HttpRouter.toWebHandler(
-    Layer.mergeAll(uploadLayer({ maxBytes: MAX_BYTES }), layer()).pipe(
+    Layer.mergeAll(uploadLayer({ maxBytes: MAX_BYTES, facts }), layer()).pipe(
       Layer.provide(
         Layer.mergeAll(
           uploadsKeyValueStore(),
@@ -93,6 +94,7 @@ const server = () => {
   return {
     upload,
     get: (path: string) => handler(new Request(`http://media.test${path}`)),
+    handle: (request: Request) => handler(request),
     kept,
     asked: allowed.asked,
   }
@@ -211,4 +213,67 @@ describe('the upload route', () => {
     expect((await upload(streamed)).status).toBe(413)
     expect(kept.size).toBe(0)
   })
+})
+
+describe('the facts route', () => {
+  /** An allowed host serving one PNG, and the URLs it was asked for. */
+  const host = async () => {
+    const bytes = new Uint8Array(await png())
+    const asked: Array<string> = []
+    const fetch = async (request: Request) => {
+      asked.push(request.url)
+      return new URL(request.url).pathname === '/hero.png'
+        ? new Response(bytes, { headers: { 'content-type': 'image/png' } })
+        : new Response('missing', { status: 404 })
+    }
+    return { asked, facts: { allow: ['images.test'], fetch } }
+  }
+  const factsOf = (served: ReturnType<typeof server>, url: string, authorization = 'Bearer ok') =>
+    served.handle(
+      new Request(`http://media.test/_media/facts?url=${encodeURIComponent(url)}`, {
+        headers: { authorization },
+      }),
+    )
+
+  it('answers the facts of an image on an allowed host, keyed by its URL', async () => {
+    const { facts } = await host()
+    const response = await factsOf(server(facts), 'https://images.test/hero.png')
+    expect([response.status, response.headers.get('cache-control')]).toEqual([200, 'no-store'])
+    const asset = Schema.decodeUnknownSync(ImageAsset)(await response.json())
+    expect([asset.key, asset.width, asset.height]).toEqual([
+      'https://images.test/hero.png',
+      400,
+      200,
+    ])
+  }, 60_000)
+
+  it.each([
+    ['a host not allowed', 'https://elsewhere.test/hero.png', 'Bearer ok', 422, 'Unavailable'],
+    ['an image that is not there', 'https://images.test/gone.png', 'Bearer ok', 422, 'Unavailable'],
+    ['a request the policy refuses', 'https://images.test/hero.png', 'Bearer no', 403, 'Forbidden'],
+  ])(
+    'refuses %s, saying only its kind',
+    async (_, url, authorization, status, error) => {
+      const { asked, facts } = await host()
+      const response = await factsOf(server(facts), url, authorization)
+      expect([
+        response.status,
+        response.headers.get('cache-control'),
+        await response.json(),
+      ]).toEqual([status, 'no-store', { error }])
+      if (status === 403 || url.includes('elsewhere')) expect(asked).toEqual([])
+    },
+    60_000,
+  )
+
+  it('refuses a request naming no URL, and every URL when it allows no host', async () => {
+    const { facts } = await host()
+    const named = server(facts).handle(
+      new Request('http://media.test/_media/facts', { headers: { authorization: 'Bearer ok' } }),
+    )
+    expect((await named).status).toBe(400)
+    expect(
+      (await factsOf(server({ fetch: facts.fetch }), 'https://images.test/hero.png')).status,
+    ).toBe(422)
+  }, 60_000)
 })
