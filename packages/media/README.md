@@ -85,6 +85,12 @@ Option.map(picture, ({ img }) => img.srcset)
   already wrote, as a table of `{ width, format, url }`. Its ladder is the
   widths it has; a variant it lacks is left out of `srcset`.
 
+- **`Provider.hosted({ baseUrl?, widths?, sources?, fallback?, quality? })`** —
+  this package's own server, for originals no CDN can fetch. A variant's URL is
+  `/_image/w640.avif/<sha-256>`: the original is named by its content hash, so
+  an asset without `hash` has no hosted URL. The format is in the URL, so every
+  cache can key on it.
+
 A provider is a plain value (`Provider.Provider`): `widths`, the `sources`
 formats offered before the `img`, the `img`'s own `fallback` encoding, and a
 `url` function answering `Option<string>`.
@@ -109,6 +115,14 @@ transparent pixels once the image loads.
 `fetchpriority="high"`. Every other image is `loading="lazy"` and
 `decoding="async"`, and its `sizes` begins with `auto, `, which lets a browser
 that supports it use the laid-out width.
+
+## The server's API
+
+`foldkit-media/server` exports `makeApi(widths)`, an Effect `HttpApi` with the
+one route `Provider.hosted` writes. Its params decode with `Variant.schema`, the
+Schema the provider encodes with, so a width off the ladder, a leading zero or
+a malformed hash is a 400 before any work. Handlers and hosting come with the
+resizing services.
 
 ## Validation
 

@@ -14,7 +14,8 @@ version changed; `pnpm` skips versions already in the registry.
   every attribute of an image's markup: `srcset` and a `source` per format from one `Widths`
   ladder, `sizes`, the reserved box, loading priority, and a placeholder background (a color, a
   ThumbHash, or the smallest width; none behind a transparent image). Providers: `cdnCgi`
-  (Cloudflare's `/cdn-cgi/image/`) and `fromFiles` (a build's variants). See `docs/design/media-DESIGN.md`.
+  (Cloudflare's `/cdn-cgi/image/`), `fromFiles` (a build's variants) and `hosted` (its own server,
+  whose route `foldkit-media/server`'s `makeApi` declares with the same `Variant` Schema). See `docs/design/media-DESIGN.md`.
 
 ### Changed
 

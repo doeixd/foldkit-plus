@@ -29,6 +29,11 @@
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./server": {
+      "foldkit-plus:source": "./src/server/index.ts",
+      "types": "./dist/server/index.d.mts",
+      "import": "./dist/server/index.mjs"
     }
   },
   "files": [

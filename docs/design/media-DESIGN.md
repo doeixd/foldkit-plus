@@ -391,13 +391,16 @@ class MediaApi extends HttpApi.make('media').add(
 - `Variant`'s decoded side holds a width from the ladder (`widths.Schema`), a
   format literal, and a bounded quality honoured for every format. An unknown
   format is a 400, never a quiet PNG.
-- `Provider.hosted` writes URLs with `HttpApiClient.urlBuilder(MediaApi, {
-  baseUrl })`, which encodes through the same params Schema the server decodes
-  with, so the wire cannot drift. *Probe*: what importing `HttpApiClient` adds
-  to a browser bundle. If it brings the HTTP client along (as a constant from
-  `foldkit/experimental/server` once brought the server renderer), the provider
-  encodes with `Schema.encodeSync` on the params Schema alone, still the one
-  definition.
+- `Provider.hosted` encodes with `Variant.schema(widths)` and fills
+  `Variant.PATH`; `makeApi(widths)` (`foldkit-media/server`) routes the same
+  path and decodes with the same Schema, so the wire cannot drift; a test sends
+  every URL a picture writes through the real router and reads back the request
+  it was written from. *Built.* `HttpApiClient.urlBuilder` was measured and
+  rejected for the browser: over a bundle of Schema alone (78.8 KB gzip), the
+  `HttpApi` definition added 19.9 KB gzip and `urlBuilder` 5.9 KB more, for
+  what one `encodeOption` and a string replace do.
+- A variant is spelled `w640.avif` or `w640q75.webp`, with no leading zero in
+  either number, so one request has one spelling.
 - The originals are keyed by content hash, so a `variant` URL is a pure
   function of bytes and request: it is `public, max-age=31536000, immutable`
   honestly. A `remote` URL holds no hash, so it gets a short `max-age` and an

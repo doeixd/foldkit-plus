@@ -1,6 +1,7 @@
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
 import type { ImageAsset } from './asset.js'
 import type { Encoding, Format } from './format.js'
+import * as Variant from './variant.js'
 import * as Widths from './widths.js'
 
 /** One variant asked of a provider: a ladder width, in an encoding. */
@@ -78,7 +79,7 @@ export const cdnCgi = (
   if (zone !== undefined && !HOSTNAME.test(zone)) {
     throw new Error(`Provider.cdnCgi: "${zone}" is not a host name`)
   }
-  if (quality !== undefined && (!Number.isInteger(quality) || quality < 1 || quality > 100)) {
+  if (quality !== undefined && !Schema.is(Variant.Quality)(quality)) {
     throw new Error(`Provider.cdnCgi: quality ${quality} is not an integer from 1 to 100`)
   }
   const base = zone === undefined ? '' : `https://${zone}`
@@ -98,4 +99,46 @@ const cdnCgiSource = (key: string): string => {
   if (!/^https?:\/\//.test(key)) return key.replace(/^\/+/, '')
   // A query in an absolute source would be read as the image URL's own.
   return key.includes('?') ? encodeURIComponent(key) : key
+}
+
+/**
+ * Our own server's variants (`foldkit-media/server`), at `Variant.PATH` under
+ * `baseUrl`. An original is named by its content hash, so an asset without
+ * one has no hosted URL, and neither has `auto`: this server names the format
+ * in the URL, never reads `Accept`, so every cache can key on the URL alone.
+ */
+export const hosted = (
+  options: {
+    /** The server's origin, such as `https://img.example.com`; omitted, the page's. */
+    readonly baseUrl?: string
+    /** The server's ladder; the same value its handler decodes with. */
+    readonly widths?: Widths.Widths
+    readonly sources?: ReadonlyArray<Format>
+    readonly fallback?: Format
+    readonly quality?: number
+  } = {},
+): Provider => {
+  const { baseUrl = '', widths = Widths.standard, sources = ['avif'], fallback = 'webp' } = options
+  if (baseUrl !== '' && !/^https?:\/\/[^/?#]+$/.test(baseUrl)) {
+    throw new Error(`Provider.hosted: "${baseUrl}" is not an origin`)
+  }
+  const quality = Option.fromNullishOr(options.quality)
+  if (Option.isSome(quality) && !Schema.is(Variant.Quality)(quality.value)) {
+    throw new Error(`Provider.hosted: quality ${quality.value} is not an integer from 1 to 100`)
+  }
+  const encodeVariant = Schema.encodeOption(Variant.schema(widths))
+  return {
+    widths,
+    sources,
+    fallback,
+    url: (asset, { width, encoding }) => {
+      if (encoding === 'auto') return Option.none()
+      return Option.flatMap(asset.hash, hash =>
+        Option.map(
+          encodeVariant({ width, format: encoding, quality }),
+          variant => baseUrl + Variant.PATH.replace(':variant', variant).replace(':hash', hash),
+        ),
+      )
+    },
+  }
 }

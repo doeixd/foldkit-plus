@@ -6,6 +6,7 @@
 const layout = ['packages/media/test/layout.test.ts']
 const provider = ['packages/media/test/provider.test.ts']
 const picture = ['packages/media/test/picture.test.ts']
+const hosted = ['packages/media/test/hosted.test.ts']
 
 export default [
   {
@@ -223,5 +224,57 @@ export default [
       },
     ],
     tests: picture,
+  },
+  {
+    name: 'a variant may be spelled with a leading zero',
+    edits: [
+      {
+        file: '../src/variant.ts',
+        find: String.raw`/^w([1-9]\d{0,4})`,
+        replace: String.raw`/^w(\d{1,5})`,
+      },
+    ],
+    tests: hosted,
+  },
+  {
+    name: 'a quality may be spelled with a leading zero',
+    edits: [
+      {
+        file: '../src/variant.ts',
+        find: String.raw`(?:q([1-9]\d?|100))?`,
+        replace: String.raw`(?:q(\d{1,3}))?`,
+      },
+    ],
+    tests: hosted,
+  },
+  {
+    name: 'a hash may be uppercase',
+    edits: [
+      { file: '../src/variant.ts', find: '/^[0-9a-f]{64}$/', replace: '/^[0-9a-fA-F]{64}$/' },
+    ],
+    tests: hosted,
+  },
+  {
+    name: 'the hosted provider drops its quality',
+    edits: [
+      {
+        file: '../src/provider.ts',
+        find: 'encodeVariant({ width, format: encoding, quality })',
+        replace: 'encodeVariant({ width, format: encoding, quality: Option.none() })',
+      },
+    ],
+    tests: hosted,
+  },
+  {
+    name: 'the hosted provider leaves the hash out',
+    edits: [{ file: '../src/provider.ts', find: ".replace(':hash', hash)", replace: '' }],
+    tests: hosted,
+  },
+  {
+    name: 'any base URL is accepted',
+    edits: [
+      { file: '../src/provider.ts', find: "if (baseUrl !== '' && !", replace: 'if (false && !' },
+    ],
+    tests: hosted,
   },
 ]
