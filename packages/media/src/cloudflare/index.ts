@@ -8,7 +8,7 @@ import type { Cache, ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/work
 import { Effect, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { Admission, RateLimited } from '../server/admission.js'
-import { Inspector } from '../server/describe.js'
+import { Inspector } from '../describe.js'
 import { OriginalNotFound, QuotaExhausted, TransformFailed } from '../server/errors.js'
 import { Originals, Transformer, Variants, type Encoded } from '../server/services.js'
 import { Uploads } from '../server/upload.js'

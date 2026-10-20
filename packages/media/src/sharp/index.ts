@@ -8,7 +8,7 @@ import { availableParallelism } from 'node:os'
 import { Effect, Layer, Option } from 'effect'
 import sharp from 'sharp'
 import { OriginalTooLarge, TransformFailed } from '../server/errors.js'
-import { Inspector } from '../server/describe.js'
+import { Inspector } from '../describe.js'
 import { Transformer, limitTransforms } from '../server/services.js'
 
 // About 50 megapixels: a 9000×5500 photograph decodes; a decompression bomb does not.

@@ -7,7 +7,8 @@
 import { Effect, Exit, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { describe, expect, it } from 'vitest'
-import { Inspector, factsOf, type FactsOptions } from 'foldkit-media/server'
+import { Inspector } from 'foldkit-media'
+import { factsOf, type FactsOptions } from 'foldkit-media/server'
 
 let inspected = 0
 const inspector = Layer.succeed(Inspector, {

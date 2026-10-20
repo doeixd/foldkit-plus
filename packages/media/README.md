@@ -339,6 +339,11 @@ and stored beside it:
   SHA-256, and a ThumbHash where the inspector makes a thumbnail.
 - `inspectorSharp({ maxPixels? })` (Node) reads all of them; alpha is whether
   any pixel is transparent, so an opaque PNG still gets a placeholder.
+- `inspectorBrowser({ maxPixels? })` (`foldkit-media/browser`) reads them in
+  the browser or a web worker, with its own decoder: an editor describes a
+  file a reader dropped, ThumbHash and hash included, before anything is
+  uploaded, and stores its facts beside the image (a rich-text `Image`'s
+  `asset`). What the browser cannot decode is refused.
 - `inspectorImages(binding)` (Cloudflare) reads the size from `info`, which
   costs no transformation. It makes no thumbnail, since the binding's raw
   pixels are not offered offline, and takes every format but JPEG to be

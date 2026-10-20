@@ -21,8 +21,8 @@ import {
   uploadsR2,
   variantsR2,
 } from 'foldkit-media/cloudflare'
-import { Variant } from 'foldkit-media'
-import { Inspector, Originals, Uploads, serveFetch } from 'foldkit-media/server'
+import { Inspector, Variant } from 'foldkit-media'
+import { Originals, Uploads, serveFetch } from 'foldkit-media/server'
 
 interface Env {
   readonly MEDIA: R2Bucket

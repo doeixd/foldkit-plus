@@ -1,7 +1,7 @@
 import { Context, Effect, Option } from 'effect'
 import { rgbaToThumbHash } from 'thumbhash'
-import { Placeholder, type ImageAsset } from '../asset.js'
-import type { OriginalTooLarge, TransformFailed } from './errors.js'
+import { Placeholder, type ImageAsset } from './asset.js'
+import type { OriginalTooLarge, TransformFailed } from './server/errors.js'
 
 /** A picture at most 100 pixels a side, as raw RGBA: what a ThumbHash is made from. */
 export interface Thumbnail {

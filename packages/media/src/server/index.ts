@@ -15,7 +15,6 @@ export {
 export { originalsKeyValueStore, variantsKeyValueStore } from './stores.js'
 export { Admission, RateLimited, admissionRateLimiter } from './admission.js'
 export { headersRule, materialize, type Materialized } from './materialize.js'
-export { Inspector, describe, type Inspected, type Thumbnail } from './describe.js'
 export { FactsUnavailable, factsOf, type FactsOptions } from './facts.js'
 export {
   UploadApi,

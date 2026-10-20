@@ -1,4 +1,5 @@
 export { Focus, ImageAsset, Placeholder } from './asset.js'
+export { Inspector, describe, type Inspected, type Thumbnail } from './describe.js'
 export { Format, mimeType, type Encoding } from './format.js'
 export * as Icon from './icon.js'
 export type { IconData, Stroke, SvgBuilder, SvgNode, SvgTag } from './icon.js'

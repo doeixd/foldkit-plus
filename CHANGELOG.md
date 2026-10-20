@@ -53,7 +53,9 @@ version changed; `pnpm` skips versions already in the registry.
   `admissionRateLimiter` (Effect's `RateLimiter`) or `admissionRateLimit` (a Workers rate-limit
   binding) answers a 429 with `Retry-After`. `materialize` writes the hosted variants a static site's pages
   name, as `foldkit-ssr`'s `emit`, and `headersRule()` is the `_headers` rule they need.
-  `describe` derives an original's facts through an `Inspector` (`inspectorSharp`,
+  `describe` (in the core) derives an original's facts through an `Inspector` (`foldkit-media/browser`'s
+  `inspectorBrowser`, the browser's own decoder, so an editor describes a file where it is chosen;
+  `inspectorSharp`,
   `inspectorImages`), and `factsOf(url)` describes an image named only by URL, from allowed hosts,
   kept and revalidated with its `ETag`. `Icon` holds an icon as data (`IconData`: its `viewBox`,
   what its root paints, its drawing): `Icon.serialize` writes it as one SVG document and

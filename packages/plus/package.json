@@ -193,6 +193,11 @@
       "types": "./dist/media.d.mts",
       "import": "./dist/media.mjs"
     },
+    "./media/browser": {
+      "foldkit-plus:source": "./src/media/browser.ts",
+      "types": "./dist/media/browser.d.mts",
+      "import": "./dist/media/browser.mjs"
+    },
     "./media/icons": {
       "foldkit-plus:source": "./src/media/icons.ts",
       "types": "./dist/media/icons.d.mts",

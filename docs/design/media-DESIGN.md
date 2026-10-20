@@ -935,7 +935,12 @@ miniflare and the Images binding along the way, changed the plan from here.
   output is not supported in local mode" (9520), so a layer using it could not
   be tested. `inspectorImages` makes no thumbnail; a ThumbHash on Workers waits
   on either a PNG output decoded in JavaScript or computing it in the browser
-  at upload.
+  at upload. *The browser half is built: `foldkit-media/browser`'s
+  `inspectorBrowser` reads size, alpha and a thumbnail with the browser's own
+  decoder, so `describe` makes the whole `ImageAsset` where a file is chosen.
+  A Worker upload still answers no placeholder; an editor that described the
+  file first keeps its own placeholder where the server's facts have none
+  (the hash says they are the same bytes).*
 - **`PersistedCache` on Node** (§22.3): whether it can keep successes and not
   failures.
 - **`closeBundle` ordering** (§19.2): whether Vite runs plugins' `closeBundle`

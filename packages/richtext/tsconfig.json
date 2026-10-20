@@ -8,6 +8,7 @@
     "noEmit": false,
     "paths": {
       "foldkit-media": ["../media/src/index.ts"],
+      "foldkit-media/browser": ["../media/src/browser/index.ts"],
       "foldkit-media/client": ["../media/client.d.ts"],
       "foldkit-media/cloudflare": ["../media/src/cloudflare/index.ts"],
       "foldkit-media/icons": ["../media/src/icons/index.ts"],

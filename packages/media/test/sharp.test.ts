@@ -10,13 +10,8 @@ import { createHash } from 'node:crypto'
 import { Effect, Exit, Layer, Option, Ref } from 'effect'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { Variant } from 'foldkit-media'
-import {
-  Transformer,
-  describe as describeOriginal,
-  limitTransforms,
-  serveFetch,
-} from 'foldkit-media/server'
+import { Variant, describe as describeOriginal } from 'foldkit-media'
+import { Transformer, limitTransforms, serveFetch } from 'foldkit-media/server'
 import { inspectorSharp, transformerSharp } from 'foldkit-media/sharp'
 import { memoryStores } from './stores.js'
 

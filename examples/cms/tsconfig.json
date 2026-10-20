@@ -31,6 +31,7 @@
       "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
       "foldkit-guard/sync": ["../../packages/guard/src/sync.ts"],
       "foldkit-media": ["../../packages/media/src/index.ts"],
+      "foldkit-media/browser": ["../../packages/media/src/browser/index.ts"],
       "foldkit-media/client": ["../../packages/media/client.d.ts"],
       "foldkit-media/cloudflare": ["../../packages/media/src/cloudflare/index.ts"],
       "foldkit-media/icons": ["../../packages/media/src/icons/index.ts"],

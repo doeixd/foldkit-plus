@@ -1,7 +1,7 @@
 import { Effect, Option, Schema } from 'effect'
 import type { KeyValueStore } from 'effect/persistence'
 import { ImageAsset } from '../asset.js'
-import { describe, type Inspector } from './describe.js'
+import { describe, type Inspector } from '../describe.js'
 
 /** No facts could be read for the image at `url`; `reason` says why, for the build's report. */
 export class FactsUnavailable extends Schema.TaggedError<FactsUnavailable>()('FactsUnavailable', {

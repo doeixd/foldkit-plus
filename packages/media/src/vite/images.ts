@@ -15,7 +15,7 @@ import { ImageAsset } from '../asset.js'
 import type { Format } from '../format.js'
 import type { Variant } from '../variant.js'
 import * as Widths from '../widths.js'
-import { describe, type Inspector } from '../server/describe.js'
+import { describe, type Inspector } from '../describe.js'
 import { Transformer } from '../server/services.js'
 
 const QUERY = 'image'
