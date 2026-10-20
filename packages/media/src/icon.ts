@@ -102,12 +102,22 @@ interface Prefixed {
 
 const prefixed = new WeakMap<IconData, Prefixed>()
 
+const idPrefix = (prefix: string): string => {
+  if (/^(?!fk_)[A-Za-z0-9_-]+$/.test(prefix)) return prefix
+  let encoded = ''
+  for (let at = 0; at < prefix.length; at++) {
+    encoded += prefix.charCodeAt(at).toString(16).padStart(4, '0')
+  }
+  return `fk_${encoded}`
+}
+
 /**
  * The icon with each id it defines, and each `href` and `url()` naming one,
  * prefixed: two icons drawn inline on one page share the document's ids, and
  * an exported SVG's `id="a"` would otherwise paint another icon's gradient.
- * An icon with no ids is returned as it was given. Kept per icon and prefix,
- * since a view asks again on every render.
+ * A prefix outside an identifier's safe characters is encoded before it
+ * reaches a CSS `url()`. An icon with no ids is returned as it was given.
+ * Kept per icon and prefix, since a view asks again on every render.
  */
 export const prefixIds = (icon: IconData, prefix: string): IconData => {
   const memo = prefixed.get(icon) ?? { ids: idsOf(icon.nodes, new Set()), byPrefix: new Map() }
@@ -116,7 +126,8 @@ export const prefixIds = (icon: IconData, prefix: string): IconData => {
   if (ids.size === 0) return icon
   const known = byPrefix.get(prefix)
   if (known !== undefined) return known
-  const rename = (id: string) => (ids.has(id) ? `${prefix}-${id}` : id)
+  const writtenPrefix = idPrefix(prefix)
+  const rename = (id: string) => (ids.has(id) ? `${writtenPrefix}-${id}` : id)
   const rewriteValue = (name: string, value: string): string => {
     if (name === 'id') return rename(value)
     // The parser admits only a fragment `href`.

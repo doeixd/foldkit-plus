@@ -234,6 +234,15 @@ describe('Icon.key and Icon.prefixIds', () => {
     expect(renamed.nodes[3]!.attributes).toEqual({ fill: 'url(#elsewhere)' })
   })
 
+  it('encodes a prefix that could turn a local paint reference into an external one', () => {
+    const renamed = Icon.prefixIds(gradient, 'copy) url(https://evil.test/paint')
+    const serialized = Icon.serialize(renamed)
+    expect(serialized).not.toContain('evil.test')
+    expect(renamed.attributes.mask).toMatch(/^url\(#fk_[0-9a-f]+-m\)$/)
+    const generated = /^url\(#(fk_[0-9a-f]+)-m\)$/.exec(renamed.attributes.mask!)![1]!
+    expect(Icon.prefixIds(gradient, generated).attributes.mask).not.toBe(renamed.attributes.mask)
+  })
+
   it('keep what they made, and leave an icon with no ids as it is', () => {
     expect(Icon.prefixIds(gradient, 'p')).toBe(Icon.prefixIds(gradient, 'p'))
     expect(Icon.prefixIds(gradient, 'q')).not.toEqual(Icon.prefixIds(gradient, 'p'))

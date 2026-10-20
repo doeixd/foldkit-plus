@@ -165,8 +165,19 @@ export default [
     edits: [
       {
         file: '../src/icon.ts',
-        find: '(ids.has(id) ? `${prefix}-${id}` : id)',
+        find: '(ids.has(id) ? `${writtenPrefix}-${id}` : id)',
         replace: '`${prefix}-${id}`',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an unsafe id prefix reaches a paint reference',
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: 'const writtenPrefix = idPrefix(prefix)',
+        replace: 'const writtenPrefix = prefix',
       },
     ],
     tests,
