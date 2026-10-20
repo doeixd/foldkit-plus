@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/server/index.ts', 'src/cloudflare/index.ts'],
+  entry: ['src/index.ts', 'src/server/index.ts', 'src/cloudflare/index.ts', 'src/sharp/index.ts'],
   format: ['esm'],
   dts: true,
   clean: true,

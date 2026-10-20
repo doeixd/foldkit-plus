@@ -84,7 +84,9 @@ Originals and variants are kept in any Effect `KeyValueStore`
 (`originalsKeyValueStore()`, `variantsKeyValueStore()` over
 `KeyValueStore.layerMemory`, `layerFileSystem` or `layerSql`); on Cloudflare,
 `foldkit-media/cloudflare` gives `keyValueStoreR2`, `originalsR2`,
-`variantsR2` (with the Cache API in front) and `transformerImages`. Variants
+`variantsR2` (with the Cache API in front) and `transformerImages`; on Node,
+`foldkit-media/sharp` gives `transformerSharp` (a pixel limit and a
+concurrency limit), and `layer` coalesces concurrent misses. Variants
 are a cache: a store that fails is answered by making the variant.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),

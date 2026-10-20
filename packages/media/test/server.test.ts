@@ -6,6 +6,7 @@
  * is never kept, and the original is never sent in a variant's place.
  */
 import { Effect, Layer } from 'effect'
+import { HttpRouter, HttpServer } from 'effect/http'
 import { KeyValueStore } from 'effect/persistence'
 import { afterEach, describe, expect, it } from 'vitest'
 import { memoryStores } from './stores.js'
@@ -15,6 +16,7 @@ import {
   QuotaExhausted,
   Transformer,
   TransformFailed,
+  layer,
   serveFetch,
   variantsKeyValueStore,
   type Options,
@@ -270,6 +272,56 @@ describe('serveFetch', () => {
       expect([response.status, await response.text()]).toEqual([200, '640.webp'])
     }
     expect(transforms).toEqual(['640.webp', '640.webp'])
+  })
+
+  describe('coalescing', () => {
+    // A transformer slow enough that three requests overlap.
+    const slow = Layer.succeed(Transformer, {
+      transform: (_original, variant) =>
+        Effect.sleep('30 millis').pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              transforms.push(`${variant.width}.${variant.format}`)
+              return { bytes: bytes('made'), contentType: 'image/webp' }
+            }),
+          ),
+        ),
+    })
+    const three = (fetch: (request: Request) => Promise<Response>) =>
+      Promise.all(
+        [1, 2, 3].map(() => fetch(new Request(`http://media.test/_image/${IMAGE}/w640.webp`))),
+      )
+
+    it.each([
+      ['shares one transform among concurrent misses when asked', true, ['640.webp']],
+      ['makes each miss its own when not', false, ['640.webp', '640.webp', '640.webp']],
+    ])('%s', async (_, coalesce, expected) => {
+      const fetch = serveFetch<object>({
+        coalesce,
+        layer: () => Layer.mergeAll(memoryStores(originals), slow),
+      })
+      // One environment, as a Worker hands every request: a router per environment.
+      const env = {}
+      const answers = await three(request => fetch(request, env))
+      expect(answers.map(answer => answer.status)).toEqual([200, 200, 200])
+      expect(transforms).toEqual(expected)
+    })
+
+    it('is on for a Node server’s layer by default', async () => {
+      const { handler, dispose } = HttpRouter.toWebHandler(
+        layer().pipe(
+          Layer.provide(Layer.mergeAll(memoryStores(originals), slow)),
+          Layer.provide(HttpServer.layerServices),
+        ),
+        { disableLogger: true },
+      )
+      try {
+        await three(request => handler(request))
+        expect(transforms).toEqual(['640.webp'])
+      } finally {
+        await dispose()
+      }
+    })
   })
 
   it('builds its services once per environment', async () => {

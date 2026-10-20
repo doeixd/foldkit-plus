@@ -218,6 +218,33 @@ const stores = Layer.mergeAll(originalsKeyValueStore(), variantsKeyValueStore())
 - `originalsKeyValueStore({ prefix })` reads an original under its hash. A
   store that fails is a 500, not a 404: the original is the data.
 
+### On a Node server
+
+`foldkit-media/sharp` gives the `Transformer` (sharp is an optional peer):
+
+```ts
+const media = layer().pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      transformerSharp({ concurrency: 4, maxPixels: 50_000_000 }),
+      originalsKeyValueStore(),
+      variantsKeyValueStore(),
+    ),
+  ),
+  Layer.provide(KeyValueStore.layerFileSystem('./media')),
+)
+```
+
+- `transformerSharp` reads an original's size from its header before decoding
+  it, and refuses one above `maxPixels` (50 megapixels by default) with a 413,
+  so a small file that inflates to a huge picture never reaches the heap. It
+  never enlarges, and encodes at the URL's quality.
+- At most `concurrency` transforms run at once (the machine's cores by
+  default), through `limitTransforms(n)`, which wraps any `Transformer`.
+- `layer` coalesces: concurrent misses for one variant share one transform
+  and one write (`coalesce`, on by default here and off for `serveFetch`,
+  since a Worker request cannot wait on another's).
+
 ### On Cloudflare
 
 `foldkit-media/cloudflare` gives the three services from a Worker's bindings:

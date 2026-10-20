@@ -39,6 +39,11 @@
       "foldkit-plus:source": "./src/cloudflare/index.ts",
       "types": "./dist/cloudflare/index.d.mts",
       "import": "./dist/cloudflare/index.mjs"
+    },
+    "./sharp": {
+      "foldkit-plus:source": "./src/sharp/index.ts",
+      "types": "./dist/sharp/index.d.mts",
+      "import": "./dist/sharp/index.mjs"
     }
   },
   "files": [
@@ -54,13 +59,20 @@
     "thumbhash": "^0.1.1"
   },
   "peerDependencies": {
-    "effect": "^4.0.0"
+    "effect": "^4.0.0",
+    "sharp": ">=0.34.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261013.1",
     "effect": "^4.0.4",
     "miniflare": "4.20260730.0",
+    "sharp": "^0.35.4",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"
+  },
+  "peerDependenciesMeta": {
+    "sharp": {
+      "optional": true
+    }
   }
 }

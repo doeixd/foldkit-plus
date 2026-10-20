@@ -1,6 +1,11 @@
-import { Context, Effect, Layer, Option } from 'effect'
+import { Context, Effect, Layer, Option, Semaphore } from 'effect'
 import type { Variant } from '../variant.js'
-import type { OriginalNotFound, QuotaExhausted, TransformFailed } from './errors.js'
+import type {
+  OriginalNotFound,
+  OriginalTooLarge,
+  QuotaExhausted,
+  TransformFailed,
+} from './errors.js'
 
 /** An original's bytes, as the store hands them over, and how many there are. */
 export interface Original {
@@ -28,7 +33,8 @@ export class Originals extends Context.Service<
 
 /**
  * Resizes and encodes an original into a variant, never larger than the
- * original (a width above it answers with the original's width).
+ * original (a width above it answers with the original's width). An original
+ * too large to decode is `OriginalTooLarge`, a 413, as one too large to read.
  */
 export class Transformer extends Context.Service<
   Transformer,
@@ -36,7 +42,7 @@ export class Transformer extends Context.Service<
     readonly transform: (
       original: Original,
       variant: Variant,
-    ) => Effect.Effect<Encoded, TransformFailed | QuotaExhausted>
+    ) => Effect.Effect<Encoded, TransformFailed | QuotaExhausted | OriginalTooLarge>
   }
 >()('foldkit-media/Transformer') {}
 
@@ -57,3 +63,24 @@ export const variantsNone: Layer.Layer<Variants> = Layer.succeed(Variants, {
   get: () => Effect.succeed(Option.none()),
   put: () => Effect.void,
 })
+
+/**
+ * A `Transformer` that runs at most `concurrency` transforms at once, the
+ * rest waiting their turn: encoding is CPU work, and a burst of misses should
+ * queue, not starve every other request. For a transformer that encodes in
+ * this process (sharp, WebAssembly); a host's binding does the work elsewhere.
+ */
+export const limitTransforms =
+  (concurrency: number) =>
+  <E, R>(transformer: Layer.Layer<Transformer, E, R>): Layer.Layer<Transformer, E, R> =>
+    Layer.effect(
+      Transformer,
+      Effect.gen(function* () {
+        const inner = yield* Transformer
+        const permits = yield* Semaphore.make(concurrency)
+        return {
+          transform: (original: Original, variant: Variant) =>
+            Semaphore.withPermit(permits)(inner.transform(original, variant)),
+        }
+      }),
+    ).pipe(Layer.provide(transformer))

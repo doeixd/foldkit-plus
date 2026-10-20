@@ -7,10 +7,10 @@ export class OriginalNotFound extends Schema.TaggedError<OriginalNotFound>()(
   { httpApiStatus: 404 },
 ) {}
 
-/** The original is larger than the transformer will read. */
+/** The original is larger than the server will read: in bytes, or in pixels once decoded. */
 export class OriginalTooLarge extends Schema.TaggedError<OriginalTooLarge>()(
   'OriginalTooLarge',
-  { hash: Schema.String, bytes: Schema.Number, limit: Schema.Number },
+  { size: Schema.Number, limit: Schema.Number, unit: Schema.Literals(['bytes', 'pixels']) },
   { httpApiStatus: 413 },
 ) {}
 

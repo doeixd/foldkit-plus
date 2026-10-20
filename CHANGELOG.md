@@ -34,7 +34,9 @@ version changed; `pnpm` skips versions already in the registry.
   `originalsR2`, `transformerImages` (the Images binding) and `variantsR2` (R2 behind the Cache API).
   `examples/cloudflare` serves `/_image/` with them. `Originals` and `Variants` are kept in
   any Effect `KeyValueStore` (`originalsKeyValueStore`, `variantsKeyValueStore`), and
-  `keyValueStoreR2` is an R2 bucket as one.
+  `keyValueStoreR2` is an R2 bucket as one. `foldkit-media/sharp`'s `transformerSharp` serves a Node server: it
+  refuses an original above its pixel limit with a 413 before decoding it, and runs at most
+  `concurrency` transforms (`limitTransforms`); `layer` coalesces concurrent misses for a variant.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

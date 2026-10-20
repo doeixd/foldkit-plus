@@ -9,6 +9,7 @@ const picture = ['packages/media/test/picture.test.ts']
 const hosted = ['packages/media/test/hosted.test.ts']
 const server = ['packages/media/test/server.test.ts']
 const cloudflare = ['packages/media/test/cloudflare.test.ts']
+const sharpTests = ['packages/media/test/sharp.test.ts']
 
 export default [
   {
@@ -289,6 +290,72 @@ export default [
     tests: provider,
   },
   {
+    name: 'transforms are not limited',
+    edits: [
+      {
+        file: '../src/server/services.ts',
+        find: 'Semaphore.withPermit(permits)(inner.transform(original, variant))',
+        replace: 'inner.transform(original, variant)',
+      },
+    ],
+    tests: sharpTests,
+  },
+  {
+    name: 'sharp decodes an original of any size',
+    edits: [
+      {
+        file: '../src/sharp/index.ts',
+        find: 'if (width * height > maxPixels) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: sharpTests,
+  },
+  {
+    name: 'sharp enlarges',
+    edits: [
+      {
+        file: '../src/sharp/index.ts',
+        find: '.resize({ width: variant.width, withoutEnlargement: true })',
+        replace: '.resize({ width: variant.width })',
+      },
+    ],
+    tests: sharpTests,
+  },
+  {
+    name: 'sharp ignores the quality',
+    edits: [
+      {
+        file: '../src/sharp/index.ts',
+        find: 'onSome: quality => ({ quality })',
+        replace: 'onSome: () => ({})',
+      },
+    ],
+    tests: sharpTests,
+  },
+  {
+    name: 'concurrent misses never share',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: '(coalesce ? Cache.get(shared, key) : makeAndKeep(key, hash, variant))',
+        replace: 'makeAndKeep(key, hash, variant)',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a Node server does not coalesce by default',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: 'handlers({ coalesce: true, ...options })',
+        replace: 'handlers(options)',
+      },
+    ],
+    tests: server,
+  },
+  {
     name: 'a space takes any format',
     edits: [
       {
@@ -342,8 +409,8 @@ export default [
     edits: [
       {
         file: '../src/server/handlers.ts',
-        find: 'Effect.tap(made => variants.put(key, made)),',
-        replace: '',
+        find: 'make(hash, variant).pipe(Effect.tap(made => variants.put(key, made)))',
+        replace: 'make(hash, variant)',
       },
     ],
     tests: server,

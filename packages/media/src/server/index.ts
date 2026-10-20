@@ -6,6 +6,7 @@ export {
   Originals,
   Transformer,
   Variants,
+  limitTransforms,
   type Kept,
   variantsNone,
   type Encoded,

@@ -1,4 +1,4 @@
-import { Effect, Layer, Option, Schema } from 'effect'
+import { Cache, Effect, Layer, Option, Schema } from 'effect'
 import { HttpRouter, HttpServer, HttpServerResponse } from 'effect/http'
 import { HttpApiBuilder } from 'effect/http-api'
 import * as Variant from '../variant.js'
@@ -15,6 +15,13 @@ export interface Options {
   readonly space?: Variant.Space
   /** The largest original read, in bytes; larger ones are a 413. */
   readonly maxBytes?: number
+  /**
+   * Concurrent misses for one variant share one transform and one write.
+   * Only where requests may wait on one another's work: on by default for
+   * `layer` (a Node server), off for `serveFetch`, since a Worker request
+   * cannot wake another's.
+   */
+  readonly coalesce?: boolean
 }
 
 const optionsOf = (answer: Answer) => ({ status: statusOf(answer), headers: headersFor(answer) })
@@ -41,7 +48,7 @@ const refused = (answer: Answer) =>
  * variant's place.
  */
 export const handlers = (options: Options = {}) => {
-  const { space = Variant.standard, maxBytes = DEFAULT_MAX_BYTES } = options
+  const { space = Variant.standard, maxBytes = DEFAULT_MAX_BYTES, coalesce = false } = options
   const decodeHash = Schema.decodeUnknownOption(Variant.ContentHash)
   const decodeVariant = Schema.decodeUnknownOption(space.schema)
   const spell = Schema.encodeSync(space.schema)
@@ -54,9 +61,26 @@ export const handlers = (options: Options = {}) => {
       const make = Effect.fn('Media.make')(function* (hash: string, variant: Variant.Variant) {
         const original = yield* originals.get(hash)
         if (original.size > maxBytes) {
-          return yield* new OriginalTooLarge({ hash, bytes: original.size, limit: maxBytes })
+          return yield* new OriginalTooLarge({
+            size: original.size,
+            limit: maxBytes,
+            unit: 'bytes',
+          })
         }
         return yield* transformer.transform(original, variant)
+      })
+      const makeAndKeep = (key: string, hash: string, variant: Variant.Variant) =>
+        make(hash, variant).pipe(Effect.tap(made => variants.put(key, made)))
+      // In flight only: an entry expires as it settles, so nothing is kept here and no failure is remembered.
+      const shared = yield* Cache.make({
+        capacity: 10_000,
+        timeToLive: 0,
+        lookup: (key: string) => {
+          // The key is the hash, a slash, and the spelling: neither holds a slash of its own.
+          const at = key.indexOf('/')
+          const variant = Schema.decodeUnknownSync(space.schema)(key.slice(at + 1))
+          return makeAndKeep(key, key.slice(0, at), variant)
+        },
       })
       const serve = Effect.fn('Media.serve')(function* (
         hash: string,
@@ -70,8 +94,7 @@ export const handlers = (options: Options = {}) => {
         return yield* Option.match(yield* variants.get(key), {
           onSome: ({ encoded, from }) => Effect.succeed(served(etag, from, encoded)),
           onNone: () =>
-            make(hash, variant).pipe(
-              Effect.tap(made => variants.put(key, made)),
+            (coalesce ? Cache.get(shared, key) : makeAndKeep(key, hash, variant)).pipe(
               Effect.map(made => served(etag, 'made', made)),
               Effect.catchTags({
                 OriginalNotFound: () => Effect.succeed(refused(Answer.cases.NotFound.make({}))),
@@ -97,7 +120,7 @@ export const handlers = (options: Options = {}) => {
  * the `HttpRouter`, needing `Originals`, `Transformer` and `Variants`.
  */
 export const layer = (options: Options = {}) =>
-  HttpApiBuilder.layer(MediaApi).pipe(Layer.provide(handlers(options)))
+  HttpApiBuilder.layer(MediaApi).pipe(Layer.provide(handlers({ coalesce: true, ...options })))
 
 /**
  * The media server as a Worker's fetch handler. A Worker's bindings arrive

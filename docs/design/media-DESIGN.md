@@ -979,6 +979,13 @@ platform:
 
 ### 22.3 Sharing a transform on Node
 
+*Built as the handlers' `coalesce` option over an Effect `Cache` with a zero
+time-to-live: concurrent `get`s share a pending lookup, and the entry expires
+as it settles, so it holds work in flight and nothing else, failures
+included (probed). The lookup is the make and the store write together, so
+concurrent misses also write once. On by default for `layer`, off for
+`serveFetch`. `PersistedCache` was not needed.*
+
 Concurrent requests for one missing variant should run one transform. On Node
 an Effect `Cache` keyed by the encoded request does it (its concurrent `get`s
 share a lookup). `PersistedCache` goes further: an in-memory `Cache` over a
@@ -988,6 +995,12 @@ failures; if not, it would remember a 502. On Workers neither is used:
 a request cannot wait on another's fiber there (§10.4).
 
 ## 23. Abuse, cost and rate limits
+
+*Built so far: the CPU bound, as `limitTransforms(n)` over any `Transformer`
+(so a Photon layer, §10.6, would share it), applied by `transformerSharp`; and
+the pixel limit, read from the header before decoding and answered as a 413
+(`OriginalTooLarge` now names its unit, bytes or pixels). `Admission` is
+next.*
 
 The work is bounded before anything is limited:
 

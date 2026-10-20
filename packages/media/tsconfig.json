@@ -9,7 +9,8 @@
     "paths": {
       "foldkit-media": ["./src/index.ts"],
       "foldkit-media/cloudflare": ["./src/cloudflare/index.ts"],
-      "foldkit-media/server": ["./src/server/index.ts"]
+      "foldkit-media/server": ["./src/server/index.ts"],
+      "foldkit-media/sharp": ["./src/sharp/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"]
