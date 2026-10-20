@@ -427,6 +427,15 @@ class MediaApi extends HttpApi.make('media').add(
 
 ### 9.2 Services
 
+*Built: `Originals`, `Transformer` and `Variants`, the handlers, `layer` and
+`serveFetch`, with memory layers; `Coalesce` and the per-runtime layers are
+not yet. The services are resolved once, when the route group is built, and
+closed over: a handler's own requirements would otherwise be per-request ones,
+and a memory store rebuilt each request keeps nothing. So `serveFetch` builds
+one router per Worker environment (a `WeakMap` by `env`). Error responses
+carry no cache header rather than `no-store`: a Worker's response is cached
+only where code puts it, and `Variants` keeps successes alone.*
+
 Each is a `Context.Service`, as the repository declares its services, with a
 Layer per runtime.
 

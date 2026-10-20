@@ -1,6 +1,7 @@
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/http-api'
 import * as Variant from '../variant.js'
 import type { Widths } from '../widths.js'
+import { OriginalNotFound, OriginalTooLarge, QuotaExhausted, TransformFailed } from './errors.js'
 
 /**
  * The media server's HTTP API: one route, a variant of an original named by
@@ -15,6 +16,9 @@ export const makeApi = (widths: Widths) =>
       HttpApiEndpoint.get('variant', Variant.PATH, {
         params: { variant: Variant.schema(widths), hash: Variant.ContentHash },
         success: HttpApiSchema.StreamUint8Array(),
+        error: [OriginalNotFound, OriginalTooLarge, TransformFailed, QuotaExhausted],
       }),
     ),
   )
+
+export type MediaApi = ReturnType<typeof makeApi>

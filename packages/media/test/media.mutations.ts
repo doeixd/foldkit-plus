@@ -7,6 +7,7 @@ const layout = ['packages/media/test/layout.test.ts']
 const provider = ['packages/media/test/provider.test.ts']
 const picture = ['packages/media/test/picture.test.ts']
 const hosted = ['packages/media/test/hosted.test.ts']
+const server = ['packages/media/test/server.test.ts']
 
 export default [
   {
@@ -245,6 +246,55 @@ export default [
     name: 'a preload writes values raw',
     edits: [{ file: '../src/picture.ts', find: '${escapeAttribute(value)}', replace: '${value}' }],
     tests: picture,
+  },
+  {
+    name: 'a variant made is not kept',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: '.pipe(Effect.tap(made => variants.put(key, made)))',
+        replace: '',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'every variant of an original is kept under one key',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: 'const key = `${spell(params.variant)}/${params.hash}`',
+        replace: 'const key = params.hash',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'an original of any size is transformed',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: 'if (original.size > maxBytes) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a variant is served without its cache header',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: "headers: { 'cache-control': IMMUTABLE },",
+        replace: '',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'the router is built for every request',
+    edits: [{ file: '../src/server/handlers.ts', find: 'built.set(env, answer)', replace: '' }],
+    tests: server,
   },
   {
     name: 'a variant may be spelled with a leading zero',

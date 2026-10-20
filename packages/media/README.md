@@ -131,13 +131,37 @@ transparent pixels once the image loads.
 `decoding="async"`, and its `sizes` begins with `auto, `, which lets a browser
 that supports it use the laid-out width.
 
-## The server's API
+## The server
 
-`foldkit-media/server` exports `makeApi(widths)`, an Effect `HttpApi` with the
-one route `Provider.hosted` writes. Its params decode with `Variant.schema`, the
-Schema the provider encodes with, so a width off the ladder, a leading zero or
-a malformed hash is a 400 before any work. Handlers and hosting come with the
-resizing services.
+`foldkit-media/server` answers the route `Provider.hosted` writes, for
+originals no CDN can fetch. `makeApi(widths)` is its Effect `HttpApi`; its
+params decode with `Variant.schema`, the Schema the provider encodes with, so a
+width off the ladder, a leading zero or a malformed hash is a 400 before any
+work.
+
+It needs three services, each a Layer you choose per host:
+
+| Service | Job | Kind |
+| --- | --- | --- |
+| `Originals` | an original's bytes by content hash | authoritative; the server never writes it |
+| `Transformer` | resize and encode, never above the original's width | does the work |
+| `Variants` | variants already made, by the encoded request | a cache: clearing it costs time, not data |
+
+A request is served from `Variants` when it can; otherwise the original is
+read, transformed, kept, and served as `public, max-age=31536000, immutable`,
+which is honest because the path names the original's bytes. A failure is its
+own response, with no cache header and never the original in the variant's
+place: 404 (`OriginalNotFound`), 413 (`OriginalTooLarge`, above `maxBytes`,
+20 MB by default), 502 (`TransformFailed`, its reason kept out of the
+response), 503 (`QuotaExhausted`).
+
+- `serveFetch({ widths, maxBytes?, layer: env => Layer })` is a Worker's fetch
+  handler. The services are built from the request's bindings, once per
+  environment. It 404s any other path, so route `/_image/` to it.
+- `layer(options)` is the route as an Effect `HttpRouter` layer, for a Node
+  server beside other routes.
+- `originalsMemory`, `variantsMemory` and `variantsNone` are Layers for tests
+  and simple hosts.
 
 ## Validation
 
