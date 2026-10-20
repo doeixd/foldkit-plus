@@ -96,6 +96,17 @@ export default [
     tests: ['packages/media/test/materialize.test.ts'],
   },
   {
+    name: 'a thrown materialization failure is not named',
+    edits: [
+      {
+        file: '../src/server/materialize.ts',
+        find: 'failed.push(`${path}: ${cause instanceof Error ? cause.message : String(cause)}`)',
+        replace: 'throw cause',
+      },
+    ],
+    tests: ['packages/media/test/materialize.test.ts'],
+  },
+  {
     name: 'any number of variants is written',
     edits: [
       {

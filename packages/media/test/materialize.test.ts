@@ -70,6 +70,20 @@ describe('materialize', () => {
     )
   })
 
+  it('fails the build, naming every variant whose request throws', async () => {
+    const pages = [page(`<img src="/_image/${A}/w320.webp"><img src="/_image/${B}/w640.webp">`)]
+    const broken = async (request: Request): Promise<Response> => {
+      throw new Error(`connection closed for ${new URL(request.url).pathname}`)
+    }
+    await expect(materialize({ pages, fetch: broken })).rejects.toThrow(
+      [
+        '2 variants could not be made:',
+        `/_image/${A}/w320.webp: connection closed for /_image/${A}/w320.webp`,
+        `/_image/${B}/w640.webp: connection closed for /_image/${B}/w640.webp`,
+      ].join('\n'),
+    )
+  })
+
   it('fails the build above maxFiles', async () => {
     const pages = [page(`<img srcset="/_image/${A}/w320.webp 320w, /_image/${A}/w640.webp 640w">`)]
     await expect(materialize({ pages, fetch, maxFiles: 1 })).rejects.toThrow(

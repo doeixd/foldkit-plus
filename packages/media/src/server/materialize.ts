@@ -77,12 +77,16 @@ export const materialize = async (options: {
   const queue = [...paths]
   const worker = async () => {
     for (let path = queue.shift(); path !== undefined; path = queue.shift()) {
-      const response = await options.fetch(new Request(`http://materialize.invalid${path}`))
-      if (response.status !== 200) {
-        failed.push(`${path}: ${response.status}`)
-        continue
+      try {
+        const response = await options.fetch(new Request(`http://materialize.invalid${path}`))
+        if (response.status !== 200) {
+          failed.push(`${path}: ${response.status}`)
+          continue
+        }
+        made.push({ file: path.slice(1), contents: new Uint8Array(await response.arrayBuffer()) })
+      } catch (cause) {
+        failed.push(`${path}: ${cause instanceof Error ? cause.message : String(cause)}`)
       }
-      made.push({ file: path.slice(1), contents: new Uint8Array(await response.arrayBuffer()) })
     }
   }
   await Promise.all(Array.from({ length: concurrency }, worker))
