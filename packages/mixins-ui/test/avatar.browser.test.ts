@@ -150,3 +150,36 @@ test.each(['light', 'dark'] as const)(
     }
   },
 )
+
+test.each(['xs', 'sm', 'md', 'lg', 'xl'] as const)(
+  'an avatar of size %s is drawn as wide as widthOf says',
+  async size => {
+    const sized = Style.forSlots(AvatarSlots)(Recipes.Avatar({ size }))
+    const sheet = document.createElement('style')
+    sheet.dataset['test'] = ''
+    sheet.textContent = Style.stylesheet(L.declare, L.in('theme', Theme.root(theme))) + sized.css
+    document.head.append(sheet)
+    const container = document.createElement('div')
+    container.id = `avatar-size-${size}`
+    document.body.appendChild(container)
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container,
+        init: () => ({ model: {} }),
+        update: (model: typeof Model.Type) => ({ model }),
+        view: (_: unknown, h: HtmlBuilder<never>) =>
+          Avatar.view({ name: 'Ada Lovelace', style: sized }, h),
+      }),
+    )
+    try {
+      await vi.waitFor(() =>
+        expect(document.querySelector('[aria-label="Ada Lovelace"]')).not.toBeNull(),
+      )
+      const rect = document.querySelector('[aria-label="Ada Lovelace"]')!.getBoundingClientRect()
+      expect(Math.round(rect.width)).toBe(Avatar.widthOf(size))
+    } finally {
+      handle.dispose()
+    }
+  },
+)

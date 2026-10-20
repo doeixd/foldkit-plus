@@ -22,6 +22,17 @@ export const AvatarSlots = Slots.define({
   status: Slot.make({ capability: Capability.Container }),
 })
 
+/** An avatar's sizes, in rem: the recipe's `size` axis draws them, and `widthOf` reads them. */
+export const sizes = { xs: 1.25, sm: 1.5, md: 2.5, lg: 3.5, xl: 5 } as const
+export type AvatarSize = keyof typeof sizes
+
+/**
+ * How wide an avatar of `size` is drawn, in CSS pixels at the browser's
+ * default 16px rem: the `width` an `AvatarPicture` asks its candidates for, so
+ * the recipe's size is written once.
+ */
+export const widthOf = (size: AvatarSize): number => sizes[size] * 16
+
 /** Whether someone is there, shown as a dot at the avatar's lower end. */
 export type AvatarStatus = 'online' | 'away' | 'busy' | 'offline'
 

@@ -16,7 +16,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
-import { AvatarGroupSlots, AvatarSlots } from '../avatar.js'
+import { AvatarGroupSlots, AvatarSlots, sizes } from '../avatar.js'
 import { component, imageEdge, ref, variant } from './design.js'
 
 /** A band of `color` around the avatar, outside its box, so stacking and sizing do not move. */
@@ -86,27 +86,35 @@ export const Avatar = Style.recipeFor(AvatarSlots)({
       xs: {
         root: variant(
           Style.self({
-            inlineSize: '1.25rem',
-            blockSize: '1.25rem',
+            inlineSize: `${sizes.xs}rem`,
+            blockSize: `${sizes.xs}rem`,
             fontSize: `calc(${ref.size.xs} * 0.75)`,
           }),
         ),
       },
       sm: {
         root: variant(
-          Style.self({ inlineSize: '1.5rem', blockSize: '1.5rem', fontSize: ref.size.xs }),
+          Style.self({
+            inlineSize: `${sizes.sm}rem`,
+            blockSize: `${sizes.sm}rem`,
+            fontSize: ref.size.xs,
+          }),
         ),
       },
       md: {
         root: variant(
-          Style.self({ inlineSize: '2.5rem', blockSize: '2.5rem', fontSize: ref.size.sm }),
+          Style.self({
+            inlineSize: `${sizes.md}rem`,
+            blockSize: `${sizes.md}rem`,
+            fontSize: ref.size.sm,
+          }),
         ),
       },
       lg: {
         root: variant(
           Style.self({
-            inlineSize: '3.5rem',
-            blockSize: '3.5rem',
+            inlineSize: `${sizes.lg}rem`,
+            blockSize: `${sizes.lg}rem`,
             ...role('subtitle'),
             lineHeight: '1',
           }),
@@ -114,7 +122,12 @@ export const Avatar = Style.recipeFor(AvatarSlots)({
       },
       xl: {
         root: variant(
-          Style.self({ inlineSize: '5rem', blockSize: '5rem', ...role('title'), lineHeight: '1' }),
+          Style.self({
+            inlineSize: `${sizes.xl}rem`,
+            blockSize: `${sizes.xl}rem`,
+            ...role('title'),
+            lineHeight: '1',
+          }),
         ),
       },
     },

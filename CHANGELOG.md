@@ -60,7 +60,7 @@ version changed; `pnpm` skips versions already in the registry.
   role; `Recipes.Figure` has `align` (`start`, `center`).
 - `foldkit-mixins-ui`: an `Avatar`'s `src` may be an `AvatarPicture` (`{ asset, provider, width }`),
   drawn with the candidates `foldkit-media` derives for that width, so a small avatar fetches a
-  small variant.
+  small variant. `Avatar.widthOf(size)` gives that width from the recipe's own sizes.
   `foldkit-media` is a new peer dependency. See `docs/design/media-DESIGN.md`.
 
 ### Changed

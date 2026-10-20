@@ -10,6 +10,11 @@ const recipe = '../src/recipes/avatar.ts'
 
 export default [
   {
+    name: 'widthOf reads a rem as 10 pixels',
+    edits: [{ file: view, find: 'sizes[size] * 16', replace: 'sizes[size] * 10' }],
+    tests: browser,
+  },
+  {
     name: 'a derived picture is drawn as its URL alone',
     edits: [
       {
