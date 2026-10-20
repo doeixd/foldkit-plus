@@ -1099,7 +1099,7 @@ fetch, and an `img` has no subtree for `content-visibility` to skip.*
 | `defer` | `none` (default), `offscreen` | `content-visibility: auto` and `contain-intrinsic-size` from the box, for long galleries |
 | `dim` | `none` (default), `dark` | Lowers a photo's brightness in a dark scheme, through a knob, so a white photo does not glare |
 
-A **`Figure`** joins an `Image` and a caption, each in its own slot, for the
+*Built:* a **`Figure`** joins an `Image` and a caption, each in its own slot, for the
 CMS block and the rich-text atom, which draw `figure` and `figcaption` by hand
 today. A gallery is not a component: it is `foldkit-mixins`' layout pieces
 around `Image`s, shown in the README. **`Avatar.widthOf(size)`** reads the

@@ -56,6 +56,8 @@ version changed; `pnpm` skips versions already in the registry.
   is a `foldkit-ssr` `Head` that preloads each image the rendered page drew with `priority`. An image with no
   variant keeps its box and its alt text. An asset's `focus` places a crop (`--fk-image-focus`), and a
   ThumbHash paints its picture for the `priority` image and its average color for the rest.
+- `foldkit-mixins-ui`: `Figure`, a `figure` holding its content and a `figcaption` in the caption
+  role; `Recipes.Figure` has `align` (`start`, `center`).
 - `foldkit-mixins-ui`: an `Avatar`'s `src` may be an `AvatarPicture` (`{ asset, provider, width }`),
   drawn with the candidates `foldkit-media` derives for that width, so a small avatar fetches a
   small variant.
