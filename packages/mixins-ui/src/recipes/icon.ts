@@ -22,6 +22,8 @@ export const Icon = Style.recipeFor(IconSlots)({
         inlineSize: ladder('icon'),
         blockSize: ladder('icon'),
       }),
+      // `Icon.draw` writes `1em` for a drawing that stands alone; in a glyph it fills the box.
+      Style.nest('& > svg', { inlineSize: '100%', blockSize: '100%' }),
     ),
   },
   variants: {

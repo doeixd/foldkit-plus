@@ -389,6 +389,11 @@ an element or attribute outside the presentational allowlist (`script`,
 leaves the icon, and a CSS escape. They drop only the root's size and the
 words of `title` and `desc`, which a label replaces.
 
+`Icon.key(icon)` is a short name from the icon's content, the same on a
+server and in a browser; `Icon.prefixIds(icon, prefix)` renames the ids the
+icon defines and every `href` and `url()` naming one, so two icons drawn on
+one page keep their own. `foldkit-mixins-ui`'s `Icon.draw` does both.
+
 ## Validation
 
 Facts are untrusted input. `ImageAsset` refuses an image with no pixels, and a

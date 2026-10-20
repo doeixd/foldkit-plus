@@ -475,6 +475,7 @@ the slots with the matching recipe. Hide text with `U.srOnly` from
 `Label.view` takes the id that derived.
 
 ```ts
+import { parse } from 'foldkit-media/icons'
 import { Style } from 'foldkit-mixins'
 import { AspectRatio, AspectRatioSlots, Icon, IconSlots, Recipes } from 'foldkit-mixins-ui'
 
@@ -485,9 +486,19 @@ const Mark = Style.forSlots(IconSlots)(Recipes.Icon({ size: 'sm' }))
 AspectRatio.view({ content: h.span([], ['poster']), style: Frame }, h)
 Icon.view({ content: h.span([], ['!']), label: 'Warning', style: Mark }, h)
 Icon.view({ content: h.span([], ['!']), style: Mark }, h)
+
+// An icon as data from `foldkit-media`, parsed at build time.
+const check = parse('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg>', 'check')
+Icon.view({ content: Icon.draw(check, h), label: 'Done', style: Mark }, h)
 ```
 
 A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
+`Icon.draw(icon, h, { key? })` draws an `IconData` as inline SVG, every
+attribute in the server's markup: `1em` square alone, filling the glyph in
+`Icon.view`, and `aria-hidden`, since the control it sits in carries the name.
+Its ids are prefixed by the icon's content, so two icons that both call a
+gradient `a` each paint their own; `key` sets two copies of one icon apart,
+because a gradient defined in a hidden copy paints nothing for a shown one.
 `Icons.glyph` is the other tool: a mask on an element that already exists.
 
 | View | Call | Recipe |
@@ -516,7 +527,7 @@ A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
 | `Empty` | `{ title, description?, icon?, action? }`. The title takes the `subtitle` role; the icon is `aria-hidden`. | `media`: `icon` (default), `illustration`; `frame`: `none` (default), `dashed`, `filled`; `tone`: `neutral` (default), `danger`; `size`: `compact`, `comfortable` (default). Slots `root`, `icon`, `title`, `description`, `action`. |
 | `FloatingPanel` | After Zag's: a non-modal window. `FloatingPanel.init({ id, rect, open? })` holds its rect, stage and a drag, folded with `FloatingPanel.update(limits)` (`min`, `max`, `grid`, `overflow`); `FloatingPanel.open(model, { opener })` focuses it and `close` gives focus back. `FloatingPanel.view({ model, onMessage, title, content, order?, draggable?, resizable?, closeOnEscape?, step?, direction?, labels?, style? }, h)`: the drag trigger moves it and eight edges resize it, kept within the viewport; the arrows move it from the drag trigger and resize it from the bottom-end corner; minimize, maximize, restore and close. A press or focus inside returns the `Raised` OutMessage, which the application folds into the `order` its panels stack by with `FloatingPanel.raise(order, id)`. | `header`. Slots `root`, `boundary`, `panel`, `header`, `dragTrigger`, `title`, `controls`, `minimize`, `maximize`, `restore`, `close`, `body`, `handle`. |
 | `HoverCard` (recipe) | Styles `@foldkit/ui`'s HoverIntent (`HoverIntentSlots`): a trigger read as a link, a raised panel fading in on the fast tier as it is drawn. Place the panel with `HoverIntent.toView`'s `anchored`, which shows it in the top layer with an `arrow`; the open and close delays are HoverIntent's (200ms and 300ms by default). | No axis. Slots `trigger`, `panel`, `arrow`. |
-| `Icon` | `{ content, label? }`. A `label` is `role="img"`; without one the glyph is `aria-hidden`. | `size`: `sm`, `md`, `lg` on the type scale; none (the default) stands on the size ladder, 16px or 14px compact. Slot `glyph`. |
+| `Icon` | `{ content, label? }`. A `label` is `role="img"`; without one the glyph is `aria-hidden`. `Icon.draw(icon, h, { key? })` is an `IconData`'s inline SVG for `content`. | `size`: `sm`, `md`, `lg` on the type scale; none (the default) stands on the size ladder, 16px or 14px compact. Slot `glyph`. |
 | `ImageCropper` | After Zag's: the image fitted in a viewport, a selection that a drag moves (`Move`) and eight handles resize, zoom by a Slider, the wheel, two fingers spread or pinched, and `+`/`-` with the selection kept where it is on screen, a pan of the zoomed image, quarter turns, an aspect lock and a round crop. `ImageCropper.init({ id, aspect?, shape?, crop?, min?, maxZoom? })` holds the crop, in the turned image's pixels, folded with `ImageCropper.update`; keys (arrows, Shift ×10, Alt to resize) step by screen pixels. Drawn with `ImageCropper.view({ model, onMessage, label, src, crossOrigin?, controls?, labels?, disabled?, style?, slider? }, h)`. `ImageCropper.crop(model)` is the crop in whole pixels (an `Option`); `RequestedExport({ type, quality })` returns the `Export` Command, answered by `Exported({ url, width, height })` or `FailedExport`. | `guides`, `handles` (`all`, `corners`), `viewport` (`landscape`, `wide`, `square`). Its zoom takes `Recipes.Slider({ label: 'hidden' })`. Slots `root`, `label`, `viewport`, `stage`, `pan`, `image`, `selection`, `guides`, `handle`, `controls`, `zoom`, `rotate`, `reset`. |
 | `InputCopy` | A read-only value with a copy button, Zag's clipboard: `InputCopy.view({ id, label, value, copied, onCopy, copyLabel?, copiedLabel?, style? }, h)`. The view is stateless: answer `onCopy` with the `InputCopy.Copy({ text })` Command, which yields `foldkit-primitives/dom`'s `ClipboardMessage` (`Copied` or `CopyFailed`, never a throw); `copied` is the application's, and `InputCopy.Model` keeps it: `InputCopy.init({ resetAfter? })` (default 2000ms), folded with `InputCopy.update`, where `Copied` on `ClipboardMessage.Copied` shows it copied and starts the `Reset` Command that sets it back unless a later copy came first; pass `model.copied`. The button is named `Copy <label>`; copied, it reads `Copied` and a polite status region says so. | No axis. Slots `root`, `label`, `group`, `input`, `button`, `status`. |
 | `Item` | The row primitive: `{ content?, media?, title?, description?, actions?, press?, label?, selected?, disabled? }`; `content` follows the title and description. `press` is `{ onClick }` or `{ href }`, one control stretched over the row (`overlay`, as a Card's) and named by `label` or the title, `actions` staying pressable above it; `selected` is `aria-pressed` or `aria-current`. `Item.group({ items: (ItemView & { key })[], label?, style?, itemStyle? })` is a list of them. Field is for form controls. | `variant`: `plain` (default), `outline`, `muted`; `density`: `comfortable` (default), `compact`; `media`: `plain` (default), `icon`, `image`. Slots `root`, `media`, `content`, `title`, `description`, `actions`, `overlay`. `Recipes.ItemGroup({ layout: 'divided' \| 'separated' })` over `ItemGroupSlots` (`root`, `row`). |

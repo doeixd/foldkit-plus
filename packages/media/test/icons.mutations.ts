@@ -138,4 +138,52 @@ export default [
     edits: [{ file: '../src/icon.ts', find: ".replace(/\"/g, '&quot;')", replace: '' }],
     tests,
   },
+  {
+    name: 'a url() keeps the id it named',
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: '`url(${quote}#${rename(id)}${quote})`',
+        replace: '`url(${quote}#${id}${quote})`',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an href keeps the id it named',
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: "if (name === 'href') return `#${rename(value.slice(1))}`",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a reference to an id the icon lacks is renamed',
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: '(ids.has(id) ? `${prefix}-${id}` : id)',
+        replace: '`${prefix}-${id}`',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an icon with no ids is copied',
+    edits: [{ file: '../src/icon.ts', find: 'if (ids.size === 0) return icon', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a prefixed icon is made again on every ask',
+    edits: [{ file: '../src/icon.ts', find: 'byPrefix.set(prefix, made)', replace: '' }],
+    tests,
+  },
+  {
+    name: 'every icon has one key',
+    edits: [{ file: '../src/icon.ts', find: 'hash ^= unit.codePointAt(0)!', replace: 'hash ^= 0' }],
+    tests,
+  },
 ]

@@ -53,7 +53,12 @@ version changed; `pnpm` skips versions already in the registry.
   `Icon.maskUrl` as a CSS `url()` for a mask. `foldkit-media/icons`, for builds, reads an SVG file
   (`parse`) or an Iconify set's icon (`fromIconify`, through its aliases) into it, and refuses,
   naming the icon, any element or attribute outside a presentational allowlist, a link or
-  `url()` outside the icon, and a CSS escape.
+  `url()` outside the icon, and a CSS escape. `Icon.key(icon)` names an icon by its content, and
+  `Icon.prefixIds(icon, prefix)` renames the ids it defines and every reference to them.
+- `foldkit-mixins-ui`: `Icon.draw(icon, h, { key? })` draws `foldkit-media`'s `IconData` as inline
+  SVG, every attribute in the server's markup, `1em` square alone and filling the glyph in
+  `Icon.view`, `aria-hidden`, its ids prefixed by the icon's content so two icons sharing an id each
+  paint their own; `key` sets two copies of one icon apart.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

@@ -6,25 +6,10 @@
  * reference outside the icon fails here, naming the icon, rather than being
  * dropped.
  */
-import type { IconData, SvgNode } from '../icon.js'
+import { TAGS, type IconData, type SvgNode, type SvgTag } from '../icon.js'
 
-const ELEMENTS = new Set([
-  'g',
-  'path',
-  'circle',
-  'ellipse',
-  'rect',
-  'line',
-  'polyline',
-  'polygon',
-  'defs',
-  'linearGradient',
-  'radialGradient',
-  'stop',
-  'clipPath',
-  'mask',
-  'use',
-])
+const ELEMENTS: ReadonlySet<string> = new Set(TAGS)
+const isTag = (tag: string): tag is SvgTag => ELEMENTS.has(tag)
 
 /** Words for a reader, which an icon's label replaces; skipped with what they hold. */
 const DROPPED_ELEMENTS = new Set(['title', 'desc', 'metadata'])
@@ -155,13 +140,15 @@ export const parse = (svg: string, name: string): IconData => {
   }
 
   interface Open {
-    readonly tag: string
+    readonly tag: SvgTag
     readonly attributes: Readonly<Record<string, string>>
     readonly children: Array<SvgNode>
   }
-  /** The elements open now, the root `svg` first. */
+  let root:
+    | { readonly attributes: Readonly<Record<string, string>>; readonly children: Array<SvgNode> }
+    | undefined
+  /** The elements open inside the root now, innermost last. */
   const open: Array<Open> = []
-  let root: Open | undefined
   let closed = false
   /** How deep inside a dropped element the parse is; its content is skipped whole. */
   let dropping = 0
@@ -192,13 +179,15 @@ export const parse = (svg: string, name: string): IconData => {
         if (DROPPED_ELEMENTS.has(tag)) dropping -= 1
         continue
       }
+      if (open.length === 0 && tag === 'svg' && root !== undefined && !closed) {
+        closed = true
+        continue
+      }
       const element = open.pop()
       if (element?.tag !== tag) {
         refuse(`</${tag}> closes ${element === undefined ? 'nothing' : `<${element.tag}>`}`)
       }
-      const parent = open.at(-1)
-      if (parent === undefined) closed = true
-      else parent.children.push(element!)
+      ;(open.at(-1) ?? root!).children.push(element!)
       continue
     }
 
@@ -210,34 +199,28 @@ export const parse = (svg: string, name: string): IconData => {
       continue
     }
     if (closed) refuse('it holds markup after its svg')
-    const parent = open.at(-1)
-    if (parent === undefined) {
+    if (root === undefined) {
       if (tag !== 'svg') refuse(`its root is <${tag}>, not <svg>`)
-      root = {
-        tag,
-        attributes: attributesOf(tag, body.slice(tag.length), ROOT_ALLOWED),
-        children: [],
-      }
+      root = { attributes: attributesOf(tag, body.slice(tag.length), ROOT_ALLOWED), children: [] }
       if (selfClosing) closed = true
-      else open.push(root)
       continue
     }
     if (DROPPED_ELEMENTS.has(tag)) {
       if (!selfClosing) dropping += 1
       continue
     }
-    if (!ELEMENTS.has(tag)) refuse(`it holds <${tag}>, which is not drawn inline`)
+    if (!isTag(tag)) return refuse(`it holds <${tag}>, which is not drawn inline`)
     const element: Open = {
       tag,
       attributes: attributesOf(tag, body.slice(tag.length), ATTRIBUTES),
       children: [],
     }
-    if (selfClosing) parent.children.push(element)
+    if (selfClosing) (open.at(-1) ?? root).children.push(element)
     else open.push(element)
   }
 
   if (root === undefined) return refuse('it holds no svg')
-  if (!closed) refuse(`<${open.at(-1)!.tag}> never closes`)
+  if (!closed) refuse(`<${open.at(-1)?.tag ?? 'svg'}> never closes`)
 
   const { viewBox, width, height } = root.attributes
   const presentation: Record<string, string> = {}

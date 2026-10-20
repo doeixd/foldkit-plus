@@ -199,3 +199,39 @@ describe('fromIconify', () => {
     expect(namesOf(set)).toEqual(['dot', 'plain', 'wide', 'wider', 'turned', 'loop', 'round'])
   })
 })
+
+describe('Icon.key and Icon.prefixIds', () => {
+  const gradient = parse(
+    `<svg viewBox="0 0 8 8" mask="url(#m)"><defs><linearGradient id="a"><stop offset="0"/></linearGradient><mask id="m"><rect width="8" height="8"/></mask></defs><rect fill="url( '#a' )" stroke="URL(#a)" width="8" height="8"/><use href="#a"/><path fill="url(#elsewhere)"/></svg>`,
+    'gradient',
+  )
+
+  it('give one drawing one key, read twice or parsed twice, and another drawing another', () => {
+    expect(Icon.key(gradient)).toBe(Icon.key(parse(Icon.serialize(gradient), 'again')))
+    expect(Icon.key(gradient)).toMatch(/^i[0-9a-z]+$/)
+    const other = parse('<svg viewBox="0 0 8 8"><path d="M0 0"/></svg>', 'other')
+    const moved = parse('<svg viewBox="0 0 8 8"><path d="M0 1"/></svg>', 'moved')
+    expect(Icon.key(other)).not.toBe(Icon.key(moved))
+  })
+
+  it('rename every id the icon defines, and every reference to one, and no other', () => {
+    const renamed = Icon.prefixIds(gradient, 'p')
+    expect(renamed.attributes).toEqual({ mask: 'url(#p-m)' })
+    expect(renamed.nodes[0]!.children.map(node => node.attributes['id'])).toEqual(['p-a', 'p-m'])
+    expect(renamed.nodes[1]!.attributes).toEqual({
+      fill: "url('#p-a')",
+      stroke: 'url(#p-a)',
+      width: '8',
+      height: '8',
+    })
+    expect(renamed.nodes[2]!.attributes).toEqual({ href: '#p-a' })
+    expect(renamed.nodes[3]!.attributes).toEqual({ fill: 'url(#elsewhere)' })
+  })
+
+  it('keep what they made, and leave an icon with no ids as it is', () => {
+    expect(Icon.prefixIds(gradient, 'p')).toBe(Icon.prefixIds(gradient, 'p'))
+    expect(Icon.prefixIds(gradient, 'q')).not.toEqual(Icon.prefixIds(gradient, 'p'))
+    const plain = parse('<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>', 'plain')
+    expect(Icon.prefixIds(plain, 'p')).toBe(plain)
+  })
+})

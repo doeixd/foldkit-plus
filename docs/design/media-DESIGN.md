@@ -363,6 +363,15 @@ interface IconData {
   key the caller gives, never randomized, so a server render and its hydration
   agree.
 
+*Built: `IconData` and `SvgTag` (the allowlist as a type) in `foldkit-media`,
+with `Icon.serialize`, `Icon.maskUrl`, `Icon.key` and `Icon.prefixIds`;
+`Icon.draw(icon, h, { key? })` in `foldkit-mixins-ui`. The prefix needs no key
+from the caller: it is the icon's content hash (`Icon.key`), so two icons that
+share an id differ and a server and its hydration agree. `key` is for two
+copies of one icon, since a gradient defined inside a copy that is hidden
+paints nothing for the copy that shows. A drawing alone is `1em` square; the
+Icon recipe fills the glyph's box with it.*
+
 ### 8.2 Two producers of one type
 
 - **Applications** import from a virtual module:
