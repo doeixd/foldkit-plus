@@ -62,7 +62,8 @@ version changed; `pnpm` skips versions already in the registry.
   the build; a refused Iconify icon is left out, and the declaration says why.
 - `foldkit-media`: `Icon.draw(icon, h, { key?, size? })` draws an `IconData` as inline SVG through
   any view builder of its shape (`SvgBuilder`; Foldkit's `h` is one), every attribute in the
-  server's markup, `1em` square unless `size` is given, `aria-hidden`, its ids prefixed by the
+  server's markup, `1em` square unless `size` is given and kept so in a squeezed flex row,
+  `aria-hidden`, its ids prefixed by the
   icon's content so two icons sharing an id each paint their own; `key` sets two copies of one icon
   apart. `foldkit-mixins-ui`'s `Icon.view` fills its glyph with the drawing.
 - `foldkit-mixins-richtext`: the chrome's icons are generated from `@iconify-json/lucide` (`pnpm

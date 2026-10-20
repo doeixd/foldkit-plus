@@ -23,6 +23,7 @@
     "foldkit-example-site": "workspace:*",
     "foldkit-form": "workspace:*",
     "foldkit-guard": "workspace:*",
+    "foldkit-media": "workspace:*",
     "foldkit-mirror": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-builder": "workspace:*",

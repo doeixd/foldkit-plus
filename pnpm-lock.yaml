@@ -290,6 +290,9 @@ importers:
       foldkit-guard:
         specifier: workspace:*
         version: link:../../packages/guard
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../../packages/media
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../packages/mirror

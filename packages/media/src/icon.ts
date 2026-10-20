@@ -161,7 +161,8 @@ export type SvgBuilder<Node, Attribute> = {
 /**
  * The icon as inline SVG, through a view's builder (`h`): `size` square
  * (`1em` unless given, so it stands as tall as its text; `foldkit-mixins-ui`'s
- * `Icon.view` fills its glyph with it) and hidden from assistive technology,
+ * `Icon.view` fills its glyph with it), kept so in a squeezed flex row, and
+ * hidden from assistive technology,
  * since the control it sits in carries the name. Every attribute is written as
  * an attribute, so a server render writes the same markup. Ids are prefixed by
  * `key(icon)`; `options.key` sets one drawing's ids apart from another of the
@@ -185,6 +186,8 @@ export const draw = <Node, Attribute>(
       h.Attribute('viewBox', viewBox),
       h.Attribute('width', size),
       h.Attribute('height', size),
+      // A flex row squeezed narrower than its content shrinks an svg to nothing, width or not.
+      h.Attribute('style', 'flex-shrink: 0'),
       h.AriaHidden(true),
       ...written(attributes),
     ],

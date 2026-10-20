@@ -623,6 +623,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   and the input never took focus; its unit tests read only the markup. Let
   presses through (`pointer-events: none`) or raise the overlay, and test with
   a real click at the covered spot (`otpField.browser.test.ts`).
+- **A sized `svg` in a squeezed flex row shrinks to nothing.** Its `width`
+  attribute is no floor: a 16px icon beside unshrinkable words in a 40px row
+  measured 0 wide. The CMS's hand-written icon carried `flex-shrink: 0` for
+  this, and moving it onto `Icon.draw` dropped it on a reasoned guess that the
+  automatic minimum would hold; a browser probe said otherwise. `Icon.draw`
+  now writes it. Probe a layout claim in a browser before deleting the rule.
 - **A zero-duration animation filled `forwards` shows its last frame.** The
   Marquee filled forwards, so with the `motion` knob at 0 every copy stood
   one length on and the copy in view was an `inert` clone; a finite round

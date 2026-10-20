@@ -30,6 +30,12 @@
       "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
       "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
       "foldkit-guard/sync": ["../../packages/guard/src/sync.ts"],
+      "foldkit-media": ["../../packages/media/src/index.ts"],
+      "foldkit-media/cloudflare": ["../../packages/media/src/cloudflare/index.ts"],
+      "foldkit-media/icons": ["../../packages/media/src/icons/index.ts"],
+      "foldkit-media/server": ["../../packages/media/src/server/index.ts"],
+      "foldkit-media/sharp": ["../../packages/media/src/sharp/index.ts"],
+      "foldkit-media/vite": ["../../packages/media/src/vite/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mirror": ["../../packages/mirror/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
@@ -85,6 +91,9 @@
   },
   "include": ["bench/**/*.ts", "e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
   "references": [
+    {
+      "path": "../../packages/media/tsconfig.build.json"
+    },
     {
       "path": "../site/tsconfig.json"
     },

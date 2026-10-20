@@ -54,6 +54,11 @@ export default [
     tests: browser,
   },
   {
+    name: 'a drawing shrinks in a squeezed row',
+    edits: [{ file: drawing, find: "h.Attribute('style', 'flex-shrink: 0'),", replace: '' }],
+    tests: browser,
+  },
+  {
     name: 'a drawing in a glyph keeps its own size',
     edits: [
       {

@@ -28,7 +28,7 @@ const size = (element: Element) => {
   return [Math.round(rect.width), Math.round(rect.height)]
 }
 
-test('a drawing alone is 1em square, and in a glyph it fills the box', async () => {
+test('a drawing alone is 1em square, even in a squeezed row, and in a glyph it fills the box', async () => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent = Style.stylesheet(L.declare, L.in('theme', Theme.root(theme))) + style.css
@@ -47,14 +47,19 @@ test('a drawing alone is 1em square, and in a glyph it fills the box', async () 
           [h.Style({ fontSize: '40px' })],
           [
             h.p([h.Id('alone')], [MediaIcon.draw(check, h)]),
+            h.p(
+              [h.Id('squeezed'), h.Style({ display: 'flex', inlineSize: '20px' })],
+              [MediaIcon.draw(check, h), h.span([h.Style({ flex: 'none' })], ['words'])],
+            ),
             h.p([h.Id('glyph')], [Icon.view({ content: MediaIcon.draw(check, h), style }, h)]),
           ],
         ),
     }),
   )
   try {
-    await vi.waitFor(() => expect(document.querySelectorAll('svg')).toHaveLength(2))
+    await vi.waitFor(() => expect(document.querySelectorAll('svg')).toHaveLength(3))
     expect(size(document.querySelector('#alone svg')!)).toEqual([40, 40])
+    expect(size(document.querySelector('#squeezed svg')!)).toEqual([40, 40])
     const glyph = document.querySelector('#glyph > span')!
     expect(size(glyph)[0]).toBeLessThan(40)
     expect(size(document.querySelector('#glyph svg')!)).toEqual(size(glyph))
