@@ -8,6 +8,35 @@ const browser = ['packages/mixins-ui/test/image.browser.test.ts']
 
 export default [
   {
+    name: 'a blurry image goes unremarked',
+    edits: [
+      {
+        file: '../src/image.ts',
+        find: 'if (image.naturalWidth < drawn * BLURRY_BELOW)',
+        replace: 'if (false)',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a wasteful image goes unremarked',
+    edits: [
+      {
+        file: '../src/image.ts',
+        find: 'if (image.naturalWidth > drawn * WASTED_ABOVE)',
+        replace: 'if (false)',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a second priority image goes unremarked',
+    edits: [
+      { file: '../src/image.ts', find: 'if (prioritized.size > 1) {', replace: 'if (false) {' },
+    ],
+    tests: browser,
+  },
+  {
     name: 'an img holds no box before its file arrives',
     edits: [
       { file: '../src/imageAttributes.ts', find: '  h.Width(String(img.width)),\n', replace: '' },

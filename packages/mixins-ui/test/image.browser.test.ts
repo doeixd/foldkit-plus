@@ -415,3 +415,75 @@ test('nothing moves as images arrive: the layout shift a page reports is none', 
     handle.dispose()
   }
 })
+
+test('audit warns of a blurry image, a wasteful one, and two drawn with priority', async () => {
+  const warnings: Array<string> = []
+  const spy = vi
+    .spyOn(console, 'warn')
+    .mockImplementation(message => void warnings.push(String(message)))
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent = Style.stylesheet(L.declare, L.in('theme', Theme.root(theme))) + style.css
+  document.head.append(sheet)
+  const file = (width: number) =>
+    Provider.fromFiles(
+      [
+        {
+          width: 400,
+          format: 'webp',
+          url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${width / 2}"><rect width="${width}" height="${width / 2}" fill="teal"/></svg>`)}`,
+        },
+      ],
+      { sources: [], fallback: 'webp' },
+    )
+  const container = document.createElement('div')
+  container.id = 'audit'
+  document.body.appendChild(container)
+  const ratio = devicePixelRatio
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: {} }),
+      update: (model: typeof Model.Type) => ({ model }),
+      view: (_: unknown, h: HtmlBuilder<never>) =>
+        h.div(
+          [h.Style({ display: 'grid', gap: '16px', padding: '16px', inlineSize: '800px' })],
+          (
+            [
+              ['blurry', 100 * ratio, true],
+              ['wasteful', 4000 * ratio, true],
+              ['right', 400 * ratio, false],
+            ] as const
+          ).map(([label, width, priority]) =>
+            Image.view(
+              {
+                asset,
+                provider: file(width),
+                layout: Layout.Fixed({ width: 400 }),
+                alt: Image.described(label),
+                priority,
+                style,
+                mixins: Image.audit,
+              },
+              h,
+            ),
+          ),
+        ),
+    }),
+  )
+  try {
+    await vi.waitFor(() => {
+      expect(warnings.some(warning => warning.includes('blurry'))).toBe(true)
+      expect(warnings.some(warning => warning.includes('wasted bytes'))).toBe(true)
+    })
+    expect(warnings.filter(warning => warning.includes('blurry'))).toHaveLength(1)
+    expect(warnings.filter(warning => warning.includes('wasted bytes'))).toHaveLength(1)
+    expect(warnings.some(warning => warning.includes('2 images are drawn with priority'))).toBe(
+      true,
+    )
+  } finally {
+    spy.mockRestore()
+    handle.dispose()
+  }
+})

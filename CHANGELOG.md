@@ -55,7 +55,8 @@ version changed; `pnpm` skips versions already in the registry.
   never omitted. `Recipes.Image` has `fit` (`cover`, `contain`), `edge` (`none`, `line`), `ratio`
   (`auto`, `square`, `video`, `portrait`, cropped at the focal point) and `radius`.
   `Image.watchLoad`, beside the style, marks its load state and hides a failed image. `Image.preloadsIn`
-  is a `foldkit-ssr` `Head` that preloads each image the rendered page drew with `priority`. An image with no
+  is a `foldkit-ssr` `Head` that preloads each image the rendered page drew with `priority`. `Image.audit`
+  warns, in a development build, of a blurry or wasteful image and of two drawn with `priority`. An image with no
   variant keeps its box and its alt text. An asset's `focus` places a crop (`--fk-image-focus`), and a
   ThumbHash paints its picture for the `priority` image and its average color for the rest.
 - `foldkit-mixins-ui`: `Figure`, a `figure` holding its content and a `figcaption` in the caption

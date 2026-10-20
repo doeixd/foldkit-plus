@@ -967,6 +967,11 @@ Left to the page, on purpose: `alt` (only the author knows what an image
 says), `priority` (only the page knows its first screen), the `layout` (how
 wide the design draws it), and the provider.
 
+*`Image.audit` is built, with the blurry, wasted and two-priorities checks.
+The largest-contentful-paint check is not: the browser reports that entry to
+a top-level page alone, and the browser tests run in a frame, where a probe
+saw none, so it waits for an end-to-end test that can see it.*
+
 What it leaves to the page, a check can catch. `Image.audit` is a mixin for
 development builds, like `watchLoad` never on by default: a
 `PerformanceObserver` for the largest contentful paint reports when that
