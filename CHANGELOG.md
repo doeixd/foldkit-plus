@@ -15,7 +15,12 @@ version changed; `pnpm` skips versions already in the registry.
   ladder, `sizes`, the reserved box, loading priority, and a placeholder background (a color, a
   ThumbHash, or the smallest width; none behind a transparent image). Providers: `cdnCgi`
   (Cloudflare's `/cdn-cgi/image/`), `fromFiles` (a build's variants) and `hosted` (its own server,
-  whose route `foldkit-media/server`'s `makeApi` declares with the same `Variant` Schema). See `docs/design/media-DESIGN.md`.
+  whose route `foldkit-media/server`'s `makeApi` declares with the same `Variant` Schema).
+- `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
+  `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
+  and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,
+  never omitted. `Recipes.Image` has `fit` (`cover`, `contain`) and `edge` (`none`, `line`).
+  `foldkit-media` is a new peer dependency. See `docs/design/media-DESIGN.md`.
 
 ### Changed
 

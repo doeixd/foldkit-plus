@@ -7,6 +7,6 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   deps: {
-    neverBundle: ['effect', /^foldkit(\/.*)?$/, 'foldkit-mixins', '@foldkit/ui'],
+    neverBundle: ['effect', /^foldkit(\/.*)?$/, 'foldkit-mixins', 'foldkit-media', '@foldkit/ui'],
   },
 })

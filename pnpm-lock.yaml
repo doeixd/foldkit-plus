@@ -2813,6 +2813,9 @@ importers:
       foldkit:
         specifier: 0.168.0
         version: 0.168.0(@effect/platform-browser@4.0.4(effect@4.0.4))(effect@4.0.4)
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../media
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins

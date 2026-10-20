@@ -50,6 +50,7 @@
     "@foldkit/ui": "^0.168.0",
     "effect": "^4.0.0",
     "foldkit": "^0.168.0",
+    "foldkit-media": "workspace:^",
     "foldkit-mixins": "workspace:^",
     "foldkit-primitives": "workspace:^"
   },
@@ -58,6 +59,7 @@
     "@foldkit/ui": "0.168.0",
     "effect": "^4.0.4",
     "foldkit": "0.168.0",
+    "foldkit-media": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-primitives": "workspace:*",
     "jsqr": "^1.4.0",

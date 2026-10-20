@@ -8,6 +8,7 @@
 export { Alert } from './alert.js'
 export { AspectRatio } from './aspectRatio.js'
 export { Avatar, AvatarGroup } from './avatar.js'
+export { Image } from './image.js'
 export { Badge, type BadgeAppearance, type BadgeOptions, type BadgeTone } from './badge.js'
 export { Breadcrumb } from './breadcrumb.js'
 export { Button } from './button.js'

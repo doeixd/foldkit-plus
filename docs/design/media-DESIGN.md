@@ -206,6 +206,12 @@ does not know the original's size.
 
 ## 7. The `Image` view
 
+*Built: `Image.view`, `Recipes.Image`, alt as `described`/`decorative`, the
+placeholder on the `img`'s background, `data-layout`, and `data-unavailable`
+for a provider with no URL. Not yet: `Image.preload` (§7.5), `Image.reveal`
+(§7.4), and Avatar and Card on it (§7.6). Foldkit, not the view, keeps
+`loading` before `src`: `src` is a property, set after every attribute.*
+
 In `mixins-ui`, built like `Avatar`: `Slots.define`, `SlotView.buildersFor`, a
 recipe placed in `components` and `variants`. `mixins-ui` takes `foldkit-media`
 as a peer and imports only its pure root.
