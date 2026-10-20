@@ -137,7 +137,8 @@ dropped; the plugin writes `foldkit-icons.d.ts` (include it in the tsconfig) so 
 misspelt name is a type error. Draw with `Icon.draw(icon, h, { key?, size? })` (inline SVG,
 `aria-hidden`, `1em` unless sized, ids prefixed by the icon's content; `key` parts two copies),
 in `foldkit-mixins-ui`'s `Icon.view` to size it by the recipe; mask with `Icon.maskUrl(icon)` (`Icons.byAttribute`/`Icons.glyph`).
-Every icon passes a presentational allowlist: a refused folder SVG fails the build,
+Every icon passes a presentational allowlist (elements, attributes, CSS functions, references
+only to its own ids): a refused folder SVG fails the build,
 a refused Iconify icon is left out and its import fails. A package commits constants
 made with `foldkit-media/icons`' `parse(svg, name)` or `fromIconify(set, name)`.
 Never set an icon's markup through `innerHTML`.

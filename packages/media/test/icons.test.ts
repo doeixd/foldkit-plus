@@ -137,6 +137,26 @@ describe('parse', () => {
       /which is no/,
     ],
     ['no box', '<svg width="1em" height="1em"></svg>', /no viewBox/],
+    [
+      'a mask fetching an image',
+      `<svg viewBox="0 0 1 1"><path mask="image-set('https://evil.test/x.png' 1x)"/></svg>`,
+      /calls image-set/,
+    ],
+    [
+      'an image behind a gradient',
+      `<svg viewBox="0 0 1 1"><path mask="linear-gradient(red, blue), cross-fade(url(#a), red)"/></svg>`,
+      /calls linear-gradient/,
+    ],
+    [
+      'a link to an id of the page',
+      '<svg viewBox="0 0 1 1"><use href="#app-logo"/></svg>',
+      /names #app-logo, which the icon does not define/,
+    ],
+    [
+      'a paint of an id of the page',
+      '<svg viewBox="0 0 1 1"><path fill="url( #brand )"/></svg>',
+      /names #brand, which the icon does not define/,
+    ],
   ])('refuses %s, naming the icon', (_, svg, reason) => {
     expect(() => parse(svg, 'bad')).toThrow(/^The icon "bad" cannot be drawn inline/)
     expect(() => parse(svg, 'bad')).toThrow(reason)
@@ -160,6 +180,14 @@ describe('Icon.serialize and Icon.maskUrl', () => {
     expect(encoded).not.toMatch(/["#<>]/)
     expect(decodeURIComponent(encoded)).toBe(Icon.serialize(tricky))
   })
+
+  it('encode the line breaks an exported drawing keeps in its attributes, which end a CSS string', () => {
+    const breaks = [10, 13, 9].map(code => String.fromCharCode(code)).join('')
+    const wrapped = parse(`<svg viewBox="0 0 4 4"><path d="M0 0${breaks}L4 4"/></svg>`, 'wrapped')
+    const encoded = /^url\("data:image\/svg\+xml,(.*)"\)$/s.exec(Icon.maskUrl(wrapped))![1]!
+    expect([...breaks].some(each => encoded.includes(each))).toBe(false)
+    expect(decodeURIComponent(encoded)).toBe(Icon.serialize(wrapped))
+  })
 })
 
 describe('fromIconify', () => {
@@ -169,11 +197,13 @@ describe('fromIconify', () => {
     icons: {
       dot: { body: '<circle cx="5" cy="5" r="2"/>', width: 10 },
       plain: { body: '<path d="M0 0"/>' },
+      flipped: { body: '<path d="M0 0"/>', hFlip: true },
     },
     aliases: {
       wide: { parent: 'dot', width: 30 },
       wider: { parent: 'wide', left: 2 },
       turned: { parent: 'dot', rotate: 1 },
+      mirror: { parent: 'flipped' },
       loop: { parent: 'round' },
       round: { parent: 'loop' },
     },
@@ -189,6 +219,8 @@ describe('fromIconify', () => {
   it.each([
     ['a missing icon', 'nope', /"test:nope".*no icon nope/],
     ['a transformed alias', 'turned', /rotates or flips/],
+    ['an icon that flips itself', 'flipped', /flipped rotates or flips itself/],
+    ['an alias of one', 'mirror', /flipped rotates or flips itself/],
     ['a circle of aliases', 'loop', /round in a circle/],
     ['a name from the prototype', 'constructor', /no icon constructor/],
   ])('refuses %s', (_, name, reason) => {
@@ -196,13 +228,23 @@ describe('fromIconify', () => {
   })
 
   it('names its icons and its aliases', () => {
-    expect(namesOf(set)).toEqual(['dot', 'plain', 'wide', 'wider', 'turned', 'loop', 'round'])
+    expect(namesOf(set)).toEqual([
+      'dot',
+      'plain',
+      'flipped',
+      'wide',
+      'wider',
+      'turned',
+      'mirror',
+      'loop',
+      'round',
+    ])
   })
 })
 
 describe('Icon.key and Icon.prefixIds', () => {
   const gradient = parse(
-    `<svg viewBox="0 0 8 8" mask="url(#m)"><defs><linearGradient id="a"><stop offset="0"/></linearGradient><mask id="m"><rect width="8" height="8"/></mask></defs><rect fill="url( '#a' )" stroke="URL(#a)" width="8" height="8"/><use href="#a"/><path fill="url(#elsewhere)"/></svg>`,
+    `<svg viewBox="0 0 8 8" mask="url(#m)"><defs><linearGradient id="a"><stop offset="0"/></linearGradient><mask id="m"><rect width="8" height="8"/></mask></defs><rect fill="url( '#a' )" stroke="URL(#a)" width="8" height="8"/><use href="#a"/><path fill="url( #m )"/></svg>`,
     'gradient',
   )
 
@@ -220,7 +262,7 @@ describe('Icon.key and Icon.prefixIds', () => {
     expect(Icon.key(first)).not.toBe(Icon.key(second))
   })
 
-  it('rename every id the icon defines, and every reference to one, and no other', () => {
+  it('rename every id the icon defines, and every reference to one, spaced or not', () => {
     const renamed = Icon.prefixIds(gradient, 'p')
     expect(renamed.attributes).toEqual({ mask: 'url(#p-m)' })
     expect(renamed.nodes[0]!.children.map(node => node.attributes['id'])).toEqual(['p-a', 'p-m'])
@@ -231,7 +273,19 @@ describe('Icon.key and Icon.prefixIds', () => {
       height: '8',
     })
     expect(renamed.nodes[2]!.attributes).toEqual({ href: '#p-a' })
-    expect(renamed.nodes[3]!.attributes).toEqual({ fill: 'url(#elsewhere)' })
+    expect(renamed.nodes[3]!.attributes).toEqual({ fill: 'url(#p-m)' })
+  })
+
+  it('rename no reference to an id the icon does not define, in a drawing made by hand', () => {
+    const made = {
+      viewBox: '0 0 8 8',
+      attributes: {},
+      nodes: [{ tag: 'path' as const, attributes: { id: 'a', fill: 'url(#page)' }, children: [] }],
+    }
+    expect(Icon.prefixIds(made, 'p').nodes[0]!.attributes).toEqual({
+      id: 'p-a',
+      fill: 'url(#page)',
+    })
   })
 
   it('encodes a prefix that could turn a local paint reference into an external one', () => {

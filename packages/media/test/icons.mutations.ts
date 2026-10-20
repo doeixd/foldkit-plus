@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: parser,
-        find: "if (attribute === 'href' && !value.startsWith('#'))",
-        replace: 'if (false)',
+        find: "if (!value.startsWith('#')) refuse(`its <${tag}> links outside the icon",
+        replace: 'if (false) refuse(`its <${tag}> links outside the icon',
       },
     ],
     tests,
@@ -119,7 +119,7 @@ export default [
   },
   {
     name: 'a transformed alias draws its parent unturned',
-    edits: [{ file: parser, find: 'if (alias.rotate !== undefined ||', replace: 'if (false &&' }],
+    edits: [{ file: parser, find: 'if (turns(alias))', replace: 'if (false)' }],
     tests,
   },
   {
@@ -233,7 +233,73 @@ export default [
   {
     name: 'a quote is left in the mask url',
     edits: [
-      { file: '../src/icon.ts', find: '.replace(/[%#<>"]/g,', replace: '.replace(/[%#<>]/g,' },
+      {
+        file: '../src/icon.ts',
+        find: '.replace(/[%#<>"\\n\\r\\t]/g,',
+        replace: '.replace(/[%#<>\\n\\r\\t]/g,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a line break is left in the mask url, ending its CSS string',
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: '.replace(/[%#<>"\\n\\r\\t]/g,',
+        replace: '.replace(/[%#<>"]/g,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a character below 16 is escaped in one digit',
+    edits: [
+      { file: '../src/icon.ts', find: ".toString(16).padStart(2, '0')", replace: '.toString(16)' },
+    ],
+    tests,
+  },
+  {
+    name: 'a spaced reference keeps its space in the id it renames',
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: '/url\\(\\s*([\'"]?)#([^)\'"\\s]*)\\1\\s*\\)/gi,',
+        replace: '/url\\(\\s*([\'"]?)#([^)\'"]*)\\1\\s*\\)/gi,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an attribute may call any function',
+    edits: [
+      {
+        file: '../src/icons/index.ts',
+        find: 'if (!FUNCTIONS.has(called!.toLowerCase()))',
+        replace: 'if (false)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a fragment may name an id of the page',
+    edits: [
+      {
+        file: '../src/icons/index.ts',
+        find: 'if (!ids.has(id))',
+        replace: 'if (false)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an Iconify drawing that turns itself is drawn unturned',
+    edits: [
+      {
+        file: '../src/icons/index.ts',
+        find: 'if (turns(icon))',
+        replace: 'if (false)',
+      },
     ],
     tests,
   },

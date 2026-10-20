@@ -90,6 +90,33 @@ const ENTITIES: ReadonlyMap<string, string> = new Map([
 const USER_UNITS = /^\d+(\.\d+)?$/
 
 /**
+ * The CSS and SVG functions an attribute may call: colours, transforms, and
+ * `url()`, whose target is checked apart. Any other is refused, since a
+ * presentation attribute is read as CSS, where `image-set()` or `cross-fade()`
+ * fetches a bare URL.
+ */
+const FUNCTIONS: ReadonlySet<string> = new Set([
+  'url',
+  'rgb',
+  'rgba',
+  'hsl',
+  'hsla',
+  'hwb',
+  'lab',
+  'lch',
+  'oklab',
+  'oklch',
+  'color',
+  'color-mix',
+  'matrix',
+  'translate',
+  'scale',
+  'rotate',
+  'skewx',
+  'skewy',
+])
+
+/**
  * The icon in `svg`, one whole SVG document, as `IconData`; `name` says which
  * icon a refusal is about. Throws on anything outside the allowlist.
  */
@@ -113,6 +140,15 @@ export const parse = (svg: string, name: string): IconData => {
 
   const ATTRIBUTE = /\s+([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/y
 
+  // Every id the icon defines, and every fragment it names: one naming no id of its own
+  // would reach the page's, so the two are compared once the whole icon is read.
+  const ids = new Set<string>()
+  const references: Array<{
+    readonly tag: string
+    readonly attribute: string
+    readonly id: string
+  }> = []
+
   const attributesOf = (tag: string, source: string, allowed: ReadonlySet<string>) => {
     const attributes: Record<string, string> = Object.create(null)
     ATTRIBUTE.lastIndex = 0
@@ -127,14 +163,22 @@ export const parse = (svg: string, name: string): IconData => {
       if (Object.hasOwn(attributes, attribute)) refuse(`its <${tag}> sets ${attribute} twice`)
       if (!allowed.has(attribute))
         refuse(`its <${tag}> has the attribute ${attribute}, which is not drawn inline`)
-      if (attribute === 'href' && !value.startsWith('#'))
-        refuse(`its <${tag}> links outside the icon (${value})`)
+      if (attribute === 'href') {
+        if (!value.startsWith('#')) refuse(`its <${tag}> links outside the icon (${value})`)
+        references.push({ tag, attribute, id: value.slice(1) })
+      }
       // A presentation attribute is read as CSS, where `URL(` is `url(` and an escape can spell either.
       if (value.includes('\\')) refuse(`its <${tag}>'s ${attribute} holds a CSS escape`)
+      for (const [, called] of value.matchAll(/([a-z][a-z0-9-]*)\s*\(/gi)) {
+        if (!FUNCTIONS.has(called!.toLowerCase()))
+          refuse(`its <${tag}>'s ${attribute} calls ${called}(), which is not drawn inline`)
+      }
       for (const [, target] of value.matchAll(/url\(\s*['"]?([^)'"]*)/gi)) {
         if (!target!.trim().startsWith('#'))
           refuse(`its <${tag}>'s ${attribute} refers outside the icon (${value})`)
+        references.push({ tag, attribute, id: target!.trim().slice(1) })
       }
+      if (attribute === 'id') ids.add(value)
       attributes[attribute] = value
     }
     return attributes
@@ -222,6 +266,10 @@ export const parse = (svg: string, name: string): IconData => {
 
   if (root === undefined) return refuse('it holds no svg')
   if (!closed) refuse(`<${open.at(-1)?.tag ?? 'svg'}> never closes`)
+  for (const { tag, attribute, id } of references) {
+    if (!ids.has(id))
+      refuse(`its <${tag}>'s ${attribute} names #${id}, which the icon does not define`)
+  }
 
   const { viewBox, width, height } = root.attributes
   const presentation: Record<string, string> = {}
@@ -250,6 +298,15 @@ const Box = {
 }
 type IconifyBox = Schema.Struct.Type<typeof Box>
 
+// An icon or an alias may turn its drawing; read so that it is refused, not drawn unturned.
+const Turn = {
+  rotate: Schema.optional(Schema.Number),
+  hFlip: Schema.optional(Schema.Boolean),
+  vFlip: Schema.optional(Schema.Boolean),
+}
+const turns = (entry: Schema.Struct.Type<typeof Turn>): boolean =>
+  (entry.rotate !== undefined && entry.rotate !== 0) || entry.hFlip === true || entry.vFlip === true
+
 /**
  * An Iconify set, as its JSON file holds it (`@iconify-json/<prefix>/icons.json`).
  * What the drawing does not need (`info`, `categories`, an icon's `hidden`) is
@@ -257,18 +314,9 @@ type IconifyBox = Schema.Struct.Type<typeof Box>
  */
 export const IconifySet = Schema.Struct({
   prefix: Schema.String,
-  icons: Schema.Record(Schema.String, Schema.Struct({ body: Schema.String, ...Box })),
+  icons: Schema.Record(Schema.String, Schema.Struct({ body: Schema.String, ...Turn, ...Box })),
   aliases: Schema.optional(
-    Schema.Record(
-      Schema.String,
-      Schema.Struct({
-        parent: Schema.String,
-        rotate: Schema.optional(Schema.Number),
-        hFlip: Schema.optional(Schema.Boolean),
-        vFlip: Schema.optional(Schema.Boolean),
-        ...Box,
-      }),
-    ),
+    Schema.Record(Schema.String, Schema.Struct({ parent: Schema.String, ...Turn, ...Box })),
   ),
   ...Box,
 })
@@ -298,14 +346,13 @@ export const fromIconify = (set: IconifySet, name: string): IconData => {
         ? set.aliases[current]!
         : undefined
     if (alias === undefined) return refuse(`the set has no icon ${current}`)
-    if (alias.rotate !== undefined || alias.hFlip === true || alias.vFlip === true) {
-      refuse('it is an alias that rotates or flips its parent')
-    }
+    if (turns(alias)) refuse('it is an alias that rotates or flips its parent')
     if (boxes.length > 16) refuse('its aliases go round in a circle')
     boxes.push(alias)
     current = alias.parent
   }
   const icon = set.icons[current]!
+  if (turns(icon)) refuse(`its drawing ${current} rotates or flips itself`)
   const nearest = [...boxes, icon, set]
   const read = (key: keyof IconifyBox, otherwise: number) =>
     nearest.find(box => box[key] !== undefined)?.[key] ?? otherwise

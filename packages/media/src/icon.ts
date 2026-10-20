@@ -62,9 +62,10 @@ export const serialize = (icon: IconData): string =>
  * the element it masks paints in `currentColor`.
  */
 export const maskUrl = (icon: IconData): string =>
-  // Only what a data URL in a quoted CSS `url()` cannot hold is escaped: a theme writes every
-  // chrome icon this way, and escaping the spaces, `=` and `/` too adds a quarter to each.
-  `url("data:image/svg+xml,${serialize(icon).replace(/[%#<>"]/g, unsafe => `%${unsafe.charCodeAt(0).toString(16).toUpperCase()}`)}")`
+  // Only what a data URL in a quoted CSS `url()` cannot hold is escaped (a line break ends a CSS
+  // string): a theme writes every chrome icon this way, and escaping the spaces, `=` and `/`
+  // too adds a quarter to each.
+  `url("data:image/svg+xml,${serialize(icon).replace(/[%#<>"\n\r\t]/g, unsafe => `%${unsafe.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase()}`)}")`
 
 const keys = new WeakMap<IconData, string>()
 
@@ -133,7 +134,7 @@ export const prefixIds = (icon: IconData, prefix: string): IconData => {
     // The parser admits only a fragment `href`.
     if (name === 'href') return `#${rename(value.slice(1))}`
     return value.replace(
-      /url\(\s*(['"]?)#([^)'"]*)\1\s*\)/gi,
+      /url\(\s*(['"]?)#([^)'"\s]*)\1\s*\)/gi,
       (_, quote: string, id: string) => `url(${quote}#${rename(id)}${quote})`,
     )
   }
@@ -223,7 +224,8 @@ export type SvgBuilder<Node, Attribute> = {
  * an attribute, so a server render writes the same markup. Ids are prefixed by
  * `key(icon)`; `options.key` sets one drawing's ids apart from another of the
  * same icon, since a gradient defined in a copy that is hidden paints nothing
- * for the copy that shows.
+ * for the copy that shows. Each key's drawing is kept for the icon's life, so
+ * take keys from a small fixed set (a place on the page), not one per row.
  */
 export const draw = <Node, Attribute>(
   icon: IconData,

@@ -524,8 +524,11 @@ it when given a `label`. A style masks with `Icon.maskUrl(icon)`, a CSS `url()`.
 Every icon is parsed against a presentational allowlist, because it is drawn
 inline. The parse refuses, naming the icon, an element or attribute outside
 it (`script`, `style`, `foreignObject`, an animation, an event, a `class`),
-an `href` or `url()` that leaves the icon, and a CSS escape; it drops only the
-root's size and the words of `title` and `desc`, which a label replaces. A
+an `href` or `url()` that leaves the icon or names an id it does not define,
+a CSS function other than a colour, a transform or `url()` (a mask's
+`image-set()` would fetch an image), and a CSS escape. It drops the root's
+size and namespaces, comments and declarations, and the words of `title`,
+`desc` and `metadata`, which a label replaces. A
 refused SVG in a folder fails the build. A refused icon of an Iconify set is
 left out, the declaration says why, and only importing it fails.
 

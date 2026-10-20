@@ -68,7 +68,8 @@ version changed; `pnpm` skips versions already in the registry.
   `Icon.maskUrl` as a CSS `url()` for a mask. `foldkit-media/icons`, for builds, reads an SVG file
   (`parse`) or an Iconify set's icon (`fromIconify`, through its aliases) into it, and refuses,
   naming the icon, any element or attribute outside a presentational allowlist, a link or
-  `url()` outside the icon, and a CSS escape. `Icon.key(icon)` names an icon by its content, and
+  `url()` outside the icon or to an id it does not define, a CSS function other than a colour, a
+  transform or `url()`, an Iconify icon or alias that rotates or flips, and a CSS escape. `Icon.key(icon)` names an icon by its content, and
   `Icon.prefixIds(icon, prefix)` renames the ids it defines and every reference to them.
   `Icon.withStroke(icon, { width?, corners? })` redraws an icon's strokes, for a mask CSS cannot
   reach, and `Icon.maskUrl` escapes only what a quoted CSS `url()` cannot hold, a fifth shorter.
