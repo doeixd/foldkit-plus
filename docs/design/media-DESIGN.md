@@ -208,8 +208,8 @@ does not know the original's size.
 
 *Built: `Image.view`, `Recipes.Image`, alt as `described`/`decorative`, the
 placeholder on the `img`'s background, `data-layout`, and `data-unavailable`
-for a provider with no URL. `Picture.preload` (§7.5) is built too. Not yet: `Image.reveal`
-(§7.4), and Avatar and Card on it (§7.6). Foldkit, not the view, keeps
+for a provider with no URL. `Picture.preload` (§7.5) and `Image.watchLoad` (§7.4) are built too. Not yet:
+Avatar and Card on it (§7.6). Foldkit, not the view, keeps
 `loading` before `src`: `src` is a property, set after every attribute.*
 
 In `mixins-ui`, built like `Avatar`: `Slots.define`, `SlotView.buildersFor`, a
@@ -280,23 +280,27 @@ ThumbHash over BlurHash: it encodes alpha and the aspect ratio, and is smaller.
 
 ### 7.4 Load and failure: an opt-in mixin
 
-Plain CSS cannot tell a loaded image from a loading one. `Image.reveal` is a
-mixin carrying a Foldkit Mount (`Mount.defineStream`, as `ImageCropper`'s
-`ImageLoad` reads an image's natural size) that listens for `load` and `error`
-and sets `data-state` on the `img`. The recipe then clears the placeholder and
-fades on `loaded`, and on `failed` hides the image so a `fallback` drawn beneath
-it shows, as `Avatar` stacks its initials.
+*Built as `Image.watchLoad`, without the fade this section first planned.*
+Plain CSS cannot tell a loaded image from a loading one. `Image.watchLoad` is a
+mixin carrying a Foldkit Mount (`Mount.defineStream`) that listens for `load`
+and `error` and sets `data-state` (`loading`, `loaded`, `failed`) on the `img`.
+`Recipes.Image` hides a failed image, keeping its box, so no broken-image glyph
+or stray alt text shows.
 
+- **No fade.** The placeholder is the `img`'s own background (§7.3), and any
+  opacity on the `img` fades its background with it: a fade from `loading`
+  would show the page, not the placeholder, until the file arrived. Moving the
+  placeholder to the frame was rejected: the frame is as wide as its container,
+  wider than a constrained image. An image that has not arrived paints nothing
+  over its placeholder anyway, so it swaps from placeholder to picture, as
+  Next's and unpic's do.
 - It sends no Message, so by the rule for such Mounts it is never on by
   default; it ships beside the style, like `Tabs.fluid`.
-- An image already complete when the Mount runs (from the cache) must be read
-  at insert, not waited for.
-- A Mount reads its args once, so an `img` whose `src` changes is keyed by its
-  `src`.
-- An element holds one Mount, so `Image.reveal` must not be given a slot that
-  already carries one; the `img` Slot carries none of its own.
-- The fade's duration multiplies by the `motion` knob, not `travel`: it does
-  not move.
+- An image already complete when the Mount runs (from the cache, or loaded
+  before the page hydrated) is marked at insert, never `loading`; a browser
+  test watches every `data-state` it takes.
+- A later `src` on the same element keeps its mark until its own file settles.
+- An element holds one Mount; the `img` Slot carries none of its own.
 
 Without it, a server-rendered image that fails shows its alt text, which is the
 browser's own fallback.

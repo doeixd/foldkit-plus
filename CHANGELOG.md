@@ -26,6 +26,7 @@ version changed; `pnpm` skips versions already in the registry.
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,
   never omitted. `Recipes.Image` has `fit` (`cover`, `contain`) and `edge` (`none`, `line`).
+  `Image.watchLoad`, beside the style, marks its load state and hides a failed image.
   `foldkit-media` is a new peer dependency. See `docs/design/media-DESIGN.md`.
 
 ### Changed

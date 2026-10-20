@@ -88,3 +88,92 @@ test('an image that has not arrived already holds its box, painted with its plac
     handle.dispose()
   }
 })
+
+const pixel = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="2"><rect width="4" height="2" fill="teal"/></svg>')}`
+const arriving = Provider.fromFiles([{ width: 400, format: 'webp', url: pixel }], {
+  sources: [],
+  fallback: 'webp',
+})
+
+const mountWatched = (
+  id: string,
+  images: ReadonlyArray<{ readonly label: string; readonly provider: Provider.Provider }>,
+) => {
+  const container = document.createElement('div')
+  container.id = id
+  document.body.appendChild(container)
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: {} }),
+      update: (model: typeof Model.Type) => ({ model }),
+      view: (_: unknown, h: HtmlBuilder<never>) =>
+        h.div(
+          [h.Style({ display: 'grid', gap: '16px', padding: '16px', justifyItems: 'start' })],
+          images.map(({ label, provider }) =>
+            Image.view(
+              {
+                asset,
+                provider,
+                layout: Layout.Fixed({ width: 400 }),
+                alt: Image.described(label),
+                style,
+                mixins: Image.watchLoad,
+              },
+              h,
+            ),
+          ),
+        ),
+    }),
+  )
+}
+
+const imageNamed = (label: string) =>
+  document.querySelector<HTMLImageElement>(`img[alt="${label}"]`)!
+
+test('watchLoad marks an image that arrived, and hides one that failed but keeps its box', async () => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent = Style.stylesheet(L.declare, L.in('theme', Theme.root(theme))) + style.css
+  document.head.append(sheet)
+  const handle = mountWatched('watched', [
+    { label: 'arrived', provider: arriving },
+    { label: 'failed', provider },
+  ])
+  try {
+    await vi.waitFor(() => {
+      expect(imageNamed('arrived').getAttribute('data-state')).toBe('loaded')
+      expect(imageNamed('failed').getAttribute('data-state')).toBe('failed')
+    })
+    expect(getComputedStyle(imageNamed('failed')).visibility).toBe('hidden')
+    expect(box('failed')).toEqual([400, 200])
+    expect(getComputedStyle(imageNamed('arrived')).visibility).toBe('visible')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('watchLoad marks an image already complete when it mounts as loaded, never loading', async () => {
+  const first = mountWatched('first', [{ label: 'cached', provider: arriving }])
+  await vi.waitFor(() => expect(imageNamed('cached').getAttribute('data-state')).toBe('loaded'))
+  first.dispose()
+  document.body.replaceChildren()
+  const states: Array<string | null> = []
+  const observer = new MutationObserver(records => {
+    for (const record of records) {
+      if (record.target instanceof HTMLImageElement)
+        states.push(record.target.getAttribute('data-state'))
+    }
+  })
+  observer.observe(document.body, { subtree: true, attributeFilter: ['data-state'] })
+  const second = mountWatched('second', [{ label: 'cached', provider: arriving }])
+  try {
+    await vi.waitFor(() => expect(imageNamed('cached').getAttribute('data-state')).toBe('loaded'))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(states).not.toContain('loading')
+  } finally {
+    observer.disconnect()
+    second.dispose()
+  }
+})

@@ -4,7 +4,9 @@
  * container. The placeholder paints its background until the picture covers
  * it. `fit` crops (`cover`) or letterboxes (`contain`) when a style sets a
  * ratio of its own; `edge: 'line'` draws the faint inset line that keeps a pale image
- * apart from a pale page.
+ * apart from a pale page. With `Image.watchLoad`, an image whose file failed
+ * hides, keeping its box. There is no fade: the placeholder is the `img`'s own
+ * background, which any opacity on the `img` would fade with it.
  */
 import { Style } from 'foldkit-mixins'
 import { ImageSlots } from '../image.js'
@@ -21,6 +23,8 @@ export const Image = Style.recipeFor(ImageSlots)({
         background: 'var(--fk-image-placeholder) center / cover no-repeat',
       }),
       Style.nest('&[data-layout="full"]', { inlineSize: '100%' }),
+      // Marked by `Image.watchLoad` alone.
+      Style.nest('&[data-state="failed"]', { visibility: 'hidden' }),
     ),
   },
   variants: {
