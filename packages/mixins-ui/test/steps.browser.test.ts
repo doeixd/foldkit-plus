@@ -371,13 +371,13 @@ test.each(['Georgia, serif', 'system-ui, sans-serif'])(
       const box = number.getBoundingClientRect()
       const around = marker.getBoundingClientRect()
       expect(box.top + box.height / 2).toBeCloseTo(around.top + around.height / 2, 0)
-      // The box is the figure's own height, so centering it centers the ink.
-      const context = document.createElement('canvas').getContext('2d')!
-      // From its parts: the computed shorthand can come back empty.
-      const face = getComputedStyle(number)
-      context.font = `${face.fontWeight} ${face.fontSize} ${face.fontFamily}`
-      const ink = context.measureText(number.textContent!)
-      expect(box.height).toBeCloseTo(ink.actualBoundingBoxAscent + ink.actualBoundingBoxDescent, 0)
+      // Trimmed to the cap line and the baseline: a face's caps stand about
+      // 0.7em, where the untrimmed box is the whole em of its line height. The
+      // ink of a figure that stands past the caps, or dips as Georgia's
+      // oldstyle 3 does, is the face's own.
+      const em = parseFloat(getComputedStyle(number).fontSize)
+      expect(box.height).toBeLessThan(em * 0.85)
+      expect(box.height).toBeGreaterThan(em * 0.55)
     } finally {
       handle.dispose()
       document.body.style.removeProperty('font-family')
