@@ -518,7 +518,10 @@ export const stylesheet: string = Style.stylesheet(
   `Theme.compose(base, over)`. A reader's light or dark (`foldkit-mixins/theme`):
   `Theme.schemeScript()` in a head `<script>` applies the kept one before the first paint,
   `Theme.chooseScheme(scheme)` is a Command's Effect that applies and keeps it, and
-  `Theme.currentScheme()` reads it back for the Model. Layers are a value: `Layers.standard` (also
+  `Theme.currentScheme()` reads it back for the Model. Knob values a reader set get the same pair:
+  `Theme.knobScript({ selector? })` in the head applies the kept knob variables, and
+  `Theme.chooseKnobs(theme, { base })` applies and keeps those that differ from `base`, in one
+  unlayered rule both write. Layers are a value: `Layers.standard` (also
   `foldkit-mixins/layers`) is the order `reset, tokens, theme, defaults, components, layouts,
   variants, utilities, app`; `L.in(name, piece)` puts a piece's rules and global CSS in that layer
   (a misspelled name is a type error), `L.declare` is the `@layer …;` statement, and

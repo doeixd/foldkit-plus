@@ -3,7 +3,8 @@
  * pieces. `root` and `scoped` turn tokens into unlayered `:root` and
  * selector rules for `Style.stylesheet`; `make` is a theme of typed knob
  * values, and `standard` every shipped token with a theme's knobs;
- * `schemeScript` and `chooseScheme` keep a reader's light or dark choice.
+ * `schemeScript` and `chooseScheme` keep a reader's light or dark choice, and
+ * `knobScript` and `chooseKnobs` the knob values of a theme they made.
  */
 import * as Core from './theme/core.js'
 import * as Knob from './theme/knob.js'
@@ -25,6 +26,7 @@ import {
 import * as ThemeSet from './theme/themes.js'
 import { root, scoped } from './theme/root.js'
 import { chooseScheme, currentScheme, schemeScript } from './theme/scheme.js'
+import { chooseKnobs, knobScript } from './theme/knobsKept.js'
 import { raise, raisedSurface } from './theme/raise.js'
 import {
   breakpointWidths,
@@ -74,6 +76,8 @@ export { raise, raisedSurface } from './theme/raise.js'
 export type { Palette } from './theme/oklch.js'
 export { chooseScheme, currentScheme, SCHEME_KEY, schemeScript } from './theme/scheme.js'
 export type { Scheme } from './theme/scheme.js'
+export { chooseKnobs, KNOBS_FORMAT, KNOBS_KEY, knobScript } from './theme/knobsKept.js'
+export type { KnobsChoice, KnobsPlace } from './theme/knobsKept.js'
 
 export const Theme = {
   ...Core.Theme,
@@ -101,4 +105,6 @@ export const Theme = {
   schemeScript,
   chooseScheme,
   currentScheme,
+  knobScript,
+  chooseKnobs,
 } as const

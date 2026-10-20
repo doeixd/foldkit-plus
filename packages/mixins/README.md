@@ -276,6 +276,7 @@ one.
 | `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
 | `Theme.root(theme, { omit?, colorScheme? })` / `Theme.scoped(theme, selector, overrides)` | from `foldkit-mixins/theme`: tokens as `:root` custom properties, or as overrides under a selector; unlayered global pieces for `Style.stylesheet` |
 | `Theme.schemeScript(key?)` / `Theme.chooseScheme(scheme, key?)` / `Theme.currentScheme()` | from `foldkit-mixins/theme`: a head script applying a kept `light` or `dark` before the first paint; a Command's Effect that applies and keeps a choice; the scheme applied now |
+| `Theme.knobScript({ key?, selector? })` / `Theme.chooseKnobs(theme, { base, key?, selector? })` | from `foldkit-mixins/theme`: a head script applying kept knob variables before the first paint; a Command's Effect that applies `theme`'s knobs that differ from `base` and keeps them |
 | `Theme.make(values)` / `Theme.standard(theme?)` | from `foldkit-mixins/theme`: a theme, the typed knob values it changes (`Knobs.standard`); every shipped token with a theme's knobs, for `Theme.root` |
 | `Theme.tokens` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, radius, motion, width, border, shadow and breakpoint scales, and `safe` (what a notch or the home indicator takes from each screen edge, `env(safe-area-inset-*)`, 0 unless the viewport meta says `viewport-fit=cover`); the breakpoints as pixel widths for `foldkit-primitives/media` |
 | `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece), `in(name, piece)` (a piece's unlayered rules and global CSS inside that layer; what is already layered keeps its layer; a piece wholly in another layer is `style:relayered`) and `layer(name)` (the placement `Style.forSlots(S)(pieces, { layer })` takes, so a slot style is compiled in that layer). A name outside the order is a type error. `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
@@ -495,7 +496,19 @@ who chose dark sees one light frame: `Theme.schemeScript(key?)` is the text of a
 that applies the one kept in `localStorage`, `Theme.chooseScheme(scheme, key?)` (`'light'`,
 `'dark'` or `'system'`) is a Command's Effect that applies and keeps a choice, and
 `Theme.currentScheme()` reads back what is applied, for the Model once the browser takes the page
-over (the docs site does it in its SSR plan's `boot`). The palette
+over (the docs site does it in its SSR plan's `boot`).
+
+Knob values a reader set, as on a theme-making page, need the same: `Theme.knobScript({ key?,
+selector? })` is the text of a head `<script>` that applies the knob variables kept in
+`localStorage` to `selector` (`:root` by default), and `Theme.chooseKnobs(theme, { base, key?,
+selector? })` is a Command's Effect that applies `theme`'s and keeps them. Both write one
+unlayered rule in one `<style>` element, so it beats the layered theme, an inline style still
+beats it, and the Command replaces what the script wrote rather than handing over from it. What is
+kept is the variables that differ from `base`, with `KNOBS_FORMAT`: an entry of another format, a
+property that is not a knob, and storage that throws are ignored, and the base theme keeps
+nothing. A token derives where it is declared, so a selector other than `:root` must declare the
+tokens too (`Theme.scope`). On a page rendered per request, put the theme in the Model from a
+cookie instead (see `foldkit-ssr`). The palette
 needs relative color syntax and `light-dark()` (Chrome 123, Firefox 128, Safari 17.5).
 
 `Style.responsive(Theme.tokens.breakpoint, { md: { … } })` and

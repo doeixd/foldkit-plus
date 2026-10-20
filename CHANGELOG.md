@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `Theme.knobScript({ key?, selector? })` and `Theme.chooseKnobs(theme, { base,
+  key?, selector? })` keep a reader's knob values and apply them before the first paint, as
+  `schemeScript` and `chooseScheme` do for the scheme: the head script applies the kept knob
+  variables to one unlayered rule, and the Command rewrites that rule and keeps those that differ
+  from `base`. See `docs/design/theme-robustness-DESIGN.md`.
 - `foldkit-media` 0.0.0, unpublished: responsive images as URLs to write. `Picture.derive` turns
   an `ImageAsset`'s facts, a `Provider` and a `Layout` (`Fixed`, `Constrained`, `FullWidth`) into
   every attribute of an image's markup: `srcset` and a `source` per format from one `Widths`
