@@ -177,7 +177,17 @@ test('the highlight lies over a separated card, its size, and the card draws no 
       '600px',
       h,
       Card.group(
-        { label: 'Apart', columns: 2, cards: cards('s', 2), style: separated, cardStyle: outlined },
+        {
+          label: 'Apart',
+          columns: 2,
+          // A footer stands over the card's overlay, on a layer of its own.
+          cards: cards('s', 2).map(card => ({
+            ...card,
+            footer: h.span([h.Id(`${card.key}-footer`)], ['Footer']),
+          })),
+          style: separated,
+          cardStyle: outlined,
+        },
         h,
       ),
     ),
@@ -204,13 +214,19 @@ test('the highlight lies over a separated card, its size, and the card draws no 
       expect(Math.abs(placed.height - at.height)).toBeLessThan(1)
     })
     expect(getComputedStyle(card).boxShadow).toBe(resting)
-    // Painted over the card, whose surface would hide it: hit testing follows
-    // paint order, once the highlight takes the pointer.
+    // Painted over the whole card, whose surface would hide it, footer and all:
+    // hit testing follows paint order, once the highlight takes the pointer.
     highlight.style.pointerEvents = 'auto'
     const at = rect(card)
-    const [top] = document.elementsFromPoint(at.left + at.width / 2, at.top + at.height / 2)
+    const footer = rect(document.getElementById('s1-footer')!)
+    const [middle] = document.elementsFromPoint(at.left + at.width / 2, at.top + at.height / 2)
+    const [onFooter] = document.elementsFromPoint(
+      footer.left + footer.width / 2,
+      footer.top + footer.height / 2,
+    )
     highlight.style.pointerEvents = ''
-    expect(top).toBe(highlight)
+    expect(middle).toBe(highlight)
+    expect(onFooter).toBe(highlight)
   } finally {
     handle.dispose()
   }

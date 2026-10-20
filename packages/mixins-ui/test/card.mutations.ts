@@ -206,6 +206,17 @@ export default [
     tests: group,
   },
   {
+    name: "a card's footer stands over the highlight",
+    edits: [
+      {
+        file: recipe,
+        find: "Style.self({ position: 'relative', zIndex: '0', display: 'grid' })",
+        replace: "Style.self({ position: 'relative', display: 'grid' })",
+      },
+    ],
+    tests: group,
+  },
+  {
     name: "an outlined card lifts under the group's highlight too",
     edits: [
       {

@@ -11,8 +11,8 @@
  * lighter, with a shadow of two layers (a tight contact one and a soft
  * ambient one) that deepens with the level. `lift: 'hover'` raises a
  * pressable card under the pointer, which reduced motion stills. A pressable
- * card tints on hover; a selected one keeps a fill, in each surface, and a
- * heavier title.
+ * card tints on hover, unless a group's highlight is its hover; a selected one
+ * keeps a fill, in each surface, and a heavier title.
  *
  * A group lays cards in up to `--fk-card-columns` columns, fewer where a
  * column would be narrower than `minColumn`, divided by hairlines or apart,
@@ -368,6 +368,8 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
         '--_fk-card-group-gap': '0px',
         '--_fk-card-group-frame': '0px',
         position: 'relative',
+        // The highlight stacks over the cards and nothing outside the group.
+        isolation: 'isolate',
         // As wide as its columns at their narrowest, where it can be: a group
         // in a row or a centred box would shrink to one column otherwise.
         minInlineSize: `min(100%, ${narrowest})`,
@@ -386,7 +388,9 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
         listStyle: 'none',
       }),
     ),
-    item: component(Style.self({ position: 'relative', display: 'grid' })),
+    // Each card's own layers (its action, footer and dismiss stand over its
+    // overlay) stay inside it, under the highlight.
+    item: component(Style.self({ position: 'relative', zIndex: '0', display: 'grid' })),
     highlight: component(
       Style.self({
         position: 'absolute',
