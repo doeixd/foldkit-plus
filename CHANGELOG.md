@@ -5,7 +5,15 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.27.0
+
+Sheets and Drawers swipe from anywhere on their panels, as vaul's do: a finger drags the panel,
+content that can still scroll its way scrolls first, and `swipe: { from, flickSpeed, closeShare }`
+customizes it. `foldkit-mixins-ui` 0.16.0 and `foldkit-primitives` 0.14.0 change, and
+`foldkit-plus` is 0.9.0. Packages that pin one of them republish with a patch so their ranges cover
+the new versions (`foldkit-builder`, `foldkit-mixins-builder`, `foldkit-mixins-data-grid`,
+`foldkit-mixins-form`, `foldkit-mixins-richtext`). Nothing written for 0.26 needs changing; a
+finger on a sheet's content now drags it, which `swipe: { from: 'handle' }` turns back.
 
 ### Changed
 

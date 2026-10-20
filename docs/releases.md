@@ -5,12 +5,12 @@ to npm. Versions are read from each `packages/*/package.json`.
 
 ## Package matrix
 
-The tree declares the versions the next tag publishes (`v0.26.0` is the last). The version column is the tree's
+The tree declares the versions the next tag publishes (`v0.27.0` is the last). The version column is the tree's
 declaration; `npm view <name> version` says what the registry serves.
 
 | Package | Version | Status | Role |
 | --- | --- | --- | --- |
-| [`foldkit-plus`](../packages/plus) | 0.8.0 | Published | Every package below in one install, re-exported by subpath (`foldkit-plus/remote`), and `npx foldkit-plus setup`, which tells a coding agent how to start. Adapters with a library of their own are optional peers. |
+| [`foldkit-plus`](../packages/plus) | 0.9.0 | Published | Every package below in one install, re-exported by subpath (`foldkit-plus/remote`), and `npx foldkit-plus setup`, which tells a coding agent how to start. Adapters with a library of their own are optional peers. |
 | [`foldkit-cms-drizzle`](../packages/cms-drizzle) | 0.6.10 | Published | The server half of `foldkit-cms`: the entries, drafts and revisions tables, saving and discarding a draft with a conflict rule, publishing through the application's own mutation in a transaction, unpublishing, the worklist, and the audience boundary. |
 | [`foldkit-crud`](../packages/crud) | 0.8.2 | Published | Create, read, update and delete screens assembled from a form, a Remote operation, and their Entity: an editor, a list, a detail, and a remover. Published as `foldkit-admin` in 0.7.0, which is deprecated. |
 | [`foldkit-agent`](../packages/agent) | 0.8.1 | Published | Protocol-neutral agent contract: projects a Model and Message union into an agent interface. |
@@ -25,9 +25,9 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-form`](../packages/form) | 0.6.0 | Published | A form as a Bundle over core field validation, built from an operation's input and the Entity it writes. Headless. |
 | [`foldkit-mixins-crud`](../packages/mixins-crud) | 0.7.7 | Published | Draws a `foldkit-crud` list as an accessible table and a detail as a description list, with every element a Mixins Slot. |
 | [`foldkit-data-grid`](../packages/data-grid) | 0.2.2 | Published | An interactive grid's state and geometry: columns, focus, selection, column state, editing, the clipboard, fill and two-axis virtualization over rows the application owns. Experimental. |
-| [`foldkit-mixins-data-grid`](../packages/mixins-data-grid) | 0.2.7 | Published | Draws a `foldkit-data-grid` grid as an accessible, virtualized WAI-ARIA grid through Mixins slots. Experimental. |
+| [`foldkit-mixins-data-grid`](../packages/mixins-data-grid) | 0.2.8 | Published | Draws a `foldkit-data-grid` grid as an accessible, virtualized WAI-ARIA grid through Mixins slots. Experimental. |
 | [`foldkit-cms`](../packages/cms) | 0.7.7 | Published | What a CMS adds to a declared domain: roles, content types, drafts beside the row, a lifecycle derived from facts, and the authoring editor's state. |
-| [`foldkit-mixins-form`](../packages/mixins-form) | 0.7.3 | Published | Draws a `foldkit-form` form as accessible HTML with every element a Mixins Slot. |
+| [`foldkit-mixins-form`](../packages/mixins-form) | 0.7.4 | Published | Draws a `foldkit-form` form as accessible HTML with every element a Mixins Slot. |
 | [`foldkit-surface`](../packages/surface) | 0.10.0 | Published | Observation boundary: pure Model projections, field references, and typed Message subsets. |
 | [`foldkit-remote`](../packages/remote) | 0.18.0 | Published | Normalized server state as a Foldkit Submodel: entities, selections, queries, connections, mutations, and live changes. |
 | [`foldkit-remote-server`](../packages/remote-server) | 0.15.0 | Published | Server sources and handler compilation for Remote: entities, queries, mutations, live, and selection authorization. |
@@ -35,7 +35,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-mirror`](../packages/mirror) | 0.6.1 | Published | A Model slice mirrored into the URL or a key-value store, restored on load. |
 | [`foldkit-bundle`](../packages/bundle) | 0.8.0 | Published | A Submodel packaged once and placed through a Link: routing, init, Subscriptions, resources, and view lifted into the parent. |
 | [`foldkit-bundle-surface`](../packages/bundle-surface) | 0.4.1 | Published | Placements as Module contracts that own their Model path. |
-| [`foldkit-primitives`](../packages/primitives) | 0.13.0 | Published | Ready-made primitives (media, net, time, state, motion, device, events, observers, dom, interaction) under tree-shakeable subpaths. |
+| [`foldkit-primitives`](../packages/primitives) | 0.14.0 | Published | Ready-made primitives (media, net, time, state, motion, device, events, observers, dom, interaction) under tree-shakeable subpaths. |
 | [`foldkit-react`](../packages/react) | 0.4.0 | Published | React components as islands in a Foldkit view, Foldkit programs inside React through Ports, and Suspense over Model-owned `AsyncData`. |
 | [`foldkit-react-codegen`](../packages/react-codegen) | 0.3.0 | Published | Compiles Foldkit view functions to React TSX, refusing with a located diagnostic what it cannot translate faithfully. |
 | [`foldkit-mixins`](../packages/mixins) | 0.16.0 | Published | Typed slot contracts and inside-out Style/Behavior attachments for Foldkit views. |
@@ -43,14 +43,14 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-ssr`](../packages/ssr) | 0.7.1 | Published | Server rendering that hands the Model over instead of rerunning `init`, with resumable pages, forms that work without scripts, and lazy bundles. Early: [its plan](./design/ssr-PLAN.md). |
 | [`foldkit-richtext`](../packages/richtext) | 0.4.0 | Published | Pure semantic documents and editing transactions for Foldkit. Early. |
 | [`foldkit-richtext-dom`](../packages/richtext-dom) | 0.6.0 | Published | The DOM interpreter for a `foldkit-richtext` editable subtree. Early. |
-| [`foldkit-mixins-richtext`](../packages/mixins-richtext) | 0.4.4 | Published | The rich-text editor's chrome, drawn through Mixins slots. Early. |
+| [`foldkit-mixins-richtext`](../packages/mixins-richtext) | 0.4.5 | Published | The rich-text editor's chrome, drawn through Mixins slots. Early. |
 | [`foldkit-richtext-code`](../packages/richtext-code) | 0.2.1 | Published | Total grammars as tokenizers over the shared `syntax-*` kinds, for code decorations. |
 | [`foldkit-richtext-code-shiki`](../packages/richtext-code-shiki) | 0.2.1 | Published | Shiki grammars as tokenizers over the same kinds; the application owns the highlighter. |
 | [`foldkit-richtext-markdown`](../packages/richtext-markdown) | 0.3.0 | Published | Markdown round-trips for the editor document: task items, tight lists. |
-| [`foldkit-builder`](../packages/builder) | 0.3.6 | Published | The page builder's state: a Bundle that edits a composition Document by Operations, with selection and undo, as one form key's control. Experimental: [the page builder design](./design/pagebuilder-DESIGN.md). |
-| [`foldkit-mixins-builder`](../packages/mixins-builder) | 0.3.7 | Published | The page Builder drawn as accessible HTML through Mixins slots: palette, layers tree, inspector, and the page in edit mode. Experimental: [the page builder design](./design/pagebuilder-DESIGN.md). |
+| [`foldkit-builder`](../packages/builder) | 0.3.7 | Published | The page builder's state: a Bundle that edits a composition Document by Operations, with selection and undo, as one form key's control. Experimental: [the page builder design](./design/pagebuilder-DESIGN.md). |
+| [`foldkit-mixins-builder`](../packages/mixins-builder) | 0.3.8 | Published | The page Builder drawn as accessible HTML through Mixins slots: palette, layers tree, inspector, and the page in edit mode. Experimental: [the page builder design](./design/pagebuilder-DESIGN.md). |
 | [`foldkit-composition`](../packages/composition) | 0.3.5 | Published | What a page is, as data: Blocks in Regions, a stored Document checked against a Catalog. Experimental: [the page builder design](./design/pagebuilder-DESIGN.md). |
-| [`foldkit-mixins-ui`](../packages/mixins-ui) | 0.15.0 | Published | `@foldkit/ui` adapters that publish a component's attribute bundles as Slots. |
+| [`foldkit-mixins-ui`](../packages/mixins-ui) | 0.16.0 | Published | `@foldkit/ui` adapters that publish a component's attribute bundles as Slots. |
 | [`foldkit-guard`](../packages/guard) | 0.3.0 | Published | Who may do what, declared once on the domain: principal guards implemented on the server, row guards as query expressions, enforced on reads, writes, Sync edits and agents through its `/server`, `/drizzle`, `/sync` and `/agent` subpaths. |
 | [`foldkit-site`](../packages/site) | 0.4.1 | Published | A routed application's topology as data: stable route nodes, their hierarchy, typed targets and per-node metadata, compiled to Foldkit's Router, Surface and Bundle primitives. Early. |
 | [`foldkit-auth`](../packages/auth) | 0.1.1 | Published | Yielded Auth in Foldkit Plus: a verified session cookie as the principal `serveFetch`, a Sync document host and SSR's posted forms answer as (`foldkit-auth/server`), and the client's subject header (`believing`). Early. |
