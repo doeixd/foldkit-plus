@@ -156,6 +156,10 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   (`import type { ResumableBuilder } from 'foldkit-ssr'`); it is the only
   builder type the package exports.
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
+- `staticSite` (`foldkit-ssr/vite`) takes `emit(pages)`: files made from the
+  generated pages, written beside them (`foldkit-media`'s `materialize` writes
+  the image variants the pages name). A path outside the output, or on a file
+  the build or the client build writes, is refused.
 - `SSR.page(template, result, { head? })` and `SSR.generate` take
   `head: rendered => string`, put before `</head>`: with `foldkit-mixins`,
   `` rendered => `<style>${Style.usedIn(rendered.html)}</style>` `` ships a

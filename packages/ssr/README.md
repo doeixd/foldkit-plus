@@ -411,8 +411,16 @@ export const site = {
 } satisfies SiteModule
 ```
 
+`emit` adds files made from the generated pages, written beside them: what the
+pages reference and the build must also serve, such as the image variants
+their `srcset`s name (`foldkit-media`'s `materialize`). It takes the pages and
+returns `{ file, contents }`s; a path that leaves the output (absolute, `..`)
+or lands on a page, the sitemap, robots or another emitted file is refused, and
+so is one the client build already wrote, a file from `public/` among them.
+
 `generateStaticSite(site)` is the same build without Vite: it renders every
-path and returns `{ pages, sitemap?, robots? }`. `fileFor(path, layout)` maps
+path and returns `{ pages, sitemap?, robots?, emitted }`; `writeEmitted(outDir,
+emitted)` writes the emitted files as the plugin does. `fileFor(path, layout)` maps
 one path to the file a host serves it from, so a caller writes the files
 itself; `generateStaticSite` refuses two paths that would claim one file.
 

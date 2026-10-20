@@ -14,4 +14,8 @@ export const site = {
   head: () => '<style>.fixture-first-paint{color:#123456}</style>',
   sitemap: true,
   robots: true,
+  // A file made from the pages, as an image step writes the variants they name.
+  emit: async (pages: ReadonlyArray<{ readonly path: string }>) => [
+    { file: 'emitted/paths.txt', contents: pages.map(page => page.path).join('\n') },
+  ],
 }

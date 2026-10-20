@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-ssr`: a static site's `emit(pages)` adds files made from the generated pages, written
+  beside them; a path outside the output, or on a file the build or the client build writes, is
+  refused. `writeEmitted` writes them without the plugin.
 - `foldkit-mixins`: `Theme.knobScript({ key?, selector? })` and `Theme.chooseKnobs(theme, { base,
   key?, selector? })` keep a reader's knob values and apply them before the first paint, as
   `schemeScript` and `chooseScheme` do for the scheme: the head script applies the kept knob

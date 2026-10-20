@@ -10,7 +10,7 @@
  * through a server (workspace packages resolve to source, as the build
  * does), so `vite.config.ts` names a file, never application code.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { Effect, Schema } from 'effect'
 import type { RenderError } from 'foldkit/experimental/server'
@@ -49,7 +49,7 @@ export const fileFor = (path: string, layout: 'directory' | 'flat'): string => {
  * over what the site serves (a thunk that seeds and lists, evaluated when
  * the build runs). `template` is the built shell the pages are rendered
  * into; `files` is the host's layout; `sitemap` and `robots` write their
- * files from the generated pages.
+ * files from the generated pages; `emit` adds files of its own made from them.
  */
 export interface StaticSite<
   Model,
@@ -74,6 +74,20 @@ export interface StaticSite<
   readonly files?: 'directory' | 'flat' | undefined
   readonly sitemap?: boolean | undefined
   readonly robots?: boolean | undefined
+  /**
+   * Files made from the generated pages, written beside them: what the pages
+   * reference and the build must also serve, such as the image variants
+   * their `srcset`s name (`foldkit-media`'s `materialize`).
+   */
+  readonly emit?:
+    | ((pages: ReadonlyArray<BuiltPage>) => Promise<ReadonlyArray<EmittedFile>>)
+    | undefined
+}
+
+/** A file `emit` adds: its path in the output, and its contents. */
+export interface EmittedFile {
+  readonly file: string
+  readonly contents: Uint8Array | string
 }
 
 /** One generated page, with the file the host serves it from. */
@@ -89,6 +103,30 @@ export interface BuiltSite {
   readonly pages: ReadonlyArray<BuiltPage>
   readonly sitemap?: string | undefined
   readonly robots?: string | undefined
+  readonly emitted: ReadonlyArray<EmittedFile>
+}
+
+/**
+ * The files `emit` returned, refused when one would land outside the output
+ * (an absolute path, a `..`) or on a file the build writes itself: a page,
+ * the sitemap, robots, or another emitted file.
+ */
+export const checkEmitted = (
+  emitted: ReadonlyArray<EmittedFile>,
+  taken: ReadonlyArray<string>,
+): ReadonlyArray<EmittedFile> => {
+  const claimed = new Set(taken)
+  for (const { file } of emitted) {
+    const segments = file.split(/[\\/]/)
+    if (file === '' || /^([a-zA-Z]:|[\\/])/.test(file) || segments.includes('..')) {
+      throw new Error(`foldkit-ssr: emit returned "${file}", which is not a path inside the output`)
+    }
+    if (claimed.has(file)) {
+      throw new Error(`foldkit-ssr: emit returned "${file}", which the build already writes`)
+    }
+    claimed.add(file)
+  }
+  return emitted
 }
 
 /**
@@ -157,12 +195,45 @@ export const generateStaticSite = <Model, Fields extends Schema.Struct.Fields, M
         ...(modifiedOf(spec) === undefined ? {} : { modified: modifiedOf(spec) }),
       })
     }
+    const emitInput = site.emit
+    const emitted =
+      emitInput === undefined
+        ? []
+        : checkEmitted(yield* Effect.promise(() => emitInput(pages)), [
+            ...pages.map(page => page.file),
+            ...(site.sitemap === true ? ['sitemap.xml'] : []),
+            ...(site.robots === true ? ['robots.txt'] : []),
+          ])
     return {
       pages,
       ...(site.sitemap === true ? { sitemap: SSR.sitemap(pages, { origin: site.origin }) } : {}),
       ...(site.robots === true ? { robots: SSR.robots({ origin: site.origin }) } : {}),
+      emitted,
     }
   })
+}
+
+/**
+ * Writes what `emit` returned into `outDir`, refusing a file the client
+ * build already wrote there: a file from `public/` is not emit's to replace.
+ */
+export const writeEmitted = async (
+  outDir: string,
+  emitted: ReadonlyArray<EmittedFile>,
+): Promise<void> => {
+  for (const { file, contents } of emitted) {
+    const target = join(outDir, file)
+    if (
+      await access(target).then(
+        () => true,
+        () => false,
+      )
+    ) {
+      throw new Error(`foldkit-ssr: emit returned "${file}", which the client build already wrote`)
+    }
+    await mkdir(dirname(target), { recursive: true })
+    await writeFile(target, contents)
+  }
 }
 
 /** A site description as a module exports it, for the plugin to evaluate. */
@@ -182,6 +253,9 @@ export interface SiteModule {
   readonly files?: 'directory' | 'flat' | undefined
   readonly sitemap?: boolean | undefined
   readonly robots?: boolean | undefined
+  readonly emit?:
+    | ((pages: ReadonlyArray<BuiltPage>) => Promise<ReadonlyArray<EmittedFile>>)
+    | undefined
 }
 
 /** Workspace packages resolve to their source, so the site builds as edited. */
@@ -268,8 +342,9 @@ export const staticSite = (options: {
         if (result.sitemap !== undefined)
           await writeFile(join(outDir, 'sitemap.xml'), result.sitemap)
         if (result.robots !== undefined) await writeFile(join(outDir, 'robots.txt'), result.robots)
+        await writeEmitted(outDir, result.emitted)
         console.log(
-          `foldkit-ssr: generated ${result.pages.length} pages${result.sitemap === undefined ? '' : ', a sitemap'}${result.robots === undefined ? '' : ' and robots.txt'} into ${outDir}`,
+          `foldkit-ssr: generated ${result.pages.length} pages${result.sitemap === undefined ? '' : ', a sitemap'}${result.robots === undefined ? '' : ' and robots.txt'}${result.emitted.length === 0 ? '' : ` and ${result.emitted.length} emitted files`} into ${outDir}`,
         )
       } finally {
         await server.close()
