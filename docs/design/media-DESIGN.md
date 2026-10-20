@@ -425,6 +425,63 @@ alias that rotates or flips is refused rather than drawn transformed.*
 - **Any Iconify set** works through the virtual module, Unicons (`uil`)
   included, by its Iconify prefix.
 
+### 8.5 Icons in the theme, and on `/create`
+
+*Not built.* Today the shipped components draw their own glyphs two ways:
+the chevrons are two sides of a turned box (`turningChevron` in
+`recipes/design.ts`), and the rest (Command's magnifier, PasswordInput's eye,
+ColorPicker's pipette, ImageCropper's handles, Toast's marks) are `data:`
+masks written by hand, one per recipe. A theme can change every color, radius
+and duration they show, but not one of their drawings. Icons join the
+pipeline (`tokens -> ref -> pieces -> slots -> sheet`) the way every other
+value does:
+
+- **The chrome's icons are tokens.** A fixed vocabulary of the names the
+  shipped components draw (`check`, `close`, `chevron-down`, `chevron-right`,
+  `plus`, `minus`, `search`, `more`, `external`, `copy`, `eye`, `eye-off`,
+  `info`, `success`, `warning`, `error`, `drag`, `pipette`) is an `icon`
+  token group: `Theme.root` writes `--fk-icon-check:
+  url("data:image/svg+xml,…")` from `Icon.maskUrl`, and a recipe reads
+  `ref.icon.check` through `Icons.glyph`, never a literal. The defaults are
+  generated constants (`pnpm icons`, §8.2) from one pack, so a page with no
+  theme of its own still draws them.
+- **A theme picks its pack.** `Theme.make({ icons: pack })`, where a pack is
+  `{ [name in ChromeIcon]: IconData }` checked against the vocabulary, so a
+  pack missing `close` is a type error. Packs are data: Lucide, Tabler,
+  Phosphor, Heroicons and an application's own folder all fit. An icon is a
+  token, so a pack is chosen by the Model like any theme (`Themes.make`), with
+  no second set of components.
+- **Knobs for how icons are drawn.** `icon-stroke` (a stroke width), `icon-scale`
+  (an icon's size against its text, which `ladder('icon')` reads) and
+  `icon-corners` (round or square caps and joins). An inline drawing
+  (`Icon.draw`) follows them in CSS: `stroke-width`, `stroke-linecap` and
+  `stroke-linejoin` set on its nodes beat the attributes, and a filled icon,
+  which draws no stroke, is unchanged. A mask is pixels, so the knobs are baked
+  into it when the theme is written: `Icon.withStroke(icon, { width, corners })`
+  rewrites the drawing before `maskUrl`. *To probe first:* whether
+  `var(--fk-knob-icon-stroke, revert-layer)` leaves a pack's own width when
+  the knob is unset, or a theme must always set one.
+- **Chevrons stay geometry.** The turned box is what lets a chevron rotate
+  about its own centre in every row and direction (the Accordion recipe's notes),
+  and it already follows `icon-stroke` as its border width. A pack's chevron
+  is offered to components whose chevron does not turn (Breadcrumb's
+  separator, a Nav item's arrow).
+- **The components that take an `icon`** (§8.4) are the application's
+  drawings; they follow the knobs when drawn with `Icon.draw`, not the pack.
+
+**On `/create`.** The theme creator (`examples/site/src/view/create.ts`)
+gains an `icons` section beside `theme`, `color`, `shape`, `type` and
+`motion`:
+
+- a Segmented row of packs, each a generated module of the vocabulary
+  (`examples/site/icons.json` names one per pack), and the preview redrawn in
+  it, the pack being one more value the preview's variables carry;
+- Sliders for `icon-stroke` and `icon-scale`, and a Segmented `icon-corners`,
+  which re-derive in the browser like every knob;
+- a specimen of the whole vocabulary in the chosen pack, beside the components;
+- and the theme module it writes naming the pack's import and the knobs, so
+  what the page shows is what the application pastes.
+
 ## 9. The server: `foldkit-media/server`
 
 For originals no CDN can fetch: uploads, a repository's images outside the
@@ -782,6 +839,9 @@ miniflare and the Images binding along the way, changed the plan from here.
    preload Command, and the development audit.
 10. **The build.** `?image`, then icon data, the virtual modules, and replacing
     the two Lucide copies (§8, §11).
+12. **Icons in the theme** (§8.5). The chrome vocabulary as an `icon` token
+    group with generated default packs, the recipes' hand-written masks moved
+    onto it, the three knobs, and the `/create` section.
 11. **Uploads and adoption.** The upload route and its facts (§9.5), handed to
     `foldkit-cms-media`; the CMS `Image` block, the rich-text atom and the site
     on `Image`; `Provider.detect` through unpic for images on known hosts.
