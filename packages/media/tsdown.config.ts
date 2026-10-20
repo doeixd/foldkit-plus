@@ -7,9 +7,11 @@ export default defineConfig({
     'src/server/index.ts',
     'src/cloudflare/index.ts',
     'src/sharp/index.ts',
+    'src/vite/index.ts',
   ],
   format: ['esm'],
   dts: true,
   clean: true,
   target: 'es2022',
+  deps: { neverBundle: ['vite', '@cloudflare/workers-types'] },
 })

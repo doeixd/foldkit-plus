@@ -11,7 +11,8 @@
       "foldkit-media/cloudflare": ["./src/cloudflare/index.ts"],
       "foldkit-media/icons": ["./src/icons/index.ts"],
       "foldkit-media/server": ["./src/server/index.ts"],
-      "foldkit-media/sharp": ["./src/sharp/index.ts"]
+      "foldkit-media/sharp": ["./src/sharp/index.ts"],
+      "foldkit-media/vite": ["./src/vite/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"]

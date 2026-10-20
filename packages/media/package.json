@@ -49,6 +49,11 @@
       "foldkit-plus:source": "./src/sharp/index.ts",
       "types": "./dist/sharp/index.d.mts",
       "import": "./dist/sharp/index.mjs"
+    },
+    "./vite": {
+      "foldkit-plus:source": "./src/vite/index.ts",
+      "types": "./dist/vite/index.d.mts",
+      "import": "./dist/vite/index.mjs"
     }
   },
   "files": [
@@ -74,7 +79,8 @@
     "miniflare": "4.20260730.0",
     "sharp": "^0.35.4",
     "tsdown": "^0.23.1",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
   },
   "peerDependenciesMeta": {
     "sharp": {

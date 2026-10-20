@@ -55,6 +55,11 @@ version changed; `pnpm` skips versions already in the registry.
   naming the icon, any element or attribute outside a presentational allowlist, a link or
   `url()` outside the icon, and a CSS escape. `Icon.key(icon)` names an icon by its content, and
   `Icon.prefixIds(icon, prefix)` renames the ids it defines and every reference to them.
+  `foldkit-media/vite`'s `icons({ iconify, folders, dts })` makes icons imports:
+  `import { arrowLeft } from 'virtual:foldkit-icons/lucide'` reads an installed Iconify set or a
+  folder of the application's SVGs, the bundle holds only what is imported, and a written
+  declaration names every icon, so a misspelt one is a type error. A refused SVG in a folder fails
+  the build; a refused Iconify icon is left out, and the declaration says why.
 - `foldkit-mixins-ui`: `Icon.draw(icon, h, { key? })` draws `foldkit-media`'s `IconData` as inline
   SVG, every attribute in the server's markup, `1em` square alone and filling the glyph in
   `Icon.view`, `aria-hidden`, its ids prefixed by the icon's content so two icons sharing an id each

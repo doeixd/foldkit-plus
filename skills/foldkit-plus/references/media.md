@@ -103,10 +103,15 @@ See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob
 
 ## Icons
 
-`IconData` (`{ viewBox, attributes, nodes }`) is an icon as data; `Icon.serialize`
-writes it as an SVG document and `Icon.maskUrl` as a CSS `url()` for
-`Icons.byAttribute`/`Icons.glyph`. At build time, `foldkit-media/icons`'s
-`parse(svg, name)` reads an SVG file and `fromIconify(set, name)` an Iconify
-set's icon; both throw, naming the icon, on anything outside a presentational
-allowlist, a link or `url()` leaving the icon, or a CSS escape. Never set an
-icon's markup through `innerHTML`.
+`IconData` (`{ viewBox, attributes, nodes }`) is an icon as data. An
+application adds `icons({ iconify: ['lucide'], folders: { app: './src/icons' } })`
+from `foldkit-media/vite` to its Vite plugins and imports by name:
+`import { arrowLeft } from 'virtual:foldkit-icons/lucide'` (an `@iconify-json/<prefix>`
+package per set; a folder's `star-filled.svg` is `starFilled`). Unimported icons are
+dropped; the plugin writes `foldkit-icons.d.ts` (include it in the tsconfig) so a
+misspelt name is a type error. Draw with `Icon.draw(icon, h)` from
+`foldkit-mixins-ui`; mask with `Icon.maskUrl(icon)` (`Icons.byAttribute`/`Icons.glyph`).
+Every icon passes a presentational allowlist: a refused folder SVG fails the build,
+a refused Iconify icon is left out and its import fails. A package commits constants
+made with `foldkit-media/icons`' `parse(svg, name)` or `fromIconify(set, name)`.
+Never set an icon's markup through `innerHTML`.

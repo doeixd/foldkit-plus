@@ -367,9 +367,44 @@ this server.
 ## Icons
 
 An icon is data too: `IconData` holds its `viewBox`, what its root paints
-(`fill`, `stroke`), and its drawing as nodes, never markup to set as HTML.
-`foldkit-media/icons` reads it from SVG at build time, for a build plugin or a
-script that writes a package's icons:
+(`fill`, `stroke`), and its drawing as nodes, never markup to set as HTML. An
+application imports icons by name, and the build reads them:
+
+```ts
+// vite.config.ts
+import { icons } from 'foldkit-media/vite'
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  plugins: [icons({ iconify: ['lucide'], folders: { app: './src/icons' } })],
+})
+```
+
+```ts
+import { arrowLeft } from 'virtual:foldkit-icons/lucide'
+import { logo } from 'virtual:foldkit-icons/app'
+```
+
+`iconify` names Iconify sets by prefix, each read from the application's
+`@iconify-json/<prefix>` (any set: `lucide`, `uil`, `mdi`); `folders` names
+the application's own sets, a folder of SVG files each named by its file
+(`star-filled.svg` is `starFilled`). The import is the selection: the bundler
+drops every icon nothing imports. The plugin writes `foldkit-icons.d.ts` at
+the root (`dts` moves it, `false` writes none), declaring every icon of every
+set, so a misspelt name is a type error; include it in the `tsconfig`. A view
+draws an icon with `foldkit-mixins-ui`'s `Icon.draw`, and a style masks with
+`Icon.maskUrl(icon)`, a CSS `url()`.
+
+Every icon is parsed against a presentational allowlist, because it is drawn
+inline. The parse refuses, naming the icon, an element or attribute outside
+it (`script`, `style`, `foreignObject`, an animation, an event, a `class`),
+an `href` or `url()` that leaves the icon, and a CSS escape; it drops only the
+root's size and the words of `title` and `desc`, which a label replaces. A
+refused SVG in a folder fails the build. A refused icon of an Iconify set is
+left out, the declaration says why, and only importing it fails.
+
+A package cannot rely on an application's plugin, so it commits its icons as
+constants, read by `foldkit-media/icons` in a script:
 
 ```ts
 import { Icon } from 'foldkit-media'
@@ -382,17 +417,12 @@ const check = parse(
 Icon.maskUrl(check) // url("data:image/svg+xml,…") for a mask
 ```
 
-`fromIconify(set, name)` reads one icon of an Iconify set's JSON, through its
-aliases. Both refuse, naming the icon, what an inline drawing must not carry:
-an element or attribute outside the presentational allowlist (`script`,
-`style`, `foreignObject`, an event, a `class`), an `href` or `url()` that
-leaves the icon, and a CSS escape. They drop only the root's size and the
-words of `title` and `desc`, which a label replaces.
-
-`Icon.key(icon)` is a short name from the icon's content, the same on a
-server and in a browser; `Icon.prefixIds(icon, prefix)` renames the ids the
-icon defines and every `href` and `url()` naming one, so two icons drawn on
-one page keep their own. `foldkit-mixins-ui`'s `Icon.draw` does both.
+`fromIconify(set, name)` reads one icon of an Iconify set's JSON (decoded
+with the `IconifySet` Schema), through its aliases. `Icon.key(icon)` is a
+short name from the icon's content, the same on a server and in a browser;
+`Icon.prefixIds(icon, prefix)` renames the ids the icon defines and every
+`href` and `url()` naming one, so two icons drawn on one page keep their own.
+`Icon.draw` does both.
 
 ## Validation
 

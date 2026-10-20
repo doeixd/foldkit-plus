@@ -385,6 +385,14 @@ Icon recipe fills the glyph's box with it.*
   constants, made by a script from the same parser. This replaces both copies of
   the Lucide paths.
 
+*Built: `icons({ iconify, folders, dts })` in `foldkit-media/vite`. Each icon
+is exported through an alias list (`const i0 = …; export { i0 as import }`),
+so a name that is a reserved word still imports. An Iconify icon the parser
+refuses is left out of its set rather than failing the build of an
+application that never imports it, and the declaration names it and why; an
+application's own SVG that it refuses fails the build. The dev server re-reads
+a folder when a file in it changes and reloads.*
+
 ### 8.3 SVG is input
 
 An application's own SVGs are trusted build input, but they are drawn inline,

@@ -6,6 +6,7 @@
  * reference outside the icon fails here, naming the icon, rather than being
  * dropped.
  */
+import { Schema } from 'effect'
 import { TAGS, type IconData, type SvgNode, type SvgTag } from '../icon.js'
 
 const ELEMENTS: ReadonlySet<string> = new Set(TAGS)
@@ -241,31 +242,37 @@ export const parse = (svg: string, name: string): IconData => {
   }
 }
 
-interface IconifyBox {
-  readonly width?: number | undefined
-  readonly height?: number | undefined
-  readonly left?: number | undefined
-  readonly top?: number | undefined
+const Box = {
+  width: Schema.optional(Schema.Number),
+  height: Schema.optional(Schema.Number),
+  left: Schema.optional(Schema.Number),
+  top: Schema.optional(Schema.Number),
 }
+type IconifyBox = Schema.Struct.Type<typeof Box>
 
-/** An Iconify set, as its JSON file holds it (`@iconify-json/<prefix>/icons.json`). */
-export interface IconifySet extends IconifyBox {
-  readonly prefix: string
-  readonly icons: Readonly<Record<string, IconifyBox & { readonly body: string }>>
-  readonly aliases?:
-    | Readonly<
-        Record<
-          string,
-          IconifyBox & {
-            readonly parent: string
-            readonly rotate?: number | undefined
-            readonly hFlip?: boolean | undefined
-            readonly vFlip?: boolean | undefined
-          }
-        >
-      >
-    | undefined
-}
+/**
+ * An Iconify set, as its JSON file holds it (`@iconify-json/<prefix>/icons.json`).
+ * What the drawing does not need (`info`, `categories`, an icon's `hidden`) is
+ * read past.
+ */
+export const IconifySet = Schema.Struct({
+  prefix: Schema.String,
+  icons: Schema.Record(Schema.String, Schema.Struct({ body: Schema.String, ...Box })),
+  aliases: Schema.optional(
+    Schema.Record(
+      Schema.String,
+      Schema.Struct({
+        parent: Schema.String,
+        rotate: Schema.optional(Schema.Number),
+        hFlip: Schema.optional(Schema.Boolean),
+        vFlip: Schema.optional(Schema.Boolean),
+        ...Box,
+      }),
+    ),
+  ),
+  ...Box,
+})
+export type IconifySet = typeof IconifySet.Type
 
 /** Every name the set draws: its icons, then its aliases. */
 export const namesOf = (set: IconifySet): ReadonlyArray<string> => [
