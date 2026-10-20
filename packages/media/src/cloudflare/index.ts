@@ -4,9 +4,10 @@
  * Each takes the binding it needs, so build them in `serveFetch`'s `layer`
  * from the request's environment.
  */
-import type { Cache, ImagesBinding, R2Bucket } from '@cloudflare/workers-types'
+import type { Cache, ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/workers-types'
 import { Effect, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
+import { Admission, RateLimited } from '../server/admission.js'
 import { OriginalNotFound, QuotaExhausted, TransformFailed } from '../server/errors.js'
 import { Originals, Transformer, Variants, type Encoded } from '../server/services.js'
 import { makeVariants } from '../server/stores.js'
@@ -188,3 +189,29 @@ export const variantsR2 = (
     }),
   )
 }
+
+/**
+ * Admission through a Workers rate-limit binding (`[[ratelimits]]`), whose
+ * limit and period are its configuration. It answers yes or no, not when, so
+ * a refusal says to retry after `retryAfterSeconds` (the binding's period, 60
+ * by default). A binding that fails admits the request, logged.
+ */
+export const admissionRateLimit = (
+  binding: RateLimit,
+  options: { readonly retryAfterSeconds?: number } = {},
+): Layer.Layer<Admission> =>
+  Layer.succeed(Admission, {
+    admit: client =>
+      Effect.tryPromise(() => binding.limit({ key: `foldkit-media:${client}` })).pipe(
+        Effect.catch(error =>
+          Effect.logWarning('Media: the rate limit binding failed; admitting', error).pipe(
+            Effect.as({ success: true }),
+          ),
+        ),
+        Effect.flatMap(({ success }) =>
+          success
+            ? Effect.void
+            : Effect.fail(new RateLimited({ retryAfterSeconds: options.retryAfterSeconds ?? 60 })),
+        ),
+      ),
+  })

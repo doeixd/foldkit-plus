@@ -1,8 +1,9 @@
 import { Cache, Effect, Layer, Option, Schema } from 'effect'
-import { HttpRouter, HttpServer, HttpServerResponse } from 'effect/http'
+import { HttpRouter, HttpServer, HttpServerResponse, type HttpServerRequest } from 'effect/http'
 import { HttpApiBuilder } from 'effect/http-api'
 import * as Variant from '../variant.js'
 import { MediaApi } from './api.js'
+import { Admission } from './admission.js'
 import { OriginalTooLarge } from './errors.js'
 import { Answer, headersFor, matches, statusOf, type From } from './headers.js'
 import { Originals, Transformer, Variants, type Encoded } from './services.js'
@@ -22,7 +23,16 @@ export interface Options {
    * cannot wake another's.
    */
   readonly coalesce?: boolean
+  /**
+   * Who is asking, for `Admission`: by default Cloudflare's `CF-Connecting-IP`,
+   * else the connection's address. `X-Forwarded-For` is the client's to write,
+   * so read it here only behind a proxy that sets it.
+   */
+  readonly clientOf?: (request: HttpServerRequest.HttpServerRequest) => string
 }
+
+const defaultClientOf = (request: HttpServerRequest.HttpServerRequest): string =>
+  request.headers['cf-connecting-ip'] ?? Option.getOrElse(request.remoteAddress, () => 'unknown')
 
 const optionsOf = (answer: Answer) => ({ status: statusOf(answer), headers: headersFor(answer) })
 
@@ -48,7 +58,12 @@ const refused = (answer: Answer) =>
  * variant's place.
  */
 export const handlers = (options: Options = {}) => {
-  const { space = Variant.standard, maxBytes = DEFAULT_MAX_BYTES, coalesce = false } = options
+  const {
+    space = Variant.standard,
+    maxBytes = DEFAULT_MAX_BYTES,
+    coalesce = false,
+    clientOf = defaultClientOf,
+  } = options
   const decodeHash = Schema.decodeUnknownOption(Variant.ContentHash)
   const decodeVariant = Schema.decodeUnknownOption(space.schema)
   const spell = Schema.encodeSync(space.schema)
@@ -58,6 +73,10 @@ export const handlers = (options: Options = {}) => {
       const originals = yield* Originals
       const transformer = yield* Transformer
       const variants = yield* Variants
+      const admit = Option.match(yield* Effect.serviceOption(Admission), {
+        onNone: () => (_client: string) => Effect.void,
+        onSome: admission => admission.admit,
+      })
       const make = Effect.fn('Media.make')(function* (hash: string, variant: Variant.Variant) {
         const original = yield* originals.get(hash)
         if (original.size > maxBytes) {
@@ -86,6 +105,7 @@ export const handlers = (options: Options = {}) => {
         hash: string,
         variant: Variant.Variant,
         ifNoneMatch: string | undefined,
+        client: string,
       ) {
         // The decoded request spelled again: one request, one key, one ETag.
         const key = `${hash}/${spell(variant)}`
@@ -94,13 +114,16 @@ export const handlers = (options: Options = {}) => {
         return yield* Option.match(yield* variants.get(key), {
           onSome: ({ encoded, from }) => Effect.succeed(served(etag, from, encoded)),
           onNone: () =>
-            (coalesce ? Cache.get(shared, key) : makeAndKeep(key, hash, variant)).pipe(
+            admit(client).pipe(
+              Effect.andThen(coalesce ? Cache.get(shared, key) : makeAndKeep(key, hash, variant)),
               Effect.map(made => served(etag, 'made', made)),
               Effect.catchTags({
                 OriginalNotFound: () => Effect.succeed(refused(Answer.cases.NotFound.make({}))),
                 OriginalTooLarge: () => Effect.succeed(refused(Answer.cases.TooLarge.make({}))),
                 TransformFailed: () => Effect.succeed(refused(Answer.cases.Failed.make({}))),
                 QuotaExhausted: () => Effect.succeed(refused(Answer.cases.Exhausted.make({}))),
+                RateLimited: ({ retryAfterSeconds }) =>
+                  Effect.succeed(refused(Answer.cases.RateLimited.make({ retryAfterSeconds }))),
               }),
             ),
         })
@@ -108,7 +131,8 @@ export const handlers = (options: Options = {}) => {
       return group.handle('variant', ({ params, request }) =>
         Option.match(Option.all([decodeHash(params.hash), decodeVariant(params.variant)]), {
           onNone: () => Effect.succeed(refused(Answer.cases.Malformed.make({}))),
-          onSome: ([hash, variant]) => serve(hash, variant, request.headers['if-none-match']),
+          onSome: ([hash, variant]) =>
+            serve(hash, variant, request.headers['if-none-match'], clientOf(request)),
         }),
       )
     }),

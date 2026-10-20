@@ -356,6 +356,72 @@ export default [
     tests: server,
   },
   {
+    name: 'a miss is never asked about',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: 'admit(client).pipe(\n              Effect.andThen(',
+        replace: 'Effect.void.pipe(\n              Effect.andThen(',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'every client is one client',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: "request.headers['cf-connecting-ip'] ?? ",
+        replace: '',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a refusal does not say when to retry',
+    edits: [
+      {
+        file: '../src/server/headers.ts',
+        find: "      'retry-after': String(retryAfterSeconds),\n",
+        replace: '',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a limiter that is down refuses',
+    edits: [
+      {
+        file: '../src/server/admission.ts',
+        find: "Effect.logWarning('Media: the rate limiter failed; admitting', error),",
+        replace: 'Effect.fail(new RateLimited({ retryAfterSeconds: 1 })),',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'the binding’s refusal admits',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'success\n            ? Effect.void',
+        replace: 'true\n            ? Effect.void',
+      },
+    ],
+    tests: cloudflare,
+  },
+  {
+    name: 'the binding’s refusal ignores its retry',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'retryAfterSeconds: options.retryAfterSeconds ?? 60',
+        replace: 'retryAfterSeconds: 1',
+      },
+    ],
+    tests: cloudflare,
+  },
+  {
     name: 'a space takes any format',
     edits: [
       {

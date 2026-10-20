@@ -7,12 +7,13 @@
  * binding refuses is a 502, or a 503 when the allowance is spent.
  */
 import { createHash } from 'node:crypto'
-import type { Cache, ImagesBinding, R2Bucket } from '@cloudflare/workers-types'
+import type { Cache, ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/workers-types'
 import { Effect, Layer } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { Miniflare, Response as WorkerResponse } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
+  admissionRateLimit,
   keyValueStoreR2,
   originalsR2,
   transformerImages,
@@ -24,6 +25,7 @@ import { serveFetch } from 'foldkit-media/server'
 interface Env {
   readonly MEDIA: R2Bucket
   readonly IMAGES: ImagesBinding
+  readonly LIMITER: RateLimit
 }
 
 let mf: Miniflare
@@ -36,6 +38,7 @@ beforeAll(async () => {
     script: 'export default { fetch: () => new Response(null) }',
     r2Buckets: ['MEDIA'],
     images: { binding: 'IMAGES' },
+    ratelimits: { LIMITER: { namespace_id: '1001', simple: { limit: 2, period: 60 } } },
   })
   env = await mf.getBindings<Env>()
   const caches = await mf.getCaches()
@@ -135,8 +138,36 @@ describe('the Cloudflare layers', () => {
           transform: () => ({ output: () => Promise.reject(spent) }),
         }) as unknown as ReturnType<ImagesBinding['input']>,
     }
-    const response = await get(`/_image/${hash}/w320.png`, { MEDIA: env.MEDIA, IMAGES: refusing })
+    const response = await get(`/_image/${hash}/w320.png`, { ...env, IMAGES: refusing })
     expect(response.status).toBe(503)
+  })
+})
+
+describe('admissionRateLimit', () => {
+  it('refuses a client past the binding’s limit, after the period it is told', async () => {
+    const limited = serveFetch<Env>({
+      space: Variant.space({ formats: ['avif', 'webp', 'png'] }),
+      layer: bindings =>
+        Layer.mergeAll(
+          originalsR2(bindings.MEDIA),
+          transformerImages(bindings.IMAGES),
+          variantsR2(bindings.MEDIA),
+          admissionRateLimit(bindings.LIMITER, { retryAfterSeconds: 60 }),
+        ),
+    })
+    const hash = await store(await png(300, 100))
+    const statuses: Array<number> = []
+    for (const width of [320, 480, 640]) {
+      const response = await limited(
+        new Request(`https://media.test/_image/${hash}/w${width}.webp`, {
+          headers: { 'cf-connecting-ip': 'limited-client' },
+        }),
+        env,
+      )
+      statuses.push(response.status)
+      if (response.status === 429) expect(response.headers.get('retry-after')).toBe('60')
+    }
+    expect(statuses).toEqual([200, 200, 429])
   })
 })
 

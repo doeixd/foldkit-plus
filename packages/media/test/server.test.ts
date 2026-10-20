@@ -7,7 +7,7 @@
  */
 import { Effect, Layer } from 'effect'
 import { HttpRouter, HttpServer } from 'effect/http'
-import { KeyValueStore } from 'effect/persistence'
+import { KeyValueStore, RateLimiter } from 'effect/persistence'
 import { afterEach, describe, expect, it } from 'vitest'
 import { memoryStores } from './stores.js'
 import { Variant, Widths } from 'foldkit-media'
@@ -16,6 +16,7 @@ import {
   QuotaExhausted,
   Transformer,
   TransformFailed,
+  admissionRateLimiter,
   layer,
   serveFetch,
   variantsKeyValueStore,
@@ -320,6 +321,68 @@ describe('serveFetch', () => {
         expect(transforms).toEqual(['640.webp'])
       } finally {
         await dispose()
+      }
+    })
+  })
+
+  describe('admission', () => {
+    const admitted = (store: Layer.Layer<RateLimiter.RateLimiterStore>) => {
+      const fetch = serveFetch<object>({
+        layer: () =>
+          Layer.mergeAll(
+            memoryStores(originals),
+            fakeTransformer,
+            admissionRateLimiter({ limit: 2, window: '1 minute', algorithm: 'fixed-window' }).pipe(
+              Layer.provide(RateLimiter.layer),
+              Layer.provide(store),
+            ),
+          ),
+      })
+      const env = {}
+      return (spelling: string, client: string) =>
+        fetch(
+          new Request(`http://media.test/_image/${IMAGE}/${spelling}`, {
+            headers: { 'cf-connecting-ip': client },
+          }),
+          env,
+        )
+    }
+
+    it('refuses a client past its limit of variants made, saying when to retry', async () => {
+      const get = admitted(RateLimiter.layerStoreMemory)
+      expect((await get('w320.webp', 'a')).status).toBe(200)
+      expect((await get('w640.webp', 'a')).status).toBe(200)
+      const refused = await get('w1280.webp', 'a')
+      expect(refused.status).toBe(429)
+      expect(refused.headers.get('cache-control')).toBe('no-store')
+      expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0)
+      expect(transforms).toEqual(['320.webp', '640.webp'])
+    })
+
+    it('still serves a refused client what is already made, and admits another client', async () => {
+      const get = admitted(RateLimiter.layerStoreMemory)
+      await get('w320.webp', 'a')
+      await get('w640.webp', 'a')
+      expect((await get('w320.webp', 'a')).status).toBe(200)
+      expect((await get('w1280.webp', 'b')).status).toBe(200)
+    })
+
+    it('admits when its store fails', async () => {
+      const down = () =>
+        Effect.fail(
+          new RateLimiter.RateLimiterError({
+            reason: new RateLimiter.RateLimitStoreError({ message: 'down' }),
+          }),
+        )
+      const failing = Layer.succeed(RateLimiter.RateLimiterStore, {
+        fixedWindow: down,
+        tokenBucket: down,
+        adaptiveConsume: down,
+        adaptiveFeedback: down,
+      })
+      const get = admitted(failing)
+      for (const spelling of ['w320.webp', 'w640.webp', 'w1280.webp']) {
+        expect((await get(spelling, 'a')).status).toBe(200)
       }
     })
   })

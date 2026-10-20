@@ -17,8 +17,14 @@ import type {
   DurableObjectNamespace,
   ImagesBinding,
   R2Bucket,
+  RateLimit,
 } from '@cloudflare/workers-types'
-import { originalsR2, transformerImages, variantsR2 } from 'foldkit-media/cloudflare'
+import {
+  admissionRateLimit,
+  originalsR2,
+  transformerImages,
+  variantsR2,
+} from 'foldkit-media/cloudflare'
 import { serveFetch as serveImages } from 'foldkit-media/server'
 import { defineDocumentHost } from 'foldkit-sync/do'
 import { serveFetch } from 'foldkit-remote-server/fetch'
@@ -29,6 +35,7 @@ export interface WorkerEnv {
   readonly SYNC_HOST: DurableObjectNamespace
   readonly MEDIA: R2Bucket
   readonly IMAGES: ImagesBinding
+  readonly LIMITER: RateLimit
 }
 
 const { server } = makeServer()
@@ -89,6 +96,7 @@ const answerImages = serveImages<WorkerEnv>({
       transformerImages(env.IMAGES),
       // The page's `caches` is typed by the DOM library, which has no `default`.
       variantsR2(env.MEDIA, { cache: (caches as unknown as CacheStorage).default }),
+      admissionRateLimit(env.LIMITER),
     ),
 })
 

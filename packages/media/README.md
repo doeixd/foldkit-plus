@@ -182,6 +182,7 @@ Every answer's headers come from one function, `headersFor`:
 | No original under the hash | 404 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: an upload may yet put it there |
 | The original above `maxBytes` (20 MB by default) | 413 | a year: its bytes are fixed |
 | The transformer failed | 502 | `no-store` |
+| The client past its rate limit | 429 | `no-store`, `Retry-After` |
 | The allowance spent | 503 | `no-store`, `Retry-After: 3600` |
 
 Every image response also says `X-Content-Type-Options: nosniff`,
@@ -217,6 +218,24 @@ const stores = Layer.mergeAll(originalsKeyValueStore(), variantsKeyValueStore())
   the request is answered by making the variant: variants are a cache.
 - `originalsKeyValueStore({ prefix })` reads an original under its hash. A
   store that fails is a 500, not a 404: the original is the data.
+
+### Rate limits
+
+Only a miss costs work, so only a miss is limited: `Admission` is asked after
+the store and before the original is read, and a variant already made is
+served to anyone. It is optional; without it every miss is admitted.
+
+- `admissionRateLimiter({ limit, window, algorithm? })` is Effect's
+  `RateLimiter` (`effect/persistence`): `limit` misses a client per `window`,
+  over `RateLimiter.layerStoreMemory` in one process or Redis across several.
+- `admissionRateLimit(binding)` (`foldkit-media/cloudflare`) is a Workers
+  rate-limit binding (`[[ratelimits]]`), whose limit and period are its
+  configuration.
+- A refused client gets a 429 with `Retry-After`. A limiter that fails admits
+  the request, logged: a limiter that is down should not take the images down.
+- The client is `CF-Connecting-IP`, else the connection's address. Pass
+  `clientOf` to read your own proxy's header; `X-Forwarded-For` is the
+  client's to write, so it is not read by default.
 
 ### On a Node server
 

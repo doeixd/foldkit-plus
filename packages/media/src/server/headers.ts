@@ -18,6 +18,8 @@ export const Answer = Schema.TaggedUnion({
   TooLarge: {},
   /** The transformer failed: perhaps not for good. */
   Failed: {},
+  /** The client has had too many variants made lately. */
+  RateLimited: { retryAfterSeconds: Schema.Number },
   /** The host's allowance is spent. */
   Exhausted: {},
 })
@@ -36,6 +38,7 @@ export const statusOf: (answer: Answer) => number = Answer.match({
   NotFound: () => 404,
   TooLarge: () => 413,
   Failed: () => 502,
+  RateLimited: () => 429,
   Exhausted: () => 503,
 })
 
@@ -66,6 +69,10 @@ export const headersFor = (answer: Answer): Readonly<Record<string, string>> => 
     }),
     TooLarge: (): Record<string, string> => ({ 'cache-control': YEAR }),
     Failed: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
+    RateLimited: ({ retryAfterSeconds }): Record<string, string> => ({
+      'cache-control': 'no-store',
+      'retry-after': String(retryAfterSeconds),
+    }),
     Exhausted: (): Record<string, string> => ({
       'cache-control': 'no-store',
       'retry-after': EXHAUSTED_RETRY_SECONDS,

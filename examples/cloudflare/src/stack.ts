@@ -61,6 +61,7 @@ export const startStack = async (): Promise<CloudflareStack> => {
     d1Databases: ['DB'],
     r2Buckets: ['MEDIA'],
     images: { binding: 'IMAGES' },
+    ratelimits: { LIMITER: { namespace_id: '1001', simple: { limit: 100, period: 60 } } },
     compatibilityFlags: ['streams_enable_constructors'],
     host: '127.0.0.1',
     port: 0,

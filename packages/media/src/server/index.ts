@@ -13,3 +13,4 @@ export {
   type Original,
 } from './services.js'
 export { originalsKeyValueStore, variantsKeyValueStore } from './stores.js'
+export { Admission, RateLimited, admissionRateLimiter } from './admission.js'

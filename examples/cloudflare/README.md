@@ -30,7 +30,7 @@ are at the end of [Run it](#run-it).
 | `settleTodos` | applying what the journal committed to the `todos` table, where Remote reads it back |
 | Create, Rename, Toggle, Delete | the page's writes. Remote mutations land in the same table |
 | The page (`app.ts`, `view.ts`) | the list, the forms, and the optimistic paint. It does not open `/sync` |
-| `MEDIA` (R2) and `IMAGES` | image originals, by SHA-256, and the variants made of them (`variants/`); the Images binding makes them. `foldkit-media`'s server answers `/_image/`, the URLs `Provider.hosted` writes |
+| `MEDIA` (R2) and `IMAGES` | image originals, by SHA-256, and the variants made of them (`variants/`); the Images binding makes them; `LIMITER` limits how many a client has made a minute. `foldkit-media`'s server answers `/_image/`, the URLs `Provider.hosted` writes |
 
 Two writers, one table. The journal path:
 

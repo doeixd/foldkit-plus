@@ -999,8 +999,13 @@ a request cannot wait on another's fiber there (§10.4).
 *Built so far: the CPU bound, as `limitTransforms(n)` over any `Transformer`
 (so a Photon layer, §10.6, would share it), applied by `transformerSharp`; and
 the pixel limit, read from the header before decoding and answered as a 413
-(`OriginalTooLarge` now names its unit, bytes or pixels). `Admission` is
-next.*
+(`OriginalTooLarge` now names its unit, bytes or pixels). And `Admission`,
+optional (read with `Effect.serviceOption`), asked after a `Variants` miss:
+`admissionRateLimiter` over Effect's `RateLimiter`, `admissionRateLimit` over
+the Workers binding (in `examples/cloudflare`, 100 a minute), a 429 with
+`Retry-After`, and a limiter that fails admits, logged. The client is
+`CF-Connecting-IP`, else the connection's address, or a `clientOf` the host
+gives.*
 
 The work is bounded before anything is limited:
 
