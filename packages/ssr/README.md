@@ -765,6 +765,69 @@ SSR.hydrate(config, plan, { buildId, when, otherwise: 'render', until: Site.answ
 The served page stays as it was served while it waits: its links are plain
 links, and nothing it shows becomes live.
 
+## A reader's preferences in the first frame
+
+A theme, a light or dark choice, a density: a reader expects the page to open
+in what they chose, not in the default and then theirs. Under the rule above,
+the first frame shows whatever the server knew when it rendered.
+
+**Rendered per request, the server can know it, from a cookie.** It is the
+[example's](../../examples/foldkit/ssr) count, by the same route:
+
+```text
+request cookie ─▶ flags ─▶ init ─▶ Model.theme ─┬─ view draws it
+                                                 └─ plan.state carries it, so the browser resumes with it
+```
+
+```ts
+import { Option, Record, Schema, pipe } from 'effect'
+import { Cookies } from 'effect/http'
+import { Theme, Themes } from 'foldkit-mixins/theme'
+
+const themes = Themes.make(
+  { plain: Theme.make({}), dense: Theme.make({ shape: { density: 0.85 } }) },
+  { initial: 'plain' },
+)
+
+/** The kept theme for a request, or the initial one for a missing or unknown cookie. */
+export const readThemeCookie = (cookieHeader: string) =>
+  pipe(
+    Cookies.parseHeader(cookieHeader),
+    Record.get('theme'),
+    Option.flatMap(Schema.decodeUnknownOption(themes.Name)),
+    Option.getOrElse(() => themes.initial),
+  )
+```
+
+Read it in `flags: request => …`, keep it in the plan's `state` (leaving it out
+is refused: the view reads a field the browser would not have), and answer
+with `cache-control: private` and `vary: cookie`, as the example does: such a
+page is one reader's, and no shared cache may keep it.
+
+What the view draws is then right in the first frame. What it cannot draw is
+`<html>`: `Themes` shows a theme by an attribute there, and `color-scheme`
+lives there. The view renders the application's root only, so:
+
+- the host's template carries a head script, `Themes.script(themes)` (and
+  `Theme.schemeScript()`). It is static text, so a template that is the same
+  for every request holds it, and it reads the name the Command kept in
+  `localStorage`;
+- the Command that keeps a choice keeps it twice, the cookie for the server
+  and storage for the script: `Themes.choose(themes, name)`, then
+  `document.cookie = 'theme=…; Path=/; Max-Age=31536000; SameSite=Lax'`
+  (`Secure` on HTTPS);
+- the plan's `boot` applies the Model's theme (`Themes.apply`), so storage that
+  was refused or cleared costs one frame, not the visit.
+
+**Generated at build time** (`SSR.generate`), there is no reader to ask, and
+every page is built in the default. No change inside the application helps:
+its script runs after the browser may have painted. The head script alone
+draws the first frame, written through the generator's `head`; the Model
+catches up in `boot`. `foldkit-mixins/theme` ships the pairs: `schemeScript`
+and `chooseScheme`, `Themes.script` and `Themes.choose`, `Theme.knobScript`
+and `Theme.chooseKnobs`. The reasoning is in
+[theme-robustness-DESIGN.md](../../docs/design/theme-robustness-DESIGN.md).
+
 ## Costs and limits
 
 - **`SSR.render` renders the view twice.** That is the view check. A static

@@ -73,6 +73,12 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
 - `init`'s Commands never run on a resumed page. `SSR.render` fails with
   `ResumeUnsafe` `UndeclaredStartup` until the plan names them in `boot`. A
   `foldkit-bundle` app (`Mirror.kv` restore): `boot: model => assembly.init(model).commands ?? []`.
+- A reader's theme or scheme in the first frame: served per request, read a
+  cookie in `flags` into the Model and its `state`, with `vary: cookie`; the
+  view cannot draw `<html>`, so the template still carries
+  `Themes.script`/`Theme.schemeScript()`, the keeping Command writes both the
+  cookie and storage, and `boot` applies the Model's theme. Generated at build
+  time, only a head script (`head`) can: the Model catches up in `boot`.
 - A view that reads a field outside `state` fails with `ResumeUnsafe`
   `ViewDependsOnUnsentState`, in its body or its head (`title`, `lang`, `dir`,
   `canonical`, `ogUrl`). Add the field to `state` or stop reading it. Foldkit

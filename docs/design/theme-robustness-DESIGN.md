@@ -1,6 +1,9 @@
 # Theme robustness design: the right theme in the first frame
 
-Status: design, nothing built. Written 2026-10-20. Code here is a sketch against
+Status: built, 2026-10-20: `Theme.knobScript`/`chooseKnobs`, `Themes.script`/`choose`,
+the site's previews on them, and the `foldkit-ssr` README's section. Building it
+corrected §5 (the view cannot draw `<html>`) and dropped the site's move to
+`foldkit-mirror` (§6). Written 2026-10-20. Code here is a sketch against
 today's APIs and has not been compiled; names marked *probe* rest on browser or
 library behaviour to check before building on it.
 
@@ -190,9 +193,15 @@ export const { renderPage } = SSR.entry(config, Plan, {
 3. **In the plan's slice.** The theme must be in `state`, or the browser
    resumes the default. Leaving it out is not silent: the view reads a field the
    slice does not carry, and `SSR.render` refuses the plan.
-4. **The view applies it.** On this route the theme is in the first Model, so
-   the view can draw it: `data-theme`, `color-scheme`, or knob declarations on
-   the root's style. No managed element and no script.
+4. **The view draws what it owns; `<html>` still needs the head script.** The
+   theme is in the first Model, so whatever the view draws from it is right in
+   the first frame. But `Themes` shows a theme by `:root[data-theme]` and the
+   scheme is `color-scheme` on `<html>`, and a view renders the application's
+   root only. So the host's template still carries `Themes.script` and
+   `schemeScript` (static text, the same for every request), the keeping
+   Command writes storage beside the cookie, and the plan's `boot` applies the
+   Model's theme, so refused storage costs one frame. (This step first said
+   the view draws it all with no script; building the README showed it cannot.)
 5. **The cookie out.** The Command that keeps the theme writes the cookie
    (`document.cookie`, `Path=/; Max-Age=31536000; SameSite=Lax; Secure`), next
    to or instead of `localStorage`. It is not `HttpOnly`, because the page
@@ -206,9 +215,16 @@ export const { renderPage } = SSR.entry(config, Plan, {
 ## 6. Where `foldkit-mirror` fits
 
 `Mirror.kv` restores a Model slice from a `KeyValueStore` at cold load and
-writes it back as it changes. It is the right owner of the Model side on both
-routes, and replaces the site's hand-written `ReadThemeAddress`,
-`rememberTheme` and `writeThemeAddress` (`Mirror.url` for the address).
+writes it back as it changes. It fits an application whose theme is a field it
+can mirror as is: a named theme, a scheme.
+
+It does not replace the site's hand-written `ReadThemeAddress`, `rememberTheme`
+and `writeThemeAddress`, as this section first said. The site's address is a
+readable query of one parameter per knob (`?accent.hue=145&type.body=mono`),
+and reads the flat names of older links; `Mirror.url` writes one key per Model
+field, so the theme would become one encoded parameter and every shared link
+would break. Its precedence is its own too: the address wins only when it
+names anything, and is written only on `/create`. The site keeps its code.
 
 It restores in `boot`, after the first paint, so it never fixes the first frame
 on its own. The division:
@@ -268,7 +284,7 @@ the head script is the simpler choice there.
 - The view stops writing knob declarations inline on each preview, and
   `chooseKnobs` writes the one managed rule instead. That also replaces dozens
   of identical inline styles in the gallery with one rule.
-- The theme's Model side moves to `Mirror.kv` and `Mirror.url`.
+- The theme's Model side keeps its own code (§6).
 
 **`examples/foldkit/ssr`** (or a new small example)
 
@@ -284,18 +300,22 @@ the head script is the simpler choice there.
 
 1. **One key or several?** The scheme, a named theme and knobs could share one
    stored entry and one head script, which is smaller. Separate keys keep each
-   pair independent and match `schemeScript` as shipped. Leaning separate.
+   pair independent and match `schemeScript` as shipped. **Decided: separate**
+   (`SCHEME_KEY`, `THEME_KEY`, `KNOBS_KEY`).
 2. **Mirror's format.** Does `chooseKnobs` write the mirror's entry (one key,
    declarations only, so the Model's values must be re-derived, which they
    cannot be), or does the mirror store values and `chooseKnobs` store
-   declarations under a second key? Leaning two keys: values for the Model,
-   declarations for the first frame.
+   declarations under a second key? **Decided: two keys.** The site keeps its
+   address query for the Model (`foldkit-site-theme`) and the declarations for
+   the first frame (`foldkit-site-knobs`).
 3. **`data-scheme`.** Setting it lets CSS show the scheme switch right before
    boot, at the price of a second root attribute that `chooseScheme` must keep
-   in step. Worth it only if more than the switch reads it.
+   in step. Worth it only if more than the switch reads it. **Not built**: the
+   switch alone reads it, and it corrects itself at `boot`.
 4. **The cookie route for named themes only?** Knob declarations in a cookie
    are large. The served route could support named themes and the scheme, and
-   leave free knobs to static pages.
+   leave free knobs to static pages. **Decided: yes.** The `foldkit-ssr` README
+   shows a named theme; free knobs stay a static page's.
 
 ## 11. Testing
 
@@ -317,6 +337,14 @@ the application boots:
 - **The served route.** An `SSR.handle` test with a cookie renders the stored
   theme; one with an invalid cookie renders the default; one whose plan leaves
   the theme out of the slice is refused.
+
+As built: the end-to-end test (`examples/site/e2e/theme.e2e.ts`) blocks the
+entry script and reads the stored hue on the preview. Its empty-storage case
+asserts only that no kept-knobs rule is written, because the dev server styles
+pages from their script and so has no default theme to show while the script
+is blocked; the build writes the stylesheet in the head. The served route has
+no test of its own: the README's cookie snippet was compiled, and the example's
+count already runs cookie, Flags, `init` and slice end to end.
 - **Mutations** for each guard: the version check, the name filter, the names
   list, the `try`.
 
@@ -325,6 +353,6 @@ the application boots:
 1. `Theme.knobScript` / `Theme.chooseKnobs`, and the site moved onto them, with
    the blocked-script e2e test. This is the visible fix.
 2. `Themes.script` / `Themes.choose`.
-3. The site's Model side onto `Mirror.kv` and `Mirror.url`.
+3. ~~The site's Model side onto `Mirror.kv` and `Mirror.url`.~~ Dropped (§6).
 4. The `foldkit-ssr` README section and the cookie example.
 5. The skill's references and the changelog.
