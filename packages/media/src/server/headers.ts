@@ -22,6 +22,12 @@ export const Answer = Schema.TaggedUnion({
   RateLimited: { retryAfterSeconds: Schema.Number },
   /** The host's allowance is spent. */
   Exhausted: {},
+  /** An upload kept; its facts are the body. */
+  Uploaded: {},
+  /** The upload policy refused the request. */
+  Forbidden: {},
+  /** An upload that is not an image the server reads. */
+  Unsupported: {},
 })
 export type Answer = typeof Answer.Type
 
@@ -40,6 +46,9 @@ export const statusOf: (answer: Answer) => number = Answer.match({
   Failed: () => 502,
   RateLimited: () => 429,
   Exhausted: () => 503,
+  Uploaded: () => 201,
+  Forbidden: () => 403,
+  Unsupported: () => 415,
 })
 
 /**
@@ -77,6 +86,10 @@ export const headersFor = (answer: Answer): Readonly<Record<string, string>> => 
       'cache-control': 'no-store',
       'retry-after': EXHAUSTED_RETRY_SECONDS,
     }),
+    // An upload's answers are about one request, and are never kept.
+    Uploaded: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
+    Forbidden: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
+    Unsupported: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
   }),
 })
 

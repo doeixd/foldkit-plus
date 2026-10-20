@@ -147,27 +147,25 @@ export const layer = (options: Options = {}) =>
   HttpApiBuilder.layer(MediaApi).pipe(Layer.provide(handlers({ coalesce: true, ...options })))
 
 /**
- * The media server as a Worker's fetch handler. A Worker's bindings arrive
- * with each request, so `layer` builds the services from them; the router is
- * built once per environment and kept, since a Worker hands every request the
- * same one. It answers its own route and 404s anything else, so route to it
- * by path (`/_image/`).
+ * A Worker's fetch handler over `app`, built from each environment's bindings
+ * once and kept, since a Worker hands every request the same bindings. A
+ * layer that fails to build answers a 500.
  */
-export const serveFetch = <Env extends object>(
-  options: Options & {
-    /** The services, from the request's bindings. A layer that fails to build answers a 500. */
-    readonly layer: (env: Env) => Layer.Layer<Originals | Transformer | Variants, unknown>
-  },
+export const fetchOf = <Env extends object>(
+  app: (
+    env: Env,
+  ) => Layer.Layer<
+    never,
+    unknown,
+    HttpRouter.HttpRouter | Layer.Success<typeof HttpServer.layerServices>
+  >,
 ): ((request: Request, env: Env) => Promise<Response>) => {
   const built = new WeakMap<Env, (request: Request) => Promise<Response>>()
   return (request, env) => {
     const known = built.get(env)
     if (known !== undefined) return known(request)
     const { handler } = HttpRouter.toWebHandler(
-      layer(options).pipe(
-        Layer.provide(options.layer(env)),
-        Layer.provide(HttpServer.layerServices),
-      ),
+      app(env).pipe(Layer.provide(HttpServer.layerServices)),
       { disableLogger: true },
     )
     const answer = (incoming: Request) => handler(incoming)
@@ -175,3 +173,16 @@ export const serveFetch = <Env extends object>(
     return answer(request)
   }
 }
+
+/**
+ * The media server as a Worker's fetch handler, its services from each
+ * environment's bindings. It answers its own route and 404s anything else, so
+ * route to it by path (`/_image/`).
+ */
+export const serveFetch = <Env extends object>(
+  options: Options & {
+    /** The services, from the request's bindings. A layer that fails to build answers a 500. */
+    readonly layer: (env: Env) => Layer.Layer<Originals | Transformer | Variants, unknown>
+  },
+): ((request: Request, env: Env) => Promise<Response>) =>
+  fetchOf(env => layer(options).pipe(Layer.provide(options.layer(env))))

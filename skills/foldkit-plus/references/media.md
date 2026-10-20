@@ -103,6 +103,13 @@ enters: `describe(key, bytes)` through an `Inspector` (`inspectorSharp`,
 URL, kept by URL and revalidated with its `ETag`. Variants
 are a cache: a store that fails is answered by making the variant.
 
+Uploads: `uploadLayer({ maxBytes? })` (or `serveUploadFetch({ layer })` in a
+Worker) serves `POST /_media/upload`: an `image/*` body, read under the byte
+cap, described, kept under its SHA-256 by `Uploads` (`uploadsKeyValueStore()`,
+`uploadsR2(bucket)`, where `Originals` reads) and answered as an `ImageAsset`
+(201). `UploadPolicy` is required and asked first (`UploadForbidden`, 403);
+the application registers the facts in its own data.
+
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).
 

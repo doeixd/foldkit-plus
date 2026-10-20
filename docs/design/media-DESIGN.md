@@ -638,6 +638,16 @@ live in the database the CMS already reads. Image bytes never travel through
 RPC: a variant is an HTTP GET a cache can hold, and Remote carries only facts.
 Who may upload is a `foldkit-guard` policy on that mutation and the route.
 
+*Built in `foldkit-media/server`: `UploadApi` (apart from `MediaApi`, so the
+variant server needs none of its services), `uploadLayer`, `serveUploadFetch`,
+and the services `Uploads` (`uploadsKeyValueStore`, `uploadsR2`) and
+`UploadPolicy`, which has no default. Not multipart: the body is the image,
+`image/*`, read under a byte cap as it streams, which works in a Worker with
+no file system, and which a browser cannot send to another origin without a
+preflight the route never answers, so a cookie alone cannot upload. The
+policy is the application's, over `foldkit-guard` or anything else; the
+`foldkit-cms-media` registration is not built.*
+
 ## 10. Deploying on Cloudflare
 
 The reference deployment, and the one the example is tested against.

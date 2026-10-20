@@ -18,10 +18,11 @@ import {
   keyValueStoreR2,
   originalsR2,
   transformerImages,
+  uploadsR2,
   variantsR2,
 } from 'foldkit-media/cloudflare'
 import { Variant } from 'foldkit-media'
-import { Inspector, serveFetch } from 'foldkit-media/server'
+import { Inspector, Originals, Uploads, serveFetch } from 'foldkit-media/server'
 
 interface Env {
   readonly MEDIA: R2Bucket
@@ -169,6 +170,22 @@ describe('admissionRateLimit', () => {
       if (response.status === 429) expect(response.headers.get('retry-after')).toBe('60')
     }
     expect(statuses).toEqual([200, 200, 429])
+  })
+})
+
+describe('uploadsR2', () => {
+  it('keeps an upload where originalsR2 reads it', async () => {
+    const hash = 'f'.repeat(64)
+    const read = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Uploads.use(uploads => uploads.put(hash, new Uint8Array([7, 8, 9])))
+        const original = yield* Originals.use(originals => originals.get(hash))
+        return Array.from(
+          new Uint8Array(yield* Effect.promise(() => new Response(original.body).arrayBuffer())),
+        )
+      }).pipe(Effect.provide(Layer.mergeAll(uploadsR2(env.MEDIA), originalsR2(env.MEDIA)))),
+    )
+    expect(read).toEqual([7, 8, 9])
   })
 })
 

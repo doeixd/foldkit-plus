@@ -11,6 +11,7 @@ import { Admission, RateLimited } from '../server/admission.js'
 import { Inspector } from '../server/describe.js'
 import { OriginalNotFound, QuotaExhausted, TransformFailed } from '../server/errors.js'
 import { Originals, Transformer, Variants, type Encoded } from '../server/services.js'
+import { Uploads } from '../server/upload.js'
 import { makeVariants } from '../server/stores.js'
 
 /** Originals in an R2 bucket, each under its content hash. */
@@ -28,6 +29,12 @@ export const originalsR2 = (bucket: R2Bucket): Layer.Layer<Originals> =>
               }),
         ),
       ),
+  })
+
+/** Uploads into an R2 bucket, each under its content hash: what `originalsR2` reads. */
+export const uploadsR2 = (bucket: R2Bucket): Layer.Layer<Uploads> =>
+  Layer.succeed(Uploads, {
+    put: (hash, bytes) => Effect.promise(() => bucket.put(hash, bytes)).pipe(Effect.asVoid),
   })
 
 // Cloudflare's code for a spent transformation allowance.

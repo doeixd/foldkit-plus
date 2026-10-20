@@ -114,4 +114,15 @@ export default [
     ],
     tests: ['packages/media/test/cloudflare.test.ts'],
   },
+  {
+    name: 'an upload is never put in the bucket',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'put: (hash, bytes) => Effect.promise(() => bucket.put(hash, bytes)).pipe(Effect.asVoid),',
+        replace: 'put: () => Effect.void,',
+      },
+    ],
+    tests: ['packages/media/test/cloudflare.test.ts'],
+  },
 ]

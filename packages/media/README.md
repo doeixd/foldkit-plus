@@ -352,6 +352,43 @@ and stored beside it:
   `KeyValueStore` as `cache`, the facts are kept by URL and the original is
   asked for again with its `ETag`, so an unchanged one is not read twice.
 
+### Uploads
+
+An original that no CDN or build holds, such as an editor's upload, enters
+through `POST /_media/upload`: the bytes are the body, with an `image/*`
+`Content-Type`. The route reads at most `maxBytes` (20 MB by default) as the
+body streams, reads its facts through the `Inspector`, keeps the bytes under
+their SHA-256 in `Uploads` (where `Originals` reads them), and answers the
+facts as an `ImageAsset`, keyed by that hash, with a `201`. The variant server
+serves it at once. Only the facts go on to the application's data (a CMS's
+asset row); the bytes never travel through RPC.
+
+Who may upload is the application's to say, and the route has no default:
+`UploadPolicy` is asked before a byte is read.
+
+```ts
+const editors = Layer.succeed(UploadPolicy, {
+  admit: request =>
+    request.headers['authorization'] === `Bearer ${token}`
+      ? Effect.void
+      : Effect.fail(new UploadForbidden({})),
+})
+
+const uploads = uploadLayer({ maxBytes: 10 * 1024 * 1024 }).pipe(
+  Layer.provide(Layer.mergeAll(uploadsKeyValueStore(), inspectorSharp(), editors)),
+)
+```
+
+`uploadsKeyValueStore()` keeps them where `originalsKeyValueStore()` reads,
+over the same `KeyValueStore`; on Cloudflare, `uploadsR2(bucket)` beside
+`originalsR2(bucket)`, and `serveUploadFetch({ layer })` hosts the route in a
+Worker. A refusal answers its kind and nothing more, never kept by a cache:
+`403` from the policy, `415` for a body that is not `image/*` or not an image
+the inspector reads, `413` past `maxBytes` or the inspector's pixel limit, and
+`400` for a body that broke off. Because the body must be `image/*`, which is
+not a type a browser sends to another origin without a preflight, and the
+route answers no preflight, a cookie alone cannot upload from another site.
+
 ### Written out at build
 
 A static site needs no server for its hosted images: `materialize` makes every
