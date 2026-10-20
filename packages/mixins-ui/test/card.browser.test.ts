@@ -49,6 +49,29 @@ const view = (_: Model, h: HtmlBuilder<Message>) =>
         },
         h,
       ),
+      Card.view(
+        {
+          title: 'With an icon',
+          media: h.svg([h.Id('icon'), h.ViewBox('0 0 16 16'), h.AriaHidden(true)], []),
+          style: cardStyle,
+        },
+        h,
+      ),
+      Card.view(
+        {
+          title: 'With an avatar',
+          // An avatar's shape: a circle of its own size, wider than an icon's tile.
+          media: h.span(
+            [
+              h.Id('avatar'),
+              h.Style({ display: 'block', width: '56px', height: '56px', borderRadius: '50%' }),
+            ],
+            [],
+          ),
+          style: cardStyle,
+        },
+        h,
+      ),
       Card.group(
         {
           cards: ['a', 'b', 'c'].map(key => ({
@@ -169,6 +192,29 @@ test("a group's highlight lands on the card the pointer is over, and the card is
     })
     await userEvent.click(byName('Card b'))
     await vi.waitFor(() => expect(log()).toEqual(['Pressed:b']))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('media that is a bare icon sits in a tile, and anything else at its own size at the start', async () => {
+  const { handle } = mount()
+  try {
+    await vi.waitFor(() => expect(document.getElementById('avatar')).not.toBeNull())
+    const icon = document.getElementById('icon')!.parentElement!
+    expect(icon.getBoundingClientRect().width).toBe(32)
+    expect(getComputedStyle(icon).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+    const avatar = document.getElementById('avatar')!.parentElement!
+    const card = avatar.parentElement!
+    expect(avatar.getBoundingClientRect().width).toBe(56)
+    expect(getComputedStyle(avatar).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    expect(getComputedStyle(avatar).overflow).toBe('visible')
+    // At the card's start, past its edge and padding, not centred across it.
+    expect(avatar.getBoundingClientRect().left).toBe(
+      card.getBoundingClientRect().left +
+        card.clientLeft +
+        Number.parseFloat(getComputedStyle(card).paddingLeft),
+    )
   } finally {
     handle.dispose()
   }

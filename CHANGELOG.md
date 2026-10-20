@@ -127,6 +127,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Card's `media` is an accent tile only around a bare icon (`svg`,
+  `img`); an Avatar or anything else leads at its own size, at the card's start. The docs site's
+  profile card passed its Avatar as `image`, which bleeds to the edges in a 16:9 band, and the
+  avatar sat in the band's corner with the band empty beside it.
 - `foldkit-mixins-ui`: a ColorPicker's hue and alpha tracks stay in their channel: a Slider is
   at least 12rem wide, which ran the tracks under the swatch in a narrow picker, as in a
   popover; a holder lays one narrower with `--fk-slider-min-length`. The popover's trigger keeps

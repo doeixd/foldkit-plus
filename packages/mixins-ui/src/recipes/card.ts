@@ -101,12 +101,11 @@ export const Card = Style.recipeFor(CardSlots)({
       }),
     ),
     media: component(
-      Style.self({
-        display: 'grid',
-        placeItems: 'center',
+      Style.self({ display: 'grid', placeItems: 'center', flexShrink: '0' }),
+      // A bare icon sits in a tile; anything else, an Avatar say, draws itself at its own size.
+      Style.pseudo(':has(> :is(svg, img))', {
         inlineSize: '2rem',
         blockSize: '2rem',
-        flexShrink: '0',
         borderRadius: ref.radius.md,
         background: ref.accent.subtle,
         color: ref.accent.ink,
@@ -230,6 +229,8 @@ export const Card = Style.recipeFor(CardSlots)({
             aspectRatio: '16 / 9',
           }),
         ),
+        // At the start, not stretched across the card: a tile or an avatar keeps its own width.
+        media: variant(Style.self({ alignSelf: 'flex-start' })),
       },
       inline: {
         root: variant(

@@ -401,4 +401,26 @@ export default [
     ],
     tests: elevation,
   },
+  {
+    name: 'every media is an icon tile, an avatar clipped in it',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo(':has(> :is(svg, img))', {",
+        replace: "Style.pseudo('', {",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'media is stretched across a stacked card',
+    edits: [
+      {
+        file: recipe,
+        find: "        media: variant(Style.self({ alignSelf: 'flex-start' })),\n",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
 ]

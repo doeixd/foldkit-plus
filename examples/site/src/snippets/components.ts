@@ -832,11 +832,11 @@ export const CardProfileAvatarStyle = forSlots(AvatarSlots)(
   Recipes.Avatar({ size: 'lg', color: 'name' }),
 )
 
-// A person: their avatar in the media tile's place, a name and a role.
+// A person: their avatar leading in the media's place, a name and a role.
 export const cardProfile = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
   Card.view(
     {
-      image: Avatar.view(
+      media: Avatar.view(
         { name: 'Ada Lovelace', status: 'online', style: CardProfileAvatarStyle },
         h,
       ),
