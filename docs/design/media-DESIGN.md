@@ -1519,6 +1519,15 @@ asks a facts route (`GET /_media/facts?url=`, over `factsOf`, behind the same
 `UploadPolicy`) before the block is saved. A block saved without them (an
 import, an older editor) is drawn as an `img`, and a job may fill them later.
 
+*Built for rich text: the standard `Image`'s optional `asset`; the standard
+rendering's `width`/`height` from it, and `imageBox(props)` for a rendering
+of its own; `foldkit-media/browser`'s `inspectorBrowser`, with which the
+playground reads a dropped file's facts where it was chosen. Not built: the
+facts route, and the CMS block. The CMS's studio edits `src` as a field, so
+facts stored beside it go stale on that edit: its block needs the route, and
+`SetProps` on `src` that clears or refreshes `asset` in the same change,
+before it can carry facts without lying about the box.*
+
 ### 27.2 Icons in the theme: tokens and two knobs
 
 **Decided: the chrome's icons are an `icon` token group; a pack is the
