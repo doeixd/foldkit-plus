@@ -1,0 +1,51 @@
+{
+  "name": "foldkit-media",
+  "version": "0.0.0",
+  "description": "Responsive images for Foldkit Plus: an image is a URL to write, through providers that share one width ladder.",
+  "keywords": [
+    "foldkit",
+    "images",
+    "responsive",
+    "srcset",
+    "effect"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/media"
+  },
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "foldkit-plus:source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0"
+  },
+  "devDependencies": {
+    "effect": "^4.0.4",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
+  }
+}

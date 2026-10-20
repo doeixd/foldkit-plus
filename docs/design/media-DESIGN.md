@@ -145,14 +145,15 @@ repeats its components' widths (400, 800, 720, 96) by hand, and nothing checks
 they agree. The ladder also bounds cost on Cloudflare, where each width of each
 original is a billed transformation (§10.3).
 
-**Provider.** A provider writes a URL:
+**Provider.** A provider writes a URL, and carries the ladder it makes, so
+the view never takes widths separately (built, `src/provider.ts`):
 
 ```ts
-// sketch
 interface Provider {
-  readonly url: (asset: ImageAsset, request: { width: number; format: Format }) => Option<string>
-  readonly formats: ReadonlyArray<Format> // what it can write a URL for
-  readonly negotiates: boolean // picks the format itself from Accept (Cloudflare's f=auto)
+  readonly widths: Widths
+  readonly sources: ReadonlyArray<Format> // offered as `source`s, most preferred first
+  readonly fallback: Encoding // the `img`'s own: a Format, or `auto` for a host that reads Accept
+  readonly url: (asset: ImageAsset, request: { width: number; encoding: Encoding }) => Option<string>
 }
 ```
 
@@ -163,9 +164,9 @@ interface Provider {
   an optional peer, as an adapter's library is here. *Probe*: its operation
   types per provider, and whether `transform` of an already-resized URL is
   stable.
-- `Provider.static(variants)` is what a build-time import carries (§11): a table
-  of emitted files, no URL scheme at all.
-- `url` answers `Option`: a provider that has no URL for a width (a static table
+- `Provider.fromFiles(files, formats)` is what a build-time import carries
+  (§11): a table of emitted files, no URL scheme at all.
+- `url` answers `Option`: a provider that has no URL for a width (a build table
   without it) leaves that candidate out of `srcset`, never a broken URL.
 
 ## 6. Layout: candidates and `sizes` from one value
@@ -185,9 +186,11 @@ const Layout = defineTaggedUnion({
 | `Constrained(w)` | every width up to the first at or above `2w` | `(min-width: ${w}px) ${w}px, 100vw` |
 | `FullWidth` | the whole ladder | `100vw` |
 
-Every column then drops widths above the asset's intrinsic width, keeping the
-largest one below it. unpic cannot do this, since it does not know the
-original's size; we do, and enlarging an image is wasted bytes.
+A width above the original's own is written with the original's width as its
+descriptor (`w1080` of a 1000px original is `1000w`), since a provider that does
+not enlarge answers it with the original's pixels, and only the first such width
+is kept: the rest would fetch the same pixels. unpic cannot do this, since it
+does not know the original's size.
 
 - **`sizes` from the theme's breakpoints.** An image in a grid column knows its
   width only by breakpoint. `Image.sizes(theme, { base: '100vw', md: '50vw',
@@ -550,7 +553,7 @@ public demos live; if not, `Variants.r2` alone serves there.
 - It emits a file for each ladder width up to the intrinsic width, in each
   configured format, through `emitFile`, so names carry content hashes and the
   static host's `immutable` header is true.
-- `provider` is `Provider.static` over those files.
+- `provider` is `Provider.fromFiles` over those files.
 - Results are cached by the original's hash, since AVIF encoding is slow.
 - In development a middleware serves the same variants through the same
   handlers, so development and the build share one code path.
@@ -602,7 +605,7 @@ typed value at build time.
 
 | Path | Contents | Peers |
 | --- | --- | --- |
-| `foldkit-media` | `ImageAsset`, `Placeholder`, `Layout`, `Widths`, `Provider` (`static`, `cdnCgi`), candidates and `sizes`, ThumbHash, `IconData` | `effect` |
+| `foldkit-media` | `ImageAsset`, `Placeholder`, `Layout`, `Widths`, `Provider` (`fromFiles`, `cdnCgi`), candidates and `sizes`, ThumbHash, `IconData` | `effect` |
 | `foldkit-media/api` | `MediaApi` and `Provider.hosted` | `effect` |
 | `foldkit-media/unpic` | Third-party providers | `unpic` (optional) |
 | `foldkit-media/server` | Handlers, `Media.serveFetch`, the services and their portable Layers, errors | `effect` |
@@ -639,7 +642,7 @@ typed value at build time.
 
 ## 16. Build order
 
-1. **The core.** `ImageAsset`, `Placeholder`, `Layout`, `Widths`, the static and
+1. **The core.** `ImageAsset`, `Placeholder`, `Layout`, `Widths`, the `fromFiles` and
    `cdnCgi` providers, candidates and `sizes`, ThumbHash. Pure, unit-tested,
    mutation-tested.
 2. **The endpoint.** `MediaApi` and `Provider.hosted`, with the bundle probe of
