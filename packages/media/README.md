@@ -214,6 +214,16 @@ A request outside it is refused before any work, so an original has at most
 the server the same space; the provider refuses, when defined, a format or
 quality its server would refuse.
 
+A variant's URL names its bytes, kept for a year, so a change to what a
+variant is (the encoder's settings, how it resizes) is a new `revision` of
+the space, never new bytes behind an old URL. `Variant.space({ revision: 1 })`
+writes `w640.r1.avif`; revision 0, the default, writes no revision, so every
+URL written before revisions keeps its spelling. A server of revision 2 still
+answers what earlier ones wrote: an earlier revision's variant while its store
+keeps it, and else a `301`, kept a year, to the current revision's URL. A
+later revision it answers as it would a width it does not make, briefly, since
+the next release in a rollout may.
+
 ## The server
 
 `foldkit-media/server` answers the route `Provider.hosted` writes, for
@@ -244,6 +254,7 @@ Every answer's headers come from one function, `headersFor`:
 | A request already holding it (`If-None-Match`) | 304 | the same; the store is not read |
 | A URL no release could write | 400 | a year: it is wrong for good |
 | A well-formed URL outside this space | 404 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: a later release may offer it |
+| An earlier revision's variant, no longer kept | 301 to the current revision's URL | a year: the old bytes cannot come back |
 | No original under the hash | 404 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: an upload may yet put it there |
 | The original above `maxBytes` (20 MB by default) | 413 | a year: its bytes are fixed |
 | The transformer failed | 502 | `no-store` |

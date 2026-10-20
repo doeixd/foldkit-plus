@@ -103,7 +103,7 @@ describe('images', () => {
   it('keeps each variant by the original’s content, so a second build makes none again', async () => {
     const root = await rootWith(`export { default } from './hero.jpg?image'`)
     await buildIn(root)
-    const kept = join(root, '.vite', 'foldkit-media')
+    const kept = join(root, '.vite', 'foldkit-media', 'r1')
     const [hash] = readdirSync(kept)
     writeFileSync(join(kept, hash!, 'w320.webp'), 'kept')
     const facts = JSON.parse(readFileSync(join(kept, hash!, 'asset.json'), 'utf8'))

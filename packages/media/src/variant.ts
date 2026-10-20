@@ -16,14 +16,22 @@ export const ContentHash = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/
 /** A quality from 1 to 100. */
 export const Quality = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))
 
-// No leading zero anywhere: one request has one spelling, so one cache key.
-const SPELLING = /^w([1-9]\d{0,4})(?:q([1-9]\d?|100))?\.(avif|webp|jpeg|png)$/
+// No leading zero anywhere: one request has one spelling, so one cache key. The output's
+// revision is written only above 0, so every URL written before revisions keeps its spelling.
+const SPELLING = /^w([1-9]\d{0,4})(?:q([1-9]\d?|100))?(?:\.r([1-9]\d{0,3}))?\.(avif|webp|jpeg|png)$/
 
 /**
  * The grammar every release reads, whatever its space: a spelling it matches
  * may be one another release offers, so refusing it says nothing for good.
  */
 export const Spelling = Schema.String.check(Schema.isPattern(SPELLING))
+
+/** The output revision a spelling names: `w640.r2.avif` is 2, and one naming none is 0. */
+export const revisionOf = (spelling: string): number => Number(SPELLING.exec(spelling)?.[3] ?? 0)
+
+/** `spelling` at `revision`: the same variant, as that revision writes it. */
+export const respell = (spelling: string, revision: number): string =>
+  spelling.replace(/(?:\.r\d+)?(\.[a-z]+)$/, revision === 0 ? '$1' : `.r${revision}$1`)
 
 /** A variant as its server reads it. */
 export interface Variant {
@@ -44,7 +52,13 @@ export interface Space {
   readonly formats: ReadonlyArray<Format>
   /** Qualities a URL may name; empty, no URL names one. */
   readonly qualities: ReadonlyArray<number>
-  /** `w640.avif` or `w640q75.webp`, decoded to a `Variant` inside this space. */
+  /**
+   * The generation of what its variants are: raised when the output changes (the encoder's
+   * settings, its resizing), so a changed variant has a new URL rather than new bytes behind
+   * an old one. 0 writes no revision.
+   */
+  readonly revision: number
+  /** `w640.avif`, `w640q75.webp` or `w640.r1.avif`, decoded to a `Variant` of this space's revision. */
   readonly schema: Schema.Codec<Variant, string>
   /** How many variants one original can have. */
   readonly size: number
@@ -64,9 +78,18 @@ export const space = (
     readonly widths?: Widths.Widths
     readonly formats?: ReadonlyArray<Format>
     readonly qualities?: ReadonlyArray<number>
+    readonly revision?: number
   } = {},
 ): Space => {
-  const { widths = Widths.standard, formats = ['avif', 'webp'], qualities = [] } = options
+  const {
+    widths = Widths.standard,
+    formats = ['avif', 'webp'],
+    qualities = [],
+    revision = 0,
+  } = options
+  if (!(Number.isInteger(revision) && revision >= 0 && revision <= 9999)) {
+    throw new Error(`Variant.space: revision ${revision} is not an integer from 0 to 9999`)
+  }
   if (formats.length === 0) throw new Error('Variant.space: a space needs at least one format')
   distinct('format', formats)
   distinct('quality', qualities)
@@ -75,7 +98,9 @@ export const space = (
       throw new Error(`Variant.space: quality ${quality} is not an integer from 1 to 100`)
     }
   }
-  const schema = Spelling.pipe(
+  const schema = Spelling.check(
+    Schema.makeFilter(spelling => revisionOf(spelling) === revision || `not revision ${revision}`),
+  ).pipe(
     Schema.decodeTo(
       Schema.Struct({
         width: widths.Schema,
@@ -84,7 +109,7 @@ export const space = (
       }),
       {
         decode: SchemaGetter.transform(spelling => {
-          const [, width, quality, format] = SPELLING.exec(spelling)!
+          const [, width, quality, , format] = SPELLING.exec(spelling)!
           return {
             width: Number(width),
             // The spelling's pattern admits only formats; the struct checks this space's.
@@ -94,7 +119,7 @@ export const space = (
         }),
         encode: SchemaGetter.transform(
           ({ width, format, quality }) =>
-            `w${width}${Option.match(quality, { onNone: () => '', onSome: value => `q${value}` })}.${format}`,
+            `w${width}${Option.match(quality, { onNone: () => '', onSome: value => `q${value}` })}${revision === 0 ? '' : `.r${revision}`}.${format}`,
         ),
       },
     ),
@@ -103,6 +128,7 @@ export const space = (
     widths,
     formats,
     qualities,
+    revision,
     schema,
     size: widths.values.length * formats.length * (1 + qualities.length),
   }

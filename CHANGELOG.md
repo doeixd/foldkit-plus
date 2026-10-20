@@ -34,7 +34,10 @@ version changed; `pnpm` skips versions already in the registry.
   ThumbHash, or the smallest width; none behind a transparent image). Providers: `cdnCgi`
   (Cloudflare's `/cdn-cgi/image/`), `fromFiles` (a build's variants) and `hosted` (its own server,
   whose route, `/_image/<hash>/w640.avif`, `foldkit-media/server`'s `makeApi` declares with the same
-  Schema). `Variant.space({ widths, formats, qualities })` bounds every variant a server makes. `Picture.preload` writes
+  Schema). `Variant.space({ widths, formats, qualities, revision })` bounds every variant a server makes; a
+  changed output is a new `revision`, written into the URL (`w640.r1.avif`; none at 0), and a
+  server answers an earlier revision while it keeps the variant, else with a `301` to the current
+  URL. `Picture.preload` writes
   the page's largest image's `<link rel="preload">` for an SSR `head`. `Picture.ogImage` gives an absolute
   `og:image` URL at least 1200 wide, never AVIF.
   `foldkit-media/server` serves `Provider.hosted`'s route over three services, `Originals`,

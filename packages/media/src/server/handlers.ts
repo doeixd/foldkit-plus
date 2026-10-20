@@ -129,17 +129,43 @@ export const handlers = (options: Options = {}) => {
             ),
         })
       })
+      /**
+       * A spelling of the grammar this space does not read. An earlier revision of a variant
+       * it makes is served while kept and else sent to its current URL; anything else (a later
+       * revision, a width another release offers) is `Unoffered`, kept briefly.
+       */
+      const elsewhere = (hash: string, spelling: string) => {
+        const current = Variant.respell(spelling, space.revision)
+        if (
+          Variant.revisionOf(spelling) >= space.revision ||
+          Option.isNone(decodeVariant(current))
+        ) {
+          return Effect.succeed(refused(Answer.cases.Unoffered.make({})))
+        }
+        const key = `${hash}/${spelling}`
+        return Effect.map(variants.get(key), kept =>
+          Option.match(kept, {
+            onSome: ({ encoded, from }) => served(`"${key}"`, from, encoded),
+            onNone: () =>
+              refused(
+                Answer.cases.Moved.make({
+                  location: Variant.PATH.replace(':hash', hash).replace(':variant', current),
+                }),
+              ),
+          }),
+        )
+      }
       return group.handle('variant', ({ params, request }) =>
         Option.match(Option.all([decodeHash(params.hash), decodeVariant(params.variant)]), {
-          // Kept a year only when no release could spell it; outside this space alone, briefly.
+          // Kept a year only when no release could spell it; anything else is answered above.
           onNone: () =>
-            Effect.succeed(
-              refused(
-                Option.isSome(decodeHash(params.hash)) && isSpelling(params.variant)
-                  ? Answer.cases.Unoffered.make({})
-                  : Answer.cases.Malformed.make({}),
-              ),
-            ),
+            Option.match(decodeHash(params.hash), {
+              onNone: () => Effect.succeed(refused(Answer.cases.Malformed.make({}))),
+              onSome: hash =>
+                isSpelling(params.variant)
+                  ? elsewhere(hash, params.variant)
+                  : Effect.succeed(refused(Answer.cases.Malformed.make({}))),
+            }),
           onSome: ([hash, variant]) =>
             serve(hash, variant, request.headers['if-none-match'], clientOf(request)),
         }),

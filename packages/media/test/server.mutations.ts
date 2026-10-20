@@ -397,8 +397,8 @@ export default [
     edits: [
       {
         file: '../src/server/handlers.ts',
-        find: '? Answer.cases.Unoffered.make({})',
-        replace: '? Answer.cases.Malformed.make({})',
+        find: 'return Effect.succeed(refused(Answer.cases.Unoffered.make({})))',
+        replace: 'return Effect.succeed(refused(Answer.cases.Malformed.make({})))',
       },
     ],
     tests: ['packages/media/test/server.test.ts', 'packages/media/test/hosted.test.ts'],
@@ -408,8 +408,8 @@ export default [
     edits: [
       {
         file: '../src/server/handlers.ts',
-        find: 'Option.isSome(decodeHash(params.hash)) && isSpelling(params.variant)',
-        replace: 'Option.isSome(decodeHash(params.hash))',
+        find: 'isSpelling(params.variant)',
+        replace: 'true',
       },
     ],
     tests: ['packages/media/test/server.test.ts', 'packages/media/test/hosted.test.ts'],

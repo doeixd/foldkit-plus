@@ -1432,6 +1432,14 @@ decodes, not a second parser.
 
 ### 26.3 The output's revision
 
+*Built as written, with `Variant.revisionOf` and `Variant.respell`. The space's
+`schema` reads only its own revision, so `Variant` and `Provider.hosted` are
+unchanged; the handler reads every other spelling of the grammar in one place
+(an earlier revision kept, moved, or `Unoffered`). The golden list is
+`packages/media/test/versions.test.ts`. §26.5's revision is `?image`'s
+`CACHE_REVISION`, a folder under Vite's cache. Not built: the golden shapes of
+26.4.*
+
 `Variant.space({ revision })` names the output's generation, `0` by
 default, and written into the spelling only when above `0`
 (`w640.avif`, then `w640.r1.avif`), so every URL written today stays as it

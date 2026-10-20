@@ -19,6 +19,11 @@ export const Answer = Schema.TaggedUnion({
    * one, in a rollout) may offer it, so it is kept as briefly as `NotFound`.
    */
   Unoffered: {},
+  /**
+   * A variant of an earlier revision, made no longer and not kept: its URL now names the
+   * current revision's, at `location`. Kept a year, since the old bytes cannot come back.
+   */
+  Moved: { location: Schema.String },
   /** The original is larger than the server reads: its bytes, and so this, never change. */
   TooLarge: {},
   /** The transformer failed: perhaps not for good. */
@@ -54,6 +59,7 @@ export const statusOf: (answer: Answer) => number = Answer.match({
   Malformed: () => 400,
   NotFound: () => 404,
   Unoffered: () => 404,
+  Moved: () => 301,
   TooLarge: () => 413,
   Failed: () => 502,
   RateLimited: () => 429,
@@ -86,6 +92,7 @@ export const headersFor = (answer: Answer): Readonly<Record<string, string>> => 
     Malformed: (): Record<string, string> => ({ 'cache-control': YEAR }),
     NotFound: (): Record<string, string> => BRIEFLY,
     Unoffered: (): Record<string, string> => BRIEFLY,
+    Moved: ({ location }): Record<string, string> => ({ 'cache-control': YEAR, location }),
     TooLarge: (): Record<string, string> => ({ 'cache-control': YEAR }),
     Failed: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
     RateLimited: ({ retryAfterSeconds }): Record<string, string> => ({

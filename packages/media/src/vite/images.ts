@@ -19,6 +19,11 @@ import { describe, type Inspector } from '../describe.js'
 import { Transformer } from '../server/services.js'
 
 const QUERY = 'image'
+// The kept facts' and variants' generation: raised when what `describe` reads or the encoder
+// makes changes, so every build re-reads once, and one that changes neither encodes nothing
+// again. sharp's own version is not in it: a patch release would re-encode every AVIF for
+// nothing anyone sees.
+const CACHE_REVISION = 'r1'
 const DEV_PREFIX = '/@foldkit-media/image/'
 const DEV_PATH = /^\/@foldkit-media\/image\/([0-9a-f]{64})\/w(\d+)\.(avif|webp|jpeg|png)$/
 
@@ -72,7 +77,7 @@ export const images = (options: ImagesOptions = {}): Plugin => {
   }
 
   let root = process.cwd()
-  let cache = join(root, 'node_modules', '.vite', 'foldkit-media')
+  let cache = join(root, 'node_modules', '.vite', 'foldkit-media', CACHE_REVISION)
   let serving = false
   /** The originals the development server has been asked to vary, by content hash. */
   const originals = new Map<
@@ -148,7 +153,7 @@ export const images = (options: ImagesOptions = {}): Plugin => {
     enforce: 'pre',
     configResolved(config) {
       root = config.root
-      cache = join(config.cacheDir, 'foldkit-media')
+      cache = join(config.cacheDir, 'foldkit-media', CACHE_REVISION)
       serving = config.command === 'serve'
     },
     async load(id) {
