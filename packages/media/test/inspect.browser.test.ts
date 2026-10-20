@@ -12,7 +12,7 @@ import { expect, test } from 'vitest'
 const png = async (
   width: number,
   height: number,
-  transparency: 'none' | 'area' | 'pixel' = 'none',
+  transparency: 'none' | 'area' | 'pixel' | 'corner' = 'none',
 ) => {
   const canvas = new OffscreenCanvas(width, height)
   const context = canvas.getContext('2d')!
@@ -23,6 +23,12 @@ const png = async (
     const pixel = context.getImageData(0, 0, 1, 1)
     pixel.data[3] = 254
     context.putImageData(pixel, 0, 0)
+  }
+  // The last pixel, in the last tile the inspector reads.
+  if (transparency === 'corner') {
+    const pixel = context.getImageData(width - 1, height - 1, 1, 1)
+    pixel.data[3] = 254
+    context.putImageData(pixel, width - 1, height - 1)
   }
   const blob = await canvas.convertToBlob({ type: 'image/png' })
   return new Uint8Array(await blob.arrayBuffer())
@@ -61,6 +67,9 @@ test('reads alpha where any pixel is not opaque', async () => {
     const exit = await read(await png(400, 400, transparency))
     expect(Exit.isSuccess(exit) && exit.value.alpha).toBe(true)
   }
+  // Wider and taller than one tile, so a reading of the first tile alone misses it.
+  const exit = await read(await png(1100, 700, 'corner'))
+  expect(Exit.isSuccess(exit) && exit.value.alpha).toBe(true)
 })
 
 test('refuses bytes the browser cannot decode, and a picture above the pixel limit', async () => {

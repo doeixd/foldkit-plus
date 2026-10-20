@@ -15,7 +15,8 @@ const THUMBNAIL_SIDE = 100
 // Bound each canvas readback while still checking every decoded pixel.
 const ALPHA_TILE_SIDE = 512
 
-// About 50 megapixels, as the Node inspector: a photograph decodes, a decompression bomb does not.
+// About 50 megapixels, as the Node inspector. The browser decodes the file before its size is
+// known, so this bounds the canvas work after the decode, not the decode itself.
 const DEFAULT_MAX_PIXELS = 50_000_000
 
 /**

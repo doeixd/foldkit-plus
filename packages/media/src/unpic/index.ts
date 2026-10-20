@@ -26,8 +26,8 @@ export interface DetectOptions {
 
 /**
  * The provider of `url`'s host, or none when unpic knows no host for it. The
- * provider answers only for an asset on that same host (its `key` is the
- * image's URL), and none for a format the host does not take: unpic writes no
+ * provider answers only for an asset on a host of the same kind (its `key` is
+ * the image's URL, written on its own host), and none for a format the host does not take: unpic writes no
  * format for some hosts (Shopify's chooses from `Accept`), and a `source`
  * naming AVIF over a JPEG would be a lie.
  */

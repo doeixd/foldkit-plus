@@ -41,4 +41,20 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'only the first tile is read for alpha',
+    edits: [
+      {
+        file: inspector,
+        find: 'for (let top = 0; top < height && !alpha; top += ALPHA_TILE_SIDE)',
+        replace: 'for (let top = 0; top < 1 && !alpha; top += ALPHA_TILE_SIDE)',
+      },
+      {
+        file: inspector,
+        find: 'for (let left = 0; left < width && !alpha; left += ALPHA_TILE_SIDE)',
+        replace: 'for (let left = 0; left < 1 && !alpha; left += ALPHA_TILE_SIDE)',
+      },
+    ],
+    tests,
+  },
 ]

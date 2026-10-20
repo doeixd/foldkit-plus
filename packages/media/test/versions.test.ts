@@ -158,7 +158,7 @@ describe('a server of a later revision', () => {
     expect([response.status, await response.text()]).toEqual([200, 'kept from revision 0'])
   })
 
-  it('answers an earlier revision the client already holds without reading its body', async () => {
+  it('answers an earlier revision the client already holds with a 304', async () => {
     const path = `/_image/${HASH}/w320.webp`
     const response = await serverAtRevision2()(path, {
       headers: { 'if-none-match': `"${HASH}/w320.webp"` },
