@@ -258,6 +258,19 @@ describe('the generated site', () => {
     expect(hrefs(gallery, 'nav[aria-label="Site"] [aria-current="page"]')).toEqual(['/components'])
   })
 
+  test('the rail lists every component by name, in alphabetical order', () => {
+    const rail = page('/components/button').querySelector('nav[aria-label="Components"]')!
+    const titles = Array.from(
+      rail.querySelectorAll('section:last-of-type a'),
+      link => link.textContent ?? '',
+    )
+    expect(titles).toEqual(
+      showcases.map(showcase => showcase.title).sort((a, b) => a.localeCompare(b, 'en')),
+    )
+    // The definition order is not already alphabetical, so the sort is what puts it there.
+    expect(titles).not.toEqual(showcases.map(showcase => showcase.title))
+  })
+
   test("a component's page offers its recipe's variants, previews it and shows its code", () => {
     const button = page('/components/button')
     expect(button.title).toBe('Button · Components · Foldkit Plus')

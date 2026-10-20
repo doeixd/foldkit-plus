@@ -127,6 +127,9 @@ export const directionChoice = (model: Model, slots: Slots, h: H): Html =>
     direction => Message.ChoseDirection({ direction }),
   )
 
+// The rail lists components by name, to be found; the gallery keeps its own order.
+const byTitle = [...showcases].sort((a, b) => a.title.localeCompare(b.title, 'en'))
+
 /** The rail on a component page: the overview, the theme creator, and each component. */
 export const componentsContents = (path: string, slots: Slots, h: H): ReadonlyArray<Html> => {
   const link = (href: string, label: string) =>
@@ -146,7 +149,7 @@ export const componentsContents = (path: string, slots: Slots, h: H): ReadonlyAr
           h.h2([], ['Components']),
           h.ul(
             [],
-            showcases.map(showcase => link(`${COMPONENTS}/${showcase.slug}`, showcase.title)),
+            byTitle.map(showcase => link(`${COMPONENTS}/${showcase.slug}`, showcase.title)),
           ),
         ],
       ),
