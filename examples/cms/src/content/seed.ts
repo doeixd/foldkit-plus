@@ -101,7 +101,8 @@ const about = {
       src: '/images/desk.svg',
       alt: 'A desk with a lamp and an open notebook',
       caption: 'Where the drafts happen.',
-      // Its facts, as an upload or the facts route would answer them, so its box is its own shape.
+      // Its facts, written from the drawing's viewBox (the inspectors read pictures, not SVG),
+      // so its box is its own shape.
       asset: {
         key: '/images/desk.svg',
         width: 800,

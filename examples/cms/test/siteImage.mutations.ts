@@ -24,9 +24,15 @@ export default [
     tests,
   },
   {
-    name: 'the box is the facts turned on their side',
-    edits: [{ file: site, find: '`${width} / ${height}`', replace: '`${height} / ${width}`' }],
-    tests,
+    name: 'the box is 4:3 whatever the facts say',
+    edits: [
+      {
+        file: site,
+        find: "aspectRatio: 'auto var(--image-ratio, 4 / 3)',",
+        replace: "aspectRatio: 'auto 4 / 3',",
+      },
+    ],
+    tests: ['examples/cms/test/builder.browser.test.ts'],
   },
   {
     name: 'the inspector shows the facts',

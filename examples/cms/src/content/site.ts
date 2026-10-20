@@ -16,7 +16,7 @@ import { PAGE_CONTAINER, Renderer } from 'foldkit-composition/foldkit'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity, type Selected } from 'foldkit-entity'
 import { Input } from 'foldkit-form'
-import { ImageAsset } from 'foldkit-media'
+import { ImageAsset, Layout as MediaLayout } from 'foldkit-media'
 import { Capability, Layers, Slot, SlotView, Slots, Style } from 'foldkit-mixins'
 import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
 import { BuilderView } from 'foldkit-mixins-builder'
@@ -482,7 +482,7 @@ export const Image = Block.define('Image', {
 const imageRatio = (props: typeof Image.Props.Type): Option.Option<string> =>
   Option.fromUndefinedOr(props.asset).pipe(
     Option.filter(asset => asset.key === props.src),
-    Option.map(({ width, height }) => `${width} / ${height}`),
+    Option.map(MediaLayout.ratio),
   )
 
 const QuoteSlots = Slots.define({ root: part, text: part, cite: part })

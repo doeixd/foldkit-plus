@@ -105,6 +105,51 @@ const at = (element: EventTarget, type: string, where: { clientX: number; client
     new PointerEvent(type, { bubbles: true, button: 0, buttons: 1, isPrimary: true, ...where }),
   )
 
+/** A page of one Image block at `src`, its facts `asset` if any. */
+const imagePage = (src: string, asset?: Readonly<Record<string, unknown>>) => {
+  const section = NodeId.make('s')
+  const image = NodeId.make('image')
+  return Composition.Document.make({
+    format: 1,
+    roots: [section],
+    nodes: {
+      [section]: { block: 'Section', props: { heading: '' }, regions: { body: [image] } },
+      [image]: {
+        block: 'Image',
+        props: { src, alt: 'A desk', caption: '', ...(asset === undefined ? {} : { asset }) },
+        regions: {},
+      },
+    },
+  })
+}
+
+// The file never arrives (no such path), so only what the page says holds the box.
+const MISSING = '/missing/desk.png'
+
+it.each([
+  [
+    'the shape its facts give',
+    { key: MISSING, width: 800, height: 400, alpha: false, hash: null, placeholder: null },
+    2,
+  ],
+  ['4:3 with no facts', undefined, 4 / 3],
+  [
+    '4:3 for facts of another address',
+    { key: '/other.png', width: 800, height: 400, alpha: false, hash: null, placeholder: null },
+    4 / 3,
+  ],
+])('holds an image’s box at %s before its file arrives', async (_, asset, ratio) => {
+  unmount = mount(stylesheet, 0, imagePage(MISSING, asset))
+  const image = await vi.waitFor(() => {
+    const drawn = document.querySelector<HTMLImageElement>('[aria-label="Page"] img')
+    if (drawn === null) throw new Error('no image drawn yet')
+    return drawn
+  })
+  const box = image.getBoundingClientRect()
+  expect(box.width).toBeGreaterThan(100)
+  expect(box.width / box.height).toBeCloseTo(ratio, 1)
+})
+
 it('reads its announcements out without showing them', async () => {
   unmount = mount(stylesheet)
   await vi.waitFor(() => expect(canvas()).not.toBeNull())

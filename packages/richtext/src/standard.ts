@@ -128,17 +128,13 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
   node('TableCell', { children: blockContent, isolating: true, within: ['TableRow'] }),
 ]
 
-/**
- * A URL attribute, or none when the value fails the URL policy. Import already applies the
- * policy, but a document also arrives decoded, synchronized, or edited through `SetMark`,
- * and this is where a `javascript:` href would become live.
- */
 const decodeAsset = Schema.decodeUnknownOption(ImageAsset)
 
 /**
  * An `Image`'s `width` and `height` attributes from its props' `asset`, at its drawn `width`
  * when it has one, so a page keeps the box before the file arrives; none without facts. The
  * standard rendering writes them; a rendering of its own (a figure) spreads them on its `img`.
+ * The facts are trusted to be `src`'s: whatever changes `src` replaces or clears `asset`.
  */
 export const imageBox = (
   props: Readonly<Record<string, unknown>>,
@@ -155,6 +151,11 @@ export const imageBox = (
     },
   })
 
+/**
+ * A URL attribute, or none when the value fails the URL policy. Import already applies the
+ * policy, but a document also arrives decoded, synchronized, or edited through `SetMark`,
+ * and this is where a `javascript:` href would become live.
+ */
 const urlAttribute = (name: string, value: unknown): Readonly<Record<string, string>> => {
   const safe = typeof value === 'string' ? safeUrl(value) : undefined
   return safe === undefined ? {} : { [name]: safe }
