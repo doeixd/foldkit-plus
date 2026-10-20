@@ -2,7 +2,7 @@ import { Schema } from 'effect'
 import type { ImageAsset } from './asset.js'
 import { atLeast, type Widths } from './widths.js'
 
-const CssPixels = Schema.Number.check(Schema.isGreaterThan(0))
+const CssPixels = Schema.Finite.check(Schema.isGreaterThan(0))
 
 /** How wide an image is drawn, from which its candidates and `sizes` follow. */
 const LayoutSchema = Schema.TaggedUnion({

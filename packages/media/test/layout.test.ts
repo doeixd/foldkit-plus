@@ -90,6 +90,12 @@ describe('Layout.candidates', () => {
   })
 })
 
+describe('Layout widths', () => {
+  it.each([0, -1, Number.POSITIVE_INFINITY])('refuses %s', width => {
+    expect(() => Layout.Fixed({ width })).toThrow()
+  })
+})
+
 describe('Layout.sizes and Layout.box', () => {
   it.each([
     [Layout.Fixed({ width: 150 }), '150px', { width: 150, height: 75 }],

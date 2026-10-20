@@ -33,13 +33,21 @@ export interface File {
 /**
  * The provider of one image whose variants a build already wrote: a table of
  * files, no URL scheme. Its ladder is the widths it has, and it answers none
- * for a variant it lacks.
+ * for a variant it lacks. Refuses no files, and two files for one variant.
  */
 export const fromFiles = (
   files: ReadonlyArray<File>,
   formats: { readonly sources: ReadonlyArray<Format>; readonly fallback: Format },
 ): Provider => {
-  const byVariant = new Map(files.map(file => [`${file.width}:${file.format}`, file.url]))
+  if (files.length === 0) throw new Error('Provider.fromFiles: no files')
+  const byVariant = new Map<string, string>()
+  for (const file of files) {
+    const variant = `${file.width}:${file.format}`
+    if (byVariant.has(variant)) {
+      throw new Error(`Provider.fromFiles: two files for ${file.width}px ${file.format}`)
+    }
+    byVariant.set(variant, file.url)
+  }
   return {
     widths: Widths.make([...new Set(files.map(file => file.width))]),
     sources: formats.sources,

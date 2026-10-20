@@ -91,6 +91,24 @@ export default [
     tests: provider,
   },
   {
+    name: 'a layout may be infinitely wide',
+    edits: [
+      { file: '../src/layout.ts', find: 'Schema.Finite.check', replace: 'Schema.Number.check' },
+    ],
+    tests: layout,
+  },
+  {
+    name: 'a second file for a variant replaces the first',
+    edits: [
+      {
+        file: '../src/provider.ts',
+        find: 'if (byVariant.has(variant)) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: provider,
+  },
+  {
     name: 'any zone is accepted',
     edits: [{ file: '../src/provider.ts', find: '!HOSTNAME.test(zone)', replace: 'false' }],
     tests: provider,

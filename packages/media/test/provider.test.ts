@@ -57,6 +57,23 @@ describe('Provider.fromFiles', () => {
   })
 })
 
+describe('Provider.fromFiles refuses', () => {
+  it.each([
+    ['no files', []],
+    [
+      'two files for one variant',
+      [
+        { width: 200, format: 'webp', url: '/a.webp' },
+        { width: 200, format: 'webp', url: '/b.webp' },
+      ],
+    ],
+  ] as const)('%s', (_, files) => {
+    expect(() => Provider.fromFiles(files, { sources: [], fallback: 'webp' })).toThrow(
+      /Provider\.fromFiles/,
+    )
+  })
+})
+
 describe('Provider.cdnCgi', () => {
   const url = (provider: Provider.Provider, key: string) =>
     provider.url(assetAt(key), { width: 640, encoding: 'auto' })
