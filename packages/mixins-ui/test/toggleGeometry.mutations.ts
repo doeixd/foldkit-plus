@@ -94,8 +94,31 @@ export default [
     edits: [
       {
         file,
-        find: "inlineSize: 'auto',\n        blockSize: 'auto',\n        border: '0',\n        rotate: 'none',",
+        find: "inlineSize: 'auto',\n        blockSize: ref.border.glyph,\n        border: '0',\n        rotate: 'none',",
         replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a dash is a share of the box, thinner than the check',
+    edits: [
+      {
+        file,
+        find: 'top: `calc(50% - ${ref.border.glyph} / 2)`,',
+        replace: "top: '45%',\n        bottom: '45%',",
+      },
+      { file, find: 'blockSize: ref.border.glyph,', replace: "blockSize: 'auto'," },
+    ],
+    tests,
+  },
+  {
+    name: 'a dash stands a pixel low',
+    edits: [
+      {
+        file,
+        find: 'top: `calc(50% - ${ref.border.glyph} / 2)`,',
+        replace: 'top: `calc(50% - ${ref.border.glyph} / 2 + 1px)`,',
       },
     ],
     tests,

@@ -245,6 +245,23 @@ test("a check's ink is centered in its box", async () => {
   }
 })
 
+test("a dash is the check's stroke, on whole pixel rows across the middle", async () => {
+  const handle = mount()
+  try {
+    await drawn()
+    const element = document.querySelector('[aria-label="mixed"]')!
+    const style = getComputedStyle(element, '::after')
+    const top = Number.parseFloat(style.top)
+    const height = Number.parseFloat(style.height)
+    // The `glyph` border width, 2px, that strokes the check.
+    expect(height).toBe(2)
+    expect(top + height / 2).toBe(element.clientHeight / 2)
+    expect(Number.isInteger(top)).toBe(true)
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('the check wipes in over time, and at once under reduced motion', async () => {
   const handle = mount('1')
   try {

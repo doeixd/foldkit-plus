@@ -90,12 +90,13 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
       Style.pseudo('[aria-checked="mixed"]::after', {
         content: '""',
         position: 'absolute',
-        top: '45%',
-        right: '20%',
-        bottom: '45%',
-        left: '20%',
+        // The check's stroke, on the middle: a share of the box was 1.4px at
+        // 16px, thinner than the check and blurred off its pixel rows.
+        top: `calc(50% - ${ref.border.glyph} / 2)`,
+        right: '22%',
+        left: '22%',
         inlineSize: 'auto',
-        blockSize: 'auto',
+        blockSize: ref.border.glyph,
         border: '0',
         rotate: 'none',
         clipPath: 'inset(0 0 0 0)',
