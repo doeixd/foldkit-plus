@@ -14,6 +14,12 @@ export interface Encoded {
   readonly contentType: string
 }
 
+/** A variant found kept, and which layer had it. */
+export interface Kept {
+  readonly encoded: Encoded
+  readonly from: 'edge' | 'store'
+}
+
 /** Where originals live, by their content hash. Authoritative: the server never writes it. */
 export class Originals extends Context.Service<
   Originals,
@@ -41,7 +47,7 @@ export class Transformer extends Context.Service<
 export class Variants extends Context.Service<
   Variants,
   {
-    readonly get: (key: string) => Effect.Effect<Option.Option<Encoded>>
+    readonly get: (key: string) => Effect.Effect<Option.Option<Kept>>
     readonly put: (key: string, encoded: Encoded) => Effect.Effect<void>
   }
 >()('foldkit-media/Variants') {}
@@ -56,7 +62,13 @@ export const variantsNone: Layer.Layer<Variants> = Layer.succeed(Variants, {
 export const variantsMemory = (): Layer.Layer<Variants> => {
   const kept = new Map<string, Encoded>()
   return Layer.succeed(Variants, {
-    get: key => Effect.sync(() => Option.fromNullishOr(kept.get(key))),
+    get: key =>
+      Effect.sync(() =>
+        Option.map(Option.fromNullishOr(kept.get(key)), encoded => ({
+          encoded,
+          from: 'store' as const,
+        })),
+      ),
     put: (key, encoded) => Effect.sync(() => void kept.set(key, encoded)),
   })
 }

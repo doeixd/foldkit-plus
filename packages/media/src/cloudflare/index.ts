@@ -7,7 +7,7 @@
 import type { Cache, ImagesBinding, R2Bucket } from '@cloudflare/workers-types'
 import { Effect, Layer, Option } from 'effect'
 import { OriginalNotFound, QuotaExhausted, TransformFailed } from '../server/errors.js'
-import { Originals, Transformer, Variants, type Encoded } from '../server/services.js'
+import { Originals, Transformer, Variants, type Encoded, type Kept } from '../server/services.js'
 
 /** Originals in an R2 bucket, each under its content hash. */
 export const originalsR2 = (bucket: R2Bucket): Layer.Layer<Originals> =>
@@ -103,16 +103,19 @@ export const variantsR2 = (
       onSome: edge => Effect.promise(() => edge.put(cacheKey(key), cached(encoded) as never)),
     })
   const fromBucket = (key: string) =>
-    Effect.promise(async (): Promise<Option.Option<Encoded>> => {
+    Effect.promise(async (): Promise<Option.Option<Kept>> => {
       const object = await bucket.get(prefix + key)
       if (object === null) return Option.none()
       return Option.some({
-        bytes: new Uint8Array(await object.arrayBuffer()),
-        contentType: object.httpMetadata?.contentType ?? 'application/octet-stream',
+        encoded: {
+          bytes: new Uint8Array(await object.arrayBuffer()),
+          contentType: object.httpMetadata?.contentType ?? 'application/octet-stream',
+        },
+        from: 'store' as const,
       })
     }).pipe(
       Effect.tap(found =>
-        Option.match(found, { onNone: () => Effect.void, onSome: encoded => fill(key, encoded) }),
+        Option.match(found, { onNone: () => Effect.void, onSome: kept => fill(key, kept.encoded) }),
       ),
     )
   return Layer.succeed(Variants, {
@@ -124,7 +127,9 @@ export const variantsR2 = (
             Effect.flatMap(hit =>
               hit === undefined
                 ? fromBucket(key)
-                : Effect.promise(() => fromResponse(hit)).pipe(Effect.map(Option.some)),
+                : Effect.promise(() => fromResponse(hit)).pipe(
+                    Effect.map(encoded => Option.some({ encoded, from: 'edge' as const })),
+                  ),
             ),
           ),
       }),

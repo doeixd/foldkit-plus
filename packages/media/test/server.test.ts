@@ -27,6 +27,8 @@ const MISSING = 'e'.repeat(64)
 
 const bytes = (text: string) => new TextEncoder().encode(text)
 
+const YEAR = 'public, max-age=31536000, immutable'
+
 const originals = new Map([
   [IMAGE, bytes('IMAGE:1000')],
   [NOT_AN_IMAGE, bytes('plain text')],
@@ -99,16 +101,101 @@ describe('serveFetch', () => {
     ['an unknown original', MISSING, 404],
     ['an original that is not an image', NOT_AN_IMAGE, 502],
     ['a spent allowance', SPENT, 503],
-  ])('answers %s with its own status, uncached and never the original', async (_, hash, status) => {
+  ])(
+    'answers %s with its own status, never the original, and tries again',
+    async (_, hash, status) => {
+      const server = serve()
+      for (const _attempt of [1, 2]) {
+        const response = await server.get(`/_image/${hash}/w640.webp`)
+        expect(response.status).toBe(status)
+        expect(await response.text()).not.toContain('IMAGE')
+      }
+      // Not kept: the second request tried again.
+      expect(transforms).toEqual(hash === MISSING ? [] : ['640.webp', '640.webp'])
+    },
+  )
+
+  // §25.1 of the design, row by row.
+  it.each([
+    ['a variant', `/_image/${IMAGE}/w640.webp`, {}, 200, YEAR, null, null],
+    ['a URL off the ladder', `/_image/${IMAGE}/w1080.webp`, {}, 400, YEAR, null, null],
+    ['a URL of no hash', '/_image/not-a-hash/w640.webp', {}, 400, YEAR, null, null],
+    [
+      'an unknown original',
+      `/_image/${MISSING}/w640.webp`,
+      {},
+      404,
+      'no-store',
+      'public, max-age=60',
+      null,
+    ],
+    ['an original too large', `/_image/${HUGE}/w640.webp`, { maxBytes: 50 }, 413, YEAR, null, null],
+    ['a failed transform', `/_image/${NOT_AN_IMAGE}/w640.webp`, {}, 502, 'no-store', null, null],
+    ['a spent allowance', `/_image/${SPENT}/w640.webp`, {}, 503, 'no-store', null, '3600'],
+  ])('sends %s its headers', async (_, path, options, status, cache, cdn, retry) => {
+    const response = await serve(options).get(path)
+    expect(response.status).toBe(status)
+    expect(
+      ['cache-control', 'cdn-cache-control', 'retry-after'].map(name => response.headers.get(name)),
+    ).toEqual([cache, cdn, retry])
+    expect(
+      Object.fromEntries(
+        [
+          'x-content-type-options',
+          'access-control-allow-origin',
+          'cross-origin-resource-policy',
+          'timing-allow-origin',
+          'vary',
+        ].map(name => [name, response.headers.get(name)]),
+      ),
+    ).toEqual({
+      'x-content-type-options': 'nosniff',
+      'access-control-allow-origin': '*',
+      'cross-origin-resource-policy': 'cross-origin',
+      'timing-allow-origin': '*',
+      vary: null,
+    })
+  })
+
+  it('says where a variant came from', async () => {
     const server = serve()
-    for (const _attempt of [1, 2]) {
-      const response = await server.get(`/_image/${hash}/w640.webp`)
-      expect(response.status).toBe(status)
-      expect(response.headers.get('cache-control')).toBeNull()
-      expect(await response.text()).not.toContain('IMAGE')
-    }
-    // Not kept: the second request tried again.
-    expect(transforms).toEqual(hash === MISSING ? [] : ['640.webp', '640.webp'])
+    const first = await server.get(`/_image/${IMAGE}/w640.webp`)
+    const second = await server.get(`/_image/${IMAGE}/w640.webp`)
+    expect([first.headers.get('server-timing'), second.headers.get('server-timing')]).toEqual([
+      'media;desc="made"',
+      'media;desc="store"',
+    ])
+  })
+
+  it.each([
+    ['its own ETag', `"${IMAGE}/w640.webp"`],
+    ['its ETag, weakly', `W/"${IMAGE}/w640.webp"`],
+    ['its ETag among others', `"other", "${IMAGE}/w640.webp"`],
+    ['any', '*'],
+  ])(
+    'answers a request that already holds %s with a 304, reading nothing',
+    async (_, ifNoneMatch) => {
+      const server = serve()
+      const response = await server.fetch(
+        new Request(`http://media.test/_image/${IMAGE}/w640.webp`, {
+          headers: { 'if-none-match': ifNoneMatch },
+        }),
+        { name: 'one' },
+      )
+      expect(response.status).toBe(304)
+      expect(response.headers.get('etag')).toBe(`"${IMAGE}/w640.webp"`)
+      expect(transforms).toEqual([])
+    },
+  )
+
+  it('sends the variant to a request holding another ETag', async () => {
+    const response = await serve().fetch(
+      new Request(`http://media.test/_image/${IMAGE}/w640.webp`, {
+        headers: { 'if-none-match': `"${IMAGE}/w320.webp"` },
+      }),
+      { name: 'one' },
+    )
+    expect([response.status, response.headers.get('etag')]).toEqual([200, `"${IMAGE}/w640.webp"`])
   })
 
   it('refuses an original above the byte limit before transforming it', async () => {

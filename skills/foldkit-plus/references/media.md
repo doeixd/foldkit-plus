@@ -73,8 +73,9 @@ export const heroView = (h: HtmlBuilder<never>) =>
 - `Provider.hosted({ baseUrl?, space?, sources?, fallback?, quality? })`: this
   package's own server, `/_image/<sha-256>/w640.avif`; needs the asset's
   `hash`. `Variant.space({ widths, formats, qualities })` bounds what it makes;
-  `foldkit-media/server`'s `makeApi(space)` declares the same route with the
-  same Schema.
+  `foldkit-media/server` serves the route, decoding with the same Schema, and
+  decides every response's headers in `headersFor` (immutable variants, ETag
+  and 304, a lifetime per error, CORS).
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).

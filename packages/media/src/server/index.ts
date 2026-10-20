@@ -1,4 +1,5 @@
-export { makeApi, type MediaApi } from './api.js'
+export { MediaApi } from './api.js'
+export { Answer, headersFor, statusOf } from './headers.js'
 export { OriginalNotFound, OriginalTooLarge, QuotaExhausted, TransformFailed } from './errors.js'
 export { handlers, layer, serveFetch, type Options } from './handlers.js'
 export {
@@ -6,6 +7,7 @@ export {
   Transformer,
   Variants,
   originalsMemory,
+  type Kept,
   variantsMemory,
   variantsNone,
   type Encoded,

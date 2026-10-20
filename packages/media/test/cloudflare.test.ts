@@ -103,6 +103,7 @@ describe('the Cloudflare layers', () => {
     await env.MEDIA.delete([hash, `variants/${hash}/w320.png`])
     const again = await get(`/_image/${hash}/w320.png`)
     expect(again.status).toBe(200)
+    expect(again.headers.get('server-timing')).toBe('media;desc="edge"')
     expect(await infoOf(again)).toMatchObject({ width: 320 })
   })
 

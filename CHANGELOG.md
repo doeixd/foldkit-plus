@@ -28,7 +28,8 @@ version changed; `pnpm` skips versions already in the registry.
   the page's largest image's `<link rel="preload">` for an SSR `head`.
   `foldkit-media/server` serves `Provider.hosted`'s route over three services, `Originals`,
   `Transformer` and `Variants`: a variant is made once and kept, served immutable, and a failure is
-  its own status (404, 413, 502, 503), never the original. `serveFetch` hosts it in a Worker,
+  its own status (400, 404, 413, 502, 503), never the original, with headers decided in one place
+  (`headersFor`): an `ETag` and 304, a cache lifetime for each answer, CORS, `nosniff`, `Server-Timing`. `serveFetch` hosts it in a Worker,
   `layer` in an Effect `HttpRouter`. `foldkit-media/cloudflare` gives its services from a Worker's bindings:
   `originalsR2`, `transformerImages` (the Images binding) and `variantsR2` (R2 behind the Cache API).
   `examples/cloudflare` serves `/_image/` with them.

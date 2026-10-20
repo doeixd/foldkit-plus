@@ -144,10 +144,10 @@ quality its server would refuse.
 ## The server
 
 `foldkit-media/server` answers the route `Provider.hosted` writes, for
-originals no CDN can fetch. `makeApi(space)` is its Effect `HttpApi`; its
-params decode with the space's Schema, the one the provider encodes with, so a
-width off the ladder, a leading zero or a malformed hash is a 400 before any
-work.
+originals no CDN can fetch. `MediaApi` is its Effect `HttpApi`, one route;
+the handler decodes the path with the space's Schema, the one the provider
+encodes with, so a width off the ladder, a leading zero or a malformed hash is
+a 400 before any work.
 
 It needs three services, each a Layer you choose per host:
 
@@ -158,14 +158,29 @@ It needs three services, each a Layer you choose per host:
 | `Variants` | variants already made, by the encoded request | a cache: clearing it costs time, not data |
 
 A request is served from `Variants` when it can; otherwise the original is
-read, transformed, kept, and served as `public, max-age=31536000, immutable`,
-which is honest because the path names the original's bytes. A failure is its
-own response, with no cache header and never the original in the variant's
-place: 404 (`OriginalNotFound`), 413 (`OriginalTooLarge`, above `maxBytes`,
-20 MB by default), 502 (`TransformFailed`, its reason kept out of the
-response), 503 (`QuotaExhausted`).
+read, transformed, kept, and served. A failure is its own response, never the
+original in the variant's place, naming its kind (`{ "error": "NotFound" }`)
+and nothing of the server's internals.
 
-- `serveFetch({ widths, maxBytes?, layer: env => Layer })` is a Worker's fetch
+Every answer's headers come from one function, `headersFor`:
+
+| Answer | Status | `Cache-Control` |
+| --- | --- | --- |
+| A variant (`ETag: "<hash>/<spelling>"`) | 200 | `public, max-age=31536000, immutable`: the path names the bytes |
+| A request already holding it (`If-None-Match`) | 304 | the same; the store is not read |
+| A URL outside the space | 400 | a year: it is wrong for good |
+| No original under the hash | 404 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: an upload may yet put it there |
+| The original above `maxBytes` (20 MB by default) | 413 | a year: its bytes are fixed |
+| The transformer failed | 502 | `no-store` |
+| The allowance spent | 503 | `no-store`, `Retry-After: 3600` |
+
+Every image response also says `X-Content-Type-Options: nosniff`,
+`Access-Control-Allow-Origin: *` (a canvas may read it), `Cross-Origin-Resource-Policy:
+cross-origin` and `Timing-Allow-Origin: *`, and a variant says where it came
+from in `Server-Timing` (`edge`, `store` or `made`). Nothing sends `Vary`: the
+format is in the URL.
+
+- `serveFetch({ space?, maxBytes?, layer: env => Layer })` is a Worker's fetch
   handler. The services are built from the request's bindings, once per
   environment. It 404s any other path, so route `/_image/` to it.
 - `layer(options)` is the route as an Effect `HttpRouter` layer, for a Node

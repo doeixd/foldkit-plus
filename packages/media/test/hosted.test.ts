@@ -1,9 +1,7 @@
 import { Effect, Layer, Option, Schema } from 'effect'
-import { HttpRouter, HttpServer, HttpServerResponse } from 'effect/http'
-import { HttpApiBuilder } from 'effect/http-api'
-import { afterAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ImageAsset, Layout, Picture, Provider, Variant, Widths } from 'foldkit-media'
-import { makeApi } from 'foldkit-media/server'
+import { Transformer, originalsMemory, serveFetch, variantsNone } from 'foldkit-media/server'
 
 const HASH = 'a'.repeat(64)
 
@@ -103,27 +101,23 @@ describe('Provider.hosted', () => {
 
 describe('the server reads what the provider writes', () => {
   const space = Variant.space({ widths: Widths.make([320, 640, 1280]), qualities: [80] })
-  const Api = makeApi(space)
-  // Echo the decoded request, so the test sees what the router decoded.
-  const Echo = HttpApiBuilder.group(Api, 'images', handlers =>
-    handlers.handle('variant', ({ params }) =>
-      Effect.succeed(
-        HttpServerResponse.jsonUnsafe({
-          width: params.variant.width,
-          format: params.variant.format,
-          quality: Option.getOrNull(params.variant.quality),
-          hash: params.hash,
-        }),
-      ),
-    ),
-  )
-  const { handler, dispose } = HttpRouter.toWebHandler(
-    HttpApiBuilder.layer(Api).pipe(Layer.provide(Echo), Layer.provide(HttpServer.layerServices)),
-    { disableLogger: true },
-  )
-  afterAll(() => dispose())
-
-  const fetchPath = (path: string) => handler(new Request(`http://media.test${path}`))
+  // Echo the decoded request, so the test sees what the handler decoded.
+  const echo = Layer.succeed(Transformer, {
+    transform: (_original, variant) =>
+      Effect.succeed({
+        bytes: new TextEncoder().encode(
+          JSON.stringify({ ...variant, quality: Option.getOrNull(variant.quality) }),
+        ),
+        contentType: 'application/json',
+      }),
+  })
+  const server = serveFetch<object>({
+    space,
+    layer: () =>
+      Layer.mergeAll(originalsMemory(new Map([[HASH, new Uint8Array(1)]])), echo, variantsNone),
+  })
+  const env = {}
+  const fetchPath = (path: string) => server(new Request(`http://media.test${path}`), env)
 
   it('answers every URL a picture writes with the request it was written from', async () => {
     const provider = Provider.hosted({ space, quality: 80 })
@@ -139,12 +133,7 @@ describe('the server reads what the provider writes', () => {
       expect(response.status).toBe(200)
       const [, , , spelling] = url.split('/')
       const { width, format, quality } = Schema.decodeUnknownSync(space.schema)(spelling)
-      expect(await response.json()).toEqual({
-        width,
-        format,
-        quality: Option.getOrNull(quality),
-        hash: HASH,
-      })
+      expect(await response.json()).toEqual({ width, format, quality: Option.getOrNull(quality) })
     }
   })
 

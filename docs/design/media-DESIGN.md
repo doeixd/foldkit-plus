@@ -412,9 +412,10 @@ class MediaApi extends HttpApi.make('media').add(
 - `Variant`'s decoded side holds a width from the ladder (`widths.Schema`), a
   format literal, and a bounded quality honoured for every format. An unknown
   format is a 400, never a quiet PNG.
-- `Provider.hosted` encodes with `Variant.schema(widths)` and fills
-  `Variant.PATH`; `makeApi(widths)` (`foldkit-media/server`) routes the same
-  path and decodes with the same Schema, so the wire cannot drift; a test sends
+- `Provider.hosted` encodes with the space's Schema and fills `Variant.PATH`;
+  `MediaApi` (`foldkit-media/server`) routes the same path, and its handler
+  decodes with the same Schema (§25.4 says why the route itself takes text),
+  so the wire cannot drift; a test sends
   every URL a picture writes through the real router and reads back the request
   it was written from. *Built.* `HttpApiClient.urlBuilder` was measured and
   rejected for the browser: over a bundle of Schema alone (78.8 KB gzip), the
@@ -436,9 +437,8 @@ class MediaApi extends HttpApi.make('media').add(
 not yet. The services are resolved once, when the route group is built, and
 closed over: a handler's own requirements would otherwise be per-request ones,
 and a memory store rebuilt each request keeps nothing. So `serveFetch` builds
-one router per Worker environment (a `WeakMap` by `env`). Error responses
-carry no cache header rather than `no-store`: a Worker's response is cached
-only where code puts it, and `Variants` keeps successes alone.*
+one router per Worker environment (a `WeakMap` by `env`). Error responses'
+headers are §25's.*
 
 Each is a `Context.Service`, as the repository declares its services, with a
 Layer per runtime.
@@ -1022,7 +1022,17 @@ Avatar recipe's size tokens, so an `AvatarPicture`'s width is not written twice.
 
 ## 25. Response headers
 
-Built today: a variant is sent with its `content-type` and
+*Built as written, in `foldkit-media/server`'s `headers.ts`: an `Answer`
+union whose `statusOf` and `headersFor` are its exhaustive match, ETag and 304
+before the store is read, and `Server-Timing` from a `Kept` value that now
+says which layer held a variant. Two departures. The route takes its params as
+text and the handler decodes them, because `HttpApi` answers a param that
+fails to decode with a 400 of its own, whose headers nothing here can set; and
+on a Worker the 404's `CDN-Cache-Control` has no effect, since nothing in
+front of a Worker reads it and the Cache API layer keeps variants alone, so
+§23's rate limits are what slow a crawler there. §25.3 waits on §19.2.*
+
+What was built before it: a variant is sent with its `content-type` and
 `public, max-age=31536000, immutable`; an error is sent with no cache header
 at all. That leaves four gaps: an error is either cached by a browser's own
 heuristics or asked for again forever; nothing answers a revalidation with a

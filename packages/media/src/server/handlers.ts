@@ -2,12 +2,10 @@ import { Effect, Layer, Option, Schema } from 'effect'
 import { HttpRouter, HttpServer, HttpServerResponse } from 'effect/http'
 import { HttpApiBuilder } from 'effect/http-api'
 import * as Variant from '../variant.js'
-import { makeApi, type MediaApi } from './api.js'
+import { MediaApi } from './api.js'
 import { OriginalTooLarge } from './errors.js'
+import { Answer, headersFor, matches, statusOf, type From } from './headers.js'
 import { Originals, Transformer, Variants, type Encoded } from './services.js'
-
-/** What a variant URL promises: its path names the original's bytes and the request, so it never changes. */
-const IMMUTABLE = 'public, max-age=31536000, immutable'
 
 /** The Cloudflare Images binding reads at most 20 MB; a store's own limit may be lower. */
 const DEFAULT_MAX_BYTES = 20 * 1024 * 1024
@@ -19,16 +17,35 @@ export interface Options {
   readonly maxBytes?: number
 }
 
+const optionsOf = (answer: Answer) => ({ status: statusOf(answer), headers: headersFor(answer) })
+
+const served = (etag: string, from: From, encoded: Encoded) =>
+  HttpServerResponse.uint8Array(encoded.bytes, {
+    ...optionsOf(Answer.cases.Variant.make({ etag, from })),
+    contentType: encoded.contentType,
+  })
+
+const notModified = (etag: string) =>
+  HttpServerResponse.empty(optionsOf(Answer.cases.NotModified.make({ etag })))
+
+// A refusal names its kind, and nothing of the server's internals.
+const refused = (answer: Answer) =>
+  HttpServerResponse.jsonUnsafe({ error: answer._tag }, optionsOf(answer))
+
 /**
- * The handlers of `api`'s one route: a variant already made is served as
- * kept; otherwise the original is read, transformed, kept, and served. A
- * failure is its own response (404, 413, 502, 503), never cached, and never
- * the original in the variant's place.
+ * The handlers of `MediaApi`'s one route. The path is decoded against the
+ * space; a variant kept is served as kept, and one the request already holds
+ * (`If-None-Match`) is a 304 before the store is read; otherwise the original
+ * is read, transformed, kept and served. Every answer, a refusal included,
+ * goes through `headersFor`, and a failure is never the original in the
+ * variant's place.
  */
-export const handlers = (api: MediaApi, options: Options = {}) => {
+export const handlers = (options: Options = {}) => {
   const { space = Variant.standard, maxBytes = DEFAULT_MAX_BYTES } = options
+  const decodeHash = Schema.decodeUnknownOption(Variant.ContentHash)
+  const decodeVariant = Schema.decodeUnknownOption(space.schema)
   const spell = Schema.encodeSync(space.schema)
-  return HttpApiBuilder.group(api, 'images', group =>
+  return HttpApiBuilder.group(MediaApi, 'images', group =>
     Effect.gen(function* () {
       // Resolved once, when the route is built, so a store kept in memory lives as long as the server.
       const originals = yield* Originals
@@ -41,20 +58,34 @@ export const handlers = (api: MediaApi, options: Options = {}) => {
         }
         return yield* transformer.transform(original, variant)
       })
-      return group.handle(
-        'variant',
-        Effect.fn('Media.variant')(function* ({ params }) {
-          // The decoded request spelled again: one request, one key.
-          const key = `${params.hash}/${spell(params.variant)}`
-          const encoded: Encoded = yield* Option.match(yield* variants.get(key), {
-            onSome: Effect.succeed,
-            onNone: () =>
-              make(params.hash, params.variant).pipe(Effect.tap(made => variants.put(key, made))),
-          })
-          return HttpServerResponse.uint8Array(encoded.bytes, {
-            contentType: encoded.contentType,
-            headers: { 'cache-control': IMMUTABLE },
-          })
+      const serve = Effect.fn('Media.serve')(function* (
+        hash: string,
+        variant: Variant.Variant,
+        ifNoneMatch: string | undefined,
+      ) {
+        // The decoded request spelled again: one request, one key, one ETag.
+        const key = `${hash}/${spell(variant)}`
+        const etag = `"${key}"`
+        if (matches(ifNoneMatch, etag)) return notModified(etag)
+        return yield* Option.match(yield* variants.get(key), {
+          onSome: ({ encoded, from }) => Effect.succeed(served(etag, from, encoded)),
+          onNone: () =>
+            make(hash, variant).pipe(
+              Effect.tap(made => variants.put(key, made)),
+              Effect.map(made => served(etag, 'made', made)),
+              Effect.catchTags({
+                OriginalNotFound: () => Effect.succeed(refused(Answer.cases.NotFound.make({}))),
+                OriginalTooLarge: () => Effect.succeed(refused(Answer.cases.TooLarge.make({}))),
+                TransformFailed: () => Effect.succeed(refused(Answer.cases.Failed.make({}))),
+                QuotaExhausted: () => Effect.succeed(refused(Answer.cases.Exhausted.make({}))),
+              }),
+            ),
+        })
+      })
+      return group.handle('variant', ({ params, request }) =>
+        Option.match(Option.all([decodeHash(params.hash), decodeVariant(params.variant)]), {
+          onNone: () => Effect.succeed(refused(Answer.cases.Malformed.make({}))),
+          onSome: ([hash, variant]) => serve(hash, variant, request.headers['if-none-match']),
         }),
       )
     }),
@@ -65,10 +96,8 @@ export const handlers = (api: MediaApi, options: Options = {}) => {
  * The media server as an Effect HTTP application: its route registered with
  * the `HttpRouter`, needing `Originals`, `Transformer` and `Variants`.
  */
-export const layer = (options: Options = {}) => {
-  const api = makeApi(options.space ?? Variant.standard)
-  return HttpApiBuilder.layer(api).pipe(Layer.provide(handlers(api, options)))
-}
+export const layer = (options: Options = {}) =>
+  HttpApiBuilder.layer(MediaApi).pipe(Layer.provide(handlers(options)))
 
 /**
  * The media server as a Worker's fetch handler. A Worker's bindings arrive
