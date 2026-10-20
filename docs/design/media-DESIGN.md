@@ -433,7 +433,10 @@ alias that rotates or flips is refused rather than drawn transformed.*
 
 ### 8.5 Icons in the theme, and on `/create`
 
-*Not built.* Today the shipped components draw their own glyphs two ways:
+*Not built. Revised by §27.2 after the theme became knob values alone
+(`61aab583`): the pack is tokens, not a theme field, and the knobs are an
+icon's size and the glyph stroke. Read §27.2 first; the list below is the
+first sketch.* Today the shipped components draw their own glyphs two ways:
 the chevrons are two sides of a turned box (`turningChevron` in
 `recipes/design.ts`), and the rest (Command's magnifier, PasswordInput's eye,
 ColorPicker's pipette, ImageCropper's handles, Toast's marks) are `data:`
@@ -909,7 +912,7 @@ miniflare and the Images binding along the way, changed the plan from here.
     `foldkit-cms-media`; the CMS `Image` block, the rich-text atom and the site
     on `Image`; `Provider.detect` through unpic for images on known hosts
     (*built: the upload route, and `foldkit-media/unpic`'s `detect`; the
-    adoption waits on `foldkit-cms-media`'s `Asset`*).
+    adoption is §27.1: facts beside the URL, no `Asset` entity yet*).
 14. **Versions** (§26). First the rollout-safe refusal (`Unoffered`), which
     corrects what is built; then the revision in the spelling with its
     redirect, the golden URLs and shapes, and the revisions in the build's
@@ -1470,3 +1473,86 @@ an encoder change that matters is a revision.
   stored it, decoded by the current Schema.
 - A rollout test: a server whose space lacks a width answers that width
   `Unoffered`, not kept, and the server with it answers it.
+
+## 27. Decisions
+
+Two questions the work above left open, researched and decided
+(2026-10-20).
+
+### 27.1 Images in content: facts beside the URL
+
+**Decided: an image block keeps its `src` and gains an optional `asset`, the
+`ImageAsset` of what `src` names. No `Asset` entity, and no
+`foldkit-cms-media`, until a media library needs one.**
+
+What is there: the rich-text `Image` atom
+(`packages/richtext/src/standard.ts`) holds `src`, `alt`, `caption`, a drawn
+`width` and `align`; the CMS's `Image` block (`examples/cms/src/content/site.ts`)
+holds `src`, `alt`, `caption`. Both draw a bare `img`, so every image in
+content shifts the page when it arrives.
+
+Why beside the URL:
+
+- **It is additive (§26.4).** An optional field decodes every row already
+  stored; nothing is migrated, and an editor that does not know facts keeps
+  working.
+- **Every source of facts is built.** An upload answers them (§9.5); an image
+  named by URL gets them from `factsOf(url)` (§21), on an allowed host; a
+  repository image from `?image` (§11).
+- **It degrades to today.** With `asset`, the block draws `Image`: its box
+  reserved, its placeholder painted, and its candidates when the application
+  gives a provider (`Provider.hosted` for uploads, `detect(src)` for a known
+  host). Without, the same `img` as now.
+- **An entity is for what this does not need.** An `Asset` row pays for a
+  library: one image reused by many entries, renamed once, listed, deleted
+  when nothing uses it. Nothing here does that yet; inline facts are a few
+  dozen bytes beside a URL. When a library is wanted, the entity's fields are
+  `ImageAsset`'s, so inline facts move into rows without a new shape.
+
+Where facts are filled: the editor's upload answers them, and setting a URL
+asks a facts route (`GET /_media/facts?url=`, over `factsOf`, behind the same
+`UploadPolicy`) before the block is saved. A block saved without them (an
+import, an older editor) is drawn as an `img`, and a job may fill them later.
+
+### 27.2 Icons in the theme: tokens and two knobs
+
+**Decided: the chrome's icons are an `icon` token group; a pack is the
+application's own tokens; the knobs are the icon's size and the glyph
+stroke.**
+
+What the theme is now (`61aab583`, `packages/mixins/src/theme`): a theme is
+its knob values alone; `Theme.standard(theme)` is every shipped token at
+them; `AppStyle.make({ theme | themes, tokens })` composes the application's
+own tokens over the shipped ones; `/create` draws each pane's knobs from
+`Knobs.standard` by path.
+
+- **The pack is tokens, not a knob.** A knob is a value a CSS variable
+  holds, and a choice knob's options ship inside `Knobs.standard`: every
+  pack's masks would be in every application's script. So the shipped tokens
+  hold one pack's masks, `ref.icon.search` and the rest, as strings `pnpm
+  icons` writes into `foldkit-mixins` (it gains no dependency); an
+  application's pack is `Icons.tokens(pack, { stroke?, corners? })` from
+  `foldkit-mixins-ui`, passed as its own tokens, typed against the vocabulary
+  so a pack missing `lock` is a type error.
+- **A mask is pixels, so its stroke is baked.** CSS cannot reach into a
+  `data:` URL. `Icons.tokens` rewrites the drawing first
+  (`Icon.withStroke(icon, { width, corners })` in `foldkit-media`), so a
+  heavier pack is a heavier set of tokens, and switching it is a token
+  change, as a theme is.
+- **Two knobs, both real CSS.** `icon.size` multiplies `ladder('icon')`,
+  every icon box, masks included. `icon.stroke` is `border.glyph`, the
+  stroke of what recipes draw in CSS (checks, chevrons, about twenty rules),
+  until now a fixed `2px`. Neither reaches an inline `Icon.draw` drawing,
+  which keeps its pack's own stroke: a CSS rule over its nodes would set
+  Tabler's 1.5 and Lucide's 2 to one width, which is a different pack, not a
+  heavier one.
+- **The vocabulary is what is drawn.** `search`, `eye`, `eye-off`,
+  `pipette`, `rotate-ccw`, `rotate-cw`, `success`, `warning`, `error`,
+  `info` and `lock` (§8.6's rows); a name joins when a recipe draws it.
+- **`/create`** gains an Icons pane: the two knob sliders, as every pane draws
+  them, a pack picker over generated packs (Lucide, Tabler, Phosphor), the
+  vocabulary drawn in the chosen pack, and the theme module it writes naming
+  the pack's import and `Icons.tokens(…)`.
+
+Order: the token group with the default pack, `withStroke` and
+`Icons.tokens`, the knobs, then §8.6's moves onto the tokens, then the pane.
