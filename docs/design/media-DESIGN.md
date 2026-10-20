@@ -208,8 +208,8 @@ does not know the original's size.
 
 *Built: `Image.view`, `Recipes.Image`, alt as `described`/`decorative`, the
 placeholder on the `img`'s background, `data-layout`, and `data-unavailable`
-for a provider with no URL. `Picture.preload` (§7.5) and `Image.watchLoad` (§7.4) are built too. Not yet:
-Avatar and Card on it (§7.6). Foldkit, not the view, keeps
+for a provider with no URL. `Picture.preload` (§7.5), `Image.watchLoad` (§7.4) and Avatar's derived
+picture (§7.6) are built too. Foldkit, not the view, keeps
 `loading` before `src`: `src` is a property, set after every attribute.*
 
 In `mixins-ui`, built like `Avatar`: `Slots.define`, `SlotView.buildersFor`, a
@@ -318,10 +318,15 @@ browser that cannot show that format skips it. It is not added for the page.
 
 ### 7.6 The components that already draw images
 
-- `Avatar` takes an `ImageAsset` and provider beside its plain `src`, and draws
-  `Layout.Fixed(size)` through the same attribute derivation, so a 24px avatar
-  stops fetching a 144px original. Its fallback stacking is unchanged.
-- `Card`'s `image` slot and the CMS `Image` block draw `Image.view`.
+- *Built.* `Avatar`'s `src` is a URL or an `AvatarPicture`
+  (`{ asset, provider, width }`): one input in two forms, not a second one.
+  The picture is drawn at `Layout.Fixed(width)` through the same `img`
+  attributes `Image.view` writes (`imageAttributes.ts`), so a 24px avatar
+  fetches a 48px variant, not the original. The avatar's CSS size comes from
+  its recipe, which the view cannot read, so the page says the width. A
+  provider with no URL leaves the initials. Its fallback stacking is unchanged.
+- `Card`'s `image` slot takes any `Html`, so `Image.view` goes in it as is: no
+  change to Card. The CMS `Image` block is still to move.
 - `richtext`'s `Image` atom gains an optional `asset`, an `Option`; without one
   it draws its `src` as today.
 - `AspectRatio` stays a box for content that is not an image; an `Image`

@@ -1,5 +1,8 @@
+import { Option } from 'effect'
+import { Layout, Picture, type ImageAsset, type Provider } from 'foldkit-media'
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
+import { imgAttributes } from './imageAttributes.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -30,6 +33,17 @@ const statusWords: Readonly<Record<AvatarStatus, string>> = {
 }
 
 /**
+ * A picture `foldkit-media` writes the candidates of: the avatar's facts, the
+ * provider of its variants, and how wide the avatar is drawn in CSS pixels,
+ * so a 24px avatar fetches a 48px variant, not the original.
+ */
+export interface AvatarPicture {
+  readonly asset: ImageAsset
+  readonly provider: Provider.Provider
+  readonly width: number
+}
+
+/**
  * An avatar in one call: who it pictures, the picture if there is one, a
  * style for its slots, and mixins beside the style. No upstream component
  * stands behind it.
@@ -37,8 +51,11 @@ const statusWords: Readonly<Record<AvatarStatus, string>> = {
 export interface AvatarView<Message = never> {
   /** Who the avatar shows: its accessible name, its initials and its hue. */
   readonly name: string
-  /** The picture; without one the initials stand alone. */
-  readonly src?: string | undefined
+  /**
+   * The picture: a URL, or an `AvatarPicture` drawn with its candidates.
+   * Without one, or with a provider that has no URL for it, the initials stand alone.
+   */
+  readonly src?: string | AvatarPicture | undefined
   /** What the disc says in place of initials taken from the name (a group's `+3`). */
   readonly initials?: string | undefined
   readonly status?: AvatarStatus | undefined
@@ -69,6 +86,23 @@ const hueOf = (name: string): number => {
   return hash % 360
 }
 
+// At most one attribute list: none without a picture, or when the provider has none for it.
+const pictureAttributes = <Message>(
+  src: string | AvatarPicture | undefined,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<ReadonlyArray<Attribute<Message>>> => {
+  if (src === undefined) return []
+  if (typeof src === 'string') return [[h.Src(src)]]
+  return Option.match(
+    Picture.derive({
+      asset: src.asset,
+      provider: src.provider,
+      layout: Layout.Fixed({ width: src.width }),
+    }),
+    { onNone: () => [], onSome: ({ img }) => [imgAttributes(img, h)] },
+  )
+}
+
 const draw = <Message>(
   options: AvatarView<Message>,
   h: HtmlBuilder<Message>,
@@ -93,9 +127,9 @@ const draw = <Message>(
         options.initials ?? initialsOf(options.name),
       ]),
       // Unnamed: the root says who it is, and a picture that fails shows the initials, not its alt text.
-      ...(options.src === undefined
-        ? []
-        : [h.img(builders.image.attrs([h.Src(options.src), h.Alt('')]))]),
+      ...pictureAttributes(options.src, h).map(attributes =>
+        h.img(builders.image.attrs([...attributes, h.Alt('')])),
+      ),
       ...(options.status === undefined
         ? []
         : [h.span(builders.status.attrs([h.DataAttribute('status', options.status)]), [])]),

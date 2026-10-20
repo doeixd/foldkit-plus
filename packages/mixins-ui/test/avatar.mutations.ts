@@ -10,6 +10,24 @@ const recipe = '../src/recipes/avatar.ts'
 
 export default [
   {
+    name: 'a derived picture is drawn as its URL alone',
+    edits: [
+      {
+        file: view,
+        find: 'onSome: ({ img }) => [imgAttributes(img, h)] },',
+        replace: 'onSome: ({ img }) => [[h.Src(img.src)]] },',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a picture the provider lacks draws an empty img',
+    edits: [
+      { file: view, find: '{ onNone: () => [], onSome', replace: '{ onNone: () => [[]], onSome' },
+    ],
+    tests: unit,
+  },
+  {
     name: 'initials take every name part',
     edits: [{ file: view, find: '.slice(0, 2)', replace: '.slice(0, 3)' }],
     tests: unit,

@@ -27,6 +27,9 @@ version changed; `pnpm` skips versions already in the registry.
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,
   never omitted. `Recipes.Image` has `fit` (`cover`, `contain`) and `edge` (`none`, `line`).
   `Image.watchLoad`, beside the style, marks its load state and hides a failed image.
+- `foldkit-mixins-ui`: an `Avatar`'s `src` may be an `AvatarPicture` (`{ asset, provider, width }`),
+  drawn with the candidates `foldkit-media` derives for that width, so a small avatar fetches a
+  small variant.
   `foldkit-media` is a new peer dependency. See `docs/design/media-DESIGN.md`.
 
 ### Changed

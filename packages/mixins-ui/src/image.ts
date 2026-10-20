@@ -3,6 +3,7 @@ import { Behavior, Capability, Slot, Slots, SlotView, type NamedStyle } from 'fo
 import { Layout, Picture, type ImageAsset, type Provider } from 'foldkit-media'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
+import { imgAttributes } from './imageAttributes.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -86,20 +87,7 @@ export const view = <Message = never>(
         ),
         h.img(
           builders.image.attrs([
-            h.Loading(img.loading),
-            ...Option.match(img.decoding, {
-              onNone: () => [],
-              onSome: value => [h.Decoding(value)],
-            }),
-            ...Option.match(img.fetchPriority, {
-              onNone: () => [],
-              onSome: value => [h.Fetchpriority(value)],
-            }),
-            h.Sizes(img.sizes),
-            h.Srcset(img.srcset),
-            h.Src(img.src),
-            h.Width(String(img.width)),
-            h.Height(String(img.height)),
+            ...imgAttributes(img, h),
             ...Alt.match(options.alt, {
               Described: ({ text }) => [h.Alt(text)],
               Decorative: () => [h.Alt(''), h.Role('presentation')],

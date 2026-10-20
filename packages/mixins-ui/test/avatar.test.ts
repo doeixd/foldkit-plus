@@ -3,7 +3,9 @@
  * a status dot that says the status aloud, a hue that follows the name, and
  * a group that draws at most `max` and counts the rest as one more avatar.
  */
+import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { ImageAsset, Provider } from 'foldkit-media'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { AvatarGroupSlots, AvatarSlots, group, view } from '../src/avatar.js'
@@ -122,5 +124,42 @@ describe('Avatar recipe', () => {
     expect(css({})).toContain('2.5rem')
     expect(css({ size: 'lg' })).toContain('3.5rem')
     expect(css({ size: 'xl' })).toContain('5rem')
+  })
+})
+
+describe('Avatar with a derived picture', () => {
+  const asset = Schema.decodeUnknownSync(ImageAsset)({
+    key: 'ada.jpg',
+    width: 512,
+    height: 512,
+    alpha: false,
+    hash: null,
+    placeholder: null,
+  })
+  const provider = Provider.fromFiles(
+    [32, 64, 128, 512].map(width => ({
+      width,
+      format: 'webp' as const,
+      url: `/ada-${width}.webp`,
+    })),
+    { sources: [], fallback: 'webp' },
+  )
+
+  it('fetches the widths that cover its 1x and 2x, lazily, still unnamed', () => {
+    const face = view({ name: 'Ada Lovelace', src: { asset, provider, width: 32 }, style }, h)
+    const [image] = Inert.byTag(face, 'img')
+    expect(
+      ['srcset', 'sizes', 'src', 'loading', 'alt'].map(name => Inert.value(image, name)),
+    ).toEqual(['/ada-32.webp 32w, /ada-64.webp 64w', 'auto, 32px', '/ada-32.webp', 'lazy', ''])
+  })
+
+  it('stands on its initials when the provider has no URL for the picture', () => {
+    const none = Provider.fromFiles([{ width: 32, format: 'avif', url: '/ada.avif' }], {
+      sources: [],
+      fallback: 'webp',
+    })
+    const face = view({ name: 'Ada Lovelace', src: { asset, provider: none, width: 32 }, style }, h)
+    expect(Inert.byTag(face, 'img')).toHaveLength(0)
+    expect(Inert.text(face)).toBe('AL')
   })
 })
