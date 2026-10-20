@@ -19,11 +19,6 @@ import { glyph } from '../icons.js'
 import { component, cornerSides, ref, rowOnLadder, touchText, variant } from './design.js'
 import { bar, overlaid, thumb } from './scrollBars.js'
 
-/** A magnifier, a 24-unit stroked drawing as a mask: only its alpha counts. */
-const magnifier = `url("data:image/svg+xml,${encodeURIComponent(
-  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/></svg>",
-)}")`
-
 export const Command = Style.recipeFor(CommandSlots)({
   base: {
     root: component(
@@ -53,7 +48,7 @@ export const Command = Style.recipeFor(CommandSlots)({
         paddingInlineStart: ladder('pad'),
         borderBlockEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,
         color: ref.text.muted,
-        '--icon': magnifier,
+        '--icon': ref.icon.search,
       }),
       glyph(ladder('icon')),
     ),

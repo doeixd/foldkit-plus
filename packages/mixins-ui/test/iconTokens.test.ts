@@ -28,6 +28,7 @@ const pack = {
   error: drawing('M8 8h9'),
   info: drawing('M9 9h9'),
   lock: drawing('M10 10h9'),
+  close: drawing('M11 11h9'),
 }
 
 describe('Icons.tokens', () => {

@@ -97,7 +97,9 @@ version changed; `pnpm` skips versions already in the registry.
   `foldkit-media` is a new dependency.
 - `foldkit-mixins`: the theme's `icon` tokens are the masks of the icons the components draw
   themselves (`search`, `eye`, `eye-off`, `pipette`, `rotate-ccw`, `rotate-cw`, `success`, `warning`,
-  `error`, `info`, `lock`; their names are `ChromeIcon`), Lucide's by default, written by `pnpm icons`.
+  `error`, `info`, `lock`, `close`; their names are `ChromeIcon`), Lucide's by default, written by
+  `pnpm icons`. Command, PasswordInput, ColorPicker, ImageCropper, Toast and the data grid draw from
+  them in place of their hand-written masks, so the toast's marks are Lucide's stroked drawings now.
   `foldkit-mixins-ui`'s `Icons.tokens(pack, { width?, corners? })` is an application's own pack as
   its own tokens, a pack missing a name being a type error. Two knobs: `icon.size` multiplies every
   icon box (the `icon` rung of `ladder`), and `icon.stroke` is `border.glyph`, the stroke of the

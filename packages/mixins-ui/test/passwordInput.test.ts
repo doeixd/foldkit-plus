@@ -128,8 +128,9 @@ describe('PasswordInput.view', () => {
 
   it('draws the eye by the toggle state, struck through while the password shows', () => {
     const sheet = style.css
-    expect(sheet).toMatch(/\[aria-pressed="false"\]\{--icon:url\("data:image\/svg\+xml,/)
-    expect(sheet).toMatch(/\[aria-pressed="true"\]\{--icon:url\([^)]*M3%203l18%2018/)
+    // The theme's icons, so a pack the application gives draws them too.
+    expect(sheet).toContain('[aria-pressed="false"]{--icon:var(--fk-icon-eye)}')
+    expect(sheet).toContain('[aria-pressed="true"]{--icon:var(--fk-icon-eye-off)}')
   })
 
   const aided = (extra: Partial<PasswordInput.PasswordInputView<TestMessage>>) =>

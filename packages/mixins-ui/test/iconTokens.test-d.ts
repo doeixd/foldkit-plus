@@ -15,4 +15,5 @@ Icons.tokens({
   warning: drawn,
   error: drawn,
   info: drawn,
+  close: drawn,
 })

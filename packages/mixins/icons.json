@@ -12,6 +12,7 @@
     "warning": "lucide:triangle-alert",
     "error": "lucide:circle-x",
     "info": "lucide:info",
-    "lock": "lucide:lock"
+    "lock": "lucide:lock",
+    "close": "lucide:x"
   }
 }

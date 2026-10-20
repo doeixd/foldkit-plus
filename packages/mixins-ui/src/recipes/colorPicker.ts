@@ -34,9 +34,6 @@ const box = (length: string) => variant(Style.self({ '--_fk-color-picker-size': 
 
 const edge = 'var(--_fk-color-picker-size)'
 
-// A pipette, stroked: a mask, so it takes the button's text color.
-const pipette = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 22 1-1h3l9-9M3 21v-3l9-9m3-3 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z'/%3E%3C/svg%3E")`
-
 const checker = `repeating-conic-gradient(${ref.surface.muted} 0 25%, ${ref.surface.base} 0 50%) 0 0 / calc(${edge} / 2) calc(${edge} / 2)`
 
 /** A channel's track, running away from its minimum's side. */
@@ -138,7 +135,7 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
         inlineSize: ladder('icon'),
         blockSize: ladder('icon'),
         background: 'currentColor',
-        mask: `${pipette} center / contain no-repeat`,
+        mask: `${ref.icon.pipette} center / contain no-repeat`,
       }),
       hover({ background: unfilledHover }),
       focusRing,

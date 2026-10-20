@@ -129,6 +129,7 @@ describe('Theme.tokens', () => {
       'error',
       'info',
       'lock',
+      'close',
     ])
     for (const mask of Object.values(Theme.tokens.icon)) {
       expect(mask).toMatch(/^url\("data:image\/svg\+xml,[^"]+"\)$/)

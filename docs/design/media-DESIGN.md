@@ -516,7 +516,12 @@ stays, because it is not an icon.
 | `examples/design-system` `main.ts`, `examples/richtext-playground` `document.ts`, the site's `LANDSCAPE`, `LOGO` and avatar fills | sample pictures | stay: images in the examples, not icons |
 
 The token rows wait on §8.5's `icon` group, so that moving a mask also lets a
-theme replace it; done before it, each would move twice. The rows for the
+theme replace it; done before it, each would move twice. *Built: all six token
+rows, `close` joining the vocabulary for the toast's button; each component
+reads its icon by name, and a test per component tells its icons apart. The
+toast's marks were filled 20-unit drawings and are Lucide's stroked ones now,
+as are the others: a pack's look, which a pack the application gives
+replaces.* The rows for the
 packages that ship them (the recipes, the data grid) keep each component's
 look: a drawing that changes with the move (Lucide's current eye against the
 copy) is checked in that component's browser test, not only in its markup.

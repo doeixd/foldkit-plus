@@ -57,12 +57,6 @@ const glides = (properties: string): Declarations => ({
 })
 const still = Style.nest('[data-dragging] &', { transitionDuration: '0s' })
 
-const turn = (path: string) =>
-  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='${path}'/%3E%3C/svg%3E")`
-// Lucide's rotate-ccw and rotate-cw (ISC).
-const left = turn('M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5')
-const right = turn('M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5')
-
 const control: Declarations = {
   ...onLadder,
   display: 'inline-flex',
@@ -203,9 +197,11 @@ export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
         inlineSize: ladder('icon'),
         blockSize: ladder('icon'),
         background: 'currentColor',
-        mask: `${left} center / contain no-repeat`,
+        mask: `${ref.icon['rotate-ccw']} center / contain no-repeat`,
       }),
-      Style.nest('&[data-turn="right"]::before', { mask: `${right} center / contain no-repeat` }),
+      Style.nest('&[data-turn="right"]::before', {
+        mask: `${ref.icon['rotate-cw']} center / contain no-repeat`,
+      }),
       hover({ background: unfilledHover }),
       focusRing,
       disabled,

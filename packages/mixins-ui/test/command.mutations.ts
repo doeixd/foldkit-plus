@@ -193,7 +193,7 @@ export default [
   },
   {
     name: 'the field has no magnifier',
-    edits: [{ file: recipe, find: "'--icon': magnifier,", replace: '' }],
+    edits: [{ file: recipe, find: "'--icon': ref.icon.search,", replace: '' }],
     tests: [browser],
   },
   {

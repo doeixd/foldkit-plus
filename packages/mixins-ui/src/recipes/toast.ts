@@ -27,26 +27,13 @@ import {
   variant,
 } from './design.js'
 
-/** A mask of a 20×20 drawing in the text's colour. */
-const mask = (path: string) =>
-  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill-rule='evenodd' d='${path}'/%3E%3C/svg%3E")`
-
+// The theme's icons, so a pack the application gives draws the toasts' marks too.
 const marks = {
-  success: mask(
-    'M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.7-9.3a1 1 0 0 0-1.4-1.4L9 10.6 7.7 9.3a1 1 0 0 0-1.4 1.4l2 2a1 1 0 0 0 1.4 0l4-4Z',
-  ),
-  error: mask(
-    'M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.7 7.3a1 1 0 0 0-1.4 1.4L8.6 10l-1.3 1.3a1 1 0 1 0 1.4 1.4l1.3-1.3 1.3 1.3a1 1 0 0 0 1.4-1.4L11.4 10l1.3-1.3a1 1 0 0 0-1.4-1.4L10 8.6 8.7 7.3Z',
-  ),
-  warning: mask(
-    'M8.3 3.1c.8-1.4 2.7-1.4 3.4 0l6 10.6c.8 1.3-.2 3-1.7 3H4c-1.5 0-2.5-1.7-1.7-3l6-10.6ZM11 13a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-1-8a1 1 0 0 0-1 1v3a1 1 0 1 0 2 0V6a1 1 0 0 0-1-1Z',
-  ),
-  info: mask(
-    'M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2v-3a1 1 0 0 0-1-1H9Z',
-  ),
-  close: mask(
-    'M6.3 5 5 6.3 8.7 10 5 13.7 6.3 15 10 11.3 13.7 15 15 13.7 11.3 10 15 6.3 13.7 5 10 8.7 6.3 5Z',
-  ),
+  success: ref.icon.success,
+  error: ref.icon.error,
+  warning: ref.icon.warning,
+  info: ref.icon.info,
+  close: ref.icon.close,
 }
 
 const inks = {
