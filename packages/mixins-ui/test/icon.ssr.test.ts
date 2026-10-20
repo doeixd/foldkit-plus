@@ -6,10 +6,10 @@
  */
 import { Effect } from 'effect'
 import { injectIntoTemplate, renderToString } from 'foldkit/experimental/server'
-import type { HtmlBuilder } from 'foldkit/html'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { Icon } from 'foldkit-media'
 import { parse } from 'foldkit-media/icons'
 import { expect, test } from 'vitest'
-import { draw } from '../src/icon.js'
 
 const gradient = (color: string) =>
   parse(
@@ -19,7 +19,7 @@ const gradient = (color: string) =>
 const red = gradient('red')
 const blue = gradient('blue')
 
-const served = async (body: (h: HtmlBuilder<never>) => ReturnType<typeof draw>) => {
+const served = async (body: (h: HtmlBuilder<never>) => Html) => {
   const rendered = await Effect.runPromise(
     renderToString(
       {
@@ -39,7 +39,7 @@ const served = async (body: (h: HtmlBuilder<never>) => ReturnType<typeof draw>) 
 }
 
 test('an icon is SVG in the markup, its root painting as the file did, hidden and 1em square', async () => {
-  const page = await served(h => h.div([], [draw(red, h)]))
+  const page = await served(h => h.div([], [Icon.draw(red, h)]))
   const svg = page.querySelector('svg')!
   expect(svg.namespaceURI).toBe('http://www.w3.org/2000/svg')
   expect(
@@ -54,7 +54,7 @@ test('an icon is SVG in the markup, its root painting as the file did, hidden an
 
 test('two icons with one id each paint from their own gradient, and a key parts two copies', async () => {
   const page = await served(h =>
-    h.div([], [draw(red, h), draw(blue, h), draw(red, h, { key: 'menu' })]),
+    h.div([], [Icon.draw(red, h), Icon.draw(blue, h), Icon.draw(red, h, { key: 'menu' })]),
   )
   const svgs = [...page.querySelectorAll('svg')]
   const ids = svgs.map(svg => svg.querySelector('linearGradient')!.id)

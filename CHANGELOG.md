@@ -60,10 +60,16 @@ version changed; `pnpm` skips versions already in the registry.
   folder of the application's SVGs, the bundle holds only what is imported, and a written
   declaration names every icon, so a misspelt one is a type error. A refused SVG in a folder fails
   the build; a refused Iconify icon is left out, and the declaration says why.
-- `foldkit-mixins-ui`: `Icon.draw(icon, h, { key? })` draws `foldkit-media`'s `IconData` as inline
-  SVG, every attribute in the server's markup, `1em` square alone and filling the glyph in
-  `Icon.view`, `aria-hidden`, its ids prefixed by the icon's content so two icons sharing an id each
-  paint their own; `key` sets two copies of one icon apart.
+- `foldkit-media`: `Icon.draw(icon, h, { key?, size? })` draws an `IconData` as inline SVG through
+  any view builder of its shape (`SvgBuilder`; Foldkit's `h` is one), every attribute in the
+  server's markup, `1em` square unless `size` is given, `aria-hidden`, its ids prefixed by the
+  icon's content so two icons sharing an id each paint their own; `key` sets two copies of one icon
+  apart. `foldkit-mixins-ui`'s `Icon.view` fills its glyph with the drawing.
+- `foldkit-mixins-richtext`: the chrome's icons are generated from `@iconify-json/lucide` (`pnpm
+  icons`, from the package's `icons.json`) and drawn with `foldkit-media`'s `Icon.draw` and
+  `Icon.maskUrl`, in place of hand-copied paths, so they are today's Lucide drawings. A drawn
+  icon's size is now written in pixels (`width="16px"`), and its stroke sits on each path.
+  `foldkit-media` is a new dependency.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

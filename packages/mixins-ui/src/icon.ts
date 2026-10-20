@@ -1,5 +1,4 @@
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
-import { Icon as MediaIcon, type IconData, type SvgNode } from 'foldkit-media'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
 
@@ -42,36 +41,4 @@ export const view = <Message = never>(
     ])
   }
   return h.span(builders.glyph.attrs([h.AriaHidden(true)]), [options.content])
-}
-
-/**
- * An icon's drawing as inline SVG, `1em` square (a glyph's box when drawn in
- * `view`) and hidden from assistive technology: the control or `view` it sits
- * in carries its name. Every attribute is written as an attribute, so a server
- * render writes the same markup. Ids are prefixed by the icon's content
- * (`Icon.key` of `foldkit-media`); `key` sets one drawing's ids apart from
- * another of the same icon, since a gradient defined in a copy that is hidden
- * paints nothing for the copy that shows.
- */
-export const draw = <Message>(
-  icon: IconData,
-  h: HtmlBuilder<Message>,
-  options: { readonly key?: string } = {},
-): Html => {
-  const prefix = MediaIcon.key(icon) + (options.key === undefined ? '' : `-${options.key}`)
-  const { viewBox, attributes, nodes } = MediaIcon.prefixIds(icon, prefix)
-  const written = (from: Readonly<Record<string, string>>) =>
-    Object.entries(from).map(([name, value]) => h.Attribute(name, value))
-  const drawn = ({ tag, attributes, children }: SvgNode): Html =>
-    h[tag](written(attributes), children.map(drawn))
-  return h.svg(
-    [
-      h.Attribute('viewBox', viewBox),
-      h.Attribute('width', '1em'),
-      h.Attribute('height', '1em'),
-      h.AriaHidden(true),
-      ...written(attributes),
-    ],
-    nodes.map(drawn),
-  )
 }

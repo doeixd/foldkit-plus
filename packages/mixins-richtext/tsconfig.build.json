@@ -7,6 +7,9 @@
   "include": ["src/**/*.ts"],
   "references": [
     {
+      "path": "../media/tsconfig.build.json"
+    },
+    {
       "path": "../mixins/tsconfig.build.json"
     },
     {

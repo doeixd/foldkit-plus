@@ -1,7 +1,7 @@
 /**
  * An icon as data: what a build reads from an icon set or an SVG file, parsed
  * (`foldkit-media/icons`), not markup to set as HTML. A view draws it
- * (`Icon.draw` in `foldkit-mixins-ui`), and a style masks with it (`maskUrl`),
+ * (`draw`), and a style masks with it (`maskUrl`),
  * from the one value.
  */
 
@@ -140,4 +140,54 @@ export const prefixIds = (icon: IconData, prefix: string): IconData => {
   }
   byPrefix.set(prefix, made)
   return made
+}
+
+type Element<Node, Attribute> = (
+  attributes: ReadonlyArray<Attribute>,
+  children: ReadonlyArray<Node>,
+) => Node
+
+/**
+ * What `draw` needs of a view's builder: an element per tag an icon may hold,
+ * and raw attributes. Foldkit's `HtmlBuilder` is one, so this package needs
+ * no view library of its own.
+ */
+export type SvgBuilder<Node, Attribute> = {
+  readonly svg: Element<Node, Attribute>
+  readonly Attribute: (name: string, value: string) => Attribute
+  readonly AriaHidden: (value: boolean) => Attribute
+} & { readonly [Tag in SvgTag]: Element<Node, Attribute> }
+
+/**
+ * The icon as inline SVG, through a view's builder (`h`): `size` square
+ * (`1em` unless given, so it stands as tall as its text; `foldkit-mixins-ui`'s
+ * `Icon.view` fills its glyph with it) and hidden from assistive technology,
+ * since the control it sits in carries the name. Every attribute is written as
+ * an attribute, so a server render writes the same markup. Ids are prefixed by
+ * `key(icon)`; `options.key` sets one drawing's ids apart from another of the
+ * same icon, since a gradient defined in a copy that is hidden paints nothing
+ * for the copy that shows.
+ */
+export const draw = <Node, Attribute>(
+  icon: IconData,
+  h: SvgBuilder<Node, Attribute>,
+  options: { readonly key?: string; readonly size?: string } = {},
+): Node => {
+  const prefix = key(icon) + (options.key === undefined ? '' : `-${options.key}`)
+  const { viewBox, attributes, nodes } = prefixIds(icon, prefix)
+  const size = options.size ?? '1em'
+  const written = (from: Readonly<Record<string, string>>) =>
+    Object.entries(from).map(([name, value]) => h.Attribute(name, value))
+  const drawn = ({ tag, attributes, children }: SvgNode): Node =>
+    h[tag](written(attributes), children.map(drawn))
+  return h.svg(
+    [
+      h.Attribute('viewBox', viewBox),
+      h.Attribute('width', size),
+      h.Attribute('height', size),
+      h.AriaHidden(true),
+      ...written(attributes),
+    ],
+    nodes.map(drawn),
+  )
 }

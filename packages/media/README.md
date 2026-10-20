@@ -391,9 +391,14 @@ the application's own sets, a folder of SVG files each named by its file
 (`star-filled.svg` is `starFilled`). The import is the selection: the bundler
 drops every icon nothing imports. The plugin writes `foldkit-icons.d.ts` at
 the root (`dts` moves it, `false` writes none), declaring every icon of every
-set, so a misspelt name is a type error; include it in the `tsconfig`. A view
-draws an icon with `foldkit-mixins-ui`'s `Icon.draw`, and a style masks with
-`Icon.maskUrl(icon)`, a CSS `url()`.
+set, so a misspelt name is a type error; include it in the `tsconfig`.
+
+A view draws an icon with `Icon.draw(icon, h)`: inline SVG through the view's
+builder (Foldkit's `h`, or anything of its shape, `SvgBuilder`), every
+attribute in the server's markup, `1em` square unless `size` is given, and
+`aria-hidden`, since the control it sits in carries the name.
+`foldkit-mixins-ui`'s `Icon.view` fills its glyph with the drawing, and names
+it when given a `label`. A style masks with `Icon.maskUrl(icon)`, a CSS `url()`.
 
 Every icon is parsed against a presentational allowlist, because it is drawn
 inline. The parse refuses, naming the icon, an element or attribute outside
@@ -404,7 +409,8 @@ refused SVG in a folder fails the build. A refused icon of an Iconify set is
 left out, the declaration says why, and only importing it fails.
 
 A package cannot rely on an application's plugin, so it commits its icons as
-constants, read by `foldkit-media/icons` in a script:
+constants, read by `foldkit-media/icons` in a script (in this repository,
+`pnpm icons` writes them from a package's `icons.json`):
 
 ```ts
 import { Icon } from 'foldkit-media'
@@ -422,7 +428,8 @@ with the `IconifySet` Schema), through its aliases. `Icon.key(icon)` is a
 short name from the icon's content, the same on a server and in a browser;
 `Icon.prefixIds(icon, prefix)` renames the ids the icon defines and every
 `href` and `url()` naming one, so two icons drawn on one page keep their own.
-`Icon.draw` does both.
+`Icon.draw` does both; its `key` option sets two copies of one icon apart,
+because a gradient defined in a hidden copy paints nothing for a shown one.
 
 ## Validation
 

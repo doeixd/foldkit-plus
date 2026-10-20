@@ -26,6 +26,8 @@ jobs:
 
       - run: pnpm paths:check
 
+      - run: pnpm icons:check
+
       # Every branch on a `_tag` goes through a type the checker holds (AGENTS.md).
       - run: pnpm tags:check
 

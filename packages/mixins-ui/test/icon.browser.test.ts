@@ -5,6 +5,7 @@
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
+import { Icon as MediaIcon } from 'foldkit-media'
 import { parse } from 'foldkit-media/icons'
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
@@ -45,8 +46,8 @@ test('a drawing alone is 1em square, and in a glyph it fills the box', async () 
         h.div(
           [h.Style({ fontSize: '40px' })],
           [
-            h.p([h.Id('alone')], [Icon.draw(check, h)]),
-            h.p([h.Id('glyph')], [Icon.view({ content: Icon.draw(check, h), style }, h)]),
+            h.p([h.Id('alone')], [MediaIcon.draw(check, h)]),
+            h.p([h.Id('glyph')], [Icon.view({ content: MediaIcon.draw(check, h), style }, h)]),
           ],
         ),
     }),

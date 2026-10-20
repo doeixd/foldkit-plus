@@ -365,7 +365,9 @@ interface IconData {
 
 *Built: `IconData` and `SvgTag` (the allowlist as a type) in `foldkit-media`,
 with `Icon.serialize`, `Icon.maskUrl`, `Icon.key` and `Icon.prefixIds`;
-`Icon.draw(icon, h, { key? })` in `foldkit-mixins-ui`. The prefix needs no key
+`Icon.draw(icon, h, { key?, size? })`, first in `foldkit-mixins-ui` and moved
+into `foldkit-media` over a structural `SvgBuilder`, so `mixins-richtext` draws
+its icons without depending on `@foldkit/ui`. The prefix needs no key
 from the caller: it is the icon's content hash (`Icon.key`), so two icons that
 share an id differ and a server and its hydration agree. `key` is for two
 copies of one icon, since a gradient defined inside a copy that is hidden
@@ -783,7 +785,7 @@ typed value at build time.
 | `foldkit-media/sharp` | `Transformer.sharp` | `sharp` (optional) |
 | `foldkit-media/cloudflare` | `Transformer.images`, `Originals.r2`, `Variants.r2`, `Variants.cacheApi` | `@cloudflare/workers-types` (types only) |
 | `foldkit-media/vite` | `?image` imports, icon virtual modules | `vite`, `sharp` |
-| `mixins-ui` `Image`, `Icon.draw` | The views | `foldkit-media` |
+| `mixins-ui` `Image`, `Icon.view` | The views | `foldkit-media` |
 
 ## 15. Testing
 
@@ -838,7 +840,10 @@ miniflare and the Images binding along the way, changed the plan from here.
    browser test over every guard, the recipe axes, `Figure`, the image
    preload Command, and the development audit.
 10. **The build.** `?image`, then icon data, the virtual modules, and replacing
-    the two Lucide copies (§8, §11).
+    the two Lucide copies (§8, §11). *Built: the icon data, parser, drawing and
+    virtual modules, and `pnpm icons` (`scripts/icons.mjs`, checked in CI by
+    `icons:check`), which generated `mixins-richtext`'s icons; the CMS copy
+    and `?image` are next.*
 12. **Icons in the theme** (§8.5). The chrome vocabulary as an `icon` token
     group with generated default packs, the recipes' hand-written masks moved
     onto it, the three knobs, and the `/create` section.

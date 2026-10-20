@@ -12,17 +12,19 @@ describe('the icons', () => {
   it('draw as SVG hidden from assistive technology, stroked in the text’s color', () => {
     const svg = richTextIcon(SlotView.inertBuilder(), 'bold', { size: 20 })
     expect(svg?.sel).toBe('svg')
-    expect(svg?.data?.attrs).toMatchObject({
-      width: '20',
-      stroke: 'currentColor',
-      'aria-hidden': 'true',
-    })
-    expect(Inert.children(svg).map(node => node.sel)).toEqual(['path', 'path'])
+    expect(svg?.data?.attrs).toMatchObject({ width: '20px', height: '20px', 'aria-hidden': 'true' })
+    const strokes = Inert.children(svg).map(node => node.data?.attrs?.['stroke'])
+    expect(strokes.length).toBeGreaterThan(0)
+    expect(new Set(strokes)).toEqual(new Set(['currentColor']))
   })
 
   it('draw the same paths as a mask URL', () => {
-    const url = richTextIconUrl('divider')
-    expect(decodeURIComponent(url)).toContain('<path d="M5 12h14"/>')
+    const drawn = Inert.children(richTextIcon(SlotView.inertBuilder(), 'divider')).map(
+      node => node.data?.attrs?.['d'],
+    )
+    const url = decodeURIComponent(richTextIconUrl('divider'))
+    expect(drawn).toEqual(['M5 12h14'])
+    for (const d of drawn) expect(url).toContain(`d="${d}"`)
   })
 
   it('cover every entry the editor offers, and know no other name', () => {

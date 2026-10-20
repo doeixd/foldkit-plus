@@ -109,8 +109,9 @@ from `foldkit-media/vite` to its Vite plugins and imports by name:
 `import { arrowLeft } from 'virtual:foldkit-icons/lucide'` (an `@iconify-json/<prefix>`
 package per set; a folder's `star-filled.svg` is `starFilled`). Unimported icons are
 dropped; the plugin writes `foldkit-icons.d.ts` (include it in the tsconfig) so a
-misspelt name is a type error. Draw with `Icon.draw(icon, h)` from
-`foldkit-mixins-ui`; mask with `Icon.maskUrl(icon)` (`Icons.byAttribute`/`Icons.glyph`).
+misspelt name is a type error. Draw with `Icon.draw(icon, h, { key?, size? })` (inline SVG,
+`aria-hidden`, `1em` unless sized, ids prefixed by the icon's content; `key` parts two copies),
+in `foldkit-mixins-ui`'s `Icon.view` to size it by the recipe; mask with `Icon.maskUrl(icon)` (`Icons.byAttribute`/`Icons.glyph`).
 Every icon passes a presentational allowlist: a refused folder SVG fails the build,
 a refused Iconify icon is left out and its import fails. A package commits constants
 made with `foldkit-media/icons`' `parse(svg, name)` or `fromIconify(set, name)`.

@@ -6,6 +6,8 @@
 const tests = ['packages/mixins-ui/test/icon.test.ts']
 const ssr = ['packages/mixins-ui/test/icon.ssr.test.ts']
 const browser = ['packages/mixins-ui/test/icon.browser.test.ts']
+// `Icon.draw` lives in foldkit-media; these tests are where its drawing is rendered.
+const drawing = '../../media/src/icon.ts'
 
 export default [
   {
@@ -21,19 +23,19 @@ export default [
   },
   {
     name: 'a drawing is announced',
-    edits: [{ file: '../src/icon.ts', find: '      h.AriaHidden(true),', replace: '' }],
+    edits: [{ file: drawing, find: '      h.AriaHidden(true),', replace: '' }],
     tests: ssr,
   },
   {
     name: 'a drawing keeps its own ids',
-    edits: [{ file: '../src/icon.ts', find: 'MediaIcon.prefixIds(icon, prefix)', replace: 'icon' }],
+    edits: [{ file: drawing, find: 'prefixIds(icon, prefix)', replace: 'icon' }],
     tests: ssr,
   },
   {
     name: 'a key parts no copies',
     edits: [
       {
-        file: '../src/icon.ts',
+        file: drawing,
         find: "(options.key === undefined ? '' : `-${options.key}`)",
         replace: "''",
       },
@@ -43,8 +45,11 @@ export default [
   {
     name: 'a drawing alone has no size',
     edits: [
-      { file: '../src/icon.ts', find: "h.Attribute('width', '1em'),", replace: '' },
-      { file: '../src/icon.ts', find: "h.Attribute('height', '1em'),", replace: '' },
+      {
+        file: drawing,
+        find: "const size = options.size ?? '1em'",
+        replace: "const size = options.size ?? ''",
+      },
     ],
     tests: browser,
   },

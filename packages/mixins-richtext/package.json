@@ -44,6 +44,7 @@
     "smoke": "node smoke/build.mjs"
   },
   "dependencies": {
+    "foldkit-media": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-primitives": "workspace:*",
     "foldkit-richtext": "workspace:*",
