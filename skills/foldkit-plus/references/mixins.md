@@ -349,7 +349,7 @@ the shipped tokens (`Theme.root(Theme.standard(theme))` ships them; a theme is t
 `Theme.make({ shape: { radius: 1.8 }, menu: { panel: 'inverted' } })` over `Knobs.standard`, pipeable with
 `Theme.set` and `Theme.describe`, and `shadow: { relief: 'bevel' }` raises every faced button and sinks every
 field; every knob is a
-variable, choices too: `shape.border`, `type.body`, `type.headingWeight`, `motion.easing`, `shadow.style`, `shadow.relief`,
+variable, choices too: `icon.size` (multiplies the icon rung of `ladder`) and `icon.stroke` (`border.glyph`, what recipes draw in CSS), `shape.border`, `type.body`, `type.headingWeight`, `motion.easing`, `shadow.style`, `shadow.relief`,
 `shape.outlines` and `surface.hover` each write the CSS their option holds, so they switch at runtime;
 `Themes.make({ iris, cobalt }, { initial: 'iris' })` installs themes by name for `AppStyle.make({ themes })`,
 `themes.Name` the Model's field and `Themes.apply(themes, name)` the Command (`Themes.choose` also keeps the name,

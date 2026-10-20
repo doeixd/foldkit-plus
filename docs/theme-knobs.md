@@ -240,6 +240,8 @@ follows another knob until a theme sets it.
 | `type.leading` | number | 1 | 0.85 to 1.3 | `leading` |
 | `type.headingWeight` | number | 600 | 300 to 900, by 100 | `heading-weight` |
 | `type.headingTracking` | length em | -0.01 | -0.05 to 0.05 | `heading-tracking` |
+| `icon.size` | number | 1 | 0.75 to 1.5 | `icon-scale`; the `icon` rung of `ladder` multiplies by it |
+| `icon.stroke` | length px | 2 | 1 to 3 | `glyph-width`; `border.glyph`, what recipes draw in CSS, not a pack's masks |
 | `motion.scale` | number | 1 | 0 to 2 | `motion` |
 | `motion.easing` | choice | `ease` (`ease-out`) | `ease`, `spring` | `ease` |
 | `shadow.strength` | percent | 100 | 0 to 100 | `shadow-strength` |

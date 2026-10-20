@@ -338,7 +338,7 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
 `foldkit-mixins/theme` extends the root `Theme` with the pieces a page ships. A theme is a typed
 set of knob values: only what it changes, every other knob at its default.
 `Theme.make` checks each value against its knob (`Knobs.standard`, grouped by concern: `accent`,
-`surface`, `shape`, `type`, `motion`, `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`),
+`surface`, `shape`, `type`, `icon`, `motion`, `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`),
 so a misspelt knob or a choice outside its options is a type error and a number out of its range
 throws where the theme is made. A theme is `pipe`able: `Theme.set` changes some knobs, and
 `Theme.describe` gives it a title and a description for a list of themes.

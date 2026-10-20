@@ -494,6 +494,11 @@ const typePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   slider(model, slots, h, 'type.leading'),
 ]
 
+const iconsPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  slider(model, slots, h, 'icon.size'),
+  slider(model, slots, h, 'icon.stroke'),
+]
+
 const motionPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   slider(model, slots, h, 'motion.scale'),
   row(model, slots, h, 'motion.easing'),
@@ -505,6 +510,7 @@ const panes: Readonly<Record<Section, (model: Model, slots: Slots, h: H) => Read
     color: colorPane,
     shape: shapePane,
     type: typePane,
+    icons: iconsPane,
     motion: motionPane,
   }
 

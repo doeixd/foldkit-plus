@@ -80,4 +80,26 @@ export default [
     ],
     tests: ['packages/mixins-ui/test/iconTokens.test.ts'],
   },
+  {
+    name: 'the icon size knob sizes nothing',
+    edits: [
+      {
+        file: '../../mixins/src/theme/tokens.ts',
+        find: '? `calc(${stepped} * var(--fk-knob-icon-scale))`',
+        replace: '? stepped',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the glyph stroke knob strokes nothing',
+    edits: [
+      {
+        file: '../../mixins/src/theme/tokens.ts',
+        find: "glyph: 'var(--fk-knob-glyph-width)',",
+        replace: "glyph: '2px',",
+      },
+    ],
+    tests: browser,
+  },
 ]

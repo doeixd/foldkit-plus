@@ -1556,3 +1556,11 @@ own tokens over the shipped ones; `/create` draws each pane's knobs from
 
 Order: the token group with the default pack, `withStroke` and
 `Icons.tokens`, the knobs, then §8.6's moves onto the tokens, then the pane.
+
+*Built: the `icon` token group (`ChromeIcon`, Lucide's masks written by
+`pnpm icons` with `"as": "masks"`), `Icon.withStroke`, `Icons.tokens`, the
+knobs `icon.size` and `icon.stroke`, and `/create`'s Icons pane with their
+two sliders. `Icon.maskUrl` now escapes only what a quoted `url()` cannot
+hold, a fifth shorter, since every page's theme carries these masks. Not
+built: §8.6's moves onto the tokens, and the pane's pack picker and
+specimen.*

@@ -92,7 +92,9 @@ version changed; `pnpm` skips versions already in the registry.
   themselves (`search`, `eye`, `eye-off`, `pipette`, `rotate-ccw`, `rotate-cw`, `success`, `warning`,
   `error`, `info`, `lock`; their names are `ChromeIcon`), Lucide's by default, written by `pnpm icons`.
   `foldkit-mixins-ui`'s `Icons.tokens(pack, { width?, corners? })` is an application's own pack as
-  its own tokens, a pack missing a name being a type error.
+  its own tokens, a pack missing a name being a type error. Two knobs: `icon.size` multiplies every
+  icon box (the `icon` rung of `ladder`), and `icon.stroke` is `border.glyph`, the stroke of the
+  checks, chevrons and guides recipes draw in CSS, until now a fixed `2px`.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

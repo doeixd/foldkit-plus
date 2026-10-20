@@ -67,3 +67,32 @@ test('a drawing alone is 1em square, even in a squeezed row, and in a glyph it f
     handle.dispose()
   }
 })
+
+/** An icon box and a glyph's stroke, as a page in `themed` draws them. */
+const iconBoxIn = (themed: typeof theme) => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent = Style.stylesheet(L.declare, L.in('theme', Theme.root(themed)))
+  document.head.append(sheet)
+  const box = document.createElement('span')
+  box.style.display = 'block'
+  box.style.inlineSize = Theme.ladder('icon')
+  box.style.borderStyle = 'solid'
+  box.style.borderWidth = Theme.ref(themed).border.glyph
+  document.body.append(box)
+  return [getComputedStyle(box).inlineSize, getComputedStyle(box).borderTopWidth]
+}
+
+test.each([
+  ['the defaults', Theme.make({}), ['16px', '2px']],
+  [
+    'a larger icon and a heavier stroke',
+    Theme.make({ icon: { size: 1.5, stroke: 3 } }),
+    ['24px', '3px'],
+  ],
+])(
+  'a theme’s icon knobs size every icon box and stroke every drawn glyph: %s',
+  (_, made, expected) => {
+    expect(iconBoxIn(Theme.standard(made))).toEqual(expected)
+  },
+)

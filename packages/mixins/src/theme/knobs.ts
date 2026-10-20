@@ -318,6 +318,28 @@ export const standard = {
       description: 'Multiplies line height, the space each line of text takes.',
     }),
   },
+  icon: {
+    size: Knob.number({
+      title: 'Icon size',
+      variable: 'icon-scale',
+      default: 1,
+      min: 0.75,
+      max: 1.5,
+      step: 0.05,
+      description:
+        'Multiplies every icon a component draws, beside its words: 1 is 16px, or 14px compact.',
+    }),
+    stroke: Knob.length('px')({
+      title: 'Glyph stroke',
+      variable: 'glyph-width',
+      default: 2,
+      min: 1,
+      max: 3,
+      step: 0.25,
+      description:
+        'The width of the strokes components draw themselves: checks, chevrons, a tree’s guides. An icon pack keeps its own.',
+    }),
+  },
   motion: {
     scale: Knob.number({
       title: 'Motion',

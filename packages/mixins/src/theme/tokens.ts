@@ -59,6 +59,8 @@ export const tokens = define({
     ...standard.type.headingWeight.unset,
     ...standard.type.headingTracking.unset,
     ...standard.motion.easing.unset,
+    ...standard.icon.size.unset,
+    ...standard.icon.stroke.unset,
     ...standard.shadow.style.unset,
     ...standard.shadow.relief.unset,
   },
@@ -209,7 +211,7 @@ export const tokens = define({
     thin: 'var(--fk-knob-border-width)',
     thick: 'calc(var(--fk-knob-border-width) + 1px)',
     heavy: 'calc(var(--fk-knob-border-width) + 2px)',
-    glyph: '2px',
+    glyph: 'var(--fk-knob-glyph-width)',
   },
   // Raised a little to a lot: a pressed control, a lifted cell, a menu, a
   // dialog. Each step is a tight contact layer plus a wide ambient one, so
@@ -265,7 +267,9 @@ export type Rung = Exclude<keyof Tokens['control'], `${string}-compact`>
  */
 export const ladder = (name: Rung): string => {
   const stepped = blend('control', name)
-  return name === 'icon' ? stepped : `calc(${stepped} * var(--fk-knob-density))`
+  return name === 'icon'
+    ? `calc(${stepped} * var(--fk-knob-icon-scale))`
+    : `calc(${stepped} * var(--fk-knob-density))`
 }
 
 /**
