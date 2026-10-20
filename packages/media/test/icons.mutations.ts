@@ -183,7 +183,13 @@ export default [
   },
   {
     name: 'every icon has one key',
-    edits: [{ file: '../src/icon.ts', find: 'hash ^= unit.codePointAt(0)!', replace: 'hash ^= 0' }],
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: 'hash ^= BigInt(unit.codePointAt(0)!)',
+        replace: 'hash ^= 0n',
+      },
+    ],
     tests,
   },
   {

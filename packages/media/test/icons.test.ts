@@ -214,6 +214,12 @@ describe('Icon.key and Icon.prefixIds', () => {
     expect(Icon.key(other)).not.toBe(Icon.key(moved))
   })
 
+  it('keeps apart drawings that collide under a 32-bit FNV key', () => {
+    const first = parse('<svg viewBox="0 0 1 1"><path d="M201917 0"/></svg>', 'first')
+    const second = parse('<svg viewBox="0 0 1 1"><path d="M1144000 0"/></svg>', 'second')
+    expect(Icon.key(first)).not.toBe(Icon.key(second))
+  })
+
   it('rename every id the icon defines, and every reference to one, and no other', () => {
     const renamed = Icon.prefixIds(gradient, 'p')
     expect(renamed.attributes).toEqual({ mask: 'url(#p-m)' })

@@ -76,13 +76,13 @@ const keys = new WeakMap<IconData, string>()
 export const key = (icon: IconData): string => {
   const known = keys.get(icon)
   if (known !== undefined) return known
-  // FNV-1a over the serialized drawing.
-  let hash = 0x811c9dc5
+  // 64-bit FNV-1a over the serialized drawing.
+  let hash = 0xcbf29ce484222325n
   for (const unit of serialize(icon)) {
-    hash ^= unit.codePointAt(0)!
-    hash = Math.imul(hash, 0x01000193)
+    hash ^= BigInt(unit.codePointAt(0)!)
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n)
   }
-  const made = `i${(hash >>> 0).toString(36)}`
+  const made = `i${hash.toString(36)}`
   keys.set(icon, made)
   return made
 }
