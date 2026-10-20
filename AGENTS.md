@@ -623,6 +623,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   and the input never took focus; its unit tests read only the markup. Let
   presses through (`pointer-events: none`) or raise the overlay, and test with
   a real click at the covered spot (`otpField.browser.test.ts`).
+- **The bundler merges emitted assets of equal bytes.** A `?image` build that
+  made every ladder width, wider than the original or not, wrote the same five
+  files as the right one: sharp does not enlarge, so the wider variants matched
+  the original's own, and Rolldown kept one of them under the name that sorts
+  first. A test of the files alone passed; only the provider's widths showed
+  the lie. Assert what the module offers, not only what it wrote.
 - **A sized `svg` in a squeezed flex row shrinks to nothing.** Its `width`
   attribute is no floor: a 16px icon beside unshrinkable words in a 40px row
   measured 0 wide. The CMS's hand-written icon carried `flex-shrink: 0` for

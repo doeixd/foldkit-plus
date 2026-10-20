@@ -769,6 +769,16 @@ write `Provider.hosted` URLs instead.
 The same plugin serves the icon virtual modules (§8.2): both turn a file into a
 typed value at build time.
 
+*Built: `images(options)` beside `icons` in `foldkit-media/vite`, and the
+import's type as `foldkit-media/client`. Differences from the sketch above:
+the variants come from `transformerSharp` and the facts from `describe` over
+`inspectorSharp`, run directly rather than through the server's handlers; the
+development server answers its own path (`/@foldkit-media/image/<hash>/w640.avif`)
+for the widths and formats the import offered, and nothing else. sharp is
+loaded on the first `?image` import, so the icons need none. Not built: the
+`target: 'r2'` upload, and a failing build when a site's files pass the host's
+limit.*
+
 ## 12. How it fits Foldkit and Foldkit Plus
 
 | Piece | What this design uses it for |
@@ -873,8 +883,8 @@ miniflare and the Images binding along the way, changed the plan from here.
 10. **The build.** `?image`, then icon data, the virtual modules, and replacing
     the two Lucide copies (§8, §11). *Built: the icon data, parser, drawing and
     virtual modules, and `pnpm icons` (`scripts/icons.mjs`, checked in CI by
-    `icons:check`), which generated `mixins-richtext`'s icons; the CMS copy
-    and `?image` are next.*
+    `icons:check`), which generated `mixins-richtext`'s and the CMS's icons;
+    and `?image` (§11).*
 12. **Icons in the theme** (§8.5). The chrome vocabulary as an `icon` token
     group with generated default packs, the recipes' hand-written masks moved
     onto it, the three knobs, and the `/create` section.

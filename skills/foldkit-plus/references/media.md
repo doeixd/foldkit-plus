@@ -101,6 +101,15 @@ are a cache: a store that fails is answered by making the variant.
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).
 
+## Images in the repository
+
+`images({ sources: ['avif'], fallback: 'webp' })` from `foldkit-media/vite` makes
+`import hero from './hero.jpg?image'` give `{ asset, provider }` (types:
+`"types": ["foldkit-media/client"]`), so `Image.view({ ...hero, layout, alt }, h)` draws it. The
+build reads its facts through sharp (an application dependency) and writes a file per ladder width
+up to the original's own, per format, kept in Vite's cache by content; the dev server makes the
+same variants on request. Each image is `widths × formats` files, which a static host counts.
+
 ## Icons
 
 `IconData` (`{ viewBox, attributes, nodes }`) is an icon as data. An

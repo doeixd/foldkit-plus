@@ -14,6 +14,7 @@
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-media": ["../../packages/media/src/index.ts"],
+      "foldkit-media/client": ["../../packages/media/client.d.ts"],
       "foldkit-media/cloudflare": ["../../packages/media/src/cloudflare/index.ts"],
       "foldkit-media/icons": ["../../packages/media/src/icons/index.ts"],
       "foldkit-media/server": ["../../packages/media/src/server/index.ts"],

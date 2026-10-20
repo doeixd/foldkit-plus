@@ -60,6 +60,11 @@ version changed; `pnpm` skips versions already in the registry.
   folder of the application's SVGs, the bundle holds only what is imported, and a written
   declaration names every icon, so a misspelt one is a type error. A refused SVG in a folder fails
   the build; a refused Iconify icon is left out, and the declaration says why.
+  `foldkit-media/vite`'s `images({ widths?, sources?, fallback?, quality? })` makes an image in the
+  repository an import: `import hero from './hero.jpg?image'` is `{ asset, provider }`, its facts
+  read once through sharp and a file written for each ladder width up to its own in each format,
+  named by content and kept in Vite's cache by the original's hash; the development server makes
+  the same variants on request. `foldkit-media/client` types the import.
 - `foldkit-media`: `Icon.draw(icon, h, { key?, size? })` draws an `IconData` as inline SVG through
   any view builder of its shape (`SvgBuilder`; Foldkit's `h` is one), every attribute in the
   server's markup, `1em` square unless `size` is given and kept so in a squeezed flex row,

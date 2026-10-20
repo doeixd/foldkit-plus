@@ -54,12 +54,17 @@
       "foldkit-plus:source": "./src/vite/index.ts",
       "types": "./dist/vite/index.d.mts",
       "import": "./dist/vite/index.mjs"
+    },
+    "./client": {
+      "foldkit-plus:source": "./client.d.ts",
+      "types": "./client.d.ts"
     }
   },
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "client.d.ts"
   ],
   "scripts": {
     "build": "tsdown",

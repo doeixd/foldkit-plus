@@ -95,6 +95,46 @@ A provider is a plain value (`Provider.Provider`): `widths`, the `sources`
 formats offered before the `img`, the `img`'s own `fallback` encoding, and a
 `url` function answering `Option<string>`.
 
+## Images in the repository
+
+An image the application ships with needs no server and no CDN: the build
+reads it and writes its variants beside the bundle. Add the plugin, and the
+type of a `?image` import (`"types": ["foldkit-media/client"]` in the
+`tsconfig`):
+
+```ts
+// vite.config.ts
+import { images } from 'foldkit-media/vite'
+import { defineConfig } from 'vite'
+
+export default defineConfig({ plugins: [images({ sources: ['avif'], fallback: 'webp' })] })
+```
+
+```ts
+import hero from './hero.jpg?image'
+import { Layout } from 'foldkit-media'
+import { Image } from 'foldkit-mixins-ui'
+
+Image.view({ ...hero, layout: Layout.Constrained({ width: 800 }), alt: Image.described('The finals') }, h)
+```
+
+The import is `{ asset, provider }`. The build measures the file once
+(`describe`, through sharp, so the application needs `sharp`): its size, its
+alpha, its SHA-256 and a ThumbHash. It writes one file for each ladder width
+below the original's own, and one at its own width, in each format, named by
+content so the host's long cache is honest; `provider` is
+`Provider.fromFiles` over them. Facts and variants are kept in Vite's cache
+directory by the original's hash, so an unchanged image, AVIF included, is
+not encoded again. The development server makes the same variants when a page
+asks for one, under `/@foldkit-media/image/`, and answers any width or format
+it did not offer with a 404.
+
+Every image costs `widths × formats` files: with the standard ladder and two
+formats, a large photograph is eighteen. A static host counts files
+(Cloudflare Pages allows 20,000 on its free plan), so a site with many images
+offers fewer formats or widths (`images({ widths: Widths.make([…]) })`), or
+keeps its originals on the media server (`Provider.hosted`) instead.
+
 ## Preloading the largest image
 
 A page's largest image is found sooner from a preload in the head. Foldkit adds

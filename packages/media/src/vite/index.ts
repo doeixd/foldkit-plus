@@ -239,3 +239,5 @@ export const icons = (options: IconsOptions = {}): Plugin => {
     },
   }
 }
+
+export { images, type ImagesOptions } from './images.js'
