@@ -61,6 +61,8 @@ export const heroView = (h: HtmlBuilder<never>) =>
 
 - `alt` is required: `Image.described(text)` or `Image.decorative`.
 - `priority: true` only for the page's largest image; every other is lazy.
+  `Image.preloadsIn` is a `foldkit-ssr` `Head` that preloads it, read from the
+  rendered page. `Picture.ogImage(asset, provider, origin)` gives `og:image`.
 - The `img` keeps its box before the file arrives (`width`/`height` from the
   asset), and paints the placeholder meanwhile, except behind a transparent
   image.

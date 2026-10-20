@@ -5,6 +5,39 @@
  */
 export default [
   {
+    name: 'an Open Graph image is relative',
+    edits: [
+      {
+        file: '../src/picture.ts',
+        find: 'url => new URL(url, origin).href,',
+        replace: 'url => url,',
+      },
+    ],
+    tests: ['packages/media/test/picture.test.ts'],
+  },
+  {
+    name: 'an Open Graph image may be AVIF',
+    edits: [
+      {
+        file: '../src/picture.ts',
+        find: "const OPEN_GRAPH_ENCODINGS = ['jpeg', 'webp', 'png'] as const",
+        replace: "const OPEN_GRAPH_ENCODINGS = ['avif', 'jpeg', 'webp', 'png'] as const",
+      },
+    ],
+    tests: ['packages/media/test/picture.test.ts'],
+  },
+  {
+    name: 'an Open Graph image is the smallest width',
+    edits: [
+      {
+        file: '../src/picture.ts',
+        find: 'Widths.atLeast(provider.widths, 1200)',
+        replace: 'provider.widths.values[0]!',
+      },
+    ],
+    tests: ['packages/media/test/picture.test.ts'],
+  },
+  {
     name: 'a repeated width is accepted',
     edits: [
       {
@@ -252,8 +285,8 @@ export default [
     edits: [
       {
         file: '../src/picture.ts',
-        find: "[['type', first.type] as const]",
-        replace: '[]',
+        find: 'type: Option.map(Option.fromNullishOr(first), source => source.type),',
+        replace: 'type: Option.none(),',
       },
     ],
     tests: ['packages/media/test/picture.test.ts'],

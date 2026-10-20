@@ -384,6 +384,22 @@ drops event attributes and any `href` that is not a fragment, and fails the
 build on anything else rather than silently dropping it. Iconify sets go
 through the same parser.
 
+### 8.4 Repeated icons, and the components that take one
+
+- **A sprite for a page that repeats an icon.** A table of fifty rows with a
+  delete button draws one path fifty times inline. `Icon.sprite(icons, h)`
+  draws each icon once as a `<symbol>` in a hidden `svg`, and
+  `Icon.use(data, h)` draws `<use href="#…">` where it appears, with the
+  symbol's id from the icon's key (deterministic, §8.1). Inline stays the
+  default: a sprite only pays where an icon repeats.
+- **The components that take an `icon`** (`Button`, `Alert`, `Breadcrumb`,
+  `Command`, `Empty`, `Steps`, `Tabs`, `Segmented`, `Sidebar`, `TreeView`,
+  `ThinkingIndicator`, `Toast`) take `Html`, so `Icon.draw` composes with them
+  already. The pass checks each one sizes and colours a drawn icon through its
+  own slot, and that none draws an icon's `svg` without `aria-hidden`.
+- **Any Iconify set** works through the virtual module, Unicons (`uil`)
+  included, by its Iconify prefix.
+
 ## 9. The server: `foldkit-media/server`
 
 For originals no CDN can fetch: uploads, a repository's images outside the
@@ -840,6 +856,10 @@ server. Four pieces fit `staticSite` as it is, and one needs a hook.
 
 ### 19.1 Preloads read from the rendered page
 
+*Built. `Picture.preloadLink` writes the link for both, so `Picture.preload` and
+`Image.preloadsIn` cannot disagree; the markup's values are unescaped before it
+escapes them, or `&` would arrive twice escaped.*
+
 `foldkit-ssr`'s `Head` is a function of the rendered page, the shape
 `Style.usedIn` uses to collect the classes a page drew. `Image.preloadsIn` is
 one too: it reads the rendered markup for the `img` with
@@ -879,6 +899,9 @@ facts cannot be read is drawn as today and reported by the build, never
 silently.
 
 ### 19.4 Open Graph images
+
+*Built, taking the page's `origin`: a hosted provider's URLs are relative. A
+provider that picks the format (`cdnCgi`) is asked for `auto`.*
 
 `Picture.ogImage(asset, provider)` gives an absolute URL of a JPEG at the first
 ladder width of at least 1200, for the plan's `head` `image`. AVIF and WebP are

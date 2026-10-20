@@ -25,7 +25,8 @@ version changed; `pnpm` skips versions already in the registry.
   (Cloudflare's `/cdn-cgi/image/`), `fromFiles` (a build's variants) and `hosted` (its own server,
   whose route, `/_image/<hash>/w640.avif`, `foldkit-media/server`'s `makeApi` declares with the same
   Schema). `Variant.space({ widths, formats, qualities })` bounds every variant a server makes. `Picture.preload` writes
-  the page's largest image's `<link rel="preload">` for an SSR `head`.
+  the page's largest image's `<link rel="preload">` for an SSR `head`. `Picture.ogImage` gives an absolute
+  `og:image` URL at least 1200 wide, never AVIF.
   `foldkit-media/server` serves `Provider.hosted`'s route over three services, `Originals`,
   `Transformer` and `Variants`: a variant is made once and kept, served immutable, and a failure is
   its own status (400, 404, 413, 502, 503), never the original, with headers decided in one place
@@ -43,7 +44,8 @@ version changed; `pnpm` skips versions already in the registry.
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,
   never omitted. `Recipes.Image` has `fit` (`cover`, `contain`) and `edge` (`none`, `line`).
-  `Image.watchLoad`, beside the style, marks its load state and hides a failed image. An image with no
+  `Image.watchLoad`, beside the style, marks its load state and hides a failed image. `Image.preloadsIn`
+  is a `foldkit-ssr` `Head` that preloads each image the rendered page drew with `priority`. An image with no
   variant keeps its box and its alt text. An asset's `focus` places a crop (`--fk-image-focus`), and a
   ThumbHash paints its picture for the `priority` image and its average color for the rest.
 - `foldkit-mixins-ui`: an `Avatar`'s `src` may be an `AvatarPicture` (`{ asset, provider, width }`),

@@ -4,6 +4,7 @@ import { mimeType, type Encoding } from './format.js'
 import * as Layout from './layout.js'
 import { background, type Level } from './placeholder.js'
 import type { Provider } from './provider.js'
+import * as Widths from './widths.js'
 
 /** A `source` element's attributes: one format's candidates. */
 export interface Source {
@@ -121,6 +122,27 @@ export const derive = (input: Input): Option.Option<Picture> => {
 const escapeAttribute = (value: string): string =>
   value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+/** What a preload names: the candidates the browser will choose from, at the `img`'s sizes. */
+export interface Preloaded {
+  /** A `source`'s media type, so a browser that cannot show it skips the preload. */
+  readonly type: Option.Option<string>
+  readonly srcset: string
+  readonly sizes: string
+}
+
+/** The `<link rel="preload">` naming `preloaded`, its values escaped for the attribute. */
+export const preloadLink = ({ type, srcset, sizes }: Preloaded): string => {
+  const attributes: ReadonlyArray<readonly [string, string]> = [
+    ['rel', 'preload'],
+    ['as', 'image'],
+    ...Option.match(type, { onNone: () => [], onSome: value => [['type', value] as const] }),
+    ['imagesrcset', srcset],
+    ['imagesizes', sizes],
+    ['fetchpriority', 'high'],
+  ]
+  return `<link ${attributes.map(([name, value]) => `${name}="${escapeAttribute(value)}"`).join(' ')}>`
+}
+
 /**
  * A `<link rel="preload">` for a page's `head`, so the browser fetches its
  * largest image before it reaches the `img`. It names the candidates the
@@ -131,13 +153,33 @@ const escapeAttribute = (value: string): string =>
  */
 export const preload = ({ sources, img }: Picture): string => {
   const [first] = sources
-  const attributes: ReadonlyArray<readonly [string, string]> = [
-    ['rel', 'preload'],
-    ['as', 'image'],
-    ...(first === undefined ? [] : [['type', first.type] as const]),
-    ['imagesrcset', first === undefined ? img.srcset : first.srcset],
-    ['imagesizes', img.sizes],
-    ['fetchpriority', 'high'],
-  ]
-  return `<link ${attributes.map(([name, value]) => `${name}="${escapeAttribute(value)}"`).join(' ')}>`
+  return preloadLink({
+    type: Option.map(Option.fromNullishOr(first), source => source.type),
+    srcset: first === undefined ? img.srcset : first.srcset,
+    sizes: img.sizes,
+  })
+}
+
+// Link-preview fetchers read JPEG; many read WebP and PNG; not all read AVIF.
+const OPEN_GRAPH_ENCODINGS = ['jpeg', 'webp', 'png'] as const
+
+/**
+ * An image for a page's Open Graph `og:image`: at the first ladder width of
+ * at least 1200, as JPEG when the provider makes it, else WebP or PNG, never
+ * AVIF, as an absolute URL against `origin`. None when the provider has no
+ * such variant.
+ */
+export const ogImage = (
+  asset: ImageAsset,
+  provider: Provider,
+  origin: string,
+): Option.Option<string> => {
+  const width = Widths.atLeast(provider.widths, 1200)
+  // A provider that picks the format reads the fetcher's `Accept`; the rest are asked in turn.
+  const encodings: ReadonlyArray<Encoding> =
+    provider.fallback === 'auto' ? ['auto'] : OPEN_GRAPH_ENCODINGS
+  return Option.map(
+    Option.firstSomeOf(encodings.map(encoding => provider.url(asset, { width, encoding }))),
+    url => new URL(url, origin).href,
+  )
 }

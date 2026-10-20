@@ -1,7 +1,7 @@
 import { Option, Schema } from 'effect'
 import { rgbaToThumbHash } from 'thumbhash'
 import { describe, expect, it } from 'vitest'
-import { ImageAsset, Layout, Picture, Provider } from 'foldkit-media'
+import { ImageAsset, Layout, Picture, Provider, Variant } from 'foldkit-media'
 
 const asset = Schema.decodeUnknownSync(ImageAsset)({
   key: 'hero.jpg',
@@ -212,5 +212,44 @@ describe('Picture.preload', () => {
       }),
     )
     expect(Picture.preload(picture)).toContain('imagesrcset="/a&quot;&lt;b&gt;&amp;c.webp 400w"')
+  })
+})
+
+describe('Picture.ogImage', () => {
+  const big = Schema.decodeUnknownSync(ImageAsset)({
+    key: 'photos/hero.jpg',
+    width: 3000,
+    height: 1500,
+    alpha: false,
+    hash: 'a'.repeat(64),
+    placeholder: null,
+  })
+
+  it.each([
+    [
+      'leaves the format to a provider that picks it',
+      Provider.cdnCgi(),
+      'https://site.test/cdn-cgi/image/width=1280,format=auto,fit=scale-down/photos/hero.jpg',
+    ],
+    [
+      'falls back to WebP where its server makes no JPEG',
+      Provider.hosted(),
+      `https://site.test/_image/${'a'.repeat(64)}/w1280.webp`,
+    ],
+    [
+      'takes JPEG where its server makes it',
+      Provider.hosted({ space: Variant.space({ formats: ['avif', 'jpeg', 'webp'] }) }),
+      `https://site.test/_image/${'a'.repeat(64)}/w1280.jpeg`,
+    ],
+  ])('%s, as an absolute URL at least 1200 wide', (_, ogProvider, expected) => {
+    expect(Picture.ogImage(big, ogProvider, 'https://site.test')).toEqual(Option.some(expected))
+  })
+
+  it('has none from a provider with only AVIF', () => {
+    const avifOnly = Provider.fromFiles([{ width: 1280, format: 'avif', url: '/a.avif' }], {
+      sources: [],
+      fallback: 'avif',
+    })
+    expect(Picture.ogImage(big, avifOnly, 'https://site.test')).toEqual(Option.none())
   })
 })

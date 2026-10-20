@@ -108,7 +108,15 @@ const preloadTag = Option.map(picture, Picture.preload)
 
 It names the first `source`'s candidates with its `type`, so a browser that
 cannot show that format skips the preload rather than fetch a file it will not
-use.
+use. With `foldkit-mixins-ui`, `Image.preloadsIn` is a `Head` that reads the
+same from the rendered page, so a page marks `priority` where it draws the
+image and nothing more.
+
+## Open Graph
+
+`Picture.ogImage(asset, provider, origin)` is the absolute URL of a variant at
+least 1200 wide for `og:image`: JPEG where the provider makes it, else WebP or
+PNG, never AVIF, which not every link-preview fetcher reads.
 
 ## Placeholders
 

@@ -1374,6 +1374,9 @@ of its own named a form field "fits the Catalog". Read words with
   tool does it too: `'\\s'` in a mutation anchor and `'\\c'` in a test reached the files as
   `'\s'` and `'\c'`, which JavaScript reads as `s` and `c`. Write text holding escapes with the
   Edit or Write tool (or `String.raw`), and grep the result with `grep -F` before trusting it.
+  A `\\b` in a regex went through Python as `\b`, a backspace: three regexes held `^H` where
+  the word boundary was, which the Read tool does not show. Build a backslash with `chr(92)`,
+  and check such lines with `cat -A`.
 - **Python's text mode writes CRLF on Windows.** Scripted edits with
   `open(p, 'w')` turned `tsconfig.json` and `vitest.config.ts` into CRLF files
   that failed `format:check`. Pass `newline=''` when reading and writing.

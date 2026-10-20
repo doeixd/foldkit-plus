@@ -190,3 +190,52 @@ export const watchLoad = [
     { name: 'ImageLoad' },
   ).mixin,
 ]
+
+// The attribute values a server render wrote, double-quoted and escaped.
+const attributeOf = (tag: string, name: string): Option.Option<string> =>
+  Option.map(Option.fromNullishOr(new RegExp(`\\s${name}="([^"]*)"`).exec(tag)), ([, value]) =>
+    value!
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&'),
+  )
+
+/**
+ * The preloads of a rendered page, as `foldkit-ssr` takes a `Head`: one
+ * `<link rel="preload">` for each image drawn with `priority`, read from the
+ * markup, so the page says `priority` once, where it draws the image, and the
+ * head follows. Each names its `picture`'s first `source`, typed, or the
+ * `img`'s own candidates.
+ */
+export const preloadsIn = (rendered: { readonly html: string }): string => {
+  const { html } = rendered
+  const links: Array<string> = []
+  for (const match of html.matchAll(/<img\b[^>]*\bfetchpriority="high"[^>]*>/g)) {
+    const img = match[0]
+    const at = match.index
+    const picture = html.lastIndexOf('<picture', at)
+    // A source counts only when it is in this image's own picture.
+    const within = picture !== -1 && html.indexOf('</picture>', picture) > at
+    const source = Option.filter(
+      Option.fromNullishOr(
+        within ? /<source\b[^>]*>/.exec(html.slice(picture, at))?.[0] : undefined,
+      ),
+      tag => Option.isSome(attributeOf(tag, 'srcset')),
+    )
+    const srcset = Option.match(source, {
+      onNone: () => attributeOf(img, 'srcset'),
+      onSome: tag => attributeOf(tag, 'srcset'),
+    })
+    if (Option.isNone(srcset)) continue
+    links.push(
+      Picture.preloadLink({
+        type: Option.flatMap(source, tag => attributeOf(tag, 'type')),
+        srcset: srcset.value,
+        sizes: Option.getOrElse(attributeOf(img, 'sizes'), () => '100vw'),
+      }),
+    )
+  }
+  return links.join('')
+}

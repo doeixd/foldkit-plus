@@ -8,6 +8,33 @@ const browser = ['packages/mixins-ui/test/image.browser.test.ts']
 
 export default [
   {
+    name: 'a priority img takes any earlier source as its own',
+    edits: [
+      {
+        file: '../src/image.ts',
+        find: "const within = picture !== -1 && html.indexOf('</picture>', picture) > at",
+        replace: 'const within = picture !== -1',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a preload is escaped twice',
+    edits: [{ file: '../src/image.ts', find: ".replace(/&amp;/g, '&'),", replace: '' }],
+    tests: ['packages/mixins-ui/test/image.ssr.test.ts'],
+  },
+  {
+    name: 'a preload drops its source’s type',
+    edits: [
+      {
+        file: '../src/image.ts',
+        find: "type: Option.flatMap(source, tag => attributeOf(tag, 'type')),",
+        replace: 'type: Option.none(),',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/image.ssr.test.ts'],
+  },
+  {
     name: 'an unavailable image collapses',
     edits: [
       {

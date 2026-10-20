@@ -12,7 +12,7 @@ import { injectIntoTemplate, renderToString } from 'foldkit/experimental/server'
 import type { HtmlBuilder } from 'foldkit/html'
 import { ImageAsset, Layout, Provider } from 'foldkit-media'
 import { expect, test } from 'vitest'
-import { described, view } from '../src/image.js'
+import { described, preloadsIn, view } from '../src/image.js'
 
 test('the image is served with its candidates, ready before the page hydrates', async () => {
   const asset = Schema.decodeUnknownSync(ImageAsset)({
@@ -70,4 +70,75 @@ test('the image is served with its candidates, ready before the page hydrates', 
   const tag = /<img[^>]*>/.exec(served.html)?.[0] ?? ''
   expect(tag.indexOf('loading=')).toBeGreaterThan(-1)
   expect(tag.indexOf('loading=')).toBeLessThan(tag.indexOf(' src='))
+})
+
+test('the head preloads what the page drew with priority, read from the rendered markup', async () => {
+  const asset = Schema.decodeUnknownSync(ImageAsset)({
+    key: 'hero.jpg',
+    width: 1000,
+    height: 500,
+    alpha: false,
+    hash: null,
+    placeholder: null,
+  })
+  const withSources = Provider.fromFiles(
+    [
+      { width: 400, format: 'webp', url: '/hero-400.webp?v=1&s=2' },
+      { width: 400, format: 'avif', url: '/hero-400.avif?v=1&s=2' },
+    ],
+    { sources: ['avif'], fallback: 'webp' },
+  )
+  const plain = Provider.fromFiles([{ width: 400, format: 'webp', url: '/plain-400.webp' }], {
+    sources: [],
+    fallback: 'webp',
+  })
+  const rendered = await Effect.runPromise(
+    renderToString(
+      {
+        init: () => ({ model: {} }),
+        view: (_: unknown, h: HtmlBuilder<never>) => ({
+          title: 'Images',
+          body: h.div(
+            [],
+            [
+              view(
+                {
+                  asset,
+                  provider: withSources,
+                  layout: Layout.Fixed({ width: 400 }),
+                  alt: described('hero'),
+                  priority: true,
+                },
+                h,
+              ),
+              view(
+                {
+                  asset,
+                  provider: plain,
+                  layout: Layout.Fixed({ width: 400 }),
+                  alt: described('lazy'),
+                },
+                h,
+              ),
+              view(
+                {
+                  asset,
+                  provider: plain,
+                  layout: Layout.Fixed({ width: 400 }),
+                  alt: described('second'),
+                  priority: true,
+                },
+                h,
+              ),
+            ],
+          ),
+        }),
+      },
+      { buildId: 'b' },
+    ),
+  )
+  expect(preloadsIn(rendered)).toBe(
+    '<link rel="preload" as="image" type="image/avif" imagesrcset="/hero-400.avif?v=1&amp;s=2 400w" imagesizes="400px" fetchpriority="high">' +
+      '<link rel="preload" as="image" imagesrcset="/plain-400.webp 400w" imagesizes="400px" fetchpriority="high">',
+  )
 })

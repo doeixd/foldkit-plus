@@ -8,7 +8,14 @@ import { describe, expect, it } from 'vitest'
 import { ImageAsset, Layout, Provider } from 'foldkit-media'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { ImageSlots, decorative, described, view, type ImageView } from '../src/image.js'
+import {
+  ImageSlots,
+  decorative,
+  described,
+  preloadsIn,
+  view,
+  type ImageView,
+} from '../src/image.js'
 import { Recipes } from '../src/index.js'
 
 const h = SlotView.inertBuilder<never>()
@@ -166,5 +173,16 @@ describe('Image view, corrected', () => {
       focus: { x: 0.25, y: 0.8 },
     })
     expect(Inert.style(imgOf(draw({ asset })))['--fk-image-focus']).toBe('25% 80%')
+  })
+})
+
+describe('Image.preloadsIn', () => {
+  it('names a priority img’s own candidates, not an earlier picture’s source', () => {
+    const html =
+      '<picture><source type="image/avif" srcset="/other.avif 400w"><img src="/other.webp"></picture>' +
+      '<img fetchpriority="high" srcset="/bare-400.webp 400w" sizes="400px" src="/bare-400.webp">'
+    expect(preloadsIn({ html })).toBe(
+      '<link rel="preload" as="image" imagesrcset="/bare-400.webp 400w" imagesizes="400px" fetchpriority="high">',
+    )
   })
 })
