@@ -89,8 +89,15 @@ export default [
     tests,
   },
   {
-    name: 'the development server lets its variants go stale',
-    edits: [{ file: plugin, find: "'public, max-age=31536000, immutable'", replace: "'no-cache'" }],
+    name: 'the development server lets its unversioned variants outlive it',
+    edits: [
+      {
+        file: plugin,
+        find: "response.setHeader('Cache-Control', 'no-store')",
+        replace:
+          "response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')",
+      },
+    ],
     tests,
   },
   {

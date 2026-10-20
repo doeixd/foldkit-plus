@@ -215,7 +215,7 @@ export const images = (options: ImagesOptions = {}): Plugin => {
         }
         variantOf(hash!, original.bytes, hash!, Number(width), format).then(bytes => {
           response.setHeader('Content-Type', `image/${format}`)
-          response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+          response.setHeader('Cache-Control', 'no-store')
           response.end(bytes)
         }, next)
       })

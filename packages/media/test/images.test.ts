@@ -152,7 +152,7 @@ describe('images', () => {
       const answer = await fetch(`${origin}${url}`)
       expect(['content-type', 'cache-control'].map(name => answer.headers.get(name))).toEqual([
         'image/avif',
-        'public, max-age=31536000, immutable',
+        'no-store',
       ])
       const { width, format } = await sharp(new Uint8Array(await answer.arrayBuffer())).metadata()
       expect([width, format]).toEqual([640, 'heif'])
