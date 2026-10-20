@@ -5,6 +5,17 @@
  */
 export default [
   {
+    name: 'a JPEG is taken to be transparent',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: "alpha: info.format !== 'image/jpeg',",
+        replace: 'alpha: true,',
+      },
+    ],
+    tests: ['packages/media/test/cloudflare.test.ts'],
+  },
+  {
     name: 'the binding’s refusal admits',
     edits: [
       {

@@ -274,6 +274,26 @@ const media = layer().pipe(
   and one write (`coalesce`, on by default here and off for `serveFetch`,
   since a Worker request cannot wait on another's).
 
+### Facts
+
+An `ImageAsset`'s facts are derived from its original once, where it enters,
+and stored beside it:
+
+- `describe(key, bytes)` reads them through the `Inspector`: size, alpha, the
+  SHA-256, and a ThumbHash where the inspector makes a thumbnail.
+- `inspectorSharp({ maxPixels? })` (Node) reads all of them; alpha is whether
+  any pixel is transparent, so an opaque PNG still gets a placeholder.
+- `inspectorImages(binding)` (Cloudflare) reads the size from `info`, which
+  costs no transformation. It makes no thumbnail, since the binding's raw
+  pixels are not offered offline, and takes every format but JPEG to be
+  transparent; both cost a placeholder, never show a wrong one.
+- `factsOf(url, { allow, maxBytes?, cache?, fetch? })` describes an image a
+  page names only by URL (a rich-text image), so it gets its box like any
+  other. Only `https` on a host in `allow` (matched exactly) is read, each
+  redirect is checked again, and the body is limited as it streams. Given a
+  `KeyValueStore` as `cache`, the facts are kept by URL and the original is
+  asked for again with its `ETag`, so an unchanged one is not read twice.
+
 ### Written out at build
 
 A static site needs no server for its hosted images: `materialize` makes every

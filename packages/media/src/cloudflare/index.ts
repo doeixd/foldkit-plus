@@ -8,6 +8,7 @@ import type { Cache, ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/work
 import { Effect, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { Admission, RateLimited } from '../server/admission.js'
+import { Inspector } from '../server/describe.js'
 import { OriginalNotFound, QuotaExhausted, TransformFailed } from '../server/errors.js'
 import { Originals, Transformer, Variants, type Encoded } from '../server/services.js'
 import { makeVariants } from '../server/stores.js'
@@ -212,6 +213,44 @@ export const admissionRateLimit = (
           success
             ? Effect.void
             : Effect.fail(new RateLimited({ retryAfterSeconds: options.retryAfterSeconds ?? 60 })),
+        ),
+      ),
+  })
+
+/**
+ * The `Inspector` through the Images binding: an original's size from `info`,
+ * which costs no transformation. It makes no thumbnail, since raw pixels are
+ * not offered offline and could not be tested, so an original described here
+ * has no ThumbHash; and as `info` does not say whether pixels are
+ * transparent, every format but JPEG is taken to be, which costs a
+ * placeholder, never shows a wrong one. An SVG, which has no size in pixels,
+ * is refused.
+ */
+export const inspectorImages = (images: ImagesBinding): Layer.Layer<Inspector> =>
+  Layer.succeed(Inspector, {
+    inspect: bytes =>
+      Effect.tryPromise({
+        try: () =>
+          images.info(
+            new Blob([bytes]).stream() as unknown as Parameters<ImagesBinding['info']>[0],
+          ),
+        catch: cause => cause,
+      }).pipe(
+        Effect.flatMap(info =>
+          // An SVG's answer has no width: it has no size in pixels.
+          'width' in info
+            ? Effect.succeed({
+                width: info.width,
+                height: info.height,
+                alpha: info.format !== 'image/jpeg',
+                thumbnail: Option.none(),
+              })
+            : Effect.fail(info),
+        ),
+        Effect.catch(cause =>
+          Effect.logWarning('Media.inspect failed', cause).pipe(
+            Effect.andThen(Effect.fail(new TransformFailed({}))),
+          ),
         ),
       ),
   })

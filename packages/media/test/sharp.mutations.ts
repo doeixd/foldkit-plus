@@ -5,6 +5,24 @@
  */
 export default [
   {
+    name: 'a transparent original is read as opaque',
+    edits: [
+      { file: '../src/sharp/index.ts', find: 'alpha: !stats.isOpaque,', replace: 'alpha: false,' },
+    ],
+    tests: ['packages/media/test/sharp.test.ts'],
+  },
+  {
+    name: 'an inspected original has no thumbnail',
+    edits: [
+      {
+        file: '../src/sharp/index.ts',
+        find: 'thumbnail: Option.some({',
+        replace: 'thumbnail: Option.none(), unused: ({',
+      },
+    ],
+    tests: ['packages/media/test/sharp.test.ts'],
+  },
+  {
     name: 'transforms are not limited',
     edits: [
       {

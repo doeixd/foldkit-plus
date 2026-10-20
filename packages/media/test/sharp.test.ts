@@ -7,12 +7,17 @@
  * image are a 502. `limitTransforms` holds transforms in flight to its count.
  */
 import { createHash } from 'node:crypto'
-import { Effect, Layer, Option, Ref } from 'effect'
+import { Effect, Exit, Layer, Option, Ref } from 'effect'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import { Variant } from 'foldkit-media'
-import { Transformer, limitTransforms, serveFetch } from 'foldkit-media/server'
-import { transformerSharp } from 'foldkit-media/sharp'
+import {
+  Transformer,
+  describe as describeOriginal,
+  limitTransforms,
+  serveFetch,
+} from 'foldkit-media/server'
+import { inspectorSharp, transformerSharp } from 'foldkit-media/sharp'
 import { memoryStores } from './stores.js'
 
 const hashOf = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
@@ -134,5 +139,58 @@ describe('limitTransforms', () => {
 
   it('runs them all at once without it', async () => {
     expect(await runFour(layer => layer)).toBe(4)
+  })
+})
+
+describe('inspectorSharp and describe', () => {
+  const describeWith = (bytes: Uint8Array<ArrayBuffer>, maxPixels?: number) =>
+    Effect.runPromise(
+      Effect.exit(
+        describeOriginal('photo.png', bytes).pipe(
+          Effect.provide(inspectorSharp(maxPixels === undefined ? {} : { maxPixels })),
+        ),
+      ),
+    )
+
+  it('reads an opaque photograph’s size, hash and ThumbHash', async () => {
+    const exit = await describeWith(original)
+    const asset = Exit.isSuccess(exit) ? exit.value : expect.unreachable()
+    expect([asset.key, asset.width, asset.height, asset.alpha]).toEqual([
+      'photo.png',
+      640,
+      320,
+      false,
+    ])
+    expect(asset.hash).toEqual(Option.some(hashOf(original)))
+    expect(Option.map(asset.placeholder, placeholder => placeholder._tag)).toEqual(
+      Option.some('ThumbHash'),
+    )
+  })
+
+  it.each([
+    ['transparent', 0.5, true],
+    ['opaque, though it has an alpha channel', 1, false],
+  ])('reads a PNG that is %s', async (_, alpha, transparent) => {
+    const png = new Uint8Array(
+      await sharp({
+        create: { width: 40, height: 20, channels: 4, background: { r: 0, g: 128, b: 128, alpha } },
+      })
+        .png()
+        .toBuffer(),
+    )
+    const exit = await describeWith(png)
+    expect(Exit.isSuccess(exit) && exit.value.alpha).toBe(transparent)
+  })
+
+  it('refuses an original above the pixel limit, and bytes that are not an image', async () => {
+    const tooLarge = await describeWith(original, 1000)
+    const garbage = await describeWith(notAnImage)
+    expect(
+      [tooLarge, garbage].map(exit =>
+        Exit.isFailure(exit)
+          ? Option.map(Exit.findErrorOption(exit), error => error._tag)
+          : Option.none(),
+      ),
+    ).toEqual([Option.some('OriginalTooLarge'), Option.some('TransformFailed')])
   })
 })

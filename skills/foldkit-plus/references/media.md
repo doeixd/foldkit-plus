@@ -92,7 +92,10 @@ concurrency limit), and `layer` coalesces concurrent misses. Rate limits apply t
 `admissionRateLimiter` (Effect's `RateLimiter`) or `admissionRateLimit` (a
 Workers binding), a 429 with `Retry-After`. A static site writes its hosted variants out at
 build with `materialize`, as `foldkit-ssr`'s `staticSite` `emit`, and adds
-`headersRule()` to its `_headers`. Variants
+`headersRule()` to its `_headers`. Facts are derived once where an original
+enters: `describe(key, bytes)` through an `Inspector` (`inspectorSharp`,
+`inspectorImages`), and `factsOf(url, { allow })` for an image named only by
+URL, kept by URL and revalidated with its `ETag`. Variants
 are a cache: a store that fails is answered by making the variant.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),

@@ -5,6 +5,64 @@
  */
 export default [
   {
+    name: 'facts are read from a host that ends with an allowed one',
+    edits: [
+      {
+        file: '../src/server/facts.ts',
+        find: 'options.allow.includes(target.hostname)',
+        replace: 'options.allow.some(allowed => target.hostname.endsWith(allowed))',
+      },
+    ],
+    tests: ['packages/media/test/facts.test.ts'],
+  },
+  {
+    name: 'facts are read over plain http',
+    edits: [
+      { file: '../src/server/facts.ts', find: "target.protocol === 'https:' && ", replace: '' },
+    ],
+    tests: ['packages/media/test/facts.test.ts'],
+  },
+  {
+    name: 'a redirect is followed anywhere',
+    edits: [
+      {
+        file: '../src/server/facts.ts',
+        find: 'if (!allowed(target))',
+        replace: 'if (hop === 0 && !allowed(target))',
+      },
+    ],
+    tests: ['packages/media/test/facts.test.ts'],
+  },
+  {
+    name: 'a body of any size is read',
+    edits: [
+      { file: '../src/server/facts.ts', find: 'if (size > maxBytes) {', replace: 'if (false) {' },
+    ],
+    tests: ['packages/media/test/facts.test.ts'],
+  },
+  {
+    name: 'kept facts are asked for without their ETag',
+    edits: [
+      {
+        file: '../src/server/facts.ts',
+        find: "onSome: tag => ({ 'if-none-match': tag })",
+        replace: 'onSome: () => ({})',
+      },
+    ],
+    tests: ['packages/media/test/facts.test.ts'],
+  },
+  {
+    name: 'an unchanged original is not taken from the kept facts',
+    edits: [
+      {
+        file: '../src/server/facts.ts',
+        find: 'if (response.status === 304 && Option.isSome(cached)) return cached.value.asset',
+        replace: '',
+      },
+    ],
+    tests: ['packages/media/test/facts.test.ts'],
+  },
+  {
     name: 'a variant two pages name is made twice',
     edits: [
       {

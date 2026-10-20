@@ -8,19 +8,20 @@
  */
 import { createHash } from 'node:crypto'
 import type { Cache, ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/workers-types'
-import { Effect, Layer } from 'effect'
+import { Effect, Exit, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { Miniflare, Response as WorkerResponse } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   admissionRateLimit,
+  inspectorImages,
   keyValueStoreR2,
   originalsR2,
   transformerImages,
   variantsR2,
 } from 'foldkit-media/cloudflare'
 import { Variant } from 'foldkit-media'
-import { serveFetch } from 'foldkit-media/server'
+import { Inspector, serveFetch } from 'foldkit-media/server'
 
 interface Env {
   readonly MEDIA: R2Bucket
@@ -207,4 +208,41 @@ describe('keyValueStoreR2', () => {
       ),
     ).toBe(0)
   }, 120_000)
+})
+
+describe('inspectorImages', () => {
+  const inspect = (bytes: Uint8Array<ArrayBuffer>) =>
+    Effect.runPromise(
+      Effect.exit(
+        Inspector.use(inspector => inspector.inspect(bytes)).pipe(
+          Effect.provide(inspectorImages(env.IMAGES)),
+        ),
+      ),
+    )
+  const encoded = async (format: 'image/png' | 'image/jpeg') => {
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" fill="teal"/></svg>'
+    const result = await env.IMAGES.input(stream(svg)).output({ format })
+    return new Uint8Array(await result.response().arrayBuffer())
+  }
+
+  it.each([
+    ['a PNG, taken to be transparent', 'image/png', true],
+    ['a JPEG, which cannot be', 'image/jpeg', false],
+  ] as const)('reads the size of %s, with no thumbnail', async (_, format, alpha) => {
+    const exit = await inspect(await encoded(format))
+    expect(Exit.isSuccess(exit) ? exit.value : undefined).toEqual({
+      width: 300,
+      height: 120,
+      alpha,
+      thumbnail: Option.none(),
+    })
+  })
+
+  it('refuses an SVG, which has no size in pixels', async () => {
+    const svg = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>',
+    )
+    expect(Exit.isFailure(await inspect(svg))).toBe(true)
+  })
 })

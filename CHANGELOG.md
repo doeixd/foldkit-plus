@@ -44,6 +44,9 @@ version changed; `pnpm` skips versions already in the registry.
   `admissionRateLimiter` (Effect's `RateLimiter`) or `admissionRateLimit` (a Workers rate-limit
   binding) answers a 429 with `Retry-After`. `materialize` writes the hosted variants a static site's pages
   name, as `foldkit-ssr`'s `emit`, and `headersRule()` is the `_headers` rule they need.
+  `describe` derives an original's facts through an `Inspector` (`inspectorSharp`,
+  `inspectorImages`), and `factsOf(url)` describes an image named only by URL, from allowed hosts,
+  kept and revalidated with its `ETag`.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

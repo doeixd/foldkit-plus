@@ -773,9 +773,12 @@ miniflare and the Images binding along the way, changed the plan from here.
   (§18.5) covers the common case, one crop that keeps its subject.
 - **unpic's fit.** If probing shows its types or its re-transform are not what
   §5 needs, the third-party providers are written here, starting with Shopify.
-- **Thumbnails in a Worker.** *Answered by probing:* the Images binding's
-  `output` takes `format: 'rgba'`, raw pixels, so a Worker computes the
-  ThumbHash from a downscale the binding makes, with no decoder of its own.
+- **Thumbnails in a Worker.** The Images binding's `output` takes
+  `format: 'rgba'`, raw pixels, but not offline: miniflare answers "RGB/RGBA
+  output is not supported in local mode" (9520), so a layer using it could not
+  be tested. `inspectorImages` makes no thumbnail; a ThumbHash on Workers waits
+  on either a PNG output decoded in JavaScript or computing it in the browser
+  at upload.
 - **`PersistedCache` on Node** (§22.3): whether it can keep successes and not
   failures.
 - **`closeBundle` ordering** (§19.2): whether Vite runs plugins' `closeBundle`
@@ -892,6 +895,12 @@ the files it wrote and fails the build above a configured maximum (Cloudflare
 Pages: 20,000 files on the free plan).
 
 ### 19.3 Facts for images named only by URL
+
+*Built as `factsOf(url, { allow, maxBytes?, cache?, fetch? })` over
+`describe` and an `Inspector` service of its own (not a `Transformer`
+method, which every fake transformer would have had to grow). Rendering
+content with the facts it finds is the adoption step. On Workers
+`inspectorImages` reads the size alone: see §17.*
 
 A rich-text `Image` atom or a CMS block may hold a `src` and no facts, and an
 `img` with no `width` and `height` moves the page when it arrives. During
