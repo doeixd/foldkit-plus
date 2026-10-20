@@ -847,7 +847,7 @@ export const initial: Model = {
     color: ColorPicker.color('#14b8a6'),
     format: 'oklch',
   }),
-  brandPopover: UiPopover.init({ id: 'preview-brand-popover' }),
+  brandPopover: UiPopover.init({ id: 'preview-brand-popover', contentFocus: true }),
   twoMonths: twoMonthsInit(),
   dropdownCalendar: UiCalendar.init({ id: 'preview-calendar-selects', today }),
   dropdownDay: DateSelection.empty('Single'),

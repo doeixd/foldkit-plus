@@ -1,5 +1,6 @@
-import type { RenderInfo } from '@foldkit/ui/popover'
-import { Effect, Option, Schema, Stream } from 'effect'
+import type { AnchorConfig } from '@foldkit/ui/anchor'
+import * as UiPopover from '@foldkit/ui/popover'
+import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import { PointerMoved, PointerPosition, PointerPressed } from 'foldkit-primitives/dom'
 import * as Command from 'foldkit/command'
@@ -8,6 +9,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
+import { idSelector } from './datePickerUtils.js'
 import * as Popover from './popover.js'
 import type { MixinList } from './resolve.js'
 import * as Slider from './slider.js'
@@ -560,7 +562,15 @@ const paintOf = (value: Color): Record<string, string> => {
   }
 }
 
-export const view = <Outer>(options: ColorPickerView<Outer>, h: HtmlBuilder<Outer>): Html => {
+export const view = <Outer>(options: ColorPickerView<Outer>, h: HtmlBuilder<Outer>): Html =>
+  drawn(options, h, [])
+
+const drawn = <Outer>(
+  options: ColorPickerView<Outer>,
+  h: HtmlBuilder<Outer>,
+  // What the popover adds to the root: the Mount that closes it when focus leaves.
+  rootAttributes: ReadonlyArray<ReturnType<HtmlBuilder<Outer>['OnMount']>>,
+): Html => {
   const builders = buildersOf(options, h)
   const { model, onMessage: lift } = options
   const { color: current } = model
@@ -581,6 +591,7 @@ export const view = <Outer>(options: ColorPickerView<Outer>, h: HtmlBuilder<Oute
       h.AriaLabelledBy(labelId),
       h.Style(paintOf(current)),
       ...(disabled ? [h.DataAttribute('disabled', '')] : []),
+      ...rootAttributes,
     ]),
     [
       h.span(builders.label.attrs([h.Id(labelId)]), [options.label]),
@@ -757,33 +768,97 @@ export const view = <Outer>(options: ColorPickerView<Outer>, h: HtmlBuilder<Oute
 }
 
 export interface ColorPickerPopover<Message> extends ColorPickerView<Message> {
+  /**
+   * The Popover's Model, made with `contentFocus: true`
+   * (`Popover.init({ id, contentFocus: true })` from `@foldkit/ui/popover`):
+   * the picker owns its panel's focus, so a press inside never closes it.
+   */
+  readonly popover: UiPopover.Model
+  /** The Popover's Messages, for `Popover.update`. */
+  readonly onPopover: (message: UiPopover.Message) => NoInfer<Message>
+  /** Where the panel opens; default below the trigger, at its start. */
+  readonly anchor?: AnchorConfig | undefined
   /** The Popover's own look and Mixins, as `Popover.toView` takes them. */
-  readonly popover?: MixinList<Message> | undefined
+  readonly popoverMixins?: MixinList<Message> | undefined
+}
+
+const DEFAULT_ANCHOR: AnchorConfig = {
+  placement: 'bottom-start',
+  gap: 4,
+  padding: 8,
+  portal: false,
 }
 
 /**
- * The picker in the package's Popover: a `toView` for upstream Popover's
- * view inputs, whose trigger is a swatch of the color and its text, and whose
- * panel holds the picker. The Popover's open state is its Submodel's.
+ * Focus going from the picker to an element outside it, as a Mount on its
+ * root: the Popover's `BlurredPanel`, which closes it without taking focus
+ * back from where Tab took it (and, as upstream decides, keeps open a panel a
+ * mouse opened). Focus going nowhere (a press on the panel's words, the window
+ * losing focus) leaves it open, and a press outside is the backdrop's.
  */
-export const popover =
-  <Outer>(options: ColorPickerPopover<Outer>, h: HtmlBuilder<Outer>) =>
-  (render: RenderInfo): Html => {
-    const builders = buildersOf(options, h)
-    return Popover.toView(options.popover ?? [], { h }, drawn =>
-      h.div(builders.picker.attrs([h.Style(paintOf(options.model.color))]), [
-        h.button(drawn.button, [
-          h.span(builders.trigger.attrs(), [
-            h.span(builders.swatch.attrs([h.AriaHidden(true)]), []),
-            h.span(builders.value.attrs(), [format(options.model.color, options.model.format)]),
+const LeftPicker = Mount.defineStream('ColorPickerLeft', {
+  messages: [UiPopover.Message.BlurredPanel],
+  execute: ({ element }) =>
+    Stream.callback<UiPopover.BlurredPanel>(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const left = (event: globalThis.Event) => {
+            const to = event instanceof FocusEvent ? event.relatedTarget : null
+            if (to instanceof Node && !element.contains(to))
+              Queue.offerUnsafe(queue, UiPopover.Message.BlurredPanel())
+          }
+          element.addEventListener('focusout', left)
+          return left
+        }),
+        left => Effect.sync(() => element.removeEventListener('focusout', left)),
+      ),
+    ),
+})
+
+/**
+ * The picker behind a swatch of its color and its text, in the package's
+ * Popover. The panel opens on the area's thumb, and closes on Escape, a press
+ * outside, or focus leaving it (unless a mouse opened it); a press or a drag
+ * anywhere inside keeps it open, whatever opened it. The open state is the
+ * Popover's Model.
+ */
+export const popover = <Outer>(options: ColorPickerPopover<Outer>, h: HtmlBuilder<Outer>): Html => {
+  if (!options.popover.contentFocus)
+    throw new Error(
+      `ColorPicker.popover: make the Popover "${options.popover.id}" with contentFocus: true; ` +
+        'without it, focus moving into the picker closes the panel under a finger or the keys',
+    )
+  const builders = buildersOf(options, h)
+  return h.submodel({
+    slotId: options.popover.id,
+    model: options.popover,
+    view: UiPopover.view,
+    viewInputs: {
+      anchor: options.anchor ?? DEFAULT_ANCHOR,
+      focusSelector: idSelector(`${options.model.id}-area`),
+      toView: Popover.toView(options.popoverMixins ?? [], { h }, shown =>
+        h.div(builders.picker.attrs([h.Style(paintOf(options.model.color))]), [
+          h.button(shown.button, [
+            h.span(builders.trigger.attrs(), [
+              h.span(builders.swatch.attrs([h.AriaHidden(true)]), []),
+              h.span(builders.value.attrs(), [format(options.model.color, options.model.format)]),
+            ]),
           ]),
+          ...(shown.isVisible
+            ? [
+                h.div(shown.backdrop, []),
+                h.div(shown.layer, [
+                  h.div(shown.panel, [
+                    drawn(options, h, [
+                      h.OnMount(Mount.mapMessage(LeftPicker(), options.onPopover)),
+                    ]),
+                  ]),
+                ]),
+              ]
+            : []),
         ]),
-        ...(drawn.isVisible
-          ? [
-              h.div(drawn.backdrop, []),
-              h.div(drawn.layer, [h.div(drawn.panel, [view(options, h)])]),
-            ]
-          : []),
-      ]),
-    )(render)
-  }
+      ),
+    },
+    toParentMessage: options.onPopover,
+  })
+}

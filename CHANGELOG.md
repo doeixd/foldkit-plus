@@ -69,6 +69,10 @@ version changed; `pnpm` skips versions already in the registry.
   it (Shopify, Cloudinary, imgix and the rest unpic knows, an optional peer), or none: the `img`
   asks for `auto`, a format the host ignores is never offered as a `source`, and an asset on another
   host gets no URL.
+  `foldkit-media/server`'s upload route (`uploadLayer`, `serveUploadFetch`): `POST /_media/upload`
+  takes an `image/*` body under a byte cap, keeps it by its SHA-256 in `Uploads`
+  (`uploadsKeyValueStore`, `foldkit-media/cloudflare`'s `uploadsR2`), and answers its facts as an
+  `ImageAsset`; who may upload is a required `UploadPolicy`, asked before the body is read.
 - `foldkit-media`: `Icon.draw(icon, h, { key?, size? })` draws an `IconData` as inline SVG through
   any view builder of its shape (`SvgBuilder`; Foldkit's `h` is one), every attribute in the
   server's markup, `1em` square unless `size` is given and kept so in a squeezed flex row,
@@ -99,6 +103,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-mixins-ui`: `ColorPicker.popover` draws the whole Popover, not a `toView` for one:
+  it takes the Popover's Model and Messages (`popover`, `onPopover`, and `anchor`;
+  `popoverMixins` is the old `popover` option) and requires the Popover made with
+  `contentFocus: true`, throwing for one without. The panel opens on the area's thumb, and
+  focus leaving it closes one the keys or a finger opened. A popover opened by touch, a pen or the keys closed at the
+  first press inside it, so the area and the tracks could not be dragged.
 - `foldkit-mixins-ui`: a CardGroup's highlight is a film over the card the pointer is on, the
   card's size, whatever its `surface`. Under cards with a surface it showed only as a rim in the
   gap around them, beside the card's own hover; a card in a group with a highlight now draws no

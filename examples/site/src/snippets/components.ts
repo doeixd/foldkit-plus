@@ -6830,7 +6830,11 @@ export const colorPicker = <Message>(
 // #region color-picker-popover
 const PickerPopoverStyle = forSlots(PopoverSlots)(Recipes.Popover({}))
 
-/** The picker behind a swatch of its color: the popover's open state is its Submodel's. */
+/**
+ * The picker behind a swatch of its color. Its Popover is made with
+ * `UiPopover.init({ id, contentFocus: true })`: the picker owns the panel's
+ * focus, so a press or a drag inside never closes it.
+ */
 export const colorPickerPopover = <Message>(
   style: NamedStyle<typeof ColorPickerSlots>,
   state: { readonly picker: ColorPicker.Model; readonly popover: UiPopover.Model },
@@ -6838,27 +6842,20 @@ export const colorPickerPopover = <Message>(
   onPopover: (message: UiPopover.Message) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
-  h.submodel({
-    slotId: state.popover.id,
-    model: state.popover,
-    view: UiPopover.view,
-    viewInputs: {
-      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
-      toView: ColorPicker.popover(
-        {
-          model: state.picker,
-          onMessage,
-          label: 'Brand color',
-          presets: ACCENTS,
-          style,
-          slider: ChannelStyle,
-          popover: [PickerPopoverStyle.mixin],
-        },
-        h,
-      ),
+  ColorPicker.popover(
+    {
+      model: state.picker,
+      onMessage,
+      popover: state.popover,
+      onPopover,
+      label: 'Brand color',
+      presets: ACCENTS,
+      style,
+      slider: ChannelStyle,
+      popoverMixins: [PickerPopoverStyle.mixin],
     },
-    toParentMessage: onPopover,
-  })
+    h,
+  )
 // #endregion
 
 // #region tree-view-basic

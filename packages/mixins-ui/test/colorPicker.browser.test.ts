@@ -6,7 +6,8 @@
  * commits on Enter and goes back to the color when it names none, each
  * track runs from its minimum's side (the right one right to left), alpha
  * shows over a checkerboard, and the popover opens the picker from a swatch
- * of the color.
+ * of the color, on its thumb, stays open for a press, a drag or focus moving
+ * inside it however it was opened, and closes when focus leaves it.
  */
 import * as UiPopover from '@foldkit/ui/popover'
 import { Schema } from 'effect'
@@ -78,7 +79,7 @@ const mount = (
       init: () => ({
         model: {
           picker: ColorPicker.init({ id: 'accent', color: ColorPicker.color('#3b82f6') }),
-          popover: UiPopover.init({ id: 'accent-popover' }),
+          popover: UiPopover.init({ id: 'accent-popover', contentFocus: true }),
         },
       }),
       update: (model: Model, message: Message) => {
@@ -100,20 +101,19 @@ const mount = (
           [h.Style({ padding: '2rem', inlineSize: '20rem' })],
           [
             options.inPopover === true
-              ? h.submodel({
-                  slotId: 'accent-popover',
-                  model: model.popover,
-                  view: UiPopover.view,
-                  viewInputs: {
-                    anchor: { placement: 'bottom-start', gap: 4, portal: false },
-                    toView: ColorPicker.popover(
-                      { ...shared, model: model.picker, popover: [popoverStyle.mixin] },
-                      h,
-                    ),
+              ? ColorPicker.popover(
+                  {
+                    ...shared,
+                    model: model.picker,
+                    popover: model.popover,
+                    onPopover: GotPopover,
+                    popoverMixins: [popoverStyle.mixin],
                   },
-                  toParentMessage: GotPopover,
-                })
+                  h,
+                )
               : ColorPicker.view({ ...shared, model: model.picker }, h),
+            // Somewhere for Tab to go past the picker.
+            h.button([h.Type('button')], ['After']),
           ],
         ),
     }),
@@ -278,4 +278,71 @@ test('the popover opens the picker from a swatch of the color', async () => {
   } finally {
     handle.dispose()
   }
+})
+
+/** The popover, opened from the keys: the way a pointer of a mouse never comes into it. */
+const openFromKeys = async () => {
+  const button = await vi.waitFor(() => {
+    const found = document.getElementById('accent-popover-button')
+    expect(found).not.toBeNull()
+    return found!
+  })
+  button.focus()
+  await userEvent.keyboard('{Enter}')
+  await vi.waitFor(() => expect(document.getElementById('accent-area')).not.toBeNull())
+}
+const isOpen = () => document.getElementById('accent-area') !== null
+
+test('opened from the keys, the panel is on its thumb, and a press and a drag inside keep it open', async () => {
+  const handle = mount({ inPopover: true })
+  try {
+    await openFromKeys()
+    await vi.waitFor(() => expect(document.activeElement).toBe(thumb()))
+    const box = area().getBoundingClientRect()
+    await userEvent.click(area(), { position: { x: box.width * 0.25, y: box.height * 0.5 } })
+    await vi.waitFor(() =>
+      expect(thumb().getAttribute('aria-valuetext')).toBe('Saturation 25%, Brightness 50%'),
+    )
+    // A press on its words, which take no focus, is a press inside too.
+    await userEvent.click(document.getElementById('accent-label')!)
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    expect(isOpen()).toBe(true)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('focus moving inside the panel keeps it open, and leaving it closes it', async () => {
+  const handle = mount({ inPopover: true })
+  try {
+    await openFromKeys()
+    await vi.waitFor(() => expect(document.activeElement).toBe(thumb()))
+    const panel = thumb().closest('[popover]')!
+    await userEvent.tab()
+    expect(panel.contains(document.activeElement)).toBe(true)
+    expect(isOpen()).toBe(true)
+    while (panel.contains(document.activeElement)) await userEvent.tab()
+    expect(document.activeElement?.textContent).toBe('After')
+    await vi.waitFor(() => expect(isOpen()).toBe(false))
+    // Closed where Tab went: the trigger does not take focus back.
+    expect(document.activeElement?.textContent).toBe('After')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a Popover that keeps its own focus is refused, naming what it needs', () => {
+  expect(() =>
+    ColorPicker.popover(
+      {
+        label: 'Accent',
+        model: ColorPicker.init({ id: 'refused' }),
+        onMessage: GotPicker,
+        popover: UiPopover.init({ id: 'refused-popover' }),
+        onPopover: GotPopover,
+      },
+      // Refused before anything is drawn, so no builder is reached.
+      undefined as never,
+    ),
+  ).toThrow(/contentFocus: true/)
 })
