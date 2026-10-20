@@ -134,7 +134,7 @@ export const handlers = (options: Options = {}) => {
        * it makes is served while kept and else sent to its current URL; anything else (a later
        * revision, a width another release offers) is `Unoffered`, kept briefly.
        */
-      const elsewhere = (hash: string, spelling: string) => {
+      const elsewhere = (hash: string, spelling: string, ifNoneMatch: string | undefined) => {
         const current = Variant.respell(spelling, space.revision)
         if (
           Variant.revisionOf(spelling) >= space.revision ||
@@ -143,9 +143,11 @@ export const handlers = (options: Options = {}) => {
           return Effect.succeed(refused(Answer.cases.Unoffered.make({})))
         }
         const key = `${hash}/${spelling}`
+        const etag = `"${key}"`
+        if (matches(ifNoneMatch, etag)) return Effect.succeed(notModified(etag))
         return Effect.map(variants.get(key), kept =>
           Option.match(kept, {
-            onSome: ({ encoded, from }) => served(`"${key}"`, from, encoded),
+            onSome: ({ encoded, from }) => served(etag, from, encoded),
             onNone: () =>
               refused(
                 Answer.cases.Moved.make({
@@ -163,7 +165,7 @@ export const handlers = (options: Options = {}) => {
               onNone: () => Effect.succeed(refused(Answer.cases.Malformed.make({}))),
               onSome: hash =>
                 isSpelling(params.variant)
-                  ? elsewhere(hash, params.variant)
+                  ? elsewhere(hash, params.variant, request.headers['if-none-match'])
                   : Effect.succeed(refused(Answer.cases.Malformed.make({}))),
             }),
           onSome: ([hash, variant]) =>

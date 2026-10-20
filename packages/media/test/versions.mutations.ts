@@ -68,8 +68,19 @@ export default [
     edits: [
       {
         file: handlers,
-        find: 'onSome: ({ encoded, from }) => served(`"${key}"`, from, encoded),',
+        find: 'onSome: ({ encoded, from }) => served(etag, from, encoded),',
         replace: "onSome: () => refused(Answer.cases.Moved.make({ location: '/' })),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an earlier revision the client holds is sent again',
+    edits: [
+      {
+        file: handlers,
+        find: 'if (matches(ifNoneMatch, etag)) return Effect.succeed(notModified(etag))',
+        replace: 'if (false) return Effect.succeed(notModified(etag))',
       },
     ],
     tests,

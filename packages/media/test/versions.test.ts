@@ -144,7 +144,8 @@ const serverAtRevision2 = () => {
         transformer,
       ),
   })
-  return (path: string) => fetch(new Request(`http://media.test${path}`), {})
+  return (path: string, init?: RequestInit) =>
+    fetch(new Request(`http://media.test${path}`, init), {})
 }
 
 describe('a server of a later revision', () => {
@@ -156,6 +157,14 @@ describe('a server of a later revision', () => {
   it('serves an earlier revision’s variant while it is kept', async () => {
     const response = await serverAtRevision2()(`/_image/${HASH}/w320.webp`)
     expect([response.status, await response.text()]).toEqual([200, 'kept from revision 0'])
+  })
+
+  it('answers an earlier revision the client already holds without reading its body', async () => {
+    const path = `/_image/${HASH}/w320.webp`
+    const response = await serverAtRevision2()(path, {
+      headers: { 'if-none-match': `"${HASH}/w320.webp"` },
+    })
+    expect([response.status, await response.text()]).toEqual([304, ''])
   })
 
   it('sends an earlier revision it no longer keeps to the current URL, for good', async () => {
