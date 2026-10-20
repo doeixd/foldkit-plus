@@ -5,6 +5,61 @@
  */
 export default [
   {
+    name: 'a variant two pages name is made twice',
+    edits: [
+      {
+        file: '../src/server/materialize.ts',
+        find: '...new Set(options.pages.flatMap(page => page.html.match(VARIANT_PATH) ?? [])),',
+        replace: '...options.pages.flatMap(page => page.html.match(VARIANT_PATH) ?? []),',
+      },
+    ],
+    tests: ['packages/media/test/materialize.test.ts'],
+  },
+  {
+    name: 'a variant that cannot be made is left out quietly',
+    edits: [
+      {
+        file: '../src/server/materialize.ts',
+        find: 'failed.push(`${path}: ${response.status}`)',
+        replace: '',
+      },
+    ],
+    tests: ['packages/media/test/materialize.test.ts'],
+  },
+  {
+    name: 'any number of variants is written',
+    edits: [
+      {
+        file: '../src/server/materialize.ts',
+        find: 'if (paths.length > maxFiles) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: ['packages/media/test/materialize.test.ts'],
+  },
+  {
+    name: 'a _headers without the rule passes',
+    edits: [
+      {
+        file: '../src/server/materialize.ts',
+        find: '.some(line => line.trim() === PATTERN)',
+        replace: '.some(() => true)',
+      },
+    ],
+    tests: ['packages/media/test/materialize.test.ts'],
+  },
+  {
+    name: 'the rule carries one answer’s ETag',
+    edits: [
+      {
+        file: '../src/server/materialize.ts',
+        find: ".filter(([name]) => name !== 'etag' && name !== 'server-timing')",
+        replace: '',
+      },
+    ],
+    tests: ['packages/media/test/materialize.test.ts'],
+  },
+  {
     name: 'concurrent misses never share',
     edits: [
       {

@@ -64,6 +64,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261013.1",
+    "@effect/platform-node": "^4.0.4",
     "effect": "^4.0.4",
     "miniflare": "4.20260730.0",
     "sharp": "^0.35.4",

@@ -214,6 +214,7 @@ format is in the URL.
 ```ts
 const stores = Layer.mergeAll(originalsKeyValueStore(), variantsKeyValueStore()).pipe(
   Layer.provide(KeyValueStore.layerFileSystem('./media')),
+  Layer.provide(NodeServices.layer),
 )
 ```
 
@@ -259,6 +260,7 @@ const media = layer().pipe(
     ),
   ),
   Layer.provide(KeyValueStore.layerFileSystem('./media')),
+  Layer.provide(NodeServices.layer),
 )
 ```
 
@@ -271,6 +273,44 @@ const media = layer().pipe(
 - `layer` coalesces: concurrent misses for one variant share one transform
   and one write (`coalesce`, on by default here and off for `serveFetch`,
   since a Worker request cannot wait on another's).
+
+### Written out at build
+
+A static site needs no server for its hosted images: `materialize` makes every
+variant the built pages name, through the server's own handler, and returns
+them as files at their own paths, for `foldkit-ssr`'s `staticSite` `emit`:
+
+```ts
+const media = serveFetch<object>({
+  layer: () =>
+    Layer.mergeAll(transformerSharp(), originalsKeyValueStore(), variantsKeyValueStore()).pipe(
+      Layer.provide(KeyValueStore.layerFileSystem('.media')),
+      // The disk itself: Node's file system and paths.
+      Layer.provide(NodeServices.layer),
+    ),
+})
+const env = {}
+
+export const site = {
+  // …
+  emit: pages =>
+    materialize({
+      pages,
+      fetch: request => media(request, env),
+      headersFile: readFileSync('public/_headers', 'utf8'),
+    }),
+}
+```
+
+- A variant that cannot be made fails the build, naming each one: a page that
+  names it would show a broken image.
+- More than `maxFiles` (20,000 by default, Cloudflare Pages' free limit) fails
+  the build.
+- A static host sends what its `_headers` says. Add `headersRule()` (what the
+  server sends a variant) to `public/_headers`; given that file's text as
+  `headersFile`, the build fails without it, since Pages would otherwise serve
+  every variant with `max-age=0`.
+- With `Variants` on disk, a second build writes without encoding again.
 
 ### On Cloudflare
 

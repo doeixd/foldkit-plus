@@ -14,3 +14,4 @@ export {
 } from './services.js'
 export { originalsKeyValueStore, variantsKeyValueStore } from './stores.js'
 export { Admission, RateLimited, admissionRateLimiter } from './admission.js'
+export { headersRule, materialize, type Materialized } from './materialize.js'

@@ -870,6 +870,11 @@ time. `Picture.preload` stays for a head built by hand.
 
 ### 19.2 Hosted variants written out at build
 
+*Built: `foldkit-ssr`'s `emit(pages)` (refusing a path outside the output or on
+a file the build or the client build writes), and `materialize({ pages, fetch,
+maxFiles?, headersFile? })`, which fetches each variant through `serveFetch`'s
+handler. A plugin of its own was not tried: the hook is smaller.*
+
 `Media.materialize` takes the built pages, finds every `/_image/` URL in their
 `srcset`s and `src`s, and runs the same handlers in the build process (a sharp
 `Transformer`, `Originals` from the file system or a `KeyValueStore`) to write
@@ -1161,6 +1166,8 @@ and the Cache API layer stores what `CDN-Cache-Control` allows.
   `Accept`. A test asserts that no layer adds one.
 
 ### 25.3 Static hosts
+
+*Built as `headersRule()` and `materialize`'s `headersFile` check.*
 
 `Media.materialize` (§19.2) writes files but cannot write their headers. It
 returns them as rules instead, `Media.headers()`: the lines a Pages

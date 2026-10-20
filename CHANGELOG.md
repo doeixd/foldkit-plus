@@ -42,7 +42,8 @@ version changed; `pnpm` skips versions already in the registry.
   refuses an original above its pixel limit with a 413 before decoding it, and runs at most
   `concurrency` transforms (`limitTransforms`); `layer` coalesces concurrent misses for a variant. Rate limits apply to misses only:
   `admissionRateLimiter` (Effect's `RateLimiter`) or `admissionRateLimit` (a Workers rate-limit
-  binding) answers a 429 with `Retry-After`.
+  binding) answers a 429 with `Retry-After`. `materialize` writes the hosted variants a static site's pages
+  name, as `foldkit-ssr`'s `emit`, and `headersRule()` is the `_headers` rule they need.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

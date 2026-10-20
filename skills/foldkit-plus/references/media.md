@@ -90,7 +90,9 @@ Originals and variants are kept in any Effect `KeyValueStore`
 `foldkit-media/sharp` gives `transformerSharp` (a pixel limit and a
 concurrency limit), and `layer` coalesces concurrent misses. Rate limits apply to misses only:
 `admissionRateLimiter` (Effect's `RateLimiter`) or `admissionRateLimit` (a
-Workers binding), a 429 with `Retry-After`. Variants
+Workers binding), a 429 with `Retry-After`. A static site writes its hosted variants out at
+build with `materialize`, as `foldkit-ssr`'s `staticSite` `emit`, and adds
+`headersRule()` to its `_headers`. Variants
 are a cache: a store that fails is answered by making the variant.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
