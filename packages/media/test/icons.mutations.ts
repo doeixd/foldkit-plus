@@ -186,4 +186,38 @@ export default [
     edits: [{ file: '../src/icon.ts', find: 'hash ^= unit.codePointAt(0)!', replace: 'hash ^= 0' }],
     tests,
   },
+  {
+    name: 'a stroke the drawing sets is kept',
+    edits: [{ file: '../src/icon.ts', find: 'written[name] = set[name]!', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a stroke the drawing never sets is never set',
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: 'for (const name of names) if (!found.has(name)) attributes[name] = set[name]!',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'square corners join round',
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: "stroke.corners === 'round' ? 'round' : 'miter'",
+        replace: 'stroke.corners',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a quote is left in the mask url',
+    edits: [
+      { file: '../src/icon.ts', find: '.replace(/[%#<>"]/g,', replace: '.replace(/[%#<>]/g,' },
+    ],
+    tests,
+  },
 ]

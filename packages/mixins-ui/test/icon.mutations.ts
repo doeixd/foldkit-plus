@@ -69,4 +69,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a pack’s strokes are not redrawn',
+    edits: [
+      {
+        file: '../src/icons.ts',
+        find: 'Icon.maskUrl(Icon.withStroke(drawn, stroke))',
+        replace: 'Icon.maskUrl(drawn)',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/iconTokens.test.ts'],
+  },
 ]

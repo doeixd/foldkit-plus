@@ -62,7 +62,9 @@ export const serialize = (icon: IconData): string =>
  * the element it masks paints in `currentColor`.
  */
 export const maskUrl = (icon: IconData): string =>
-  `url("data:image/svg+xml,${encodeURIComponent(serialize(icon))}")`
+  // Only what a data URL in a quoted CSS `url()` cannot hold is escaped: a theme writes every
+  // chrome icon this way, and escaping the spaces, `=` and `/` too adds a quarter to each.
+  `url("data:image/svg+xml,${serialize(icon).replace(/[%#<>"]/g, unsafe => `%${unsafe.charCodeAt(0).toString(16).toUpperCase()}`)}")`
 
 const keys = new WeakMap<IconData, string>()
 
@@ -140,6 +142,49 @@ export const prefixIds = (icon: IconData, prefix: string): IconData => {
   }
   byPrefix.set(prefix, made)
   return made
+}
+
+/** How a drawing's strokes are drawn: their width, and whether their ends and joins are round. */
+export interface Stroke {
+  readonly width?: number | undefined
+  readonly corners?: 'round' | 'square' | undefined
+}
+
+/**
+ * The icon with its strokes redrawn: every `stroke-width`, `stroke-linecap`
+ * and `stroke-linejoin` it sets replaced, or set on its root where it sets
+ * none. A filled icon draws no stroke, so it is unchanged in what shows. For
+ * a mask, whose drawing CSS cannot reach once it is a `url()`.
+ */
+export const withStroke = (icon: IconData, stroke: Stroke): IconData => {
+  const set: Record<string, string> = {}
+  if (stroke.width !== undefined) set['stroke-width'] = String(stroke.width)
+  if (stroke.corners !== undefined) {
+    set['stroke-linecap'] = stroke.corners
+    set['stroke-linejoin'] = stroke.corners === 'round' ? 'round' : 'miter'
+  }
+  const names = Object.keys(set)
+  const found = new Set<string>()
+  const restroke = (attributes: Readonly<Record<string, string>>) => {
+    const written = { ...attributes }
+    for (const name of names) {
+      if (Object.hasOwn(attributes, name)) {
+        written[name] = set[name]!
+        found.add(name)
+      }
+    }
+    return written
+  }
+  const walk = (node: SvgNode): SvgNode => ({
+    tag: node.tag,
+    attributes: restroke(node.attributes),
+    children: node.children.map(walk),
+  })
+  const nodes = icon.nodes.map(walk)
+  const attributes = restroke(icon.attributes)
+  // A property the drawing never sets is set once on the root, which every node inherits.
+  for (const name of names) if (!found.has(name)) attributes[name] = set[name]!
+  return { viewBox: icon.viewBox, attributes, nodes }
 }
 
 type Element<Node, Attribute> = (

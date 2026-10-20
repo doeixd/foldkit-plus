@@ -108,11 +108,32 @@ describe('Theme.tokens', () => {
       'control',
       'type',
       'width',
+      'icon',
       'border',
       'shadow',
       'breakpoint',
       'safe',
     ])
+  })
+
+  it('holds a mask for every icon the components draw, read by name', () => {
+    expect(Object.keys(Theme.tokens.icon)).toEqual([
+      'search',
+      'eye',
+      'eye-off',
+      'pipette',
+      'rotate-ccw',
+      'rotate-cw',
+      'success',
+      'warning',
+      'error',
+      'info',
+      'lock',
+    ])
+    for (const mask of Object.values(Theme.tokens.icon)) {
+      expect(mask).toMatch(/^url\("data:image\/svg\+xml,[^"]+"\)$/)
+    }
+    expect(Theme.ref(Theme.tokens).icon['eye-off']).toBe('var(--fk-icon-eye-off)')
   })
 
   it('draws every shadow in the one color a palette sets, dimmed by the strength knob', () => {

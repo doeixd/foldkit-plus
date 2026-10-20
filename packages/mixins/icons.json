@@ -1,0 +1,17 @@
+{
+  "out": "src/theme/iconMasks.ts",
+  "as": "masks",
+  "icons": {
+    "search": "lucide:search",
+    "eye": "lucide:eye",
+    "eye-off": "lucide:eye-off",
+    "pipette": "lucide:pipette",
+    "rotate-ccw": "lucide:rotate-ccw",
+    "rotate-cw": "lucide:rotate-cw",
+    "success": "lucide:circle-check",
+    "warning": "lucide:triangle-alert",
+    "error": "lucide:circle-x",
+    "info": "lucide:info",
+    "lock": "lucide:lock"
+  }
+}

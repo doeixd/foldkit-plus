@@ -57,6 +57,8 @@ version changed; `pnpm` skips versions already in the registry.
   naming the icon, any element or attribute outside a presentational allowlist, a link or
   `url()` outside the icon, and a CSS escape. `Icon.key(icon)` names an icon by its content, and
   `Icon.prefixIds(icon, prefix)` renames the ids it defines and every reference to them.
+  `Icon.withStroke(icon, { width?, corners? })` redraws an icon's strokes, for a mask CSS cannot
+  reach, and `Icon.maskUrl` escapes only what a quoted CSS `url()` cannot hold, a fifth shorter.
   `foldkit-media/vite`'s `icons({ iconify, folders, dts })` makes icons imports:
   `import { arrowLeft } from 'virtual:foldkit-icons/lucide'` reads an installed Iconify set or a
   folder of the application's SVGs, the bundle holds only what is imported, and a written
@@ -86,6 +88,11 @@ version changed; `pnpm` skips versions already in the registry.
   `Icon.maskUrl`, in place of hand-copied paths, so they are today's Lucide drawings. A drawn
   icon's size is now written in pixels (`width="16px"`), and its stroke sits on each path.
   `foldkit-media` is a new dependency.
+- `foldkit-mixins`: the theme's `icon` tokens are the masks of the icons the components draw
+  themselves (`search`, `eye`, `eye-off`, `pipette`, `rotate-ccw`, `rotate-cw`, `success`, `warning`,
+  `error`, `info`, `lock`; their names are `ChromeIcon`), Lucide's by default, written by `pnpm icons`.
+  `foldkit-mixins-ui`'s `Icons.tokens(pack, { width?, corners? })` is an application's own pack as
+  its own tokens, a pack missing a name being a type error.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

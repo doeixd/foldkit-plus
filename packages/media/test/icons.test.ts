@@ -235,3 +235,26 @@ describe('Icon.key and Icon.prefixIds', () => {
     expect(Icon.prefixIds(plain, 'p')).toBe(plain)
   })
 })
+
+describe('Icon.withStroke', () => {
+  const stroked = parse(
+    '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 1"/></g></svg>',
+    'stroked',
+  )
+
+  it('replaces the strokes the drawing sets, and sets on its root the ones it does not', () => {
+    const redrawn = Icon.withStroke(stroked, { width: 3, corners: 'square' })
+    expect(redrawn.nodes[0]!.attributes).toEqual({
+      fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': '3',
+      'stroke-linecap': 'square',
+    })
+    expect(redrawn.attributes).toEqual({ 'stroke-linejoin': 'miter' })
+    expect(redrawn.nodes[0]!.children).toEqual(stroked.nodes[0]!.children)
+  })
+
+  it('leaves a drawing as it was when asked for nothing', () => {
+    expect(Icon.withStroke(stroked, {})).toEqual(stroked)
+  })
+})

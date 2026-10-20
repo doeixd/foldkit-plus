@@ -465,7 +465,7 @@ tokens -> ref -> pieces -> slots -> sheet
 
 **Tokens are the only values.** `Theme.tokens` (`packages/mixins/src/theme/tokens.ts`)
 is the shipped scales (space, radius, size, leading, weight, motion, width,
-border, shadow, breakpoint, and `safe`, the screen's safe-area insets); the palette derives
+`icon` (the masks of the components' own icons), border, shadow, breakpoint, and `safe`, the screen's safe-area insets); the palette derives
 every color from knobs; `Theme.standard(Theme.make({ … }))` is both, with a theme's knob values.
 Read every value through `Theme.ref` — a group or
 name the theme lacks is a type error, and it reads names, never values, so a

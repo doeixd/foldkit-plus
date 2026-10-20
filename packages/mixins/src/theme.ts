@@ -54,6 +54,8 @@ export {
   tokens,
 } from './theme/tokens.js'
 export type { Role, Rung, Tokens } from './theme/tokens.js'
+/** The icons the shipped components draw themselves, which a pack must hold. */
+export type { IconName as ChromeIcon } from './theme/iconMasks.js'
 export { Knob }
 export type {
   KnobAt,

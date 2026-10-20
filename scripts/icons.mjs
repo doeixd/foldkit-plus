@@ -17,6 +17,7 @@ import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { format } from 'oxfmt'
 import { Schema } from 'effect'
+import { maskUrl } from '../packages/media/src/icon.ts'
 import { fromIconify, IconifySet } from '../packages/media/src/icons/index.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -28,6 +29,9 @@ const posix = path => path.split(sep).join('/')
 
 const Spec = Schema.Struct({
   out: Schema.String,
+  // `data` (the default) writes `IconData`; `masks` writes each icon's CSS mask
+  // `url()`, for a package that must not depend on `foldkit-media`.
+  as: Schema.optional(Schema.Literals(['data', 'masks'])),
   icons: Schema.Record(Schema.String, Schema.String),
 })
 
@@ -70,14 +74,23 @@ for (const dir of specs) {
     const { info, version } = setOf(prefix)
     return `// ${info.name} (${info.license.spdx}, ${info.author.name}): @iconify-json/${prefix} ${version}, ${info.license.url}`
   })
+  const names = `export type IconName = ${entries.map(([name]) => JSON.stringify(name)).join(' | ')}`
   const text = [
     `// Written by \`pnpm icons\` from icons.json. Do not edit.`,
     ...credits,
-    `import type { IconData } from 'foldkit-media'`,
-    '',
-    `export type IconName = ${entries.map(([name]) => JSON.stringify(name)).join(' | ')}`,
-    '',
-    `export const icons: { readonly [Name in IconName]: IconData } = ${JSON.stringify(Object.fromEntries(entries))}`,
+    ...(spec.as === 'masks'
+      ? [
+          names,
+          '',
+          `export const masks: { readonly [Name in IconName]: string } = ${JSON.stringify(Object.fromEntries(entries.map(([name, icon]) => [name, maskUrl(icon)])))}`,
+        ]
+      : [
+          `import type { IconData } from 'foldkit-media'`,
+          '',
+          names,
+          '',
+          `export const icons: { readonly [Name in IconName]: IconData } = ${JSON.stringify(Object.fromEntries(entries))}`,
+        ]),
     '',
   ].join('\n')
   const out = join(dir, spec.out)

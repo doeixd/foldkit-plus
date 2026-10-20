@@ -15,6 +15,7 @@
  */
 import { DiagnosticError } from '../diagnostics.js'
 import { define } from './core.js'
+import { masks } from './iconMasks.js'
 import { standard } from './knobs.js'
 import { asVariables, elevation, reliefs } from './shadows.js'
 
@@ -197,6 +198,11 @@ export const tokens = define({
     'column-md': '14rem',
     'column-lg': '18rem',
   },
+  // The icons the components draw themselves, each a CSS mask `url()` an
+  // element paints in its text's color: Lucide's by default, written by
+  // `pnpm icons`. An application's own pack replaces them as its own tokens
+  // (`Icons.tokens` in `foldkit-mixins-ui`).
+  icon: masks,
   // `glyph` strokes what a recipe draws in CSS as an icon (a check, a
   // chevron): apart from the borders, so thicker borders do not blot them.
   border: {
