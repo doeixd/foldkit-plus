@@ -261,8 +261,8 @@ image that no theme may change; how the background is drawn stays in the recipe.
 
 - `ThumbHash` decodes to a PNG data URL in a pure function, so the server
   render writes it and it paints with the HTML. Decoding is memoized by the
-  hash, since a list redraws the same images. It costs one to two kilobytes of
-  HTML per image.
+  hash, since a list redraws the same images. It costs a few kilobytes of HTML
+  per image (3.3 KB for a 2:1 sample), so a long list may prefer `Color`.
 - `LowRes` needs no build step and works for any provider, at the cost of one
   small request that does not paint with the HTML.
 - **An image with alpha draws no placeholder by default.** A background behind

@@ -88,3 +88,62 @@ describe('Picture.derive', () => {
     )
   })
 })
+
+describe('Picture.derive placeholder', () => {
+  const withPlaceholder = (placeholder: unknown, alpha = false) =>
+    Schema.decodeUnknownSync(ImageAsset)({
+      key: 'hero.jpg',
+      width: 1000,
+      height: 500,
+      alpha,
+      hash: null,
+      placeholder,
+    })
+
+  const placeholderOf = (
+    placeholder: unknown,
+    options: { alpha?: boolean; provider?: Provider.Provider } = {},
+  ) =>
+    Option.flatMap(
+      Picture.derive({
+        asset: withPlaceholder(placeholder, options.alpha),
+        provider: options.provider ?? provider,
+        layout: Layout.FullWidth(),
+      }),
+      picture => picture.placeholder,
+    )
+
+  it.each([
+    ['a color as itself', { _tag: 'Color', value: '#123456' }, '#123456'],
+    ['the provider’s smallest width as a url', { _tag: 'LowRes' }, 'url("/hero-100.webp")'],
+  ])('paints %s', (_, placeholder, expected) => {
+    expect(placeholderOf(placeholder)).toEqual(Option.some(expected))
+  })
+
+  it('paints a ThumbHash as a PNG drawn from it', () => {
+    const painted = Option.getOrThrow(
+      placeholderOf({ _tag: 'ThumbHash', hash: 'XQgOFITodogFp3lnVHgPYPW7Gg==' }),
+    )
+    expect(painted.startsWith('url("data:image/png;base64,')).toBe(true)
+  })
+
+  it('escapes what would end the url', () => {
+    const quoted = Provider.fromFiles(
+      [{ width: 100, format: 'webp', url: String.raw`/a"b\c.webp` }],
+      { sources: [], fallback: 'webp' },
+    )
+    expect(placeholderOf({ _tag: 'LowRes' }, { provider: quoted })).toEqual(
+      Option.some('url("/a%22b%5Cc.webp")'),
+    )
+  })
+
+  it('paints nothing behind a transparent image', () => {
+    expect(placeholderOf({ _tag: 'Color', value: '#123456' }, { alpha: true })).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('paints nothing for an image without one', () => {
+    expect(placeholderOf(null)).toEqual(Option.none())
+  })
+})

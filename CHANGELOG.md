@@ -12,8 +12,9 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-media` 0.0.0, unpublished: responsive images as URLs to write. `Picture.derive` turns
   an `ImageAsset`'s facts, a `Provider` and a `Layout` (`Fixed`, `Constrained`, `FullWidth`) into
   every attribute of an image's markup: `srcset` and a `source` per format from one `Widths`
-  ladder, `sizes`, the reserved box, and loading priority. Providers: `cdnCgi` (Cloudflare's
-  `/cdn-cgi/image/`) and `fromFiles` (a build's variants). See `docs/design/media-DESIGN.md`.
+  ladder, `sizes`, the reserved box, loading priority, and a placeholder background (a color, a
+  ThumbHash, or the smallest width; none behind a transparent image). Providers: `cdnCgi`
+  (Cloudflare's `/cdn-cgi/image/`) and `fromFiles` (a build's variants). See `docs/design/media-DESIGN.md`.
 
 ### Changed
 

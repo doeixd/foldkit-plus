@@ -89,6 +89,20 @@ A provider is a plain value (`Provider.Provider`): `widths`, the `sources`
 formats offered before the `img`, the `img`'s own `fallback` encoding, and a
 `url` function answering `Option<string>`.
 
+## Placeholders
+
+An `ImageAsset`'s `placeholder` is painted behind the image until it loads;
+`Picture.derive` gives it as a CSS `background` value (`picture.placeholder`):
+
+- `Placeholder.cases.Color.make({ value })` paints one CSS color.
+- `ThumbHash` paints a blurred likeness decoded to a PNG data URL, a few
+  kilobytes of HTML per image, so the page paints it with no request.
+- `LowRes` paints the provider's smallest width of the image: no stored data,
+  one small request.
+
+An image with `alpha: true` gets no placeholder, since it would show through the
+transparent pixels once the image loads.
+
 ## Loading
 
 `priority: true` marks the page's largest image: `loading="eager"` and

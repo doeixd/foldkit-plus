@@ -180,4 +180,48 @@ export default [
     ],
     tests: picture,
   },
+  {
+    name: 'a transparent image gets a placeholder',
+    edits: [
+      {
+        file: '../src/picture.ts',
+        find: 'placeholder: asset.alpha ? Option.none() : background(asset, provider)',
+        replace: 'placeholder: background(asset, provider)',
+      },
+    ],
+    tests: picture,
+  },
+  {
+    name: 'a url is written unescaped',
+    edits: [
+      {
+        file: '../src/placeholder.ts',
+        find: '`url("${url.replace(',
+        replace: '`url("${url}${"".replace(',
+      },
+    ],
+    tests: picture,
+  },
+  {
+    name: 'a low-res placeholder takes the largest width',
+    edits: [
+      {
+        file: '../src/placeholder.ts',
+        find: 'width: provider.widths.values[0]!',
+        replace: 'width: provider.widths.values.at(-1)!',
+      },
+    ],
+    tests: picture,
+  },
+  {
+    name: 'a ThumbHash paints as a color',
+    edits: [
+      {
+        file: '../src/placeholder.ts',
+        find: 'ThumbHash: ({ hash }) => Option.some(cssUrl(decode(hash))),',
+        replace: 'ThumbHash: ({ hash }) => Option.some(hash),',
+      },
+    ],
+    tests: picture,
+  },
 ]

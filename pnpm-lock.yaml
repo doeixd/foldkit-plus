@@ -2500,6 +2500,10 @@ importers:
         version: 7.0.2
 
   packages/media:
+    dependencies:
+      thumbhash:
+        specifier: ^0.1.1
+        version: 0.1.1
     devDependencies:
       effect:
         specifier: ^4.0.4
@@ -7465,6 +7469,9 @@ packages:
   tesseract.js@7.0.0:
     resolution: {integrity: sha512-exPBkd+z+wM1BuMkx/Bjv43OeLBxhL5kKWsz/9JY+DXcXdiBjiAch0V49QR3oAJqCaL5qURE0vx9Eo+G5YE7mA==}
 
+  thumbhash@0.1.1:
+    resolution: {integrity: sha512-kH5pKeIIBPQXAOni2AiY/Cu/NKdkFREdpH+TLdM0g6WA7RriCv0kPLgP731ady67MhTAqrVG/4mnEeibVuCJcg==}
+
   tiktoken@1.0.22:
     resolution: {integrity: sha512-PKvy1rVF1RibfF3JlXBSP0Jrcw2uq3yXdgcEXtKTYn3QJ/cBRBHDnrJ5jHky+MENZ6DIPwNUGWpkVx+7joCpNA==}
 
@@ -11740,6 +11747,8 @@ snapshots:
     transitivePeerDependencies:
       - encoding
     optional: true
+
+  thumbhash@0.1.1: {}
 
   tiktoken@1.0.22:
     optional: true

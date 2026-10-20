@@ -2,6 +2,7 @@ import { Option } from 'effect'
 import type { ImageAsset } from './asset.js'
 import { mimeType, type Encoding } from './format.js'
 import * as Layout from './layout.js'
+import { background } from './placeholder.js'
 import type { Provider } from './provider.js'
 
 /** A `source` element's attributes: one format's candidates. */
@@ -32,6 +33,11 @@ export interface Picture {
   readonly img: Img
   /** The original's aspect ratio, as CSS writes one. */
   readonly ratio: string
+  /**
+   * The CSS `background` to paint behind the image until it loads. None for
+   * an image with transparent pixels, which would show it through them.
+   */
+  readonly placeholder: Option.Option<string>
 }
 
 export interface Input {
@@ -97,5 +103,6 @@ export const derive = (input: Input): Option.Option<Picture> => {
       fetchPriority: priority ? Option.some('high') : Option.none(),
     },
     ratio: `${asset.width} / ${asset.height}`,
+    placeholder: asset.alpha ? Option.none() : background(asset, provider),
   })
 }
