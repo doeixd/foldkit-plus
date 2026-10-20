@@ -30,6 +30,11 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./icons": {
+      "foldkit-plus:source": "./src/icons/index.ts",
+      "types": "./dist/icons/index.d.mts",
+      "import": "./dist/icons/index.mjs"
+    },
     "./server": {
       "foldkit-plus:source": "./src/server/index.ts",
       "types": "./dist/server/index.d.mts",

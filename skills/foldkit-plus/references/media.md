@@ -100,3 +100,13 @@ are a cache: a store that fails is answered by making the variant.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).
+
+## Icons
+
+`IconData` (`{ viewBox, attributes, nodes }`) is an icon as data; `Icon.serialize`
+writes it as an SVG document and `Icon.maskUrl` as a CSS `url()` for
+`Icons.byAttribute`/`Icons.glyph`. At build time, `foldkit-media/icons`'s
+`parse(svg, name)` reads an SVG file and `fromIconify(set, name)` an Iconify
+set's icon; both throw, naming the icon, on anything outside a presentational
+allowlist, a link or `url()` leaving the icon, or a CSS escape. Never set an
+icon's markup through `innerHTML`.

@@ -364,6 +364,31 @@ quality do not count), so the ladder is the cost: eight widths are at most
 eight transformations an original. `examples/cloudflare` routes `/_image/` to
 this server.
 
+## Icons
+
+An icon is data too: `IconData` holds its `viewBox`, what its root paints
+(`fill`, `stroke`), and its drawing as nodes, never markup to set as HTML.
+`foldkit-media/icons` reads it from SVG at build time, for a build plugin or a
+script that writes a package's icons:
+
+```ts
+import { Icon } from 'foldkit-media'
+import { parse } from 'foldkit-media/icons'
+
+const check = parse(
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg>',
+  'check',
+)
+Icon.maskUrl(check) // url("data:image/svg+xml,…") for a mask
+```
+
+`fromIconify(set, name)` reads one icon of an Iconify set's JSON, through its
+aliases. Both refuse, naming the icon, what an inline drawing must not carry:
+an element or attribute outside the presentational allowlist (`script`,
+`style`, `foreignObject`, an event, a `class`), an `href` or `url()` that
+leaves the icon, and a CSS escape. They drop only the root's size and the
+words of `title` and `desc`, which a label replaces.
+
 ## Validation
 
 Facts are untrusted input. `ImageAsset` refuses an image with no pixels, and a

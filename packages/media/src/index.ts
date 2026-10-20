@@ -1,5 +1,7 @@
 export { Focus, ImageAsset, Placeholder } from './asset.js'
 export { Format, mimeType, type Encoding } from './format.js'
+export * as Icon from './icon.js'
+export type { IconData, SvgNode } from './icon.js'
 export * as Layout from './layout.js'
 export * as Picture from './picture.js'
 export * as Provider from './provider.js'

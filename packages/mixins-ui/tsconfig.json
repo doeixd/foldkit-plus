@@ -9,6 +9,7 @@
     "paths": {
       "foldkit-media": ["../media/src/index.ts"],
       "foldkit-media/cloudflare": ["../media/src/cloudflare/index.ts"],
+      "foldkit-media/icons": ["../media/src/icons/index.ts"],
       "foldkit-media/server": ["../media/src/server/index.ts"],
       "foldkit-media/sharp": ["../media/src/sharp/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],

@@ -48,7 +48,12 @@ version changed; `pnpm` skips versions already in the registry.
   name, as `foldkit-ssr`'s `emit`, and `headersRule()` is the `_headers` rule they need.
   `describe` derives an original's facts through an `Inspector` (`inspectorSharp`,
   `inspectorImages`), and `factsOf(url)` describes an image named only by URL, from allowed hosts,
-  kept and revalidated with its `ETag`.
+  kept and revalidated with its `ETag`. `Icon` holds an icon as data (`IconData`: its `viewBox`,
+  what its root paints, its drawing): `Icon.serialize` writes it as one SVG document and
+  `Icon.maskUrl` as a CSS `url()` for a mask. `foldkit-media/icons`, for builds, reads an SVG file
+  (`parse`) or an Iconify set's icon (`fromIconify`, through its aliases) into it, and refuses,
+  naming the icon, any element or attribute outside a presentational allowlist, a link or
+  `url()` outside the icon, and a CSS escape.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

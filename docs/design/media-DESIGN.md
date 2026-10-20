@@ -384,6 +384,14 @@ drops event attributes and any `href` that is not a fragment, and fails the
 build on anything else rather than silently dropping it. Iconify sets go
 through the same parser.
 
+*Built: `parse(svg, name)` and `fromIconify(set, name)` in
+`foldkit-media/icons`, to `IconData` in the core (`Icon.serialize`,
+`Icon.maskUrl`). Nothing is dropped but the root's size and namespace and the
+words of `title`, `desc` and `metadata`; an event attribute is refused by the
+allowlist like any other. A value read as CSS may not hold an escape, which
+could spell `url(`, and its `url()` (any case) must be a fragment. An Iconify
+alias that rotates or flips is refused rather than drawn transformed.*
+
 ### 8.4 Repeated icons, and the components that take one
 
 - **A sprite for a page that repeats an icon.** A table of fifty rows with a

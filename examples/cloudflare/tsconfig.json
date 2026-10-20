@@ -15,6 +15,7 @@
       "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-media": ["../../packages/media/src/index.ts"],
       "foldkit-media/cloudflare": ["../../packages/media/src/cloudflare/index.ts"],
+      "foldkit-media/icons": ["../../packages/media/src/icons/index.ts"],
       "foldkit-media/server": ["../../packages/media/src/server/index.ts"],
       "foldkit-media/sharp": ["../../packages/media/src/sharp/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
