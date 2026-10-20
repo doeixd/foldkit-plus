@@ -1521,6 +1521,10 @@ of its own named a form field "fits the Catalog". Read words with
   A whole phase of `foldkit-ssr` shipped under a Remote docs commit that way.
   Stage only in the command that commits, and commit with explicit paths
   (`git commit -- <paths>`) so nothing staged by someone else rides along.
+  `git mv` stages as it moves: a `describe.ts` moved early in a bout rode
+  the other session's next commit as a bare rename, its imports not yet
+  fixed, and HEAD did not compile until the bout's own commit. Move a file
+  in the command that commits it, or with a plain `mv`.
   The worktree is shared too: another session's checkout or revert can move
   files under you, so re-check `git status` at the start of a bout of work
   and after anything surprising — an edit whose old text matches twice, or a
