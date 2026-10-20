@@ -5,86 +5,15 @@
  * drag follows the finger and lets go open or down, and the click a browser
  * sends after a drag toggles nothing; peeking, its body is hidden.
  */
-import { Schema } from 'effect'
-import type { HtmlBuilder } from 'foldkit/html'
-import * as Runtime from 'foldkit/runtime'
-import { Layers, Style } from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
-import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
-
-import * as Drawer from '../src/drawer.js'
-import { Drawer as DrawerRecipe } from '../src/recipes/drawer.js'
-
-const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
-const style = Style.forSlots(Drawer.DrawerSlots)(DrawerRecipe({}))
-const belowLg = Style.forSlots(Drawer.DrawerSlots)(DrawerRecipe({ dock: 'below-lg' }))
-const Model = Schema.Struct({ drawer: Drawer.Model })
-type Model = typeof Model.Type
+import { belowLg, down, mount, panel, settled } from './drawerFixture.js'
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
   document.body.replaceChildren()
 })
 
-const mount = (open: boolean, drawn = style) => {
-  const sheet = document.createElement('style')
-  sheet.dataset['test'] = ''
-  sheet.textContent =
-    Style.stylesheet(
-      Layers.standard.declare,
-      Layers.standard.in('reset', Defaults.reset),
-      Layers.standard.in('theme', Theme.root(theme)),
-    ) + drawn.css
-  document.head.append(sheet)
-  const container = document.createElement('div')
-  container.id = 'drawer-browser'
-  document.body.append(container)
-  return Runtime.embed(
-    Runtime.makeElement({
-      Model,
-      container,
-      init: () => ({ model: { drawer: Drawer.init({ id: 'drawer-body', open }) } }),
-      update: (model: Model, message: Drawer.Message) => ({
-        model: { drawer: Drawer.update(model.drawer, message) },
-      }),
-      view: (model: Model, h: HtmlBuilder<Drawer.Message>) =>
-        Drawer.view(
-          {
-            model: model.drawer,
-            onMessage: message => message,
-            labels: { open: 'Hide the tools', closed: 'Show the tools' },
-            style: drawn,
-            // The sizes on a wrapper: the panel's own style is the drag's.
-            draw: ({ panel, handle, body, grip }) =>
-              h.div(
-                [h.Style({ '--fk-drawer-height': '400px', '--fk-drawer-peek': '80px' })],
-                [
-                  h.aside(panel, [
-                    h.button(handle, []),
-                    h.div([...grip, h.Id('grip')], [h.button([h.Id('in-grip')], ['Tabs'])]),
-                    h.div(body, [h.button([], ['A tool'])]),
-                  ]),
-                ],
-              ),
-          },
-          h,
-        ),
-    }),
-  )
-}
-
-const panel = () =>
-  vi.waitFor(() => {
-    const found = document.querySelector<HTMLElement>('[data-drawer]')
-    expect(found).not.toBeNull()
-    return found!
-  })
-const settled = (element: Element) =>
-  vi.waitFor(() => expect(element.getAnimations({ subtree: true })).toEqual([]))
-/** How far down the panel is drawn: its translate's y. */
-const down = (element: Element) => new DOMMatrix(getComputedStyle(element).transform).m42
 const bend = (handle: Element) => getComputedStyle(handle, '::before').rotate
 const body = (element: Element) => getComputedStyle(element.querySelector('#drawer-body')!)
 

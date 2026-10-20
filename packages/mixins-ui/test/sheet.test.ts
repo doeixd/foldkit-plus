@@ -46,10 +46,52 @@ describe('settle', () => {
     { points: [0.5, 1], at: 0, delta: 50, velocity: 0, dismissible: true, rests: Option.none() },
     // A flick down past the lower point goes away.
     { points: [0.5, 1], at: 1, delta: 260, velocity: 0.5, dismissible: true, rests: Option.none() },
+    // Its own thresholds: 0.5 px/ms is no flick to a sheet that asks 1, and
+    // half of what shows is what a share of 0.5 takes it away by.
+    {
+      points: [0.5, 1],
+      at: 1,
+      delta: 80,
+      velocity: 0.5,
+      dismissible: true,
+      flickSpeed: 1,
+      rests: Option.some(1),
+    },
+    {
+      points: [0.5, 1],
+      at: 0,
+      delta: 50,
+      velocity: 0,
+      dismissible: true,
+      closeShare: 0.5,
+      rests: Option.some(0),
+    },
   ])(
     '$points at $at, $delta px at $velocity px/ms (dismissible $dismissible)',
     ({ rests, ...release }) => {
-      expect(Sheet.settle({ ...release, size })).toEqual(rests)
+      expect(
+        Sheet.settle({
+          flickSpeed: Sheet.FLICK_SPEED,
+          closeShare: Sheet.CLOSE_SHARE,
+          ...release,
+          size,
+        }),
+      ).toEqual(rests)
+    },
+  )
+})
+
+describe('init', () => {
+  it('takes its swipe, from the panel by default', () => {
+    const sheet = Sheet.init({ id: 's', swipe: { flickSpeed: 1, closeShare: 0.5 } })
+    expect([sheet.swipeFrom, sheet.flickSpeed, sheet.closeShare]).toEqual(['panel', 1, 0.5])
+    expect(Sheet.init({ id: 's', swipe: { from: 'handle' } }).swipeFrom).toBe('handle')
+  })
+
+  it.each([{ flickSpeed: 0 }, { flickSpeed: Number.NaN }, { closeShare: 0 }, { closeShare: 1.5 }])(
+    'refuses a swipe of %o',
+    swipe => {
+      expect(() => Sheet.init({ id: 's', swipe })).toThrow(/swipe\./)
     },
   )
 })

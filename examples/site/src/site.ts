@@ -11,7 +11,8 @@ import { library } from './content/load.js'
 import { Model, ORIGIN, modelAt, plan, update, viewWith } from './main.js'
 import { stylesheet } from './style.js'
 
-export const site = {
+// Annotated rather than `satisfies`: the inferred type, the whole Model's, is too long to write out.
+export const site: SiteModule = {
   origin: ORIGIN,
   // The host serves `404.html` for an address with no page.
   paths: async () => [...(await library()).paths, '/404.html'],
@@ -36,4 +37,4 @@ export const site = {
   files: 'flat',
   sitemap: true,
   robots: true,
-} satisfies SiteModule
+}

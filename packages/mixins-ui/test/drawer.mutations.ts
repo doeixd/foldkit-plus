@@ -32,7 +32,7 @@ export default [
   },
   {
     name: 'a flick down is read as a rest',
-    edits: [{ file, find: 'if (velocity > FLICK_SPEED) return false', replace: '' }],
+    edits: [{ file, find: 'if (velocity > flickSpeed) return false', replace: '' }],
     tests: unit,
   },
   {
@@ -40,7 +40,7 @@ export default [
     edits: [
       {
         file,
-        find: ': -delta >= CLOSE_SHARE * size',
+        find: ': -delta >= closeShare * size',
         replace: ': false',
       },
     ],
@@ -141,7 +141,13 @@ export default [
   },
   {
     name: 'a grip captures the press, and takes its click',
-    edits: [{ file, find: "slop: from === 'grip' ? PRESS_SLOP : 0", replace: 'slop: 0' }],
+    edits: [
+      {
+        file,
+        find: "grip: Swipe({ measure: '[data-drawer]', slop: PRESS_SLOP }),",
+        replace: "grip: Swipe({ measure: '[data-drawer]' }),",
+      },
+    ],
     tests: browser,
   },
 ]

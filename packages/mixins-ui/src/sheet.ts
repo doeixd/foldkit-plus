@@ -19,10 +19,17 @@
  * past fully open is damped, as vaul's is. A press on the handle that
  * barely moves steps to the next point, round to the first.
  *
- * The handle is the only place a drag starts: content stays scrollable and
- * selectable, and a press on a control stays a press. It is hidden from
- * assistive technology, which has Escape and the sheet's own controls.
- * Reduced motion keeps the drag (it follows the finger) and snaps the slide.
+ * A finger drags it from anywhere on the panel (`swipe.from: 'panel'`, the
+ * default): content that can still scroll the way the finger moves scrolls,
+ * and once it is at its end the finger takes the sheet, as vaul's does, so a
+ * long sheet scrolls back to its top and then closes. A field, a slider and
+ * `data-no-swipe` start no drag, and resting below its highest point the
+ * panel does not scroll, so a swipe up raises it. A mouse drags it by the
+ * handle, where text stays selectable; `from: 'handle'` keeps every pointer
+ * there. The handle is hidden from assistive technology, which has Escape
+ * and the sheet's own controls. Reduced motion keeps the drag (it follows
+ * the finger) and snaps the slide. How fast a flick is and how far a slow
+ * drag takes it away are `swipe.flickSpeed` and `swipe.closeShare`.
  */
 import * as UiDialog from '@foldkit/ui/dialog'
 import { Match, Option, Schema } from 'effect'
@@ -39,6 +46,10 @@ import type { MixinList } from './resolve.js'
 export const Side = Schema.Literals(['top', 'right', 'bottom', 'left'])
 export type Side = typeof Side.Type
 
+/** Where a drag starts: anywhere on the panel for a finger, or the handle alone. */
+export const SwipeFrom = Schema.Literals(['panel', 'handle'])
+export type SwipeFrom = typeof SwipeFrom.Type
+
 export const Model = Schema.Struct({
   dialog: UiDialog.Model,
   side: Side,
@@ -53,6 +64,12 @@ export const Model = Schema.Struct({
   opensAt: Schema.Number,
   /** Whether a drag may take it away; Escape and the backdrop are the Dialog's. */
   dismissible: Schema.Boolean,
+  /** Where a drag starts. */
+  swipeFrom: SwipeFrom,
+  /** A release faster than this, in pixels a millisecond, goes on to the next point. */
+  flickSpeed: Schema.Number,
+  /** The share of what shows at the lowest point that a slow drag takes it away by. */
+  closeShare: Schema.Number,
   /**
    * While a drag runs: the panel's size along its side as it began, and how
    * far it has come toward the edge, in pixels (negative is away from it).
@@ -72,9 +89,9 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-/** A release faster than this, in pixels a millisecond, goes on to the next point (vaul's 0.4). */
+/** The default `flickSpeed`: a release faster than this, in pixels a millisecond, is a flick (vaul's 0.4). */
 export const FLICK_SPEED = 0.4
-/** A share of what shows at the lowest point that a slow drag takes away (vaul's 0.25). */
+/** The default `closeShare`: the share of the panel a slow drag takes it away by (vaul's 0.25). */
 export const CLOSE_SHARE = 0.25
 /** A press on the handle that moves less than this, in pixels, is a press, not a drag. */
 export const PRESS_SLOP = 4
@@ -92,6 +109,30 @@ export interface InitConfig {
   readonly dismissible?: boolean
   /** Whether it slides in and out. Default true. */
   readonly isAnimated?: boolean
+  /** How it is swiped. */
+  readonly swipe?: SwipeConfig
+}
+
+/** How a Sheet or a Drawer is swiped; every field has the default its doc names. */
+export interface SwipeConfig {
+  /** Where a drag starts: `panel` (a finger anywhere on it, the default) or `handle`. */
+  readonly from?: SwipeFrom
+  /** How fast, in pixels a millisecond, a release must be to be a flick. Default `FLICK_SPEED`. */
+  readonly flickSpeed?: number
+  /** The share of the panel, from 0 to 1, a slow drag takes it away by. Default `CLOSE_SHARE`. */
+  readonly closeShare?: number
+}
+
+/** `config`'s fields with their defaults, refusing a speed that is not above 0 or a share outside (0, 1]. */
+export const swipeOf = (id: string, config: SwipeConfig = {}) => {
+  const flickSpeed = config.flickSpeed ?? FLICK_SPEED
+  const closeShare = config.closeShare ?? CLOSE_SHARE
+  if (!(flickSpeed > 0))
+    throw new Error(`${id}: swipe.flickSpeed must be above 0, given ${flickSpeed}`)
+  if (!(closeShare > 0 && closeShare <= 1)) {
+    throw new Error(`${id}: swipe.closeShare must be within (0, 1], given ${closeShare}`)
+  }
+  return { swipeFrom: config.from ?? ('panel' as const), flickSpeed, closeShare }
 }
 
 /** A closed Sheet. Throws on points that are empty, out of order or out of (0, 1], or an `opensAt` among none. */
@@ -114,6 +155,7 @@ export const init = (config: InitConfig): Model => {
     point: opensAt,
     opensAt,
     dismissible: config.dismissible ?? true,
+    ...swipeOf(`Sheet ${config.id}`, config.swipe),
     drag: Option.none(),
   }
 }
@@ -166,22 +208,24 @@ export const settle = (release: {
   readonly delta: number
   readonly velocity: number
   readonly dismissible: boolean
+  readonly flickSpeed: number
+  readonly closeShare: number
 }): Option.Option<number> => {
-  const { points, at, size, delta, velocity, dismissible } = release
+  const { points, at, size, delta, velocity, dismissible, flickSpeed, closeShare } = release
   const indices = points.map((_, index) => index)
   const now = hiddenAt(points, at, size) + delta
   const hidden = (index: number) => hiddenAt(points, index, size)
-  if (velocity > FLICK_SPEED) {
+  if (velocity > flickSpeed) {
     // Toward the edge: the highest point still further out than where it is.
     const next = indices.filter(index => hidden(index) > now).at(-1)
     return next !== undefined ? Option.some(next) : dismissible ? Option.none() : Option.some(0)
   }
-  if (velocity < -FLICK_SPEED) {
+  if (velocity < -flickSpeed) {
     const next = indices.find(index => hidden(index) < now)
     return Option.some(next ?? points.length - 1)
   }
   const lowest = hidden(0)
-  if (dismissible && now - lowest >= CLOSE_SHARE * (size - lowest)) return Option.none()
+  if (dismissible && now - lowest >= closeShare * (size - lowest)) return Option.none()
   const nearest = indices.reduce((best, index) =>
     Math.abs(hidden(index) - now) < Math.abs(hidden(best) - now) ? index : best,
   )
@@ -209,7 +253,7 @@ export const update = (model: Model, message: Message): Return =>
         onSome: ({ size }) => {
           const resting = modifyFields(model, { drag: () => Option.none() })
           if (!completed) return { model: resting }
-          if (Math.abs(delta) < PRESS_SLOP && Math.abs(velocity) <= FLICK_SPEED) {
+          if (Math.abs(delta) < PRESS_SLOP && Math.abs(velocity) <= model.flickSpeed) {
             const next = (model.point + 1) % model.points.length
             return {
               model: next === model.point ? resting : modifyFields(resting, { point: () => next }),
@@ -275,21 +319,29 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
   const { model, onMessage } = options
   const { axis, sign } = toward[model.side]
   const along = (x: number, y: number) => sign * (axis === 'x' ? x : y)
-  const swipe = Mount.mapMessage(Swipe({ measure: '[data-sheet]' }), fact =>
-    onMessage(
-      Match.valueTags(fact, {
-        SwipeStarted: ({ width, height }) =>
-          Message.Grabbed({ size: axis === 'x' ? width : height }),
-        Swiped: ({ deltaX, deltaY }) => Message.Dragged({ delta: along(deltaX, deltaY) }),
-        SwipeEnded: ({ deltaX, deltaY, velocityX, velocityY, completed }) =>
-          Message.Released({
-            delta: along(deltaX, deltaY),
-            velocity: along(velocityX, velocityY),
-            completed,
+  const swipe = (panel: boolean) =>
+    Mount.mapMessage(
+      // A finger on the panel yields to content that scrolls; a mouse keeps to the handle.
+      Swipe(
+        panel
+          ? { measure: '[data-sheet]', scrolls: axis, touchOnly: true, slop: PRESS_SLOP }
+          : { measure: '[data-sheet]' },
+      ),
+      fact =>
+        onMessage(
+          Match.valueTags(fact, {
+            SwipeStarted: ({ width, height }) =>
+              Message.Grabbed({ size: axis === 'x' ? width : height }),
+            Swiped: ({ deltaX, deltaY }) => Message.Dragged({ delta: along(deltaX, deltaY) }),
+            SwipeEnded: ({ deltaX, deltaY, velocityX, velocityY, completed }) =>
+              Message.Released({
+                delta: along(deltaX, deltaY),
+                velocity: along(velocityX, velocityY),
+                completed,
+              }),
           }),
-      }),
-    ),
-  )
+        ),
+    )
   const place = Option.match(model.drag, {
     onNone: () => [],
     onSome: drag => [
@@ -317,10 +369,13 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
                 // A sheet resting partway takes its full extent, so a point is
                 // a share of that and not of a panel only as tall as its content.
                 ...(model.points.some(point => point < 1) ? [h.DataAttribute('snaps', '')] : []),
+                // Below its highest point a swipe up raises it, so its content holds still.
+                ...(model.point < model.points.length - 1 ? [h.DataAttribute('lowered', '')] : []),
+                ...(model.swipeFrom === 'panel' ? [h.OnMount(swipe(true))] : []),
                 ...place,
               ],
               // The browser's own pan would take the press away from the drag.
-              handle: [h.Style({ touchAction: 'none' }), h.OnMount(swipe)],
+              handle: [h.Style({ touchAction: 'none' }), h.OnMount(swipe(false))],
             },
           }),
         ),

@@ -5,6 +5,26 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Changed
+
+- `foldkit-mixins-ui`: a finger swipes a Sheet or a Drawer from anywhere on its panel, not only its
+  handle, as vaul's does: content that can still scroll the way the finger moves scrolls, so a
+  long sheet scrolls back to its top and then goes, and a field, a slider or `data-no-swipe` starts
+  no drag. Resting below its highest point a sheet's content holds still, so a swipe up raises it.
+  A mouse still drags by the handle, where text stays selectable. `Sheet.init` and `Drawer.init`
+  take `swipe: { from, flickSpeed, closeShare }`: `from: 'handle'` keeps every pointer on the
+  handle, and the thresholds default to vaul's (0.4px/ms, a quarter of the panel).
+
+### Added
+
+- `foldkit-primitives`: `Swipe` takes `scrolls: 'x' | 'y'`, for an element whose content scrolls:
+  it follows a touch by touch events, which can still refuse the browser's scroll, and swipes
+  only where nothing under the finger can scroll further its way; a touch inside an element with
+  a Swipe of its own is that one's. `touchOnly` leaves a mouse or a pen to the page. `canScroll`
+  and `NO_SWIPE` are what it decides by.
+
 ## 0.26.0
 
 Themes are typed knob values: `Theme.make({ accent: { hue: 235 }, shape: { radius: 1.8 } })` is

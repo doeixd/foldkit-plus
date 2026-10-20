@@ -169,7 +169,11 @@ export default [
   {
     name: 'the drag is read against the handle, not the panel',
     edits: [
-      { file: '../src/sheet.ts', find: "Swipe({ measure: '[data-sheet]' })", replace: 'Swipe({})' },
+      {
+        file: '../src/sheet.ts',
+        find: "          : { measure: '[data-sheet]' },",
+        replace: '          : {},',
+      },
     ],
     tests: [browser],
   },

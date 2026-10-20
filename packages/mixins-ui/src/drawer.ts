@@ -10,13 +10,15 @@
  * view: open -> data-open; a drag -> --fk-drawer-offset, --fk-drawer-progress
  * ```
  *
- * Let go, a flick (faster than the Sheet's `FLICK_SPEED`) goes its way; a
- * slower release goes once dragged `CLOSE_SHARE` of the panel, and rests
- * where it was otherwise. A press on the handle that barely moves is a
- * click, which toggles it; the click a browser sends after a drag is no
- * press, and is passed over. A drag starts on the handle, or on a `grip`
- * the application gives an element of its own (its tabs' row), where a
- * vertical swipe drags and a sideways one still scrolls.
+ * Let go, a flick (faster than `swipe.flickSpeed`) goes its way; a slower
+ * release goes once dragged `swipe.closeShare` of the panel, and rests where
+ * it was otherwise. A press on the handle that barely moves is a click,
+ * which toggles it; the click a browser sends after a drag is no press, and
+ * is passed over. A finger drags it from anywhere on the panel
+ * (`swipe.from: 'panel'`, the default), yielding to content that can still
+ * scroll its way, as the Sheet's does; a mouse drags it by the handle, or by
+ * a `grip` the application gives an element of its own (its tabs' row),
+ * where a vertical swipe drags and a sideways one still scrolls.
  *
  * The recipe (`Recipes.Drawer`) docks it, below a width or always, and draws
  * the handle a bar that bends into a chevron as the drawer goes down, along
@@ -40,7 +42,7 @@ import {
 } from 'foldkit-mixins'
 import { Swipe } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
-import { CLOSE_SHARE, FLICK_SPEED, PRESS_SLOP } from './sheet.js'
+import { PRESS_SLOP, SwipeFrom, swipeOf, type SwipeConfig } from './sheet.js'
 
 export const DrawerSlots = Slots.define({
   panel: Slot.make({ capability: Capability.Container }),
@@ -66,6 +68,12 @@ export const Model = Schema.Struct({
   drag: Schema.Option(Schema.Struct({ size: Schema.Number, delta: Schema.Number, from: Origin })),
   /** Whether the last press on the handle dragged, so the click after it is no press. */
   dragged: Schema.Boolean,
+  /** Where a drag starts. */
+  swipeFrom: SwipeFrom,
+  /** A release faster than this, in pixels a millisecond, goes its way. */
+  flickSpeed: Schema.Number,
+  /** The share of the panel a slow drag must cover to open or close it. */
+  closeShare: Schema.Number,
 })
 export type Model = typeof Model.Type
 
@@ -86,13 +94,17 @@ export interface InitConfig {
   readonly id: string
   /** Whether it starts open. Default false: peeking, out of the page's way. */
   readonly open?: boolean
+  /** How it is swiped, as a Sheet is. */
+  readonly swipe?: SwipeConfig
 }
 
+/** A Drawer. Throws on a `swipe.flickSpeed` not above 0 or a `closeShare` outside (0, 1]. */
 export const init = (config: InitConfig): Model => ({
   id: config.id,
   open: config.open ?? false,
   drag: Option.none(),
   dragged: false,
+  ...swipeOf(`Drawer ${config.id}`, config.swipe),
 })
 
 /** Opens the Drawer, as a control elsewhere that wants its contents seen does. */
@@ -108,11 +120,13 @@ export const settle = (release: {
   readonly size: number
   readonly delta: number
   readonly velocity: number
+  readonly flickSpeed: number
+  readonly closeShare: number
 }): boolean => {
-  const { open, size, delta, velocity } = release
-  if (velocity > FLICK_SPEED) return false
-  if (velocity < -FLICK_SPEED) return true
-  return open ? delta < CLOSE_SHARE * size : -delta >= CLOSE_SHARE * size
+  const { open, size, delta, velocity, flickSpeed, closeShare } = release
+  if (velocity > flickSpeed) return false
+  if (velocity < -flickSpeed) return true
+  return open ? delta < closeShare * size : -delta >= closeShare * size
 }
 
 /** The Drawer after `message`; the same Model when nothing changes. */
@@ -138,7 +152,7 @@ export const update = (model: Model, message: Message): Model =>
           // A press that barely moved is the click that follows it.
           if (!completed || Math.abs(delta) < PRESS_SLOP)
             return modifyFields(model, { drag: () => Option.none() })
-          const open = settle({ open: model.open, size, delta, velocity })
+          const open = settle({ ...model, size, delta, velocity })
           return modifyFields(model, {
             drag: () => Option.none(),
             open: () => open,
@@ -195,20 +209,27 @@ export const view = <Outer>(options: DrawerView<Outer>, h: HtmlBuilder<Outer>): 
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
-  const swipe = (from: Origin) =>
-    // A grip holds controls of its own: a press that stays put is their click.
-    Mount.mapMessage(
-      Swipe({ measure: '[data-drawer]', slop: from === 'grip' ? PRESS_SLOP : 0 }),
-      fact =>
-        onMessage(
-          Match.valueTags(fact, {
-            SwipeStarted: ({ height }) => Message.Grabbed({ size: height, from }),
-            Swiped: ({ deltaY }) => Message.Dragged({ delta: deltaY }),
-            SwipeEnded: ({ deltaY, velocityY, completed }) =>
-              Message.Released({ delta: deltaY, velocity: velocityY, completed }),
-          }),
-        ),
+  // A grip holds controls of its own: a press that stays put is their click. A
+  // finger on the panel yields to content that scrolls; a mouse keeps to the handle.
+  const swipes = {
+    handle: Swipe({ measure: '[data-drawer]' }),
+    grip: Swipe({ measure: '[data-drawer]', slop: PRESS_SLOP }),
+    panel: Swipe({ measure: '[data-drawer]', scrolls: 'y', touchOnly: true, slop: PRESS_SLOP }),
+  }
+  const swipe = (on: keyof typeof swipes) => {
+    // The panel's drag is a grip's: it has no click to pass over.
+    const from: Origin = on === 'handle' ? 'handle' : 'grip'
+    return Mount.mapMessage(swipes[on], fact =>
+      onMessage(
+        Match.valueTags(fact, {
+          SwipeStarted: ({ height }) => Message.Grabbed({ size: height, from }),
+          Swiped: ({ deltaY }) => Message.Dragged({ delta: deltaY }),
+          SwipeEnded: ({ deltaY, velocityY, completed }) =>
+            Message.Released({ delta: deltaY, velocity: velocityY, completed }),
+        }),
+      ),
     )
+  }
   const dragging = Option.match(model.drag, {
     onNone: () => [],
     onSome: drag => [
@@ -223,6 +244,7 @@ export const view = <Outer>(options: DrawerView<Outer>, h: HtmlBuilder<Outer>): 
     panel: builders.panel.attrs([
       h.DataAttribute('drawer', ''),
       h.DataAttribute('open', String(model.open)),
+      ...(model.swipeFrom === 'panel' ? [h.OnMount(swipe('panel'))] : []),
       ...dragging,
     ]),
     handle: builders.handle.attrs([

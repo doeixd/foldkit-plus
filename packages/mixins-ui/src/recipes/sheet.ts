@@ -178,8 +178,8 @@ export const Sheet = Style.recipeFor(DialogSlots)({
       dialog.panel ?? Style.compose(),
       variant(
         Style.self({
-          // The Dialog centers its panel with `margin-inline: auto`, which in a
-          // grid item would beat the placement above.
+          // The Dialog holds its panel off each screen edge by its safe area; a
+          // sheet stands on its edge and pads the safe area inside instead.
           margin: '0',
           overflowY: 'auto',
           overscrollBehavior: 'contain',
@@ -187,6 +187,8 @@ export const Sheet = Style.recipeFor(DialogSlots)({
         ...allSides.map(panelOn),
         // It follows the pointer; the release slides on the Dialog's transition.
         Style.pseudo('[data-dragging]', { transitionDuration: '0s' }),
+        // Below its highest point a finger's swipe up raises it, so nothing scrolls first.
+        Style.pseudo('[data-lowered]', { overflowY: 'hidden' }),
       ),
     ),
     handle: Style.compose(

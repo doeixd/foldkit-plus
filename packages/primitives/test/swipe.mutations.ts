@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file: '../src/dom/swipe.ts',
-        find: 'const all = completed ? [...samples, last] : samples',
+        find: 'const all = completed ? [...samples, final] : samples',
         replace: 'const all = samples',
       },
     ],
@@ -44,8 +44,8 @@ export default [
     edits: [
       {
         file: '../src/dom/swipe.ts',
-        find: '                if (active === null || active.pointerId !== pointerId) return\n                const sample',
-        replace: '                if (active === null) return\n                const sample',
+        find: 'if (active === null || active.pointerId !== (pointer.pointerId ?? 0)) return',
+        replace: 'if (active === null) return',
       },
     ],
     tests: unit,
@@ -55,8 +55,8 @@ export default [
     edits: [
       {
         file: '../src/dom/swipe.ts',
-        find: 'if (slop <= 0) begin(active)',
-        replace: 'begin(active)',
+        find: 'if (slop <= 0) begin(active, true)',
+        replace: 'begin(active, true)',
       },
     ],
     tests: unit,
