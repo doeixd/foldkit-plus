@@ -1,4 +1,5 @@
 import { Context, Effect, Layer, Option, Semaphore } from 'effect'
+import { positiveInteger } from '../limits.js'
 import type { Variant } from '../variant.js'
 import type {
   OriginalNotFound,
@@ -71,15 +72,13 @@ export const variantsNone: Layer.Layer<Variants> = Layer.succeed(Variants, {
  * this process (sharp, WebAssembly); a host's binding does the work elsewhere.
  */
 export const limitTransforms = (concurrency: number) => {
-  if (!Number.isInteger(concurrency) || concurrency < 1) {
-    throw new Error('limitTransforms: concurrency must be a positive integer')
-  }
+  const permitsCount = positiveInteger('limitTransforms: concurrency', concurrency)
   return <E, R>(transformer: Layer.Layer<Transformer, E, R>): Layer.Layer<Transformer, E, R> =>
     Layer.effect(
       Transformer,
       Effect.gen(function* () {
         const inner = yield* Transformer
-        const permits = yield* Semaphore.make(concurrency)
+        const permits = yield* Semaphore.make(permitsCount)
         return {
           transform: (original: Original, variant: Variant) =>
             Semaphore.withPermit(permits)(inner.transform(original, variant)),

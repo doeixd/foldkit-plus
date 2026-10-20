@@ -34,17 +34,6 @@ export default [
     tests: ['packages/media/test/sharp.test.ts'],
   },
   {
-    name: 'zero transforms may run at once',
-    edits: [
-      {
-        file: '../src/server/services.ts',
-        find: 'if (!Number.isInteger(concurrency) || concurrency < 1) {',
-        replace: 'if (false) {',
-      },
-    ],
-    tests: ['packages/media/test/sharp.test.ts'],
-  },
-  {
     name: 'sharp decodes an original of any size',
     edits: [
       {

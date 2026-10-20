@@ -11,4 +11,15 @@ export default [
     ],
     tests: ['packages/media/test/limits.test.ts'],
   },
+  {
+    name: 'an unsafe concurrency is accepted',
+    edits: [
+      {
+        file: '../src/limits.ts',
+        find: 'if (!Number.isSafeInteger(value) || value < 1) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: ['packages/media/test/limits.test.ts'],
+  },
 ]
