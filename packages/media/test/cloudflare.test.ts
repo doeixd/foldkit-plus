@@ -8,10 +8,16 @@
  */
 import { createHash } from 'node:crypto'
 import type { Cache, ImagesBinding, R2Bucket } from '@cloudflare/workers-types'
-import { Layer } from 'effect'
+import { Effect, Layer } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
 import { Miniflare, Response as WorkerResponse } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { originalsR2, transformerImages, variantsR2 } from 'foldkit-media/cloudflare'
+import {
+  keyValueStoreR2,
+  originalsR2,
+  transformerImages,
+  variantsR2,
+} from 'foldkit-media/cloudflare'
 import { Variant } from 'foldkit-media'
 import { serveFetch } from 'foldkit-media/server'
 
@@ -89,7 +95,8 @@ describe('the Cloudflare layers', () => {
     expect(response.headers.get('content-type')).toBe('image/webp')
     expect(await infoOf(response)).toMatchObject({ format: 'image/webp', width: 320, height: 160 })
     const kept = await env.MEDIA.head(`variants/${hash}/w320.webp`)
-    expect(kept?.httpMetadata?.contentType).toBe('image/webp')
+    // Kept by its key alone: the key's extension names the media type.
+    expect(kept).not.toBeNull()
   })
 
   it('never enlarge: a width above the original answers with the original’s', async () => {
@@ -131,4 +138,42 @@ describe('the Cloudflare layers', () => {
     const response = await get(`/_image/${hash}/w320.png`, { MEDIA: env.MEDIA, IMAGES: refusing })
     expect(response.status).toBe(503)
   })
+})
+
+describe('keyValueStoreR2', () => {
+  it('keeps text and bytes, and counts and clears past one page of listing', async () => {
+    const run = <A>(effect: Effect.Effect<A, unknown, KeyValueStore.KeyValueStore>) =>
+      Effect.runPromise(effect.pipe(Effect.provide(keyValueStoreR2(env.MEDIA))))
+    await run(
+      Effect.gen(function* () {
+        const store = yield* KeyValueStore.KeyValueStore
+        yield* store.clear
+        yield* store.set('text', 'hello')
+        yield* store.set('bytes', new Uint8Array([1, 2, 3]))
+        // More than R2's 1,000 keys a listing or a delete.
+        for (let index = 0; index < 1003; index++) yield* store.set(`many/${index}`, 'x')
+      }),
+    )
+    const read = await run(
+      Effect.gen(function* () {
+        const store = yield* KeyValueStore.KeyValueStore
+        return {
+          text: yield* store.get('text'),
+          bytes: Array.from((yield* store.getUint8Array('bytes')) ?? []),
+          missing: yield* store.get('missing'),
+          size: yield* store.size,
+        }
+      }),
+    )
+    expect(read).toEqual({ text: 'hello', bytes: [1, 2, 3], missing: undefined, size: 1005 })
+    expect(
+      await run(
+        Effect.gen(function* () {
+          const store = yield* KeyValueStore.KeyValueStore
+          yield* store.clear
+          return yield* store.size
+        }),
+      ),
+    ).toBe(0)
+  }, 120_000)
 })

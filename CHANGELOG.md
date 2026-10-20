@@ -32,7 +32,9 @@ version changed; `pnpm` skips versions already in the registry.
   (`headersFor`): an `ETag` and 304, a cache lifetime for each answer, CORS, `nosniff`, `Server-Timing`. `serveFetch` hosts it in a Worker,
   `layer` in an Effect `HttpRouter`. `foldkit-media/cloudflare` gives its services from a Worker's bindings:
   `originalsR2`, `transformerImages` (the Images binding) and `variantsR2` (R2 behind the Cache API).
-  `examples/cloudflare` serves `/_image/` with them.
+  `examples/cloudflare` serves `/_image/` with them. `Originals` and `Variants` are kept in
+  any Effect `KeyValueStore` (`originalsKeyValueStore`, `variantsKeyValueStore`), and
+  `keyValueStoreR2` is an R2 bucket as one.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,

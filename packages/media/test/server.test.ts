@@ -6,16 +6,17 @@
  * is never kept, and the original is never sent in a variant's place.
  */
 import { Effect, Layer } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
 import { afterEach, describe, expect, it } from 'vitest'
+import { memoryStores } from './stores.js'
 import { Variant, Widths } from 'foldkit-media'
 import {
   Originals,
   QuotaExhausted,
   Transformer,
   TransformFailed,
-  originalsMemory,
   serveFetch,
-  variantsMemory,
+  variantsKeyValueStore,
   type Options,
 } from 'foldkit-media/server'
 
@@ -62,7 +63,7 @@ const serve = (options: Options = {}) => {
     ...options,
     layer: () => {
       built++
-      return Layer.mergeAll(originalsMemory(originals), fakeTransformer, variantsMemory())
+      return Layer.mergeAll(memoryStores(originals), fakeTransformer)
     },
   })
   const env = { name: 'one' }
@@ -215,11 +216,60 @@ describe('serveFetch', () => {
     })
     const fetch = serveFetch<object>({
       space: Variant.space({ widths: Widths.make([320, 640]) }),
-      layer: () => Layer.mergeAll(counting, fakeTransformer, variantsMemory()),
+      layer: () =>
+        Layer.mergeAll(
+          counting,
+          fakeTransformer,
+          variantsKeyValueStore().pipe(Layer.provide(KeyValueStore.layerMemory)),
+        ),
     })
     const response = await fetch(new Request(`http://media.test/_image/${IMAGE}/w1280.webp`), {})
     expect(response.status).toBe(400)
     expect(read).toBe(0)
+  })
+
+  it('reads a kept variant back with the media type its key names', async () => {
+    const server = serve()
+    await server.get(`/_image/${IMAGE}/w640.avif`)
+    const kept = await server.get(`/_image/${IMAGE}/w640.avif`)
+    expect([kept.headers.get('server-timing'), kept.headers.get('content-type')]).toEqual([
+      'media;desc="store"',
+      'image/avif',
+    ])
+  })
+
+  it('answers when its variant store fails, by making the variant', async () => {
+    const failing = KeyValueStore.make({
+      get: key =>
+        Effect.fail(new KeyValueStore.KeyValueStoreError({ message: 'down', method: 'get', key })),
+      getUint8Array: key =>
+        Effect.fail(
+          new KeyValueStore.KeyValueStoreError({ message: 'down', method: 'getUint8Array', key }),
+        ),
+      set: key =>
+        Effect.fail(new KeyValueStore.KeyValueStoreError({ message: 'down', method: 'set', key })),
+      remove: key =>
+        Effect.fail(
+          new KeyValueStore.KeyValueStoreError({ message: 'down', method: 'remove', key }),
+        ),
+      clear: Effect.void,
+      size: Effect.succeed(0),
+    })
+    const fetch = serveFetch<object>({
+      layer: () =>
+        Layer.mergeAll(
+          memoryStores(originals),
+          fakeTransformer,
+          variantsKeyValueStore().pipe(
+            Layer.provide(Layer.succeed(KeyValueStore.KeyValueStore, failing)),
+          ),
+        ),
+    })
+    for (const _attempt of [1, 2]) {
+      const response = await fetch(new Request(`http://media.test/_image/${IMAGE}/w640.webp`), {})
+      expect([response.status, await response.text()]).toEqual([200, '640.webp'])
+    }
+    expect(transforms).toEqual(['640.webp', '640.webp'])
   })
 
   it('builds its services once per environment', async () => {

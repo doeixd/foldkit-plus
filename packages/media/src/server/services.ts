@@ -1,6 +1,6 @@
 import { Context, Effect, Layer, Option } from 'effect'
 import type { Variant } from '../variant.js'
-import { OriginalNotFound, type QuotaExhausted, type TransformFailed } from './errors.js'
+import type { OriginalNotFound, QuotaExhausted, TransformFailed } from './errors.js'
 
 /** An original's bytes, as the store hands them over, and how many there are. */
 export interface Original {
@@ -57,31 +57,3 @@ export const variantsNone: Layer.Layer<Variants> = Layer.succeed(Variants, {
   get: () => Effect.succeed(Option.none()),
   put: () => Effect.void,
 })
-
-/** Keeps every variant in memory, for tests and a single long-lived process. */
-export const variantsMemory = (): Layer.Layer<Variants> => {
-  const kept = new Map<string, Encoded>()
-  return Layer.succeed(Variants, {
-    get: key =>
-      Effect.sync(() =>
-        Option.map(Option.fromNullishOr(kept.get(key)), encoded => ({
-          encoded,
-          from: 'store' as const,
-        })),
-      ),
-    put: (key, encoded) => Effect.sync(() => void kept.set(key, encoded)),
-  })
-}
-
-/** Originals held in memory, by hash: for tests. */
-export const originalsMemory = (
-  originals: ReadonlyMap<string, Uint8Array<ArrayBuffer>>,
-): Layer.Layer<Originals> =>
-  Layer.succeed(Originals, {
-    get: hash =>
-      Option.match(Option.fromNullishOr(originals.get(hash)), {
-        onNone: () => Effect.fail(new OriginalNotFound({ hash })),
-        onSome: bytes =>
-          Effect.succeed({ body: new Blob([bytes]).stream(), size: bytes.byteLength }),
-      }),
-  })

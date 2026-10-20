@@ -195,8 +195,28 @@ format is in the URL.
   environment. It 404s any other path, so route `/_image/` to it.
 - `layer(options)` is the route as an Effect `HttpRouter` layer, for a Node
   server beside other routes.
-- `originalsMemory`, `variantsMemory` and `variantsNone` are Layers for tests
-  and simple hosts.
+- `variantsNone` keeps nothing, for a host with a cache of its own in front.
+
+### Stores
+
+`Originals` and `Variants` are kept in any Effect `KeyValueStore`
+(`effect/persistence`), the store the application already has:
+
+```ts
+const stores = Layer.mergeAll(originalsKeyValueStore(), variantsKeyValueStore()).pipe(
+  Layer.provide(KeyValueStore.layerFileSystem('./media')),
+)
+```
+
+- `KeyValueStore.layerMemory` for tests, `layerFileSystem` on a disk (it
+  needs the platform's `FileSystem` and `Path`, Node's on a server),
+  `layerSql` over SQLite or D1, `keyValueStoreR2` (below) over R2.
+- `variantsKeyValueStore({ prefix })` keeps a variant's bytes under
+  `variants/<hash>/<spelling>`; its media type is the key's extension, so
+  nothing else is stored. A store that fails a read or a write is logged and
+  the request is answered by making the variant: variants are a cache.
+- `originalsKeyValueStore({ prefix })` reads an original under its hash. A
+  store that fails is a 500, not a 404: the original is the data.
 
 ### On Cloudflare
 
@@ -213,13 +233,17 @@ const answerImages = serveFetch<WorkerEnv>({
 })
 ```
 
-- `originalsR2(bucket)` reads originals stored under their SHA-256.
 - `transformerImages(images)` is the Images binding: it scales down, never up,
   and names the format. Cloudflare's code for a spent allowance (9422) is the
   503; any other refusal is the 502, its reason logged.
-- `variantsR2(bucket, { prefix?, cache? })` keeps variants in R2 under
-  `variants/`, so one made last month is not made, and billed, again; with
+- `keyValueStoreR2(bucket)` is an R2 bucket as a `KeyValueStore`, for the
+  store adapters above or the application's own (`clear` and `size` list the
+  bucket).
+- `variantsR2(bucket, { prefix?, cache? })` is `variantsKeyValueStore` over
+  it, so a variant made last month is not made, and billed, again; with
   `cache`, the Cache API is read first and filled from R2.
+- `originalsR2(bucket)` streams an original rather than reading it into
+  memory, unlike the general adapter.
 
 Cloudflare bills each new width of each original once a month (format and
 quality do not count), so the ladder is the cost: eight widths are at most

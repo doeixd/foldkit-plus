@@ -587,6 +587,32 @@ the real service. R2 and the Cache API are emulated. *Probe*: whether the Cache
 API stores anything for a Worker served from a `workers.dev` host, where the
 public demos live; if not, `Variants.r2` alone serves there.
 
+### 10.6 A possibility: Photon in the Worker
+
+Not planned; recorded so it is not rediscovered. A `Transformer` over
+[Photon](https://docs.rs/photon-rs/latest/photon_rs/) compiled to WebAssembly
+(`@cf-wasm/photon`, Apache-2.0, with `workerd` and `node` entry points of one
+API) would run in the Worker itself, for an account without Cloudflare Images
+or to avoid its per-transformation billing. Probed on 2026-10-20 against 0.4.0:
+
+- **No AVIF, and WebP only lossless.** `get_bytes_webp()` takes no quality and
+  writes `VP8L`: a 640px variant of a photograph was 623 KB as WebP and 49 KB
+  as JPEG at quality 75. Its space would be JPEG, with PNG for transparent
+  images (`Variant.space({ formats: ['jpeg'] })`), and the transformer should
+  name the formats it encodes so a space it cannot serve is refused when the
+  server is built, not answered with 502s.
+- **CPU.** A 3000×2000 original took 92 ms to decode and 116 ms to resize
+  (`Triangle`; `Lanczos3` 278 ms, `Nearest` 29 ms). Workers Free allows 10 ms
+  of CPU a request, so it needs Workers Paid (30 s by default); kept variants
+  make it a cost per variant, not per request.
+- **Memory.** It decodes the whole original into RGBA in the isolate's 128 MB
+  (24 MB for 3000×2000), so it needs a pixel limit read from the header before
+  decoding, which neither the byte limit nor Photon gives.
+- **Failure.** Bytes that are not an image trap (`RuntimeError: unreachable`);
+  the instance kept working after one, which a test would have to hold to.
+- **What it would add beyond resizing:** raw RGBA (`to_raw_pixels`), so a
+  Worker without the Images binding could compute a ThumbHash at upload.
+
 ## 11. The build: `foldkit-media/vite`
 
 `import hero from './hero.jpg?image'` gives `{ asset, provider }`:
@@ -930,6 +956,12 @@ Nothing here is invalidated by time, because every key is content-addressed
 except the remote facts, which revalidate.
 
 ### 22.2 One store: Effect's `KeyValueStore`
+
+*Built: `variantsKeyValueStore`, `originalsKeyValueStore` and `keyValueStoreR2`;
+the memory layers are gone, and `variantsR2` is the adapter over R2 with the
+edge wrapped in front. `originalsR2` stays its own layer: it streams the
+original, where the general adapter reads it into memory. `serveFetch`'s layer
+may now fail to build (a store that cannot connect), answered as a 500.*
 
 Effect's `KeyValueStore` already keeps bytes (`getUint8Array`, `set`) and
 already has the layers a host needs: `layerMemory`, `layerFileSystem`,

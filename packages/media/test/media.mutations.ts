@@ -525,8 +525,8 @@ export default [
     edits: [
       {
         file: '../src/cloudflare/index.ts',
-        find: 'bucket.put(prefix + key,',
-        replace: 'bucket.put(key,',
+        find: "options.prefix ?? 'variants/'))",
+        replace: "options.prefix ?? ''))",
       },
     ],
     tests: cloudflare,
@@ -536,11 +536,55 @@ export default [
     edits: [
       {
         file: '../src/cloudflare/index.ts',
-        find: 'onSome: edge => Effect.promise(() => edge.put(cacheKey(key), cached(encoded) as never)),',
-        replace: 'onSome: () => Effect.void,',
+        find: 'put: (key, encoded) => behind.put(key, encoded).pipe(Effect.andThen(fill(key, encoded))),',
+        replace: 'put: (key, encoded) => behind.put(key, encoded),',
       },
     ],
     tests: cloudflare,
+  },
+  {
+    name: 'an R2 listing stops at its first page',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'cursor = page.truncated ? page.cursor : undefined',
+        replace: 'cursor = undefined',
+      },
+    ],
+    tests: cloudflare,
+  },
+  {
+    name: 'a kept variant’s type is not its key’s',
+    edits: [
+      {
+        file: '../src/server/stores.ts',
+        find: "return Schema.is(Format)(extension) ? mimeType(extension) : 'application/octet-stream'",
+        replace: "return 'application/octet-stream'",
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a variant store that fails a read fails the request',
+    edits: [
+      {
+        file: '../src/server/stores.ts',
+        find: "Effect.logWarning('Media: the variant store failed a read', error).pipe(\n          Effect.as(Option.none()),\n        ),",
+        replace: 'Effect.die(error),',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a variant store that fails a write fails the request',
+    edits: [
+      {
+        file: '../src/server/stores.ts',
+        find: "Effect.catch(error => Effect.logWarning('Media: the variant store failed a write', error)),",
+        replace: 'Effect.orDie,',
+      },
+    ],
+    tests: server,
   },
   {
     name: 'a variant may be spelled with a leading zero',

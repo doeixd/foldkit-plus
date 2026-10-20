@@ -108,7 +108,8 @@ export const layer = (options: Options = {}) =>
  */
 export const serveFetch = <Env extends object>(
   options: Options & {
-    readonly layer: (env: Env) => Layer.Layer<Originals | Transformer | Variants>
+    /** The services, from the request's bindings. A layer that fails to build answers a 500. */
+    readonly layer: (env: Env) => Layer.Layer<Originals | Transformer | Variants, unknown>
   },
 ): ((request: Request, env: Env) => Promise<Response>) => {
   const built = new WeakMap<Env, (request: Request) => Promise<Response>>()

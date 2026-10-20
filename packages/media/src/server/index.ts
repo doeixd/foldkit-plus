@@ -6,10 +6,9 @@ export {
   Originals,
   Transformer,
   Variants,
-  originalsMemory,
   type Kept,
-  variantsMemory,
   variantsNone,
   type Encoded,
   type Original,
 } from './services.js'
+export { originalsKeyValueStore, variantsKeyValueStore } from './stores.js'
