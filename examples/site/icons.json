@@ -52,5 +52,14 @@
       "lock": "ph:lock",
       "close": "ph:x"
     }
+  },
+  {
+    "out": "src/view/iconData.ts",
+    "icons": {
+      "copy": "lucide:copy",
+      "link": "lucide:link",
+      "check": "lucide:check",
+      "shuffle": "lucide:shuffle"
+    }
   }
 ]

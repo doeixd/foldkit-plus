@@ -1,0 +1,8 @@
+{
+  "out": "src/iconMasks.ts",
+  "as": "masks",
+  "icons": {
+    "dot": "lucide:circle",
+    "star": "lucide:star"
+  }
+}

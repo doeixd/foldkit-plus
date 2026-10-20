@@ -15,7 +15,7 @@
 import { Listbox as UiListbox, Tooltip as UiTooltip } from '@foldkit/ui'
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
-import { Icon as MediaIcon } from 'foldkit-media'
+import { Icon as MediaIcon, type IconData } from 'foldkit-media'
 import { SlotView, Style, type SlotAttributes } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import {
@@ -71,6 +71,7 @@ import { COMPONENTS } from '../library.js'
 import { Message, type Model } from '../main.js'
 import { CodeStyle, HintStyle, StudioDrawerStyle, StudioTabsStyle } from '../style.js'
 import { liveOf, preview } from './components.js'
+import { icons } from './iconData.js'
 import { tsTokens } from './tsTokens.js'
 import type { H, Slots } from './layout.js'
 
@@ -119,44 +120,14 @@ const ActionStyle = Style.forSlots(ButtonSlots)(
 )
 const PrimaryStyle = Style.forSlots(ButtonSlots)(Recipes.Button({ size: 'sm' }))
 
-/** Lucide's strokes, at the text's size and in its color. */
-const icon = (h: H, paths: ReadonlyArray<string>): Html =>
-  h.svg(
-    [
-      h.AriaHidden(true),
-      h.ViewBox('0 0 24 24'),
-      h.Attribute('width', '1.1em'),
-      h.Attribute('height', '1.1em'),
-      h.Attribute('fill', 'none'),
-      h.Attribute('stroke', 'currentColor'),
-      h.Attribute('stroke-width', '2'),
-      h.Attribute('stroke-linecap', 'round'),
-      h.Attribute('stroke-linejoin', 'round'),
-    ],
-    paths.map(d => h.path([h.Attribute('d', d)], [])),
-  )
-const COPY = [
-  'M11 9h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z',
-  'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
-]
-const LINK = [
-  'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71',
-  'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
-]
-const CHECK = ['M20 6 9 17l-5-5']
-const SHUFFLE = [
-  'm18 14 4 4-4 4',
-  'm18 2 4 4-4 4',
-  'M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-7.6a4 4 0 0 1 3.3-1.7H22',
-  'M2 6h1.972a4 4 0 0 1 3.6 2.2',
-  'M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45',
-]
+/** An icon at the text's size and in its color, from the site's own generated set. */
+const icon = (h: H, drawn: IconData): Html => MediaIcon.draw(drawn, h, { size: '1.1em' })
 
 /** A ghost button with an icon before its words. */
-const iconButton = (h: H, paths: ReadonlyArray<string>, label: string, onClick: Message): Html => {
+const iconButton = (h: H, drawn: IconData, label: string, onClick: Message): Html => {
   const action = SlotView.buildersFor(ButtonSlots, [ActionStyle.mixin], { input: undefined, h })
   return h.button(action.button.attrs([h.Type('button'), h.OnClick(onClick)]), [
-    icon(h, paths),
+    icon(h, drawn),
     label,
   ])
 }
@@ -430,7 +401,7 @@ const themesPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
           input: undefined,
           h,
         }).button.attrs([h.Type('button'), h.OnClick(Message.PressedShuffle())]),
-        [icon(h, SHUFFLE), 'Shuffle'],
+        [icon(h, icons.shuffle), 'Shuffle'],
       ),
     ]),
   ]
@@ -663,13 +634,13 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
         // The theme as the application's style module, or a link back to these knobs.
         iconButton(
           h,
-          model.copied ? CHECK : COPY,
+          model.copied ? icons.check : icons.copy,
           model.copied ? 'Copied' : 'Copy theme',
           Message.PressedCopy({ text: codeOf(model.theme, model.pack) }),
         ),
         iconButton(
           h,
-          model.linkCopied ? CHECK : LINK,
+          model.linkCopied ? icons.check : icons.link,
           model.linkCopied ? 'Link copied' : 'Copy link',
           Message.PressedCopyLink(),
         ),

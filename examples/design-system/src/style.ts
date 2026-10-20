@@ -15,6 +15,7 @@ import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
+import { masks } from './iconMasks.js'
 import {
   AlertSlots,
   AvatarSlots,
@@ -556,9 +557,6 @@ export const IconSlots = Slots.define({
   chip: Slot.make({ capability: Capability.Container }),
 })
 
-const iconUrl = (shape: string): string =>
-  `url('data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27>${shape}</svg>')`
-
 /**
  * `Icons` + `Touch` as mechanisms: each chip shows the icon its `data-icon`
  * names, and every chip is a 44px target where the pointer is coarse.
@@ -569,12 +567,8 @@ export const IconStyle = app.slots(
     chip: [
       Touch.target,
       Icons.glyph('1rem'),
-      Icons.byAttribute('data-icon', {
-        dot: iconUrl('<circle cx=%278%27 cy=%278%27 r=%276%27 fill=%27black%27/>'),
-        star: iconUrl(
-          '<path d=%27M8 1l2.2 4.8 5.3.6-3.9 3.6 1 5.2-4.6-2.6-4.6 2.6 1-5.2L.5 6.4l5.3-.6z%27 fill=%27black%27/>',
-        ),
-      }),
+      // Masks written by `pnpm icons` from `icons.json`, so the chips' shapes are data too.
+      Icons.byAttribute('data-icon', masks),
       U.text('sm'),
       {
         display: 'inline-flex',

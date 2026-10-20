@@ -521,7 +521,12 @@ rows, `close` joining the vocabulary for the toast's button; each component
 reads its icon by name, and a test per component tells its icons apart. The
 toast's marks were filled 20-unit drawings and are Lucide's stroked ones now,
 as are the others: a pack's look, which a pack the application gives
-replaces.* The rows for the
+replaces. Since built too: `/create`'s own buttons (copy, link, check, shuffle) from
+the site's generated icons, and the design system's chips from generated masks.
+Left as they are: the published snippets' `sparkle` and `outline`. A snippet
+compiles in the site, where an application's own path, a
+`virtual:foldkit-icons` import, does not resolve; written another way, it would
+teach an import no application uses.* The rows for the
 packages that ship them (the recipes, the data grid) keep each component's
 look: a drawing that changes with the move (Lucide's current eye against the
 copy) is checked in that component's browser test, not only in its markup.
