@@ -91,6 +91,7 @@ const ATTRIBUTES = new Set([
 /** The root keeps what it paints; its size is its container's, so it gives that up. */
 const ROOT_ATTRIBUTES = new Set(PRESENTATION)
 const DROPPED_ROOT = new Set(['xmlns', 'xmlns:xlink', 'version', 'width', 'height', 'viewBox'])
+const ROOT_ALLOWED = new Set([...ROOT_ATTRIBUTES, ...DROPPED_ROOT])
 
 const ENTITIES: ReadonlyMap<string, string> = new Map([
   ['amp', '&'],
@@ -112,13 +113,17 @@ export const parse = (svg: string, name: string): IconData => {
   }
 
   const decode = (value: string): string =>
-    value.replace(/&([^;\s]*);/g, (whole, entity: string) =>
-      entity.startsWith('#x')
-        ? String.fromCodePoint(Number.parseInt(entity.slice(2), 16))
-        : entity.startsWith('#')
-          ? String.fromCodePoint(Number.parseInt(entity.slice(1), 10))
-          : (ENTITIES.get(entity) ?? refuse(`it holds the unknown entity ${whole}`)),
-    )
+    value.replace(/&([^;\s]*);/g, (whole, entity: string) => {
+      if (!entity.startsWith('#')) {
+        return ENTITIES.get(entity) ?? refuse(`it holds the unknown entity ${whole}`)
+      }
+      const [, hex, decimal] = /^#(?:x([0-9a-fA-F]+)|([0-9]+))$/.exec(entity) ?? []
+      const point =
+        hex !== undefined ? Number.parseInt(hex, 16) : Number.parseInt(decimal ?? '0', 10)
+      return point > 0 && point <= 0x10ffff
+        ? String.fromCodePoint(point)
+        : refuse(`it holds ${whole}, which is no character`)
+    })
 
   const ATTRIBUTE = /\s+([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/y
 
@@ -210,11 +215,7 @@ export const parse = (svg: string, name: string): IconData => {
       if (tag !== 'svg') refuse(`its root is <${tag}>, not <svg>`)
       root = {
         tag,
-        attributes: attributesOf(
-          tag,
-          body.slice(tag.length),
-          new Set([...ROOT_ATTRIBUTES, ...DROPPED_ROOT]),
-        ),
+        attributes: attributesOf(tag, body.slice(tag.length), ROOT_ALLOWED),
         children: [],
       }
       if (selfClosing) closed = true

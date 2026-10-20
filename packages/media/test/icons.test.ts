@@ -121,6 +121,21 @@ describe('parse', () => {
       '<svg viewBox="0 0 1 1"><path d="&nbsp;"/></svg>',
       /unknown entity &nbsp;/,
     ],
+    [
+      'a reference to no character',
+      '<svg viewBox="0 0 1 1"><path d="&#0;"/></svg>',
+      /&#0;, which is no/,
+    ],
+    [
+      'a malformed reference',
+      '<svg viewBox="0 0 1 1"><path d="&#xZZ;"/></svg>',
+      /&#xZZ;, which is no/,
+    ],
+    [
+      'a reference past Unicode',
+      '<svg viewBox="0 0 1 1"><path d="&#x110000;"/></svg>',
+      /which is no/,
+    ],
     ['no box', '<svg width="1em" height="1em"></svg>', /no viewBox/],
   ])('refuses %s, naming the icon', (_, svg, reason) => {
     expect(() => parse(svg, 'bad')).toThrow(/^The icon "bad" cannot be drawn inline/)
@@ -130,12 +145,12 @@ describe('parse', () => {
 
 describe('Icon.serialize and Icon.maskUrl', () => {
   const tricky = parse(
-    `<svg viewBox="0 0 4 4" fill="currentColor"><g id="a&amp;b&quot;&lt;&gt;"><path d="M0 0"/></g><path d="M1 1"></path></svg>`,
+    `<svg viewBox="0 0 4 4" fill="currentColor"><g id="a&amp;b&quot;&lt;&gt;&#x41;&#66;"><path d="M0 0"/></g><path d="M1 1"></path></svg>`,
     'tricky',
   )
 
   it('decode their own entities when read back', () => {
-    expect(tricky.nodes[0]!.attributes['id']).toBe(`a&b"<>`)
+    expect(tricky.nodes[0]!.attributes['id']).toBe(`a&b"<>AB`)
     expect(parse(Icon.serialize(tricky), 'tricky')).toEqual(tricky)
   })
 

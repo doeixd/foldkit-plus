@@ -93,7 +93,27 @@ export default [
   {
     name: 'an unknown entity is kept',
     edits: [
-      { file: parser, find: '(ENTITIES.get(entity) ?? refuse(', replace: '(whole ?? refuse(' },
+      {
+        file: parser,
+        find: 'return ENTITIES.get(entity) ?? refuse(',
+        replace: 'return whole ?? refuse(',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a reference to no character is drawn',
+    edits: [{ file: parser, find: 'point > 0 && point <= 0x10ffff', replace: 'point >= 0' }],
+    tests,
+  },
+  {
+    name: 'a hex reference is read as decimal',
+    edits: [
+      {
+        file: parser,
+        find: 'hex !== undefined ? Number.parseInt(hex, 16)',
+        replace: 'hex !== undefined ? Number.parseInt(hex, 10)',
+      },
     ],
     tests,
   },
