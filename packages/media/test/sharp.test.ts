@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto'
 import { Effect, Exit, Layer, Option, Ref } from 'effect'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { Variant, describe as describeOriginal } from 'foldkit-media'
+import { Inspector, Variant, describe as describeOriginal } from 'foldkit-media'
 import { Transformer, limitTransforms, serveFetch } from 'foldkit-media/server'
 import { inspectorSharp, transformerSharp } from 'foldkit-media/sharp'
 import { memoryStores } from './stores.js'
@@ -32,6 +32,13 @@ const original = new Uint8Array(
     .toBuffer(),
 )
 const notAnImage = new TextEncoder().encode('not an image')
+/** A 400×200 JPEG whose EXIF turns it a quarter, as a phone stores a portrait: shown 200×400. */
+const portrait = new Uint8Array(
+  await sharp({ create: { width: 400, height: 200, channels: 3, background: '#2a6' } })
+    .jpeg()
+    .withMetadata({ orientation: 6 })
+    .toBuffer(),
+)
 
 const space = Variant.space({ formats: ['avif', 'webp', 'jpeg'], qualities: [40, 90] })
 
@@ -44,6 +51,7 @@ const serve = (options: { readonly maxPixels?: number } = {}) => {
           new Map([
             [hashOf(original), original],
             [hashOf(notAnImage), notAnImage],
+            [hashOf(portrait), portrait],
           ]),
         ),
         transformerSharp({ ...options, concurrency: 2 }),
@@ -68,6 +76,12 @@ describe('transformerSharp', () => {
     expect(response.headers.get('content-type')).toBe(`image/${format}`)
     const { width, height, format: encoded } = await metadataOf(response)
     expect([width, height, encoded]).toEqual([320, 160, read])
+  })
+
+  it('turns an original as its EXIF orientation shows it', async () => {
+    // Unturned, it would be 320×160; turned, it is narrower than asked, so its own 200×400.
+    const { width, height } = await metadataOf(await get(hashOf(portrait), 'w320.webp'))
+    expect([width, height]).toEqual([200, 400])
   })
 
   it('never enlarges: a width above the original answers with its own', async () => {
@@ -160,6 +174,20 @@ describe('inspectorSharp and describe', () => {
     expect(asset.hash).toEqual(Option.some(hashOf(original)))
     expect(Option.map(asset.placeholder, placeholder => placeholder._tag)).toEqual(
       Option.some('ThumbHash'),
+    )
+  })
+
+  it('reads a turned photograph’s size as shown, and its ThumbHash so', async () => {
+    const exit = await describeWith(portrait)
+    const asset = Exit.isSuccess(exit) ? exit.value : expect.unreachable()
+    expect([asset.width, asset.height]).toEqual([200, 400])
+    const { thumbnail } = await Effect.runPromise(
+      Inspector.use(inspector => inspector.inspect(portrait)).pipe(
+        Effect.provide(inspectorSharp()),
+      ),
+    )
+    expect(Option.map(thumbnail, ({ width, height }) => [width, height])).toEqual(
+      Option.some([50, 100]),
     )
   })
 

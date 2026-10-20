@@ -335,6 +335,9 @@ const media = layer().pipe(
 )
 ```
 
+- `transformerSharp` and `inspectorSharp` read an original as its EXIF
+  orientation shows it: a phone's portrait photograph, stored landscape, is
+  measured, resized and placeheld upright, as a browser draws it.
 - `transformerSharp` reads an original's size from its header before decoding
   it, and refuses one above `maxPixels` (50 megapixels by default) with a 413,
   so a small file that inflates to a huge picture never reaches the heap. It

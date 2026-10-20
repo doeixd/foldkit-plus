@@ -24,7 +24,8 @@ const failedAs = (label: string) => (cause: unknown) =>
 /**
  * An original's size from its header alone, refused above `maxPixels` before
  * anything is decoded: a small file that inflates to a huge picture is a 413,
- * never an exhausted heap.
+ * never an exhausted heap. The size is as shown, after its EXIF orientation:
+ * a phone's portrait photograph is stored landscape and turned when drawn.
  */
 const measure = (
   input: Uint8Array,
@@ -32,10 +33,11 @@ const measure = (
   failed: (cause: unknown) => Effect.Effect<never, TransformFailed>,
 ) =>
   Effect.gen(function* () {
-    const { width = 0, height = 0 } = yield* Effect.tryPromise({
+    const { autoOrient } = yield* Effect.tryPromise({
       try: () => sharp(input).metadata(),
       catch: cause => cause,
     }).pipe(Effect.catch(failed))
+    const { width, height } = autoOrient
     if (width * height > maxPixels) {
       return yield* new OriginalTooLarge({ size: width * height, limit: maxPixels, unit: 'pixels' })
     }
@@ -61,7 +63,8 @@ export const transformerSharp = (
         yield* measure(input, maxPixels, failed)
         const bytes = yield* Effect.tryPromise({
           try: () =>
-            sharp(input, { limitInputPixels: maxPixels, failOn: 'error' })
+            // Turned as shown, since a variant carries no orientation of its own.
+            sharp(input, { limitInputPixels: maxPixels, failOn: 'error', autoOrient: true })
               .resize({ width: variant.width, withoutEnlargement: true })
               .toFormat(
                 variant.format,
@@ -99,7 +102,7 @@ export const inspectorSharp = (
         const { stats, thumbnail } = yield* Effect.tryPromise({
           try: async () => ({
             stats: await sharp(bytes, { limitInputPixels: maxPixels }).stats(),
-            thumbnail: await sharp(bytes, { limitInputPixels: maxPixels })
+            thumbnail: await sharp(bytes, { limitInputPixels: maxPixels, autoOrient: true })
               .resize(THUMBNAIL_SIDE, THUMBNAIL_SIDE, { fit: 'inside' })
               .ensureAlpha()
               .raw()

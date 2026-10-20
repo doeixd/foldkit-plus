@@ -66,4 +66,37 @@ export default [
     ],
     tests: ['packages/media/test/sharp.test.ts'],
   },
+  {
+    name: 'a variant is drawn as stored, not as its orientation shows it',
+    edits: [
+      {
+        file: '../src/sharp/index.ts',
+        find: "failOn: 'error', autoOrient: true })",
+        replace: "failOn: 'error' })",
+      },
+    ],
+    tests: ['packages/media/test/sharp.test.ts'],
+  },
+  {
+    name: 'an original is measured as stored, not as its orientation shows it',
+    edits: [
+      {
+        file: '../src/sharp/index.ts',
+        find: 'const { width, height } = autoOrient',
+        replace: 'const width = autoOrient.height, height = autoOrient.width',
+      },
+    ],
+    tests: ['packages/media/test/sharp.test.ts'],
+  },
+  {
+    name: 'a ThumbHash is made as stored, not as its orientation shows it',
+    edits: [
+      {
+        file: '../src/sharp/index.ts',
+        find: 'thumbnail: await sharp(bytes, { limitInputPixels: maxPixels, autoOrient: true })',
+        replace: 'thumbnail: await sharp(bytes, { limitInputPixels: maxPixels })',
+      },
+    ],
+    tests: ['packages/media/test/sharp.test.ts'],
+  },
 ]
