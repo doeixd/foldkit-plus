@@ -52,11 +52,22 @@ export default [
     tests: ['packages/media/test/facts.test.ts'],
   },
   {
+    name: 'a final ETag is sent to every redirect hop',
+    edits: [
+      {
+        file: '../src/server/facts.ts',
+        find: 'entry.target === target.href ? entry.etag : Option.none()',
+        replace: 'entry.etag',
+      },
+    ],
+    tests: ['packages/media/test/facts.test.ts'],
+  },
+  {
     name: 'an unchanged original is not taken from the kept facts',
     edits: [
       {
         file: '../src/server/facts.ts',
-        find: 'if (response.status === 304 && Option.isSome(cached)) return cached.value.asset',
+        find: 'if (response.status === 304 && Option.isSome(unchanged)) return unchanged.value.asset',
         replace: '',
       },
     ],

@@ -119,4 +119,29 @@ describe('factsOf', () => {
       Exit.isSuccess(first) ? first.value : undefined,
     )
   })
+
+  it('sends a kept ETag only to the redirect target that issued it', async () => {
+    let finalReads = 0
+    const { fetch, asked } = host({
+      'https://cdn.example.com/start.jpg': () =>
+        new Response(null, { status: 302, headers: { location: '/final.jpg' } }),
+      'https://cdn.example.com/final.jpg': () =>
+        finalReads++ === 0
+          ? image(42, { etag: '"final-v1"' })()
+          : new Response(null, { status: 304 }),
+    })
+    const cache = await Effect.runPromise(
+      KeyValueStore.KeyValueStore.pipe(Effect.provide(KeyValueStore.layerMemory)),
+    )
+    const options = { allow: ['cdn.example.com'], fetch, cache }
+    await run('https://cdn.example.com/start.jpg', options)
+    const second = await run('https://cdn.example.com/start.jpg', options)
+    expect(Exit.isSuccess(second) && second.value.width).toBe(42)
+    expect(asked).toEqual([
+      { url: 'https://cdn.example.com/start.jpg', ifNoneMatch: null },
+      { url: 'https://cdn.example.com/final.jpg', ifNoneMatch: null },
+      { url: 'https://cdn.example.com/start.jpg', ifNoneMatch: null },
+      { url: 'https://cdn.example.com/final.jpg', ifNoneMatch: '"final-v1"' },
+    ])
+  })
 })

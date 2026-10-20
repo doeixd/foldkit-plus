@@ -9,7 +9,11 @@ export class FactsUnavailable extends Schema.TaggedError<FactsUnavailable>()('Fa
   reason: Schema.String,
 }) {}
 
-const Cached = Schema.Struct({ etag: Schema.OptionFromNullOr(Schema.String), asset: ImageAsset })
+const Cached = Schema.Struct({
+  target: Schema.String,
+  etag: Schema.OptionFromNullOr(Schema.String),
+  asset: ImageAsset,
+})
 const CachedJson = Schema.fromJsonString(Cached)
 
 // A redirect chain longer than this is refused, not followed.
@@ -59,13 +63,16 @@ export const factsOf = (
       ),
   })
 
-  const request = (etag: Option.Option<string>) =>
+  const request = (cached: Option.Option<typeof Cached.Type>) =>
     Effect.tryPromise({
       try: async () => {
         let target = new URL(url)
         for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
           if (!allowed(target))
             return { refused: `${target.origin} is not an allowed host` } as const
+          const etag = Option.flatMap(cached, entry =>
+            entry.target === target.href ? entry.etag : Option.none(),
+          )
           const headers = Option.match(etag, {
             onNone: () => ({}),
             onSome: tag => ({ 'if-none-match': tag }),
@@ -78,7 +85,7 @@ export const factsOf = (
             response.status === 304 ||
             location === null
           ) {
-            return { response } as const
+            return { response, target: target.href } as const
           }
           target = new URL(location, target)
         }
@@ -119,10 +126,11 @@ export const factsOf = (
 
   return Effect.gen(function* () {
     const cached = yield* readCached
-    const answer = yield* request(Option.flatMap(cached, entry => entry.etag))
+    const answer = yield* request(cached)
     if ('refused' in answer) return yield* unavailable(answer.refused)
-    const { response } = answer
-    if (response.status === 304 && Option.isSome(cached)) return cached.value.asset
+    const { response, target } = answer
+    const unchanged = Option.filter(cached, entry => entry.target === target)
+    if (response.status === 304 && Option.isSome(unchanged)) return unchanged.value.asset
     if (response.status !== 200)
       return yield* unavailable(`the original answered ${response.status}`)
     const bytes = yield* bytesOf(response)
@@ -134,6 +142,7 @@ export const factsOf = (
     const store = options.cache
     if (store !== undefined) {
       const entry = Schema.encodeSync(CachedJson)({
+        target,
         etag: Option.fromNullishOr(response.headers.get('etag')),
         asset,
       })
