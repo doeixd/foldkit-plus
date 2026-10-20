@@ -1,4 +1,5 @@
 import { Answer, headersFor } from './headers.js'
+import { nonNegativeInteger } from '../limits.js'
 
 /** A variant written out as a file, at its own URL's path. */
 export interface Materialized {
@@ -52,7 +53,7 @@ export const materialize = async (options: {
   const paths = [
     ...new Set(options.pages.flatMap(page => page.html.match(VARIANT_PATH) ?? [])),
   ].sort()
-  const maxFiles = options.maxFiles ?? DEFAULT_MAX_FILES
+  const maxFiles = nonNegativeInteger('maxFiles', options.maxFiles ?? DEFAULT_MAX_FILES)
   const concurrency = options.concurrency ?? 4
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     throw new Error('foldkit-media: materialize concurrency must be a positive integer')

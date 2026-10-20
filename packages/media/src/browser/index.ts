@@ -6,6 +6,7 @@
  */
 import { Effect, Layer, Option } from 'effect'
 import { Inspector } from '../describe.js'
+import { nonNegativeInteger } from '../limits.js'
 import { OriginalTooLarge, TransformFailed } from '../server/errors.js'
 
 // A ThumbHash is made from at most 100 pixels a side.
@@ -27,7 +28,7 @@ const DEFAULT_MAX_PIXELS = 50_000_000
 export const inspectorBrowser = (
   options: { readonly maxPixels?: number } = {},
 ): Layer.Layer<Inspector> => {
-  const maxPixels = options.maxPixels ?? DEFAULT_MAX_PIXELS
+  const maxPixels = nonNegativeInteger('maxPixels', options.maxPixels ?? DEFAULT_MAX_PIXELS)
   return Layer.succeed(Inspector, {
     inspect: bytes =>
       Effect.acquireUseRelease(

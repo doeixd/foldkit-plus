@@ -11,6 +11,7 @@ import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from 'effect/h
 import { KeyValueStore } from 'effect/persistence'
 import { ImageAsset } from '../asset.js'
 import { describe, type Inspector } from '../describe.js'
+import { nonNegativeInteger } from '../limits.js'
 import { fetchOf } from './handlers.js'
 import { OriginalTooLarge } from './errors.js'
 import { factsOf, type FactsOptions } from './facts.js'
@@ -108,7 +109,7 @@ const bodyOf = (request: HttpServerRequest.HttpServerRequest, maxBytes: number) 
  * the key, `201`.
  */
 export const uploadHandlers = (options: UploadOptions = {}) => {
-  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES
+  const maxBytes = nonNegativeInteger('maxBytes', options.maxBytes ?? DEFAULT_MAX_BYTES)
   const encode = Schema.encodeSync(ImageAsset)
   return HttpApiBuilder.group(UploadApi, 'uploads', group =>
     Effect.gen(function* () {

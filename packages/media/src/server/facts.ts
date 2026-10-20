@@ -2,6 +2,7 @@ import { Effect, Option, Schema } from 'effect'
 import type { KeyValueStore } from 'effect/persistence'
 import { ImageAsset } from '../asset.js'
 import { describe, type Inspector } from '../describe.js'
+import { nonNegativeInteger } from '../limits.js'
 
 /** No facts could be read for the image at `url`; `reason` says why, for the build's report. */
 export class FactsUnavailable extends Schema.TaggedError<FactsUnavailable>()('FactsUnavailable', {
@@ -47,7 +48,7 @@ export const factsOf = (
 ): Effect.Effect<ImageAsset, FactsUnavailable, Inspector> => {
   const unavailable = (reason: string) => new FactsUnavailable({ url, reason })
   const fetchOne = options.fetch ?? ((request: Request) => fetch(request))
-  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES
+  const maxBytes = nonNegativeInteger('maxBytes', options.maxBytes ?? DEFAULT_MAX_BYTES)
   const allowed = (target: URL) =>
     target.protocol === 'https:' && options.allow.includes(target.hostname)
   const cacheKey = `facts/${url}`

@@ -2,6 +2,7 @@ import { Cache, Effect, Layer, Option, Schema } from 'effect'
 import { HttpRouter, HttpServer, HttpServerResponse, type HttpServerRequest } from 'effect/http'
 import { HttpApiBuilder } from 'effect/http-api'
 import * as Variant from '../variant.js'
+import { nonNegativeInteger } from '../limits.js'
 import { MediaApi } from './api.js'
 import { Admission } from './admission.js'
 import { OriginalTooLarge } from './errors.js'
@@ -60,10 +61,11 @@ const refused = (answer: Answer) =>
 export const handlers = (options: Options = {}) => {
   const {
     space = Variant.standard,
-    maxBytes = DEFAULT_MAX_BYTES,
+    maxBytes: requestedMaxBytes = DEFAULT_MAX_BYTES,
     coalesce = false,
     clientOf = defaultClientOf,
   } = options
+  const maxBytes = nonNegativeInteger('maxBytes', requestedMaxBytes)
   const decodeHash = Schema.decodeUnknownOption(Variant.ContentHash)
   const decodeVariant = Schema.decodeUnknownOption(space.schema)
   const isSpelling = Schema.is(Variant.Spelling)

@@ -9,6 +9,7 @@ import { Effect, Layer, Option } from 'effect'
 import sharp from 'sharp'
 import { OriginalTooLarge, TransformFailed } from '../server/errors.js'
 import { Inspector } from '../describe.js'
+import { nonNegativeInteger } from '../limits.js'
 import { Transformer, limitTransforms } from '../server/services.js'
 
 // About 50 megapixels: a 9000×5500 photograph decodes; a decompression bomb does not.
@@ -49,7 +50,7 @@ export const transformerSharp = (
     readonly maxPixels?: number
   } = {},
 ): Layer.Layer<Transformer> => {
-  const maxPixels = options.maxPixels ?? DEFAULT_MAX_PIXELS
+  const maxPixels = nonNegativeInteger('maxPixels', options.maxPixels ?? DEFAULT_MAX_PIXELS)
   const failed = failedAs('Media.transform')
   return Layer.succeed(Transformer, {
     transform: (original, variant) =>
@@ -89,7 +90,7 @@ const THUMBNAIL_SIDE = 100
 export const inspectorSharp = (
   options: { readonly maxPixels?: number } = {},
 ): Layer.Layer<Inspector> => {
-  const maxPixels = options.maxPixels ?? DEFAULT_MAX_PIXELS
+  const maxPixels = nonNegativeInteger('maxPixels', options.maxPixels ?? DEFAULT_MAX_PIXELS)
   const failed = failedAs('Media.inspect')
   return Layer.succeed(Inspector, {
     inspect: bytes =>
