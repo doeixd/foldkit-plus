@@ -16,9 +16,8 @@
  *
  * A group lays cards in up to `--fk-card-columns` columns, fewer where a
  * column would be narrower than `minColumn`, divided by hairlines or apart,
- * and draws the one highlight that follows the pointer between them: under
- * plain cards it is their hover, and between separated ones it shows in the
- * gap around the card, which covers the rest of it.
+ * and draws the one highlight that follows the pointer between them: a film
+ * over the card it is on, which is that card's hover, whatever its surface.
  */
 import { Style } from 'foldkit-mixins'
 import { nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
@@ -38,8 +37,8 @@ import {
 const pad = 'var(--_fk-card-pad)'
 const gap = 'var(--_fk-card-gap)'
 const pressableHover = '&[data-pressable="true"]:not([data-disabled="true"]):is(:hover, :active)'
-/** A plain card's own hover, unless a group's highlight is its hover. */
-const plainHover = `${pressableHover}:not([data-card-fluid="true"] [data-card-item] > *)`
+/** A card's own hover, unless a group's highlight is its hover. */
+const ownHover = `${pressableHover}:not([data-card-fluid="true"] [data-card-item] > *)`
 const selected = '&[data-selected="true"]'
 /** The room the dismiss button takes in the corner, less the card's own padding, and a hair. */
 const clearOfDismiss = `calc(1.5rem - ${pad} / 2 + ${ref.space['2xs']})`
@@ -282,7 +281,7 @@ export const Card = Style.recipeFor(CardSlots)({
             border: `${ref.border.thin} solid ${ref.outline.subtle}`,
             boxShadow: 'var(--_fk-card-shadow-quiet)',
           }),
-          Style.nest(pressableHover, {
+          Style.nest(ownHover, {
             boxShadow: 'var(--_fk-card-shadow-quiet-lifted)',
             borderColor: ref.outline.default,
           }),
@@ -295,23 +294,22 @@ export const Card = Style.recipeFor(CardSlots)({
       elevated: {
         root: variant(
           Style.self({ background: raisedSurface(), boxShadow: 'var(--_fk-card-shadow)' }),
-          Style.nest(pressableHover, { boxShadow: 'var(--_fk-card-shadow-lifted)' }),
+          Style.nest(ownHover, { boxShadow: 'var(--_fk-card-shadow-lifted)' }),
           Style.nest(selected, { background: film(raisedSurface(), '0.5') }),
         ),
       },
       filled: {
         root: variant(
           Style.self({ background: ref.surface.subtle }),
-          Style.nest(pressableHover, { background: ref.surface.muted }),
+          Style.nest(ownHover, { background: ref.surface.muted }),
           Style.nest(selected, { background: ref.surface.default }),
         ),
       },
-      // In a group with a highlight, the highlight is the hover, so a plain card
-      // draws its own film only elsewhere; chosen, it keeps a film twice that.
+      // Chosen, it keeps a film twice its hover's.
       plain: {
         root: variant(
           Style.self({ background: 'transparent', borderRadius: ref.radius.md }),
-          Style.nest(plainHover, { background: film('transparent', '0.5') }),
+          Style.nest(ownHover, { background: film('transparent', '0.5') }),
           Style.nest(selected, { background: film('transparent', '1') }),
         ),
       },
@@ -338,7 +336,7 @@ export const Card = Style.recipeFor(CardSlots)({
             transitionProperty: 'background-color, box-shadow, opacity, translate',
             transitionDuration: `${ref.motion.fast}, ${ref.motion.fast}, ${ref.motion.fast}, ${travelled(ref.motion.fast)}`,
           }),
-          Style.nest(pressableHover, {
+          Style.nest(ownHover, {
             translate: `0 calc(-1 * ${ref.space['3xs']} * ${ref.knob.travel})`,
           }),
         ),
@@ -388,19 +386,19 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
         listStyle: 'none',
       }),
     ),
-    // After the highlight in the page, so each card paints over it.
     item: component(Style.self({ position: 'relative', display: 'grid' })),
     highlight: component(
       Style.self({
         position: 'absolute',
+        // Over the cards, which the film tints: under one with a surface, it
+        // showed only as a rim in the gap around it.
+        zIndex: '1',
         // Physical: the Mounts measure from the left, in either direction.
         top: '0',
         left: '0',
-        // Half the gap past the card on every side, so between separated
-        // cards it shows around the one it is on.
-        inlineSize: `calc(var(--fk-card-hover-w) + ${groupGap})`,
-        blockSize: `calc(var(--fk-card-hover-h) + ${groupGap})`,
-        translate: `calc(var(--fk-card-hover-x) - ${groupGap} / 2) calc(var(--fk-card-hover-y) - ${groupGap} / 2)`,
+        inlineSize: 'var(--fk-card-hover-w)',
+        blockSize: 'var(--fk-card-hover-h)',
+        translate: 'var(--fk-card-hover-x) var(--fk-card-hover-y)',
         opacity: 'var(--fk-card-hover-shown)',
         // Half a chosen plain card's film, so it lightens a dark page as it
         // darkens a light one; a surface step darkened both.
@@ -427,16 +425,10 @@ export const CardGroup = Style.recipeFor(CardGroupSlots)({
         ),
         highlight: variant(Style.self({ borderRadius: ref.radius.md })),
       },
-      // Concentric with a card of the default radius, half the gap out; only
-      // the rim around the card shows, so it is twice the divided film.
+      // The highlight takes the corners of a card with a surface.
       separated: {
         root: variant(Style.self({ '--_fk-card-group-gap': ref.space.sm })),
-        highlight: variant(
-          Style.self({
-            borderRadius: `calc(${ref.radius.lg} + ${groupGap} / 2)`,
-            background: film('transparent', '1'),
-          }),
-        ),
+        highlight: variant(Style.self({ borderRadius: ref.radius.lg })),
       },
     },
     minColumn: {

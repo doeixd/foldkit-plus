@@ -184,12 +184,35 @@ export default [
     tests: group,
   },
   {
-    name: "the highlight is the card's size between separated cards",
+    name: 'the highlight reaches half the gap past the card',
     edits: [
       {
         file: recipe,
-        find: 'inlineSize: `calc(var(--fk-card-hover-w) + ${groupGap})`,',
-        replace: "inlineSize: 'var(--fk-card-hover-w)',",
+        find: "inlineSize: 'var(--fk-card-hover-w)',",
+        replace: 'inlineSize: `calc(var(--fk-card-hover-w) + ${groupGap})`,',
+      },
+    ],
+    tests: group,
+  },
+  {
+    name: 'the highlight lies under the cards, hidden by their surface',
+    edits: [
+      {
+        file: recipe,
+        find: "        // showed only as a rim in the gap around it.\n        zIndex: '1',\n",
+        replace: '        // showed only as a rim in the gap around it.\n',
+      },
+    ],
+    tests: group,
+  },
+  {
+    name: "an outlined card lifts under the group's highlight too",
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest(ownHover, {\n            boxShadow: 'var(--_fk-card-shadow-quiet-lifted)',",
+        replace:
+          "Style.nest(pressableHover, {\n            boxShadow: 'var(--_fk-card-shadow-quiet-lifted)',",
       },
     ],
     tests: group,
@@ -199,19 +222,19 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "          Style.nest(plainHover, { background: film('transparent', '0.5') }),\n",
+        find: "          Style.nest(ownHover, { background: film('transparent', '0.5') }),\n",
         replace: '',
       },
     ],
     tests: group,
   },
   {
-    name: "a plain card hovers under the group's highlight too",
+    name: "a card hovers under the group's highlight too",
     edits: [
       {
         file: recipe,
-        find: 'const plainHover = `${pressableHover}:not([data-card-fluid="true"] [data-card-item] > *)`',
-        replace: 'const plainHover = pressableHover',
+        find: 'const ownHover = `${pressableHover}:not([data-card-fluid="true"] [data-card-item] > *)`',
+        replace: 'const ownHover = pressableHover',
       },
     ],
     tests: group,

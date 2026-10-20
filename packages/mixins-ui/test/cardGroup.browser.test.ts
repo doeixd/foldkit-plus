@@ -2,8 +2,8 @@
  * A card group's layout in a real browser, with the shipped recipes: its
  * columns wrap to fewer where a column would be narrower than `minColumn`,
  * the cards of a row stand equally tall, a divided grid draws its lines
- * between cards only, the highlight shows around a separated card, and a
- * plain card hovers on its own unless a group's highlight is its hover.
+ * between cards only, the highlight lies over the card it is on, and a
+ * card hovers on its own unless a group's highlight is its hover.
  */
 import { Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -171,7 +171,7 @@ test('a divided grid draws its lines between cards, never along its own edges, h
   }
 })
 
-test('the highlight shows half the gap around a separated card', async () => {
+test('the highlight lies over a separated card, its size, and the card draws no hover of its own', async () => {
   const handle = mount(h => [
     box(
       '600px',
@@ -181,21 +181,36 @@ test('the highlight shows half the gap around a separated card', async () => {
         h,
       ),
     ),
+    h.div([h.Id('rest'), h.Style({ blockSize: '40px' })], []),
   ])
   try {
     await vi.waitFor(() => expect(itemsOf('Apart')).toHaveLength(2))
     const [first, second] = itemsOf('Apart')
-    const gap = rect(second!).left - rect(first!).right
-    expect(gap).toBeGreaterThan(4)
-    const highlight = document.querySelector('[aria-label="Apart"]')!.previousElementSibling!
-    await userEvent.hover(second!)
+    const card = second!.firstElementChild as HTMLElement
+    expect(rect(second!).left - rect(first!).right).toBeGreaterThan(4)
+    const highlight = document.querySelector('[aria-label="Apart"]')!
+      .previousElementSibling as HTMLElement
+    await userEvent.hover(document.getElementById('rest')!)
+    await vi.waitFor(() => expect(getComputedStyle(highlight).opacity).toBe('0'))
+    const resting = getComputedStyle(card).boxShadow
+    await userEvent.hover(card)
     await vi.waitFor(() => {
       expect(getComputedStyle(highlight).opacity).toBe('1')
       const placed = rect(highlight)
-      const card = rect(second!)
-      expect(Math.abs(placed.left - (card.left - gap / 2))).toBeLessThan(1)
-      expect(Math.abs(placed.width - (card.width + gap))).toBeLessThan(1)
+      const at = rect(card)
+      expect(Math.abs(placed.left - at.left)).toBeLessThan(1)
+      expect(Math.abs(placed.top - at.top)).toBeLessThan(1)
+      expect(Math.abs(placed.width - at.width)).toBeLessThan(1)
+      expect(Math.abs(placed.height - at.height)).toBeLessThan(1)
     })
+    expect(getComputedStyle(card).boxShadow).toBe(resting)
+    // Painted over the card, whose surface would hide it: hit testing follows
+    // paint order, once the highlight takes the pointer.
+    highlight.style.pointerEvents = 'auto'
+    const at = rect(card)
+    const [top] = document.elementsFromPoint(at.left + at.width / 2, at.top + at.height / 2)
+    highlight.style.pointerEvents = ''
+    expect(top).toBe(highlight)
   } finally {
     handle.dispose()
   }

@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Changed
+
+- `foldkit-mixins-ui`: a CardGroup's highlight is a film over the card the pointer is on, the
+  card's size, whatever its `surface`. Under cards with a surface it showed only as a rim in the
+  gap around them, beside the card's own hover; a card in a group with a highlight now draws no
+  hover of its own.
+
 ### Fixed
 
 - `foldkit-mixins-ui`: the AngleSlider's dial, thumb and markers stay round in a theme whose
