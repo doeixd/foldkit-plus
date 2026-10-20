@@ -159,23 +159,26 @@ export const images = (options: ImagesOptions = {}): Plugin => {
       const key = relative(root, file!).split(sep).join('/')
       const asset = await factsOf(key, bytes, hash)
       const widths = widthsFor(ladder, asset.width)
-      const files: Array<string> = []
       if (serving) originals.set(hash, { bytes, widths })
-      for (const width of widths) {
-        for (const format of formats) {
-          const url = serving
-            ? JSON.stringify(`${DEV_PREFIX}${hash}/w${width}.${format}`)
-            : `import.meta.ROLLUP_FILE_URL_${this.emitFile({
-                type: 'asset',
-                name: `${key
-                  .split('/')
-                  .pop()!
-                  .replace(/\.[^.]+$/, '')}-${width}.${format}`,
-                source: await variantOf(key, bytes, hash, width, format),
-              })}`
-          files.push(`{ width: ${width}, format: ${JSON.stringify(format)}, url: ${url} }`)
-        }
-      }
+      const stem = key
+        .split('/')
+        .pop()!
+        .replace(/\.[^.]+$/, '')
+      // Made together: the Transformer bounds how many run at once, and AVIF is slow one by one.
+      const files = await Promise.all(
+        widths.flatMap(width =>
+          formats.map(async format => {
+            const url = serving
+              ? JSON.stringify(`${DEV_PREFIX}${hash}/w${width}.${format}`)
+              : `import.meta.ROLLUP_FILE_URL_${this.emitFile({
+                  type: 'asset',
+                  name: `${stem}-${width}.${format}`,
+                  source: await variantOf(key, bytes, hash, width, format),
+                })}`
+            return `{ width: ${width}, format: ${JSON.stringify(format)}, url: ${url} }`
+          }),
+        ),
+      )
       return [
         `import { Schema } from 'effect'`,
         `import { ImageAsset, Provider } from 'foldkit-media'`,
