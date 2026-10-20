@@ -1262,6 +1262,11 @@ of its own named a form field "fits the Catalog". Read words with
   test is a `*.touch.browser.test.ts`, run by the `browser-touch` project,
   whose page is a touch screen from the start (`hasTouch`). Reproduce a
   CI-only browser failure in `mcr.microsoft.com/playwright` under Docker.
+- **A layout-shift test needs files that arrive late.** A test of `Image` that
+  loaded `data:` URLs reported no shift with `width` and `height` deleted: such
+  a file arrives before the first layout, so nothing moves either way. Hold
+  the request in the browser (`cdp().send('Fetch.enable', …)`, then
+  `Fetch.fulfillRequest` after two frames) and the same deletion reports one.
 - **An indicator test can pass by an accidental re-measure.** A test that
   flips `dir` and reads that the indicator moved also passes without the
   fix when a sub-pixel resize or a transition still running makes `Measure`

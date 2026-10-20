@@ -8,6 +8,14 @@ const browser = ['packages/mixins-ui/test/image.browser.test.ts']
 
 export default [
   {
+    name: 'an img holds no box before its file arrives',
+    edits: [
+      { file: '../src/imageAttributes.ts', find: '  h.Width(String(img.width)),\n', replace: '' },
+      { file: '../src/imageAttributes.ts', find: '  h.Height(String(img.height)),\n', replace: '' },
+    ],
+    tests: browser,
+  },
+  {
     name: 'a ratio does not crop the image',
     edits: [
       {

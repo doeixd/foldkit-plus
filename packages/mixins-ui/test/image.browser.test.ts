@@ -11,6 +11,7 @@ import { ImageAsset, Layout, Provider } from 'foldkit-media'
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
+import { cdp } from 'vitest/browser'
 import { Image, ImageSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({}))
@@ -316,6 +317,101 @@ test('a ratio crops an image, and the box an unavailable one holds, to it; a rad
     expect(sizeOf(missing)).toEqual([400, 400])
     expect(parseFloat(getComputedStyle(square).borderTopLeftRadius)).toBeGreaterThan(0)
   } finally {
+    handle.dispose()
+  }
+})
+
+test('nothing moves as images arrive: the layout shift a page reports is none', async () => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent = Style.stylesheet(L.declare, L.in('theme', Theme.root(theme))) + style.css
+  document.head.append(sheet)
+  // The files are held in the browser until the page has been laid out, then
+  // answered: only so do they arrive after the first layout, as a network's do.
+  const held: Array<{ readonly requestId: string }> = []
+  const hold = (event: { readonly requestId: string }) => void held.push(event)
+  cdp().on('Fetch.requestPaused', hold)
+  await cdp().send('Fetch.enable', { patterns: [{ urlPattern: '*held-image*' }] })
+  const arriving = (name: string) =>
+    Provider.fromFiles([{ width: 400, format: 'webp', url: `/held-image/${name}.svg` }], {
+      sources: [],
+      fallback: 'webp',
+    })
+  const shifts: Array<number> = []
+  const observer = new PerformanceObserver(list => {
+    for (const entry of list.getEntries())
+      shifts.push((entry as PerformanceEntry & { value: number }).value)
+  })
+  observer.observe({ type: 'layout-shift' })
+  const container = document.createElement('div')
+  container.id = 'shifts'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: {} }),
+      update: (model: typeof Model.Type) => ({ model }),
+      view: (_: unknown, h: HtmlBuilder<never>) =>
+        h.div(
+          [h.Style({ display: 'grid', gap: '16px', padding: '16px', inlineSize: '800px' })],
+          [
+            h.p([], ['Above']),
+            Image.view(
+              {
+                asset,
+                provider: arriving('constrained'),
+                layout: Layout.Constrained({ width: 400 }),
+                alt: Image.described('constrained'),
+                priority: true,
+                style,
+              },
+              h,
+            ),
+            Image.view(
+              {
+                asset,
+                provider: arriving('full'),
+                layout: Layout.FullWidth(),
+                alt: Image.described('full'),
+                priority: true,
+                style,
+              },
+              h,
+            ),
+            h.p([], ['Below']),
+          ],
+        ),
+    }),
+  )
+  const frames = () =>
+    new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  const svg = btoa(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="500"><rect width="1000" height="500" fill="teal"/></svg>',
+  )
+  try {
+    await vi.waitFor(() => expect(held).toHaveLength(2))
+    await frames()
+    for (const { requestId } of held) {
+      await cdp().send('Fetch.fulfillRequest', {
+        requestId,
+        responseCode: 200,
+        responseHeaders: [{ name: 'content-type', value: 'image/svg+xml' }],
+        body: svg,
+      })
+    }
+    await vi.waitFor(() => {
+      const images = [
+        ...document.querySelectorAll<HTMLImageElement>('img[alt="constrained"], img[alt="full"]'),
+      ]
+      expect(images.map(image => image.naturalWidth > 0)).toEqual([true, true])
+    })
+    await frames()
+    expect(shifts.reduce((total, value) => total + value, 0)).toBe(0)
+  } finally {
+    observer.disconnect()
+    cdp().off('Fetch.requestPaused', hold)
+    await cdp().send('Fetch.disable')
     handle.dispose()
   }
 })

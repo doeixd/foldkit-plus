@@ -941,7 +941,12 @@ no image URL and empties no cache. Only pages carry the build id.
 
 One browser test covers the table: a page of images whose files are held back
 and then released, observed with a `PerformanceObserver` for `layout-shift`,
-must report a total of 0. A guard removed by mutation turns it red.
+must report a total of 0. A guard removed by mutation turns it red. *Built:
+the files are held in the browser over the DevTools protocol (`Fetch.enable`,
+answered with `Fetch.fulfillRequest` after the page is laid out). With `data:`
+URLs the test passed with `width` and `height` deleted, since such a file
+arrives before the first layout; held, the same deletion reports a shift of
+0.006.*
 
 ## 21. Automatic, and where it stops
 
