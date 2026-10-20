@@ -38,6 +38,17 @@ export default [
     tests: ['packages/media/test/hosted.test.ts'],
   },
   {
+    name: 'a space takes a width its URL cannot spell',
+    edits: [
+      {
+        file: '../src/variant.ts',
+        find: 'if (unspellableWidth !== undefined) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: ['packages/media/test/hosted.test.ts'],
+  },
+  {
     name: 'the hosted provider offers a format its server does not make',
     edits: [
       {

@@ -58,6 +58,7 @@ describe('Variant.space', () => {
     ['a repeated format', { formats: ['avif', 'avif'] }],
     ['a repeated quality', { qualities: [60, 60] }],
     ['a quality of 0', { qualities: [0] }],
+    ['a width the spelling cannot name', { widths: Widths.make([100_000]) }],
   ] as const)('refuses %s', (_, options) => {
     expect(() => Variant.space(options)).toThrow(/Variant\.space/)
   })

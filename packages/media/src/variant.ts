@@ -90,6 +90,10 @@ export const space = (
   if (!(Number.isInteger(revision) && revision >= 0 && revision <= 9999)) {
     throw new Error(`Variant.space: revision ${revision} is not an integer from 0 to 9999`)
   }
+  const unspellableWidth = widths.values.find(width => width > 99_999)
+  if (unspellableWidth !== undefined) {
+    throw new Error(`Variant.space: width ${unspellableWidth} cannot be spelled in a variant URL`)
+  }
   if (formats.length === 0) throw new Error('Variant.space: a space needs at least one format')
   distinct('format', formats)
   distinct('quality', qualities)
