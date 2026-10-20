@@ -163,6 +163,34 @@ response), 503 (`QuotaExhausted`).
 - `originalsMemory`, `variantsMemory` and `variantsNone` are Layers for tests
   and simple hosts.
 
+### On Cloudflare
+
+`foldkit-media/cloudflare` gives the three services from a Worker's bindings:
+
+```ts
+const answerImages = serveFetch<WorkerEnv>({
+  layer: env =>
+    Layer.mergeAll(
+      originalsR2(env.MEDIA),
+      transformerImages(env.IMAGES),
+      variantsR2(env.MEDIA, { cache: caches.default }),
+    ),
+})
+```
+
+- `originalsR2(bucket)` reads originals stored under their SHA-256.
+- `transformerImages(images)` is the Images binding: it scales down, never up,
+  and names the format. Cloudflare's code for a spent allowance (9422) is the
+  503; any other refusal is the 502, its reason logged.
+- `variantsR2(bucket, { prefix?, cache? })` keeps variants in R2 under
+  `variants/`, so one made last month is not made, and billed, again; with
+  `cache`, the Cache API is read first and filled from R2.
+
+Cloudflare bills each new width of each original once a month (format and
+quality do not count), so the ladder is the cost: eight widths are at most
+eight transformations an original. `examples/cloudflare` routes `/_image/` to
+this server.
+
 ## Validation
 
 Facts are untrusted input. `ImageAsset` refuses an image with no pixels, and a

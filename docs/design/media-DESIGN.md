@@ -503,6 +503,17 @@ Who may upload is a `foldkit-guard` policy on that mutation and the route.
 
 The reference deployment, and the one the example is tested against.
 
+*Built: `foldkit-media/cloudflare`'s `originalsR2`, `transformerImages` and
+`variantsR2` (the Cache API in front of R2 as one layer, since two `Variants`
+layers cannot both be provided), and `/_image/` in `examples/cloudflare`. The
+layers are tested in Node against miniflare's own bindings
+(`mf.getBindings()`, `mf.getCaches()`), so `pnpm mutate`, which edits modules
+as Vitest loads them, reaches them; a test of the bundled worker could not. A
+response put in the Cache API from Node must be miniflare's own `Response`, so
+the test wraps the cache; a Worker's global `Response` is right as is. Found
+while probing: the binding outputs raw `rgba`, which answers §17's ThumbHash
+question, and `ImagesError` carries a numeric `code`.*
+
 ### 10.1 Shape
 
 ```text

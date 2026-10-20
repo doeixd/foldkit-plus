@@ -10,7 +10,7 @@ export interface Original {
 
 /** A variant made: its bytes and their media type. */
 export interface Encoded {
-  readonly bytes: Uint8Array
+  readonly bytes: Uint8Array<ArrayBuffer>
   readonly contentType: string
 }
 

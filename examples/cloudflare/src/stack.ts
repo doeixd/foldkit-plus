@@ -59,6 +59,8 @@ export const startStack = async (): Promise<CloudflareStack> => {
     script,
     durableObjects: { SYNC_HOST: 'SyncHost' },
     d1Databases: ['DB'],
+    r2Buckets: ['MEDIA'],
+    images: { binding: 'IMAGES' },
     compatibilityFlags: ['streams_enable_constructors'],
     host: '127.0.0.1',
     port: 0,

@@ -9,9 +9,17 @@
  *   its polling live source re-reads. What crosses requests here is D1;
  *   no in-memory push could reach another request's stream.
  */
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
 import { DurableObject } from 'cloudflare:workers'
-import type { D1Database, DurableObjectNamespace } from '@cloudflare/workers-types'
+import type {
+  CacheStorage,
+  D1Database,
+  DurableObjectNamespace,
+  ImagesBinding,
+  R2Bucket,
+} from '@cloudflare/workers-types'
+import { originalsR2, transformerImages, variantsR2 } from 'foldkit-media/cloudflare'
+import { serveFetch as serveImages } from 'foldkit-media/server'
 import { defineDocumentHost } from 'foldkit-sync/do'
 import { serveFetch } from 'foldkit-remote-server/fetch'
 import { databaseFrom, makeServer, openTodosJournal, settleTodos, Todos } from './schema.js'
@@ -19,6 +27,8 @@ import { databaseFrom, makeServer, openTodosJournal, settleTodos, Todos } from '
 export interface WorkerEnv {
   readonly DB: D1Database
   readonly SYNC_HOST: DurableObjectNamespace
+  readonly MEDIA: R2Bucket
+  readonly IMAGES: ImagesBinding
 }
 
 const { server } = makeServer()
@@ -67,9 +77,25 @@ const withCors = (response: Response): Response => {
   })
 }
 
+/**
+ * Image variants: originals by hash in R2, resized by the Images binding,
+ * kept in R2 behind the edge cache. The page writes their URLs with
+ * `Provider.hosted`.
+ */
+const answerImages = serveImages<WorkerEnv>({
+  layer: env =>
+    Layer.mergeAll(
+      originalsR2(env.MEDIA),
+      transformerImages(env.IMAGES),
+      // The page's `caches` is typed by the DOM library, which has no `default`.
+      variantsR2(env.MEDIA, { cache: (caches as unknown as CacheStorage).default }),
+    ),
+})
+
 export default {
   fetch: async (request: Request, env: WorkerEnv): Promise<Response> => {
     const url = new URL(request.url)
+    if (url.pathname.startsWith('/_image/')) return answerImages(request, env)
     if (url.pathname === '/sync')
       // Two fetch universes meet here, as in the sync package's worker
       // fixture: the wire shape is identical; only the brands differ.

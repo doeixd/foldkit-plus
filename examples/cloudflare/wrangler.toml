@@ -17,6 +17,16 @@ database_name = "foldkit-cloudflare"
 database_id = "c1fabe99-8aab-498a-a88b-09dd5d0f4b00"
 migrations_dir = "migrations"
 
+# Originals by content hash, and the variants made of them (`variants/`).
+# A fork creates its own with `wrangler r2 bucket create foldkit-media`.
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "foldkit-media"
+
+# Resizes `/_image/` variants. Needs Cloudflare Images on the account.
+[images]
+binding = "IMAGES"
+
 [[durable_objects.bindings]]
 name = "SYNC_HOST"
 class_name = "SyncHost"

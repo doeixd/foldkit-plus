@@ -8,6 +8,7 @@ const provider = ['packages/media/test/provider.test.ts']
 const picture = ['packages/media/test/picture.test.ts']
 const hosted = ['packages/media/test/hosted.test.ts']
 const server = ['packages/media/test/server.test.ts']
+const cloudflare = ['packages/media/test/cloudflare.test.ts']
 
 export default [
   {
@@ -295,6 +296,62 @@ export default [
     name: 'the router is built for every request',
     edits: [{ file: '../src/server/handlers.ts', find: 'built.set(env, answer)', replace: '' }],
     tests: server,
+  },
+  {
+    name: 'the binding may enlarge',
+    edits: [
+      { file: '../src/cloudflare/index.ts', find: "fit: 'scale-down'", replace: "fit: 'cover'" },
+    ],
+    tests: cloudflare,
+  },
+  {
+    name: 'the binding is asked for one format whatever the URL names',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'format: `image/${variant.format}`,',
+        replace: "format: 'image/png',",
+      },
+    ],
+    tests: cloudflare,
+  },
+  {
+    name: 'a spent allowance is a transform failure',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'cause.code === QUOTA_EXHAUSTED',
+        replace: 'false',
+      },
+    ],
+    tests: cloudflare,
+  },
+  {
+    name: 'a missing original is read anyway',
+    edits: [{ file: '../src/cloudflare/index.ts', find: 'object === null\n', replace: 'false\n' }],
+    tests: cloudflare,
+  },
+  {
+    name: 'a variant is kept outside its prefix',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'bucket.put(prefix + key,',
+        replace: 'bucket.put(key,',
+      },
+    ],
+    tests: cloudflare,
+  },
+  {
+    name: 'the edge cache is never filled',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'onSome: edge => Effect.promise(() => edge.put(cacheKey(key), cached(encoded) as never)),',
+        replace: 'onSome: () => Effect.void,',
+      },
+    ],
+    tests: cloudflare,
   },
   {
     name: 'a variant may be spelled with a leading zero',

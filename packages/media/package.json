@@ -34,6 +34,11 @@
       "foldkit-plus:source": "./src/server/index.ts",
       "types": "./dist/server/index.d.mts",
       "import": "./dist/server/index.mjs"
+    },
+    "./cloudflare": {
+      "foldkit-plus:source": "./src/cloudflare/index.ts",
+      "types": "./dist/cloudflare/index.d.mts",
+      "import": "./dist/cloudflare/index.mjs"
     }
   },
   "files": [
@@ -52,7 +57,9 @@
     "effect": "^4.0.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261013.1",
     "effect": "^4.0.4",
+    "miniflare": "4.20260730.0",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"
   }

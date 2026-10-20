@@ -199,6 +199,9 @@ importers:
       foldkit-form:
         specifier: workspace:*
         version: link:../../packages/form
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../../packages/media
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
@@ -2505,9 +2508,15 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1
     devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20261013.1
+        version: 5.20261013.1
       effect:
         specifier: ^4.0.4
         version: 4.0.4
+      miniflare:
+        specifier: 4.20260730.0
+        version: 4.20260730.0
       tsdown:
         specifier: ^0.23.1
         version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)

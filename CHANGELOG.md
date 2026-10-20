@@ -25,7 +25,9 @@ version changed; `pnpm` skips versions already in the registry.
   `foldkit-media/server` serves `Provider.hosted`'s route over three services, `Originals`,
   `Transformer` and `Variants`: a variant is made once and kept, served immutable, and a failure is
   its own status (404, 413, 502, 503), never the original. `serveFetch` hosts it in a Worker,
-  `layer` in an Effect `HttpRouter`.
+  `layer` in an Effect `HttpRouter`. `foldkit-media/cloudflare` gives its services from a Worker's bindings:
+  `originalsR2`, `transformerImages` (the Images binding) and `variantsR2` (R2 behind the Cache API).
+  `examples/cloudflare` serves `/_image/` with them.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,
