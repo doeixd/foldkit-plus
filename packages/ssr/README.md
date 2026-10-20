@@ -833,8 +833,7 @@ its script runs after the browser may have painted. The head script alone
 draws the first frame, written through the generator's `head`; the Model
 catches up in `boot`. `foldkit-mixins/theme` ships the pairs: `schemeScript`
 and `chooseScheme`, `Themes.script` and `Themes.choose`, `Theme.knobScript`
-and `Theme.chooseKnobs`. The reasoning is in
-[theme-robustness-DESIGN.md](../../docs/design/theme-robustness-DESIGN.md).
+and `Theme.chooseKnobs`.
 
 ## Costs and limits
 
