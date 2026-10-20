@@ -5,6 +5,7 @@
  * names; the variants are kept by content between builds; and the development
  * server makes the same variants when asked.
  */
+import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -83,11 +84,20 @@ describe('images', () => {
     // (The bundler merges files of equal bytes, so a width made wider than the
     // original shows only in what the provider offers.)
     expect(image.provider.widths.values).toEqual([320, 480, 640, 828, 1000])
-    expect(emitted(root).sort()).toEqual(
-      [320, 480, 640, 828, 1000]
-        .flatMap(width => [`hero-${width}.avif`, `hero-${width}.webp`])
-        .sort(),
-    )
+    const files = emitted(root)
+    expect(files).toHaveLength(10)
+    for (const width of [320, 480, 640, 828, 1000]) {
+      for (const format of ['avif', 'webp']) {
+        const file = files.find(name => name.startsWith(`hero-${width}-`) && name.endsWith(format))
+        if (file === undefined) expect.unreachable(`missing ${width}.${format}`)
+        const [, namedHash] = /-([0-9a-f]{64})\.[^.]+$/.exec(file) ?? []
+        expect(namedHash).toBe(
+          createHash('sha256')
+            .update(readFileSync(join(root, 'out', file)))
+            .digest('hex'),
+        )
+      }
+    }
     const picture = Option.getOrThrow(
       Picture.derive({ asset: image.asset, provider: image.provider, layout: Layout.FullWidth() }),
     )
@@ -109,7 +119,11 @@ describe('images', () => {
     const facts = JSON.parse(readFileSync(join(kept, hash!, 'asset.json'), 'utf8'))
     writeFileSync(join(kept, hash!, 'asset.json'), JSON.stringify({ ...facts, alpha: true }))
     await buildIn(root)
-    expect(readFileSync(join(root, 'out', 'hero-320.webp'), 'utf8')).toBe('kept')
+    const keptOutput = emitted(root).find(
+      file => file.startsWith('hero-320-') && file.endsWith('.webp'),
+    )
+    if (keptOutput === undefined) expect.unreachable('missing kept 320.webp')
+    expect(readFileSync(join(root, 'out', keptOutput), 'utf8')).toBe('kept')
     const { default: image } = (await import(pathToFileURL(join(root, 'out', 'main.js')).href)) as {
       default: { asset: ImageAsset }
     }
@@ -154,7 +168,7 @@ describe('images', () => {
   it('writes one file for a format that is both a source and the fallback', async () => {
     const root = await rootWith(`export { default } from './hero.jpg?image'`)
     await buildIn(root, { sources: ['webp'], fallback: 'webp' })
-    expect(emitted(root).filter(file => file.startsWith('hero-320'))).toEqual(['hero-320.webp'])
+    expect(emitted(root).filter(file => file.startsWith('hero-320-'))).toHaveLength(1)
     // The module is what refuses two files for one variant, when it runs.
     const { default: image } = (await import(pathToFileURL(join(root, 'out', 'main.js')).href)) as {
       default: { provider: Provider.Provider }

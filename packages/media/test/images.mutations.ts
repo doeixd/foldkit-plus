@@ -62,6 +62,17 @@ export default [
     tests,
   },
   {
+    name: 'an emitted variant is not named by its content',
+    edits: [
+      {
+        file: plugin,
+        find: 'fileName: `${stem}-${width}-${contentHash}.${format}`',
+        replace: 'fileName: `${stem}-${width}.${format}`',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the development server makes a width it did not offer',
     edits: [{ file: plugin, find: '!original.widths.includes(Number(width))', replace: 'false' }],
     tests,

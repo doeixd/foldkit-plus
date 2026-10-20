@@ -173,13 +173,18 @@ export const images = (options: ImagesOptions = {}): Plugin => {
       const files = await Promise.all(
         widths.flatMap(width =>
           formats.map(async format => {
-            const url = serving
-              ? JSON.stringify(`${DEV_PREFIX}${hash}/w${width}.${format}`)
-              : `import.meta.ROLLUP_FILE_URL_${this.emitFile({
-                  type: 'asset',
-                  name: `${stem}-${width}.${format}`,
-                  source: await variantOf(key, bytes, hash, width, format),
-                })}`
+            let url: string
+            if (serving) {
+              url = JSON.stringify(`${DEV_PREFIX}${hash}/w${width}.${format}`)
+            } else {
+              const source = await variantOf(key, bytes, hash, width, format)
+              const contentHash = createHash('sha256').update(source).digest('hex')
+              url = `import.meta.ROLLUP_FILE_URL_${this.emitFile({
+                type: 'asset',
+                fileName: `${stem}-${width}-${contentHash}.${format}`,
+                source,
+              })}`
+            }
             return `{ width: ${width}, format: ${JSON.stringify(format)}, url: ${url} }`
           }),
         ),
