@@ -70,9 +70,11 @@ export const variantsNone: Layer.Layer<Variants> = Layer.succeed(Variants, {
  * queue, not starve every other request. For a transformer that encodes in
  * this process (sharp, WebAssembly); a host's binding does the work elsewhere.
  */
-export const limitTransforms =
-  (concurrency: number) =>
-  <E, R>(transformer: Layer.Layer<Transformer, E, R>): Layer.Layer<Transformer, E, R> =>
+export const limitTransforms = (concurrency: number) => {
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new Error('limitTransforms: concurrency must be a positive integer')
+  }
+  return <E, R>(transformer: Layer.Layer<Transformer, E, R>): Layer.Layer<Transformer, E, R> =>
     Layer.effect(
       Transformer,
       Effect.gen(function* () {
@@ -84,3 +86,4 @@ export const limitTransforms =
         }
       }),
     ).pipe(Layer.provide(transformer))
+}

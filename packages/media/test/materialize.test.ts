@@ -77,6 +77,12 @@ describe('materialize', () => {
     )
   })
 
+  it.each([0, -1, 1.5])('refuses a concurrency of %s', async concurrency => {
+    await expect(materialize({ pages: [], fetch, concurrency })).rejects.toThrow(
+      /concurrency must be a positive integer/,
+    )
+  })
+
   it.each([
     ['refuses a _headers without the rule', '/assets/*\n  Cache-Control: immutable\n', true],
     ['passes a _headers with it', `/assets/*\n  Cache-Control: immutable\n${headersRule()}`, false],

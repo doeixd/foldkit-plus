@@ -96,6 +96,17 @@ export default [
     tests: ['packages/media/test/materialize.test.ts'],
   },
   {
+    name: 'materialization may run no workers',
+    edits: [
+      {
+        file: '../src/server/materialize.ts',
+        find: 'if (!Number.isInteger(concurrency) || concurrency < 1) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: ['packages/media/test/materialize.test.ts'],
+  },
+  {
     name: 'a _headers without the rule passes',
     edits: [
       {

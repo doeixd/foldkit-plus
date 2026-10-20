@@ -132,6 +132,10 @@ describe('limitTransforms', () => {
     expect(await runFour(limitTransforms(2))).toBe(2)
   })
 
+  it.each([0, -1, 1.5])('refuses a concurrency of %s', concurrency => {
+    expect(() => limitTransforms(concurrency)).toThrow(/positive integer/)
+  })
+
   it('runs them all at once without it', async () => {
     expect(await runFour(layer => layer)).toBe(4)
   })

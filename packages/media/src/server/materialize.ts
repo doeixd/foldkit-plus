@@ -53,6 +53,10 @@ export const materialize = async (options: {
     ...new Set(options.pages.flatMap(page => page.html.match(VARIANT_PATH) ?? [])),
   ].sort()
   const maxFiles = options.maxFiles ?? DEFAULT_MAX_FILES
+  const concurrency = options.concurrency ?? 4
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new Error('foldkit-media: materialize concurrency must be a positive integer')
+  }
   if (paths.length > maxFiles) {
     throw new Error(
       `foldkit-media: the pages name ${paths.length} variants, more than maxFiles (${maxFiles})`,
@@ -80,7 +84,7 @@ export const materialize = async (options: {
       made.push({ file: path.slice(1), contents: new Uint8Array(await response.arrayBuffer()) })
     }
   }
-  await Promise.all(Array.from({ length: options.concurrency ?? 4 }, worker))
+  await Promise.all(Array.from({ length: concurrency }, worker))
   if (failed.length > 0) {
     throw new Error(
       `foldkit-media: ${failed.length} variants could not be made:\n${failed.sort().join('\n')}`,
