@@ -87,7 +87,7 @@ Option.map(picture, ({ img }) => img.srcset)
 
 - **`Provider.hosted({ baseUrl?, widths?, sources?, fallback?, quality? })`** —
   this package's own server, for originals no CDN can fetch. A variant's URL is
-  `/_image/w640.avif/<sha-256>`: the original is named by its content hash, so
+  `/_image/<sha-256>/w640.avif`: the original is named by its content hash, so
   an asset without `hash` has no hosted URL. The format is in the URL, so every
   cache can key on it.
 
@@ -131,11 +131,21 @@ transparent pixels once the image loads.
 `decoding="async"`, and its `sizes` begins with `auto, `, which lets a browser
 that supports it use the laid-out width.
 
+## The variant space
+
+A server makes only what its `Variant.space({ widths?, formats?, qualities? })`
+allows: the width ladder, a set of formats (AVIF and WebP by default) and a set
+of qualities (none by default: no URL names one, and the encoder uses its own).
+A request outside it is a 400, so an original has at most `space.size`
+variants, whoever asks: 16 for `Variant.standard`. Give `Provider.hosted` and
+the server the same space; the provider refuses, when defined, a format or
+quality its server would refuse.
+
 ## The server
 
 `foldkit-media/server` answers the route `Provider.hosted` writes, for
-originals no CDN can fetch. `makeApi(widths)` is its Effect `HttpApi`; its
-params decode with `Variant.schema`, the Schema the provider encodes with, so a
+originals no CDN can fetch. `makeApi(space)` is its Effect `HttpApi`; its
+params decode with the space's Schema, the one the provider encodes with, so a
 width off the ladder, a leading zero or a malformed hash is a 400 before any
 work.
 

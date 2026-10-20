@@ -106,29 +106,40 @@ const cdnCgiSource = (key: string): string => {
  * `baseUrl`. An original is named by its content hash, so an asset without
  * one has no hosted URL, and neither has `auto`: this server names the format
  * in the URL, never reads `Accept`, so every cache can key on the URL alone.
+ * Its formats and quality must be in `space`, the server's own, or it is
+ * refused here rather than answered with a 400 on every image.
  */
 export const hosted = (
   options: {
     /** The server's origin, such as `https://img.example.com`; omitted, the page's. */
     readonly baseUrl?: string
-    /** The server's ladder; the same value its handler decodes with. */
-    readonly widths?: Widths.Widths
+    /** The server's space; the same value its handler decodes with. */
+    readonly space?: Variant.Space
+    /** Formats offered as `source`s; by default every one of the space's but the last. */
     readonly sources?: ReadonlyArray<Format>
+    /** The `img`'s own format; by default the space's last. */
     readonly fallback?: Format
     readonly quality?: number
   } = {},
 ): Provider => {
-  const { baseUrl = '', widths = Widths.standard, sources = ['avif'], fallback = 'webp' } = options
+  const { baseUrl = '', space = Variant.standard } = options
+  const fallback = options.fallback ?? space.formats[space.formats.length - 1]!
+  const sources = options.sources ?? space.formats.slice(0, -1)
   if (baseUrl !== '' && !/^https?:\/\/[^/?#]+$/.test(baseUrl)) {
     throw new Error(`Provider.hosted: "${baseUrl}" is not an origin`)
   }
-  const quality = Option.fromNullishOr(options.quality)
-  if (Option.isSome(quality) && !Schema.is(Variant.Quality)(quality.value)) {
-    throw new Error(`Provider.hosted: quality ${quality.value} is not an integer from 1 to 100`)
+  for (const format of [...sources, fallback]) {
+    if (!space.formats.includes(format)) {
+      throw new Error(`Provider.hosted: the server's space does not make ${format}`)
+    }
   }
-  const encodeVariant = Schema.encodeOption(Variant.schema(widths))
+  const quality = Option.fromNullishOr(options.quality)
+  if (Option.isSome(quality) && !space.qualities.includes(quality.value)) {
+    throw new Error(`Provider.hosted: the server's space does not make quality ${quality.value}`)
+  }
+  const encodeVariant = Schema.encodeOption(space.schema)
   return {
-    widths,
+    widths: space.widths,
     sources,
     fallback,
     url: (asset, { width, encoding }) => {
@@ -136,7 +147,7 @@ export const hosted = (
       return Option.flatMap(asset.hash, hash =>
         Option.map(
           encodeVariant({ width, format: encoding, quality }),
-          variant => baseUrl + Variant.PATH.replace(':variant', variant).replace(':hash', hash),
+          variant => baseUrl + Variant.PATH.replace(':hash', hash).replace(':variant', variant),
         ),
       )
     },

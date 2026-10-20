@@ -12,6 +12,7 @@ import { Layer } from 'effect'
 import { Miniflare, Response as WorkerResponse } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { originalsR2, transformerImages, variantsR2 } from 'foldkit-media/cloudflare'
+import { Variant } from 'foldkit-media'
 import { serveFetch } from 'foldkit-media/server'
 
 interface Env {
@@ -65,7 +66,9 @@ const store = async (bytes: Uint8Array<ArrayBuffer>) => {
   return hash
 }
 
+// PNG beside the standard formats: a PNG's width is in its header.
 const server = serveFetch<Env>({
+  space: Variant.space({ formats: ['avif', 'webp', 'png'] }),
   layer: bindings =>
     Layer.mergeAll(
       originalsR2(bindings.MEDIA),
@@ -81,36 +84,36 @@ const infoOf = async (response: Response) =>
 describe('the Cloudflare layers', () => {
   it('resize an original in R2 to the width and format the URL names, and keep it', async () => {
     const hash = await store(await png(640, 320))
-    const response = await get(`/_image/w320.webp/${hash}`)
+    const response = await get(`/_image/${hash}/w320.webp`)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toBe('image/webp')
     expect(await infoOf(response)).toMatchObject({ format: 'image/webp', width: 320, height: 160 })
-    const kept = await env.MEDIA.head(`variants/w320.webp/${hash}`)
+    const kept = await env.MEDIA.head(`variants/${hash}/w320.webp`)
     expect(kept?.httpMetadata?.contentType).toBe('image/webp')
   })
 
   it('never enlarge: a width above the original answers with the original’s', async () => {
     const hash = await store(await png(400, 200))
-    expect(await infoOf(await get(`/_image/w1080.png/${hash}`))).toMatchObject({ width: 400 })
+    expect(await infoOf(await get(`/_image/${hash}/w1080.png`))).toMatchObject({ width: 400 })
   })
 
   it('serve from the edge cache what R2 has lost', async () => {
     const hash = await store(await png(500, 100))
-    expect((await get(`/_image/w320.png/${hash}`)).status).toBe(200)
-    await env.MEDIA.delete([hash, `variants/w320.png/${hash}`])
-    const again = await get(`/_image/w320.png/${hash}`)
+    expect((await get(`/_image/${hash}/w320.png`)).status).toBe(200)
+    await env.MEDIA.delete([hash, `variants/${hash}/w320.png`])
+    const again = await get(`/_image/${hash}/w320.png`)
     expect(again.status).toBe(200)
     expect(await infoOf(again)).toMatchObject({ width: 320 })
   })
 
   it('answer an original R2 does not hold with a 404', async () => {
-    expect((await get(`/_image/w320.png/${'0'.repeat(64)}`)).status).toBe(404)
+    expect((await get(`/_image/${'0'.repeat(64)}/w320.png`)).status).toBe(404)
   })
 
   it('answer an original the binding cannot read with a 502, keeping nothing', async () => {
     const hash = await store(new TextEncoder().encode('not an image'))
-    expect((await get(`/_image/w320.png/${hash}`)).status).toBe(502)
-    expect(await env.MEDIA.head(`variants/w320.png/${hash}`)).toBeNull()
+    expect((await get(`/_image/${hash}/w320.png`)).status).toBe(502)
+    expect(await env.MEDIA.head(`variants/${hash}/w320.png`)).toBeNull()
   })
 
   it('answer a spent allowance with a 503', async () => {
@@ -124,7 +127,7 @@ describe('the Cloudflare layers', () => {
           transform: () => ({ output: () => Promise.reject(spent) }),
         }) as unknown as ReturnType<ImagesBinding['input']>,
     }
-    const response = await get(`/_image/w320.png/${hash}`, { MEDIA: env.MEDIA, IMAGES: refusing })
+    const response = await get(`/_image/${hash}/w320.png`, { MEDIA: env.MEDIA, IMAGES: refusing })
     expect(response.status).toBe(503)
   })
 })

@@ -249,6 +249,55 @@ export default [
     tests: picture,
   },
   {
+    name: 'a space takes any format',
+    edits: [
+      {
+        file: '../src/variant.ts',
+        find: 'format: Schema.Literals(formats),',
+        replace: 'format: Format,',
+      },
+    ],
+    tests: hosted,
+  },
+  {
+    name: 'a space takes any quality',
+    edits: [
+      {
+        file: '../src/variant.ts',
+        find: 'quality: Schema.Option(Schema.Literals(qualities)),',
+        replace: 'quality: Schema.Option(Quality),',
+      },
+    ],
+    tests: hosted,
+  },
+  {
+    name: 'a space takes a repeated format',
+    edits: [{ file: '../src/variant.ts', find: "distinct('format', formats)", replace: '' }],
+    tests: hosted,
+  },
+  {
+    name: 'the hosted provider offers a format its server does not make',
+    edits: [
+      {
+        file: '../src/provider.ts',
+        find: 'if (!space.formats.includes(format)) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: hosted,
+  },
+  {
+    name: 'the hosted provider names a quality its server does not make',
+    edits: [
+      {
+        file: '../src/provider.ts',
+        find: '!space.qualities.includes(quality.value)',
+        replace: 'false',
+      },
+    ],
+    tests: hosted,
+  },
+  {
     name: 'a variant made is not kept',
     edits: [
       {
@@ -264,7 +313,7 @@ export default [
     edits: [
       {
         file: '../src/server/handlers.ts',
-        find: 'const key = `${spell(params.variant)}/${params.hash}`',
+        find: 'const key = `${params.hash}/${spell(params.variant)}`',
         replace: 'const key = params.hash',
       },
     ],

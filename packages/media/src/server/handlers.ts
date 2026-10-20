@@ -2,7 +2,6 @@ import { Effect, Layer, Option, Schema } from 'effect'
 import { HttpRouter, HttpServer, HttpServerResponse } from 'effect/http'
 import { HttpApiBuilder } from 'effect/http-api'
 import * as Variant from '../variant.js'
-import * as Widths from '../widths.js'
 import { makeApi, type MediaApi } from './api.js'
 import { OriginalTooLarge } from './errors.js'
 import { Originals, Transformer, Variants, type Encoded } from './services.js'
@@ -14,8 +13,8 @@ const IMMUTABLE = 'public, max-age=31536000, immutable'
 const DEFAULT_MAX_BYTES = 20 * 1024 * 1024
 
 export interface Options {
-  /** The ladder: the same value `Provider.hosted` writes URLs over. */
-  readonly widths?: Widths.Widths
+  /** Every variant this server makes: the same value `Provider.hosted` writes URLs in. */
+  readonly space?: Variant.Space
   /** The largest original read, in bytes; larger ones are a 413. */
   readonly maxBytes?: number
 }
@@ -27,8 +26,8 @@ export interface Options {
  * the original in the variant's place.
  */
 export const handlers = (api: MediaApi, options: Options = {}) => {
-  const { widths = Widths.standard, maxBytes = DEFAULT_MAX_BYTES } = options
-  const spell = Schema.encodeSync(Variant.schema(widths))
+  const { space = Variant.standard, maxBytes = DEFAULT_MAX_BYTES } = options
+  const spell = Schema.encodeSync(space.schema)
   return HttpApiBuilder.group(api, 'images', group =>
     Effect.gen(function* () {
       // Resolved once, when the route is built, so a store kept in memory lives as long as the server.
@@ -46,7 +45,7 @@ export const handlers = (api: MediaApi, options: Options = {}) => {
         'variant',
         Effect.fn('Media.variant')(function* ({ params }) {
           // The decoded request spelled again: one request, one key.
-          const key = `${spell(params.variant)}/${params.hash}`
+          const key = `${params.hash}/${spell(params.variant)}`
           const encoded: Encoded = yield* Option.match(yield* variants.get(key), {
             onSome: Effect.succeed,
             onNone: () =>
@@ -67,7 +66,7 @@ export const handlers = (api: MediaApi, options: Options = {}) => {
  * the `HttpRouter`, needing `Originals`, `Transformer` and `Variants`.
  */
 export const layer = (options: Options = {}) => {
-  const api = makeApi(options.widths ?? Widths.standard)
+  const api = makeApi(options.space ?? Variant.standard)
   return HttpApiBuilder.layer(api).pipe(Layer.provide(handlers(api, options)))
 }
 

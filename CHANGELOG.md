@@ -20,7 +20,8 @@ version changed; `pnpm` skips versions already in the registry.
   ladder, `sizes`, the reserved box, loading priority, and a placeholder background (a color, a
   ThumbHash, or the smallest width; none behind a transparent image). Providers: `cdnCgi`
   (Cloudflare's `/cdn-cgi/image/`), `fromFiles` (a build's variants) and `hosted` (its own server,
-  whose route `foldkit-media/server`'s `makeApi` declares with the same `Variant` Schema). `Picture.preload` writes
+  whose route, `/_image/<hash>/w640.avif`, `foldkit-media/server`'s `makeApi` declares with the same
+  Schema). `Variant.space({ widths, formats, qualities })` bounds every variant a server makes. `Picture.preload` writes
   the page's largest image's `<link rel="preload">` for an SSR `head`.
   `foldkit-media/server` serves `Provider.hosted`'s route over three services, `Originals`,
   `Transformer` and `Variants`: a variant is made once and kept, served immutable, and a failure is

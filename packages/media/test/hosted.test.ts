@@ -19,37 +19,62 @@ const assetWith = (hash: string | null): ImageAsset =>
 
 const asset = assetWith(HASH)
 
-describe('Variant.schema', () => {
-  const variant = Variant.schema(Widths.standard)
+describe('Variant.space', () => {
+  const space = Variant.space({ formats: ['avif', 'webp', 'jpeg'], qualities: [60, 100] })
 
   it.each([
     ['w640.avif', { width: 640, format: 'avif', quality: Option.none() }],
-    ['w1080q75.webp', { width: 1080, format: 'webp', quality: Option.some(75) }],
+    ['w1080q60.webp', { width: 1080, format: 'webp', quality: Option.some(60) }],
     ['w320q100.jpeg', { width: 320, format: 'jpeg', quality: Option.some(100) }],
   ])('reads %s, and spells it back the same', (spelling, decoded) => {
-    expect(Schema.decodeUnknownSync(variant)(spelling)).toEqual(decoded)
-    expect(Schema.encodeSync(variant)(Schema.decodeUnknownSync(variant)(spelling))).toBe(spelling)
+    expect(Schema.decodeUnknownSync(space.schema)(spelling)).toEqual(decoded)
+    expect(Schema.encodeSync(space.schema)(Schema.decodeUnknownSync(space.schema)(spelling))).toBe(
+      spelling,
+    )
   })
 
   it.each([
     ['a width off the ladder', 'w300.avif'],
     ['a leading zero', 'w0640.avif'],
-    ['a format it does not make', 'w640.gif'],
-    ['a quality of zero', 'w640q0.avif'],
-    ['a quality above 100', 'w640q101.avif'],
-    ['a quality with a leading zero', 'w640q075.avif'],
+    ['a format no space makes', 'w640.gif'],
+    ['a format outside this space', 'w640.png'],
+    ['a quality outside this space', 'w640q75.avif'],
+    ['a quality with a leading zero', 'w640q060.avif'],
   ])('refuses %s', (_, spelling) => {
-    expect(() => Schema.decodeUnknownSync(variant)(spelling)).toThrow()
+    expect(() => Schema.decodeUnknownSync(space.schema)(spelling)).toThrow()
+  })
+
+  it('names no quality when it has none', () => {
+    expect(() => Schema.decodeUnknownSync(Variant.standard.schema)('w640q60.avif')).toThrow()
+    expect(Schema.decodeUnknownSync(Variant.standard.schema)('w640.avif').width).toBe(640)
+  })
+
+  it('counts the variants one original can have', () => {
+    expect(space.size).toBe(8 * 3 * 3)
+    expect(Variant.standard.size).toBe(16)
+  })
+
+  it.each([
+    ['no formats', { formats: [] }],
+    ['a repeated format', { formats: ['avif', 'avif'] }],
+    ['a repeated quality', { qualities: [60, 60] }],
+    ['a quality of 0', { qualities: [0] }],
+  ] as const)('refuses %s', (_, options) => {
+    expect(() => Variant.space(options)).toThrow(/Variant\.space/)
   })
 })
 
 describe('Provider.hosted', () => {
   it.each([
-    ['a variant under the page’s origin', {}, `/_image/w640.avif/${HASH}`],
+    ['a variant under the page’s origin', {}, `/_image/${HASH}/w640.avif`],
     [
       'a variant under a named origin, with quality',
-      { baseUrl: 'https://img.example.com', quality: 75 },
-      `https://img.example.com/_image/w640q75.avif/${HASH}`,
+      {
+        baseUrl: 'https://img.example.com',
+        space: Variant.space({ qualities: [75] }),
+        quality: 75,
+      },
+      `https://img.example.com/_image/${HASH}/w640q75.avif`,
     ],
   ])('writes %s', (_, options, expected) => {
     expect(Provider.hosted(options).url(asset, { width: 640, encoding: 'avif' })).toEqual(
@@ -68,15 +93,17 @@ describe('Provider.hosted', () => {
   it.each([
     ['an origin with a path', { baseUrl: 'https://img.example.com/x' }],
     ['an origin with a trailing slash', { baseUrl: 'https://img.example.com/' }],
-    ['a quality of 0', { quality: 0 }],
-  ])('refuses %s', (_, options) => {
+    ['a quality outside its space', { quality: 75 }],
+    ['a source outside its space', { sources: ['png'] }],
+    ['a fallback outside its space', { fallback: 'jpeg' }],
+  ] as const)('refuses %s', (_, options) => {
     expect(() => Provider.hosted(options)).toThrow(/Provider\.hosted/)
   })
 })
 
 describe('the server reads what the provider writes', () => {
-  const widths = Widths.make([320, 640, 1280])
-  const Api = makeApi(widths)
+  const space = Variant.space({ widths: Widths.make([320, 640, 1280]), qualities: [80] })
+  const Api = makeApi(space)
   // Echo the decoded request, so the test sees what the router decoded.
   const Echo = HttpApiBuilder.group(Api, 'images', handlers =>
     handlers.handle('variant', ({ params }) =>
@@ -99,7 +126,7 @@ describe('the server reads what the provider writes', () => {
   const fetchPath = (path: string) => handler(new Request(`http://media.test${path}`))
 
   it('answers every URL a picture writes with the request it was written from', async () => {
-    const provider = Provider.hosted({ widths, sources: ['avif'], fallback: 'webp', quality: 80 })
+    const provider = Provider.hosted({ space, quality: 80 })
     const picture = Option.getOrThrow(
       Picture.derive({ asset, provider, layout: Layout.FullWidth() }),
     )
@@ -110,8 +137,8 @@ describe('the server reads what the provider writes', () => {
     for (const url of urls) {
       const response = await fetchPath(url)
       expect(response.status).toBe(200)
-      const [, , spelling] = url.split('/')
-      const { width, format, quality } = Schema.decodeUnknownSync(Variant.schema(widths))(spelling)
+      const [, , , spelling] = url.split('/')
+      const { width, format, quality } = Schema.decodeUnknownSync(space.schema)(spelling)
       expect(await response.json()).toEqual({
         width,
         format,
@@ -122,10 +149,11 @@ describe('the server reads what the provider writes', () => {
   })
 
   it.each([
-    ['a width off the ladder', `/_image/w1080.avif/${HASH}`],
-    ['a leading zero', `/_image/w0640.avif/${HASH}`],
-    ['a hash that is not one', '/_image/w640.avif/not-a-hash'],
-    ['an uppercase hash', `/_image/w640.avif/${HASH.toUpperCase()}`],
+    ['a width off the ladder', `/_image/${HASH}/w1080.avif`],
+    ['a leading zero', `/_image/${HASH}/w0640.avif`],
+    ['a hash that is not one', '/_image/not-a-hash/w640.avif'],
+    ['an uppercase hash', `/_image/${HASH.toUpperCase()}/w640.avif`],
+    ['a quality outside the space', `/_image/${HASH}/w640q75.avif`],
   ])('refuses %s with a 400', async (_, path) => {
     expect((await fetchPath(path)).status).toBe(400)
   })

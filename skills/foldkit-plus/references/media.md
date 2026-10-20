@@ -70,10 +70,11 @@ export const heroView = (h: HtmlBuilder<never>) =>
 - `Provider.cdnCgi({ zone?, widths?, quality? })`: Cloudflare's
   `/cdn-cgi/image/`; the zone resizes and picks the format.
 - `Provider.fromFiles(files, { sources, fallback })`: a build's variants.
-- `Provider.hosted({ baseUrl?, widths?, sources?, fallback?, quality? })`: this
-  package's own server, `/_image/w640.avif/<sha-256>`; needs the asset's
-  `hash`. `foldkit-media/server`'s `makeApi(widths)` declares the same route
-  with the same `Variant` Schema.
+- `Provider.hosted({ baseUrl?, space?, sources?, fallback?, quality? })`: this
+  package's own server, `/_image/<sha-256>/w640.avif`; needs the asset's
+  `hash`. `Variant.space({ widths, formats, qualities })` bounds what it makes;
+  `foldkit-media/server`'s `makeApi(space)` declares the same route with the
+  same Schema.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).

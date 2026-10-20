@@ -7,7 +7,7 @@
  */
 import { Effect, Layer } from 'effect'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Widths } from 'foldkit-media'
+import { Variant, Widths } from 'foldkit-media'
 import {
   Originals,
   QuotaExhausted,
@@ -56,7 +56,7 @@ const fakeTransformer = Layer.succeed(Transformer, {
 const serve = (options: Options = {}) => {
   let built = 0
   const fetch = serveFetch<{ readonly name: string }>({
-    widths: Widths.make([320, 640, 1280]),
+    space: Variant.space({ widths: Widths.make([320, 640, 1280]) }),
     ...options,
     layer: () => {
       built++
@@ -74,25 +74,25 @@ const serve = (options: Options = {}) => {
 describe('serveFetch', () => {
   it('makes a variant, serves it as immutable, and keeps it', async () => {
     const server = serve()
-    const first = await server.get(`/_image/w640.webp/${IMAGE}`)
+    const first = await server.get(`/_image/${IMAGE}/w640.webp`)
     expect(first.status).toBe(200)
     expect(first.headers.get('content-type')).toBe('image/webp')
     expect(first.headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
     expect(await first.text()).toBe('640.webp')
-    const second = await server.get(`/_image/w640.webp/${IMAGE}`)
+    const second = await server.get(`/_image/${IMAGE}/w640.webp`)
     expect(await second.text()).toBe('640.webp')
     expect(transforms).toEqual(['640.webp'])
   })
 
   it('keeps each variant of one original apart', async () => {
     const server = serve()
-    await server.get(`/_image/w640.webp/${IMAGE}`)
-    expect(await (await server.get(`/_image/w320.webp/${IMAGE}`)).text()).toBe('320.webp')
-    expect(await (await server.get(`/_image/w320.avif/${IMAGE}`)).text()).toBe('320.avif')
+    await server.get(`/_image/${IMAGE}/w640.webp`)
+    expect(await (await server.get(`/_image/${IMAGE}/w320.webp`)).text()).toBe('320.webp')
+    expect(await (await server.get(`/_image/${IMAGE}/w320.avif`)).text()).toBe('320.avif')
   })
 
   it('answers a width above the original with the original’s width', async () => {
-    expect(await (await serve().get(`/_image/w1280.avif/${IMAGE}`)).text()).toBe('1000.avif')
+    expect(await (await serve().get(`/_image/${IMAGE}/w1280.avif`)).text()).toBe('1000.avif')
   })
 
   it.each([
@@ -102,7 +102,7 @@ describe('serveFetch', () => {
   ])('answers %s with its own status, uncached and never the original', async (_, hash, status) => {
     const server = serve()
     for (const _attempt of [1, 2]) {
-      const response = await server.get(`/_image/w640.webp/${hash}`)
+      const response = await server.get(`/_image/${hash}/w640.webp`)
       expect(response.status).toBe(status)
       expect(response.headers.get('cache-control')).toBeNull()
       expect(await response.text()).not.toContain('IMAGE')
@@ -112,7 +112,7 @@ describe('serveFetch', () => {
   })
 
   it('refuses an original above the byte limit before transforming it', async () => {
-    const response = await serve({ maxBytes: 50 }).get(`/_image/w640.webp/${HUGE}`)
+    const response = await serve({ maxBytes: 50 }).get(`/_image/${HUGE}/w640.webp`)
     expect(response.status).toBe(413)
     expect(transforms).toEqual([])
   })
@@ -127,20 +127,20 @@ describe('serveFetch', () => {
         }),
     })
     const fetch = serveFetch<object>({
-      widths: Widths.make([320, 640]),
+      space: Variant.space({ widths: Widths.make([320, 640]) }),
       layer: () => Layer.mergeAll(counting, fakeTransformer, variantsMemory()),
     })
-    const response = await fetch(new Request(`http://media.test/_image/w1280.webp/${IMAGE}`), {})
+    const response = await fetch(new Request(`http://media.test/_image/${IMAGE}/w1280.webp`), {})
     expect(response.status).toBe(400)
     expect(read).toBe(0)
   })
 
   it('builds its services once per environment', async () => {
     const server = serve()
-    await server.get(`/_image/w640.webp/${IMAGE}`)
-    await server.get(`/_image/w320.webp/${IMAGE}`)
+    await server.get(`/_image/${IMAGE}/w640.webp`)
+    await server.get(`/_image/${IMAGE}/w320.webp`)
     expect(server.builds()).toBe(1)
-    await server.fetch(new Request(`http://media.test/_image/w640.webp/${IMAGE}`), { name: 'two' })
+    await server.fetch(new Request(`http://media.test/_image/${IMAGE}/w640.webp`), { name: 'two' })
     expect(server.builds()).toBe(2)
   })
 })

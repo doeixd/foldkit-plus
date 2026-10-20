@@ -50,11 +50,11 @@ describe('the image route', () => {
     expect(info).toMatchObject({ format: 'image/webp', width: 320 })
     const hash = Option.getOrThrow(asset.hash)
     expect(
-      await (await stack.mf.getR2Bucket('MEDIA')).head(`variants/w320.webp/${hash}`),
+      await (await stack.mf.getR2Bucket('MEDIA')).head(`variants/${hash}/w320.webp`),
     ).not.toBeNull()
   })
 
   it('answers an original it does not hold with a 404', async () => {
-    expect((await fetch(`${stack.origin}/_image/w320.png/${'0'.repeat(64)}`)).status).toBe(404)
+    expect((await fetch(`${stack.origin}/_image/${'0'.repeat(64)}/w320.webp`)).status).toBe(404)
   })
 })

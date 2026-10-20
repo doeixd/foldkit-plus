@@ -747,6 +747,8 @@ variants under the old shape. The packages are 0.x and unreleased.
 
 ### 18.1 The hash comes first: `/_image/<hash>/w640.avif`
 
+*Built.*
+
 The path ends in the format's extension. A variant written out as a file
 (§19.2) is then a plain file any static host serves with the right type,
 where `/_image/w640.avif/<hash>` would be a file named by a hash with no
@@ -755,6 +757,10 @@ extension, served as `application/octet-stream`. The `Variants` key becomes
 original removes them by prefix, and an R2 key mirrors the URL.
 
 ### 18.2 Quality comes from a ladder, and formats from a set
+
+*Built as `Variant.space({ widths, formats, qualities })`, whose `size` is the
+count. Qualities default to none: no URL names one, so the encoder's default
+applies and `Variant.standard` makes 16 variants an original.*
 
 `Variant.schema` accepts any quality from 1 to 100, so each width and format
 has a hundred spellings, and a crawler can make the server encode every one.
