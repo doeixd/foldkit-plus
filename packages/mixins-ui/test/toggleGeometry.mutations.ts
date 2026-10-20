@@ -63,6 +63,22 @@ export default [
     tests,
   },
   {
+    name: 'the check stands low in its box',
+    edits: [
+      {
+        file,
+        find: 'top: `calc(10.7% + ${ref.border.glyph} * 0.354)`,',
+        replace: "top: '19.5%',",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the check stands left in its box',
+    edits: [{ file, find: "left: '34%',", replace: "left: '30%'," }],
+    tests,
+  },
+  {
     name: 'the check wipes in under reduced motion too',
     edits: [
       {

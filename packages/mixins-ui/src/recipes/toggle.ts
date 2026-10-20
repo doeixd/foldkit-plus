@@ -63,16 +63,18 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
       }),
       // A check: two borders of a box, rotated; a dash when mixed. Placed
       // physically, as its sides are, so right to left draws the same check
-      // in the same place. The box sits above center because the check's ink
-      // gathers at its corner, below: 19.5% puts the ink's middle at the
-      // box's (at 12% it stood a pixel high). The mark is always drawn,
+      // in the same place. Turned, the box's ink spans 0.311 of the edge to
+      // either side of its center, 0.311 below it and 0.085 above, plus 0.707
+      // of the stroke: so the box sits 0.113 of the edge less 0.354 of the
+      // stroke above center, and the ink's middle lands on the control's at
+      // every size. The mark is always drawn,
       // clipped away until checked, so checking wipes it on over the fast
       // tier; the wipe travels, so reduced motion shows the mark at once.
       Style.pseudo('::after', {
         content: '""',
         position: 'absolute',
-        top: '19.5%',
-        left: '32%',
+        top: `calc(10.7% + ${ref.border.glyph} * 0.354)`,
+        left: '34%',
         inlineSize: '32%',
         blockSize: '56%',
         ...cornerSides(ref.border.glyph, toneVar('on-fill')),

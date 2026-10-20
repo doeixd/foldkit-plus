@@ -16,6 +16,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Checkbox's check is centered in its box at every size; it stood low and a
+  little left, by about 8% of the box.
 - `foldkit-mixins-ui`: the AngleSlider's dial, thumb and markers stay round in a theme whose
   `radius-factor` is 0; they read the radius scale before, which squared them off.
 
