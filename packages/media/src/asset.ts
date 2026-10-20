@@ -1,19 +1,51 @@
 import { Schema } from 'effect'
+import { ContentHash } from './variant.js'
 
 // A placeholder's color lands in a style the page writes, so it is a color
 // and nothing else: no `;`, no `url(`, no second declaration.
 const CSS_COLOR =
   /^(?:#[0-9a-f]{3,8}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\([0-9a-z%.,\s/+-]*\))$/i
 
-// ThumbHash's bytes in base64; a real one is about 25 bytes.
-const BASE64 = /^[A-Za-z0-9+/]{4,88}={0,2}$/
+const coefficientCount = (x: number, y: number): number => {
+  let count = 0
+  for (let cy = 0; cy < y; cy++)
+    for (let cx = cy === 0 ? 1 : 0; cx * y < x * (y - cy); cx++) count++
+  return count
+}
+
+// A ThumbHash's header decides exactly how many coefficient bytes follow it.
+// Checking that layout here keeps malformed stored data out of the renderer.
+const isThumbHash = (encoded: string): boolean => {
+  try {
+    const bytes = Uint8Array.from(atob(encoded), character => character.charCodeAt(0))
+    if (bytes.length < 5) return false
+    const hasAlpha = (bytes[2]! & 0x80) !== 0
+    const landscape = (bytes[4]! & 0x80) !== 0
+    const shorter = bytes[3]! & 7
+    if (shorter === 0) return false
+    const long = hasAlpha ? 5 : 7
+    const lx = landscape ? long : shorter
+    const ly = landscape ? shorter : long
+    const coefficients =
+      coefficientCount(lx, ly) +
+      coefficientCount(3, 3) * 2 +
+      (hasAlpha ? coefficientCount(5, 5) : 0)
+    return bytes.length === (hasAlpha ? 6 : 5) + Math.ceil(coefficients / 2)
+  } catch {
+    return false
+  }
+}
 
 /** What stands in an image's place until it loads. */
 export const Placeholder = Schema.TaggedUnion({
   /** A flat color, such as one taken from a logo. */
   Color: { value: Schema.String.check(Schema.isPattern(CSS_COLOR)) },
   /** A ThumbHash: a blurred likeness, alpha and aspect ratio included. */
-  ThumbHash: { hash: Schema.String.check(Schema.isPattern(BASE64)) },
+  ThumbHash: {
+    hash: Schema.String.check(
+      Schema.makeFilter(encoded => isThumbHash(encoded) || 'not a valid ThumbHash'),
+    ),
+  },
   /** The provider's smallest width of the image itself, scaled up. */
   LowRes: {},
 })
@@ -40,7 +72,7 @@ export const ImageAsset = Schema.Struct({
   width: Pixels,
   height: Pixels,
   alpha: Schema.Boolean,
-  hash: Schema.OptionFromNullOr(Schema.String),
+  hash: Schema.OptionFromNullOr(ContentHash),
   placeholder: Schema.OptionFromNullOr(Placeholder),
   focus: Schema.OptionFromOptionalNullOr(Focus),
 })

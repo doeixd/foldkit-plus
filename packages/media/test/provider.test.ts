@@ -37,6 +37,7 @@ describe('ImageAsset', () => {
     ['a second declaration', { _tag: 'Color', value: 'rgb(0 0 0); background: url(x)' }],
     ['a url', { _tag: 'Color', value: 'url(https://example.com/x.png)' }],
     ['markup as a ThumbHash', { _tag: 'ThumbHash', hash: '<script>' }],
+    ['malformed ThumbHash bytes', { _tag: 'ThumbHash', hash: 'abcd' }],
   ])('refuses %s as a placeholder', (_, placeholder) => {
     expect(() => decodeAsset(stored({ placeholder }))).toThrow()
   })
@@ -55,6 +56,10 @@ describe('ImageAsset', () => {
 
   it('refuses an image with no pixels', () => {
     expect(() => decodeAsset(stored({ width: 0 }))).toThrow()
+  })
+
+  it('refuses a hash that cannot name a hosted original', () => {
+    expect(() => decodeAsset(stored({ hash: '../not-a-content-hash' }))).toThrow()
   })
 })
 

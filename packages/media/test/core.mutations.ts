@@ -115,6 +115,28 @@ export default [
     tests: ['packages/media/test/provider.test.ts'],
   },
   {
+    name: 'malformed ThumbHash bytes are accepted',
+    edits: [
+      {
+        file: '../src/asset.ts',
+        find: "Schema.makeFilter(encoded => isThumbHash(encoded) || 'not a valid ThumbHash'),",
+        replace: 'Schema.makeFilter(() => true),',
+      },
+    ],
+    tests: ['packages/media/test/provider.test.ts'],
+  },
+  {
+    name: 'an arbitrary string can name a hosted original',
+    edits: [
+      {
+        file: '../src/asset.ts',
+        find: 'hash: Schema.OptionFromNullOr(ContentHash),',
+        replace: 'hash: Schema.OptionFromNullOr(Schema.String),',
+      },
+    ],
+    tests: ['packages/media/test/provider.test.ts'],
+  },
+  {
     name: 'an absolute source with a query is written raw',
     edits: [
       {
