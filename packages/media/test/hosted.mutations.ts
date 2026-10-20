@@ -119,8 +119,8 @@ export default [
     edits: [
       {
         file: '../src/provider.ts',
-        find: 'url =>\n      (url.protocol ===',
-        replace: 'url =>\n      true || (url.protocol ===',
+        find: "url => (url.protocol === 'http:' || url.protocol === 'https:')",
+        replace: "url => true || (url.protocol === 'http:' || url.protocol === 'https:')",
       },
     ],
     tests: ['packages/media/test/hosted.test.ts'],
