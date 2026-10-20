@@ -91,6 +91,24 @@ Option.map(picture, ({ img }) => img.srcset)
   an asset without `hash` has no hosted URL. The format is in the URL, so every
   cache can key on it.
 
+- **`detect(url, { widths?, sources?, fallback?, quality? })`** from
+  `foldkit-media/unpic` — an image on a host that resizes it (Shopify,
+  Cloudinary, imgix, Contentful, and the rest [unpic](https://unpic.pics)
+  knows), through unpic, an optional peer. It answers `Option<Provider>`: none
+  for a host unpic does not know. By default the `img` asks for `auto` and the
+  host picks the format from `Accept`; a format asked as a `source` is left out
+  on a host that ignores it (Shopify's), and an asset on another host gets no
+  URL. The asset's `key` is the image's URL, and its size comes from
+  `factsOf(url)` (see Facts, below).
+
+  ```ts
+  import { Option } from 'effect'
+  import { detect } from 'foldkit-media/unpic'
+
+  const shopify = detect('https://cdn.shopify.com/s/files/1/0/products/shirt.jpg')
+  Option.isSome(shopify) // true
+  ```
+
 A provider is a plain value (`Provider.Provider`): `widths`, the `sources`
 formats offered before the `img`, the `img`'s own `fallback` encoding, and a
 `url` function answering `Option<string>`.

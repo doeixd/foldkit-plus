@@ -167,7 +167,11 @@ interface Provider {
 - `foldkit-media/unpic` wraps unpic's `transformUrl` for other hosts. unpic is
   an optional peer, as an adapter's library is here. *Probe*: its operation
   types per provider, and whether `transform` of an already-resized URL is
-  stable.
+  stable. *Probed and built as `detect(url)` (unpic 4.2): a width replaces
+  cleanly, but whether a quality survives a re-transform differs by host, so
+  every URL is written from the original's; and unpic writes no format for
+  some hosts (Shopify), so the provider asks `auto` by default and leaves out
+  a `source` whose format the host would ignore.*
 - `Provider.fromFiles(files, formats)` is what a build-time import carries
   (§11): a table of emitted files, no URL scheme at all.
 - `url` answers `Option`: a provider that has no URL for a width (a build table
@@ -893,7 +897,8 @@ miniflare and the Images binding along the way, changed the plan from here.
     generated data, and the published snippets drawing with `Icon.draw`.
 11. **Uploads and adoption.** The upload route and its facts (§9.5), handed to
     `foldkit-cms-media`; the CMS `Image` block, the rich-text atom and the site
-    on `Image`; `Provider.detect` through unpic for images on known hosts.
+    on `Image`; `Provider.detect` through unpic for images on known hosts
+    (*built as `foldkit-media/unpic`'s `detect`*).
 
 ## 17. Open questions
 

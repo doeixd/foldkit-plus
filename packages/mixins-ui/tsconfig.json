@@ -13,6 +13,7 @@
       "foldkit-media/icons": ["../media/src/icons/index.ts"],
       "foldkit-media/server": ["../media/src/server/index.ts"],
       "foldkit-media/sharp": ["../media/src/sharp/index.ts"],
+      "foldkit-media/unpic": ["../media/src/unpic/index.ts"],
       "foldkit-media/vite": ["../media/src/vite/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-ui": ["./src/index.ts"],

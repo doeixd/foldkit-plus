@@ -65,6 +65,10 @@ version changed; `pnpm` skips versions already in the registry.
   read once through sharp and a file written for each ladder width up to its own in each format,
   named by content and kept in Vite's cache by the original's hash; the development server makes
   the same variants on request. `foldkit-media/client` types the import.
+  `foldkit-media/unpic`'s `detect(url, options?)` is the provider of an image on a host that resizes
+  it (Shopify, Cloudinary, imgix and the rest unpic knows, an optional peer), or none: the `img`
+  asks for `auto`, a format the host ignores is never offered as a `source`, and an asset on another
+  host gets no URL.
 - `foldkit-media`: `Icon.draw(icon, h, { key?, size? })` draws an `IconData` as inline SVG through
   any view builder of its shape (`SvgBuilder`; Foldkit's `h` is one), every attribute in the
   server's markup, `1em` square unless `size` is given and kept so in a squeezed flex row,

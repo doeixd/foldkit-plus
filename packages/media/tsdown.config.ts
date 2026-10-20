@@ -7,6 +7,7 @@ export default defineConfig({
     'src/server/index.ts',
     'src/cloudflare/index.ts',
     'src/sharp/index.ts',
+    'src/unpic/index.ts',
     'src/vite/index.ts',
   ],
   format: ['esm'],

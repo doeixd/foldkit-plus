@@ -50,6 +50,11 @@
       "types": "./dist/sharp/index.d.mts",
       "import": "./dist/sharp/index.mjs"
     },
+    "./unpic": {
+      "foldkit-plus:source": "./src/unpic/index.ts",
+      "types": "./dist/unpic/index.d.mts",
+      "import": "./dist/unpic/index.mjs"
+    },
     "./vite": {
       "foldkit-plus:source": "./src/vite/index.ts",
       "types": "./dist/vite/index.d.mts",
@@ -75,7 +80,8 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "sharp": ">=0.34.0"
+    "sharp": ">=0.34.0",
+    "unpic": "^4.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261013.1",
@@ -85,10 +91,14 @@
     "sharp": "^0.35.4",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2",
+    "unpic": "^4.2.2",
     "vite": "8.3.4"
   },
   "peerDependenciesMeta": {
     "sharp": {
+      "optional": true
+    },
+    "unpic": {
       "optional": true
     }
   }

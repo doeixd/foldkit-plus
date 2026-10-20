@@ -36,6 +36,7 @@
       "foldkit-media/icons": ["../../packages/media/src/icons/index.ts"],
       "foldkit-media/server": ["../../packages/media/src/server/index.ts"],
       "foldkit-media/sharp": ["../../packages/media/src/sharp/index.ts"],
+      "foldkit-media/unpic": ["../../packages/media/src/unpic/index.ts"],
       "foldkit-media/vite": ["../../packages/media/src/vite/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mirror": ["../../packages/mirror/src/index.ts"],

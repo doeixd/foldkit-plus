@@ -72,6 +72,11 @@ export const heroView = (h: HtmlBuilder<never>) =>
 - `Provider.cdnCgi({ zone?, widths?, quality? })`: Cloudflare's
   `/cdn-cgi/image/`; the zone resizes and picks the format.
 - `Provider.fromFiles(files, { sources, fallback })`: a build's variants.
+- `detect(url, { widths?, sources?, fallback?, quality? })` from
+  `foldkit-media/unpic` (unpic, an optional peer): `Option<Provider>` for an
+  image on a host that resizes it (Shopify, Cloudinary, imgix, …); `img` asks
+  `auto`, a format the host ignores is never a `source`, another host's asset
+  gets no URL.
 - `Provider.hosted({ baseUrl?, space?, sources?, fallback?, quality? })`: this
   package's own server, `/_image/<sha-256>/w640.avif`; needs the asset's
   `hash`. `Variant.space({ widths, formats, qualities })` bounds what it makes;
