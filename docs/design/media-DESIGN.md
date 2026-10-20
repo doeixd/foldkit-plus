@@ -908,7 +908,12 @@ miniflare and the Images binding along the way, changed the plan from here.
 11. **Uploads and adoption.** The upload route and its facts (§9.5), handed to
     `foldkit-cms-media`; the CMS `Image` block, the rich-text atom and the site
     on `Image`; `Provider.detect` through unpic for images on known hosts
-    (*built as `foldkit-media/unpic`'s `detect`*).
+    (*built: the upload route, and `foldkit-media/unpic`'s `detect`; the
+    adoption waits on `foldkit-cms-media`'s `Asset`*).
+14. **Versions** (§26). First the rollout-safe refusal (`Unoffered`), which
+    corrects what is built; then the revision in the spelling with its
+    redirect, the golden URLs and shapes, and the revisions in the build's
+    caches.
 
 ## 17. Open questions
 
@@ -1360,3 +1365,104 @@ made, kept or served from the edge; each error) to its headers, used by the
 handler, by the Cache API layer when it stores, and by `Media.headers()`. The
 table above is its test, row by row, so the server, the edge and a static host
 cannot disagree.
+
+## 26. Versions
+
+*Not built.* Two things change between releases, and each endpoint meets
+them differently: the **protocol** (what a URL or a body may say) and the
+**output** (what bytes or facts a request yields). The rules:
+
+- **A URL, once written, answers for good.** Variant URLs are written into
+  HTML, emails, a CMS's rows and static sites, and kept by browsers and the
+  edge for a year. The spelling grammar only grows: a release may add to it
+  (a new format, a new parameter) but never stops reading what an earlier one
+  wrote.
+- **New output, new URL.** A URL names its bytes (`immutable`), so a change to
+  what a variant is (the encoder's settings, its resizing kernel) changes the
+  URL, never the bytes behind one already published.
+- **A refusal a later release could answer is never kept.** This is the one
+  that bites today (below).
+
+### 26.1 Every endpoint and stored shape
+
+| Surface | Protocol | Output | How it versions |
+| --- | --- | --- | --- |
+| `GET /_image/<hash>/<spelling>` (server, Worker, materialized files) | the spelling grammar | the variant's bytes | the grammar only grows; a `revision` in the spelling (26.3) |
+| `POST /_media/upload` | an `image/*` body; the facts as JSON | the facts | additive JSON; a breaking change is a new path (26.4) |
+| `/@foldkit-media/image/…` (development only) | none kept | none kept | unversioned: nothing outlives the server |
+| `ImageAsset` as stored (a CMS row, `asset.json`) | the encoded shape | the facts | every released shape decodes (26.4) |
+| The `Variants` store, the `?image` cache | the key | the bytes | the key is the spelling, so a revision is a new key; the build's cache keys carry the revisions (26.5) |
+| Generated icon modules, `foldkit-icons.d.ts` | `IconData` | the drawings | the Iconify set's version is in the header; `icons:check` fails on drift |
+| Third-party URLs (`detect`, `cdnCgi`) | the host's own | the host's | the host's; unpic is pinned to a major and probed again on each |
+
+### 26.2 Rollouts: the refusal kept for a year
+
+The variant route answers every URL it cannot decode with `Malformed`, which
+`headersFor` keeps for a year, since a malformed URL cannot become valid. But
+"outside this space" is not "malformed": a width added to the ladder, a
+format or a quality added to the space, is a URL the next deployment
+answers. During a rollout (Cloudflare's gradual deployments run two
+versions at once; a static page outlives the Worker behind it), a page from
+the new release asks the old one for a new width, gets a 400, and the edge
+keeps that 400 for a year.
+
+The fix splits the answer: `Malformed` (kept a year) only for a URL no
+release could spell: a hash that is not 64 hex digits, a spelling outside
+the grammar. A well-formed spelling outside this space is `Unoffered`: a
+`404`, `no-store` for a browser and a minute at the edge, like `NotFound`.
+The grammar is the space-free part of the Schema, so the split is two
+decodes, not a second parser.
+
+### 26.3 The output's revision
+
+`Variant.space({ revision })` names the output's generation, `0` by
+default, and written into the spelling only when above `0`
+(`w640.avif`, then `w640.r1.avif`), so every URL written today stays as it
+is. `Provider.hosted` writes the space's current revision; the server reads
+every revision up to its own:
+
+- the current revision is served or made as now;
+- an older one is served if its variant is still kept (it is the same key it
+  always was), and otherwise answered with a `301` to the current revision's
+  URL, kept a year: the old bytes cannot be made again, and the new URL names
+  the new ones;
+- a later one is `Unoffered` (26.2): this server is the old one in a
+  rollout.
+
+A static site's `materialize` writes the current revision only. Its HTML is
+never kept long, so a fresh page names the new files; a site that must keep
+old pages' images (an email newsletter) keeps its earlier output directory
+beside the new one.
+
+### 26.4 Bodies and stored facts
+
+The upload's answer, and an `ImageAsset` wherever it is stored, change
+additively: a new field is optional (`OptionFromOptionalNullOr`, as `focus`
+is), and a reader ignores fields it does not know, which Schema's decode
+already does unless asked otherwise. So an old CMS reads a new server's
+facts, and a new one reads every row an old one stored. A change that
+cannot be additive is a new route, `/_media/v2/upload`, served beside the
+old one until no client sends to it.
+
+Stored facts are re-derivable from the original. A better placeholder or a
+fixed alpha reading is a new `FACTS_REVISION`, which re-reads the build's
+caches; stored rows stay valid and may be refreshed by a job, never must be.
+
+### 26.5 The build's caches
+
+`?image` keeps facts and variants by the original's hash. Their keys add
+`FACTS_REVISION` and the space's revision, so a release that changes either
+re-reads and re-encodes once, and one that changes neither encodes nothing
+again. sharp's own version is not in the key: a patch release re-encoding
+every AVIF of a site would cost minutes for no difference anyone sees;
+an encoder change that matters is a revision.
+
+### 26.6 Tests
+
+- **Golden URLs**, append-only: every spelling a release has written
+  (`w640.avif`, `w640q75.webp`, then `w640.r1.avif`), each decoded by every
+  later release, and each of `Malformed`, `Unoffered` and the redirect.
+- **Golden shapes**, append-only: an `ImageAsset` encoded as each release
+  stored it, decoded by the current Schema.
+- A rollout test: a server whose space lacks a width answers that width
+  `Unoffered`, not kept, and the server with it answers it.
