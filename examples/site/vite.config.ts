@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type Plugin, type ViteDevServer } from 'vite'
 import { foldkit } from '@foldkit/vite-plugin'
 import { staticSite } from 'foldkit-ssr/vite'
 
@@ -20,6 +20,29 @@ const staticHost = (): Plugin => ({
   },
 })
 
+/**
+ * The dev server's pages get the head the build writes through `site.ts`: the
+ * reader's scheme and theme, applied before the first paint. Foldkit's dev
+ * entry has no head of its own to write to (foldkit#1448), so the template
+ * carries it.
+ */
+const devHead = (): Plugin => {
+  let server: ViteDevServer | undefined
+  return {
+    name: 'dev-head',
+    apply: 'serve',
+    configureServer: devServer => {
+      server = devServer
+    },
+    transformIndexHtml: async html => {
+      if (server === undefined) return html
+      const { headScripts } = await server.ssrLoadModule('/src/head.ts')
+      if (typeof headScripts !== 'string') throw new Error('src/head.ts exports no headScripts')
+      return html.replace('</head>', `${headScripts}</head>`)
+    },
+  }
+}
+
 export default defineConfig(({ isPreview }) => ({
   // Workspace packages resolve to their source, so an edit shows without a build.
   resolve: { conditions: ['foldkit-plus:source'] },
@@ -35,6 +58,7 @@ export default defineConfig(({ isPreview }) => ({
     foldkit({ ssr: { serverEntry: '/src/entry.server.ts' } }),
     staticSite({ site: { module: '/src/site.ts' } }),
     staticHost(),
+    devHead(),
   ],
   appType: isPreview === true ? 'mpa' : 'spa',
 }))

@@ -21,10 +21,10 @@ import {
   inLook,
   knobAt,
   knobPaths,
-  knobStyleOf,
   looks,
   presets,
   sameTheme,
+  schemeStyleOf,
   shuffled,
   valueAt,
   withBase,
@@ -53,17 +53,9 @@ describe('the theme creator', () => {
     expect(codeOf(defaults)).not.toContain('hue')
   })
 
-  it('overrides on the preview the knob variables that differ, and nothing else', () => {
-    const style = knobStyleOf(
-      withValue(withValue(defaults, 'accent.hue', 12), 'shape.density', 0.8),
-      'dark',
-    )
-    expect(style).toEqual({
-      colorScheme: 'dark',
-      '--fk-knob-accent-h': '12',
-      '--fk-knob-density': '0.8',
-    })
-    expect(knobStyleOf(defaults, 'system')).toEqual({ colorScheme: 'light dark' })
+  it("draws a preview in the scheme chosen, or the reader's for system", () => {
+    expect(schemeStyleOf('dark')).toEqual({ colorScheme: 'dark' })
+    expect(schemeStyleOf('system')).toEqual({ colorScheme: 'light dark' })
   })
 
   it('declares on the preview every derived token, over the default theme’s knobs', () => {

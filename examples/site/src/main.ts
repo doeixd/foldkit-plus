@@ -50,6 +50,7 @@ import {
   defaults as defaultTheme,
   fit,
   halfAt,
+  keepKnobs,
   knobAt,
   presets,
   sameTheme,
@@ -565,6 +566,23 @@ const writeThemeAddress = (query: string) =>
 export const subscriptions = placements.subscriptions(
   Subscription.aggregate(
     Subscription.make<Model, Message>()(entry => ({
+      // The reader's knobs on every preview, as each change lands, and kept
+      // for the head script of the next page. Not before the page has read
+      // the theme it was opened at: the head script's rule stands until then,
+      // and the default would undo it.
+      knobs: entry(
+        { theme: Schema.Option(ThemeValues) },
+        {
+          modelToDependencies: model => ({
+            theme: model.addressRead ? Option.some(model.theme) : Option.none(),
+          }),
+          dependenciesToStream: ({ theme }) =>
+            Option.match(theme, {
+              onNone: () => Stream.empty,
+              onSome: values => Stream.fromEffect(keepKnobs(values)).pipe(Stream.drain),
+            }),
+        },
+      ),
       // The reader's theme, once the page has read the one it was opened at:
       // kept for the next page, every link being a page load of its own, and
       // on `/create` in its address too, the link a reader shares. A quarter

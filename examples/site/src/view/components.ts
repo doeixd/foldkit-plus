@@ -15,7 +15,7 @@ import {
   type Live,
   type Showcase,
 } from '../gallery/showcases.js'
-import { defaults, knobStyleOf, sameTheme, type Scheme } from '../gallery/theme.js'
+import { defaults, sameTheme, schemeStyleOf, type Scheme } from '../gallery/theme.js'
 import { COMPONENTS, CREATE, type Library } from '../library.js'
 import { Message, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
@@ -34,7 +34,7 @@ export const liveOf = (model: Model, h: H): Live<Message> => ({
   h,
 })
 
-/** A frame in the component theme, with the reader's knobs and scheme over it. */
+/** A frame in the component theme, under the reader's knobs (`knobsPlace`), in their scheme. */
 export const preview = (
   model: Model,
   size: 'page' | 'thumb' | 'canvas' | 'specimen',
@@ -45,7 +45,7 @@ export const preview = (
   h.div(
     slots.preview.attrs([
       h.DataAttribute('size', size),
-      h.Style(knobStyleOf(model.theme, model.scheme)),
+      h.Style(schemeStyleOf(model.scheme)),
       h.Dir(model.direction),
       // A thumbnail only shows: the card's link takes the click, and nothing
       // in it is reached by Tab.

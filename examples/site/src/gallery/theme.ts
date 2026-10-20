@@ -4,8 +4,8 @@
  * A theme is a typed set of the standard knobs' values (`Theme.make`), and
  * every token derives from knob variables. A custom property resolves where
  * it is declared, so a preview declares the whole theme on its own element
- * (`declared`), and `/create` writes the knob variables that differ inline on
- * that same element (`knobStyleOf`), where every token re-derives from them.
+ * (`declared`), and the knob variables that differ from it are one rule over
+ * every preview (`knobsPlace`), where every token re-derives from them.
  * The site's own look, on `:root`, is never touched.
  */
 import { Schema } from 'effect'
@@ -506,30 +506,21 @@ const declarationsOf = (
 /** Every token of the default theme, for a preview's own rule. */
 export const declared = declarationsOf(theme)
 
-/** The last overrides made: every preview on a page asks for the same ones, render after render. */
-let last:
-  | {
-      readonly values: ThemeValues
-      readonly scheme: Scheme
-      readonly style: Record<string, string>
-    }
-  | undefined
-
 /**
- * The inline overrides that turn the default preview into `values`: only the
- * knob variables that differ from what the preview's rule declares, since
- * every preview on a page carries them (the gallery draws dozens).
+ * Where the reader's knobs are kept, and the frames they apply to:
+ * `Theme.knobScript` applies them in the page's head before the first paint,
+ * and `keepKnobs` on each change after.
  */
-export const knobStyleOf = (values: ThemeValues, scheme: Scheme): Record<string, string> => {
-  if (last !== undefined && last.values === values && last.scheme === scheme) return last.style
-  const style: Record<string, string> = { colorScheme: scheme === 'system' ? 'light dark' : scheme }
-  for (const [name, value] of Object.entries(Theme.variables(Theme.make(values)))) {
-    const property = `${VAR_PREFIX}-knob-${name}` as const
-    if (declared[property] !== value) style[property] = value
-  }
-  last = { values, scheme, style }
-  return style
-}
+export const knobsPlace = { key: 'foldkit-site-knobs', selector: '[data-size]' } as const
+
+/** `values`' knobs on every preview frame, and kept for the next page: the default keeps nothing. */
+export const keepKnobs = (values: ThemeValues) =>
+  Theme.chooseKnobs(Theme.make(values), { base: iris, ...knobsPlace })
+
+/** A preview's color scheme, on its frame: `system` follows the reader's. */
+export const schemeStyleOf = (scheme: Scheme): Record<string, string> => ({
+  colorScheme: scheme === 'system' ? 'light dark' : scheme,
+})
 
 /** `values` as the source an application pastes into its style module. */
 export const codeOf = (values: ThemeValues): string =>
