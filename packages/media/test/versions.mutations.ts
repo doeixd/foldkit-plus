@@ -9,6 +9,17 @@ const tests = ['packages/media/test/versions.test.ts']
 
 export default [
   {
+    name: 'facts stored before a focal point existed no longer read',
+    edits: [
+      {
+        file: '../src/asset.ts',
+        find: 'focus: Schema.OptionFromOptionalNullOr(Focus),',
+        replace: 'focus: Schema.OptionFromNullOr(Focus),',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a space reads every revision as its own',
     edits: [
       {

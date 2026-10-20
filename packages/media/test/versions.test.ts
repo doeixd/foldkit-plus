@@ -64,6 +64,58 @@ describe('the variant spellings every release reads', () => {
   })
 })
 
+/**
+ * Every shape a release has stored an image's facts in (a CMS row, a document's props, the
+ * build's `asset.json`). Add to it; never remove: a later release reads them all.
+ */
+const storedShapes: ReadonlyArray<readonly [what: string, stored: unknown]> = [
+  [
+    'none of what may be absent',
+    { key: 'a.png', width: 640, height: 320, alpha: false, hash: null, placeholder: null },
+  ],
+  [
+    'a hash, a ThumbHash and a focal point',
+    {
+      key: 'b.jpg',
+      width: 1200,
+      height: 800,
+      alpha: true,
+      hash: 'b'.repeat(64),
+      placeholder: { _tag: 'ThumbHash', hash: 'HggGFIRYhhWGeHVgk5QHsjUE0g==' },
+      focus: { x: 0.25, y: 0.75 },
+    },
+  ],
+  [
+    'a flat color, and a focal point stored as null',
+    {
+      key: 'c.png',
+      width: 10,
+      height: 10,
+      alpha: false,
+      hash: null,
+      placeholder: { _tag: 'Color', value: '#123456' },
+      focus: null,
+    },
+  ],
+  [
+    'the smallest width standing in',
+    {
+      key: 'd.webp',
+      width: 10,
+      height: 10,
+      alpha: false,
+      hash: null,
+      placeholder: { _tag: 'LowRes' },
+    },
+  ],
+]
+
+describe('the facts every release has stored', () => {
+  it.each(storedShapes)('reads facts stored with %s', (_, stored) => {
+    expect(Option.isSome(Schema.decodeUnknownOption(ImageAsset)(stored))).toBe(true)
+  })
+})
+
 const transformer = Layer.succeed(Transformer, {
   transform: (original, variant) =>
     Effect.gen(function* () {
