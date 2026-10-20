@@ -1542,10 +1542,16 @@ rendering's `width`/`height` from it, and `imageBox(props)` for a rendering
 of its own; `foldkit-media/browser`'s `inspectorBrowser`, with which the
 playground reads a dropped file's facts where it was chosen; and the facts
 route, `GET /_media/facts?url=` in `UploadApi`, behind the `UploadPolicy`,
-reading only the hosts `facts: { allow }` names. Not built: the CMS block. The CMS's studio edits `src` as a field, so
-facts stored beside it go stale on that edit: its block needs the route, and
-`SetProps` on `src` that clears or refreshes `asset` in the same change,
-before it can carry facts without lying about the box.*
+reading only the hosts `facts: { allow }` names. Built for the CMS: its
+`Image` block's optional `asset`, hidden from the inspector
+(`Input.hidden()`), keyed by the URL it describes. The studio edits `src` as a
+field and leaves `asset` as it was, so the block reads the facts only while
+their key is the `src` it draws (`imageRatio`); facts of an address edited
+away keep the 4:3 box, not a wrong one. The seeded desk image carries its
+facts. Not built: filling them in the studio. That needs a facts route beside
+the CMS's server, which also runs in the page for the sandbox, and a Builder
+seam that writes a prop derived from another as part of that prop's edit,
+not as an undo step of its own.*
 
 ### 27.2 Icons in the theme: tokens and two knobs
 

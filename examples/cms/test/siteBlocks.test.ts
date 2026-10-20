@@ -4,10 +4,12 @@
  * published is an empty treatment. Drawn through the site's own Renderer, as
  * the public page, the preview and the canvas draw them.
  */
+import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { NodeId, type Document } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
-import { SiteRenderer } from '../src/content/site.js'
+import { settingsOf } from 'foldkit-builder'
+import { Image, SiteRenderer } from '../src/content/site.js'
 import { Capability, Slot, SlotView, Slots } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -19,7 +21,7 @@ const ProbeSlots = Slots.define({ root: Slot.make({ capability: Capability.Conta
 
 interface ProbeInput {
   readonly block: string
-  readonly props: Record<string, string | number | null>
+  readonly props: Readonly<Record<string, Schema.Json>>
   readonly data: unknown
 }
 
@@ -99,5 +101,37 @@ describe('the site’s reading Blocks', () => {
     expect(Inert.text(leftOut)).not.toContain('Nothing yet.')
     const kept = draw('LatestPages', { count: 3, except: null }, one)
     expect(Inert.text(kept)).toContain('A')
+  })
+})
+
+describe('the site’s Image', () => {
+  const desk = {
+    key: '/images/desk.svg',
+    width: 800,
+    height: 600,
+    alpha: false,
+    hash: null,
+    placeholder: null,
+  }
+  const ratioOf = (props: Readonly<Record<string, Schema.Json>>) =>
+    Inert.style(
+      Inert.byTag(draw('Image', { alt: 'A desk', caption: '', ...props }, null), 'img')[0],
+    )['--image-ratio']
+
+  it('keeps the box its facts give, while they are of the file it shows', () => {
+    expect(ratioOf({ src: '/images/desk.svg', asset: desk })).toBe('800 / 600')
+  })
+
+  it.each([
+    ['facts of an address it no longer shows', { src: '/images/meadow.svg', asset: desk }],
+    ['no facts', { src: '/images/desk.svg' }],
+  ])('keeps the 4:3 box for %s', (_, props) => {
+    expect(ratioOf(props)).toBe(undefined)
+  })
+
+  it('keeps its facts out of the inspector, neither edited nor shown', () => {
+    const settings = settingsOf(Image)
+    expect(settings.shown({ src: '/images/desk.svg', asset: desk })).toEqual([])
+    expect(Object.keys(settings.seed())).not.toContain('asset')
   })
 })

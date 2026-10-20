@@ -14,6 +14,9 @@ version changed; `pnpm` skips versions already in the registry.
   `height` (at the drawn `width` when set), so a page holds the image's box before the file
   arrives, and `imageBox(props)` gives a rendering of its own the same. Optional: a document
   without it is as valid as before. `foldkit-media` is a new dependency.
+- `examples/cms`: the site's `Image` block may carry its `asset`, the facts of the file its `src`
+  names, hidden from the inspector; with them the image's box is its own shape before the file
+  arrives, while the facts' key is still the `src` (an edited address falls back to 4:3).
 - `foldkit-primitives`: `decodeImage(source)` fetches and decodes a picture before it is shown,
   yielding `Decoded` or `DecodeFailed`; given candidates, the one the browser would draw.
 - `foldkit-ssr`: a static site's `emit(pages)` adds files made from the generated pages, written

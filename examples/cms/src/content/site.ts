@@ -16,6 +16,7 @@ import { PAGE_CONTAINER, Renderer } from 'foldkit-composition/foldkit'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity, type Selected } from 'foldkit-entity'
 import { Input } from 'foldkit-form'
+import { ImageAsset } from 'foldkit-media'
 import { Capability, Layers, Slot, SlotView, Slots, Style } from 'foldkit-mixins'
 import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
 import { BuilderView } from 'foldkit-mixins-builder'
@@ -434,8 +435,8 @@ const ImageLook = Appearance.make(ImageSlots, {
       root: Style.self({ display: 'grid', gap: t.space.xs, margin: '0' }),
       image: Style.self({
         // Its room is kept before it loads, so the text around it does not move
-        // when it arrives: 4:3 until then, the image's own shape after.
-        aspectRatio: 'auto 4 / 3',
+        // when it arrives: the shape its facts say, else 4:3, and its own after.
+        aspectRatio: 'auto var(--image-ratio, 4 / 3)',
         background: t.surface.muted,
         display: 'block',
         height: 'auto',
@@ -463,12 +464,26 @@ export const Image = Block.define('Image', {
     src: Url.annotate({ title: 'Image address' }),
     alt: Schema.String.annotate({ title: 'Description', description: 'What the image shows.' }),
     caption: Schema.String.annotate({ title: 'Caption' }),
+    // The facts of the file `src` names, keyed by that URL; none for one not yet read.
+    asset: Schema.optional(ImageAsset),
   }),
   provides: [Content.Flow],
 }).pipe(
   Block.words({ group: 'Media', description: 'A picture with a caption' }),
+  Block.annotate(Builder.controls({ asset: Input.hidden() })),
   Appearance.attach(ImageLook),
 )
+
+/**
+ * The shape an Image's facts give its box, while they are of the file it shows. Editing
+ * `src` leaves the facts of the old URL behind, so they are read only while their key is
+ * the address drawn.
+ */
+const imageRatio = (props: typeof Image.Props.Type): Option.Option<string> =>
+  Option.fromUndefinedOr(props.asset).pipe(
+    Option.filter(asset => asset.key === props.src),
+    Option.map(({ width, height }) => `${width} / ${height}`),
+  )
 
 const QuoteSlots = Slots.define({ root: part, text: part, cite: part })
 const QuoteLook = Appearance.make(QuoteSlots, {
@@ -931,7 +946,16 @@ export const SiteRenderer = Renderer.make(Site, {
   Image: ({ props, appearance, h }) => {
     const drawn = ImageLook.draw({ appearance, h })
     return h.figure(drawn.root.attrs(), [
-      h.img(drawn.image.attrs([h.Src(props.src), h.Alt(props.alt)])),
+      h.img(
+        drawn.image.attrs([
+          h.Src(props.src),
+          h.Alt(props.alt),
+          ...Option.match(imageRatio(props), {
+            onNone: () => [],
+            onSome: ratio => [h.Style({ '--image-ratio': ratio })],
+          }),
+        ]),
+      ),
       ...(props.caption === '' ? [] : [h.figcaption(drawn.caption.attrs(), [props.caption])]),
     ])
   },
