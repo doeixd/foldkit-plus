@@ -1370,8 +1370,10 @@ of its own named a form field "fits the Catalog". Read words with
 - **A `\\n` in a Python heredoc run through the Bash tool reaches the file as a newline.**
   Three scripted edits in one session wrote a real line break into `'\n'` string literals
   (`endsWith('\n')`, a mutation anchor, an e2e assertion); one compiled, inside a template
-  literal, and read as a different string. Write text holding escapes with the Edit or Write
-  tool, and grep the result with `grep -F` before trusting it.
+  literal, and read as a different string. A quoted bash heredoc (`cat <<'EOF'`) through the
+  tool does it too: `'\\s'` in a mutation anchor and `'\\c'` in a test reached the files as
+  `'\s'` and `'\c'`, which JavaScript reads as `s` and `c`. Write text holding escapes with the
+  Edit or Write tool (or `String.raw`), and grep the result with `grep -F` before trusting it.
 - **Python's text mode writes CRLF on Windows.** Scripted edits with
   `open(p, 'w')` turned `tsconfig.json` and `vitest.config.ts` into CRLF files
   that failed `format:check`. Pass `newline=''` when reading and writing.
