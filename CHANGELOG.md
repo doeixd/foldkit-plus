@@ -144,6 +144,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-media`: `serveFetch` no longer coalesces concurrent misses by default, as its docs
+  said; it did, and a Worker request cannot wait on another's work.
 - `foldkit-mixins-ui`: a Card's `media` is an accent tile only around a bare icon (`svg`,
   `img`); an Avatar or anything else leads at its own size, at the card's start. The docs site's
   profile card passed its Avatar as `image`, which bleeds to the edges in a 16:9 band, and the

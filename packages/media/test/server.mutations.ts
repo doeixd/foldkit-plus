@@ -447,4 +447,15 @@ export default [
     ],
     tests: ['packages/media/test/server.test.ts'],
   },
+  {
+    name: 'a Worker coalesces by default, waiting on another request’s work',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: 'layer({ coalesce: false, ...options })',
+        replace: 'layer(options)',
+      },
+    ],
+    tests: ['packages/media/test/server.test.ts'],
+  },
 ]

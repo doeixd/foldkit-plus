@@ -341,6 +341,15 @@ describe('serveFetch', () => {
       expect(transforms).toEqual(expected)
     })
 
+    it('is off for a Worker by default, since its requests cannot wait on one another', async () => {
+      const fetch = serveFetch<object>({
+        layer: () => Layer.mergeAll(memoryStores(originals), slow),
+      })
+      const env = {}
+      await three(request => fetch(request, env))
+      expect(transforms).toEqual(['640.webp', '640.webp', '640.webp'])
+    })
+
     it('is on for a Node server’s layer by default', async () => {
       const { handler, dispose } = HttpRouter.toWebHandler(
         layer().pipe(

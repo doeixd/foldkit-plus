@@ -224,4 +224,4 @@ export const serveFetch = <Env extends object>(
     readonly layer: (env: Env) => Layer.Layer<Originals | Transformer | Variants, unknown>
   },
 ): ((request: Request, env: Env) => Promise<Response>) =>
-  fetchOf(env => layer(options).pipe(Layer.provide(options.layer(env))))
+  fetchOf(env => layer({ coalesce: false, ...options }).pipe(Layer.provide(options.layer(env))))
