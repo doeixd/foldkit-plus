@@ -8,13 +8,22 @@ import { describe, Placeholder } from 'foldkit-media'
 import { inspectorBrowser } from 'foldkit-media/browser'
 import { expect, test } from 'vitest'
 
-/** A PNG of `width` by `height`, teal, its top-left corner left clear when `clear`. */
-const png = async (width: number, height: number, clear = false) => {
+/** A teal PNG, optionally with transparency that downsampling may hide. */
+const png = async (
+  width: number,
+  height: number,
+  transparency: 'none' | 'area' | 'pixel' = 'none',
+) => {
   const canvas = new OffscreenCanvas(width, height)
   const context = canvas.getContext('2d')!
   context.fillStyle = 'teal'
   context.fillRect(0, 0, width, height)
-  if (clear) context.clearRect(0, 0, width / 4, height / 4)
+  if (transparency === 'area') context.clearRect(0, 0, width / 4, height / 4)
+  if (transparency === 'pixel') {
+    const pixel = context.getImageData(0, 0, 1, 1)
+    pixel.data[3] = 254
+    context.putImageData(pixel, 0, 0)
+  }
   const blob = await canvas.convertToBlob({ type: 'image/png' })
   return new Uint8Array(await blob.arrayBuffer())
 }
@@ -48,8 +57,10 @@ test('reads a dropped file’s size, hash and ThumbHash, opaque where every pixe
 })
 
 test('reads alpha where any pixel is not opaque', async () => {
-  const exit = await read(await png(400, 400, true))
-  expect(Exit.isSuccess(exit) && exit.value.alpha).toBe(true)
+  for (const transparency of ['area', 'pixel'] as const) {
+    const exit = await read(await png(400, 400, transparency))
+    expect(Exit.isSuccess(exit) && exit.value.alpha).toBe(true)
+  }
 })
 
 test('refuses bytes the browser cannot decode, and a picture above the pixel limit', async () => {

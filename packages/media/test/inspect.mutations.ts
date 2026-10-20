@@ -9,7 +9,7 @@ const tests = ['packages/media/test/inspect.browser.test.ts']
 export default [
   {
     name: 'every image reads as opaque',
-    edits: [{ file: inspector, find: 'alpha = rgba[at]! < 255', replace: 'alpha = false' }],
+    edits: [{ file: inspector, find: 'alpha = pixels[at]! < 255', replace: 'alpha = false' }],
     tests,
   },
   {
