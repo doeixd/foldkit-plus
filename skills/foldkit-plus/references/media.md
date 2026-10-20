@@ -77,5 +77,15 @@ export const heroView = (h: HtmlBuilder<never>) =>
   decides every response's headers in `headersFor` (immutable variants, ETag
   and 304, a lifetime per error, CORS).
 
+## The server's stores
+
+`foldkit-media/server` needs `Originals`, `Transformer` and `Variants`.
+Originals and variants are kept in any Effect `KeyValueStore`
+(`originalsKeyValueStore()`, `variantsKeyValueStore()` over
+`KeyValueStore.layerMemory`, `layerFileSystem` or `layerSql`); on Cloudflare,
+`foldkit-media/cloudflare` gives `keyValueStoreR2`, `originalsR2`,
+`variantsR2` (with the Cache API in front) and `transformerImages`. Variants
+are a cache: a store that fails is answered by making the variant.
+
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).
