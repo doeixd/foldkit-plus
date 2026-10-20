@@ -87,7 +87,8 @@ application's Kit. `Code` is the inline-code mark, so there is no `InlineCode`, 
 `HardBreak` is absent until inline atoms exist. `RichText.standardRendering` gives each
 kind its element (a `List` an `ol`/`ul`, an `Image` an `img` with its `src`; an `Image` also
 carries optional `caption`, `width`, `align`, and `asset`, `foldkit-media`'s `ImageAsset` as
-stored, from which the `img` gets its `width` and `height`), an entry's `adornments` are non-content
+stored, from which the `img` gets its `width` and `height`; `imageBox(props)` gives a rendering
+of its own the same), an entry's `adornments` are non-content
 elements drawn before a block's content (a checkbox, a figure's picture; `toggles: 'checked'`
 makes a click flip that prop), and
 `renderingOver(base, extra)` builds a registry over another, so an application adds its own

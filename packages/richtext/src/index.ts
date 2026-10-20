@@ -171,6 +171,7 @@ export {
   type LinkAt,
   standardMarks,
   standardNodes,
+  imageBox,
   standardRendering,
 } from './standard.js'
 export {

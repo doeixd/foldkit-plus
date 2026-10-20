@@ -3,8 +3,10 @@
  * over, and image files chosen, pasted or dropped. The editor
  * owns its own subtree's events; these listen on elements the application draws around it.
  */
-import { Effect, Queue, Stream } from 'effect'
+import { Effect, Exit, Queue, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
+import { describe } from 'foldkit-media'
+import { inspectorBrowser } from 'foldkit-media/browser'
 import * as RichText from 'foldkit-richtext'
 import { Message } from './app.js'
 import { IMAGE_TYPES } from './vocabulary.js'
@@ -38,23 +40,32 @@ const readFiles = (files: ReadonlyArray<File>, found: Found): void => {
         found(Message.FileRead({ src, name: file.name, type: file.type, size: file.size }))
         return
       }
-      // Shown at its own width, up to a column's, rather than stretched: a small image stays small.
-      const picture = new Image()
-      picture.addEventListener('load', () =>
-        found(
-          Message.ImageRead({
-            src,
-            alt: file.name.replace(/\.[^.]+$/, ''),
-            width: Math.min(picture.naturalWidth, MAX_IMAGE_WIDTH),
-          }),
-        ),
-      )
-      picture.addEventListener('error', () =>
-        found(
-          Message.FileRefused({ reason: `${file.name} is not an image this browser can show.` }),
-        ),
-      )
-      picture.src = src
+      // Its facts read here, where it was chosen, so the document holds its box from the start.
+      void file
+        .arrayBuffer()
+        .then(buffer =>
+          Effect.runPromiseExit(
+            describe(file.name, new Uint8Array(buffer)).pipe(Effect.provide(inspectorBrowser())),
+          ),
+        )
+        .then(exit =>
+          found(
+            Exit.match(exit, {
+              onSuccess: asset =>
+                Message.ImageRead({
+                  src,
+                  alt: file.name.replace(/\.[^.]+$/, ''),
+                  // Shown at its own width, up to a column's: a small image stays small.
+                  width: Math.min(asset.width, MAX_IMAGE_WIDTH),
+                  asset,
+                }),
+              onFailure: () =>
+                Message.FileRefused({
+                  reason: `${file.name} is not an image this browser can show.`,
+                }),
+            }),
+          ),
+        )
     })
     reader.addEventListener('error', () =>
       found(Message.FileRefused({ reason: `${file.name} could not be read.` })),

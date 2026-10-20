@@ -20,9 +20,7 @@ export default [
   },
   {
     name: 'an image’s facts hold no box',
-    edits: [
-      { file: standard, find: '...boxOf(block.props.asset, block.props.width),', replace: '' },
-    ],
+    edits: [{ file: standard, find: '...imageBox(block.props),', replace: '' }],
     tests,
   },
   {

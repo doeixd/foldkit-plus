@@ -116,6 +116,9 @@ test('an image file is read into the document at its own width', async () => {
   const figure = page.locator('figure[data-image]').last()
   await expect.poll(() => figure.locator('img').getAttribute('alt')).toBe('dot')
   expect(await figure.getAttribute('style')).toBe('--image-width: 2px')
+  // Its facts read in the browser as it was added: the picture's box is held before it loads.
+  const img = figure.locator('img')
+  expect([await img.getAttribute('width'), await img.getAttribute('height')]).toEqual(['2', '2'])
 
   expect(errors).toEqual([])
 })

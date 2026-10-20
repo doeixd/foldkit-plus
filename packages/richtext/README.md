@@ -859,7 +859,8 @@ pixels, and an `align` (`start`, `center`, `end`); the standard rendering draws 
 alone, and a rendering that draws a figure reads the rest. It may carry its `asset` too:
 `foldkit-media`'s `ImageAsset`, the size, hash and placeholder of what `src` names, as stored
 (`null` for what it lacks). With it, the `img` has `width` and `height` (at the drawn `width`
-when there is one), so the page holds its box before the file arrives. HTML and Markdown
+when there is one), so the page holds its box before the file arrives; a rendering of its own,
+such as a figure, spreads `imageBox(block.props)` on its `img` for the same. HTML and Markdown
 carry no facts, so a round trip through either leaves them out; they can be read again from
 the image. A link's `href` and an image's `src` pass `safeUrl` again as they are
 rendered, and one it refuses is left out, so a `javascript:` URL that reached the document

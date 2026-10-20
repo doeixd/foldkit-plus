@@ -4,6 +4,7 @@
  * the rendering registry, the slash catalogue, and the code highlighting, all data or pure reads.
  */
 import { Schema } from 'effect'
+import { ImageAsset } from 'foldkit-media'
 import * as RichText from 'foldkit-richtext'
 import { shikiTokenizers } from 'foldkit-richtext-code-shiki'
 import {
@@ -166,7 +167,16 @@ export const rendering = RichText.renderingOver(
           adornments: [
             ...(src === undefined
               ? []
-              : [{ tag: 'img', attributes: { src, alt: text(block.props.alt) } }]),
+              : [
+                  {
+                    tag: 'img',
+                    attributes: {
+                      src,
+                      alt: text(block.props.alt),
+                      ...RichText.imageBox(block.props),
+                    },
+                  },
+                ]),
             ...(caption === '' ? [] : [{ tag: 'figcaption', attributes: {}, text: caption }]),
           ],
         }
@@ -245,6 +255,9 @@ const row = (cells: ReadonlyArray<string>, header = false): RichText.Block => ({
   blocks: cells.map(cell),
 })
 
+// The stored form, JSON, which a document's props hold.
+const encodeAsset = Schema.encodeSync(Schema.toCodecJson(ImageAsset))
+
 export const Blocks = {
   paragraph: () => paragraph(),
   divider: (): RichText.Block => ({
@@ -277,11 +290,12 @@ export const Blocks = {
     children: [],
     blocks: [paragraph(), paragraph()],
   }),
-  image: (src: string, alt: string, width: number): RichText.Block => ({
+  image: (src: string, alt: string, width: number, asset: ImageAsset): RichText.Block => ({
     type: 'Node',
     kind: 'Image',
     id: id('image'),
-    props: { src, alt, width, align: 'center' },
+    // The facts as a document keeps them, so the page holds the image's box when it is drawn.
+    props: { src, alt, width, align: 'center', asset: encodeAsset(asset) },
     children: [],
   }),
 }

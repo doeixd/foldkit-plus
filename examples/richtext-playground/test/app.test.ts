@@ -3,7 +3,8 @@
  * anchored by a mark the document carries, inserts placed at the top level, and the handle's
  * block commands. The patch Commands the editor returns are not run; there is no DOM here.
  */
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
+import { ImageAsset } from 'foldkit-media'
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
@@ -162,13 +163,27 @@ describe('inserting from the toolbar', () => {
   it('goes at the end with no caret', () => {
     const initial = start()
     expect(topLevelPlace(initial)).toEqual({ after: top(initial).at(-1)!.id })
+    const asset = Schema.decodeUnknownSync(ImageAsset)({
+      key: 'a.png',
+      width: 1200,
+      height: 600,
+      alpha: false,
+      hash: null,
+      placeholder: { _tag: 'Color', value: '#123456' },
+    })
     const added = step(
       initial,
-      Message.ImageRead({ src: 'https://example.com/a.png', alt: 'a', width: 300 }),
+      Message.ImageRead({ src: 'https://example.com/a.png', alt: 'a', width: 300, asset }),
     )
+    // The facts go in as the document stores them, and hold the image's box when it is drawn.
     expect(top(added).at(-1)).toMatchObject({
       kind: 'Image',
-      props: { src: 'https://example.com/a.png', alt: 'a', width: 300 },
+      props: {
+        src: 'https://example.com/a.png',
+        alt: 'a',
+        width: 300,
+        asset: { width: 1200, height: 600, hash: null },
+      },
     })
   })
 

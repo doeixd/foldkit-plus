@@ -1551,6 +1551,9 @@ importers:
       foldkit-example-site:
         specifier: workspace:*
         version: link:../site
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../../packages/media
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins

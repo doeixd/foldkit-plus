@@ -12,6 +12,7 @@
     "effect": "^4.0.4",
     "foldkit": "0.168.0",
     "foldkit-example-site": "workspace:*",
+    "foldkit-media": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-richtext": "workspace:*",
     "foldkit-primitives": "workspace:*",

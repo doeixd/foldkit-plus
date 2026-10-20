@@ -136,13 +136,17 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
 const decodeAsset = Schema.decodeUnknownOption(ImageAsset)
 
 /**
- * An image's `width` and `height` from its facts, at the width it is drawn when it has one,
- * so the page keeps the box before the file arrives; none without facts.
+ * An `Image`'s `width` and `height` attributes from its props' `asset`, at its drawn `width`
+ * when it has one, so a page keeps the box before the file arrives; none without facts. The
+ * standard rendering writes them; a rendering of its own (a figure) spreads them on its `img`.
  */
-const boxOf = (asset: unknown, drawn: unknown): Readonly<Record<string, string>> =>
-  Option.match(decodeAsset(asset), {
+export const imageBox = (
+  props: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, string>> =>
+  Option.match(decodeAsset(props['asset']), {
     onNone: () => ({}),
     onSome: ({ width, height }) => {
+      const drawn = props['width']
       const shown = typeof drawn === 'number' && drawn > 0 ? drawn : width
       return {
         width: String(Math.round(shown)),
@@ -197,7 +201,7 @@ export const standardRendering: Rendering = rendering({
       attributes: {
         ...urlAttribute('src', block.props.src),
         alt: String(block.props.alt ?? ''),
-        ...boxOf(block.props.asset, block.props.width),
+        ...imageBox(block.props),
       },
     }),
     Table: { tag: 'table', attributes: {}, inner: 'tbody' },

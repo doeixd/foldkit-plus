@@ -15,6 +15,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
+import { ImageAsset } from 'foldkit-media'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import {
@@ -156,7 +157,7 @@ export const Message = defineMessageUnion({
   CancelledComment: {},
   /** A block from the toolbar, put beside the caret's top-level block. */
   Inserted: { block: RichText.Block },
-  ImageRead: { src: Schema.String, alt: Schema.String, width: Schema.Number },
+  ImageRead: { src: Schema.String, alt: Schema.String, width: Schema.Number, asset: ImageAsset },
   /** Any other file: a video, a sound, or an attachment, as its type says. */
   FileRead: { src: Schema.String, name: Schema.String, type: Schema.String, size: Schema.Number },
   /** A code block's text, to the clipboard: its toolbar's Copy. */
@@ -804,11 +805,11 @@ const step = (model: Model, message: Message): Return =>
     }),
     Inserted: ({ block }) =>
       edit(closed(model), EditorMessage.InsertedBlock({ block, to: topLevelPlace(model) })),
-    ImageRead: ({ src, alt, width }) =>
+    ImageRead: ({ src, alt, width, asset }) =>
       edit(
         modifyFields(closed(model), { notice: () => Option.none() }),
         EditorMessage.InsertedBlock({
-          block: Blocks.image(src, alt, width),
+          block: Blocks.image(src, alt, width, asset),
           to: topLevelPlace(model),
         }),
       ),
