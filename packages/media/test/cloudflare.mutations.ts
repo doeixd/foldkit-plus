@@ -104,6 +104,28 @@ export default [
     tests: ['packages/media/test/cloudflare.test.ts'],
   },
   {
+    name: 'an edge read failure fails the image request',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: "Effect.logWarning('Media: the edge cache failed a read', cause).pipe(\n            Effect.as(Option.none<Kept>()),\n          )",
+        replace: 'Effect.fail(cause)',
+      },
+    ],
+    tests: ['packages/media/test/cloudflare.test.ts'],
+  },
+  {
+    name: 'an edge write failure fails the image request',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: "Effect.catch(cause => Effect.logWarning('Media: the edge cache failed a write', cause))",
+        replace: 'Effect.catch(cause => Effect.fail(cause))',
+      },
+    ],
+    tests: ['packages/media/test/cloudflare.test.ts'],
+  },
+  {
     name: 'an R2 listing stops at its first page',
     edits: [
       {

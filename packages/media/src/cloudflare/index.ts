@@ -10,7 +10,7 @@ import { KeyValueStore } from 'effect/persistence'
 import { Admission, RateLimited } from '../server/admission.js'
 import { Inspector } from '../describe.js'
 import { OriginalNotFound, QuotaExhausted, TransformFailed } from '../server/errors.js'
-import { Originals, Transformer, Variants, type Encoded } from '../server/services.js'
+import { Originals, Transformer, Variants, type Encoded, type Kept } from '../server/services.js'
 import { Uploads } from '../server/upload.js'
 import { makeVariants } from '../server/stores.js'
 
@@ -139,41 +139,52 @@ const edgeKey = (key: string) => `https://foldkit-media.invalid/${key}`
  */
 const withEdge = (behind: Variants['Service'], edge: Cache): Variants['Service'] => {
   const fill = (key: string, encoded: Encoded) =>
-    Effect.promise(() =>
-      edge.put(
-        edgeKey(key),
-        // The page's Response and workers-types' differ only in their declarations.
-        new Response(encoded.bytes, {
-          headers: {
-            'content-type': encoded.contentType,
-            'cache-control': 'public, max-age=31536000, immutable',
-          },
-        }) as never,
+    Effect.tryPromise({
+      try: () =>
+        edge.put(
+          edgeKey(key),
+          // The page's Response and workers-types' differ only in their declarations.
+          new Response(encoded.bytes, {
+            headers: {
+              'content-type': encoded.contentType,
+              'cache-control': 'public, max-age=31536000, immutable',
+            },
+          }) as never,
+        ),
+      catch: cause => cause,
+    }).pipe(Effect.catch(cause => Effect.logWarning('Media: the edge cache failed a write', cause)))
+  const behindEdge = (key: string) =>
+    behind.get(key).pipe(
+      Effect.tap(found =>
+        Option.match(found, {
+          onNone: () => Effect.void,
+          onSome: kept => fill(key, kept.encoded),
+        }),
       ),
     )
   return {
     get: key =>
-      Effect.promise(() => edge.match(edgeKey(key))).pipe(
-        Effect.flatMap(hit =>
-          hit === undefined
-            ? behind.get(key).pipe(
-                Effect.tap(found =>
-                  Option.match(found, {
-                    onNone: () => Effect.void,
-                    onSome: kept => fill(key, kept.encoded),
-                  }),
-                ),
-              )
-            : Effect.promise(async () =>
-                Option.some({
-                  encoded: {
-                    bytes: new Uint8Array(await hit.arrayBuffer()),
-                    contentType: hit.headers.get('content-type') ?? 'application/octet-stream',
-                  },
-                  from: 'edge' as const,
-                }),
-              ),
+      Effect.tryPromise({
+        try: async () => {
+          const hit = await edge.match(edgeKey(key))
+          return hit === undefined
+            ? Option.none<Kept>()
+            : Option.some({
+                encoded: {
+                  bytes: new Uint8Array(await hit.arrayBuffer()),
+                  contentType: hit.headers.get('content-type') ?? 'application/octet-stream',
+                },
+                from: 'edge' as const,
+              })
+        },
+        catch: cause => cause,
+      }).pipe(
+        Effect.catch(cause =>
+          Effect.logWarning('Media: the edge cache failed a read', cause).pipe(
+            Effect.as(Option.none<Kept>()),
+          ),
         ),
+        Effect.flatMap(found => (Option.isSome(found) ? Effect.succeed(found) : behindEdge(key))),
       ),
     put: (key, encoded) => behind.put(key, encoded).pipe(Effect.andThen(fill(key, encoded))),
   }

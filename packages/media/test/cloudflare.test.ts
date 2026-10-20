@@ -119,6 +119,54 @@ describe('the Cloudflare layers', () => {
     expect(await infoOf(again)).toMatchObject({ width: 320 })
   })
 
+  it('serve through the durable cache when the edge cache fails', async () => {
+    const hash = await store(await png(360, 180))
+    expect((await get(`/_image/${hash}/w320.png`)).status).toBe(200)
+    await env.MEDIA.delete(hash)
+    const failing = {
+      match: () => Promise.reject(new Error('edge read failed')),
+      put: () => Promise.reject(new Error('edge write failed')),
+    } as unknown as Cache
+    const withoutEdge = serveFetch<Env>({
+      space: Variant.space({ formats: ['avif', 'webp', 'png'] }),
+      layer: bindings =>
+        Layer.mergeAll(
+          originalsR2(bindings.MEDIA),
+          transformerImages(bindings.IMAGES),
+          variantsR2(bindings.MEDIA, { cache: failing }),
+        ),
+    })
+    const response = await withoutEdge(
+      new Request(`https://media.test/_image/${hash}/w320.png`),
+      env,
+    )
+    expect(response.status).toBe(200)
+    expect(response.headers.get('server-timing')).toBe('media;desc="store"')
+  })
+
+  it('answer a made variant when filling the edge cache fails', async () => {
+    const hash = await store(await png(370, 185))
+    const failing = {
+      match: () => Promise.resolve(undefined),
+      put: () => Promise.reject(new Error('edge write failed')),
+    } as unknown as Cache
+    const withoutFill = serveFetch<Env>({
+      space: Variant.space({ formats: ['avif', 'webp', 'png'] }),
+      layer: bindings =>
+        Layer.mergeAll(
+          originalsR2(bindings.MEDIA),
+          transformerImages(bindings.IMAGES),
+          variantsR2(bindings.MEDIA, { cache: failing }),
+        ),
+    })
+    const response = await withoutFill(
+      new Request(`https://media.test/_image/${hash}/w320.png`),
+      env,
+    )
+    expect(response.status).toBe(200)
+    expect(response.headers.get('server-timing')).toBe('media;desc="made"')
+  })
+
   it('answer an original R2 does not hold with a 404', async () => {
     expect((await get(`/_image/${'0'.repeat(64)}/w320.png`)).status).toBe(404)
   })
