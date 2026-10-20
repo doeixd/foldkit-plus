@@ -6,10 +6,11 @@
  * names them by content, so a host may keep them for good. The development
  * server makes the same variants when a page asks for them.
  */
-import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { createHash, randomUUID } from 'node:crypto'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { availableParallelism } from 'node:os'
 import { join, relative, sep } from 'node:path'
-import { Cause, Effect, Exit, Layer, ManagedRuntime, Option, Schema } from 'effect'
+import { Cause, Effect, Exit, Layer, ManagedRuntime, Option, Schema, Semaphore } from 'effect'
 import type { Plugin } from 'vite'
 import { ImageAsset } from '../asset.js'
 import type { Format } from '../format.js'
@@ -22,8 +23,8 @@ const QUERY = 'image'
 // The kept facts' and variants' generation: raised when what `describe` reads or the encoder
 // makes changes, so every build re-reads once, and one that changes neither encodes nothing
 // again. sharp's own version is not in it: a patch release would re-encode every AVIF for
-// nothing anyone sees.
-const CACHE_REVISION = 'r1'
+// nothing anyone sees. r2: an original is read as its EXIF orientation shows it.
+const CACHE_REVISION = 'r2'
 const DEV_PREFIX = '/@foldkit-media/image/'
 const DEV_PATH = /^\/@foldkit-media\/image\/([0-9a-f]{64})\/w(\d+)\.(avif|webp|jpeg|png)$/
 
@@ -45,6 +46,16 @@ const widthsFor = (ladder: Widths.Widths, width: number): ReadonlyArray<number> 
   ...ladder.values.filter(value => value < width),
   width,
 ]
+
+/**
+ * Keeps `bytes` at `file` whole or not at all: written beside it, then moved in, so a build
+ * stopped halfway leaves no cut-short file that a later build would trust.
+ */
+const keep = async (file: string, bytes: Uint8Array | string) => {
+  const partial = `${file}.${randomUUID()}.partial`
+  await writeFile(partial, bytes)
+  await rename(partial, file)
+}
 
 const run = async <A, E>(
   media: Media,
@@ -85,6 +96,9 @@ export const images = (options: ImagesOptions = {}): Plugin => {
     { readonly bytes: Uint8Array<ArrayBuffer>; readonly widths: ReadonlyArray<number> }
   >()
 
+  // Each read decodes a whole original, and a build loads every import at once: as many at a
+  // time as there are cores, as the Transformer's own bound.
+  const inspecting = Semaphore.makeUnsafe(availableParallelism())
   let media: Promise<Media> | undefined
   const mediaOf = () =>
     (media ??= import('../sharp/index.js').then(
@@ -110,9 +124,13 @@ export const images = (options: ImagesOptions = {}): Plugin => {
       })
     } catch {
       // Not kept yet, or kept by an older version: the facts are made again, as a cache's are.
-      const asset = await run(await mediaOf(), describe(key, bytes), `${key} could not be read`)
+      const asset = await run(
+        await mediaOf(),
+        Semaphore.withPermit(inspecting)(describe(key, bytes)),
+        `${key} could not be read`,
+      )
       await mkdir(join(cache, hash), { recursive: true })
-      await writeFile(file, JSON.stringify(Schema.encodeSync(ImageAsset)(asset)))
+      await keep(file, JSON.stringify(Schema.encodeSync(ImageAsset)(asset)))
       return asset
     }
   }
@@ -142,7 +160,7 @@ export const images = (options: ImagesOptions = {}): Plugin => {
         `${key} could not be made ${width} wide in ${format}`,
       )
       await mkdir(join(cache, hash), { recursive: true })
-      await writeFile(file, made.bytes)
+      await keep(file, made.bytes)
       return made.bytes
     }
   }

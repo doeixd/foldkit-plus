@@ -94,8 +94,7 @@ export default [
       {
         file: plugin,
         find: "response.setHeader('Cache-Control', 'no-store')",
-        replace:
-          "response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')",
+        replace: "response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')",
       },
     ],
     tests,
@@ -107,6 +106,17 @@ export default [
         file: plugin,
         find: '!(Number.isInteger(quality.value) && quality.value >= 1 && quality.value <= 100)',
         replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a variant of another quality is kept under the same name',
+    edits: [
+      {
+        file: plugin,
+        find: "Option.match(quality, { onNone: () => '', onSome: q => `q${q}` })",
+        replace: "''",
       },
     ],
     tests,

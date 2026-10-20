@@ -113,7 +113,7 @@ describe('images', () => {
   it('keeps each variant by the original’s content, so a second build makes none again', async () => {
     const root = await rootWith(`export { default } from './hero.jpg?image'`)
     await buildIn(root)
-    const kept = join(root, '.vite', 'foldkit-media', 'r1')
+    const kept = join(root, '.vite', 'foldkit-media', 'r2')
     const [hash] = readdirSync(kept)
     writeFileSync(join(kept, hash!, 'w320.webp'), 'kept')
     const facts = JSON.parse(readFileSync(join(kept, hash!, 'asset.json'), 'utf8'))
@@ -128,6 +128,19 @@ describe('images', () => {
       default: { asset: ImageAsset }
     }
     expect(image.asset.alpha).toBe(true)
+  }, 120_000)
+
+  it('keeps a variant of another quality apart, so a build at a new quality makes it again', async () => {
+    const root = await rootWith(`export { default } from './hero.jpg?image'`)
+    await buildIn(root)
+    const kept = join(root, '.vite', 'foldkit-media', 'r2')
+    const [hash] = readdirSync(kept)
+    writeFileSync(join(kept, hash!, 'w320.webp'), 'kept')
+    await buildIn(root, { ...options, quality: 50 })
+    const made = emitted(root).find(file => file.startsWith('hero-320-') && file.endsWith('.webp'))
+    if (made === undefined) expect.unreachable('missing 320.webp')
+    expect((await sharp(readFileSync(join(root, 'out', made))).metadata()).width).toBe(320)
+    expect(readdirSync(join(kept, hash!)).filter(file => file.endsWith('.partial'))).toEqual([])
   }, 120_000)
 
   it('serves the same variants from the development server, and nothing it did not offer', async () => {
