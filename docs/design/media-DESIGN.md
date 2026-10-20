@@ -1,8 +1,11 @@
 # Media design: images and icons
 
-Status: design, nothing built. Written 2026-10-20; revised the same day for
-Cloudflare as the reference deployment and for how each part sits on Foldkit,
-Foldkit Plus and Effect (§9–§13). Code in this document is a sketch against
+Status: steps 1 to 4 of §16 built (`foldkit-media` core, server and Cloudflare
+layers; `Image` in `foldkit-mixins-ui`). Written 2026-10-20; revised the same
+day for Cloudflare as the reference deployment and for how each part sits on
+Foldkit, Foldkit Plus and Effect (§9–§13), and again after steps 1 to 4 for
+prerendering, layout stability, caching and stores, abuse limits, recipes and
+primitives (§18–§24), which reorder §16. Code in this document is a sketch against
 today's APIs and has not been compiled; names marked *probe* rest on library or
 platform behaviour that must be checked against the installed version before
 anything is built on it.
@@ -68,6 +71,7 @@ This design chooses the second, because of what follows from it:
 | A variant (a width and format of it) | The provider's cache: a CDN, the Cache API, our `Variants` store | Disposable; producing it again is recovery |
 | Which variant a page shows | The browser, from `srcset` and `sizes` | Not in the Model |
 | Which widths exist | One `Widths` ladder, declared once (§5) | Configuration |
+| Its focal point | The `Asset` row; an editor sets it (§18.5) | Authored |
 | An icon's drawing | The icon set it was imported from, at build time | Static data |
 
 The view owns none of these. `Image` reads an asset's facts and a provider and
@@ -616,8 +620,8 @@ typed value at build time.
 | Foldkit `Mount.defineStream` | `Image.reveal` (§7.4) |
 | `foldkit-mixins` | Slots, recipes in `components`/`variants`, `Style.inline` for per-image values, the `motion` knob, radius tokens, `breakpointWidths` for `sizes` (§6) |
 | `mixins-ui` | `Image`; `Avatar`, `Card` and `Icon` adopt it (§7.6, §8.1); `imageEdge` outlines it |
-| `foldkit-primitives` | Nothing by default. Lazy loading and `sizes="auto"` are the browser's, and an `IntersectionObserver` per image would be a listener for the component's whole life doing what `loading="lazy"` does |
-| `foldkit-ssr` | `Image.preload` for `head`; `staticSite` deploys `?image` variants; server markup tested by rendering to a string |
+| `foldkit-primitives` | Not for loading: lazy loading and `sizes="auto"` are the browser's, and an `IntersectionObserver` per image would be a listener for the component's whole life doing what `loading="lazy"` does. An image preload Command and the connection subscription are added there (§24.2) |
+| `foldkit-ssr` | `Image.preloadsIn` as a `Head` read from the rendered page (§19.1); an `emit` hook on `staticSite` that writes hosted variants out (§19.2); facts for URL-only images at prerender (§19.3); server markup tested by rendering to a string |
 | `foldkit-entity`, `foldkit-cms-media` | `ImageAsset`'s fields are the `Asset` Entity's; the `Asset` control draws `Image` |
 | `foldkit-remote` | Reads facts; a mutation registers an upload (§9.5). Bytes never go through it |
 | `foldkit-guard` | Who may upload or delete an original |
@@ -632,7 +636,10 @@ typed value at build time.
 | Serving | `HttpApiBuilder` handlers; `HttpRouter` on Node; `HttpRouter.toWebHandler` or a `serveFetch`-style per-request Layer on Workers |
 | Dependencies | `Context.Service` per service; a `Layer` per runtime, wired with `Layer.provide` so a connection lives as long as what needs it |
 | Fetching remote originals | `HttpClient` with `FetchHttpClient.layer` |
-| Coalescing on Node | `Cache.make`, keyed by the encoded request |
+| Coalescing on Node | `Cache.make` keyed by the encoded request, or `PersistedCache` (§22.3) |
+| Stores | `KeyValueStore` (`effect/persistence`): memory, file system, SQL/D1, and one over R2 (§22.2) |
+| Rate limits | `RateLimiter` (`effect/persistence`) on Node; Cloudflare's `ratelimits` binding on Workers (§23) |
+| CPU bound on Node | `Semaphore` around the sharp transformer (§23) |
 | Limits | `Effect.timeout`; byte counting on the original's `Stream` |
 | Errors | Tagged errors with `HttpApiSchema.status` |
 | Revalidation | `effect/http`'s `Etag` for unhashed originals |
@@ -682,21 +689,32 @@ typed value at build time.
 
 ## 16. Build order
 
-1. **The core.** `ImageAsset`, `Placeholder`, `Layout`, `Widths`, the `fromFiles` and
-   `cdnCgi` providers, candidates and `sizes`, ThumbHash. Pure, unit-tested,
-   mutation-tested.
-2. **The endpoint.** `MediaApi` and `Provider.hosted`, with the bundle probe of
-   §9.1 settled first.
-3. **The view.** `Image` with alt, priority, placeholder, `picture`, and
-   `Image.preload`; then `Image.reveal`; then `Avatar` and `Card` on it.
-4. **The server on Cloudflare.** The services, `Transformer.images`, the R2 and
-   Cache API layers, `Media.serveFetch`, in `examples/cloudflare` under miniflare.
-5. **The server on Node.** `Transformer.sharp`, the file system layers,
-   `Coalesce.memory`, the `HttpRouter` host.
-6. **The build.** `?image`, then icon data, the virtual modules, and replacing
-   the two Lucide copies.
-7. **Uploads.** The upload route and its facts, handed to `foldkit-cms-media`
-   when that is built.
+Steps 1 to 4 are built: the core, the hosted endpoint, the view (with
+`Picture.preload`, `Image.watchLoad` and Avatar's derived picture), and the
+server on Cloudflare. Building them, and probing Effect, `foldkit-ssr`,
+miniflare and the Images binding along the way, changed the plan from here.
+§18 to §24 hold the reasons; this is the order.
+
+5. **Corrections to what is built** (§18). The hash-first path, the quality
+   ladder, the unavailable frame's box, the placeholder level, and the focal
+   point. Small and breaking, so before anything depends on them.
+6. **Stores on `KeyValueStore`** (§22). `Variants` and `Originals` over any
+   Effect `KeyValueStore`, a `KeyValueStore` over R2, then the Node host: a
+   sharp `Transformer`, a `Semaphore` over it, and sharing a pending transform
+   (`Cache`, or `PersistedCache` if its probe holds).
+7. **Admission** (§23). Rate limits on misses only, through Effect's
+   `RateLimiter` on Node and Cloudflare's `ratelimits` binding in the example.
+8. **Prerendering** (§19). `Image.preloadsIn` as a `Head`, an `emit` hook in
+   `foldkit-ssr`'s `staticSite` and `Media.materialize` on it, facts for images
+   named only by URL, and `Picture.ogImage`.
+9. **Stability, recipes and primitives** (§20, §21, §24). A layout-shift
+   browser test over every guard, the recipe axes, `Figure`, the image
+   preload Command, and the development audit.
+10. **The build.** `?image`, then icon data, the virtual modules, and replacing
+    the two Lucide copies (§8, §11).
+11. **Uploads and adoption.** The upload route and its facts (§9.5), handed to
+    `foldkit-cms-media`; the CMS `Image` block, the rich-text atom and the site
+    on `Image`; `Provider.detect` through unpic for images on known hosts.
 
 ## 17. Open questions
 
@@ -706,10 +724,289 @@ typed value at build time.
   view from the theme it is given; whether inversion is a provider operation is
   undecided.
 - **Art direction.** A different crop per breakpoint is a `picture` with
-  `media` sources. It fits §7.1's markup but has no input yet.
+  `media` sources. It fits §7.1's markup but has no input yet. The focal point
+  (§18.5) covers the common case, one crop that keeps its subject.
 - **unpic's fit.** If probing shows its types or its re-transform are not what
   §5 needs, the third-party providers are written here, starting with Shopify.
-- **Thumbnails in a Worker.** The Images binding outputs encoded images, not
-  pixels, so a Worker's ThumbHash needs a PNG decoder in JavaScript. *Probe*: a
-  small decoder under workerd, or computing the ThumbHash at upload in the
-  browser and checking only its shape on the server.
+- **Thumbnails in a Worker.** *Answered by probing:* the Images binding's
+  `output` takes `format: 'rgba'`, raw pixels, so a Worker computes the
+  ThumbHash from a downscale the binding makes, with no decoder of its own.
+- **`PersistedCache` on Node** (§22.3): whether it can keep successes and not
+  failures.
+- **`closeBundle` ordering** (§19.2): whether Vite runs plugins' `closeBundle`
+  in parallel, which is why materializing waits on a `foldkit-ssr` hook rather
+  than a plugin of its own.
+
+## 18. Corrections to what is built
+
+Each is breaking, and each is cheap now and costly once a store holds
+variants under the old shape. The packages are 0.x and unreleased.
+
+### 18.1 The hash comes first: `/_image/<hash>/w640.avif`
+
+The path ends in the format's extension. A variant written out as a file
+(§19.2) is then a plain file any static host serves with the right type,
+where `/_image/w640.avif/<hash>` would be a file named by a hash with no
+extension, served as `application/octet-stream`. The `Variants` key becomes
+`<hash>/<spelling>`, so an original's variants share a prefix: removing an
+original removes them by prefix, and an R2 key mirrors the URL.
+
+### 18.2 Quality comes from a ladder, and formats from a set
+
+`Variant.schema` accepts any quality from 1 to 100, so each width and format
+has a hundred spellings, and a crawler can make the server encode every one.
+The server takes `qualities` (default one entry, such as `[75]`) and `formats`
+(default `avif`, `webp`), each a Schema of literals like the width ladder, and
+`Provider.hosted` writes only those. An original then has at most
+`widths × formats × qualities` variants (8 × 2 × 1 = 16 by default), a number
+the server can log at start and a deployment can price. Cloudflare bills width
+alone (§10.3); storage and CPU count every variant.
+
+### 18.3 An unavailable image keeps its box
+
+`Image.view` draws an empty `picture` marked `data-unavailable` when the
+provider has no URL. It collapses, so the page around it is laid out as if
+there were no image, unlike a failed load (`watchLoad`), which keeps its box.
+The frame carries the ratio and width, and the recipe holds the box, so a
+missing variant and a failed one look alike and move nothing.
+
+### 18.4 One ThumbHash, two renderings
+
+A decoded ThumbHash costs a few kilobytes of HTML per image (§7.3). The same
+hash also gives its average color (`thumbHashToAverageRGBA`), for nothing. So
+the placeholder has a level: `detail` paints the blurred likeness, `average`
+paints the color. It is chosen without the page saying so: `detail` for a
+`priority` image, the one the reader waits on, and `average` for the rest, so
+a grid of fifty thumbnails adds fifty colors to the HTML, not fifty PNGs. An
+input overrides it.
+
+### 18.5 A focal point
+
+`ImageAsset` gains `focus`, an `Option` of `{ x, y }` from 0 to 1. A style
+that crops (`ratio`, §24.1) writes it as `--fk-image-focus`, read by
+`object-position`, so a portrait cropped square keeps the face. A provider
+that crops on the host (Cloudflare's `gravity`) can be given it too. It is the
+one authored fact of an asset: an editor sets it, so it is owned by the `Asset`
+row, not derived (the ownership table in §3 gains it).
+
+## 19. Prerendering with `foldkit-ssr`
+
+A static site is where image work pays most: every page is rendered once, by a
+build that can read files and run sharp, for readers who never wait on a
+server. Four pieces fit `staticSite` as it is, and one needs a hook.
+
+### 19.1 Preloads read from the rendered page
+
+`foldkit-ssr`'s `Head` is a function of the rendered page, the shape
+`Style.usedIn` uses to collect the classes a page drew. `Image.preloadsIn` is
+one too: it reads the rendered markup for the `img` with
+`fetchpriority="high"` and its `picture`'s first `source`, and writes the
+`<link rel="preload">`. The page marks `priority` once, where it draws the
+image, and the head follows, with no asset and provider handed to it a second
+time. `Picture.preload` stays for a head built by hand.
+
+### 19.2 Hosted variants written out at build
+
+`Media.materialize` takes the built pages, finds every `/_image/` URL in their
+`srcset`s and `src`s, and runs the same handlers in the build process (a sharp
+`Transformer`, `Originals` from the file system or a `KeyValueStore`) to write
+each variant as a file at its own path. `Provider.hosted` then works on a
+static host with no server at all: the Worker becomes optional, needed only
+for images a build never saw. With §18.1 the files have their extensions, and
+the Variants build cache (§22) makes a second build write without encoding.
+
+It needs one change in `foldkit-ssr`: `staticSite` takes an
+`emit: (pages) => Effect<ReadonlyArray<{ file, bytes }>>` and writes what it
+returns beside the pages. A plugin of its own would have to run after
+`staticSite`'s `closeBundle`, and Rollup runs that hook in parallel across
+plugins (*probe*). Pages' limits are counted, not discovered: the step reports
+the files it wrote and fails the build above a configured maximum (Cloudflare
+Pages: 20,000 files on the free plan).
+
+### 19.3 Facts for images named only by URL
+
+A rich-text `Image` atom or a CMS block may hold a `src` and no facts, and an
+`img` with no `width` and `height` moves the page when it arrives. During
+prerender (and on save, in the CMS), `Media.factsOf(url)` reads the original
+through `RemoteOriginals` (the allowlist applies), inspects it with the
+`Transformer`, and keeps the facts in a `KeyValueStore` by URL, revalidated
+with the original's `ETag`. The renderer is handed the facts, so a content
+image is drawn with its box and its placeholder like any other. An image whose
+facts cannot be read is drawn as today and reported by the build, never
+silently.
+
+### 19.4 Open Graph images
+
+`Picture.ogImage(asset, provider)` gives an absolute URL of a JPEG at the first
+ladder width of at least 1200, for the plan's `head` `image`. AVIF and WebP are
+not offered: link-preview fetchers do not all read them.
+
+### 19.5 No build id in image URLs
+
+A variant's URL is its original's hash and its request, so a redeploy changes
+no image URL and empties no cache. Only pages carry the build id.
+
+## 20. Layout stability, end to end
+
+| What could move the page | What holds it | Status |
+| --- | --- | --- |
+| An image arriving | `width` and `height` from the facts; `height: auto` | Built, browser-tested |
+| An image with no facts (named by URL) | Facts read at prerender or save (§19.3) | Planned |
+| A provider with no URL | The frame keeps the box (§18.3) | Planned |
+| A failed load | `watchLoad` hides it and keeps the box | Built, browser-tested |
+| A placeholder swapped for the picture | Same element, same box | Built |
+| An avatar's picture | The recipe's size; the picture is absolute | Built |
+| Hydration | Server and browser draw the same attributes (no client-only property) | Built, SSR-tested |
+| A long gallery below the fold | `defer`: `content-visibility: auto` with `contain-intrinsic-size` from the box (§24.1), so unrendered rows keep their height | Planned |
+
+One browser test covers the table: a page of images whose files are held back
+and then released, observed with a `PerformanceObserver` for `layout-shift`,
+must report a total of 0. A guard removed by mutation turns it red.
+
+## 21. Automatic, and where it stops
+
+Done without the page asking:
+
+- the candidates, capped at the original's width, and `sizes` from the layout,
+  with `auto` first on a lazy image;
+- a `source` per format, so the browser picks AVIF where it can;
+- `loading`, `decoding` and `fetchpriority` from `priority`;
+- no placeholder behind a transparent image, and the placeholder level from
+  `priority` (§18.4);
+- the facts, wherever an original enters: at upload (§9.5), at import (§11), at
+  prerender (§19.3);
+- the head's preloads, from the rendered page (§19.1);
+- the cache headers and keys, from the URL.
+
+Left to the page, on purpose: `alt` (only the author knows what an image
+says), `priority` (only the page knows its first screen), the `layout` (how
+wide the design draws it), and the provider.
+
+What it leaves to the page, a check can catch. `Image.audit` is a mixin for
+development builds, like `watchLoad` never on by default: a
+`PerformanceObserver` for the largest contentful paint reports when that
+element is a lazy `img` ("give this image `priority`"), a page with more than
+one `priority` image, and an `img` drawn wider than its largest candidate
+(blurry) or much narrower than its smallest (wasted bytes), from
+`naturalWidth`, the drawn width and `devicePixelRatio`. It logs; it never
+changes the page.
+
+`Provider.detect(url)` (through unpic, §5) gives an image named by URL on a
+known host (Shopify, Cloudinary, imgix, …) its candidates from that host's own
+resizing, with no server of ours.
+
+## 22. Caching and stores
+
+### 22.1 Every layer, end to end
+
+| Layer | Holds | Key | When it goes stale |
+| --- | --- | --- | --- |
+| Browser HTTP cache | variants | URL | Never: the URL names the bytes |
+| Edge (Cache API, a CDN) | variants | URL | Never; evicted at will |
+| `Variants` store | variants | `<hash>/<spelling>` | When its original is removed (by prefix) |
+| In-process (Node) | a transform in flight | the encoded request | When it settles: sharing, not storing |
+| Build cache | facts by hash; variants | content hash and spelling | Never: content-addressed |
+| Facts by URL (§19.3) | facts of a remote original | URL | Revalidated with `ETag` |
+| The page | decoded ThumbHashes | the hash | Bounded memo (built) |
+
+Nothing here is invalidated by time, because every key is content-addressed
+except the remote facts, which revalidate.
+
+### 22.2 One store: Effect's `KeyValueStore`
+
+Effect's `KeyValueStore` already keeps bytes (`getUint8Array`, `set`) and
+already has the layers a host needs: `layerMemory`, `layerFileSystem`,
+`layerSql` (SQLite, or D1 through `@effect/sql-d1`, which is what corps-place
+built by hand). So `Variants` and `Originals` each get one adapter over it,
+`Variants.keyValueStore` and `Originals.keyValueStore`, in place of a layer per
+platform:
+
+- the memory layers built in step 4 become `KeyValueStore.layerMemory` under
+  the adapter;
+- Node and the build cache are `layerFileSystem`;
+- R2 becomes one `KeyValueStore` written here (`keyValueStoreR2(bucket)`), so
+  `variantsR2` is the adapter over it with the Cache API in front;
+- a variant's media type is not stored: the key's extension (§18.1) says it.
+
+### 22.3 Sharing a transform on Node
+
+Concurrent requests for one missing variant should run one transform. On Node
+an Effect `Cache` keyed by the encoded request does it (its concurrent `get`s
+share a lookup). `PersistedCache` goes further: an in-memory `Cache` over a
+persisted store, which is `Variants` and coalescing in one Effect piece.
+*Probe*: whether its time-to-live per exit can keep successes and drop
+failures; if not, it would remember a 502. On Workers neither is used:
+a request cannot wait on another's fiber there (§10.4).
+
+## 23. Abuse, cost and rate limits
+
+The work is bounded before anything is limited:
+
+- **The space is finite.** Widths, formats and qualities are ladders (§18.2),
+  and an original must exist by hash, so a crawler can make at most
+  `widths × formats × qualities` variants of the originals that exist.
+- **Only a miss costs.** A request served from `Variants` or the edge is a
+  read. Admission is checked after a `Variants` miss and before the original is
+  read.
+- **The CPU is bounded.** On Node, transforms run under an Effect `Semaphore`
+  (permits of the cores); a request queued past its timeout is a 503 with
+  `Retry-After`. On Cloudflare the binding does the work elsewhere.
+
+`Admission` is a fourth, optional service:
+`admit(request, client) => Effect<void, RateLimited>`, a 429 with
+`Retry-After`. Its layers:
+
+- Effect's `RateLimiter` (`effect/persistence`), a token bucket keyed by the
+  client, over its memory store or Redis, for Node;
+- Cloudflare's `ratelimits` binding (`RateLimit.limit({ key })` in
+  workers-types), for Workers, which miniflare emulates, so the example tests
+  it;
+- none, by default.
+
+The client key is `CF-Connecting-IP` on Cloudflare and a resolver the host
+gives elsewhere; `X-Forwarded-For` is trusted only when the host says its proxy
+sets it. A remote-original route (an allowlisted URL) is limited per host as
+well as per client. Uploads are limited before the body is read: bytes, then
+pixels (sharp's `limitInputPixels`; the binding reads at most 20 MB), the type
+taken from the bytes and not the header, and a `foldkit-guard` policy on who
+may.
+
+Signed URLs were considered and rejected: the space is already finite and the
+originals must exist, and a signature would make every image URL depend on a
+secret and stop §19.2 from writing them out.
+
+## 24. Recipes and primitives
+
+### 24.1 `Recipes.Image` axes
+
+| Axis | Values | What it does |
+| --- | --- | --- |
+| `fit` | `cover` (default), `contain` | Built |
+| `edge` | `none` (default), `line` | Built |
+| `ratio` | `auto` (default), `square`, `video`, `portrait` | Crops to a ratio (the names `AspectRatio` uses), at `--fk-image-focus` |
+| `radius` | the radius scale | Rounds the corners through the theme's radius tokens and `radius-factor` |
+| `defer` | `none` (default), `offscreen` | `content-visibility: auto` and `contain-intrinsic-size` from the box, for long galleries |
+| `dim` | `none` (default), `dark` | Lowers a photo's brightness in a dark scheme, through a knob, so a white photo does not glare |
+
+A **`Figure`** joins an `Image` and a caption, each in its own slot, for the
+CMS block and the rich-text atom, which draw `figure` and `figcaption` by hand
+today. A gallery is not a component: it is `foldkit-mixins`' layout pieces
+around `Image`s, shown in the README. **`Avatar.widthOf(size)`** reads the
+Avatar recipe's size tokens, so an `AvatarPicture`'s width is not written twice.
+
+### 24.2 Primitives
+
+- **An image preload Command**, in `foldkit-primitives/dom`: decodes a URL or a
+  `Picture`'s `src` (`img.decode()`) and answers with a Message, so a lightbox
+  or carousel switches to the next image only once it is ready, never to a
+  blank frame. A Command, not a Mount: the Model decides to show the image, so
+  the Message that leads there carries it (the rule for Model-caused DOM
+  effects).
+- **The connection**, beside `net/online`: `Save-Data` and the effective type
+  as a subscription, so an application may choose `average` placeholders and
+  its lower quality ladder entry. The server does not read `Save-Data`: a
+  response that varied on it would break caching by URL.
+- **Observers** are not used for loading (`loading="lazy"` is the browser's).
+  The development audit (§21) is the one consumer, through a
+  `PerformanceObserver`.
+- **Breakpoints**: `Image.sizes(theme, …)` reads `breakpointWidths` (§6).
