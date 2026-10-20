@@ -131,3 +131,40 @@ describe('Image view', () => {
     expect(Inert.value(drawn, 'data-unavailable')).toBe('')
   })
 })
+
+describe('Image view, corrected', () => {
+  it('holds an unavailable image’s box and says what it shows', () => {
+    const avifOnly = Provider.fromFiles([file(400, 'avif')], { sources: [], fallback: 'webp' })
+    const frame = draw({ provider: avifOnly, layout: Layout.Fixed({ width: 300 }) })
+    expect(Inert.style(frame)).toMatchObject({
+      '--fk-image-ratio': '1000 / 500',
+      '--fk-image-width': '300px',
+    })
+    expect([Inert.value(frame, 'role'), Inert.value(frame, 'aria-label')]).toEqual([
+      'img',
+      'The finals, from the press box',
+    ])
+  })
+
+  it('hides an unavailable decorative image from a screen reader', () => {
+    const avifOnly = Provider.fromFiles([file(400, 'avif')], { sources: [], fallback: 'webp' })
+    const frame = draw({ provider: avifOnly, alt: decorative })
+    expect([Inert.value(frame, 'role'), Inert.value(frame, 'aria-hidden')]).toEqual([
+      undefined,
+      'true',
+    ])
+  })
+
+  it('carries its focal point for a crop to keep', () => {
+    const asset = Schema.decodeUnknownSync(ImageAsset)({
+      key: 'hero.jpg',
+      width: 1000,
+      height: 500,
+      alpha: false,
+      hash: null,
+      placeholder: null,
+      focus: { x: 0.25, y: 0.8 },
+    })
+    expect(Inert.style(imgOf(draw({ asset })))['--fk-image-focus']).toBe('25% 80%')
+  })
+})

@@ -773,6 +773,9 @@ alone (§10.3); storage and CPU count every variant.
 
 ### 18.3 An unavailable image keeps its box
 
+*Built, with its alt text: the empty frame is `role="img"` named by it, or
+hidden when decorative, as a failed image says its alt.*
+
 `Image.view` draws an empty `picture` marked `data-unavailable` when the
 provider has no URL. It collapses, so the page around it is laid out as if
 there were no image, unlike a failed load (`watchLoad`), which keeps its box.
@@ -780,6 +783,8 @@ The frame carries the ratio and width, and the recipe holds the box, so a
 missing variant and a failed one look alike and move nothing.
 
 ### 18.4 One ThumbHash, two renderings
+
+*Built.*
 
 A decoded ThumbHash costs a few kilobytes of HTML per image (§7.3). The same
 hash also gives its average color (`thumbHashToAverageRGBA`), for nothing. So
@@ -790,6 +795,9 @@ a grid of fifty thumbnails adds fifty colors to the HTML, not fifty PNGs. An
 input overrides it.
 
 ### 18.5 A focal point
+
+*Built as `focus`, read with `OptionFromOptionalNullOr`, so assets stored
+before it decode as none. The `ratio` axis that crops by it is §24.1's.*
 
 `ImageAsset` gains `focus`, an `Option` of `{ x, y }` from 0 to 1. A style
 that crops (`ratio`, §24.1) writes it as `--fk-image-focus`, read by

@@ -1,7 +1,7 @@
 import { Effect, Option, Schema, Stream } from 'effect'
 import { Behavior, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import { Layout, Picture, type ImageAsset, type Provider } from 'foldkit-media'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
 import { imgAttributes } from './imageAttributes.js'
 import type { MixinList } from './resolve.js'
@@ -11,9 +11,11 @@ import type { MixinList } from './resolve.js'
  * `img`; it owns no
  * state or messages, and the browser owns loading and which candidate to
  * fetch. The `img` carries the original's ratio as `--fk-image-ratio` and the
- * placeholder's background as `--fk-image-placeholder`, and `data-layout`
- * (`fixed`, `constrained`, `full`). A frame whose provider has no URL for the
- * image is drawn empty, marked `data-unavailable`.
+ * placeholder's background as `--fk-image-placeholder`, the focal point as
+ * `--fk-image-focus`, and `data-layout` (`fixed`, `constrained`, `full`). A
+ * frame whose provider has no URL for the image is drawn empty, marked
+ * `data-unavailable`, holding the image's box (`--fk-image-ratio`,
+ * `--fk-image-width`) and its alt text.
  */
 export const ImageSlots = Slots.define({
   frame: Slot.make({ capability: Capability.Container }),
@@ -44,6 +46,11 @@ export interface ImageView<Message = never> {
   readonly priority?: boolean | undefined
   /** In place of the layout's `sizes`, when the page knows the drawn width better. */
   readonly sizes?: string | undefined
+  /**
+   * How much of a ThumbHash placeholder to paint: its picture or its average
+   * color. By default the picture for a `priority` image, the color otherwise.
+   */
+  readonly placeholder?: 'detail' | 'average' | undefined
   /** A style of `ImageSlots`, for the image's look. */
   readonly style?: NamedStyle<typeof ImageSlots> | undefined
   /** Mixins beside the style. */
@@ -71,10 +78,31 @@ export const view = <Message = never>(
     layout: options.layout,
     priority: options.priority ?? false,
     ...(options.sizes === undefined ? {} : { sizes: options.sizes }),
+    ...(options.placeholder === undefined ? {} : { placeholder: options.placeholder }),
   })
+  const layout = layoutName(options.layout)
   return Option.match(picture, {
-    onNone: () => h.picture(builders.frame.attrs([h.DataAttribute('unavailable', '')]), []),
-    onSome: ({ sources, img, ratio, placeholder }) =>
+    // Holds the box the image would have had, and still says what it shows.
+    onNone: () =>
+      h.picture(
+        builders.frame.attrs([
+          h.DataAttribute('unavailable', ''),
+          h.DataAttribute('layout', layout),
+          ...Alt.match(options.alt, {
+            Described: ({ text }): ReadonlyArray<Attribute<Message>> => [
+              h.Role('img'),
+              h.AriaLabel(text),
+            ],
+            Decorative: (): ReadonlyArray<Attribute<Message>> => [h.AriaHidden(true)],
+          }),
+          h.Style({
+            '--fk-image-ratio': Layout.ratio(options.asset),
+            '--fk-image-width': `${Layout.box(options.layout, options.asset).width}px`,
+          }),
+        ]),
+        [],
+      ),
+    onSome: ({ sources, img, ratio, focus, placeholder }) =>
       h.picture(builders.frame.attrs([]), [
         ...sources.map(source =>
           h.source(
@@ -92,9 +120,13 @@ export const view = <Message = never>(
               Described: ({ text }) => [h.Alt(text)],
               Decorative: () => [h.Alt(''), h.Role('presentation')],
             }),
-            h.DataAttribute('layout', layoutName(options.layout)),
+            h.DataAttribute('layout', layout),
             h.Style({
               '--fk-image-ratio': ratio,
+              ...Option.match(focus, {
+                onNone: () => ({}),
+                onSome: position => ({ '--fk-image-focus': position }),
+              }),
               ...Option.match(placeholder, {
                 onNone: () => ({}),
                 onSome: background => ({ '--fk-image-placeholder': background }),

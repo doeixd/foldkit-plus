@@ -1,4 +1,4 @@
-export { ImageAsset, Placeholder } from './asset.js'
+export { Focus, ImageAsset, Placeholder } from './asset.js'
 export { Format, mimeType, type Encoding } from './format.js'
 export * as Layout from './layout.js'
 export * as Picture from './picture.js'

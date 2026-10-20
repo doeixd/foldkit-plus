@@ -65,6 +65,10 @@ export const sizes = (layout: Layout): string =>
     FullWidth: () => '100vw',
   })
 
+/** The original's aspect ratio, as CSS writes one. */
+export const ratio = (asset: Pick<ImageAsset, 'width' | 'height'>): string =>
+  `${asset.width} / ${asset.height}`
+
 /**
  * The `width` and `height` attributes: the drawn size where the layout fixes
  * one, the original's where it does not. Either way their ratio is the

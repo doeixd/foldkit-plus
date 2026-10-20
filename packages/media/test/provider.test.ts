@@ -4,8 +4,18 @@ import { ImageAsset, Provider } from 'foldkit-media'
 
 const decodeAsset = Schema.decodeUnknownSync(ImageAsset)
 
-const assetAt = (key: string): ImageAsset =>
-  decodeAsset({ key, width: 2000, height: 1000, alpha: false, hash: null, placeholder: null })
+/** An asset as it is stored, before decoding. */
+const stored = (facts: Record<string, unknown> = {}) => ({
+  key: 'a.jpg',
+  width: 2000,
+  height: 1000,
+  alpha: false,
+  hash: null,
+  placeholder: null,
+  ...facts,
+})
+
+const assetAt = (key: string): ImageAsset => decodeAsset(stored({ key }))
 
 describe('ImageAsset', () => {
   it('reads absent facts as none', () => {
@@ -20,7 +30,7 @@ describe('ImageAsset', () => {
     ['a ThumbHash', { _tag: 'ThumbHash', hash: '1QcSHQRnh493V4dIh4eXh1h4kJUI' }],
     ['a low-res stand-in', { _tag: 'LowRes' }],
   ])('accepts %s as a placeholder', (_, placeholder) => {
-    expect(() => decodeAsset({ ...assetAt('a.jpg'), hash: null, placeholder })).not.toThrow()
+    expect(() => decodeAsset(stored({ placeholder }))).not.toThrow()
   })
 
   it.each([
@@ -28,13 +38,23 @@ describe('ImageAsset', () => {
     ['a url', { _tag: 'Color', value: 'url(https://example.com/x.png)' }],
     ['markup as a ThumbHash', { _tag: 'ThumbHash', hash: '<script>' }],
   ])('refuses %s as a placeholder', (_, placeholder) => {
-    expect(() => decodeAsset({ ...assetAt('a.jpg'), hash: null, placeholder })).toThrow()
+    expect(() => decodeAsset(stored({ placeholder }))).toThrow()
+  })
+
+  it.each([
+    ['without a focal point', {}, Option.none()],
+    ['with a null one', { focus: null }, Option.none()],
+    ['with one', { focus: { x: 0.25, y: 1 } }, Option.some({ x: 0.25, y: 1 })],
+  ])('reads an asset %s', (_, facts, focus) => {
+    expect(decodeAsset(stored(facts)).focus).toEqual(focus)
+  })
+
+  it('refuses a focal point outside the image', () => {
+    expect(() => decodeAsset(stored({ focus: { x: 1.5, y: 0 } }))).toThrow()
   })
 
   it('refuses an image with no pixels', () => {
-    expect(() =>
-      decodeAsset({ ...assetAt('a.jpg'), width: 0, hash: null, placeholder: null }),
-    ).toThrow()
+    expect(() => decodeAsset(stored({ width: 0 }))).toThrow()
   })
 })
 

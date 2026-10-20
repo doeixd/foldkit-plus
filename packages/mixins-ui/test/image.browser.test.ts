@@ -177,3 +177,82 @@ test('watchLoad marks an image already complete when it mounts as loaded, never 
     second.dispose()
   }
 })
+
+test('an image with no variant holds the box it would have had', async () => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent = Style.stylesheet(L.declare, L.in('theme', Theme.root(theme))) + style.css
+  document.head.append(sheet)
+  const none = Provider.fromFiles([{ width: 400, format: 'avif', url: '/never.avif' }], {
+    sources: [],
+    fallback: 'webp',
+  })
+  const focused = Schema.decodeUnknownSync(ImageAsset)({
+    key: 'hero.jpg',
+    width: 1000,
+    height: 500,
+    alpha: false,
+    hash: null,
+    placeholder: null,
+    focus: { x: 0.25, y: 0.8 },
+  })
+  const container = document.createElement('div')
+  container.id = 'unavailable'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: {} }),
+      update: (model: typeof Model.Type) => ({ model }),
+      view: (_: unknown, h: HtmlBuilder<never>) =>
+        h.div(
+          [h.Style({ display: 'grid', gap: '16px', padding: '16px', justifyItems: 'start' })],
+          [
+            ...(
+              [
+                ['1000px', 'wide', Layout.Constrained({ width: 400 })],
+                ['300px', 'narrow', Layout.Constrained({ width: 400 })],
+                ['1200px', 'full', Layout.FullWidth()],
+              ] as const
+            ).map(([width, label, layout]) =>
+              h.div(
+                [h.Style({ inlineSize: width })],
+                [
+                  Image.view(
+                    { asset, provider: none, layout, alt: Image.described(label), style },
+                    h,
+                  ),
+                ],
+              ),
+            ),
+            Image.view(
+              {
+                asset: focused,
+                provider,
+                layout: Layout.Fixed({ width: 400 }),
+                alt: Image.described('focused'),
+                style,
+              },
+              h,
+            ),
+          ],
+        ),
+    }),
+  )
+  const frameBox = (label: string) => {
+    const rect = document.querySelector(`[aria-label="${label}"]`)!.getBoundingClientRect()
+    return [Math.round(rect.width), Math.round(rect.height)]
+  }
+  try {
+    await vi.waitFor(() => expect(document.querySelectorAll('[data-unavailable]')).toHaveLength(3))
+    expect(frameBox('wide')).toEqual([400, 200])
+    expect(frameBox('narrow')).toEqual([300, 150])
+    expect(frameBox('full')).toEqual([1200, 600])
+    expect(getComputedStyle(document.querySelector('img[alt="focused"]')!).objectPosition).toBe(
+      '25% 80%',
+    )
+  } finally {
+    handle.dispose()
+  }
+})

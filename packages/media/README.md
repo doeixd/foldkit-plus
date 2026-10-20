@@ -117,12 +117,22 @@ An `ImageAsset`'s `placeholder` is painted behind the image until it loads;
 
 - `Placeholder.cases.Color.make({ value })` paints one CSS color.
 - `ThumbHash` paints a blurred likeness decoded to a PNG data URL, a few
-  kilobytes of HTML per image, so the page paints it with no request.
+  kilobytes of HTML per image, so the page paints it with no request; or the
+  same hash's average color, a few bytes. `Picture.derive` paints the
+  likeness for the `priority` image and the color for the rest, so a grid of
+  thumbnails stays small; `placeholder: 'detail' | 'average'` overrides it.
 - `LowRes` paints the provider's smallest width of the image: no stored data,
   one small request.
 
 An image with `alpha: true` gets no placeholder, since it would show through the
 transparent pixels once the image loads.
+
+## Focal point
+
+An asset's `focus` (`{ x, y }`, 0 to 1 from the top left) is where a crop
+keeps the subject; `picture.focus` writes it as `object-position` does
+(`"25% 80%"`). It is the one fact an editor sets rather than one derived from
+the original, and a stored asset without it reads as none.
 
 ## Loading
 

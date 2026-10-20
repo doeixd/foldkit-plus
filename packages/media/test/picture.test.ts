@@ -1,4 +1,5 @@
 import { Option, Schema } from 'effect'
+import { rgbaToThumbHash } from 'thumbhash'
 import { describe, expect, it } from 'vitest'
 import { ImageAsset, Layout, Picture, Provider } from 'foldkit-media'
 
@@ -120,9 +121,36 @@ describe('Picture.derive placeholder', () => {
     expect(placeholderOf(placeholder)).toEqual(Option.some(expected))
   })
 
-  it('paints a ThumbHash as a PNG drawn from it', () => {
+  const thumbHash = { _tag: 'ThumbHash', hash: 'XQgOFITodogFp3lnVHgPYPW7Gg==' }
+
+  it('paints a ThumbHash’s average color for an image that is not the priority', () => {
+    // A ThumbHash of a solid teal picture: its average is that teal.
+    const pixels = new Uint8Array(8 * 8 * 4).map((_, index) => [0, 128, 128, 255][index % 4]!)
+    const hash = btoa(String.fromCharCode(...rgbaToThumbHash(8, 8, pixels)))
+    const painted = Option.getOrThrow(placeholderOf({ _tag: 'ThumbHash', hash }))
+    const [r, g, b, a] = /^rgb\((\d+) (\d+) (\d+) \/ ([\d.]+)\)$/
+      .exec(painted)!
+      .slice(1)
+      .map(Number)
+    // Within a few steps of 0, 128, 128: ThumbHash quantizes.
+    expect([r, g, b].map(channel => Math.round(channel! / 8))).toEqual([0, 16, 16])
+    expect(a).toBe(1)
+  })
+
+  it.each([
+    ['for the priority image', { priority: true }],
+    ['when asked to', { placeholder: 'detail' as const }],
+  ])('paints a ThumbHash as a PNG drawn from it %s', (_, options) => {
     const painted = Option.getOrThrow(
-      placeholderOf({ _tag: 'ThumbHash', hash: 'XQgOFITodogFp3lnVHgPYPW7Gg==' }),
+      Option.flatMap(
+        Picture.derive({
+          asset: withPlaceholder(thumbHash),
+          provider,
+          layout: Layout.FullWidth(),
+          ...options,
+        }),
+        picture => picture.placeholder,
+      ),
     )
     expect(painted.startsWith('url("data:image/png;base64,')).toBe(true)
   })

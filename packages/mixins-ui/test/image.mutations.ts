@@ -8,6 +8,50 @@ const browser = ['packages/mixins-ui/test/image.browser.test.ts']
 
 export default [
   {
+    name: 'an unavailable image collapses',
+    edits: [
+      {
+        file: '../src/recipes/image.ts',
+        find: "        aspectRatio: 'var(--fk-image-ratio)',\n        inlineSize: 'var(--fk-image-width)',\n",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'an unavailable full-width image is as wide as its original',
+    edits: [
+      {
+        file: '../src/recipes/image.ts',
+        find: `Style.nest('&[data-unavailable][data-layout="full"]', { inlineSize: '100%' }),`,
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'an unavailable image says nothing',
+    edits: [
+      {
+        file: '../src/image.ts',
+        find: "h.Role('img'),\n              h.AriaLabel(text),",
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a crop ignores the focal point',
+    edits: [
+      {
+        file: '../src/recipes/image.ts',
+        find: "objectPosition: 'var(--fk-image-focus, 50% 50%)',",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'an image complete at mount is marked loading first',
     edits: [
       {

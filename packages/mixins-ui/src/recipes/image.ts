@@ -14,13 +14,22 @@ import { component, imageEdge, variant } from './design.js'
 
 export const Image = Style.recipeFor(ImageSlots)({
   base: {
-    frame: component(Style.self({ display: 'block', maxInlineSize: '100%' })),
+    frame: component(
+      Style.self({ display: 'block', maxInlineSize: '100%' }),
+      // An image with no variant keeps the box it would have had.
+      Style.nest('&[data-unavailable]', {
+        aspectRatio: 'var(--fk-image-ratio)',
+        inlineSize: 'var(--fk-image-width)',
+      }),
+      Style.nest('&[data-unavailable][data-layout="full"]', { inlineSize: '100%' }),
+    ),
     image: component(
       Style.self({
         display: 'block',
         maxInlineSize: '100%',
         blockSize: 'auto',
         background: 'var(--fk-image-placeholder) center / cover no-repeat',
+        objectPosition: 'var(--fk-image-focus, 50% 50%)',
       }),
       Style.nest('&[data-layout="full"]', { inlineSize: '100%' }),
       // Marked by `Image.watchLoad` alone.

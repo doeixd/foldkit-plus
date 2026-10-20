@@ -188,8 +188,8 @@ export default [
     edits: [
       {
         file: '../src/picture.ts',
-        find: 'placeholder: asset.alpha ? Option.none() : background(asset, provider)',
-        replace: 'placeholder: background(asset, provider)',
+        find: 'placeholder: asset.alpha\n      ? Option.none()\n      : background(',
+        replace: 'placeholder: false\n      ? Option.none()\n      : background(',
       },
     ],
     tests: picture,
@@ -217,12 +217,12 @@ export default [
     tests: picture,
   },
   {
-    name: 'a ThumbHash paints as a color',
+    name: 'a ThumbHash’s picture paints as its text',
     edits: [
       {
         file: '../src/placeholder.ts',
-        find: 'ThumbHash: ({ hash }) => Option.some(cssUrl(decode(hash))),',
-        replace: 'ThumbHash: ({ hash }) => Option.some(hash),',
+        find: "level === 'detail' ? cssUrl(decode(hash)) : average(hash)",
+        replace: "level === 'detail' ? hash : average(hash)",
       },
     ],
     tests: picture,
@@ -247,6 +247,46 @@ export default [
     name: 'a preload writes values raw',
     edits: [{ file: '../src/picture.ts', find: '${escapeAttribute(value)}', replace: '${value}' }],
     tests: picture,
+  },
+  {
+    name: 'every placeholder paints its picture',
+    edits: [
+      { file: '../src/picture.ts', find: "(priority ? 'detail' : 'average')", replace: "'detail'" },
+    ],
+    tests: picture,
+  },
+  {
+    name: 'no placeholder paints its picture',
+    edits: [
+      {
+        file: '../src/picture.ts',
+        find: "(priority ? 'detail' : 'average')",
+        replace: "'average'",
+      },
+    ],
+    tests: picture,
+  },
+  {
+    name: 'an average color is the first pixel’s',
+    edits: [
+      {
+        file: '../src/placeholder.ts',
+        find: 'const { r, g, b, a } = thumbHashToAverageRGBA(bytesOf(hash))',
+        replace: 'const { r, g, b, a } = { r: 1, g: 1, b: 1, a: 1 }',
+      },
+    ],
+    tests: picture,
+  },
+  {
+    name: 'a focal point outside the image is accepted',
+    edits: [
+      {
+        file: '../src/asset.ts',
+        find: 'Schema.isBetween({ minimum: 0, maximum: 1 })',
+        replace: 'Schema.isBetween({ minimum: 0, maximum: 2 })',
+      },
+    ],
+    tests: provider,
   },
   {
     name: 'a space takes any format',

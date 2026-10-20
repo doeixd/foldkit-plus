@@ -2,7 +2,7 @@ import { Option } from 'effect'
 import type { ImageAsset } from './asset.js'
 import { mimeType, type Encoding } from './format.js'
 import * as Layout from './layout.js'
-import { background } from './placeholder.js'
+import { background, type Level } from './placeholder.js'
 import type { Provider } from './provider.js'
 
 /** A `source` element's attributes: one format's candidates. */
@@ -33,6 +33,8 @@ export interface Picture {
   readonly img: Img
   /** The original's aspect ratio, as CSS writes one. */
   readonly ratio: string
+  /** Where a crop keeps the subject, as `object-position` writes it. */
+  readonly focus: Option.Option<string>
   /**
    * The CSS `background` to paint behind the image until it loads. None for
    * an image with transparent pixels, which would show it through them.
@@ -48,6 +50,12 @@ export interface Input {
   readonly priority?: boolean
   /** In place of the layout's `sizes`, when the page knows the drawn width better. */
   readonly sizes?: string
+  /**
+   * How much of a ThumbHash to paint. By default its picture for a `priority`
+   * image, the one a reader waits on, and its average color for the rest, so
+   * a grid of thumbnails adds colors to the HTML, not pictures.
+   */
+  readonly placeholder?: Level
 }
 
 /**
@@ -102,8 +110,11 @@ export const derive = (input: Input): Option.Option<Picture> => {
       decoding: priority ? Option.none() : Option.some('async'),
       fetchPriority: priority ? Option.some('high') : Option.none(),
     },
-    ratio: `${asset.width} / ${asset.height}`,
-    placeholder: asset.alpha ? Option.none() : background(asset, provider),
+    ratio: Layout.ratio(asset),
+    focus: Option.map(asset.focus, ({ x, y }) => `${x * 100}% ${y * 100}%`),
+    placeholder: asset.alpha
+      ? Option.none()
+      : background(asset, provider, input.placeholder ?? (priority ? 'detail' : 'average')),
   })
 }
 

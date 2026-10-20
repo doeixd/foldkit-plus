@@ -37,7 +37,9 @@ version changed; `pnpm` skips versions already in the registry.
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,
   never omitted. `Recipes.Image` has `fit` (`cover`, `contain`) and `edge` (`none`, `line`).
-  `Image.watchLoad`, beside the style, marks its load state and hides a failed image.
+  `Image.watchLoad`, beside the style, marks its load state and hides a failed image. An image with no
+  variant keeps its box and its alt text. An asset's `focus` places a crop (`--fk-image-focus`), and a
+  ThumbHash paints its picture for the `priority` image and its average color for the rest.
 - `foldkit-mixins-ui`: an `Avatar`'s `src` may be an `AvatarPicture` (`{ asset, provider, width }`),
   drawn with the candidates `foldkit-media` derives for that width, so a small avatar fetches a
   small variant.
