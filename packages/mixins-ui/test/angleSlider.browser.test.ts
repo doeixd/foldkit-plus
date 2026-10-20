@@ -199,6 +199,19 @@ test('a marker the arc covers is filled, and one past it is not', async () => {
   }
 })
 
+test('a theme with square corners keeps the dial, its thumb and its markers round', async () => {
+  const handle = mount({ css: ':root { --fk-knob-radius-factor: 0 }' })
+  try {
+    await ready()
+    const marker = document.querySelector('[data-state]')!
+    for (const element of [control(), thumb(), marker]) {
+      expect(getComputedStyle(element).borderTopLeftRadius).toBe('50%')
+    }
+  } finally {
+    handle.dispose()
+  }
+})
+
 const sized = (size: 'sm' | 'md' | 'lg') => Style.forSlots(AngleSliderSlots)(Recipe({ size }))
 
 test.each(

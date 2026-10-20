@@ -5,6 +5,13 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Fixed
+
+- `foldkit-mixins-ui`: the AngleSlider's dial, thumb and markers stay round in a theme whose
+  `radius-factor` is 0; they read the radius scale before, which squared them off.
+
 ## 0.27.0
 
 Sheets and Drawers swipe from anywhere on their panels, as vaul's do: a finger drags the panel,

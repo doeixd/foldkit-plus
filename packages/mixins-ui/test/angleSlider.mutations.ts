@@ -171,4 +171,15 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'the dial takes its corners from the theme',
+    edits: [
+      {
+        file: '../src/recipes/angleSlider.ts',
+        find: "blockSize: size,\n        // A dial is round in every theme: the radius knob shapes corners, and it has none.\n        borderRadius: '50%',",
+        replace: 'blockSize: size,\n        borderRadius: ref.radius.full,',
+      },
+    ],
+    tests: [browser],
+  },
 ]

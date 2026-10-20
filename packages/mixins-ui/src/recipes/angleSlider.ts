@@ -67,7 +67,8 @@ export const AngleSlider = Style.recipeFor(AngleSliderSlots)({
         position: 'relative',
         inlineSize: size,
         blockSize: size,
-        borderRadius: ref.radius.full,
+        // A dial is round in every theme: the radius knob shapes corners, and it has none.
+        borderRadius: '50%',
         touchAction: 'none',
         // No callout of iOS's own for a press held while dragging.
         WebkitTouchCallout: 'none',
@@ -107,7 +108,7 @@ export const AngleSlider = Style.recipeFor(AngleSliderSlots)({
       Style.self({
         ...onRing(angle, thumb),
         boxSizing: 'border-box',
-        borderRadius: ref.radius.full,
+        borderRadius: '50%',
         background: ref.surface.base,
         border: `${ref.border.thick} solid ${toneVar('fill')}`,
         boxShadow: ref.shadow.sm,
@@ -118,7 +119,7 @@ export const AngleSlider = Style.recipeFor(AngleSliderSlots)({
     marker: component(
       Style.self({
         ...onRing('var(--fk-angle-marker)', `calc(${ring} * 0.5)`),
-        borderRadius: ref.radius.full,
+        borderRadius: '50%',
         background: ref.text.muted,
       }),
       Style.states(
