@@ -6,20 +6,27 @@
  */
 import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, type Page } from 'playwright'
-import { createServer, type ViteDevServer } from 'vite'
+import { createServer, mergeConfig, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
+// Read through Vitest, which compiles it and resolves the workspace sources:
+// Vite loading the file itself hands `foldkit-ssr/vite` to Node, which finds
+// only a build CI's e2e job never makes.
+import config from '../vite.config.js'
 
 let vite: ViteDevServer
 let browser: Browser
 let url: string
 
 beforeAll(async () => {
-  vite = await createServer({
-    root: fileURLToPath(new URL('..', import.meta.url)),
-    configFile: fileURLToPath(new URL('../vite.config.ts', import.meta.url)),
-    logLevel: 'error',
-    server: { port: 0 },
-  })
+  const serving = await config({ command: 'serve', mode: 'development', isPreview: false })
+  vite = await createServer(
+    mergeConfig(serving, {
+      root: fileURLToPath(new URL('..', import.meta.url)),
+      configFile: false,
+      logLevel: 'error',
+      server: { port: 0 },
+    }),
+  )
   await vite.listen()
   url = vite.resolvedUrls!.local[0]!.replace(/\/$/, '')
   browser = await chromium.launch()

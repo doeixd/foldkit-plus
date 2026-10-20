@@ -1419,6 +1419,10 @@ of its own named a form field "fits the Catalog". Read words with
   git commit` printed `1` and committed, twice in one session (a re-anchor
   and an ambiguous anchor each followed). Chain every check into the commit
   with `&&`, or read the output before committing.
+- **A check's last line is its summary, not its verdict.** `pnpm -s format:check | tail -1`
+  printed "Finished in 341ms on 3380 files", the line after "Format issues found", and
+  an unformatted mutation spec went to CI and failed lint. Read the exit status (`echo
+  $?`) or grep the verdict line, never only the tail.
 - **A heredoc ends the `&&` chain.** `cp … && python - <<'EOF' … EOF` then
   `cp mine CHANGELOG.md && git commit` on the next line runs the commit even
   when the script failed its own assert, with whatever `mine` an earlier run
