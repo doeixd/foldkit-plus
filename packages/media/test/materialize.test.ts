@@ -66,7 +66,7 @@ describe('materialize', () => {
       page(`<img src="/_image/${MISSING}/w640.webp"><img src="/_image/${A}/w300.webp">`),
     ]
     await expect(materialize({ pages, fetch })).rejects.toThrow(
-      `2 variants could not be made:\n/_image/${A}/w300.webp: 400\n/_image/${MISSING}/w640.webp: 404`,
+      `2 variants could not be made:\n/_image/${A}/w300.webp: 404\n/_image/${MISSING}/w640.webp: 404`,
     )
   })
 

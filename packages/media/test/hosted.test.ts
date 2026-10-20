@@ -138,12 +138,17 @@ describe('the server reads what the provider writes', () => {
   })
 
   it.each([
-    ['a width off the ladder', `/_image/${HASH}/w1080.avif`],
     ['a leading zero', `/_image/${HASH}/w0640.avif`],
     ['a hash that is not one', '/_image/not-a-hash/w640.avif'],
     ['an uppercase hash', `/_image/${HASH.toUpperCase()}/w640.avif`],
-    ['a quality outside the space', `/_image/${HASH}/w640q75.avif`],
-  ])('refuses %s with a 400', async (_, path) => {
+  ])('refuses %s, which no release could write, with a 400', async (_, path) => {
     expect((await fetchPath(path)).status).toBe(400)
+  })
+
+  it.each([
+    ['a width off the ladder', `/_image/${HASH}/w1080.avif`],
+    ['a quality outside the space', `/_image/${HASH}/w640q75.avif`],
+  ])('refuses %s, which another release may offer, with a 404', async (_, path) => {
+    expect((await fetchPath(path)).status).toBe(404)
   })
 })

@@ -34,7 +34,9 @@ version changed; `pnpm` skips versions already in the registry.
   `og:image` URL at least 1200 wide, never AVIF.
   `foldkit-media/server` serves `Provider.hosted`'s route over three services, `Originals`,
   `Transformer` and `Variants`: a variant is made once and kept, served immutable, and a failure is
-  its own status (400, 404, 413, 502, 503), never the original, with headers decided in one place
+  its own status (400, 404, 413, 502, 503), never the original (a URL no release could write is a
+  400 kept a year, but one outside this space alone a 404 kept a minute, which a later release may
+  answer in a rollout), with headers decided in one place
   (`headersFor`): an `ETag` and 304, a cache lifetime for each answer, CORS, `nosniff`, `Server-Timing`. `serveFetch` hosts it in a Worker,
   `layer` in an Effect `HttpRouter`. `foldkit-media/cloudflare` gives its services from a Worker's bindings:
   `originalsR2`, `transformerImages` (the Images binding) and `variantsR2` (R2 behind the Cache API).

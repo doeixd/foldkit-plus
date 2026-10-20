@@ -66,6 +66,7 @@ export const handlers = (options: Options = {}) => {
   } = options
   const decodeHash = Schema.decodeUnknownOption(Variant.ContentHash)
   const decodeVariant = Schema.decodeUnknownOption(space.schema)
+  const isSpelling = Schema.is(Variant.Spelling)
   const spell = Schema.encodeSync(space.schema)
   return HttpApiBuilder.group(MediaApi, 'images', group =>
     Effect.gen(function* () {
@@ -130,7 +131,15 @@ export const handlers = (options: Options = {}) => {
       })
       return group.handle('variant', ({ params, request }) =>
         Option.match(Option.all([decodeHash(params.hash), decodeVariant(params.variant)]), {
-          onNone: () => Effect.succeed(refused(Answer.cases.Malformed.make({}))),
+          // Kept a year only when no release could spell it; outside this space alone, briefly.
+          onNone: () =>
+            Effect.succeed(
+              refused(
+                Option.isSome(decodeHash(params.hash)) && isSpelling(params.variant)
+                  ? Answer.cases.Unoffered.make({})
+                  : Answer.cases.Malformed.make({}),
+              ),
+            ),
           onSome: ([hash, variant]) =>
             serve(hash, variant, request.headers['if-none-match'], clientOf(request)),
         }),

@@ -212,8 +212,8 @@ that supports it use the laid-out width.
 A server makes only what its `Variant.space({ widths?, formats?, qualities? })`
 allows: the width ladder, a set of formats (AVIF and WebP by default) and a set
 of qualities (none by default: no URL names one, and the encoder uses its own).
-A request outside it is a 400, so an original has at most `space.size`
-variants, whoever asks: 16 for `Variant.standard`. Give `Provider.hosted` and
+A request outside it is refused before any work, so an original has at most
+`space.size` variants, whoever asks: 16 for `Variant.standard`. Give `Provider.hosted` and
 the server the same space; the provider refuses, when defined, a format or
 quality its server would refuse.
 
@@ -222,8 +222,9 @@ quality its server would refuse.
 `foldkit-media/server` answers the route `Provider.hosted` writes, for
 originals no CDN can fetch. `MediaApi` is its Effect `HttpApi`, one route;
 the handler decodes the path with the space's Schema, the one the provider
-encodes with, so a width off the ladder, a leading zero or a malformed hash is
-a 400 before any work.
+encodes with. A URL no release could write (a leading zero, a malformed hash)
+is a 400; one well formed but outside this space (a width off the ladder) is a
+404, since another release, the next one in a rollout, may offer it.
 
 It needs three services, each a Layer you choose per host:
 
@@ -244,7 +245,8 @@ Every answer's headers come from one function, `headersFor`:
 | --- | --- | --- |
 | A variant (`ETag: "<hash>/<spelling>"`) | 200 | `public, max-age=31536000, immutable`: the path names the bytes |
 | A request already holding it (`If-None-Match`) | 304 | the same; the store is not read |
-| A URL outside the space | 400 | a year: it is wrong for good |
+| A URL no release could write | 400 | a year: it is wrong for good |
+| A well-formed URL outside this space | 404 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: a later release may offer it |
 | No original under the hash | 404 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: an upload may yet put it there |
 | The original above `maxBytes` (20 MB by default) | 413 | a year: its bytes are fixed |
 | The transformer failed | 502 | `no-store` |

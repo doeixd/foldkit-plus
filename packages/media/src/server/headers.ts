@@ -14,6 +14,11 @@ export const Answer = Schema.TaggedUnion({
   Malformed: {},
   /** No original under the hash: an upload may yet put one there. */
   NotFound: {},
+  /**
+   * A spelling of the grammar outside this space: another release (the next
+   * one, in a rollout) may offer it, so it is kept as briefly as `NotFound`.
+   */
+  Unoffered: {},
   /** The original is larger than the server reads: its bytes, and so this, never change. */
   TooLarge: {},
   /** The transformer failed: perhaps not for good. */
@@ -33,6 +38,12 @@ export type Answer = typeof Answer.Type
 
 const YEAR = 'public, max-age=31536000, immutable'
 
+// What may yet be answered: the browser keeps nothing, and the edge a minute, to blunt a crawler.
+const BRIEFLY: Readonly<Record<string, string>> = {
+  'cache-control': 'no-store',
+  'cdn-cache-control': 'public, max-age=60',
+}
+
 // Retry a spent allowance after an hour: the host's window is not known here.
 const EXHAUSTED_RETRY_SECONDS = '3600'
 
@@ -42,6 +53,7 @@ export const statusOf: (answer: Answer) => number = Answer.match({
   NotModified: () => 304,
   Malformed: () => 400,
   NotFound: () => 404,
+  Unoffered: () => 404,
   TooLarge: () => 413,
   Failed: () => 502,
   RateLimited: () => 429,
@@ -72,10 +84,8 @@ export const headersFor = (answer: Answer): Readonly<Record<string, string>> => 
     }),
     NotModified: ({ etag }): Record<string, string> => ({ 'cache-control': YEAR, etag }),
     Malformed: (): Record<string, string> => ({ 'cache-control': YEAR }),
-    NotFound: (): Record<string, string> => ({
-      'cache-control': 'no-store',
-      'cdn-cache-control': 'public, max-age=60',
-    }),
+    NotFound: (): Record<string, string> => BRIEFLY,
+    Unoffered: (): Record<string, string> => BRIEFLY,
     TooLarge: (): Record<string, string> => ({ 'cache-control': YEAR }),
     Failed: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
     RateLimited: ({ retryAfterSeconds }): Record<string, string> => ({

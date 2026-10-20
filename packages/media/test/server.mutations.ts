@@ -243,8 +243,8 @@ export default [
     edits: [
       {
         file: '../src/server/headers.ts',
-        find: "      'cache-control': 'no-store',\n      'cdn-cache-control': 'public, max-age=60',",
-        replace: "      'cache-control': YEAR,",
+        find: 'NotFound: (): Record<string, string> => BRIEFLY,',
+        replace: "NotFound: (): Record<string, string> => ({ 'cache-control': YEAR }),",
       },
     ],
     tests: ['packages/media/test/server.test.ts'],
@@ -377,6 +377,39 @@ export default [
         file: '../src/server/stores.ts',
         find: "Effect.catch(error => Effect.logWarning('Media: the variant store failed a write', error)),",
         replace: 'Effect.orDie,',
+      },
+    ],
+    tests: ['packages/media/test/server.test.ts'],
+  },
+  {
+    name: 'a URL outside this space is kept a year as malformed',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: '? Answer.cases.Unoffered.make({})',
+        replace: '? Answer.cases.Malformed.make({})',
+      },
+    ],
+    tests: ['packages/media/test/server.test.ts', 'packages/media/test/hosted.test.ts'],
+  },
+  {
+    name: 'a spelling no release could write is answered as unoffered',
+    edits: [
+      {
+        file: '../src/server/handlers.ts',
+        find: 'Option.isSome(decodeHash(params.hash)) && isSpelling(params.variant)',
+        replace: 'Option.isSome(decodeHash(params.hash))',
+      },
+    ],
+    tests: ['packages/media/test/server.test.ts', 'packages/media/test/hosted.test.ts'],
+  },
+  {
+    name: 'an unoffered URL is kept a year',
+    edits: [
+      {
+        file: '../src/server/headers.ts',
+        find: 'Unoffered: (): Record<string, string> => BRIEFLY,',
+        replace: "Unoffered: (): Record<string, string> => ({ 'cache-control': YEAR }),",
       },
     ],
     tests: ['packages/media/test/server.test.ts'],

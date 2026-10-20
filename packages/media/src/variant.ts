@@ -19,6 +19,12 @@ export const Quality = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 
 // No leading zero anywhere: one request has one spelling, so one cache key.
 const SPELLING = /^w([1-9]\d{0,4})(?:q([1-9]\d?|100))?\.(avif|webp|jpeg|png)$/
 
+/**
+ * The grammar every release reads, whatever its space: a spelling it matches
+ * may be one another release offers, so refusing it says nothing for good.
+ */
+export const Spelling = Schema.String.check(Schema.isPattern(SPELLING))
+
 /** A variant as its server reads it. */
 export interface Variant {
   readonly width: number
@@ -69,7 +75,7 @@ export const space = (
       throw new Error(`Variant.space: quality ${quality} is not an integer from 1 to 100`)
     }
   }
-  const schema = Schema.String.check(Schema.isPattern(SPELLING)).pipe(
+  const schema = Spelling.pipe(
     Schema.decodeTo(
       Schema.Struct({
         width: widths.Schema,

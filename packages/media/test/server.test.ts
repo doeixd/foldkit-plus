@@ -122,7 +122,16 @@ describe('serveFetch', () => {
   // §25.1 of the design, row by row.
   it.each([
     ['a variant', `/_image/${IMAGE}/w640.webp`, {}, 200, YEAR, null, null],
-    ['a URL off the ladder', `/_image/${IMAGE}/w1080.webp`, {}, 400, YEAR, null, null],
+    [
+      'a URL off this ladder, which another release may offer',
+      `/_image/${IMAGE}/w1080.webp`,
+      {},
+      404,
+      'no-store',
+      'public, max-age=60',
+      null,
+    ],
+    ['a spelling no release could write', `/_image/${IMAGE}/w640.gif`, {}, 400, YEAR, null, null],
     ['a URL of no hash', '/_image/not-a-hash/w640.webp', {}, 400, YEAR, null, null],
     [
       'an unknown original',
@@ -227,7 +236,7 @@ describe('serveFetch', () => {
         ),
     })
     const response = await fetch(new Request(`http://media.test/_image/${IMAGE}/w1280.webp`), {})
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(404)
     expect(read).toBe(0)
   })
 

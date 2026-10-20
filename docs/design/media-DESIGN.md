@@ -1313,7 +1313,8 @@ for every image (the CMS sandbox's `public/_headers` exists for that reason).
 | --- | --- | --- |
 | 200, a variant | `public, max-age=31536000, immutable` | `ETag: "<hash>/<spelling>"`; the shared headers below |
 | 304, a variant revalidated | as the 200 | Answered from the `If-None-Match` alone, before `Variants` is read: the URL names the bytes |
-| 400, a URL off the ladder or malformed | `public, max-age=31536000, immutable` | It is wrong for good, so the edge may keep the refusal and spare the server |
+| 400, a URL no release could write (§26.2) | `public, max-age=31536000, immutable` | It is wrong for good, so the edge may keep the refusal and spare the server |
+| 404, a well-formed URL outside this space (`Unoffered`, §26.2) | `public, max-age=60` (edge), `no-store` to the browser | Another release, the next one in a rollout, may offer it |
 | 404, no original under this hash | `public, max-age=60` (edge), `no-store` to the browser | An upload may yet put it there; a short edge entry blunts a crawler |
 | 413, the original too large | `public, max-age=31536000, immutable` | The bytes are fixed, so is the answer |
 | 429, rate limited | `no-store` | `Retry-After` |
@@ -1396,6 +1397,9 @@ them differently: the **protocol** (what a URL or a body may say) and the
 | Third-party URLs (`detect`, `cdnCgi`) | the host's own | the host's | the host's; unpic is pinned to a major and probed again on each |
 
 ### 26.2 Rollouts: the refusal kept for a year
+
+*Built: `Variant.Spelling` is the grammar; the route answers `Unoffered`
+for a spelling of it outside the space.*
 
 The variant route answers every URL it cannot decode with `Malformed`, which
 `headersFor` keeps for a year, since a malformed URL cannot become valid. But
