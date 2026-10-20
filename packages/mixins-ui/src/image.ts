@@ -5,7 +5,8 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
 
 /**
- * An image publishes its frame (a `picture`) and the `img` in it; it owns no
+ * An image publishes its frame (a `picture`), a `source` per format, and the
+ * `img`; it owns no
  * state or messages, and the browser owns loading and which candidate to
  * fetch. The `img` carries the original's ratio as `--fk-image-ratio` and the
  * placeholder's background as `--fk-image-placeholder`, and `data-layout`
@@ -14,6 +15,7 @@ import type { MixinList } from './resolve.js'
  */
 export const ImageSlots = Slots.define({
   frame: Slot.make({ capability: Capability.Container }),
+  source: Slot.make({ capability: Capability.Container }),
   image: Slot.make({ capability: Capability.Container }),
 })
 
@@ -73,7 +75,13 @@ export const view = <Message = never>(
     onSome: ({ sources, img, ratio, placeholder }) =>
       h.picture(builders.frame.attrs([]), [
         ...sources.map(source =>
-          h.source([h.Type(source.type), h.Srcset(source.srcset), h.Sizes(img.sizes)]),
+          h.source(
+            builders.source.attrs([
+              h.Type(source.type),
+              h.Srcset(source.srcset),
+              h.Sizes(img.sizes),
+            ]),
+          ),
         ),
         h.img(
           builders.image.attrs([

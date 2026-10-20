@@ -49,8 +49,8 @@ const draw = (options: Partial<ImageView> = {}) =>
 const imgOf = (drawn: ReturnType<typeof view>) => Inert.byTag(drawn, 'img')[0]
 
 describe('ImageSlots', () => {
-  it('publishes a frame and an image, and nothing stateful', () => {
-    expect(Object.keys(ImageSlots)).toEqual(['frame', 'image'])
+  it('publishes a frame, its sources and an image, and nothing stateful', () => {
+    expect(Object.keys(ImageSlots)).toEqual(['frame', 'source', 'image'])
     for (const slot of Object.values(ImageSlots)) expect(slot.capability).toBe(Capability.Container)
   })
 })

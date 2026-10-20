@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: '../src/image.ts',
-        find: 'h.source([h.Type(source.type), h.Srcset(source.srcset), h.Sizes(img.sizes)])',
-        replace: 'h.source([h.Type(source.type), h.Srcset(source.srcset)])',
+        find: 'h.Srcset(source.srcset),\n              h.Sizes(img.sizes),',
+        replace: 'h.Srcset(source.srcset),',
       },
     ],
     tests: unit,
