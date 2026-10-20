@@ -14,7 +14,8 @@ performs no I/O.
   upload your CMS stores, a third-party host.
 - **An image's facts** (width, height, alpha, placeholder) are derived from the
   original once and stored beside it. This package reads them as an
-  `ImageAsset`; it does not compute them.
+  `ImageAsset`; `describe` computes them where an original enters, while the
+  view only reads them.
 - **Variants** belong to whoever makes them, a CDN or a resizing server, and
   are a cache: they can be made again from the original.
 - **Which variant a page shows** is the browser's choice, from `srcset` and
@@ -81,7 +82,7 @@ Option.map(picture, ({ img }) => img.srcset)
   already wrote, as a table of `{ width, format, url }`. Its ladder is the
   widths it has; a variant it lacks is left out of `srcset`.
 
-- **`Provider.hosted({ baseUrl?, widths?, sources?, fallback?, quality? })`** —
+- **`Provider.hosted({ baseUrl?, space?, sources?, fallback?, quality? })`** —
   this package's own server, for originals no CDN can fetch. A variant's URL is
   `/_image/<sha-256>/w640.avif`: the original is named by its content hash, so
   an asset without `hash` has no hosted URL. The format is in the URL, so every
