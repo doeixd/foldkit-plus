@@ -161,6 +161,11 @@ describe('how the standard vocabulary renders', () => {
   }
   const render = (kind: string, props: Record<string, unknown> = {}) =>
     RichText.nodeRendering(RichText.standardRendering, nodeBlock(kind, props))
+  const rendered = (kind: string, props: Record<string, unknown> = {}) => {
+    const result = render(kind, props)
+    if (result === undefined) throw new Error(`expected ${kind} to have a rendering`)
+    return result
+  }
   const textRun = (marks: ReadonlyArray<unknown>) => {
     const block = doc([paragraph('p', marks)]).children[0]
     if (block === undefined || block.type !== 'Paragraph') throw new Error('expected a paragraph')
@@ -179,19 +184,19 @@ describe('how the standard vocabulary renders', () => {
   })
 
   it('holds an image’s box from its facts, at the width it is drawn, and none without them', () => {
-    expect(render('Image', { src: '/a.png', alt: 'a', asset }).attributes).toEqual({
+    expect(rendered('Image', { src: '/a.png', alt: 'a', asset }).attributes).toEqual({
       src: '/a.png',
       alt: 'a',
       width: '1200',
       height: '800',
     })
     expect(
-      render('Image', { src: '/a.png', alt: 'a', width: 300, asset }).attributes,
+      rendered('Image', { src: '/a.png', alt: 'a', width: 300, asset }).attributes,
     ).toMatchObject({
       width: '300',
       height: '200',
     })
-    expect(render('Image', { src: '/a.png', alt: 'a', width: 300 }).attributes).toEqual({
+    expect(rendered('Image', { src: '/a.png', alt: 'a', width: 300 }).attributes).toEqual({
       src: '/a.png',
       alt: 'a',
     })
