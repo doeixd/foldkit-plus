@@ -118,6 +118,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a ColorPicker's hue and alpha tracks stay in their channel: a Slider is
+  at least 12rem wide, which ran the tracks under the swatch in a narrow picker, as in a
+  popover; a holder lays one narrower with `--fk-slider-min-length`. The popover's trigger keeps
+  the width of its format's widest text, so it no longer resizes, and moves its panel, as the
+  color's text changes length.
 - `foldkit-mixins-ui`: a Sidebar's icon is centred in its slot, and its content on the column
   with its edge, so a rail's icons sit in its middle; an icon smaller than its slot sat at the
   slot's start, and the default variant's edge took a pixel from the content's side.

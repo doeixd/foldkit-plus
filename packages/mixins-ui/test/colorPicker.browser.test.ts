@@ -20,6 +20,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { ColorPicker, ColorPickerSlots, PopoverSlots, Recipes, SliderSlots } from '../src/index.js'
+import { buttonNames } from './chromeNames.js'
 
 // A palette, which the checkerboard and the rings read.
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -267,8 +268,11 @@ test('the popover opens the picker from a swatch of the color', async () => {
       return found!
     })
     expect(button.textContent).toBe('#3b82f6')
+    // Its name is the color alone: the widest text it keeps room for is not read.
+    expect(await buttonNames()).toContain('#3b82f6')
     expect(document.getElementById('accent-area')).toBeNull()
-    await userEvent.click(button)
+    // Pressed by `click()`: Vitest's locator reads the unread widest text into the name.
+    button.click()
     await vi.waitFor(() => expect(document.getElementById('accent-area')).not.toBeNull())
     const panel = thumb().closest('[popover]')!
     expect(panel.matches(':popover-open')).toBe(true)
@@ -345,4 +349,51 @@ test('a Popover that keeps its own focus is refused, naming what it needs', () =
       undefined as never,
     ),
   ).toThrow(/contentFocus: true/)
+})
+
+test('each track stays in its channel, clear of the swatch, in a picker too narrow for a lone Slider', async () => {
+  // A picker of 13rem leaves the channels less than the 12rem a Slider alone takes.
+  const handle = mount({ css: '[aria-labelledby="accent-label"] { inline-size: 13rem }' })
+  try {
+    await vi.waitFor(() => expect(document.getElementById('accent-area')).not.toBeNull())
+    const channels = document.querySelector('[data-channel]')!.parentElement!
+    const swatch = channels.nextElementSibling!
+    expect(channels.getBoundingClientRect().width).toBeLessThan(192)
+    for (const track of document.querySelectorAll('input[type="range"]'))
+      expect(track.getBoundingClientRect().right).toBeLessThanOrEqual(
+        channels.getBoundingClientRect().right + 0.5,
+      )
+    expect(channels.getBoundingClientRect().right).toBeLessThan(swatch.getBoundingClientRect().left)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("the trigger keeps one width while its color's text grows and shrinks", async () => {
+  const handle = mount({ inPopover: true })
+  try {
+    await openFromKeys()
+    // oklch's text grows and shrinks with the color; hex's is always seven letters.
+    await userEvent.selectOptions(document.querySelector('select')!, 'oklch')
+    const button = document.getElementById('accent-popover-button')!
+    const widths = new Set<number>()
+    const texts = new Set<string>()
+    // Corners of the area write the shortest and the longest texts of a format.
+    for (const [x, y] of [
+      [0.02, 0.98],
+      [0.5, 0.5],
+      [0.98, 0.02],
+      [0.01, 0.01],
+    ] as const) {
+      const box = area().getBoundingClientRect()
+      await userEvent.click(area(), { position: { x: box.width * x, y: box.height * y } })
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      widths.add(button.getBoundingClientRect().width)
+      texts.add(button.textContent ?? '')
+    }
+    expect(new Set([...texts].map(text => text.length)).size).toBeGreaterThan(1)
+    expect(widths.size).toBe(1)
+  } finally {
+    handle.dispose()
+  }
 })

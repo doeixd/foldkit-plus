@@ -192,4 +192,26 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: "a channel's Slider keeps a lone Slider's least width",
+    edits: [
+      {
+        file: '../src/recipes/colorPicker.ts',
+        find: "Style.self({ minInlineSize: '0', '--fk-slider-min-length': '0px' })",
+        replace: "Style.self({ minInlineSize: '0' })",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "the trigger keeps no room for its format's widest text",
+    edits: [
+      {
+        file: '../src/recipes/colorPicker.ts',
+        find: "content: 'attr(data-widest)',",
+        replace: "content: 'none',",
+      },
+    ],
+    tests: [browser],
+  },
 ]

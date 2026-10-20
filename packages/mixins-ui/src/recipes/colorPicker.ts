@@ -148,7 +148,9 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
       Style.self({ display: 'grid', gap: ref.space.xs, flex: '1', minInlineSize: '0' }),
     ),
     channel: component(
-      Style.self({ minInlineSize: '0' }),
+      // Its Slider as wide as the channel: a Slider alone is at least 12rem,
+      // which ran its tracks under the swatch in a narrow picker.
+      Style.self({ minInlineSize: '0', '--fk-slider-min-length': '0px' }),
       channelOf('hue', 'var(--fk-color-hue)'),
       channelOf('alpha', 'var(--fk-color)'),
     ),
@@ -200,7 +202,21 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
       Style.self({ display: 'inline-flex', alignItems: 'center', gap: ref.space.xs }),
     ),
     value: component(
-      Style.self({ color: ref.text.default, ...role('body'), fontVariantNumeric: 'tabular-nums' }),
+      Style.self({
+        display: 'inline-block',
+        color: ref.text.default,
+        ...role('body'),
+        fontVariantNumeric: 'tabular-nums',
+      }),
+      // The widest text of its format, a line of no height: the trigger keeps one width.
+      // Hidden, it is no part of the trigger's name.
+      Style.pseudo('::after', {
+        content: 'attr(data-widest)',
+        display: 'block',
+        blockSize: '0',
+        overflow: 'hidden',
+        visibility: 'hidden',
+      }),
     ),
   },
   variants: {

@@ -11,8 +11,8 @@ import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { cdp } from 'vitest/browser'
 import { Recipes, SegmentedSlots } from '../src/index.js'
+import { buttonNames } from './chromeNames.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const segmented = Style.forSlots(SegmentedSlots)(Recipes.Segmented({}))
@@ -92,36 +92,6 @@ test('without data-label the pressed option widens, which the label prevents', a
     handle.dispose()
   }
 })
-
-type Frame = {
-  readonly frame: { readonly id: string }
-  readonly childFrames?: ReadonlyArray<Frame>
-}
-type AxNode = {
-  readonly role?: { readonly value?: string }
-  readonly name?: { readonly value?: string }
-}
-
-/** The buttons' names as Chrome's own accessibility tree has them, in every frame. */
-const buttonNames = async () => {
-  await cdp().send('Accessibility.enable')
-  const { frameTree } = (await cdp().send('Page.getFrameTree')) as { frameTree: Frame }
-  const frames: Array<Frame> = []
-  const walk = (frame: Frame) => {
-    frames.push(frame)
-    frame.childFrames?.forEach(walk)
-  }
-  walk(frameTree)
-  const names: Array<string> = []
-  for (const { frame } of frames) {
-    const { nodes } = (await cdp().send('Accessibility.getFullAXTree', { frameId: frame.id })) as {
-      nodes: ReadonlyArray<AxNode>
-    }
-    for (const node of nodes)
-      if (node.role?.value === 'button') names.push(String(node.name?.value))
-  }
-  return names
-}
 
 test("the label's hidden copy is no part of the button's name", async () => {
   const handle = mount()

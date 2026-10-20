@@ -206,6 +206,26 @@ export const format = (color: Color, as: Format): string => {
   }
 }
 
+/**
+ * The widest text `format` writes in `as` for a color as opaque as one of
+ * `alpha`: its longest shape, any digit standing for every digit, which
+ * tabular figures draw at one width. Kept beside `format`, whose shapes it
+ * copies, so a trigger can hold every color's text without resizing.
+ */
+const widestText = (as: Format, alpha: number): string => {
+  const translucent = alpha < 1
+  switch (as) {
+    case 'hex':
+      return translucent ? '#88888888' : '#888888'
+    case 'rgb':
+      return `rgb(888 888 888${translucent ? ' / 0.88' : ''})`
+    case 'hsl':
+      return `hsl(888 888% 888%${translucent ? ' / 0.88' : ''})`
+    case 'oklch':
+      return `oklch(88.8% 0.888 888.8${translucent ? ' / 0.88' : ''})`
+  }
+}
+
 const number = String.raw`[+-]?(?:\d+\.?\d*|\.\d+)`
 const part = (unit: string) => String.raw`(${number})(${unit})?`
 const separator = String.raw`(?:\s*,\s*|\s+)`
@@ -841,7 +861,17 @@ export const popover = <Outer>(options: ColorPickerPopover<Outer>, h: HtmlBuilde
           h.button(shown.button, [
             h.span(builders.trigger.attrs(), [
               h.span(builders.swatch.attrs([h.AriaHidden(true)]), []),
-              h.span(builders.value.attrs(), [format(options.model.color, options.model.format)]),
+              // The format's widest text, drawn unseen beneath, holds the trigger's width
+              // while the color changes: a centred trigger moved its panel at each step.
+              h.span(
+                builders.value.attrs([
+                  h.DataAttribute(
+                    'widest',
+                    widestText(options.model.format, options.model.color.alpha),
+                  ),
+                ]),
+                [format(options.model.color, options.model.format)],
+              ),
             ]),
           ]),
           ...(shown.isVisible

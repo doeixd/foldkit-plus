@@ -19,8 +19,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/slider.ts',
-        find: ", minInlineSize: '12rem' }",
-        replace: ' }',
+        find: "        minInlineSize: 'var(--fk-slider-min-length, 12rem)',",
+        replace: '',
       },
     ],
     tests: ['packages/mixins-ui/test/slider.browser.test.ts'],

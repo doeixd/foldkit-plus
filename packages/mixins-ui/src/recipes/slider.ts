@@ -99,7 +99,12 @@ export const Slider = Style.recipeFor(SliderSlots)({
     // A track wide enough to drag, where a row or a centered box would
     // shrink it to its label.
     root: component(
-      Style.self({ display: 'grid', gap: ref.space['2xs'], minInlineSize: '12rem' }),
+      // A holder that lays it narrower sets `--fk-slider-min-length` (the color picker's channels).
+      Style.self({
+        display: 'grid',
+        gap: ref.space['2xs'],
+        minInlineSize: 'var(--fk-slider-min-length, 12rem)',
+      }),
       Style.pseudo('[data-disabled]', { opacity: '0.5' }),
       Style.pseudo('[data-orientation="vertical"]', { minInlineSize: '0', justifyItems: 'start' }),
     ),
