@@ -301,10 +301,14 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       ),
     ),
     branch: component(row),
+    // Its glyph centred: an icon drawn smaller than the rung sat at its start,
+    // off the middle of a rail's square row.
     icon: component(
       Style.self({
         display: 'inline-flex',
         flexShrink: '0',
+        alignItems: 'center',
+        justifyContent: 'center',
         inlineSize: ladder('icon'),
         blockSize: ladder('icon'),
       }),

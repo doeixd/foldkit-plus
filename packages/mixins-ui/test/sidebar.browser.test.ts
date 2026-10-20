@@ -284,11 +284,10 @@ test.each(['ltr', 'rtl'] as const)(
       await vi.waitFor(() => expect(link('Inbox')).toBeTruthy())
       const centre = (element: Element) => (rect(element).left + rect(element).right) / 2
       const rail = centre(nav())
-      // The slots that hold what the application drew.
-      const centred = Array.from(
-        document.querySelectorAll('.icon, .mark'),
-        each => each.parentElement!,
-      )
+      // What the application drew; an icon is narrower than its slot.
+      const centred = Array.from(document.querySelectorAll('.icon, .mark'))
+      for (const each of document.querySelectorAll('.icon'))
+        expect(rect(each).width).toBeLessThan(rect(each.parentElement!).width)
       expect(centred).toHaveLength(4)
       for (const each of [...centred, button('Show Workspace')])
         expect(Math.abs(centre(each) - rail)).toBeLessThan(0.5)

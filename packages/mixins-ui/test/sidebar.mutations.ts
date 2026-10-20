@@ -339,6 +339,17 @@ export default [
     tests: browser,
   },
   {
+    name: 'an icon narrower than its slot sits at its start',
+    edits: [
+      {
+        file: recipe,
+        find: "        flexShrink: '0',\n        alignItems: 'center',\n        justifyContent: 'center',\n        inlineSize: ladder('icon'),",
+        replace: "        flexShrink: '0',\n        inlineSize: ladder('icon'),",
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'a phone shows no opener',
     edits: [
       { file: recipe, find: "onPhone('&', { display: 'block' })", replace: 'Style.self({})' },

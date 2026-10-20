@@ -25,6 +25,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a Sidebar's icon is centred in its slot, so a rail's icons sit in the
+  middle of their rows; one drawn smaller than the slot sat at its start, a pixel off.
 - `foldkit-mixins-ui`: a Checkbox's check is centered in its box at every size; it stood low and a
   little left, by about 8% of the box.
 - `foldkit-mixins-ui`: a mixed Checkbox's dash is the check's stroke, 2px, on whole pixel rows
