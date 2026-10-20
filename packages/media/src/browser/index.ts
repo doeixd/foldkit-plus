@@ -70,8 +70,7 @@ export const inspectorBrowser = (
                   tileHeight,
                 )
                 const pixels = alphaContext.getImageData(0, 0, tileWidth, tileHeight).data
-                for (let at = 3; at < pixels.length && !alpha; at += 4)
-                  alpha = pixels[at]! < 255
+                for (let at = 3; at < pixels.length && !alpha; at += 4) alpha = pixels[at]! < 255
               }
             }
             const scale = Math.min(1, THUMBNAIL_SIDE / Math.max(width, height))
