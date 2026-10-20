@@ -50,7 +50,8 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-mixins-ui`: `Image`, a `picture` drawn from `foldkit-media`: a `source` per format, the
   `img`'s candidates and `sizes`, its box held before the file arrives, lazy unless `priority`,
   and the placeholder painted behind it. `alt` is `Image.described(text)` or `Image.decorative`,
-  never omitted. `Recipes.Image` has `fit` (`cover`, `contain`) and `edge` (`none`, `line`).
+  never omitted. `Recipes.Image` has `fit` (`cover`, `contain`), `edge` (`none`, `line`), `ratio`
+  (`auto`, `square`, `video`, `portrait`, cropped at the focal point) and `radius`.
   `Image.watchLoad`, beside the style, marks its load state and hides a failed image. `Image.preloadsIn`
   is a `foldkit-ssr` `Head` that preloads each image the rendered page drew with `priority`. An image with no
   variant keeps its box and its alt text. An asset's `focus` places a crop (`--fk-image-focus`), and a

@@ -256,3 +256,66 @@ test('an image with no variant holds the box it would have had', async () => {
     handle.dispose()
   }
 })
+
+test('a ratio crops an image, and the box an unavailable one holds, to it; a radius rounds it', async () => {
+  const squared = Style.forSlots(ImageSlots)(Recipes.Image({ ratio: 'square', radius: 'md' }))
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent = Style.stylesheet(L.declare, L.in('theme', Theme.root(theme))) + squared.css
+  document.head.append(sheet)
+  const none = Provider.fromFiles([{ width: 400, format: 'avif', url: '/never.avif' }], {
+    sources: [],
+    fallback: 'webp',
+  })
+  const container = document.createElement('div')
+  container.id = 'ratios'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: {} }),
+      update: (model: typeof Model.Type) => ({ model }),
+      view: (_: unknown, h: HtmlBuilder<never>) =>
+        h.div(
+          [h.Style({ display: 'grid', gap: '16px', padding: '16px', justifyItems: 'start' })],
+          [
+            Image.view(
+              {
+                asset,
+                provider,
+                layout: Layout.Constrained({ width: 400 }),
+                alt: Image.described('square'),
+                style: squared,
+              },
+              h,
+            ),
+            Image.view(
+              {
+                asset,
+                provider: none,
+                layout: Layout.Constrained({ width: 400 }),
+                alt: Image.described('missing'),
+                style: squared,
+              },
+              h,
+            ),
+          ],
+        ),
+    }),
+  )
+  try {
+    await vi.waitFor(() => expect(document.querySelector('img[alt="square"]')).not.toBeNull())
+    const square = document.querySelector<HTMLElement>('img[alt="square"]')!
+    const missing = document.querySelector<HTMLElement>('[aria-label="missing"]')!
+    const sizeOf = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect()
+      return [Math.round(rect.width), Math.round(rect.height)]
+    }
+    expect(sizeOf(square)).toEqual([400, 400])
+    expect(sizeOf(missing)).toEqual([400, 400])
+    expect(parseFloat(getComputedStyle(square).borderTopLeftRadius)).toBeGreaterThan(0)
+  } finally {
+    handle.dispose()
+  }
+})

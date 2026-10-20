@@ -8,6 +8,39 @@ const browser = ['packages/mixins-ui/test/image.browser.test.ts']
 
 export default [
   {
+    name: 'a ratio does not crop the image',
+    edits: [
+      {
+        file: '../src/recipes/image.ts',
+        find: 'image: variant(Style.self({ aspectRatio: ratio })),',
+        replace: 'image: variant(Style.self({})),',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'an unavailable image ignores the ratio',
+    edits: [
+      {
+        file: '../src/recipes/image.ts',
+        find: "frame: variant(Style.nest('&[data-unavailable]', { aspectRatio: ratio })),",
+        replace: 'frame: variant(Style.self({})),',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a radius rounds nothing',
+    edits: [
+      {
+        file: '../src/recipes/image.ts',
+        find: 'variant(Style.self({ borderRadius: radius }))',
+        replace: 'variant(Style.self({}))',
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'a priority img takes any earlier source as its own',
     edits: [
       {

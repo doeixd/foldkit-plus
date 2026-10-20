@@ -1083,6 +1083,13 @@ secret and stop §19.2 from writing them out.
 
 ### 24.1 `Recipes.Image` axes
 
+*Built: `ratio` and `radius`. Not built, and dropped: `dim`, since CSS's
+`light-dark()` takes colours only, a scheme the Model chooses sets
+`color-scheme` with no selector to read, and an overlay on the frame would
+darken the page beside a constrained image, the frame being wider than it;
+and `defer`, since `loading="lazy"` already spares an image below the fold its
+fetch, and an `img` has no subtree for `content-visibility` to skip.*
+
 | Axis | Values | What it does |
 | --- | --- | --- |
 | `fit` | `cover` (default), `contain` | Built |

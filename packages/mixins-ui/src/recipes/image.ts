@@ -3,14 +3,24 @@
  * container, its height following its ratio; a full-width one fills the
  * container. The placeholder paints its background until the picture covers
  * it. `fit` crops (`cover`) or letterboxes (`contain`) when a style sets a
- * ratio of its own; `edge: 'line'` draws the faint inset line that keeps a pale image
+ * ratio of its own; `ratio` is that ratio (`square`, `video` 16:9, `portrait` 3:4),
+ * cropped at the asset's focal point; `radius` rounds the corners by the theme's
+ * scale; `edge: 'line'` draws the faint inset line that keeps a pale image
  * apart from a pale page. With `Image.watchLoad`, an image whose file failed
  * hides, keeping its box. There is no fade: the placeholder is the `img`'s own
  * background, which any opacity on the `img` would fade with it.
  */
 import { Style } from 'foldkit-mixins'
 import { ImageSlots } from '../image.js'
-import { component, imageEdge, variant } from './design.js'
+import { component, imageEdge, ref, variant } from './design.js'
+
+/** A crop to `ratio`, kept at the asset's focal point, and the box an unavailable image holds. */
+const cropTo = (ratio: string) => ({
+  image: variant(Style.self({ aspectRatio: ratio })),
+  frame: variant(Style.nest('&[data-unavailable]', { aspectRatio: ratio })),
+})
+
+const corner = (radius: string) => ({ image: variant(Style.self({ borderRadius: radius })) })
 
 export const Image = Style.recipeFor(ImageSlots)({
   base: {
@@ -45,6 +55,19 @@ export const Image = Style.recipeFor(ImageSlots)({
       none: {},
       line: { image: variant(Style.self(imageEdge)) },
     },
+    ratio: {
+      auto: {},
+      square: cropTo('1'),
+      video: cropTo('16 / 9'),
+      portrait: cropTo('3 / 4'),
+    },
+    radius: {
+      none: {},
+      sm: corner(ref.radius.sm),
+      md: corner(ref.radius.md),
+      lg: corner(ref.radius.lg),
+      full: corner(ref.radius.full),
+    },
   },
-  defaults: { fit: 'cover', edge: 'none' },
+  defaults: { fit: 'cover', edge: 'none', ratio: 'auto', radius: 'none' },
 })
