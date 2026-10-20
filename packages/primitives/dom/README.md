@@ -12,6 +12,7 @@ wraps.
 | `readText()` | Command | `Read { text }`, `ReadFailed` | |
 | `share(data)` | Command | `Shared`, `Dismissed`, `ShareFailed` | `{ title?, text?, url? }` |
 | `loadScript(src)` | Command | `Loaded`, `LoadFailed` | |
+| `decodeImage(source)` | Command | `Decoded { src }`, `DecodeFailed { src, message }` | `{ src, srcset?, sizes? }` |
 | `Autofocus()` | Mount | `Focused` | |
 | `InputMask({ pattern })` | Mount | `Input { value, raw }` | `#`, `A`, `*` placeholders |
 | `KeepInView({ selector })` | Mount | nothing | |
@@ -73,6 +74,11 @@ outcome, not a failure), `ShareFailed` otherwise.
 already, so concurrent loads collapse onto the first tag and share its fate,
 yielding `Loaded` or `LoadFailed`. A dead tag is removed, so a retry fetches
 afresh.
+
+**`decodeImage(source)`** fetches and decodes a picture before it is shown, so
+a lightbox or carousel switches to the next image on `Decoded`, never through
+a blank frame. Given an `img`'s `srcset` and `sizes` (`foldkit-media`'s
+`Picture.Img` has them), the browser decodes the candidate it would draw.
 
 Denial, an insecure context, a missing API (a server), and a network error
 all become the failure Message. No Command here throws.

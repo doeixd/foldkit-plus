@@ -1112,7 +1112,7 @@ Avatar recipe's size tokens, so an `AvatarPicture`'s width is not written twice.
 
 ### 24.2 Primitives
 
-- **An image preload Command**, in `foldkit-primitives/dom`: decodes a URL or a
+- *Built as `decodeImage`.* **An image preload Command**, in `foldkit-primitives/dom`: decodes a URL or a
   `Picture`'s `src` (`img.decode()`) and answers with a Message, so a lightbox
   or carousel switches to the next image only once it is ready, never to a
   blank frame. A Command, not a Mount: the Model decides to show the image, so

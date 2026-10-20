@@ -58,7 +58,7 @@ name })`, and `permissions({ name })` are factories over a resource tag;
 OutMessage the placement handles with `onOut` — required, so it cannot be
 dropped. `Throttle` pairs leading-edge against that trailing edge.
 `chat.helpers.send('hi')` sends on a placed socket; `copyText`, `readText`, `share`,
-`loadScript`, `enterFullscreen`/`exitFullscreen`, and `postBroadcast` are
+`loadScript`, `decodeImage` (a picture decoded before it is shown), `enterFullscreen`/`exitFullscreen`, and `postBroadcast` are
 Commands; `Resize()`, `Intersection()`, `Mutation()`, `Bounds()`, and
 `Autofocus()` attach with `h.OnMount` in the view; `keyboardEvents()` and
 friends lift with `Subscription.persistentEntry`, and `matchHotkey` turns a press

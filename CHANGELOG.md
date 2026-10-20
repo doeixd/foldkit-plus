@@ -9,6 +9,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives`: `decodeImage(source)` fetches and decodes a picture before it is shown,
+  yielding `Decoded` or `DecodeFailed`; given candidates, the one the browser would draw.
 - `foldkit-ssr`: a static site's `emit(pages)` adds files made from the generated pages, written
   beside them; a path outside the output, or on a file the build or the client build writes, is
   refused. `writeEmitted` writes them without the plugin.
