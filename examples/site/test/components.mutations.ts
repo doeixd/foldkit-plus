@@ -166,15 +166,15 @@ export default [
     tests: ['examples/site/test/theme.test.ts', 'examples/site/test/components.test.ts'],
   },
   {
-    name: 'every preview carries every knob, default or not',
+    name: "the previews' knobs are kept over a base the previews do not declare",
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: 'if (declared[property] !== value) style[property] = value',
-        replace: 'style[property] = value',
+        find: '{ base: iris, ...knobsPlace }',
+        replace: '{ base: Theme.make({}), ...knobsPlace }',
       },
     ],
-    tests: ['examples/site/test/theme.test.ts'],
+    tests: ['examples/site/test/knobs.browser.test.ts'],
   },
   {
     name: 'a picker installs a value that is none of its choices',

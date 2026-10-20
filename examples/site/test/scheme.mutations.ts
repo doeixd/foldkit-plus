@@ -10,9 +10,9 @@ export default [
     name: 'the head applies no scheme',
     edits: [
       {
-        file: '../src/site.ts',
-        find: '`<script>${schemeScript()}</script><style>',
-        replace: '`<style>',
+        file: '../src/head.ts',
+        find: '`<script>${schemeScript()}</script><script>',
+        replace: '`<script>',
       },
     ],
     tests,
