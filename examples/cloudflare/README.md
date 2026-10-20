@@ -9,9 +9,10 @@ mutations, so an edit paints before the server answers. Pages forwards
 Pages cannot host the Durable Object class itself.
 
 ```
-POST /remote  ->  serveFetch            (D1 reads, queries, live)
-POST /sync    ->  SyncHost               (upgrade; one object per document)
-GET  /_image/ ->  foldkit-media server   (R2 originals, the Images binding)
+POST /remote         ->  serveFetch             (D1 reads, queries, live)
+POST /sync           ->  SyncHost               (upgrade; one object per document)
+GET  /_image/        ->  foldkit-media server   (R2 originals, the Images binding)
+POST /_media/upload  ->  foldkit-media upload   (into R2; any named actor)
 ```
 
 `pnpm demo` runs it against local [miniflare](https://miniflare.dev) — a real
@@ -30,7 +31,7 @@ are at the end of [Run it](#run-it).
 | `settleTodos` | applying what the journal committed to the `todos` table, where Remote reads it back |
 | Create, Rename, Toggle, Delete | the page's writes. Remote mutations land in the same table |
 | The page (`app.ts`, `view.ts`) | the list, the forms, and the optimistic paint. It does not open `/sync` |
-| `MEDIA` (R2) and `IMAGES` | image originals, by SHA-256, and the variants made of them (`variants/`); the Images binding makes them; `LIMITER` limits how many a client has made a minute. `foldkit-media`'s server answers `/_image/`, the URLs `Provider.hosted` writes |
+| `MEDIA` (R2) and `IMAGES` | image originals, by SHA-256, and the variants made of them (`variants/`); the Images binding makes them; `LIMITER` limits how many a client has made a minute. `foldkit-media`'s server answers `/_image/`, the URLs `Provider.hosted` writes, and `POST /_media/upload` takes an original into R2 and answers its facts (an `x-actor` other than `anon` may upload) |
 
 Two writers, one table. The journal path:
 

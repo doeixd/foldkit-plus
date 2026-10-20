@@ -1,8 +1,10 @@
 /**
- * The Cloudflare worker: one process, two routes.
+ * The Cloudflare worker: one process, four routes.
  *
  * - `POST /remote` answers Remote reads, queries, and live streams from D1,
  *   each request authenticated by its own header.
+ * - `/_image/` serves image variants from R2, and `POST /_media/upload` takes
+ *   an original into it.
  * - `/sync` upgrades into the Todos Durable Object, the document's single
  *   writer: exchanges append to the D1 journal, and `settle` applies what
  *   committed to the todos table, which is what Remote reads back — and what
@@ -21,11 +23,18 @@ import type {
 } from '@cloudflare/workers-types'
 import {
   admissionRateLimit,
+  inspectorImages,
   originalsR2,
   transformerImages,
+  uploadsR2,
   variantsR2,
 } from 'foldkit-media/cloudflare'
-import { serveFetch as serveImages } from 'foldkit-media/server'
+import {
+  UploadForbidden,
+  UploadPolicy,
+  serveFetch as serveImages,
+  serveUploadFetch,
+} from 'foldkit-media/server'
 import { defineDocumentHost } from 'foldkit-sync/do'
 import { serveFetch } from 'foldkit-remote-server/fetch'
 import { databaseFrom, makeServer, openTodosJournal, settleTodos, Todos } from './schema.js'
@@ -100,10 +109,33 @@ const answerImages = serveImages<WorkerEnv>({
     ),
 })
 
+/**
+ * Uploads: an original into R2 under its hash, its facts read by the Images
+ * binding and answered for the page to keep. Any named actor may upload; an
+ * application asks its session here, through `foldkit-guard`.
+ */
+const answerUploads = serveUploadFetch<WorkerEnv>({
+  layer: env =>
+    Layer.mergeAll(
+      uploadsR2(env.MEDIA),
+      inspectorImages(env.IMAGES),
+      Layer.succeed(UploadPolicy, {
+        admit: request => {
+          const actor = request.headers['x-actor']
+          return actor === undefined || actor === '' || actor === 'anon'
+            ? Effect.fail(new UploadForbidden({}))
+            : Effect.void
+        },
+      }),
+    ),
+})
+
 export default {
   fetch: async (request: Request, env: WorkerEnv): Promise<Response> => {
     const url = new URL(request.url)
     if (url.pathname.startsWith('/_image/')) return answerImages(request, env)
+    if (url.pathname === '/_media/upload' && request.method === 'POST')
+      return answerUploads(request, env)
     if (url.pathname === '/sync')
       // Two fetch universes meet here, as in the sync package's worker
       // fixture: the wire shape is identical; only the brands differ.

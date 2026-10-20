@@ -4,7 +4,7 @@
  * stored in R2 under its SHA-256 is served at the width and format of the
  * URL `Provider.hosted` writes for it, and kept in R2. The layers themselves
  * are tested in `packages/media/test/cloudflare.test.ts`; this proves the
- * worker routes `/_image/` to them with its bindings.
+ * worker routes `/_image/` and `/_media/upload` to them with its bindings.
  */
 import { createHash } from 'node:crypto'
 import type { ImagesBinding } from '@cloudflare/workers-types'
@@ -52,6 +52,35 @@ describe('the image route', () => {
     expect(
       await (await stack.mf.getR2Bucket('MEDIA')).head(`variants/${hash}/w320.webp`),
     ).not.toBeNull()
+  })
+
+  it('takes an upload from a named actor, answers its facts, and serves it', async () => {
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="250"><rect width="500" height="250" fill="tomato"/></svg>'
+    const png = await images.input(stream(svg)).output({ format: 'image/png' })
+    const body = new Uint8Array(await png.response().arrayBuffer())
+    const refused = await fetch(`${stack.origin}/_media/upload`, {
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'image/png' },
+    })
+    expect(refused.status).toBe(403)
+
+    const response = await fetch(`${stack.origin}/_media/upload`, {
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'image/png', 'x-actor': 'editor' },
+    })
+    expect(response.status).toBe(201)
+    const uploaded = Schema.decodeUnknownSync(ImageAsset)(await response.json())
+    expect([uploaded.width, uploaded.height]).toEqual([500, 250])
+    const path = Option.getOrThrow(
+      Provider.hosted().url(uploaded, { width: 320, encoding: 'webp' }),
+    )
+    const variant = await fetch(`${stack.origin}${path}`)
+    expect(variant.status).toBe(200)
+    const info = await images.info(stream(new Uint8Array(await variant.arrayBuffer())))
+    expect(info).toMatchObject({ format: 'image/webp', width: 320 })
   })
 
   it('answers an original it does not hold with a 404', async () => {
