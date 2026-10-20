@@ -10,7 +10,10 @@ export const Answer = Schema.TaggedUnion({
   Variant: { etag: Schema.String, from: From },
   /** The variant the request's `If-None-Match` already holds. */
   NotModified: { etag: Schema.String },
-  /** A URL outside the space, or no URL of this server at all. */
+  /**
+   * No URL of this server's grammar. A later release may read it (a new format
+   * or parameter, in a rollout), so it is kept as briefly as `NotFound`.
+   */
   Malformed: {},
   /** No original under the hash: an upload may yet put one there. */
   NotFound: {},
@@ -21,10 +24,11 @@ export const Answer = Schema.TaggedUnion({
   Unoffered: {},
   /**
    * A variant of an earlier revision, made no longer and not kept: its URL now names the
-   * current revision's, at `location`. Kept a year, since the old bytes cannot come back.
+   * current revision's, at `location`. A 302 kept briefly, since a rollback to that revision,
+   * or a server of it still in the rollout, answers the old URL again.
    */
   Moved: { location: Schema.String },
-  /** The original is larger than the server reads: its bytes, and so this, never change. */
+  /** The original is larger than the server reads: a server configured to read more may. */
   TooLarge: {},
   /** The transformer failed: perhaps not for good. */
   Failed: {},
@@ -63,7 +67,7 @@ export const statusOf: (answer: Answer) => number = Answer.match({
   Malformed: () => 400,
   NotFound: () => 404,
   Unoffered: () => 404,
-  Moved: () => 301,
+  Moved: () => 302,
   TooLarge: () => 413,
   Failed: () => 502,
   RateLimited: () => 429,
@@ -78,10 +82,10 @@ export const statusOf: (answer: Answer) => number = Answer.match({
 /**
  * Every response's headers, decided in one place, so the server, the edge
  * and a static host cannot disagree. A variant's URL names its bytes, so it
- * is kept for a year, and so are refusals that cannot change (a malformed URL,
- * an original too large). A missing original may appear, so only a CDN keeps
- * its 404, briefly; a failure is never kept. Every image may be read by a
- * canvas on another origin, and its type is never sniffed.
+ * is kept for a year. A refusal of a variant is not: another release, or the
+ * same one configured otherwise, may answer it, so only a CDN keeps it,
+ * briefly; a failure is never kept. Every image may be read by a canvas on
+ * another origin, and its type is never sniffed.
  */
 export const headersFor = (answer: Answer): Readonly<Record<string, string>> => ({
   'x-content-type-options': 'nosniff',
@@ -95,11 +99,11 @@ export const headersFor = (answer: Answer): Readonly<Record<string, string>> => 
       'server-timing': `media;desc="${from}"`,
     }),
     NotModified: ({ etag }): Record<string, string> => ({ 'cache-control': YEAR, etag }),
-    Malformed: (): Record<string, string> => ({ 'cache-control': YEAR }),
+    Malformed: (): Record<string, string> => BRIEFLY,
     NotFound: (): Record<string, string> => BRIEFLY,
     Unoffered: (): Record<string, string> => BRIEFLY,
-    Moved: ({ location }): Record<string, string> => ({ 'cache-control': YEAR, location }),
-    TooLarge: (): Record<string, string> => ({ 'cache-control': YEAR }),
+    Moved: ({ location }): Record<string, string> => ({ ...BRIEFLY, location }),
+    TooLarge: (): Record<string, string> => BRIEFLY,
     Failed: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
     RateLimited: ({ retryAfterSeconds }): Record<string, string> => ({
       'cache-control': 'no-store',

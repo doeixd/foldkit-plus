@@ -1331,10 +1331,10 @@ for every image (the CMS sandbox's `public/_headers` exists for that reason).
 | --- | --- | --- |
 | 200, a variant | `public, max-age=31536000, immutable` | `ETag: "<hash>/<spelling>"`; the shared headers below |
 | 304, a variant revalidated | as the 200 | Answered from the `If-None-Match` alone, before `Variants` is read: the URL names the bytes |
-| 400, a URL no release could write (§26.2) | `public, max-age=31536000, immutable` | It is wrong for good, so the edge may keep the refusal and spare the server |
+| 400, a URL outside the grammar (§26.2) | `public, max-age=60` (edge), `no-store` to the browser | A later release may read it (a new format, in a rollout) |
 | 404, a well-formed URL outside this space (`Unoffered`, §26.2) | `public, max-age=60` (edge), `no-store` to the browser | Another release, the next one in a rollout, may offer it |
 | 404, no original under this hash | `public, max-age=60` (edge), `no-store` to the browser | An upload may yet put it there; a short edge entry blunts a crawler |
-| 413, the original too large | `public, max-age=31536000, immutable` | The bytes are fixed, so is the answer |
+| 413, the original too large | `public, max-age=60` (edge), `no-store` to the browser | A server configured to read more may answer it |
 | 429, rate limited | `no-store` | `Retry-After` |
 | 502, the transform failed | `no-store` | May be transient |
 | 503, the allowance spent or the CPU queue full | `no-store` | `Retry-After` |
@@ -1387,7 +1387,7 @@ cannot disagree.
 
 ## 26. Versions
 
-*Not built.* Two things change between releases, and each endpoint meets
+*Built: 26.2 to 26.5, as each says.* Two things change between releases, and each endpoint meets
 them differently: the **protocol** (what a URL or a body may say) and the
 **output** (what bytes or facts a request yields). The rules:
 
@@ -1428,12 +1428,18 @@ versions at once; a static page outlives the Worker behind it), a page from
 the new release asks the old one for a new width, gets a 400, and the edge
 keeps that 400 for a year.
 
-The fix splits the answer: `Malformed` (kept a year) only for a URL no
-release could spell: a hash that is not 64 hex digits, a spelling outside
-the grammar. A well-formed spelling outside this space is `Unoffered`: a
-`404`, `no-store` for a browser and a minute at the edge, like `NotFound`.
-The grammar is the space-free part of the Schema, so the split is two
+The fix splits the answer: `Malformed`, a 400, for a URL outside the
+grammar: a hash that is not 64 hex digits, a spelling it does not read. A
+well-formed spelling outside this space is `Unoffered`: a `404`. Both are
+`no-store` for a browser and a minute at the edge, like `NotFound`: the
+grammar too may grow (a new format, a new parameter), and the release that
+grows it meets the old one in its rollout. Only a variant's bytes are kept a
+year. The grammar is the space-free part of the Schema, so the split is two
 decodes, not a second parser.
+
+*Since: `Malformed` was first kept a year, as wrong for good; a review found
+that a grammar which grows makes it as answerable as `Unoffered`, and kept it
+a minute too.*
 
 ### 26.3 The output's revision
 
@@ -1453,9 +1459,10 @@ every revision up to its own:
 
 - the current revision is served or made as now;
 - an older one is served if its variant is still kept (it is the same key it
-  always was), and otherwise answered with a `301` to the current revision's
-  URL, kept a year: the old bytes cannot be made again, and the new URL names
-  the new ones;
+  always was), and otherwise answered with a `302` to the current revision's
+  URL, kept a minute at the edge and not by a browser: a rollback to the
+  earlier revision, or a server of it still in the rollout, answers the old
+  URL again, and a redirect kept a year would send it to a 404;
 - a later one is `Unoffered` (26.2): this server is the old one in a
   rollout.
 
@@ -1475,13 +1482,13 @@ cannot be additive is a new route, `/_media/v2/upload`, served beside the
 old one until no client sends to it.
 
 Stored facts are re-derivable from the original. A better placeholder or a
-fixed alpha reading is a new `FACTS_REVISION`, which re-reads the build's
+fixed alpha reading is a new `CACHE_REVISION` (`?image`'s cache folder), which re-reads the build's
 caches; stored rows stay valid and may be refreshed by a job, never must be.
 
 ### 26.5 The build's caches
 
 `?image` keeps facts and variants by the original's hash. Their keys add
-`FACTS_REVISION` and the space's revision, so a release that changes either
+`CACHE_REVISION` and the space's revision, so a release that changes either
 re-reads and re-encodes once, and one that changes neither encodes nothing
 again. sharp's own version is not in the key: a patch release re-encoding
 every AVIF of a site would cost minutes for no difference anyone sees;

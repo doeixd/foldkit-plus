@@ -97,14 +97,21 @@ export default [
     tests,
   },
   {
-    name: 'a redirect to the current revision is not kept',
+    name: 'a redirect to the current revision is kept a year, past a rollback',
     edits: [
       {
         file: '../src/server/headers.ts',
-        find: "Moved: ({ location }): Record<string, string> => ({ 'cache-control': YEAR, location }),",
+        find: 'Moved: ({ location }): Record<string, string> => ({ ...BRIEFLY, location }),',
         replace:
-          "Moved: ({ location }): Record<string, string> => ({ 'cache-control': 'no-store', location }),",
+          "Moved: ({ location }): Record<string, string> => ({ 'cache-control': YEAR, location }),",
       },
+    ],
+    tests,
+  },
+  {
+    name: 'a redirect to the current revision is permanent',
+    edits: [
+      { file: '../src/server/headers.ts', find: 'Moved: () => 302,', replace: 'Moved: () => 301,' },
     ],
     tests,
   },

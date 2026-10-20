@@ -250,15 +250,26 @@ export default [
     tests: ['packages/media/test/server.test.ts'],
   },
   {
-    name: 'a malformed URL is never kept',
+    name: 'a malformed URL is kept a year, though a later release may read it',
     edits: [
       {
         file: '../src/server/headers.ts',
-        find: "Malformed: (): Record<string, string> => ({ 'cache-control': YEAR }),",
-        replace: "Malformed: (): Record<string, string> => ({ 'cache-control': 'no-store' }),",
+        find: 'Malformed: (): Record<string, string> => BRIEFLY,',
+        replace: "Malformed: (): Record<string, string> => ({ 'cache-control': YEAR }),",
       },
     ],
     tests: ['packages/media/test/server.test.ts'],
+  },
+  {
+    name: 'an original too large is kept a year, though a server may be let read more',
+    edits: [
+      {
+        file: '../src/server/headers.ts',
+        find: 'TooLarge: (): Record<string, string> => BRIEFLY,',
+        replace: "TooLarge: (): Record<string, string> => ({ 'cache-control': YEAR }),",
+      },
+    ],
+    tests: ['packages/media/test/server.test.ts', 'packages/media/test/sharp.test.ts'],
   },
   {
     name: 'a missing original is kept a year',

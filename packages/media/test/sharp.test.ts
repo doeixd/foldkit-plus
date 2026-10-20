@@ -86,10 +86,7 @@ describe('transformerSharp', () => {
 
   it('refuses an original above the pixel limit with a 413, before decoding it', async () => {
     const response = await serve({ maxPixels: 640 * 320 - 1 })(hashOf(original), 'w320.webp')
-    expect([response.status, response.headers.get('cache-control')]).toEqual([
-      413,
-      'public, max-age=31536000, immutable',
-    ])
+    expect([response.status, response.headers.get('cache-control')]).toEqual([413, 'no-store'])
   })
 })
 

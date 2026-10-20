@@ -220,18 +220,21 @@ the space, never new bytes behind an old URL. `Variant.space({ revision: 1 })`
 writes `w640.r1.avif`; revision 0, the default, writes no revision, so every
 URL written before revisions keeps its spelling. A server of revision 2 still
 answers what earlier ones wrote: an earlier revision's variant while its store
-keeps it, and else a `301`, kept a year, to the current revision's URL. A
-later revision it answers as it would a width it does not make, briefly, since
-the next release in a rollout may.
+keeps it, and else a `302` to the current revision's URL, kept briefly, since
+a rollback, or a server of the earlier revision still in the rollout, answers
+the old URL again. A later revision it answers as it would a width it does not
+make, briefly, since the next release in a rollout may.
 
 ## The server
 
 `foldkit-media/server` answers the route `Provider.hosted` writes, for
 originals no CDN can fetch. `MediaApi` is its Effect `HttpApi`, one route;
 the handler decodes the path with the space's Schema, the one the provider
-encodes with. A URL no release could write (a leading zero, a malformed hash)
-is a 400; one well formed but outside this space (a width off the ladder) is a
-404, since another release, the next one in a rollout, may offer it.
+encodes with. A URL outside the grammar (a leading zero, a malformed hash) is
+a 400; one well formed but outside this space (a width off the ladder) is a
+404. Only a variant is kept long: every refusal is kept a minute at the edge
+and not at all by a browser, since another release, the next one in a
+rollout, or the same one configured otherwise, may answer it.
 
 It needs three services, each a Layer you choose per host:
 
@@ -252,11 +255,11 @@ Every answer's headers come from one function, `headersFor`:
 | --- | --- | --- |
 | A variant (`ETag: "<hash>/<spelling>"`) | 200 | `public, max-age=31536000, immutable`: the path names the bytes |
 | A request already holding it (`If-None-Match`) | 304 | the same; the store is not read |
-| A URL no release could write | 400 | a year: it is wrong for good |
-| A well-formed URL outside this space | 404 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: a later release may offer it |
-| An earlier revision's variant, no longer kept | 301 to the current revision's URL | a year: the old bytes cannot come back |
-| No original under the hash | 404 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: an upload may yet put it there |
-| The original above `maxBytes` (20 MB by default) | 413 | a year: its bytes are fixed |
+| A URL outside this release's grammar | 400 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: a later release may read it (a new format) |
+| A well-formed URL outside this space | 404 | the same: a later release may offer it |
+| An earlier revision's variant, no longer kept | 302 to the current revision's URL | the same: a rollback answers the old URL again |
+| No original under the hash | 404 | the same: an upload may yet put it there |
+| The original above `maxBytes` (20 MB by default) | 413 | the same: a server configured to read more may answer it |
 | The transformer failed | 502 | `no-store` |
 | The client past its rate limit | 429 | `no-store`, `Retry-After` |
 | The allowance spent | 503 | `no-store`, `Retry-After: 3600` |
@@ -397,7 +400,7 @@ const uploads = uploadLayer({ maxBytes: 10 * 1024 * 1024 }).pipe(
 `uploadsKeyValueStore()` keeps them where `originalsKeyValueStore()` reads,
 over the same `KeyValueStore`; on Cloudflare, `uploadsR2(bucket)` beside
 `originalsR2(bucket)`, and `serveUploadFetch({ layer })` hosts the route in a
-Worker. A refusal answers its kind and nothing more, never kept by a cache:
+Worker. A refusal answers its kind and nothing more, and no browser keeps it:
 `403` from the policy, `415` for a body that is not `image/*` or not an image
 the inspector reads, `413` past `maxBytes` or the inspector's pixel limit, and
 `400` for a body that broke off. Because the body must be `image/*`, which is

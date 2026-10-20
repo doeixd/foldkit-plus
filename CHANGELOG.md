@@ -36,18 +36,18 @@ version changed; `pnpm` skips versions already in the registry.
   ladder, `sizes`, the reserved box, loading priority, and a placeholder background (a color, a
   ThumbHash, or the smallest width; none behind a transparent image). Providers: `cdnCgi`
   (Cloudflare's `/cdn-cgi/image/`), `fromFiles` (a build's variants) and `hosted` (its own server,
-  whose route, `/_image/<hash>/w640.avif`, `foldkit-media/server`'s `makeApi` declares with the same
+  whose route, `/_image/<hash>/w640.avif`, `foldkit-media/server`'s `MediaApi` declares with the same
   Schema). `Variant.space({ widths, formats, qualities, revision })` bounds every variant a server makes; a
   changed output is a new `revision`, written into the URL (`w640.r1.avif`; none at 0), and a
-  server answers an earlier revision while it keeps the variant, else with a `301` to the current
-  URL. `Picture.preload` writes
+  server answers an earlier revision while it keeps the variant, else with a `302` to the current
+  URL, kept briefly, since a rollback answers the old URL again. `Picture.preload` writes
   the page's largest image's `<link rel="preload">` for an SSR `head`. `Picture.ogImage` gives an absolute
   `og:image` URL at least 1200 wide, never AVIF.
   `foldkit-media/server` serves `Provider.hosted`'s route over three services, `Originals`,
   `Transformer` and `Variants`: a variant is made once and kept, served immutable, and a failure is
-  its own status (400, 404, 413, 502, 503), never the original (a URL no release could write is a
-  400 kept a year, but one outside this space alone a 404 kept a minute, which a later release may
-  answer in a rollout), with headers decided in one place
+  its own status (400, 404, 413, 502, 503), never the original (only a variant is kept long; every
+  refusal is kept a minute at the edge and not by a browser, since a later release in a rollout, or
+  the same one configured otherwise, may answer it), with headers decided in one place
   (`headersFor`): an `ETag` and 304, a cache lifetime for each answer, CORS, `nosniff`, `Server-Timing`. `serveFetch` hosts it in a Worker,
   `layer` in an Effect `HttpRouter`. `foldkit-media/cloudflare` gives its services from a Worker's bindings:
   `originalsR2`, `transformerImages` (the Images binding) and `variantsR2` (R2 behind the Cache API).

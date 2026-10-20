@@ -81,7 +81,7 @@ export const heroView = (h: HtmlBuilder<never>) =>
   package's own server, `/_image/<sha-256>/w640.avif`; needs the asset's
   `hash`. `Variant.space({ widths, formats, qualities, revision })` bounds what it makes
   (a changed output is a new `revision`: `w640.r1.avif`, an earlier one answered while kept,
-  else `301` to the current URL);
+  else a brief `302` to the current URL);
   `foldkit-media/server` serves the route, decoding with the same Schema, and
   decides every response's headers in `headersFor` (immutable variants, ETag
   and 304, a lifetime per error, CORS).

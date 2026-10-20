@@ -13,7 +13,6 @@ import { Transformer, TransformFailed, serveFetch } from 'foldkit-media/server'
 import { memoryStores } from './stores.js'
 
 const HASH = 'a'.repeat(64)
-const YEAR = 'public, max-age=31536000, immutable'
 
 /** Every spelling a release has written, and the space that reads it. Add to it; never remove. */
 const golden: ReadonlyArray<readonly [spelling: string, space: Variant.Space]> = [
@@ -167,13 +166,14 @@ describe('a server of a later revision', () => {
     expect([response.status, await response.text()]).toEqual([304, ''])
   })
 
-  it('sends an earlier revision it no longer keeps to the current URL, for good', async () => {
+  it('sends an earlier revision it no longer keeps to the current URL, for now', async () => {
     const response = await serverAtRevision2()(`/_image/${HASH}/w640.avif`)
     expect([
       response.status,
       response.headers.get('location'),
       response.headers.get('cache-control'),
-    ]).toEqual([301, `/_image/${HASH}/w640.r2.avif`, YEAR])
+      response.headers.get('cdn-cache-control'),
+    ]).toEqual([302, `/_image/${HASH}/w640.r2.avif`, 'no-store', 'public, max-age=60'])
   })
 
   it.each([
