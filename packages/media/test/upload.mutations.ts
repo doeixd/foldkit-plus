@@ -151,4 +151,21 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the policy is asked once the body is read',
+    edits: [
+      {
+        file: route,
+        find: "yield* policy.admit(request)\n            if (!(request.headers['content-type']",
+        replace: "if (!(request.headers['content-type']",
+      },
+      {
+        file: route,
+        find: 'const bytes = yield* bodyOf(request, maxBytes)',
+        replace:
+          'const bytes = yield* bodyOf(request, maxBytes)\n            yield* policy.admit(request)',
+      },
+    ],
+    tests,
+  },
 ]
