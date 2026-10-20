@@ -5,7 +5,8 @@
  * theme's knobs, and each other theme writes its knobs under
  * `:root[data-theme="name"]`, the same element, where the derivations resolve
  * them. Which theme is active is the application's Model's fact; `apply` is
- * the Command's effect that shows it.
+ * the Command's effect that shows it, and `choose` shows it and keeps it,
+ * for `script` to show in the head of the next page before the first paint.
  */
 import { Effect, Schema } from 'effect'
 import { global, type StyleValue } from '../styleValue.js'
@@ -19,6 +20,7 @@ import {
   type Standard,
 } from './knobs.js'
 import { palette, type Palette } from './oklch.js'
+import { scriptLiteral } from './scriptLiteral.js'
 import { tokens, type Tokens } from './tokens.js'
 
 /** Every shipped token: the scales, the palette, and the knobs they read. */
@@ -99,6 +101,46 @@ export const apply = <Name extends string>(themes: Themes<Name>, name: Name): Ef
     if (name === themes.initial) root.removeAttribute(themes.attribute)
     else root.setAttribute(themes.attribute, name)
   })
+
+/** The storage key a chosen theme's name is kept under, unless one is given. */
+export const THEME_KEY = 'foldkit:theme'
+
+/**
+ * The text of a `<script>` for the document's head: it shows the theme whose
+ * name is kept under `key`, so a reader who chose one never sees the initial
+ * theme for a frame. A kept name that is not one of `themes` (a theme a later
+ * build removed), and storage that throws, leave the initial theme.
+ */
+export const script = <Name extends string>(
+  themes: Themes<Name>,
+  key: string = THEME_KEY,
+): string =>
+  `(function(){try{var n=localStorage.getItem(${scriptLiteral(key)});` +
+  `if(${scriptLiteral(themes.names.filter(name => name !== themes.initial))}.indexOf(n)!==-1)` +
+  `document.documentElement.setAttribute(${scriptLiteral(themes.attribute)},n)}catch(e){}})()`
+
+/**
+ * Shows `name`, as `apply` does, and keeps it under `key` for the next visit,
+ * as a Command's effect: the initial theme keeps nothing. Storage that throws
+ * still shows it on this page.
+ */
+export const choose = <Name extends string>(
+  themes: Themes<Name>,
+  name: Name,
+  key: string = THEME_KEY,
+): Effect.Effect<void> =>
+  apply(themes, name).pipe(
+    Effect.andThen(
+      Effect.sync(() => {
+        try {
+          if (name === themes.initial) localStorage.removeItem(key)
+          else localStorage.setItem(key, name)
+        } catch {
+          // Storage refused (a private window, a full quota): this visit keeps it.
+        }
+      }),
+    ),
+  )
 
 /**
  * `theme` on the elements `selector` matches, below the root: its knobs and

@@ -5,6 +5,7 @@
  * stylesheet's `light dark`, and the browser follows the operating system.
  */
 import { Effect } from 'effect'
+import { scriptLiteral } from './scriptLiteral.js'
 
 /** What a reader may choose: a scheme, or the operating system's. */
 export type Scheme = 'light' | 'dark' | 'system'
@@ -22,8 +23,7 @@ const stored = (value: string | null): value is 'light' | 'dark' =>
  * anything else leaves the stylesheet's choice.
  */
 export const schemeScript = (key: string = SCHEME_KEY): string =>
-  // `<` escaped, so a key cannot close the script it is written into.
-  `(function(){try{var s=localStorage.getItem(${JSON.stringify(key).replaceAll('<', `${String.fromCharCode(92)}u003c`)});if(s==='light'||s==='dark')document.documentElement.style.colorScheme=s}catch(e){}})()`
+  `(function(){try{var s=localStorage.getItem(${scriptLiteral(key)});if(s==='light'||s==='dark')document.documentElement.style.colorScheme=s}catch(e){}})()`
 
 /** The scheme the root element shows now: what `schemeScript` or `chooseScheme` applied. */
 export const currentScheme = (): Scheme => {

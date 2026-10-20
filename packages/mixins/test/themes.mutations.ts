@@ -4,6 +4,7 @@
  */
 const browser = ['packages/mixins/test/themes.browser.test.ts']
 const unit = ['packages/mixins/test/knobs.test.ts']
+const kept = ['packages/mixins/test/themesKept.test.ts']
 const file = '../src/theme/themes.ts'
 
 export default [
@@ -46,5 +47,43 @@ export default [
       },
     ],
     tests: unit,
+  },
+  {
+    name: 'the head script shows whatever name storage holds',
+    edits: [
+      {
+        file,
+        find: 'if(${scriptLiteral(themes.names.filter(name => name !== themes.initial))}.indexOf(n)!==-1)',
+        replace: 'if(n)',
+      },
+    ],
+    tests: kept,
+  },
+  {
+    name: 'the head script throws where storage does',
+    edits: [{ file, find: 'n)}catch(e){}})()', replace: 'n)}catch(e){throw e}})()' }],
+    tests: kept,
+  },
+  {
+    name: 'choose keeps the initial theme too',
+    edits: [
+      {
+        file,
+        find: '          if (name === themes.initial) localStorage.removeItem(key)\n          else localStorage',
+        replace: '          localStorage',
+      },
+    ],
+    tests: kept,
+  },
+  {
+    name: 'a refused store fails the Command',
+    edits: [
+      {
+        file,
+        find: '        } catch {\n          // Storage refused (a private window, a full quota): this visit keeps it.\n        }\n      }),',
+        replace: '        } finally {\n        }\n      }),',
+      },
+    ],
+    tests: kept,
   },
 ]

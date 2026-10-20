@@ -19,7 +19,9 @@ export default [
   },
   {
     name: 'a key can close the script it is written in',
-    edits: [{ file, find: ".replaceAll('<',", replace: ".replace('#'," }],
+    edits: [
+      { file: '../src/theme/scriptLiteral.ts', find: ".replaceAll('<',", replace: ".replace('#'," },
+    ],
     tests,
   },
   {

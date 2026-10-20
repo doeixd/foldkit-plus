@@ -12,6 +12,7 @@
 import { Effect } from 'effect'
 import { VAR_PREFIX } from './core.js'
 import { variables, type KnobSet, type KnobTheme } from './knobs.js'
+import { scriptLiteral as literal } from './scriptLiteral.js'
 
 /** The storage key kept knobs live under, unless one is given. */
 export const KNOBS_KEY = 'foldkit:knobs'
@@ -45,10 +46,6 @@ const KNOB_PREFIX = `${VAR_PREFIX}-knob-`
 
 // The attribute naming the element by its key, so two keys keep two rules.
 const ELEMENT_ATTRIBUTE = 'data-fk-knobs'
-
-/** `value` as a script literal: `<` escaped, so it cannot close the script it is written into. */
-const literal = (value: unknown) =>
-  JSON.stringify(value).replaceAll('<', `${String.fromCharCode(92)}u003c`)
 
 /**
  * The text of a `<script>` for the document's head: it applies the knobs kept

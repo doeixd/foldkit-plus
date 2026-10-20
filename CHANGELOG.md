@@ -14,6 +14,9 @@ version changed; `pnpm` skips versions already in the registry.
   `schemeScript` and `chooseScheme` do for the scheme: the head script applies the kept knob
   variables to one unlayered rule, and the Command rewrites that rule and keeps those that differ
   from `base`. See `docs/design/theme-robustness-DESIGN.md`.
+- `foldkit-mixins`: `Themes.choose(themes, name, key?)` shows a named theme and keeps it, and
+  `Themes.script(themes, key?)` is a head script that shows the kept one before the first paint,
+  on the attribute `Themes.apply` writes; a name no theme has is ignored.
 - `foldkit-media` 0.0.0, unpublished: responsive images as URLs to write. `Picture.derive` turns
   an `ImageAsset`'s facts, a `Provider` and a `Layout` (`Fixed`, `Constrained`, `FullWidth`) into
   every attribute of an image's markup: `srcset` and a `source` per format from one `Widths`

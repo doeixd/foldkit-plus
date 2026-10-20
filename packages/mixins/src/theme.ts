@@ -69,8 +69,18 @@ export type { Choice, Control, Knob as KnobOf, Schemed, Variables } from './them
 /** The knobs a theme sets: `Knobs.standard`, every knob the shipped tokens read. */
 export const Knobs = { standard, schema: schemaOf, paths, at, valueAt, withValue } as const
 
-/** Themes installed by name: `Themes.make({ iris, cobalt }, { initial: 'iris' })`, `Themes.apply`. */
-export const Themes = { make: ThemeSet.make, apply: ThemeSet.apply } as const
+/**
+ * Themes installed by name: `Themes.make({ iris, cobalt }, { initial: 'iris' })`; `Themes.apply`
+ * shows one, `Themes.choose` shows and keeps it, and `Themes.script` shows the kept one before
+ * the first paint.
+ */
+export const Themes = {
+  make: ThemeSet.make,
+  apply: ThemeSet.apply,
+  choose: ThemeSet.choose,
+  script: ThemeSet.script,
+} as const
+export { THEME_KEY } from './theme/themes.js'
 export type { StandardTokens, Themes as ThemesOf } from './theme/themes.js'
 export { raise, raisedSurface } from './theme/raise.js'
 export type { Palette } from './theme/oklch.js'

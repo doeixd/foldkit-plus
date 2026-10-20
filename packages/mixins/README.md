@@ -389,7 +389,13 @@ const Model = Schema.Struct({ theme: themes.Name })
 The root declares the palette's derivations with the initial theme's knobs, and each other theme
 writes only its knobs under `:root[data-theme="name"]`, the same element, where every token
 re-derives from them. Which theme shows is the Model's fact (`themes.Name` decodes the field),
-and `Themes.apply(themes, name)` is the Command's effect that shows it. A token resolves where it
+and `Themes.apply(themes, name)` is the Command's effect that shows it. To keep a reader's choice,
+`Themes.choose(themes, name, key?)` shows it and keeps the name in `localStorage` (the initial
+theme keeps nothing), and `Themes.script(themes, key?)` is the text of a head `<script>` that shows
+the kept one before the first paint, on the attribute `apply` writes: a name no theme has, and
+storage that throws, leave the initial theme. The Model's field still starts at the initial theme
+on a static page, so restore it from the same key (`Mirror.kv`); on a page rendered per request,
+read it from a cookie into the Model instead (see `foldkit-ssr`). A token resolves where it
 is declared, so knobs set below the root change nothing derived from them there:
 `Theme.scope(theme, '.marketing')` declares the derivations again under the selector, which
 `Theme.scoped`'s token overrides do not. `AppStyle.make({ theme })` takes one theme, and its

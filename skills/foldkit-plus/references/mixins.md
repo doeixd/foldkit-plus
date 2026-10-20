@@ -352,7 +352,8 @@ field; every knob is a
 variable, choices too: `shape.border`, `type.body`, `type.headingWeight`, `motion.easing`, `shadow.style`, `shadow.relief`,
 `shape.outlines` and `surface.hover` each write the CSS their option holds, so they switch at runtime;
 `Themes.make({ iris, cobalt }, { initial: 'iris' })` installs themes by name for `AppStyle.make({ themes })`,
-`themes.Name` the Model's field and `Themes.apply(themes, name)` the Command, and `Theme.scope(theme, selector)`
+`themes.Name` the Model's field and `Themes.apply(themes, name)` the Command (`Themes.choose` also keeps the name,
+and `Themes.script(themes)` in the head shows the kept one before the first paint), and `Theme.scope(theme, selector)`
 themes a subtree; `Knobs.schema(knobs)` decodes a theme's values, `Theme.print(theme)` writes its source, and each
 knob's `title`, `description` and `default` draw its control; `Knobs.at(knobs, path)`, `Knobs.valueAt` and
 `Knobs.withValue` reach one knob by its path, typed), put bases in the
