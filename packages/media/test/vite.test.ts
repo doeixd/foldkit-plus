@@ -204,6 +204,21 @@ export { spinner } from 'virtual:foldkit-icons/test'
         { timeout: 10_000, interval: 100 },
       )
       expect(readFileSync(join(root, 'foldkit-icons.d.ts'), 'utf8')).toMatch(/i\d+ as added/)
+
+      // A refused file is the set's error, not the server's end: removed, the set loads again.
+      writeFileSync(join(root, 'icons', 'bad.svg'), '<svg viewBox="0 0 1 1"><script/></svg>')
+      await vi.waitFor(
+        () => expect(server.ssrLoadModule('virtual:foldkit-icons/app')).rejects.toThrow(/bad\.svg/),
+        { timeout: 10_000, interval: 100 },
+      )
+      rmSync(join(root, 'icons', 'bad.svg'))
+      await vi.waitFor(
+        async () => {
+          const names = Object.keys(await server.ssrLoadModule('virtual:foldkit-icons/app'))
+          expect(names.sort()).toEqual(['added', 'logo'])
+        },
+        { timeout: 10_000, interval: 100 },
+      )
     } finally {
       await server.close()
     }

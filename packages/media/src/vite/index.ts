@@ -224,7 +224,12 @@ export const icons = (options: IconsOptions = {}): Plugin => {
         })
         if (changed === undefined || extname(file) !== '.svg') return
         read.delete(changed[0])
-        writeDeclaration()
+        try {
+          writeDeclaration()
+        } catch (error) {
+          // A throw here would end the server; the set's next load fails with it, where the page shows it.
+          server.config.logger.error(error instanceof Error ? error.message : String(error))
+        }
         for (const environment of Object.values(server.environments)) {
           const module = environment.moduleGraph.getModuleById(`${RESOLVED}${changed[0]}`)
           if (module !== undefined) environment.moduleGraph.invalidateModule(module)

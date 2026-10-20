@@ -91,6 +91,17 @@ export default [
     tests,
   },
   {
+    name: 'a refused file added while serving ends the server',
+    edits: [
+      {
+        file: plugin,
+        find: 'server.config.logger.error(error instanceof Error ? error.message : String(error))',
+        replace: 'throw error',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a file added while serving leaves the module as it was',
     edits: [
       {
