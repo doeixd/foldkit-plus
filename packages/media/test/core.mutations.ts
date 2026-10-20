@@ -159,6 +159,17 @@ export default [
     tests: ['packages/media/test/layout.test.ts'],
   },
   {
+    name: 'a small box may round to no pixels',
+    edits: [
+      {
+        file: '../src/layout.ts',
+        find: 'Math.max(1, Math.round(value))',
+        replace: 'Math.round(value)',
+      },
+    ],
+    tests: ['packages/media/test/layout.test.ts'],
+  },
+  {
     name: 'a second file for a variant replaces the first',
     edits: [
       {

@@ -78,9 +78,10 @@ export const box = (
   layout: Layout,
   asset: Pick<ImageAsset, 'width' | 'height'>,
 ): { readonly width: number; readonly height: number } => {
+  const pixel = (value: number) => Math.max(1, Math.round(value))
   const scaled = (width: number) => ({
-    width: Math.round(width),
-    height: Math.round((width * asset.height) / asset.width),
+    width: pixel(width),
+    height: pixel((width * asset.height) / asset.width),
   })
   return LayoutSchema.match(layout, {
     Fixed: ({ width }) => scaled(width),

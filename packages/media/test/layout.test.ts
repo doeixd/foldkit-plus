@@ -109,4 +109,12 @@ describe('Layout.sizes and Layout.box', () => {
     expect(Layout.sizes(layout)).toBe(sizes)
     expect(Layout.box(layout, { width: 1000, height: 500 })).toEqual(box)
   })
+
+  it.each([
+    ['a subpixel fixed width', Layout.Fixed({ width: 0.1 }), { width: 1000, height: 500 }],
+    ['an extreme panorama', Layout.Fixed({ width: 100 }), { width: 10_000, height: 1 }],
+  ])('keeps both box dimensions positive for %s', (_, layout, asset) => {
+    const box = Layout.box(layout, asset)
+    expect([box.width > 0, box.height > 0]).toEqual([true, true])
+  })
 })
