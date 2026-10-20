@@ -12,7 +12,7 @@ Pages cannot host the Durable Object class itself.
 POST /remote         ->  serveFetch             (D1 reads, queries, live)
 POST /sync           ->  SyncHost               (upgrade; one object per document)
 GET  /_image/        ->  foldkit-media server   (R2 originals, the Images binding)
-POST /_media/upload  ->  foldkit-media upload   (into R2; any named actor)
+POST /_media/upload  ->  foldkit-media upload   (into R2; bearing UPLOAD_TOKEN)
 ```
 
 `pnpm demo` runs it against local [miniflare](https://miniflare.dev) — a real
@@ -31,7 +31,7 @@ are at the end of [Run it](#run-it).
 | `settleTodos` | applying what the journal committed to the `todos` table, where Remote reads it back |
 | Create, Rename, Toggle, Delete | the page's writes. Remote mutations land in the same table |
 | The page (`app.ts`, `view.ts`) | the list, the forms, and the optimistic paint. It does not open `/sync` |
-| `MEDIA` (R2) and `IMAGES` | image originals, by SHA-256, and the variants made of them (`variants/`); the Images binding makes them; `LIMITER` limits how many a client has made a minute. `foldkit-media`'s server answers `/_image/`, the URLs `Provider.hosted` writes, and `POST /_media/upload` takes an original into R2 and answers its facts (an `x-actor` other than `anon` may upload) |
+| `MEDIA` (R2) and `IMAGES` | image originals, by SHA-256, and the variants made of them (`variants/`); the Images binding makes them; `LIMITER` limits how many a client has made a minute. `foldkit-media`'s server answers `/_image/`, the URLs `Provider.hosted` writes, and `POST /_media/upload` takes an original into R2 and answers its facts, for a request bearing the `UPLOAD_TOKEN` secret (`Authorization: Bearer <token>`); unset, every upload is refused, since `x-actor` proves nothing |
 
 Two writers, one table. The journal path:
 
@@ -168,6 +168,8 @@ pnpm --filter foldkit-example-cloudflare build:page
 wrangler d1 create foldkit-cloudflare
 # put that database_id in wrangler.toml
 wrangler d1 migrations apply foldkit-cloudflare --remote
+# only to take uploads; without it, every upload is refused
+wrangler secret put UPLOAD_TOKEN
 wrangler deploy
 cd pages
 wrangler pages deploy ./public --commit-dirty=true

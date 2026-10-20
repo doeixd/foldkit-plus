@@ -11,7 +11,7 @@ import type { ImagesBinding } from '@cloudflare/workers-types'
 import { Option, Schema } from 'effect'
 import { ImageAsset, Provider } from 'foldkit-media'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { startStack, type CloudflareStack } from '../src/stack.js'
+import { UPLOAD_TOKEN, startStack, type CloudflareStack } from '../src/stack.js'
 
 let stack: CloudflareStack
 let images: ImagesBinding
@@ -54,23 +54,25 @@ describe('the image route', () => {
     ).not.toBeNull()
   })
 
-  it('takes an upload from a named actor, answers its facts, and serves it', async () => {
+  it('takes an upload bearing the secret, answers its facts, and serves it', async () => {
     const svg =
       '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="250"><rect width="500" height="250" fill="tomato"/></svg>'
     const png = await images.input(stream(svg)).output({ format: 'image/png' })
     const body = new Uint8Array(await png.response().arrayBuffer())
-    const refused = await fetch(`${stack.origin}/_media/upload`, {
-      method: 'POST',
-      body,
-      headers: { 'content-type': 'image/png' },
-    })
-    expect(refused.status).toBe(403)
+    const upload = (headers: Record<string, string>) =>
+      fetch(`${stack.origin}/_media/upload`, {
+        method: 'POST',
+        body,
+        headers: { 'content-type': 'image/png', ...headers },
+      })
+    // A name proves nothing, and neither does another token.
+    for (const refused of [{ 'x-actor': 'editor' }, { authorization: 'Bearer guess' }]) {
+      expect((await upload(refused)).status).toBe(403)
+    }
+    const preflight = await fetch(`${stack.origin}/_media/upload`, { method: 'OPTIONS' })
+    expect(preflight.headers.get('access-control-allow-origin')).toBe(null)
 
-    const response = await fetch(`${stack.origin}/_media/upload`, {
-      method: 'POST',
-      body,
-      headers: { 'content-type': 'image/png', 'x-actor': 'editor' },
-    })
+    const response = await upload({ authorization: `Bearer ${UPLOAD_TOKEN}` })
     expect(response.status).toBe(201)
     const uploaded = Schema.decodeUnknownSync(ImageAsset)(await response.json())
     expect([uploaded.width, uploaded.height]).toEqual([500, 250])

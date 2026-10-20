@@ -152,6 +152,10 @@ version changed; `pnpm` skips versions already in the registry.
   moved in), so a build stopped halfway leaves no cut-short variant a later build would ship; it
   reads at most as many originals at once as there are cores; and its cache revision moves to
   `r2`, so facts and variants read before the orientation fix are made again.
+- `foldkit-media`: `factsOf` reads an allowed host at its default port alone; another port of it
+  is another service.
+- `examples/cloudflare`: an upload must bear the `UPLOAD_TOKEN` secret; `x-actor`, which anyone
+  may send, admitted any name, and the worker answered a preflight for the media routes too.
 - `foldkit-media`: `serveFetch` no longer coalesces concurrent misses by default, as its docs
   said; it did, and a Worker request cannot wait on another's work.
 - `foldkit-mixins-ui`: a Card's `media` is an accent tile only around a bare icon (`svg`,

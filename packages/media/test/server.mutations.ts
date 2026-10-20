@@ -458,4 +458,15 @@ export default [
     ],
     tests: ['packages/media/test/server.test.ts'],
   },
+  {
+    name: 'facts are read from any port of an allowed host',
+    edits: [
+      {
+        file: '../src/server/facts.ts',
+        find: "target.port === '' && ",
+        replace: '',
+      },
+    ],
+    tests: ['packages/media/test/facts.test.ts'],
+  },
 ]

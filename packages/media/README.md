@@ -368,7 +368,8 @@ and stored beside it:
   transparent; both cost a placeholder, never show a wrong one.
 - `factsOf(url, { allow, maxBytes?, cache?, fetch? })` describes an image a
   page names only by URL (a rich-text image), so it gets its box like any
-  other. Only `https` on a host in `allow` (matched exactly) is read, each
+  other. Only `https` on a host in `allow` (matched exactly), at its default
+  port, is read, each
   redirect is checked again, and the body is limited as it streams. Given a
   `KeyValueStore` as `cache`, the facts are kept by URL and the original is
   asked for again with its `ETag`, so an unchanged one is not read twice.
@@ -415,7 +416,9 @@ An image a page names only by URL gets its facts from the same route set:
 `UploadPolicy`, and answers them keyed by the URL (`200`). Only `https` on a
 host in `uploadLayer({ facts: { allow } })` is read, and `allow` is empty
 unless given, so a server names every host it fetches. An editor asks it when
-a URL is set, and stores the facts beside the URL. What cannot be read (a host
+a URL is set, and stores the facts beside the URL. Neither route limits how
+often it is asked: each admitted call reads up to `maxBytes` and decodes it,
+so the `UploadPolicy` is where an application limits who calls, and how often. What cannot be read (a host
 not allowed, a missing file, no image) is a `422`, saying only that.
 
 ### Written out at build

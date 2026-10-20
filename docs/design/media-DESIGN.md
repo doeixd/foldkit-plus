@@ -1251,11 +1251,12 @@ The work is bounded before anything is limited:
 
 The client key is `CF-Connecting-IP` on Cloudflare and a resolver the host
 gives elsewhere; `X-Forwarded-For` is trusted only when the host says its proxy
-sets it. A remote-original route (an allowlisted URL) is limited per host as
-well as per client. Uploads are limited before the body is read: bytes, then
-pixels (sharp's `limitInputPixels`; the binding reads at most 20 MB), the type
-taken from the bytes and not the header, and a `foldkit-guard` policy on who
-may.
+sets it. Uploads, and the facts route that reads an allowlisted URL, ask the
+application's `UploadPolicy` before any byte is read; neither takes an
+`Admission` of its own, so how often a caller may ask is the policy's to
+decide. The body is counted as it streams, refused past its bytes, then its
+pixels (sharp's `limitInputPixels`; the binding reads at most 20 MB), and its
+type is taken from the bytes, not the header.
 
 Signed URLs were considered and rejected: the space is already finite and the
 originals must exist, and a signature would make every image URL depend on a
@@ -1408,6 +1409,7 @@ them differently: the **protocol** (what a URL or a body may say) and the
 | --- | --- | --- | --- |
 | `GET /_image/<hash>/<spelling>` (server, Worker, materialized files) | the spelling grammar | the variant's bytes | the grammar only grows; a `revision` in the spelling (26.3) |
 | `POST /_media/upload` | an `image/*` body; the facts as JSON | the facts | additive JSON; a breaking change is a new path (26.4) |
+| `GET /_media/facts?url=` | an allowed `https` URL; the facts as JSON | the facts, keyed by the URL | as the upload's (26.4) |
 | `/@foldkit-media/image/…` (development only) | none kept | none kept | unversioned: nothing outlives the server |
 | `ImageAsset` as stored (a CMS row, `asset.json`) | the encoded shape | the facts | every released shape decodes (26.4) |
 | The `Variants` store, the `?image` cache | the key | the bytes | the key is the spelling, so a revision is a new key; the build's cache keys carry the revisions (26.5) |

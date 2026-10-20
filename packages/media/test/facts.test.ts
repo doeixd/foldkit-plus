@@ -61,6 +61,7 @@ describe('factsOf', () => {
     ['a host not allowed', 'https://other.example.com/a.jpg'],
     ['a host that only ends with an allowed one', 'https://evilcdn.example.com/a.jpg'],
     ['plain http', 'http://cdn.example.com/a.jpg'],
+    ['another port of an allowed host', 'https://cdn.example.com:8443/a.jpg'],
   ])('refuses %s without asking it', async (_, url) => {
     const { fetch, asked } = host({ [url]: image(1) })
     const exit = await run(url, { allow: ['cdn.example.com'], fetch })

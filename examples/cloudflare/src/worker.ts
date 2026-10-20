@@ -29,14 +29,10 @@ import {
   uploadsR2,
   variantsR2,
 } from 'foldkit-media/cloudflare'
-import {
-  UploadForbidden,
-  UploadPolicy,
-  serveFetch as serveImages,
-  serveUploadFetch,
-} from 'foldkit-media/server'
+import { serveFetch as serveImages, serveUploadFetch } from 'foldkit-media/server'
 import { defineDocumentHost } from 'foldkit-sync/do'
 import { serveFetch } from 'foldkit-remote-server/fetch'
+import { uploadPolicy } from './uploadPolicy.js'
 import { databaseFrom, makeServer, openTodosJournal, settleTodos, Todos } from './schema.js'
 
 export interface WorkerEnv {
@@ -45,6 +41,11 @@ export interface WorkerEnv {
   readonly MEDIA: R2Bucket
   readonly IMAGES: ImagesBinding
   readonly LIMITER: RateLimit
+  /**
+   * The bearer token an upload must carry (`wrangler secret put UPLOAD_TOKEN`). Unset, every
+   * upload is refused: an upload writes up to 20 MB into R2, and `x-actor` proves nothing.
+   */
+  readonly UPLOAD_TOKEN?: string
 }
 
 const { server } = makeServer()
@@ -111,22 +112,16 @@ const answerImages = serveImages<WorkerEnv>({
 
 /**
  * Uploads: an original into R2 under its hash, its facts read by the Images
- * binding and answered for the page to keep. Any named actor may upload; an
- * application asks its session here, through `foldkit-guard`.
+ * binding and answered for the page to keep. Only a request bearing the
+ * `UPLOAD_TOKEN` secret may upload; an application asks its session here
+ * instead, through `foldkit-guard`.
  */
 const answerUploads = serveUploadFetch<WorkerEnv>({
   layer: env =>
     Layer.mergeAll(
       uploadsR2(env.MEDIA),
       inspectorImages(env.IMAGES),
-      Layer.succeed(UploadPolicy, {
-        admit: request => {
-          const actor = request.headers['x-actor']
-          return actor === undefined || actor === '' || actor === 'anon'
-            ? Effect.fail(new UploadForbidden({}))
-            : Effect.void
-        },
-      }),
+      uploadPolicy(env.UPLOAD_TOKEN),
     ),
 })
 
@@ -136,6 +131,9 @@ export default {
     if (url.pathname.startsWith('/_image/')) return answerImages(request, env)
     if (url.pathname === '/_media/upload' && request.method === 'POST')
       return answerUploads(request, env)
+    // Nothing else under the media routes, a preflight least of all: another site's page cannot
+    // send an upload's `image/*` body or its `Authorization` without one.
+    if (url.pathname.startsWith('/_media/')) return new Response(null, { status: 404 })
     if (url.pathname === '/sync')
       // Two fetch universes meet here, as in the sync package's worker
       // fixture: the wire shape is identical; only the brands differ.

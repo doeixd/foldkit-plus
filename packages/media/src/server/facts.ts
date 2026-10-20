@@ -37,7 +37,7 @@ export interface FactsOptions {
  * The facts of an image a page names only by URL (a rich-text image, a CMS
  * block), so it is drawn with its box and placeholder like any other: its
  * original read from an allowed host and described (`describe`), with the
- * URL as its key. Only `https` on a host in `allow` is read, and every
+ * URL as its key. Only `https` on a host in `allow`, at its default port, is read, and every
  * redirect is checked again, so content cannot point the build at an
  * internal address. Kept in `cache`, an unchanged original is asked for
  * with its `ETag` and not read or inspected again.
@@ -49,8 +49,9 @@ export const factsOf = (
   const unavailable = (reason: string) => new FactsUnavailable({ url, reason })
   const fetchOne = options.fetch ?? ((request: Request) => fetch(request))
   const maxBytes = nonNegativeInteger('maxBytes', options.maxBytes ?? DEFAULT_MAX_BYTES)
+  // An allowed host on its own port alone: another port of it is another service.
   const allowed = (target: URL) =>
-    target.protocol === 'https:' && options.allow.includes(target.hostname)
+    target.protocol === 'https:' && target.port === '' && options.allow.includes(target.hostname)
   const cacheKey = `facts/${url}`
 
   const readCached = Option.match(Option.fromNullishOr(options.cache), {
