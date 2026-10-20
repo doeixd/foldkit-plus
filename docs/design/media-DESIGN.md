@@ -211,8 +211,9 @@ Image.view({
 - One `img` when the provider negotiates the format or has one format. A
   `picture` with a `source` per format otherwise (`type="image/avif"`, then
   WebP, then the original's), so the URL alone decides the bytes and every CDN
-  can cache it without `Vary: Accept`. This replaces the `Accept` negotiation
-  proposed in conversation: a cache keyed by URL is right on every host.
+  can cache it without `Vary: Accept`. Negotiating from `Accept` on our own
+  server was rejected: a cache keyed by URL is right on every host, and a
+  `Vary` header is not honoured by every CDN.
 - `width` and `height` from the asset, scaled to the layout, so the box is
   reserved before a byte arrives. The ratio also goes on the `img` Slot as
   `--fk-image-ratio`.
