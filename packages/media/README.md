@@ -4,7 +4,10 @@ Responsive images for Foldkit Plus. An image is a URL to write: given an
 image's facts, a provider that knows a host's URL scheme, and how wide the image
 is drawn, `foldkit-media` derives every attribute of its markup (`srcset`,
 `sizes`, a `source` per format, the box it reserves, how eagerly it loads). It
-performs no I/O.
+performs no I/O. Icons are its second half: an icon is data (`IconData`), read
+from an SVG file or an Iconify set at build time and checked there, then drawn
+inline or as a mask ([Icons](#icons)). Its subpaths add the I/O around both:
+a resizing server, its Cloudflare and Node layers, uploads, and Vite plugins.
 
 ## What it owns, and what it does not
 
@@ -20,6 +23,9 @@ performs no I/O.
   are a cache: they can be made again from the original.
 - **Which variant a page shows** is the browser's choice, from `srcset` and
   `sizes`. Nothing in your Model decides it.
+- **An icon's drawing** belongs to its set (Lucide, an application's SVG
+  folder); this package reads and checks it once, at build, and the theme's
+  `icon` tokens (`foldkit-mixins`) choose which drawing a component shows.
 
 ## The model
 
@@ -204,9 +210,37 @@ the original, and a stored asset without it reads as none.
 `decoding="async"`, and its `sizes` begins with `auto, `, which lets a browser
 that supports it use the laid-out width.
 
+## Facts
+
+An `ImageAsset`'s facts are derived from its original once, where it enters,
+and stored beside it. `describe` is in the core; each inspector is the
+subpath of where it runs (`/sharp`, `/browser`, `/cloudflare`), and `factsOf`
+is `foldkit-media/server`'s:
+
+- `describe(key, bytes)` reads them through the `Inspector`: size, alpha, the
+  SHA-256, and a ThumbHash where the inspector makes a thumbnail.
+- `inspectorSharp({ maxPixels? })` (Node) reads all of them; alpha is whether
+  any pixel is transparent, so an opaque PNG still gets a placeholder.
+- `inspectorBrowser({ maxPixels? })` (`foldkit-media/browser`) reads them in
+  the browser or a web worker, with its own decoder: an editor describes a
+  file a reader dropped, ThumbHash and hash included, before anything is
+  uploaded, and stores its facts beside the image (a rich-text `Image`'s
+  `asset`). What the browser cannot decode is refused.
+- `inspectorImages(binding)` (Cloudflare) reads the size from `info`, which
+  costs no transformation. It makes no thumbnail, since the binding's raw
+  pixels are not offered offline, and takes every format but JPEG to be
+  transparent; both cost a placeholder, never show a wrong one.
+- `factsOf(url, { allow, maxBytes?, cache?, fetch? })` describes an image a
+  page names only by URL (a rich-text image), so it gets its box like any
+  other. Only `https` on a host in `allow` (matched exactly), at its default
+  port, is read, each redirect is checked again, and the body is limited as
+  it streams. Given a
+  `KeyValueStore` as `cache`, the facts are kept by URL and the original is
+  asked for again with its `ETag`, so an unchanged one is not read twice.
+
 ## The variant space
 
-A server makes only what its `Variant.space({ widths?, formats?, qualities? })`
+A server makes only what its `Variant.space({ widths?, formats?, qualities?, revision? })`
 allows: the width ladder, a set of formats (AVIF and WebP by default) and a set
 of qualities (none by default: no URL names one, and the encoder uses its own).
 A request outside it is refused before any work, so an original has at most
@@ -249,7 +283,9 @@ read, transformed, kept, and served. A failure is its own response, never the
 original in the variant's place, naming its kind (`{ "error": "NotFound" }`)
 and nothing of the server's internals.
 
-Every answer's headers come from one function, `headersFor`:
+Every answer the route gives has its headers from one function, `headersFor`.
+A defect is not an answer: a store that fails, or a Worker's layer that
+cannot be built, is the framework's own `500`, with none of them.
 
 | Answer | Status | `Cache-Control` |
 | --- | --- | --- |
@@ -283,6 +319,11 @@ format is in the URL.
 (`effect/persistence`), the store the application already has:
 
 ```ts
+import { NodeServices } from '@effect/platform-node'
+import { Layer } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
+import { originalsKeyValueStore, variantsKeyValueStore } from 'foldkit-media/server'
+
 const stores = Layer.mergeAll(originalsKeyValueStore(), variantsKeyValueStore()).pipe(
   Layer.provide(KeyValueStore.layerFileSystem('./media')),
   Layer.provide(NodeServices.layer),
@@ -322,6 +363,12 @@ served to anyone. It is optional; without it every miss is admitted.
 `foldkit-media/sharp` gives the `Transformer` (sharp is an optional peer):
 
 ```ts
+import { NodeServices } from '@effect/platform-node'
+import { Layer } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
+import { layer, originalsKeyValueStore, variantsKeyValueStore } from 'foldkit-media/server'
+import { transformerSharp } from 'foldkit-media/sharp'
+
 const media = layer().pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -348,32 +395,6 @@ const media = layer().pipe(
   and one write (`coalesce`, on by default here and off for `serveFetch`,
   since a Worker request cannot wait on another's).
 
-### Facts
-
-An `ImageAsset`'s facts are derived from its original once, where it enters,
-and stored beside it:
-
-- `describe(key, bytes)` reads them through the `Inspector`: size, alpha, the
-  SHA-256, and a ThumbHash where the inspector makes a thumbnail.
-- `inspectorSharp({ maxPixels? })` (Node) reads all of them; alpha is whether
-  any pixel is transparent, so an opaque PNG still gets a placeholder.
-- `inspectorBrowser({ maxPixels? })` (`foldkit-media/browser`) reads them in
-  the browser or a web worker, with its own decoder: an editor describes a
-  file a reader dropped, ThumbHash and hash included, before anything is
-  uploaded, and stores its facts beside the image (a rich-text `Image`'s
-  `asset`). What the browser cannot decode is refused.
-- `inspectorImages(binding)` (Cloudflare) reads the size from `info`, which
-  costs no transformation. It makes no thumbnail, since the binding's raw
-  pixels are not offered offline, and takes every format but JPEG to be
-  transparent; both cost a placeholder, never show a wrong one.
-- `factsOf(url, { allow, maxBytes?, cache?, fetch? })` describes an image a
-  page names only by URL (a rich-text image), so it gets its box like any
-  other. Only `https` on a host in `allow` (matched exactly), at its default
-  port, is read, each
-  redirect is checked again, and the body is limited as it streams. Given a
-  `KeyValueStore` as `cache`, the facts are kept by URL and the original is
-  asked for again with its `ETag`, so an unchanged one is not read twice.
-
 ### Uploads
 
 An original that no CDN or build holds, such as an editor's upload, enters
@@ -389,6 +410,18 @@ Who may upload is the application's to say, and the route has no default:
 `UploadPolicy` is asked before a byte is read.
 
 ```ts
+import { Effect, Layer } from 'effect'
+import {
+  UploadForbidden,
+  UploadPolicy,
+  uploadLayer,
+  uploadsKeyValueStore,
+} from 'foldkit-media/server'
+import { inspectorSharp } from 'foldkit-media/sharp'
+
+// The application's own secret or session check; compare a secret in constant time.
+declare const token: string
+
 const editors = Layer.succeed(UploadPolicy, {
   admit: request =>
     request.headers['authorization'] === `Bearer ${token}`
