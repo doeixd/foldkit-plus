@@ -21,8 +21,8 @@ import {
   type ThemeValues,
 } from './theme.js'
 
-/** The knobs chosen from a list. */
-export const Picker = Schema.Literals(['base', 'font', 'headingFont', 'menuColor'])
+/** What is chosen from a list: knobs, and the icon pack, which is no knob. */
+export const Picker = Schema.Literals(['base', 'font', 'headingFont', 'menuColor', 'pack'])
 export type Picker = typeof Picker.Type
 
 export const Pickers = Schema.Struct({
@@ -30,6 +30,7 @@ export const Pickers = Schema.Struct({
   font: UiListbox.Model,
   headingFont: UiListbox.Model,
   menuColor: UiListbox.Model,
+  pack: UiListbox.Model,
 })
 export type Pickers = typeof Pickers.Type
 
@@ -45,6 +46,7 @@ export const initialPickers: Pickers = {
   font: UiListbox.init({ id: pickerId('font'), isAnimated: true }),
   headingFont: UiListbox.init({ id: pickerId('headingFont'), isAnimated: true }),
   menuColor: UiListbox.init({ id: pickerId('menuColor'), isAnimated: true }),
+  pack: UiListbox.init({ id: pickerId('pack'), isAnimated: true }),
 }
 
 export const initialTabs = UiTabs.init({ id: 'theme-sections' })
@@ -59,6 +61,7 @@ export const Hint = Schema.Literals([
   'base',
   'theme',
   'look',
+  'pack',
 ])
 export type Hint = typeof Hint.Type
 
@@ -86,8 +89,8 @@ export type Canvas = typeof Canvas.Type
 export const CanvasTabs: ReturnType<typeof UiTabs.create<Canvas>> = UiTabs.create<Canvas>()
 export const initialCanvasTabs = UiTabs.init({ id: 'theme-canvas' })
 
-/** The knob a picker sets, apart from the base color, which sets two. */
-const pickerKnob: Readonly<Record<Exclude<Picker, 'base'>, KnobPath>> = {
+/** The knob a picker sets, apart from the base color, which sets two, and the pack, none. */
+const pickerKnob: Readonly<Record<Exclude<Picker, 'base' | 'pack'>, KnobPath>> = {
   font: 'type.body',
   headingFont: 'type.heading',
   menuColor: 'menu.panel',
@@ -105,7 +108,7 @@ const fontOf = (value: string): Option.Option<string> =>
  */
 export const pickedTheme = (
   values: ThemeValues,
-  picker: Picker,
+  picker: Exclude<Picker, 'pack'>,
   value: string,
 ): Option.Option<ThemeValues> => {
   if (picker === 'base')

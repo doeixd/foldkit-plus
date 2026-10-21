@@ -21,6 +21,8 @@ import {
   type ValueOf,
   type Values,
 } from 'foldkit-mixins/theme'
+import * as heroicons from './packs/heroicons.js'
+import * as hugeicons from './packs/hugeicons.js'
 import * as lucide from './packs/lucide.js'
 import * as phosphor from './packs/phosphor.js'
 import * as tabler from './packs/tabler.js'
@@ -528,13 +530,15 @@ export const schemeStyleOf = (scheme: Scheme): Record<string, string> => ({
 })
 
 /** The icon packs `/create` offers for the components' own icons; Lucide's are the theme's. */
-export const Pack = Schema.Literals(['lucide', 'tabler', 'phosphor'])
+export const Pack = Schema.Literals(['lucide', 'tabler', 'phosphor', 'heroicons', 'hugeicons'])
 export type Pack = typeof Pack.Type
 
 export const packs = {
   lucide: { label: 'Lucide', ...lucide },
   tabler: { label: 'Tabler', ...tabler },
   phosphor: { label: 'Phosphor', ...phosphor },
+  heroicons: { label: 'Heroicons', ...heroicons },
+  hugeicons: { label: 'Hugeicons', ...hugeicons },
 } as const satisfies Record<Pack, { readonly label: string }>
 
 // Made once: a pack's masks are the same on every frame.

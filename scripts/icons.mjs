@@ -84,7 +84,9 @@ for (const dir of specs) {
     })
     const credits = [...used].sort().map(prefix => {
       const { info, version } = setOf(prefix)
-      return `// ${info.name} (${info.license.spdx}, ${info.author.name}): @iconify-json/${prefix} ${version}, ${info.license.url}`
+      // Not every set names where its license lives.
+      const where = info.license.url === undefined ? '' : `, ${info.license.url}`
+      return `// ${info.name} (${info.license.spdx}, ${info.author.name}): @iconify-json/${prefix} ${version}${where}`
     })
     const names = `export type IconName = ${entries.map(([name]) => JSON.stringify(name)).join(' | ')}`
     const text = [

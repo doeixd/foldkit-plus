@@ -12,14 +12,13 @@
  * it, so a knob turned shows its effect without a scroll. The drawer is not
  * modal: the preview stays live under it.
  */
-import { Listbox as UiListbox, Tooltip as UiTooltip } from '@foldkit/ui'
+import { Tooltip as UiTooltip } from '@foldkit/ui'
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { Icon as MediaIcon, type IconData } from 'foldkit-media'
 import { SlotView, Style, type SlotAttributes } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import {
-  Button,
   ButtonSlots,
   CodeBlock,
   Drawer,
@@ -42,7 +41,6 @@ import {
   CanvasTabs,
   PickerBox,
   SectionTabs,
-  pickerId,
   type Hint,
   type Picker,
 } from '../gallery/studio.js'
@@ -211,6 +209,8 @@ const hintText = (which: Hint): string => {
       return 'Whole themes, setting every knob at once. Hover one to read about it.'
     case 'look':
       return 'The shape and type of a style, leaving the colors as they are.'
+    case 'pack':
+      return 'The icons the components draw themselves: a search, a close, an alert’s sign. The theme’s code imports them from the pack.'
     default:
       return knobAt(which).description
   }
@@ -299,7 +299,7 @@ const picker = (
   ])
   const listbox = model.pickers[which]
   return h.div(slots.knob.attrs(), [
-    hint(model, h, which === 'base' ? 'base' : pickerPath[which], name),
+    hint(model, h, pickerHint[which], name),
     h.submodel({
       slotId: listbox.id,
       model: listbox,
@@ -321,8 +321,10 @@ const picker = (
   ])
 }
 
-/** The knob each picker but the base color's sets, for its tooltip. */
-const pickerPath: Readonly<Record<Exclude<Picker, 'base'>, KnobPath>> = {
+/** What each picker's tooltip explains: the knob it sets, or a choice that is no knob. */
+const pickerHint: Readonly<Record<Picker, Hint>> = {
+  base: 'base',
+  pack: 'pack',
   font: 'type.body',
   headingFont: 'type.heading',
   menuColor: 'menu.panel',
@@ -469,21 +471,22 @@ const typePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
 ]
 
 const iconsPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  picker(
+    model,
+    slots,
+    h,
+    'pack',
+    'Icon pack',
+    Pack.literals.map(pack => ({ value: pack, label: packs[pack].label })),
+    model.pack,
+  ),
   h.div(slots.knob.attrs(), [
-    Segmented.view(
-      {
-        label: 'Icon pack',
-        options: Pack.literals.map(pack => ({ value: pack, label: packs[pack].label })),
-        pressed: [model.pack],
-        onPress: pack => Message.ChosePack({ pack }),
-        style: SegmentedStyle,
-        mixins: Segmented.fluid,
-      },
-      h,
-    ),
     // The icons the components draw themselves, in the pack chosen.
     h.div(
-      slots.iconSpecimen.attrs(),
+      slots.iconSpecimen.attrs([
+        // The icon size knob's own multiple: the specimen sits outside the preview, which sets it.
+        h.Style({ fontSize: `${1.25 * valueAt(model.theme, 'icon.size')}rem` }),
+      ]),
       Object.values(packs[model.pack].icons).map(icon => MediaIcon.draw(icon, h)),
     ),
   ]),

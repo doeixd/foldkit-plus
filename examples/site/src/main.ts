@@ -167,8 +167,6 @@ export const Message = defineMessageUnion({
   GotHint: { hint: Hint, message: UiTooltip.Message },
   GotDrawer: { message: Drawer.Message },
   ChoseScheme: { scheme: Scheme },
-  // Text, as a Segmented row hands it over; `update` reads it as a pack.
-  ChosePack: { pack: Schema.String },
   ChoseDirection: { direction: Direction },
   ChosePageScheme: { scheme: PageScheme },
   FoundPageScheme: { scheme: PageScheme },
@@ -386,6 +384,13 @@ const foldHint = Update.foldChildAt({
   foldOutMessage: () => UiTooltip.OutMessage.match<Step>({ Shown: () => same, Hidden: () => same }),
 })
 
+/** `model` drawn in the pack `value` names; the same Model for its own pack or a word of none. */
+const withPack = (model: Model, value: string): Model =>
+  Option.match(decodePack(value), {
+    onNone: () => model,
+    onSome: chosen => (chosen === model.pack ? model : modifyFields(model, { pack: () => chosen })),
+  })
+
 const foldPicker = Update.foldChildAt({
   update: PickerBox.update,
   readAt: (model: Model, picker: Picker) => Option.some(model.pickers[picker]),
@@ -399,9 +404,14 @@ const foldPicker = Update.foldChildAt({
       Selected:
         ({ value }) =>
         model =>
-          pickedTheme(model.theme, picker, value).pipe(
-            Option.match({ onNone: () => ({ model }), onSome: values => withTheme(model, values) }),
-          ),
+          picker === 'pack'
+            ? { model: withPack(model, value) }
+            : pickedTheme(model.theme, picker, value).pipe(
+                Option.match({
+                  onNone: () => ({ model }),
+                  onSome: values => withTheme(model, values),
+                }),
+              ),
     }),
 })
 
@@ -505,14 +515,6 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       scheme === model.scheme
         ? { model }
         : { model: modifyFields(model, { scheme: () => scheme }) },
-    ChosePack: ({ pack }) =>
-      Option.match(decodePack(pack), {
-        onNone: () => ({ model }),
-        onSome: chosen =>
-          chosen === model.pack
-            ? { model }
-            : { model: modifyFields(model, { pack: () => chosen }) },
-      }),
     ChosePageScheme: ({ scheme }) =>
       scheme === model.pageScheme
         ? { model }

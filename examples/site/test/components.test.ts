@@ -37,9 +37,11 @@ describe('the component pages', () => {
   })
 
   it('draws the previews in an icon pack chosen, and ignores one that is no pack', () => {
-    expect(after(initial, Message.ChosePack({ pack: 'phosphor' })).pack).toBe('phosphor')
-    expect(update(initial, Message.ChosePack({ pack: initial.pack })).model).toBe(initial)
-    expect(update(initial, Message.ChosePack({ pack: 'nonsense' })).model).toBe(initial)
+    const pick = (item: string) =>
+      Message.GotPicker({ picker: 'pack', message: UiListbox.Message.SelectedItem({ item }) })
+    expect(after(initial, pick('hugeicons')).pack).toBe('hugeicons')
+    expect(after(initial, pick(initial.pack)).pack).toBe(initial.pack)
+    expect(after(initial, pick('nonsense')).pack).toBe(initial.pack)
   })
 
   it('turns the page right to left and back', () => {
