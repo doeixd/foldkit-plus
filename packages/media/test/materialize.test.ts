@@ -99,6 +99,11 @@ describe('materialize', () => {
     )
   })
 
+  it('starts no more workers than there are variants', async () => {
+    const pages = [page(`<img src="/_image/${A}/w320.webp">`)]
+    await expect(materialize({ pages, fetch, concurrency: 2 ** 32 })).resolves.toHaveLength(1)
+  })
+
   it.each([
     ['refuses a _headers without the rule', '/assets/*\n  Cache-Control: immutable\n', true],
     ['passes a _headers with it', `/assets/*\n  Cache-Control: immutable\n${headersRule()}`, false],

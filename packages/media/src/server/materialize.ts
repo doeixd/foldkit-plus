@@ -89,7 +89,9 @@ export const materialize = async (options: {
       }
     }
   }
-  await Promise.all(Array.from({ length: concurrency }, worker))
+  // No more workers than paths, which also keeps an absurd concurrency out of
+  // an array length.
+  await Promise.all(Array.from({ length: Math.min(concurrency, paths.length) }, worker))
   if (failed.length > 0) {
     throw new Error(
       `foldkit-media: ${failed.length} variants could not be made:\n${failed.sort().join('\n')}`,
