@@ -131,8 +131,10 @@ const defined = new Set([
   'sheet-snap',
   'sheet-offset',
   // Written on a slider's control, marks and shown values by `Slider.view`, and its
-  // track's length and paint by a holder such as the color picker.
-  ...['low', 'high', 'at', 'length', 'paint', 'thumb-paint'].map(part => `slider-${part}`),
+  // track's length, least length and paint by a holder such as the color picker.
+  ...['low', 'high', 'at', 'length', 'min-length', 'paint', 'thumb-paint'].map(
+    part => `slider-${part}`,
+  ),
   // Prose's own knobs, each read with a fallback and set by `Prose.style(options)`.
   ...['measure', 'leading', 'paragraph', 'heading', 'list', 'figure'].map(part => `prose-${part}`),
   // Written by the views: the dial's angle and each marker's, the timer's share counted,
