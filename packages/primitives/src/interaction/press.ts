@@ -8,12 +8,12 @@
  * the placement must say what a press does.
  */
 import { Effect, Queue, Schema, Stream } from 'effect'
-import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Capability } from 'foldkit-mixins'
+import { BundleBehavior } from './bundle-behavior.js'
 
 export const PointerType = Schema.Literals(['mouse', 'touch', 'pen', 'keyboard', 'virtual'])
 export type PointerType = typeof PointerType.Type
@@ -249,28 +249,16 @@ export const behavior =
   <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
-    Behavior.forSlots(slots)<Input, ParentMessage>(
+    BundleBehavior.fromBundle(declared)(slots)<Input, ParentMessage>(
       {
-        [options.target]: Behavior.slot({
+        [options.target]: {
           requires: { capability: Capability.Interactive },
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-          }) => [
+          attributes: ({ input, h }) => [
             ...(input[declared.field].pressed ? [h.DataAttribute('pressed', 'true')] : []),
             ...(options.disabled?.(input) === true ? [h.AriaDisabled(true)] : []),
           ],
-          mount: () =>
-            Mount.mapMessage(
-              events(),
-              (message): ParentMessage =>
-                declared.wrapper.make(message) as unknown as ParentMessage,
-            ),
-        }),
-        // Keyed by a value the caller chose; `forSlots` checks the key exists.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+          events: events(),
+        },
+      },
       { name: 'Press' },
     )

@@ -113,6 +113,31 @@ the pointer. The pure `move(enabled, current, key, modifiers, options)` and
 `tabStop(items, current)` are exported. PageUp and PageDown are handled when
 `move` is given a `page`, which `ListNavigation` does.
 
+## The pair, in one helper
+
+`BundleBehavior.fromBundle(declared)(slots)<Input, ParentMessage>(spec, { name })`
+writes the Behavior half from the placement. `Input` must hold the Bundle's
+Model at `declared.field`, so an attribute reads the placed slice; each slot
+takes `{ requires?, attributes?, events? }`:
+
+- `attributes` gets `{ input, h, item?, send }`. `send` wraps one of the
+  Bundle's Messages for the parent, for a handler the Behavior writes itself
+  (`h.OnClick(send(Selection.Message.Activated({ id })))`).
+- `events` is the Bundle's own Mount (`Press.events()`); the helper supplies
+  `Mount.mapMessage`, so each fact reaches the parent wrapped in the placement's
+  variant.
+
+`Press.behavior` and `Selection.behavior` are thin wrappers over it: the Press
+section below builds the `Button` declaration, then passes one slot with the
+`Interactive` capability, the pressed `data-*` attribute, and `Press.events()`.
+
+The slots named are checked at definition time by `Behavior.forSlots`
+(`mixins:unknown-slot`, `mixins:hidden-slot`), not by the spec's type: a
+caller's target is often a computed key (`options.target`), so the key set
+stays a runtime contract while the Model and Messages stay typed. The Bundle
+still owns the state and `update`; the helper only removes the repeated
+wrapper/mount wiring, and a Behavior still owns none.
+
 ## Finding and moving
 
 **`Typeahead`** is type-to-find for a host that has no roving tab stop, or

@@ -215,4 +215,28 @@ describe('Press.behavior', () => {
   it('marks a disabled target aria-disabled, which the Mount honors', () => {
     expect(Attributes.find(attrs({ ...fresh, locked: true }), 'AriaDisabled')?.value).toBe(true)
   })
+
+  it('mounts the events mapped into the placement’s Messages', async () => {
+    const button = document.createElement('div')
+    document.body.appendChild(button)
+    try {
+      const mount = Attributes.find(attrs({ ...fresh, locked: false }), 'OnMount')?.action
+      expect(mount).toBeDefined()
+      const facts = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(mount!.f(button, Mount.liveViewStateChanges), 1),
+          )
+          for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+          fire(button, 'pointerdown', { pointerId: 3, button: 0, pointerType: 'mouse' })
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(facts).toEqual([
+        Button.wrapper.make(M.PointerDown({ pointerId: 3, button: 0, pointerType: 'mouse' })),
+      ])
+    } finally {
+      button.remove()
+    }
+  })
 })

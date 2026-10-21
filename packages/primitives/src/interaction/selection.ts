@@ -8,11 +8,11 @@
  * `Pressed` carries `shiftKey`.
  */
 import { Schema } from 'effect'
-import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability } from 'foldkit-mixins'
 import { perInput, sameIds } from '../internal.js'
+import { BundleBehavior } from './bundle-behavior.js'
 
 export const Mode = Schema.Literals(['single', 'multiple', 'none'])
 export type Mode = typeof Mode.Type
@@ -125,33 +125,21 @@ export const behavior =
   <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
-    const wrap = (message: Message): ParentMessage =>
-      declared.wrapper.make(message) as unknown as ParentMessage
     const itemsOf = perInput(options.items)
     const selectedOf = perInput((input: Input) => new Set(input[declared.field].selected))
-    return Behavior.forSlots(slots)<Input, ParentMessage>(
+    return BundleBehavior.fromBundle(declared)(slots)<Input, ParentMessage>(
       {
         ...(options.container === undefined
           ? {}
           : {
-              [options.container]: Behavior.slot({
+              [options.container]: {
                 requires: { capability: Capability.Container },
-                attributes: ({ h }: { readonly h: HtmlBuilder<ParentMessage> }) => [
-                  h.AriaMultiSelectable(args.mode === 'multiple'),
-                ],
-              }),
+                attributes: ({ h }) => [h.AriaMultiSelectable(args.mode === 'multiple')],
+              },
             }),
-        [options.item]: Behavior.slot({
+        [options.item]: {
           requires: { capability: Capability.Interactive },
-          attributes: ({
-            input,
-            h,
-            item,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-            readonly item?: SlotItem
-          }) => {
+          attributes: ({ input, h, item, send }) => {
             if (item === undefined) return []
             const items = itemsOf(input)
             const id = item.id ?? items.ids[item.index]
@@ -160,12 +148,11 @@ export const behavior =
               options.click !== false && args.mode !== 'none' && !items.isDisabled(item.index)
             return [
               h.AriaSelected(selectedOf(input).has(id)),
-              ...(clickable ? [h.OnClick(wrap(Message.Activated({ id })))] : []),
+              ...(clickable ? [h.OnClick(send(Message.Activated({ id })))] : []),
             ]
           },
-        }),
-        // Keyed by values the caller chose; `forSlots` checks the keys exist.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        },
+      },
       { name: 'Selection' },
     )
   }

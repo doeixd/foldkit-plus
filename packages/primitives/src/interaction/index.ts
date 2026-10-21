@@ -3,6 +3,7 @@
  * `foldkit-mixins` Behavior to wire it to a view's slots. Importing this
  * subpath needs `foldkit-mixins`; the others do not.
  */
+export * as BundleBehavior from './bundle-behavior.js'
 export * as DismissLayer from './dismiss-layer.js'
 export * as EditableText from './editable-text.js'
 export * as FocusScope from './focus-scope.js'
