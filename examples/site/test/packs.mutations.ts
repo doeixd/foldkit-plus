@@ -39,8 +39,8 @@ export default [
     edits: [
       {
         file: '../src/main.ts',
-        find: 'Option.match(decodePack(pack), {',
-        replace: 'Option.match(Option.some(pack as never), {',
+        find: 'Option.match(decodePack(value), {',
+        replace: 'Option.match(Option.some(value as never), {',
       },
     ],
     tests,
