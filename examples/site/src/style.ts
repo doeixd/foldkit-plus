@@ -892,7 +892,10 @@ export const SiteStyle = slots(
         background: t.surface.base,
         color: t.text.default,
         fontFamily: t.font.body,
+        // The preview's own width, not the window's, sets its fluid type.
+        containerType: 'inline-size',
       },
+      Style.nest('> *', { '--fk-fluid-progress': Theme.containerFluidProgress() }),
       // A gallery card's: smaller, and nothing in it takes a click or focus.
       Style.nest('&[data-size="thumb"]', {
         minBlockSize: '11rem',

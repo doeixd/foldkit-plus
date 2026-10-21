@@ -156,6 +156,16 @@ describe('Theme.tokens', () => {
     ).toContain('tan(atan2(100vw - 320px, 1440px - 320px))')
   })
 
+  it('measures a container by cqw, not the window', () => {
+    expect(Theme.containerFluidRatio()).toContain(
+      'tan(atan2(100cqw - var(--fk-knob-fluid-viewport-min)',
+    )
+    expect(Theme.containerFluidProgress()).toBe(
+      `calc(${Theme.containerFluidRatio()} * var(--fk-knob-fluid))`,
+    )
+    expect(Theme.fluidType({ min: '1rem', max: '2rem', container: true })).toContain('100cqw')
+  })
+
   it('refuses a fluid range that is inverted or not in px', () => {
     const thrown = (fn: () => unknown) => {
       try {

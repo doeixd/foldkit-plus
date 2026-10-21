@@ -231,6 +231,9 @@ test('the fluid and reading knobs reach the Typography canvas', async () => {
       .first()
     return {
       size: await h1.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize)),
+      container: await page
+        .locator('[data-size="specimen"]')
+        .evaluate(element => getComputedStyle(element).containerType),
       wrap: await h1.evaluate(element => getComputedStyle(element).textWrap),
       bodyWrap: await body.evaluate(element => getComputedStyle(element).textWrap),
       measure: await body.evaluate(element =>
@@ -258,6 +261,7 @@ test('the fluid and reading knobs reach the Typography canvas', async () => {
     })
     .toBe('40ch')
   const still = await shown()
+  expect(still.container).toBe('inline-size')
   expect(still.wrap).toBe('pretty')
   expect(still.bodyWrap).toBe('wrap')
   expect(still.align).toBe('center')

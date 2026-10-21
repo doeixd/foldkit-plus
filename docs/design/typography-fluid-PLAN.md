@@ -1,8 +1,8 @@
 # Fluid typography without `clamp()` magic numbers
 
-**Status:** Phases 1-3 and the reading knobs are implemented, 2026-10-21. The
-`cqi` clamps (container fluidity), screenshots, and phases 4-6 (roles,
-exponential scale, container fluidity) remain.
+**Status:** Phases 1-3, the reading knobs, and container-based fluid type are
+implemented, 2026-10-21. Fluid roles, the exponential scale, the CMS's `cqi`
+padding, and screenshots remain.
 
 **Scope:** the `foldkit-mixins` type scale and theme tokens, `Defaults`,
 `Prose`, the `Typography` recipe, and the examples that write per-component
@@ -407,15 +407,20 @@ Tests:
       regression test.
 - [ ] Do this only if phase 2 shows the linear-growth formula is too coarse.
 
-### Phase 6: container-based fluidity (optional, 1 commit)
+### Phase 6: container-based fluid type (done)
 
-- [ ] `Theme.fluidType({ ..., container: 'page' })` using `100cqw` and
-      `container-progress()` (native) or
-      `tan(atan2(100cqw - min, max - min))` (fallback).
-- [ ] Requires `container-type: inline-size` and a named container; document
-      what happens with no container.
-- [ ] Test inside a narrow panel on a wide window: the type must follow the
-      panel, not the window.
+- [x] `Theme.containerFluidRatio()` and `Theme.containerFluidProgress()` use
+      `100cqw` with the same `tan(atan2())` ratio; no `container-progress()`
+      dependency.
+- [x] `Theme.fluidType({ min, max, container: true })` uses the container
+      progress directly; a type test refuses `container` with `viewport`.
+- [x] `/create`'s preview is `container-type: inline-size` and sets
+      `--fk-fluid-progress` on its children, so a narrow preview reads as a
+      narrow page. The site e2e checks the container and the type it produces.
+- [x] The CMS hero sets the container progress on its root and uses
+      `Theme.fluidType` for its title.
+- [ ] The CMS's `cqi` padding clamp stays spacing, not type; a future fluid
+      spacing pass can share the same progress.
 - [ ] Do not use this for the page root; `100vw` is correct there.
 
 ## 7. Tests that can fail

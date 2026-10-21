@@ -20,8 +20,12 @@ version changed; `pnpm` skips versions already in the registry.
 - `/create`: the Type pane draws the three fluid knobs, and the presets, looks
   and shuffle set them.
 - `examples/site`, `examples/design-system`, the CMS and the richtext
-  playground use `Theme.fluidType` for their `vw` clamps; the CMS's `cqi`
-  clamps wait for container fluidity.
+  playground use `Theme.fluidType` for their `vw` clamps.
+- `Theme.containerFluidProgress()` and
+  `Theme.fluidType({ min, max, container: true })` measure fluid type on the
+  nearest `inline-size` container rather than the window. `/create`'s previews
+  now follow their own frame, and the CMS hero uses its page container; the
+  CMS's remaining `cqi` padding clamp is spacing, not type.
 - `foldkit-mixins` / `foldkit-mixins-ui`: a `reading` knob group.
   `reading.measure` (in `ch`) caps `Prose` and the `body`, `lead` and `quote`
   levels of `Typography`; `reading.headingWrap` and `reading.bodyWrap` choose

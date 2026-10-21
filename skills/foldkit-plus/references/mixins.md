@@ -355,9 +355,12 @@ variable, choices too: `icon.size` (multiplies the icon rung of `ladder`) and `i
 `themes.Name` the Model's field and `Themes.apply(themes, name)` the Command (`Themes.choose` also keeps the name,
 and `Themes.script(themes)` in the head shows the kept one before the first paint), and `Theme.scope(theme, selector)`
 themes a subtree; `Theme.fluidType({ min, max })` blends one size over the theme's fluid range
-(`Theme.fluidType({ min, max, viewport })` over a range of its own);
-`reading.measure` (in `ch`) caps `Prose` and reading `Typography`, `reading.headingWrap` /
-`reading.bodyWrap` choose `text-wrap`, and `reading.align` sets reading alignment;
+(`Theme.fluidType({ min, max, viewport })` over a range of its own, or
+`container: true` over the nearest `container-type: inline-size` ancestor;
+`Theme.containerFluidProgress()` is that container progress for
+`--fk-fluid-progress`); `reading.measure` (in `ch`) caps `Prose` and reading
+`Typography`, `reading.headingWrap` / `reading.bodyWrap` choose `text-wrap`, and
+`reading.align` sets reading alignment;
 `Knobs.schema(knobs)` decodes a theme's values, `Theme.print(theme)` writes its source, and each
 knob's `title`, `description` and `default` draw its control; `Knobs.at(knobs, path)`, `Knobs.valueAt` and
 `Knobs.withValue` reach one knob by its path, typed), put bases in the

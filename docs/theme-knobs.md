@@ -293,6 +293,13 @@ Both boundaries must be `px` and `min < max`; a crossing pair, or a
 `type.viewportMin` at or above `type.viewportMax`, is a
 `theme:fluid-range` diagnostic.
 
+A frame inside the page can measure itself instead: `Theme.containerFluidProgress()`
+is the same ratio on `100cqw`, for setting `--fk-fluid-progress` on the contents
+of a `container-type: inline-size` ancestor, and
+`Theme.fluidType({ min, max, container: true })` uses it without the
+intermediate property. `/create`'s previews and the CMS hero use this, so a
+narrow preview reads as a narrow page.
+
 ### Reading
 
 `reading.measure` is a length in `ch`, so it follows the reading font: `Prose`

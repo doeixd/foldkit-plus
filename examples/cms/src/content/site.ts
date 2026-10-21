@@ -213,6 +213,7 @@ const HeroLook = Appearance.make(HeroSlots, {
         gap: t.space.md,
         // Of the page's width, not the window's, so a narrow preview is drawn as a phone would.
         padding: `clamp(2rem, 6cqi, 5rem) clamp(1.25rem, 5cqi, 4rem)`,
+        '--fk-fluid-progress': Theme.containerFluidProgress(),
       }),
       eyebrow: Style.self({
         fontSize: t.size.sm,
@@ -223,7 +224,7 @@ const HeroLook = Appearance.make(HeroSlots, {
       }),
       title: Style.self({
         fontFamily: t.font.heading,
-        fontSize: 'clamp(2.2rem, 5cqi, 3.6rem)',
+        fontSize: Theme.fluidType({ min: '2.2rem', max: '3.6rem' }),
         letterSpacing: '-0.02em',
         lineHeight: '1.05',
         margin: '0',

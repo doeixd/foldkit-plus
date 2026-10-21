@@ -393,6 +393,11 @@ Reading is its own group: `reading.measure` is a length in `ch` (65 by default) 
 `center`, `end` or `justify`. `Prose.style({ measure, align })` still overrides them for one
 container.
 
+A frame narrower than the window measures its own width: `Theme.containerFluidProgress()` is
+the progress of the nearest `container-type: inline-size` ancestor, for setting
+`--fk-fluid-progress` on its contents, and `Theme.fluidType({ min, max, container: true })`
+uses it directly. `/create`'s previews and the CMS hero are drawn this way.
+
 Themes are installed by name, the names being a record's keys:
 
 ```ts
