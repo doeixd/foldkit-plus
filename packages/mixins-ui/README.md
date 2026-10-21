@@ -648,15 +648,18 @@ What a recipe assumes and does:
   muted page, a colored band or an inverted panel; a press lays that film
   stronger (`state.press`, 1.75 of the hover's). The ink is the theme's
   `--fk-state-ink` (`state.ink`: the element's own text, or the accent's ink
-  under `stateHue: 'accent'`) unless a painted surface above names its paint
+  under `surface.hover: 'accent'`) unless a painted surface above names its paint
   in the local `--_fk-state-ink`: the accent and danger tones name their
   fill, a subtle alert band its ink and a bold one its fill, so a hover on
   blue is a deeper blue. The neutral and ink tones name the theme's ink back,
   so a neutral control on a band does not take the band's hue, and one
-  `stateHue` override reaches every component. The neutral button is
+  `surface.hover` choice reaches every component. The neutral button is
   see-through (`state.tint`), and images carry a hairline inside their edge
   (`state.edge`). A popup's rows round concentrically inside its panel
-  (`Theme.nested`), as a segmented option does inside its tray.
+  (`Theme.nested`), as a segmented option does inside its tray. A fluid
+  highlight — Table's, Segmented's, pill Tabs', Nav's, TreeView's, a Card
+  group's — lays that same film, so `surface.hover` and
+  `surface.hoverStrength` move it with every other hover.
 - **Popups and dialogs enter and leave** when drawn with `@foldkit/ui`'s
   `isAnimated` (the Menu component's `Menu.init(id, rows, { isAnimated:
   true })`): a popup fades and grows on the fast tier, from the side its

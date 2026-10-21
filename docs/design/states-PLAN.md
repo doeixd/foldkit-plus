@@ -1,6 +1,6 @@
 # States: one owner for hover, press and disabled
 
-**Status:** Proposed, 2026-10-21. Nothing here is built.
+**Status:** Built, 2026-10-21: slices 2.1 to 2.7 landed; the release follows.
 **Target:** `foldkit-mixins` (knobs and tokens), `foldkit-mixins-ui` (recipes),
 `examples/site` (`/create`).
 
@@ -201,6 +201,10 @@ largest, touching `FluidHover` itself. 2.4 is mechanical. 2.6 follows each knob
 as it lands.
 
 ## 4. Open questions
+
+Settled in the build: `4%` to `24%` around `12%` by default, one strength for
+both schemes, a press at `1.75`, and no fourth Hover option — under `accent`
+the pill look is the hover a theme chose.
 
 - **Range and default of Hover strength.** `4%` to `24%` around `12%` is a
   guess at what still reads as a hover and not a selection. Look at the

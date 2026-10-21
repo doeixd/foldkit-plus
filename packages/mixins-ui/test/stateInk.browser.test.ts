@@ -5,7 +5,7 @@
  * the error hue at the fill's chroma (filming the pale on-fill text read as
  * grey). On a subtle band it films the band's ink, which shows on the tint.
  * A neutral ghost button on a bold band films the theme's ink, not the
- * band's; with `stateHue: 'accent'`, that is the accent's ink.
+ * band's; with `surface.hover: 'accent'`, that is the accent's ink.
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
@@ -39,7 +39,7 @@ const mount = (
   scheme: 'light' | 'dark',
   css: string,
   view: (h: HtmlBuilder<Message>) => Html,
-  stateHue?: 'accent',
+  hover?: 'accent',
 ) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -50,7 +50,7 @@ const mount = (
       Layers.standard.in('tokens', Theme.root(Theme.tokens, { colorScheme: scheme })),
       Layers.standard.in(
         'theme',
-        Theme.root(themeOf(stateHue), { omit: Theme.tokens, colorScheme: scheme }),
+        Theme.root(themeOf(hover), { omit: Theme.tokens, colorScheme: scheme }),
       ),
     ) + css
   document.head.append(sheet)
@@ -172,7 +172,7 @@ test.each(['light', 'dark'] as const)(
   },
 )
 
-// The neutral tone names the theme's ink back, so `stateHue: 'accent'`
+// The neutral tone names the theme's ink back, so `surface.hover: 'accent'`
 // reaches it: the film has the accent's hue at a chroma the grey text has not.
 test.each(['light', 'dark'] as const)(
   'in a %s scheme with accent state hues, a neutral ghost button hovers in the accent',

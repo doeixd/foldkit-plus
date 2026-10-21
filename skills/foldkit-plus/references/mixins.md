@@ -366,17 +366,32 @@ because one style serves badges in every state and every tone is present at once
 `Recipes.InputGroup` (`group`, `affix`, `control`) draws a prefixed or suffixed field as one
 box; a `Segmented` pressed option is the accent's flat tint (`Segmented.fluid`, with its `indicator` and `highlight`
 slots drawn first in the group, slides it as a pill; `Segmented.view` and `Segmented.toggled(pressed, value, { multiple, optional })` draw and step it, `multiple` being a toggle group; `Button.view({ icon })` draws an icon (an `svg`, `aria-hidden`) in its `icon` slot before the label, which the `icon` variant hides so the icon stands alone, the label still its name (`shape: 'square'` does so for any variant, an outlined icon button); a toggle button is `Button.view({ pressed })`, which rests on its tone's fill, keeps its text on it hovered and held, and deepens held); a held button scales to 98% (by `travel`), a solid or primary one also deepening to its `active` fill and clearing its 1px border. An unfilled button's
-hover (outline, ghost, icon) is a faint film of the state ink, so it reads on a colored band, and
-so is every fluid highlight (Table's, Segmented's, pill Tabs', Nav's): a fluid highlight is the hover.
-A press is that film at 1.75 (`state.press`), which `hover()` lays on a held row, tab or menu item,
-and which a held fluid highlight takes too (`FluidHover` marks the container `data-fluid-held`). A
-disabled control fades by `state.disabledOpacity` (half by default), so one page shows one fade. The
+hover (outline, ghost, icon) is a faint film of the state ink, so it reads on a colored band. The
 body defaults color scrollbars with `outline.overt`. `Touch`
 (`target`, `targets`) and `Icons` (`glyph(size)`, `byAttribute(attribute, icons)`) are style
 mechanisms, not components: compose them into your own slots, resolving icon `url(…)`s yourself.
 `Icons.glyph` masks an element that already exists. `Icon.view({ icon, label?, key? })` is the
 element: it draws the `IconData` into its glyph as inline SVG, with `foldkit-media`'s `Icon.draw`. Never set an
 icon through `innerHTML`.
+
+### States
+
+Each interactive state has one owner, so a theme moves them all at once:
+
+| State | Drawn by | Set by |
+| --- | --- | --- |
+| hover | the hover ink as a film | `surface.hover` (ink), `surface.hoverStrength` (strength) |
+| press | the same ink at 1.75 of the hover's strength | `surface.hoverStrength` |
+| selected / current | `accent.subtle`; a popup's lit row by `menu.highlight` | `accent.*`, `menu.highlight` |
+| focus | `focusRing`: one outline token, one offset | `accent.hue` |
+| disabled | one fade, and nothing else changes | `state.disabledOpacity` |
+
+A fluid highlight (Table's, Segmented's, pill Tabs', Nav's, Sidebar's, TreeView's, a Card
+group's) **is** the hover: it lays the same film from the same ink, so a fluid list and a plain
+one on a page hover alike. `hover()` lays the press on a held row, tab, accordion trigger or menu
+item, and a held fluid highlight takes it too (`FluidHover` marks the container
+`data-fluid-held`). Popups keep their own highlight (`menu.highlight`) and a Card lightens a
+dark page as it darkens a light one, both by design.
 
 ### Views and components of this package
 

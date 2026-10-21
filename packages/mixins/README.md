@@ -338,7 +338,8 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
 `foldkit-mixins/theme` extends the root `Theme` with the pieces a page ships. A theme is a typed
 set of knob values: only what it changes, every other knob at its default.
 `Theme.make` checks each value against its knob (`Knobs.standard`, grouped by concern: `accent`,
-`surface`, `shape`, `type`, `icon`, `motion`, `shadow`, `menu`, `feedback`, `code`, `chart`, `scales`),
+`surface`, `state`, `shape`, `type`, `icon`, `motion`, `shadow`, `menu`, `feedback`, `code`,
+`chart`, `scales`),
 so a misspelt knob or a choice outside its options is a type error and a number out of its range
 throws where the theme is made. A theme is `pipe`able: `Theme.set` changes some knobs, and
 `Theme.describe` gives it a title and a description for a list of themes.
@@ -528,6 +529,25 @@ a query that is not a plain `min-width` raises `theme:unparseable-breakpoint`.
 container named `page` rather than the window: an editor's preview frame, narrow in a wide
 window, then draws a look as a narrow screen would. An element must be that container
 (`containerType: 'inline-size', containerName: 'page'`).
+
+### States
+
+One owner per interactive state, so every component on a page agrees and a theme moves them
+together:
+
+| State | Drawn by | Chosen by |
+| --- | --- | --- |
+| hover | the hover ink as a film over what is under it | `surface.hover` (the ink), `surface.hoverStrength` (how much) |
+| press | the same ink at 1.75 of the hover's strength | `surface.hoverStrength` |
+| selected / current | `accent.subtle`; a popup's lit row by `menu.highlight` | `accent.*`, `menu.highlight` |
+| focus | one outline token, one offset | `accent.hue` |
+| disabled | one fade, and nothing else changes | `state.disabledOpacity` |
+
+A fluid highlight — one highlight that glides from item to item — is the hover: it lays the
+same film from the same ink, so a fluid list and a plain one on a page hover alike, and it
+deepens to the press while its item is held. Popups keep their own highlight, and a Card
+lightens a dark page as it darkens a light one, both by design. `foldkit-mixins-ui` names the
+pieces: `unfilledHover`, `pressedHover`, `hover()`, `focusRing` and `disabled`.
 
 ### Layout
 
