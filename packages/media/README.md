@@ -91,7 +91,9 @@ Option.map(picture, ({ img }) => img.srcset)
 - **`Provider.hosted({ baseUrl?, space?, sources?, fallback?, quality? })`** —
   this package's own server, for originals no CDN can fetch. A variant's URL is
   `/_image/<sha-256>/w640.avif`: the original is named by its content hash, so
-  an asset without `hash` has no hosted URL. The format is in the URL, so every
+  it is a `Provider<HashedAsset>`, and facts without `hash` are a type error
+  where the picture is derived. Decode stored facts with the `HashedAsset`
+  Schema (an upload answers one), or narrow with `isHashed`. The format is in the URL, so every
   cache can key on it.
 
 - **`detect(url, { widths?, sources?, fallback?, quality? })`** from
@@ -402,7 +404,7 @@ through `POST /_media/upload`: the bytes are the body, with an `image/*`
 `Content-Type`. The route reads at most `maxBytes` (20 MB by default) as the
 body streams, reads its facts through the `Inspector`, keeps the bytes under
 their SHA-256 in `Uploads` (where `Originals` reads them), and answers the
-facts as an `ImageAsset`, keyed by that hash, with a `201`. The variant server
+facts as a `HashedAsset`, keyed by that hash, with a `201`. The variant server
 serves it at once. Only the facts go on to the application's data (a CMS's
 asset row); the bytes never travel through RPC.
 

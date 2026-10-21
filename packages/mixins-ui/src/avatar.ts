@@ -48,9 +48,9 @@ const statusWords: Readonly<Record<AvatarStatus, string>> = {
  * provider of its variants, and how wide the avatar is drawn in CSS pixels,
  * so a 24px avatar fetches a 48px variant, not the original.
  */
-export interface AvatarPicture {
-  readonly asset: ImageAsset
-  readonly provider: Provider.Provider
+export interface AvatarPicture<Asset extends ImageAsset = ImageAsset> {
+  readonly asset: Asset
+  readonly provider: Provider.Provider<NoInfer<Asset>>
   readonly width: number
 }
 
@@ -59,14 +59,14 @@ export interface AvatarPicture {
  * style for its slots, and mixins beside the style. No upstream component
  * stands behind it.
  */
-export interface AvatarView<Message = never> {
+export interface AvatarView<Message = never, Asset extends ImageAsset = ImageAsset> {
   /** Who the avatar shows: its accessible name, its initials and its hue. */
   readonly name: string
   /**
    * The picture: a URL, or an `AvatarPicture` drawn with its candidates.
    * Without one, or with a provider that has no URL for it, the initials stand alone.
    */
-  readonly src?: string | AvatarPicture | undefined
+  readonly src?: string | AvatarPicture<Asset> | undefined
   /** What the disc says in place of initials taken from the name (a group's `+3`). */
   readonly initials?: string | undefined
   readonly status?: AvatarStatus | undefined
@@ -98,8 +98,8 @@ const hueOf = (name: string): number => {
 }
 
 // At most one attribute list: none without a picture, or when the provider has none for it.
-const pictureAttributes = <Message>(
-  src: string | AvatarPicture | undefined,
+const pictureAttributes = <Message, Asset extends ImageAsset>(
+  src: string | AvatarPicture<Asset> | undefined,
   h: HtmlBuilder<Message>,
 ): ReadonlyArray<ReadonlyArray<Attribute<Message>>> => {
   if (src === undefined) return []
@@ -114,8 +114,8 @@ const pictureAttributes = <Message>(
   )
 }
 
-const draw = <Message>(
-  options: AvatarView<Message>,
+const draw = <Message, Asset extends ImageAsset>(
+  options: AvatarView<Message, Asset>,
   h: HtmlBuilder<Message>,
   rest: ReadonlyArray<Attribute<Message>>,
 ): Html => {
@@ -148,8 +148,8 @@ const draw = <Message>(
   )
 }
 
-export const view = <Message = never>(
-  options: AvatarView<Message>,
+export const view = <Message = never, Asset extends ImageAsset = ImageAsset>(
+  options: AvatarView<Message, Asset>,
   h: HtmlBuilder<Message>,
 ): Html => draw(options, h, [])
 
@@ -164,8 +164,8 @@ export const AvatarGroupSlots = Slots.define({
 })
 
 /** Avatars overlapping in a row, at most `max` of them and a `+N` for the rest. */
-export interface AvatarGroupView<Message = never> {
-  readonly people: ReadonlyArray<Omit<AvatarView<Message>, 'style' | 'mixins'>>
+export interface AvatarGroupView<Message = never, Asset extends ImageAsset = ImageAsset> {
+  readonly people: ReadonlyArray<Omit<AvatarView<Message, Asset>, 'style' | 'mixins'>>
   /** How many to draw before the `+N`; every one when omitted. */
   readonly max?: number | undefined
   /** The group's accessible name, such as "Editors". */
@@ -180,8 +180,8 @@ export interface AvatarGroupView<Message = never> {
   readonly mixins?: MixinList<Message> | undefined
 }
 
-export const group = <Message = never>(
-  options: AvatarGroupView<Message>,
+export const group = <Message = never, Asset extends ImageAsset = ImageAsset>(
+  options: AvatarGroupView<Message, Asset>,
   h: HtmlBuilder<Message>,
 ): Html => {
   const builders = SlotView.buildersFor(

@@ -209,9 +209,9 @@ export const images = (options: ImagesOptions = {}): Plugin => {
       )
       return [
         `import { Schema } from 'effect'`,
-        `import { ImageAsset, Provider } from 'foldkit-media'`,
+        `import { HashedAsset, Provider } from 'foldkit-media'`,
         `export default {`,
-        `  asset: Schema.decodeUnknownSync(ImageAsset)(${JSON.stringify(Schema.encodeSync(ImageAsset)(asset))}),`,
+        `  asset: Schema.decodeUnknownSync(HashedAsset)(${JSON.stringify(Schema.encodeSync(ImageAsset)(asset))}),`,
         `  provider: Provider.fromFiles([${files.join(', ')}], ${JSON.stringify({ sources, fallback })}),`,
         `}`,
       ].join('\n')

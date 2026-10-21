@@ -43,9 +43,10 @@ export interface Picture {
   readonly placeholder: Option.Option<string>
 }
 
-export interface Input {
-  readonly asset: ImageAsset
-  readonly provider: Provider
+/** An image's facts, and a provider that takes them: a hashed one for `Provider.hosted`. */
+export interface Input<Asset extends ImageAsset = ImageAsset> {
+  readonly asset: Asset
+  readonly provider: Provider<NoInfer<Asset>>
   readonly layout: Layout.Layout
   /** The page's largest image: fetched first, not lazily. */
   readonly priority?: boolean
@@ -65,7 +66,7 @@ export interface Input {
  * this image). Candidates the provider lacks are left out, never written as a
  * broken URL.
  */
-export const derive = (input: Input): Option.Option<Picture> => {
+export const derive = <Asset extends ImageAsset>(input: Input<Asset>): Option.Option<Picture> => {
   const { asset, provider, layout, priority = false } = input
   const candidates = Layout.candidates(layout, provider.widths, asset.width)
 
@@ -169,9 +170,9 @@ const OPEN_GRAPH_ENCODINGS = ['jpeg', 'webp', 'png'] as const
  * AVIF, as an absolute URL against `origin`. None when the provider has no
  * such variant.
  */
-export const ogImage = (
-  asset: ImageAsset,
-  provider: Provider,
+export const ogImage = <Asset extends ImageAsset>(
+  asset: Asset,
+  provider: Provider<NoInfer<Asset>>,
   origin: string,
 ): Option.Option<string> => {
   const width = Widths.atLeast(provider.widths, 1200)

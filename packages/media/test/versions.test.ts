@@ -8,7 +8,7 @@
  */
 import { Effect, Layer, Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { ImageAsset, Provider, Variant, Widths } from 'foldkit-media'
+import { HashedAsset, ImageAsset, Provider, Variant, Widths } from 'foldkit-media'
 import { Transformer, TransformFailed, serveFetch } from 'foldkit-media/server'
 import { memoryStores } from './stores.js'
 
@@ -48,7 +48,7 @@ describe('the variant spellings every release reads', () => {
   })
 
   it('has the hosted provider write the current revision', () => {
-    const asset = Schema.decodeUnknownSync(ImageAsset)({
+    const asset = Schema.decodeUnknownSync(HashedAsset)({
       key: 'hero.jpg',
       width: 1000,
       height: 500,

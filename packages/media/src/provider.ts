@@ -1,5 +1,5 @@
 import { Option, Schema } from 'effect'
-import type { ImageAsset } from './asset.js'
+import type { HashedAsset, ImageAsset } from './asset.js'
 import type { Encoding, Format } from './format.js'
 import * as Variant from './variant.js'
 import * as Widths from './widths.js'
@@ -12,16 +12,17 @@ export interface Request {
 
 /**
  * Writes the URL of a variant. A provider performs no I/O: it knows a host's
- * URL scheme, the widths it makes, and the encodings worth offering.
+ * URL scheme, the widths it makes, and the encodings worth offering. `Asset`
+ * is the facts it needs: `HashedAsset` for one that names originals by hash.
  */
-export interface Provider {
+export interface Provider<in Asset extends ImageAsset = ImageAsset> {
   readonly widths: Widths.Widths
   /** Formats offered as `source`s before the `img`, most preferred first. */
   readonly sources: ReadonlyArray<Format>
   /** What the `img` itself asks for; `auto` lets the host choose. */
   readonly fallback: Encoding
   /** The variant's URL, or none when this provider has no such variant. */
-  readonly url: (asset: ImageAsset, request: Request) => Option.Option<string>
+  readonly url: (asset: Asset, request: Request) => Option.Option<string>
 }
 
 /** A file a build emitted: one width of one original, in one format. */
@@ -103,11 +104,11 @@ const cdnCgiSource = (key: string): string => {
 
 /**
  * Our own server's variants (`foldkit-media/server`), at `Variant.PATH` under
- * `baseUrl`. An original is named by its content hash, so an asset without
- * one has no hosted URL, and neither has `auto`: this server names the format
- * in the URL, never reads `Accept`, so every cache can key on the URL alone.
- * Its formats and quality must be in `space`, the server's own, or it is
- * refused here rather than answered with a 400 on every image.
+ * `baseUrl`. An original is named by its content hash, so it takes a
+ * `HashedAsset`, and has no URL for `auto`: this server names the format in
+ * the URL, never reads `Accept`, so every cache can key on the URL alone.
+ * Its formats and quality must be in `space`, or it is refused here rather
+ * than answered with a 400 on every image.
  */
 export const hosted = (
   options: {
@@ -121,7 +122,7 @@ export const hosted = (
     readonly fallback?: Format
     readonly quality?: number
   } = {},
-): Provider => {
+): Provider<HashedAsset> => {
   const { baseUrl: askedBaseUrl = '', space = Variant.standard } = options
   const fallback = options.fallback ?? space.formats[space.formats.length - 1]!
   const sources = options.sources ?? space.formats.slice(0, -1)
@@ -150,11 +151,10 @@ export const hosted = (
     fallback,
     url: (asset, { width, encoding }) => {
       if (encoding === 'auto') return Option.none()
-      return Option.flatMap(asset.hash, hash =>
-        Option.map(
-          encodeVariant({ width, format: encoding, quality }),
-          variant => baseUrl + Variant.PATH.replace(':hash', hash).replace(':variant', variant),
-        ),
+      return Option.map(
+        encodeVariant({ width, format: encoding, quality }),
+        variant =>
+          baseUrl + Variant.PATH.replace(':hash', asset.hash.value).replace(':variant', variant),
       )
     },
   }

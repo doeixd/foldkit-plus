@@ -9,13 +9,13 @@
 import { createHash } from 'node:crypto'
 import type { ImagesBinding } from '@cloudflare/workers-types'
 import { Option, Schema } from 'effect'
-import { ImageAsset, Provider } from 'foldkit-media'
+import { HashedAsset, Provider } from 'foldkit-media'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { UPLOAD_TOKEN, startStack, type CloudflareStack } from '../src/stack.js'
 
 let stack: CloudflareStack
 let images: ImagesBinding
-let asset: ImageAsset
+let asset: HashedAsset
 
 const stream = (bytes: Uint8Array<ArrayBuffer> | string) =>
   new Blob([bytes]).stream() as unknown as Parameters<ImagesBinding['info']>[0]
@@ -29,7 +29,7 @@ beforeAll(async () => {
   const original = new Uint8Array(await result.response().arrayBuffer())
   const hash = createHash('sha256').update(original).digest('hex')
   await (await stack.mf.getR2Bucket('MEDIA')).put(hash, original)
-  asset = Schema.decodeUnknownSync(ImageAsset)({
+  asset = Schema.decodeUnknownSync(HashedAsset)({
     key: 'hero.png',
     width: 640,
     height: 320,
@@ -74,7 +74,7 @@ describe('the image route', () => {
 
     const response = await upload({ authorization: `Bearer ${UPLOAD_TOKEN}` })
     expect(response.status).toBe(201)
-    const uploaded = Schema.decodeUnknownSync(ImageAsset)(await response.json())
+    const uploaded = Schema.decodeUnknownSync(HashedAsset)(await response.json())
     expect([uploaded.width, uploaded.height]).toEqual([500, 250])
     const path = Option.getOrThrow(
       Provider.hosted().url(uploaded, { width: 320, encoding: 'webp' }),

@@ -1,22 +1,47 @@
 import { Effect, Layer, Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { ImageAsset, Layout, Picture, Provider, Variant, Widths } from 'foldkit-media'
+import { HashedAsset, ImageAsset, Layout, Picture, Provider, Variant, Widths } from 'foldkit-media'
 import { Transformer, serveFetch } from 'foldkit-media/server'
 import { memoryStores } from './stores.js'
 
 const HASH = 'a'.repeat(64)
 
-const assetWith = (hash: string | null): ImageAsset =>
-  Schema.decodeUnknownSync(ImageAsset)({
-    key: 'hero.jpg',
-    width: 3000,
-    height: 2000,
-    alpha: false,
-    hash,
-    placeholder: null,
+const facts = (hash: string | null) => ({
+  key: 'hero.jpg',
+  width: 3000,
+  height: 2000,
+  alpha: false,
+  hash,
+  placeholder: null,
+})
+
+const asset = Schema.decodeUnknownSync(HashedAsset)(facts(HASH))
+
+describe('HashedAsset', () => {
+  it('decodes facts with a hash, and refuses facts without one', () => {
+    expect(Schema.decodeUnknownSync(ImageAsset)(facts(null)).hash).toEqual(Option.none())
+    expect(() => Schema.decodeUnknownSync(HashedAsset)(facts(null))).toThrow()
   })
 
-const asset = assetWith(HASH)
+  it('takes no unhashed facts into a hosted picture', () => {
+    const unhashed = Schema.decodeUnknownSync(ImageAsset)(facts(null))
+    const provider = Provider.hosted()
+    // @ts-expect-error: `Provider.hosted` names an original by its hash, which these facts lack.
+    Picture.derive({ asset: unhashed, provider, layout: Layout.FullWidth() })
+    // @ts-expect-error: the same, for a single URL.
+    provider.url(unhashed, { width: 640, encoding: 'avif' })
+    // A provider that reads no hash takes the same facts.
+    expect(
+      Option.isSome(
+        Picture.derive({
+          asset: unhashed,
+          provider: Provider.cdnCgi(),
+          layout: Layout.FullWidth(),
+        }),
+      ),
+    ).toBe(true)
+  })
+})
 
 describe('Variant.space', () => {
   const space = Variant.space({ formats: ['avif', 'webp', 'jpeg'], qualities: [60, 100] })
@@ -83,7 +108,6 @@ describe('Provider.hosted', () => {
   })
 
   it.each([
-    ['an asset never hashed', assetWith(null), 640, 'avif'],
     ['a width off its ladder', asset, 300, 'avif'],
     ['`auto`, which it never reads', asset, 640, 'auto'],
   ] as const)('has no URL for %s', (_, image, width, encoding) => {

@@ -119,7 +119,7 @@ export default [
     edits: [
       {
         file: '../src/provider.ts',
-        find: ".replace(':hash', hash)",
+        find: ".replace(':hash', asset.hash.value)",
         replace: '',
       },
     ],

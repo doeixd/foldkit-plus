@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { ContentHash } from './variant.js'
 
 // A placeholder's color lands in a style the page writes, so it is a color
@@ -77,3 +77,14 @@ export const ImageAsset = Schema.Struct({
   focus: Schema.OptionFromOptionalNullOr(Focus),
 })
 export type ImageAsset = typeof ImageAsset.Type
+
+/**
+ * Facts that name the original by its content hash: what a build or an upload
+ * answers, and what `Provider.hosted` needs to write a URL.
+ */
+export type HashedAsset = ImageAsset & { readonly hash: Option.Some<string> }
+
+export const isHashed = (asset: ImageAsset): asset is HashedAsset => Option.isSome(asset.hash)
+
+/** `ImageAsset`, refusing facts with no content hash. */
+export const HashedAsset = ImageAsset.pipe(Schema.refine(isHashed))

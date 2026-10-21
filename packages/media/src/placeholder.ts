@@ -42,9 +42,9 @@ export type Level = 'detail' | 'average'
  * image. None when the image has no placeholder, or the provider has no URL
  * for the smallest width.
  */
-export const background = (
-  asset: ImageAsset,
-  provider: Provider,
+export const background = <Asset extends ImageAsset>(
+  asset: Asset,
+  provider: Provider<Asset>,
   level: Level,
 ): Option.Option<string> =>
   Option.flatMap(asset.placeholder, placeholder =>

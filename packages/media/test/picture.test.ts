@@ -1,7 +1,7 @@
 import { Option, Schema } from 'effect'
 import { rgbaToThumbHash } from 'thumbhash'
 import { describe, expect, it } from 'vitest'
-import { ImageAsset, Layout, Picture, Provider, Variant } from 'foldkit-media'
+import { HashedAsset, ImageAsset, Layout, Picture, Provider, Variant } from 'foldkit-media'
 
 const asset = Schema.decodeUnknownSync(ImageAsset)({
   key: 'hero.jpg',
@@ -216,7 +216,7 @@ describe('Picture.preload', () => {
 })
 
 describe('Picture.ogImage', () => {
-  const big = Schema.decodeUnknownSync(ImageAsset)({
+  const big = Schema.decodeUnknownSync(HashedAsset)({
     key: 'photos/hero.jpg',
     width: 3000,
     height: 1500,

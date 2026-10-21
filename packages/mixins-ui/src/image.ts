@@ -36,9 +36,10 @@ export const described = (text: string): Alt => Alt.cases.Described.make({ text 
 export const decorative: Alt = Alt.cases.Decorative.make({})
 
 /** An image in one call: its facts, where its variants live, how wide it is drawn, and what it says. */
-export interface ImageView<Message = never> {
-  readonly asset: ImageAsset
-  readonly provider: Provider.Provider
+export interface ImageView<Message = never, Asset extends ImageAsset = ImageAsset> {
+  readonly asset: Asset
+  /** Where its variants live: `Provider.hosted` takes only facts with a content hash. */
+  readonly provider: Provider.Provider<NoInfer<Asset>>
   readonly layout: Layout.Layout
   /** Required: an image either says something or is ornament, and the page must say which. */
   readonly alt: Alt
@@ -63,8 +64,8 @@ const layoutName = Layout.Schema.match({
   FullWidth: () => 'full',
 })
 
-export const view = <Message = never>(
-  options: ImageView<Message>,
+export const view = <Message = never, Asset extends ImageAsset = ImageAsset>(
+  options: ImageView<Message, Asset>,
   h: HtmlBuilder<Message>,
 ): Html => {
   const builders = SlotView.buildersFor(

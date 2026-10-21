@@ -5,6 +5,17 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Changed
+
+- `foldkit-media`: a `Provider` says which facts it takes (`Provider<Asset>`), and
+  `Provider.hosted` takes a `HashedAsset`, facts with a content hash, since it names an original
+  by it. Facts without one are a type error where the view is written (`Picture.derive`,
+  `Image.view`, `Avatar.view`), where they were drawn as an unavailable image. `HashedAsset` is
+  also the Schema that decodes them (an upload's answer), and `isHashed` narrows; a `?image`
+  import's `asset` is one.
+
 ## 0.28.0
 
 Images and icons. `foldkit-media` 0.1.0 is its first release: an image's facts, a provider and a

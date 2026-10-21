@@ -78,8 +78,9 @@ export const heroView = (h: HtmlBuilder<never>) =>
   `auto`, a format the host ignores is never a `source`, another host's asset
   gets no URL.
 - `Provider.hosted({ baseUrl?, space?, sources?, fallback?, quality? })`: this
-  package's own server, `/_image/<sha-256>/w640.avif`; needs the asset's
-  `hash`. `Variant.space({ widths, formats, qualities, revision })` bounds what it makes
+  package's own server, `/_image/<sha-256>/w640.avif`; a `Provider<HashedAsset>`,
+  so facts without a `hash` are a type error in `Picture.derive` and `Image.view` (decode
+  stored facts with `HashedAsset`, or narrow with `isHashed`). `Variant.space({ widths, formats, qualities, revision })` bounds what it makes
   (a changed output is a new `revision`: `w640.r1.avif`, an earlier one answered while kept,
   else a brief `302` to the current URL);
   `foldkit-media/server` serves the route, decoding with the same Schema, and
@@ -108,7 +109,7 @@ are a cache: a store that fails is answered by making the variant.
 Uploads: `uploadLayer({ maxBytes? })` (or `serveUploadFetch({ layer })` in a
 Worker) serves `POST /_media/upload`: an `image/*` body, read under the byte
 cap, described, kept under its SHA-256 by `Uploads` (`uploadsKeyValueStore()`,
-`uploadsR2(bucket)`, where `Originals` reads) and answered as an `ImageAsset`
+`uploadsR2(bucket)`, where `Originals` reads) and answered as a `HashedAsset`
 (201), and `GET /_media/facts?url=` answers the facts of an image named by URL through
 `factsOf`, from the hosts `uploadLayer({ facts: { allow } })` names (none by default; 422 for
 one it cannot read). `UploadPolicy` is required and asked first by both (`UploadForbidden`, 403);
