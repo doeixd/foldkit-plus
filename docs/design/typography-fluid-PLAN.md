@@ -1,8 +1,9 @@
 # Fluid typography without `clamp()` magic numbers
 
 **Status:** Phases 1-4, the reading knobs, and container-based fluid type are
-implemented, 2026-10-21. The exponential scale, the CMS's `cqi` padding, and
-screenshots remain.
+implemented, 2026-10-21. Phase 5 is not needed: the fluid growth already uses
+`pow`, and the size table remains the fixed small end. The CMS's `cqi` padding
+and screenshots remain.
 
 **Scope:** the `foldkit-mixins` type scale and theme tokens, `Defaults`,
 `Prose`, the `Typography` recipe, and the examples that write per-component
@@ -398,14 +399,18 @@ Tests:
 - [x] A type test refuses `{ fluid: true }` on `body`.
 - [x] Docs.
 
-### Phase 5: exponential scale (optional, 1 commit)
+### Phase 5: exponential scale (not needed)
 
-- [ ] Replace the step table with `base * pow(ratio, step)` for both ends, like
-      Utopia's calculator but without the `vw` magic.
-- [ ] Expose `type.fluidRatio` if the library should not own the curve.
-- [ ] Compare computed values with the phase 2 table; keep the table as the
-      regression test.
-- [ ] Do this only if phase 2 shows the linear-growth formula is too coarse.
+The size table is the fixed small end, and the fluid growth already uses
+`pow(FLUID_RATIO, step)`, so a heading's share grows exponentially rather than
+linearly with the step. Replacing the table with `base * pow(ratio, step)` for
+both ends would change every fixed `type.fluid: 0` size, which is a separate,
+breaking scale redesign, not a fluid-type refinement.
+
+- [x] The fluid growth is exponential per step.
+- [x] The table stays the small end, so `type.fluid: 0` is unchanged.
+- [ ] Revisit only if the fixed scale itself is redesigned; then compare against
+      the phase 2 table as a visual regression.
 
 ### Phase 6: container-based fluid type (done)
 
