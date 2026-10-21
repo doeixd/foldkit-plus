@@ -81,12 +81,15 @@ export const heroView = (h: HtmlBuilder<never>) =>
   package's own server, `/_image/<sha-256>/w640.avif`; a `Provider<HashedAsset>`,
   so facts without a `hash` are a type error in `Picture.derive` and `Image.view` (decode
   stored facts with `HashedAsset`, or narrow with `isHashed`). `Variant.space({ widths, formats, qualities, revision })` bounds what it makes
-  (a changed output is a new `revision`: `w640.r1.avif`, an earlier one answered while kept,
-  else a brief `302` to the current URL);
+  (the URL names the variant, not its bytes, and nothing checks that two makings agree, so a
+  change to how variants are made, an encoder's settings included, is a new `revision` the
+  application bumps: `w640.r1.avif`, an earlier one answered while kept, else a brief `302` to
+  the current URL);
   `foldkit-media/server` serves the route, its space read from the same provider
   (`serveFetch({ images: { provider } })`), decoding with the same Schema, and
   decides every response's headers in `headersFor` (immutable variants, ETag
-  and 304, a lifetime per error, CORS).
+  and 304, a lifetime per error, CORS). The route checks no permission: whoever holds a variant's URL
+  reads it, so a private original does not belong there.
 
 ## The server's stores
 
@@ -98,7 +101,8 @@ Originals and variants are kept in any Effect `KeyValueStore`
 `variantsR2` (`cache: true` puts the Worker's `caches.default` in front) and
 `transformerImages`; on Node,
 `foldkit-media/sharp` gives `transformerSharp` (a pixel limit and a
-concurrency limit), and `layer` coalesces concurrent misses. Rate limits apply to misses only:
+concurrency limit), and `layer` coalesces concurrent misses; a Worker cannot (one request cannot
+wait on another's), so two misses at once both transform. Rate limits apply to misses only:
 `admissionRateLimiter` (Effect's `RateLimiter`) or `admissionRateLimit` (a
 Workers binding), a 429 with `Retry-After`. A static site writes its hosted variants out at
 build with `materialize`, as `foldkit-ssr`'s `staticSite` `emit`, and adds
@@ -119,7 +123,8 @@ cap, described, kept under its SHA-256 by `Uploads` (`uploadsKeyValueStore()`,
 one it cannot read). `UploadPolicy` is required and asked first by both (`UploadForbidden`, 403):
 `uploadPolicyBearer(secret)` for a deployment's secret (constant-time, nobody while unset), or the
 application's own;
-the application registers the facts in its own data.
+the application registers the facts in its own data, as its server read them: `HashedAsset`
+checks their shape, not that they are true, so never store facts a client sends back.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).

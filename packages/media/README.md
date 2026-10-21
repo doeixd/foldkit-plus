@@ -252,9 +252,12 @@ define `const media = Provider.hosted({ space })` once and give the same value
 to `serveFetch`'s `images.provider` (or `layer({ provider })`). The provider
 refuses, when defined, a format or quality its space does not make.
 
-A variant's URL names its bytes, kept for a year, so a change to what a
-variant is (the encoder's settings, how it resizes) is a new `revision` of
-the space, never new bytes behind an old URL. `Variant.space({ revision: 1 })`
+A variant's URL names the variant (the original's hash, a width, a format, a
+quality), and what it answers is kept for a year under it. Nothing checks that
+two makings of one variant give the same bytes, and an upgraded encoder may
+not: the server cannot tell. So a change to what a variant is (the encoder's
+settings, how it resizes) is a new `revision` of the space, which the
+application bumps, never new bytes behind an old URL. `Variant.space({ revision: 1 })`
 writes `w640.r1.avif`; revision 0, the default, writes no revision, so every
 URL written before revisions keeps its spelling. A server of revision 2 still
 answers what earlier ones wrote: an earlier revision's variant while its store
@@ -273,6 +276,10 @@ a 400; one well formed but outside this space (a width off the ladder) is a
 404. Only a variant is kept long: every refusal is kept a minute at the edge
 and not at all by a browser, since another release, the next one in a
 rollout, or the same one configured otherwise, may answer it.
+
+The route checks no permission: anyone holding a variant's URL can read it. A content
+hash cannot be guessed, but every page that shows the image hands it out, so
+an original that must stay private does not belong on this server.
 
 It needs three services, each a Layer you choose per host:
 
@@ -293,7 +300,7 @@ cannot be built, is the framework's own `500`, with none of them.
 
 | Answer | Status | `Cache-Control` |
 | --- | --- | --- |
-| A variant (`ETag: "<hash>/<spelling>"`) | 200 | `public, max-age=31536000, immutable`: the path names the bytes |
+| A variant (`ETag: "<hash>/<spelling>"`) | 200 | `public, max-age=31536000, immutable`: the path names the variant, and a new way of making it is a new revision |
 | A request already holding it (`If-None-Match`) | 304 | the same; the store is not read |
 | A URL outside this release's grammar | 400 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: a later release may read it (a new format) |
 | A well-formed URL outside this space | 404 | the same: a later release may offer it |
@@ -412,7 +419,11 @@ body streams, reads its facts through the `Inspector`, keeps the bytes under
 their SHA-256 in `Uploads` (where `Originals` reads them), and answers the
 facts as a `HashedAsset`, keyed by that hash, with a `201`. The variant server
 serves it at once. Only the facts go on to the application's data (a CMS's
-asset row); the bytes never travel through RPC.
+asset row); the bytes never travel through RPC. The answer is the server's
+reading of the bytes, but once it has passed through a client it is the
+client's word: a client can change a width or name another original's hash.
+Decoding with `HashedAsset` checks the facts' shape, not that they are true,
+so store facts your server read, not ones a client sends back.
 
 Who may upload is the application's to say, and the route has no default:
 `UploadPolicy` is asked before a byte is read. `uploadPolicyBearer(secret)` is
@@ -536,7 +547,9 @@ export default {
   store adapters above or the application's own (`clear` and `size` list the
   bucket).
 - `variantsR2(bucket, { prefix?, cache? })` is `variantsKeyValueStore` over
-  it, so a variant made last month is not made, and billed, again; with
+  it, so a variant made last month is not made, and billed, again. Two misses
+  for one variant at the same moment both make it, since a Worker request
+  cannot wait on another's; with
   `cache`, the Cache API is read first and filled from R2: `true` for the
   Worker's `caches.default`, or a cache of your own (`await caches.open(…)`).
   `true` outside a Worker throws where the layer is made.

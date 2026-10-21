@@ -5,6 +5,16 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Fixed
+
+- `foldkit-media`'s README and the skill no longer promise more than the code keeps: a variant's
+  URL names the variant, not its bytes, so a change to how variants are made is a revision the
+  application bumps; anyone holding a variant's URL can read it; a Worker cannot coalesce two
+  misses for one variant, so both transform; and `HashedAsset` checks the shape of facts, not
+  that they are true, so a server stores the facts it read, not ones a client sends back.
+
 ## 0.29.0
 
 Images with fewer ways to go wrong. `foldkit-media` 0.2.0: a provider says which facts it takes,
