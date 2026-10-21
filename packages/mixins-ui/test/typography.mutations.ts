@@ -28,4 +28,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the display role loses its fluid growth',
+    edits: [
+      {
+        file: '../src/recipes/typography.ts',
+        find: "...role('display', { fluid: true }),",
+        replace: "...role('display'),",
+      },
+    ],
+    tests,
+  },
 ]

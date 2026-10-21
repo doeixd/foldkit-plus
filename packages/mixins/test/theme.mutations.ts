@@ -350,8 +350,8 @@ export default [
     edits: [
       {
         file: '../src/theme/fluid.ts',
-        find: 'tan(atan2(100vw - ${min}, ${max} - ${min}))',
-        replace: 'atan2(100vw - ${min}, ${max} - ${min})',
+        find: 'tan(atan2(${measure} - ${min}, ${max} - ${min}))',
+        replace: 'atan2(${measure} - ${min}, ${max} - ${min})',
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -388,5 +388,16 @@ export default [
       },
     ],
     tests: ['packages/mixins/test/themePage.test.ts'],
+  },
+  {
+    name: 'a fluid display role grows by the wrong share',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: 'display: 0.12,',
+        replace: 'display: 0.2,',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
 ]

@@ -27,8 +27,8 @@ export default [
     edits: [
       {
         file: tokens,
-        find: "  lineHeight: blend('type', `${name}-leading`),\n",
-        replace: "  lineHeight: 'normal',\n",
+        find: "  const leading = blend('type', `${name}-leading`)\n",
+        replace: "  const leading = 'normal'\n",
       },
     ],
     tests: ['packages/mixins-ui/test/ladder.browser.test.ts'],
