@@ -352,7 +352,7 @@ interface IconData {
 }
 ```
 
-- `Icon.view({ content: Icon.draw(data, h), label })` draws it inline. The
+- `Icon.view({ icon: data, label })` draws it inline. The
   existing `Icon` keeps its sizing ladder, `currentColor`, and `aria-hidden`
   unless labelled.
 - `Icon.maskUrl(data)` serializes the same data to a `url("data:image/svg+xml,…")`

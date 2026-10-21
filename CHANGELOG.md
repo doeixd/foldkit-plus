@@ -27,6 +27,11 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-media/cloudflare`: `variantsR2(bucket, { cache: true })` puts the Worker's
   `caches.default` in front, with no cast of the DOM's `caches`; outside a Worker it throws
   where the layer is made.
+- `foldkit-mixins-ui`: `Icon.view` takes the icon itself, `Icon.view({ icon, label?, key? })`,
+  and draws it with `foldkit-media`'s `Icon.draw`, so a view imports one `Icon`. `content` is
+  removed: `Icon.view({ content: MediaIcon.draw(check, h) })` is `Icon.view({ icon: check })`.
+- `foldkit-mixins-ui`: `Image.view`'s `alt` takes plain words, `alt: 'The finals'`, as
+  `Image.described('The finals')`; ornament is still `Image.decorative`, never left out.
 
 ### Added
 

@@ -1,3 +1,4 @@
+import { Icon, type IconData } from 'foldkit-media'
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
@@ -13,11 +14,14 @@ export const IconSlots = Slots.define({
 })
 
 /**
- * An icon in one call: the drawing it holds, the name it has when it means
+ * An icon in one call: the icon it draws, the name it has when it means
  * something, a style for its slot, and mixins beside the style.
  */
 export interface IconView<Message = never> {
-  readonly content: Html
+  /** An icon as data: an import from `virtual:foldkit-icons/…`, or a package's constant. */
+  readonly icon: IconData
+  /** Parts two copies of one icon on a page, whose ids would otherwise collide (`Icon.draw`'s `key`). */
+  readonly key?: string | undefined
   /** Announced as an image. Omitted, the icon is decorative. */
   readonly label?: string | undefined
   /** A style of `IconSlots`, for the glyph's look. */
@@ -35,10 +39,9 @@ export const view = <Message = never>(
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
+  const drawing = Icon.draw(options.icon, h, options.key === undefined ? {} : { key: options.key })
   if (options.label !== undefined) {
-    return h.span(builders.glyph.attrs([h.Role('img'), h.AriaLabel(options.label)]), [
-      options.content,
-    ])
+    return h.span(builders.glyph.attrs([h.Role('img'), h.AriaLabel(options.label)]), [drawing])
   }
-  return h.span(builders.glyph.attrs([h.AriaHidden(true)]), [options.content])
+  return h.span(builders.glyph.attrs([h.AriaHidden(true)]), [drawing])
 }

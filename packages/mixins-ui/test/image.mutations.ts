@@ -250,4 +250,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'an alt in plain words reads as ornament',
+    edits: [
+      {
+        file: '../src/image.ts',
+        find: "typeof options.alt === 'string' ? described(options.alt) : options.alt",
+        replace: "typeof options.alt === 'string' ? decorative : options.alt",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/image.test.ts'],
+  },
 ]

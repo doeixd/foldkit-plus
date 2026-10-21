@@ -138,7 +138,7 @@ import hero from './hero.jpg?image'
 import { Layout } from 'foldkit-media'
 import { Image } from 'foldkit-mixins-ui'
 
-Image.view({ ...hero, layout: Layout.Constrained({ width: 800 }), alt: Image.described('The finals') }, h)
+Image.view({ ...hero, layout: Layout.Constrained({ width: 800 }), alt: 'The finals' }, h)
 ```
 
 The import is `{ asset, provider }`. The build measures the file once
@@ -581,8 +581,8 @@ A view draws an icon with `Icon.draw(icon, h)`: inline SVG through the view's
 builder (Foldkit's `h`, or anything of its shape, `SvgBuilder`), every
 attribute in the server's markup, `1em` square unless `size` is given, and
 `aria-hidden`, since the control it sits in carries the name.
-`foldkit-mixins-ui`'s `Icon.view` fills its glyph with the drawing, and names
-it when given a `label`. A style masks with `Icon.maskUrl(icon)`, a CSS `url()`.
+`foldkit-mixins-ui`'s `Icon.view({ icon, label? })` draws it into its glyph,
+sized by the recipe, and names it when given a `label`. A style masks with `Icon.maskUrl(icon)`, a CSS `url()`.
 
 Every icon is parsed against a presentational allowlist, because it is drawn
 inline. The parse refuses, naming the icon, an element or attribute outside

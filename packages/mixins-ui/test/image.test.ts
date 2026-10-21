@@ -100,6 +100,7 @@ describe('Image view', () => {
 
   it.each([
     ['described', described('A drum line'), 'A drum line', undefined],
+    ['described in plain words', 'A drum line', 'A drum line', undefined],
     ['decorative', decorative, '', 'presentation'],
   ])('says what a %s image is', (_, alt, text, role) => {
     const img = imgOf(draw({ alt }))

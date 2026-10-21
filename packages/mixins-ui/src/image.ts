@@ -41,8 +41,11 @@ export interface ImageView<Message = never, Asset extends ImageAsset = ImageAsse
   /** Where its variants live: `Provider.hosted` takes only facts with a content hash. */
   readonly provider: Provider.Provider<NoInfer<Asset>>
   readonly layout: Layout.Layout
-  /** Required: an image either says something or is ornament, and the page must say which. */
-  readonly alt: Alt
+  /**
+   * Required: an image either says something or is ornament, and the page
+   * must say which: what it shows in words (as `described(text)`), or `decorative`.
+   */
+  readonly alt: string | Alt
   /** The page's largest image: fetched first, not lazily. */
   readonly priority?: boolean | undefined
   /** In place of the layout's `sizes`, when the page knows the drawn width better. */
@@ -73,6 +76,7 @@ export const view = <Message = never, Asset extends ImageAsset = ImageAsset>(
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
+  const alt = typeof options.alt === 'string' ? described(options.alt) : options.alt
   const picture = Picture.derive({
     asset: options.asset,
     provider: options.provider,
@@ -89,7 +93,7 @@ export const view = <Message = never, Asset extends ImageAsset = ImageAsset>(
         builders.frame.attrs([
           h.DataAttribute('unavailable', ''),
           h.DataAttribute('layout', layout),
-          ...Alt.match(options.alt, {
+          ...Alt.match(alt, {
             Described: ({ text }): ReadonlyArray<Attribute<Message>> => [
               h.Role('img'),
               h.AriaLabel(text),
@@ -117,7 +121,7 @@ export const view = <Message = never, Asset extends ImageAsset = ImageAsset>(
         h.img(
           builders.image.attrs([
             ...imgAttributes(img, h),
-            ...Alt.match(options.alt, {
+            ...Alt.match(alt, {
               Described: ({ text }) => [h.Alt(text)],
               Decorative: () => [h.Alt(''), h.Role('presentation')],
             }),

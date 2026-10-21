@@ -51,7 +51,7 @@ test('a drawing alone is 1em square, even in a squeezed row, and in a glyph it f
               [h.Id('squeezed'), h.Style({ display: 'flex', inlineSize: '20px' })],
               [MediaIcon.draw(check, h), h.span([h.Style({ flex: 'none' })], ['words'])],
             ),
-            h.p([h.Id('glyph')], [Icon.view({ content: MediaIcon.draw(check, h), style }, h)]),
+            h.p([h.Id('glyph')], [Icon.view({ icon: check, style }, h)]),
           ],
         ),
     }),

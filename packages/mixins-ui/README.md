@@ -214,6 +214,14 @@ alike. The Message type comes from `h`, and a Submodel's value type (a
 RadioGroup's or Tabs' `Value`) from where the `toView` goes, so neither needs
 writing out.
 
+Every view takes the view's `h` last, as Foldkit's own views do. At runtime it
+is the same builder everywhere; its type is the point: it carries the Message
+the part of the app being drawn can route (the root's, or a Submodel's own), so
+a handler built for another part's Message is a compile error where it is
+written. Pass it down as a parameter and never keep it, as Foldkit asks: a
+builder kept and used in another frame builds handlers that frame cannot
+deliver.
+
 A button drawn as a button needs no `draw` at all. `Button.view` takes the
 label, a style, and `@foldkit/ui`'s own config:
 
@@ -475,7 +483,6 @@ the slots with the matching recipe. Hide text with `U.srOnly` from
 `Label.view` takes the id that derived.
 
 ```ts
-import { Icon as MediaIcon } from 'foldkit-media'
 import { parse } from 'foldkit-media/icons'
 import { Style } from 'foldkit-mixins'
 import { AspectRatio, AspectRatioSlots, Icon, IconSlots, Recipes } from 'foldkit-mixins-ui'
@@ -485,17 +492,16 @@ const Mark = Style.forSlots(IconSlots)(Recipes.Icon({ size: 'sm' }))
 
 // `h` is the view's builder. `content` is `Html`.
 AspectRatio.view({ content: h.span([], ['poster']), style: Frame }, h)
-Icon.view({ content: h.span([], ['!']), label: 'Warning', style: Mark }, h)
-Icon.view({ content: h.span([], ['!']), style: Mark }, h)
 
-// An icon as data from `foldkit-media`, parsed at build time.
+// An icon as data: an import from `virtual:foldkit-icons/…`, or parsed by a script.
 const check = parse('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg>', 'check')
-Icon.view({ content: MediaIcon.draw(check, h), label: 'Done', style: Mark }, h)
+Icon.view({ icon: check, label: 'Done', style: Mark }, h)
+Icon.view({ icon: check, style: Mark }, h)
 ```
 
 A `label` makes the icon `role="img"`. Without one the glyph is `aria-hidden`.
-`foldkit-media`'s `Icon.draw(icon, h)` draws an `IconData` as inline SVG
-(`1em` square alone, `aria-hidden`, ids of its own), and `Icon.view` fills its
+`Icon.view` draws the `IconData` as inline SVG with `foldkit-media`'s
+`Icon.draw` (ids of its own; `key` parts two copies of one icon) and fills its
 glyph with it, so the recipe's size is the drawing's.
 `Icons.glyph` is the other tool: a mask on an element that already exists.
 
@@ -507,7 +513,7 @@ glyph with it, so the recipe's size is the drawing's.
 | `AspectRatio` | `{ content? }`. Slot `frame`. | `ratio`: `square` (default), `video` (16/9), `portrait` (3/4). The corner reads `radius`. |
 | `Avatar` | `{ name, src?, initials?, status?, statusLabel? }`. The root is one `role="img"` named by the person (and the status, "Ada Lovelace, Online"); initials show until the picture covers them, the picture's alt empty. `status` (`online`, `away`, `busy`, `offline`) is a dot on the lower end corner. `src` may be an `AvatarPicture` (`{ asset, provider, width }` from `foldkit-media`): the picture is drawn with its 1x and 2x candidates at `width` CSS pixels, and a provider with no URL for it leaves the initials. `Avatar.widthOf(size)` is a size's width in CSS pixels, for that `width`. `Avatar.group({ people, max?, label?, moreLabel?, style?, avatarStyle? })` overlaps them, each ringed in the page, and counts the rest as one more avatar. An avatar beside a name and a line is an `Item` with the avatar as its media. | `size`: `xs`, `sm`, `md` (default), `lg`, `xl`; `shape`: `circle` (default), `rounded`, `square`; `color`: `neutral` (default) or `name` (initials in a hue from the name); `ring`: `none`, `page`, `accent`. Slots `root`, `fallback`, `image`, `status`. `Recipes.AvatarGroup({ overlap: 'tight' \| 'loose' \| 'none' })` over `AvatarGroupSlots` (`root`). |
 | `Figure` | `{ content, caption? }`: a `figure` holding its content (an `Image.view`, a chart, a code block), then its caption in a `figcaption`, which names the figure for assistive technology by itself; no caption, no `figcaption`. | `align`: `start` (default) or `center`. The caption is the `caption` role, muted. Slots `root`, `caption`. |
-| `Image` | `{ asset, provider, layout, alt, priority?, sizes? }` from `foldkit-media`: a `picture` with a `source` per format the provider offers and an `img` with its candidates, `sizes`, `width` and `height` (the box is held before the file arrives), lazy unless `priority` (then `fetchpriority="high"`). `alt` is `Image.described(text)` or `Image.decorative` (`alt=""`, `role="presentation"`), never omitted. The `img` carries `--fk-image-ratio`, `--fk-image-placeholder` (none behind a transparent image) and `data-layout` (`fixed`, `constrained`, `full`); a provider with no URL for the image leaves an empty frame marked `data-unavailable`. An unavailable image keeps its box and is `role="img"` named by its alt text (hidden when decorative). `--fk-image-focus` places a crop at the asset's focal point. `placeholder: 'detail' | 'average'` chooses how much of a ThumbHash to paint; by default the picture for `priority`, the color otherwise. `Image.watchLoad`, beside the style, marks the `img`'s `data-state` (`loading`, `loaded`, `failed`); the recipe hides a failed image, keeping its box. `Image.audit`, beside the style in a development build, warns in the console of an image drawn wider than its file (blurry) or far narrower (wasted bytes), and of more than one image drawn with `priority`. `Image.preloadsIn` is a `foldkit-ssr` `Head`: the `<link rel="preload">` of each image the rendered page drew with `priority`. | `fit`: `cover` (default) or `contain`; `edge`: `none` (default) or `line` (the faint inset line); `ratio`: `auto` (default), `square`, `video` (16:9), `portrait` (3:4), cropped at the asset's focal point (an unavailable image holds the cropped box); `radius`: `none` (default), `sm`, `md`, `lg`, `full`. The placeholder paints the `img`'s background. Slots `frame`, `source`, `image`. |
+| `Image` | `{ asset, provider, layout, alt, priority?, sizes? }` from `foldkit-media`: a `picture` with a `source` per format the provider offers and an `img` with its candidates, `sizes`, `width` and `height` (the box is held before the file arrives), lazy unless `priority` (then `fetchpriority="high"`). `alt` is what the image shows in words (a string, or `Image.described(text)`) or `Image.decorative` (`alt=""`, `role="presentation"`), never omitted. `Provider.hosted` takes only a `HashedAsset`, so facts without a content hash are a type error there. The `img` carries `--fk-image-ratio`, `--fk-image-placeholder` (none behind a transparent image) and `data-layout` (`fixed`, `constrained`, `full`); a provider with no URL for the image leaves an empty frame marked `data-unavailable`. An unavailable image keeps its box and is `role="img"` named by its alt text (hidden when decorative). `--fk-image-focus` places a crop at the asset's focal point. `placeholder: 'detail' | 'average'` chooses how much of a ThumbHash to paint; by default the picture for `priority`, the color otherwise. `Image.watchLoad`, beside the style, marks the `img`'s `data-state` (`loading`, `loaded`, `failed`); the recipe hides a failed image, keeping its box. `Image.audit`, beside the style in a development build, warns in the console of an image drawn wider than its file (blurry) or far narrower (wasted bytes), and of more than one image drawn with `priority`. `Image.preloadsIn` is a `foldkit-ssr` `Head`: the `<link rel="preload">` of each image the rendered page drew with `priority`. | `fit`: `cover` (default) or `contain`; `edge`: `none` (default) or `line` (the faint inset line); `ratio`: `auto` (default), `square`, `video` (16:9), `portrait` (3:4), cropped at the asset's focal point (an unavailable image holds the cropped box); `radius`: `none` (default), `sm`, `md`, `lg`, `full`. The placeholder paints the `img`'s background. Slots `frame`, `source`, `image`. |
 | `Badge` | `{ text, tone? }` writes `data-tone`. | `Recipes.Badge({ attribute, tones, appearance? })` maps that attribute; values outside the map keep the base. `appearance`: `tinted` (default), `dot`, `outline`, `solid`. Slot `badge`. |
 | `Breadcrumb` | `{ steps: { label, href?, current?, icon? }[], separator?, collapse? }`. `current` is text with `aria-current="page"`; the others are links. An `icon` draws before its label, hidden from assistive technology. `separator` is drawn between steps in place of the recipe's; `collapse: { max, onExpand, label? }` folds the middle of a long trail into an ellipsis (`Breadcrumb.collapsedOf(steps, max)` is the split). `collapse: { max, menu: { model, onMessage, mixins } }` makes the ellipsis open a Menu of the hidden steps instead: the Menu's Model is the application's, built from `Breadcrumb.menuRows(steps, max)`, and `Breadcrumb.chosen(steps, max, value)` is the step a row leads to. | `separator`: `slash` (default), `chevron` or `dot`, drawn where the view is given no `separator` of its own. Slots `root`, `list`, `item`, `link`, `current`, `icon`, `separator`, `ellipsis`, `dots`. |
 | `ButtonGroup` | `{ label, items, orientation?, separated? }`. `role="group"`, joining its items: borders overlap by one and only the outer corners stay round. An item is the caller's button, field or Menu (a wrapper passes the corners to the face it holds), or a string, drawn in the `text` box (a count, a field's prefix). `orientation: 'vertical'` stacks them; `separated` draws a rule on every seam, for solid buttons whose fills meet. A hovered or focused item rises over its neighbour. `Segmented` is the control that selects. | `size`: `sm`, `md`, `lg`, for every item with no size of its own; `width: 'fill'` spans the container, a field taking what the buttons leave. Slots `root`, `separator`, `text`. |

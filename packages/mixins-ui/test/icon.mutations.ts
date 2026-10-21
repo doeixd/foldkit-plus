@@ -102,4 +102,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'two keyed copies of one icon share their ids',
+    edits: [
+      {
+        file: '../src/icon.ts',
+        find: 'options.key === undefined ? {} : { key: options.key }',
+        replace: '{}',
+      },
+    ],
+    tests,
+  },
 ]

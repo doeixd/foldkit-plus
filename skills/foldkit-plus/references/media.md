@@ -59,7 +59,7 @@ export const heroView = (h: HtmlBuilder<never>) =>
   )
 ```
 
-- `alt` is required: `Image.described(text)` or `Image.decorative`.
+- `alt` is required: what it shows in words (a string, or `Image.described(text)`) or `Image.decorative`.
 - `priority: true` only for the page's largest image; every other is lazy.
   `Image.preloadsIn` is a `foldkit-ssr` `Head` that preloads it, read from the
   rendered page. `Picture.ogImage(asset, provider, origin)` gives `og:image`.
@@ -143,7 +143,7 @@ package per set; a folder's `star-filled.svg` is `starFilled`). Unimported icons
 dropped; the plugin writes `foldkit-icons.d.ts` (include it in the tsconfig) so a
 misspelt name is a type error. Draw with `Icon.draw(icon, h, { key?, size? })` (inline SVG,
 `aria-hidden`, `1em` unless sized, ids prefixed by the icon's content; `key` parts two copies),
-in `foldkit-mixins-ui`'s `Icon.view` to size it by the recipe; mask with `Icon.maskUrl(icon)` (`Icons.byAttribute`/`Icons.glyph`).
+or with `foldkit-mixins-ui`'s `Icon.view({ icon, label?, key? })` to size it by the recipe; mask with `Icon.maskUrl(icon)` (`Icons.byAttribute`/`Icons.glyph`).
 Every icon passes a presentational allowlist (elements, attributes, CSS functions, references
 only to its own ids): a refused folder SVG fails the build,
 a refused Iconify icon is left out and its import fails. A package commits constants
