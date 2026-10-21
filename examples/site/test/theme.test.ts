@@ -63,7 +63,7 @@ describe('the theme creator', () => {
       "import { search, eye, eyeOff, colorPicker, rotate, rotateClockwise, circleCheck, alertTriangle, circleX, infoCircle, lock, x } from 'virtual:foldkit-icons/tabler'",
     )
     expect(code).toContain(
-      "tokens: Icons.tokens({ search, eye, 'eye-off': eyeOff, pipette: colorPicker, 'rotate-ccw': rotate, 'rotate-cw': rotateClockwise, success: circleCheck, warning: alertTriangle, error: circleX, info: infoCircle, lock, close: x })",
+      "tokens: Icons.tokens({ search, eye, 'eye-off': eyeOff, pipette: colorPicker, 'rotate-ccw': rotate, 'rotate-cw': rotateClockwise, success: circleCheck, warning: alertTriangle, error: circleX, info: infoCircle, lock, close: x }, { width: 2 })",
     )
     expect(codeOf(defaults, 'lucide')).toBe(codeOf(defaults))
   })
@@ -82,12 +82,26 @@ describe('the theme creator', () => {
     }
   })
 
-  it('draws a pack’s icons on a preview, and none for the shipped one', () => {
-    expect(packStyleOf('lucide')).toEqual({})
-    const tabler = packStyleOf('tabler')
+  it('draws a pack’s icons on a preview at the glyph stroke, the shipped pack’s too', () => {
+    // The theme already draws the shipped pack at its own stroke.
+    expect(packStyleOf('lucide', 2)).toEqual({})
+    const tabler = packStyleOf('tabler', 2)
     expect(Object.keys(tabler)).toHaveLength(12)
     expect(tabler['--fk-icon-search']).toMatch(/^url\("data:image\/svg\+xml,/)
-    expect(tabler['--fk-icon-search']).not.toBe(packStyleOf('phosphor')['--fk-icon-search'])
+    expect(tabler['--fk-icon-search']).not.toBe(packStyleOf('phosphor', 2)['--fk-icon-search'])
+    // A stroke redraws every pack's drawings, the shipped pack's included.
+    expect(packStyleOf('lucide', 3)['--fk-icon-search']).toContain('stroke-width=%223%22')
+    expect(packStyleOf('lucide', 3)['--fk-icon-search']).not.toBe(declared['--fk-icon-search'])
+  })
+
+  it('writes the pack it hands out at the icon stroke’s width', () => {
+    const thicker = withValue(defaults, 'icon.stroke', 3)
+    expect(codeOf(thicker, 'tabler')).toContain('}, { width: 3 })')
+    // The shipped pack needs its own drawing only once the stroke leaves its own.
+    expect(codeOf(defaults, 'lucide')).not.toContain('Icons.tokens')
+    expect(codeOf(thicker, 'lucide')).toContain("from 'virtual:foldkit-icons/lucide'")
+    expect(codeOf(thicker, 'lucide')).toContain('Icons.tokens({ search, eye')
+    expect(codeOf(thicker, 'lucide')).toContain('}, { width: 3 })')
   })
 
   it("draws a preview in the scheme chosen, or the reader's for system", () => {

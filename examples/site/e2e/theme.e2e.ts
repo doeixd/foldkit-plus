@@ -211,3 +211,46 @@ test('the hover knobs reach a fluid highlight in the preview', async () => {
   expect(errors).toEqual([])
   await context.close()
 })
+
+test('the icon knobs restroke the pack on the preview and in the specimen', async () => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const errors: Array<string> = []
+  page.on('pageerror', error => errors.push(String(error)))
+  page.on('console', message => {
+    const text = message.text()
+    if (text.includes('[foldkit-')) errors.push(`${message.type()}: ${text}`)
+  })
+
+  // The pack's mask, as the preview declares it: the icon stroke baked into the drawing.
+  const mask = () =>
+    page
+      .locator('[data-size="canvas"]')
+      .evaluate(canvas => getComputedStyle(canvas).getPropertyValue('--fk-icon-search').trim())
+
+  // The specimen's drawings, beside the knobs: every stroke width it sets.
+  const specimen = () =>
+    page.evaluate(() => {
+      const widths = new Set<string>()
+      for (const svg of Array.from(document.querySelectorAll('aside svg'))) {
+        const own = svg.getAttribute('stroke-width')
+        if (own !== null) widths.add(own)
+        for (const node of Array.from(svg.querySelectorAll('[stroke-width]')))
+          widths.add(node.getAttribute('stroke-width') ?? '')
+      }
+      return [...widths].filter(Boolean).sort()
+    })
+
+  await open(page, '/create?icon.stroke=3')
+  await expect.poll(mask, { timeout: 15_000 }).toContain('stroke-width=%223%22')
+  await page.getByRole('tab', { name: 'Icons' }).click()
+  await expect.poll(specimen, { timeout: 15_000 }).toEqual(['3'])
+
+  await open(page, '/create?icon.stroke=1')
+  await expect.poll(mask, { timeout: 15_000 }).toContain('stroke-width=%221%22')
+  await page.getByRole('tab', { name: 'Icons' }).click()
+  await expect.poll(specimen, { timeout: 15_000 }).toEqual(['1'])
+
+  expect(errors).toEqual([])
+  await context.close()
+})

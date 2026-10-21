@@ -55,6 +55,7 @@ import {
   halfAt,
   knobAt,
   looks,
+  packIconsAt,
   presets,
   packs,
   Pack,
@@ -203,6 +204,8 @@ const hintText = (which: Hint): string => {
   switch (which) {
     case 'surface.lightness.dark':
       return halfAt('surface.lightness', true).description
+    case 'icon.stroke':
+      return 'How thick every stroke is: the pack’s icons and the shapes the recipes draw in CSS, like a check or a chevron.'
     case 'base':
       return 'The hue the neutrals are mixed from: the page, text and borders. Accent takes the accent’s own; the others are shadcn’s base colors.'
     case 'theme':
@@ -483,13 +486,15 @@ const iconsPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
     model.pack,
   ),
   h.div(slots.knob.attrs(), [
-    // The icons the components draw themselves, in the pack chosen.
+    // The icons the components draw themselves, in the pack chosen, at the theme's stroke.
     h.div(
       slots.iconSpecimen.attrs([
         // The icon size knob's own multiple: the specimen sits outside the preview, which sets it.
         h.Style({ fontSize: `${1.25 * valueAt(model.theme, 'icon.size')}rem` }),
       ]),
-      Object.values(packs[model.pack].icons).map(icon => MediaIcon.draw(icon, h)),
+      packIconsAt(model.pack, valueAt(model.theme, 'icon.stroke')).map(icon =>
+        MediaIcon.draw(icon, h),
+      ),
     ),
   ]),
   slider(model, slots, h, 'icon.size'),

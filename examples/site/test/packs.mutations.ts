@@ -9,7 +9,13 @@ const tests = ['examples/site/test/theme.test.ts', 'examples/site/test/component
 export default [
   {
     name: 'a preview keeps the shipped icons whatever the pack',
-    edits: [{ file: theme, find: "pack === 'lucide' ? {} : packStyles[pack]", replace: '{}' }],
+    edits: [
+      {
+        file: theme,
+        find: "if (pack === 'lucide' && stroke === knobAt('icon.stroke').default) return {}",
+        replace: "if (pack !== '') return {}",
+      },
+    ],
     tests,
   },
   {
@@ -17,7 +23,7 @@ export default [
     edits: [
       {
         file: theme,
-        find: "if (pack === 'lucide') return { imports: [], tokens: '' }",
+        find: "if (pack === 'lucide' && stroke === knobAt('icon.stroke').default)\n    return { imports: [], tokens: '' }",
         replace: "return { imports: [], tokens: '' }",
       },
     ],

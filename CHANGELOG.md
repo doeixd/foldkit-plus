@@ -48,6 +48,9 @@ fluid highlight deepens too; every tinted hover — Table's, Segmented's, pill T
 - `examples/site`: `/create` turns the two new knobs, **Hover strength** in the Color pane beside
   Hover and **Disabled** in Shape after Outlines, so a reader sees each change beside the knob it
   belongs with; its end-to-end test hovers the canvas's Segmented preview and measures the film.
+  Its Icons pane draws the chosen pack at the **Glyph stroke** the theme sets
+  (`Icons.tokens(pack, { width })`), the specimen and every preview with it, and writes
+  that width into the code.
 - `foldkit-media/server`: `uploadPolicyAny(a, b, …)` tries upload policies in turn, the first to
   admit winning, so a deployment's secret and sessions can both upload; when every one refuses,
   the last refusal is the answer. Each is built once, with the combined layer.

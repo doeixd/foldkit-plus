@@ -10,6 +10,7 @@
  */
 import { Record, Schema } from 'effect'
 import { Icons } from 'foldkit-mixins-ui'
+import { Icon, type IconData } from 'foldkit-media'
 import {
   Knobs,
   Theme,
@@ -541,25 +542,59 @@ export const packs = {
   hugeicons: { label: 'Hugeicons', ...hugeicons },
 } as const satisfies Record<Pack, { readonly label: string }>
 
-// Made once: a pack's masks are the same on every frame.
-const packStyles = Record.map(packs, ({ icons }) =>
-  Object.fromEntries(
-    Object.entries(Icons.tokens(icons).icon).map(([name, mask]) => [
+/**
+ * A pack's icons at one glyph stroke: the site restrokes its pack with the
+ * icon stroke knob (`Icons.tokens(pack, { width })`), so its masks and the
+ * specimen's drawings are made per stroke. The slider's nine steps, and the
+ * packs chosen, bound the caches.
+ */
+const drawn = new Map<string, (typeof packs)[Pack]['icons']>()
+const iconsOf = (pack: Pack, stroke: number): (typeof packs)[Pack]['icons'] => {
+  const key = `${pack}:${stroke}`
+  const made = drawn.get(key)
+  if (made !== undefined) return made
+  const icons = Record.map(packs[pack].icons, (icon: IconData) =>
+    Icon.withStroke(icon, { width: stroke }),
+  )
+  drawn.set(key, icons)
+  return icons
+}
+
+const styles = new Map<string, Readonly<Record<string, string>>>()
+
+/** `pack`'s icons at `stroke`, for `/create`'s specimen, drawn inline. */
+export const packIconsAt = (pack: Pack, stroke: number): ReadonlyArray<IconData> =>
+  Object.values(iconsOf(pack, stroke))
+
+/**
+ * A preview's icon variables for `pack` at `stroke`: the shipped pack's own
+ * drawing already on the frame, so only another stroke needs it restroked.
+ */
+export const packStyleOf = (pack: Pack, stroke: number): Readonly<Record<string, string>> => {
+  if (pack === 'lucide' && stroke === knobAt('icon.stroke').default) return {}
+  const key = `${pack}:${stroke}`
+  const made = styles.get(key)
+  if (made !== undefined) return made
+  const masks = Object.fromEntries(
+    Object.entries(Icons.tokens(iconsOf(pack, stroke)).icon).map(([name, mask]) => [
       `${VAR_PREFIX}-icon-${name}`,
       mask,
     ]),
-  ),
-)
+  )
+  styles.set(key, masks)
+  return masks
+}
 
-/** A preview's icon variables for `pack`: none for Lucide, which the theme already holds. */
-export const packStyleOf = (pack: Pack): Readonly<Record<string, string>> =>
-  pack === 'lucide' ? {} : packStyles[pack]
-
-/** The lines that make `pack` the application's, beside its theme: none for the shipped one. */
+/**
+ * The lines that make `pack` the application's at `stroke`: none where the
+ * theme already draws it, the shipped pack at the shipped stroke.
+ */
 const packLines = (
   pack: Pack,
+  stroke: number,
 ): { readonly imports: ReadonlyArray<string>; readonly tokens: string } => {
-  if (pack === 'lucide') return { imports: [], tokens: '' }
+  if (pack === 'lucide' && stroke === knobAt('icon.stroke').default)
+    return { imports: [], tokens: '' }
   const entries = Object.entries(packs[pack].imports)
   const sets = [...new Set(entries.map(([, from]) => from.set))]
   return {
@@ -579,13 +614,13 @@ const packLines = (
         const key = /^[A-Za-z_$][\w$]*$/.test(name) ? name : `'${name}'`
         return name === from.name ? name : `${key}: ${from.name}`
       })
-      .join(', ')} })`,
+      .join(', ')} }, { width: ${stroke} })`,
   }
 }
 
-/** `values`, and the icon pack, as the source an application pastes into its style module. */
+/** `values` and the icon pack at its stroke, as an application's style module. */
 export const codeOf = (values: ThemeValues, pack: Pack = 'lucide'): string => {
-  const icons = packLines(pack)
+  const icons = packLines(pack, valueAt(values, 'icon.stroke'))
   return [
     "import { AppStyle } from 'foldkit-mixins/app'",
     "import { Theme } from 'foldkit-mixins/theme'",
