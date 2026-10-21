@@ -185,6 +185,16 @@ export const standard = {
       description:
         'What a hovered row or button is tinted with: a step of the surface, a plain grey, or the accent.',
     }),
+    hoverStrength: Knob.percent({
+      title: 'Hover strength',
+      variable: 'state-hover',
+      default: 12,
+      min: 4,
+      max: 24,
+      step: 1,
+      description:
+        'How strongly a hovered row or button is tinted, a fluid highlight with it, and a press more.',
+    }),
   },
   shape: {
     radius: Knob.number({

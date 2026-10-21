@@ -40,6 +40,14 @@ describe('Theme.make', () => {
     ])
   })
 
+  it('writes the hover strength the palette reads, at the value it always had by default', () => {
+    expect(Theme.variables(Theme.make({}))['state-hover']).toBe('12%')
+    expect(Theme.variables(Theme.make({ surface: { hoverStrength: 20 } }))['state-hover']).toBe(
+      '20%',
+    )
+    expect(() => Theme.make({ surface: { hoverStrength: 30 } })).toThrow()
+  })
+
   it('refuses a value outside its range, and a group or knob it does not know', () => {
     expect(() => Theme.make({ shape: { radius: 9 } })).toThrow()
     // @ts-expect-error A group the standard knobs lack.

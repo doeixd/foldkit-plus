@@ -18,6 +18,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `surface.hoverStrength`, how strongly a hovered row or button is tinted
+  (4% to 24%); the palette's `state-hover` was a fixed 12%, which stays the default, so a theme
+  that does not set it draws as before.
 - `foldkit-media/server`: `uploadPolicyAny(a, b, …)` tries upload policies in turn, the first to
   admit winning, so a deployment's secret and sessions can both upload; when every one refuses,
   the last refusal is the answer. Each is built once, with the combined layer.

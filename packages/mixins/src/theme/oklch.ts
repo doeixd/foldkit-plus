@@ -181,8 +181,7 @@ const accent = v('accent', 'default')
 export const palette = define({
   knob: {
     ...unsetOf(standard),
-    // How much of the text a state lays over its surface.
-    'state-hover': '12%',
+    // How much of the text a state lays over its surface; a hover's is a knob.
     'state-tint': '8%',
     'state-tint-dark': '25%',
     'image-edge': '10%',

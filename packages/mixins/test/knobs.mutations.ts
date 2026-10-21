@@ -156,4 +156,11 @@ export default [
     edits: [{ file: knobs, find: String.raw`.replaceAll("'", "\\'")`, replace: '' }],
     tests: unit,
   },
+  {
+    name: 'the hover strength writes a variable the palette never reads',
+    edits: [
+      { file: knobs, find: "variable: 'state-hover',", replace: "variable: 'state-hovered'," },
+    ],
+    tests: unit,
+  },
 ]
