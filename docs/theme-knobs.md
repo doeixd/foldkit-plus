@@ -197,7 +197,7 @@ the description.
 | `Knob.number({ default, min, max, step })` | a number | `String(value)` |
 | `Knob.angle({ default })` | degrees | the number |
 | `Knob.percent({ default, min?, max? })` | 0 to 100 | `'55%'` |
-| `Knob.length({ default, unit, min, max, step })` | a number | `'1px'`, `'-0.025em'` |
+| `Knob.length(unit)({ default, min, max, step })` | a number | `'1px'`, `'-0.025em'`, `'65ch'` |
 | `Knob.choice({ default, options })` | an option's name | each variable the option names |
 | `Knob.font({ default })` | a font stack | the stack |
 | `Knob.schemed(kind)` | `{ light, dark? }` or a bare value for both | two variables |
