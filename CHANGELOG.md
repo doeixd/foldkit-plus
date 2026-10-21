@@ -5,6 +5,16 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## 0.30.1
+
+The skill's greenfield guide for a new application. Its plan settles mobile
+beside performance and security; the agent tells the user that ending the
+domain rounds is their call; the mapping shows how Schema, Entity, Remote, Form
+and Crud stack, with Guard, Auth, Site and Composition at their seams; and
+deployment prefers the CAFE stack (Cloudflare, Alchemy, Foldkit, Effect) with
+Yielded Auth, asking the user first. No package changed: the skill ships from
+`main`, and this tag names it.
+
 ## 0.30.0
 
 One owner for every interactive state. `foldkit-mixins` 0.18.0 adds `surface.hoverStrength` (how
