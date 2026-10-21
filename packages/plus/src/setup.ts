@@ -281,7 +281,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
       onNone: () => [],
       onSome: () => [
         '',
-        `Building a new application rather than extending one? Follow its \`references/greenfield.md\` (${GREENFIELD}): goals, then the domain with the user, recorded in the project and mapped to these packages, before implementing.`,
+        `Building a new application rather than extending one? Follow its \`references/greenfield.md\` (${GREENFIELD}): goals, then the domain with the user, recorded in the project and mapped to these packages, then a plan for architecture, performance, SEO, testing, CI and deployment, before implementing.`,
       ],
     }),
     '',

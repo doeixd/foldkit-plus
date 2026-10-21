@@ -150,8 +150,9 @@ App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoL
   added with it. `npx foldkit-plus setup` prints all of this for the project it runs
   in. `foldkit-durable` needs Node >= 22.
 - **A new application** starts with the user, not with code: the brief, the domain
-  in rounds, recorded in `docs/domain/` and mapped to these packages, then built
-  once they agree. Follow [greenfield.md](references/greenfield.md).
+  in rounds, recorded in `docs/domain/` and mapped to these packages, a plan for
+  architecture, performance, SEO, testing, CI and deployment, then built once they
+  agree. Follow [greenfield.md](references/greenfield.md).
 
 ## More
 

@@ -3,14 +3,14 @@
 For an empty folder, or a user who says "build me an app". Extending an
 existing application is `npx foldkit-plus setup` alone.
 
-The order is the point: **understand, record, map, agree, then build.** Do not
+The order is the point: **understand, record, map, plan, agree, then build.** Do not
 scaffold features before the domain is agreed; do not write entities before
 the user has said what the domain is. Every phase leaves a file in the project,
 so a later session (or another agent) picks up where this one stopped.
 
 ```text
-1 brief -> 2 scaffold -> 3 domain rounds -> 4 survey + mapping -> 5 implement
-  ask       create        ask, record       read, propose        on "go"
+1 brief -> 2 scaffold -> 3 domain rounds -> 4 survey + mapping -> 5 plan -> 6 implement
+  ask       create        ask, record       read, propose        agree     on "go"
 ```
 
 ## 1. The brief
@@ -128,9 +128,35 @@ Then show the user `mapping.md`, ask what is wrong or missing, and revise it.
 Repeat until they say it is right. A disagreement about the domain goes back to
 `model.md` and `rounds.md` first.
 
-## 5. Implement
+## 5. Plan the build
 
-Only after the user approves the mapping. Build in slices that each run:
+With the mapping agreed, settle how the application is built, shipped and
+held to a standard, before any of it is. Ask topic by topic, as in phase 3,
+propose an answer where the brief and the mapping already suggest one, and
+record the decisions in `docs/domain/plan.md`.
+
+| Topic | Settle |
+| --- | --- |
+| Architecture | The rendering mode, confirmed against what SEO and first paint need. Where the server runs (Node, Cloudflare Workers) and what it holds: Remote's server, Sync's journal, the media server. The database and its driver (SQLite, Postgres, D1 through Drizzle). How the code is laid out: shared domain (Entities, the guard set), server, client, views; a Surface per feature. |
+| Performance | Budgets, written as numbers: Lighthouse scores, LCP, CLS, INP, the client bundle's size. What the largest image is and how it loads (`priority`, `Image.preloadsIn`). That server-only modules stay out of the client bundle (import `foldkit-ssr/client`, never `foldkit-ssr`, in the browser). Fonts. |
+| SEO and sharing | Which routes are indexed. A title per route (`foldkit-site`'s `title`), a description and a canonical URL in each page's head; Foldkit fills head tags the HTML template already holds and adds none, so the template needs each one. A sitemap and `robots.txt` (a static site's build writes both). Open Graph images (`Picture.ogImage`). |
+| Accessibility | The level aimed for (WCAG 2.2 AA is the usual answer). Keyboard paths through every flow, focus after each navigation and dialog, reduced motion, contrast through the theme. |
+| Design and polish | The theme: one `Theme.make` of knob values (density, radius, motion, colour), dark mode, the components from `foldkit-mixins-ui`. Every screen's empty, loading, failed and offline state. Copy and tone. |
+| Testing | What each kind proves: `update` and invariants as unit tests, views as Scene tests, focus, layout and the pointer as browser tests, flows that cross the server as end-to-end tests in a real browser. Guards and invariants under mutation testing, so each test is shown able to fail. Type tests for what must not compile. |
+| CI | The checks every push runs (format, typecheck, tests, end-to-end, build) and what blocks a merge. Preview deployments, if the host offers them. |
+| Deployment | The host and its project, environments (preview, production), domains, secrets (session keys, an upload token), database migrations and backups, where images are kept and resized (`foldkit-media`'s server, a CDN). Who may deploy, and confirm before the first public one. |
+| Security | Authentication and its CSRF and origin checks (`foldkit-auth`), guards checked at startup (`GuardServer.validate`), who may upload, rate limits, response headers. |
+| Operations | Logs, error reports, analytics if any, and what is done when a deploy goes wrong. |
+| Milestones | The slices of phase 6, in order, each with what "done" means, so the user can stop after any one with something that works. |
+
+Show the user `plan.md`, revise it with them, and wait for them to say to go
+ahead. A decision here that changes the domain goes back to `mapping.md`.
+
+## 6. Implement
+
+Only after the user approves the mapping and the plan. Set up CI and the
+deployment target first, so every slice is checked and could ship. Then build
+in the plan's milestones, slices that each run:
 
 1. The domain: Entities, their Schemas and invariants (`foldkit-entity`).
 2. Who may do what: the guard set, implemented on the server.
@@ -138,10 +164,11 @@ Only after the user approves the mapping. Build in slices that each run:
 4. The screens: routes (`foldkit-site`), views and forms, through Mixins.
 5. What remains of the mapping: media, content, agents, server rendering.
 
-For each slice: tests that can fail (an invariant broken, a guard refusing),
-`typecheck` and `test` green, a commit, and `mapping.md` updated where the
-build departed from it. When the mapping is wrong, stop and ask the user,
-rather than quietly building something else.
+For each slice: the tests `plan.md` calls for, each able to fail (an invariant
+broken, a guard refusing), `typecheck` and `test` green, the performance
+budgets checked where the slice touches a page, a commit, and `mapping.md` and
+`plan.md` updated where the build departed from them. When either is wrong,
+stop and ask the user, rather than quietly building something else.
 
 See also: [Foldkit](https://foldkit.dev),
 [the guides](https://foldkit-plus.pages.dev).

@@ -36,7 +36,9 @@ version changed; `pnpm` skips versions already in the registry.
 - The `foldkit-plus` skill has `references/greenfield.md`: how an agent starts a new
   application. The brief, then a scaffold with the matching `create-foldkit-app`, then rounds of
   domain questions recorded in `docs/domain/` until the user stops, a mapping of the domain to
-  the packages agreed with them, and only then the build, in slices. `npx foldkit-plus setup`
+  the packages agreed with them, a plan (`plan.md`) for architecture, performance budgets, SEO,
+  accessibility, design, testing, CI, deployment, security, operations and milestones, and only
+  then the build, in slices, CI and deployment first. `npx foldkit-plus setup`
   run where there is no `package.json` sends an agent there and prints the non-interactive
   scaffold command (`create-foldkit-app@0.39.1`, which installs Foldkit 0.168.0); in a project it
   names the guide too.
