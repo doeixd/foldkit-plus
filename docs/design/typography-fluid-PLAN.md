@@ -1,7 +1,9 @@
 # Fluid typography without `clamp()` magic numbers
 
-**Status:** Phases 1-3 and the reading knobs are implemented, 2026-10-21.
-Phases 4-6 (roles, exponential scale, container fluidity) remain optional.
+**Status:** Phases 1-2, the site/design-system half of phase 3, and the reading
+knobs are implemented, 2026-10-21. The CMS and richtext-playground migrations,
+screenshots, and phases 4-6 (roles, exponential scale, container fluidity)
+remain.
 
 **Scope:** the `foldkit-mixins` type scale and theme tokens, `Defaults`,
 `Prose`, the `Typography` recipe, and the examples that write per-component
