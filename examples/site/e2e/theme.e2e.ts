@@ -212,6 +212,69 @@ test('the hover knobs reach a fluid highlight in the preview', async () => {
   await context.close()
 })
 
+test('the fluid and reading knobs reach the Typography canvas', async () => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const errors: Array<string> = []
+  page.on('pageerror', error => errors.push(String(error)))
+  page.on('console', message => {
+    const text = message.text()
+    if (text.includes('[foldkit-')) errors.push(`${message.type()}: ${text}`)
+  })
+
+  const typeTab = page.getByRole('tab', { name: 'Typography' })
+  const shown = async () => {
+    await typeTab.click()
+    const h1 = page.locator('[data-size="specimen"] h1').first()
+    const body = page
+      .locator('[data-size="specimen"] p', { hasText: 'Your card is charged' })
+      .first()
+    return {
+      size: await h1.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize)),
+      wrap: await h1.evaluate(element => getComputedStyle(element).textWrap),
+      measure: await body.evaluate(element =>
+        getComputedStyle(element).getPropertyValue('max-inline-size'),
+      ),
+      align: await body.evaluate(element => getComputedStyle(element).textAlign),
+    }
+  }
+
+  // A still theme: the reading measure, wrap and alignment still apply.
+  await open(
+    page,
+    '/create?type.fluid=0&reading.measure=40&reading.align=center&reading.headingWrap=pretty',
+  )
+  await page.getByRole('tab', { name: 'Type' }).click()
+  for (const id of ['type-fluid', 'type-viewportMin', 'type-viewportMax']) {
+    await expect
+      .poll(() => page.locator(`#knob-${id}-value`).isVisible(), { timeout: 15_000 })
+      .toBe(true)
+  }
+  await page.getByRole('tab', { name: 'Reading' }).click()
+  await expect
+    .poll(() => page.locator('#knob-reading-measure-value').getAttribute('aria-valuetext'), {
+      timeout: 15_000,
+    })
+    .toBe('40ch')
+  const still = await shown()
+  expect(still.wrap).toBe('pretty')
+  expect(still.align).toBe('center')
+  expect(still.measure).not.toBe('none')
+
+  // A fluid theme grows the same heading at this window.
+  await open(
+    page,
+    '/create?type.fluid=1&reading.measure=40&reading.align=center&reading.headingWrap=pretty',
+  )
+  const fluid = await shown()
+  expect(fluid.size).toBeGreaterThan(still.size)
+  expect(fluid.wrap).toBe('pretty')
+  expect(fluid.align).toBe('center')
+
+  expect(errors).toEqual([])
+  await context.close()
+})
+
 test('the icon knobs restroke the pack on the preview and in the specimen', async () => {
   const context = await browser.newContext()
   const page = await context.newPage()

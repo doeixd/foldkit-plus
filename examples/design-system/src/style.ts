@@ -64,6 +64,7 @@ const theme = Theme.make({
   surface: { saturation: 0.003, contrast: 24 },
   // shadcn's corners: cards at 0.625rem, controls near 0.5rem.
   shape: { radius: 1.4 },
+  type: { fluid: 1 },
 })
 
 const app = AppStyle.make({ theme })
@@ -113,7 +114,10 @@ export const PageStyle = app.slots(
       U.m('0'),
       U.font('bold'),
       U.color('text.overt'),
-      { fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', letterSpacing: '-0.025em' },
+      {
+        fontSize: Theme.fluidType({ min: '1.75rem', max: '2.5rem' }),
+        letterSpacing: '-0.025em',
+      },
     ],
     lede: [U.m('0'), U.color('text.muted'), { maxWidth: '40rem' }],
     controls: [

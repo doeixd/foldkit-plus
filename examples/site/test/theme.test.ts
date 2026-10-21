@@ -56,6 +56,42 @@ describe('the theme creator', () => {
     expect(codeOf(defaults)).not.toContain('hue')
   })
 
+  it('writes the fluid knobs into the code, and leaves a still theme alone', () => {
+    const code = codeOf(withValue(defaults, 'type.fluid', 1))
+    expect(code).toContain('fluid: 1')
+    expect(codeOf(withValue(defaults, 'type.viewportMax', 1600))).toContain('viewportMax: 1600')
+    expect(codeOf(defaults)).not.toContain('fluid')
+  })
+
+  it('declares the fluid ratio and strength on a preview', () => {
+    expect(declared['--fk-fluid-ratio']).toContain('tan(atan2(')
+    expect(declared['--fk-fluid-progress']).toBe(
+      'calc(var(--fk-fluid-ratio) * var(--fk-knob-fluid))',
+    )
+    expect(declared['--fk-knob-fluid']).toBe('0')
+    expect(declared['--fk-knob-fluid-viewport-min']).toBe('320px')
+    expect(declared['--fk-knob-fluid-viewport-max']).toBe('1440px')
+  })
+
+  it('writes the reading measure, wrap and alignment into the code', () => {
+    expect(codeOf(withValue(defaults, 'reading.measure', 70))).toContain('measure: 70')
+    expect(codeOf(withValue(defaults, 'reading.headingWrap', 'pretty'))).toContain(
+      "headingWrap: 'pretty'",
+    )
+    expect(codeOf(withValue(defaults, 'reading.align', 'center'))).toContain("align: 'center'")
+  })
+
+  it('declares the reading tokens on a preview', () => {
+    expect(declared['--fk-reading-measure']).toBe('var(--fk-knob-measure)')
+    expect(declared['--fk-reading-heading-wrap']).toBe('var(--fk-knob-heading-wrap)')
+    expect(declared['--fk-reading-body-wrap']).toBe('var(--fk-knob-body-wrap)')
+    expect(declared['--fk-reading-align']).toBe('var(--fk-knob-reading-align)')
+    expect(declared['--fk-knob-measure']).toBe('65ch')
+    expect(declared['--fk-knob-heading-wrap']).toBe('balance')
+    expect(declared['--fk-knob-body-wrap']).toBe('pretty')
+    expect(declared['--fk-knob-reading-align']).toBe('start')
+  })
+
   it('writes a pack beside the theme as the icons an application imports, and Lucide as nothing', () => {
     const code = codeOf(defaults, 'tabler')
     expect(code).toContain("import { Icons } from 'foldkit-mixins-ui'")
@@ -159,6 +195,7 @@ describe('the theme creator', () => {
         if (typeof value === 'number' && control.kind === 'range')
           expect(fit(control, value), path).toBe(value)
       }
+      expect(valueAt(values, 'type.viewportMin')).toBeLessThan(valueAt(values, 'type.viewportMax'))
       fonts.add(valueAt(values, 'type.body'))
     }
     expect(fonts.size).toBe(Object.keys(Theme.fonts).length)

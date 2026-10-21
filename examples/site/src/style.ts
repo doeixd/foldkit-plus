@@ -19,7 +19,7 @@ const { t, slots, stylesheet } = AppStyle.make({
     accent: { hue: 270, chroma: { light: 0, dark: 0 }, lightness: { light: 14, dark: 96 } },
     // A white page, and a near-black one, as plain as the content.
     surface: { saturation: 0, lightness: { light: 100, dark: 14 } },
-    type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif' },
+    type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif', fluid: 1 },
   }),
   tokens: Theme.define({
     // Grey that steps back: the second half of a heading, a label's number.
@@ -321,7 +321,7 @@ export const SiteStyle = slots(
     },
     heroTitle: {
       margin: '0',
-      fontSize: 'clamp(2.25rem, 5.5vw, 3.5rem)',
+      fontSize: Theme.fluidType({ min: '2.25rem', max: '3.5rem' }),
       lineHeight: '1.05',
       letterSpacing: '-0.035em',
       fontWeight: t.weight.semibold,
@@ -691,7 +691,7 @@ export const SiteStyle = slots(
       Style.nest('.crumb', { ...mono, color: t.text.subtle, marginBlockEnd: t.space.xs }),
       Style.nest('h1', {
         margin: '0',
-        fontSize: 'clamp(1.75rem, 3.5vw, 2.25rem)',
+        fontSize: Theme.fluidType({ min: '1.75rem', max: '2.25rem' }),
         lineHeight: '1.15',
         letterSpacing: '-0.025em',
         fontWeight: t.weight.semibold,

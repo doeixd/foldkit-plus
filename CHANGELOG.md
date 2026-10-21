@@ -5,6 +5,27 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- `foldkit-mixins/theme`: fluid type. `type.fluid` (0 to 1), `type.viewportMin`
+  and `type.viewportMax` set the range; every `size.*` token grows from its
+  current value to a larger one across it, headings more than body text.
+  `Theme.fluidType({ min, max })` writes the same blend for one value, and the
+  `fluid` token group carries `ratio` (the viewport's place) and `progress`
+  (that place at the theme's strength). The ratio is `tan(atan2())`, exact and
+  below the palette's browser floor. `type.fluid` defaults to 0, so existing
+  themes render unchanged.
+- `/create`: the Type pane draws the three fluid knobs, and the presets, looks
+  and shuffle set them.
+- `foldkit-mixins` / `foldkit-mixins-ui`: a `reading` knob group.
+  `reading.measure` (in `ch`) caps `Prose` and the `body`, `lead` and `quote`
+  levels of `Typography`; `reading.headingWrap` and `reading.bodyWrap` choose
+  `balance`, `pretty` or `wrap`; `reading.align` chooses `start`, `center`,
+  `end` or `justify`. `Prose.style({ align })` adds a per-container override,
+  and `/create` draws a Reading pane for the four knobs.
+
 ## 0.30.1
 
 The skill's greenfield guide for a new application. Its plan settles mobile

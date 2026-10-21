@@ -36,7 +36,15 @@ export const Direction = Schema.Literals(['ltr', 'rtl'])
 export type Direction = typeof Direction.Type
 
 /** The panes `/create` groups its knobs into. */
-export const Section = Schema.Literals(['theme', 'color', 'shape', 'type', 'icons', 'motion'])
+export const Section = Schema.Literals([
+  'theme',
+  'color',
+  'shape',
+  'type',
+  'reading',
+  'icons',
+  'motion',
+])
 export type Section = typeof Section.Type
 
 export const sectionLabels: Readonly<Record<Section, string>> = {
@@ -44,6 +52,7 @@ export const sectionLabels: Readonly<Record<Section, string>> = {
   color: 'Color',
   shape: 'Shape',
   type: 'Type',
+  reading: 'Reading',
   icons: 'Icons',
   motion: 'Motion',
 }
@@ -162,7 +171,8 @@ export const looks: ReadonlyArray<Look> = [
       shape: { radius: 1, density: 1, size: 'default' },
       shadow: { strength: 100 },
       surface: { contrast: 24 },
-      type: { body: Theme.fonts.geist, heading: 'inherit' },
+      type: { body: Theme.fonts.geist, heading: 'inherit', fluid: 0.5 },
+      reading: { measure: 65, headingWrap: 'balance', bodyWrap: 'pretty', align: 'start' },
     },
   },
   {
@@ -172,7 +182,8 @@ export const looks: ReadonlyArray<Look> = [
       shape: { radius: 1, density: 0.85, size: 'default' },
       shadow: { strength: 80 },
       surface: { contrast: 24 },
-      type: { body: Theme.fonts.geist, heading: 'inherit' },
+      type: { body: Theme.fonts.geist, heading: 'inherit', fluid: 0.4 },
+      reading: { measure: 60, headingWrap: 'balance', bodyWrap: 'pretty', align: 'start' },
     },
   },
   {
@@ -182,7 +193,8 @@ export const looks: ReadonlyArray<Look> = [
       shape: { radius: 2.2, density: 1.15, size: 'default' },
       shadow: { strength: 100 },
       surface: { contrast: 22 },
-      type: { body: Theme.fonts.system, heading: 'inherit' },
+      type: { body: Theme.fonts.system, heading: 'inherit', fluid: 0.8 },
+      reading: { measure: 70, headingWrap: 'balance', bodyWrap: 'pretty', align: 'start' },
     },
   },
   {
@@ -192,7 +204,8 @@ export const looks: ReadonlyArray<Look> = [
       shape: { radius: 0, density: 0.95, size: 'default' },
       shadow: { strength: 0 },
       surface: { contrast: 28 },
-      type: { body: Theme.fonts.mono, heading: 'inherit' },
+      type: { body: Theme.fonts.mono, heading: 'inherit', fluid: 0 },
+      reading: { measure: 80, headingWrap: 'wrap', bodyWrap: 'wrap', align: 'start' },
     },
   },
   {
@@ -202,7 +215,8 @@ export const looks: ReadonlyArray<Look> = [
       shape: { radius: 0.8, density: 1, size: 'compact' },
       shadow: { strength: 60 },
       surface: { contrast: 24 },
-      type: { body: Theme.fonts.geist, heading: 'inherit' },
+      type: { body: Theme.fonts.geist, heading: 'inherit', fluid: 0.5 },
+      reading: { measure: 58, headingWrap: 'balance', bodyWrap: 'pretty', align: 'start' },
     },
   },
   {
@@ -212,7 +226,8 @@ export const looks: ReadonlyArray<Look> = [
       shape: { radius: 1.8, density: 1.05, size: 'default' },
       shadow: { strength: 50 },
       surface: { contrast: 14 },
-      type: { body: Theme.fonts.system, heading: 'inherit' },
+      type: { body: Theme.fonts.system, heading: 'inherit', fluid: 0.7 },
+      reading: { measure: 68, headingWrap: 'balance', bodyWrap: 'pretty', align: 'start' },
     },
   },
   {
@@ -222,7 +237,8 @@ export const looks: ReadonlyArray<Look> = [
       shape: { radius: 0.5, density: 1.05, size: 'default' },
       shadow: { strength: 40 },
       surface: { contrast: 20 },
-      type: { body: Theme.fonts.system, heading: Theme.fonts.serif },
+      type: { body: Theme.fonts.system, heading: Theme.fonts.serif, fluid: 0.8 },
+      reading: { measure: 72, headingWrap: 'pretty', bodyWrap: 'pretty', align: 'start' },
     },
   },
 ]
@@ -263,7 +279,7 @@ export const presets: ReadonlyArray<Preset> = [
       },
       shape: { radius: 1.35 },
       shadow: { strength: 60, relief: 'soft' },
-      type: { headingTracking: -0.025 },
+      type: { headingTracking: -0.025, fluid: 0.5 },
     }),
   },
   {
@@ -285,8 +301,10 @@ export const presets: ReadonlyArray<Preset> = [
         headingWeight: 400,
         headingTracking: 0,
         headingScale: 1.15,
+        fluid: 0.8,
       },
       motion: { easing: 'spring' },
+      reading: { measure: 72, headingWrap: 'balance', bodyWrap: 'pretty', align: 'start' },
     }),
   },
   {
@@ -311,7 +329,9 @@ export const presets: ReadonlyArray<Preset> = [
         headingScale: 0.7,
         headingWeight: 700,
         headingTracking: 0,
+        fluid: 0,
       },
+      reading: { measure: 80, headingWrap: 'wrap', bodyWrap: 'wrap', align: 'start' },
     }),
   },
   {
@@ -329,7 +349,8 @@ export const presets: ReadonlyArray<Preset> = [
       },
       shape: { outlines: 'ink', radius: 0.3, border: 2 },
       shadow: { strength: 100, style: 'hard', relief: 'hard' },
-      type: { headingScale: 1.3, headingWeight: 800, headingTracking: -0.03 },
+      type: { headingScale: 1.3, headingWeight: 800, headingTracking: -0.03, fluid: 0.6 },
+      reading: { measure: 80, headingWrap: 'wrap', bodyWrap: 'pretty', align: 'start' },
     }),
   },
   {
@@ -380,6 +401,7 @@ export const presets: ReadonlyArray<Preset> = [
     values: fromIris({
       accent: { hue: 38, chroma: 0.17, lightness: 60 },
       shape: { radius: 0.6, density: 0.9 },
+      type: { fluid: 0.7 },
     }),
   },
   {
@@ -402,7 +424,14 @@ export const presets: ReadonlyArray<Preset> = [
       shape: { outlines: 'strong', radius: 0 },
       shadow: { strength: 0 },
       motion: { scale: 0 },
-      type: { body: Theme.fonts.mono, headingScale: 0.5, headingWeight: 700, headingTracking: 0 },
+      type: {
+        body: Theme.fonts.mono,
+        headingScale: 0.5,
+        headingWeight: 700,
+        headingTracking: 0,
+        fluid: 0,
+      },
+      reading: { measure: 80, headingWrap: 'wrap', bodyWrap: 'wrap', align: 'start' },
     }),
   },
   {
@@ -427,7 +456,9 @@ export const presets: ReadonlyArray<Preset> = [
         leading: 1.05,
         headingWeight: 700,
         headingTracking: -0.025,
+        fluid: 1,
       },
+      reading: { measure: 68, headingWrap: 'balance', bodyWrap: 'pretty', align: 'start' },
       scales: { chroma: 1.1 },
     }),
   },
@@ -486,6 +517,16 @@ export const shuffled = (random: () => number): ThemeValues => {
       leading: between('type.leading', 0.95, 1.15),
       headingWeight: pick([400, 500, 600, 700, 800]),
       headingTracking: between('type.headingTracking', -0.03, 0.01),
+      // The viewport halves never cross: the small end stops below the large one.
+      fluid: pick([0, 0.25, 0.5, 0.75, 1]),
+      viewportMin: pick([320, 360, 400]),
+      viewportMax: pick([1200, 1280, 1440, 1600]),
+    },
+    reading: {
+      measure: pick([55, 60, 65, 72, 80]),
+      headingWrap: pick(['balance', 'pretty', 'wrap'] as const),
+      bodyWrap: pick(['pretty', 'wrap', 'balance'] as const),
+      align: pick(['start', 'start', 'center', 'justify'] as const),
     },
     motion: { scale: 1, easing: pick(['ease', 'spring'] as const) },
     menu: {
