@@ -2498,6 +2498,9 @@ importers:
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../media
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote

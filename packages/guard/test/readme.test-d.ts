@@ -6,7 +6,7 @@
  * document's contract, journal and `changesOf`.
  */
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Context, Effect, Option, Schema } from 'effect'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { Entity, Expr, type Selected } from 'foldkit-entity'
 import { Guards } from 'foldkit-guard'
 import type { CellChange } from 'foldkit-guard/sync'
@@ -317,4 +317,25 @@ TodoAgent.expose(Message, {
   },
 })
 
+// ## Uploads
+
+// The reader's own: their resolver (`AuthServer.resolver`) and their inspector.
+declare const resolve: (request: Request) => Effect.Effect<Option.Option<typeof User.Type>, unknown>
+declare const inspector: Layer.Layer<Inspector>
+
+import { Inspector } from 'foldkit-media'
+import { uploadLayer, uploadsKeyValueStore } from 'foldkit-media/server'
+import { GuardMedia } from 'foldkit-guard/media'
+
+const uploads = uploadLayer().pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      uploadsKeyValueStore(),
+      inspector,
+      GuardMedia.uploadPolicy(Policy, { resolve, Upload: [G.isAdmin], DescribeUrl: [G.isAdmin] }),
+    ),
+  ),
+)
+
 void authorize
+void uploads

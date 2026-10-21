@@ -61,8 +61,8 @@ pnpm add effect foldkit-entity foldkit-guard
 `foldkit-guard` is the shared declaration. Its subpaths bring their packages
 as optional peers: `foldkit-guard/server` needs `foldkit-remote` and
 `foldkit-remote-server`, `/drizzle` also `foldkit-remote-drizzle` and
-`drizzle-orm`, `/sync` `foldkit-sync` and `foldkit-remote-server`, and
-`/agent` `foldkit-remote`.
+`drizzle-orm`, `/sync` `foldkit-sync` and `foldkit-remote-server`,
+`/agent` `foldkit-remote`, and `/media` `foldkit-media`.
 
 ## Sixty seconds
 
@@ -694,6 +694,48 @@ has a `RequestedArchive` with the todo's `id`.
   type.
 - It is the agent's gate, not the check: the Message's mutation is checked on
   the server, under the same principal.
+
+## Uploads
+
+`foldkit-media`'s upload routes ask one question of an `UploadPolicy`
+before reading a byte: may this request upload (`Upload`), or have an image
+named by URL described (`DescribeUrl`)? `foldkit-guard/media` answers it with
+principal guards, for who your resolver says is asking:
+
+```ts
+import { Layer } from 'effect'
+import { uploadLayer, uploadsKeyValueStore } from 'foldkit-media/server'
+import { GuardMedia } from 'foldkit-guard/media'
+
+const uploads = uploadLayer().pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      uploadsKeyValueStore(),
+      inspector,
+      GuardMedia.uploadPolicy(Policy, { resolve, Upload: [G.isAdmin], DescribeUrl: [G.isAdmin] }),
+    ),
+  ),
+)
+```
+
+`resolve` is the resolver your Remote server is given:
+`(request: Request) => Effect<Option<User>, E, R>`, which
+`AuthServer.resolver` from `foldkit-auth/server` is. `inspector` is
+`foldkit-media`'s `Inspector` for where you run (`inspectorSharp()`,
+`inspectorImages(env.IMAGES)`).
+
+- Only principal guards: no row exists before an upload, so a row guard is a
+  type error. A route admits when any one of its guards allows, and a route
+  given no guards admits nobody.
+- The resolver gets the request's URL, method and headers and never its
+  body, so the route still reads no byte before the policy answers.
+- A resolver that fails (an untrusted origin, a session that ended) is a
+  `401`; a principal the guards refuse is a `403`. Either says only its kind:
+  an `explain` sentence stays on the server.
+- `Policy` must need no service; give it what its bodies need with
+  `Policy.provide`, as the other seams take it.
+- Beside a deployment's secret for scripts:
+  `uploadPolicyAny(uploadPolicyBearer(secret), GuardMedia.uploadPolicy(…))`.
 
 ## Limits
 

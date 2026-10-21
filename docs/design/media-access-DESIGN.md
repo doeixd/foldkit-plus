@@ -1,6 +1,6 @@
 # Media access: who may upload, whose facts are stored, who may read
 
-**Status:** Proposed, 2026-10-21. Nothing here is built.
+**Status:** Proposed, 2026-10-21; slices 1 to 3 built the same day (§8 records each).
 **Target:** a new subpath, `foldkit-guard/media`, and small changes in `foldkit-media/server`.
 **Related:** [media-DESIGN.md](./media-DESIGN.md) §9.5 (facts at upload), [guard-DESIGN.md](./guard-DESIGN.md) §5 (one subpath per seam), [auth-DESIGN.md](./auth-DESIGN.md) (the resolver).
 
@@ -312,14 +312,22 @@ Each slice lands with its README, skill and changelog lines, and its mutations d
 1. **The route on `admit`, and the 401.** Media only. Tests: each route passes its name; a
    policy refusing `DescribeUrl` alone still admits an upload; a `401` is `no-store` and its
    kind only. Mutations: the route swapped; the 401 mapped to 403.
+   *Built (`9b8729a3`) as planned.*
 2. **`uploadPolicyAny`.** Tests: the second admits after the first refuses; both refusing
    answers the last refusal; the first admitting never asks the second.
+   *Built (`8defbec1`) as `uploadPolicyAny(a, b, …)`, taking two policies or more (§3.4).*
 3. **`foldkit-guard/media`.** Tests, with a resolver fake that rejects a `Request` with a body,
    so reading it fails the test: a visitor refused; an editor admitted for `Upload` and refused
    for `DescribeUrl` when only an admin may; an unnamed route refused; a resolver refusal a
    `401`; a resolver defect a `500`; the body never pulled (the existing assertion, now through
    guard). Type tests: a row guard rejected; a misspelled route rejected. Mutations: the
    disjunction made a conjunction; the visitor admitted; the body passed through.
+   *Built. Where it departs from §3: a row guard is refused by its type alone, with no runtime
+   check; any typed failure of `resolve` is a `401`, so guard needs no `foldkit-remote` to catch
+   auth's tag, and a defect stays a defect; the route's name is the `interaction` `decide` is
+   given; and the URL handed to the resolver is the request's `originalUrl` where it is whole
+   (on the web), since `HttpServerRequest.toURL` rebuilds it from the client's `Host` and
+   `X-Forwarded-Proto` headers, defaulting to `http://localhost`; a test caught that.*
 4. **Stored facts.** Tests: an upload's facts read back equal its answer; a hash never
    uploaded is none; an original kept before the change is none. The CMS-style mutation in a
    test fixture: facts from the store, not the input; a forged width in the input is not

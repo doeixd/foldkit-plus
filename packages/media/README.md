@@ -434,7 +434,11 @@ tell who is asking (a session that ended), so a client knows to sign in again.
 the one for a deployment's secret: it admits `Authorization: Bearer <secret>`,
 compared by digest so the time taken says nothing of the secret, and admits
 nobody while the secret is unset or empty. Who may upload by session is a
-policy of your own (`Layer.succeed(UploadPolicy, { admit })`), and the route
+policy decided by your guards: `foldkit-guard/media`'s
+`GuardMedia.uploadPolicy(Policy, { resolve, Upload, DescribeUrl })` decides
+each route by principal guards for who your resolver (`AuthServer.resolver`
+from `foldkit-auth/server`) says is asking, read from the headers alone. A
+policy of your own is `Layer.succeed(UploadPolicy, { admit })`, and the route
 lets it admit uploads and refuse URL lookups. `uploadPolicyAny(a, b, …)` tries
 policies in turn, the first to admit winning, so a script's secret and an
 editor's session can both upload; when every one refuses, the last refusal is

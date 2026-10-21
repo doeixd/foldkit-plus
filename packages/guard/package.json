@@ -48,6 +48,11 @@
       "foldkit-plus:source": "./src/sync.ts",
       "types": "./dist/sync.d.mts",
       "import": "./dist/sync.mjs"
+    },
+    "./media": {
+      "foldkit-plus:source": "./src/media.ts",
+      "types": "./dist/media.d.mts",
+      "import": "./dist/media.mjs"
     }
   },
   "files": [
@@ -66,6 +71,7 @@
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "^4.0.0",
+    "foldkit-media": "workspace:^",
     "foldkit-remote": "workspace:^",
     "foldkit-remote-drizzle": "workspace:^",
     "foldkit-remote-server": "workspace:^",
@@ -73,6 +79,9 @@
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
+      "optional": true
+    },
+    "foldkit-media": {
       "optional": true
     },
     "foldkit-remote": {
@@ -93,6 +102,7 @@
     "effect": "^4.0.4",
     "foldkit": "0.168.0",
     "foldkit-agent": "workspace:*",
+    "foldkit-media": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",

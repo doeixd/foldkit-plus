@@ -188,6 +188,11 @@
       "types": "./dist/guard/sync.d.mts",
       "import": "./dist/guard/sync.mjs"
     },
+    "./guard/media": {
+      "foldkit-plus:source": "./src/guard/media.ts",
+      "types": "./dist/guard/media.d.mts",
+      "import": "./dist/guard/media.mjs"
+    },
     "./media": {
       "foldkit-plus:source": "./src/media.ts",
       "types": "./dist/media.d.mts",

@@ -1,7 +1,14 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/server.ts', 'src/drizzle.ts', 'src/agent.ts', 'src/sync.ts'],
+  entry: [
+    'src/index.ts',
+    'src/server.ts',
+    'src/drizzle.ts',
+    'src/agent.ts',
+    'src/sync.ts',
+    'src/media.ts',
+  ],
   format: ['esm'],
   dts: true,
   clean: true,
@@ -15,6 +22,7 @@ export default defineConfig({
       'foldkit-remote-server',
       'foldkit-remote-drizzle',
       'foldkit-sync',
+      'foldkit-media',
       'drizzle-orm',
     ],
   },

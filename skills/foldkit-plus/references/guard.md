@@ -2,7 +2,7 @@
 
 A guard set is declared once, implemented on the server, attached to
 Entities, and enforced by each seam through a subpath: reads and writes
-(`/server`, `/drizzle`), Sync edits (`/sync`), agents (`/agent`). The design
+(`/server`, `/drizzle`), Sync edits (`/sync`), agents (`/agent`), uploads (`/media`). The design
 and its reasons are
 [guard-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/guard-DESIGN.md).
 
@@ -143,6 +143,12 @@ const Todo = TodoFields.pipe(
   journal's lock (principal guards only); `journalExchange({ …, opens:
   GuardSync.opens(Policy, Edits, principal), admit: GuardSync.admit(Policy, Edits,
   { principal, source, changesOf }) })` reads each edited row before the journal.
+- Uploads: `foldkit-guard/media`'s `GuardMedia.uploadPolicy(Policy, { resolve, Upload: [G.isEditor],
+  DescribeUrl: [G.isAdmin] })` is `foldkit-media`'s `UploadPolicy`: principal guards per route
+  (any one allows; a route not named admits nobody; a row guard is a type error), for who
+  `resolve` (Remote's resolver, `AuthServer.resolver`) says is asking, read from the headers
+  alone. A resolver failure is a `401`, a refusal a `403`, each its kind only. `Policy` needs no
+  service (`Policy.provide`).
 - Agents: `foldkit-guard/agent`'s `GuardAgent.authorize(Archive.key, ({ input,
   model }) => Data.get(TodoRow, input.id).read(model))` and
   `GuardAgent.available(...)` gate a capability on the row's `may` (refused

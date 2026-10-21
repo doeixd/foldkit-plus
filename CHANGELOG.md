@@ -19,6 +19,13 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-media/server`: `uploadPolicyAny(a, b, …)` tries upload policies in turn, the first to
   admit winning, so a deployment's secret and sessions can both upload; when every one refuses,
   the last refusal is the answer. Each is built once, with the combined layer.
+- `foldkit-guard/media`: `GuardMedia.uploadPolicy(Policy, { resolve, Upload, DescribeUrl })` is
+  `foldkit-media`'s `UploadPolicy` decided by principal guards per route, for who `resolve` says
+  is asking (Remote's resolver; `AuthServer.resolver` has the shape). The resolver gets the
+  request's URL, method and headers, never its body, so a refused upload still reads no byte. A
+  route admits when any of its guards allows, a route given none admits nobody, and a row guard
+  is a type error. A resolver failure is a `401`, a refusal a `403`. `foldkit-media` is a new
+  optional peer of `foldkit-guard`.
 
 ### Fixed
 
